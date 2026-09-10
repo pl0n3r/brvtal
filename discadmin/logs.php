@@ -1,10 +1,8 @@
 <?php
 declare(strict_types=1);
 
-/*
- * BRVTAL DISCADMIN LOG VIEWER
- * Save as: /discadmin/logs.php
- */
+require_once __DIR__ . '/../config/admin_auth.php';
+brvtal_admin_require();
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
@@ -13,14 +11,30 @@ $root = dirname(__DIR__);
 $logDir = $root . '/storage/logs';
 $logFile = $logDir . '/brvtal.log';
 
-if (!is_dir($logDir)) {
-    @mkdir($logDir, 0755, true);
-}
-
-$action = $_GET['action'] ?? '';
+$action = (string)($_GET['action'] ?? '');
 
 if ($action === 'clear') {
-    @file_put_contents($logFile, '');
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        http_response_code(405);
+        header('Allow: POST');
+        exit('METHOD NOT ALLOWED');
+    }
+
+    $csrf = (string)($_POST['csrf'] ?? '');
+
+    if (
+        empty($_SESSION['csrf']) ||
+        $csrf === '' ||
+        !hash_equals((string)$_SESSION['csrf'], $csrf)
+    ) {
+        http_response_code(419);
+        exit('CSRF');
+    }
+
+    if (is_file($logFile)) {
+        @file_put_contents($logFile, '');
+    }
+
     header('Location: logs.php');
     exit;
 }
@@ -29,15 +43,13 @@ if ($action === 'download' && is_file($logFile)) {
     header('Content-Type: text/plain; charset=utf-8');
     header('Content-Disposition: attachment; filename="brvtal.log"');
     header('Content-Length: ' . filesize($logFile));
+    header('X-Content-Type-Options: nosniff');
+
     readfile($logFile);
     exit;
 }
 
-$log = '';
-
-if (is_file($logFile)) {
-    $log = (string)@file_get_contents($logFile);
-}
+$log = is_file($logFile) ? (string)@file_get_contents($logFile) : '';
 
 $lines = $log === ''
     ? []
@@ -51,11 +63,7 @@ $size = is_file($logFile)
 
 function h(string $value): string
 {
-    return htmlspecialchars(
-        $value,
-        ENT_QUOTES,
-        'UTF-8'
-    );
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 ?>
 <!doctype html>
@@ -63,6 +71,7 @@ function h(string $value): string
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
 <title>BRVTAL // Debug Log</title>
 <style>
 *{box-sizing:border-box}
@@ -101,7 +110,10 @@ LAST 300 LINES
 <div class="actions">
 <a href="logs.php">REFRESH</a>
 <a href="logs.php?action=download">DOWNLOAD LOG</a>
-<a class="danger" href="logs.php?action=clear" onclick="return confirm('¿Vaciar el log?')">CLEAR LOG</a>
+<form method="post" action="logs.php?action=clear" style="display:inline" onsubmit="return confirm('Clear the log?')">
+<input type="hidden" name="csrf" value="<?=h((string)($_SESSION['csrf'] ?? ''))?>">
+<button class="danger" type="submit">CLEAR LOG</button>
+</form>
 <a href="./">BACK TO ADMIN</a>
 </div>
 

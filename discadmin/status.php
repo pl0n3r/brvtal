@@ -1,70 +1,71 @@
 <?php
 declare(strict_types=1);
 
-/*
- * BRVTAL DISCADMIN — SYSTEM STATUS
- * Upload this file as:
- * /discadmin/status.php
- *
- * This diagnostic page is intentionally independent from the admin UI.
- * It will continue reporting WEB/PHP status even when the database fails.
- */
+require_once __DIR__ . '/../config/admin_auth.php';
+brvtal_admin_require();
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
 $root = dirname(__DIR__);
 $configFile = $root . '/config/config.php';
-$bootstrapFile = $root . '/config/bootstrap.php';
 
 $checks = [];
 
-function checkRow(string $name, string $status, string $detail = ''): array {
-    return ['name' => $name, 'status' => $status, 'detail' => $detail];
+function checkRow(string $name, string $status, string $detail = ''): array
+{
+    return [
+        'name' => $name,
+        'status' => $status,
+        'detail' => $detail,
+    ];
 }
 
-/* WEB / PHP */
-$checks[] = checkRow('WEB', 'ONLINE', 'PHP executed this diagnostic successfully.');
+$checks[] = checkRow(
+    'WEB',
+    'ONLINE',
+    'PHP executed this diagnostic successfully.'
+);
+
 $checks[] = checkRow('PHP', 'ONLINE', PHP_VERSION);
 
-/* CONFIG */
 $configLoaded = false;
-$configError = '';
+
 if (is_file($configFile)) {
     try {
         require_once $configFile;
         $configLoaded = true;
     } catch (Throwable $e) {
-        $configError = $e->getMessage();
+        brvtal_log(
+            'STATUS_CONFIG_ERROR',
+            'System status config load failed.'
+        );
     }
 }
+
 $checks[] = checkRow(
     'CONFIG',
     $configLoaded ? 'LOADED' : 'FAILED',
-    $configLoaded ? basename($configFile) : ($configError ?: 'config/config.php not found')
+    $configLoaded
+        ? basename($configFile)
+        : 'config/config.php not found'
 );
 
-/* SESSION */
-$sessionOk = false;
-$sessionDetail = '';
-try {
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
-    $sessionOk = session_status() === PHP_SESSION_ACTIVE;
-    $sessionDetail = $sessionOk ? 'PHP session is available.' : 'Session could not be started.';
-} catch (Throwable $e) {
-    $sessionDetail = $e->getMessage();
-}
-$checks[] = checkRow('SESSION', $sessionOk ? 'READY' : 'FAILED', $sessionDetail);
+$checks[] = checkRow(
+    'SESSION',
+    session_status() === PHP_SESSION_ACTIVE ? 'READY' : 'FAILED',
+    session_status() === PHP_SESSION_ACTIVE
+        ? 'Admin session is active.'
+        : 'Admin session is not active.'
+);
 
-/* FILESYSTEM */
 foreach ([
     'STORAGE' => $root . '/storage',
     'UPLOADS' => $root . '/uploads',
 ] as $label => $path) {
     $exists = is_dir($path);
     $writable = $exists && is_writable($path);
+
     $checks[] = checkRow(
         $label,
         !$exists ? 'MISSING' : ($writable ? 'READY' : 'READ-ONLY'),
@@ -72,51 +73,50 @@ foreach ([
     );
 }
 
-/* DATABASE — isolated so a DB failure never blanks the page */
 $dbOk = false;
 $dbDetail = 'Not tested.';
 $dbVersion = 'Unknown';
 
 if ($configLoaded) {
     try {
-        $pdo = null;
+        $pdo = db();
+        $pdo->query('SELECT 1');
 
-        /*
-         * Supports the BRVTAL V4 bootstrap/config convention.
-         * If bootstrap defines $pdo, reuse it; otherwise attempt to
-         * construct PDO from common constants/variables.
-         */
-        if (is_file($bootstrapFile)) {
-            require_once $bootstrapFile;
-        }
+        $dbVersion = (string)$pdo
+            ->query('SELECT VERSION()')
+            ->fetchColumn();
 
-        if (isset($pdo) && $pdo instanceof PDO) {
-            $pdo->query('SELECT 1');
-            $dbVersion = (string)$pdo->query('SELECT VERSION()')->fetchColumn();
-            $dbOk = true;
-            $dbDetail = 'Connection and SELECT 1 succeeded.';
-        } elseif (isset($db) && $db instanceof PDO) {
-            $db->query('SELECT 1');
-            $dbVersion = (string)$db->query('SELECT VERSION()')->fetchColumn();
-            $dbOk = true;
-            $dbDetail = 'Connection and SELECT 1 succeeded.';
-        } else {
-            $dbDetail = 'PDO connection was not exposed by config/bootstrap.';
-        }
+        $dbOk = true;
+        $dbDetail = 'Connection and SELECT 1 succeeded.';
     } catch (Throwable $e) {
-        $dbDetail = $e->getMessage();
+        brvtal_log(
+            'STATUS_DB_ERROR',
+            'System status database check failed.'
+        );
+
+        $dbDetail = 'Database check failed. See protected logs for details.';
     }
 }
 
-$checks[] = checkRow('DATABASE', $dbOk ? 'CONNECTED' : 'FAILED', $dbDetail);
-$checks[] = checkRow('DB ENGINE', $dbOk ? 'ONLINE' : 'UNKNOWN', $dbVersion);
+$checks[] = checkRow(
+    'DATABASE',
+    $dbOk ? 'CONNECTED' : 'FAILED',
+    $dbDetail
+);
 
-/* API */
-$apiUrl = rtrim(
-    (isset($_SERVER['REQUEST_SCHEME']) ? $_SERVER['REQUEST_SCHEME'] : 'https')
-    . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
-    '/'
-) . '/api/index.php/health';
+$checks[] = checkRow(
+    'DB ENGINE',
+    $dbOk ? 'ONLINE' : 'UNKNOWN',
+    $dbVersion
+);
+
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    ? 'https'
+    : 'http';
+
+$apiUrl = $scheme
+    . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')
+    . '/api/index.php/health';
 
 $apiStatus = 'UNKNOWN';
 $apiDetail = 'Health endpoint could not be tested from this server.';
@@ -124,43 +124,66 @@ $apiDetail = 'Health endpoint could not be tested from this server.';
 if (function_exists('curl_init')) {
     try {
         $ch = curl_init($apiUrl);
+
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 5,
             CURLOPT_CONNECTTIMEOUT => 3,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
         ]);
+
         $body = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err = curl_error($ch);
+
         curl_close($ch);
 
         if ($body !== false && $code >= 200 && $code < 500) {
-            $apiStatus = ($code >= 200 && $code < 300) ? 'ONLINE' : 'DEGRADED';
+            $apiStatus = $code >= 200 && $code < 300
+                ? 'ONLINE'
+                : 'DEGRADED';
+
             $apiDetail = "HTTP {$code}";
         } else {
             $apiStatus = 'OFFLINE';
             $apiDetail = $err ?: "HTTP {$code}";
         }
     } catch (Throwable $e) {
+        brvtal_log(
+            'STATUS_API_ERROR',
+            'System status API check failed.'
+        );
+
         $apiStatus = 'OFFLINE';
-        $apiDetail = $e->getMessage();
+        $apiDetail = 'API health check failed.';
     }
 } else {
     $apiDetail = 'PHP cURL extension is not enabled.';
 }
+
 $checks[] = checkRow('API', $apiStatus, $apiDetail);
 
-/* Overall */
-$bad = array_filter($checks, fn($c) => in_array($c['status'], ['FAILED', 'OFFLINE', 'MISSING'], true));
-$overall = count($bad) === 0 ? 'HEALTHY' : 'CHECK REQUIRED';
+$bad = array_filter(
+    $checks,
+    static fn(array $c): bool =>
+        in_array(
+            $c['status'],
+            ['FAILED', 'OFFLINE', 'MISSING'],
+            true
+        )
+);
+
+$overall = count($bad) === 0
+    ? 'HEALTHY'
+    : 'CHECK REQUIRED';
 ?>
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
 <title>BRVTAL // System Status</title>
 <style>
 :root{color-scheme:dark}
@@ -195,28 +218,41 @@ a{color:#e6ff00;text-decoration:none}
 <header>
 <div class="kicker">BRVTAL // DISCADMIN // DIAGNOSTICS</div>
 <h1>SYSTEM <span>STATUS</span></h1>
-<div class="meta"><?=htmlspecialchars(date('Y-m-d H:i:s T'))?></div>
+<div class="meta"><?=htmlspecialchars(date('Y-m-d H:i:s T'), ENT_QUOTES, 'UTF-8')?></div>
 </header>
 
 <div class="overall">
 <div>
 <div class="kicker">SYSTEM</div>
-<strong><?=htmlspecialchars($overall)?></strong>
+<strong><?=htmlspecialchars($overall, ENT_QUOTES, 'UTF-8')?></strong>
 </div>
 <div class="meta">BRVTAL / RAVE TILL GRAVE</div>
 </div>
 
 <div class="grid">
 <?php foreach ($checks as $c):
-    $class = in_array($c['status'], ['FAILED','OFFLINE','MISSING'], true) ? 'bad'
-        : (in_array($c['status'], ['DEGRADED','READ-ONLY','UNKNOWN'], true) ? 'warn' : 'ok');
+$class = in_array(
+    $c['status'],
+    ['FAILED', 'OFFLINE', 'MISSING'],
+    true
+)
+    ? 'bad'
+    : (
+        in_array(
+            $c['status'],
+            ['DEGRADED', 'READ-ONLY', 'UNKNOWN'],
+            true
+        )
+        ? 'warn'
+        : 'ok'
+    );
 ?>
 <div class="item <?=$class?>">
-  <div class="top">
-    <div class="name"><span class="dot"></span><?=htmlspecialchars($c['name'])?></div>
-    <div class="status"><?=htmlspecialchars($c['status'])?></div>
-  </div>
-  <div class="detail"><?=htmlspecialchars($c['detail'])?></div>
+<div class="top">
+<div class="name"><span class="dot"></span><?=htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8')?></div>
+<div class="status"><?=htmlspecialchars($c['status'], ENT_QUOTES, 'UTF-8')?></div>
+</div>
+<div class="detail"><?=htmlspecialchars($c['detail'], ENT_QUOTES, 'UTF-8')?></div>
 </div>
 <?php endforeach; ?>
 </div>

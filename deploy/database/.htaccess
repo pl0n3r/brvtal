@@ -1,4 +1,0 @@
-Options -Indexes
-<FilesMatch "\.(php|sql|env|log)$">
-Require all denied
-</FilesMatch>
