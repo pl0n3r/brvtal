@@ -1,0 +1,60 @@
+# =========================================================
+# BRVTAL — PRIVATE / SECRETS
+# =========================================================
+
+# Real production configuration
+/config/config.php
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+/storage/logs/
+/logs/
+
+# Local/private configuration
+.private/
+*.local.php
+*.local.json
+
+# =========================================================
+# RUNTIME / TEMPORARY FILES
+# =========================================================
+
+/storage/rate_limits/*
+!/storage/rate_limits/.gitkeep
+
+/storage/cache/
+/storage/tmp/
+/storage/sessions/
+
+# =========================================================
+# USER UPLOADS
+# =========================================================
+
+/uploads/*
+!/uploads/.gitkeep
+
+# =========================================================
+# OS / EDITOR
+# =========================================================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+.vscode/
+.idea/
+
+# =========================================================
+# BACKUPS
+# =========================================================
+
+*.bak
+*.backup
+*.tmp
+*.swp
+*.zip
