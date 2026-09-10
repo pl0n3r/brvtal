@@ -188,6 +188,12 @@
   // visual fallback so a temporary API failure never blanks the site.
   // ============================================================
   const Dynamic = (() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const qs = (selector, root=document) => root.querySelector(selector);
+    const qsa = (selector, root=document) => [...root.querySelectorAll(selector)];
+    const cursor = qs('.cursor');
+    const label = qs('.cursor-label');
+
     const API_CANDIDATES = [
       '/api/public',
       '/api/public/',
@@ -238,6 +244,7 @@
       const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
       return {
         events: arrayFrom(root, ['events','event']),
+        settings: (root?.settings && typeof root.settings === 'object') ? root.settings : {},
         artists: arrayFrom(root, ['artists','artist']),
         sets: arrayFrom(root, ['sets','sets_media','audio','sound']),
         media: arrayFrom(root, ['media','gallery','images'])
@@ -272,9 +279,59 @@
       if (!value) return '';
       const d = new Date(String(value).replace(' ', 'T'));
       if (Number.isNaN(d.getTime())) return String(value);
-      return new Intl.DateTimeFormat(document.documentElement.lang || 'es', {
+      return new Intl.DateTimeFormat(document.documentElement.lang || 'en', {
         day:'2-digit', month:'2-digit', year:'numeric'
       }).format(d);
+    };
+
+    const applyPublicSettings = (settings) => {
+      if (!settings || typeof settings !== 'object') return;
+
+      const site = settings.site && typeof settings.site === 'object' ? settings.site : {};
+      const social = settings.social && typeof settings.social === 'object' ? settings.social : {};
+      const appearance = settings.appearance && typeof settings.appearance === 'object' ? settings.appearance : {};
+      const theme = settings.theme && typeof settings.theme === 'object' ? settings.theme : {};
+      const branding = theme.branding && typeof theme.branding === 'object' ? theme.branding : {};
+      const colors = theme.colors && typeof theme.colors === 'object' ? theme.colors : {};
+
+      const siteName = pick(site, ['name','siteName','title'], 'BRVTAL');
+      const tagline = pick(site, ['tagline','description'], 'RAVE TILL GRAVE');
+      const accent = pick(appearance, ['defaultAccent','accent','primaryColor'], pick(colors, ['accent','primary','primaryColor'], ''));
+
+      document.title = `${siteName} — ${tagline}`;
+      const description = pick(site, ['description','metaDescription'], '');
+      const meta = qs('meta[name=description]');
+      if (meta && description) meta.setAttribute('content', String(description));
+      const themeColor = qs('meta[name=theme-color]');
+      if (themeColor && /^#[0-9a-f]{3,8}$/i.test(String(accent))) themeColor.setAttribute('content', String(accent));
+      if (/^#[0-9a-f]{3,8}$/i.test(String(accent))) {
+        document.documentElement.style.setProperty('--cms-accent', String(accent));
+        document.body.style.setProperty('--red', String(accent));
+      }
+
+      qsa('[data-site-name]').forEach(el => { el.textContent = siteName; });
+      qsa('[data-site-tagline]').forEach(el => { el.textContent = tagline; });
+
+      const socialMap = {
+        instagram: ['instagram','instagram_url','instagramUrl'],
+        soundcloud: ['soundcloud','soundcloud_url','soundcloudUrl'],
+        youtube: ['youtube','youtube_url','youtubeUrl'],
+        website: ['website','website_url','websiteUrl']
+      };
+      Object.entries(socialMap).forEach(([key, keys]) => {
+        const url = cleanUrl(pick(social, keys, ''));
+        qsa(`[data-social=\"${key}\"]`).forEach(el => {
+          if (url) {
+            el.href = url;
+            el.hidden = false;
+          } else {
+            el.hidden = true;
+          }
+        });
+      });
+
+      const logo = pick(branding, ['logo','logoUrl','logo_url'], '');
+      if (logo) qsa('[data-site-logo]').forEach(img => { img.src = imgUrl(logo); });
     };
 
     const renderEvents = (items) => {
@@ -419,6 +476,7 @@
       try {
         const {payload, url} = await firstWorkingPayload();
         const data = normalize(payload);
+        applyPublicSettings(data.settings);
         let changed = 0;
         if (renderEvents(data.events)) changed++;
         if (renderArtists(data.artists)) changed++;

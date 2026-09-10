@@ -1,24 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../config/bootstrap.php';
-
-function admin_session_start(): void {
-    global $config;
-    if (session_status() === PHP_SESSION_ACTIVE) return;
-    $name = preg_replace('/[^A-Za-z0-9_-]/', '', (string)($config['security']['session_name'] ?? 'BRVTAL_ADMIN')) ?: 'BRVTAL_ADMIN';
-    session_name($name);
-    ini_set('session.use_strict_mode', '1');
-    ini_set('session.use_only_cookies', '1');
-    ini_set('session.cookie_httponly', '1');
-    ini_set('session.cookie_samesite', 'Strict');
-    session_set_cookie_params([
-        'httponly' => true,
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-        'samesite' => 'Strict',
-        'path' => '/',
-    ]);
-    session_start();
-}
+require_once __DIR__ . '/../config/admin_auth.php';
 
 function client_key(): string {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -49,24 +31,6 @@ function rate_limit_login(string $email): void {
     @file_put_contents($file, json_encode($data), LOCK_EX);
 }
 
-function require_admin(): void {
-    admin_session_start();
-    $now = time();
-    $last = (int)($_SESSION['last_activity'] ?? 0);
-    $issued = (int)($_SESSION['issued_at'] ?? 0);
-    if (empty($_SESSION['admin_id']) || ($last && $now - $last > 28800) || ($issued && $now - $issued > 86400)) {
-        $_SESSION = [];
-        if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
-        json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
-    }
-    $_SESSION['last_activity'] = $now;
-}
-function require_csrf(): void {
-    $token = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-    if (empty($_SESSION['csrf']) || $token === '' || !hash_equals((string)$_SESSION['csrf'], $token)) {
-        json_response(['ok'=>false,'error'=>'CSRF'],419);
-    }
-}
 function method_not_allowed(): never { json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST, PUT, DELETE']); }
 function ensure_string(array &$d, string $key, int $max): void { if (array_key_exists($key,$d)) $d[$key] = mb_substr(trim((string)$d[$key]),0,$max); }
 function sanitize_payload(string $resource, array $d): array {
@@ -103,20 +67,31 @@ try {
     }
 
     if ($resource==='auth') {
-        admin_session_start();
-        if($method==='GET') json_response(['ok'=>true,'authenticated'=>!empty($_SESSION['admin_id']),'csrf'=>!empty($_SESSION['admin_id'])?($_SESSION['csrf']??null):null]);
+        brvtal_admin_session_start();
+
+        // Logout is evaluated before POST login so /api/auth?logout=1 cannot fall through.
+        if (($method==='POST' && isset($_GET['logout'])) || $method==='DELETE') {
+            brvtal_admin_logout();
+            json_response(['ok'=>true]);
+        }
+
+        if($method==='GET') {
+            $authenticated=brvtal_admin_is_authenticated();
+            json_response(['ok'=>true,'authenticated'=>$authenticated,'csrf'=>$authenticated?brvtal_admin_csrf_token():null]);
+        }
+
         if($method==='POST') {
             $d=input_json(); $email=strtolower(trim((string)($d['email']??''))); $pass=(string)($d['password']??'');
             if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>190||$pass==='') json_response(['ok'=>false,'error'=>'EMAIL_AND_PASSWORD_REQUIRED'],422);
             rate_limit_login($email);
             $st=db()->prepare('SELECT id,email,password_hash,name FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
             if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
-            session_regenerate_id(true); $_SESSION=['admin_id'=>(int)$a['id'],'csrf'=>bin2hex(random_bytes(32)),'issued_at'=>time(),'last_activity'=>time()];
+            brvtal_admin_login_session((int)$a['id']);
             db()->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([$a['id']]);
             brvtal_log('AUTH_OK','Admin login successful',['admin_id'=>(int)$a['id']]);
-            json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>$_SESSION['csrf']]);
+            json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);
         }
-        if($method==='DELETE'||$method==='POST'&&isset($_GET['logout'])) { $_SESSION=[]; session_destroy(); json_response(['ok'=>true]); }
+
         method_not_allowed();
     }
 
@@ -135,7 +110,7 @@ try {
         json_response(['ok'=>true,'data'=>['events'=>$events,'artists'=>$artists,'sets'=>$sets,'pages'=>$pages,'settings'=>$settings,'generated_at'=>date(DATE_ATOM)]],200);
     }
 
-    require_admin();
+    brvtal_admin_require();
     if($resource==='dashboard') {
     if($method!=='GET') method_not_allowed();
     $pdo=db(); $counts=[];
@@ -154,13 +129,13 @@ try {
 }
 
     if($resource==='events' && $action==='lineup' && $id!==null) {
-        if($method!=='GET'&&$method!=='POST')method_not_allowed(); if($method==='POST')require_csrf(); $pdo=db();
+        if($method!=='GET'&&$method!=='POST')method_not_allowed(); if($method==='POST')brvtal_admin_require_csrf(); $pdo=db();
         if($method==='GET'){ $st=$pdo->prepare("SELECT ea.artist_id,ea.lineup_order,ea.role,a.name,a.slug,a.photo FROM event_artists ea JOIN artists a ON a.id=ea.artist_id WHERE ea.event_id=? ORDER BY ea.lineup_order ASC,a.name ASC");$st->execute([$id]);json_response(['ok'=>true,'data'=>$st->fetchAll()]); }
         $d=input_json();$items=$d['lineup']??[];if(!is_array($items)||count($items)>200)json_response(['ok'=>false,'error'=>'INVALID_LINEUP'],422);$pdo->beginTransaction();try{$pdo->prepare('DELETE FROM event_artists WHERE event_id=?')->execute([$id]);$st=$pdo->prepare('INSERT INTO event_artists(event_id,artist_id,lineup_order,role) VALUES(?,?,?,?)');foreach($items as $i=>$item){$aid=(int)($item['artist_id']??0);if($aid>0)$st->execute([$id,$aid,$i,mb_substr(trim((string)($item['role']??'')),0,80)]);} $pdo->commit();json_response(['ok'=>true]);}catch(Throwable $e){$pdo->rollBack();brvtal_log('DB_ERROR','Lineup save failed',['event_id'=>$id,'message'=>$e->getMessage()]);json_response(['ok'=>false,'error'=>'LINEUP_SAVE_ERROR'],500);}
     }
 
     if($resource==='upload') {
-        if($method!=='POST')method_not_allowed(); require_csrf();
+        if($method!=='POST')method_not_allowed(); brvtal_admin_require_csrf();
         if(empty($_FILES['file'])||$_FILES['file']['error']!==UPLOAD_ERR_OK)json_response(['ok'=>false,'error'=>'UPLOAD_REQUIRED'],422);
         $f=$_FILES['file']; if(!is_uploaded_file($f['tmp_name']))json_response(['ok'=>false,'error'=>'INVALID_UPLOAD'],422); $max=25*1024*1024; if((int)$f['size']<=0||$f['size']>$max)json_response(['ok'=>false,'error'=>'FILE_TOO_LARGE'],422);
         $mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
@@ -173,7 +148,7 @@ try {
         $public='/uploads/'.$folder.'/'.$name; $type=str_starts_with($mime,'image/')?'image':(str_starts_with($mime,'video/')?'video':(str_starts_with($mime,'audio/')?'audio':'document')); $st=db()->prepare('INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)');$title=mb_substr(trim((string)($_POST['title']??'Media')),0,180);$alt=mb_substr(trim((string)($_POST['alt_text']??'')),0,255);$st->execute([$type,$title,$public,$mime,(int)$f['size'],$alt,'published']);json_response(['ok'=>true,'data'=>['id'=>(int)db()->lastInsertId(),'path'=>$public,'mime_type'=>$mime,'size'=>(int)$f['size']]],201);
     }
 
-    $resources=['events','artists','sets','media','pages','settings']; if(!in_array($resource,$resources,true))json_response(['ok'=>false,'error'=>'NOT_FOUND'],404); $table=table_for($resource); if($method!=='GET')require_csrf(); $pdo=db();
+    $resources=['events','artists','sets','media','pages','settings']; if(!in_array($resource,$resources,true))json_response(['ok'=>false,'error'=>'NOT_FOUND'],404); $table=table_for($resource); if($method!=='GET')brvtal_admin_require_csrf(); $pdo=db();
     if($method==='GET') { if($resource==='settings')$rows=$pdo->query('SELECT * FROM settings ORDER BY setting_key')->fetchAll(); else if($id!==null){$st=$pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");$st->execute([$id]);$rows=$st->fetch();if(!$rows)json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);} else $rows=$pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();json_response(['ok'=>true,'data'=>$rows]); }
     if($method==='POST') {
         $d=input_json(); if($resource==='settings'){ $key=trim((string)($d['setting_key']??''));$key=preg_replace('/[^a-zA-Z0-9_.-]/','',$key)??'';if($key===''||strlen($key)>120)json_response(['ok'=>false,'error'=>'KEY_REQUIRED'],422);$value=(string)($d['setting_value']??'');if(strlen($value)>2*1024*1024)json_response(['ok'=>false,'error'=>'VALUE_TOO_LARGE'],422);if((int)($d['is_json']??0)===1&&json_decode($value,true)===null&&strtolower(trim($value))!=='null')json_response(['ok'=>false,'error'=>'INVALID_SETTING_JSON'],422);$st=$pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)');$st->execute([$key,$value,(int)($d['is_json']??0)]);json_response(['ok'=>true]); }
