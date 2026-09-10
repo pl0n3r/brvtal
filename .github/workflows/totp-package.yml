@@ -1,0 +1,33 @@
+name: BRVTAL TOTP package
+
+on:
+  push:
+    branches:
+      - feat/0b-5-totp-optional-impl
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate PHP
+        run: |
+          php -v
+          php -l config/totp.php
+          php -l discadmin/totp-api.php
+          php -l discadmin/totp-status.php
+      - name: Prepare FTP package
+        run: |
+          mkdir -p dist/BRVTAL-0B-5-TOTP-OPTIONAL/{config,discadmin}
+          cp config/totp.php dist/BRVTAL-0B-5-TOTP-OPTIONAL/config/totp.php
+          cp discadmin/totp-api.php dist/BRVTAL-0B-5-TOTP-OPTIONAL/discadmin/totp-api.php
+          cp discadmin/totp-status.php dist/BRVTAL-0B-5-TOTP-OPTIONAL/discadmin/totp-status.php
+          curl -fsSL https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.min.js -o dist/BRVTAL-0B-5-TOTP-OPTIONAL/discadmin/qrcode.min.js
+          printf '%s\n' 'BRVTAL 0B-5 TOTP OPTIONAL' 'Upload the listed files to the matching production paths.' '2FA remains disabled until an administrator explicitly enables it.' > dist/BRVTAL-0B-5-TOTP-OPTIONAL/INSTALL.txt
+          cd dist && zip -r BRVTAL-0B-5-TOTP-OPTIONAL-FTP.zip BRVTAL-0B-5-TOTP-OPTIONAL
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRVTAL-0B-5-TOTP-OPTIONAL-FTP
+          path: dist/BRVTAL-0B-5-TOTP-OPTIONAL-FTP.zip
