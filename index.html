@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050505">
+  <meta name="description" content="BRVTAL — Rave till Grave. Música, experiencias y eventos underground.">
+  <title>BRVTAL — Rave till Grave</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-scene="CORE">
+  <div id="loader" class="loader" aria-hidden="true">
+    <div class="loader-noise"></div>
+    <div class="loader-inner">
+      <span class="loader-kicker">BRVTAL / SYSTEM BOOT</span>
+      <div class="loader-mark" data-text="BRVTAL">BRVTAL</div>
+      <div class="loader-progress"><i></i></div>
+      <div class="loader-meta"><span>RAVE TILL GRAVE</span><span id="loadPct">00%</span></div>
+    </div>
+  </div>
+
+  <div class="cursor"><span></span></div>
+  <div class="cursor-label"></div>
+  <canvas id="fxCanvas"></canvas>
+  <div class="screen-vignette"></div>
+
+  <header class="nav">
+    <a class="brand magnetic" href="#top" data-cursor="HOME"><span>BRVTAL</span><small>RAVE TILL GRAVE</small></a>
+    <div class="nav-center mono"><span id="sceneName">CORE</span><b>///</b><span id="sceneCount">01</span></div>
+    <div class="nav-right">
+      <button class="sound magnetic" id="soundToggle" data-cursor="SOUND">SOUND <b>OFF</b></button>
+      <button class="menu magnetic" id="menuToggle" data-cursor="MENU">MENU <strong>+</strong></button>
+    </div>
+  </header>
+
+  <aside class="menu-panel" id="menuPanel" aria-hidden="true">
+    <div class="menu-panel-bg"></div>
+    <div class="menu-panel-inner">
+      <div class="menu-label mono">NAVIGATION / 00—07</div>
+      <nav>
+        <a href="#manifesto"><span>01</span>BRVTAL</a>
+        <a href="#genesis"><span>02</span>GENESIS</a>
+        <a href="#events"><span>03</span>EVENTS</a>
+        <a href="#artists"><span>04</span>ARTISTS</a>
+        <a href="#sets"><span>05</span>SETS / SOUND</a>
+        <a href="#media"><span>06</span>MEDIA</a>
+        <a href="#contact"><span>07</span>CONTACT</a>
+      </nav>
+      <div class="menu-footer mono">PEREIRA — COLOMBIA / RAVE TILL GRAVE</div>
+    </div>
+  </aside>
+
+  <main id="top"><div id="apiFallback" class="api-fallback mono" hidden>ARCHIVE / STATIC FALLBACK</div>
+    <section class="hero scene" data-scene="CORE" data-index="01">
+      <div class="hero-grid"></div>
+      <div class="hero-scan"></div>
+      <div class="hero-glitch-lines"></div>
+      <div class="hero-copy">
+        <div class="eyebrow mono">BRVTAL / PEREIRA / COLOMBIA / 2026</div>
+        <h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1>
+        <div class="hero-sub"><span>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
+      </div>
+      <div class="hero-logo-wrap">
+        <img src="assets/brvtal-logo.jpeg" alt="Logo oficial de BRVTAL" class="hero-logo">
+        <div class="hero-logo-glitch"></div>
+      </div>
+      <div class="hero-bottom mono">
+        <span>01 / 07</span><span>SCROLL TO ENTER</span><span>NOISE / SIGNAL / MUSIC</span>
+      </div>
+      <div class="scene-index">01 / 07</div>
+    </section>
+
+    <section class="manifesto scene" id="manifesto" data-scene="CORE" data-index="02">
+      <div class="manifesto-top mono">THE STATEMENT / 01</div>
+      <div class="manifesto-noise"></div>
+      <div class="manifesto-line line-one">NO SOMOS</div>
+      <div class="manifesto-line line-two">SOLO UN</div>
+      <div class="manifesto-line line-three">COLECTIVO.</div>
+      <div class="manifesto-final"><span>BRVTAL</span><em>ES MÚSICA.</em></div>
+      <div class="manifesto-art"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Génesis artwork"></div>
+      <div class="scene-index">02 / 07</div>
+    </section>
+
+    <section class="genesis scene skin-genesis" id="genesis" data-scene="GENESIS" data-index="03">
+      <div class="genesis-bg"></div>
+      <div class="genesis-noise"></div>
+      <div class="genesis-scanline"></div>
+      <div class="genesis-copy">
+        <div class="eyebrow mono">NEXT EXPERIENCE / BRVTAL × RANDOM KORE</div>
+        <h2 data-text="GENESIS">GENESIS</h2>
+        <p class="genesis-tag">UNA SOLA NOCHE.</p>
+        <div class="genesis-data mono"><span>14.08.2026</span><span>21:00</span><span>PEREIRA / COLOMBIA</span></div>
+        <a class="enter magnetic" href="#events" data-cursor="ENTER">ENTER EXPERIENCE <span>↗</span></a>
+      </div>
+      <div class="genesis-eyes" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="genesis-orbit"></div>
+      <div class="scene-index">03 / 07</div>
+    </section>
+
+    <section class="events scene" data-dynamic="events" id="events" data-scene="ARCHIVE" data-index="04">
+      <div class="section-head"><span class="mono">EVENT ARCHIVE / 03</span><h2>EVENTS</h2><span class="mono">DRAG / SCROLL →</span></div>
+      <div class="events-track">
+        <article class="event-card event-active">
+          <div class="event-img"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Génesis"></div>
+          <div class="event-info"><span class="mono">14.08.2026 / PEREIRA</span><h3>GENESIS</h3><p>BRVTAL × RANDOM KORE</p><span class="event-status">NEXT EXPERIENCE</span></div>
+        </article>
+        <article class="event-card">
+          <div class="event-img"><img src="assets/flyers/FA92C836-974E-4ADA-A9E5-6BA6CDFB4FDC_4_5005_c.jpeg" alt="BRVTAL Session #5"></div>
+          <div class="event-info"><span class="mono">07.08.2026 / PEREIRA</span><h3>SESSION #5</h3><p>PERKS / DNL5 / JUJOCA / PSY ANGER</p><span class="event-status">ARCHIVE</span></div>
+        </article>
+        <article class="event-card">
+          <div class="event-img"><img src="assets/flyers/9ABAB569-6029-4D4E-8A20-E9DF3749106E_1_105_c.jpeg" alt="BRVTAL"></div>
+          <div class="event-info"><span class="mono">2026 / PEREIRA</span><h3>BRVTAL</h3><p>RAVE TILL GRAVE</p><span class="event-status">ARCHIVE</span></div>
+        </article>
+      </div>
+      <div class="archive-mark mono">THE NIGHT<br>REMAINS.</div><div class="dynamic-status mono" id="dynamicStatus" aria-live="polite"></div>
+      <div class="scene-index">04 / 07</div>
+    </section>
+
+    <section class="artists scene" data-dynamic="artists" id="artists" data-scene="CORE" data-index="05">
+      <div class="section-head"><span class="mono">ROSTER / 04</span><h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>
+      <div class="artist-list">
+        <a class="artist" href="#" data-image="assets/flyers/02B92101-8059-40A8-A21A-01D668B55604_1_105_c.jpeg" data-cursor="PROFILE"><span>01</span><strong>HAKKI</strong><i>RAW / HARD TECHNO</i></a>
+        <a class="artist" href="#" data-image="assets/flyers/952EC6EF-663E-493D-B59D-14E3E8120F34_1_105_c.jpeg" data-cursor="PROFILE"><span>02</span><strong>DNL5</strong><i>HARDCORE / INDUSTRIAL</i></a>
+        <a class="artist" href="#" data-image="assets/flyers/C6F670FC-5489-449C-B0A9-1658371FFCB2_1_105_c.jpeg" data-cursor="PROFILE"><span>03</span><strong>CRIXXES'T</strong><i>HARD TECHNO / RAW</i></a>
+        <a class="artist" href="#" data-image="assets/flyers/9AAA8951-4E95-4784-844F-155E33686E74_4_5005_c.jpeg" data-cursor="PROFILE"><span>04</span><strong>PLON3R</strong><i>TECHNO / HARD DANCE</i></a>
+        <a class="artist" href="#" data-image="assets/flyers/B1194F6A-8D66-4846-8F18-0C596856082C_4_5005_c.jpeg" data-cursor="PROFILE"><span>05</span><strong>JUJOCA</strong><i>PSY / HARDCORE</i></a>
+      </div>
+      <div class="artist-preview"><img src="assets/flyers/02B92101-8059-40A8-A21A-01D668B55604_1_105_c.jpeg" alt="Artist preview"></div>
+      <div class="artist-crosshair mono">X: <span>000</span><br>Y: <span>000</span></div>
+      <div class="scene-index">05 / 07</div>
+    </section>
+
+    <section class="sets scene skin-audio" data-dynamic="sets" id="sets" data-scene="SIGNAL" data-index="06">
+      <div class="audio-bg"></div>
+      <div class="section-head"><span class="mono">AUDIO ARCHIVE / 05</span><h2>SETS</h2><span class="mono">SOUNDCLOUD / BRVTAL</span></div>
+      <div class="sets-intro">
+        <p class="mono">SOUND IS NOT BACKGROUND.</p>
+        <h3>IT IS THE<br><em>EXPERIENCE.</em></h3>
+      </div>
+      <div class="set-list">
+        <article class="set-item" data-cursor="PLAY">
+          <div class="set-num mono">001</div>
+          <div class="set-main"><span class="mono">BRVTAL SESSION #5</span><h4>PERKS — LIVE SET</h4><p>HARDCORE / INDUSTRIAL / RAW</p></div>
+          <a href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="SOUNDCLOUD">↗</a>
+        </article>
+        <article class="set-item" data-cursor="PLAY">
+          <div class="set-num mono">002</div>
+          <div class="set-main"><span class="mono">GENESIS / ARCHIVE</span><h4>BRVTAL × RANDOM KORE</h4><p>HARD TECHNO / SPEEDCORE / TERRORCORE</p></div>
+          <a href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="SOUNDCLOUD">↗</a>
+        </article>
+        <article class="set-item" data-cursor="PLAY">
+          <div class="set-num mono">003</div>
+          <div class="set-main"><span class="mono">BRVTAL RADIO</span><h4>SELECTED FREQUENCIES</h4><p>TECHNO / HARD DANCE / HARDCORE</p></div>
+          <a href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="SOUNDCLOUD">↗</a>
+        </article>
+      </div>
+      <div class="soundcloud-note mono">SOUNDCLOUD LINKS ARE TEMPORARY PLACEHOLDERS — THEY WILL BECOME ADMIN-MANAGED CONTENT.</div>
+      <div class="scene-index">06 / 07</div>
+    </section>
+
+    <section class="media scene" data-dynamic="media" id="media" data-scene="ARCHIVE" data-index="07">
+      <div class="media-title"><span class="mono">VISUAL ARCHIVE / 06</span><h2>MEMORIES</h2></div>
+      <div class="media-grid">
+        <figure class="m m1"><img src="assets/flyers/16F766DE-0FEE-4D73-B62D-B005EA36903E_1_105_c.jpeg" alt="BRVTAL media"></figure>
+        <figure class="m m2"><img src="assets/flyers/A91125F9-BFFC-4ECC-A2C7-8FA94026235F_1_105_c.jpeg" alt="BRVTAL media"></figure>
+        <figure class="m m3"><img src="assets/flyers/E2FF791E-B1CC-4066-9D8D-F4B03BAE4A6D_4_5005_c.jpeg" alt="BRVTAL media"></figure>
+        <figure class="m m4"><img src="assets/flyers/7A59264A-1665-4D9C-BBA8-64528088B29B_4_5005_c.jpeg" alt="BRVTAL media"></figure>
+      </div>
+      <div class="media-end mono">MORE MEMORIES<br>WILL BE ADDED.</div>
+      <div class="scene-index">07 / 07</div>
+    </section>
+
+    <footer class="footer scene" id="contact" data-scene="CORE">
+      <div class="footer-main">
+        <span class="mono">BRVTAL / PEREIRA / COLOMBIA</span>
+        <h2>RAVE<br><em>TILL GRAVE</em></h2>
+        <div class="footer-cta"><a class="footer-link magnetic" href="mailto:contact@brvtal.com.co" data-cursor="CONTACT">CONTACT ↗</a><a class="footer-link magnetic" href="https://soundcloud.com/" target="_blank" rel="noopener" data-cursor="SOUNDCLOUD">SOUNDCLOUD ↗</a></div>
+      </div>
+      <div class="footer-bottom mono"><span>© 2026 BRVTAL</span><span>INSTAGRAM / SOUNDCLOUD / YOUTUBE</span><span>ES / EN</span></div>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
