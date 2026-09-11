@@ -1,6 +1,8 @@
 name: Fix Content Core API
 
 on:
+  push:
+    branches: [feat/1-content-core]
   workflow_dispatch:
 
 permissions:
@@ -8,6 +10,7 @@ permissions:
 
 jobs:
   patch:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +27,9 @@ jobs:
           new = "if(isset($d['status']) && !in_array($d['status'], $resource==='events'?['draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived']:($resource==='ticket_types'?['draft','active','inactive','sold_out']:['draft','published']), true))"
           if old in s:
               s = s.replace(old, new, 1)
-          marker = "if(isset($d['platform']) && !in_array($d['platform'],['soundcloud','youtube','spotify','other'],true))"
+          needle = "if(isset($d['platform']) && !in_array($d['platform'],['soundcloud','youtube','spotify','other'],true)) json_response(['ok'=>false,'error'=>'INVALID_PLATFORM'],422);"
           extra = "if($resource==='ticket_types' && isset($d['event_id']) && (int)$d['event_id']<1) json_response(['ok'=>false,'error'=>'INVALID_EVENT_ID'],422);\n    if($resource==='ticket_types' && isset($d['name']) && trim((string)$d['name'])==='') json_response(['ok'=>false,'error'=>'TICKET_NAME_REQUIRED'],422);"
           if extra not in s:
-              needle = "if(isset($d['platform']) && !in_array($d['platform'],['soundcloud','youtube','spotify','other'],true)) json_response(['ok'=>false,'error'=>'INVALID_PLATFORM'],422);"
               s = s.replace(needle, needle + "\n    " + extra, 1)
           oldres = "$resources=['events','artists','sets','media','pages','settings'];"
           newres = "$resources=['events','artists','sets','media','pages','ticket_types','settings'];"
@@ -36,7 +38,6 @@ jobs:
           p.write_text(s)
           PY
           php -l api/index.php
-          grep -q "'ticket_types'" api/index.php
           grep -q "\$resources=.*ticket_types" api/index.php
       - name: Commit patch and remove workflow
         run: |
