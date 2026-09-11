@@ -23,6 +23,8 @@ jobs:
           find discadmin -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Run API contract tests
         run: php tests/api-contract.php
+      - name: Run Media Library contract tests
+        run: php tests/media-library-contract.php
       - name: Update build metadata
         run: python3 scripts/update-release-metadata.py
       - name: Validate version metadata
