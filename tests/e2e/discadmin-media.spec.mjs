@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const mediaLibraryJs = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
 const adminModulesJs = readFileSync(join(process.cwd(), 'discadmin/admin-modules.js'), 'utf8');
+const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e.html';
 
 const mediaItem = {
   id: 11,
@@ -29,6 +30,8 @@ const mediaItem = {
 };
 
 async function mockApi(page) {
+  await page.route('**/discadmin/media-library.js**', route => route.fulfill({ contentType: 'application/javascript', body: mediaLibraryJs }));
+  await page.route('**/discadmin/media-library.css**', route => route.fulfill({ contentType: 'text/css', body: '' }));
   await page.route('**/api/auth', route => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify({ authenticated: true, csrf: 'csrf-token' })
@@ -67,18 +70,25 @@ async function mockApi(page) {
   }));
 }
 
-async function loadMediaLibraryHarness(page) {
+async function loadHarness(page, body) {
   await mockApi(page);
-  await page.setContent(`<!doctype html><html><head></head><body>
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType: 'text/html',
+    body: `<!doctype html><html><head></head><body>${body}</body></html>`
+  }));
+  await page.goto(harnessUrl);
+}
+
+async function loadMediaLibraryHarness(page) {
+  await loadHarness(page, `
     <div class="thumbcell"><div class="thumbph">IMG</div><input id="f_cover_image" value=""></div>
     <div class="thumbcell"><div class="thumbph">IMG</div><input id="f_photo" value=""></div>
     <script>${mediaLibraryJs}</script>
-  </body></html>`);
+  `);
 }
 
 async function loadAdminHarness(page) {
-  await mockApi(page);
-  await page.setContent(`<!doctype html><html><head></head><body>
+  await loadHarness(page, `
     <button id="saveBtn">SAVE</button>
     <input id="f_title" value="Genesis">
     <input id="f_slug" value="genesis">
@@ -108,7 +118,7 @@ async function loadAdminHarness(page) {
       };
     </script>
     <script>${adminModulesJs}</script>
-  </body></html>`);
+  `);
 }
 
 test('media picker normalizes paths, updates inputs/previews, and shows guidance', async ({ page }) => {
@@ -116,7 +126,7 @@ test('media picker normalizes paths, updates inputs/previews, and shows guidance
 
   await expect(page.locator('.media-picker-btn').first()).toBeVisible();
   await page.locator('.media-picker-btn').first().click();
-  await expect(page.getByText('SELECT MEDIA')).toBeVisible();
+  await expect(page.locator('.brvtal-media-picker h3')).toHaveText('SELECT MEDIA');
   await page.getByRole('button', { name: /Genesis poster/i }).click();
 
   await expect(page.locator('#f_cover_image')).toHaveValue('/uploads/media/2026/09/genesis.jpg');
@@ -151,7 +161,7 @@ test('artist save sends selected media path', async ({ page }) => {
 test('failed mutations show persistent error feedback', async ({ page }) => {
   await loadAdminHarness(page);
   await page.evaluate(async () => {
-    try { await fetch('/api/index.php/sets/1', { method: 'PUT', body: '{}' }); } catch (_) {}
+    await fetch('/api/index.php/sets/1', { method: 'PUT', body: '{}' });
   });
 
   await expect(page.locator('.brvtal-feedback.error')).toBeVisible();
