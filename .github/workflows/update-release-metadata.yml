@@ -19,8 +19,10 @@ jobs:
           fetch-depth: 0
       - name: Validate PHP and JavaScript
         run: |
-          find config discadmin api -name '*.php' -print0 | xargs -0 -n1 php -l
+          find config discadmin api tests -name '*.php' -print0 | xargs -0 -n1 php -l
           find discadmin -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Run API contract tests
+        run: php tests/api-contract.php
       - name: Update build metadata
         run: python3 scripts/update-release-metadata.py
       - name: Validate version metadata
