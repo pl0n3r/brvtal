@@ -42,9 +42,7 @@ async function loadEvents(){try{const j=await api('/events');events=j.data||j.ev
 function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
 function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_archive_year',currentEvent?.archive_year);fill('e_status',currentEvent?.status||'draft');fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();$('#eventModal').classList.add('open')}
-function closeEvent(){
-  $('#eventModal').classList.remove('open');
-}
+function closeEvent(){$('#eventModal').classList.remove('open')}
 function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}currentStep=Math.max(1,Math.min(5,currentStep+dir));setStep()}
 function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===5?'none':'inline-block';$('#saveBtn').textContent=currentStep===5?'SAVE EVENT':'SAVE DRAFT'}
 function addTicket(t={}){const d=document.createElement('div');d.className='ticket-row';if(t.id)d.dataset.id=String(t.id);d.innerHTML=`<input data-k="name" placeholder="Name" value="${esc(t.name||'')}"><input data-k="price" type="number" min="0" step="0.01" placeholder="Price" value="${esc(t.price??'')}"><select data-k="status"><option ${t.status==='draft'?'selected':''}>draft</option><option ${!t.status||t.status==='active'?'selected':''}>active</option><option ${t.status==='inactive'?'selected':''}>inactive</option><option ${t.status==='sold_out'?'selected':''}>sold_out</option></select><input data-k="external_url" placeholder="External ticket URL" value="${esc(t.external_url||'')}"><button type="button" class="icon" onclick="this.parentElement.remove()">×</button>`;$('#tickets').appendChild(d)}
@@ -57,6 +55,34 @@ function editArtist(id){const a=artists.find(x=>Number(x.id)===Number(id));if(!a
 async function saveArtist(id){if(!csrf){msg('Security token unavailable. Reload the page.',false);return}try{const p={collective_status:$('#a_status').value,collective_order:Number($('#a_order').value)||0,collective_joined_at:$('#a_joined').value||null,collective_left_at:$('#a_left').value||null};const j=await api('/artists/'+id,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Save failed');await loadArtists();msg('Artist lifecycle updated.')}catch(e){msg('Artist save failed: '+e.message,false)}}
 function renderEventArtists(){if(!artists.length){$('#eventArtists').innerHTML='<div class="empty">Load artists to manage event participation.</div>';return}const selected=new Set((currentEvent?.artists||currentEvent?.event_artists||currentEvent?.lineup||[]).map(x=>Number(x.artist_id||x.id)));$('#eventArtists').innerHTML=artists.filter(a=>a.collective_status==='active'||selected.has(Number(a.id))).map(a=>`<div class="artist"><div class="ph">${a.photo?'IMG':'BRV'}</div><div class="grow"><b>${esc(a.name)}</b><small>${esc(a.collective_status||'none')}</small></div><input type="checkbox" data-artist="${Number(a.id)}" ${selected.has(Number(a.id))?'checked':''}></div>`).join('')}
 $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');const roster=t.dataset.tab==='roster';$('#eventsTab').style.display=roster?'none':'block';$('#rosterTab').style.display=roster?'block':'none';if(roster)loadArtists()});$('#eventSearch').oninput=renderEvents;$('#artistSearch').oninput=renderRoster;
-(async()=>{try{await initAuth();await loadEvents();}catch(e){msg('Initialization failed: '+e.message,false)}})();
+(async()=>{try{await initAuth();await loadEvents();await loadArtists();}catch(e){msg('Initialization failed: '+e.message,false)}})();
+</script>
+<script src="/discadmin/content-core-lineup.js"></script>
+<script>
+(function(){
+  const originalOpenEvent=window.openEvent;
+  const originalSaveEvent=window.saveEvent;
+  async function refreshLineup(eventId){
+    if(!eventId||!window.BRVTALContentCoreLineup)return;
+    const lineup=await window.BRVTALContentCoreLineup.load(eventId,csrf);
+    if(currentEvent) currentEvent.lineup=lineup;
+    renderEventArtists();
+  }
+  window.openEvent=function(id=null){
+    originalOpenEvent(id);
+    if(id) refreshLineup(Number(id)).catch(e=>msg('Could not load event roster: '+e.message,false,'eventNotice'));
+  };
+  window.saveEvent=async function(){
+    await originalSaveEvent();
+    const eventId=Number(currentEvent?.id||0);
+    if(!eventId||!window.BRVTALContentCoreLineup)return;
+    const lineup=$$('#eventArtists [data-artist]:checked').map((el,i)=>({artist_id:Number(el.dataset.artist),lineup_order:i,role:''}));
+    try{
+      await window.BRVTALContentCoreLineup.save(eventId,lineup,csrf);
+      currentEvent.lineup=lineup;
+      msg('Event participation saved.');
+    }catch(e){msg('Event saved, but roster could not be saved: '+e.message,false,'eventNotice');}
+  };
+})();
 </script>
 </body></html>
