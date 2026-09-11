@@ -5,6 +5,7 @@ window.BRVTALMediaLibrary = (() => {
   const ENDPOINT = '/api/media-library.php';
   const store = {root:null,items:[],selected:null,engine:null,csrf:'',loading:false};
   let pickerObserver;
+  let toastTimer = 0;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const bytes = n => {
@@ -14,13 +15,149 @@ window.BRVTALMediaLibrary = (() => {
     while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
     return (i === 0 ? Math.round(n) : n.toFixed(n >= 10 ? 1 : 2)) + ' ' + units[i];
   };
+
+  function normalizeMediaPath(value) {
+    let path = String(value ?? '').trim();
+    if (!path) return '';
+    if (/^(https?:|data:|blob:)/i.test(path)) return path;
+    path = path.replace(/\\/g, '/');
+    const uploadIndex = path.indexOf('/uploads/');
+    if (uploadIndex > -1) path = path.slice(uploadIndex);
+    if (path.startsWith('uploads/')) path = '/' + path;
+    if (path && !path.startsWith('/')) path = '/' + path;
+    return path;
+  }
+
+  function mediaUrl(value) {
+    return normalizeMediaPath(value);
+  }
+
   const monthKey = item => String(item.created_at || '').slice(0,7) || 'UNKNOWN';
   const monthLabel = key => {
     if (!/^\d{4}-\d{2}$/.test(key)) return 'UNKNOWN DATE';
     const d = new Date(key + '-01T00:00:00');
     return d.toLocaleDateString('en-US',{year:'numeric',month:'long'}).toUpperCase();
   };
-  const preview = item => item?.engine?.variants?.square?.path || item?.file_path || '';
+  const original = item => mediaUrl(item?.file_path || '');
+  const preview = item => mediaUrl(item?.engine?.variants?.square?.path || item?.file_path || '');
+
+  function toast(kind, message, options = {}) {
+    const text = String(message || '').trim();
+    if (!text) return;
+    let stack = document.getElementById('brvtal-toast-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'brvtal-toast-stack';
+      stack.className = 'brvtal-toast-stack';
+      document.body.appendChild(stack);
+    }
+    const node = document.createElement('div');
+    node.className = 'brvtal-toast ' + (kind || 'info');
+    node.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    node.innerHTML = `<button type="button" aria-label="Close">×</button><strong>${esc(kind || 'info')}</strong><span>${esc(text)}</span>`;
+    node.querySelector('button').addEventListener('click', () => node.remove());
+    stack.appendChild(node);
+    const ttl = Number(options.timeout || (kind === 'error' ? 0 : kind === 'processing' ? 1800 : 3600));
+    if (ttl > 0) window.setTimeout(() => node.remove(), ttl);
+  }
+
+  function notify(kind, message, options = {}) {
+    toast(kind, message, options);
+  }
+
+  function actionLabel(path, method) {
+    const p = String(path || '').replace(/^\/+/, '');
+    if (p.startsWith('auth')) return null;
+    if (method === 'DELETE') return ['Deleting record…','Record deleted.','Could not delete record'];
+    if (p.includes('lineup')) return ['Saving lineup…','Lineup saved.','Could not save lineup'];
+    if (p.startsWith('settings')) return ['Saving setting…','Setting saved.','Could not save setting'];
+    if (p.startsWith('events')) return ['Saving event…','Event saved.','Could not save event'];
+    if (p.startsWith('artists')) return ['Saving artist…','Artist saved.','Could not save artist'];
+    if (p.startsWith('sets')) return ['Saving set…','Set saved.','Could not save set'];
+    if (p.startsWith('media')) return ['Saving media…','Media saved.','Could not save media'];
+    if (p.startsWith('pages')) return ['Saving page…','Page saved.','Could not save page'];
+    return ['Processing change…','Change saved.','Could not complete change'];
+  }
+
+  function installGlobalFeedback() {
+    if (window.__BRVTAL_GLOBAL_FEEDBACK__) return;
+    window.__BRVTAL_GLOBAL_FEEDBACK__ = true;
+    window.BRVTALNotify = notify;
+
+    const installReqPatch = () => {
+      if (typeof window.req !== 'function' || window.req.__brvtalFeedback) return;
+      const originalReq = window.req;
+      const patched = async function(path, options = {}) {
+        const method = String(options.method || 'GET').toUpperCase();
+        const mutating = ['POST','PUT','PATCH','DELETE'].includes(method);
+        const labels = mutating ? actionLabel(path, method) : null;
+        if (labels) notify('processing', labels[0]);
+        try {
+          const result = await originalReq.apply(this, arguments);
+          if (labels) notify('success', labels[1]);
+          return result;
+        } catch (error) {
+          if (labels) notify('error', `${labels[2]} · ${error.message || error}`, {timeout:0});
+          throw error;
+        }
+      };
+      patched.__brvtalFeedback = true;
+      window.req = patched;
+    };
+
+    const installShowPatch = () => {
+      if (typeof window.show !== 'function' || window.show.__brvtalFeedback) return;
+      const originalShow = window.show;
+      const patchedShow = function(message) {
+        notify('error', message, {timeout:0});
+        return originalShow.apply(this, arguments);
+      };
+      patchedShow.__brvtalFeedback = true;
+      window.show = patchedShow;
+    };
+
+    const installThumbPatch = () => {
+      if (typeof window.thumb !== 'function' || window.thumb.__brvtalMedia) return;
+      const patchedThumb = function(src, alt = '', big = false) {
+        const url = mediaUrl(src);
+        if (!url) return `<div class="thumbph${big ? ' lg' : ''}">IMG</div>`;
+        return `<img class="thumb${big ? ' lg' : ''}" src="${esc(url)}" alt="${esc(alt || '')}" loading="lazy" onerror="window.BRVTALMediaLibrary&&window.BRVTALMediaLibrary.handleThumbError(this)">`;
+      };
+      patchedThumb.__brvtalMedia = true;
+      window.thumb = patchedThumb;
+    };
+
+    installReqPatch(); installShowPatch(); installThumbPatch();
+    window.setTimeout(() => { installReqPatch(); installShowPatch(); installThumbPatch(); }, 0);
+    window.setTimeout(() => { installReqPatch(); installShowPatch(); installThumbPatch(); }, 250);
+  }
+
+  function handleThumbError(img) {
+    const ph = document.createElement('div');
+    ph.className = (img.className || 'thumb').replace(/\bthumb\b/, 'thumbph') || 'thumbph';
+    ph.textContent = 'IMG';
+    img.replaceWith(ph);
+  }
+
+  function handleImageError(img) {
+    const fallback = img.dataset.fallback;
+    if (fallback && img.src !== new URL(fallback, window.location.origin).href) {
+      img.removeAttribute('data-fallback');
+      img.src = fallback;
+      return;
+    }
+    const ph = document.createElement('span');
+    ph.className = 'media-kind';
+    ph.textContent = 'IMG';
+    img.replaceWith(ph);
+  }
+
+  function imageMarkup(item, fit = 'cover') {
+    const p = preview(item);
+    const f = original(item);
+    if (!p) return `<span class="media-kind">${esc(String(item?.type || 'FILE').toUpperCase())}</span>`;
+    return `<img src="${esc(p)}" data-fallback="${esc(f)}" alt="${esc(item?.alt_text || item?.title || '')}" loading="lazy" style="object-fit:${fit}" onerror="window.BRVTALMediaLibrary&&window.BRVTALMediaLibrary.handleImageError(this)">`;
+  }
 
   async function getCsrf() {
     if (store.csrf) return store.csrf;
@@ -49,16 +186,16 @@ window.BRVTALMediaLibrary = (() => {
 
   function status(message, kind = '') {
     const el = store.root?.querySelector('#media-status');
-    if (!el) return;
-    el.textContent = message || '';
-    el.className = 'media-status' + (kind ? ' ' + kind : '');
+    if (el) {
+      el.textContent = message || '';
+      el.className = 'media-status' + (kind ? ' ' + kind : '');
+    }
+    if (kind === 'ok') notify('success', message);
+    if (kind === 'err') notify('error', message, {timeout:0});
   }
 
   function card(item, active = false) {
-    const p = preview(item);
-    const visual = item.type === 'image' && p
-      ? `<img src="${esc(p)}" alt="${esc(item.alt_text || item.title || '')}" loading="lazy">`
-      : `<span class="media-kind">${esc(String(item.type || 'FILE').toUpperCase())}</span>`;
+    const visual = item.type === 'image' ? imageMarkup(item) : `<span class="media-kind">${esc(String(item.type || 'FILE').toUpperCase())}</span>`;
     const dims = item.dimensions ? `${item.dimensions.width}×${item.dimensions.height}` : '';
     const warning = Array.isArray(item.warnings) && item.warnings.length
       ? `<span class="media-warning">${esc(item.warnings.join(' · '))}</span>` : '';
@@ -121,8 +258,7 @@ window.BRVTALMediaLibrary = (() => {
     const box = store.root.querySelector('#media-inspector');
     if (!box) return;
     if (!item) { box.innerHTML = '<div class="media-inspector-empty">SELECT AN ASSET</div>'; return; }
-    const p = preview(item);
-    const visual = item.type === 'image' && p ? `<img src="${esc(p)}" alt="${esc(item.alt_text || item.title || '')}">` : `<span class="media-kind">${esc(String(item.type || 'FILE').toUpperCase())}</span>`;
+    const visual = item.type === 'image' ? imageMarkup(item, 'contain') : `<span class="media-kind">${esc(String(item.type || 'FILE').toUpperCase())}</span>`;
     const dims = item.dimensions ? `${item.dimensions.width}×${item.dimensions.height}` : '—';
     const engine = item.type === 'image'
       ? (item.engine?.status === 'ready'
@@ -134,7 +270,7 @@ window.BRVTALMediaLibrary = (() => {
       ? usage.map(ref => `<div class="media-usage-item"><b>${esc(ref.resource)}</b> · ${esc(ref.title || ('#' + ref.id))}<div class="meta">${esc(ref.field)}</div></div>`).join('')
       : '<div class="media-usage-safe">NOT CURRENTLY REFERENCED · SAFE TO DELETE</div>';
     box.innerHTML = `<div class="media-inspector-preview">${visual}</div><div class="media-inspector-body">
-      <h3>${esc(item.title || 'Untitled')}</h3><div class="media-inspector-path">${esc(item.file_path)}</div>
+      <h3>${esc(item.title || 'Untitled')}</h3><div class="media-inspector-path">${esc(original(item) || item.file_path)}</div>
       <div class="media-inspector-grid"><div class="media-fact"><span>TYPE</span><b>${esc(item.type)}</b></div><div class="media-fact"><span>SIZE</span><b>${esc(bytes(item.file_size))}</b></div><div class="media-fact"><span>DIMENSIONS</span><b>${esc(dims)}</b></div><div class="media-fact"><span>STATUS</span><b>${esc(item.status)}</b></div></div>
       <label for="media-edit-title">TITLE</label><input id="media-edit-title" value="${esc(item.title || '')}">
       <label for="media-edit-alt">ALT TEXT</label><input id="media-edit-alt" value="${esc(item.alt_text || '')}">
@@ -145,7 +281,7 @@ window.BRVTALMediaLibrary = (() => {
     </div>`;
     box.querySelector('#media-save')?.addEventListener('click', saveSelected);
     box.querySelector('#media-copy')?.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(item.file_path || ''); status('Media path copied.', 'ok'); } catch (_) { status('Could not copy media path.', 'err'); }
+      try { await navigator.clipboard.writeText(original(item) || item.file_path || ''); status('Media path copied.', 'ok'); } catch (_) { status('Could not copy media path.', 'err'); }
     });
     box.querySelector('#media-delete')?.addEventListener('click', deleteSelected);
   }
@@ -182,11 +318,12 @@ window.BRVTALMediaLibrary = (() => {
     if (!list.length) return;
     for (const file of list) {
       try {
+        notify('processing', 'Uploading ' + file.name + '…');
         status('Uploading ' + file.name + '…');
         const fd = new FormData(); fd.append('file',file); fd.append('title',file.name.replace(/\.[^.]+$/,''));
         const j = await request('?action=upload',{method:'POST',body:fd});
-        status('Uploaded ' + file.name + '.', 'ok');
         await refresh(j.data?.id || null);
+        status('Uploaded ' + file.name + '.', 'ok');
       } catch (e) { status('Upload failed: ' + (e.payload?.error || e.message), 'err'); }
     }
   }
@@ -199,6 +336,7 @@ window.BRVTALMediaLibrary = (() => {
       status: store.root.querySelector('#media-edit-status')?.value || 'published'
     };
     try {
+      notify('processing', 'Saving media metadata…');
       status('Saving media metadata…');
       const j = await request('?action=update&id=' + encodeURIComponent(store.selected.id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       store.selected = j.data;
@@ -212,6 +350,7 @@ window.BRVTALMediaLibrary = (() => {
     if (!store.selected) return;
     if (!confirm('Delete this media asset and its generated local variants?')) return;
     try {
+      notify('processing', 'Checking references and deleting media…');
       status('Checking references and deleting…');
       await request('?id=' + encodeURIComponent(store.selected.id),{method:'DELETE'});
       const old = store.selected.id; store.selected = null;
@@ -234,16 +373,39 @@ window.BRVTALMediaLibrary = (() => {
     overlay.addEventListener('click',e => { if (e.target === overlay) close(); });
     overlay.querySelector('form').addEventListener('submit', async e => {
       e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget).entries());
-      try { const j = await request('?action=register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); close(); await refresh(j.data?.id || null); status('External media registered.', 'ok'); }
+      data.file_path = normalizeMediaPath(data.file_path);
+      try {
+        notify('processing', 'Registering external media…');
+        const j = await request('?action=register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        close(); await refresh(j.data?.id || null); status('External media registered.', 'ok');
+      }
       catch (err) { status('Could not register media: ' + err.message, 'err'); }
     });
+  }
+
+  function updateInputPreview(input, item) {
+    const holder = input.closest('.thumbcell') || input.parentElement;
+    if (!holder) return;
+    const url = original(item) || preview(item);
+    if (!url) return;
+    let img = holder.querySelector('img');
+    if (!img) {
+      const old = holder.querySelector('.thumbph,.avatar');
+      img = document.createElement('img');
+      img.className = old?.className?.replace('thumbph','thumb') || 'thumb';
+      if (old) old.replaceWith(img); else holder.insertBefore(img, holder.firstChild);
+    }
+    img.src = url;
+    img.alt = item.alt_text || item.title || '';
+    img.loading = 'lazy';
+    img.onerror = () => handleThumbError(img);
   }
 
   async function openPicker(input, options = {}) {
     let items = store.items;
     if (!items.length) {
       try { const j = await request('?action=list'); items = Array.isArray(j.data) ? j.data : []; store.items = items; }
-      catch (e) { alert('Could not load Media Library.'); return; }
+      catch (e) { notify('error', 'Could not load Media Library.', {timeout:0}); return; }
     }
     if (options.imagesOnly !== false) items = items.filter(x => x.type === 'image');
     const overlay = document.createElement('div'); overlay.className = 'brvtal-media-picker';
@@ -255,9 +417,11 @@ window.BRVTALMediaLibrary = (() => {
       grid.innerHTML = rows.map(x => card(x,false)).join('') || '<div class="empty">No assets found.</div>';
       grid.querySelectorAll('[data-media-id]').forEach(btn => btn.onclick = () => {
         const item = rows.find(x => Number(x.id) === Number(btn.dataset.mediaId)); if (!item) return;
-        input.value = item.file_path || ''; input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true}));
-        const holder = input.closest('.thumbcell'); const img = holder?.querySelector('img'); if (img && item.file_path) img.src = item.file_path;
+        input.value = original(item) || mediaUrl(item.file_path) || '';
+        input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true}));
+        updateInputPreview(input, item);
         overlay.remove();
+        notify('warning', 'Media selected. Press SAVE to persist this record.', {timeout:5200});
       });
     };
     draw(''); overlay.querySelector('[data-search]').oninput = e => draw(e.target.value);
@@ -269,6 +433,7 @@ window.BRVTALMediaLibrary = (() => {
     root.querySelectorAll('#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr').forEach(input => {
       if (input.dataset.mediaPickerBound === '1') return;
       input.dataset.mediaPickerBound = '1';
+      input.value = normalizeMediaPath(input.value);
       const button = document.createElement('button'); button.type = 'button'; button.className = 'media-picker-btn'; button.textContent = 'SELECT MEDIA';
       button.addEventListener('click',() => openPicker(input,{imagesOnly:true}));
       input.insertAdjacentElement('afterend',button);
@@ -301,6 +466,7 @@ window.BRVTALMediaLibrary = (() => {
     startPickerObserver(); refresh();
   }
 
+  installGlobalFeedback();
   startPickerObserver();
-  return {mount,refresh,openPicker,decoratePickerInputs};
+  return {mount,refresh,openPicker,decoratePickerInputs,notify,mediaUrl,handleImageError,handleThumbError};
 })();
