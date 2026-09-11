@@ -99,8 +99,9 @@ try {
     $pdo = db();
 
     $events = $pdo->query(
-        "SELECT id,title,slug,event_date,venue,city,description,skin,accent,
-                cover_image,ticket_url,status,sort_order
+        "SELECT id,title,slug,event_date,archive_year,venue,city,description,skin,accent,
+                cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,
+                cancelled_at,finished_at,status,sort_order
          FROM events
          WHERE status='published'
          ORDER BY event_date ASC, sort_order ASC, id ASC"
@@ -108,6 +109,7 @@ try {
 
     $artists = $pdo->query(
         "SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url,
+                collective_status,collective_order,collective_joined_at,collective_left_at,
                 status,sort_order
          FROM artists
          WHERE status='published'
@@ -140,6 +142,19 @@ try {
          ORDER BY id DESC"
     )->fetchAll();
 
+    $ticketTypes = $pdo->query(
+        "SELECT id,event_id,name,description,price,currency,external_url,
+                payment_instructions,qr_image,status,available_from,available_until,sort_order
+         FROM event_ticket_types
+         WHERE status IN ('active','sold_out')
+         ORDER BY event_id,sort_order,name"
+    )->fetchAll();
+
+    $ticketsByEvent = [];
+    foreach ($ticketTypes as $ticket) {
+        $ticketsByEvent[(string)$ticket['event_id']][] = $ticket;
+    }
+
     $lineup = $pdo->query(
         "SELECT ea.event_id,ea.artist_id,ea.lineup_order,ea.role,
                 a.name,a.slug,a.photo
@@ -156,7 +171,9 @@ try {
     }
 
     foreach ($events as &$event) {
-        $event['lineup'] = $lineupByEvent[(string)$event['id']] ?? [];
+        $eventKey = (string)$event['id'];
+        $event['ticket_types'] = $ticketsByEvent[$eventKey] ?? [];
+        $event['lineup'] = $lineupByEvent[$eventKey] ?? [];
     }
     unset($event);
 
