@@ -27,6 +27,15 @@
     nav.appendChild(button);
   }
 
+  function loadContentCoreNavigation() {
+    if (document.getElementById('brvtal-content-core-nav-script')) return;
+    const script = document.createElement('script');
+    script.id = 'brvtal-content-core-nav-script';
+    script.src = '/discadmin/content-core-nav.js';
+    script.async = true;
+    document.head.appendChild(script);
+  }
+
   async function cancelPending() {
     try {
       await nativeFetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_cancel'})});
@@ -99,6 +108,6 @@
     return new Response(JSON.stringify(verified), {status:200,headers:{'Content-Type':'application/json'}});
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureSecurityLink, {once:true});
-  else ensureSecurityLink();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { ensureSecurityLink(); loadContentCoreNavigation(); }, {once:true});
+  else { ensureSecurityLink(); loadContentCoreNavigation(); }
 })();
