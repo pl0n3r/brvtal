@@ -74,13 +74,13 @@ Production is intended for manual FTP deployment to Hostinger. GitHub is the sou
 |---|---|---|
 | Foundation / security core | 🟢 Integrated in `main` | Central auth, CSRF, rate limiting and production hardening. |
 | Optional TOTP / Google Authenticator | 🟢 Implemented | Activation remains administrator-controlled. |
-| Content Core database migration | 🟡 Ready / production deployment not confirmed | `database/migration_content_core_01.sql`. |
+| Content Core database migration | 🟢 Applied in production | `database/migration_content_core_01.sql` has been executed in the production database; functional verification remains tracked separately. |
 | Content Core API | 🟢 Integrated in `main` | Lifecycle, ticket types, collective fields and lineup endpoint. |
 | Content Core workspace | 🟢 Integrated in `main` | `discadmin/content-core.php`. |
 | Ticket persistence | 🟢 Integrated in `main` | Existing rows update, new rows create, removed rows delete. |
 | Event participation persistence | 🟢 Integrated in `main` | Wizard now loads and saves event roster through `/events/{id}/lineup`. |
 | Temporary Content Core workflow | 🟢 Removed | No build-time patch workflow remains. |
-| DISCADMIN shell navigation | 🟡 Pending | Protected Content Core entry exists; visible sidebar wiring remains. |
+| DISCADMIN shell navigation | 🟡 In progress | Protected Content Core entry exists; visible sidebar wiring is the current integration step. |
 | Event Wizard CRUD | 🟡 Refinement | Production verification and deeper validation remain. |
 | Visual Media Engine | ⚪ Pending | Next major implementation stage. |
 | Archive / Blog / SEO / Legal / Analytics | ⚪ Pending | Later stages. |
@@ -91,4 +91,4 @@ A feature is not complete merely because code exists. BRVTAL tracks: **developed
 
 ## Status
 
-BRVTAL is under active development. Content Core participation persistence is now integrated in `main`; production deployment and database migration state remain separate and must be verified explicitly.
+BRVTAL is under active development. Content Core participation persistence is integrated in `main`; the Content Core database migration is confirmed applied in production. Production functional verification remains a separate step.
