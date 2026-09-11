@@ -12,6 +12,7 @@ It currently validates:
 - JavaScript syntax for `discadmin` and `tests/e2e`.
 - API contract tests with `tests/api-contract.php`.
 - Media Library contract tests with `tests/media-library-contract.php`.
+- MariaDB integration tests with `tests/integration/content-persistence.php`.
 - Browser UI smoke tests with Playwright under `tests/e2e`.
 
 The CI workflow must not commit build metadata automatically. Product version and build metadata are deliberate release data, not per-change noise.
@@ -22,6 +23,17 @@ Run contract tests:
 
 ```bash
 npm run test:contracts
+```
+
+Run MariaDB integration tests:
+
+```bash
+BRVTAL_INTEGRATION_TESTS=1 \
+BRVTAL_TEST_DB_HOST=127.0.0.1 \
+BRVTAL_TEST_DB_NAME=brvtal_test_local \
+BRVTAL_TEST_DB_USER=root \
+BRVTAL_TEST_DB_PASS=your_local_test_password \
+npm run test:integration
 ```
 
 Run browser UI tests:
@@ -43,7 +55,7 @@ npm install
 npx playwright install chromium
 ```
 
-GitHub Actions installs Node dependencies and Chromium automatically, so local installation is optional.
+GitHub Actions installs Node dependencies and Chromium automatically, so local installation is optional. The MariaDB integration step runs against a disposable service container in CI.
 
 ## Testing pyramid
 
@@ -75,7 +87,37 @@ Future contracts should cover:
 - Ticket type visibility.
 - Releases and Blog contracts once implemented.
 
-### 3. Browser UI tests
+### 3. Integration tests with a database fixture
+
+Purpose: verify actual persistence against disposable MariaDB data.
+
+Current integration coverage:
+
+- Creates temporary Media, Event, Artist, Lineup, Set, Ticket, Page, and Setting records inside MariaDB.
+- Persists `events.cover_image`.
+- Persists `events.ticket_qr`.
+- Persists `artists.photo`.
+- Persists `event_artists.lineup_order` and `event_artists.role`.
+- Persists `event_ticket_types.qr_image` and active status.
+- Confirms `brvtal_media_usage()` detects references in Event, Event QR, Artist, Set, Ticket QR, Page, and Setting.
+- Confirms unused media reports no references.
+
+Safety rules:
+
+- The test only runs when `BRVTAL_INTEGRATION_TESTS=1`.
+- The database name must start with `brvtal_test`.
+- The test uses `CREATE TEMPORARY TABLE`, so it does not drop, alter, or overwrite production tables.
+- The CI workflow provides a disposable MariaDB service container.
+
+Future integration tests should add:
+
+- Full API-level create/update/delete Event.
+- Full API-level create/update/delete Artist.
+- Public API visibility for tickets and events.
+- Settings public/private separation with real API responses.
+- Releases and Blog persistence once implemented.
+
+### 4. Browser UI tests
 
 Purpose: replace repetitive manual clicking in DISCADMIN.
 
@@ -93,28 +135,6 @@ Current Playwright coverage:
 - Broken thumbnails degrade to a safe placeholder.
 
 These tests run against a mocked browser harness. They do not log into production, do not call `brvtal.com.co`, and do not mutate real content.
-
-### 4. Integration tests with a database fixture
-
-Purpose: verify actual CRUD and persistence against a disposable database.
-
-Target coverage:
-
-- Create/update/delete Event.
-- Create/update/delete Artist.
-- Select Media in Event and Artist and confirm persistence in the database.
-- Add/remove/reorder Event lineup.
-- Create ticket types and public visibility states.
-- Media deletion blocked when referenced.
-- Settings public/private separation.
-
-Recommended GitHub Actions setup:
-
-- MariaDB service container.
-- Test database and non-production credentials from CI environment variables.
-- Idempotent schema install/migrations.
-- Seed fixtures.
-- PHP integration runner under `tests/integration/`.
 
 ### 5. Production smoke tests
 
