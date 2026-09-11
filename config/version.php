@@ -6,6 +6,6 @@ declare(strict_types=1);
  * Update APP_VERSION and APP_BUILD for each production release.
  */
 const BRVTAL_APP_VERSION = '0.1.0';
-const BRVTAL_APP_BUILD = 'e907e55';
+const BRVTAL_APP_BUILD = '1d05e81';
 const BRVTAL_APP_ENV = 'PRODUCTION';
 const BRVTAL_RELEASE_DATE = '2026-09-11';
