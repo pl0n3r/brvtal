@@ -54,6 +54,9 @@ jobs:
       - name: Run Media Library contract tests
         run: php tests/media-library-contract.php
 
+      - name: Run Releases contract tests
+        run: php tests/releases-contract.php
+
       - name: Run MariaDB integration tests
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
