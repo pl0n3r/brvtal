@@ -1,6 +1,6 @@
 # BRVTAL Automated Testing Strategy
 
-This document defines how BRVTAL should reduce manual production testing and catch regressions before GitHub -> Hostinger deployment.
+This document defines how BRVTAL reduces manual production testing and catches regressions before GitHub -> Hostinger deployment.
 
 ## Current baseline
 
@@ -9,11 +9,41 @@ The CI workflow runs on every push to `main`, every pull request into `main`, an
 It currently validates:
 
 - PHP syntax for `config`, `discadmin`, `api`, and `tests`.
-- JavaScript syntax for `discadmin`.
+- JavaScript syntax for `discadmin` and `tests/e2e`.
 - API contract tests with `tests/api-contract.php`.
 - Media Library contract tests with `tests/media-library-contract.php`.
+- Browser UI smoke tests with Playwright under `tests/e2e`.
 
 The CI workflow must not commit build metadata automatically. Product version and build metadata are deliberate release data, not per-change noise.
+
+## Commands
+
+Run contract tests:
+
+```bash
+npm run test:contracts
+```
+
+Run browser UI tests:
+
+```bash
+npm run test:e2e
+```
+
+Run the full local suite:
+
+```bash
+npm test
+```
+
+Install Playwright locally only when you want to run browser tests on your own machine:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+GitHub Actions installs Node dependencies and Chromium automatically, so local installation is optional.
 
 ## Testing pyramid
 
@@ -24,7 +54,7 @@ Purpose: catch syntax and unsafe patterns quickly.
 Examples:
 
 - `php -l` for PHP files.
-- `node --check` for JavaScript files.
+- `node --check` for JavaScript and Playwright test files.
 - Contract scans for risky code paths, such as public settings exposure or media deletion without usage checks.
 
 ### 2. Contract tests
@@ -45,7 +75,26 @@ Future contracts should cover:
 - Ticket type visibility.
 - Releases and Blog contracts once implemented.
 
-### 3. Integration tests with a database fixture
+### 3. Browser UI tests
+
+Purpose: replace repetitive manual clicking in DISCADMIN.
+
+Current Playwright coverage:
+
+- Media Picker attaches to Event and Artist image fields.
+- Selecting media normalizes `uploads/...` to `/uploads/...`.
+- Selecting media updates the input value.
+- Selecting media updates the thumbnail preview.
+- Selecting media shows the instruction to press SAVE.
+- Saving Event sends `cover_image` in the payload.
+- Saving Artist sends `photo` in the payload.
+- Successful mutations display global feedback.
+- Failed mutations display persistent error feedback.
+- Broken thumbnails degrade to a safe placeholder.
+
+These tests run against a mocked browser harness. They do not log into production, do not call `brvtal.com.co`, and do not mutate real content.
+
+### 4. Integration tests with a database fixture
 
 Purpose: verify actual CRUD and persistence against a disposable database.
 
@@ -53,7 +102,7 @@ Target coverage:
 
 - Create/update/delete Event.
 - Create/update/delete Artist.
-- Select Media in Event and Artist and confirm persistence.
+- Select Media in Event and Artist and confirm persistence in the database.
 - Add/remove/reorder Event lineup.
 - Create ticket types and public visibility states.
 - Media deletion blocked when referenced.
@@ -66,25 +115,6 @@ Recommended GitHub Actions setup:
 - Idempotent schema install/migrations.
 - Seed fixtures.
 - PHP integration runner under `tests/integration/`.
-
-### 4. Browser UI tests
-
-Purpose: replace repetitive manual clicking in DISCADMIN.
-
-Recommended tool: Playwright.
-
-Target flows:
-
-- Login to test environment.
-- Open DISCADMIN shell and verify one sidebar.
-- Open Events, Artists, Media, Content Core, Security/2FA.
-- Upload or register test media.
-- Select media from picker for Event and Artist.
-- Save and reload to verify persistence.
-- Confirm toast feedback appears for success and error states.
-- Confirm protected delete state for media in use.
-
-These should run against a disposable test environment first. Running write tests directly against production is not recommended.
 
 ### 5. Production smoke tests
 
@@ -118,7 +148,7 @@ If an intentional release stamp is needed later, create a separate manual-only w
 For each change, report the real state using these labels:
 
 - IMPLEMENTED: code changed.
-- VALIDATED IN CODE: CI/static/contract/integration tests passed.
+- VALIDATED IN CODE: CI/static/contract/integration/browser tests passed.
 - DEPLOYED: Hostinger auto-deploy has picked up the commit.
 - VALIDATED IN PRODUCTION: the deployed behavior was actually checked on `brvtal.com.co`.
 
