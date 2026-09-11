@@ -1,45 +1,37 @@
-name: Update release metadata
+name: BRVTAL CI
+
 on:
   push:
     branches: [main]
-    paths-ignore: ['config/version.php']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
 concurrency:
-  group: release-metadata-main
-  cancel-in-progress: false
+  group: brvtal-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  release-metadata:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
-      - name: Validate PHP and JavaScript
+
+      - name: Validate PHP syntax
         run: |
           find config discadmin api tests -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Validate JavaScript syntax
+        run: |
           find discadmin -name '*.js' -print0 | xargs -0 -n1 node --check
+
       - name: Run API contract tests
         run: php tests/api-contract.php
+
       - name: Run Media Library contract tests
         run: php tests/media-library-contract.php
-      - name: Update build metadata
-        run: python3 scripts/update-release-metadata.py
-      - name: Validate version metadata
-        run: php -l config/version.php
-      - name: Commit metadata
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- config/version.php; then exit 0; fi
-          git fetch origin main
-          if [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)" ]; then
-            echo 'A newer main commit exists; skipping stale release metadata. The newer run will stamp it.'
-            exit 0
-          fi
-          git config user.name 'BRVTAL Automation'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add config/version.php
-          git commit -m 'chore: update release metadata [skip ci]'
-          git push origin HEAD:main
