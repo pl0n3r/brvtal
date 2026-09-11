@@ -69,9 +69,9 @@ Production database migrations must be reviewed and executed explicitly. A migra
 ## Development workflow
 
 1. Work from `main` as the stable integration baseline.
-2. Develop substantial changes on a feature branch.
+2. Develop substantial changes on a feature branch when practical.
 3. Validate PHP, JavaScript, migrations and security-sensitive changes.
-4. Open a Pull Request for review.
+4. Open a Pull Request for review when the change is substantial.
 5. Merge into `main` only after the change is ready.
 6. Build the required FTP package separately when production deployment is requested.
 
@@ -83,13 +83,13 @@ Do not assume that a GitHub change is deployed to `brvtal.com.co`. Repository st
 
 ### Current / next
 
-- Content Core shell integration into DISCADMIN
-- Event Wizard stabilization and real API persistence
+- Event Wizard persistence hardening
 - Event lifecycle management
-- Ticket management
+- Ticket management without duplicate records
 - Collective Roster management
 - Artist lifecycle/history
 - Event ↔ artist participation
+- Full DISCADMIN navigation integration
 
 ### Planned
 
@@ -127,8 +127,11 @@ The public design is intentionally fixed during the current product stage. Event
 | Content Core database migration | 🟡 Ready / production deployment not confirmed | `database/migration_content_core_01.sql` exists; production application must be confirmed separately. |
 | Content Core API | 🟢 Integrated in `main` | Event lifecycle, ticket types and collective fields are represented in the API/model. |
 | Content Core workspace | 🟢 Integrated in `main` | Event Editor / Collective Roster workspace exists at `discadmin/content-core.php`. |
-| DISCADMIN shell integration | 🔵 In progress | The workspace is being connected to the main administration navigation. |
-| Event Wizard CRUD | 🟡 Refinement | UI foundation exists; final persistence, validation and UX verification remain. |
+| Event Wizard authentication | 🟢 Integrated in `main` | Workspace now obtains the authenticated session CSRF token before state-changing requests. |
+| Ticket persistence | 🟢 Integrated in `main` | Existing ticket types are updated, new ones are created, and removed rows are deleted instead of duplicating on repeated saves. |
+| Event participation persistence | 🟡 Pending | UI selection exists; API relation endpoint still needs to be implemented before claiming completion. |
+| DISCADMIN shell navigation | 🟡 Pending | Protected entry point exists; visible sidebar integration still needs to be wired cleanly into the main shell. |
+| Event Wizard CRUD | 🟡 Refinement | Core save path is hardened; full lifecycle/roster validation and production verification remain. |
 | Visual Media Engine | ⚪ Pending | Visual picker, automatic variants, crop preview and usage protection are next. |
 | Archive / Blog / SEO / Legal / Analytics | ⚪ Pending | Planned after Content Core and Media Engine stabilization. |
 
@@ -144,4 +147,4 @@ https://github.com/pl0n3r/brvtal
 
 ## Status
 
-BRVTAL is under active development. The current work is focused on making Content Core a first-class part of DISCADMIN before starting the Media Engine.
+BRVTAL is under active development. Content Core is being hardened before the Media Engine begins. Production deployment and database migration state must be verified separately from GitHub.
