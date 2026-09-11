@@ -12,3 +12,15 @@
 @media(max-width:850px){.side{height:auto;max-height:45dvh}.main{min-width:0}[data-admin-module] .head,[data-admin-module] .top{flex-wrap:wrap}[data-admin-module] .tabs{flex-wrap:wrap}}
 .side{display:flex;flex-direction:column}
 .side .sidefoot{position:static;margin-top:auto;padding-top:24px;flex-shrink:0}
+
+.brvtal-feedback-stack{position:fixed;right:20px;top:20px;z-index:10000;width:min(390px,calc(100vw - 32px));display:grid;gap:8px;pointer-events:none}
+.brvtal-feedback{pointer-events:auto;display:grid;grid-template-columns:9px minmax(0,1fr) 26px;gap:10px;align-items:start;background:#090a0b;border:1px solid #353a3f;padding:12px 12px 12px 13px;box-shadow:0 14px 42px #000b;opacity:0;transform:translateY(-8px);transition:opacity .16s ease,transform .16s ease,border-color .16s ease}
+.brvtal-feedback.show{opacity:1;transform:none}.brvtal-feedback.leaving{opacity:0;transform:translateY(-5px)}
+.brvtal-feedback-dot{width:7px;height:7px;border-radius:50%;background:#899097;margin-top:4px;box-shadow:0 0 8px #89909744}
+.brvtal-feedback.success{border-color:#285b43}.brvtal-feedback.success .brvtal-feedback-dot{background:#49d98a;box-shadow:0 0 9px #49d98a66}
+.brvtal-feedback.error{border-color:#71323b}.brvtal-feedback.error .brvtal-feedback-dot{background:#ff5566;box-shadow:0 0 9px #ff556666}
+.brvtal-feedback.progress{border-color:#555c62}.brvtal-feedback.progress .brvtal-feedback-dot{background:#fff;animation:brvtal-feedback-pulse .8s ease-in-out infinite alternate}
+.brvtal-feedback-copy{min-width:0}.brvtal-feedback-copy strong{display:block;font:900 8px/1.2 monospace;letter-spacing:1.8px;color:#858d93;margin-bottom:5px}.brvtal-feedback-copy span{display:block;font:11px/1.45 Arial,Helvetica,sans-serif;color:#f2f4f5;word-break:break-word}
+.brvtal-feedback button{border:0;background:transparent;color:#757c82;font-size:18px;line-height:1;padding:0;cursor:pointer}.brvtal-feedback button:hover{color:#fff}
+@keyframes brvtal-feedback-pulse{from{opacity:.35;transform:scale(.8)}to{opacity:1;transform:scale(1.08)}}
+@media(max-width:650px){.brvtal-feedback-stack{left:16px;right:16px;top:16px;width:auto}}
