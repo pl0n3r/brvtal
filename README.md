@@ -83,8 +83,8 @@ Do not assume that a GitHub change is deployed to `brvtal.com.co`. Repository st
 
 ### Current / next
 
-- Content Core UI refinement
-- Event Wizard
+- Content Core shell integration into DISCADMIN
+- Event Wizard stabilization and real API persistence
 - Event lifecycle management
 - Ticket management
 - Collective Roster management
@@ -118,6 +118,24 @@ Do not assume that a GitHub change is deployed to `brvtal.com.co`. Repository st
 
 The public design is intentionally fixed during the current product stage. Event and artist content should adapt to the BRVTAL system rather than turning every event into an independent microsite.
 
+## Delivery state
+
+| Area | State | Notes |
+|---|---|---|
+| Foundation / security core | 🟢 Integrated in `main` | Central auth, CSRF, rate limiting and production hardening are in the repository. |
+| Optional TOTP / Google Authenticator | 🟢 Implemented in branch lineage | Optional 2FA; activation remains administrator-controlled. |
+| Content Core database migration | 🟡 Ready / production deployment not confirmed | `database/migration_content_core_01.sql` exists; production application must be confirmed separately. |
+| Content Core API | 🟢 Integrated in `main` | Event lifecycle, ticket types and collective fields are represented in the API/model. |
+| Content Core workspace | 🟢 Integrated in `main` | Event Editor / Collective Roster workspace exists at `discadmin/content-core.php`. |
+| DISCADMIN shell integration | 🔵 In progress | The workspace is being connected to the main administration navigation. |
+| Event Wizard CRUD | 🟡 Refinement | UI foundation exists; final persistence, validation and UX verification remain. |
+| Visual Media Engine | ⚪ Pending | Visual picker, automatic variants, crop preview and usage protection are next. |
+| Archive / Blog / SEO / Legal / Analytics | ⚪ Pending | Planned after Content Core and Media Engine stabilization. |
+
+### Completion standard
+
+A feature is not considered complete merely because code exists. BRVTAL tracks: **developed → validated → integrated → in `main` → deployed → verified in production**.
+
 ## Repository
 
 Official source repository:
@@ -126,4 +144,4 @@ https://github.com/pl0n3r/brvtal
 
 ## Status
 
-BRVTAL is under active development. Features are introduced incrementally and production deployment is kept separate from repository integration.
+BRVTAL is under active development. The current work is focused on making Content Core a first-class part of DISCADMIN before starting the Media Engine.
