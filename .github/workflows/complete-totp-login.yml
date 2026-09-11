@@ -21,21 +21,16 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
+          import re
 
-          api = Path('api/index.php')
-          text = api.read_text()
-          req = "require_once __DIR__ . '/../config/admin_auth.php';"
+          api=Path('api/index.php'); text=api.read_text()
+          req="require_once __DIR__ . '/../config/admin_auth.php';"
           if "../config/totp_auth.php" not in text:
-              text = text.replace(req, req + "\nrequire_once __DIR__ . '/../config/totp_auth.php';", 1)
+              text=text.replace(req,req+"\nrequire_once __DIR__ . '/../config/totp_auth.php';",1)
 
-          old = '''            $st=db()->prepare('SELECT id,email,password_hash,name FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
-            if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
-            brvtal_admin_login_session((int)$a['id']);
-            db()->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([$a['id']]);
-            brvtal_log('AUTH_OK','Admin login successful',['admin_id'=>(int)$a['id']]);
-            json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);'''
-
-          new = '''            $st=db()->prepare('SELECT id,email,password_hash,name,totp_enabled,totp_secret_enc FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
+          if 'requires_totp' not in text:
+              pattern=r"\s+\$st=db\(\)->prepare\('SELECT id,email,password_hash,name FROM admins WHERE email=\? AND is_active=1 LIMIT 1'\);.*?json_response\(\['ok'=>true,'admin'=>\['id'=>\(int\)\$a\['id'\],'name'=>\$a\['name'\],'email'=>\$a\['email'\]\],'csrf'=>brvtal_admin_csrf_token\(\)\]\);"
+              replacement="""\n            $st=db()->prepare('SELECT id,email,password_hash,name,totp_enabled,totp_secret_enc FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
             if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
             if((int)($a['totp_enabled'] ?? 0) === 1) {
                 if(empty($a['totp_secret_enc'])) { brvtal_log('SECURITY','TOTP enabled without encrypted secret',['admin_id'=>(int)$a['id']]); json_response(['ok'=>false,'error'=>'TOTP_CONFIGURATION_ERROR'],503); }
@@ -46,44 +41,21 @@ jobs:
             brvtal_admin_login_session((int)$a['id']);
             db()->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([$a['id']]);
             brvtal_log('AUTH_OK','Admin login successful',['admin_id'=>(int)$a['id']]);
-            json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);'''
+            json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);"""
+              text,n=re.subn(pattern,replacement,text,count=1,flags=re.S)
+              if n!=1: raise SystemExit('Expected password-login block not found; aborting.')
 
-          if old not in text:
-              raise SystemExit('Expected login block not found; aborting without modification.')
-          text = text.replace(old, new, 1)
+          if "action'] ?? '') === 'totp_verify'" not in text:
+              marker="""        if($method==='POST') {\n            $d=input_json();"""
+              if marker not in text: raise SystemExit('Expected POST auth marker not found; aborting.')
+              insertion="""        if($method==='POST') {\n            $d=input_json();\n            if(($d['action'] ?? '') === 'totp_verify') {\n                $pendingId=brvtal_totp_pending_admin_id();\n                if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);\n                brvtal_totp_rate_limit($pendingId);\n                $code=trim((string)($d['code']??''));\n                if($code==='') json_response(['ok'=>false,'error'=>'TOTP_CODE_REQUIRED'],422);\n                $st=db()->prepare('SELECT id,email,name,is_active,totp_enabled,totp_secret_enc FROM admins WHERE id=? LIMIT 1'); $st->execute([$pendingId]); $a=$st->fetch();\n                if(!$a || !(int)$a['is_active'] || !(int)$a['totp_enabled']) { brvtal_totp_pending_clear(); json_response(['ok'=>false,'error'=>'TOTP_UNAVAILABLE'],401); }\n                $secret=brvtal_totp_decrypt_secret((string)$a['totp_secret_enc']);\n                $valid=$secret!==null && brvtal_totp_verify($secret,$code,null,1);\n                if(!$valid) $valid=brvtal_totp_recovery_verify(db(),$pendingId,$code);\n                if(!$valid) { brvtal_log('SECURITY','Invalid TOTP challenge',['admin_id'=>$pendingId]); json_response(['ok'=>false,'error'=>'INVALID_TOTP'],401); }\n                brvtal_totp_complete_login(db(),$a);\n            }"""
+              text=text.replace(marker,insertion,1)
 
-          marker = '''        if($method==='POST') {
-            $d=input_json(); $email=strtolower(trim((string)($d['email']??''))); $pass=(string)($d['password']??'');'''
-          insertion = '''        if($method==='POST') {
-            $d=input_json();
-            if(($d['action'] ?? '') === 'totp_verify') {
-                $pendingId=brvtal_totp_pending_admin_id();
-                if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);
-                brvtal_totp_rate_limit($pendingId);
-                $code=trim((string)($d['code']??''));
-                if($code==='') json_response(['ok'=>false,'error'=>'TOTP_CODE_REQUIRED'],422);
-                $st=db()->prepare('SELECT id,email,name,is_active,totp_enabled,totp_secret_enc FROM admins WHERE id=? LIMIT 1'); $st->execute([$pendingId]); $a=$st->fetch();
-                if(!$a || !(int)$a['is_active'] || !(int)$a['totp_enabled']) { brvtal_totp_pending_clear(); json_response(['ok'=>false,'error'=>'TOTP_UNAVAILABLE'],401); }
-                $secret=brvtal_totp_decrypt_secret((string)$a['totp_secret_enc']);
-                $valid=$secret!==null && brvtal_totp_verify($secret,$code,null,1);
-                if(!$valid) $valid=brvtal_totp_recovery_verify(db(),$pendingId,$code);
-                if(!$valid) { brvtal_log('SECURITY','Invalid TOTP challenge',['admin_id'=>$pendingId]); json_response(['ok'=>false,'error'=>'INVALID_TOTP'],401); }
-                brvtal_totp_complete_login(db(),$a);
-            }
-            $email=strtolower(trim((string)($d['email']??''))); $pass=(string)($d['password']??'');'''
-          if marker not in text:
-              raise SystemExit('Expected POST auth marker not found; aborting without modification.')
-          text=text.replace(marker,insertion,1)
           api.write_text(text)
-
-          idx=Path('discadmin/index.php')
-          html=idx.read_text()
-          tag='<script src="/discadmin/totp-login.js"></script>'
+          idx=Path('discadmin/index.php'); html=idx.read_text(); tag='<script src="/discadmin/totp-login.js"></script>'
           if tag not in html:
-              if '</body>' not in html:
-                  raise SystemExit('Expected </body> in discadmin/index.php')
-              html=html.replace('</body>',tag+'</body>',1)
-              idx.write_text(html)
+              if '</body>' not in html: raise SystemExit('Expected </body> in discadmin/index.php')
+              idx.write_text(html.replace('</body>',tag+'</body>',1))
           PY
 
       - name: Validate PHP and JavaScript
@@ -100,9 +72,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add api/index.php discadmin/index.php
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "No integration changes needed."
-          else
-            git commit -m "feat: enforce TOTP during admin login"
-            git push origin HEAD:feat/0b-5-totp-optional-impl
-          fi
+          if git diff --cached --quiet; then echo "No integration changes needed."; else git commit -m "feat: enforce TOTP during admin login"; git push origin HEAD:feat/0b-5-totp-optional-impl; fi
