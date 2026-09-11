@@ -269,6 +269,48 @@ window.BRVTALAdminModules = (() => {
   document.addEventListener('input',e => syncMediaFieldPreview(e.target),true);
   document.addEventListener('change',e => syncMediaFieldPreview(e.target),true);
 
+  let artistThumbMapPromise = null;
+  async function getArtistThumbMap(force = false) {
+    if (!force && artistThumbMapPromise) return artistThumbMapPromise;
+    artistThumbMapPromise = (async () => {
+      try {
+        const r = await nativeFetch('/api/index.php/artists',{credentials:'same-origin',cache:'no-store'});
+        const j = await r.json();
+        const map = new Map();
+        (Array.isArray(j.data) ? j.data : []).forEach(artist => map.set(String(artist.name || '').trim().toLowerCase(), artist.photo || ''));
+        return map;
+      } catch (_) {
+        return new Map();
+      }
+    })();
+    return artistThumbMapPromise;
+  }
+
+  async function hydrateContentCoreThumbs(scope = document) {
+    const placeholders = [...scope.querySelectorAll?.('[data-admin-module="content-core"] .artist .ph') || []];
+    if (!placeholders.length) return;
+    const map = await getArtistThumbMap();
+    placeholders.forEach(ph => {
+      if (!ph.isConnected) return;
+      const name = ph.closest('.artist')?.querySelector('.grow b')?.textContent?.trim().toLowerCase() || '';
+      const photo = normalizeMediaPath(map.get(name) || '');
+      if (!photo) return;
+      const img = document.createElement('img');
+      img.src = photo;
+      img.alt = ph.closest('.artist')?.querySelector('.grow b')?.textContent?.trim() || 'Artist';
+      img.loading = 'lazy';
+      ph.replaceWith(img);
+    });
+  }
+
+  let hydrateTimer = null;
+  const contentCoreThumbObserver = new MutationObserver(mutations => {
+    if (!mutations.some(m => m.addedNodes.length)) return;
+    clearTimeout(hydrateTimer);
+    hydrateTimer = setTimeout(() => hydrateContentCoreThumbs(document), 20);
+  });
+  contentCoreThumbObserver.observe(document.documentElement,{childList:true,subtree:true});
+
   function fieldValue(id) {
     return document.getElementById('f_' + id)?.value ?? '';
   }
@@ -375,6 +417,7 @@ window.BRVTALAdminModules = (() => {
       if(!fragment) throw Error('Invalid module response');
       host.replaceChildren(document.importNode(fragment,true));
       await modules[section].mount(host.firstElementChild);
+      if (section === 'content-core') hydrateContentCoreThumbs(host);
     } catch(error) {
       if(controller.signal.aborted || !host.isConnected) return;
       host.replaceChildren();
@@ -412,6 +455,34 @@ window.BRVTALAdminModules = (() => {
     if(type==='media' && !id) { window.go('media'); return; }
     return originalOpenModal(type,id);
   };
+
+  const originalRestoreSession = window.restoreSession;
+  if (typeof originalRestoreSession === 'function') {
+    window.restoreSession = async function(...args) {
+      try { await mediaPermissions.repair(); }
+      catch (e) { if (e?.message !== 'AUTH_REQUIRED') Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
+      const result = await originalRestoreSession.apply(this,args);
+      if (result) hydrateContentCoreThumbs(document);
+      return result;
+    };
+  }
+
+  const originalLogin = window.login;
+  if (typeof originalLogin === 'function') {
+    window.login = async function(...args) {
+      const result = await originalLogin.apply(this,args);
+      try {
+        if (typeof state !== 'undefined' && state.authed) {
+          await mediaPermissions.repair();
+          artistThumbMapPromise = null;
+          if (state.section && typeof window.go === 'function') await window.go(state.section);
+        }
+      } catch (e) {
+        Feedback.error('Login succeeded, but media thumbnail access could not be refreshed: ' + e.message,'media-permissions');
+      }
+      return result;
+    };
+  }
 
   return {load,cancel,initialSection,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
 })();
