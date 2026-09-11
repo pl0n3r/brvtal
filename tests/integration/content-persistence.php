@@ -114,6 +114,33 @@ $pdo->exec("CREATE TEMPORARY TABLE settings (
     is_json TINYINT DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+$pdo->exec("CREATE TEMPORARY TABLE releases (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(180) NOT NULL,
+    slug VARCHAR(190) NOT NULL,
+    release_type VARCHAR(30) NOT NULL DEFAULT 'single',
+    catalog_number VARCHAR(80) NULL,
+    release_date DATE NULL,
+    description TEXT NULL,
+    artwork VARCHAR(500) NULL,
+    spotify_url VARCHAR(700) NULL,
+    soundcloud_url VARCHAR(700) NULL,
+    bandcamp_url VARCHAR(700) NULL,
+    youtube_url VARCHAR(700) NULL,
+    beatport_url VARCHAR(700) NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    featured TINYINT NOT NULL DEFAULT 0,
+    sort_order INT NOT NULL DEFAULT 0,
+    published_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE release_artists (
+    release_id INT NOT NULL,
+    artist_id INT NOT NULL,
+    role VARCHAR(80) NULL,
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 $mediaPath = '/uploads/media/ci/test-poster.jpg';
 $unusedPath = '/uploads/media/ci/unused.jpg';
 
@@ -152,6 +179,19 @@ $ticket = $pdo->query('SELECT qr_image,status,sort_order FROM event_ticket_types
 brvtal_it_assert($ticket['qr_image'] === $mediaPath, 'ticket QR media path must persist');
 brvtal_it_assert($ticket['status'] === 'active', 'ticket status must persist');
 
+$pdo->prepare('INSERT INTO releases(title,slug,release_type,catalog_number,release_date,description,artwork,spotify_url,status,featured,sort_order,published_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    ->execute(['BRVTAL CI Release', 'brvtal-ci-release', 'single', 'BRVTAL-CI-001', '2026-09-11', 'Integration release', $mediaPath, 'https://open.spotify.com/test', 'published', 1, 3, '2026-09-11 20:00:00']);
+$releaseId = (int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO release_artists(release_id,artist_id,role,sort_order) VALUES(?,?,?,?)')->execute([$releaseId, $artistId, 'Primary', 0]);
+$release = $pdo->query('SELECT artwork,status,featured,catalog_number FROM releases WHERE id=' . $releaseId)->fetch();
+$releaseArtist = $pdo->query('SELECT artist_id,role,sort_order FROM release_artists WHERE release_id=' . $releaseId)->fetch();
+brvtal_it_assert($release['artwork'] === $mediaPath, 'release artwork must persist');
+brvtal_it_assert($release['status'] === 'published', 'release status must persist');
+brvtal_it_assert((int)$release['featured'] === 1, 'release featured flag must persist');
+brvtal_it_assert($release['catalog_number'] === 'BRVTAL-CI-001', 'release catalog number must persist');
+brvtal_it_assert((int)$releaseArtist['artist_id'] === $artistId, 'release artist relation must persist');
+brvtal_it_assert($releaseArtist['role'] === 'Primary', 'release artist role must persist');
+
 $pdo->prepare('INSERT INTO sets_media(title,cover_image,status) VALUES(?,?,?)')->execute(['CI Set', $mediaPath, 'published']);
 $pdo->prepare('INSERT INTO pages(title,content_json,status) VALUES(?,?,?)')->execute(['CI Page', json_encode(['hero' => $mediaPath], JSON_UNESCAPED_SLASHES), 'published']);
 $pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?)')->execute(['theme.ci', json_encode(['image' => $mediaPath], JSON_UNESCAPED_SLASHES), 1]);
@@ -161,7 +201,7 @@ $usage = brvtal_media_usage($pdo, $media);
 $resources = array_values(array_unique(array_map(static fn(array $row): string => (string)$row['resource'], $usage)));
 sort($resources);
 
-foreach (['ARTIST', 'EVENT', 'EVENT QR', 'PAGE', 'SET', 'SETTING', 'TICKET QR'] as $expected) {
+foreach (['ARTIST', 'EVENT', 'EVENT QR', 'PAGE', 'RELEASE', 'SET', 'SETTING', 'TICKET QR'] as $expected) {
     brvtal_it_assert(in_array($expected, $resources, true), "media usage must include {$expected}");
 }
 
