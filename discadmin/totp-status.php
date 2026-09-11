@@ -24,6 +24,7 @@ if (!$admin) {
 $csrf = brvtal_admin_csrf_token();
 $enabled = (bool)$admin['totp_enabled'];
 ?>
+<?php require __DIR__ . '/admin-sidebar.php'; ?>
 <!doctype html>
 <html lang="en">
 <head>
