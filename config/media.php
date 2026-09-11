@@ -1,0 +1,356 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * BRVTAL Media Engine helpers.
+ *
+ * Keeps the original upload immutable, derives optional image variants on the
+ * filesystem, and computes references from existing content before deletion.
+ * No database migration is required for this first Media Engine phase.
+ */
+
+function brvtal_media_upload_root(): string
+{
+    return dirname(__DIR__) . '/uploads';
+}
+
+function brvtal_media_public_upload_path(string $absolutePath): ?string
+{
+    $root = realpath(brvtal_media_upload_root());
+    $real = realpath($absolutePath);
+    if ($root === false || $real === false) {
+        return null;
+    }
+    $root = rtrim(str_replace('\\', '/', $root), '/');
+    $real = str_replace('\\', '/', $real);
+    if ($real !== $root && !str_starts_with($real, $root . '/')) {
+        return null;
+    }
+    return '/uploads' . substr($real, strlen($root));
+}
+
+function brvtal_media_local_absolute(?string $publicPath): ?string
+{
+    $path = trim((string)$publicPath);
+    if ($path === '' || !str_starts_with($path, '/uploads/')) {
+        return null;
+    }
+    if (str_contains($path, '..') || str_contains($path, "\0")) {
+        return null;
+    }
+
+    $root = realpath(brvtal_media_upload_root());
+    if ($root === false) {
+        return null;
+    }
+
+    $candidate = dirname(__DIR__) . '/' . ltrim($path, '/');
+    $real = realpath($candidate);
+    if ($real === false) {
+        return null;
+    }
+
+    $root = rtrim(str_replace('\\', '/', $root), '/');
+    $real = str_replace('\\', '/', $real);
+    if ($real !== $root && !str_starts_with($real, $root . '/')) {
+        return null;
+    }
+    return $real;
+}
+
+function brvtal_media_json_response(array $payload, int $status = 200): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('X-Content-Type-Options: nosniff');
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function brvtal_media_sidecar_path(string $absoluteOriginal): string
+{
+    $info = pathinfo($absoluteOriginal);
+    return $info['dirname'] . '/' . $info['filename'] . '.media.json';
+}
+
+function brvtal_media_read_sidecar(?string $publicPath): ?array
+{
+    $absolute = brvtal_media_local_absolute($publicPath);
+    if ($absolute === null) {
+        return null;
+    }
+    $sidecar = brvtal_media_sidecar_path($absolute);
+    if (!is_file($sidecar)) {
+        return null;
+    }
+    $decoded = json_decode((string)@file_get_contents($sidecar), true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+function brvtal_media_dimensions(?string $publicPath): ?array
+{
+    $absolute = brvtal_media_local_absolute($publicPath);
+    if ($absolute === null || !is_file($absolute)) {
+        return null;
+    }
+    $info = @getimagesize($absolute);
+    if (!is_array($info) || empty($info[0]) || empty($info[1])) {
+        return null;
+    }
+    return ['width' => (int)$info[0], 'height' => (int)$info[1]];
+}
+
+function brvtal_media_asset_payload(array $row): array
+{
+    $row['id'] = (int)($row['id'] ?? 0);
+    $row['file_size'] = (int)($row['file_size'] ?? 0);
+    $row['engine'] = null;
+    $row['dimensions'] = null;
+    $row['warnings'] = [];
+
+    if (($row['type'] ?? '') === 'image') {
+        $sidecar = brvtal_media_read_sidecar((string)($row['file_path'] ?? ''));
+        if ($sidecar !== null) {
+            $row['engine'] = $sidecar;
+            if (isset($sidecar['original']['width'], $sidecar['original']['height'])) {
+                $row['dimensions'] = [
+                    'width' => (int)$sidecar['original']['width'],
+                    'height' => (int)$sidecar['original']['height'],
+                ];
+            }
+        }
+        if ($row['dimensions'] === null) {
+            $row['dimensions'] = brvtal_media_dimensions((string)($row['file_path'] ?? ''));
+        }
+        if (is_array($row['dimensions'])) {
+            $w = (int)$row['dimensions']['width'];
+            $h = (int)$row['dimensions']['height'];
+            if ($w < 1200 || $h < 1200) {
+                $row['warnings'][] = 'LOW_RESOLUTION';
+            }
+        }
+        if ($row['file_size'] > 12 * 1024 * 1024) {
+            $row['warnings'][] = 'LARGE_FILE';
+        }
+    }
+
+    return $row;
+}
+
+function brvtal_media_usage(PDO $pdo, array $media): array
+{
+    $path = trim((string)($media['file_path'] ?? ''));
+    if ($path === '') {
+        return [];
+    }
+
+    $refs = [];
+    $exact = [
+        ['table' => 'events', 'field' => 'cover_image', 'label' => 'EVENT', 'title' => 'title'],
+        ['table' => 'events', 'field' => 'ticket_qr', 'label' => 'EVENT QR', 'title' => 'title'],
+        ['table' => 'artists', 'field' => 'photo', 'label' => 'ARTIST', 'title' => 'name'],
+        ['table' => 'sets_media', 'field' => 'cover_image', 'label' => 'SET', 'title' => 'title'],
+        ['table' => 'event_ticket_types', 'field' => 'qr_image', 'label' => 'TICKET QR', 'title' => 'name'],
+    ];
+
+    foreach ($exact as $def) {
+        try {
+            $sql = sprintf(
+                'SELECT id, `%s` AS ref_title FROM `%s` WHERE `%s` = ? LIMIT 100',
+                $def['title'],
+                $def['table'],
+                $def['field']
+            );
+            $st = $pdo->prepare($sql);
+            $st->execute([$path]);
+            foreach ($st->fetchAll() as $row) {
+                $refs[] = [
+                    'resource' => $def['label'],
+                    'id' => (int)$row['id'],
+                    'field' => $def['field'],
+                    'title' => (string)($row['ref_title'] ?? ''),
+                ];
+            }
+        } catch (Throwable) {
+            // Optional tables/columns may not exist on older installations.
+        }
+    }
+
+    $contains = [
+        ['table' => 'pages', 'field' => 'content_json', 'label' => 'PAGE', 'title' => 'title'],
+        ['table' => 'settings', 'field' => 'setting_value', 'label' => 'SETTING', 'title' => 'setting_key'],
+    ];
+    $needle = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $path) . '%';
+
+    foreach ($contains as $def) {
+        try {
+            $idExpr = $def['table'] === 'settings' ? '0 AS id' : 'id';
+            $sql = sprintf(
+                "SELECT %s, `%s` AS ref_title FROM `%s` WHERE `%s` LIKE ? ESCAPE '\\\\' LIMIT 100",
+                $idExpr,
+                $def['title'],
+                $def['table'],
+                $def['field']
+            );
+            $st = $pdo->prepare($sql);
+            $st->execute([$needle]);
+            foreach ($st->fetchAll() as $row) {
+                $refs[] = [
+                    'resource' => $def['label'],
+                    'id' => (int)($row['id'] ?? 0),
+                    'field' => $def['field'],
+                    'title' => (string)($row['ref_title'] ?? ''),
+                ];
+            }
+        } catch (Throwable) {
+            // Optional structures should not make the media library unavailable.
+        }
+    }
+
+    return $refs;
+}
+
+function brvtal_media_create_image_resource(string $absolute, string $mime): GdImage|false
+{
+    if (!extension_loaded('gd')) {
+        return false;
+    }
+    return match ($mime) {
+        'image/jpeg' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($absolute) : false,
+        'image/png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($absolute) : false,
+        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($absolute) : false,
+        default => false,
+    };
+}
+
+function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sourceHeight, string $target, int $targetWidth, int $targetHeight, bool $crop = false): bool
+{
+    $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
+    if (!$canvas) {
+        return false;
+    }
+    imagealphablending($canvas, false);
+    imagesavealpha($canvas, true);
+    $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+    imagefilledrectangle($canvas, 0, 0, $targetWidth, $targetHeight, $transparent);
+
+    if ($crop) {
+        $side = min($sourceWidth, $sourceHeight);
+        $sx = (int)floor(($sourceWidth - $side) / 2);
+        $sy = (int)floor(($sourceHeight - $side) / 2);
+        imagecopyresampled($canvas, $source, 0, 0, $sx, $sy, $targetWidth, $targetHeight, $side, $side);
+    } else {
+        imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
+    }
+
+    $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, 82);
+    imagedestroy($canvas);
+    return $ok;
+}
+
+function brvtal_media_generate_variants(string $absoluteOriginal, string $mime): array
+{
+    $info = @getimagesize($absoluteOriginal);
+    $width = is_array($info) ? (int)($info[0] ?? 0) : 0;
+    $height = is_array($info) ? (int)($info[1] ?? 0) : 0;
+    $result = [
+        'version' => 1,
+        'generated_at' => date(DATE_ATOM),
+        'status' => 'original_only',
+        'original' => [
+            'path' => brvtal_media_public_upload_path($absoluteOriginal),
+            'width' => $width,
+            'height' => $height,
+            'mime_type' => $mime,
+        ],
+        'variants' => [],
+    ];
+
+    if ($width < 1 || $height < 1 || $width * $height > 40000000) {
+        $result['reason'] = 'IMAGE_DIMENSIONS_UNSUPPORTED';
+        return $result;
+    }
+
+    $source = brvtal_media_create_image_resource($absoluteOriginal, $mime);
+    if (!$source || !function_exists('imagewebp')) {
+        $result['reason'] = 'GD_WEBP_UNAVAILABLE';
+        return $result;
+    }
+
+    $infoPath = pathinfo($absoluteOriginal);
+    $base = $infoPath['dirname'] . '/' . $infoPath['filename'];
+
+    $squareSize = min(480, max(1, min($width, $height)));
+    $squarePath = $base . '--square-' . $squareSize . '.webp';
+    if (brvtal_media_write_variant($source, $width, $height, $squarePath, $squareSize, $squareSize, true)) {
+        $result['variants']['square'] = [
+            'path' => brvtal_media_public_upload_path($squarePath),
+            'width' => $squareSize,
+            'height' => $squareSize,
+            'mime_type' => 'image/webp',
+        ];
+    }
+
+    foreach ([1280, 1920] as $targetWidth) {
+        if ($width <= $targetWidth) {
+            continue;
+        }
+        $targetHeight = max(1, (int)round($height * ($targetWidth / $width)));
+        $targetPath = $base . '--w' . $targetWidth . '.webp';
+        if (brvtal_media_write_variant($source, $width, $height, $targetPath, $targetWidth, $targetHeight, false)) {
+            $result['variants']['w' . $targetWidth] = [
+                'path' => brvtal_media_public_upload_path($targetPath),
+                'width' => $targetWidth,
+                'height' => $targetHeight,
+                'mime_type' => 'image/webp',
+            ];
+        }
+    }
+
+    imagedestroy($source);
+    if ($result['variants'] !== []) {
+        $result['status'] = 'ready';
+    }
+    return $result;
+}
+
+function brvtal_media_store_sidecar(string $absoluteOriginal, array $metadata): void
+{
+    $sidecar = brvtal_media_sidecar_path($absoluteOriginal);
+    @file_put_contents(
+        $sidecar,
+        json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        LOCK_EX
+    );
+    @chmod($sidecar, 0640);
+}
+
+function brvtal_media_delete_files(array $media): array
+{
+    $deleted = [];
+    $absolute = brvtal_media_local_absolute((string)($media['file_path'] ?? ''));
+    if ($absolute === null) {
+        return $deleted;
+    }
+
+    $sidecarData = brvtal_media_read_sidecar((string)$media['file_path']);
+    if (is_array($sidecarData['variants'] ?? null)) {
+        foreach ($sidecarData['variants'] as $variant) {
+            $variantAbsolute = brvtal_media_local_absolute((string)($variant['path'] ?? ''));
+            if ($variantAbsolute !== null && is_file($variantAbsolute) && @unlink($variantAbsolute)) {
+                $deleted[] = (string)$variant['path'];
+            }
+        }
+    }
+
+    $sidecar = brvtal_media_sidecar_path($absolute);
+    if (is_file($sidecar)) {
+        @unlink($sidecar);
+    }
+    if (is_file($absolute) && @unlink($absolute)) {
+        $deleted[] = (string)$media['file_path'];
+    }
+    return $deleted;
+}
