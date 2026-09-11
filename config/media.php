@@ -167,6 +167,7 @@ function brvtal_media_usage(PDO $pdo, array $media): array
         ['table' => 'artists', 'field' => 'photo', 'label' => 'ARTIST', 'title' => 'name'],
         ['table' => 'sets_media', 'field' => 'cover_image', 'label' => 'SET', 'title' => 'title'],
         ['table' => 'event_ticket_types', 'field' => 'qr_image', 'label' => 'TICKET QR', 'title' => 'name'],
+        ['table' => 'releases', 'field' => 'artwork', 'label' => 'RELEASE', 'title' => 'title'],
     ];
 
     foreach ($exact as $def) {

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const mediaLibraryJs = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
 const adminModulesJs = readFileSync(join(process.cwd(), 'discadmin/admin-modules.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e.html';
+const onePixelPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 
 const mediaItem = {
   id: 11,
@@ -30,6 +31,7 @@ const mediaItem = {
 };
 
 async function mockApi(page) {
+  await page.route('**/uploads/media/**', route => route.fulfill({ status: 200, contentType: 'image/png', body: onePixelPng }));
   await page.route('**/discadmin/media-library.js**', route => route.fulfill({ contentType: 'application/javascript', body: mediaLibraryJs }));
   await page.route('**/discadmin/media-library.css**', route => route.fulfill({ contentType: 'text/css', body: '' }));
   await page.route('**/api/auth', route => route.fulfill({
