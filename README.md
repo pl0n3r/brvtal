@@ -16,6 +16,17 @@ BRVTAL is an international underground electronic-music platform and collective 
 - Content Core for events, artists, collective roster and ticket types
 - Media architecture prepared for automatic image variants
 
+## Application versioning
+
+Current release: **v0.1.0**
+
+- Build: `557d31c`
+- Environment label: `PRODUCTION`
+- Release date: `2026-09-11`
+- Release metadata source: `config/version.php`
+
+The DISCADMIN footer displays the same release/build information so the version installed on production can be compared with GitHub. Every production release must update the version metadata and README release history before deployment.
+
 ## Content Core
 
 Events support lifecycle states, dates, locations, descriptions, featured state, ticket configuration and archive metadata. Artists support BRVTAL collective lifecycle. Event participation is stored independently in `event_artists`; it does not redefine an artist's collective history. Ticket types support external destinations and payment instructions without storing purchaser/attendee data.
@@ -41,6 +52,7 @@ Production is intended for manual FTP deployment to Hostinger. GitHub is the sou
 - Event ↔ artist participation persistence
 - Collective Roster / artist lifecycle
 - DISCADMIN shell navigation integration
+- Application release/version tracking
 
 ### Next
 
@@ -74,13 +86,14 @@ Production is intended for manual FTP deployment to Hostinger. GitHub is the sou
 |---|---|---|
 | Foundation / security core | 🟢 Integrated in `main` | Central auth, CSRF, rate limiting and production hardening. |
 | Optional TOTP / Google Authenticator | 🟢 Implemented | Activation remains administrator-controlled. |
+| Application release metadata | 🟢 Integrated in branch | `config/version.php` and DISCADMIN release footer are implemented; production deployment remains pending. |
 | Content Core database migration | 🟢 Applied in production | `database/migration_content_core_01.sql` has been executed in the production database; functional verification remains tracked separately. |
 | Content Core API | 🟢 Integrated in `main` | Lifecycle, ticket types, collective fields and lineup endpoint. |
 | Content Core workspace | 🟢 Integrated in `main` | `discadmin/content-core.php`. |
 | Ticket persistence | 🟢 Integrated in `main` | Existing rows update, new rows create, removed rows delete. |
 | Event participation persistence | 🟢 Integrated in `main` | Wizard now loads and saves event roster through `/events/{id}/lineup`. |
 | Temporary Content Core workflow | 🟢 Removed | No build-time patch workflow remains. |
-| DISCADMIN shell navigation | 🟡 In progress | Protected Content Core entry exists; visible sidebar wiring is the current integration step. |
+| DISCADMIN shell navigation | 🟢 Integrated in `main` | Protected Content Core entry is exposed through the DISCADMIN navigation helper. |
 | Event Wizard CRUD | 🟡 Refinement | Production verification and deeper validation remain. |
 | Visual Media Engine | ⚪ Pending | Next major implementation stage. |
 | Archive / Blog / SEO / Legal / Analytics | ⚪ Pending | Later stages. |
@@ -91,4 +104,4 @@ A feature is not complete merely because code exists. BRVTAL tracks: **developed
 
 ## Status
 
-BRVTAL is under active development. Content Core participation persistence is integrated in `main`; the Content Core database migration is confirmed applied in production. Production functional verification remains a separate step.
+BRVTAL is under active development. Content Core participation persistence is integrated in `main`; the Content Core database migration is confirmed applied in production. Release `v0.1.0` is the current application version being prepared for production deployment; production verification remains a separate step.
