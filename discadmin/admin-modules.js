@@ -144,6 +144,8 @@ window.BRVTALAdminModules = (() => {
     if (path.includes('media-library.php') && action === 'register') return ['Registering media…','Media registered.'];
     if (path.includes('media-library.php') && action === 'update') return ['Saving media metadata…','Media metadata saved.'];
     if (path.includes('media-library.php') && method === 'DELETE') return ['Deleting media…','Media deleted.'];
+    if (path.includes('releases.php') && method === 'DELETE') return ['Deleting release…','Release deleted.'];
+    if (path.includes('releases.php')) return ['Saving release…','Release saved.'];
     if (path.includes('totp-api.php')) return ['Updating security…','Security updated.'];
     if (method === 'DELETE') return ['Deleting…','Deleted.'];
     if (path.includes('/settings')) return ['Saving settings…','Settings saved.'];
@@ -378,7 +380,9 @@ window.BRVTALAdminModules = (() => {
   };
 
   ensureStyle('brvtal-media-library-style','/discadmin/media-library.css');
+  ensureStyle('brvtal-releases-style','/discadmin/releases.css');
   const mediaReady = ensureScript('brvtal-media-library-script','/discadmin/media-library.js');
+  const releasesReady = ensureScript('brvtal-releases-script','/discadmin/releases.js');
 
   const modules = {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},
@@ -388,6 +392,10 @@ window.BRVTALAdminModules = (() => {
       try { await mediaPermissions.repair(); }
       catch (e) { Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
       BRVTALMediaLibrary.mount(root);
+    }},
+    releases: {url:'/discadmin/releases.php', mount:async root=>{
+      await Promise.all([mediaReady,releasesReady]);
+      BRVTALReleases.mount(root);
     }}
   };
   let pending;
@@ -429,9 +437,35 @@ window.BRVTALAdminModules = (() => {
     } finally {if(pending===controller) pending=null;}
   }
 
+  function ensureReleasesNavigation() {
+    const nav = document.querySelector('.nav');
+    if (!nav) return;
+    let button = nav.querySelector('[data-admin-nav="releases"]');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.adminNav = 'releases';
+      button.textContent = 'RELEASES';
+      button.addEventListener('click',() => window.go('releases'));
+      nav.appendChild(button);
+    }
+    try { button.classList.toggle('active', typeof state !== 'undefined' && state.section === 'releases'); }
+    catch (_) { button.classList.remove('active'); }
+  }
+
+  let navTimer = null;
+  const navObserver = new MutationObserver(mutations => {
+    if (!mutations.some(m => m.addedNodes.length || m.removedNodes.length)) return;
+    clearTimeout(navTimer);
+    navTimer = setTimeout(ensureReleasesNavigation, 10);
+  });
+  navObserver.observe(document.documentElement,{childList:true,subtree:true});
+  setTimeout(ensureReleasesNavigation,0);
+
   function prepareModuleWorkspace(section) {
     state.section=section;
     render();
+    ensureReleasesNavigation();
     const main=document.querySelector('.main');
     if(!main) return null;
     [...main.children].forEach((child,index)=>{if(index>0) child.remove();});
@@ -441,18 +475,23 @@ window.BRVTALAdminModules = (() => {
 
   const originalGo=window.go;
   window.go=async function(section) {
-    if(section==='media') {
-      prepareModuleWorkspace('media');
-      await mediaReady;
-      await load('media');
+    if(section==='media' || section==='releases') {
+      prepareModuleWorkspace(section);
+      if (section === 'media') await mediaReady;
+      if (section === 'releases') await Promise.all([mediaReady,releasesReady]);
+      await load(section);
+      ensureReleasesNavigation();
       return;
     }
-    return originalGo(section);
+    const result = await originalGo(section);
+    ensureReleasesNavigation();
+    return result;
   };
 
   const originalOpenModal=window.openModal;
   window.openModal=function(type,id=null) {
     if(type==='media' && !id) { window.go('media'); return; }
+    if(type==='releases' && !id) { window.go('releases'); return; }
     return originalOpenModal(type,id);
   };
 
@@ -463,6 +502,7 @@ window.BRVTALAdminModules = (() => {
       catch (e) { if (e?.message !== 'AUTH_REQUIRED') Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
       const result = await originalRestoreSession.apply(this,args);
       if (result) hydrateContentCoreThumbs(document);
+      ensureReleasesNavigation();
       return result;
     };
   }
@@ -480,6 +520,7 @@ window.BRVTALAdminModules = (() => {
       } catch (e) {
         Feedback.error('Login succeeded, but media thumbnail access could not be refreshed: ' + e.message,'media-permissions');
       }
+      ensureReleasesNavigation();
       return result;
     };
   }
