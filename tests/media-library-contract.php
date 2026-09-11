@@ -38,6 +38,12 @@ media_assert(str_contains($api, "25 * 1024 * 1024"), 'upload size ceiling must b
 media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported');
 media_assert(!str_contains($api, "image/svg+xml"), 'SVG uploads stay disabled until a sanitizer exists');
 
+$permissionApi = (string)file_get_contents(__DIR__ . '/../api/media-permissions.php');
+media_assert(str_contains($permissionApi, 'brvtal_admin_require_csrf'), 'media permission repair must require CSRF');
+media_assert(str_contains($permissionApi, '0644'), 'public media files must be readable by the web server');
+media_assert(str_contains($permissionApi, '0755'), 'public media directories must be traversable by the web server');
+media_assert(str_contains($permissionApi, 'brvtal_media_local_absolute'), 'permission repair must stay inside uploads');
+
 $module = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.php');
 media_assert(str_contains($module, 'data-admin-module="media"'), 'Media Library must be a shell module fragment');
 media_assert(str_contains($module, 'X_BRVTAL_ADMIN_FRAGMENT'), 'direct Media Library requests must redirect to DISCADMIN shell');
@@ -45,6 +51,13 @@ media_assert(str_contains($module, 'X_BRVTAL_ADMIN_FRAGMENT'), 'direct Media Lib
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 media_assert(str_contains($adminModules, "media: {url:'/discadmin/media-library.php'"), 'canonical shell loader must register media module');
 media_assert(str_contains($adminModules, "if(section==='media')"), 'MEDIA navigation must be intercepted into module workspace');
+media_assert(str_contains($adminModules, 'window.BRVTALFeedback'), 'DISCADMIN must expose global mutation feedback');
+media_assert(str_contains($adminModules, 'window.save = async function'), 'canonical CRUD forms must have a working save handler');
+media_assert(str_contains($adminModules, "type === 'events'"), 'save handler must serialize event fields');
+media_assert(str_contains($adminModules, "type === 'artists'"), 'save handler must serialize artist fields');
+media_assert(str_contains($adminModules, 'mediaPermissions.repair'), 'Media module must repair existing public thumbnail permissions');
+media_assert(str_contains($adminModules, "document.addEventListener('error'"), 'image failures must have a global fallback handler');
+media_assert(str_contains($adminModules, 'syncMediaFieldPreview'), 'picker changes must update modal previews immediately');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 media_assert(str_contains($controller, '#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr'), 'media picker must attach to core image fields');
