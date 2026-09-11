@@ -23,8 +23,8 @@ if (!$admin) {
 
 $csrf = brvtal_admin_csrf_token();
 $enabled = (bool)$admin['totp_enabled'];
-$confirmed = !empty($admin['totp_confirmed_at']);
-?><!doctype html>
+?>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -55,8 +55,13 @@ $confirmed = !empty($admin['totp_confirmed_at']);
 <div id="message"></div>
 </div>
 <?php else: ?>
-<h2>2FA is active</h2><p class="muted">This administrator has confirmed a TOTP authenticator.</p>
+<h2>2FA is active</h2><p class="muted">This administrator has confirmed a TOTP authenticator. Disabling it requires a current authenticator or unused recovery code.</p>
 <button id="disable" class="secondary">DISABLE 2FA</button>
+<div id="disableBox" class="setup">
+<h2>Verify before disabling</h2>
+<p class="muted">Enter a current six-digit authenticator code or one unused recovery code.</p>
+<div class="row"><input id="disableCode" inputmode="numeric" maxlength="20" autocomplete="one-time-code" placeholder="000000"><button id="disableConfirm">CONFIRM DISABLE</button></div>
+</div>
 <div id="message"></div>
 <?php endif; ?>
 </div>
@@ -65,13 +70,14 @@ $confirmed = !empty($admin['totp_confirmed_at']);
 <script>
 const csrf=<?= json_encode($csrf) ?>;
 const setup=document.getElementById('setup'),msg=document.getElementById('message');
-const post=async(action,data={})=>{const r=await fetch('/discadmin/totp-api.php?action='+encodeURIComponent(action),{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(data)});const j=await r.json().catch(()=>({ok:false,error:'INVALID_RESPONSE'}));if(!r.ok||!j.ok)throw new Error(j.message||j.error||'Request failed');return j};
+const post=async(action,data={})=>{const r=await fetch('/discadmin/totp-api.php?action='+encodeURIComponent(action),{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(data),credentials:'same-origin'});const j=await r.json().catch(()=>({ok:false,error:'INVALID_RESPONSE'}));if(!r.ok||!j.ok)throw new Error(j.message||j.error||'Request failed');return j};
 const say=(text,cls='success')=>{msg.className=cls;msg.textContent=text};
 const start=document.getElementById('start');
-if(start)start.onclick=async()=>{try{const j=await post('start');document.getElementById('secret').textContent=j.secret;setup.classList.add('show');if(window.QRCode){new QRCode(document.getElementById('qr'),{text:j.otpauth,width:210,height:210,correctLevel:QRCode.CorrectLevel.M})}else{document.getElementById('qr').textContent='QR library unavailable. Use the setup key above.'}}catch(e){say(e.message,'error')}};
-const confirm=document.getElementById('confirm');
-if(confirm)confirm.onclick=async()=>{try{const j=await post('confirm',{code:document.getElementById('code').value});say('2FA enabled. Recovery codes have been generated. Save them securely.');setup.classList.add('show');document.getElementById('secret').textContent='';document.getElementById('qr').innerHTML='';const pre=document.createElement('pre');pre.className='codes';pre.textContent=j.recovery_codes.join('\n');document.getElementById('qr').after(pre);confirm.disabled=true}catch(e){say(e.message,'error')}};
-const disable=document.getElementById('disable');
-if(disable)disable.onclick=async()=>{if(!confirm('Disable TOTP for this administrator?'))return;try{await post('disable');location.reload()}catch(e){say(e.message,'error')}};
+if(start)start.onclick=async()=>{start.disabled=true;try{const j=await post('start');document.getElementById('secret').textContent=j.secret;setup.classList.add('show');if(window.QRCode){new QRCode(document.getElementById('qr'),{text:j.otpauth,width:210,height:210,correctLevel:QRCode.CorrectLevel.M})}else{document.getElementById('qr').textContent='QR library unavailable. Use the setup key above.'}}catch(e){start.disabled=false;say(e.message,'error')}};
+const confirmBtn=document.getElementById('confirm');
+if(confirmBtn)confirmBtn.onclick=async()=>{confirmBtn.disabled=true;try{const j=await post('confirm',{code:document.getElementById('code').value});say('2FA enabled. Save these recovery codes now; they will not be shown again.');setup.classList.add('show');document.getElementById('secret').textContent='';document.getElementById('qr').innerHTML='';const pre=document.createElement('pre');pre.className='codes';pre.textContent=j.recovery_codes.join('\n');document.getElementById('qr').after(pre)}catch(e){confirmBtn.disabled=false;say(e.message,'error')}};
+const disable=document.getElementById('disable'),disableBox=document.getElementById('disableBox'),disableConfirm=document.getElementById('disableConfirm');
+if(disable)disable.onclick=()=>{disableBox.classList.toggle('show');if(disableBox.classList.contains('show'))document.getElementById('disableCode').focus()};
+if(disableConfirm)disableConfirm.onclick=async()=>{disableConfirm.disabled=true;try{await post('disable',{code:document.getElementById('disableCode').value});location.reload()}catch(e){disableConfirm.disabled=false;say(e.message,'error')}};
 </script>
 </body></html>
