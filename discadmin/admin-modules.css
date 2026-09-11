@@ -1,0 +1,14 @@
+.side{position:sticky;top:0;height:100dvh;align-self:start;overflow-y:auto;z-index:20}
+.brvtal-admin-release{padding:12px 0;border-top:1px solid #292d31;font-family:monospace;letter-spacing:.7px;line-height:1.6}
+.brvtal-admin-release .version{display:block;color:#fff;font-size:11px;font-weight:800}
+.brvtal-admin-release .build{display:block;color:#8d949a;font-size:9px}
+#admin-module-host{min-width:0;margin-top:22px}
+[data-admin-module]>.wrap{max-width:none;margin:0;padding:0}
+[data-admin-module="content-core"] .modal{display:none;position:fixed;inset:0;z-index:100;background:#000c;padding:24px;overflow:auto}
+[data-admin-module="content-core"] .modal.open{display:flex;align-items:flex-start;justify-content:center}
+[data-admin-module="content-core"] .modalbox{width:min(1100px,100%);background:#090a0b;border:1px solid #34393e;padding:22px;max-height:calc(100dvh - 48px);overflow:auto}
+[data-admin-module="content-core"] .modalhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+[data-admin-module="security"] .top h1{font-size:clamp(24px,3vw,42px)}
+@media(max-width:850px){.side{height:auto;max-height:45dvh}.main{min-width:0}[data-admin-module] .head,[data-admin-module] .top{flex-wrap:wrap}[data-admin-module] .tabs{flex-wrap:wrap}}
+.side{display:flex;flex-direction:column}
+.side .sidefoot{position:static;margin-top:auto;padding-top:24px;flex-shrink:0}

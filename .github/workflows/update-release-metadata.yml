@@ -1,59 +1,36 @@
 name: Update release metadata
-
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'config/version.php'
+    paths-ignore: ['config/version.php']
   workflow_dispatch:
-
 permissions:
   contents: write
-
+concurrency:
+  group: release-metadata-main
+  cancel-in-progress: false
 jobs:
   release-metadata:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
-
-      - name: Update build metadata
-        shell: bash
+      - name: Validate PHP and JavaScript
         run: |
-          set -euo pipefail
-          VERSION="$(sed -n "s/^const BRVTAL_APP_VERSION = '\''\([^'\'' ]*\)'\'';.*/\1/p" config/version.php)"
-          BUILD="${GITHUB_SHA:0:7}"
-          RELEASE_DATE="$(date -u +%Y-%m-%d)"
-          cat > config/version.php <<PHP
-<?php
-declare(strict_types=1);
-
-/**
- * BRVTAL application release metadata.
- * BRVTAL_APP_BUILD and BRVTAL_RELEASE_DATE are updated automatically on main.
- * BRVTAL_APP_VERSION remains the manually controlled product version.
- */
-const BRVTAL_APP_VERSION = '${VERSION}';
-const BRVTAL_APP_BUILD = '${BUILD}';
-const BRVTAL_APP_ENV = 'PRODUCTION';
-const BRVTAL_RELEASE_DATE = '${RELEASE_DATE}';
-PHP
-
+          find config discadmin api -name '*.php' -print0 | xargs -0 -n1 php -l
+          find discadmin -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Update build metadata
+        run: python3 scripts/update-release-metadata.py
       - name: Validate version metadata
         run: php -l config/version.php
-
       - name: Commit metadata
-        shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- config/version.php; then
-            echo 'Release metadata already current.'
-            exit 0
-          fi
+          if git diff --quiet -- config/version.php; then exit 0; fi
           git config user.name 'BRVTAL Automation'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add config/version.php
-          git commit -m "chore: update release metadata [skip ci]"
+          git commit -m 'chore: update release metadata [skip ci]'
           git push origin HEAD:main

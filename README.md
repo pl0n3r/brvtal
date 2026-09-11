@@ -20,12 +20,12 @@ BRVTAL is an international underground electronic-music platform and collective 
 
 Current release: **v0.1.0**
 
-- Build: `557d31c`
+- Build: source commit stamped automatically in `config/version.php`
 - Environment label: `PRODUCTION`
 - Release date: `2026-09-11`
 - Release metadata source: `config/version.php`
 
-The DISCADMIN footer displays the same release/build information so the version installed on production can be compared with GitHub. Every production release must update the version metadata and README release history before deployment.
+The DISCADMIN footer displays the same release/build information so the version installed on production can be compared with GitHub. The release metadata workflow stamps the source commit and date on main. Wait for it to finish, then deploy main in Hostinger. The product version changes only for a release.
 
 ## Content Core
 
@@ -40,7 +40,7 @@ Events support lifecycle states, dates, locations, descriptions, featured state,
 
 ## Deployment
 
-Production is intended for manual FTP deployment to Hostinger. GitHub is the source of truth for source history, review, versioning and release/change tracking. A repository migration does **not** mean the production database has received it.
+Production is deployed from GitHub `main` through the existing Hostinger Git integration; FTP is not used. GitHub is the source of truth for source history, review, versioning and release/change tracking. A repository migration does **not** mean the production database has received it.
 
 ## Roadmap
 
@@ -105,3 +105,9 @@ A feature is not complete merely because code exists. BRVTAL tracks: **developed
 ## Status
 
 BRVTAL is under active development. Content Core participation persistence is integrated in `main`; the Content Core database migration is confirmed applied in production. Release `v0.1.0` is the current application version being prepared for production deployment; production verification remains a separate step.
+
+## DISCADMIN module integration — 2026-09-11
+
+The interrupted commit `8597fd5` emitted PHP tags inside JavaScript and is superseded by native shell integration. `index.php` delegates to `index-core.php`; navigation, active state and release information belong to that one shell. Content Core and Security return authenticated fragments, with scoped CSS and explicit JavaScript mount functions. Direct module URLs redirect into the shell. The obsolete workflow that inserted a parallel sidebar is removed.
+
+The metadata workflow now uses valid YAML and a separate Python script, preserving the product version and identifying the source commit. Production verification remains a separate step after Hostinger deployment.
