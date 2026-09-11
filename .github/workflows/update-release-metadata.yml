@@ -46,7 +46,7 @@ jobs:
 
       - name: Validate JavaScript syntax
         run: |
-          find discadmin tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
+          find discadmin tests/e2e tests/smoke \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
 
       - name: Run API contract tests
         run: php tests/api-contract.php
@@ -72,3 +72,19 @@ jobs:
 
       - name: Run DISCADMIN browser tests
         run: npm run test:e2e
+
+  smoke-production:
+    name: Production smoke
+    needs: validate
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for Hostinger auto-deploy and verify production
+        env:
+          SMOKE_BASE_URL: https://brvtal.com.co
+          SMOKE_RETRIES: '8'
+          SMOKE_RETRY_DELAY_MS: '15000'
+          SMOKE_TIMEOUT_MS: '15000'
+        run: npm run smoke:prod
