@@ -19,5 +19,6 @@ return [
     'security' => [
         'session_name' => 'BRVTAL_ADMIN',
         'csrf_key' => 'REPLACE_WITH_LONG_RANDOM_SECRET',
+        'encryption_key' => 'REPLACE_WITH_32_PLUS_BYTE_RANDOM_SECRET',
     ],
 ];

@@ -1,0 +1,28 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/totp.php';
+
+brvtal_admin_require();
+brvtal_admin_require_csrf();
+
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
+function totp_json(array $data, int $status = 200): never { json_response($data, $status); }
+function totp_secret_key(): string { global $config; $configured=trim((string)($config['security']['encryption_key']??'')); if($configured===''||strlen($configured)<32) throw new RuntimeException('TOTP encryption key is not configured.'); return hash('sha256',$configured,true); }
+function totp_encrypt(string $plaintext): string { $key=totp_secret_key();$iv=random_bytes(12);$tag='';$cipher=openssl_encrypt($plaintext,'aes-256-gcm',$key,OPENSSL_RAW_DATA,$iv,$tag,'',16);if($cipher===false)throw new RuntimeException('TOTP encryption failed.');return base64_encode($iv.$tag.$cipher); }
+function totp_decrypt(?string $encoded): ?string { if(!$encoded)return null;$raw=base64_decode($encoded,true);if($raw===false||strlen($raw)<28)return null;$key=totp_secret_key();$iv=substr($raw,0,12);$tag=substr($raw,12,16);$cipher=substr($raw,28);$plain=openssl_decrypt($cipher,'aes-256-gcm',$key,OPENSSL_RAW_DATA,$iv,$tag);return $plain===false?null:$plain; }
+function totp_admin(): array { $id=(int)$_SESSION['admin_id'];$stmt=db()->prepare('SELECT id,email,is_active,totp_enabled,totp_secret_enc,totp_confirmed_at FROM admins WHERE id=? LIMIT 1');$stmt->execute([$id]);$row=$stmt->fetch();if(!$row||!(int)$row['is_active'])throw new RuntimeException('Administrator unavailable.');return $row; }
+function totp_recovery_codes(PDO $pdo,int $adminId): array { $pdo->prepare('DELETE FROM admin_recovery_codes WHERE admin_id=?')->execute([$adminId]);$codes=[];$insert=$pdo->prepare('INSERT INTO admin_recovery_codes(admin_id,code_hash) VALUES(?,?)');for($i=0;$i<10;$i++){ $plain=strtoupper(bin2hex(random_bytes(5)));$insert->execute([$adminId,password_hash($plain,PASSWORD_DEFAULT)]);$codes[]=$plain;}return $codes; }
+function totp_disable_code_valid(PDO $pdo,array $admin,string $code): bool { $secret=totp_decrypt((string)($admin['totp_secret_enc']??''));if($secret!==null&&brvtal_totp_verify($secret,$code,null,1))return true;$normalized=strtoupper(preg_replace('/[^A-Z0-9]/','',trim($code))??'');if($normalized==='')return false;$st=$pdo->prepare('SELECT id,code_hash FROM admin_recovery_codes WHERE admin_id=? AND used_at IS NULL');$st->execute([(int)$admin['id']]);while($row=$st->fetch()){if(password_verify($normalized,(string)$row['code_hash'])){$pdo->prepare('UPDATE admin_recovery_codes SET used_at=NOW() WHERE id=? AND used_at IS NULL')->execute([(int)$row['id']]);return true;}}return false; }
+
+try {
+    $action=(string)($_GET['action']??'');$pdo=db();$admin=totp_admin();$id=(int)$admin['id'];
+    if($action==='start'){if((int)$admin['totp_enabled'])totp_json(['ok'=>false,'error'=>'ALREADY_ENABLED'],409);$secret=brvtal_totp_generate_secret(20);$_SESSION['totp_enrollment_secret']=$secret;$_SESSION['totp_enrollment_expires']=time()+600;$uri=brvtal_totp_otpauth_uri($secret,(string)$admin['email'],'BRVTAL');brvtal_log('SECURITY','TOTP enrollment started',['admin_id'=>$id]);totp_json(['ok'=>true,'secret'=>$secret,'otpauth'=>$uri,'expires_in'=>600]);}
+    if($action==='confirm'){if((int)$admin['totp_enabled'])totp_json(['ok'=>false,'error'=>'ALREADY_ENABLED'],409);$secret=(string)($_SESSION['totp_enrollment_secret']??'');$expires=(int)($_SESSION['totp_enrollment_expires']??0);$input=input_json();$code=(string)($input['code']??'');if($secret===''||$expires<time())totp_json(['ok'=>false,'error'=>'ENROLLMENT_EXPIRED'],400);if(!brvtal_totp_verify($secret,$code,null,1)){brvtal_log('SECURITY','TOTP enrollment verification failed',['admin_id'=>$id]);totp_json(['ok'=>false,'error'=>'INVALID_CODE'],400);} $enc=totp_encrypt($secret);$pdo->beginTransaction();$pdo->prepare('UPDATE admins SET totp_enabled=1,totp_secret_enc=?,totp_confirmed_at=NOW() WHERE id=?')->execute([$enc,$id]);$codes=totp_recovery_codes($pdo,$id);$pdo->commit();unset($_SESSION['totp_enrollment_secret'],$_SESSION['totp_enrollment_expires']);brvtal_log('SECURITY','TOTP enabled',['admin_id'=>$id]);totp_json(['ok'=>true,'recovery_codes'=>$codes]);}
+    if($action==='disable'){if(!(int)$admin['totp_enabled'])totp_json(['ok'=>true]);$input=input_json();$code=(string)($input['code']??'');if($code===''||!totp_disable_code_valid($pdo,$admin,$code)){brvtal_log('SECURITY','TOTP disable verification failed',['admin_id'=>$id]);totp_json(['ok'=>false,'error'=>'INVALID_CODE'],400);} $pdo->beginTransaction();$pdo->prepare('UPDATE admins SET totp_enabled=0,totp_secret_enc=NULL,totp_confirmed_at=NULL WHERE id=?')->execute([$id]);$pdo->prepare('DELETE FROM admin_recovery_codes WHERE admin_id=?')->execute([$id]);$pdo->commit();brvtal_log('SECURITY','TOTP disabled',['admin_id'=>$id]);totp_json(['ok'=>true]);}
+    if($action==='status')totp_json(['ok'=>true,'enabled'=>(bool)$admin['totp_enabled'],'confirmed'=>!empty($admin['totp_confirmed_at'])]);
+    totp_json(['ok'=>false,'error'=>'UNKNOWN_ACTION'],404);
+} catch(Throwable $e){brvtal_log('SECURITY','TOTP request failed',['message'=>$e->getMessage()]);totp_json(['ok'=>false,'error'=>'TOTP_UNAVAILABLE'],500);}

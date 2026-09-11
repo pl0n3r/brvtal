@@ -1,0 +1,1 @@
+Content Core 01 establishes event lifecycle, ticket stages, collective roster state/history, and archive foundations. The production database migration must be executed before enabling the new fields in DISCADMIN.

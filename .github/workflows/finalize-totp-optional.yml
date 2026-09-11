@@ -1,0 +1,104 @@
+name: Finalize Optional TOTP
+
+on:
+  push:
+    branches: [feat/0b-5-totp-optional-impl]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BRANCH: feat/0b-5-totp-optional-impl
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+
+      - name: Patch pending TOTP cancellation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('api/index.php')
+          s = p.read_text()
+          needle = "        // Logout is evaluated before POST login so /api/auth?logout=1 cannot fall through."
+          insert = """        if ($method==='POST') {\n            $peek=input_json();\n            if (($peek['action'] ?? '') === 'totp_cancel') {\n                brvtal_totp_pending_clear();\n                json_response(['ok'=>true]);\n            }\n            $GLOBALS['brvtal_auth_input']=$peek;\n        }\n\n""" + needle
+          if "'totp_cancel'" not in s:
+              if needle not in s:
+                  raise SystemExit('TOTP cancel insertion point not found')
+              s=s.replace(needle,insert,1)
+              p.write_text(s)
+          # Reuse the already-parsed login payload when possible; otherwise the existing input_json call remains valid.
+          s=s.replace("            $d=input_json();\n            if(($d['action'] ?? '') === 'totp_verify') {", "            $d=$GLOBALS['brvtal_auth_input'] ?? input_json();\n            unset($GLOBALS['brvtal_auth_input']);\n            if(($d['action'] ?? '') === 'totp_verify') {", 1)
+          p.write_text(s)
+          PY
+
+      - name: Validate PHP and JavaScript
+        shell: bash
+        run: |
+          set -e
+          php -l api/index.php
+          php -l config/totp.php
+          php -l config/totp_auth.php
+          php -l discadmin/totp-api.php
+          php -l discadmin/totp-status.php
+          php -l discadmin/index.php
+          node --check discadmin/totp-login.js
+
+      - name: Verify TOTP source invariants
+        shell: bash
+        run: |
+          set -e
+          grep -q "requires_totp" api/index.php
+          grep -q "totp_verify" api/index.php
+          grep -q "totp_cancel" api/index.php
+          grep -q "AES-256-GCM\|aes-256-gcm" discadmin/totp-api.php config/totp_auth.php
+          grep -q "password_hash" discadmin/totp-api.php
+          grep -q "RATE_LIMITED" config/totp_auth.php
+          grep -q "X-CSRF-Token" discadmin/totp-status.php
+
+      - name: Build FTP package
+        shell: bash
+        run: |
+          set -e
+          rm -rf /tmp/brvtal-totp-package
+          mkdir -p /tmp/brvtal-totp-package/config /tmp/brvtal-totp-package/api /tmp/brvtal-totp-package/discadmin
+          cp config/totp.php /tmp/brvtal-totp-package/config/totp.php
+          cp config/totp_auth.php /tmp/brvtal-totp-package/config/totp_auth.php
+          cp api/index.php /tmp/brvtal-totp-package/api/index.php
+          cp discadmin/index.php /tmp/brvtal-totp-package/discadmin/index.php
+          cp discadmin/totp-api.php /tmp/brvtal-totp-package/discadmin/totp-api.php
+          cp discadmin/totp-login.js /tmp/brvtal-totp-package/discadmin/totp-login.js
+          cp discadmin/totp-status.php /tmp/brvtal-totp-package/discadmin/totp-status.php
+          curl -fsSL https://raw.githubusercontent.com/davidshimjs/qrcodejs/master/qrcode.min.js -o /tmp/brvtal-totp-package/discadmin/qrcode.min.js
+          cd /tmp/brvtal-totp-package
+          zip -qr "$GITHUB_WORKSPACE/BRVTAL-0B-5-TOTP-OPTIONAL-FTP.zip" .
+          sha256sum "$GITHUB_WORKSPACE/BRVTAL-0B-5-TOTP-OPTIONAL-FTP.zip"
+
+      - name: Commit integration patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No source patch required.'
+            exit 0
+          fi
+          git config user.name 'BRVTAL Automation'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/index.php
+          git commit -m 'fix: clear pending TOTP challenge on cancellation'
+          git push origin "$BRANCH"
+
+      - name: Upload FTP package
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRVTAL-0B-5-TOTP-OPTIONAL-FTP
+          path: BRVTAL-0B-5-TOTP-OPTIONAL-FTP.zip
+          if-no-files-found: error
+          retention-days: 14
