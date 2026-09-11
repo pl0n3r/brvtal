@@ -17,10 +17,28 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install PHP database extension
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-mysql mariadb-client
 
       - name: Validate PHP syntax
         run: |
@@ -28,13 +46,23 @@ jobs:
 
       - name: Validate JavaScript syntax
         run: |
-          find discadmin tests/e2e -name '*.js' -o -name '*.mjs' | xargs -r -n1 node --check
+          find discadmin tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
 
       - name: Run API contract tests
         run: php tests/api-contract.php
 
       - name: Run Media Library contract tests
         run: php tests/media-library-contract.php
+
+      - name: Run MariaDB integration tests
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_TEST_DB_HOST: 127.0.0.1
+          BRVTAL_TEST_DB_PORT: '3306'
+          BRVTAL_TEST_DB_NAME: brvtal_test_ci
+          BRVTAL_TEST_DB_USER: root
+          BRVTAL_TEST_DB_PASS: brvtal_root
+        run: npm run test:integration
 
       - name: Install Node test dependencies
         run: npm install
