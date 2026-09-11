@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/totp_auth.php';
 
 function client_key(): string {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -81,15 +82,35 @@ try {
         }
 
         if($method==='POST') {
-            $d=input_json(); $email=strtolower(trim((string)($d['email']??''))); $pass=(string)($d['password']??'');
+            $d=input_json();
+            if(($d['action'] ?? '') === 'totp_verify') {
+                $pendingId=brvtal_totp_pending_admin_id();
+                if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);
+                brvtal_totp_rate_limit($pendingId);
+                $code=trim((string)($d['code']??''));
+                if($code==='') json_response(['ok'=>false,'error'=>'TOTP_CODE_REQUIRED'],422);
+                $st=db()->prepare('SELECT id,email,name,is_active,totp_enabled,totp_secret_enc FROM admins WHERE id=? LIMIT 1'); $st->execute([$pendingId]); $a=$st->fetch();
+                if(!$a || !(int)$a['is_active'] || !(int)$a['totp_enabled']) { brvtal_totp_pending_clear(); json_response(['ok'=>false,'error'=>'TOTP_UNAVAILABLE'],401); }
+                $secret=brvtal_totp_decrypt_secret((string)$a['totp_secret_enc']);
+                $valid=$secret!==null && brvtal_totp_verify($secret,$code,null,1);
+                if(!$valid) $valid=brvtal_totp_recovery_verify(db(),$pendingId,$code);
+                if(!$valid) { brvtal_log('SECURITY','Invalid TOTP challenge',['admin_id'=>$pendingId]); json_response(['ok'=>false,'error'=>'INVALID_TOTP'],401); }
+                brvtal_totp_complete_login(db(),$a);
+            } $email=strtolower(trim((string)($d['email']??''))); $pass=(string)($d['password']??'');
             if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>190||$pass==='') json_response(['ok'=>false,'error'=>'EMAIL_AND_PASSWORD_REQUIRED'],422);
             rate_limit_login($email);
-            $st=db()->prepare('SELECT id,email,password_hash,name FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
-            if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
-            brvtal_admin_login_session((int)$a['id']);
-            db()->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([$a['id']]);
-            brvtal_log('AUTH_OK','Admin login successful',['admin_id'=>(int)$a['id']]);
-            json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);
+            $st=db()->prepare('SELECT id,email,password_hash,name,totp_enabled,totp_secret_enc FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
+  if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
+  if((int)($a['totp_enabled'] ?? 0) === 1) {
+      if(empty($a['totp_secret_enc'])) { brvtal_log('SECURITY','TOTP enabled without encrypted secret',['admin_id'=>(int)$a['id']]); json_response(['ok'=>false,'error'=>'TOTP_CONFIGURATION_ERROR'],503); }
+      brvtal_totp_pending_set((int)$a['id'],(string)$a['email']);
+      brvtal_log('SECURITY','TOTP challenge issued',['admin_id'=>(int)$a['id']]);
+      json_response(['ok'=>true,'requires_totp'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']]]);
+  }
+  brvtal_admin_login_session((int)$a['id']);
+  db()->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([$a['id']]);
+  brvtal_log('AUTH_OK','Admin login successful',['admin_id'=>(int)$a['id']]);
+  json_response(['ok'=>true,'admin'=>['id'=>(int)$a['id'],'name'=>$a['name'],'email'=>$a['email']],'csrf'=>brvtal_admin_csrf_token()]);
         }
 
         method_not_allowed();
