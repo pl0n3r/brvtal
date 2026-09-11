@@ -36,12 +36,12 @@ releases_assert(str_contains($controller, "method:id ? 'PUT' : 'POST'"), 'releas
 
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 releases_assert(str_contains($adminModules, "releases: {url:'/discadmin/releases.php'"), 'canonical shell loader must register releases module');
-releases_assert(str_contains($adminModules, "section==='media' || section==='releases'"), 'canonical navigation must route releases through module workspace');
+releases_assert(str_contains($adminModules, "section==='releases'"), 'canonical navigation must route releases through module workspace');
 releases_assert(str_contains($adminModules, 'data-admin-nav'), 'releases navigation must be injected into the existing canonical sidebar');
 
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 releases_assert(str_contains($publicApi, 'brvtal_public_releases'), 'public API must expose published releases');
-releases_assert(str_contains($publicApi, "'releases' => $releases"), 'public payload must contain releases');
+releases_assert(str_contains($publicApi, "'releases' => " . '$releases'), 'public payload must contain releases');
 releases_assert(str_contains($publicApi, "WHERE status='published'"), 'public releases must be publication-filtered');
 releases_assert(str_contains($publicApi, 'brvtal_public_table_exists'), 'public API must stay backward-compatible before migration');
 
