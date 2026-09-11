@@ -40,16 +40,16 @@ function sanitize_payload(string $resource, array $d): array {
     foreach(['ticket_url','instagram_url','soundcloud_url','website_url','external_url','embed_url'] as $k) if(array_key_exists($k,$d)) { $v=valid_url_or_empty($d[$k]); if($d[$k]!=='' && $v===null) json_response(['ok'=>false,'error'=>'INVALID_URL','field'=>$k],422); $d[$k]=$v; }
     if(isset($d['slug'])) $d['slug']=slugify((string)$d['slug']);
     if(isset($d['accent']) && $d['accent']!=='' && !preg_match('/^#[0-9a-fA-F]{6}$/',(string)$d['accent'])) json_response(['ok'=>false,'error'=>'INVALID_ACCENT'],422);
-    if(isset($d['status']) && !in_array($d['status'], $resource==='events'?['draft','published','archived']:['draft','published'], true)) json_response(['ok'=>false,'error'=>'INVALID_STATUS'],422);
+    if(isset($d['status']) && !in_array($d['status'], $resource==='events'?['draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived']:['draft','published'], true)) json_response(['ok'=>false,'error'=>'INVALID_STATUS'],422);
     if(isset($d['locale']) && !in_array($d['locale'],['es','en'],true)) json_response(['ok'=>false,'error'=>'INVALID_LOCALE'],422);
     if(isset($d['platform']) && !in_array($d['platform'],['soundcloud','youtube','spotify','other'],true)) json_response(['ok'=>false,'error'=>'INVALID_PLATFORM'],422);
     if(isset($d['content_json']) && strlen((string)$d['content_json']) > 2*1024*1024) json_response(['ok'=>false,'error'=>'CONTENT_TOO_LARGE'],422);
     return $d;
 }
 function allowed_fields(string $resource): array {
-    return ['events'=>['title','slug','event_date','venue','city','description','skin','accent','cover_image','ticket_url','status','sort_order'],'artists'=>['name','slug','bio','photo','instagram_url','soundcloud_url','website_url','status','sort_order'],'sets'=>['title','slug','artist_id','event_id','platform','external_url','embed_url','cover_image','description','status','sort_order'],'media'=>['type','title','file_path','mime_type','file_size','alt_text','status'],'pages'=>['title','slug','locale','content_json','seo_title','seo_description','status']][$resource] ?? [];
+    return ['events'=>['title','slug','event_date','venue','city','description','skin','accent','cover_image','ticket_url','ticket_instructions','ticket_qr','featured','published_at','cancelled_at','finished_at','archive_year','status','sort_order'],'artists'=>['name','slug','bio','photo','instagram_url','soundcloud_url','website_url','collective_status','collective_order','collective_joined_at','collective_left_at','status','sort_order'],'sets'=>['title','slug','artist_id','event_id','platform','external_url','embed_url','cover_image','description','status','sort_order'],'media'=>['type','title','file_path','mime_type','file_size','alt_text','status'],'pages'=>['title','slug','locale','content_json','seo_title','seo_description','status']][$resource] ?? [];
 }
-function table_for(string $resource): string { return ['events'=>'events','artists'=>'artists','sets'=>'sets_media','media'=>'media','pages'=>'pages','settings'=>'settings'][$resource] ?? ''; }
+function table_for(string $resource): string { return ['events'=>'events','artists'=>'artists','sets'=>'sets_media','media'=>'media','pages'=>'pages','ticket_types'=>'event_ticket_types','settings'=>'settings'][$resource] ?? ''; }
 function handle_exception(Throwable $e): never { brvtal_log('API_ERROR','Unhandled API exception',['class'=>get_class($e),'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500); }
 
 try {
@@ -129,10 +129,13 @@ try {
     if($resource==='public') {
         if($method!=='GET') method_not_allowed();
         $pdo=db();
-        $events=$pdo->query("SELECT id,title,slug,event_date,venue,city,description,skin,accent,cover_image,ticket_url FROM events WHERE status='published' ORDER BY event_date ASC,sort_order ASC")->fetchAll();
-        $artists=$pdo->query("SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url FROM artists WHERE status='published' ORDER BY sort_order ASC,name ASC")->fetchAll();
+        $events=$pdo->query("SELECT id,title,slug,event_date,archive_year,venue,city,description,skin,accent,cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,cancelled_at,finished_at,status FROM events WHERE status='published' ORDER BY event_date ASC,sort_order ASC")->fetchAll();
+        $artists=$pdo->query("SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url,collective_status,collective_order,collective_joined_at,collective_left_at FROM artists WHERE status='published' ORDER BY sort_order ASC,name ASC")->fetchAll();
         $sets=$pdo->query("SELECT s.id,s.title,s.slug,s.artist_id,s.event_id,s.platform,s.external_url,s.embed_url,s.cover_image,s.description,a.name artist_name,e.title event_title FROM sets_media s LEFT JOIN artists a ON a.id=s.artist_id LEFT JOIN events e ON e.id=s.event_id WHERE s.status='published' ORDER BY s.sort_order ASC,s.created_at DESC")->fetchAll();
         $pages=$pdo->query("SELECT id,title,slug,locale,content_json,seo_title,seo_description FROM pages WHERE status='published' ORDER BY id DESC")->fetchAll();
+        $ticketTypes=$pdo->query("SELECT id,event_id,name,description,price,currency,external_url,payment_instructions,qr_image,status,available_from,available_until,sort_order FROM event_ticket_types WHERE status IN ('active','sold_out') ORDER BY event_id,sort_order,name")->fetchAll();
+        $ticketsByEvent=[]; foreach($ticketTypes as $ticket){$ticketsByEvent[$ticket['event_id']][]=$ticket;}
+        foreach($events as &$event){$event['ticket_types']=$ticketsByEvent[$event['id']]??[];} unset($event);
         $settings=$pdo->query('SELECT setting_key,setting_value,is_json FROM settings ORDER BY setting_key')->fetchAll(); foreach($settings as &$row){if((int)$row['is_json']===1)$row['setting_value']=json_decode((string)$row['setting_value'],true);}
         $lineup=$pdo->query("SELECT ea.event_id,ea.artist_id,ea.lineup_order,ea.role,a.name,a.slug,a.photo FROM event_artists ea JOIN artists a ON a.id=ea.artist_id JOIN events e ON e.id=ea.event_id WHERE e.status='published' AND a.status='published' ORDER BY ea.event_id,ea.lineup_order,a.name")->fetchAll();
         $lineupByEvent=[]; foreach($lineup as $item){$lineupByEvent[$item['event_id']][]=$item;}
