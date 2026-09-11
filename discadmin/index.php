@@ -18,10 +18,14 @@ $env = htmlspecialchars(BRVTAL_APP_ENV, ENT_QUOTES, 'UTF-8');
 
 $ui = <<<'HTML'
 <style id="brvtal-admin-release-style">
-.brvtal-admin-release{margin-top:12px;padding-top:10px;border-top:1px solid #202326;color:#555; font:8px/1.55 monospace;letter-spacing:.75px;text-transform:uppercase}
-.brvtal-admin-release strong{display:block;color:#70767c;font-size:8px;margin-bottom:2px}
+/* Keep the DISCADMIN navigation visible while the main workspace scrolls. */
+.side{position:sticky!important;top:0!important;height:100vh!important;align-self:start!important;z-index:20}
+.brvtal-admin-release{margin-top:12px;padding-top:10px;border-top:1px solid #202326;color:#fff;font:9px/1.55 monospace;letter-spacing:.75px;text-transform:uppercase}
+.brvtal-admin-release strong{display:block;color:#fff;font-size:10px;margin-bottom:3px}
 .brvtal-admin-release span{display:block}
-.brvtal-admin-release .build{color:#4f555a}
+.brvtal-admin-release .version{color:#fff;font-size:11px;font-weight:800;letter-spacing:1px}
+.brvtal-admin-release .build{color:#8d949a;font-size:8px}
+@media(max-width:850px){.side{position:sticky!important;top:0!important;height:auto!important;z-index:20}}
 </style>
 <script>
 (function(){
@@ -50,7 +54,7 @@ $ui = <<<'HTML'
     const foot=side.querySelector('.sidefoot');
     if(!foot || foot.querySelector('[data-brvtal-release]')) return;
     const box=document.createElement('div'); box.className='brvtal-admin-release'; box.dataset.brvtalRelease='1';
-    box.innerHTML='<strong>BRVTAL DISCADMIN</strong><span>v'+RELEASE.version+' · '+RELEASE.env+'</span><span class="build">BUILD '+RELEASE.build+'</span>';
+    box.innerHTML='<strong>BRVTAL DISCADMIN</strong><span class="version">v'+RELEASE.version+' · '+RELEASE.env+'</span><span class="build">BUILD '+RELEASE.build+'</span>';
     foot.appendChild(box);
   }
   window.BRVTAL_INSTALL_ADMIN_META=install;
