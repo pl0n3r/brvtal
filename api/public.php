@@ -77,6 +77,57 @@ function brvtal_public_settings(PDO $pdo): array
     return $out;
 }
 
+function brvtal_public_table_exists(PDO $pdo, string $table): bool
+{
+    $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+    $st->execute([$table]);
+    return (int)$st->fetchColumn() > 0;
+}
+
+function brvtal_public_releases(PDO $pdo): array
+{
+    if (!brvtal_public_table_exists($pdo, 'releases') || !brvtal_public_table_exists($pdo, 'release_artists')) {
+        return [];
+    }
+
+    $releases = $pdo->query(
+        "SELECT id,title,slug,release_type,catalog_number,release_date,description,artwork,
+                spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url,
+                featured,published_at,sort_order
+         FROM releases
+         WHERE status='published'
+         ORDER BY featured DESC, COALESCE(release_date,'9999-12-31') DESC, sort_order ASC, id DESC"
+    )->fetchAll();
+
+    if (!$releases) {
+        return [];
+    }
+
+    $artistRows = $pdo->query(
+        "SELECT ra.release_id,ra.artist_id,ra.role,ra.sort_order,a.name,a.slug,a.photo
+         FROM release_artists ra
+         JOIN releases r ON r.id=ra.release_id
+         JOIN artists a ON a.id=ra.artist_id
+         WHERE r.status='published' AND a.status='published'
+         ORDER BY ra.release_id,ra.sort_order,a.name"
+    )->fetchAll();
+
+    $byRelease = [];
+    foreach ($artistRows as $artist) {
+        $byRelease[(string)$artist['release_id']][] = $artist;
+    }
+
+    foreach ($releases as &$release) {
+        $release['id'] = (int)$release['id'];
+        $release['featured'] = (int)$release['featured'];
+        $release['sort_order'] = (int)$release['sort_order'];
+        $release['artists'] = $byRelease[(string)$release['id']] ?? [];
+    }
+    unset($release);
+
+    return $releases;
+}
+
 function brvtal_public_json(mixed $data, int $status = 200): never
 {
     http_response_code($status);
@@ -178,11 +229,13 @@ try {
     unset($event);
 
     $settings = brvtal_public_settings($pdo);
+    $releases = brvtal_public_releases($pdo);
 
     $payload = [
         'events' => $events,
         'artists' => $artists,
         'sets' => $sets,
+        'releases' => $releases,
         'media' => $media,
         'pages' => $pages,
         'settings' => $settings,
