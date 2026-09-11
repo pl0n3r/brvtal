@@ -15,6 +15,12 @@
     document.head.appendChild(s);
   }
 
+  async function cancelPending() {
+    try {
+      await nativeFetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_cancel'})});
+    } catch (_) {}
+  }
+
   function challenge() {
     if (active) return Promise.reject(new Error('TOTP challenge already active'));
     active = true;
@@ -39,7 +45,7 @@
         submit.disabled = true;
         error.classList.remove('show');
         try {
-          const r = await window.fetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_verify',code})});
+          const r = await nativeFetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_verify',code})});
           const data = await r.json();
           if (!r.ok || !data.ok) throw new Error(data.error === 'RATE_LIMITED' ? 'Too many attempts. Try again later.' : 'Invalid verification code.');
           close(); resolve(data);
@@ -59,7 +65,7 @@
       });
       submit.addEventListener('click', verify);
       input.addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
-      cancel.addEventListener('click', () => { close(); resolve(null); });
+      cancel.addEventListener('click', async () => { await cancelPending(); close(); resolve(null); });
       input.focus();
     });
   }
