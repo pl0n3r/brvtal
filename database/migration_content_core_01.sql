@@ -2,11 +2,9 @@
 -- Additive/idempotent migration. Run once against the production BRVTAL database.
 -- Existing content is preserved.
 
--- Expand event lifecycle without changing existing rows.
 ALTER TABLE events
   MODIFY COLUMN status ENUM('draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived') NOT NULL DEFAULT 'draft';
 
--- Event lifecycle metadata.
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND COLUMN_NAME='published_at');
 SET @sql := IF(@c=0,"ALTER TABLE events ADD COLUMN published_at DATETIME NULL AFTER status",'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND COLUMN_NAME='cancelled_at');
@@ -20,7 +18,6 @@ SET @sql := IF(@c=0,"ALTER TABLE events ADD COLUMN ticket_instructions TEXT NULL
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND COLUMN_NAME='ticket_qr');
 SET @sql := IF(@c=0,"ALTER TABLE events ADD COLUMN ticket_qr VARCHAR(500) NULL AFTER ticket_instructions",'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
--- Explicit ticket types. No purchaser/attendee data is stored.
 CREATE TABLE IF NOT EXISTS event_ticket_types (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   event_id INT UNSIGNED NOT NULL,
@@ -41,7 +38,6 @@ CREATE TABLE IF NOT EXISTS event_ticket_types (
   CONSTRAINT fk_ticket_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
--- Collective roster is distinct from event participation but uses artists as the canonical person/entity.
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artists' AND COLUMN_NAME='collective_status');
 SET @sql := IF(@c=0,"ALTER TABLE artists ADD COLUMN collective_status ENUM('none','active','alumni') NOT NULL DEFAULT 'none' AFTER status",'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artists' AND COLUMN_NAME='collective_order');
@@ -65,11 +61,11 @@ CREATE TABLE IF NOT EXISTS artist_collective_history (
   FOREIGN KEY (created_by) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- Archive/search foundations.
 SET @c := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND COLUMN_NAME='archive_year');
 SET @sql := IF(@c=0,"ALTER TABLE events ADD COLUMN archive_year SMALLINT UNSIGNED NULL AFTER event_date",'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 UPDATE events SET archive_year=YEAR(event_date) WHERE archive_year IS NULL AND event_date IS NOT NULL;
 
--- Useful indexes for the future archive and public filtering.
-CREATE INDEX idx_events_city_date ON events(city,event_date);
-CREATE INDEX idx_artists_collective ON artists(collective_status,collective_order,name);
+SET @c := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='events' AND INDEX_NAME='idx_events_city_date');
+SET @sql := IF(@c=0,"CREATE INDEX idx_events_city_date ON events(city,event_date)",'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
+SET @c := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artists' AND INDEX_NAME='idx_artists_collective');
+SET @sql := IF(@c=0,"CREATE INDEX idx_artists_collective ON artists(collective_status,collective_order,name)",'SELECT 1'); PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
