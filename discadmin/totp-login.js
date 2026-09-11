@@ -15,6 +15,18 @@
     document.head.appendChild(s);
   }
 
+  function ensureSecurityLink() {
+    if (document.getElementById('brvtal-security-link')) return;
+    const nav = document.querySelector('.nav');
+    if (!nav) return;
+    const button = document.createElement('button');
+    button.id = 'brvtal-security-link';
+    button.type = 'button';
+    button.textContent = 'SECURITY / 2FA';
+    button.addEventListener('click', () => { window.location.href = '/discadmin/totp-status.php'; });
+    nav.appendChild(button);
+  }
+
   async function cancelPending() {
     try {
       await nativeFetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_cancel'})});
@@ -83,6 +95,10 @@
     if (!data || !data.requires_totp) return response;
     const verified = await challenge();
     if (!verified) return new Response(JSON.stringify({ok:false,error:'TOTP_CANCELLED'}), {status:401,headers:{'Content-Type':'application/json'}});
+    ensureSecurityLink();
     return new Response(JSON.stringify(verified), {status:200,headers:{'Content-Type':'application/json'}});
   };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureSecurityLink, {once:true});
+  else ensureSecurityLink();
 })();
