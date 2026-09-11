@@ -28,10 +28,19 @@ jobs:
 
       - name: Validate JavaScript syntax
         run: |
-          find discadmin -name '*.js' -print0 | xargs -0 -n1 node --check
+          find discadmin tests/e2e -name '*.js' -o -name '*.mjs' | xargs -r -n1 node --check
 
       - name: Run API contract tests
         run: php tests/api-contract.php
 
       - name: Run Media Library contract tests
         run: php tests/media-library-contract.php
+
+      - name: Install Node test dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run DISCADMIN browser tests
+        run: npm run test:e2e
