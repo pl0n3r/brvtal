@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/totp_auth.php';
+require_once __DIR__ . '/route.php';
 
 function client_key(): string {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -58,11 +59,11 @@ function handle_exception(Throwable $e): never { brvtal_log('API_ERROR','Unhandl
 
 try {
     $method=$_SERVER['REQUEST_METHOD']??'GET';
-    $path=trim(parse_url($_SERVER['REQUEST_URI']??'/',PHP_URL_PATH)??'/','/');
-    $script=trim($_SERVER['SCRIPT_NAME']??'','/');
-    if($script!=='' && str_starts_with($path,$script)) $path=trim(substr($path,strlen($script)),'/');
-    $segments=$path===''?[]:explode('/',$path);
-    $resource=$segments[0]??''; $id=isset($segments[1])&&ctype_digit($segments[1])?(int)$segments[1]:null; $action=$segments[1]??'';
+    $route=brvtal_api_parse_route((string)($_SERVER['REQUEST_URI']??'/'),(string)($_SERVER['SCRIPT_NAME']??''));
+    $segments=$route['segments'];
+    $resource=$route['resource'];
+    $id=$route['id'];
+    $action=$route['action'];
 
     if ($resource==='health') {
         if($method!=='GET') method_not_allowed();
@@ -130,22 +131,11 @@ try {
         method_not_allowed();
     }
 
+    // Keep a single public API implementation. api/public.php owns the allowlist
+    // for public settings and the public content contract.
     if($resource==='public') {
-        if($method!=='GET') method_not_allowed();
-        $pdo=db();
-        $events=$pdo->query("SELECT id,title,slug,event_date,archive_year,venue,city,description,skin,accent,cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,cancelled_at,finished_at,status FROM events WHERE status='published' ORDER BY event_date ASC,sort_order ASC")->fetchAll();
-        $artists=$pdo->query("SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url,collective_status,collective_order,collective_joined_at,collective_left_at FROM artists WHERE status='published' ORDER BY sort_order ASC,name ASC")->fetchAll();
-        $sets=$pdo->query("SELECT s.id,s.title,s.slug,s.artist_id,s.event_id,s.platform,s.external_url,s.embed_url,s.cover_image,s.description,a.name artist_name,e.title event_title FROM sets_media s LEFT JOIN artists a ON a.id=s.artist_id LEFT JOIN events e ON e.id=s.event_id WHERE s.status='published' ORDER BY s.sort_order ASC,s.created_at DESC")->fetchAll();
-        $pages=$pdo->query("SELECT id,title,slug,locale,content_json,seo_title,seo_description FROM pages WHERE status='published' ORDER BY id DESC")->fetchAll();
-        $ticketTypes=$pdo->query("SELECT id,event_id,name,description,price,currency,external_url,payment_instructions,qr_image,status,available_from,available_until,sort_order FROM event_ticket_types WHERE status IN ('active','sold_out') ORDER BY event_id,sort_order,name")->fetchAll();
-        $ticketsByEvent=[]; foreach($ticketTypes as $ticket){$ticketsByEvent[$ticket['event_id']][]=$ticket;}
-        foreach($events as &$event){$event['ticket_types']=$ticketsByEvent[$event['id']]??[];} unset($event);
-        $settings=$pdo->query('SELECT setting_key,setting_value,is_json FROM settings ORDER BY setting_key')->fetchAll(); foreach($settings as &$row){if((int)$row['is_json']===1)$row['setting_value']=json_decode((string)$row['setting_value'],true);}
-        $lineup=$pdo->query("SELECT ea.event_id,ea.artist_id,ea.lineup_order,ea.role,a.name,a.slug,a.photo FROM event_artists ea JOIN artists a ON a.id=ea.artist_id JOIN events e ON e.id=ea.event_id WHERE e.status='published' AND a.status='published' ORDER BY ea.event_id,ea.lineup_order,a.name")->fetchAll();
-        $lineupByEvent=[]; foreach($lineup as $item){$lineupByEvent[$item['event_id']][]=$item;}
-        foreach($events as &$event){$event['lineup']=$lineupByEvent[$event['id']]??[];}
-        $etag='"'.sha1(json_encode([$events,$artists,$sets,$pages,$settings])).'"'; header('ETag: '.$etag); header('Cache-Control: public, max-age=60, stale-while-revalidate=300'); if(trim((string)($_SERVER['HTTP_IF_NONE_MATCH']??''))===$etag){http_response_code(304);exit;}
-        json_response(['ok'=>true,'data'=>['events'=>$events,'artists'=>$artists,'sets'=>$sets,'pages'=>$pages,'settings'=>$settings,'generated_at'=>date(DATE_ATOM)]],200);
+        require __DIR__ . '/public.php';
+        exit;
     }
 
     brvtal_admin_require();
