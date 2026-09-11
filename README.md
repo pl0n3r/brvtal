@@ -125,14 +125,14 @@ The public design is intentionally fixed during the current product stage. Event
 | Foundation / security core | 🟢 Integrated in `main` | Central auth, CSRF, rate limiting and production hardening are in the repository. |
 | Optional TOTP / Google Authenticator | 🟢 Implemented in branch lineage | Optional 2FA; activation remains administrator-controlled. |
 | Content Core database migration | 🟡 Ready / production deployment not confirmed | `database/migration_content_core_01.sql` exists; production application must be confirmed separately. |
-| Content Core API | 🟢 Integrated in `main` | Event lifecycle, ticket types and collective fields are represented in the API/model. |
+| Content Core API | 🟢 Integrated in `main` | Event lifecycle, ticket types, collective fields and event participation endpoints are represented in the API/model. |
 | Content Core workspace | 🟢 Integrated in `main` | Event Editor / Collective Roster workspace exists at `discadmin/content-core.php`. |
 | Event Wizard authentication | 🟢 Integrated in `main` | Workspace obtains the authenticated session CSRF token before state-changing requests. |
 | Ticket persistence | 🟢 Integrated in `main` | Existing ticket types are updated, new ones are created, and removed rows are deleted instead of duplicating on repeated saves. |
-| Event participation persistence | 🟡 Pending | UI selection exists; API relation endpoint still needs to be implemented before claiming completion. |
-| DISCADMIN shell navigation | 🟡 Pending | Protected entry point exists; visible sidebar integration still needs to be wired cleanly into the main shell. |
+| Event participation persistence | 🟢 Code integrated / production verification pending | API GET/POST relation endpoint exists; Content Core now has a bridge to load and save event participation. Production verification remains separate. |
+| DISCADMIN shell navigation | 🟡 In progress | Protected Content Core entry point exists; visible sidebar integration is the current shell task. |
 | Event Wizard CRUD | 🟡 Refinement | Core save path is hardened; full lifecycle/roster validation and production verification remain. |
-| Temporary Content Core workflow | 🟢 Removed | Build-time patch workflow was removed from `main`; Content Core API is now maintained as normal source code. |
+| Temporary Content Core workflow | 🟢 Removed | Build-time patch workflow was removed from `main`; Content Core API is maintained as normal source code. |
 | Visual Media Engine | ⚪ Pending | Visual picker, automatic variants, crop preview and usage protection are next. |
 | Archive / Blog / SEO / Legal / Analytics | ⚪ Pending | Planned after Content Core and Media Engine stabilization. |
 
