@@ -58,6 +58,14 @@ function brvtal_media_local_absolute(?string $publicPath): ?string
     return $real;
 }
 
+function brvtal_media_make_public_readable(?string $publicPath): void
+{
+    $absolute = brvtal_media_local_absolute($publicPath);
+    if ($absolute !== null && is_file($absolute)) {
+        @chmod($absolute, 0644);
+    }
+}
+
 function brvtal_media_json_response(array $payload, int $status = 200): never
 {
     http_response_code($status);
@@ -111,6 +119,7 @@ function brvtal_media_asset_payload(array $row): array
     $row['warnings'] = [];
 
     if (($row['type'] ?? '') === 'image') {
+        brvtal_media_make_public_readable((string)($row['file_path'] ?? ''));
         $sidecar = brvtal_media_read_sidecar((string)($row['file_path'] ?? ''));
         if ($sidecar !== null) {
             $row['engine'] = $sidecar;
@@ -119,6 +128,11 @@ function brvtal_media_asset_payload(array $row): array
                     'width' => (int)$sidecar['original']['width'],
                     'height' => (int)$sidecar['original']['height'],
                 ];
+            }
+            if (is_array($sidecar['variants'] ?? null)) {
+                foreach ($sidecar['variants'] as $variant) {
+                    brvtal_media_make_public_readable((string)($variant['path'] ?? ''));
+                }
             }
         }
         if ($row['dimensions'] === null) {
@@ -247,6 +261,9 @@ function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sour
 
     $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, 82);
     imagedestroy($canvas);
+    if ($ok) {
+        @chmod($target, 0644);
+    }
     return $ok;
 }
 
