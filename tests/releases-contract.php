@@ -39,6 +39,13 @@ releases_assert(str_contains($adminModules, "releases: {url:'/discadmin/releases
 releases_assert(str_contains($adminModules, "section==='releases'"), 'canonical navigation must route releases through module workspace');
 releases_assert(str_contains($adminModules, 'data-admin-nav'), 'releases navigation must be injected into the existing canonical sidebar');
 
+$adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
+releases_assert(str_contains($adminCss, '.nav>button[data-admin-nav="releases"]{order:40}'), 'Releases must stay with content navigation');
+releases_assert(str_contains($adminCss, '.nav>.navgroup{order:100}'), 'Technical divider must separate content and technical tools');
+releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'theme\')"]{order:110}'), 'Theme Studio must live below Technical');
+releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'security\')"]{order:120}'), 'Security / 2FA must live below Technical');
+releases_assert(str_contains($adminCss, '.nav>button[onclick="tech(\'system\')"]{order:130}'), 'System Status must live below Technical');
+
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 releases_assert(str_contains($publicApi, 'brvtal_public_releases'), 'public API must expose published releases');
 releases_assert(str_contains($publicApi, "'releases' => " . '$releases'), 'public payload must contain releases');
