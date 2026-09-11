@@ -50,7 +50,7 @@ media_assert(str_contains($module, 'X_BRVTAL_ADMIN_FRAGMENT'), 'direct Media Lib
 
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 media_assert(str_contains($adminModules, "media: {url:'/discadmin/media-library.php'"), 'canonical shell loader must register media module');
-media_assert(str_contains($adminModules, "if(section==='media')"), 'MEDIA navigation must be intercepted into module workspace');
+media_assert(str_contains($adminModules, "section==='media'") && str_contains($adminModules, 'prepareModuleWorkspace(section)'), 'MEDIA navigation must be intercepted into module workspace');
 media_assert(str_contains($adminModules, 'window.BRVTALFeedback'), 'DISCADMIN must expose global mutation feedback');
 media_assert(str_contains($adminModules, 'window.save = async function'), 'canonical CRUD forms must have a working save handler');
 media_assert(str_contains($adminModules, "type === 'events'"), 'save handler must serialize event fields');
