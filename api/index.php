@@ -70,6 +70,15 @@ try {
     if ($resource==='auth') {
         brvtal_admin_session_start();
 
+        if ($method==='POST') {
+            $peek=input_json();
+            if (($peek['action'] ?? '') === 'totp_cancel') {
+                brvtal_totp_pending_clear();
+                json_response(['ok'=>true]);
+            }
+            $GLOBALS['brvtal_auth_input']=$peek;
+        }
+
         // Logout is evaluated before POST login so /api/auth?logout=1 cannot fall through.
         if (($method==='POST' && isset($_GET['logout'])) || $method==='DELETE') {
             brvtal_admin_logout();
@@ -82,7 +91,8 @@ try {
         }
 
         if($method==='POST') {
-            $d=input_json();
+            $d=$GLOBALS['brvtal_auth_input'] ?? input_json();
+            unset($GLOBALS['brvtal_auth_input']);
             if(($d['action'] ?? '') === 'totp_verify') {
                 $pendingId=brvtal_totp_pending_admin_id();
                 if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);
