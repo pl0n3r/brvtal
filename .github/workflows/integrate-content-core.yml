@@ -21,27 +21,49 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           p=Path('api/index.php'); s=p.read_text()
-          replacements={
-          "'events'=>['title','slug','event_date','venue','city','description','skin','accent','cover_image','ticket_url','status','sort_order']":"'events'=>['title','slug','event_date','venue','city','description','skin','accent','cover_image','ticket_url','ticket_instructions','ticket_qr','featured','published_at','cancelled_at','finished_at','archive_year','status','sort_order']",
-          "'artists'=>['name','slug','bio','photo','instagram_url','soundcloud_url','website_url','status','sort_order']":"'artists'=>['name','slug','bio','photo','instagram_url','soundcloud_url','website_url','collective_status','collective_order','collective_joined_at','collective_left_at','status','sort_order']",
-          "'pages'=>'pages','settings'=>'settings'":"'pages'=>'pages','ticket_types'=>'event_ticket_types','settings'=>'settings'",
-          "['draft','published','archived']":"['draft','published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived']",
-          "SELECT id,title,slug,event_date,venue,city,description,skin,accent,cover_image,ticket_url FROM events":"SELECT id,title,slug,event_date,archive_year,venue,city,description,skin,accent,cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,cancelled_at,finished_at,status FROM events",
-          "SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url FROM artists":"SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url,collective_status,collective_order,collective_joined_at,collective_left_at FROM artists",
-          "        $pages=$pdo->query(\"SELECT id,title,slug,locale,content_json,seo_title,seo_description FROM pages WHERE status='published' ORDER BY id DESC\")->fetchAll();":"        $pages=$pdo->query(\"SELECT id,title,slug,locale,content_json,seo_title,seo_description FROM pages WHERE status='published' ORDER BY id DESC\")->fetchAll();\n        $ticketTypes=$pdo->query(\"SELECT id,event_id,name,description,price,currency,external_url,payment_instructions,qr_image,status,available_from,available_until,sort_order FROM event_ticket_types WHERE status IN ('active','sold_out') ORDER BY event_id,sort_order,name\")->fetchAll();\n        $ticketsByEvent=[]; foreach($ticketTypes as $ticket){$ticketsByEvent[$ticket['event_id']][]=$ticket;}\n        foreach($events as &$event){$event['ticket_types']=$ticketsByEvent[$event['id']]??[];} unset($event);",
-          "'settings'=>$settings,'generated_at'=>date(DATE_ATOM)]":"'settings'=>$settings,'generated_at'=>date(DATE_ATOM)]",
-          }
-          for old,new in replacements.items():
-              if old not in s and old != "'settings'=>$settings,'generated_at'=>date(DATE_ATOM)]":
-                  raise SystemExit('Expected API pattern missing: '+old[:80])
+
+          # Generic CRUD support for ticket types.
+          old="'pages'=>['title','slug','locale','content_json','seo_title','seo_description','status']"
+          new="'pages'=>['title','slug','locale','content_json','seo_title','seo_description','status'],'ticket_types'=>['event_id','name','description','price','currency','external_url','payment_instructions','qr_image','status','available_from','available_until','sort_order']"
+          if new not in s:
+              if old not in s: raise SystemExit('pages allowed_fields anchor not found')
               s=s.replace(old,new,1)
+
+          # Validation limits and ticket URL/currency constraints.
+          anchor="'role'=>80]"
+          if "'currency'=>3" not in s:
+              s=s.replace(anchor,"'role'=>80,'currency'=>3,'price'=>30,'payment_instructions'=>4000]",1)
+          if "if(isset($d['currency'])" not in s:
+              anchor2="if(isset($d['platform']) && !in_array($d['platform'],['soundcloud','youtube','spotify','other'],true)) json_response(['ok'=>false,'error'=>'INVALID_PLATFORM'],422);"
+              addition=anchor2+"\n    if(isset($d['currency']) && $d['currency']!=='' && !preg_match('/^[A-Z]{3}$/',(string)$d['currency'])) json_response(['ok'=>false,'error'=>'INVALID_CURRENCY'],422);\n    if(isset($d['price']) && $d['price']!=='' && (!is_numeric($d['price']) || (float)$d['price']<0)) json_response(['ok'=>false,'error'=>'INVALID_PRICE'],422);"
+              if anchor2 not in s: raise SystemExit('platform validation anchor not found')
+              s=s.replace(anchor2,addition,1)
+
+          # Public events expose the lifecycle fields added by Content Core.
+          old_event="SELECT id,title,slug,event_date,venue,city,description,skin,accent,cover_image,ticket_url FROM events"
+          new_event="SELECT id,title,slug,event_date,archive_year,venue,city,description,skin,accent,cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,cancelled_at,finished_at,status FROM events"
+          if old_event in s: s=s.replace(old_event,new_event,1)
+
+          old_artist="SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url FROM artists"
+          new_artist="SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url,collective_status,collective_order,collective_joined_at,collective_left_at FROM artists"
+          if old_artist in s: s=s.replace(old_artist,new_artist,1)
+
+          if '$ticketTypes=$pdo->query' not in s:
+              page_line="        $pages=$pdo->query(\"SELECT id,title,slug,locale,content_json,seo_title,seo_description FROM pages WHERE status='published' ORDER BY id DESC\")->fetchAll();"
+              addition=page_line+"\n        $ticketTypes=$pdo->query(\"SELECT id,event_id,name,description,price,currency,external_url,payment_instructions,qr_image,status,available_from,available_until,sort_order FROM event_ticket_types WHERE status IN ('active','sold_out') ORDER BY event_id,sort_order,name\")->fetchAll();\n        $ticketsByEvent=[]; foreach($ticketTypes as $ticket){$ticketsByEvent[$ticket['event_id']][]=$ticket;}\n        foreach($events as &$event){$event['ticket_types']=$ticketsByEvent[$event['id']]??[];} unset($event);"
+              if page_line not in s: raise SystemExit('public pages query anchor not found')
+              s=s.replace(page_line,addition,1)
+
           p.write_text(s)
           PY
       - name: Validate
         run: |
           set -e
           php -l api/index.php
-          php -l database/migration_content_core_01.sql || true
+          grep -q "'ticket_types'=>" api/index.php
+          grep -q "event_ticket_types" api/index.php
+          grep -q "collective_status" api/index.php
+          grep -q "tickets_available" api/index.php
       - name: Commit
         run: |
           git config user.name 'BRVTAL Automation'
@@ -49,5 +71,5 @@ jobs:
           git add api/index.php
           git diff --cached --check
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'feat: expose content core lifecycle and tickets in API'
+          git commit -m 'feat: complete ticket and collective API support'
           git push origin feat/1-content-core
