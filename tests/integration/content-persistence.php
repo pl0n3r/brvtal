@@ -153,8 +153,8 @@ brvtal_it_assert($ticket['qr_image'] === $mediaPath, 'ticket QR media path must 
 brvtal_it_assert($ticket['status'] === 'active', 'ticket status must persist');
 
 $pdo->prepare('INSERT INTO sets_media(title,cover_image,status) VALUES(?,?,?)')->execute(['CI Set', $mediaPath, 'published']);
-$pdo->prepare('INSERT INTO pages(title,content_json,status) VALUES(?,?,?)')->execute(['CI Page', json_encode(['hero' => $mediaPath]), 'published']);
-$pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?)')->execute(['theme.ci', json_encode(['image' => $mediaPath]), 1]);
+$pdo->prepare('INSERT INTO pages(title,content_json,status) VALUES(?,?,?)')->execute(['CI Page', json_encode(['hero' => $mediaPath], JSON_UNESCAPED_SLASHES), 'published']);
+$pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?)')->execute(['theme.ci', json_encode(['image' => $mediaPath], JSON_UNESCAPED_SLASHES), 1]);
 
 $media = $pdo->query('SELECT * FROM media WHERE id=' . $mediaId)->fetch();
 $usage = brvtal_media_usage($pdo, $media);
