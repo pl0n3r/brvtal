@@ -5,8 +5,13 @@ require_once __DIR__ . '/admin_auth.php';
 
 function brvtal_activity_schema_ready(PDO $pdo): bool
 {
+    static $ready = [];
+    $key = spl_object_id($pdo);
+    if (($ready[$key] ?? false) === true) return true;
     $st = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='admin_activity_log'");
-    return (int)$st->fetchColumn() === 1;
+    $isReady = (int)$st->fetchColumn() === 1;
+    if ($isReady) $ready[$key] = true;
+    return $isReady;
 }
 
 function brvtal_activity_request_id(): string
@@ -25,23 +30,24 @@ function brvtal_activity_request_id(): string
 
 function brvtal_activity_actor(PDO $pdo): array
 {
-    static $cached = null;
-    if (is_array($cached)) return $cached;
-
+    static $cache = [];
     brvtal_admin_session_start();
     $adminId = (int)($_SESSION['admin_id'] ?? 0);
+    $cacheKey = spl_object_id($pdo) . ':' . $adminId;
+    if (isset($cache[$cacheKey])) return $cache[$cacheKey];
+
     if ($adminId < 1) {
-        return $cached = ['id' => null, 'name' => null, 'email' => null];
+        return $cache[$cacheKey] = ['id' => null, 'name' => null, 'email' => null];
     }
 
     $st = $pdo->prepare('SELECT id,name,email FROM admins WHERE id=? LIMIT 1');
     $st->execute([$adminId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        return $cached = ['id' => $adminId, 'name' => 'Admin #' . $adminId, 'email' => null];
+        return $cache[$cacheKey] = ['id' => $adminId, 'name' => 'Admin #' . $adminId, 'email' => null];
     }
 
-    return $cached = [
+    return $cache[$cacheKey] = [
         'id' => (int)$row['id'],
         'name' => mb_substr(trim((string)$row['name']), 0, 120),
         'email' => mb_substr(strtolower(trim((string)$row['email'])), 0, 190),
