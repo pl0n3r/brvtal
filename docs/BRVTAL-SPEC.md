@@ -202,6 +202,8 @@ Media may be reused by multiple pieces of content. Before deletion, references m
 
 The reusable Media Library, picker, metadata, reference detection, sidecars and protected deletion flow are implemented foundations.
 
+The public Media experience supports search and image/video/audio filtering. Images open in an accessible viewer; audio and video use native browser controls and all content remains limited to published API records.
+
 ## 18. Media Engine
 
 Principle: **one source image → multiple optimized variants**.

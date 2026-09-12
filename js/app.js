@@ -405,6 +405,7 @@
 
     const renderMedia = (items) => {
       if (!items.length) return false;
+      if (window.BRVTALPublicMedia?.render) return window.BRVTALPublicMedia.render(items);
       const grid = qs('.media-grid');
       if (!grid) return false;
       const slots = ['m1','m2','m3','m4'];
