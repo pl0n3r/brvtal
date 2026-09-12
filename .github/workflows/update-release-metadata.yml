@@ -46,7 +46,7 @@ jobs:
 
       - name: Validate JavaScript syntax
         run: |
-          find discadmin tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
+          find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
 
       - name: Run API contract tests
         run: php tests/api-contract.php
@@ -71,6 +71,9 @@ jobs:
 
       - name: Run Bulk Actions contract tests
         run: php tests/bulk-actions-contract.php
+
+      - name: Run Public Archive contract tests
+        run: php tests/public-archive-contract.php
 
       - name: Validate Blog migration is idempotent
         run: |
@@ -109,6 +112,16 @@ jobs:
           BRVTAL_TEST_DB_PASS: brvtal_root
         run: php tests/integration/bulk-actions.php
 
+      - name: Run Public Archive MariaDB integration
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_TEST_DB_HOST: 127.0.0.1
+          BRVTAL_TEST_DB_PORT: '3306'
+          BRVTAL_TEST_DB_NAME: brvtal_test_ci
+          BRVTAL_TEST_DB_USER: root
+          BRVTAL_TEST_DB_PASS: brvtal_root
+        run: php tests/integration/public-archive.php
+
       - name: Validate SEO migration is idempotent
         run: |
           mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS events (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS artists (id INT PRIMARY KEY, bio TEXT); CREATE TABLE IF NOT EXISTS sets_media (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS releases (id INT PRIMARY KEY, description TEXT);"
@@ -123,5 +136,5 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run DISCADMIN browser tests
+      - name: Run browser tests
         run: npm run test:e2e
