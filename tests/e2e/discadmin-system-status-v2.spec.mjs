@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const script = readFileSync(join(process.cwd(), 'discadmin/system-status-v2.js'), 'utf8');
+const storageScript = readFileSync(join(process.cwd(), 'discadmin/system-status-storage.js'), 'utf8');
 const harness = 'http://127.0.0.1:4173/discadmin/e2e-system-status-v2.html';
 
 const overview = {
@@ -18,7 +19,7 @@ const overview = {
     {key:'activity',label:'ACTIVITY HISTORY',status:'ok',value:'READY'},
     {key:'deployment',label:'DEPLOYMENT',status:'error',value:'CHECK'}
   ],
-  storage:{total_bytes:1000,used_bytes:400,free_bytes:600,total:'1.00 GB',used:'400 MB',free:'600 MB',used_percent:40,uploads_items:18},
+  storage:{total_bytes:1000,used_bytes:400,free_bytes:600,total:'6.93 TB',used:'5.14 TB',free:'1.79 TB',used_percent:74.2,uploads_items:18},
   database:{driver:'mysql',server:'11.8.0-MariaDB',counts:{events:12,artists:24,sets:9,releases:4,media:83,pages:6,blog:7}},
   runtime:{php:'8.3.33',sapi:'fpm-fcgi',memory_limit:'512M',upload_max_filesize:'25M',post_max_size:'32M',max_execution_time:'30',extensions:{}},
   deployment:{commit:'ad196b0f8ca564f45f40492cb8b320c620304433',short_commit:'ad196b0',source:'git_checkout',version:'0.1.0',environment:'PRODUCTION',release_date:'2026-09-11'},
@@ -27,19 +28,36 @@ const overview = {
   time:'2026-09-12T00:00:00-05:00',generated_ms:22.4
 };
 
+const managedStorage = {
+  ok:true,
+  scope:'brvtal_managed_data',
+  quota_source:'hostinger_plan_fallback',
+  quota_bytes:26843545600,
+  quota:'25.00 GB',
+  used_bytes:536870912,
+  used:'512.00 MB',
+  free_bytes:26306674688,
+  free:'24.50 GB',
+  used_percent:2,
+  managed_files:21,
+  directories:{uploads:{bytes:500000000,size:'476.84 MB',files:18},storage:{bytes:36870912,size:'35.16 MB',files:3}},
+  host_filesystem:{total:'6.93 TB',free:'1.79 TB',diagnostic_only:true}
+};
+
 const health = {ok:true,data:{score:82,total:20,ready:16,needs_attention:4,missing_visuals:3,seo_gaps:2,by_type:{},items:[]}};
 const activity = {ok:true,data:{total:44,limit:5,read_only:true,items:[
   {id:44,admin_name:'Felipe',action:'update',resource:'events',resource_id:8,resource_label:'GENESIS',created_at:'2026-09-12 05:00:00'},
   {id:43,admin_name:'Felipe',action:'seo_update',resource:'artists',resource_id:2,resource_label:'HAKKI',created_at:'2026-09-12 04:55:00'}
 ]}};
 
-test('System Status v2 mounts on the canonical production SYSTEM heading and renders visual signals', async ({ page }) => {
+test('System Status v2 mounts on production markup and replaces host disk with BRVTAL managed storage', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:`<!doctype html><html><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script></body></html>`
+    body:`<!doctype html><html><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script><script>${storageScript}</script></body></html>`
   }));
 
   await page.route('**/discadmin/technical.php?action=overview', route => route.fulfill({contentType:'application/json',body:JSON.stringify(overview)}));
+  await page.route('**/discadmin/storage-metrics.php*', route => route.fulfill({contentType:'application/json',body:JSON.stringify(managedStorage)}));
   await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify(health)}));
   await page.route('**/api/admin-activity.php?limit=5', route => route.fulfill({contentType:'application/json',body:JSON.stringify(activity)}));
   await page.route('**/discadmin/technical.php?action=logs', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,content:'LOG OK'})}));
@@ -50,7 +68,16 @@ test('System Status v2 mounts on the canonical production SYSTEM heading and ren
   await expect(page.locator('.ssv2-health-summary')).toContainText('88%');
   await expect(page.locator('.ssv2-health-summary')).toContainText('DEGRADED');
   await expect(page.locator('.ssv2-services .ssv2-service')).toHaveCount(8);
-  await expect(page.locator('.ssv2-storage-ring')).toContainText('40%');
+
+  const storage = page.locator('.ssv2-panel.storage');
+  await expect(storage).toHaveAttribute('data-storage-scope', 'brvtal-managed-data');
+  await expect(storage.locator('.ssv2-storage-ring')).toContainText('2.0%');
+  await expect(storage).toContainText('BRVTAL DATA');
+  await expect(storage).toContainText('512.00 MB / 25.00 GB');
+  await expect(storage).toContainText('24.50 GB FREE');
+  await expect(storage).toContainText('21 managed files');
+  await expect(storage).not.toContainText('5.14 TB / 6.93 TB');
+
   await expect(page.locator('.ssv2-panel', {hasText:'DATABASE CONTENT'})).toContainText('MEDIA');
   await expect(page.locator('.ssv2-panel', {hasText:'DATABASE CONTENT'})).toContainText('83');
 
