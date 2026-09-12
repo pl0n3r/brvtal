@@ -21,4 +21,9 @@ return [
         'csrf_key' => 'REPLACE_WITH_LONG_RANDOM_SECRET',
         'encryption_key' => 'REPLACE_WITH_32_PLUS_BYTE_RANDOM_SECRET',
     ],
+    'hosting' => [
+        // Optional operational quota used by DISCADMIN System Status.
+        // Production currently falls back safely to the known 25 GB Hostinger plan when omitted.
+        'storage_quota_bytes' => 25 * 1024 * 1024 * 1024,
+    ],
 ];

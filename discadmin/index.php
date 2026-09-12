@@ -17,7 +17,8 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/global-search.js' . $suffix . '"></script>'
     . '<script src="/discadmin/bulk-actions.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-activity.js' . $suffix . '"></script>'
-    . '<script src="/discadmin/system-status-v2.js' . $suffix . '"></script>';
+    . '<script src="/discadmin/system-status-v2.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/system-status-storage.js' . $suffix . '"></script>';
 
 if (str_contains($html, '</body>')) {
     $html = str_replace('</body>', $enhancements . '</body>', $html);
