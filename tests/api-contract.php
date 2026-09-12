@@ -43,3 +43,5 @@ expect(str_contains($public, "\$event['ticket_types']"), 'Public events must inc
 expect(str_contains($public, "\$event['lineup']"), 'Public events must include lineup data');
 
 fwrite(STDOUT, "BRVTAL API contract tests passed.\n");
+
+require __DIR__ . '/totp-enrollment-contract.php';

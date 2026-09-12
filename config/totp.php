@@ -47,6 +47,36 @@ function brvtal_totp_generate_secret(int $bytes = 20): string
     return brvtal_totp_base32_encode(random_bytes($bytes));
 }
 
+function brvtal_totp_encryption_key(): string
+{
+    global $config;
+    $security = is_array($config['security'] ?? null) ? $config['security'] : [];
+    $configured = trim((string)($security['encryption_key'] ?? ''));
+
+    // Existing BRVTAL installations predate the dedicated encryption_key. Their
+    // long random CSRF secret is a stable, server-only compatibility key until
+    // configuration is rotated deliberately.
+    if (strlen($configured) < 32) {
+        $configured = trim((string)($security['csrf_key'] ?? ''));
+    }
+    if (strlen($configured) < 32) {
+        throw new RuntimeException('TOTP encryption key is not configured.');
+    }
+    return hash('sha256', $configured, true);
+}
+
+function brvtal_totp_decryption_keys(): array
+{
+    global $config;
+    $security = is_array($config['security'] ?? null) ? $config['security'] : [];
+    $keys = [];
+    foreach (['encryption_key', 'csrf_key'] as $name) {
+        $configured = trim((string)($security[$name] ?? ''));
+        if (strlen($configured) >= 32) $keys[] = hash('sha256', $configured, true);
+    }
+    return array_values(array_unique($keys));
+}
+
 function brvtal_totp_code(string $secret, ?int $timestamp = null, int $digits = 6, int $period = 30): string
 {
     $key = brvtal_totp_base32_decode($secret);

@@ -4,24 +4,21 @@ declare(strict_types=1);
 require_once __DIR__ . '/totp.php';
 
 function brvtal_totp_secret_key(): string {
-    global $config;
-    $configured = trim((string)($config['security']['encryption_key'] ?? ''));
-    if ($configured === '' || strlen($configured) < 32) {
-        throw new RuntimeException('TOTP encryption key is not configured.');
-    }
-    return hash('sha256', $configured, true);
+    return brvtal_totp_encryption_key();
 }
 
 function brvtal_totp_decrypt_secret(?string $encoded): ?string {
     if (!$encoded) return null;
     $raw = base64_decode($encoded, true);
     if ($raw === false || strlen($raw) < 28) return null;
-    $key = brvtal_totp_secret_key();
     $iv = substr($raw, 0, 12);
     $tag = substr($raw, 12, 16);
     $cipher = substr($raw, 28);
-    $plain = openssl_decrypt($cipher, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-    return $plain === false ? null : $plain;
+    foreach (brvtal_totp_decryption_keys() as $key) {
+        $plain = openssl_decrypt($cipher, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($plain !== false) return $plain;
+    }
+    return null;
 }
 
 function brvtal_totp_pending_clear(): void {
