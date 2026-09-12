@@ -46,3 +46,4 @@ fwrite(STDOUT, "BRVTAL API contract tests passed.\n");
 
 require __DIR__ . '/totp-enrollment-contract.php';
 require __DIR__ . '/deployment-traceability-contract.php';
+require __DIR__ . '/system-status-contract.php';
