@@ -50,3 +50,6 @@ seo_assert(str_contains($public, 'content_json,seo_title,seo_description'), 'Pag
 seo_assert(str_contains($public, 'cover_image,seo_title,seo_description'), 'Blog SEO metadata must remain exposed');
 
 echo "BRVTAL SEO metadata contract tests passed.\n";
+
+require __DIR__ . '/deployment-traceability-contract.php';
+require __DIR__ . '/public-seo-delivery-contract.php';
