@@ -14,6 +14,11 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'webkit-totp',
+      testMatch: /discadmin-totp-login\.spec\.mjs/,
+      use: { ...devices['Desktop Safari'] }
     }
   ]
 });
