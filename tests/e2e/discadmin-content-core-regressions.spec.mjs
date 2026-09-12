@@ -8,6 +8,7 @@ const seoDefaultsJs = readFileSync(join(process.cwd(), 'discadmin/seo-editorial-
 
 const lineupHarness = 'http://127.0.0.1:4173/discadmin/e2e-lineup-regression.html';
 const seoHarness = 'http://127.0.0.1:4173/discadmin/e2e-seo-dedupe.html';
+const seoLiveHarness = 'http://127.0.0.1:4173/discadmin/e2e-seo-live-defaults.html';
 
 test('Content Core lineup bridge uses the canonical index.php route for load and save', async ({ page }) => {
   const requests = [];
@@ -60,6 +61,7 @@ test('Content Core keeps one SEO metadata section when async decoration races', 
         <div class="step-content" data-content="1">
           <input id="e_title" value="TEST DELETE">
           <input id="e_slug" value="test-delete">
+          <textarea id="e_description">description</textarea>
         </div>
       </div>
       <script>window.csrf='csrf-test';window.BRVTALFeedback={success:()=>{},error:()=>{}};</script>
@@ -72,7 +74,7 @@ test('Content Core keeps one SEO metadata section when async decoration races', 
     await new Promise(resolve => setTimeout(resolve, 140));
     return route.fulfill({
       contentType:'application/json',
-      body:JSON.stringify({ok:true,data:[{id:42,title:'TEST DELETE',slug:'test-delete',seo_title:'TEST DELETE',seo_description:'description'}]}),
+      body:JSON.stringify({ok:true,data:[{id:42,title:'TEST DELETE',slug:'test-delete',description:'description',seo_title:'TEST DELETE',seo_description:'description'}]}),
     });
   });
 
@@ -88,4 +90,43 @@ test('Content Core keeps one SEO metadata section when async decoration races', 
   await expect(page.locator('[data-seo-editor="content-core"]')).toHaveCount(1);
   await expect(page.locator('#e_seo_title')).toHaveValue('TEST DELETE');
   await expect(page.locator('#e_seo_description')).toHaveValue('description');
+});
+
+test('Content Core SEO follows title and description until the editor makes a manual override', async ({ page }) => {
+  await page.route(seoLiveHarness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:`<!doctype html><html><body>
+      <div id="eventModal" class="modal open">
+        <div class="step-content" data-content="1">
+          <input id="e_title" value="">
+          <input id="e_slug" value="">
+          <textarea id="e_description"></textarea>
+        </div>
+      </div>
+      <script>window.csrf='csrf-test';window.BRVTALFeedback={success:()=>{},error:()=>{}};</script>
+      <script>${seoDefaultsJs}</script>
+      <script>${seoMetadataJs}</script>
+    </body></html>`,
+  }));
+
+  await page.route('**/api/index.php/events', route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({ok:true,data:[]}),
+  }));
+
+  await page.goto(seoLiveHarness);
+  await expect(page.locator('[data-seo-editor="content-core"]')).toHaveCount(1);
+
+  await page.fill('#e_title', 'test');
+  await page.fill('#e_description', 'gt');
+  await expect(page.locator('#e_seo_title')).toHaveValue('test');
+  await expect(page.locator('#e_seo_description')).toHaveValue('gt');
+
+  await page.fill('#e_seo_title', 'CUSTOM SEARCH TITLE');
+  await page.fill('#e_title', 'test changed');
+  await expect(page.locator('#e_seo_title')).toHaveValue('CUSTOM SEARCH TITLE');
+  await expect(page.locator('#e_seo_description')).toHaveValue('gt');
+
+  await page.fill('#e_seo_title', '');
+  await expect(page.locator('#e_seo_title')).toHaveValue('test changed');
 });
