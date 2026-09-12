@@ -1,5 +1,5 @@
 Options -Indexes
-<FilesMatch "^(config|bootstrap|logger).*\.php$">
+<FilesMatch "\.php$">
     Require all denied
 </FilesMatch>
 <FilesMatch "^\.ht">

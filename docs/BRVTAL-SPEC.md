@@ -226,6 +226,8 @@ These relations can drive discovery on the public frontend.
 
 Support title, description, canonical, Open Graph/social previews, Google preview and structured data when appropriate.
 
+Public delivery uses server-rendered metadata for Home and published entity routes. Canonical route families are `/events/{slug}`, `/artists/{slug}`, `/sets/{slug}`, `/releases/{slug}`, `/blog/{slug}` and `/pages/{slug}`. The public sitemap contains published entities only; unknown, draft or private entity routes return `404` with `noindex`.
+
 The CMS may calculate a **Content Health Score** and warn about missing SEO, missing images, incomplete information and common errors.
 
 CMS intelligence advises; it does **not** autonomously publish or irreversibly modify editorial content.

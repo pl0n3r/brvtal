@@ -299,6 +299,10 @@ Important rules:
 
 Application release metadata lives in `config/version.php`. Product version/build metadata is updated intentionally for releases; CI does not rewrite it on every commit.
 
+The deployed source revision is resolved at runtime by `config/deployment.php`. It prefers `BRVTAL_DEPLOY_COMMIT`, then reads the Hostinger Git checkout, and only falls back to the intentional release build. DISCADMIN and `/api/health.php` therefore identify the code actually serving production without creating metadata-only commits.
+
+Public SEO delivery is server-rendered through `index.php`. Published Events, Artists, Sets, Releases, Blog posts and English Pages have canonical URLs, Open Graph/Twitter metadata and Schema.org JSON-LD. `/sitemap.xml` is generated from published content and `robots.txt` advertises it while excluding private application surfaces.
+
 ---
 
 ## Security model

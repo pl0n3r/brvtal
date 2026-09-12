@@ -1,0 +1,10 @@
+Options -Indexes
+DirectoryIndex index.php index.html
+
+RewriteEngine On
+RewriteRule ^sitemap\.xml$ sitemap.php [L,QSA]
+RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?type=$1&slug=$2 [L,QSA,NC]
+
+<FilesMatch "^\.(?:git|env|ht)">
+    Require all denied
+</FilesMatch>

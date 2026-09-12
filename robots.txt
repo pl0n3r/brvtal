@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /discadmin/
+Disallow: /api/
+Disallow: /config/
+Disallow: /database/
+Disallow: /storage/
+
+Sitemap: https://www.brvtal.com.co/sitemap.xml
