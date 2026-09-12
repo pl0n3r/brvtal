@@ -46,9 +46,9 @@
         error.classList.remove('show');
         try {
           const r = await nativeFetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_verify',code})});
-          const data = await r.json();
+          const data = await r.clone().json();
           if (!r.ok || !data.ok) throw new Error(data.error === 'RATE_LIMITED' ? 'Too many attempts. Try again later.' : 'Invalid verification code.');
-          close(); resolve(data);
+          close(); resolve(r);
         } catch (e) {
           submit.disabled = false;
           fail(e.message || 'Verification failed.');
@@ -81,10 +81,12 @@
     let data;
     try { data = await response.clone().json(); } catch (_) { return response; }
     if (!data || !data.requires_totp) return response;
-    const verified = await challenge();
-    if (!verified) return new Response(JSON.stringify({ok:false,error:'TOTP_CANCELLED'}), {status:401,headers:{'Content-Type':'application/json'}});
+    const verifiedResponse = await challenge();
+    if (!verifiedResponse) return new Response(JSON.stringify({ok:false,error:'TOTP_CANCELLED'}), {status:401,headers:{'Content-Type':'application/json'}});
 
-    return new Response(JSON.stringify(verified), {status:200,headers:{'Content-Type':'application/json'}});
+    // Keep the browser's real response object. Reconstructing a successful
+    // response here triggers a WebKit/Safari DOMException on some releases.
+    return verifiedResponse;
   };
 
   /* This is the last shell bootstrap hook before index-core.php calls restoreSession().
