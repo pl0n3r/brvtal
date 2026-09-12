@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/admin_activity.php';
 
 brvtal_admin_require();
 
@@ -188,13 +188,24 @@ try {
 
     if ($method === 'DELETE') {
         if ($id <= 0) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_ID_REQUIRED'], 422);
-        $st = $pdo->prepare('DELETE FROM blog_posts WHERE id=?');
-        $st->execute([$id]);
-        if ($st->rowCount() < 1) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_NOT_FOUND'], 404);
+        $before = brvtal_blog_fetch($pdo, $id);
+        if (!$before) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_NOT_FOUND'], 404);
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare('DELETE FROM blog_posts WHERE id=?');
+            $st->execute([$id]);
+            if ($st->rowCount() < 1) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            brvtal_activity_record($pdo, 'delete', 'blog', $id, $before, null, ['source'=>'blog_api'], (string)$before['title']);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
         brvtal_blog_json(['ok'=>true,'deleted'=>$id]);
     }
 
     $data = brvtal_blog_payload(brvtal_blog_body());
+    $before = null;
     $pdo->beginTransaction();
     try {
         if ($method === 'POST') {
@@ -206,7 +217,9 @@ try {
             ]);
             $id = (int)$pdo->lastInsertId();
         } else {
-            if ($id <= 0 || !brvtal_blog_fetch($pdo,$id)) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            if ($id <= 0) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            $before = brvtal_blog_fetch($pdo,$id);
+            if (!$before) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
             $st = $pdo->prepare("UPDATE blog_posts SET title=?,slug=?,excerpt=?,body=?,cover_image=?,seo_title=?,seo_description=?,status=?,featured=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END,sort_order=? WHERE id=?");
             $st->execute([
                 $data['title'],$data['slug'],$data['excerpt'] ?: null,$data['body'] ?: null,$data['cover_image'] ?: null,
@@ -215,13 +228,25 @@ try {
         }
         brvtal_blog_sync_tags($pdo,$id,$data['tags']);
         brvtal_blog_sync_relations($pdo,$id,$data['relations']);
+        $after = brvtal_blog_fetch($pdo,$id);
+        if (!$after) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+        brvtal_activity_record(
+            $pdo,
+            $method === 'POST' ? 'create' : 'update',
+            'blog',
+            $id,
+            $before,
+            $after,
+            ['source'=>'blog_api'],
+            (string)$after['title']
+        );
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
 
-    brvtal_blog_json(['ok'=>true,'data'=>brvtal_blog_fetch($pdo,$id)], $method==='POST' ? 201 : 200);
+    brvtal_blog_json(['ok'=>true,'data'=>$after], $method==='POST' ? 201 : 200);
 } catch (InvalidArgumentException $e) {
     brvtal_blog_json(['ok'=>false,'error'=>$e->getMessage()],422);
 } catch (PDOException $e) {
@@ -229,6 +254,9 @@ try {
     if (function_exists('brvtal_log')) brvtal_log('BLOG_API_ERROR','Blog database failure',['message'=>$e->getMessage()]);
     brvtal_blog_json(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
 } catch (RuntimeException $e) {
+    if ($e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
+        brvtal_blog_json(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'],503);
+    }
     $status = $e->getCode() >= 400 && $e->getCode() <= 599 ? $e->getCode() : 500;
     brvtal_blog_json(['ok'=>false,'error'=>$e->getMessage()],$status);
 } catch (Throwable $e) {

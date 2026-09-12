@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/admin_activity.php';
 
 brvtal_admin_require();
 
@@ -243,15 +243,26 @@ try {
         if ($id <= 0) {
             brvtal_releases_json(['ok' => false, 'error' => 'RELEASE_ID_REQUIRED'], 422);
         }
-        $st = $pdo->prepare('DELETE FROM releases WHERE id=?');
-        $st->execute([$id]);
-        if ($st->rowCount() < 1) {
+        $before = brvtal_release_fetch($pdo, $id);
+        if (!$before) {
             brvtal_releases_json(['ok' => false, 'error' => 'RELEASE_NOT_FOUND'], 404);
+        }
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare('DELETE FROM releases WHERE id=?');
+            $st->execute([$id]);
+            if ($st->rowCount() < 1) throw new RuntimeException('RELEASE_NOT_FOUND', 404);
+            brvtal_activity_record($pdo, 'delete', 'releases', $id, $before, null, ['source'=>'releases_api'], (string)$before['title']);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
         }
         brvtal_releases_json(['ok' => true, 'deleted' => $id]);
     }
 
     $data = brvtal_release_payload(brvtal_releases_body());
+    $before = null;
     $pdo->beginTransaction();
     try {
         if ($method === 'POST') {
@@ -266,9 +277,9 @@ try {
             ]);
             $id = (int)$pdo->lastInsertId();
         } else {
-            if ($id <= 0 || !brvtal_release_fetch($pdo, $id)) {
-                throw new RuntimeException('RELEASE_NOT_FOUND', 404);
-            }
+            if ($id <= 0) throw new RuntimeException('RELEASE_NOT_FOUND', 404);
+            $before = brvtal_release_fetch($pdo, $id);
+            if (!$before) throw new RuntimeException('RELEASE_NOT_FOUND', 404);
             $st = $pdo->prepare(
                 "UPDATE releases SET title=?,slug=?,release_type=?,catalog_number=?,release_date=?,description=?,artwork=?,spotify_url=?,soundcloud_url=?,bandcamp_url=?,youtube_url=?,beatport_url=?,status=?,featured=?,sort_order=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END WHERE id=?"
             );
@@ -279,6 +290,18 @@ try {
             ]);
         }
         brvtal_release_sync_artists($pdo, $id, $data['artists']);
+        $after = brvtal_release_fetch($pdo, $id);
+        if (!$after) throw new RuntimeException('RELEASE_NOT_FOUND', 404);
+        brvtal_activity_record(
+            $pdo,
+            $method === 'POST' ? 'create' : 'update',
+            'releases',
+            $id,
+            $before,
+            $after,
+            ['source'=>'releases_api'],
+            (string)$after['title']
+        );
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -287,7 +310,7 @@ try {
         throw $e;
     }
 
-    brvtal_releases_json(['ok' => true, 'data' => brvtal_release_fetch($pdo, $id)], $method === 'POST' ? 201 : 200);
+    brvtal_releases_json(['ok' => true, 'data' => $after], $method === 'POST' ? 201 : 200);
 } catch (InvalidArgumentException $e) {
     brvtal_releases_json(['ok' => false, 'error' => $e->getMessage()], 422);
 } catch (PDOException $e) {
@@ -299,6 +322,9 @@ try {
     }
     brvtal_releases_json(['ok' => false, 'error' => 'INTERNAL_ERROR'], 500);
 } catch (RuntimeException $e) {
+    if ($e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
+        brvtal_releases_json(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'], 503);
+    }
     $status = $e->getCode() >= 400 && $e->getCode() <= 599 ? $e->getCode() : 500;
     brvtal_releases_json(['ok' => false, 'error' => $e->getMessage()], $status);
 } catch (Throwable $e) {

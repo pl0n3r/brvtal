@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/admin_activity.php';
 
 brvtal_admin_require();
 
@@ -76,16 +76,38 @@ try {
     $seoTitle = mb_substr(trim((string)($body['seo_title'] ?? '')), 0, 190);
     $seoDescription = mb_substr(trim((string)($body['seo_description'] ?? '')), 0, 320);
 
-    $exists = $pdo->prepare("SELECT id FROM `{$table}` WHERE id=? LIMIT 1");
-    $exists->execute([$id]);
-    if (!$exists->fetchColumn()) brvtal_seo_json(['ok'=>false,'error'=>'NOT_FOUND'], 404);
+    $pdo->beginTransaction();
+    try {
+        $lock = $pdo->prepare("SELECT id,seo_title,seo_description FROM `{$table}` WHERE id=? LIMIT 1 FOR UPDATE");
+        $lock->execute([$id]);
+        $before = $lock->fetch(PDO::FETCH_ASSOC);
+        if (!$before) {
+            $pdo->rollBack();
+            brvtal_seo_json(['ok'=>false,'error'=>'NOT_FOUND'], 404);
+        }
 
-    $st = $pdo->prepare("UPDATE `{$table}` SET seo_title=?,seo_description=? WHERE id=?");
-    $st->execute([
-        $seoTitle !== '' ? $seoTitle : null,
-        $seoDescription !== '' ? $seoDescription : null,
-        $id,
-    ]);
+        $st = $pdo->prepare("UPDATE `{$table}` SET seo_title=?,seo_description=? WHERE id=?");
+        $st->execute([
+            $seoTitle !== '' ? $seoTitle : null,
+            $seoDescription !== '' ? $seoDescription : null,
+            $id,
+        ]);
+        $after = [
+            'id'=>$id,
+            'seo_title'=>$seoTitle !== '' ? $seoTitle : null,
+            'seo_description'=>$seoDescription !== '' ? $seoDescription : null,
+        ];
+        if (brvtal_activity_changed_fields(
+            brvtal_activity_snapshot($resource, $before),
+            brvtal_activity_snapshot($resource, $after)
+        ) !== []) {
+            brvtal_activity_record($pdo, 'seo_update', $resource, $id, $before, $after, ['source'=>'seo_metadata']);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 
     brvtal_seo_json([
         'ok'=>true,
@@ -97,6 +119,9 @@ try {
         ],
     ]);
 } catch (Throwable $e) {
+    if ($e instanceof RuntimeException && $e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
+        brvtal_seo_json(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'], 503);
+    }
     if (function_exists('brvtal_log')) {
         brvtal_log('SEO_METADATA_ERROR', 'SEO metadata request failed', [
             'class'=>get_class($e),
