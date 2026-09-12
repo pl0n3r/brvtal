@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const AUTH = '/api/auth';
+  const AUTH = '/api/index.php/auth';
   let active = false;
 
   function esc(v) {
@@ -48,7 +48,11 @@
           const r = await nativeFetch(AUTH, {method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action:'totp_verify',code})});
           const data = await r.clone().json();
           if (!r.ok || !data.ok) throw new Error(data.error === 'RATE_LIMITED' ? 'Too many attempts. Try again later.' : 'Invalid verification code.');
-          close(); resolve(r);
+          close();
+          // The server session is authenticated at this point. Reloading lets
+          // the normal session bootstrap obtain a fresh CSRF token and avoids
+          // passing the completed login through nested fetch wrappers in Safari.
+          window.location.reload();
         } catch (e) {
           submit.disabled = false;
           fail(e.message || 'Verification failed.');
@@ -84,8 +88,6 @@
     const verifiedResponse = await challenge();
     if (!verifiedResponse) return new Response(JSON.stringify({ok:false,error:'TOTP_CANCELLED'}), {status:401,headers:{'Content-Type':'application/json'}});
 
-    // Keep the browser's real response object. Reconstructing a successful
-    // response here triggers a WebKit/Safari DOMException on some releases.
     return verifiedResponse;
   };
 

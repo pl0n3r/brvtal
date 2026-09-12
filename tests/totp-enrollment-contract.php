@@ -29,7 +29,8 @@ totp_enrollment_expect(str_contains($login, 'brvtal_totp_encryption_key()'), 'lo
 totp_enrollment_expect(str_contains($login, 'brvtal_totp_decryption_keys()'), 'login must survive a deliberate transition to a dedicated encryption key');
 totp_enrollment_expect(str_contains($ui, 'Start a new enrollment.'), 'UI must discard a failed enrollment instead of leaving an exposed stale secret');
 totp_enrollment_expect(str_contains($loginUi, 'const data = await r.clone().json()'), 'login challenge must inspect a clone without consuming the real verification response');
-totp_enrollment_expect(str_contains($loginUi, 'return verifiedResponse;'), 'login challenge must preserve the real server response for Safari compatibility');
+totp_enrollment_expect(str_contains($loginUi, "const AUTH = '/api/index.php/auth'"), 'login challenge must use the canonical PHP auth route');
+totp_enrollment_expect(str_contains($loginUi, 'window.location.reload()'), 'successful login challenge must restart from the authenticated server session');
 totp_enrollment_expect(!str_contains($loginUi, "return new Response(JSON.stringify(verified), {status:200"), 'login challenge must not reconstruct a successful response in the browser');
 totp_enrollment_expect(str_contains($coreApi, "setting_key<>'security.totp_encryption_key'"), 'admin Settings must never return the database encryption key');
 totp_enrollment_expect(substr_count($coreApi, "PROTECTED_SETTING") >= 2, 'admin Settings must reject editing or deleting the encryption key');
