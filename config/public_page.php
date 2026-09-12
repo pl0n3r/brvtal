@@ -1,5 +1,14 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/media.php';
+
+function brvtal_public_media_variant(string $image, string $context): string
+{
+    $path = parse_url($image, PHP_URL_PATH) ?: $image;
+    $sidecar = brvtal_media_read_sidecar($path);
+    $variant = $sidecar['variants'][$context]['path'] ?? null;
+    return is_string($variant) && $variant !== '' ? $variant : $image;
+}
 
 function brvtal_page_rows(PDO $pdo, string $sql, array $parameters = []): array
 {
@@ -98,7 +107,7 @@ function brvtal_public_entity_page(array $page, array $seo): string
     $kind = strtoupper(rtrim((string)$entity['route_type'], 'S'));
     $canonicalParts = parse_url((string)$seo['canonical']);
     $base = (($canonicalParts['scheme'] ?? 'https') . '://' . ($canonicalParts['host'] ?? 'www.brvtal.com.co'));
-    $image = $escape($seo['image']);
+    $image = $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$seo['image'], 'hero'), $base));
     $facts = '';
     foreach ($page['facts'] as $label => $value) {
         if (trim((string)$value) !== '') $facts .= '<div><span>' . $escape($label) . '</span><b>' . $escape($value) . '</b></div>';
@@ -114,7 +123,7 @@ function brvtal_public_entity_page(array $page, array $seo): string
         $cards = '';
         foreach ($items as $item) {
             $href = !empty($item['route_type']) && !empty($item['slug']) ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug']) : $safeUrl($item['url'] ?? '');
-            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url((string)$item['image'], $base)) . '" alt="">' : '<span class="entity-card-mark">BRVTAL</span>';
+            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy">' : '<span class="entity-card-mark">BRVTAL</span>';
             $price = isset($item['price']) && $item['price'] !== null ? number_format((float)$item['price'], 0) . ' ' . $escape($item['currency'] ?? '') : '';
             $cards .= '<a class="entity-card" href="' . ($href ?: '#') . '">' . $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span></a>';
         }

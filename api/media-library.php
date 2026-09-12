@@ -181,6 +181,26 @@ try {
         brvtal_media_json_response(['ok' => true, 'data' => brvtal_media_asset_payload($row ?: [])], 201);
     }
 
+    if ($method === 'POST' && $action === 'transform') {
+        brvtal_admin_require_csrf();
+        if (!$id) brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_ID_REQUIRED'], 422);
+        $row = brvtal_media_find($pdo, $id);
+        if (!$row || ($row['type'] ?? '') !== 'image') brvtal_media_json_response(['ok'=>false,'error'=>'IMAGE_NOT_FOUND'], 404);
+        $absolute = brvtal_media_local_absolute((string)$row['file_path']);
+        if ($absolute === null) brvtal_media_json_response(['ok'=>false,'error'=>'LOCAL_IMAGE_REQUIRED'], 422);
+        $data = brvtal_media_input_json();
+        $x = filter_var($data['x'] ?? null, FILTER_VALIDATE_FLOAT);
+        $y = filter_var($data['y'] ?? null, FILTER_VALIDATE_FLOAT);
+        if ($x === false || $y === false || $x < 0 || $x > 1 || $y < 0 || $y > 1) brvtal_media_json_response(['ok'=>false,'error'=>'INVALID_FOCAL_POINT'], 422);
+        $metadata = brvtal_media_generate_variants($absolute, (string)$row['mime_type'], ['x'=>$x,'y'=>$y]);
+        if (($metadata['status'] ?? '') !== 'ready') brvtal_media_json_response(['ok'=>false,'error'=>$metadata['reason'] ?? 'VARIANT_GENERATION_FAILED'], 422);
+        brvtal_media_remove_generated_variants($absolute, $metadata['variants']);
+        brvtal_media_store_sidecar($absolute, $metadata);
+        $asset = brvtal_media_asset_payload($row);
+        $asset['usage'] = brvtal_media_usage($pdo, $row);
+        brvtal_media_json_response(['ok'=>true,'data'=>$asset]);
+    }
+
     if ($method === 'PUT' && $action === 'update') {
         brvtal_admin_require_csrf();
         if (!$id) {

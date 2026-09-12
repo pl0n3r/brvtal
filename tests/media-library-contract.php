@@ -36,6 +36,8 @@ media_assert(str_contains($api, "MEDIA_IN_USE"), 'delete must block referenced m
 media_assert(str_contains($api, "brvtal_media_usage"), 'delete/detail must inspect media usage');
 media_assert(str_contains($api, "25 * 1024 * 1024"), 'upload size ceiling must be explicit');
 media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported');
+media_assert(str_contains($api, "\$action === 'transform'"), 'Media Engine v2 must expose a focal-point transform action');
+media_assert(str_contains($api, 'brvtal_media_remove_generated_variants'), 'regeneration must clean previously tracked variants');
 media_assert(!str_contains($api, "image/svg+xml"), 'SVG uploads stay disabled until a sanitizer exists');
 
 $permissionApi = (string)file_get_contents(__DIR__ . '/../api/media-permissions.php');
@@ -65,7 +67,20 @@ media_assert(str_contains($sessionBootstrap, 'await window.go(initialSection);')
 media_assert(str_contains($sessionBootstrap, "window.restoreSession = async function()"), 'session bootstrap must replace the legacy initial restore path');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
+$publicPage = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 media_assert(str_contains($controller, '#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr'), 'media picker must attach to core image fields');
 media_assert(str_contains($controller, 'Delete blocked: this media is currently in use.'), 'UI must surface reference protection');
+media_assert(str_contains($controller, 'FOCAL POINT / CROP'), 'inspector must expose focal-point controls');
+media_assert(str_contains($controller, 'SAVE FOCUS + REGENERATE'), 'inspector must expose explicit variant regeneration');
+media_assert(str_contains($controller, "['square','card','hero']"), 'inspector must preview supported delivery contexts');
+media_assert(str_contains($controller, "?action=transform&id="), 'focal-point changes must use the protected transform endpoint');
+media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$seo['image'], 'hero')"), 'public heroes must select the hero context variant');
+media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$item['image'], 'card')"), 'public related cards must select the card context variant');
+
+$quality = brvtal_media_quality_guidance(1920, 1080);
+media_assert(($quality['grade'] ?? '') === 'excellent', '1920x1080 sources should receive excellent guidance');
+media_assert(($quality['contexts']['hero']['ready'] ?? false) === true, '1920x1080 sources should be hero-ready');
+$limited = brvtal_media_quality_guidance(700, 700);
+media_assert(($limited['grade'] ?? '') === 'limited', 'small sources should receive limited guidance');
 
 echo "BRVTAL Media Library contract tests passed.\n";

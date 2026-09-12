@@ -53,7 +53,7 @@ The public frontend is currently **English only**.
 | Pages | CMS-managed content and public canonical routes |
 | Content Core | Guided event/ticket/roster workflow; known stabilization debt remains |
 | Media Library | Visual picker, upload, reusable media, metadata and reference protection |
-| Media Engine foundation | Originals, sidecars, dimensions/warnings and WebP variants |
+| Media Engine v2 | Originals, focal points, context crop previews, quality guidance and WebP variants |
 | Content Health | Read-only editorial completeness/SEO/media guidance |
 | SEO editor defaults | Title/description fallbacks with manual override priority |
 | Global Search | Cross-module `⌘K / Ctrl+K` search |
@@ -148,7 +148,7 @@ Releases support label/catalog data, artwork, release type/date, credited Artist
 
 Blog supports `draft / published / archived`, tags, cover media, SEO and relations to Events, Artists, Sets and Releases.
 
-### Media Library + Media Engine foundation
+### Media Library + Media Engine v2
 
 Media is reusable platform content rather than disposable form attachments.
 
@@ -164,7 +164,7 @@ Implemented foundation includes:
 - square and larger width variants for suitable images;
 - reference-aware deletion protection.
 
-The next Media Engine phase is UX-oriented: focal points, crop previews, context-aware variants and stronger quality guidance.
+Media Engine v2 adds focal-point controls, live square/card/hero previews, context-aware WebP variants and per-context resolution guidance while preserving the source original.
 
 ### SEO + public entity delivery
 
@@ -442,7 +442,7 @@ Operational rules:
 
 The initial stabilization roadmap has been superseded. Major platform foundations already exist; current development should focus on operational maturity and deeper product value.
 
-### 1. Backups Foundation v1 — active next priority
+### 1. Backups Foundation v1 — implemented
 
 Shared-hosting-safe backup foundation:
 
@@ -454,7 +454,7 @@ Shared-hosting-safe backup foundation:
 - activity logging;
 - **no one-click restore**.
 
-### 2. Media Engine v2 UX
+### 2. Media Engine v2 UX — implemented
 
 Build on the existing variant engine:
 
@@ -464,7 +464,7 @@ Build on the existing variant engine:
 - stronger resolution/quality guidance;
 - better responsive delivery.
 
-### 3. Editorial Version History v1
+### 3. Editorial Version History v1 — active next priority
 
 Turn Admin Activity into useful per-content history/diffs while remaining read-only initially. Restore/revert requires a later explicit safeguards phase.
 

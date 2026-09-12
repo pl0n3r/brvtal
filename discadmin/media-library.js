@@ -269,6 +269,14 @@ window.BRVTALMediaLibrary = (() => {
     const usageHtml = usage.length
       ? usage.map(ref => `<div class="media-usage-item"><b>${esc(ref.resource)}</b> · ${esc(ref.title || ('#' + ref.id))}<div class="meta">${esc(ref.field)}</div></div>`).join('')
       : '<div class="media-usage-safe">NOT CURRENTLY REFERENCED · SAFE TO DELETE</div>';
+    const focal = item.engine?.focal_point || {x:.5,y:.5};
+    const variants = item.engine?.variants || {};
+    const quality = item.quality || {grade:'unknown',contexts:{}};
+    const contextPreviews = item.type === 'image' ? ['square','card','hero'].map(name => {
+      const definition = quality.contexts?.[name] || {};
+      const src = mediaUrl(variants[name]?.path || original(item));
+      return `<div class="media-context ${definition.ready ? 'ready' : 'limited'}"><div class="media-context-image ${name}"><img src="${esc(src)}" alt="" style="object-position:${Number(focal.x)*100}% ${Number(focal.y)*100}%"></div><b>${esc(definition.label || name)}</b><span>${definition.ready ? 'READY' : `NEEDS ${definition.width || '?'}×${definition.height || '?'}`}</span></div>`;
+    }).join('') : '';
     box.innerHTML = `<div class="media-inspector-preview">${visual}</div><div class="media-inspector-body">
       <h3>${esc(item.title || 'Untitled')}</h3><div class="media-inspector-path">${esc(original(item) || item.file_path)}</div>
       <div class="media-inspector-grid"><div class="media-fact"><span>TYPE</span><b>${esc(item.type)}</b></div><div class="media-fact"><span>SIZE</span><b>${esc(bytes(item.file_size))}</b></div><div class="media-fact"><span>DIMENSIONS</span><b>${esc(dims)}</b></div><div class="media-fact"><span>STATUS</span><b>${esc(item.status)}</b></div></div>
@@ -276,14 +284,37 @@ window.BRVTALMediaLibrary = (() => {
       <label for="media-edit-alt">ALT TEXT</label><input id="media-edit-alt" value="${esc(item.alt_text || '')}">
       <label for="media-edit-status">PUBLICATION</label><select id="media-edit-status"><option value="published" ${item.status==='published'?'selected':''}>PUBLISHED</option><option value="draft" ${item.status==='draft'?'selected':''}>DRAFT</option></select>
       <div class="media-engine">${engine}</div>
+      ${item.type === 'image' ? `<div class="media-crop"><div class="media-crop-head"><b>FOCAL POINT / CROP</b><span>QUALITY ${esc(String(quality.grade).toUpperCase())}</span></div><div class="media-contexts">${contextPreviews}</div><label for="media-focal-x">HORIZONTAL FOCUS <output id="media-focal-x-value">${Math.round(Number(focal.x)*100)}%</output></label><input id="media-focal-x" type="range" min="0" max="100" value="${Math.round(Number(focal.x)*100)}"><label for="media-focal-y">VERTICAL FOCUS <output id="media-focal-y-value">${Math.round(Number(focal.y)*100)}%</output></label><input id="media-focal-y" type="range" min="0" max="100" value="${Math.round(Number(focal.y)*100)}"><button class="btn red" id="media-transform" type="button">SAVE FOCUS + REGENERATE</button><p>The original stays untouched. Crops are regenerated for each delivery context.</p></div>` : ''}
       <div class="media-usage"><h4>USED BY / ${usage.length}</h4>${usageHtml}</div>
       <div class="media-inspector-actions"><button class="btn" id="media-save" type="button">SAVE</button><button class="btn ghost" id="media-copy" type="button">COPY PATH</button><button class="btn ghost" id="media-delete" type="button" ${usage.length?'disabled title="This asset is in use"':''}>DELETE</button></div>
     </div>`;
     box.querySelector('#media-save')?.addEventListener('click', saveSelected);
+    ['x','y'].forEach(axis => box.querySelector('#media-focal-' + axis)?.addEventListener('input', updateCropPreview));
+    box.querySelector('#media-transform')?.addEventListener('click', transformSelected);
     box.querySelector('#media-copy')?.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(original(item) || item.file_path || ''); status('Media path copied.', 'ok'); } catch (_) { status('Could not copy media path.', 'err'); }
     });
     box.querySelector('#media-delete')?.addEventListener('click', deleteSelected);
+  }
+
+  function updateCropPreview() {
+    if (!store.root) return;
+    const x = Number(store.root.querySelector('#media-focal-x')?.value || 50);
+    const y = Number(store.root.querySelector('#media-focal-y')?.value || 50);
+    const xo = store.root.querySelector('#media-focal-x-value'); const yo = store.root.querySelector('#media-focal-y-value');
+    if (xo) xo.value = x + '%'; if (yo) yo.value = y + '%';
+    store.root.querySelectorAll('.media-context-image img').forEach(img => { img.style.objectPosition = `${x}% ${y}%`; });
+  }
+
+  async function transformSelected() {
+    if (!store.selected || !store.root) return;
+    const x = Number(store.root.querySelector('#media-focal-x')?.value || 50) / 100;
+    const y = Number(store.root.querySelector('#media-focal-y')?.value || 50) / 100;
+    try {
+      status('Regenerating context crops…');
+      const j = await request('?action=transform&id=' + encodeURIComponent(store.selected.id), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x,y})});
+      store.selected = j.data; renderInspector(store.selected); renderGrid(); status('Focal point saved and variants regenerated.', 'ok');
+    } catch (e) { status('Could not regenerate variants: ' + e.message, 'err'); }
   }
 
   async function select(id) {
