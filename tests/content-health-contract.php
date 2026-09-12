@@ -1,0 +1,37 @@
+<?php
+declare(strict_types=1);
+
+function health_assert(bool $condition, string $message): void
+{
+    if (!$condition) {
+        fwrite(STDERR, "CONTENT HEALTH CONTRACT FAILED: {$message}\n");
+        exit(1);
+    }
+}
+
+$api = (string)file_get_contents(__DIR__ . '/../api/content-health.php');
+health_assert(str_contains($api, 'brvtal_admin_require();'), 'Content Health API must require admin authentication');
+health_assert(str_contains($api, "REQUEST_METHOD") && str_contains($api, "'GET'"), 'Content Health API must be read-only GET');
+health_assert(str_contains($api, 'METHOD_NOT_ALLOWED'), 'non-GET Content Health requests must be rejected');
+health_assert(str_contains($api, 'information_schema.TABLES'), 'optional modules must be checked before querying');
+foreach (['events','artists','sets','releases','pages','blog'] as $type) {
+    health_assert(str_contains($api, "'{$type}'"), "Content Health must include {$type}");
+}
+health_assert(str_contains($api, "'score'"), 'Content Health must calculate a score');
+health_assert(str_contains($api, "'issues'"), 'Content Health must return actionable issues');
+health_assert(str_contains($api, "'seo_supported'"), 'Content Health must distinguish types that persist SEO metadata');
+health_assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+|FROM\s+)?[`a-z_]/i', $api), 'Content Health API must not mutate database records');
+
+$controller = (string)file_get_contents(__DIR__ . '/../discadmin/content-health.js');
+health_assert(str_contains($controller, "'/api/content-health.php'"), 'Dashboard panel must use Content Health API');
+health_assert(str_contains($controller, "state.section !== 'dashboard'"), 'Content Health must stay scoped to Dashboard');
+health_assert(str_contains($controller, 'Read-only diagnostics'), 'UI must state that diagnostics do not mutate content');
+health_assert(str_contains($controller, 'data-health-open'), 'priority issues must link back to canonical editors');
+health_assert(str_contains($controller, 'window.go'), 'editor navigation must use canonical DISCADMIN routing');
+
+$entry = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
+health_assert(str_contains($entry, "require __DIR__ . '/index-core.php';"), 'canonical DISCADMIN shell must remain index-core based');
+health_assert(str_contains($entry, '/discadmin/content-health.js'), 'canonical shell must load Content Health enhancement');
+health_assert(!str_contains($entry, 'admin-sidebar.php'), 'Content Health must not introduce a parallel sidebar');
+
+echo "BRVTAL Content Health contract tests passed.\n";

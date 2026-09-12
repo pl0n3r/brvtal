@@ -60,6 +60,9 @@ jobs:
       - name: Run Blog contract tests
         run: php tests/blog-contract.php
 
+      - name: Run Content Health contract tests
+        run: php tests/content-health-contract.php
+
       - name: Validate Blog migration is idempotent
         run: |
           mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
