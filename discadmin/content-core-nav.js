@@ -1,6 +1,14 @@
 (() => {
   'use strict';
 
+  const style = document.createElement('style');
+  style.textContent = `
+    [data-admin-module="content-core"] .step[role="button"]{cursor:pointer;transition:background .14s,color .14s}
+    [data-admin-module="content-core"] .step[role="button"]:hover{background:#0d0f10;color:#fff}
+    [data-admin-module="content-core"] .step[role="button"]:focus-visible{outline:1px solid #6b7278;outline-offset:-2px}
+  `;
+  document.head.appendChild(style);
+
   function contentCoreRoot() {
     return document.querySelector('[data-admin-module="content-core"]');
   }
