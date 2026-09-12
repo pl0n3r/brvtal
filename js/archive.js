@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const API_CANDIDATES = ['/api/public', '/api/public/', '/api/index.php?route=public'];
+  const API_CANDIDATES = ['/api/public.php', '/api/public', '/api/public/'];
   const state = { data:null, observer:null, timer:null, archiveYear:'all', archiveRelation:'all', archiveQuery:'' };
   const qs = (selector, root=document) => root.querySelector(selector);
 

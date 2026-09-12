@@ -28,7 +28,8 @@ foreach ($cases as [$uri, $script, $resource, $id, $action]) {
 
 $index = file_get_contents(__DIR__ . '/../api/index.php');
 $public = file_get_contents(__DIR__ . '/../api/public.php');
-expect(is_string($index) && is_string($public), 'API sources must be readable');
+$publicApp = file_get_contents(__DIR__ . '/../js/app.js');
+expect(is_string($index) && is_string($public) && is_string($publicApp), 'API sources must be readable');
 
 $delegatePos = strpos($index, "if(\$resource==='public')");
 $authGatePos = strpos($index, 'brvtal_admin_require();');
@@ -38,6 +39,8 @@ expect($authGatePos !== false && $delegatePos < $authGatePos, 'Public compatibil
 
 expect(str_contains($public, "WHERE setting_key IN ('site','social','appearance','theme.active')"), 'Public settings must use an explicit allowlist');
 expect(!str_contains($public, "SELECT setting_key,setting_value,is_json FROM settings ORDER BY setting_key"), 'Public API must never select all settings without filtering');
+expect(str_contains($publicApp, "'/api/public.php'"), 'Public frontend must include the production public PHP endpoint');
+expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/public'"), 'Production public PHP endpoint must be attempted before clean-route fallbacks');
 expect(str_contains($public, "WHERE status IN ('active','sold_out')"), 'Public API must expose only active/sold-out ticket types');
 expect(str_contains($public, "\$event['ticket_types']"), 'Public events must include ticket types');
 expect(str_contains($public, "\$event['lineup']"), 'Public events must include lineup data');
