@@ -57,6 +57,16 @@ jobs:
       - name: Run Releases contract tests
         run: php tests/releases-contract.php
 
+      - name: Run Blog contract tests
+        run: php tests/blog-contract.php
+
+      - name: Validate Blog migration is idempotent
+        run: |
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          count=$(mariadb -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations');")
+          test "$count" = "4"
+
       - name: Run MariaDB integration tests
         env:
           BRVTAL_INTEGRATION_TESTS: '1'
