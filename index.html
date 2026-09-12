@@ -118,7 +118,12 @@
           <div><div class="event-archive-kicker mono">PAST NIGHTS / PERMANENT RECORD</div><h3>ARCHIVE</h3></div>
           <div class="archive-summary mono">2 NIGHTS / VISUAL &amp; AUDIO MEMORY</div>
         </div>
-        <div class="archive-years" aria-label="Filter archive by year"><button type="button" class="active" data-archive-filter="all">ALL</button><button type="button" data-archive-filter="2026">2026</button></div>
+        <div class="archive-discovery" aria-label="Search and filter archive">
+          <label class="archive-search"><span class="mono">SEARCH HISTORY</span><input type="search" data-archive-search placeholder="EVENT, CITY, VENUE OR ARTIST" autocomplete="off"></label>
+          <div class="archive-relations" aria-label="Filter by related content"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div>
+        </div>
+        <div class="archive-years" aria-label="Filter archive by year"><button type="button" class="active" data-archive-filter="all">ALL YEARS</button><button type="button" data-archive-filter="2026">2026</button></div>
+        <div class="archive-results mono" data-archive-results aria-live="polite"></div>
         <div class="archive-grid">
           <article class="archive-event" data-archive-event data-archive-year="2026" data-archive-id="2">
             <div class="archive-event-image"><img src="assets/flyers/FA92C836-974E-4ADA-A9E5-6BA6CDFB4FDC_4_5005_c.jpeg" alt="BRVTAL Session #5"></div>

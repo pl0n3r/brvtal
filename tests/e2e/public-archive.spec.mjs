@@ -19,8 +19,8 @@ test('public archive separates active lifecycle from historical nights and filte
           years: [2026, 2025],
           counts: { events: 2, sets: 1, media: 9, releases: 3 },
           events: [
-            { id: 20, title: 'Session Five', event_date: '2026-08-07 21:00:00', archive_year: 2026, city: 'Pereira', venue: 'Studio', status: 'finished', cover_image: '/archive-2026.jpg', ticket_url: null, lineup: [{name:'PERKS'},{name:'DNL5'}], related_sets: [{id:90,title:'Session Five Set'}] },
-            { id: 21, title: 'Old Signal', event_date: '2025-05-01 21:00:00', archive_year: 2025, city: 'Pereira', venue: 'Bunker', status: 'archived', cover_image: '/archive-2025.jpg', ticket_url: null, lineup: [], related_sets: [] },
+            { id: 20, title: 'Session Five', slug: 'session-five', event_date: '2026-08-07 21:00:00', archive_year: 2026, city: 'Pereira', venue: 'Studio', status: 'finished', cover_image: '/archive-2026.jpg', ticket_url: null, lineup: [{name:'PERKS'},{name:'DNL5'}], related_sets: [{id:90,title:'Session Five Set'}] },
+            { id: 21, title: 'Old Signal', slug: 'old-signal', event_date: '2025-05-01 21:00:00', archive_year: 2025, city: 'Bogota', venue: 'Bunker', status: 'archived', cover_image: '/archive-2025.jpg', ticket_url: null, lineup: [], related_sets: [] },
           ],
         },
       },
@@ -33,7 +33,9 @@ test('public archive separates active lifecycle from historical nights and filte
       <div class="events-track"><article class="event-card"><div class="event-info"><span class="event-status">ARCHIVE</span></div></article></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
+        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div></div>
         <div class="archive-years"></div>
+        <div data-archive-results></div>
         <div class="archive-grid"></div>
       </div>
       <script>window.ScrollTrigger={refresh(){window.__archiveRefreshed=true;}};</script>
@@ -51,14 +53,26 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="20"]')).toContainText('Session Five');
   await expect(page.locator('[data-archive-id="20"]')).toContainText('2 ARTISTS / 1 SET');
-  await expect(page.locator('#eventArchive a')).toHaveCount(0);
+  await expect(page.locator('[data-archive-id="20"] a')).toHaveAttribute('href', '/events/session-five');
   await expect(page.locator('.archive-summary')).toHaveText('2 NIGHTS / 1 RELATED SETS / 9 VISUAL RECORDS');
+  await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
+
+  await page.getByRole('button', { name: 'WITH SETS' }).click();
+  await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
+  await expect(page.locator('[data-archive-id="21"]')).toBeHidden();
+  await page.getByRole('button', { name: 'ALL RECORDS' }).click();
+
+  await page.locator('[data-archive-search]').fill('bogota');
+  await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
+  await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
+  await expect(page.locator('[data-archive-results]')).toHaveText('1 RECORD FOUND');
+  await page.locator('[data-archive-search]').fill('');
 
   await page.getByRole('button', { name: '2025' }).click();
   await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
 
-  await page.getByRole('button', { name: 'ALL' }).click();
+  await page.getByRole('button', { name: 'ALL YEARS' }).click();
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__archiveRefreshed === true)).toBe(true);

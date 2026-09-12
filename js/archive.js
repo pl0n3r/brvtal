@@ -2,7 +2,7 @@
   'use strict';
 
   const API_CANDIDATES = ['/api/public', '/api/public/', '/api/index.php?route=public'];
-  const state = { data:null, observer:null, timer:null };
+  const state = { data:null, observer:null, timer:null, archiveYear:'all', archiveRelation:'all', archiveQuery:'' };
   const qs = (selector, root=document) => root.querySelector(selector);
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -91,25 +91,45 @@
     if (lineup.length) relationParts.push(`${lineup.length} ARTIST${lineup.length===1?'':'S'}`);
     if (sets.length) relationParts.push(`${sets.length} SET${sets.length===1?'':'S'}`);
     const status = String(event.status || 'archive').toUpperCase().replaceAll('_',' ');
+    const slug = String(event.slug || '').trim();
+    const href = slug ? `/events/${encodeURIComponent(slug)}` : '';
+    const search = [title,city,venue,...names].join(' ').toLowerCase();
 
-    return `<article class="archive-event" data-archive-event data-archive-year="${year||''}" data-archive-id="${Number(event.id)||0}">
+    return `<article class="archive-event" data-archive-event data-archive-year="${year||''}" data-archive-artists="${lineup.length?'1':'0'}" data-archive-sets="${sets.length?'1':'0'}" data-archive-search-value="${esc(search)}" data-archive-id="${Number(event.id)||0}">
       <div class="archive-event-image">${image?`<img src="${esc(image)}" alt="${esc(title)}" loading="lazy">`:'<div class="archive-event-placeholder mono">BRVTAL / ARCHIVE</div>'}</div>
       <div class="archive-event-copy">
         <div class="archive-event-meta mono"><span>${esc([date,city].filter(Boolean).join(' / '))}</span><span>${esc(status)}</span></div>
         <h3>${esc(title)}</h3>
         <p>${esc([venue,names.join(' / ')].filter(Boolean).join(' — '))}</p>
         <div class="archive-event-relations mono">${esc(relationParts.join(' / ') || 'HISTORICAL RECORD')}</div>
+        ${href?`<a class="archive-event-link mono" href="${esc(href)}" aria-label="View ${esc(title)}">OPEN RECORD ↗</a>`:''}
       </div>
     </article>`;
   }
 
-  function applyYearFilter(year) {
+  function applyArchiveFilters() {
     const root = qs('#eventArchive');
     if (!root) return;
+    const year = state.archiveYear;
+    const relation = state.archiveRelation;
+    const query = state.archiveQuery;
+    let visible = 0;
     root.querySelectorAll('[data-archive-filter]').forEach(button => button.classList.toggle('active', button.dataset.archiveFilter === year));
+    root.querySelectorAll('[data-archive-relation]').forEach(button => button.classList.toggle('active', button.dataset.archiveRelation === relation));
     root.querySelectorAll('[data-archive-event]').forEach(card => {
-      card.hidden = year !== 'all' && card.dataset.archiveYear !== year;
+      const matchesYear = year === 'all' || card.dataset.archiveYear === year;
+      const matchesRelation = relation === 'all' || card.dataset[`archive${relation[0].toUpperCase()}${relation.slice(1)}`] === '1';
+      const matchesQuery = !query || String(card.dataset.archiveSearchValue || '').includes(query);
+      card.hidden = !(matchesYear && matchesRelation && matchesQuery);
+      if (!card.hidden) visible++;
     });
+    const results = qs('[data-archive-results]', root);
+    if (results) results.textContent = `${visible} RECORD${visible===1?'':'S'} FOUND`;
+  }
+
+  function applyYearFilter(year) {
+    state.archiveYear = String(year || 'all');
+    applyArchiveFilters();
   }
 
   function renderArchive(archive) {
@@ -129,13 +149,23 @@
     root.hidden = false;
 
     if (yearHost) {
-      yearHost.innerHTML = `<button type="button" class="active" data-archive-filter="all">ALL</button>${years.map(year => `<button type="button" data-archive-filter="${year}">${year}</button>`).join('')}`;
+      yearHost.innerHTML = `<button type="button" class="active" data-archive-filter="all">ALL YEARS</button>${years.map(year => `<button type="button" data-archive-filter="${year}">${year}</button>`).join('')}`;
       yearHost.querySelectorAll('[data-archive-filter]').forEach(button => button.addEventListener('click', () => applyYearFilter(button.dataset.archiveFilter || 'all')));
     }
     if (grid) grid.innerHTML = events.map(archiveCard).join('');
+    root.querySelectorAll('[data-archive-relation]').forEach(button => button.addEventListener('click', () => {
+      state.archiveRelation = button.dataset.archiveRelation || 'all';
+      applyArchiveFilters();
+    }));
+    const search = qs('[data-archive-search]', root);
+    if (search) search.addEventListener('input', () => {
+      state.archiveQuery = search.value.trim().toLowerCase();
+      applyArchiveFilters();
+    });
     if (summary) {
       summary.textContent = `${Number(counts.events ?? events.length)} NIGHTS / ${Number(counts.sets ?? 0)} RELATED SETS / ${Number(counts.media ?? 0)} VISUAL RECORDS`;
     }
+    applyArchiveFilters();
   }
 
   async function fetchPublicData() {
@@ -184,7 +214,7 @@
   if (document.readyState === 'complete') setTimeout(init, 220);
   else window.addEventListener('load', () => setTimeout(init, 220), {once:true});
 
-  window.BRVTALPublicArchive = {init,renderArchive,renderActive,applyYearFilter,getData:()=>state.data};
+  window.BRVTALPublicArchive = {init,renderArchive,renderActive,applyYearFilter,applyArchiveFilters,getData:()=>state.data};
 
   import('/js/related-content.js').catch(() => {
     document.documentElement.dataset.related = 'unavailable';

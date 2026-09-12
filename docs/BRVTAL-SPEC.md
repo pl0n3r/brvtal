@@ -192,6 +192,8 @@ BRVTAL preserves history. Finished events and historical media must not simply d
 
 Public Archive foundation is implemented. Active lifecycle content and historical lifecycle content must stay distinct, and historical events must not expose expired ticket purchase CTAs.
 
+Archive Discovery v2 supports combined year, text and relationship filters. Historical cards link to canonical published Event routes when a valid slug is available.
+
 ## 17. Media Library
 
 DISCADMIN media selection should be visual and as frictionless as WordPress-style media selection: searchable, reusable and easy to select. Administrators should not need to manually copy URLs for routine use.
