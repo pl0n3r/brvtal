@@ -50,7 +50,7 @@ backups_expect(str_contains($script, 'X-CSRF-Token'), 'browser backup creation m
 backups_expect(str_contains($script, 'CREATE BACKUP'), 'manual backup creation control must exist');
 backups_expect(str_contains($script, 'CREATE + MEDIA ZIP'), 'optional media ZIP control must exist');
 backups_expect(str_contains($script, 'NO DELETE / NO RESTORE IN V1'), 'v1 safety boundary must be visible');
-backups_expect(str_contains($script, '#system-status-v2'), 'backup UI must mount inside canonical System Status');
+backups_expect(str_contains($script, "document.getElementById('system-status-v2')"), 'backup UI must mount inside canonical System Status');
 backups_expect(str_contains($styles, '.backup-summary'), 'backup UI must include visual summary styles');
 backups_expect(str_contains($shell, 'backups.css'), 'canonical shell must load backup styles');
 backups_expect(str_contains($shell, 'backups.js'), 'canonical shell must load backup enhancement');
