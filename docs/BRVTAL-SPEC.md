@@ -80,9 +80,14 @@ Initial pages include:
 - Blog;
 - individual Event;
 - individual Artist;
-- individual Release.
+- individual Set;
+- individual Release;
+- individual Blog post;
+- individual CMS Page.
 
 The architecture must allow future pages without becoming a generic site builder.
+
+Canonical published entity routes are implemented and must remain server-rendered enough to deliver correct public metadata and `404/noindex` behavior.
 
 ## 8. Homepage direction
 
@@ -133,7 +138,9 @@ Requirements:
 - publication scheduling may be added later when explicitly required;
 - version history is desired.
 
-Default required event fields are name, date, city and description.
+Default required event fields are name, date, city and description, but an incomplete **draft** may be saved before all publication-required fields exist.
+
+The Content Core event wizard supports direct step navigation and a persistent save action. Known production UX/persistence defects discovered during smoke testing are stabilization debt and should be fixed without redesigning the canonical shell.
 
 ## 11. Artist participation / lineup
 
@@ -146,7 +153,7 @@ Canonical API contract:
 - `GET /events/{id}/lineup`
 - `POST /events/{id}/lineup`
 
-POST requires CSRF and replaces event participation transactionally.
+POST requires CSRF and replaces event participation transactionally. Route parsing must support the canonical front-controller path used in production as well as compatible rewritten forms.
 
 ## 12. Artists
 
@@ -165,7 +172,9 @@ Sets may come from multiple platforms via external URLs and should use official 
 
 ## 14. Releases / Label
 
-Releases are part of BRVTAL’s evolution into a label. The architecture must support releases without requiring a future rewrite of the whole platform.
+Releases are part of BRVTAL’s evolution into a label. Releases, artist credits, artwork, catalog data, platform links and draft/published/archived lifecycle are implemented as first-class content.
+
+Do not collapse Releases back into generic pages or Sets.
 
 ## 15. Tickets
 
@@ -181,46 +190,63 @@ Public event data should expose active and sold-out ticket types as appropriate.
 
 BRVTAL preserves history. Finished events and historical media must not simply disappear. Users should be able to discover prior events, artists, sets, releases and media.
 
+Public Archive foundation is implemented. Active lifecycle content and historical lifecycle content must stay distinct, and historical events must not expose expired ticket purchase CTAs.
+
 ## 17. Media Library
 
 DISCADMIN media selection should be visual and as frictionless as WordPress-style media selection: searchable, reusable and easy to select. Administrators should not need to manually copy URLs for routine use.
 
 Media may be reused by multiple pieces of content. Before deletion, references must be detected and destructive actions guarded.
 
+The reusable Media Library, picker, metadata, reference detection, sidecars and protected deletion flow are implemented foundations.
+
 ## 18. Media Engine
 
 Principle: **one source image → multiple optimized variants**.
 
-The Media Engine should eventually:
+Current implemented foundation includes:
 
-- preserve originals;
-- generate variants;
-- offer crop previews;
-- adapt images by context;
-- warn on poor dimensions/quality;
-- provide context-appropriate fallbacks.
+- preserving uploaded originals;
+- image dimensions and quality/dimension warnings;
+- sidecar metadata;
+- WebP generation when supported;
+- square thumbnail-style variants;
+- larger width variants for suitable source images;
+- reference-aware cleanup of originals/variants/sidecars.
 
-Administrators should not manually prepare many versions of the same source image.
+The next Media Engine phase should concentrate on editorial UX rather than rebuilding this foundation:
 
-Media should be automatically organizable by date.
+- focal point / crop controls;
+- crop previews by context;
+- context-aware variant selection;
+- clearer quality/resolution guidance;
+- richer responsive delivery and fallbacks.
+
+Administrators should not manually prepare many versions of the same source image. Media should remain automatically organizable by date.
 
 ## 19. Pages
 
 Pages are managed through BRVTAL templates + an easy editor + advanced HTML for advanced users. Do not build an Elementor/Wix-style generic page builder.
 
+Published Pages use canonical public entity delivery and SEO rules like the other public content families.
+
 ## 20. Blog
 
-The blog supports posts, drafts, publication, media, SEO, useful taxonomy and relations to other content. Do not add unnecessary editorial automation.
+The Blog supports posts, drafts, publication/archive lifecycle, cover media, tags, SEO and relations to Events/Artists/Sets/Releases. Do not add unnecessary editorial automation.
 
 ## 21. Related content
 
-The platform should model relations such as:
+The platform models relations such as:
 
-Artist → Sets → Events → Releases → Media
+Artist → Events / Sets / Releases
 
-Event → Artists → Media → related Sets
+Event → Artists / Sets
 
-These relations can drive discovery on the public frontend.
+Set → Artist / Event
+
+Release → Artists
+
+Public Related Content foundation is implemented and must only resolve through entities that are themselves public. Private/draft names, IDs or relationships must never leak through a published related entity.
 
 ## 22. SEO and Content Health
 
@@ -230,15 +256,23 @@ Public delivery uses server-rendered metadata for Home and published entity rout
 
 Canonical entity routes render their own public experience and relationships. They must remain recognizably BRVTAL, responsive and usable with reduced motion, and must never expose draft or private related records.
 
-The CMS may calculate a **Content Health Score** and warn about missing SEO, missing images, incomplete information and common errors.
+Editorial SEO defaults are automatic but non-destructive:
+
+- empty SEO title falls back to the content name/title;
+- empty SEO description falls back to the relevant description/bio/excerpt/editorial text and is normalized to a search-appropriate length;
+- manually authored SEO values always win.
+
+The CMS calculates a **Content Health Score** and warns about missing SEO, missing images, incomplete information and common errors.
 
 CMS intelligence advises; it does **not** autonomously publish or irreversibly modify editorial content.
 
 ## 23. DISCADMIN search and bulk actions
 
-Provide fast global admin search across events, artists, media, pages, sets, releases, blog and future content.
+Global admin search is implemented across Events, Artists, Sets, Media, Pages, Releases and Blog with `⌘K / Ctrl+K` navigation inside the canonical shell.
 
-Bulk actions should exist where useful, with safeguards for destructive operations.
+Bulk status actions are implemented for Events, Artists, Sets, Pages, Releases and Blog with CSRF, explicit status allowlists, row locking, transactions, rollback on missing IDs and a maximum batch size.
+
+**Bulk Delete is not part of v1** and must not be introduced casually. Destructive bulk operations require a separate explicit safety design.
 
 ## 24. DISCADMIN architecture
 
@@ -253,21 +287,23 @@ Requirements:
 - one navigation system;
 - one central workspace.
 
-Conceptual navigation currently includes:
+Canonical navigation currently includes:
 
 - Dashboard;
 - Events;
 - Artists;
+- Releases;
 - Sets;
 - Media;
 - Pages;
+- Blog;
 - Content Core;
 - Theme Studio;
 - Settings;
 - Security / 2FA;
 - System Status.
 
-Avoid unnecessary top-level menu proliferation.
+Avoid unnecessary top-level menu proliferation. Cross-cutting capabilities such as Search, Bulk Actions, Content Health, SEO assistance and Activity should enhance the existing shell rather than create parallel admin applications.
 
 ## 25. Content Core
 
@@ -283,18 +319,23 @@ Current responsibilities include:
 - event lifecycle;
 - event participation.
 
+Production smoke testing has already found and resolved multiple persistence/route/UI defects. Remaining defects should be tracked as known stabilization debt; do not use them as justification for a second shell or a replacement admin architecture.
+
 ## 26. Security / 2FA
 
-Security / 2FA is also an internal DISCADMIN module sharing the same shell, sidebar, session and workspace.
+Security / 2FA is an internal DISCADMIN module sharing the same shell, sidebar, session and workspace.
 
-TOTP is compatible with Google Authenticator / RFC 6238.
+TOTP is compatible with Google Authenticator / RFC 6238 and the end-to-end login flow has been validated in production, including Safari/WebKit behavior.
 
 Current persistence foundation includes:
 
 - `admins.totp_enabled`;
 - `admins.totp_secret_enc`;
 - `admins.totp_confirmed_at`;
-- `admin_recovery_codes`.
+- `admin_recovery_codes`;
+- a persistent private encryption key stored in the existing `settings` table when a dedicated server key is unavailable.
+
+The TOTP encryption setting is private: it must not be exposed through public/admin settings listings or editable/deletable through the normal Settings UI.
 
 Security principles:
 
@@ -302,25 +343,39 @@ Security principles:
 - recovery codes hashed;
 - CSRF;
 - rate limiting;
-- no plaintext recovery-code storage.
+- no plaintext recovery-code storage;
+- no automatic 2FA disabling when login verification fails.
 
-AES-256-GCM has been used for the encrypted secret.
+AES-256-GCM has been used for the encrypted secret. CI includes a dedicated browser flow for password → TOTP challenge → verified session → DISCADMIN bootstrap, including a WebKit run for the regression that affected Safari.
 
 ## 27. Administrators and activity
 
 Multiple administrators are allowed. For now they may share the same permissions; do not add complex RBAC prematurely.
 
-Important administrative changes should be traceable through activity/history logs.
+Admin Activity / History v1 is implemented as an append-only audit foundation. Important editorial/admin mutations record actor, action, resource, changed fields and safe before/after snapshots while filtering secret/security values.
+
+The audit UI is read-only. Do **not** add automatic restore/revert from activity history yet; future version-history UX must introduce separate safeguards.
 
 ## 28. Dashboard and System Status
 
 Dashboard must be operationally useful, not decorative.
 
-System Status belongs inside DISCADMIN and should centralize version/build/environment, service health, diagnostics and detected issues.
+System Status v2 is implemented inside the canonical DISCADMIN shell as a visual operations/control-room view. It centralizes:
 
-Diagnostics may detect and recommend but should not autonomously repair production.
+- platform health score;
+- API/database/runtime/service indicators;
+- BRVTAL-managed storage utilization;
+- deployment SHA/environment/runtime;
+- database content counts;
+- GitHub repository metrics;
+- Content Health summary;
+- recent admin activity;
+- actionable issues;
+- read-only Advanced Diagnostics.
 
-Private logs are desirable. Do not expose sensitive stack traces publicly.
+The visible storage capacity must represent BRVTAL-managed application data against the configured operational hosting quota. Shared host-node filesystem capacity may remain available for diagnostics but must not be presented as the BRVTAL account quota.
+
+Diagnostics may detect and recommend but should not autonomously repair production. Private logs must never expose sensitive stack traces publicly.
 
 ## 29. Settings and tracking
 
@@ -360,26 +415,41 @@ BRVTAL remains visually consistent.
 
 ## 33. Backups
 
-Desired backup capabilities include manual and automatic backups of database/files/history and downloadability.
+**Backups Foundation v1 is the current active infrastructure priority.**
 
-Do not implement direct one-click restore from DISCADMIN yet; restore is a sensitive operation.
+Desired capability includes manual and later automatic backups of database/files/history with safe downloadability and operational status inside DISCADMIN.
+
+The first implementation should favor shared-hosting-safe primitives:
+
+- authenticated manual backup creation;
+- database export without depending on SSH;
+- media/file inventory and, where safe, downloadable archives;
+- manifest containing creation time, deployment SHA, size/checksum and backup components;
+- protected download through authenticated endpoints rather than public static URLs;
+- backup history/status integrated into the existing Technical/System Status experience;
+- activity logging for important backup operations.
+
+Backups may contain sensitive database material such as encrypted security state; backup files therefore belong in private storage and must never be directly public.
+
+Do **not** implement direct one-click restore from DISCADMIN yet. Restore is a separate sensitive operation requiring explicit safeguards and validation.
 
 ## 34. Versioning
 
-DISCADMIN displays application version, deployment build and environment.
+DISCADMIN displays application version, deployment build/source and environment.
 
 Example:
 
 `v0.1.0 · PRODUCTION`
 
-`BUILD abc1234`
+`DEPLOY abc1234`
 
-Product version and deployment build are different concepts:
+Product version and deployment source are different concepts:
 
 - `BRVTAL_APP_VERSION`: deliberately controlled product version;
-- `BRVTAL_APP_BUILD`: deployment/source commit identifier.
+- release/build metadata in `config/version.php`: intentionally changed when product/release metadata should change;
+- runtime deployment identity: resolved from the actual deployed Git checkout/environment by `config/deployment.php`.
 
-Do not increment semantic product version on every commit.
+Do not increment semantic product version on every commit and do not reintroduce automatic metadata-only stamping per commit.
 
 ## 35. GitHub and deployment
 
@@ -393,11 +463,15 @@ Production deployment path is **GitHub main → Hostinger automatic Git deployme
 
 Do not use FTP as the normal deployment path. Do not perform a manual Hostinger deploy unless explicitly requested.
 
+Normal delivery flow:
+
+branch → PR → CI → squash merge → `main` CI → Hostinger auto-deploy → production verification.
+
 ## 36. Hosting constraints
 
-Current production environment is Hostinger Premium shared/managed LiteSpeed with PHP 8.3.x, MariaDB 11.8.x, no SSH, approximately 25 GB storage and 512 MB memory.
+Current production environment is Hostinger Premium shared/managed LiteSpeed with PHP 8.3.x, MariaDB 11.8.x, no SSH, approximately 25 GB operational account storage and 512 MB memory.
 
-Design for shared-hosting constraints and avoid unnecessary infrastructure complexity.
+Design for shared-hosting constraints and avoid unnecessary infrastructure complexity. Host filesystem totals exposed by PHP may describe a shared node and must not be treated as the account quota.
 
 ## 37. Production safety
 
@@ -411,31 +485,34 @@ Before a change is considered ready for production, validate as applicable:
 
 - PHP syntax;
 - JavaScript syntax;
-- automated contract/tests;
+- automated contracts/tests;
 - DB/migrations;
 - critical files;
 - config;
 - secrets;
-- integrity.
+- integrity;
+- browser behavior for critical DISCADMIN/public flows.
 
 On update failure, stop. Do not blindly continue dependent changes. Automatic rollback is not currently required.
 
-## 39. Release metadata workflow
+## 39. CI and release metadata workflow
 
-`.github/workflows/update-release-metadata.yml` validates PHP/JavaScript/tests and maintains `config/version.php` metadata.
+`.github/workflows/update-release-metadata.yml` is historically named but currently runs **BRVTAL CI**. It validates PHP/JavaScript, contracts, MariaDB integrations, migration idempotency and browser behavior.
 
-`config/version.php` conceptually contains:
+It does **not** rewrite `config/version.php` on every commit.
+
+`config/version.php` conceptually contains intentional product/release metadata such as:
 
 - `BRVTAL_APP_VERSION`;
 - `BRVTAL_APP_BUILD`;
 - `BRVTAL_APP_ENV`;
 - `BRVTAL_RELEASE_DATE`.
 
-The source build should correspond to the functional source commit. Metadata-only commits are not themselves new product builds.
+The code actually serving production is traced separately at runtime through `config/deployment.php`, which resolves the deployed source commit. Metadata-only changes are not themselves product features or new semantic versions.
 
 ## 40. Current database model
 
-Known tables include:
+Core/current tables include, among others:
 
 - `admins`;
 - `events`;
@@ -448,11 +525,14 @@ Known tables include:
 - `analytics_events`;
 - `admin_recovery_codes`;
 - `event_ticket_types`;
-- `artist_collective_history`.
+- `artist_collective_history`;
+- `releases` and release relation/link tables;
+- `blog_posts`, `blog_tags`, `blog_post_tags`, `blog_post_relations`;
+- `admin_activity_log`.
 
 This list may evolve.
 
-The Content Core migration has already been executed in production. Do not re-run it blindly.
+Production migrations already applied include the Content Core, Releases, Blog, SEO and Admin Activity foundations. Do not re-run previously applied production migrations blindly. TOTP compatibility/key work reused existing schema/settings where possible and did not require a new production migration for the persistent encryption key.
 
 ## 41. API architecture
 
@@ -464,7 +544,9 @@ Public and admin APIs must remain clearly separated.
 
 Never maintain two divergent public data implementations.
 
-Canonical event-participation route parsing must support both front-controller and rewritten forms of `/events/{id}/lineup`.
+Canonical event-participation route parsing must support both front-controller and compatible rewritten forms of `/events/{id}/lineup`.
+
+Public entity delivery must filter draft/private content and private related records at the server/API layer, not merely hide them visually.
 
 ## 42. Security principles
 
@@ -488,6 +570,8 @@ Never commit real DB passwords, API secrets, encryption keys or private credenti
 
 Future migrations should be explicit, reviewable, data-safe, documented and idempotent where practical. Do not silently mutate production schemas.
 
+Source deployment and database migration are independent states. If new source requires a new production schema, validate the migration first, provide exact SQL when manual production application is required, wait for confirmation, and only then mark the feature fully deployed.
+
 ## 44. DISCADMIN UX
 
 Priorities:
@@ -506,6 +590,8 @@ Desktop is the primary admin experience, but tablet/mobile must not break.
 
 The canonical sidebar stays visible on desktop. Do not recreate a parallel `admin-sidebar.php` architecture for Content Core or Security.
 
+Operational/technical screens should favor useful visual indicators over walls of raw text; raw diagnostics belong behind deliberate advanced controls.
+
 ## 45. Workspace behavior
 
 Sidebar remains persistent while modules replace the central workspace.
@@ -514,13 +600,16 @@ Examples:
 
 - Events → Events workspace;
 - Content Core → Content Core workspace;
-- Security / 2FA → Security workspace.
+- Security / 2FA → Security workspace;
+- System Status → operations/control-room workspace.
 
 ## 46. Accessibility and performance
 
 Maintain contrast, focus states, labels, reasonable keyboard navigation, semantic HTML and reduced-motion support.
 
 Optimize images, scripts, animations, fonts, video, WebGL, lazy loading and caching. Avoid heavy effects on devices that do not benefit from them.
+
+Admin enhancement assets use deployment-SHA cache busting so browsers receive the code corresponding to the deployed checkout without requiring manual hard-refresh behavior.
 
 ## 47. Content fallbacks
 
@@ -530,35 +619,75 @@ Incomplete content must degrade gracefully. No broken images or broken component
 
 Before creating a new table, endpoint, service, editor, media picker or settings system, check whether an existing implementation can be extended safely.
 
+Do not rebuild existing Media Engine, Search, Activity, SEO, Archive or Related Content foundations under new parallel names.
+
 ## 49. Change traceability
 
 Keep Git history coherent, descriptive and reasonably reversible. Avoid accidental giant commits that mix unrelated problems.
 
 When a product decision supersedes an older decision, update this specification so contradictory requirements do not remain active.
 
+Functional changes should normally use a dedicated branch/PR and squash merge after CI. Direct functional changes to `main` are not the normal workflow.
+
 ## 50. Definition of status
 
 Always distinguish:
 
 1. **IMPLEMENTED** — code exists;
-2. **VALIDATED IN CODE** — syntax/tests/local behavior passed;
+2. **VALIDATED IN CODE** — syntax/tests/local/CI behavior passed;
 3. **DEPLOYED** — automatic production deployment completed;
 4. **VALIDATED IN PRODUCTION** — real production behavior was verified.
 
 Never report one status as another.
 
-## 51. Immediate stabilization priorities
+## 51. Current execution roadmap — September 2026
 
-Current stabilization order:
+The previous initial-stabilization list is superseded by this roadmap.
 
-1. ensure `/events/{id}/lineup` routes correctly;
-2. ensure all public settings are allowlisted and public API logic is unified;
-3. run automated contract checks;
-4. keep Content Core and Security / 2FA inside the canonical shell;
-5. verify 2FA end-to-end in production when authenticated access is available;
-6. verify Content Core persistence end-to-end in production;
-7. keep this specification updated;
-8. then continue larger modules such as richer Media Library, Releases, Blog and SEO.
+### Completed platform foundations
+
+The following are implemented foundations and should not be proposed as greenfield work:
+
+- canonical single-shell DISCADMIN architecture;
+- unified/allowlisted public API and public settings rules;
+- automated PHP/JavaScript/contracts/MariaDB/Playwright CI;
+- Media Library + Media Engine foundation;
+- Releases and Blog modules;
+- SEO metadata foundation + server-rendered public SEO/entity routes/sitemap/robots;
+- automatic editorial SEO fallbacks with manual override priority;
+- Content Health;
+- Global Admin Search;
+- safe Bulk Status Actions v1;
+- Public Archive v1;
+- Related Content v1;
+- Admin Activity / History v1;
+- TOTP / recovery foundation and production-validated 2FA login including Safari/WebKit regression coverage;
+- deployment traceability and deployment-SHA asset cache busting;
+- visual System Status v2 / Platform Control Room.
+
+### Known stabilization debt
+
+Content Core production smoke testing has exposed several UX/persistence/route issues. Important/blocking defects should continue to be fixed, but this debt no longer blocks all other platform development. Fix defects in focused PRs without replacing the shell or duplicating APIs.
+
+### Active next priorities
+
+1. **Backups Foundation v1** — safe manual DB/private-file backup, manifests/history/download, no restore.
+2. **Media Engine v2 UX** — focal point/crop previews, context-aware variants and clearer quality guidance on top of the existing variant engine.
+3. **Editorial Version History v1** — useful per-content history/diffs derived from the audit foundation, read-only initially.
+4. **Public discovery/polish** — stronger Archive/Media discovery, relationships, responsive/performance refinement and richer public entity experience.
+5. **Analytics/privacy foundation** — Google Analytics where appropriate, minimal consent/cookie behavior and useful reporting without creating a custom analytics product prematurely.
+
+### Explicitly deferred
+
+Do not prioritize unless a newer decision explicitly changes this:
+
+- complex RBAC;
+- Bulk Delete;
+- one-click restore;
+- generic drag-and-drop page builders;
+- arbitrary event skin/site builders;
+- large custom analytics infrastructure;
+- unnecessary multilingual UI.
 
 ## 52. Final product vision
 
