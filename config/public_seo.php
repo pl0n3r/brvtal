@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/seo_defaults.php';
+
 function brvtal_public_base_url(array $config): string
 {
     $url = rtrim((string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co'), '/');
@@ -24,7 +26,7 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
         'sets' => ['sets_media', 'title', 'description', 'cover_image', "status='published'", 'MusicRecording'],
         'releases' => ['releases', 'title', 'description', 'artwork', "status='published'", 'MusicAlbum'],
         'blog' => ['blog_posts', 'title', 'excerpt', 'cover_image', "status='published'", 'BlogPosting'],
-        'pages' => ['pages', 'title', 'seo_description', "''", "status='published' AND locale='en'", 'WebPage'],
+        'pages' => ['pages', 'title', 'content_json', "''", "status='published' AND locale='en'", 'WebPage'],
     ];
     if (!isset($definitions[$type]) || !preg_match('/^[a-z0-9-]{1,190}$/', $slug)) return null;
     [$table, $titleField, $descriptionField, $imageField, $where, $schemaType] = $definitions[$type];
@@ -48,12 +50,18 @@ function brvtal_public_seo_document(?array $entity, string $base): array
     $siteName = 'BRVTAL';
     $path = $entity ? '/' . $entity['route_type'] . '/' . rawurlencode((string)$entity['slug']) : '/';
     $canonical = $base . $path;
-    $rawTitle = trim((string)($entity['seo_title'] ?? $entity['title'] ?? ''));
-    $title = $entity ? ($rawTitle !== '' ? $rawTitle : (string)$entity['title']) : 'BRVTAL — Rave till Grave';
+
+    $customTitle = trim((string)($entity['seo_title'] ?? ''));
+    $fallbackTitle = brvtal_seo_default_title($entity['title'] ?? '');
+    $title = $entity ? ($customTitle !== '' ? brvtal_seo_truncate(brvtal_seo_plain_text($customTitle), 190) : $fallbackTitle) : 'BRVTAL — Rave till Grave';
     if ($entity && !str_contains(strtoupper($title), 'BRVTAL')) $title .= ' — BRVTAL';
-    $description = trim((string)($entity['seo_description'] ?? $entity['description'] ?? ''));
+
+    $customDescription = trim((string)($entity['seo_description'] ?? ''));
+    $description = $customDescription !== ''
+        ? brvtal_seo_truncate(brvtal_seo_plain_text($customDescription), 320)
+        : brvtal_seo_default_description($entity['description'] ?? '', 160);
     if ($description === '') $description = 'BRVTAL — Rave till Grave. Underground electronic music, experiences and events from Colombia.';
-    $description = mb_substr(preg_replace('/\s+/', ' ', strip_tags($description)) ?: '', 0, 320);
+
     $image = brvtal_public_absolute_url((string)($entity['image'] ?? ''), $base);
     $schema = [
         '@context' => 'https://schema.org',

@@ -21,10 +21,10 @@ $api = (string)file_get_contents(__DIR__ . '/../api/seo-metadata.php');
 seo_assert(str_contains($api, 'brvtal_admin_require();'), 'SEO API must require admin authentication');
 seo_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'SEO mutations must require CSRF');
 seo_assert(str_contains($api, 'SEO_SCHEMA_MISSING'), 'SEO API must fail explicitly before migration');
-seo_assert(str_contains($api, "'events' => 'events'"), 'SEO API must support Events');
-seo_assert(str_contains($api, "'artists' => 'artists'"), 'SEO API must support Artists');
-seo_assert(str_contains($api, "'sets' => 'sets_media'"), 'SEO API must support Sets');
-seo_assert(str_contains($api, "'releases' => 'releases'"), 'SEO API must support Releases');
+seo_assert(str_contains($api, "'events' => ['table'=>'events'"), 'SEO API must support Events');
+seo_assert(str_contains($api, "'artists' => ['table'=>'artists'"), 'SEO API must support Artists');
+seo_assert(str_contains($api, "'sets' => ['table'=>'sets_media'"), 'SEO API must support Sets');
+seo_assert(str_contains($api, "'releases' => ['table'=>'releases'"), 'SEO API must support Releases');
 seo_assert(str_contains($api, "UPDATE `{$table}` SET seo_title=?,seo_description=?") || str_contains($api, 'SET seo_title=?,seo_description=?'), 'SEO API must persist both metadata fields');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/seo-metadata.js');
@@ -51,6 +51,7 @@ seo_assert(str_contains($public, 'cover_image,seo_title,seo_description'), 'Blog
 
 echo "BRVTAL SEO metadata contract tests passed.\n";
 
+require __DIR__ . '/seo-defaults-contract.php';
 require __DIR__ . '/deployment-traceability-contract.php';
 require __DIR__ . '/public-seo-delivery-contract.php';
 require __DIR__ . '/public-entity-pages-contract.php';

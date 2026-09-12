@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/../config/seo_defaults.php';
 
 brvtal_admin_require();
 
@@ -45,10 +46,10 @@ try {
     }
 
     $resources = [
-        'events' => 'events',
-        'artists' => 'artists',
-        'sets' => 'sets_media',
-        'releases' => 'releases',
+        'events' => ['table'=>'events','title'=>'title','description'=>'description'],
+        'artists' => ['table'=>'artists','title'=>'name','description'=>'bio'],
+        'sets' => ['table'=>'sets_media','title'=>'title','description'=>'description'],
+        'releases' => ['table'=>'releases','title'=>'title','description'=>'description'],
     ];
 
     $resource = strtolower(trim((string)($_GET['resource'] ?? '')));
@@ -57,34 +58,56 @@ try {
     if ($id < 1) brvtal_seo_json(['ok'=>false,'error'=>'ID_REQUIRED'], 422);
 
     $pdo = db();
-    $table = $resources[$resource];
+    $definition = $resources[$resource];
+    $table = $definition['table'];
+    $titleField = $definition['title'];
+    $descriptionField = $definition['description'];
     if (!brvtal_seo_table_columns_ready($pdo, $table)) {
         brvtal_seo_json(['ok'=>false,'error'=>'SEO_SCHEMA_MISSING'], 503);
     }
 
     if ($method === 'GET') {
-        $st = $pdo->prepare("SELECT id,seo_title,seo_description FROM `{$table}` WHERE id=? LIMIT 1");
+        $st = $pdo->prepare("SELECT id,seo_title,seo_description,`{$titleField}` AS source_title,`{$descriptionField}` AS source_description FROM `{$table}` WHERE id=? LIMIT 1");
         $st->execute([$id]);
         $row = $st->fetch();
         if (!$row) brvtal_seo_json(['ok'=>false,'error'=>'NOT_FOUND'], 404);
         $row['id'] = (int)$row['id'];
+        $row['seo_title'] = trim((string)($row['seo_title'] ?? '')) !== ''
+            ? (string)$row['seo_title']
+            : brvtal_seo_default_title($row['source_title'] ?? '');
+        $row['seo_description'] = trim((string)($row['seo_description'] ?? '')) !== ''
+            ? (string)$row['seo_description']
+            : brvtal_seo_default_description($row['source_description'] ?? '', 160);
+        unset($row['source_title'], $row['source_description']);
         brvtal_seo_json(['ok'=>true,'data'=>$row]);
     }
 
     brvtal_admin_require_csrf();
     $body = brvtal_seo_body();
-    $seoTitle = mb_substr(trim((string)($body['seo_title'] ?? '')), 0, 190);
-    $seoDescription = mb_substr(trim((string)($body['seo_description'] ?? '')), 0, 320);
+    $requestedTitle = trim((string)($body['seo_title'] ?? ''));
+    $requestedDescription = trim((string)($body['seo_description'] ?? ''));
 
     $pdo->beginTransaction();
     try {
-        $lock = $pdo->prepare("SELECT id,seo_title,seo_description FROM `{$table}` WHERE id=? LIMIT 1 FOR UPDATE");
+        $lock = $pdo->prepare("SELECT id,seo_title,seo_description,`{$titleField}` AS source_title,`{$descriptionField}` AS source_description FROM `{$table}` WHERE id=? LIMIT 1 FOR UPDATE");
         $lock->execute([$id]);
-        $before = $lock->fetch(PDO::FETCH_ASSOC);
-        if (!$before) {
+        $locked = $lock->fetch(PDO::FETCH_ASSOC);
+        if (!$locked) {
             $pdo->rollBack();
             brvtal_seo_json(['ok'=>false,'error'=>'NOT_FOUND'], 404);
         }
+
+        $before = [
+            'id'=>$id,
+            'seo_title'=>$locked['seo_title'] ?? null,
+            'seo_description'=>$locked['seo_description'] ?? null,
+        ];
+        $seoTitle = $requestedTitle !== ''
+            ? brvtal_seo_truncate(brvtal_seo_plain_text($requestedTitle), 190)
+            : brvtal_seo_default_title($locked['source_title'] ?? '');
+        $seoDescription = $requestedDescription !== ''
+            ? brvtal_seo_truncate(brvtal_seo_plain_text($requestedDescription), 320)
+            : brvtal_seo_default_description($locked['source_description'] ?? '', 160);
 
         $st = $pdo->prepare("UPDATE `{$table}` SET seo_title=?,seo_description=? WHERE id=?");
         $st->execute([
