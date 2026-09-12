@@ -1,0 +1,33 @@
+.ssv2-backups{margin-top:14px}
+.backup-loading,.backup-error{min-height:130px;display:flex;align-items:center;justify-content:center;gap:10px;color:#747b81;font-size:10px;letter-spacing:1.5px}
+.backup-loading span{width:7px;height:7px;border-radius:50%;background:var(--green,#49d98a);box-shadow:0 0 10px rgba(73,217,138,.35);animation:backupPulse 1s ease-in-out infinite}
+@keyframes backupPulse{50%{opacity:.25;transform:scale(.72)}}
+.backup-error{flex-direction:column;color:#ff6666}.backup-error button{border:1px solid #3a3f44;background:#0b0c0d;color:#fff;padding:9px 13px;font-size:9px;font-weight:900;letter-spacing:1.2px}
+.backup-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:16px 0}
+.backup-summary>div{border:1px solid #252a2e;background:#070808;padding:14px;min-height:86px}
+.backup-summary strong{display:block;font-size:22px;line-height:1.05;margin-bottom:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.backup-summary span{font-size:8px;letter-spacing:1.5px;color:#747b81}
+.backup-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:9px;align-items:stretch;margin:0 0 10px}
+.backup-actions>div{border:1px solid #252a2e;background:#080909;padding:11px;display:flex;align-items:center;gap:11px;min-width:0}
+.backup-actions>div span{color:#6f767c;font-size:9px;line-height:1.4}
+.backup-actions button{border:0;background:#fff;color:#000;padding:10px 13px;font-size:9px;font-weight:950;letter-spacing:1.1px;white-space:nowrap}
+.backup-actions button.ghost,.backup-refresh{background:#0b0d0e!important;color:#fff!important;border:1px solid #373c40!important}
+.backup-actions button:disabled{opacity:.35;cursor:not-allowed}.backup-refresh{align-self:stretch;min-width:90px}
+.backup-warning{display:flex;gap:10px;align-items:flex-start;border:1px solid #3b3525;background:#100f0a;padding:11px 13px;color:#999177;font-size:9px;line-height:1.45;margin-bottom:10px}
+.backup-warning i{width:7px;height:7px;border-radius:50%;background:#d2ab48;flex:0 0 auto;margin-top:3px}
+.backup-list{border:1px solid #252a2e;background:#070808}
+.backup-row{display:grid;grid-template-columns:160px minmax(220px,1fr) minmax(300px,1.5fr);gap:12px;align-items:center;padding:12px 14px;border-top:1px solid #202428}
+.backup-row:first-child{border-top:0}.backup-row:hover{background:#0a0c0d}
+.backup-state{display:flex;align-items:center;gap:9px}.backup-state i{width:7px;height:7px;border-radius:50%;background:#70777d;flex:0 0 auto}
+.backup-row[data-status="ready"] .backup-state i{background:var(--green,#49d98a);box-shadow:0 0 8px rgba(73,217,138,.25)}
+.backup-row[data-status="partial"] .backup-state i{background:#d2ab48}.backup-row[data-status="failed"] .backup-state i{background:#ff2038}
+.backup-state strong,.backup-id strong{display:block;font-size:10px;letter-spacing:1px}.backup-state span,.backup-id span{display:block;color:#666e74;font-size:8px;margin-top:4px}
+.backup-id{min-width:0}.backup-id strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.backup-components{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;align-items:center}
+.backup-components a,.backup-components span{border:1px solid #34393e;padding:7px 8px;color:#b6bcc1;text-decoration:none;font-size:8px;font-weight:800;letter-spacing:.8px}
+.backup-components a:hover{color:#fff;border-color:#656c72}.backup-components span{color:#666e74}
+.backup-empty{padding:28px;text-align:center}.backup-empty strong{display:block;font-size:11px;letter-spacing:1.4px}.backup-empty span{display:block;margin-top:6px;color:#687077;font-size:9px}
+.backup-foot{display:flex;justify-content:space-between;gap:12px;margin-top:9px;color:#5d656b;font-size:8px;letter-spacing:1.2px}
+.ssv2-backups.is-loading,.ssv2-backups.is-creating{opacity:.72}
+@media(max-width:950px){.backup-summary{grid-template-columns:repeat(2,1fr)}.backup-actions{grid-template-columns:1fr}.backup-refresh{min-height:42px}.backup-row{grid-template-columns:1fr}.backup-components{justify-content:flex-start}}
+@media(max-width:560px){.backup-summary{grid-template-columns:1fr}.backup-actions>div{align-items:flex-start;flex-direction:column}.backup-foot{display:block}.backup-foot span{display:block;margin-top:5px}}
