@@ -91,7 +91,7 @@ function brvtal_public_releases(PDO $pdo): array
     }
 
     $releases = $pdo->query(
-        "SELECT id,title,slug,release_type,catalog_number,release_date,description,artwork,
+        "SELECT id,title,slug,release_type,catalog_number,release_date,description,seo_title,seo_description,artwork,
                 spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url,
                 featured,published_at,sort_order
          FROM releases
@@ -203,7 +203,7 @@ try {
     $pdo = db();
 
     $events = $pdo->query(
-        "SELECT id,title,slug,event_date,archive_year,venue,city,description,skin,accent,
+        "SELECT id,title,slug,event_date,archive_year,venue,city,description,seo_title,seo_description,skin,accent,
                 cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,
                 cancelled_at,finished_at,status,sort_order
          FROM events
@@ -212,7 +212,7 @@ try {
     )->fetchAll();
 
     $artists = $pdo->query(
-        "SELECT id,name,slug,bio,photo,instagram_url,soundcloud_url,website_url,
+        "SELECT id,name,slug,bio,seo_title,seo_description,photo,instagram_url,soundcloud_url,website_url,
                 collective_status,collective_order,collective_joined_at,collective_left_at,
                 status,sort_order
          FROM artists
@@ -222,7 +222,7 @@ try {
 
     $sets = $pdo->query(
         "SELECT s.id,s.title,s.slug,s.artist_id,s.event_id,s.platform,
-                s.external_url,s.embed_url,s.cover_image,s.description,
+                s.external_url,s.embed_url,s.cover_image,s.description,s.seo_title,s.seo_description,
                 a.name AS artist_name,e.title AS event_title
          FROM sets_media s
          LEFT JOIN artists a ON a.id=s.artist_id
