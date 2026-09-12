@@ -48,5 +48,9 @@ archive_expect(str_contains($public, "'related_sets'"), 'Historical events must 
 archive_expect(str_contains($index, 'id="eventArchive"'), 'Public frontend must contain a dedicated archive workspace');
 archive_expect(str_contains($index, 'css/archive.css') && str_contains($index, 'js/archive.js'), 'Public frontend must load archive assets');
 archive_expect(!str_contains($archiveJs, 'ticket_instructions'), 'Archive UI must not render payment instructions');
+archive_expect(str_contains($index, 'data-archive-search'), 'Archive must expose public text search');
+archive_expect(str_contains($index, 'data-archive-relation="sets"'), 'Archive must expose relationship filters');
+archive_expect(str_contains($archiveJs, 'applyArchiveFilters'), 'Archive search, year and relationship filters must share one filtering path');
+archive_expect(str_contains($archiveJs, '/events/${encodeURIComponent(slug)}'), 'Archived records must link to canonical public event pages');
 
 echo "BRVTAL Public Archive contract tests passed.\n";

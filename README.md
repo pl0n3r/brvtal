@@ -187,6 +187,8 @@ When editorial SEO fields are empty, BRVTAL falls back to the entity title/name 
 
 Historical Events remain discoverable rather than disappearing when their active lifecycle ends. Related Content connects public Events, Artists, Sets and Releases while filtering private/draft relationships at the server layer.
 
+Archive Discovery v2 adds combined year, text and relationship filters plus canonical links from historical records to their public Event pages.
+
 ### Search + Bulk Actions
 
 Global Search covers editorial modules through `⌘K / Ctrl+K`.
