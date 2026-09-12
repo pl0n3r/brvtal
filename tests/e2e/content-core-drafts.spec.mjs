@@ -70,7 +70,7 @@ test('Content Core saves an incomplete event while it remains draft', async ({ p
   expect(posts[0].status).toBe('draft');
   expect(posts[0].event_date).toBeNull();
   expect(posts[0].city).toBe('');
-  await expect(page.locator('#eventNotice')).toContainText('Event saved.');
+  await expect(page.locator('#cc-notice')).toContainText('Event saved.');
 });
 
 test('Content Core requires date and city before an event leaves draft', async ({ page }) => {
