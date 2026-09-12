@@ -38,16 +38,22 @@ blog_assert(str_contains($controller, "split(',')"), 'blog editor must support s
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 blog_assert(str_contains($adminModules, "blog: {url:'/discadmin/blog.php'"), 'canonical shell loader must register blog module');
 blog_assert(str_contains($adminModules, "section==='blog'"), 'canonical navigation must route blog through module workspace');
-blog_assert(str_contains($adminModules, "data-admin-nav = section") || str_contains($adminModules, 'dataset.adminNav = section'), 'dynamic navigation must support blog');
+blog_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'dynamic navigation must support blog');
 
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
 blog_assert(str_contains($adminCss, 'data-admin-nav="blog"'), 'blog must stay in the content navigation group');
+
+$media = (string)file_get_contents(__DIR__ . '/../config/media.php');
+blog_assert(str_contains($media, "'table' => 'blog_posts'"), 'Media Library must detect Blog cover usage');
+blog_assert(str_contains($media, "'label' => 'BLOG'"), 'Blog media references must be identifiable in delete protection');
 
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 blog_assert(str_contains($publicApi, 'brvtal_public_blog'), 'public API must expose published blog posts');
 blog_assert(str_contains($publicApi, "'blog' => " . '$blog'), 'public payload must contain blog');
 blog_assert(str_contains($publicApi, "FROM blog_posts"), 'public blog must read blog_posts');
 blog_assert(str_contains($publicApi, "WHERE status='published'"), 'public blog must be publication-filtered');
+blog_assert(str_contains($publicApi, 'blog_post_tags'), 'public blog must expose taxonomy');
+blog_assert(str_contains($publicApi, 'blog_post_relations'), 'public blog must expose related content');
 blog_assert(str_contains($publicApi, 'brvtal_public_table_exists'), 'public API must remain backward-compatible before migration');
 
 echo "BRVTAL Blog contract tests passed.\n";
