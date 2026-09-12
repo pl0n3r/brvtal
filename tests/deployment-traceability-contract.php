@@ -23,5 +23,6 @@ deployment_expect(str_contains($health, "'deployment'=>"), 'health response must
 deployment_expect(str_contains($admin, 'DEPLOY <?= htmlspecialchars(brvtal_deployment_short_sha()'), 'DISCADMIN must display the resolved deployed SHA');
 deployment_expect(str_contains($adminShell, 'brvtal_deployment_short_sha()'), 'DISCADMIN enhancement assets must be versioned by the deployed SHA');
 deployment_expect(str_contains($adminShell, "seo-editorial-defaults.js' . \$suffix"), 'SEO defaults enhancement must receive the deployment cache key');
+deployment_expect(str_contains($adminShell, "content-core-nav.js' . \$suffix"), 'Content Core direct navigation must load as a deployment-versioned enhancement');
 
 echo "BRVTAL deployment traceability contract tests passed.\n";
