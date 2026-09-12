@@ -4,12 +4,12 @@ declare(strict_types=1);
 function brvtal_bulk_resource_specs(): array
 {
     return [
-        'events' => ['table' => 'events', 'statuses' => ['draft','published','archived']],
-        'artists' => ['table' => 'artists', 'statuses' => ['draft','published']],
-        'sets' => ['table' => 'sets_media', 'statuses' => ['draft','published']],
-        'pages' => ['table' => 'pages', 'statuses' => ['draft','published']],
-        'releases' => ['table' => 'releases', 'statuses' => ['draft','published','archived']],
-        'blog' => ['table' => 'blog_posts', 'statuses' => ['draft','published','archived']],
+        'events' => ['table' => 'events', 'label' => 'title', 'statuses' => ['draft','published','archived']],
+        'artists' => ['table' => 'artists', 'label' => 'name', 'statuses' => ['draft','published']],
+        'sets' => ['table' => 'sets_media', 'label' => 'title', 'statuses' => ['draft','published']],
+        'pages' => ['table' => 'pages', 'label' => 'title', 'statuses' => ['draft','published']],
+        'releases' => ['table' => 'releases', 'label' => 'title', 'statuses' => ['draft','published','archived']],
+        'blog' => ['table' => 'blog_posts', 'label' => 'title', 'statuses' => ['draft','published','archived']],
     ];
 }
 
@@ -66,7 +66,7 @@ function brvtal_bulk_normalize_request(array $input): array
     ];
 }
 
-function brvtal_bulk_apply(PDO $pdo, array $request): array
+function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): array
 {
     $specs = brvtal_bulk_resource_specs();
     $resource = (string)$request['resource'];
@@ -85,11 +85,12 @@ function brvtal_bulk_apply(PDO $pdo, array $request): array
     }
 
     $table = $specs[$resource]['table'];
+    $labelColumn = $specs[$resource]['label'];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
     $pdo->beginTransaction();
     try {
-        $select = $pdo->prepare("SELECT id,status FROM {$table} WHERE id IN ({$placeholders}) FOR UPDATE");
+        $select = $pdo->prepare("SELECT id,status,`{$labelColumn}` AS resource_label FROM {$table} WHERE id IN ({$placeholders}) FOR UPDATE");
         $select->execute($ids);
         $rows = $select->fetchAll(PDO::FETCH_ASSOC);
         if (count($rows) !== count($ids)) {
@@ -99,6 +100,19 @@ function brvtal_bulk_apply(PDO $pdo, array $request): array
         $update = $pdo->prepare("UPDATE {$table} SET status=? WHERE id IN ({$placeholders})");
         $update->execute(array_merge([$status], $ids));
         $changed = $update->rowCount();
+
+        if ($audit !== null) {
+            foreach ($rows as $row) {
+                if ((string)$row['status'] === $status) continue;
+                $audit(
+                    $resource,
+                    (int)$row['id'],
+                    ['id'=>(int)$row['id'],'status'=>(string)$row['status']],
+                    ['id'=>(int)$row['id'],'status'=>$status],
+                    (string)($row['resource_label'] ?? '')
+                );
+            }
+        }
 
         $pdo->commit();
         return [
