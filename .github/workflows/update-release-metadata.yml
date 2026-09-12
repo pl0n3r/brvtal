@@ -63,6 +63,9 @@ jobs:
       - name: Run Content Health contract tests
         run: php tests/content-health-contract.php
 
+      - name: Run SEO metadata contract tests
+        run: php tests/seo-contract.php
+
       - name: Validate Blog migration is idempotent
         run: |
           mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
@@ -79,6 +82,14 @@ jobs:
           BRVTAL_TEST_DB_USER: root
           BRVTAL_TEST_DB_PASS: brvtal_root
         run: npm run test:integration
+
+      - name: Validate SEO migration is idempotent
+        run: |
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS events (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS artists (id INT PRIMARY KEY, bio TEXT); CREATE TABLE IF NOT EXISTS sets_media (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS releases (id INT PRIMARY KEY, description TEXT);"
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          count=$(mariadb -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('events','artists','sets_media','releases') AND COLUMN_NAME IN ('seo_title','seo_description');")
+          test "$count" = "8"
 
       - name: Install Node test dependencies
         run: npm install
