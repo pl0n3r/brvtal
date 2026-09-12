@@ -87,4 +87,29 @@
     return new Response(JSON.stringify(verified), {status:200,headers:{'Content-Type':'application/json'}});
   };
 
+  /* This is the last shell bootstrap hook before index-core.php calls restoreSession().
+     Route the authenticated initial section through window.go so dynamic modules such as
+     Media, Releases and Blog always mount on the first navigation instead of falling back
+     to the legacy inline renderer captured by the original restoreSession function. */
+  if (typeof window.restoreSession === 'function' && window.BRVTALAdminModules) {
+    window.restoreSession = async function() {
+      try {
+        const d = await req('/auth',{method:'GET'});
+        if (d.authenticated) {
+          csrf = d.csrf || '';
+          state.authed = true;
+          try { await window.BRVTALMediaPermissions?.repair?.(); }
+          catch (e) {
+            if (e?.message !== 'AUTH_REQUIRED') window.BRVTALFeedback?.error?.('Media thumbnail access check failed: ' + e.message,'media-permissions');
+          }
+          const initialSection = window.BRVTALAdminModules.initialSection();
+          await window.go(initialSection);
+          return true;
+        }
+      } catch (_) {}
+      render();
+      return false;
+    };
+  }
+
 })();
