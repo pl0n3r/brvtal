@@ -15,17 +15,17 @@ $styles = (string)file_get_contents(__DIR__ . '/../discadmin/system-status-v2.cs
 $shell = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
 
 system_status_expect(str_contains($technical, 'brvtal_admin_require();'), 'technical diagnostics must remain admin protected');
-system_status_expect(str_contains($technical, "$action === 'overview'"), 'overview action must exist');
+system_status_expect(str_contains($technical, "\$action === 'overview'"), 'overview action must exist');
 system_status_expect(str_contains($technical, 'brvtal_deployment_short_sha()'), 'overview must expose resolved deployment identity');
 system_status_expect(str_contains($technical, 'github_public_api'), 'overview must identify GitHub public metrics source');
 system_status_expect(str_contains($technical, 'api.github.com/repos/pl0n3r/brvtal/commits'), 'commit count must come from GitHub');
 system_status_expect(str_contains($technical, 'is%3Apr+is%3Amerged'), 'merged PR count must come from GitHub');
 system_status_expect(str_contains($technical, "'source_lines'"), 'source LOC must be calculated');
 system_status_expect(str_contains($technical, "'source_files'"), 'source file count must be calculated');
-system_status_expect(str_contains($technical, "security.totp_encryption_key"), 'TOTP key readiness must be checked');
+system_status_expect(str_contains($technical, 'security.totp_encryption_key'), 'TOTP key readiness must be checked');
 system_status_expect(!str_contains($technical, 'SELECT setting_value'), 'TOTP encryption value must never be selected into diagnostics');
 system_status_expect(str_contains($technical, "'admin_activity_log'"), 'activity history readiness must be checked');
-system_status_expect(str_contains($technical, "'issues' => $issues"), 'overview must provide actionable issues');
+system_status_expect(str_contains($technical, "'issues' => \$issues"), 'overview must provide actionable issues');
 system_status_expect(str_contains($script, "'/api/content-health.php'"), 'visual status must include Content Health');
 system_status_expect(str_contains($script, "'/api/admin-activity.php?limit=5'"), 'visual status must include recent admin activity');
 system_status_expect(str_contains($script, 'ssv2-storage-ring'), 'visual status must render storage utilization');
@@ -35,4 +35,4 @@ system_status_expect(str_contains($styles, 'conic-gradient'), 'visual status mus
 system_status_expect(str_contains($shell, 'system-status-v2.css'), 'shell must load System Status stylesheet');
 system_status_expect(str_contains($shell, 'system-status-v2.js'), 'shell must load System Status enhancement');
 
- echo "BRVTAL System Status v2 contract tests passed.\n";
+echo "BRVTAL System Status v2 contract tests passed.\n";
