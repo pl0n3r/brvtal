@@ -66,6 +66,9 @@ jobs:
       - name: Run SEO metadata contract tests
         run: php tests/seo-contract.php
 
+      - name: Run Global Search contract tests
+        run: php tests/global-search-contract.php
+
       - name: Validate Blog migration is idempotent
         run: |
           mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
@@ -82,6 +85,16 @@ jobs:
           BRVTAL_TEST_DB_USER: root
           BRVTAL_TEST_DB_PASS: brvtal_root
         run: npm run test:integration
+
+      - name: Run Global Search MariaDB integration
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_TEST_DB_HOST: 127.0.0.1
+          BRVTAL_TEST_DB_PORT: '3306'
+          BRVTAL_TEST_DB_NAME: brvtal_test_ci
+          BRVTAL_TEST_DB_USER: root
+          BRVTAL_TEST_DB_PASS: brvtal_root
+        run: php tests/integration/global-search.php
 
       - name: Validate SEO migration is idempotent
         run: |
