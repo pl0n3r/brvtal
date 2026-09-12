@@ -256,7 +256,7 @@ $usage = brvtal_media_usage($pdo, $media);
 $resources = array_values(array_unique(array_map(static fn(array $row): string => (string)$row['resource'], $usage)));
 sort($resources);
 
-foreach (['ARTIST', 'EVENT', 'EVENT QR', 'PAGE', 'RELEASE', 'SET', 'SETTING', 'TICKET QR'] as $expected) {
+foreach (['ARTIST', 'BLOG', 'EVENT', 'EVENT QR', 'PAGE', 'RELEASE', 'SET', 'SETTING', 'TICKET QR'] as $expected) {
     brvtal_it_assert(in_array($expected, $resources, true), "media usage must include {$expected}");
 }
 
