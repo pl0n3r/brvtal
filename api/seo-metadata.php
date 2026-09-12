@@ -118,12 +118,10 @@ try {
             'seo_description'=>$seoDescription,
         ],
     ]);
-} catch (RuntimeException $e) {
-    if ($e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
+} catch (Throwable $e) {
+    if ($e instanceof RuntimeException && $e->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
         brvtal_seo_json(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'], 503);
     }
-    throw $e;
-} catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('SEO_METADATA_ERROR', 'SEO metadata request failed', [
             'class'=>get_class($e),
