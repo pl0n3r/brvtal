@@ -1,0 +1,29 @@
+<?php
+declare(strict_types=1);
+
+function public_pages_expect(bool $condition, string $message): void
+{
+    if (!$condition) {
+        fwrite(STDERR, "PUBLIC ENTITY PAGES CONTRACT FAILED: {$message}\n");
+        exit(1);
+    }
+}
+
+$entry = (string)file_get_contents(__DIR__ . '/../index.php');
+$pages = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
+$css = (string)file_get_contents(__DIR__ . '/../css/public-entity.css');
+
+public_pages_expect(str_contains($entry, 'brvtal_public_entity_page'), 'entity routes must use the dedicated public renderer');
+foreach (['events','artists','releases','blog'] as $type) {
+    public_pages_expect(str_contains($pages, "\$type === '{$type}'"), "renderer must hydrate {$type}");
+}
+foreach (['event_artists','event_ticket_types','release_artists','blog_post_relations'] as $relation) {
+    public_pages_expect(str_contains($pages, $relation), "public pages must use {$relation} relationships");
+}
+public_pages_expect(substr_count($pages, "status='published'") >= 5, 'related content must remain limited to published records');
+public_pages_expect(str_contains($pages, 'htmlspecialchars'), 'editorial content must be escaped before HTML rendering');
+public_pages_expect(str_contains($pages, "rel=\"noopener noreferrer\""), 'external calls to action must isolate their browsing context');
+public_pages_expect(str_contains($css, '@media(max-width:620px)'), 'entity pages must include a mobile layout');
+public_pages_expect(str_contains($css, 'prefers-reduced-motion:reduce'), 'entity pages must respect reduced motion');
+
+echo "BRVTAL public entity pages contract tests passed.\n";

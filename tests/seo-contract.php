@@ -53,3 +53,4 @@ echo "BRVTAL SEO metadata contract tests passed.\n";
 
 require __DIR__ . '/deployment-traceability-contract.php';
 require __DIR__ . '/public-seo-delivery-contract.php';
+require __DIR__ . '/public-entity-pages-contract.php';

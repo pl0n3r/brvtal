@@ -303,6 +303,8 @@ The deployed source revision is resolved at runtime by `config/deployment.php`. 
 
 Public SEO delivery is server-rendered through `index.php`. Published Events, Artists, Sets, Releases, Blog posts and English Pages have canonical URLs, Open Graph/Twitter metadata and Schema.org JSON-LD. `/sitemap.xml` is generated from published content and `robots.txt` advertises it while excluding private application surfaces.
 
+Those canonical URLs render dedicated BRVTAL entity pages rather than replaying the homepage. Event pages include date, place, lineup, ticket options and Sets; Artist pages connect Events, Sets and Releases; Release pages expose credited Artists and listening destinations; Blog pages render the published story, tags and public relations. Sets and English Pages use the same public page system.
+
 ---
 
 ## Security model
