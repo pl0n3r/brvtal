@@ -59,6 +59,11 @@ media_assert(str_contains($adminModules, 'mediaPermissions.repair'), 'Media modu
 media_assert(str_contains($adminModules, "document.addEventListener('error'"), 'image failures must have a global fallback handler');
 media_assert(str_contains($adminModules, 'syncMediaFieldPreview'), 'picker changes must update modal previews immediately');
 
+$sessionBootstrap = (string)file_get_contents(__DIR__ . '/../discadmin/totp-login.js');
+media_assert(str_contains($sessionBootstrap, 'const initialSection = window.BRVTALAdminModules.initialSection();'), 'initial DISCADMIN section must be resolved by the dynamic module router');
+media_assert(str_contains($sessionBootstrap, 'await window.go(initialSection);'), 'restored sessions must route the first module through window.go');
+media_assert(str_contains($sessionBootstrap, "window.restoreSession = async function()"), 'session bootstrap must replace the legacy initial restore path');
+
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 media_assert(str_contains($controller, '#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr'), 'media picker must attach to core image fields');
 media_assert(str_contains($controller, 'Delete blocked: this media is currently in use.'), 'UI must surface reference protection');
