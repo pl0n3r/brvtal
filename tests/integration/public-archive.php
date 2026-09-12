@@ -36,6 +36,7 @@ $pdo->exec("CREATE TEMPORARY TABLE archive_events (
     title VARCHAR(180),
     event_date DATETIME NULL,
     archive_year SMALLINT UNSIGNED NULL,
+    published_at DATETIME NULL,
     status VARCHAR(30),
     sort_order INT NOT NULL DEFAULT 0,
     ticket_url VARCHAR(700) NULL,
@@ -43,20 +44,21 @@ $pdo->exec("CREATE TEMPORARY TABLE archive_events (
     ticket_qr VARCHAR(500) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-$insert = $pdo->prepare('INSERT INTO archive_events(title,event_date,archive_year,status,ticket_url,ticket_instructions,ticket_qr) VALUES(?,?,?,?,?,?,?)');
-$insert->execute(['Future Published','2026-10-01 21:00:00',2026,'published','https://example.com/future','pay','/future.png']);
-$insert->execute(['Tickets Available','2026-09-20 21:00:00',2026,'tickets_available','https://example.com/tickets','pay','/tickets.png']);
-$insert->execute(['Past Published','2026-08-07 21:00:00',null,'published','https://example.com/past','pay','/past.png']);
-$insert->execute(['Finished','2026-07-01 21:00:00',2026,'finished','https://example.com/finished','pay','/finished.png']);
-$insert->execute(['Cancelled','2026-12-01 21:00:00',2026,'cancelled','https://example.com/cancelled','pay','/cancelled.png']);
-$insert->execute(['Private Draft','2026-12-20 21:00:00',2026,'draft','https://example.com/draft','pay','/draft.png']);
+$insert = $pdo->prepare('INSERT INTO archive_events(title,event_date,archive_year,published_at,status,ticket_url,ticket_instructions,ticket_qr) VALUES(?,?,?,?,?,?,?,?)');
+$insert->execute(['Future Published','2026-10-01 21:00:00',2026,'2026-08-01 12:00:00','published','https://example.com/future','pay','/future.png']);
+$insert->execute(['Tickets Available','2026-09-20 21:00:00',2026,'2026-08-01 12:00:00','tickets_available','https://example.com/tickets','pay','/tickets.png']);
+$insert->execute(['Past Published','2026-08-07 21:00:00',null,null,'published','https://example.com/past','pay','/past.png']);
+$insert->execute(['Finished','2026-07-01 21:00:00',2026,null,'finished','https://example.com/finished','pay','/finished.png']);
+$insert->execute(['Cancelled','2026-12-01 21:00:00',2026,'2026-08-01 12:00:00','cancelled','https://example.com/cancelled','pay','/cancelled.png']);
+$insert->execute(['Never Published Archive','2026-12-18 21:00:00',2026,null,'archived','https://example.com/private-archive','pay','/private-archive.png']);
+$insert->execute(['Private Draft','2026-12-20 21:00:00',2026,null,'draft','https://example.com/draft','pay','/draft.png']);
 
-$sql = "SELECT id,title,event_date,archive_year,status,sort_order,ticket_url,ticket_instructions,ticket_qr
+$sql = "SELECT id,title,event_date,archive_year,published_at,status,sort_order,ticket_url,ticket_instructions,ticket_qr
         FROM archive_events
         WHERE status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')
         ORDER BY event_date ASC,sort_order ASC,id ASC";
 $rows = $pdo->query($sql)->fetchAll();
-archive_it_expect(count($rows) === 5, 'visibility query must include all public lifecycle rows and exclude draft');
+archive_it_expect(count($rows) === 6, 'visibility query must include explicit non-draft lifecycle rows');
 archive_it_expect(!in_array('draft', array_column($rows,'status'), true), 'draft leaked from public visibility query');
 archive_it_expect(in_array('tickets_available', array_column($rows,'status'), true), 'tickets_available must remain public');
 archive_it_expect(in_array('finished', array_column($rows,'status'), true), 'finished event must remain discoverable');
@@ -67,6 +69,7 @@ $partition = brvtal_public_partition_events($rows, new DateTimeImmutable('2026-0
 
 archive_it_expect(array_column($partition['active'],'title') === ['Tickets Available','Future Published'], 'active lifecycle partition is incorrect');
 archive_it_expect(array_column($partition['archive'],'title') === ['Cancelled','Past Published','Finished'], 'archive lifecycle partition is incorrect');
+archive_it_expect(!in_array('Never Published Archive', array_column($partition['archive'],'title'), true), 'future archived row without publication evidence leaked publicly');
 
 foreach ($partition['archive'] as $event) {
     archive_it_expect($event['ticket_url'] === null, 'archived ticket_url must be removed');
