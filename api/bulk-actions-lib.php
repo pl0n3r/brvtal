@@ -87,10 +87,13 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
     $table = $specs[$resource]['table'];
     $labelColumn = $specs[$resource]['label'];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $selectColumns = $audit === null
+        ? 'id,status'
+        : "id,status,`{$labelColumn}` AS resource_label";
 
     $pdo->beginTransaction();
     try {
-        $select = $pdo->prepare("SELECT id,status,`{$labelColumn}` AS resource_label FROM {$table} WHERE id IN ({$placeholders}) FOR UPDATE");
+        $select = $pdo->prepare("SELECT {$selectColumns} FROM {$table} WHERE id IN ({$placeholders}) FOR UPDATE");
         $select->execute($ids);
         $rows = $select->fetchAll(PDO::FETCH_ASSOC);
         if (count($rows) !== count($ids)) {
