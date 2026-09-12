@@ -78,6 +78,9 @@ jobs:
       - name: Run Related Content contract tests
         run: php tests/related-content-contract.php
 
+      - name: Run Admin Activity contract tests
+        run: php tests/admin-activity-contract.php
+
       - name: Validate Blog migration is idempotent
         run: |
           mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
@@ -134,6 +137,24 @@ jobs:
           BRVTAL_TEST_DB_USER: root
           BRVTAL_TEST_DB_PASS: brvtal_root
         run: php tests/integration/related-content.php
+
+      - name: Validate Admin Activity migration is idempotent
+        run: |
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS admins (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin', is_active TINYINT(1) NOT NULL DEFAULT 1, last_login_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
+          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
+          count=$(mariadb -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME='admin_activity_log';")
+          test "$count" = "1"
+
+      - name: Run Admin Activity MariaDB integration
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_TEST_DB_HOST: 127.0.0.1
+          BRVTAL_TEST_DB_PORT: '3306'
+          BRVTAL_TEST_DB_NAME: brvtal_test_ci
+          BRVTAL_TEST_DB_USER: root
+          BRVTAL_TEST_DB_PASS: brvtal_root
+        run: php tests/integration/admin-activity.php
 
       - name: Validate SEO migration is idempotent
         run: |
