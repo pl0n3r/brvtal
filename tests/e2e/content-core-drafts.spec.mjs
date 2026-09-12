@@ -3,24 +3,41 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const contentCoreJs = readFileSync(join(process.cwd(), 'discadmin/content-core.js'), 'utf8');
+const contentCoreNavJs = readFileSync(join(process.cwd(), 'discadmin/content-core-nav.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e-content-core-drafts.html';
 
 function harnessHtml() {
   return `<!doctype html><html><body>
-    <div id="root">
+    <div id="root" data-admin-module="content-core">
       <div id="cc-notice"></div>
       <input id="eventSearch"><div id="eventsTable"></div>
       <input id="artistSearch"><div id="rosterList"></div>
       <div id="eventArtists"></div><div id="artistDetail"></div>
-      <div id="eventModal"></div><div id="eventHeading"></div><div id="eventNotice"></div>
-      <input id="e_title"><input id="e_slug"><textarea id="e_description"></textarea>
-      <input id="e_cover_image"><input id="e_accent"><select id="e_featured"><option value="0">0</option><option value="1">1</option></select>
-      <input id="e_event_date" type="datetime-local"><input id="e_city"><input id="e_venue"><input id="e_archive_year">
-      <select id="e_status"><option value="draft">draft</option><option value="published">published</option><option value="upcoming">upcoming</option></select>
-      <textarea id="e_ticket_instructions"></textarea><input id="e_ticket_qr"><input id="e_ticket_url">
-      <div id="tickets"></div>
+      <div id="eventModal"><div id="eventHeading"></div><div id="eventNotice" class="notice"></div>
+        <button id="cc-top-saveBtn" onclick="BRVTALContentCore.saveEvent()">SAVE</button>
+        <div class="steps">
+          <div role="button" tabindex="0" class="step active" data-step="1">01 · IDENTITY</div>
+          <div role="button" tabindex="0" class="step" data-step="2">02 · DATE & PLACE</div>
+          <div role="button" tabindex="0" class="step" data-step="3">03 · LIFECYCLE</div>
+          <div role="button" tabindex="0" class="step" data-step="4">04 · TICKETS</div>
+          <div role="button" tabindex="0" class="step" data-step="5">05 · ROSTER</div>
+        </div>
+        <div class="step-content active" data-content="1">
+          <input id="e_title"><input id="e_slug"><textarea id="e_description"></textarea>
+          <input id="e_cover_image"><input id="e_accent"><select id="e_featured"><option value="0">0</option><option value="1">1</option></select>
+        </div>
+        <div class="step-content" data-content="2"><input id="e_event_date" type="datetime-local"><input id="e_city"><input id="e_venue"><input id="e_archive_year"></div>
+        <div class="step-content" data-content="3">
+          <select id="e_status"><option value="draft">draft</option><option value="published">published</option><option value="upcoming">upcoming</option></select>
+          <textarea id="e_ticket_instructions"></textarea><input id="e_ticket_qr"><input id="e_ticket_url">
+        </div>
+        <div class="step-content" data-content="4"><div id="tickets"></div></div>
+        <div class="step-content" data-content="5"></div>
+        <button id="prevBtn">BACK</button><button id="nextBtn">NEXT</button><button id="cc-saveBtn">SAVE DRAFT</button>
+      </div>
     </div>
     <script>${contentCoreJs}</script>
+    <script>${contentCoreNavJs}</script>
     <script>window.BRVTALContentCore.mount(document.getElementById('root'));</script>
   </body></html>`;
 }
@@ -90,4 +107,26 @@ test('Content Core requires date and city before an event leaves draft', async (
 
   expect(posts).toHaveLength(0);
   await expect(page.locator('#eventNotice')).toContainText('Name, date and city are required before leaving draft.');
+});
+
+test('Content Core supports direct clickable step navigation and a top save action', async ({ page }) => {
+  const posts = [];
+  await installHarness(page, posts);
+
+  await page.click('.step[data-step="2"]');
+  await expect(page.locator('.step[data-step="1"]')).toHaveClass(/active/);
+  await expect(page.locator('#eventNotice')).toContainText('Event name is required before continuing.');
+
+  await page.fill('#e_title', 'QA DIRECT NAV');
+  await page.click('.step[data-step="4"]');
+  await expect(page.locator('.step[data-step="4"]')).toHaveClass(/active/);
+  await expect(page.locator('.step-content[data-content="4"]')).toHaveClass(/active/);
+
+  await page.click('.step[data-step="2"]');
+  await expect(page.locator('.step[data-step="2"]')).toHaveClass(/active/);
+  await expect(page.locator('.step-content[data-content="2"]')).toHaveClass(/active/);
+
+  await page.click('#cc-top-saveBtn');
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0].body.title).toBe('QA DIRECT NAV');
 });
