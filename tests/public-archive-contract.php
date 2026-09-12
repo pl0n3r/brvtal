@@ -18,15 +18,17 @@ $partition = brvtal_public_partition_events([
     ['id'=>1,'title'=>'Future published','event_date'=>'2026-10-01 21:00:00','status'=>'published','sort_order'=>0,'ticket_url'=>'https://example.com/1','ticket_types'=>[['id'=>1]]],
     ['id'=>2,'title'=>'Tickets live','event_date'=>'2026-09-20 21:00:00','status'=>'tickets_available','sort_order'=>0,'ticket_url'=>'https://example.com/2','ticket_types'=>[['id'=>2]]],
     ['id'=>3,'title'=>'Past published','event_date'=>'2026-08-07 21:00:00','archive_year'=>null,'status'=>'published','ticket_url'=>'https://example.com/3','ticket_instructions'=>'pay','ticket_qr'=>'/qr.png','ticket_types'=>[['id'=>3]]],
-    ['id'=>4,'title'=>'Cancelled future','event_date'=>'2026-12-01 21:00:00','status'=>'cancelled','ticket_url'=>'https://example.com/4','ticket_types'=>[['id'=>4]]],
+    ['id'=>4,'title'=>'Cancelled future','event_date'=>'2026-12-01 21:00:00','published_at'=>'2026-08-01 12:00:00','status'=>'cancelled','ticket_url'=>'https://example.com/4','ticket_types'=>[['id'=>4]]],
     ['id'=>5,'title'=>'Old archive','event_date'=>'2025-06-01 21:00:00','archive_year'=>2025,'status'=>'archived','ticket_url'=>'https://example.com/5','ticket_types'=>[['id'=>5]]],
     ['id'=>6,'title'=>'Private draft','event_date'=>'2026-12-10 21:00:00','status'=>'draft'],
+    ['id'=>7,'title'=>'Never published archive','event_date'=>'2026-12-18 21:00:00','status'=>'archived','published_at'=>null],
 ], $now);
 
 archive_expect(array_column($partition['active'],'id') === [2,1], 'Active events must be date-ordered and contain all public active lifecycle states');
 archive_expect(array_column($partition['archive'],'id') === [4,3,5], 'Archive must contain explicit historical states and past public events newest-first');
 archive_expect($partition['years'] === [2026,2025], 'Archive years must be unique and descending');
 archive_expect(!in_array(6, array_column($partition['active'],'id'), true) && !in_array(6, array_column($partition['archive'],'id'), true), 'Draft event leaked into public partition');
+archive_expect(!in_array(7, array_column($partition['archive'],'id'), true), 'Future historical state without publication evidence leaked into public archive');
 
 $past = null;
 foreach ($partition['archive'] as $event) if ((int)$event['id'] === 3) $past = $event;
