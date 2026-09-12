@@ -59,10 +59,27 @@ function brvtal_totp_encryption_key(): string
     if (strlen($configured) < 32) {
         $configured = trim((string)($security['csrf_key'] ?? ''));
     }
-    if (strlen($configured) < 32) {
-        throw new RuntimeException('TOTP encryption key is not configured.');
-    }
-    return hash('sha256', $configured, true);
+    if (strlen($configured) >= 32) return hash('sha256', $configured, true);
+    $databaseKey = brvtal_totp_database_key(true);
+    if ($databaseKey === null) throw new RuntimeException('TOTP encryption key is not configured.');
+    return hash('sha256', $databaseKey, true);
+}
+
+function brvtal_totp_database_key(bool $create): ?string
+{
+    $pdo = db();
+    $select = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key='security.totp_encryption_key' LIMIT 1");
+    $select->execute();
+    $stored = trim((string)$select->fetchColumn());
+    if (strlen($stored) >= 32) return $stored;
+    if (!$create) return null;
+
+    $generated = base64_encode(random_bytes(32));
+    $insert = $pdo->prepare("INSERT INTO settings(setting_key,setting_value,is_json) VALUES('security.totp_encryption_key',?,0) ON DUPLICATE KEY UPDATE setting_key=VALUES(setting_key)");
+    $insert->execute([$generated]);
+    $select->execute();
+    $stored = trim((string)$select->fetchColumn());
+    return strlen($stored) >= 32 ? $stored : null;
 }
 
 function brvtal_totp_decryption_keys(): array
@@ -74,6 +91,8 @@ function brvtal_totp_decryption_keys(): array
         $configured = trim((string)($security[$name] ?? ''));
         if (strlen($configured) >= 32) $keys[] = hash('sha256', $configured, true);
     }
+    $databaseKey = brvtal_totp_database_key(false);
+    if ($databaseKey !== null) $keys[] = hash('sha256', $databaseKey, true);
     return array_values(array_unique($keys));
 }
 
