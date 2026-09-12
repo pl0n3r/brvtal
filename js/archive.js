@@ -168,6 +168,7 @@
     try {
       const data = await fetchPublicData();
       state.data = data;
+      window.dispatchEvent(new CustomEvent('brvtal:public-data', { detail:data }));
       renderActive(data.events);
       renderArchive(data.archive || {});
       observeActiveTrack();
@@ -183,5 +184,9 @@
   if (document.readyState === 'complete') setTimeout(init, 220);
   else window.addEventListener('load', () => setTimeout(init, 220), {once:true});
 
-  window.BRVTALPublicArchive = {init,renderArchive,renderActive,applyYearFilter};
+  window.BRVTALPublicArchive = {init,renderArchive,renderActive,applyYearFilter,getData:()=>state.data};
+
+  import('/js/related-content.js').catch(() => {
+    document.documentElement.dataset.related = 'unavailable';
+  });
 })();
