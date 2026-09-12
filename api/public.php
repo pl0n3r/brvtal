@@ -2,11 +2,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/public-archive.php';
 
 /**
  * BRVTAL public read-only API.
  *
- * Deliberately exposes only published content and an allowlisted subset of
+ * Deliberately exposes only public content and an allowlisted subset of
  * public site configuration. Never expose raw settings, analytics secrets,
  * custom code, admin configuration or credentials here.
  */
@@ -202,12 +203,14 @@ try {
 
     $pdo = db();
 
-    $events = $pdo->query(
+    // Public lifecycle states are visible; draft remains private. Past dates are
+    // partitioned into archive below even if the editor has not manually finished them.
+    $allEvents = $pdo->query(
         "SELECT id,title,slug,event_date,archive_year,venue,city,description,seo_title,seo_description,skin,accent,
                 cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,
                 cancelled_at,finished_at,status,sort_order
          FROM events
-         WHERE status='published'
+         WHERE status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')
          ORDER BY event_date ASC, sort_order ASC, id ASC"
     )->fetchAll();
 
@@ -265,7 +268,8 @@ try {
          FROM event_artists ea
          JOIN artists a ON a.id=ea.artist_id
          JOIN events e ON e.id=ea.event_id
-         WHERE e.status='published' AND a.status='published'
+         WHERE e.status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')
+           AND a.status='published'
          ORDER BY ea.event_id,ea.lineup_order,a.name"
     )->fetchAll();
 
@@ -274,10 +278,31 @@ try {
         $lineupByEvent[(string)$item['event_id']][] = $item;
     }
 
-    foreach ($events as &$event) {
+    foreach ($allEvents as &$event) {
         $eventKey = (string)$event['id'];
         $event['ticket_types'] = $ticketsByEvent[$eventKey] ?? [];
         $event['lineup'] = $lineupByEvent[$eventKey] ?? [];
+    }
+    unset($event);
+
+    $partition = brvtal_public_partition_events($allEvents);
+    $events = $partition['active'];
+    $archiveEvents = $partition['archive'];
+
+    $archiveIds = [];
+    foreach ($archiveEvents as $event) $archiveIds[(int)$event['id']] = true;
+
+    $archiveSets = [];
+    $setsByArchiveEvent = [];
+    foreach ($sets as $set) {
+        $eventId = (int)($set['event_id'] ?? 0);
+        if ($eventId < 1 || !isset($archiveIds[$eventId])) continue;
+        $archiveSets[] = $set;
+        $setsByArchiveEvent[(string)$eventId][] = $set;
+    }
+
+    foreach ($archiveEvents as &$event) {
+        $event['related_sets'] = $setsByArchiveEvent[(string)$event['id']] ?? [];
     }
     unset($event);
 
@@ -285,8 +310,21 @@ try {
     $releases = brvtal_public_releases($pdo);
     $blog = brvtal_public_blog($pdo);
 
+    $archive = [
+        'events' => $archiveEvents,
+        'sets' => $archiveSets,
+        'years' => $partition['years'],
+        'counts' => [
+            'events' => count($archiveEvents),
+            'sets' => count($archiveSets),
+            'releases' => count($releases),
+            'media' => count($media),
+        ],
+    ];
+
     $payload = [
         'events' => $events,
+        'archive' => $archive,
         'artists' => $artists,
         'sets' => $sets,
         'releases' => $releases,
