@@ -6,7 +6,8 @@ declare(strict_types=1);
  *
  * Drafts are never public. Public lifecycle states remain visible while future/current,
  * and naturally move into the archive after their event date. Explicit historical
- * states are always archived, including cancelled events so history is not erased.
+ * states are archived only when the date is already historical or publication evidence
+ * exists, preventing an accidentally archived unpublished future event from leaking.
  */
 function brvtal_public_event_statuses(): array
 {
@@ -45,8 +46,24 @@ function brvtal_public_partition_events(array $events, ?DateTimeImmutable $now =
             catch (Throwable) { $eventDate = null; }
         }
 
+        $publishedAt = null;
+        $rawPublishedAt = trim((string)($event['published_at'] ?? ''));
+        if ($rawPublishedAt !== '') {
+            try { $publishedAt = new DateTimeImmutable($rawPublishedAt); }
+            catch (Throwable) { $publishedAt = null; }
+        }
+
         $pastByDate = $eventDate !== null && $eventDate < $today;
-        $isHistorical = isset($historicalStatuses[$status]) || $pastByDate;
+        $explicitHistorical = isset($historicalStatuses[$status]);
+
+        // A future/undated historical state is not public unless it was previously
+        // published. Past events remain discoverable even when older records lack
+        // published_at metadata.
+        if ($explicitHistorical && !$pastByDate && $publishedAt === null) {
+            continue;
+        }
+
+        $isHistorical = $explicitHistorical || $pastByDate;
 
         if ($isHistorical) {
             if (empty($event['archive_year']) && $eventDate !== null) {
