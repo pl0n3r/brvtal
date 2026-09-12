@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/public-archive.php';
+require_once __DIR__ . '/public-related.php';
 
 /**
  * BRVTAL public read-only API.
@@ -223,13 +224,15 @@ try {
          ORDER BY sort_order ASC, name ASC"
     )->fetchAll();
 
+    // Artist names are joined only when the related artist is public. Event titles
+    // are resolved after lifecycle partitioning so a Set can never reveal a private event.
     $sets = $pdo->query(
-        "SELECT s.id,s.title,s.slug,s.artist_id,s.event_id,s.platform,
-                s.external_url,s.embed_url,s.cover_image,s.description,s.seo_title,s.seo_description,
-                a.name AS artist_name,e.title AS event_title
+        "SELECT s.id,s.title,s.slug,
+                CASE WHEN a.id IS NULL THEN NULL ELSE s.artist_id END AS artist_id,
+                s.event_id,s.platform,s.external_url,s.embed_url,s.cover_image,s.description,s.seo_title,s.seo_description,
+                a.name AS artist_name,NULL AS event_title
          FROM sets_media s
-         LEFT JOIN artists a ON a.id=s.artist_id
-         LEFT JOIN events e ON e.id=s.event_id
+         LEFT JOIN artists a ON a.id=s.artist_id AND a.status='published'
          WHERE s.status='published'
          ORDER BY s.sort_order ASC,s.created_at DESC"
     )->fetchAll();
@@ -289,6 +292,10 @@ try {
     $events = $partition['active'];
     $archiveEvents = $partition['archive'];
 
+    // Related IDs are sanitized against the final public entity pool. This prevents
+    // a published Set from leaking the ID or title/name of a private Event or Artist.
+    $sets = brvtal_public_sanitize_set_relations($sets, $artists, $events, $archiveEvents);
+
     $archiveIds = [];
     foreach ($archiveEvents as $event) $archiveIds[(int)$event['id']] = true;
 
@@ -309,6 +316,7 @@ try {
     $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
     $blog = brvtal_public_blog($pdo);
+    $relations = brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases);
 
     $archive = [
         'events' => $archiveEvents,
@@ -328,6 +336,7 @@ try {
         'artists' => $artists,
         'sets' => $sets,
         'releases' => $releases,
+        'relations' => $relations,
         'blog' => $blog,
         'media' => $media,
         'pages' => $pages,
