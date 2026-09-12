@@ -27,8 +27,8 @@ test('Dashboard Content Health mounts read-only diagnostics and routes to canoni
   }));
 
   await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html',
-    body: `<!doctype html><html><head></head><body>
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <div id="app"><div class="shell"><aside class="side"></aside><main class="main"><div class="top"><h1>DASHBOARD</h1></div></main></div></div>
       <script>
         window.state = { authed: true, section: 'dashboard' };
@@ -43,7 +43,8 @@ test('Dashboard Content Health mounts read-only diagnostics and routes to canoni
   await expect(page.getByRole('heading', { name: 'CONTENT HEALTH' })).toBeVisible();
   await expect(page.locator('.content-health-score')).toContainText('72%');
   await expect(page.getByText('Genesis')).toBeVisible();
-  await expect(page.getByText('Useful description · Primary visual')).toBeVisible();
+  await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Useful description');
+  await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Primary visual');
   await expect(page.getByText('Read-only diagnostics. It never publishes or modifies content automatically.')).toBeVisible();
 
   await page.locator('[data-health-open="events"]').click();
