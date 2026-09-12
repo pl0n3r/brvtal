@@ -144,6 +144,7 @@ function brvtal_media_asset_payload(array $row): array
             if ($w < 1200 || $h < 1200) {
                 $row['warnings'][] = 'LOW_RESOLUTION';
             }
+            $row['quality'] = brvtal_media_quality_guidance($w, $h);
         }
         if ($row['file_size'] > 12 * 1024 * 1024) {
             $row['warnings'][] = 'LARGE_FILE';
@@ -151,6 +152,20 @@ function brvtal_media_asset_payload(array $row): array
     }
 
     return $row;
+}
+
+function brvtal_media_quality_guidance(int $width, int $height): array
+{
+    $contexts = [
+        'square' => ['label'=>'GRID / AVATAR', 'width'=>800, 'height'=>800],
+        'card' => ['label'=>'CONTENT CARD', 'width'=>1200, 'height'=>900],
+        'hero' => ['label'=>'EVENT HERO', 'width'=>1920, 'height'=>1080],
+    ];
+    foreach ($contexts as &$context) {
+        $context['ready'] = $width >= $context['width'] && $height >= $context['height'];
+    }
+    unset($context);
+    return ['grade'=>($width >= 1920 && $height >= 1080 ? 'excellent' : ($width >= 1200 && $height >= 900 ? 'good' : 'limited')), 'contexts'=>$contexts];
 }
 
 function brvtal_media_usage(PDO $pdo, array $media): array
@@ -241,7 +256,7 @@ function brvtal_media_create_image_resource(string $absolute, string $mime): GdI
     };
 }
 
-function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sourceHeight, string $target, int $targetWidth, int $targetHeight, bool $crop = false): bool
+function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sourceHeight, string $target, int $targetWidth, int $targetHeight, bool $crop = false, float $focalX = .5, float $focalY = .5): bool
 {
     $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
     if (!$canvas) {
@@ -253,10 +268,13 @@ function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sour
     imagefilledrectangle($canvas, 0, 0, $targetWidth, $targetHeight, $transparent);
 
     if ($crop) {
-        $side = min($sourceWidth, $sourceHeight);
-        $sx = (int)floor(($sourceWidth - $side) / 2);
-        $sy = (int)floor(($sourceHeight - $side) / 2);
-        imagecopyresampled($canvas, $source, 0, 0, $sx, $sy, $targetWidth, $targetHeight, $side, $side);
+        $targetRatio = $targetWidth / $targetHeight;
+        $sourceRatio = $sourceWidth / $sourceHeight;
+        $cropWidth = $sourceRatio > $targetRatio ? (int)round($sourceHeight * $targetRatio) : $sourceWidth;
+        $cropHeight = $sourceRatio > $targetRatio ? $sourceHeight : (int)round($sourceWidth / $targetRatio);
+        $sx = (int)round(max(0, min($sourceWidth - $cropWidth, ($sourceWidth * $focalX) - ($cropWidth / 2))));
+        $sy = (int)round(max(0, min($sourceHeight - $cropHeight, ($sourceHeight * $focalY) - ($cropHeight / 2))));
+        imagecopyresampled($canvas, $source, 0, 0, $sx, $sy, $targetWidth, $targetHeight, $cropWidth, $cropHeight);
     } else {
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
     }
@@ -269,13 +287,13 @@ function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sour
     return $ok;
 }
 
-function brvtal_media_generate_variants(string $absoluteOriginal, string $mime): array
+function brvtal_media_generate_variants(string $absoluteOriginal, string $mime, array $focalPoint = ['x'=>.5, 'y'=>.5]): array
 {
     $info = @getimagesize($absoluteOriginal);
     $width = is_array($info) ? (int)($info[0] ?? 0) : 0;
     $height = is_array($info) ? (int)($info[1] ?? 0) : 0;
     $result = [
-        'version' => 1,
+        'version' => 2,
         'generated_at' => date(DATE_ATOM),
         'status' => 'original_only',
         'original' => [
@@ -285,6 +303,7 @@ function brvtal_media_generate_variants(string $absoluteOriginal, string $mime):
             'mime_type' => $mime,
         ],
         'variants' => [],
+        'focal_point' => ['x'=>max(0, min(1, (float)($focalPoint['x'] ?? .5))), 'y'=>max(0, min(1, (float)($focalPoint['y'] ?? .5)))],
     ];
 
     if ($width < 1 || $height < 1 || $width * $height > 40000000) {
@@ -301,15 +320,27 @@ function brvtal_media_generate_variants(string $absoluteOriginal, string $mime):
     $infoPath = pathinfo($absoluteOriginal);
     $base = $infoPath['dirname'] . '/' . $infoPath['filename'];
 
-    $squareSize = min(480, max(1, min($width, $height)));
+    $focalX = $result['focal_point']['x'];
+    $focalY = $result['focal_point']['y'];
+    $squareSize = min(800, max(1, min($width, $height)));
     $squarePath = $base . '--square-' . $squareSize . '.webp';
-    if (brvtal_media_write_variant($source, $width, $height, $squarePath, $squareSize, $squareSize, true)) {
+    if (brvtal_media_write_variant($source, $width, $height, $squarePath, $squareSize, $squareSize, true, $focalX, $focalY)) {
         $result['variants']['square'] = [
             'path' => brvtal_media_public_upload_path($squarePath),
             'width' => $squareSize,
             'height' => $squareSize,
             'mime_type' => 'image/webp',
         ];
+    }
+
+    foreach (['card'=>[1200,900], 'hero'=>[1920,1080]] as $name => [$wantedWidth,$wantedHeight]) {
+        $scale = min(1, $width / $wantedWidth, $height / $wantedHeight);
+        $targetWidth = max(1, (int)floor($wantedWidth * $scale));
+        $targetHeight = max(1, (int)floor($wantedHeight * $scale));
+        $targetPath = $base . '--' . $name . '-' . $targetWidth . 'x' . $targetHeight . '.webp';
+        if (brvtal_media_write_variant($source, $width, $height, $targetPath, $targetWidth, $targetHeight, true, $focalX, $focalY)) {
+            $result['variants'][$name] = ['path'=>brvtal_media_public_upload_path($targetPath),'width'=>$targetWidth,'height'=>$targetHeight,'mime_type'=>'image/webp'];
+        }
     }
 
     foreach ([1280, 1920] as $targetWidth) {
@@ -344,6 +375,17 @@ function brvtal_media_store_sidecar(string $absoluteOriginal, array $metadata): 
         LOCK_EX
     );
     @chmod($sidecar, 0640);
+}
+
+function brvtal_media_remove_generated_variants(string $absoluteOriginal, array $keep = []): void
+{
+    $sidecar = brvtal_media_read_sidecar(brvtal_media_public_upload_path($absoluteOriginal));
+    $preserved = array_column($keep, 'path');
+    foreach (($sidecar['variants'] ?? []) as $variant) {
+        if (in_array((string)($variant['path'] ?? ''), $preserved, true)) continue;
+        $path = brvtal_media_local_absolute((string)($variant['path'] ?? ''));
+        if ($path !== null && is_file($path)) @unlink($path);
+    }
 }
 
 function brvtal_media_delete_files(array $media): array

@@ -19,6 +19,7 @@ const mediaItem = {
   created_at: '2026-09-11 17:00:00',
   engine: {
     status: 'ready',
+    focal_point: { x: 0.5, y: 0.5 },
     variants: {
       square: {
         path: 'uploads/media/2026/09/genesis--square-480.webp',
@@ -27,7 +28,8 @@ const mediaItem = {
         mime_type: 'image/webp'
       }
     }
-  }
+  },
+  quality: { grade: 'good', contexts: { square: { label: 'GRID / AVATAR', width: 800, height: 800, ready: true }, card: { label: 'CONTENT CARD', width: 1200, height: 900, ready: true }, hero: { label: 'EVENT HERO', width: 1920, height: 1080, ready: false } } }
 };
 
 async function mockApi(page) {
@@ -134,6 +136,19 @@ test('media picker normalizes paths, updates inputs/previews, and shows guidance
   await expect(page.locator('#f_cover_image')).toHaveValue('/uploads/media/2026/09/genesis.jpg');
   await expect(page.locator('.thumbcell img').first()).toHaveAttribute('src', '/uploads/media/2026/09/genesis.jpg');
   await expect(page.getByText('Media selected. Press SAVE to persist this record.')).toBeVisible();
+});
+
+test('media inspector previews contexts and submits a focal point regeneration', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+  await page.getByRole('button', { name: /Genesis poster/i }).click();
+  await expect(page.getByText('FOCAL POINT / CROP')).toBeVisible();
+  await expect(page.locator('.media-context')).toHaveCount(3);
+  await page.locator('#media-focal-x').fill('75');
+  await page.locator('#media-focal-y').fill('25');
+  const transform = page.waitForRequest(request => request.url().includes('action=transform'));
+  await page.getByRole('button', { name: 'SAVE FOCUS + REGENERATE' }).click();
+  const request = await transform;
+  expect(request.postDataJSON()).toEqual({x:0.75,y:0.25});
 });
 
 test('event save sends selected media path and shows success feedback', async ({ page }) => {

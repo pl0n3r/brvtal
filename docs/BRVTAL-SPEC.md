@@ -214,13 +214,13 @@ Current implemented foundation includes:
 - larger width variants for suitable source images;
 - reference-aware cleanup of originals/variants/sidecars.
 
-The next Media Engine phase should concentrate on editorial UX rather than rebuilding this foundation:
+Media Engine v2 extends this foundation with editorial UX:
 
 - focal point / crop controls;
-- crop previews by context;
-- context-aware variant selection;
-- clearer quality/resolution guidance;
-- richer responsive delivery and fallbacks.
+- square, card and hero crop previews;
+- context-aware WebP variants;
+- per-context quality/resolution guidance;
+- safe regeneration that preserves originals and removes superseded derived files.
 
 Administrators should not manually prepare many versions of the same source image. Media should remain automatically organizable by date.
 
@@ -415,7 +415,7 @@ BRVTAL remains visually consistent.
 
 ## 33. Backups
 
-**Backups Foundation v1 is the current active infrastructure priority.**
+**Backups Foundation v1 is implemented and production-validated.**
 
 Desired capability includes manual and later automatic backups of database/files/history with safe downloadability and operational status inside DISCADMIN.
 
@@ -671,9 +671,9 @@ Content Core production smoke testing has exposed several UX/persistence/route i
 
 ### Active next priorities
 
-1. **Backups Foundation v1** — safe manual DB/private-file backup, manifests/history/download, no restore.
-2. **Media Engine v2 UX** — focal point/crop previews, context-aware variants and clearer quality guidance on top of the existing variant engine.
-3. **Editorial Version History v1** — useful per-content history/diffs derived from the audit foundation, read-only initially.
+1. **Backups Foundation v1 — implemented** — safe manual DB/private-file backup, manifests/history/download, no restore.
+2. **Media Engine v2 UX — implemented** — focal point/crop previews, context-aware variants and clearer quality guidance on top of the existing variant engine.
+3. **Editorial Version History v1 — active next priority** — useful per-content history/diffs derived from the audit foundation, read-only initially.
 4. **Public discovery/polish** — stronger Archive/Media discovery, relationships, responsive/performance refinement and richer public entity experience.
 5. **Analytics/privacy foundation** — Google Analytics where appropriate, minimal consent/cookie behavior and useful reporting without creating a custom analytics product prematurely.
 
