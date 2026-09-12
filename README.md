@@ -319,6 +319,7 @@ Implemented protections include:
 - optional TOTP challenge during login;
 - encrypted TOTP secrets;
 - compatibility with existing installations that use the server-only CSRF secret as the encryption root until a dedicated key is configured;
+- automatic creation of a private database-backed encryption key when an existing installation has no persistent server key configured;
 - hashed recovery codes;
 - authentication requirements on protected module fragments and APIs;
 - public API allowlisting rather than exposing arbitrary settings;
