@@ -3,6 +3,7 @@
 
   const nativeFetch = window.fetch.bind(window);
   const AUTO_DESCRIPTION_LIMIT = 160;
+  let dedupeTimer = null;
 
   function plainText(value) {
     if (value == null || typeof value === 'boolean') return '';
@@ -62,6 +63,18 @@
     return '';
   }
 
+  function dedupeSeoEditors() {
+    ['legacy','content-core','release'].forEach(editor => {
+      const sections = [...document.querySelectorAll(`[data-seo-editor="${editor}"]`)];
+      sections.slice(1).forEach(section => section.remove());
+    });
+  }
+
+  function scheduleDedupe() {
+    clearTimeout(dedupeTimer);
+    dedupeTimer = setTimeout(dedupeSeoEditors, 0);
+  }
+
   window.fetch = function(input, init = {}) {
     const request = input instanceof Request ? input : null;
     const method = String(init.method || request?.method || 'GET').toUpperCase();
@@ -80,5 +93,9 @@
     return nativeFetch(input, {...init, body:JSON.stringify(withDefaults(payload, kind))});
   };
 
-  window.BRVTALSEODefaults = { plainText, truncate, withDefaults, limit:AUTO_DESCRIPTION_LIMIT };
+  const observer = new MutationObserver(scheduleDedupe);
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  dedupeSeoEditors();
+
+  window.BRVTALSEODefaults = { plainText, truncate, withDefaults, dedupe:dedupeSeoEditors, limit:AUTO_DESCRIPTION_LIMIT };
 })();
