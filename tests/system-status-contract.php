@@ -12,6 +12,8 @@ function system_status_expect(bool $condition, string $message): void
 $technical = (string)file_get_contents(__DIR__ . '/../discadmin/technical.php');
 $script = (string)file_get_contents(__DIR__ . '/../discadmin/system-status-v2.js');
 $styles = (string)file_get_contents(__DIR__ . '/../discadmin/system-status-v2.css');
+$storageEndpoint = (string)file_get_contents(__DIR__ . '/../discadmin/storage-metrics.php');
+$storageScript = (string)file_get_contents(__DIR__ . '/../discadmin/system-status-storage.js');
 $shell = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
 
 system_status_expect(str_contains($technical, 'brvtal_admin_require();'), 'technical diagnostics must remain admin protected');
@@ -34,5 +36,14 @@ system_status_expect(str_contains($script, 'COMMITS / MAIN'), 'visual status mus
 system_status_expect(str_contains($styles, 'conic-gradient'), 'visual status must use graphical ring indicators');
 system_status_expect(str_contains($shell, 'system-status-v2.css'), 'shell must load System Status stylesheet');
 system_status_expect(str_contains($shell, 'system-status-v2.js'), 'shell must load System Status enhancement');
+
+system_status_expect(str_contains($storageEndpoint, 'brvtal_admin_require();'), 'managed storage metrics must remain admin protected');
+system_status_expect(str_contains($storageEndpoint, '25 * 1024 * 1024 * 1024'), 'managed storage must have the known 25 GB operational fallback');
+system_status_expect(str_contains($storageEndpoint, "'/uploads'"), 'managed storage must scan uploads');
+system_status_expect(str_contains($storageEndpoint, "'/storage'"), 'managed storage must scan private application storage');
+system_status_expect(str_contains($storageEndpoint, "'diagnostic_only' => true"), 'host filesystem capacity must be explicitly diagnostic only');
+system_status_expect(str_contains($storageScript, "'/discadmin/storage-metrics.php'"), 'visual storage block must use managed storage metrics');
+system_status_expect(str_contains($storageScript, 'BRVTAL DATA'), 'visual storage block must identify BRVTAL-managed data');
+system_status_expect(str_contains($shell, 'system-status-storage.js'), 'shell must load managed storage enhancement');
 
 echo "BRVTAL System Status v2 contract tests passed.\n";
