@@ -33,10 +33,10 @@ const activity = {ok:true,data:{total:44,limit:5,read_only:true,items:[
   {id:43,admin_name:'Felipe',action:'seo_update',resource:'artists',resource_id:2,resource_label:'HAKKI',created_at:'2026-09-12 04:55:00'}
 ]}};
 
-test('System Status v2 renders visual operational, repository and editorial signals', async ({ page }) => {
+test('System Status v2 mounts on the canonical production SYSTEM heading and renders visual signals', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:`<!doctype html><html><body><main class="main"><div class="top"><div><h1>SYSTEM STATUS</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script></body></html>`
+    body:`<!doctype html><html><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script></body></html>`
   }));
 
   await page.route('**/discadmin/technical.php?action=overview', route => route.fulfill({contentType:'application/json',body:JSON.stringify(overview)}));

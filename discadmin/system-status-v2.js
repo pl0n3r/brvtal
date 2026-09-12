@@ -16,7 +16,10 @@
   const clamp = value => Math.max(0, Math.min(100, Number(value || 0)));
 
   function isSystemStatus() {
-    return document.querySelector('.main .top h1')?.textContent?.trim().toUpperCase() === 'SYSTEM STATUS';
+    const activeNav = document.querySelector('.nav button.active')?.textContent?.trim().toUpperCase();
+    if (activeNav === 'SYSTEM STATUS') return true;
+    const title = document.querySelector('.main .top h1')?.textContent?.trim().toUpperCase();
+    return title === 'SYSTEM' || title === 'SYSTEM STATUS';
   }
 
   function relativeTime(value) {
