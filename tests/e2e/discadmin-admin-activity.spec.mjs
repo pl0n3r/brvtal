@@ -33,6 +33,14 @@ const artistItem = {
   created_at: '2026-09-12 02:31:00',
 };
 
+const earlierEventItem = {
+  ...eventItem,
+  id: 40,
+  action: 'create',
+  changed_fields: ['title','status'],
+  created_at: '2026-09-11 22:10:00',
+};
+
 test('Dashboard activity panel filters history and opens read-only before/after detail', async ({ page }) => {
   await page.route('**/api/admin-activity.php*', route => {
     const url = new URL(route.request().url());
@@ -41,6 +49,15 @@ test('Dashboard activity panel filters history and opens read-only before/after 
       return route.fulfill({
         contentType: 'application/json; charset=utf-8',
         body: JSON.stringify({ok:true,data:{...eventItem,before:{id:9,title:'GENESIS',description:'Old copy',status:'draft'},after:{id:9,title:'GENESIS',description:'New copy',status:'published'},meta:{source:'core_api'}}}),
+      });
+    }
+    if (url.searchParams.get('history') === '1') {
+      return route.fulfill({
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ok:true,data:{items:[
+          {...eventItem,before:{description:'Old copy',status:'draft'},after:{description:'New copy',status:'published'}},
+          {...earlierEventItem,before:null,after:{title:'GENESIS',status:'draft'}},
+        ],total:2,limit:50,read_only:true,mode:'content_history'}}),
       });
     }
     const resource = url.searchParams.get('resource') || '';
@@ -71,6 +88,15 @@ test('Dashboard activity panel filters history and opens read-only before/after 
   await expect(page.locator('#brvtal-admin-activity')).toContainText('Felipe Admin');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('description · status');
   await expect(page.getByRole('button', { name: /restore/i })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'HISTORY' }).click();
+  await expect(page.getByRole('dialog', { name: 'Editorial version history' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText('2 recorded versions');
+  await expect(page.locator('[data-history-diff]')).toContainText('Old copy');
+  await expect(page.locator('[data-history-diff]')).toContainText('New copy');
+  await page.locator('[data-history-index="1"]').click();
+  await expect(page.locator('[data-history-diff]')).toContainText('GENESIS');
+  await page.getByRole('button', { name: 'CLOSE' }).click();
 
   await page.locator('[data-activity-filter]').selectOption('artists');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');

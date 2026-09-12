@@ -199,7 +199,9 @@ Bulk Actions v1 supports safe lifecycle/status changes with CSRF, explicit allow
 
 Important administrative mutations are recorded in append-only `admin_activity_log` history with actor/action/resource/change metadata and sanitized before/after snapshots.
 
-The current UI is read-only. Automatic restore/revert is intentionally deferred.
+From the Dashboard, each editorial activity row can open the complete history for that content item. The timeline shows who changed it and when, with readable before/after values for each changed field.
+
+The UI and endpoint remain read-only. Automatic restore/revert is intentionally deferred.
 
 ### Security / 2FA
 
@@ -464,11 +466,11 @@ Build on the existing variant engine:
 - stronger resolution/quality guidance;
 - better responsive delivery.
 
-### 3. Editorial Version History v1 — active next priority
+### 3. Editorial Version History v1 — implemented
 
-Turn Admin Activity into useful per-content history/diffs while remaining read-only initially. Restore/revert requires a later explicit safeguards phase.
+Admin Activity now includes per-content timelines and readable field-level before/after diffs. History remains read-only; restore/revert requires a later explicit safeguards phase.
 
-### 4. Public discovery and polish
+### 4. Public discovery and polish — active next priority
 
 - richer Archive/Media discovery;
 - relationship-driven browsing;

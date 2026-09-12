@@ -45,6 +45,10 @@ activity_assert(str_contains($endpoint, "'GET'"), 'activity endpoint must be rea
 activity_assert(str_contains($endpoint, 'ACTIVITY_SCHEMA_MISSING'), 'activity endpoint must fail explicitly before migration');
 activity_assert(!str_contains($endpoint, 'brvtal_admin_require_csrf'), 'read-only activity endpoint must not expose a mutation path');
 activity_assert(!preg_match('/\b(?:INSERT\s+INTO|UPDATE\s+admin_activity_log|DELETE\s+FROM\s+admin_activity_log)\b/i', $endpoint), 'activity endpoint must never mutate audit rows');
+activity_assert(str_contains($endpoint, "'history'"), 'activity endpoint must expose per-content history mode');
+activity_assert(str_contains($endpoint, 'HISTORY_RESOURCE_REQUIRED'), 'history mode must require a resource and resource id');
+activity_assert(str_contains($endpoint, "'content_history'"), 'history responses must identify their mode');
+activity_assert(str_contains($endpoint, '$snapshotColumns'), 'history mode must return sanitized snapshots for field diffs');
 
 activity_assert(str_contains($core, "'lineup_update'"), 'event lineup changes must be audited');
 activity_assert(str_contains($core, "['events','artists','sets','pages','ticket_types']"), 'core editorial resources must be audited');
@@ -58,5 +62,8 @@ activity_assert(str_contains($ui, 'ADMIN ACTIVITY'), 'Dashboard UI must expose A
 activity_assert(str_contains($ui, 'Append-only audit history'), 'UI must explain append-only behavior');
 activity_assert(str_contains($ui, 'Restore/revert actions are intentionally not available'), 'v1 must not offer automatic restore');
 activity_assert(str_contains($ui, '/api/admin-activity.php'), 'UI must use the protected read-only activity endpoint');
+activity_assert(str_contains($ui, 'EDITORIAL VERSION HISTORY'), 'UI must expose per-content editorial history');
+activity_assert(str_contains($ui, 'data-activity-history'), 'activity rows must open their content history');
+activity_assert(str_contains($ui, 'historyDiff'), 'history UI must render field-level before/after differences');
 
 echo "BRVTAL Admin Activity contract tests passed.\n";
