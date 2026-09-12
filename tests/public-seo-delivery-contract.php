@@ -32,4 +32,31 @@ public_seo_expect(str_contains($sitemap, '<urlset'), 'sitemap must use the stand
 public_seo_expect(str_contains($robots, 'Sitemap: https://www.brvtal.com.co/sitemap.xml'), 'robots must advertise the canonical sitemap');
 public_seo_expect(str_contains($html, '<base href="/">'), 'nested public routes must resolve assets from the site root');
 
+require_once __DIR__ . '/../config/public_seo.php';
+$auto = brvtal_public_seo_document([
+    'route_type'=>'events',
+    'slug'=>'genesis',
+    'title'=>'Genesis',
+    'seo_title'=>'',
+    'seo_description'=>'',
+    'description'=>str_repeat('Underground techno in Pereira with BRVTAL. ', 8),
+    'image'=>'',
+    'schema_type'=>'MusicEvent',
+], 'https://www.brvtal.com.co');
+public_seo_expect(str_starts_with($auto['title'], 'Genesis'), 'public SEO title must default to the entity title');
+public_seo_expect(mb_strlen($auto['description']) <= 160, 'automatic public SEO description must not exceed 160 characters');
+
+$manual = brvtal_public_seo_document([
+    'route_type'=>'artists',
+    'slug'=>'pl0n3r',
+    'title'=>'PL0N3R',
+    'seo_title'=>'Custom PL0N3R search title',
+    'seo_description'=>'Custom description that must remain authoritative.',
+    'description'=>'Fallback bio that should not replace manual SEO.',
+    'image'=>'',
+    'schema_type'=>'MusicGroup',
+], 'https://www.brvtal.com.co');
+public_seo_expect(str_starts_with($manual['title'], 'Custom PL0N3R search title'), 'manual SEO title must override the editorial default');
+public_seo_expect($manual['description'] === 'Custom description that must remain authoritative.', 'manual SEO description must override the editorial default');
+
 echo "BRVTAL public SEO delivery contract tests passed.\n";
