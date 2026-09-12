@@ -5,8 +5,10 @@ ob_start();
 require __DIR__ . '/index-core.php';
 $html = (string)ob_get_clean();
 
-$build = defined('BRVTAL_APP_BUILD') ? rawurlencode((string)BRVTAL_APP_BUILD) : '';
-$suffix = $build !== '' ? '?v=' . $build : '';
+$assetVersion = function_exists('brvtal_deployment_short_sha')
+    ? rawurlencode(brvtal_deployment_short_sha())
+    : (defined('BRVTAL_APP_BUILD') ? rawurlencode((string)BRVTAL_APP_BUILD) : '');
+$suffix = $assetVersion !== '' ? '?v=' . $assetVersion : '';
 $enhancements = '<script src="/discadmin/content-health.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-editorial-defaults.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-metadata.js' . $suffix . '"></script>'
