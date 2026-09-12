@@ -128,6 +128,59 @@ function brvtal_public_releases(PDO $pdo): array
     return $releases;
 }
 
+function brvtal_public_blog(PDO $pdo): array
+{
+    foreach (['blog_posts','blog_tags','blog_post_tags','blog_post_relations'] as $table) {
+        if (!brvtal_public_table_exists($pdo, $table)) return [];
+    }
+
+    $posts = $pdo->query(
+        "SELECT id,title,slug,excerpt,body,cover_image,seo_title,seo_description,
+                featured,published_at,sort_order
+         FROM blog_posts
+         WHERE status='published'
+         ORDER BY featured DESC, COALESCE(published_at,updated_at) DESC, sort_order ASC, id DESC"
+    )->fetchAll();
+
+    if (!$posts) return [];
+
+    $tagRows = $pdo->query(
+        "SELECT pt.post_id,t.id,t.name,t.slug
+         FROM blog_post_tags pt
+         JOIN blog_posts p ON p.id=pt.post_id
+         JOIN blog_tags t ON t.id=pt.tag_id
+         WHERE p.status='published'
+         ORDER BY pt.post_id,t.name"
+    )->fetchAll();
+    $relationRows = $pdo->query(
+        "SELECT r.post_id,r.related_type,r.related_id,r.sort_order
+         FROM blog_post_relations r
+         JOIN blog_posts p ON p.id=r.post_id
+         WHERE p.status='published'
+         ORDER BY r.post_id,r.sort_order,r.related_type,r.related_id"
+    )->fetchAll();
+
+    $tagsByPost = [];
+    foreach ($tagRows as $tag) $tagsByPost[(string)$tag['post_id']][] = $tag;
+    $relationsByPost = [];
+    foreach ($relationRows as $relation) {
+        $relation['related_id'] = (int)$relation['related_id'];
+        $relation['sort_order'] = (int)$relation['sort_order'];
+        $relationsByPost[(string)$relation['post_id']][] = $relation;
+    }
+
+    foreach ($posts as &$post) {
+        $post['id'] = (int)$post['id'];
+        $post['featured'] = (int)$post['featured'];
+        $post['sort_order'] = (int)$post['sort_order'];
+        $key = (string)$post['id'];
+        $post['tags'] = $tagsByPost[$key] ?? [];
+        $post['relations'] = $relationsByPost[$key] ?? [];
+    }
+    unset($post);
+    return $posts;
+}
+
 function brvtal_public_json(mixed $data, int $status = 200): never
 {
     http_response_code($status);
@@ -230,12 +283,14 @@ try {
 
     $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
+    $blog = brvtal_public_blog($pdo);
 
     $payload = [
         'events' => $events,
         'artists' => $artists,
         'sets' => $sets,
         'releases' => $releases,
+        'blog' => $blog,
         'media' => $media,
         'pages' => $pages,
         'settings' => $settings,

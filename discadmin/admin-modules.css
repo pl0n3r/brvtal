@@ -15,7 +15,7 @@
 
 /* Canonical DISCADMIN navigation groups.
    Content stays above TECHNICAL; Theme Studio, 2FA and System Status stay below it.
-   CSS order also keeps dynamically injected RELEASES next to Events / Artists. */
+   Dynamic modules are ordered inside the content group. */
 .nav{display:flex;flex-direction:column}
 .nav>button[onclick="go('dashboard')"]{order:10}
 .nav>button[onclick="go('events')"]{order:20}
@@ -24,6 +24,7 @@
 .nav>button[onclick="go('sets')"]{order:50}
 .nav>button[onclick="go('media')"]{order:60}
 .nav>button[onclick="go('pages')"]{order:70}
+.nav>button[data-admin-nav="blog"]{order:75}
 .nav>button[onclick="go('content-core')"]{order:80}
 .nav>button[onclick="go('settings')"]{order:90}
 .nav>.navgroup{order:100}

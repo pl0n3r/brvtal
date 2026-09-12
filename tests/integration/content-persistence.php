@@ -141,6 +141,41 @@ $pdo->exec("CREATE TEMPORARY TABLE release_artists (
     sort_order INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+$pdo->exec("CREATE TEMPORARY TABLE blog_posts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(220) NOT NULL,
+    slug VARCHAR(190) NOT NULL,
+    excerpt VARCHAR(700) NULL,
+    body LONGTEXT NULL,
+    cover_image VARCHAR(500) NULL,
+    seo_title VARCHAR(190) NULL,
+    seo_description VARCHAR(320) NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    featured TINYINT NOT NULL DEFAULT 0,
+    published_at DATETIME NULL,
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE blog_tags (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(120) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE blog_post_tags (
+    post_id INT NOT NULL,
+    tag_id INT NOT NULL,
+    PRIMARY KEY(post_id,tag_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE blog_post_relations (
+    post_id INT NOT NULL,
+    related_type VARCHAR(30) NOT NULL,
+    related_id INT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    PRIMARY KEY(post_id,related_type,related_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 $mediaPath = '/uploads/media/ci/test-poster.jpg';
 $unusedPath = '/uploads/media/ci/unused.jpg';
 
@@ -192,6 +227,26 @@ brvtal_it_assert($release['catalog_number'] === 'BRVTAL-CI-001', 'release catalo
 brvtal_it_assert((int)$releaseArtist['artist_id'] === $artistId, 'release artist relation must persist');
 brvtal_it_assert($releaseArtist['role'] === 'Primary', 'release artist role must persist');
 
+$pdo->prepare('INSERT INTO blog_posts(title,slug,excerpt,body,cover_image,seo_title,seo_description,status,featured,published_at,sort_order) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    ->execute(['BRVTAL CI Story', 'brvtal-ci-story', 'Editorial excerpt', 'Long-form editorial body', $mediaPath, 'BRVTAL CI Story', 'Editorial SEO description', 'published', 1, '2026-09-11 20:30:00', 2]);
+$postId = (int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO blog_tags(name,slug) VALUES(?,?)')->execute(['Hard Techno', 'hard-techno']);
+$tagId = (int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO blog_post_tags(post_id,tag_id) VALUES(?,?)')->execute([$postId,$tagId]);
+$pdo->prepare('INSERT INTO blog_post_relations(post_id,related_type,related_id,sort_order) VALUES(?,?,?,?)')->execute([$postId,'release',$releaseId,0]);
+$pdo->prepare('INSERT INTO blog_post_relations(post_id,related_type,related_id,sort_order) VALUES(?,?,?,?)')->execute([$postId,'artist',$artistId,1]);
+$post = $pdo->query('SELECT cover_image,status,featured,seo_title FROM blog_posts WHERE id=' . $postId)->fetch();
+$postTags = $pdo->query('SELECT t.name,t.slug FROM blog_post_tags pt JOIN blog_tags t ON t.id=pt.tag_id WHERE pt.post_id=' . $postId)->fetchAll();
+$postRelations = $pdo->query('SELECT related_type,related_id,sort_order FROM blog_post_relations WHERE post_id=' . $postId . ' ORDER BY sort_order')->fetchAll();
+brvtal_it_assert($post['cover_image'] === $mediaPath, 'blog cover image must persist');
+brvtal_it_assert($post['status'] === 'published', 'blog status must persist');
+brvtal_it_assert((int)$post['featured'] === 1, 'blog featured flag must persist');
+brvtal_it_assert($post['seo_title'] === 'BRVTAL CI Story', 'blog SEO title must persist');
+brvtal_it_assert(count($postTags) === 1 && $postTags[0]['slug'] === 'hard-techno', 'blog tag relation must persist');
+brvtal_it_assert(count($postRelations) === 2, 'blog related content must persist');
+brvtal_it_assert($postRelations[0]['related_type'] === 'release' && (int)$postRelations[0]['related_id'] === $releaseId, 'blog release relation must persist');
+brvtal_it_assert($postRelations[1]['related_type'] === 'artist' && (int)$postRelations[1]['related_id'] === $artistId, 'blog artist relation must persist');
+
 $pdo->prepare('INSERT INTO sets_media(title,cover_image,status) VALUES(?,?,?)')->execute(['CI Set', $mediaPath, 'published']);
 $pdo->prepare('INSERT INTO pages(title,content_json,status) VALUES(?,?,?)')->execute(['CI Page', json_encode(['hero' => $mediaPath], JSON_UNESCAPED_SLASHES), 'published']);
 $pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?)')->execute(['theme.ci', json_encode(['image' => $mediaPath], JSON_UNESCAPED_SLASHES), 1]);
@@ -201,7 +256,7 @@ $usage = brvtal_media_usage($pdo, $media);
 $resources = array_values(array_unique(array_map(static fn(array $row): string => (string)$row['resource'], $usage)));
 sort($resources);
 
-foreach (['ARTIST', 'EVENT', 'EVENT QR', 'PAGE', 'RELEASE', 'SET', 'SETTING', 'TICKET QR'] as $expected) {
+foreach (['ARTIST', 'BLOG', 'EVENT', 'EVENT QR', 'PAGE', 'RELEASE', 'SET', 'SETTING', 'TICKET QR'] as $expected) {
     brvtal_it_assert(in_array($expected, $resources, true), "media usage must include {$expected}");
 }
 
