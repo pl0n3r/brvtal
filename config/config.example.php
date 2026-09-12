@@ -26,4 +26,9 @@ return [
         // Production currently falls back safely to the known 25 GB Hostinger plan when omitted.
         'storage_quota_bytes' => 25 * 1024 * 1024 * 1024,
     ],
+    'backups' => [
+        // Optional v1 guardrail for creating a ZIP copy of current uploads.
+        // Database SQL + media inventory remain available even when media ZIP is skipped.
+        'media_archive_max_bytes' => 2 * 1024 * 1024 * 1024,
+    ],
 ];
