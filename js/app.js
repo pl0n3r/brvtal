@@ -195,6 +195,7 @@
     const label = qs('.cursor-label');
 
     const API_CANDIDATES = [
+      '/api/public.php',
       '/api/public',
       '/api/public/',
       '/api/index.php?route=public',

@@ -52,5 +52,6 @@ archive_expect(str_contains($index, 'data-archive-search'), 'Archive must expose
 archive_expect(str_contains($index, 'data-archive-relation="sets"'), 'Archive must expose relationship filters');
 archive_expect(str_contains($archiveJs, 'applyArchiveFilters'), 'Archive search, year and relationship filters must share one filtering path');
 archive_expect(str_contains($archiveJs, '/events/${encodeURIComponent(slug)}'), 'Archived records must link to canonical public event pages');
+archive_expect(str_contains($archiveJs, "['/api/public.php', '/api/public'"), 'Archive loader must prefer the production public PHP endpoint');
 
 echo "BRVTAL Public Archive contract tests passed.\n";
