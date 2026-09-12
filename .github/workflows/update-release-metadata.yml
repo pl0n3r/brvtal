@@ -81,6 +81,9 @@ jobs:
       - name: Run Admin Activity contract tests
         run: php tests/admin-activity-contract.php
 
+      - name: Run Backups contract tests
+        run: php tests/backups-contract.php
+
       - name: Validate Blog migration is idempotent
         run: |
           mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
@@ -155,6 +158,16 @@ jobs:
           BRVTAL_TEST_DB_USER: root
           BRVTAL_TEST_DB_PASS: brvtal_root
         run: php tests/integration/admin-activity.php
+
+      - name: Run Backups MariaDB integration
+        env:
+          BRVTAL_INTEGRATION_TESTS: '1'
+          BRVTAL_TEST_DB_HOST: 127.0.0.1
+          BRVTAL_TEST_DB_PORT: '3306'
+          BRVTAL_TEST_DB_NAME: brvtal_test_ci
+          BRVTAL_TEST_DB_USER: root
+          BRVTAL_TEST_DB_PASS: brvtal_root
+        run: php tests/integration/backups.php
 
       - name: Validate SEO migration is idempotent
         run: |

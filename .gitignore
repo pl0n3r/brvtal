@@ -31,6 +31,10 @@
 /storage/tmp/
 /storage/sessions/
 
+# Generated backup artifacts stay private/runtime-only.
+/storage/backups/*
+!/storage/backups/.htaccess
+
 # =========================================================
 # USER UPLOADS
 # =========================================================
