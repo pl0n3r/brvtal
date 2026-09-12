@@ -2,7 +2,7 @@ window.BRVTALContentCore = {mount(root) {
 
 const API=['/api/index.php','/api/public'];let events=[],artists=[],currentEvent=null,currentStep=1,csrf='';
 const $=s=>root.querySelector(s), $$=s=>[...root.querySelectorAll(s)];
-async function api(path,opts={}){let last;for(const base of API){try{const r=await fetch(base+path,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});const j=await r.json();if(r.status===401){location.href='/discadmin/';return j}if(r.ok||j)return j;}catch(e){last=e}}throw last||new Error('API unavailable')}
+async function api(path,opts={}){let last;for(const base of API){try{const {headers:optHeaders,...rest}=opts;const r=await fetch(base+path,{credentials:'same-origin',...rest,headers:{'Content-Type':'application/json',...(optHeaders||{})}});const j=await r.json();if(r.status===401){location.href='/discadmin/';return j}if(r.ok||j)return j;}catch(e){last=e}}throw last||new Error('API unavailable')}
 function msg(text,ok=true,target='cc-notice'){const n=$('#'+target);n.textContent=text;n.className='notice show '+(ok?'ok':'err');setTimeout(()=>n.classList.remove('show'),5000)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 async function initAuth(){const j=await api('/auth');if(!j.authenticated){location.href='/discadmin/';return}csrf=j.csrf||'';if(!csrf)throw new Error('CSRF token unavailable')}

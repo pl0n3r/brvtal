@@ -46,7 +46,12 @@ async function installHarness(page, eventPosts) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok:true, data:[] }) });
     }
     if (path.endsWith('/events') && method === 'POST') {
-      eventPosts.push(JSON.parse(route.request().postData() || '{}'));
+      const headers = route.request().headers();
+      eventPosts.push({
+        body: JSON.parse(route.request().postData() || '{}'),
+        contentType: headers['content-type'] || '',
+        csrf: headers['x-csrf-token'] || '',
+      });
       return route.fulfill({ status:201, contentType:'application/json', body: JSON.stringify({ ok:true, id:101 }) });
     }
 
@@ -57,7 +62,7 @@ async function installHarness(page, eventPosts) {
   await page.waitForFunction(() => typeof window.BRVTALContentCore?.saveEvent === 'function');
 }
 
-test('Content Core saves an incomplete event while it remains draft', async ({ page }) => {
+test('Content Core saves an incomplete event while it remains draft with JSON and CSRF headers', async ({ page }) => {
   const posts = [];
   await installHarness(page, posts);
 
@@ -66,10 +71,12 @@ test('Content Core saves an incomplete event while it remains draft', async ({ p
   await page.evaluate(() => window.BRVTALContentCore.saveEvent());
 
   await expect.poll(() => posts.length).toBe(1);
-  expect(posts[0].title).toBe('QA CONTENT CORE - DELETE ME');
-  expect(posts[0].status).toBe('draft');
-  expect(posts[0].event_date).toBeNull();
-  expect(posts[0].city).toBe('');
+  expect(posts[0].body.title).toBe('QA CONTENT CORE - DELETE ME');
+  expect(posts[0].body.status).toBe('draft');
+  expect(posts[0].body.event_date).toBeNull();
+  expect(posts[0].body.city).toBe('');
+  expect(posts[0].contentType).toContain('application/json');
+  expect(posts[0].csrf).toBe('csrf-test');
   await expect(page.locator('#cc-notice')).toContainText('Event saved.');
 });
 
