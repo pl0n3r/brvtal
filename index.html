@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/archive.css">
+  <link rel="stylesheet" href="css/public-media.css">
 </head>
 <body data-scene="CORE">
   <div id="loader" class="loader" aria-hidden="true">
@@ -184,6 +185,11 @@
 
     <section class="media scene" data-dynamic="media" id="media" data-scene="ARCHIVE" data-index="07">
       <div class="media-title"><span class="mono">VISUAL ARCHIVE / 06</span><h2>MEMORIES</h2></div>
+      <div class="public-media-tools" aria-label="Search and filter media">
+        <label><span class="mono">SEARCH MEDIA</span><input type="search" data-public-media-search placeholder="TITLE OR DESCRIPTION" autocomplete="off"></label>
+        <div class="public-media-types" aria-label="Filter media by type"><button type="button" class="active" data-public-media-type="all">ALL</button><button type="button" data-public-media-type="image">IMAGES</button><button type="button" data-public-media-type="video">VIDEO</button><button type="button" data-public-media-type="audio">AUDIO</button></div>
+      </div>
+      <div class="public-media-count mono" data-public-media-count aria-live="polite"></div>
       <div class="media-grid">
         <figure class="m m1"><img src="assets/flyers/16F766DE-0FEE-4D73-B62D-B005EA36903E_1_105_c.jpeg" alt="BRVTAL media"></figure>
         <figure class="m m2"><img src="assets/flyers/A91125F9-BFFC-4ECC-A2C7-8FA94026235F_1_105_c.jpeg" alt="BRVTAL media"></figure>
@@ -209,5 +215,6 @@
   <script src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js"></script>
   <script src="js/app.js"></script>
   <script src="js/archive.js"></script>
+  <script src="js/public-media.js"></script>
 </body>
 </html>

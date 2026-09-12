@@ -189,6 +189,8 @@ Historical Events remain discoverable rather than disappearing when their active
 
 Archive Discovery v2 adds combined year, text and relationship filters plus canonical links from historical records to their public Event pages.
 
+Public Media Discovery v2 exposes the complete published media collection with text/type filters, native audio/video controls and an accessible image viewer.
+
 ### Search + Bulk Actions
 
 Global Search covers editorial modules through `⌘K / Ctrl+K`.
