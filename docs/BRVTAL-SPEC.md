@@ -354,7 +354,9 @@ Multiple administrators are allowed. For now they may share the same permissions
 
 Admin Activity / History v1 is implemented as an append-only audit foundation. Important editorial/admin mutations record actor, action, resource, changed fields and safe before/after snapshots while filtering secret/security values.
 
-The audit UI is read-only. Do **not** add automatic restore/revert from activity history yet; future version-history UX must introduce separate safeguards.
+Editorial Version History v1 groups those snapshots by content item in a chronological timeline and renders readable field-level before/after differences inside the existing Dashboard activity panel.
+
+The audit and version-history UI is read-only. Do **not** add automatic restore/revert from activity history yet; future restore UX must introduce separate safeguards.
 
 ## 28. Dashboard and System Status
 
@@ -673,8 +675,8 @@ Content Core production smoke testing has exposed several UX/persistence/route i
 
 1. **Backups Foundation v1 — implemented** — safe manual DB/private-file backup, manifests/history/download, no restore.
 2. **Media Engine v2 UX — implemented** — focal point/crop previews, context-aware variants and clearer quality guidance on top of the existing variant engine.
-3. **Editorial Version History v1 — active next priority** — useful per-content history/diffs derived from the audit foundation, read-only initially.
-4. **Public discovery/polish** — stronger Archive/Media discovery, relationships, responsive/performance refinement and richer public entity experience.
+3. **Editorial Version History v1 — implemented** — per-content timelines and readable field-level before/after diffs derived from the audit foundation, read-only initially.
+4. **Public discovery/polish — active next priority** — stronger Archive/Media discovery, relationships, responsive/performance refinement and richer public entity experience.
 5. **Analytics/privacy foundation** — Google Analytics where appropriate, minimal consent/cookie behavior and useful reporting without creating a custom analytics product prematurely.
 
 ### Explicitly deferred

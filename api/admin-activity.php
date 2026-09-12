@@ -79,15 +79,21 @@ try {
         $params[] = $adminId;
     }
 
-    $limit = max(1, min(100, (int)($_GET['limit'] ?? 20)));
+    $history = (string)($_GET['history'] ?? '') === '1';
+    if ($history && ($resource === '' || $resourceId < 1)) {
+        brvtal_activity_json(['ok'=>false,'error'=>'HISTORY_RESOURCE_REQUIRED'], 422);
+    }
+
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? ($history ? 50 : 20))));
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
 
     $count = $pdo->prepare('SELECT COUNT(*) FROM admin_activity_log' . $whereSql);
     $count->execute($params);
     $total = (int)$count->fetchColumn();
 
+    $snapshotColumns = $history ? ',before_json,after_json' : '';
     $st = $pdo->prepare(
-        'SELECT id,admin_id,admin_name,admin_email,action,resource,resource_id,resource_label,changed_fields,request_id,created_at
+        'SELECT id,admin_id,admin_name,admin_email,action,resource,resource_id,resource_label,changed_fields,request_id,created_at' . $snapshotColumns . '
          FROM admin_activity_log' . $whereSql . ' ORDER BY id DESC LIMIT ' . $limit
     );
     $st->execute($params);
@@ -97,6 +103,11 @@ try {
         $row['admin_id'] = $row['admin_id'] !== null ? (int)$row['admin_id'] : null;
         $row['resource_id'] = $row['resource_id'] !== null ? (int)$row['resource_id'] : null;
         $row['changed_fields'] = brvtal_activity_decode($row['changed_fields']) ?? [];
+        if ($history) {
+            $row['before'] = brvtal_activity_decode($row['before_json']);
+            $row['after'] = brvtal_activity_decode($row['after_json']);
+            unset($row['before_json'], $row['after_json']);
+        }
     }
     unset($row);
 
@@ -107,6 +118,7 @@ try {
             'total'=>$total,
             'limit'=>$limit,
             'read_only'=>true,
+            'mode'=>$history ? 'content_history' : 'activity',
         ],
     ]);
 } catch (Throwable $e) {
