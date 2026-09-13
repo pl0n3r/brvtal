@@ -183,6 +183,31 @@ test('Content Core catches an unnamed ticket before creating its event', async (
   expect(ticketPosts).toHaveLength(1);
 });
 
+test('Content Core checks ticket price and purchase URL before creating its event', async ({ page }) => {
+  const eventPosts = [], ticketPosts = [];
+  await installHarness(page, eventPosts, {ticketPosts});
+  await page.fill('#e_title', 'NEW TICKETED NIGHT');
+  await page.evaluate(() => window.BRVTALContentCore.addTicket({name:'GENERAL'}));
+  await page.locator('#tickets [data-k="price"]').fill('-1');
+
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(false);
+  expect(eventPosts).toHaveLength(0);
+  await expect(page.locator('#eventNotice')).toContainText('Ticket 1 needs a valid non-negative price.');
+  await expect(page.locator('#tickets [data-k="price"]')).toBeFocused();
+
+  await page.locator('#tickets [data-k="price"]').fill('25');
+  await page.locator('#tickets [data-k="external_url"]').fill('javascript:alert(1)');
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(false);
+  expect(eventPosts).toHaveLength(0);
+  await expect(page.locator('#eventNotice')).toContainText('Ticket 1 needs a valid http(s) purchase URL.');
+  await expect(page.locator('#tickets [data-k="external_url"]')).toBeFocused();
+
+  await page.locator('#tickets [data-k="external_url"]').fill('https://tickets.example/general');
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(true);
+  expect(eventPosts).toHaveLength(1);
+  expect(ticketPosts).toHaveLength(1);
+});
+
 test('Content Core refuses an existing-event save while ticket types are unavailable', async ({ page }) => {
   const eventPuts = [];
   await installHarness(page, [], {
