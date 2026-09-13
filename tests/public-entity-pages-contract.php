@@ -21,6 +21,9 @@ foreach (['event_artists','event_ticket_types','release_artists','blog_post_rela
     public_pages_expect(str_contains($pages, $relation), "public pages must use {$relation} relationships");
 }
 public_pages_expect(substr_count($pages, "status='published'") >= 5, 'related content must remain limited to published records');
+public_pages_expect(!str_contains($pages, "status<>'draft'"), 'set pages must not reveal events outside the canonical public status list');
+public_pages_expect(str_contains($pages, "AND status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"), 'set event relationships must match public event routes');
+public_pages_expect(!str_contains($pages, "($href ?: '#')"), 'cards without a destination must not be dead links');
 public_pages_expect(str_contains($pages, 'htmlspecialchars'), 'editorial content must be escaped before HTML rendering');
 public_pages_expect(str_contains($pages, "rel=\"noopener noreferrer\""), 'external calls to action must isolate their browsing context');
 public_pages_expect(str_contains($css, '@media(max-width:620px)'), 'entity pages must include a mobile layout');
