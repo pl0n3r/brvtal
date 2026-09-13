@@ -3,6 +3,7 @@
 
   const state = {items:[],type:'all',query:'',lastFocus:null,viewerItems:[],viewerIndex:0};
   const qs = (selector, root=document) => root.querySelector(selector);
+  const searchText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const fileUrl = value => {
     const raw = String(value || '').trim();
@@ -78,7 +79,7 @@
       : type === 'video'
         ? `<video src="${esc(url)}" controls preload="metadata" aria-label="${esc(title)}"></video>`
         : `<div class="public-media-audio"><span class="mono">AUDIO SIGNAL</span><audio src="${esc(url)}" controls preload="none" aria-label="${esc(title)}"></audio></div>`;
-    return `<figure class="public-media-item" data-public-media-item data-public-media-type-value="${type}" data-public-media-search-value="${esc(`${title} ${item.alt_text || ''}`.toLowerCase())}">${visual}<figcaption><strong>${esc(title)}</strong><span class="mono">${esc(type.toUpperCase())}</span></figcaption></figure>`;
+    return `<figure class="public-media-item" data-public-media-item data-public-media-type-value="${type}" data-public-media-search-value="${esc(searchText(`${title} ${item.alt_text || ''}`))}">${visual}<figcaption><strong>${esc(title)}</strong><span class="mono">${esc(type.toUpperCase())}</span></figcaption></figure>`;
   }
 
   function applyFilters() {
@@ -103,7 +104,7 @@
     const search = qs('[data-public-media-search]');
     if (search && !search.dataset.bound) {
       search.dataset.bound = '1';
-      search.addEventListener('input', () => { state.query = search.value.trim().toLowerCase(); applyFilters(); });
+      search.addEventListener('input', () => { state.query = searchText(search.value.trim()); applyFilters(); });
     }
   }
 

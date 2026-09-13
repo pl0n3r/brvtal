@@ -4,6 +4,7 @@
   const API_CANDIDATES = ['/api/public.php', '/api/public', '/api/public/'];
   const state = { data:null, observer:null, timer:null, archiveYear:'all', archiveRelation:'all', archiveQuery:'' };
   const qs = (selector, root=document) => root.querySelector(selector);
+  const searchText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const cleanUrl = value => {
@@ -93,7 +94,7 @@
     const status = String(event.status || 'archive').toUpperCase().replaceAll('_',' ');
     const slug = String(event.slug || '').trim();
     const href = slug ? `/events/${encodeURIComponent(slug)}` : '';
-    const search = [title,city,venue,...names].join(' ').toLowerCase();
+    const search = searchText([title,city,venue,...names].join(' '));
 
     return `<article class="archive-event" data-archive-event data-archive-year="${year||''}" data-archive-artists="${lineup.length?'1':'0'}" data-archive-sets="${sets.length?'1':'0'}" data-archive-search-value="${esc(search)}" data-archive-id="${Number(event.id)||0}">
       <div class="archive-event-image">${image?`<img src="${esc(image)}" alt="${esc(title)}" loading="lazy">`:'<div class="archive-event-placeholder mono">BRVTAL / ARCHIVE</div>'}</div>
@@ -171,7 +172,7 @@
     }));
     const search = qs('[data-archive-search]', root);
     if (search) search.addEventListener('input', () => {
-      state.archiveQuery = search.value.trim().toLowerCase();
+      state.archiveQuery = searchText(search.value.trim());
       applyArchiveFilters();
     });
     const reset = qs('[data-archive-reset]', root);
