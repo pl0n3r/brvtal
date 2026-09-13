@@ -38,10 +38,14 @@
     const button = saveButton();
     if (!button || saving) return;
     const value = String(statusSelect()?.value || '').toLowerCase();
-    if (value === 'published') button.textContent = 'SAVE & PUBLISH';
-    else if (value === 'draft') button.textContent = 'SAVE DRAFT';
-    else if (value === 'archived') button.textContent = 'SAVE ARCHIVED';
-    else button.textContent = 'SAVE CHANGES';
+    const next = value === 'published'
+      ? 'SAVE & PUBLISH'
+      : value === 'draft'
+        ? 'SAVE DRAFT'
+        : value === 'archived'
+          ? 'SAVE ARCHIVED'
+          : 'SAVE CHANGES';
+    if (button.textContent !== next) button.textContent = next;
   }
 
   function syncPublicationHint() {
@@ -60,11 +64,16 @@
       hint.setAttribute('role', 'status');
       status.closest('.field')?.appendChild(hint);
     }
-    const [label, copy] = publicationCopy(status.value);
-    hint.dataset.state = String(status.value || '').toLowerCase();
-    hint.innerHTML = '<strong></strong><span></span>';
-    hint.querySelector('strong').textContent = label;
-    hint.querySelector('span').textContent = copy;
+    const state = String(status.value || '').toLowerCase();
+    const [label, copy] = publicationCopy(state);
+    if (hint.dataset.state !== state) {
+      hint.dataset.state = state;
+      hint.innerHTML = '<strong></strong><span></span>';
+    }
+    const strong = hint.querySelector('strong');
+    const span = hint.querySelector('span');
+    if (strong && strong.textContent !== label) strong.textContent = label;
+    if (span && span.textContent !== copy) span.textContent = copy;
     syncSaveLabel();
   }
 
@@ -151,7 +160,7 @@
       .filter(el => el.offsetParent !== null);
   }
 
-  function enhance() {
+  function enhance(options = {}) {
     if (!isOpen()) return;
     const box = modal.querySelector('.modalbox');
     const title = document.getElementById('mtitle');
@@ -174,10 +183,12 @@
     markRequiredFields();
     syncPublicationHint();
 
-    requestAnimationFrame(() => {
-      const target = invalidControl() || modal.querySelector('input,textarea,select,button');
-      target?.focus({ preventScroll: true });
-    });
+    if (options.focus !== false) {
+      requestAnimationFrame(() => {
+        const target = invalidControl() || modal.querySelector('input,textarea,select,button');
+        target?.focus({ preventScroll: true });
+      });
+    }
   }
 
   function handleOpenState() {
@@ -192,8 +203,6 @@
       clearValidation();
       if (opener?.isConnected) opener.focus({ preventScroll: true });
       opener = null;
-    } else if (open) {
-      enhance();
     }
     wasOpen = open;
   }
@@ -244,15 +253,13 @@
     }
   });
 
-  const observer = new MutationObserver(() => {
-    if (isOpen()) {
-      if (document.getElementById('notice')?.classList.contains('error') && saving) setSaving(false);
-      handleOpenState();
-    } else if (wasOpen) {
-      handleOpenState();
-    }
-  });
-  observer.observe(modal, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true, characterData: true });
+  new MutationObserver(handleOpenState).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  const content = document.getElementById('mcontent');
+  if (content) new MutationObserver(() => { if (isOpen()) enhance({ focus: false }); }).observe(content, { childList: true });
+  const notice = document.getElementById('notice');
+  if (notice) new MutationObserver(() => {
+    if (isOpen() && notice.classList.contains('error') && saving) setSaving(false);
+  }).observe(notice, { attributes: true, attributeFilter: ['class'] });
 
   window.BRVTALAdminFormDialogs = { enhance, validate, syncPublicationHint };
 })();
