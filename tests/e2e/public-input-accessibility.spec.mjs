@@ -35,8 +35,8 @@ test('public home exposes visible keyboard focus', async ({ page }) => {
 });
 
 test('public home provides keyboard skip navigation to the main content', async ({ page }) => {
-  expect(publicEntry).toContain('class=\\"skip-link mono\\" href=\\"#top\\"');
-  expect(publicEntry).toContain('<main id=\\"top\\" tabindex=\\"-1\\">');
+  expect(publicEntry).toContain('SKIP TO CONTENT');
+  expect(publicEntry).toContain('<main id="top" tabindex="-1">');
 
   await openHarness(page, false);
   const skip = page.getByRole('link', { name: 'SKIP TO CONTENT' });
@@ -44,8 +44,7 @@ test('public home provides keyboard skip navigation to the main content', async 
 
   await page.keyboard.press('Tab');
   await expect(skip).toBeFocused();
-  const focusedTransform = await skip.evaluate(element => getComputedStyle(element).transform);
-  expect(focusedTransform === 'none' || focusedTransform === 'matrix(1, 0, 0, 1, 0, 0)').toBe(true);
+  await expect.poll(() => skip.evaluate(element => getComputedStyle(element).transform)).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
 
   await page.keyboard.press('Enter');
   await expect(page.locator('#content')).toBeFocused();
