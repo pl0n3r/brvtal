@@ -12,6 +12,7 @@ $suffix = $assetVersion !== '' ? '?v=' . $assetVersion : '';
 $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/backups.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/admin-shell.css' . $suffix . '">'
+    . '<link rel="stylesheet" href="/discadmin/admin-record-lists.css' . $suffix . '">'
     . '<script src="/discadmin/content-core-nav.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-health.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-editorial-defaults.js' . $suffix . '"></script>'
@@ -22,7 +23,8 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/system-status-v2.js' . $suffix . '"></script>'
     . '<script src="/discadmin/system-status-storage.js' . $suffix . '"></script>'
     . '<script src="/discadmin/backups.js' . $suffix . '"></script>'
-    . '<script src="/discadmin/admin-shell.js' . $suffix . '"></script>';
+    . '<script src="/discadmin/admin-shell.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/admin-record-lists.js' . $suffix . '"></script>';
 
 if (str_contains($html, '</body>')) {
     $html = str_replace('</body>', $enhancements . '</body>', $html);
