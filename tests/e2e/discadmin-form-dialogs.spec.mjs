@@ -10,6 +10,7 @@ async function mount(page) {
     body{background:#050505;color:#fff;font-family:Arial}.modal{display:none}.modal.open{display:block}.modalbox{background:#080909;padding:12px}.field{margin:12px}.notice{display:none}.notice.show{display:block}
   </style><style>${css}</style></head><body>
     <button id="opener" type="button" onclick="openLegacy()">NEW EVENT</button>
+    <button id="blog-opener" type="button" onclick="openBlog()">NEW BLOG POST</button>
     <div class="modal" id="modal"><div class="modalbox"><div class="modalhead"><div><h2 id="mtitle"></h2></div><button class="iconbtn" onclick="closeModal()">ESC</button></div><div id="notice" class="notice"></div><div id="mcontent"></div><div class="modalfoot"><span class="helper">Saved to database.</span><div class="footactions"><button class="btn ghost" onclick="closeModal()">CANCEL</button><button class="btn red" id="saveBtn">SAVE</button></div></div></div></div>
     <script>
       window.saved = 0;
@@ -17,6 +18,12 @@ async function mount(page) {
       window.openLegacy = function(){
         document.getElementById('mtitle').textContent = 'NEW EVENTS';
         document.getElementById('mcontent').innerHTML = '<div class="form"><div class="field"><label for="f_title">Title *</label><input id="f_title"></div><div class="field"><label for="f_status">Status</label><select id="f_status"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div><div class="field"><label>Cover image</label><input id="f_cover_image"></div></div>';
+        document.getElementById('saveBtn').onclick = function(){ window.saved += 1; };
+        document.getElementById('modal').classList.add('open');
+      };
+      window.openBlog = function(){
+        document.getElementById('mtitle').textContent = 'NEW BLOG POST';
+        document.getElementById('mcontent').innerHTML = '<div class="form"><div class="field"><label>Title *</label><input id="blog_title"></div><div class="field"><label>Status</label><select id="blog_status_field"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div></div>';
         document.getElementById('saveBtn').onclick = function(){ window.saved += 1; };
         document.getElementById('modal').classList.add('open');
       };
@@ -69,6 +76,20 @@ test('required validation blocks save, then published state is explicit and lega
 
   await page.locator('#saveBtn').click();
   expect(await page.evaluate(() => window.saved)).toBe(1);
+});
+
+test('Blog and Releases-style fields inherit the same required and publication behavior', async ({ page }) => {
+  await mount(page);
+  await page.getByRole('button', { name: 'NEW BLOG POST' }).click();
+
+  await expect(page.locator('#blog_title')).toHaveAttribute('required', '');
+  await expect(page.locator('label[for="blog_title"]')).toContainText('REQUIRED');
+  await expect(page.getByRole('button', { name: 'SAVE DRAFT' })).toBeVisible();
+
+  await page.locator('#blog_title').fill('BRVTAL NEWS');
+  await page.locator('#blog_status_field').selectOption('archived');
+  await expect(page.getByRole('button', { name: 'SAVE ARCHIVED' })).toBeVisible();
+  await expect(page.locator('.admin-publication-state')).toContainText('Historical state');
 });
 
 test('Tab stays inside the active dialog', async ({ page }) => {
