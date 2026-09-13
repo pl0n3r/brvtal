@@ -10,6 +10,11 @@ const BRVTALRelatedContent = (() => {
       return /^https?:$/i.test(url.protocol) ? url.href : '';
     } catch (_) { return ''; }
   };
+  const entityUrl = (type, slug) => {
+    const allowed = ['artists', 'events', 'sets', 'releases'];
+    const value = String(slug || '');
+    return allowed.includes(type) && /^[a-z0-9-]{1,190}$/.test(value) ? `/${type}/${encodeURIComponent(value)}` : '';
+  };
   const imgUrl = value => {
     const raw = String(value || '').trim();
     if (!raw || /^(?:https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
@@ -26,7 +31,9 @@ const BRVTALRelatedContent = (() => {
     if (document.querySelector('link[data-related-content-style]')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/css/related-content.css';
+    const archiveScript = document.querySelector('script[src*="/js/archive.js"]');
+    const version = archiveScript ? new URL(archiveScript.src).searchParams.get('v') : '';
+    link.href = `/css/related-content.css${version ? `?v=${encodeURIComponent(version)}` : ''}`;
     link.dataset.relatedContentStyle = '1';
     document.head.appendChild(link);
   }
@@ -156,14 +163,14 @@ const BRVTALRelatedContent = (() => {
     const meta = options.meta || '';
     const navigable = type === 'artist' || type === 'event';
     const selectType = type === 'artist' ? 'artists' : type === 'event' ? 'events' : '';
-    const href = options.href ? cleanUrl(options.href) : '';
-    const inner = `${image ? `<span class="related-item-image"><img src="${esc(image)}" alt="" loading="lazy"></span>` : '<span class="related-item-image related-item-placeholder"></span>'}
+    const href = entityUrl(`${type}s`, entity?.slug) || (options.href ? cleanUrl(options.href) : '');
+    const inner = `${image ? `<span class="related-item-image"><img src="${esc(image)}" alt="" loading="lazy" decoding="async"></span>` : '<span class="related-item-image related-item-placeholder"></span>'}
       <span class="related-item-copy"><strong>${esc(title || 'UNTITLED')}</strong><small class="mono">${esc(meta)}</small></span><span class="related-item-arrow">${navigable || href ? '↗' : '—'}</span>`;
 
     if (navigable) {
       return `<button type="button" class="related-item" data-related-select data-related-type="${selectType}" data-related-id="${Number(entity?.id)||0}">${inner}</button>`;
     }
-    if (href) return `<a class="related-item" href="${esc(href)}" target="_blank" rel="noopener">${inner}</a>`;
+    if (href) return `<a class="related-item" href="${esc(href)}"${href.startsWith('/') ? '' : ' target="_blank" rel="noopener"'}>${inner}</a>`;
     return `<div class="related-item">${inner}</div>`;
   }
 
@@ -182,8 +189,8 @@ const BRVTALRelatedContent = (() => {
     const releaseItems = (rel.releases || []).map(id => maps.releases.get(Number(id))).filter(Boolean);
     const photo = imgUrl(artist.photo);
     return `<div class="related-detail-hero">
-      <div class="related-detail-image">${photo ? `<img src="${esc(photo)}" alt="${esc(artist.name || 'Artist')}" loading="lazy">` : '<div class="related-detail-placeholder mono">BRVTAL / ARTIST</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">ARTIST / CONTENT PATH</div><h3>${esc(artist.name || 'UNKNOWN')}</h3><p>${esc(artist.bio || 'BRVTAL ARTIST')}</p></div>
+      <div class="related-detail-image">${photo ? `<img src="${esc(photo)}" alt="${esc(artist.name || 'Artist')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / ARTIST</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">ARTIST / CONTENT PATH</div><h3>${esc(artist.name || 'UNKNOWN')}</h3><p>${esc(artist.bio || 'BRVTAL ARTIST')}</p>${entityUrl('artists', artist.slug) ? `<a class="related-detail-link mono" href="${esc(entityUrl('artists', artist.slug))}">VIEW ARTIST ↗</a>` : ''}</div>
     </div>
     <div class="related-groups">
       ${group('EVENTS', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
@@ -198,8 +205,8 @@ const BRVTALRelatedContent = (() => {
     const image = imgUrl(event.cover_image);
     const status = String(event.status || 'published').toUpperCase().replaceAll('_', ' ');
     return `<div class="related-detail-hero">
-      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy">` : '<div class="related-detail-placeholder mono">BRVTAL / EVENT</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p></div>
+      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / EVENT</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${entityUrl('events', event.slug) ? `<a class="related-detail-link mono" href="${esc(entityUrl('events', event.slug))}">VIEW EVENT ↗</a>` : ''}</div>
     </div>
     <div class="related-groups">
       ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
@@ -219,7 +226,7 @@ const BRVTALRelatedContent = (() => {
     const rel = relation(type, id) || (type === 'artists' ? {events:[],sets:[],releases:[]} : {artists:[],sets:[]});
     detail.innerHTML = type === 'artists' ? renderArtistDetail(entity, rel, maps) : renderEventDetail(entity, rel, maps);
     renderList();
-    qs('[data-related-detail]', state.root)?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    qs('[data-related-detail]', state.root)?.scrollTo?.({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
 
   function renderSummary() {
