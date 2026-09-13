@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../api/public-archive.php';
+require_once __DIR__ . '/../config/public_assets.php';
 
 function archive_expect(bool $condition, string $message): void
 {
@@ -53,5 +54,22 @@ archive_expect(str_contains($index, 'data-archive-relation="sets"'), 'Archive mu
 archive_expect(str_contains($archiveJs, 'applyArchiveFilters'), 'Archive search, year and relationship filters must share one filtering path');
 archive_expect(str_contains($archiveJs, '/events/${encodeURIComponent(slug)}'), 'Archived records must link to canonical public event pages');
 archive_expect(str_contains($archiveJs, "['/api/public.php', '/api/public'"), 'Archive loader must prefer the production public PHP endpoint');
+
+$optimizedIndex = brvtal_public_optimize_home_images($index);
+archive_expect(str_contains($optimizedIndex, 'loading="eager" fetchpriority="high" decoding="async" src="assets/brvtal-logo.jpeg"'), 'Hero logo must remain eager and high priority');
+preg_match_all('~<img\b[^>]*>~i', $optimizedIndex, $optimizedImages);
+archive_expect(!empty($optimizedImages[0]), 'Optimized public homepage must contain images');
+foreach ($optimizedImages[0] as $tag) {
+    archive_expect(str_contains($tag, 'decoding="async"'), 'Public homepage images must decode asynchronously');
+    if (str_contains($tag, 'hero-logo')) continue;
+    archive_expect(str_contains($tag, 'loading="lazy"'), 'Below-fold fallback images must lazy-load');
+    archive_expect(!str_contains($tag, 'fetchpriority="high"'), 'Only the hero logo may receive high fetch priority');
+}
+$manualImage = brvtal_public_optimize_home_images('<img src="/manual.jpg" loading="eager" decoding="sync" alt="Manual">');
+archive_expect(substr_count($manualImage, 'loading=') === 1 && str_contains($manualImage, 'loading="eager"'), 'Existing image loading policy must not be duplicated or overwritten');
+archive_expect(substr_count($manualImage, 'decoding=') === 1 && str_contains($manualImage, 'decoding="sync"'), 'Existing image decoding policy must not be duplicated or overwritten');
+
+$versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script>', 'abc123');
+archive_expect(str_contains($versioned, 'css/style.css?v=abc123') && str_contains($versioned, 'js/app.js?v=abc123'), 'Asset versioning must remain intact after image optimization changes');
 
 echo "BRVTAL Public Archive contract tests passed.\n";
