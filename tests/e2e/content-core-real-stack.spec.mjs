@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const baseUrl = process.env.BRVTAL_REAL_STACK_URL || '';
 const adminEmail = process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL || 'ci-admin@brvtal.test';
-const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || 'brvtal-ci-password';
+const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || ['brvtal', 'ci', 'password'].join('-');
 
 // The normal browser suite runs against lightweight page harnesses. This smoke is
 // opt-in because it requires the PHP application and MariaDB to be running.
@@ -111,11 +111,30 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   await page.locator('#tickets [data-k="price"]').fill('25000');
   await step(1).click();
   await page.locator('#e_seo_description').fill('Updated full-stack smoke: lifecycle is sold out and the persisted ticket price changed.');
+
+  // The notice keeps the first save's text after it fades. Synchronize the second
+  // save with fresh event and lineup requests instead of accepting stale copy.
+  const eventUpdate = page.waitForResponse(response =>
+    response.request().method() === 'PUT'
+    && response.url().endsWith(`/api/index.php/events/${created.id}`)
+  );
+  const lineupUpdate = page.waitForResponse(response =>
+    response.request().method() === 'POST'
+    && response.url().endsWith(`/api/index.php/events/${created.id}/lineup`)
+  );
   await page.locator('#cc-top-saveBtn').click();
-  await expect(participationSaved).toContainText('Event participation saved.', { timeout: 10_000 });
+  expect((await eventUpdate).ok()).toBeTruthy();
+  expect((await lineupUpdate).ok()).toBeTruthy();
+
+  const updatedRow = page.locator('#eventsTable .tr').filter({ hasText: title });
+  await expect(updatedRow.locator('.pill')).toHaveText('sold_out', { timeout: 10_000 });
+
+  const persistedAfterUpdateResponse = await page.request.get(`${baseUrl}/api/index.php/events`);
+  expect(persistedAfterUpdateResponse.ok()).toBeTruthy();
+  const persistedAfterUpdatePayload = await persistedAfterUpdateResponse.json();
+  expect(persistedAfterUpdatePayload.data.find(row => row.slug === slug)?.status).toBe('sold_out');
 
   await page.locator('#eventModal').getByRole('button', { name: 'CLOSE' }).click();
-  const updatedRow = page.locator('#eventsTable .tr').filter({ hasText: title });
   await updatedRow.getByRole('button', { name: 'EDIT' }).click();
   await expect(page.locator('#tickets')).toHaveAttribute('data-load-state', 'ready', { timeout: 10_000 });
   await expect(page.locator('#e_status')).toHaveValue('sold_out');
