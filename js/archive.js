@@ -187,6 +187,12 @@
   }
 
   async function fetchPublicData() {
+    if (window.BRVTALPublicDataPromise) {
+      const {payload} = await window.BRVTALPublicDataPromise;
+      const data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+      if (!data || typeof data !== 'object') throw new Error('INVALID_PUBLIC_PAYLOAD');
+      return data;
+    }
     let lastError = null;
     for (const endpoint of API_CANDIDATES) {
       try {
