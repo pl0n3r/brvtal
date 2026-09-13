@@ -44,7 +44,7 @@
     const title = item.title || item.alt_text || 'BRVTAL media';
     if (!url || type === 'other') return '';
     const visual = type === 'image'
-      ? `<button type="button" class="public-media-open" data-public-media-open="${Number(item.id)||0}" aria-label="Open ${esc(title)}"><img src="${esc(url)}" alt="${esc(item.alt_text || title)}" loading="lazy"></button>`
+      ? `<button type="button" class="public-media-open" data-public-media-open="${Number(item.id)||0}" aria-label="Open ${esc(title)}"><img src="${esc(url)}" alt="${esc(item.alt_text || title)}" loading="lazy" decoding="async"></button>`
       : type === 'video'
         ? `<video src="${esc(url)}" controls preload="metadata" aria-label="${esc(title)}"></video>`
         : `<div class="public-media-audio"><span class="mono">AUDIO SIGNAL</span><audio src="${esc(url)}" controls preload="none" aria-label="${esc(title)}"></audio></div>`;
