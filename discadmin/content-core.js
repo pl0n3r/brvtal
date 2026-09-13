@@ -16,11 +16,25 @@ function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.d
 function addTicket(t={}){const d=document.createElement('div');d.className='ticket-row';if(t.id)d.dataset.id=String(t.id);d.innerHTML=`<input data-k="name" placeholder="Name" value="${esc(t.name||'')}"><input data-k="price" type="number" min="0" step="0.01" placeholder="Price" value="${esc(t.price??'')}"><select data-k="status"><option ${t.status==='draft'?'selected':''}>draft</option><option ${!t.status||t.status==='active'?'selected':''}>active</option><option ${t.status==='inactive'?'selected':''}>inactive</option><option ${t.status==='sold_out'?'selected':''}>sold_out</option></select><input data-k="external_url" placeholder="External ticket URL" value="${esc(t.external_url||'')}"><button type="button" class="icon" onclick="this.parentElement.remove()">×</button>`;$('#tickets').appendChild(d)}
 function ticketPayload(row,eventId,i){const o={event_id:eventId,sort_order:i};row.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value);return o}
 function validateEventPayload(payload){if(!payload.title)return 'Name is required.';if(payload.status!=='draft'&&(!payload.event_date||!payload.city))return 'Name, date and city are required before leaving draft.';return ''}
+function validateTicketRows(){
+  const rows=$$('#tickets .ticket-row');
+  for(let i=0;i<rows.length;i++){
+    const name=rows[i].querySelector('[data-k="name"]');
+    if(name?.value.trim())continue;
+    currentStep=4;
+    setStep();
+    msg(`Ticket ${i+1} needs a name before saving.`,false,'eventNotice');
+    name?.focus();
+    return false;
+  }
+  return true;
+}
 async function saveEvent(){
   const rawDate=$('#e_event_date').value;
   const payload={title:$('#e_title').value.trim(),slug:$('#e_slug').value.trim(),description:$('#e_description').value,cover_image:$('#e_cover_image').value,accent:$('#e_accent').value,featured:Number($('#e_featured').value),event_date:rawDate?rawDate.replace('T',' '):null,city:$('#e_city').value.trim(),venue:$('#e_venue').value.trim(),archive_year:Number($('#e_archive_year').value)||null,status:$('#e_status').value,ticket_instructions:$('#e_ticket_instructions').value,ticket_qr:$('#e_ticket_qr').value,ticket_url:$('#e_ticket_url').value};
   const validationError=validateEventPayload(payload);
   if(validationError){msg(validationError,false,'eventNotice');return false}
+  if(!validateTicketRows())return false;
   if(!csrf){msg('Security token unavailable. Reload the page.',false,'eventNotice');return false}
   let eventSaved=false;
   try{
