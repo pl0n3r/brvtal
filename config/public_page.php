@@ -84,7 +84,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['facts'] = array_filter(['PLATFORM' => strtoupper((string)($detail['platform'] ?? ''))]);
         $data['links'] = array_filter(['LISTEN' => $detail['external_url'] ?? '']);
         if (!empty($detail['artist_id'])) $data['related']['ARTIST'] = brvtal_page_rows($pdo, "SELECT name AS title,slug,photo AS image,'artists' AS route_type FROM artists WHERE id=? AND status='published'", [(int)$detail['artist_id']]);
-        if (!empty($detail['event_id'])) $data['related']['EVENT'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,'events' AS route_type FROM events WHERE id=? AND status<>'draft'", [(int)$detail['event_id']]);
+        if (!empty($detail['event_id'])) $data['related']['EVENT'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,'events' AS route_type FROM events WHERE id=? AND status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')", [(int)$detail['event_id']]);
     } elseif ($type === 'pages') {
         $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id]);
         $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
@@ -125,7 +125,8 @@ function brvtal_public_entity_page(array $page, array $seo): string
             $href = !empty($item['route_type']) && !empty($item['slug']) ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug']) : $safeUrl($item['url'] ?? '');
             $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy">' : '<span class="entity-card-mark">BRVTAL</span>';
             $price = isset($item['price']) && $item['price'] !== null ? number_format((float)$item['price'], 0) . ' ' . $escape($item['currency'] ?? '') : '';
-            $cards .= '<a class="entity-card" href="' . ($href ?: '#') . '">' . $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span></a>';
+            $content = $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span>';
+            $cards .= $href ? '<a class="entity-card" href="' . $href . '">' . $content . '</a>' : '<div class="entity-card">' . $content . '</div>';
         }
         $related .= '<section class="entity-related"><div class="entity-section-label">' . $escape($heading) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
     }
