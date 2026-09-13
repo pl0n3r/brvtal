@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:contracts": "php tests/api-contract.php && php tests/totp-enrollment-contract.php && php tests/media-library-contract.php && php tests/releases-contract.php && php tests/deployment-traceability-contract.php && php tests/public-seo-delivery-contract.php && php tests/public-entity-pages-contract.php && php tests/public-analytics-contract.php",
+    "test:contracts": "php tests/api-contract.php && php tests/totp-enrollment-contract.php && php tests/media-library-contract.php && php tests/releases-contract.php && php tests/deployment-traceability-contract.php && php tests/public-seo-delivery-contract.php && php tests/public-entity-pages-contract.php && php tests/public-analytics-contract.php && php tests/hero-slider-contract.php",
     "test:integration": "php tests/integration/content-persistence.php",
     "test:e2e": "playwright test && bash tests/e2e/run-content-core-real-stack.sh",
     "test": "npm run test:contracts && npm run test:integration && npm run test:e2e"

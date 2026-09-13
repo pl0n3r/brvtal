@@ -1,0 +1,65 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const publicScript = readFileSync(join(process.cwd(), 'js/hero-slider.js'), 'utf8');
+const publicCss = readFileSync(join(process.cwd(), 'css/hero-slider.css'), 'utf8');
+const adminScript = readFileSync(join(process.cwd(), 'discadmin/hero-slider.js'), 'utf8');
+const adminCss = readFileSync(join(process.cwd(), 'discadmin/hero-slider.css'), 'utf8');
+const publicEndpoint = readFileSync(join(process.cwd(), 'api/hero-slider.php'), 'utf8');
+
+const harness = 'http://127.0.0.1:4173/hero-slider-harness.html';
+
+async function openHarness(page, payload, status = 200) {
+  await page.route(harness, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html><head><style>${publicCss}</style></head><body><main id="top"><section class="hero"><div id="static-hero">STATIC HERO</div></section></main><script>${publicScript}</script></body></html>`
+  }));
+  await page.route('**/api/hero-slider.php', route => route.fulfill({
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(payload)
+  }));
+  await page.goto(harness);
+}
+
+test('public hero keeps the art-directed fallback when slider delivery is unavailable', async ({ page }) => {
+  await openHarness(page, { ok:false }, 500);
+  await expect(page.locator('.hero')).not.toHaveClass(/hero-slider-active/);
+  await expect(page.locator('#static-hero')).toBeVisible();
+});
+
+test('published slider uses mobile media override and touch-sized controls', async ({ page }) => {
+  await page.setViewportSize({ width:390, height:844 });
+  await openHarness(page, {
+    ok:true,
+    data:{
+      enabled:true,
+      autoplay:false,
+      interval:7000,
+      slides:[
+        {id:'one',mediaType:'image',desktopSrc:'/desktop.jpg',mobileSrc:'/mobile.jpg',poster:'',kicker:'BRVTAL',title:'MOBILE',body:'',ctaLabel:'',ctaUrl:'',contentAlign:'left',overlay:35},
+        {id:'two',mediaType:'image',desktopSrc:'/two.jpg',mobileSrc:'',poster:'',kicker:'',title:'SECOND',body:'',ctaLabel:'',ctaUrl:'',contentAlign:'center',overlay:35}
+      ]
+    }
+  });
+  await expect(page.locator('.hero')).toHaveClass(/hero-slider-active/);
+  await expect(page.locator('[data-hero-slide="0"] img')).toHaveAttribute('src','/mobile.jpg');
+  await expect(page.locator('#static-hero')).toBeHidden();
+  const dot = page.locator('[data-hero-dot="0"]');
+  const box = await dot.boundingBox();
+  expect(box?.width).toBeGreaterThanOrEqual(44);
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+});
+
+test('admin manager contract remains mobile-first and public endpoint is allowlisted', async () => {
+  expect(adminScript).toContain("const KEY = 'home.hero.slider'");
+  expect(adminScript).toContain("previewMode = 'desktop'");
+  expect(adminScript).toContain("data-preview=\"mobile\"");
+  expect(adminScript).toContain("mobileSrc");
+  expect(adminCss).toMatch(/min-height:44px/);
+  expect(adminCss).toMatch(/@media\(max-width:760px\)/);
+  expect(publicEndpoint).toContain("WHERE setting_key = ? LIMIT 1");
+  expect(publicEndpoint).toContain("['home.hero.slider']");
+  expect(publicEndpoint).not.toContain('SELECT * FROM settings');
+});
