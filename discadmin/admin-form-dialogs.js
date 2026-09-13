@@ -11,8 +11,11 @@
   const requiredByField = {
     f_title: 'Title',
     f_name: 'Name',
-    f_setting_key: 'Setting key'
+    f_setting_key: 'Setting key',
+    blog_title: 'Title',
+    release_title: 'Title'
   };
+  const statusFieldIds = ['f_status', 'blog_status_field', 'release_status_field'];
 
   function isOpen() {
     return modal.classList.contains('open');
@@ -23,7 +26,11 @@
   }
 
   function statusSelect() {
-    return document.getElementById('f_status');
+    for (const id of statusFieldIds) {
+      const field = document.getElementById(id);
+      if (field && modal.contains(field)) return field;
+    }
+    return null;
   }
 
   function publicationCopy(value) {
