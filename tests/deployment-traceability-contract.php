@@ -14,6 +14,7 @@ $endpoint = (string)file_get_contents(__DIR__ . '/../api/deployment.php');
 $health = (string)file_get_contents(__DIR__ . '/../api/health.php');
 $admin = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $adminShell = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
+$publicEntry = (string)file_get_contents(__DIR__ . '/../index.php');
 
 deployment_expect(str_contains($resolver, "getenv('BRVTAL_DEPLOY_COMMIT')"), 'resolver must support an explicit deployment SHA');
 deployment_expect(str_contains($resolver, "'/HEAD'"), 'resolver must inspect the deployed Git checkout');
@@ -24,5 +25,7 @@ deployment_expect(str_contains($admin, 'DEPLOY <?= htmlspecialchars(brvtal_deplo
 deployment_expect(str_contains($adminShell, 'brvtal_deployment_short_sha()'), 'DISCADMIN enhancement assets must be versioned by the deployed SHA');
 deployment_expect(str_contains($adminShell, "seo-editorial-defaults.js' . \$suffix"), 'SEO defaults enhancement must receive the deployment cache key');
 deployment_expect(str_contains($adminShell, "content-core-nav.js' . \$suffix"), 'Content Core direct navigation must load as a deployment-versioned enhancement');
+deployment_expect(str_contains($publicEntry, "require_once __DIR__ . '/config/deployment.php';"), 'public entrypoint must resolve the deployed commit');
+deployment_expect(str_contains($publicEntry, "'?v=' . \$assetVersion"), 'public CSS and JavaScript must receive the deployment cache key');
 
 echo "BRVTAL deployment traceability contract tests passed.\n";
