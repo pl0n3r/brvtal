@@ -125,6 +125,18 @@
     });
     const results = qs('[data-archive-results]', root);
     if (results) results.textContent = `${visible} RECORD${visible===1?'':'S'} FOUND`;
+    const empty = qs('[data-archive-empty]', root);
+    if (empty) empty.hidden = visible !== 0;
+  }
+
+  function resetArchiveFilters() {
+    state.archiveYear = 'all';
+    state.archiveRelation = 'all';
+    state.archiveQuery = '';
+    const search = qs('[data-archive-search]', qs('#eventArchive'));
+    if (search) search.value = '';
+    applyArchiveFilters();
+    search?.focus();
   }
 
   function applyYearFilter(year) {
@@ -162,6 +174,11 @@
       state.archiveQuery = search.value.trim().toLowerCase();
       applyArchiveFilters();
     });
+    const reset = qs('[data-archive-reset]', root);
+    if (reset && !reset.dataset.bound) {
+      reset.dataset.bound = '1';
+      reset.addEventListener('click', resetArchiveFilters);
+    }
     if (summary) {
       summary.textContent = `${Number(counts.events ?? events.length)} NIGHTS / ${Number(counts.sets ?? 0)} RELATED SETS / ${Number(counts.media ?? 0)} VISUAL RECORDS`;
     }
