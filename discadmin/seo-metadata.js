@@ -129,13 +129,15 @@
     const modal = document.getElementById('eventModal');
     const firstStep = modal?.querySelector('.step-content[data-content="1"]');
     if (!modal?.classList.contains('open') || !firstStep || firstStep.querySelector('[data-seo-editor="content-core"]')) return;
+    const eventId = modal.dataset.eventId || '';
     const title = document.getElementById('e_title')?.value || '';
     const slug = document.getElementById('e_slug')?.value || '';
     let record = {};
-    if (slug || title) {
+    if (eventId !== 'new' && (eventId || slug || title)) {
       const rows = await fetchList('/api/index.php/events');
-      record = rows.find(row => (slug && row.slug === slug) || (!slug && title && row.title === title)) || {};
+      record = rows.find(row => eventId ? Number(row.id) === Number(eventId) : ((slug && row.slug === slug) || (!slug && title && row.title === title))) || {};
     }
+    if (!modal.classList.contains('open') || (modal.dataset.eventId || '') !== eventId || firstStep.querySelector('[data-seo-editor="content-core"]')) return;
     const wrapper = document.createElement('div');
     wrapper.innerHTML = sectionMarkup(
       {title:'e_seo_title',description:'e_seo_description'},
