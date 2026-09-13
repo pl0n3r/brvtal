@@ -30,7 +30,7 @@ if ($entity) {
 $html = (string)file_get_contents(__DIR__ . '/index.html');
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
-$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n</head>", $html);
+$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n</head>", $html);
 $html = str_replace('<script src="js/app.js"></script>', "<script src=\"js/mobile-performance.js\"></script>\n  <script src=\"js/app.js\"></script>", $html);
 $html = str_replace('</body>', "  <script src=\"js/menu-accessibility.js\"></script>\n  <script src=\"js/input-accessibility.js\"></script>\n  <script src=\"js/mobile-events.js\"></script>\n  <script src=\"js/hero-slider.js\"></script>\n</body>", $html);
 $html = brvtal_public_optimize_font_stylesheet($html);
