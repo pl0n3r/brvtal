@@ -49,6 +49,9 @@ $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
     renderEventArtists();
   }
   openEvent=function(id=null){
+    const modal=$('#eventModal');
+    modal.querySelector('[data-seo-editor="content-core"]')?.remove();
+    modal.dataset.eventId=id?String(id):'new';
     originalOpenEvent(id);
     const request=++ticketRequest;
     ticketState=id?'loading':'ready';
@@ -66,6 +69,10 @@ $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
     }
   };
   saveEvent=async function(){
+    if(currentEvent&&window.BRVTALSEOMetadata&&!$('#eventModal [data-seo-editor="content-core"]')){
+      msg('Wait for SEO metadata to load before saving this event.',false,'eventNotice');
+      return false;
+    }
     if(ticketState!=='ready'){
       msg(ticketState==='loading'?'Wait for ticket types to load before saving.':'Reload ticket types before saving this event.',false,'eventNotice');
       return false;

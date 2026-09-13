@@ -4,9 +4,10 @@ import { join } from 'node:path';
 
 const contentCoreJs = readFileSync(join(process.cwd(), 'discadmin/content-core.js'), 'utf8');
 const contentCoreNavJs = readFileSync(join(process.cwd(), 'discadmin/content-core-nav.js'), 'utf8');
+const seoMetadataJs = readFileSync(join(process.cwd(), 'discadmin/seo-metadata.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e-content-core-drafts.html';
 
-function harnessHtml() {
+function harnessHtml(withSeo = false) {
   return `<!doctype html><html><body>
     <div id="root" data-admin-module="content-core">
       <div id="cc-notice"></div>
@@ -38,6 +39,7 @@ function harnessHtml() {
     </div>
     <script>${contentCoreJs}</script>
     <script>${contentCoreNavJs}</script>
+    ${withSeo ? `<script>${seoMetadataJs}</script>` : ''}
     <script>window.BRVTALContentCore.mount(document.getElementById('root'));</script>
   </body></html>`;
 }
@@ -45,7 +47,7 @@ function harnessHtml() {
 async function installHarness(page, eventPosts, options = {}) {
   await page.route('**/discadmin/e2e-content-core-drafts.html', route => route.fulfill({
     contentType: 'text/html',
-    body: harnessHtml()
+    body: harnessHtml(options.withSeo)
   }));
 
   await page.route('**/api/index.php/**', async route => {
@@ -94,6 +96,29 @@ async function installHarness(page, eventPosts, options = {}) {
   await page.goto(harnessUrl);
   await page.waitForFunction(() => typeof window.BRVTALContentCore?.saveEvent === 'function');
 }
+
+test('Content Core reloads SEO metadata when switching between existing events', async ({ page }) => {
+  const eventPuts = [];
+  await installHarness(page, [], {
+    withSeo:true,eventPuts,
+    events:[
+      {id:42,title:'FIRST EVENT',slug:'first-event',status:'draft',seo_title:'FIRST SEO',seo_description:'First search description'},
+      {id:43,title:'SECOND EVENT',slug:'second-event',status:'draft',seo_title:'SECOND SEO',seo_description:'Second search description'},
+    ],
+  });
+  await page.evaluate(() => window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#e_seo_title')).toHaveValue('FIRST SEO');
+  const immediateSave = await page.evaluate(async () => {
+    window.BRVTALContentCore.closeEvent();
+    window.BRVTALContentCore.openEvent(43);
+    return window.BRVTALContentCore.saveEvent();
+  });
+  expect(immediateSave).toBe(false);
+  expect(eventPuts).toHaveLength(0);
+  await expect(page.locator('#e_seo_title')).toHaveValue('SECOND SEO');
+  await expect(page.locator('#e_seo_description')).toHaveValue('Second search description');
+  await expect(page.locator('[data-seo-editor="content-core"]')).toHaveCount(1);
+});
 
 test('Content Core loads existing ticket types before editing and updates their IDs', async ({ page }) => {
   const eventPuts = [], ticketPuts = [];
