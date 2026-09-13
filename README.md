@@ -486,6 +486,8 @@ Admin Activity now includes per-content timelines and readable field-level befor
 
 Prefer Google Analytics where appropriate and minimal privacy/cookie handling that matches the features actually deployed. Do not build a large custom analytics product prematurely.
 
+The public site loads Google Analytics only when the active Theme Studio theme contains a valid GA4 measurement ID and the visitor accepts optional analytics. A persistent preference control allows rejection or later changes. No Google tag is loaded before consent. GTM, Meta Pixel and arbitrary tracking snippets saved in legacy theme fields are not executed by this foundation. Without a configured GA4 ID, no analytics preference UI appears and no analytics is sent. Reports remain in Google Analytics; the existing `analytics_events` table is not populated by this feature.
+
 ### Known stabilization debt
 
 Content Core still has known production-smoke issues. Blocking defects should be fixed in focused PRs, but they no longer freeze all roadmap progress.

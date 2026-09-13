@@ -96,7 +96,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     return $data;
 }
 
-function brvtal_public_entity_page(array $page, array $seo): string
+function brvtal_public_entity_page(array $page, array $seo, string $analytics = ''): string
 {
     $entity = $page['entity'];
     $escape = static fn(mixed $value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -166,6 +166,7 @@ function brvtal_public_entity_page(array $page, array $seo): string
     {$related}
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
+  {$analytics}
 </body>
 </html>
 HTML;

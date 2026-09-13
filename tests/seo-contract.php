@@ -55,3 +55,4 @@ require __DIR__ . '/seo-defaults-contract.php';
 require __DIR__ . '/deployment-traceability-contract.php';
 require __DIR__ . '/public-seo-delivery-contract.php';
 require __DIR__ . '/public-entity-pages-contract.php';
+require __DIR__ . '/public-analytics-contract.php';
