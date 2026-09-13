@@ -87,7 +87,7 @@
     const year = Number(event.archive_year) || (event.event_date ? new Date(String(event.event_date).replace(' ','T')).getFullYear() : 0);
     const lineup = Array.isArray(event.lineup) ? event.lineup : [];
     const sets = Array.isArray(event.related_sets) ? event.related_sets : [];
-    const names = lineup.map(item => item.name).filter(Boolean).slice(0,4);
+    const names = lineup.map(item => item.name).filter(Boolean);
     const relationParts = [];
     if (lineup.length) relationParts.push(`${lineup.length} ARTIST${lineup.length===1?'':'S'}`);
     if (sets.length) relationParts.push(`${sets.length} SET${sets.length===1?'':'S'}`);
@@ -101,7 +101,7 @@
       <div class="archive-event-copy">
         <div class="archive-event-meta mono"><span>${esc([date,city].filter(Boolean).join(' / '))}</span><span>${esc(status)}</span></div>
         <h3>${esc(title)}</h3>
-        <p>${esc([venue,names.join(' / ')].filter(Boolean).join(' — '))}</p>
+        <p>${esc([venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — '))}</p>
         <div class="archive-event-relations mono">${esc(relationParts.join(' / ') || 'HISTORICAL RECORD')}</div>
         ${href?`<a class="archive-event-link mono" href="${esc(href)}" aria-label="View ${esc(title)}">OPEN RECORD ↗</a>`:''}
       </div>
