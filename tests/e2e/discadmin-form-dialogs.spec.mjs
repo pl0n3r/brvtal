@@ -86,7 +86,7 @@ test('required validation blocks save, then published state is explicit and lega
   await expect(page.locator('#saveBtn')).toHaveText('SAVING…');
   await expect(page.locator('#saveBtn')).toHaveAttribute('aria-busy', 'true');
 
-  await page.locator('#saveBtn').click();
+  await page.evaluate(() => document.getElementById('saveBtn').click());
   expect(await page.evaluate(() => window.saved)).toBe(1);
 });
 
