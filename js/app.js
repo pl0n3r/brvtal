@@ -476,8 +476,10 @@
     };
 
     const init = async () => {
+      const request = window.BRVTALPublicDataPromise || firstWorkingPayload();
+      window.BRVTALPublicDataPromise = request;
       try {
-        const {payload, url} = await firstWorkingPayload();
+        const {payload, url} = await request;
         const data = normalize(payload);
         applyPublicSettings(data.settings);
         let changed = 0;
@@ -491,6 +493,7 @@
         document.documentElement.dataset.api = 'online';
         return {ok:true, changed};
       } catch (err) {
+        if (window.BRVTALPublicDataPromise === request) window.BRVTALPublicDataPromise = null;
         updateStatus(false, err?.message || 'API unavailable');
         document.documentElement.dataset.api = 'offline';
         return {ok:false, changed:0};
