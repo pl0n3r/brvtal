@@ -20,7 +20,7 @@ test('appearance selector exposes dark light and glass directly above logout', a
   await openHarness(page);
   const selector = page.locator('.discadmin-appearance');
   await expect(selector).toBeVisible();
-  await expect(selector.locator('[data-discadmin-appearance]')).toHaveCount(3);
+  await expect(selector.locator('button[data-discadmin-appearance]')).toHaveCount(3);
   await expect(page.locator('.sidefoot').locator('.discadmin-appearance')).toBeVisible();
   const selectorBox = await selector.boundingBox();
   const logoutBox = await page.locator('#logout').boundingBox();
@@ -29,20 +29,20 @@ test('appearance selector exposes dark light and glass directly above logout', a
 
 test('appearance changes instantly and persists in localStorage', async ({ page }) => {
   await openHarness(page);
-  await page.locator('[data-discadmin-appearance="light"]').click();
+  await page.locator('button[data-discadmin-appearance="light"]').click();
   await expect(page.locator('html')).toHaveAttribute('data-discadmin-appearance','light');
   expect(await page.evaluate(() => localStorage.getItem('brvtal.discadmin.appearance'))).toBe('light');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-discadmin-appearance','light');
-  await expect(page.locator('[data-discadmin-appearance="light"]')).toHaveAttribute('aria-checked','true');
-  await page.locator('[data-discadmin-appearance="glass"]').click();
+  await expect(page.locator('button[data-discadmin-appearance="light"]')).toHaveAttribute('aria-checked','true');
+  await page.locator('button[data-discadmin-appearance="glass"]').click();
   await expect(page.locator('html')).toHaveAttribute('data-discadmin-appearance','glass');
 });
 
 test('mobile selector keeps touch targets and supports keyboard radio navigation', async ({ page }) => {
   await page.setViewportSize({width:390,height:844});
   await openHarness(page);
-  const dark = page.locator('[data-discadmin-appearance="dark"]');
+  const dark = page.locator('button[data-discadmin-appearance="dark"]');
   const box = await dark.boundingBox();
   expect(box?.height).toBeGreaterThanOrEqual(44);
   await dark.focus();
