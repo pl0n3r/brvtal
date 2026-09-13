@@ -12,6 +12,18 @@ function brvtal_public_version_assets(string $html, string $version): string
     ) ?? $html;
 }
 
+function brvtal_public_optimize_font_stylesheet(string $html): string
+{
+    $href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap';
+    $blocking = '<link href="' . $href . '" rel="stylesheet">';
+    if (!str_contains($html, $blocking)) return $html;
+
+    $preload = '<link rel="preload" href="' . $href . '" as="style" onload="this.onload=null;this.rel=\'stylesheet\'">';
+    $fallback = '<noscript><link href="' . $href . '" rel="stylesheet"></noscript>';
+
+    return str_replace($blocking, $preload . "\n  " . $fallback, $html);
+}
+
 function brvtal_public_optimize_home_images(string $html): string
 {
     return preg_replace_callback(
