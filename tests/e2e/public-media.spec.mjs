@@ -17,11 +17,12 @@ test('public media supports type/search discovery and an accessible image viewer
     {id:1,type:'image',title:'Warehouse Memory',alt_text:'Crowd in Pereira',file_path:'/warehouse.jpg'},
     {id:2,type:'audio',title:'Closing Signal',file_path:'/closing.mp3'},
     {id:3,type:'video',title:'Red Strobe',file_path:'/strobe.mp4'},
+    {id:4,type:'image',title:'Afterhours',file_path:'/afterhours.jpg'},
   ]));
 
-  await expect(page.locator('[data-public-media-item]')).toHaveCount(3);
+  await expect(page.locator('[data-public-media-item]')).toHaveCount(4);
   await expect(page.locator('[data-public-media-item] img')).toHaveAttribute('decoding', 'async');
-  await expect(page.locator('[data-public-media-count]')).toHaveText('3 MEMORIES FOUND');
+  await expect(page.locator('[data-public-media-count]')).toHaveText('4 MEMORIES FOUND');
   await page.getByRole('button', {name:'AUDIO'}).click();
   await expect(page.locator('[data-public-media-type-value="audio"]')).toBeVisible();
   await expect(page.locator('[data-public-media-type-value="image"]')).toBeHidden();
@@ -33,7 +34,22 @@ test('public media supports type/search discovery and an accessible image viewer
   await page.getByRole('button', {name:'Open Warehouse Memory'}).click();
   await expect(page.getByRole('dialog', {name:'Warehouse Memory'})).toBeVisible();
   await expect(page.getByRole('dialog').locator('img')).toHaveAttribute('alt', 'Crowd in Pereira');
+  await expect(page.getByRole('button', {name:'Next image'})).toBeHidden();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', {name:'Open Warehouse Memory'})).toBeFocused();
+
+  await page.locator('[data-public-media-search]').fill('');
+  await page.getByRole('button', {name:'Open Warehouse Memory'}).click();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('dialog', {name:'Afterhours'})).toBeVisible();
+  await page.getByRole('button', {name:'Previous image'}).click();
+  await expect(page.getByRole('dialog', {name:'Warehouse Memory'})).toBeVisible();
+  await page.getByRole('button', {name:'CLOSE ×'}).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', {name:'Next image'})).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', {name:'CLOSE ×'})).toBeFocused();
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', {name:'Open Warehouse Memory'})).toBeFocused();
 });
