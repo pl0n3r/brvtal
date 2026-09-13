@@ -24,24 +24,29 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
 
   const title = 'CI REAL STACK NIGHT';
   const slug = 'ci-real-stack-night';
+  const step = number => page.locator(`#eventModal [data-step="${number}"]`);
 
   await core.getByRole('button', { name: '+ NEW EVENT' }).click();
   await expect(page.locator('#eventModal')).toHaveClass(/open/);
   await page.locator('#e_title').fill(title);
   await page.locator('#e_slug').fill(slug);
   await page.locator('#e_description').fill('Full-stack Content Core persistence smoke.');
-  await page.locator('#e_event_date').fill('2026-10-31T21:00');
-  await page.locator('#e_city').fill('Pereira');
-  await page.locator('#e_venue').fill('CI Warehouse');
-  await page.locator('#e_status').selectOption('tickets_available');
-  await page.locator('#e_ticket_instructions').fill('External checkout only.');
-  await page.locator('#e_ticket_url').fill('https://tickets.example/ci-real-stack-night');
 
   await expect(page.locator('#e_seo_title')).toBeVisible({ timeout: 5_000 });
   await page.locator('#e_seo_title').fill('CI Real Stack Night | BRVTAL');
   await page.locator('#e_seo_description').fill('Real MariaDB and PHP persistence smoke for the BRVTAL Content Core event editor.');
 
-  await page.locator('#eventModal [data-step="4"]').click();
+  await step(2).click();
+  await page.locator('#e_event_date').fill('2026-10-31T21:00');
+  await page.locator('#e_city').fill('Pereira');
+  await page.locator('#e_venue').fill('CI Warehouse');
+
+  await step(3).click();
+  await page.locator('#e_status').selectOption('tickets_available');
+  await page.locator('#e_ticket_instructions').fill('External checkout only.');
+  await page.locator('#e_ticket_url').fill('https://tickets.example/ci-real-stack-night');
+
+  await step(4).click();
   await page.getByRole('button', { name: '+ ADD TICKET' }).click();
   const ticket = page.locator('#tickets .ticket-row').first();
   await ticket.locator('[data-k="name"]').fill('PREVENTA');
@@ -49,7 +54,7 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   await ticket.locator('[data-k="status"]').selectOption('active');
   await ticket.locator('[data-k="external_url"]').fill('https://tickets.example/ci-preventa');
 
-  await page.locator('#eventModal [data-step="5"]').click();
+  await step(5).click();
   const artistRow = page.locator('#eventArtists .artist').filter({ hasText: 'PL0N3R SMOKE' });
   await expect(artistRow).toBeVisible();
   await artistRow.locator('[data-artist]').check();
@@ -82,7 +87,7 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   const lineupPayload = await lineupResponse.json();
   expect(lineupPayload.data.map(row => row.name)).toContain('PL0N3R SMOKE');
 
-  await page.getByRole('button', { name: 'CLOSE' }).click();
+  await page.locator('#eventModal').getByRole('button', { name: 'CLOSE' }).click();
   await expect(page.locator('#eventModal')).not.toHaveClass(/open/);
 
   const eventRow = page.locator('#eventsTable .tr').filter({ hasText: title });
@@ -93,29 +98,30 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   await expect(page.locator('#e_status')).toHaveValue('tickets_available');
   await expect(page.locator('#e_event_date')).toHaveValue('2026-10-31T21:00');
   await expect(page.locator('#tickets [data-k="name"]')).toHaveValue('PREVENTA');
-  await expect(page.locator('#tickets [data-k="price"]')).toHaveValue('20000.00');
+  expect(Number(await page.locator('#tickets [data-k="price"]').inputValue())).toBe(20000);
 
-  await page.locator('#eventModal [data-step="5"]').click();
+  await step(5).click();
   const reopenedArtist = page.locator('#eventArtists .artist').filter({ hasText: 'PL0N3R SMOKE' });
   await expect(reopenedArtist.locator('[data-artist]')).toBeChecked({ timeout: 5_000 });
 
   // Exercise the update path after hydration from the database.
+  await step(3).click();
   await page.locator('#e_status').selectOption('sold_out');
-  await page.locator('#eventModal [data-step="4"]').click();
+  await step(4).click();
   await page.locator('#tickets [data-k="price"]').fill('25000');
-  await page.locator('#eventModal [data-step="1"]').click();
+  await step(1).click();
   await page.locator('#e_seo_description').fill('Updated full-stack smoke: lifecycle is sold out and the persisted ticket price changed.');
   await page.locator('#cc-top-saveBtn').click();
   await expect(participationSaved).toContainText('Event participation saved.', { timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'CLOSE' }).click();
+  await page.locator('#eventModal').getByRole('button', { name: 'CLOSE' }).click();
   const updatedRow = page.locator('#eventsTable .tr').filter({ hasText: title });
   await updatedRow.getByRole('button', { name: 'EDIT' }).click();
   await expect(page.locator('#tickets')).toHaveAttribute('data-load-state', 'ready', { timeout: 10_000 });
   await expect(page.locator('#e_status')).toHaveValue('sold_out');
-  await expect(page.locator('#tickets [data-k="price"]')).toHaveValue('25000.00');
+  expect(Number(await page.locator('#tickets [data-k="price"]').inputValue())).toBe(25000);
   await expect(page.locator('#e_seo_description')).toHaveValue('Updated full-stack smoke: lifecycle is sold out and the persisted ticket price changed.', { timeout: 5_000 });
-  await page.locator('#eventModal [data-step="5"]').click();
+  await step(5).click();
   await expect(page.locator('#eventArtists .artist').filter({ hasText: 'PL0N3R SMOKE' }).locator('[data-artist]')).toBeChecked({ timeout: 5_000 });
 
   const finalEventsResponse = await page.request.get(`${baseUrl}/api/index.php/events`);
