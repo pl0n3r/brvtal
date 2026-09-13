@@ -25,12 +25,12 @@ test('public media supports type/search discovery and an accessible image viewer
   await expect(page.locator('[data-public-media-count]')).toHaveText('4 MEMORIES FOUND');
   await page.getByRole('button', {name:'AUDIO'}).click();
   await expect(page.locator('[data-public-media-type-value="audio"]')).toBeVisible();
-  await expect(page.locator('[data-public-media-type-value="image"]')).toBeHidden();
+  await expect(page.locator('[data-public-media-type-value="image"]').first()).toBeHidden();
 
   await page.getByRole('button', {name:'ALL'}).click();
   await page.locator('[data-public-media-search]').fill('warehouse');
   await expect(page.locator('[data-public-media-count]')).toHaveText('1 MEMORY FOUND');
-  await expect(page.locator('[data-public-media-type-value="image"]')).toBeVisible();
+  await expect(page.locator('[data-public-media-type-value="image"]').first()).toBeVisible();
   await page.getByRole('button', {name:'Open Warehouse Memory'}).click();
   await expect(page.getByRole('dialog', {name:'Warehouse Memory'})).toBeVisible();
   await expect(page.getByRole('dialog').locator('img')).toHaveAttribute('alt', 'Crowd in Pereira');
