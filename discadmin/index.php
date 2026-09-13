@@ -17,6 +17,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<link rel="stylesheet" href="/discadmin/admin-record-lists.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/admin-form-dialogs.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/hero-slider.css' . $suffix . '">'
+    . '<link rel="stylesheet" href="/discadmin/hero-slider-v2.css' . $suffix . '" data-hero-v2="1">'
     . '<script src="/discadmin/content-core-nav.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-health.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-editorial-defaults.js' . $suffix . '"></script>'

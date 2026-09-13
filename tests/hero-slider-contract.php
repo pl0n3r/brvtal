@@ -4,6 +4,8 @@ declare(strict_types=1);
 $endpoint = file_get_contents(__DIR__ . '/../api/hero-slider.php');
 $public = file_get_contents(__DIR__ . '/../js/hero-slider.js');
 $admin = file_get_contents(__DIR__ . '/../discadmin/hero-slider.js');
+$publicIndex = file_get_contents(__DIR__ . '/../index.php');
+$adminIndex = file_get_contents(__DIR__ . '/../discadmin/index.php');
 $publicCss = file_get_contents(__DIR__ . '/../css/hero-slider.css');
 $publicV2Css = file_get_contents(__DIR__ . '/../css/hero-slider-v2.css');
 $adminCss = file_get_contents(__DIR__ . '/../discadmin/hero-slider.css');
@@ -30,6 +32,8 @@ $assert(str_contains($admin, 'mobileSrc'), 'admin must support mobile media over
 $assert(str_contains($admin, 'data-add-layer'), 'admin must expose constrained visual layer creation');
 $assert(str_contains($admin, 'pointerdown'), 'admin preview must support direct pointer positioning');
 $assert(str_contains($admin, 'data-duplicate-slide'), 'admin must support safe slide duplication');
+$assert(str_contains($publicIndex, 'hero-slider-v2.css') && str_contains($publicIndex, 'data-hero-v2-public'), 'public wrapper must deliver v2 styles before runtime mount');
+$assert(str_contains($adminIndex, 'hero-slider-v2.css') && str_contains($adminIndex, 'data-hero-v2'), 'admin wrapper must deliver v2 styles before editor mount');
 $assert(str_contains($publicCss, 'min-height:44px') || str_contains($publicCss, 'height:44px'), 'public controls must preserve touch targets');
 $assert(str_contains($publicV2Css, 'min-height:44px'), 'public v2 CTA must preserve touch targets');
 $assert(str_contains($adminCss, 'min-height:44px'), 'admin controls must preserve touch targets');
