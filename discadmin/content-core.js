@@ -16,16 +16,27 @@ function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.d
 function addTicket(t={}){const d=document.createElement('div');d.className='ticket-row';if(t.id)d.dataset.id=String(t.id);d.innerHTML=`<input data-k="name" placeholder="Name" value="${esc(t.name||'')}"><input data-k="price" type="number" min="0" step="0.01" placeholder="Price" value="${esc(t.price??'')}"><select data-k="status"><option ${t.status==='draft'?'selected':''}>draft</option><option ${!t.status||t.status==='active'?'selected':''}>active</option><option ${t.status==='inactive'?'selected':''}>inactive</option><option ${t.status==='sold_out'?'selected':''}>sold_out</option></select><input data-k="external_url" placeholder="External ticket URL" value="${esc(t.external_url||'')}"><button type="button" class="icon" onclick="this.parentElement.remove()">×</button>`;$('#tickets').appendChild(d)}
 function ticketPayload(row,eventId,i){const o={event_id:eventId,sort_order:i};row.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value);return o}
 function validateEventPayload(payload){if(!payload.title)return 'Name is required.';if(payload.status!=='draft'&&(!payload.event_date||!payload.city))return 'Name, date and city are required before leaving draft.';return ''}
+function ticketFieldError(index,field,message){
+  currentStep=4;
+  setStep();
+  msg(`Ticket ${index+1} ${message}`,false,'eventNotice');
+  field?.focus();
+  return false;
+}
 function validateTicketRows(){
   const rows=$$('#tickets .ticket-row');
   for(let i=0;i<rows.length;i++){
     const name=rows[i].querySelector('[data-k="name"]');
-    if(name?.value.trim())continue;
-    currentStep=4;
-    setStep();
-    msg(`Ticket ${i+1} needs a name before saving.`,false,'eventNotice');
-    name?.focus();
-    return false;
+    if(!name?.value.trim())return ticketFieldError(i,name,'needs a name before saving.');
+    const price=rows[i].querySelector('[data-k="price"]');
+    if(price?.value && (!Number.isFinite(Number(price.value)) || Number(price.value)<0))return ticketFieldError(i,price,'needs a valid non-negative price.');
+    const url=rows[i].querySelector('[data-k="external_url"]');
+    if(url?.value.trim()){
+      try{
+        const parsed=new URL(url.value.trim());
+        if(!['http:','https:'].includes(parsed.protocol) || url.value.trim().length>700)throw new Error('INVALID_URL');
+      }catch(_){return ticketFieldError(i,url,'needs a valid http(s) purchase URL.');}
+    }
   }
   return true;
 }
