@@ -1,0 +1,30 @@
+@media (max-width: 900px), (pointer: coarse) {
+  html.native-events-scroll .events {
+    min-height: auto;
+    overflow: visible;
+    padding-bottom: 8vh;
+  }
+
+  html.native-events-scroll .events-track {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline mandatory;
+    scroll-padding-inline: 18px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    touch-action: pan-x pan-y;
+  }
+
+  html.native-events-scroll .event-card {
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
+  }
+
+  html.native-events-scroll .events-track:focus-visible {
+    outline: 2px solid var(--red);
+    outline-offset: -2px;
+  }
+}
