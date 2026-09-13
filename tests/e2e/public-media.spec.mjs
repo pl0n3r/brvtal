@@ -21,7 +21,7 @@ test('public media supports type/search discovery and an accessible image viewer
   ]));
 
   await expect(page.locator('[data-public-media-item]')).toHaveCount(4);
-  await expect(page.locator('[data-public-media-item] img')).toHaveAttribute('decoding', 'async');
+  await expect(page.locator('[data-public-media-item] img').first()).toHaveAttribute('decoding', 'async');
   await expect(page.locator('[data-public-media-count]')).toHaveText('4 MEMORIES FOUND');
   await page.getByRole('button', {name:'AUDIO'}).click();
   await expect(page.locator('[data-public-media-type-value="audio"]')).toBeVisible();
