@@ -8,3 +8,4 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--acid);outline-offse
 #top:focus{outline:none}
 @media(pointer:coarse){body,body.cursor-enhanced{cursor:auto}.cursor,.cursor-label,body.cursor-enhanced .cursor,body.cursor-enhanced .cursor-label{display:none}}
 @media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
+@media(max-width:700px){.sound,.menu,.brand,.enter,.event-ticket,.footer-link{min-height:44px}.sound,.menu{min-width:44px;font-size:11px}.brand{justify-content:center}.brand small{font-size:10px}.enter,.event-ticket,.footer-link{display:inline-flex;align-items:center;font-size:11px}.event-ticket{padding:10px 0}.footer-link{padding-top:8px}}
