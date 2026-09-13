@@ -28,6 +28,8 @@ if ($entity) {
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
+$html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
+$html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n</head>", $html);
 $html = str_replace('</body>', "  <script src=\"js/menu-accessibility.js\"></script>\n  <script src=\"js/input-accessibility.js\"></script>\n  <script src=\"js/mobile-events.js\"></script>\n</body>", $html);
 $html = brvtal_public_optimize_home_images($html);
