@@ -28,7 +28,8 @@ if ($entity) {
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
-$html = str_replace('</body>', "  <script src=\"js/menu-accessibility.js\"></script>\n</body>", $html);
+$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n</head>", $html);
+$html = str_replace('</body>', "  <script src=\"js/menu-accessibility.js\"></script>\n  <script src=\"js/input-accessibility.js\"></script>\n</body>", $html);
 $html = brvtal_public_optimize_home_images($html);
 $html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());
 $html = str_replace('</body>', $analytics . "\n</body>", $html);
