@@ -8,6 +8,7 @@ Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs
 - Stack: Hostinger shared hosting, PHP 8.3, MariaDB, JavaScript, and Playwright. No long-running Node service is required in production.
 - Deployment is automatic from GitHub `main` to Hostinger Git. Never use FTP or manual deployment as the routine path. Source deployment and database migration are distinct.
 - DISCADMIN must preserve **ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE**. Modules change the workspace inside `/discadmin`; never add a mini-admin, second sidebar, or competing session.
+- The Home Hero Slider is a constrained LayerSlider-inspired DISCADMIN module with mobile-first editing, optional mobile media overrides and a permanent fallback to the current static hero. Its detailed contract is in `docs/HERO-SLIDER.md`.
 - The historical workflow path `.github/workflows/update-release-metadata.yml` is the **BRVTAL CI** workflow. Preserve its filename unless a real technical need requires renaming. Do not reintroduce automation that rewrites `config/version.php` per commit. Deployment SHA is resolved by `config/deployment.php`.
 
 ## Security and production boundaries
