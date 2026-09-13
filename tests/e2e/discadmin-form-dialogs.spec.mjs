@@ -11,7 +11,9 @@ async function mount(page) {
   </style><style>${css}</style></head><body>
     <button id="opener" type="button" onclick="openLegacy()">NEW EVENT</button>
     <button id="blog-opener" type="button" onclick="openBlog()">NEW BLOG POST</button>
+    <button id="cc-opener" type="button" onclick="openContentCore()">CONTENT CORE EVENT</button>
     <div class="modal" id="modal"><div class="modalbox"><div class="modalhead"><div><h2 id="mtitle"></h2></div><button class="iconbtn" onclick="closeModal()">ESC</button></div><div id="notice" class="notice"></div><div id="mcontent"></div><div class="modalfoot"><span class="helper">Saved to database.</span><div class="footactions"><button class="btn ghost" onclick="closeModal()">CANCEL</button><button class="btn red" id="saveBtn">SAVE</button></div></div></div></div>
+    <div id="module-host"></div>
     <script>
       window.saved = 0;
       window.closeModal = function(){ document.getElementById('modal').classList.remove('open'); };
@@ -26,6 +28,16 @@ async function mount(page) {
         document.getElementById('mcontent').innerHTML = '<div class="form"><div class="field"><label>Title *</label><input id="blog_title"></div><div class="field"><label>Status</label><select id="blog_status_field"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></div></div>';
         document.getElementById('saveBtn').onclick = function(){ window.saved += 1; };
         document.getElementById('modal').classList.add('open');
+      };
+      window.BRVTALContentCore = {
+        closeEvent(){ document.getElementById('eventModal')?.classList.remove('open'); }
+      };
+      window.openContentCore = function(){
+        const host = document.getElementById('module-host');
+        if (!document.getElementById('eventModal')) {
+          host.innerHTML = '<div id="eventModal" class="modal"><div class="modalbox"><div class="modalhead"><h2 id="eventHeading">NEW EVENT</h2><div class="modal-actions"><button class="icon" onclick="BRVTALContentCore.closeEvent()">CLOSE</button></div></div><div id="eventNotice" class="notice"></div><div class="field"><label>Name *</label><input id="e_title"></div><div class="field"><label>Date & time *</label><input id="e_event_date" type="datetime-local"></div><div class="field"><label>City *</label><input id="e_city"></div><div class="field"><label>Status</label><select id="e_status"><option value="draft">draft</option><option value="published">published</option><option value="upcoming">upcoming</option></select></div><div class="foot"><button>CANCEL</button><button id="cc-saveBtn">SAVE DRAFT</button></div></div></div>';
+        }
+        document.getElementById('eventModal').classList.add('open');
       };
     </script>
     <script>${js}</script>
@@ -90,6 +102,31 @@ test('Blog and Releases-style fields inherit the same required and publication b
   await page.locator('#blog_status_field').selectOption('archived');
   await expect(page.getByRole('button', { name: 'SAVE ARCHIVED' })).toBeVisible();
   await expect(page.locator('.admin-publication-state')).toContainText('Historical state');
+});
+
+test('Content Core modal uses the same dialog semantics and conditional lifecycle requirements', async ({ page }) => {
+  await mount(page);
+  const opener = page.getByRole('button', { name: 'CONTENT CORE EVENT' });
+  await opener.click();
+
+  const dialog = page.locator('#eventModal .modalbox');
+  await expect(dialog).toHaveAttribute('role', 'dialog');
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect(dialog).toHaveAttribute('aria-labelledby', 'eventHeading');
+  await expect(page.locator('#e_title')).toHaveAttribute('required', '');
+  await expect(page.locator('#e_title')).toBeFocused();
+  await expect(page.locator('#e_event_date')).toHaveAttribute('aria-required', 'false');
+  await expect(page.locator('#e_city')).toHaveAttribute('aria-required', 'false');
+  await expect(page.locator('.admin-content-core-state')).toContainText('Draft can be saved with a name only');
+
+  await page.locator('#e_status').selectOption('published');
+  await expect(page.locator('#e_event_date')).toHaveAttribute('required', '');
+  await expect(page.locator('#e_city')).toHaveAttribute('required', '');
+  await expect(page.locator('.admin-content-core-state')).toContainText('requires name, date and city');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#eventModal')).toBeHidden();
+  await expect(opener).toBeFocused();
 });
 
 test('Tab stays inside the active dialog', async ({ page }) => {
