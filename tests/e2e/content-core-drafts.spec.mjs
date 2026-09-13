@@ -42,7 +42,7 @@ function harnessHtml() {
   </body></html>`;
 }
 
-async function installHarness(page, eventPosts) {
+async function installHarness(page, eventPosts, options = {}) {
   await page.route('**/discadmin/e2e-content-core-drafts.html', route => route.fulfill({
     contentType: 'text/html',
     body: harnessHtml()
@@ -57,7 +57,7 @@ async function installHarness(page, eventPosts) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ authenticated:true, csrf:'csrf-test' }) });
     }
     if (path.endsWith('/events') && method === 'GET') {
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok:true, data:[] }) });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok:true, data:options.events || [] }) });
     }
     if (path.endsWith('/artists') && method === 'GET') {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok:true, data:[] }) });
@@ -71,6 +71,14 @@ async function installHarness(page, eventPosts) {
       });
       return route.fulfill({ status:201, contentType:'application/json', body: JSON.stringify({ ok:true, id:101 }) });
     }
+    if (path.endsWith('/events/42') && method === 'PUT') {
+      options.eventPuts?.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ status:options.putStatus || 200, contentType:'application/json', body: JSON.stringify(options.putStatus === 500 ? { ok:false, error:'SAVE_FAILED' } : { ok:true, id:42 }) });
+    }
+    if (path.endsWith('/events/42/lineup') && method === 'POST') {
+      options.lineupPosts?.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true }) });
+    }
 
     return route.fulfill({ status:404, contentType:'application/json', body: JSON.stringify({ ok:false, error:'UNEXPECTED_ROUTE' }) });
   });
@@ -78,6 +86,43 @@ async function installHarness(page, eventPosts) {
   await page.goto(harnessUrl);
   await page.waitForFunction(() => typeof window.BRVTALContentCore?.saveEvent === 'function');
 }
+
+test('Content Core does not save participation when editing the event fails', async ({ page }) => {
+  const eventPuts = [];
+  await installHarness(page, [], {
+    events:[{ id:42, title:'EXISTING EVENT', status:'draft' }],
+    putStatus:500, eventPuts,
+  });
+  await page.evaluate(() => {
+    window.__lineupSaves = [];
+    window.BRVTALContentCoreLineup = {save: async (...args) => { window.__lineupSaves.push(args); return {ok:true}; }};
+  });
+  await page.evaluate(() => window.BRVTALContentCore.openEvent(42));
+  await page.fill('#e_title', 'CHANGED TITLE');
+  const saved = await page.evaluate(() => window.BRVTALContentCore.saveEvent());
+  expect(saved).toBe(false);
+  expect(eventPuts).toHaveLength(1);
+  expect(await page.evaluate(() => window.__lineupSaves)).toHaveLength(0);
+  await expect(page.locator('#eventNotice')).toContainText('Save failed: SAVE_FAILED');
+  await expect(page.locator('#cc-notice')).not.toContainText('Event participation saved.');
+});
+
+test('Content Core saves participation after an event save succeeds', async ({ page }) => {
+  const eventPuts = [];
+  await installHarness(page, [], {
+    events:[{ id:42, title:'EXISTING EVENT', status:'draft' }], eventPuts,
+  });
+  await page.evaluate(() => {
+    window.__lineupSaves = [];
+    window.BRVTALContentCoreLineup = {save: async (...args) => { window.__lineupSaves.push(args); return {ok:true}; }};
+    window.BRVTALContentCore.openEvent(42);
+  });
+  await page.fill('#e_title', 'CHANGED TITLE');
+  const saved = await page.evaluate(() => window.BRVTALContentCore.saveEvent());
+  expect(saved).toBe(true);
+  expect(eventPuts).toHaveLength(1);
+  expect(await page.evaluate(() => window.__lineupSaves)).toHaveLength(1);
+});
 
 test('Content Core saves an incomplete event while it remains draft with JSON and CSRF headers', async ({ page }) => {
   const posts = [];
