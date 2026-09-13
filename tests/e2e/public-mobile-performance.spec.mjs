@@ -22,10 +22,8 @@ async function openHarness(page, coarse) {
 }
 
 test('touch layouts disable continuous canvas and Lenis loops before app runtime', async ({ page }) => {
-  const guardIndex = publicEntry.indexOf('js/mobile-performance.js');
-  const appIndex = publicEntry.indexOf('js/app.js');
-  expect(guardIndex).toBeGreaterThan(-1);
-  expect(appIndex).toBeGreaterThan(guardIndex);
+  expect(publicEntry).toContain("str_replace('<script src=\"js/app.js\"></script>'");
+  expect(publicEntry).toContain('<script src=\\"js/mobile-performance.js\\"></script>\\n  <script src=\\"js/app.js\\"></script>');
 
   await openHarness(page, true);
   await expect(page.locator('#fxCanvas')).toHaveCount(0);
