@@ -13,7 +13,7 @@ const harness = 'http://127.0.0.1:4173/hero-slider-harness.html';
 async function openHarness(page, payload, status = 200) {
   await page.route(harness, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><style>${publicCss}</style></head><body><main id="top"><section class="hero"><div id="static-hero">STATIC HERO</div></section></main><script>${publicScript}</script></body></html>`
+    body: `<!doctype html><html><head><style>.hero{min-height:600px}${publicCss}</style></head><body><main id="top"><section class="hero"><div id="static-hero">STATIC HERO</div></section></main><script>${publicScript}</script></body></html>`
   }));
   await page.route('**/api/hero-slider.php', route => route.fulfill({
     status,
@@ -62,4 +62,22 @@ test('admin manager contract remains mobile-first and public endpoint is allowli
   expect(publicEndpoint).toContain("WHERE setting_key = ? LIMIT 1");
   expect(publicEndpoint).toContain("['home.hero.slider']");
   expect(publicEndpoint).not.toContain('SELECT * FROM settings');
+});
+
+test('inactive banner images wait for selection and autoplay can be paused', async ({ page }) => {
+  await openHarness(page, {ok:true,data:{enabled:true,autoplay:true,interval:2500,slides:[
+    {id:'one',mediaType:'image',desktopSrc:'/one.jpg',title:'FIRST',overlay:0},
+    {id:'two',mediaType:'image',desktopSrc:'/two.jpg',title:'SECOND',overlay:0}
+  ]}});
+  const first = page.locator('[data-hero-slide="0"]');
+  const secondImage = page.locator('[data-hero-slide="1"] img');
+  await expect(first).toHaveCSS('--hero-overlay', '0');
+  await expect(secondImage).not.toHaveAttribute('src', /.+/);
+  const pause = page.locator('[data-hero-pause]');
+  await pause.click();
+  await expect(pause).toHaveAttribute('aria-pressed', 'true');
+  await page.waitForTimeout(2700);
+  await expect(first).toHaveClass(/active/);
+  await page.locator('[data-hero-next]').click();
+  await expect(secondImage).toHaveAttribute('src', '/two.jpg');
 });
