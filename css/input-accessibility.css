@@ -1,0 +1,6 @@
+body{cursor:auto}
+.cursor,.cursor-label{display:none}
+body.cursor-enhanced{cursor:none}
+body.cursor-enhanced .cursor,body.cursor-enhanced .cursor-label{display:block}
+a:focus-visible,button:focus-visible{outline:2px solid var(--acid);outline-offset:4px}
+@media(pointer:coarse){body,body.cursor-enhanced{cursor:auto}.cursor,.cursor-label,body.cursor-enhanced .cursor,body.cursor-enhanced .cursor-label{display:none}}
