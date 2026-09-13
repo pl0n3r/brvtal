@@ -93,6 +93,17 @@
     document.querySelectorAll('[data-public-media-type]').forEach(button => button.classList.toggle('active', button.dataset.publicMediaType === state.type));
     const count = qs('[data-public-media-count]');
     if (count) count.textContent = `${visible} ${visible===1?'MEMORY':'MEMORIES'} FOUND`;
+    const empty = qs('[data-public-media-empty]');
+    if (empty) empty.hidden = visible !== 0;
+  }
+
+  function resetFilters() {
+    state.type = 'all';
+    state.query = '';
+    const search = qs('[data-public-media-search]');
+    if (search) search.value = '';
+    applyFilters();
+    search?.focus();
   }
 
   function bindTools() {
@@ -105,6 +116,11 @@
     if (search && !search.dataset.bound) {
       search.dataset.bound = '1';
       search.addEventListener('input', () => { state.query = searchText(search.value.trim()); applyFilters(); });
+    }
+    const reset = qs('[data-public-media-reset]');
+    if (reset && !reset.dataset.bound) {
+      reset.dataset.bound = '1';
+      reset.addEventListener('click', resetFilters);
     }
   }
 
