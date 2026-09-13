@@ -163,6 +163,26 @@ test('Content Core retries tickets on the created event after a partial save', a
   await expect(page.locator('#tickets .ticket-row')).toHaveAttribute('data-id', '17');
 });
 
+test('Content Core catches an unnamed ticket before creating its event', async ({ page }) => {
+  const eventPosts = [], ticketPosts = [];
+  await installHarness(page, eventPosts, {ticketPosts});
+  await page.fill('#e_title', 'NIGHT WITH TICKETS');
+  await page.evaluate(() => window.BRVTALContentCore.addTicket());
+
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(false);
+  expect(eventPosts).toHaveLength(0);
+  expect(ticketPosts).toHaveLength(0);
+  await expect(page.locator('#eventNotice')).toContainText('Ticket 1 needs a name before saving.');
+  await expect(page.locator('.step-content[data-content="4"]')).toHaveClass(/active/);
+  await expect(page.locator('#tickets [data-k="name"]')).toBeFocused();
+  await expect(page.locator('#e_title')).toHaveValue('NIGHT WITH TICKETS');
+
+  await page.locator('#tickets [data-k="name"]').fill('GENERAL');
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(true);
+  expect(eventPosts).toHaveLength(1);
+  expect(ticketPosts).toHaveLength(1);
+});
+
 test('Content Core refuses an existing-event save while ticket types are unavailable', async ({ page }) => {
   const eventPuts = [];
   await installHarness(page, [], {
