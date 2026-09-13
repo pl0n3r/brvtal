@@ -2,6 +2,9 @@
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   if (!coarsePointer) return;
 
+  const loader = document.getElementById('loader');
+  if (loader) loader.remove();
+
   const fxCanvas = document.getElementById('fxCanvas');
   if (fxCanvas) fxCanvas.remove();
 
