@@ -62,6 +62,10 @@ async function installHarness(page, eventPosts, options = {}) {
     if (path.endsWith('/artists') && method === 'GET') {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok:true, data:[] }) });
     }
+    if (path.endsWith('/ticket_types') && method === 'GET') {
+      if (options.ticketDelay) await new Promise(resolve => setTimeout(resolve, options.ticketDelay));
+      return route.fulfill({ status:options.ticketLoadStatus || 200, contentType:'application/json', body: JSON.stringify(options.ticketLoadStatus ? {ok:false,error:'TICKET_LOAD_FAILED'} : {ok:true,data:options.ticketTypes || []}) });
+    }
     if (path.endsWith('/events') && method === 'POST') {
       const headers = route.request().headers();
       eventPosts.push({
@@ -79,6 +83,10 @@ async function installHarness(page, eventPosts, options = {}) {
       options.lineupPosts?.push(JSON.parse(route.request().postData() || '{}'));
       return route.fulfill({ contentType:'application/json', body: JSON.stringify({ ok:true }) });
     }
+    if (path.endsWith('/ticket_types/7') && method === 'PUT') {
+      options.ticketPuts?.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ contentType:'application/json', body: JSON.stringify({ok:true,changed:1}) });
+    }
 
     return route.fulfill({ status:404, contentType:'application/json', body: JSON.stringify({ ok:false, error:'UNEXPECTED_ROUTE' }) });
   });
@@ -86,6 +94,34 @@ async function installHarness(page, eventPosts, options = {}) {
   await page.goto(harnessUrl);
   await page.waitForFunction(() => typeof window.BRVTALContentCore?.saveEvent === 'function');
 }
+
+test('Content Core loads existing ticket types before editing and updates their IDs', async ({ page }) => {
+  const eventPuts = [], ticketPuts = [];
+  await installHarness(page, [], {
+    events:[{id:42,title:'EXISTING EVENT',status:'draft'}], eventPuts, ticketPuts,
+    ticketTypes:[{id:7,event_id:42,name:'EARLY',price:'25.00',status:'active',sort_order:0},{id:8,event_id:99,name:'OTHER EVENT',status:'active'}],
+  });
+  await page.evaluate(() => window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#tickets .ticket-row')).toHaveCount(1);
+  await expect(page.locator('#tickets [data-k="name"]')).toHaveValue('EARLY');
+  await page.locator('#tickets [data-k="price"]').fill('30');
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(true);
+  expect(eventPuts).toHaveLength(1);
+  expect(ticketPuts).toHaveLength(1);
+  expect(ticketPuts[0]).toMatchObject({event_id:42,name:'EARLY',price:'30'});
+});
+
+test('Content Core refuses an existing-event save while ticket types are unavailable', async ({ page }) => {
+  const eventPuts = [];
+  await installHarness(page, [], {
+    events:[{id:42,title:'EXISTING EVENT',status:'draft'}], eventPuts, ticketLoadStatus:500,
+  });
+  await page.evaluate(() => window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#eventNotice')).toContainText('Could not load ticket types');
+  expect(await page.evaluate(() => window.BRVTALContentCore.saveEvent())).toBe(false);
+  expect(eventPuts).toHaveLength(0);
+  await expect(page.locator('#eventNotice')).toContainText('Reload ticket types before saving');
+});
 
 test('Content Core does not save participation when editing the event fails', async ({ page }) => {
   const eventPuts = [];
@@ -98,6 +134,7 @@ test('Content Core does not save participation when editing the event fails', as
     window.BRVTALContentCoreLineup = {save: async (...args) => { window.__lineupSaves.push(args); return {ok:true}; }};
   });
   await page.evaluate(() => window.BRVTALContentCore.openEvent(42));
+  await expect(page.locator('#tickets')).toHaveAttribute('data-load-state', 'ready');
   await page.fill('#e_title', 'CHANGED TITLE');
   const saved = await page.evaluate(() => window.BRVTALContentCore.saveEvent());
   expect(saved).toBe(false);
@@ -117,6 +154,7 @@ test('Content Core saves participation after an event save succeeds', async ({ p
     window.BRVTALContentCoreLineup = {save: async (...args) => { window.__lineupSaves.push(args); return {ok:true}; }};
     window.BRVTALContentCore.openEvent(42);
   });
+  await expect(page.locator('#tickets')).toHaveAttribute('data-load-state', 'ready');
   await page.fill('#e_title', 'CHANGED TITLE');
   const saved = await page.evaluate(() => window.BRVTALContentCore.saveEvent());
   expect(saved).toBe(true);
