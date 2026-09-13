@@ -28,6 +28,7 @@ if ($entity) {
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
+$html = brvtal_public_optimize_home_images($html);
 $html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());
 $html = str_replace('</body>', $analytics . "\n</body>", $html);
 $html = preg_replace('/<title>.*?<\/title>/s', '<title>' . htmlspecialchars($seo['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</title>', $html, 1) ?? $html;
