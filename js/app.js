@@ -1,5 +1,6 @@
 (() => {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const motionReady = Boolean(window.gsap && window.ScrollTrigger);
   const qs = (s, r=document) => r.querySelector(s);
   const qsa = (s, r=document) => [...r.querySelectorAll(s)];
 
@@ -8,7 +9,7 @@
 
   const boot = () => {
     if (!loader) return;
-    if (reduce || !window.gsap) { loader.remove(); return; }
+    if (reduce || !motionReady) { loader.remove(); return; }
     let n = 0;
     const timer = setInterval(() => {
       n = Math.min(100, n + Math.floor(Math.random()*12) + 5);
@@ -22,17 +23,17 @@
   };
   boot();
 
-  gsap.registerPlugin(ScrollTrigger);
+  if (motionReady) gsap.registerPlugin(ScrollTrigger);
 
   let lenis;
-  if (!reduce && window.Lenis) {
+  if (!reduce && motionReady && window.Lenis) {
     lenis = new Lenis({duration:1.1,smoothWheel:true,syncTouch:false});
     lenis.on('scroll', ScrollTrigger.update);
     gsap.ticker.add(t => lenis.raf(t * 1000));
     gsap.ticker.lagSmoothing(0);
   }
 
-  if (!reduce) {
+  if (!reduce && motionReady) {
     gsap.from('.hero-copy .eyebrow',{y:20,opacity:0,duration:1,delay:.55,ease:'power4.out'});
     gsap.from('.hero-title',{yPercent:90,opacity:0,skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
     gsap.from('.hero-logo-wrap',{scale:1.35,opacity:0,rotation:3,duration:1.8,delay:.75,ease:'power3.out'});
@@ -71,7 +72,7 @@
 
   // Scene indicator
   const sceneName = qs('#sceneName'), sceneCount = qs('#sceneCount');
-  qsa('.scene').forEach(sec => {
+  if (motionReady) qsa('.scene').forEach(sec => {
     ScrollTrigger.create({
       trigger:sec,start:'top 55%',end:'bottom 45%',
       onEnter:()=>setScene(sec),onEnterBack:()=>setScene(sec)
@@ -90,7 +91,7 @@
     open=v;
     menu.querySelector('strong').textContent=open?'×':'+';
     panel.setAttribute('aria-hidden',String(!open));
-    if(window.gsap && !reduce){
+    if(motionReady && !reduce){
       gsap.to(panel,{duration:.9,yPercent:open?0:-100,ease:'power4.inOut',
         onStart:()=>panel.style.visibility='visible',
         onComplete:()=>{if(!open)panel.style.visibility='hidden'}});
