@@ -9,6 +9,8 @@ $assetVersion = function_exists('brvtal_deployment_short_sha')
     ? rawurlencode(brvtal_deployment_short_sha())
     : (defined('BRVTAL_APP_BUILD') ? rawurlencode((string)BRVTAL_APP_BUILD) : '');
 $suffix = $assetVersion !== '' ? '?v=' . $assetVersion : '';
+$appearanceBoot = '<script>(function(){try{var k="brvtal.discadmin.appearance",m=localStorage.getItem(k);if(!/^(dark|light|glass)$/.test(m||""))m="dark";document.documentElement.dataset.discadminAppearance=m;document.documentElement.style.colorScheme=m==="light"?"light":"dark"}catch(e){document.documentElement.dataset.discadminAppearance="dark"}})();</script>'
+    . '<link rel="stylesheet" href="/discadmin/admin-appearance.css' . $suffix . '">';
 $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/backups.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/admin-shell.css' . $suffix . '">'
@@ -29,7 +31,14 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/admin-record-lists.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-form-dialogs.js' . $suffix . '"></script>'
     . '<script src="/discadmin/hero-slider-state-bridge.js' . $suffix . '"></script>'
-    . '<script src="/discadmin/hero-slider.js' . $suffix . '"></script>';
+    . '<script src="/discadmin/hero-slider.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/admin-appearance.js' . $suffix . '"></script>';
+
+if (str_contains($html, '</head>')) {
+    $html = str_replace('</head>', $appearanceBoot . '</head>', $html);
+} else {
+    $html = $appearanceBoot . $html;
+}
 
 if (str_contains($html, '</body>')) {
     $html = str_replace('</body>', $enhancements . '</body>', $html);

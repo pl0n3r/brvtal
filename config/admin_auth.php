@@ -7,6 +7,16 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/bootstrap.php';
 
+const BRVTAL_ADMIN_IDLE_TIMEOUT = 604800; // 7 days without activity.
+const BRVTAL_ADMIN_ABSOLUTE_TIMEOUT = 2592000; // 30 days from login.
+const BRVTAL_ADMIN_COOKIE_LIFETIME = 2592000; // 30 days.
+const BRVTAL_ADMIN_COOKIE_REFRESH_INTERVAL = 3600; // Refresh at most once per hour.
+
+function brvtal_admin_cookie_secure(): bool
+{
+    return !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+}
+
 function brvtal_admin_session_start(): void
 {
     global $config;
@@ -25,10 +35,12 @@ function brvtal_admin_session_start(): void
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.cookie_httponly', '1');
+    ini_set('session.gc_maxlifetime', (string)BRVTAL_ADMIN_COOKIE_LIFETIME);
 
     session_set_cookie_params([
+        'lifetime' => BRVTAL_ADMIN_COOKIE_LIFETIME,
         'httponly' => true,
-        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'secure' => brvtal_admin_cookie_secure(),
         'samesite' => 'Strict',
         'path' => '/',
     ]);
@@ -40,6 +52,28 @@ function brvtal_admin_session_start(): void
     }
 }
 
+function brvtal_admin_refresh_cookie(bool $force = false): void
+{
+    brvtal_admin_session_start();
+
+    $now = time();
+    $lastRefresh = (int)($_SESSION['cookie_refreshed_at'] ?? 0);
+    if (!$force && $lastRefresh && ($now - $lastRefresh) < BRVTAL_ADMIN_COOKIE_REFRESH_INTERVAL) {
+        return;
+    }
+
+    if (!headers_sent() && session_id() !== '') {
+        setcookie(session_name(), session_id(), [
+            'expires' => $now + BRVTAL_ADMIN_COOKIE_LIFETIME,
+            'path' => '/',
+            'secure' => brvtal_admin_cookie_secure(),
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
+        $_SESSION['cookie_refreshed_at'] = $now;
+    }
+}
+
 function brvtal_admin_session_regenerate(): void
 {
     brvtal_admin_session_start();
@@ -47,6 +81,7 @@ function brvtal_admin_session_regenerate(): void
     $_SESSION['issued_at'] = time();
     $_SESSION['last_activity'] = time();
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    brvtal_admin_refresh_cookie(true);
 }
 
 function brvtal_admin_login_session(int $adminId): void
@@ -94,7 +129,8 @@ function brvtal_admin_is_authenticated(): bool
     $last = (int)($_SESSION['last_activity'] ?? 0);
     $issued = (int)($_SESSION['issued_at'] ?? 0);
 
-    if (($last && ($now - $last) > 28800) || ($issued && ($now - $issued) > 86400)) {
+    if (($last && ($now - $last) > BRVTAL_ADMIN_IDLE_TIMEOUT)
+        || ($issued && ($now - $issued) > BRVTAL_ADMIN_ABSOLUTE_TIMEOUT)) {
         brvtal_admin_logout();
         return false;
     }
@@ -119,6 +155,7 @@ function brvtal_admin_require(): void
     }
 
     $_SESSION['last_activity'] = time();
+    brvtal_admin_refresh_cookie();
 }
 
 function brvtal_admin_csrf_token(): string
