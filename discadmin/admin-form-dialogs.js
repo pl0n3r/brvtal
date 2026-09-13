@@ -149,8 +149,8 @@
     const button = saveButton();
     saving = active;
     if (!button) return;
-    button.disabled = active;
     button.setAttribute('aria-busy', String(active));
+    button.setAttribute('aria-disabled', String(active));
     if (active) button.textContent = 'SAVING…';
     else syncSaveLabel();
   }
@@ -223,6 +223,11 @@
   document.addEventListener('click', event => {
     const button = event.target.closest?.('#saveBtn');
     if (!button || !isOpen()) return;
+    if (saving) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (!validate()) {
       event.preventDefault();
       event.stopImmediatePropagation();
