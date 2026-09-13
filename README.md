@@ -41,6 +41,7 @@ The public frontend is currently **English only**.
 | Area | Current state |
 |---|---|
 | Public website | Active English-first frontend |
+| Home banners | Curated hero slider editable within DISCADMIN, with original hero fallback |
 | Public entity pages | Events, Artists, Sets, Releases, Blog and CMS Pages |
 | Public SEO | Canonical metadata, OG/Twitter, JSON-LD, sitemap/robots, `404/noindex` safeguards |
 | Public Archive | Historical event discovery separated from active lifecycle content |

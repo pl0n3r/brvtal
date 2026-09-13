@@ -93,6 +93,8 @@ Canonical published entity routes are implemented and must remain server-rendere
 
 Homepage composition should remain relatively stable and art-directed. CMS controls may modify content and selected presentation parameters, but administrators should not be able to accidentally destroy the visual system with a generic component builder.
 
+The first home section supports a curated banner slider managed inside the existing DISCADMIN shell. Editors may select up to five published Media Library images, write a short headline/description, set a safe CTA and order or disable banners. This is a fixed BRVTAL presentation, not a general page builder. Without active banners the original BRVTAL hero remains. The first banner is server-rendered and prioritized; later images load lazily. Rotation must have manual controls and a pause control, and reduced-motion visitors must not receive automatic rotation.
+
 ## 9. Events
 
 DISCADMIN must support complete event management:

@@ -7,6 +7,7 @@ require_once __DIR__ . '/config/public_assets.php';
 require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
+require_once __DIR__ . '/config/home_banners.php';
 
 $type = trim((string)($_GET['type'] ?? ''));
 $slug = trim((string)($_GET['slug'] ?? ''));
@@ -28,6 +29,16 @@ if ($entity) {
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
+$bannerMarkup = brvtal_home_banner_markup(brvtal_home_banner_slides(db()));
+if ($bannerMarkup !== '') {
+    $start = strpos($html, '    <section class="hero scene"');
+    $end = strpos($html, '    <section class="manifesto scene"');
+    if ($start !== false && $end !== false && $end > $start) {
+        $html = substr($html, 0, $start) . '    ' . $bannerMarkup . "\n\n" . substr($html, $end);
+        $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/home-banners.css\">\n</head>", $html);
+        $html = str_replace('</body>', "  <script src=\"js/home-banners.js\"></script>\n</body>", $html);
+    }
+}
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n</head>", $html);
