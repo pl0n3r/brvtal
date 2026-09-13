@@ -13,6 +13,7 @@
 **Repository:** `pl0n3r/brvtal`  
 **Canonical branch:** `main`  
 **Architecture source of truth:** [`docs/BRVTAL-SPEC.md`](docs/BRVTAL-SPEC.md)
+**Future-session operating rules:** [`AGENTS.md`](AGENTS.md)
 
 ---
 
@@ -490,7 +491,11 @@ The public site loads Google Analytics only when the active Theme Studio theme c
 
 ### Known stabilization debt
 
-Content Core still has known production-smoke issues. Blocking defects should be fixed in focused PRs, but they no longer freeze all roadmap progress.
+Content Core's real-stack create/update workflow has automated coverage from PRs #68–#70. Authenticated production smoke coverage remains separate and must be recorded before claiming production validation. Fix any newly reproduced defects in focused PRs.
+
+### Latest verified source state (2026-09-13)
+
+PRs #71–#78 improved public mobile readability, image loading, accessibility, keyboard navigation, and touch scrolling. PR #79 stops costly continuous home effects on touch; #80 makes Google Fonts nonblocking; #81 removes the artificial home loader on touch while retaining desktop behavior. PR #81 was squash-merged as `39c0349096e72ff9898da214478db71376b2bbf2`. [BRVTAL CI #215](https://github.com/pl0n3r/brvtal/actions/runs/34779731048) passed for that exact `main` SHA, including PHP/JavaScript, contracts, MariaDB integration, and Playwright. This is code validation, not evidence of a completed Hostinger deploy or visual production check. Continue with measured public mobile performance/Core Web Vitals work; check current PRs before selecting changes.
 
 ### Explicitly deferred
 

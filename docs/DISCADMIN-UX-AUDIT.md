@@ -2,6 +2,8 @@
 
 This is a source and workflow audit of the current repository, checked against `README.md` and `docs/BRVTAL-SPEC.md`. It is not a claim that every authenticated production flow has been manually exercised with real content on every device.
 
+Follow-up as of 2026-09-13: PRs #66–#67 addressed the record-list and dialog/form findings below; PRs #68–#70 added and stabilized real-stack Content Core create/update tests. The remaining production smoke is still separate. Public mobile accessibility and loading improvements through PR #81 shift the next public pass toward measured Core Web Vitals and journey checks, rather than repeating unmeasured fixes.
+
 ## Product map
 
 BRVTAL now has a public discovery/editorial surface, structured entities (events, artists, sets, releases, media, pages and blog), Content Core workflows, Theme Studio, Security / 2FA, system diagnostics, backups, activity/history, and consent-gated GA4 integration. The product direction is coherent: one platform, reusable media, explicit publication, and one DISCADMIN shell. The next quality gain comes from making routine work faster and clearer across these existing capabilities.
