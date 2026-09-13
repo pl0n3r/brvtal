@@ -10,11 +10,11 @@ BRVTAL now has a public discovery/editorial surface, structured entities (events
 
 | Priority | Finding and evidence | Recommendation |
 | --- | --- | --- |
-| P0 | The mobile sidebar used to take up to 45% of the viewport above every workspace (`discadmin/admin-modules.css`), while the base shell stacked it above content (`discadmin/index-core.php`). | Use the existing sidebar as a keyboard-accessible mobile drawer, leaving the workspace first. **Addressed in this change.** |
-| P0 | Legacy listing CSS hides columns 2–4 below 850px (`discadmin/index-core.php`). Editors can lose date, location, status, relationship or type context when reviewing a row. | Replace generic compressed tables with module-specific responsive cards that preserve each record's key fields and actions. Validate with realistic content lengths at 320–850px. |
-| P1 | Common navigation, form labels, helper text and actions use 8–11px text and narrow tap targets (`discadmin/index-core.php`, `discadmin/admin-modules.css`). | Establish a shared admin type/spacing/control scale, touch targets, visible focus, and predictable section hierarchy. **First shared pass addressed in this change**; individual modules still need a focused pass. |
-| P1 | Generated form labels lacked `for` connections to controls (`discadmin/index-core.php`). | Connect labels to fields and progressively add meaningful validation, error summaries, keyboard/focus behavior and accessible dialog semantics. **Label association addressed in this change.** |
-| P1 | The admin shell and many workflows are concentrated in large inline PHP/JS/CSS blocks (`discadmin/index-core.php`), while extensions override one another in extra stylesheets. | Incrementally extract shared shell, form and table components with visual regression coverage. Avoid a full rewrite; keep one canonical state and sidebar. |
+| P0 | The mobile sidebar used to take up to 45% of the viewport above every workspace (`discadmin/admin-modules.css`), while the base shell stacked it above content (`discadmin/index-core.php`). | Use the existing sidebar as a keyboard-accessible mobile drawer, leaving the workspace first. **Addressed.** |
+| P0 | Legacy listing CSS hid columns 2–4 below 850px (`discadmin/index-core.php`). Editors could lose date, location, status, relationship or type context when reviewing a row. | Preserve each module's key fields and actions in responsive record cards while keeping the desktop list intact. **Addressed for Events, Artists, Sets, Media and Pages.** |
+| P1 | Common navigation, form labels, helper text and actions use 8–11px text and narrow tap targets (`discadmin/index-core.php`, `discadmin/admin-modules.css`). | Establish a shared admin type/spacing/control scale, touch targets, visible focus, and predictable section hierarchy. **First shared pass addressed**; individual modules still need a focused pass. |
+| P1 | Generated form labels lacked `for` connections to controls (`discadmin/index-core.php`). | Connect labels to fields and progressively add meaningful validation, error summaries, keyboard/focus behavior and accessible dialog semantics. **Label association addressed.** |
+| P1 | The admin shell and many workflows are concentrated in large inline PHP/JS/CSS blocks (`discadmin/index-core.php`), while extensions override one another in extra stylesheets. | Incrementally extract shared shell, form and record-list behavior with browser coverage. Avoid a full rewrite; keep one canonical state and sidebar. |
 | P1 | The roadmap explicitly notes remaining Content Core production smoke debt (`README.md`, Known stabilization debt). | Run authenticated smoke checks with real content and record which create/edit/publish relationships pass or fail before adding more editorial features. |
 | P2 | Backup v1 includes manual creation and download, but restore is intentionally deferred (`README.md`, Backups Foundation). | Document and rehearse a recovery procedure with a disposable database and private files. Treat restore automation as a separate guarded project. |
 | P2 | Public discovery and responsive/performance polish remain the active roadmap priority (`README.md`, Current roadmap). | Measure actual mobile journeys and Core Web Vitals on event, artist, release and archive pages; fix the highest-friction journeys before expanding page types. |
@@ -26,8 +26,7 @@ Use a calm, consistent admin shell: stable navigation on desktop, a single drawe
 
 ## Suggested next sequence
 
-1. Redesign legacy Events, Artists, Sets, Media and Pages lists as responsive cards without hiding data; validate tablet and phone sizes.
-2. Standardize dialogs/forms across old and new modules, including focus, validation, save feedback, and draft/publish clarity.
-3. Test Content Core end to end against production-like data and close the remaining stabilization debt.
-4. Run a measured public mobile/performance/accessibility pass, then address the highest-impact issues.
-5. Rehearse backup recovery and verify GA4 configuration/consent in production.
+1. Standardize dialogs/forms across old and new modules, including focus, validation, save feedback, and draft/publish clarity.
+2. Test Content Core end to end against production-like data and close the remaining stabilization debt.
+3. Run a measured public mobile/performance/accessibility pass, then address the highest-impact issues.
+4. Rehearse backup recovery and verify GA4 configuration/consent in production.
