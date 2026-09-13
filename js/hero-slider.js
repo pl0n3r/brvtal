@@ -11,31 +11,56 @@
   const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isMobile = () => window.matchMedia('(max-width: 700px)').matches;
 
+  function injectStyles() {
+    if (document.querySelector('link[data-hero-v2-public]')) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/css/hero-slider-v2.css';
+    link.dataset.heroV2Public = '1';
+    document.head.appendChild(link);
+  }
+
   function sourceFor(slide) {
     return isMobile() && slide.mobileSrc ? slide.mobileSrc : slide.desktopSrc;
   }
 
-  function mediaMarkup(slide) {
+  function mediaMarkup(slide, position) {
     const src = sourceFor(slide);
     if (!src) return '';
     if (slide.mediaType === 'video') {
       return `<video class="brvtal-hero-media" muted loop playsinline preload="metadata" ${slide.poster ? `poster="${esc(slide.poster)}"` : ''}><source src="${esc(src)}"></video>`;
     }
-    return `<img class="brvtal-hero-media" src="${esc(src)}" alt="" decoding="async" fetchpriority="${index === 0 ? 'high' : 'auto'}">`;
+    return `<img class="brvtal-hero-media" src="${esc(src)}" alt="" decoding="async" fetchpriority="${position === 0 ? 'high' : 'auto'}">`;
+  }
+
+  function layerMarkup(layer) {
+    if (isMobile() && layer.hiddenMobile) return '';
+    const mobile = isMobile();
+    const x = mobile && layer.mobileX != null ? layer.mobileX : layer.x;
+    const y = mobile && layer.mobileY != null ? layer.mobileY : layer.y;
+    const width = mobile && layer.mobileWidth != null ? layer.mobileWidth : layer.width;
+    const src = mobile && layer.mobileSrc ? layer.mobileSrc : layer.src;
+    const style = `left:${Number(x)}%;top:${Number(y)}%;width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
+    if (layer.type === 'image' || layer.type === 'logo') {
+      if (!src) return '';
+      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img src="${esc(src)}" alt="" decoding="async"></div>`;
+    }
+    if (layer.type === 'cta') {
+      const text = esc(layer.text || 'ENTER EXPERIENCE');
+      return layer.url ? `<a class="brvtal-hero-layer type-cta anim-${esc(layer.animation)} magnetic" style="${style}" href="${esc(layer.url)}">${text} <span>↗</span></a>` : `<div class="brvtal-hero-layer type-cta anim-${esc(layer.animation)}" style="${style}">${text}</div>`;
+    }
+    return `<div class="brvtal-hero-layer type-text anim-${esc(layer.animation)}" style="${style}">${esc(layer.text || '')}</div>`;
+  }
+
+  function legacyCopy(slide) {
+    if (Array.isArray(slide.layers) && slide.layers.length) return '';
+    const hasCta = slide.ctaLabel && slide.ctaUrl;
+    return `<div class="brvtal-hero-content">${slide.kicker ? `<div class="brvtal-hero-kicker mono">${esc(slide.kicker)}</div>` : ''}${slide.title ? `<h1>${esc(slide.title)}</h1>` : ''}${slide.body ? `<p>${esc(slide.body)}</p>` : ''}${hasCta ? `<a class="brvtal-hero-cta magnetic" href="${esc(slide.ctaUrl)}">${esc(slide.ctaLabel)} <span>↗</span></a>` : ''}</div>`;
   }
 
   function slideMarkup(slide, position) {
-    const hasCta = slide.ctaLabel && slide.ctaUrl;
-    return `<article class="brvtal-hero-slide ${position === 0 ? 'active' : ''} align-${esc(slide.contentAlign)}" data-hero-slide="${position}" aria-hidden="${position === 0 ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay || 35) / 100}">
-      ${mediaMarkup(slide)}
-      <div class="brvtal-hero-overlay"></div>
-      <div class="brvtal-hero-content">
-        ${slide.kicker ? `<div class="brvtal-hero-kicker mono">${esc(slide.kicker)}</div>` : ''}
-        ${slide.title ? `<h1>${esc(slide.title)}</h1>` : ''}
-        ${slide.body ? `<p>${esc(slide.body)}</p>` : ''}
-        ${hasCta ? `<a class="brvtal-hero-cta magnetic" href="${esc(slide.ctaUrl)}">${esc(slide.ctaLabel)} <span>↗</span></a>` : ''}
-      </div>
-    </article>`;
+    const transition = ['fade','slide','zoom'].includes(slide.transition) ? slide.transition : 'fade';
+    return `<article class="brvtal-hero-slide ${position === 0 ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${position === 0 ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay || 35) / 100}">${mediaMarkup(slide, position)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layerMarkup).join('') : ''}</article>`;
   }
 
   function controlsMarkup(total) {
@@ -47,6 +72,7 @@
   function mount(data) {
     const hero = document.querySelector('main#top > .hero');
     if (!hero || !data?.enabled || !Array.isArray(data.slides) || !data.slides.length) return;
+    injectStyles();
     config = data;
     const root = document.createElement('div');
     root.className = 'brvtal-hero-slider';
@@ -87,8 +113,7 @@
     slides().forEach((slide, i) => {
       const video = slide.querySelector('video');
       if (!video) return;
-      if (i === index) video.play().catch(() => {});
-      else video.pause();
+      if (i === index) video.play().catch(() => {}); else video.pause();
     });
   }
 
@@ -119,6 +144,5 @@
     }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true});
-  else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
 })();
