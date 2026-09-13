@@ -12,9 +12,9 @@ BRVTAL now has a public discovery/editorial surface, structured entities (events
 | --- | --- | --- |
 | P0 | The mobile sidebar used to take up to 45% of the viewport above every workspace (`discadmin/admin-modules.css`), while the base shell stacked it above content (`discadmin/index-core.php`). | Use the existing sidebar as a keyboard-accessible mobile drawer, leaving the workspace first. **Addressed.** |
 | P0 | Legacy listing CSS hid columns 2–4 below 850px (`discadmin/index-core.php`). Editors could lose date, location, status, relationship or type context when reviewing a row. | Preserve each module's key fields and actions in responsive record cards while keeping the desktop list intact. **Addressed for Events, Artists, Sets, Media and Pages.** |
-| P1 | Common navigation, form labels, helper text and actions use 8–11px text and narrow tap targets (`discadmin/index-core.php`, `discadmin/admin-modules.css`). | Establish a shared admin type/spacing/control scale, touch targets, visible focus, and predictable section hierarchy. **First shared pass addressed**; individual modules still need a focused pass. |
-| P1 | Generated form labels lacked `for` connections to controls (`discadmin/index-core.php`). | Connect labels to fields and progressively add meaningful validation, error summaries, keyboard/focus behavior and accessible dialog semantics. **Label association addressed.** |
-| P1 | The admin shell and many workflows are concentrated in large inline PHP/JS/CSS blocks (`discadmin/index-core.php`), while extensions override one another in extra stylesheets. | Incrementally extract shared shell, form and record-list behavior with browser coverage. Avoid a full rewrite; keep one canonical state and sidebar. |
+| P1 | Common navigation, form labels, helper text and actions use 8–11px text and narrow tap targets (`discadmin/index-core.php`, `discadmin/admin-modules.css`). | Establish a shared admin type/spacing/control scale, touch targets, visible focus, and predictable section hierarchy. **Shared shell and common-control pass addressed**; individual modules can continue to converge incrementally. |
+| P1 | Generated forms and modal editors had inconsistent label associations, required-state cues, keyboard/focus behavior and save/publication clarity. | Use the canonical modal and shared dialog enhancement for accessible semantics, focus containment/restoration, required-field summaries and explicit Draft/Published actions. **Addressed for legacy editors, Blog, Releases and the Content Core event modal.** |
+| P1 | The admin shell and many workflows are concentrated in large inline PHP/JS/CSS blocks (`discadmin/index-core.php`), while extensions override one another in extra stylesheets. | Incrementally extract shared shell, form and record-list behavior with browser coverage. Avoid a full rewrite; keep one canonical state and sidebar. **In progress through shared shell, record-list and dialog enhancements.** |
 | P1 | The roadmap explicitly notes remaining Content Core production smoke debt (`README.md`, Known stabilization debt). | Run authenticated smoke checks with real content and record which create/edit/publish relationships pass or fail before adding more editorial features. |
 | P2 | Backup v1 includes manual creation and download, but restore is intentionally deferred (`README.md`, Backups Foundation). | Document and rehearse a recovery procedure with a disposable database and private files. Treat restore automation as a separate guarded project. |
 | P2 | Public discovery and responsive/performance polish remain the active roadmap priority (`README.md`, Current roadmap). | Measure actual mobile journeys and Core Web Vitals on event, artist, release and archive pages; fix the highest-friction journeys before expanding page types. |
@@ -26,7 +26,7 @@ Use a calm, consistent admin shell: stable navigation on desktop, a single drawe
 
 ## Suggested next sequence
 
-1. Standardize dialogs/forms across old and new modules, including focus, validation, save feedback, and draft/publish clarity.
-2. Test Content Core end to end against production-like data and close the remaining stabilization debt.
-3. Run a measured public mobile/performance/accessibility pass, then address the highest-impact issues.
-4. Rehearse backup recovery and verify GA4 configuration/consent in production.
+1. Test Content Core end to end against production-like data and close the remaining stabilization debt.
+2. Run a measured public mobile/performance/accessibility pass, then address the highest-impact issues.
+3. Rehearse backup recovery and verify GA4 configuration/consent in production.
+4. Continue incremental extraction of shared admin UI behavior when touching remaining module-specific forms.
