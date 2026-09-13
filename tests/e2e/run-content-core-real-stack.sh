@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${GITHUB_ACTIONS:-}" != "true" && "${BRVTAL_REAL_STACK_FORCE:-0}" != "1" ]]; then
+  echo "Skipping Content Core real-stack smoke outside GitHub Actions. Set BRVTAL_REAL_STACK_FORCE=1 to run it locally."
+  exit 0
+fi
+
 DB_HOST="${BRVTAL_TEST_DB_HOST:-127.0.0.1}"
 DB_PORT="${BRVTAL_TEST_DB_PORT:-3306}"
 DB_NAME="${BRVTAL_TEST_DB_NAME:-brvtal_test_ci}"
