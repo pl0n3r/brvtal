@@ -36,6 +36,7 @@ test('public archive separates active lifecycle from historical nights and filte
         <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
+        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
         <div class="archive-grid"></div>
       </div>
       <script>window.ScrollTrigger={refresh(){window.__archiveRefreshed=true;}};</script>
@@ -66,6 +67,14 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
   await expect(page.locator('[data-archive-results]')).toHaveText('1 RECORD FOUND');
+  await page.locator('[data-archive-search]').fill('nothing matches');
+  await expect(page.locator('[data-archive-results]')).toHaveText('0 RECORDS FOUND');
+  await expect(page.locator('[data-archive-empty]')).toBeVisible();
+  await page.getByRole('button', { name: 'CLEAR FILTERS' }).click();
+  await expect(page.locator('[data-archive-empty]')).toBeHidden();
+  await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
+  await expect(page.locator('[data-archive-search]')).toHaveValue('');
+  await expect(page.locator('[data-archive-search]')).toBeFocused();
   await page.locator('[data-archive-search]').fill('');
 
   await page.getByRole('button', { name: '2025' }).click();
