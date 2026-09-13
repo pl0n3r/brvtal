@@ -123,7 +123,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $cards = '';
         foreach ($items as $item) {
             $href = !empty($item['route_type']) && !empty($item['slug']) ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug']) : $safeUrl($item['url'] ?? '');
-            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy">' : '<span class="entity-card-mark">BRVTAL</span>';
+            $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
             $price = isset($item['price']) && $item['price'] !== null ? number_format((float)$item['price'], 0) . ' ' . $escape($item['currency'] ?? '') : '';
             $content = $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span>';
             $cards .= $href ? '<a class="entity-card" href="' . $href . '">' . $content . '</a>' : '<div class="entity-card">' . $content . '</div>';
@@ -156,10 +156,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   <link rel="stylesheet" href="/css/public-entity.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
   <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/#{$routeType}">← BACK TO ARCHIVE</a></header>
-  <main>
+  <main id="main-content" tabindex="-1">
     <article class="entity-hero">
-      <div class="entity-image"><img src="{$image}" alt="{$entityTitle}"><span>{$kind} / BRVTAL</span></div>
+      <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kind} / BRVTAL</span></div>
       <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kind} / {$entityId}</div><h1>{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
     <section class="entity-statement"><div class="entity-section-label">ABOUT / INFORMATION</div><p>{$body}</p></section>

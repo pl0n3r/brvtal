@@ -75,6 +75,9 @@ jobs:
       - name: Run Public Archive contract tests
         run: php tests/public-archive-contract.php
 
+      - name: Run Public Entity contract tests
+        run: php tests/public-entity-contract.php
+
       - name: Run Related Content contract tests
         run: php tests/related-content-contract.php
 
