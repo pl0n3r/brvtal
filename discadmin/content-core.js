@@ -30,6 +30,18 @@ $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
 (function(){
   const originalOpenEvent=openEvent;
   const originalSaveEvent=saveEvent;
+  let ticketRequest=0,ticketState='ready';
+  async function refreshTickets(eventId,request){
+    const response=await api('/ticket_types');
+    if(response.ok===false)throw new Error(response.error||'Ticket types unavailable');
+    const all=Array.isArray(response.data)?response.data:[];
+    if(request!==ticketRequest||Number(currentEvent?.id)!==eventId)return;
+    currentEvent.ticket_types=all.filter(ticket=>Number(ticket.event_id)===eventId).sort((a,b)=>Number(a.sort_order||0)-Number(b.sort_order||0));
+    $('#tickets').innerHTML='';
+    currentEvent.ticket_types.forEach(addTicket);
+    ticketState='ready';
+    $('#tickets').dataset.loadState='ready';
+  }
   async function refreshLineup(eventId){
     if(!eventId||!window.BRVTALContentCoreLineup)return;
     const lineup=await window.BRVTALContentCoreLineup.load(eventId,csrf);
@@ -38,9 +50,26 @@ $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
   }
   openEvent=function(id=null){
     originalOpenEvent(id);
-    if(id) refreshLineup(Number(id)).catch(e=>msg('Could not load event roster: '+e.message,false,'eventNotice'));
+    const request=++ticketRequest;
+    ticketState=id?'loading':'ready';
+    $('#tickets').dataset.loadState=ticketState;
+    if(id){
+      $('#tickets').innerHTML='<div class="empty">Loading ticket types…</div>';
+      refreshTickets(Number(id),request).catch(e=>{
+        if(request!==ticketRequest)return;
+        ticketState='error';
+        $('#tickets').dataset.loadState='error';
+        $('#tickets').innerHTML='<div class="empty">Ticket types could not be loaded.</div>';
+        msg('Could not load ticket types: '+e.message,false,'eventNotice');
+      });
+      refreshLineup(Number(id)).catch(e=>msg('Could not load event roster: '+e.message,false,'eventNotice'));
+    }
   };
   saveEvent=async function(){
+    if(ticketState!=='ready'){
+      msg(ticketState==='loading'?'Wait for ticket types to load before saving.':'Reload ticket types before saving this event.',false,'eventNotice');
+      return false;
+    }
     const saved=await originalSaveEvent();
     if(!saved)return false;
     const eventId=Number(currentEvent?.id||0);
