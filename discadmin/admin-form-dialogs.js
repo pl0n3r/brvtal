@@ -17,6 +17,42 @@
   };
   const statusFieldIds = ['f_status', 'blog_status_field', 'release_status_field'];
 
+  function connectLabels(container, prefix = 'admin-field') {
+    container.querySelectorAll('.field label:not([for])').forEach((label, index) => {
+      const field = label.closest('.field');
+      const control = field?.querySelector('input,textarea,select');
+      if (!control) return;
+      if (!control.id) control.id = `${prefix}-${index}`;
+      label.setAttribute('for', control.id);
+    });
+  }
+
+  function setRequiredField(container, id, name, required) {
+    const control = container.querySelector('#' + id);
+    if (!control) return;
+    control.required = Boolean(required);
+    control.setAttribute('aria-required', String(Boolean(required)));
+    if (required) control.dataset.requiredLabel = name;
+    else delete control.dataset.requiredLabel;
+
+    const label = container.querySelector(`label[for="${id}"]`);
+    if (!label) return;
+    let badge = label.querySelector('.admin-required');
+    if (required && !badge) {
+      badge = document.createElement('span');
+      badge.className = 'admin-required';
+      badge.textContent = 'REQUIRED';
+      label.appendChild(badge);
+    } else if (!required && badge) {
+      badge.remove();
+    }
+  }
+
+  function focusableWithin(container) {
+    return [...container.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')]
+      .filter(el => el.offsetParent !== null);
+  }
+
   function isOpen() {
     return modal.classList.contains('open');
   }
@@ -84,30 +120,9 @@
     syncSaveLabel();
   }
 
-  function connectLooseLabels() {
-    modal.querySelectorAll('.field label:not([for])').forEach((label, index) => {
-      const field = label.closest('.field');
-      const control = field?.querySelector('input,textarea,select');
-      if (!control) return;
-      if (!control.id) control.id = 'admin-field-' + index;
-      label.setAttribute('for', control.id);
-    });
-  }
-
   function markRequiredFields() {
     Object.entries(requiredByField).forEach(([id, name]) => {
-      const input = document.getElementById(id);
-      if (!input || !modal.contains(input)) return;
-      input.required = true;
-      input.setAttribute('aria-required', 'true');
-      input.dataset.requiredLabel = name;
-      const label = modal.querySelector(`label[for="${id}"]`);
-      if (label && !label.querySelector('.admin-required')) {
-        const badge = document.createElement('span');
-        badge.className = 'admin-required';
-        badge.textContent = 'REQUIRED';
-        label.appendChild(badge);
-      }
+      if (modal.querySelector('#' + id)) setRequiredField(modal, id, name, true);
     });
   }
 
@@ -162,11 +177,6 @@
     else syncSaveLabel();
   }
 
-  function focusable() {
-    return [...modal.querySelectorAll('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')]
-      .filter(el => el.offsetParent !== null);
-  }
-
   function enhance(options = {}) {
     if (!isOpen()) return;
     const box = modal.querySelector('.modalbox');
@@ -186,7 +196,7 @@
     }
     modal.querySelectorAll('.modalfoot button').forEach(button => { button.type = 'button'; });
 
-    connectLooseLabels();
+    connectLabels(modal);
     markRequiredFields();
     syncPublicationHint();
 
@@ -244,15 +254,122 @@
     setTimeout(() => { if (isOpen() && saving) setSaving(false); }, 8000);
   }, true);
 
+  let contentCoreModal = null;
+  let contentCoreWasOpen = false;
+  let contentCoreOpener = null;
+
+  function syncContentCoreState(cc) {
+    connectLabels(cc, 'content-core-field');
+    const status = cc.querySelector('#e_status');
+    const isDraft = !status || String(status.value).toLowerCase() === 'draft';
+    setRequiredField(cc, 'e_title', 'Name', true);
+    setRequiredField(cc, 'e_event_date', 'Date & time', !isDraft);
+    setRequiredField(cc, 'e_city', 'City', !isDraft);
+
+    if (!status) return;
+    let hint = cc.querySelector('.admin-content-core-state');
+    if (!hint) {
+      hint = document.createElement('div');
+      hint.className = 'admin-publication-state admin-content-core-state';
+      hint.setAttribute('role', 'status');
+      status.closest('.field')?.appendChild(hint);
+    }
+    const state = String(status.value || 'draft').toLowerCase();
+    const label = state.replace(/_/g, ' ').toUpperCase();
+    const copy = state === 'draft'
+      ? 'Draft can be saved with a name only. Date and city may remain incomplete.'
+      : 'This non-draft lifecycle state requires name, date and city before saving.';
+    hint.dataset.state = state;
+    hint.innerHTML = '<strong></strong><span></span>';
+    hint.querySelector('strong').textContent = label;
+    hint.querySelector('span').textContent = copy;
+  }
+
+  function enhanceContentCore(cc, options = {}) {
+    const box = cc.querySelector('.modalbox');
+    const heading = cc.querySelector('#eventHeading');
+    if (box) {
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-labelledby', 'eventHeading');
+      box.setAttribute('tabindex', '-1');
+    }
+    if (heading) heading.setAttribute('tabindex', '-1');
+    const close = cc.querySelector('.modal-actions .icon');
+    if (close) close.setAttribute('aria-label', 'Close event editor');
+    const notice = cc.querySelector('#eventNotice');
+    if (notice) {
+      notice.setAttribute('aria-live', 'assertive');
+      notice.setAttribute('aria-atomic', 'true');
+    }
+    cc.querySelectorAll('button').forEach(button => { if (!button.type) button.type = 'button'; });
+    syncContentCoreState(cc);
+
+    if (options.focus !== false) {
+      requestAnimationFrame(() => cc.querySelector('#e_title')?.focus({ preventScroll: true }));
+    }
+  }
+
+  function handleContentCoreModal() {
+    const current = document.getElementById('eventModal');
+    if (current !== contentCoreModal) {
+      if (contentCoreWasOpen && contentCoreOpener?.isConnected) contentCoreOpener.focus({ preventScroll: true });
+      contentCoreModal = current;
+      contentCoreWasOpen = false;
+      contentCoreOpener = null;
+    }
+    if (!current) return;
+
+    const open = current.classList.contains('open');
+    if (open && !contentCoreWasOpen) {
+      contentCoreOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      enhanceContentCore(current);
+    } else if (!open && contentCoreWasOpen) {
+      if (contentCoreOpener?.isConnected) contentCoreOpener.focus({ preventScroll: true });
+      contentCoreOpener = null;
+    }
+    contentCoreWasOpen = open;
+  }
+
+  document.addEventListener('change', event => {
+    if (event.target?.id === 'e_status' && event.target.closest('#eventModal')) {
+      syncContentCoreState(event.target.closest('#eventModal'));
+    }
+  });
+
   document.addEventListener('keydown', event => {
-    if (!isOpen()) return;
+    if (isOpen()) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (typeof window.closeModal === 'function') window.closeModal();
+        return;
+      }
+      if (event.key === 'Tab') {
+        const items = focusableWithin(modal);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
+
+    const cc = contentCoreModal;
+    if (!cc?.classList.contains('open')) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (typeof window.closeModal === 'function') window.closeModal();
+      if (window.BRVTALContentCore?.closeEvent) window.BRVTALContentCore.closeEvent();
+      else cc.classList.remove('open');
       return;
     }
     if (event.key !== 'Tab') return;
-    const items = focusable();
+    const items = focusableWithin(cc);
     if (!items.length) return;
     const first = items[0];
     const last = items[items.length - 1];
@@ -273,5 +390,13 @@
     if (isOpen() && notice.classList.contains('error') && saving) setSaving(false);
   }).observe(notice, { attributes: true, attributeFilter: ['class'] });
 
-  window.BRVTALAdminFormDialogs = { enhance, validate, syncPublicationHint };
+  new MutationObserver(handleContentCoreModal).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class']
+  });
+  handleContentCoreModal();
+
+  window.BRVTALAdminFormDialogs = { enhance, validate, syncPublicationHint, enhanceContentCore };
 })();
