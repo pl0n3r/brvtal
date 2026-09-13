@@ -3,4 +3,8 @@ body{cursor:auto}
 body.cursor-enhanced{cursor:none}
 body.cursor-enhanced .cursor,body.cursor-enhanced .cursor-label{display:block}
 a:focus-visible,button:focus-visible{outline:2px solid var(--acid);outline-offset:4px}
+.skip-link{position:fixed;left:16px;top:12px;z-index:3000;padding:12px 16px;background:var(--fg);color:var(--bg);font-size:11px;text-decoration:none;transform:translateY(-160%);transition:transform .18s ease}
+.skip-link:focus-visible{transform:translateY(0);outline:2px solid var(--acid);outline-offset:3px}
+#top:focus{outline:none}
 @media(pointer:coarse){body,body.cursor-enhanced{cursor:auto}.cursor,.cursor-label,body.cursor-enhanced .cursor,body.cursor-enhanced .cursor-label{display:none}}
+@media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
