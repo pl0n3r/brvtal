@@ -15,7 +15,7 @@ test('public media supports type/search discovery and an accessible image viewer
   await page.goto(harnessUrl);
   await page.evaluate(() => window.BRVTALPublicMedia.render([
     {id:1,type:'image',title:'Warehouse Memory',alt_text:'Crowd in Pereira',file_path:'/warehouse.jpg'},
-    {id:2,type:'audio',title:'Closing Signal',file_path:'/closing.mp3'},
+    {id:2,type:'audio',title:'Señal de cierre',file_path:'/closing.mp3'},
     {id:3,type:'video',title:'Red Strobe',file_path:'/strobe.mp4'},
     {id:4,type:'image',title:'Afterhours',file_path:'/afterhours.jpg'},
   ]));
@@ -26,6 +26,8 @@ test('public media supports type/search discovery and an accessible image viewer
   await page.getByRole('button', {name:'AUDIO'}).click();
   await expect(page.locator('[data-public-media-type-value="audio"]')).toBeVisible();
   await expect(page.locator('[data-public-media-type-value="image"]').first()).toBeHidden();
+  await page.locator('[data-public-media-search]').fill('senal');
+  await expect(page.locator('[data-public-media-count]')).toHaveText('1 MEMORY FOUND');
 
   await page.getByRole('button', {name:'ALL'}).click();
   await page.locator('[data-public-media-search]').fill('warehouse');

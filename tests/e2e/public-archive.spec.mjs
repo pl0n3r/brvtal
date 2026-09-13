@@ -20,7 +20,7 @@ test('public archive separates active lifecycle from historical nights and filte
           counts: { events: 2, sets: 1, media: 9, releases: 3 },
           events: [
             { id: 20, title: 'Session Five', slug: 'session-five', event_date: '2026-08-07 21:00:00', archive_year: 2026, city: 'Pereira', venue: 'Studio', status: 'finished', cover_image: '/archive-2026.jpg', ticket_url: null, lineup: [{name:'PERKS'},{name:'DNL5'}], related_sets: [{id:90,title:'Session Five Set'}] },
-            { id: 21, title: 'Old Signal', slug: 'old-signal', event_date: '2025-05-01 21:00:00', archive_year: 2025, city: 'Bogota', venue: 'Bunker', status: 'archived', cover_image: '/archive-2025.jpg', ticket_url: null, lineup: [], related_sets: [] },
+            { id: 21, title: 'Old Signal', slug: 'old-signal', event_date: '2025-05-01 21:00:00', archive_year: 2025, city: 'Bogotá', venue: 'Bunker', status: 'archived', cover_image: '/archive-2025.jpg', ticket_url: null, lineup: [], related_sets: [] },
           ],
         },
       },
@@ -67,6 +67,9 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
   await expect(page.locator('[data-archive-results]')).toHaveText('1 RECORD FOUND');
+  await page.locator('[data-archive-search]').fill('Pereíra');
+  await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
+  await expect(page.locator('[data-archive-id="21"]')).toBeHidden();
   await page.locator('[data-archive-search]').fill('nothing matches');
   await expect(page.locator('[data-archive-results]')).toHaveText('0 RECORDS FOUND');
   await expect(page.locator('[data-archive-empty]')).toBeVisible();
