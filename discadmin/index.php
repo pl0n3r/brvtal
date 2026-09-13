@@ -14,6 +14,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<link rel="stylesheet" href="/discadmin/admin-shell.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/admin-record-lists.css' . $suffix . '">'
     . '<link rel="stylesheet" href="/discadmin/admin-form-dialogs.css' . $suffix . '">'
+    . '<link rel="stylesheet" href="/discadmin/hero-slider.css' . $suffix . '">'
     . '<script src="/discadmin/content-core-nav.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-health.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-editorial-defaults.js' . $suffix . '"></script>'
@@ -26,7 +27,8 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/backups.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-shell.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-record-lists.js' . $suffix . '"></script>'
-    . '<script src="/discadmin/admin-form-dialogs.js' . $suffix . '"></script>';
+    . '<script src="/discadmin/admin-form-dialogs.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/hero-slider.js' . $suffix . '"></script>';
 
 if (str_contains($html, '</body>')) {
     $html = str_replace('</body>', $enhancements . '</body>', $html);
