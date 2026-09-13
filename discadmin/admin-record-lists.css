@@ -1,0 +1,56 @@
+/* Responsive legacy record lists: keep every meaningful field visible on phones. */
+@media (max-width:850px){
+  .table[data-record-list]{border:0;background:transparent}
+  .table[data-record-list] .thead{display:none}
+  .table[data-record-list] #rows{display:grid;gap:12px}
+  .table[data-record-list] .tr{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:14px 16px;
+    padding:16px;
+    border:1px solid #2b3034;
+    border-radius:8px;
+    background:#090a0b;
+    align-items:start;
+  }
+  .table[data-record-list] .tr>div:nth-child(2),
+  .table[data-record-list] .tr>div:nth-child(3),
+  .table[data-record-list] .tr>div:nth-child(4){display:block!important}
+  .table[data-record-list] .record-main{
+    grid-column:1/-1;
+    min-width:0;
+    padding-bottom:12px;
+    border-bottom:1px solid #202428;
+  }
+  .table[data-record-list] .record-main .title{font-size:14px;line-height:1.35}
+  .table[data-record-list] .record-main .meta{overflow-wrap:anywhere}
+  .table[data-record-list] .record-field{min-width:0;overflow-wrap:anywhere}
+  .table[data-record-list] .record-field::before{
+    content:attr(data-label);
+    display:block;
+    margin-bottom:6px;
+    color:#8f979d;
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:1.4px;
+    line-height:1.2;
+  }
+  .table[data-record-list] .record-status .pill{margin-top:0}
+  .table[data-record-list] .record-actions{
+    display:flex!important;
+    grid-column:1/-1;
+    justify-content:flex-start;
+    gap:8px;
+    flex-wrap:wrap;
+    padding-top:12px;
+    border-top:1px solid #202428;
+  }
+  .table[data-record-list] .record-actions .iconbtn{min-height:44px;padding:10px 12px}
+  .table[data-record-list] .record-spacer{display:none!important}
+}
+
+@media (max-width:480px){
+  .table[data-record-list] .tr{grid-template-columns:1fr;padding:14px}
+  .table[data-record-list] .record-main,
+  .table[data-record-list] .record-actions{grid-column:1}
+}
