@@ -70,12 +70,12 @@ test('related content explorer connects artists to events, sets and releases wit
   await page.getByRole('button', { name: /DNL5/ }).first().click();
   await expect(page.locator('[data-related-detail]')).toContainText('PAST SIGNAL');
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5 ARCHIVE');
-  await expect(page.locator('a[href="/events/past-signal"]')).toBeVisible();
   await expect(page.locator('[data-related-detail]')).not.toContainText('SIGNAL 001');
 
   await page.getByRole('tab', { name: 'EVENTS' }).click();
   await page.getByRole('button', { name: /PAST SIGNAL/ }).first().click();
   await expect(page.locator('[data-related-detail]')).toContainText('EVENT / FINISHED');
+  await expect(page.locator('a[href="/events/past-signal"]')).toBeVisible();
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5');
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5 ARCHIVE');
 
