@@ -6,6 +6,7 @@
   let index = 0;
   let timer = null;
   let mounted = false;
+  let paused = false;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -30,10 +31,10 @@
     if (slide.mediaType === 'video') {
       return `<video class="brvtal-hero-media" muted loop playsinline preload="metadata" ${slide.poster ? `poster="${esc(slide.poster)}"` : ''}><source src="${esc(src)}"></video>`;
     }
-    return `<img class="brvtal-hero-media" src="${esc(src)}" alt="" decoding="async" fetchpriority="${position === 0 ? 'high' : 'auto'}">`;
+    return `<img class="brvtal-hero-media" ${position === 0 ? `src="${esc(src)}" loading="eager" fetchpriority="high"` : `data-src="${esc(src)}"`} alt="" decoding="async">`;
   }
 
-  function layerMarkup(layer) {
+  function layerMarkup(layer, position) {
     if (isMobile() && layer.hiddenMobile) return '';
     const mobile = isMobile();
     const x = mobile && layer.mobileX != null ? layer.mobileX : layer.x;
@@ -43,7 +44,7 @@
     const style = `left:${Number(x)}%;top:${Number(y)}%;width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
     if (layer.type === 'image' || layer.type === 'logo') {
       if (!src) return '';
-      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img src="${esc(src)}" alt="" decoding="async"></div>`;
+      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${position === 0 ? `src="${esc(src)}"` : `data-src="${esc(src)}"`} alt="" decoding="async"></div>`;
     }
     if (layer.type === 'cta') {
       const text = esc(layer.text || 'ENTER EXPERIENCE');
@@ -60,13 +61,13 @@
 
   function slideMarkup(slide, position) {
     const transition = ['fade','slide','zoom'].includes(slide.transition) ? slide.transition : 'fade';
-    return `<article class="brvtal-hero-slide ${position === 0 ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${position === 0 ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay || 35) / 100}">${mediaMarkup(slide, position)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layerMarkup).join('') : ''}</article>`;
+    return `<article class="brvtal-hero-slide ${position === 0 ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${position === 0 ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay ?? 35) / 100}">${mediaMarkup(slide, position)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layer => layerMarkup(layer, position)).join('') : ''}</article>`;
   }
 
   function controlsMarkup(total) {
     if (total <= 1) return '';
     const dots = Array.from({length: total}, (_, i) => `<button type="button" data-hero-dot="${i}" class="${i === 0 ? 'active' : ''}" aria-label="Show slide ${i + 1}"></button>`).join('');
-    return `<div class="brvtal-hero-controls"><button type="button" data-hero-prev aria-label="Previous slide">←</button><div class="brvtal-hero-dots">${dots}</div><button type="button" data-hero-next aria-label="Next slide">→</button></div>`;
+    return `<div class="brvtal-hero-controls"><button type="button" data-hero-prev aria-label="Previous slide">←</button><div class="brvtal-hero-dots">${dots}</div><button type="button" data-hero-next aria-label="Next slide">→</button><button type="button" data-hero-pause aria-label="Pause automatic slides" aria-pressed="false">Ⅱ</button></div>`;
   }
 
   function mount(data) {
@@ -93,6 +94,8 @@
     const all = slides();
     if (!all.length) return;
     index = (next + all.length) % all.length;
+    const currentSlide = all[index];
+    currentSlide.querySelectorAll('img[data-src]').forEach(img => { img.src = img.dataset.src; delete img.dataset.src; });
     all.forEach((slide, i) => {
       const active = i === index;
       slide.classList.toggle('active', active);
@@ -119,7 +122,7 @@
 
   function schedule() {
     clearTimeout(timer);
-    if (!mounted || !config?.autoplay || config.slides.length <= 1 || reducedMotion()) return;
+    if (!mounted || !config?.autoplay || config.slides.length <= 1 || reducedMotion() || paused || document.hidden) return;
     timer = setTimeout(() => go(index + 1), Math.max(2500, Math.min(30000, Number(config.interval) || 7000)));
   }
 
@@ -127,10 +130,22 @@
     root.querySelector('[data-hero-prev]')?.addEventListener('click', () => go(index - 1));
     root.querySelector('[data-hero-next]')?.addEventListener('click', () => go(index + 1));
     root.querySelectorAll('[data-hero-dot]').forEach(dot => dot.addEventListener('click', () => go(Number(dot.dataset.heroDot || 0))));
+    const pauseButton = root.querySelector('[data-hero-pause]');
+    if (pauseButton) {
+      pauseButton.hidden = !config.autoplay || reducedMotion();
+      pauseButton.addEventListener('click', () => {
+        paused = !paused;
+        pauseButton.setAttribute('aria-pressed', String(paused));
+        pauseButton.setAttribute('aria-label', paused ? 'Resume automatic slides' : 'Pause automatic slides');
+        pauseButton.textContent = paused ? '▶' : 'Ⅱ';
+        schedule();
+      });
+    }
     root.addEventListener('mouseenter', () => clearTimeout(timer));
     root.addEventListener('mouseleave', schedule);
     root.addEventListener('focusin', () => clearTimeout(timer));
-    root.addEventListener('focusout', schedule);
+    root.addEventListener('focusout', event => { if (!root.contains(event.relatedTarget)) schedule(); });
+    document.addEventListener('visibilitychange', schedule);
   }
 
   async function init() {
