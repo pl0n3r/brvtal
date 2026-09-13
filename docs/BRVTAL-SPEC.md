@@ -2,7 +2,7 @@
 
 This document is the functional and architectural source of truth for BRVTAL.
 
-Before changing architecture, database schema, DISCADMIN, frontend, APIs, workflows or file structure, review this specification. When implementation and specification conflict, preserve data and working functionality, but treat this document as the intended product direction unless a newer explicit decision supersedes it.
+Before changing architecture, database schema, DISCADMIN, frontend, APIs, workflows or file structure, review this specification. Inspect current code and recent PRs as well: implementation and newer explicit decisions supersede obsolete descriptions here. Preserve data and working functionality, then update this specification to reflect the resolved decision. `AGENTS.md` contains the concise operating rules for future sessions.
 
 ## 1. Product identity
 
@@ -673,14 +673,14 @@ The following are implemented foundations and should not be proposed as greenfie
 
 ### Known stabilization debt
 
-Content Core production smoke testing has exposed several UX/persistence/route issues. Important/blocking defects should continue to be fixed, but this debt no longer blocks all other platform development. Fix defects in focused PRs without replacing the shell or duplicating APIs.
+Content Core production smoke testing exposed UX/persistence/route issues. PRs #68–#70 added and stabilized automated real-stack create/update coverage. This does not establish that every authenticated flow was rechecked on Hostinger. Fix newly reproduced defects in focused PRs without replacing the shell or duplicating APIs.
 
 ### Active next priorities
 
 1. **Backups Foundation v1 — implemented** — safe manual DB/private-file backup, manifests/history/download, no restore.
 2. **Media Engine v2 UX — implemented** — focal point/crop previews, context-aware variants and clearer quality guidance on top of the existing variant engine.
 3. **Editorial Version History v1 — implemented** — per-content timelines and readable field-level before/after diffs derived from the audit foundation, read-only initially.
-4. **Public discovery/polish — active next priority** — stronger Archive/Media discovery, relationships, responsive/performance refinement and richer public entity experience.
+4. **Public discovery/polish — active next priority** — PRs #71–#81 improved mobile readability, accessibility, image/font loading, touch scrolling, and touch animation cost. Next measure actual mobile load/Core Web Vitals and fix evidenced bottlenecks, while continuing Archive/Media and public entity refinement. Check open PRs to avoid duplicate work.
 5. **Analytics/privacy foundation** — Google Analytics where appropriate, minimal consent/cookie behavior and useful reporting without creating a custom analytics product prematurely.
 
 ### Explicitly deferred
