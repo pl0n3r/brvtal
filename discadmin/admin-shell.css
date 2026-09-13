@@ -1,0 +1,57 @@
+/* Shared DISCADMIN shell: one navigation, readable controls and touch-friendly spacing. */
+.shell{grid-template-columns:252px minmax(0,1fr)}
+.side{padding:24px 16px;scrollbar-width:thin}
+.side .logo,.side .sub{margin-left:10px}
+.side .sub{margin-bottom:27px}
+.side .sidefoot{padding:20px 10px 0}
+.nav{gap:2px}
+.nav button{min-height:42px;padding:11px 12px;border-radius:7px;color:#a6acb2;font-size:11px;font-weight:700;letter-spacing:.7px;line-height:1.35;transition:background .15s,color .15s}
+.nav button:hover{background:#181b1e;color:#fff}
+.nav button.active{background:#24282b;color:#fff}
+.nav button.active:before{width:4px;height:14px;margin:0 10px -3px 0;border-radius:2px}
+.navgroup{margin:19px 12px 7px;color:#9ba2a8;font-size:10px}
+.main{width:100%;min-width:0;padding:32px clamp(20px,3vw,48px) 60px}
+.top{align-items:center;gap:16px;padding-bottom:22px}
+.top h1{font-size:clamp(25px,2.7vw,36px);line-height:1.1;letter-spacing:-1px}
+.eyebrow,.sectionhead strong,.field label{font-size:11px}
+.helper,.meta,.notice{font-size:12px;line-height:1.5}
+.thead{font-size:10px;color:#a2a9af}
+.tr{font-size:13px;line-height:1.4}
+.pill{font-size:10px}
+.btn,.iconbtn{min-height:40px;border-radius:6px}
+.iconbtn{font-size:11px}
+.search,.field input,.field textarea,.field select{min-height:44px;border-radius:6px}
+.section,.dashsection,.stat,.table,.techcard{border-radius:8px}
+.admin-menu-toggle,.admin-nav-scrim{display:none}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #f4f5f6;outline-offset:2px}
+@media(max-width:850px){
+  .shell{display:block;min-height:100dvh}
+  .main{padding:20px 18px 48px}
+  .side{position:fixed;inset:0 auto 0 0;width:min(320px,calc(100vw - 48px));height:100dvh;max-height:none;padding:24px 16px;overflow-y:auto;border-right:1px solid #393e43;border-bottom:0;z-index:72;visibility:hidden;transform:translateX(-105%);transition:transform .2s ease,visibility .2s}
+  .shell.admin-nav-open .side{visibility:visible;transform:translateX(0)}
+  .admin-nav-scrim{position:fixed;inset:0;z-index:71;background:#000b;border:0;width:100%;height:100%;padding:0}
+  .shell.admin-nav-open .admin-nav-scrim{display:block}
+  body.admin-nav-open{overflow:hidden}
+  .admin-menu-toggle{display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;min-width:84px;min-height:44px;padding:8px 11px;background:#16191b;border:1px solid #454a4e;border-radius:7px;color:#fff;font-size:11px;font-weight:800;letter-spacing:1px}
+  .admin-menu-toggle span:first-child{font-size:19px;line-height:1}
+  .admin-page-title{min-width:0;flex:1}
+  .top h1{font-size:clamp(21px,4.6vw,30px);overflow-wrap:anywhere}
+  .top .status{display:none}
+  .toolbar{flex-wrap:wrap}
+  .toolbar .search{width:100%}
+  .toolbar .btn{min-height:44px}
+  .actions{flex-wrap:wrap}
+  .actions .iconbtn{min-height:40px}
+  .modalbox{max-height:calc(100dvh - 24px)}
+}
+@media(max-width:480px){
+  .main{padding:16px 12px 40px}
+  .top{gap:10px}
+  .top .eyebrow{display:none}
+  .section,.dashsection{padding:14px}
+  .metricrow,.quickgrid{grid-template-columns:1fr 1fr}
+  .modal{padding:8px}
+  .modalhead,.form,.modalfoot{padding:16px}
+  .modalfoot{gap:12px;flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){.side{transition:none}}
