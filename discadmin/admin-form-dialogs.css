@@ -1,0 +1,29 @@
+.modalbox[role="dialog"]{border-radius:10px;box-shadow:0 24px 80px #000d}
+.modalbox[role="dialog"] .modalhead{position:sticky;top:0;z-index:4;background:#080909}
+.modalbox[role="dialog"] .modalfoot{position:sticky;bottom:0;z-index:4;background:#080909}
+.modalbox[role="dialog"] .modalhead .iconbtn{min-width:44px}
+.modalbox[role="dialog"] .field label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.admin-required{font:800 8px/1 monospace;letter-spacing:1.2px;color:#d7dadd;border:1px solid #454a4f;padding:4px 5px;border-radius:4px}
+.modalbox[role="dialog"] input[aria-invalid="true"],
+.modalbox[role="dialog"] textarea[aria-invalid="true"],
+.modalbox[role="dialog"] select[aria-invalid="true"]{border-color:#ff5566;box-shadow:0 0 0 1px #ff556633}
+.admin-validation-summary{margin-top:14px!important;border-color:#71323b!important;background:#1b0c0f!important;color:#ffd9dd!important}
+.admin-publication-state{margin-top:9px;padding:10px 11px;border:1px solid #2e3337;background:#080a0b;border-radius:6px;display:grid;gap:4px}
+.admin-publication-state strong{font:900 9px/1.2 monospace;letter-spacing:1.4px;color:#d9dde0}
+.admin-publication-state span{font-size:11px;line-height:1.45;color:#8f979d}
+.admin-publication-state[data-state="published"]{border-color:#285b43}
+.admin-publication-state[data-state="draft"]{border-color:#4a5055}
+.admin-publication-state[data-state="archived"]{border-color:#5b4d2d}
+#saveBtn[aria-busy="true"]{opacity:.72;cursor:progress}
+.modalfoot .footactions{align-items:center}
+@media(max-width:650px){
+  .modal.open{align-items:flex-start;padding:8px}
+  .modalbox[role="dialog"]{width:100%;max-height:calc(100dvh - 16px);border-radius:8px}
+  .modalbox[role="dialog"] .modalhead{padding:15px 16px}
+  .modalbox[role="dialog"] .form{padding:14px}
+  .modalbox[role="dialog"] .section{padding:14px}
+  .modalbox[role="dialog"] .modalfoot{padding:12px 14px;display:block}
+  .modalbox[role="dialog"] .modalfoot>.helper{display:block;margin-bottom:10px}
+  .modalbox[role="dialog"] .footactions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .modalbox[role="dialog"] .footactions .btn{width:100%;min-height:46px}
+}
