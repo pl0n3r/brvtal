@@ -13,7 +13,7 @@ const harness = 'http://127.0.0.1:4173/hero-slider-harness.html';
 async function openHarness(page, payload, status = 200) {
   await page.route(harness, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><style>${publicCss}</style></head><body><main id="top"><section class="hero"><div id="static-hero">STATIC HERO</div></section></main><script>${publicScript}</script></body></html>`
+    body: `<!doctype html><html><head><style>.hero{min-height:600px}${publicCss}</style></head><body><main id="top"><section class="hero"><div id="static-hero">STATIC HERO</div></section></main><script>${publicScript}</script></body></html>`
   }));
   await page.route('**/api/hero-slider.php', route => route.fulfill({
     status,
