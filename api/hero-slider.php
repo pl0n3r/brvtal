@@ -17,10 +17,16 @@ function brvtal_hero_slider_clean_url(mixed $value): string
 {
     $value = trim((string)$value);
     if ($value === '') return '';
-    if (str_starts_with($value, '/')) return $value;
-    if (preg_match('#^https://#i', $value)) return $value;
     if (str_starts_with($value, '#')) return $value;
+    if (preg_match('#^https://#i', $value)) return $value;
+    if (preg_match('#^[A-Za-z0-9._/-]+$#', $value)) return '/' . ltrim($value, '/');
     return '';
+}
+
+function brvtal_hero_slider_text(mixed $value, int $limit): string
+{
+    $value = trim((string)$value);
+    return function_exists('mb_substr') ? mb_substr($value, 0, $limit) : substr($value, 0, $limit);
 }
 
 function brvtal_hero_slider_payload(mixed $raw): array
@@ -38,10 +44,10 @@ function brvtal_hero_slider_payload(mixed $raw): array
             'desktopSrc' => $desktop,
             'mobileSrc' => brvtal_hero_slider_clean_url($slide['mobileSrc'] ?? ''),
             'poster' => brvtal_hero_slider_clean_url($slide['poster'] ?? ''),
-            'kicker' => mb_substr(trim((string)($slide['kicker'] ?? '')), 0, 120),
-            'title' => mb_substr(trim((string)($slide['title'] ?? '')), 0, 140),
-            'body' => mb_substr(trim((string)($slide['body'] ?? '')), 0, 320),
-            'ctaLabel' => mb_substr(trim((string)($slide['ctaLabel'] ?? '')), 0, 80),
+            'kicker' => brvtal_hero_slider_text($slide['kicker'] ?? '', 120),
+            'title' => brvtal_hero_slider_text($slide['title'] ?? '', 140),
+            'body' => brvtal_hero_slider_text($slide['body'] ?? '', 320),
+            'ctaLabel' => brvtal_hero_slider_text($slide['ctaLabel'] ?? '', 80),
             'ctaUrl' => brvtal_hero_slider_clean_url($slide['ctaUrl'] ?? ''),
             'contentAlign' => in_array(($slide['contentAlign'] ?? ''), ['left','center','right'], true) ? $slide['contentAlign'] : 'left',
             'overlay' => max(0, min(85, (int)($slide['overlay'] ?? 35))),
