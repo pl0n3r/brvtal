@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const script = readFileSync(join(process.cwd(), 'discadmin/admin-appearance.js'), 'utf8');
 const css = readFileSync(join(process.cwd(), 'discadmin/admin-appearance.css'), 'utf8');
 const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
+const auth = readFileSync(join(process.cwd(), 'config/admin_auth.php'), 'utf8');
 const harness = 'http://127.0.0.1:4173/admin-appearance-harness.html';
 
 async function openHarness(page) {
@@ -58,4 +59,15 @@ test('wrapper loads early appearance bootstrap and versioned appearance assets',
   expect(wrapper.indexOf('$appearanceBoot')).toBeLessThan(wrapper.indexOf('$enhancements'));
   expect(css).toContain('data-discadmin-appearance="light"');
   expect(css).toContain('data-discadmin-appearance="glass"');
+});
+
+test('admin session uses rolling long-lived cookie without weakening core protections', async () => {
+  expect(auth).toContain('BRVTAL_ADMIN_IDLE_TIMEOUT = 604800');
+  expect(auth).toContain('BRVTAL_ADMIN_ABSOLUTE_TIMEOUT = 2592000');
+  expect(auth).toContain('BRVTAL_ADMIN_COOKIE_LIFETIME = 2592000');
+  expect(auth).toContain('brvtal_admin_refresh_cookie');
+  expect(auth).toContain("'httponly' => true");
+  expect(auth).toContain("'samesite' => 'Strict'");
+  expect(auth).toContain('session_regenerate_id(true)');
+  expect(auth).toContain('hash_equals($expected, $token)');
 });
