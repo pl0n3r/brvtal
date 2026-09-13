@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 const css = readFileSync(join(process.cwd(), 'discadmin/admin-record-lists.css'), 'utf8');
 const js = readFileSync(join(process.cwd(), 'discadmin/admin-record-lists.js'), 'utf8');
-const legacyMobileCss = `@media(max-width:850px){.thead{display:none}.tr{display:grid;grid-template-columns:1fr 1fr}.tr>div:nth-child(2),.tr>div:nth-child(3),.tr>div:nth-child(4){display:none}}`;
+const legacyCss = `.thead,.tr{display:grid;grid-template-columns:2fr 1.1fr 1fr .8fr 165px;gap:12px}.actions{display:flex;justify-content:flex-end}@media(max-width:850px){.thead{display:none}.tr{grid-template-columns:1fr 1fr}.tr>div:nth-child(2),.tr>div:nth-child(3),.tr>div:nth-child(4){display:none}}`;
 
 const fixtures = {
   EVENTS: ['GENESIS','2026-09-14 21:00','Pereira / La Perla','published','LINEUP EDIT DEL'],
@@ -16,7 +16,7 @@ const fixtures = {
 
 async function mount(page, moduleName) {
   const cells = fixtures[moduleName];
-  await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${legacyMobileCss}</style><style>${css}</style></head><body>
+  await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${legacyCss}</style><style>${css}</style></head><body>
     <main class="main"><div class="top"><div class="admin-page-title"><h1>${moduleName}</h1></div></div>
       <div class="table"><div class="thead"><div>ONE</div><div>TWO</div><div>THREE</div><div>FOUR</div><div></div></div>
         <div id="rows"><div class="tr">
@@ -48,8 +48,7 @@ test('mobile legacy lists preserve every meaningful field and actions', async ({
             : ['LOCALE','STATUS'];
 
     for (const label of labels) {
-      const cell = row.locator(`[data-label="${label}"]`);
-      await expect(cell).toBeVisible();
+      await expect(row.locator(`[data-label="${label}"]`)).toBeVisible();
     }
     await expect(row.locator('.record-actions')).toBeVisible();
   }
@@ -72,5 +71,5 @@ test('desktop keeps the existing five-column list layout', async ({ page }) => {
   await expect(row.getByText('2026-09-14 21:00')).toBeVisible();
   await expect(page.locator('.thead')).toBeVisible();
   const columns = await row.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
-  expect(columns).toBeGreaterThanOrEqual(5);
+  expect(columns).toBe(5);
 });
