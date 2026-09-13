@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config/bootstrap.php';
 require_once __DIR__ . '/config/deployment.php';
+require_once __DIR__ . '/config/public_assets.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
 
@@ -25,14 +26,7 @@ if ($entity) {
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
-$assetVersion = rawurlencode(brvtal_deployment_short_sha());
-if ($assetVersion !== '') {
-    $html = preg_replace_callback(
-        '#(?<prefix>(?:href|src)="(?:css|js)/[^"?]+)(?:\?[^"#]*)?(?<suffix>")#',
-        static fn(array $match): string => $match['prefix'] . '?v=' . $assetVersion . $match['suffix'],
-        $html
-    ) ?? $html;
-}
+$html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());
 $html = preg_replace('/<title>.*?<\/title>/s', '<title>' . htmlspecialchars($seo['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</title>', $html, 1) ?? $html;
 $html = preg_replace('/<meta name="description" content="[^"]*">/', '<meta name="description" content="' . htmlspecialchars($seo['description'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">', $html, 1) ?? $html;
 $html = str_replace('</head>', '  ' . brvtal_public_seo_tags($seo) . "\n</head>", $html);
