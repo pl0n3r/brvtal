@@ -23,11 +23,101 @@ jobs:
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
     env:
       BRVTAL_PERF_URL: https://www.brvtal.com.co/
 
     steps:
+      - name: Verify production connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          reachable=false
+
+          for attempt in $(seq 1 3); do
+            if curl -fsSL -o /dev/null \
+              --connect-timeout 3 \
+              --max-time 6 \
+              -H 'Cache-Control: no-cache' \
+              "$BRVTAL_PERF_URL"; then
+              reachable=true
+              echo "Production reachable on attempt $attempt."
+              break
+            fi
+
+            echo "Production not reachable yet (attempt $attempt/3)."
+            if [[ "$attempt" -lt 3 ]]; then
+              sleep 2
+            fi
+          done
+
+          if [[ "$reachable" != "true" ]]; then
+            {
+              echo "## Production connectivity"
+              echo
+              echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
+              echo "- Status: **UNREACHABLE FROM THIS RUNNER**"
+              echo "- Measurement setup was skipped to avoid wasting CI time."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Production is unreachable from this GitHub runner; failing fast before browser setup." >&2
+            exit 1
+          fi
+
+      - name: Wait for exact Hostinger deploy
+        if: github.event_name == 'workflow_run'
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          short_sha="${EXPECTED_SHA:0:7}"
+          observed=false
+
+          for attempt in $(seq 1 8); do
+            probe_url="${BRVTAL_PERF_URL}?__deploy_check=${short_sha}-${attempt}-${GITHUB_RUN_ID}"
+            html=$(curl -fsSL \
+              --connect-timeout 3 \
+              --max-time 8 \
+              -H 'Cache-Control: no-cache' \
+              "$probe_url" || true)
+
+            if [[ "$html" == *"?v=$short_sha"* ]]; then
+              observed=true
+              echo "Observed production deploy marker ?v=$short_sha on attempt $attempt."
+              {
+                echo "## Production deploy observation"
+                echo
+                echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
+                echo "- Exact source SHA: \`$EXPECTED_SHA\`"
+                echo "- Production marker: \`?v=$short_sha\`"
+                echo "- Status: **DEPLOYED marker observed**"
+                echo
+              } >> "$GITHUB_STEP_SUMMARY"
+              break
+            fi
+
+            echo "Deploy marker ?v=$short_sha not visible yet (attempt $attempt/8)."
+            if [[ "$attempt" -lt 8 ]]; then
+              sleep 5
+            fi
+          done
+
+          if [[ "$observed" != "true" ]]; then
+            {
+              echo "## Production deploy observation"
+              echo
+              echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
+              echo "- Exact source SHA: \`$EXPECTED_SHA\`"
+              echo "- Expected marker: \`?v=$short_sha\`"
+              echo "- Status: **NOT OBSERVED**"
+              echo "- Wait window is intentionally bounded; rerun manually if Hostinger deployment is still propagating."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Exact deploy marker was not observed within the bounded wait window." >&2
+            exit 1
+          fi
+
       - name: Check out source
         uses: actions/checkout@v5
         with:
@@ -50,57 +140,22 @@ jobs:
       - name: Install test dependencies
         run: npm install --prefer-offline --no-audit --no-fund
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-production-performance-chromium-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-production-performance-chromium-
+            ${{ runner.os }}-playwright-chromium-
 
-      - name: Wait for exact Hostinger deploy
-        if: github.event_name == 'workflow_run'
-        shell: bash
-        env:
-          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -euo pipefail
-          short_sha="${EXPECTED_SHA:0:7}"
-          observed=false
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
 
-          for attempt in $(seq 1 18); do
-            html=$(curl -fsSL --connect-timeout 10 --max-time 25 "$BRVTAL_PERF_URL" || true)
-            if [[ "$html" == *"?v=$short_sha"* ]]; then
-              observed=true
-              echo "Observed production deploy marker ?v=$short_sha on attempt $attempt."
-              {
-                echo "## Production deploy observation"
-                echo
-                echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
-                echo "- Exact source SHA: \`$EXPECTED_SHA\`"
-                echo "- Production marker: \`?v=$short_sha\`"
-                echo "- Status: **DEPLOYED marker observed**"
-                echo
-              } >> "$GITHUB_STEP_SUMMARY"
-              break
-            fi
-
-            echo "Deploy marker ?v=$short_sha not visible yet (attempt $attempt/18)."
-            sleep 10
-          done
-
-          if [[ "$observed" != "true" ]]; then
-            {
-              echo "## Production deploy observation"
-              echo
-              echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
-              echo "- Exact source SHA: \`$EXPECTED_SHA\`"
-              echo "- Expected marker: \`?v=$short_sha\`"
-              echo "- Status: **NOT OBSERVED**"
-              echo
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "Exact deploy marker was not observed in production within the wait window." >&2
-            exit 1
-          fi
-
-      - name: Verify canonical production is reachable
-        if: github.event_name == 'workflow_dispatch'
-        run: curl -fsSIL --connect-timeout 10 --max-time 25 "$BRVTAL_PERF_URL" >/dev/null
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
 
       - name: Measure mobile production performance
         env:
