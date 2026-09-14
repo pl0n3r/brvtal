@@ -213,6 +213,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors.
 15. **Production PHP runtime is 8.5.** Keep `PHP 8.5 Compatibility` green without warnings, notices or deprecations.
 16. **Canonical production origin is `https://www.brvtal.com.co`.** Bare-host requests must converge on it.
+17. **First-party text/static delivery is deploy-versioned and cache-aware.** Keep text compression enabled, keep versioned first-party CSS/JS on long immutable caching, and do not trade cache correctness for synthetic-score shortcuts.
 
 ---
 
@@ -332,7 +333,7 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Measured public performance / responsive polish** — immediately fix known cache-busting inconsistency for `js/related-content.js` and `css/related-content.css`, then remeasure real waterfall/Core Web Vitals on canonical `https://www.brvtal.com.co`. Do not optimize source images blindly when CDN/device delivery already performs well.
+1. **Measured public performance / responsive polish** — remeasure canonical `https://www.brvtal.com.co` with a modern Chrome/Lighthouse waterfall after compression/cache changes. Prioritize real modern-browser bottlenecks; source-image recompression requires visual evidence, and Pingdom Chrome 61 eager-loading of native-lazy images is a legacy-tool artifact rather than a product regression.
 2. **Public discovery / relationship-driven browsing** — deepen Archive/Media pathways only when supported by real structured relationships; do not invent duplicated relation data.
 3. **Authenticated production smoke process** — safe and non-destructive; never claim it exists until actually run.
 4. **Backup recovery rehearsal** — isolated/test environment only; no automatic production restore.
