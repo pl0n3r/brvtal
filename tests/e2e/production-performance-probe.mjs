@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium, devices } from '@playwright/test';
+import { buildPerformanceWaterfall } from './production-performance-waterfall.mjs';
 
 const targetUrl = process.env.BRVTAL_PERF_URL || 'https://www.brvtal.com.co/';
 const mode = process.env.BRVTAL_PERF_MODE || 'mobile';
@@ -14,6 +15,16 @@ const roundMs = (value) => Number.isFinite(value) ? Math.round(value * 10) / 10 
 const roundCls = (value) => Number.isFinite(value) ? Math.round(value * 1000) / 1000 : null;
 const formatMs = (value) => value == null ? '—' : `${Math.round(value)} ms`;
 const formatKb = (value) => value == null ? '—' : `${Math.round(value / 1024)} KiB`;
+const resourceLabel = (value) => {
+  try {
+    const parsed = new URL(value);
+    const label = `${parsed.hostname}${parsed.pathname}${parsed.search}`;
+    return label.length > 90 ? `${label.slice(0, 87)}...` : label;
+  } catch {
+    const label = String(value || 'unknown');
+    return label.length > 90 ? `${label.slice(0, 87)}...` : label;
+  }
+};
 
 const browser = await chromium.launch({ headless: true });
 
@@ -66,6 +77,19 @@ try {
   });
 
   const page = await context.newPage();
+  const responseMeta = {};
+  page.on('response', async (response) => {
+    try {
+      const headers = await response.allHeaders();
+      responseMeta[response.url()] = {
+        status: response.status(),
+        cacheControl: headers['cache-control'] || '',
+        contentEncoding: headers['content-encoding'] || '',
+        contentType: headers['content-type'] || '',
+      };
+    } catch {}
+  });
+
   const response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
   if (!response || !response.ok()) {
     throw new Error(`Production navigation failed: ${response?.status() ?? 'no response'}`);
@@ -130,6 +154,18 @@ try {
         encodedBodySize: lcpResource.encodedBodySize,
         decodedBodySize: lcpResource.decodedBodySize,
       } : null,
+      resources: resources.map((resource) => ({
+        name: resource.name,
+        initiatorType: resource.initiatorType,
+        startTime: resource.startTime,
+        requestStart: resource.requestStart,
+        responseStart: resource.responseStart,
+        responseEnd: resource.responseEnd,
+        duration: resource.duration,
+        transferSize: resource.transferSize,
+        encodedBodySize: resource.encodedBodySize,
+        decodedBodySize: resource.decodedBodySize,
+      })),
       resourceCount: resources.length,
       transferByType,
     };
@@ -155,6 +191,7 @@ try {
       : (responseStart != null ? Math.max(0, lcpStart - responseStart) : null),
   };
 
+  const waterfall = buildPerformanceWaterfall(result.resources, responseMeta, result.finalUrl);
   const report = {
     measuredAt: new Date().toISOString(),
     mode,
@@ -183,10 +220,18 @@ try {
       resourceCount: result.resourceCount,
       transferByType: result.transferByType,
     },
+    waterfall,
   };
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+
+  const slowRows = report.waterfall.slowest.map((row) =>
+    `| \`${resourceLabel(row.url).replaceAll('|', '\\|')}\` | ${row.initiatorType} | ${formatMs(row.duration)} | ${formatKb(row.transferSize)} |`,
+  );
+  const heavyRows = report.waterfall.heaviest.map((row) =>
+    `| \`${resourceLabel(row.url).replaceAll('|', '\\|')}\` | ${row.initiatorType} | ${formatKb(row.transferSize)} | ${formatMs(row.duration)} |`,
+  );
 
   const summary = [
     `## Production Performance · ${mode}`,
@@ -207,6 +252,24 @@ try {
     '',
     `LCP element: \`${report.lcp.selector || report.lcp.tagName || 'unknown'}\``,
     report.lcp.url ? `LCP resource: \`${report.lcp.url}\`` : 'LCP resource: text / no external resource',
+    '',
+    '### Resource waterfall evidence',
+    '',
+    `- Versioned first-party static assets with immutable caching: **${report.waterfall.cache.immutableVersionedStaticCount}/${report.waterfall.cache.versionedStaticCount}**`,
+    `- Compressed first-party text responses: **${report.waterfall.cache.compressedFirstPartyTextCount}/${report.waterfall.cache.firstPartyTextCount}**`,
+    `- Resource timing entries captured: **${report.waterfall.resources.length}**`,
+    '',
+    '#### Slowest resources',
+    '',
+    '| Resource | Type | Duration | Transfer |',
+    '|---|---|---:|---:|',
+    ...(slowRows.length ? slowRows : ['| — | — | — | — |']),
+    '',
+    '#### Heaviest resources',
+    '',
+    '| Resource | Type | Transfer | Duration |',
+    '|---|---|---:|---:|',
+    ...(heavyRows.length ? heavyRows : ['| — | — | — | — |']),
     '',
   ].join('\n');
 
