@@ -64,9 +64,13 @@ test('related content explorer connects artists to events, sets and releases wit
   await expect(page.locator('[data-related-detail]')).toContainText('PL0N3R LIVE');
   await expect(page.locator('[data-related-detail]')).toContainText('SIGNAL 001');
   await expect(page.locator('a[href="/artists/pl0n3r"]')).toBeVisible();
-  await expect(page.locator('a[href="/sets/pl0n3r-live"]')).toBeVisible();
-  await expect(page.locator('a[href="/releases/signal-001"]')).toBeVisible();
 
+  await page.getByRole('button', { name: /PL0N3R LIVE/ }).first().click();
+  await expect(page.locator('[data-related-detail]')).toContainText('SET / SOUNDCLOUD');
+  await expect(page.locator('a[href="/sets/pl0n3r-live"]')).toBeVisible();
+  await expect(page.locator('[data-related-detail]')).toContainText('NEXT SIGNAL');
+
+  await page.getByRole('tab', { name: 'ARTISTS' }).click();
   await page.getByRole('button', { name: /DNL5/ }).first().click();
   await expect(page.locator('[data-related-detail]')).toContainText('PAST SIGNAL');
   await expect(page.locator('[data-related-detail]')).toContainText('DNL5 ARCHIVE');
