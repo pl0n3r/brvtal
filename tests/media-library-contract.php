@@ -69,6 +69,7 @@ media_assert(str_contains($sessionBootstrap, "window.restoreSession = async func
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 $publicMedia = (string)file_get_contents(__DIR__ . '/../js/public-media.js');
 $publicIndex = (string)file_get_contents(__DIR__ . '/../index.html');
+$publicRuntime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $publicPage = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 media_assert(str_contains($controller, '#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr'), 'media picker must attach to core image fields');
 media_assert(str_contains($controller, 'Delete blocked: this media is currently in use.'), 'UI must surface reference protection');
@@ -79,7 +80,8 @@ media_assert(str_contains($controller, "?action=transform&id="), 'focal-point ch
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$seo['image'], 'hero')"), 'public heroes must select the hero context variant');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$item['image'], 'card')"), 'public related cards must select the card context variant');
 media_assert(str_contains($publicIndex, 'data-public-media-search') && str_contains($publicIndex, 'data-public-media-type="image"'), 'public Media must expose search and type filters');
-media_assert(str_contains($publicIndex, 'css/public-media.css') && str_contains($publicIndex, 'js/public-media.js'), 'public Media discovery assets must load in the existing page');
+media_assert(str_contains($publicIndex, 'css/public-media.css') && str_contains($publicIndex, 'js/public-runtime-loader.js'), 'public Media discovery styles and adaptive runtime must load in the existing page');
+media_assert(str_contains($publicRuntime, "'js/public-media.js'"), 'adaptive public runtime must load the Media discovery controller');
 media_assert(str_contains($publicMedia, 'role="dialog"') && str_contains($publicMedia, "event.key === 'Escape'"), 'public image viewer must be accessible and keyboard-dismissible');
 media_assert(str_contains($publicMedia, "['image','video','audio']"), 'public Media discovery must support image, video and audio types');
 

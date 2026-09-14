@@ -41,13 +41,15 @@ archive_expect($past['ticket_types'] === [], 'Historical event must not expose t
 $public = file_get_contents(__DIR__ . '/../api/public.php');
 $index = file_get_contents(__DIR__ . '/../index.html');
 $archiveJs = file_get_contents(__DIR__ . '/../js/archive.js');
-archive_expect(is_string($public) && is_string($index) && is_string($archiveJs), 'Archive sources must be readable');
+$runtimeLoader = file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
+archive_expect(is_string($public) && is_string($index) && is_string($archiveJs) && is_string($runtimeLoader), 'Archive sources must be readable');
 archive_expect(str_contains($public, "require_once __DIR__ . '/public-archive.php';"), 'Public API must use canonical archive lifecycle helper');
 archive_expect(str_contains($public, "WHERE status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"), 'Public API must expose only explicit non-draft event lifecycle states');
 archive_expect(str_contains($public, "'archive' => \$archive"), 'Public API payload must expose archive data');
 archive_expect(str_contains($public, "'related_sets'"), 'Historical events must expose related published sets');
 archive_expect(str_contains($index, 'id="eventArchive"'), 'Public frontend must contain a dedicated archive workspace');
-archive_expect(str_contains($index, 'css/archive.css') && str_contains($index, 'js/archive.js'), 'Public frontend must load archive assets');
+archive_expect(str_contains($index, 'css/archive.css') && str_contains($index, 'js/public-runtime-loader.js'), 'Public frontend must load archive styles and adaptive runtime');
+archive_expect(str_contains($runtimeLoader, "'js/archive.js'"), 'Adaptive public runtime must load the Archive controller');
 archive_expect(!str_contains($archiveJs, 'ticket_instructions'), 'Archive UI must not render payment instructions');
 archive_expect(str_contains($index, 'data-archive-search'), 'Archive must expose public text search');
 archive_expect(str_contains($index, 'data-archive-relation="sets"'), 'Archive must expose relationship filters');
