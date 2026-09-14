@@ -100,17 +100,25 @@ $assert(substr_count($assetFixture, 'F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_
 $assert(str_contains($assetFixture, 'rel="icon"'), 'Home must declare an explicit favicon instead of triggering /favicon.ico');
 $assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS backgrounds must be suppressed before browser fetch');
 
-// Home LCP discovery: the critical hero logo must begin fetching before the core blocking stylesheet.
+// Home LCP discovery and visibility: fetch early and never let intro motion hide the measured image.
 $preloadNeedle = '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">';
+$criticalVisibility = '<style data-brvtal-lcp-visible>.hero-logo-wrap{opacity:1!important}</style>';
 $coreCssNeedle = '<link rel="stylesheet" href="css/style.css">';
 $lcpFixture = '<html><head>' . $coreCssNeedle . '</head><body><img src="assets/brvtal-logo.jpeg"></body></html>';
 $lcpFixture = brvtal_public_preload_home_lcp($lcpFixture);
+$lcpFixture = brvtal_public_keep_home_lcp_visible($lcpFixture);
 $preloadPosition = strpos($lcpFixture, $preloadNeedle);
+$visibilityPosition = strpos($lcpFixture, $criticalVisibility);
 $coreCssPosition = strpos($lcpFixture, $coreCssNeedle);
 $assert(str_contains($indexPhp, 'brvtal_public_preload_home_lcp($html)'), 'Home renderer must apply the LCP preload helper before later asset transforms');
+$assert(str_contains($indexPhp, 'brvtal_public_keep_home_lcp_visible($html)'), 'Home renderer must keep the LCP visible before later asset transforms');
 $assert($preloadPosition !== false && $coreCssPosition !== false && $preloadPosition < $coreCssPosition, 'LCP preload must appear before core style.css in transformed Home HTML');
+$assert($visibilityPosition !== false && $coreCssPosition !== false && $visibilityPosition < $coreCssPosition, 'critical LCP visibility style must appear before core style.css');
+$assert(str_contains($criticalVisibility, 'opacity:1!important'), 'critical LCP visibility must override normal inline animation opacity');
 $assert(substr_count($lcpFixture, $preloadNeedle) === 1, 'Home LCP preload helper must add exactly one preload');
+$assert(substr_count($lcpFixture, $criticalVisibility) === 1, 'Home LCP visibility helper must add exactly one critical style');
 $assert(brvtal_public_preload_home_lcp($lcpFixture) === $lcpFixture, 'Home LCP preload helper must be idempotent');
+$assert(brvtal_public_keep_home_lcp_visible($lcpFixture) === $lcpFixture, 'Home LCP visibility helper must be idempotent');
 $lcpFixture = brvtal_public_version_assets($lcpFixture, 'abc1234');
 $assert(substr_count($lcpFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 2, 'preload and hero image must resolve to the exact same deploy-versioned logo URL');
 
