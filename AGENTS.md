@@ -185,6 +185,8 @@ Implemented:
 
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
+- **adaptive public runtime boot:** coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely, while fine-pointer full-motion desktop keeps the enhanced stack;
+- core public modules preserve `app → archive → media` order and continue in fallback mode if the optional motion CDN fails;
 - non-blocking Google Fonts;
 - mobile loader bypass and immediate hero-content improvements;
 - keyboard/touch accessibility passes;
@@ -248,6 +250,7 @@ Implemented contract:
 11. The repository itself contains enough durable context that an AI can resume without previous conversation memory.
 12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph; do not regress Sets/Releases to terminal relation links.
 13. **CI optimizes for fast feedback without weakening `main`.** Pull requests use a fast syntax/contract gate plus path-aware parallel DB/Chromium/real-stack/WebKit gates; every exact `main` push runs the full matrix and ends in the stable `validate` aggregate check.
+14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors; core content/runtime must remain functional without the motion CDN.
 
 ---
 
@@ -382,7 +385,7 @@ Unless explicitly reprioritized:
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
 1. **Public discovery / relationship-driven browsing** — the core CONNECTED graph already covers Artists, Events, Sets and Releases as navigable layers. Only deepen Archive/Media pathways when supported by real structured relationships; do not invent duplicated relation data just to add links.
-2. **Measured public performance / responsive polish** — use real evidence/Core Web Vitals and reproducible bottlenecks.
+2. **Measured public performance / responsive polish** — use real evidence/Core Web Vitals and reproducible bottlenecks. The adaptive motion-runtime boot is one completed code-level improvement; production CWV still requires real measurement evidence.
 3. **Authenticated production smoke process** — safe and non-destructive; never claim it exists until actually run.
 4. **Backup recovery rehearsal** — isolated/test environment only; no automatic production restore.
 5. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication; preserve destination-based navigation and internal Content Core architecture.
