@@ -7,31 +7,30 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se evita que una navegación dinámica obsoleta de Media, Releases o Blog recupere el workspace después de que el usuario ya cambió de destino.
-- Una navegación nueva cancela inmediatamente cualquier fragment fetch dinámico anterior y vuelve obsoletas las esperas de scripts pendientes de Media, Releases o Blog.
-- Si un módulo dinámico viejo termina de cargar después de haber cambiado de destino, ya no puede montar su contenido ni reescribir `?module=`.
-- Events / Content Core y System Status cancelan también cualquier fragment dinámico anterior al tomar el control del workspace.
-- No hay cambios de API, base de datos ni contratos de publicación.
+- Se cierra el recorrido bidireccional Archive ↔ CONNECTED para Events históricos usando únicamente el payload público existente.
+- Un Event seleccionado en CONNECTED muestra `VIEW IN ARCHIVE ↗` solo si su ID existe realmente en `archive.events`; los Events activos no reciben ese CTA.
+- El retorno limpia `network_type` / `network_id`, fija `archive_year` y `archive_q` con el registro histórico y aterriza en `#eventArchive`.
+- No se infiere archivo por estado, no se duplican relaciones y no hay cambios de API, base de datos ni CSS.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/admin-information-architecture.js` — coordina cancelación, dependencias dinámicas y tokens de navegación para descartar módulos dinámicos obsoletos.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — fuerza una carrera Releases → Media con la dependencia de Releases retrasada y exige que Media permanezca como destino final.
+- `js/related-content.js` — genera el retorno contextual a Archive únicamente para Events presentes en `archive.events`.
+- `tests/e2e/public-related-content.spec.mjs` — cubre Event histórico → Archive, limpieza del estado CONNECTED y ausencia del CTA en Events activos.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- La rama debe pasar sintaxis JavaScript y la regresión dirigida de Information Architecture antes del merge.
+- La rama debe pasar sintaxis JavaScript y la regresión dirigida de Related Content antes del merge.
 - El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README.
-- Chromium debe demostrar que una navegación a Releases que sigue esperando su script no puede reaparecer después de que Media ya sea el destino vigente.
+- Chromium debe demostrar que un Event histórico vuelve a su contexto exacto de Archive y que un Event activo no expone ese enlace.
 - Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
 - CI verde implica **VALIDATED IN CODE**; observar el SHA exacto en Hostinger implica **DEPLOYED**.
 
 ## Qué sigue
 
-1. Continuar simplificando DISCADMIN solo ante fricciones reproducibles del shell/workspace.
+1. Continuar discovery público solo con relaciones estructuradas reales y recorridos que hoy terminen en callejones sin salida.
 2. Mantener #122–#125 abiertos hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
-3. No extender Media hacia CONNECTED mientras Media no tenga relaciones estructuradas públicas propias.
+3. Volver a DISCADMIN solo ante fricción reproducible, preservando ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 
 ## Contexto durable
 
