@@ -26,6 +26,7 @@ contracts=(
   tests/admin-activity-contract.php
   tests/backups-contract.php
   tests/project-operations-contract.php
+  tests/admin-relational-forms-contract.php
 )
 
 for test_file in "${contracts[@]}"; do
