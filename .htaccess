@@ -8,8 +8,6 @@ RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType text/css "access plus 1 year"
-    ExpiresByType application/javascript "access plus 1 year"
-    ExpiresByType text/javascript "access plus 1 year"
     ExpiresByType image/jpeg "access plus 1 year"
     ExpiresByType image/png "access plus 1 year"
     ExpiresByType image/webp "access plus 1 year"
@@ -22,7 +20,7 @@ RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php
 </IfModule>
 
 <IfModule mod_headers.c>
-    <FilesMatch "\.(?:css|js|mjs|png|jpe?g|gif|webp|avif|svg|ico|woff2?)$">
+    <FilesMatch "\.(?:css|png|jpe?g|gif|webp|avif|svg|ico|woff2?)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
 </IfModule>
