@@ -6,6 +6,7 @@
   let routeToken = 0;
   let navTimer = null;
   let applyingNav = false;
+  let navObserver = null;
 
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
 
@@ -45,11 +46,16 @@
     {label:'SYSTEM', keys:['security','system','backups','activity']},
   ];
 
+  function observeNavigation() {
+    navObserver?.observe(document.documentElement,{childList:true,subtree:true});
+  }
+
   function rebuildNavigation() {
     if (applyingNav) return;
     const nav = document.querySelector('.side .nav');
     if (!nav) return;
     applyingNav = true;
+    navObserver?.disconnect();
     try {
       nav.querySelectorAll('.navgroup,.ia-navgroup').forEach(node => node.remove());
       const buttons = [...nav.querySelectorAll(':scope > button')];
@@ -100,6 +106,7 @@
       }
     } finally {
       applyingNav = false;
+      observeNavigation();
     }
   }
 
@@ -247,11 +254,11 @@
     openCollectiveStatus:() => loadContentCoreContext('roster')
   };
 
-  const observer = new MutationObserver(mutations => {
+  navObserver = new MutationObserver(mutations => {
     if (applyingNav) return;
     if (mutations.some(mutation => mutation.addedNodes.length || mutation.removedNodes.length)) scheduleNavigation();
   });
-  observer.observe(document.documentElement,{childList:true,subtree:true});
+  observeNavigation();
 
   try {
     const url = new URL(location.href);
