@@ -16,6 +16,11 @@
     'dashboard','events','artists','releases','sets','blog','pages','media','hero-slider',
     'theme','settings','security','system','backups','activity'
   ]);
+  const dynamicSectionScripts = new Map([
+    ['media', ['brvtal-media-library-script']],
+    ['releases', ['brvtal-media-library-script','brvtal-releases-script']],
+    ['blog', ['brvtal-media-library-script','brvtal-blog-script']]
+  ]);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
 
   function canonicalRouteSection(section) {
@@ -40,6 +45,28 @@
     const current = `${location.pathname}${location.search}${location.hash}`;
     if (next === current) return;
     history[mode === 'replace' ? 'replaceState' : 'pushState']({brvtalAdminRoute: canonical}, '', next);
+  }
+
+  function waitForScriptReady(id) {
+    const script = document.getElementById(id);
+    if (!script || script.dataset.ready === '1') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        script.removeEventListener('load', onLoad);
+        script.removeEventListener('error', onError);
+      };
+      const onLoad = () => { cleanup(); resolve(); };
+      const onError = () => { cleanup(); reject(new Error(`Unable to load ${id}`)); };
+      script.addEventListener('load', onLoad, {once:true});
+      script.addEventListener('error', onError, {once:true});
+      if (script.dataset.ready === '1') onLoad();
+    });
+  }
+
+  async function waitForDynamicSection(section) {
+    const ids = dynamicSectionScripts.get(String(section || '').toLowerCase());
+    if (!ids) return;
+    await Promise.all(ids.map(waitForScriptReady));
   }
 
   async function navigateRoute(section) {
@@ -265,14 +292,15 @@
 
   async function loadContentCoreContext(context) {
     const token = ++routeToken;
+    window.BRVTALAdminModules?.cancel?.();
     const visibleSection = context === 'roster' ? 'artists' : 'events';
     await originalGo.call(window, visibleSection);
-    if (token !== routeToken) return;
+    if (token !== routeToken) return false;
 
-    if (!window.BRVTALAdminModules?.load) return;
+    if (!window.BRVTALAdminModules?.load) return true;
     ensureWorkspaceHost();
     await window.BRVTALAdminModules.load('content-core', {syncUrl:false});
-    if (token !== routeToken) return;
+    if (token !== routeToken) return false;
 
     const root = document.querySelector('#admin-module-host [data-admin-module="content-core"]');
     if (!root) throw new Error('DISCADMIN internal content workflow failed to mount');
@@ -281,6 +309,7 @@
     else simplifyEventEditor(root);
     rebuildNavigation();
     restoreVisibleSection(visibleSection);
+    return true;
   }
 
   function enhanceArtistsList() {
@@ -317,10 +346,16 @@
     if (!applyingRoute) initialRouteApplied = true;
 
     let result;
-    if (section === 'events') result = await loadContentCoreContext('events');
-    else {
-      ++routeToken;
+    if (section === 'events') {
+      const applied = await loadContentCoreContext('events');
+      if (!applied) return;
+    } else {
+      const token = ++routeToken;
+      window.BRVTALAdminModules?.cancel?.();
+      await waitForDynamicSection(section);
+      if (token !== routeToken) return;
       result = await originalGo.apply(this, [section]);
+      if (token !== routeToken) return result;
       if (section === 'artists') setTimeout(enhanceArtistsList, 0);
       setTimeout(rebuildNavigation, 0);
     }
@@ -331,8 +366,10 @@
   if (typeof originalTech === 'function') {
     window.tech = async function(section, ...args) {
       if (!applyingRoute) initialRouteApplied = true;
-      ++routeToken;
+      const token = ++routeToken;
+      window.BRVTALAdminModules?.cancel?.();
       const result = await originalTech.apply(this, [section, ...args]);
+      if (token !== routeToken) return result;
       syncRouteUrl(section);
       setTimeout(rebuildNavigation, 0);
       return result;
