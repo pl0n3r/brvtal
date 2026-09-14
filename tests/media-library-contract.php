@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/media.php';
+require_once __DIR__ . '/../api/public-media-delivery.php';
 
 function media_assert(bool $condition, string $message): void
 {
@@ -29,6 +30,23 @@ media_assert(brvtal_media_public_upload_path($file) === '/uploads/contract-test/
 
 @unlink($file);
 @rmdir($dir);
+
+$delivery = brvtal_public_media_delivery_sanitize([
+    'original' => ['path'=>'/uploads/media/example.png','width'=>1200,'height'=>900,'mime_type'=>'image/png'],
+    'variants' => [
+        'square' => ['path'=>'/uploads/media/example--square-800.webp','width'=>800,'height'=>800,'mime_type'=>'image/webp'],
+        'card' => ['path'=>'/uploads/media/example--card-1200x900.webp','width'=>1200,'height'=>900,'mime_type'=>'image/webp'],
+        'unsafe' => ['path'=>'https://example.com/image.webp','width'=>300,'height'=>300,'mime_type'=>'image/webp'],
+    ],
+]);
+media_assert(is_array($delivery), 'public image delivery should accept a valid Media Engine sidecar');
+media_assert(($delivery['variants']['square']['src'] ?? '') === '/uploads/media/example--square-800.webp', 'square WebP variant should be exposed');
+media_assert(($delivery['variants']['card']['src'] ?? '') === '/uploads/media/example--card-1200x900.webp', 'card WebP variant should be exposed');
+media_assert(!isset($delivery['variants']['unsafe']), 'non-allowlisted variant names must stay private');
+media_assert(brvtal_public_media_delivery_sanitize([
+    'original'=>['path'=>'https://example.com/private.png','width'=>100,'height'=>100],
+    'variants'=>['square'=>['path'=>'/uploads/media/x.webp','width'=>100,'height'=>100,'mime_type'=>'image/webp']],
+]) === null, 'public delivery must reject external originals');
 
 $api = (string)file_get_contents(__DIR__ . '/../api/media-library.php');
 media_assert(str_contains($api, "brvtal_admin_require_csrf"), 'writes must require CSRF');
@@ -68,6 +86,7 @@ media_assert(str_contains($sessionBootstrap, "window.restoreSession = async func
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 $publicMedia = (string)file_get_contents(__DIR__ . '/../js/public-media.js');
+$publicDeliveryApi = (string)file_get_contents(__DIR__ . '/../api/public-image-delivery.php');
 $publicIndex = (string)file_get_contents(__DIR__ . '/../index.html');
 $publicRuntime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $publicPage = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
@@ -84,6 +103,11 @@ media_assert(str_contains($publicIndex, 'css/public-media.css') && str_contains(
 media_assert(str_contains($publicRuntime, "'js/public-media.js'"), 'adaptive public runtime must load the Media discovery controller');
 media_assert(str_contains($publicMedia, 'role="dialog"') && str_contains($publicMedia, "event.key === 'Escape'"), 'public image viewer must be accessible and keyboard-dismissible');
 media_assert(str_contains($publicMedia, "['image','video','audio']"), 'public Media discovery must support image, video and audio types');
+media_assert(str_contains($publicMedia, '/api/public-image-delivery.php'), 'public Media must load the allowlisted image-delivery map');
+media_assert(str_contains($publicMedia, "deliveryCandidate(url, 'card')"), 'public Media grid must prefer card WebP variants');
+media_assert(str_contains($publicMedia, ".related-item-image img") && str_contains($publicMedia, "'square'"), 'related thumbnails must prefer square WebP variants');
+media_assert(str_contains($publicDeliveryApi, "status='published' AND type='image'"), 'public image delivery endpoint must be limited to published image records');
+media_assert(str_contains($publicDeliveryApi, 'brvtal_public_media_delivery_map'), 'public image delivery endpoint must use sanitized Media Engine sidecars');
 
 $quality = brvtal_media_quality_guidance(1920, 1080);
 media_assert(($quality['grade'] ?? '') === 'excellent', '1920x1080 sources should receive excellent guidance');
