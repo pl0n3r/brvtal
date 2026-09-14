@@ -125,7 +125,8 @@ Examples include:
 - Release/Blog contracts;
 - deployment traceability;
 - Hero Slider public/admin contract;
-- project operations contract.
+- project operations contract;
+- authenticated production smoke safety contract.
 
 `tests/project-operations-contract.php` specifically protects the operational documentation contract:
 
@@ -133,6 +134,15 @@ Examples include:
 - CI must keep GitHub Job Summary reporting;
 - CI must expose deploy eligibility and changed-file context;
 - CI must not reintroduce automatic writes/commits to `config/version.php`.
+
+`tests/production-smoke-contract.php` protects the production-smoke boundary:
+
+- the workflow remains manual-only and restricted to `main`;
+- production credentials come only from GitHub secrets;
+- the canonical `www.brvtal.com.co` origin and exact dispatched SHA are required;
+- after authentication, the browser allows only GET/HEAD/OPTIONS requests;
+- the shell's automatic media-permission repair is fulfilled locally rather than sent to production;
+- any other browser POST/PUT/PATCH/DELETE is blocked and recorded as a failure.
 
 ### 3. Database integration tests
 
@@ -180,6 +190,28 @@ Safe checks can include:
 - key public navigation and responsive rendering behave correctly.
 
 Authenticated production checks must avoid creating/editing/deleting real content unless a dedicated safe test namespace exists.
+
+#### Authenticated production smoke
+
+`.github/workflows/production-authenticated-smoke.yml` is a **manual-only** authenticated production check. It is intentionally not triggered by push, pull request, schedule, or another workflow. Dispatch it only from `main`, after the exact Hostinger deployment is visible.
+
+Required GitHub `production-smoke` environment secrets:
+
+- `BRVTAL_PROD_ADMIN_EMAIL`;
+- `BRVTAL_PROD_ADMIN_PASSWORD`;
+- `BRVTAL_PROD_TOTP_SECRET` when that admin has TOTP enabled. The value is the Base32 authenticator secret, not a one-time recovery code.
+
+The runner first confirms that production exposes the exact short SHA marker for the dispatched `main` commit. It then authenticates through the normal DISCADMIN API and performs only content-read checks:
+
+- #123: select an existing Event that already has a date, reopen it, and confirm the `datetime-local` field contains the persisted date;
+- #124: select existing published Artist/Event records, open **New Set** without saving, and confirm both relation selectors contain those IDs;
+- #125: open the real Hero Slider manager three times and require every load to settle without a loading/error state.
+
+After login/TOTP, a browser network guard allows only GET/HEAD/OPTIONS. DISCADMIN normally sends a media-permission repair POST during session bootstrap; the smoke fulfills that request locally so it never reaches Hostinger. Any other browser mutation is blocked, recorded in `production-authenticated-smoke.json`, and fails the run. The smoke never clicks Save/Delete and never creates test content.
+
+Authentication itself can update normal security/session metadata such as last-login/audit state. The content validation is otherwise read-only.
+
+A green PR/CI proves only that this smoke **can be run safely**. Do not mark an issue **VALIDATED IN PRODUCTION** until the manual workflow has actually run against the intended deployed SHA and its evidence artifact is green.
 
 ## Release metadata policy
 
