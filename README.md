@@ -11,18 +11,20 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 - Artists, Events, Sets y Releases usan el mismo mecanismo existente de Archive/Media; no se crea un router ni un estado paralelo.
 - Back/Forward restaura el recorrido del grafo y una URL compartida vuelve a abrir la relación pública seleccionada después de cargar los datos.
 - Los parámetros inválidos o incompletos no fuerzan una selección y el estado por defecto continúa siendo la primera ruta pública de Artists.
-- La medición moderna anterior quedó saludable: no se introduce otra optimización de imágenes sin evidencia de un cuello de botella real.
+- La medición moderna anterior quedó saludable, por lo que performance y recovery pasan a mantenimiento continuo en `AGENTS.md` y discovery queda como prioridad activa; no se introduce otra optimización de imágenes sin evidencia.
 
 ## Archivos modificados en este deploy
 
 - `js/public-discovery-url-state.js` — añade estado compartible/restaurable para CONNECTED.
 - `tests/e2e/public-discovery-url-state.spec.mjs` — cubre URL inicial, convivencia con Archive/Media y Back/Forward del grafo.
+- `AGENTS.md` — registra CONNECTED compartible, evidencia moderna de performance y avanza las prioridades durables sin repetir trabajo ya cerrado.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README antes del merge.
 - Chromium debe validar que `network_type`/`network_id` restauran la selección, se mantienen al cambiar otros filtros y respetan el historial del navegador.
+- `Project Operations` debe permanecer verde tras el ajuste de `AGENTS.md`, conservando sus invariantes de bootstrap y arquitectura.
 - Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
 - CI verde implica **VALIDATED IN CODE**; observar el SHA en Hostinger implica **DEPLOYED**, no validación autenticada de DISCADMIN.
 
