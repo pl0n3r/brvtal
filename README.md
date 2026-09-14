@@ -1,175 +1,386 @@
-# BRVTAL
+# BRVTAL Platform
 
 > **RAVE TILL GRAVE**  
-> Proprietary digital platform for underground electronic music, events, artists, releases, media, editorial content and the BRVTAL label ecosystem.
+> Manual técnico, mapa de arquitectura y tablero operativo del software BRVTAL.
 
 [![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
 ![PHP](https://img.shields.io/badge/PHP-8.3%2B-777BB4?logo=php&logoColor=white)
 ![MariaDB](https://img.shields.io/badge/MariaDB-11.x-003545?logo=mariadb&logoColor=white)
 ![Status](https://img.shields.io/badge/status-active_development-111111)
 
-**Production:** https://brvtal.com.co  
-**Administration:** `/discadmin`  
-**Repository:** `pl0n3r/brvtal`  
-**Canonical branch:** `main`  
-**Architecture source of truth:** [`docs/BRVTAL-SPEC.md`](docs/BRVTAL-SPEC.md)
-**Future-session operating rules:** [`AGENTS.md`](AGENTS.md)
+Este README no está pensado como una página de marketing. Su función es servir como **referencia rápida del sistema**: qué software existe, cómo está conectado, qué ya está terminado, qué sigue pendiente y cómo interpretar cada build/deploy.
+
+> **Regla de mantenimiento:** cuando una PR cambia el estado de una característica importante, también debe actualizar el checklist correspondiente de este README. El SHA actual no se fija aquí para evitar información obsoleta; se consulta en **GitHub Actions / BRVTAL CI** y en **DISCADMIN → System Status**.
 
 ---
 
-## What BRVTAL is
+## 1. Snapshot operativo
 
-BRVTAL is being built as more than an event website. It combines:
-
-- underground electronic-music collective;
-- event production;
-- artist infrastructure;
-- Sets and Releases;
-- media/archive management;
-- editorial content;
-- label foundations;
-- future booking/community capabilities.
-
-The public product is intentionally art-directed: **dark, aggressive, hypnotic and recognizably BRVTAL**. The administration side is equally opinionated: **DISCADMIN is one proprietary application**, not a collection of disconnected mini-admins.
-
-The public frontend is currently **English only**.
-
----
-
-## Platform status — September 2026
-
-| Area | Current state |
+| Dato | Valor |
 |---|---|
-| Public website | Active English-first frontend |
-| Public entity pages | Events, Artists, Sets, Releases, Blog and CMS Pages |
-| Public SEO | Canonical metadata, OG/Twitter, JSON-LD, sitemap/robots, `404/noindex` safeguards |
-| Public Archive | Historical event discovery separated from active lifecycle content |
-| Related Content | Public Event/Artist/Set/Release relationship graph with privacy filtering |
-| DISCADMIN shell | One canonical shell/sidebar/session/workspace |
-| Events | CRUD, lifecycle, tickets, roster/participation, SEO, archive behavior |
-| Artists | CRUD, profile data and collective lifecycle foundation |
-| Sets | CRUD, multi-platform links, artist/event relations |
-| Releases | Label/catalog module, artwork, artists, platforms and lifecycle |
-| Blog | Draft/publish/archive, tags, relations, media and SEO |
-| Pages | CMS-managed content and public canonical routes |
-| Content Core | Guided event/ticket/roster workflow; known stabilization debt remains |
-| Media Library | Visual picker, upload, reusable media, metadata and reference protection |
-| Media Engine v2 | Originals, focal points, context crop previews, quality guidance and WebP variants |
-| Content Health | Read-only editorial completeness/SEO/media guidance |
-| SEO editor defaults | Title/description fallbacks with manual override priority |
-| Global Search | Cross-module `⌘K / Ctrl+K` search |
-| Bulk Actions v1 | Safe status changes; no Bulk Delete |
-| Admin Activity | Append-only audit/history foundation and read-only UI |
-| Security / 2FA | TOTP, encrypted secrets, recovery codes, Safari/WebKit validated login |
-| System Status v2 | Visual control room: health, deploy, DB/content, storage, GitHub metrics, activity |
-| CI | PHP, JS, contracts, MariaDB, migration checks and Playwright |
-| Deployment | GitHub `main` → Hostinger Git auto-deployment |
+| Producción | `https://brvtal.com.co` |
+| Administración | `https://brvtal.com.co/discadmin` |
+| Repositorio | `pl0n3r/brvtal` |
+| Branch canónica | `main` |
+| Hosting | Hostinger shared / LiteSpeed |
+| Backend | PHP 8.3+ |
+| Base de datos | MariaDB / MySQL-compatible |
+| Frontend público | HTML + CSS + JavaScript vanilla |
+| Admin | DISCADMIN propietario |
+| Tests browser | Playwright / Chromium + WebKit donde aplica |
+| CI | GitHub Actions — `BRVTAL CI` |
+| Deploy | `main` → integración Git de Hostinger |
+| Idioma público actual | English |
+| Arquitectura de producto | [`docs/BRVTAL-SPEC.md`](docs/BRVTAL-SPEC.md) |
+| Contrato Hero Slider | [`docs/HERO-SLIDER.md`](docs/HERO-SLIDER.md) |
+| Testing | [`docs/TESTING.md`](docs/TESTING.md) |
+| Reglas de trabajo | [`AGENTS.md`](AGENTS.md) |
 
-### Completion language
+### Estados usados en este proyecto
 
-BRVTAL deliberately distinguishes:
+BRVTAL separa deliberadamente cuatro estados para evitar afirmaciones imprecisas:
 
-1. **IMPLEMENTED** — code exists;
-2. **VALIDATED IN CODE** — CI/tests passed;
-3. **DEPLOYED** — Hostinger has received the merged source;
-4. **VALIDATED IN PRODUCTION** — real production behavior was checked.
+| Estado | Significado |
+|---|---|
+| **IMPLEMENTED** | El código existe en una branch/PR. |
+| **VALIDATED IN CODE** | CI/tests pasaron. |
+| **DEPLOYED** | Hostinger recibió el source de `main`. |
+| **VALIDATED IN PRODUCTION** | El comportamiento real fue comprobado en `brvtal.com.co`. |
 
-A green PR is not automatically “validated in production.”
+Un CI verde **no equivale** por sí solo a validación en producción.
 
 ---
 
-## Architecture
+## 2. Qué es el software BRVTAL
+
+BRVTAL es una plataforma digital propia para operar el colectivo, sus eventos y su ecosistema editorial/label. No es únicamente una landing page.
+
+El sistema combina:
+
+- experiencia pública art-directed;
+- gestión de Events, Artists, Sets y Releases;
+- Blog y CMS Pages;
+- Media Library reutilizable;
+- archivo histórico y relaciones entre contenidos;
+- Hero / Slider Manager visual para Home;
+- Content Core para flujos editoriales guiados;
+- seguridad administrativa con sesión, CSRF y 2FA;
+- Content Health, Search y Bulk Actions;
+- historial administrativo y version history de lectura;
+- backups manuales seguros;
+- System Status para observabilidad;
+- SEO y structured data;
+- analytics opcional con consentimiento;
+- CI, pruebas y deploy automático a Hostinger.
+
+### Principio central del admin
+
+DISCADMIN debe conservar siempre:
+
+**ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE**
+
+Los módulos cambian el workspace central dentro de `/discadmin`; no deben aparecer mini-admins, sidebars paralelos ni sistemas de autenticación alternos.
+
+---
+
+## 3. Arquitectura general
 
 ```mermaid
 flowchart LR
-    V[Public visitor] --> WEB[Public BRVTAL experience]
-    A[Administrator] --> ADMIN[/discadmin/]
+    VISITOR[Public visitor]
+    ADMIN[Administrator]
 
-    WEB --> PUB[Read-only public API / entity delivery]
-    ADMIN --> AUTH[Session + CSRF + optional TOTP]
-    ADMIN --> MOD[DISCADMIN modules]
+    VISITOR --> HOME[index.php / public Home]
+    VISITOR --> ENTITY[Public entity routes]
 
-    PUB --> DB[(MariaDB)]
-    MOD --> API[Protected PHP APIs]
-    API --> DB
+    HOME --> PUBAPI[api/public.php + public read APIs]
+    ENTITY --> PUBPHP[Public PHP delivery]
 
-    MOD --> MEDIA[Media Library / Engine]
-    MEDIA --> STORE[(uploads / private storage)]
+    ADMIN --> DISC[/discadmin]
+    DISC --> AUTH[Session + CSRF + optional TOTP]
+    AUTH --> ADMINAPI[Protected PHP APIs]
 
-    CI[BRVTAL CI] --> GH[GitHub main]
-    GH --> HOST[Hostinger Git auto-deploy]
+    PUBAPI --> DB[(MariaDB)]
+    PUBPHP --> DB
+    ADMINAPI --> DB
+
+    DISC --> MEDIA[Media Library / Media Engine]
+    MEDIA --> UPLOADS[(uploads)]
+    ADMINAPI --> PRIVATE[(private storage)]
+
+    GITHUB[GitHub main] --> CI[BRVTAL CI]
+    GITHUB --> HOST[Hostinger Git auto-deploy]
+    HOST --> PROD[brvtal.com.co]
 ```
 
-### Canonical DISCADMIN navigation
+### Separación de responsabilidades
 
-```text
-DASHBOARD
-EVENTS
-ARTISTS
-RELEASES
-SETS
-MEDIA
-PAGES
-BLOG
-CONTENT CORE
+**Public web**
 
-TECHNICAL
-THEME STUDIO
-SETTINGS
-SECURITY / 2FA
-SYSTEM STATUS
-```
+- renderiza contenido publicado;
+- consume únicamente datos públicos allowlisted;
+- no expone settings privados;
+- mantiene fallbacks estáticos donde son necesarios;
+- prioriza accesibilidad, responsive y rendimiento móvil.
 
-Cross-cutting capabilities such as Search, Bulk Actions, Content Health, SEO assistance, Activity and System Status enhance this same shell. Do not create second sidebars or standalone admin applications for them.
+**DISCADMIN**
+
+- maneja CRUD editorial y herramientas técnicas;
+- usa autenticación centralizada;
+- protege mutaciones con CSRF;
+- conserva drafts y lifecycle states;
+- registra actividad administrativa relevante.
+
+**MariaDB**
+
+- es la fuente de verdad para entidades editoriales y settings persistentes;
+- las migraciones son explícitas y separadas del deploy de source.
+
+**Filesystem / media**
+
+- originales de Media Library se conservan;
+- variantes derivadas no sustituyen el original;
+- backups privados no deben exponerse como assets públicos.
+
+**GitHub / Hostinger**
+
+- GitHub valida el source;
+- `main` es la única branch de deploy rutinario;
+- Hostinger hace deploy automático desde Git;
+- no se usa FTP como flujo normal.
 
 ---
 
-## Major implemented capabilities
+## 4. Stack y restricciones técnicas
 
-### Events + Content Core
+| Capa | Tecnología / decisión |
+|---|---|
+| Backend | PHP 8.3+ |
+| Database | MariaDB 11.x / MySQL-compatible SQL |
+| Public frontend | HTML, CSS, vanilla JS |
+| Admin frontend | DISCADMIN + módulos JS/CSS montados en el mismo shell |
+| Animación pública | GSAP / ScrollTrigger; Lenis donde no se desactiva por performance |
+| Auth | PHP sessions + CSRF + rate limiting + TOTP |
+| Media | PHP filesystem/media engine + browser picker |
+| Testing | PHP contracts + MariaDB integration + Playwright |
+| CI | GitHub Actions + MariaDB service container |
+| Hosting | Hostinger shared hosting / LiteSpeed |
+| Deployment | GitHub `main` → Hostinger Git integration |
 
-Events are first-class entities with drafts, public lifecycle states, tickets, media, SEO and artist participation through `event_artists`.
+### Restricciones de diseño
 
-Canonical lineup concept:
+El runtime de producción **no depende** de:
+
+- un servidor Node permanente;
+- Docker en producción;
+- workers long-running;
+- SSH deploy;
+- microservicios externos para el CMS.
+
+La arquitectura debe seguir funcionando en shared hosting.
+
+---
+
+## 5. Mapa del repositorio
 
 ```text
-GET  /events/{id}/lineup
-POST /events/{id}/lineup
+brvtal/
+├── .github/              GitHub Actions / CI
+├── api/                  APIs públicas y protegidas
+├── assets/               Assets estáticos públicos
+├── config/               Bootstrap, auth, media, deployment, release config
+├── css/                  CSS público
+├── database/             Schema base + migraciones explícitas
+├── discadmin/            Shell canónico y módulos DISCADMIN
+├── docs/                 Especificaciones y contratos técnicos
+├── js/                   JavaScript público
+├── scripts/              Herramientas de mantenimiento
+├── storage/              Runtime/private application storage
+├── tests/                Contracts, integración y browser tests
+├── uploads/              Media administrada
+├── index.php             Entrada/router público server-side
+├── index.html            Estructura/fallback pública
+├── package.json          Tooling de tests
+└── playwright.config.mjs Configuración Playwright
 ```
 
-Content Core provides the guided event workflow inside the canonical DISCADMIN shell. Drafts may be incomplete; publication-oriented states require stronger validation.
+---
 
-Production smoke testing has exposed and fixed multiple Content Core issues. Remaining defects are tracked as stabilization debt rather than a reason to redesign the admin architecture.
+## 6. DISCADMIN
 
-### Releases / Label
+### Arquitectura
 
-Releases support label/catalog data, artwork, release type/date, credited Artists, external listening/store destinations and `draft / published / archived` lifecycle.
+`/discadmin` es una única aplicación administrativa. El shell contiene:
 
-### Blog
+- sidebar canónico;
+- sesión canónica;
+- workspace central;
+- feedback global;
+- dialogs/forms;
+- módulos editoriales y técnicos.
 
-Blog supports `draft / published / archived`, tags, cover media, SEO and relations to Events, Artists, Sets and Releases.
+Los módulos adicionales deben montarse sobre este shell, no reemplazarlo.
 
-### Media Library + Media Engine v2
+### Módulos editoriales principales
 
-Media is reusable platform content rather than disposable form attachments.
+| Módulo | Función |
+|---|---|
+| Dashboard | Resumen operativo, actividad y accesos rápidos |
+| Events | Eventos, lifecycle, tickets, lineup/roster, media y SEO |
+| Hero Slider | Home hero/banner/video manager visual |
+| Artists | Perfiles, bio, media y relaciones |
+| Releases | Catálogo/label, artwork, artists y plataformas |
+| Sets | Sets, links de plataformas y relaciones |
+| Media | Media Library + Media Engine |
+| Pages | CMS pages |
+| Blog | Editorial, tags, media, relaciones y SEO |
+| Content Core | Flujo guiado para creación/edición compleja |
 
-Implemented foundation includes:
+### Herramientas técnicas / cross-cutting
 
-- visual library and picker;
-- validated uploads;
-- path normalization;
-- metadata and sidecars;
+- Global Search (`⌘K / Ctrl+K`);
+- Bulk Actions seguras;
+- Content Health;
+- SEO editorial defaults;
+- Admin Activity / Version History;
+- Theme Studio público;
+- Settings;
+- Security / 2FA;
+- System Status;
+- Backups Foundation;
+- Appearance selector del shell.
+
+### Apariencia del admin
+
+El sidebar permite seleccionar de forma inmediata:
+
+- **Dark**;
+- **Light**;
+- **Glass** — interpretación translúcida tipo iOS/macOS adaptada a BRVTAL.
+
+La selección es local/persistente y no está acoplada al Theme Studio público.
+
+### Sesión administrativa
+
+La política actual está pensada para evitar relogins constantes sin eliminar controles de seguridad:
+
+- hasta **7 días de inactividad**;
+- máximo **30 días desde el login**;
+- cookie persistente;
+- renovación periódica durante actividad;
+- `HttpOnly`;
+- `SameSite=Strict`;
+- CSRF activo;
+- regeneración del session ID.
+
+---
+
+## 7. Hero Slider Manager
+
+El Home Hero Slider es un manager propio inspirado en la facilidad de LayerSlider, no un page builder genérico.
+
+### v1
+
+- hasta 20 slides;
+- image o muted video;
+- desktop asset;
+- mobile override opcional;
+- poster de video;
+- autoplay/interval;
+- publish/unpublish;
+- overlay;
+- texto y CTA legacy;
+- desktop/mobile preview;
+- fallback permanente al hero original.
+
+### v2
+
+- hasta 12 layers por slide;
+- layer types: text, image, logo y CTA;
+- posicionamiento visual por pointer/touch;
+- porcentaje X/Y y width;
+- animaciones de entrada;
+- delay/duration;
+- mobile X/Y/width overrides;
+- mobile media override;
+- hide-on-mobile;
+- duplicado seguro de slide/layers;
+- sanitización/allowlist en el endpoint público;
+- compatibilidad con slides v1.
+
+El contrato técnico completo está en [`docs/HERO-SLIDER.md`](docs/HERO-SLIDER.md).
+
+---
+
+## 8. Modelo de contenido
+
+### Entidades principales
+
+- `events`;
+- `artists`;
+- `sets_media` / Sets;
+- `releases`;
+- `pages`;
+- `blog_posts`;
+- Media Library;
+- Settings.
+
+### Relaciones importantes
+
+Ejemplos:
+
+- Event ↔ Artists mediante lineup/participation;
+- Event ↔ Sets;
+- Artist ↔ Sets;
+- Release ↔ Artists;
+- Blog ↔ Events / Artists / Sets / Releases;
+- Media ↔ múltiples entidades mediante referencias de campos.
+
+La plataforma evita duplicar relaciones como texto cuando deben ser datos estructurados.
+
+### Lifecycle
+
+Los drafts son first-class. Publicar contenido puede exigir validaciones más estrictas que simplemente guardarlo.
+
+Public delivery nunca debe filtrar drafts/private content por accidente.
+
+---
+
+## 9. Media Library / Media Engine
+
+Media se trata como contenido reutilizable, no como attachments desechables.
+
+Implementado:
+
+- picker visual;
+- upload validado;
+- metadata;
+- normalización de paths;
 - original preservation;
-- image dimensions and warnings;
-- WebP variants when supported;
-- square and larger width variants for suitable images;
-- reference-aware deletion protection.
+- dimensiones y quality warnings;
+- WebP variants cuando el runtime lo permite;
+- tamaños derivados para contextos útiles;
+- reference-aware deletion protection;
+- focal point;
+- preview square/card/hero;
+- context-aware variants;
+- guidance de resolución.
 
-Media Engine v2 adds focal-point controls, live square/card/hero previews, context-aware WebP variants and per-context resolution guidance while preserving the source original.
+La eliminación de media usada por contenido debe bloquearse o advertir explícitamente; nunca debe romper referencias silenciosamente.
 
-### SEO + public entity delivery
+---
 
-Published content has canonical entity routes:
+## 10. Public delivery
+
+### Home
+
+La Home conserva una base estática art-directed pero permite reemplazar el primer hero mediante Hero Slider cuando existe configuración publicada válida.
+
+Si el slider falla, está deshabilitado o no tiene media válida, el hero original permanece visible.
+
+### Entity routes
+
+Rutas canónicas:
 
 ```text
 /events/{slug}
@@ -180,181 +391,99 @@ Published content has canonical entity routes:
 /pages/{slug}
 ```
 
-Public delivery includes canonical URLs, Open Graph/Twitter metadata, structured data and sitemap/robots behavior. Draft/private/unknown entity routes must not leak as public content.
+### Archive / discovery
 
-When editorial SEO fields are empty, BRVTAL falls back to the entity title/name and its description/bio/excerpt. Manually authored SEO metadata always takes priority.
+Archive separa eventos históricos de eventos activos y soporta:
 
-### Archive + Related Content
+- año;
+- texto;
+- relaciones con Artists;
+- relaciones con Sets;
+- enlaces al Event canónico;
+- estado de filtros compartible mediante URL;
+- restauración de filtros al abrir un link;
+- Back/Forward del navegador.
 
-Historical Events remain discoverable rather than disappearing when their active lifecycle ends. Related Content connects public Events, Artists, Sets and Releases while filtering private/draft relationships at the server layer.
+### Public Media Discovery
 
-Archive Discovery v2 adds combined year, text and relationship filters plus canonical links from historical records to their public Event pages.
+Media pública soporta:
 
-Public Media Discovery v2 exposes the complete published media collection with text/type filters, native audio/video controls and an accessible image viewer.
+- búsqueda textual;
+- filtro image/video/audio;
+- viewer accesible para imágenes;
+- controles nativos para audio/video;
+- estado compartible mediante URL;
+- Back/Forward del navegador.
 
-### Search + Bulk Actions
+### Related Content
 
-Global Search covers editorial modules through `⌘K / Ctrl+K`.
+Events, Artists, Sets y Releases pueden enlazarse por relaciones reales. El servidor filtra entidades draft/private antes de exposición pública.
 
-Bulk Actions v1 supports safe lifecycle/status changes with CSRF, explicit allowlists, row locking, transactions, rollback and a maximum batch size.
+---
 
-**Bulk Delete is intentionally not implemented.**
+## 11. SEO y analytics
 
-### Admin Activity
+### SEO
 
-Important administrative mutations are recorded in append-only `admin_activity_log` history with actor/action/resource/change metadata and sanitized before/after snapshots.
+El sistema incluye:
 
-From the Dashboard, each editorial activity row can open the complete history for that content item. The timeline shows who changed it and when, with readable before/after values for each changed field.
+- canonical URLs;
+- Open Graph;
+- Twitter metadata;
+- JSON-LD / structured data;
+- sitemap/robots behavior;
+- `404/noindex` safeguards;
+- SEO title/description editoriales;
+- fallbacks automáticos cuando los campos SEO están vacíos.
 
-The UI and endpoint remain read-only. Automatic restore/revert is intentionally deferred.
+Los valores editoriales manuales siempre tienen prioridad sobre defaults automáticos.
 
-### Security / 2FA
+### Analytics/privacy
 
-Implemented security includes:
+La foundation actual usa Google Analytics únicamente cuando:
 
-- centralized PHP sessions;
-- CSRF validation;
+1. Theme Studio contiene un GA4 Measurement ID válido; y
+2. el visitante acepta analytics opcional.
+
+No se carga Google tag antes del consentimiento. La preferencia puede rechazarse o cambiarse posteriormente.
+
+GTM, Meta Pixel o scripts arbitrarios legacy no se ejecutan automáticamente como parte de esta foundation.
+
+---
+
+## 12. Seguridad
+
+Controles principales:
+
+- prepared statements para inputs de base de datos;
+- CSRF para mutaciones;
+- sesión administrativa centralizada;
 - login rate limiting;
-- TOTP / Google Authenticator-compatible enrollment and challenge;
-- AES-256-GCM encrypted TOTP secrets;
-- hashed recovery codes;
-- persistent private encryption-key fallback in existing Settings when a dedicated server key is unavailable;
-- protection against exposing/editing/deleting that private setting through normal Settings APIs/UI;
-- browser regression coverage for the full password → TOTP → authenticated session flow, including WebKit/Safari behavior.
+- TOTP compatible con Google Authenticator;
+- AES-256-GCM para secretos TOTP;
+- recovery codes hasheados;
+- private settings protegidos;
+- sanitización/allowlists en public APIs;
+- drafts/private entities fuera de public delivery;
+- stack traces y secretos fuera de respuestas públicas.
 
-Never commit real security secrets or expose them through diagnostics.
+### Límites deliberados
 
-### System Status v2
+No ejecutar sin confirmación explícita:
 
-System Status is a visual operations/control-room screen rather than a wall of logs. It surfaces:
-
-- platform health score;
-- API/DB/runtime/security/activity/deployment indicators;
-- deployment SHA/environment;
-- database content counts;
-- BRVTAL-managed storage usage;
-- GitHub commit/merged-PR/source metrics;
-- Content Health;
-- recent admin activity;
-- actionable issues;
-- Advanced Diagnostics on demand.
-
-Hostinger shared-node filesystem totals are diagnostic-only. The visible storage chart uses BRVTAL-managed application data against the configured operational hosting quota.
+- SQL destructivo de producción;
+- resets/seeds en producción;
+- automatic restore/revert;
+- Bulk Delete;
+- cambios irreversibles de datos.
 
 ---
 
-## Technology stack
+## 13. APIs
 
-| Layer | Technology |
-|---|---|
-| Backend | PHP 8.3+ |
-| Database | MariaDB / MySQL-compatible SQL |
-| Public frontend | HTML, CSS, vanilla JavaScript |
-| Administration | Proprietary DISCADMIN shell + mounted enhancements/modules |
-| Authentication | PHP sessions, CSRF, rate limiting, TOTP |
-| Media | PHP filesystem/media engine + browser picker |
-| Testing | PHP contracts/integration + Playwright |
-| CI | GitHub Actions with MariaDB service |
-| Production | Hostinger shared/managed LiteSpeed |
-| Deployment | GitHub `main` → Hostinger Git integration |
+`api/public.php` es la allowlist principal de datos públicos. No debe crearse otra implementación pública divergente.
 
-BRVTAL intentionally remains compatible with shared hosting: production does not require a long-running Node server, containers or SSH deployment.
-
----
-
-## Repository structure
-
-```text
-brvtal/
-├── .github/              GitHub Actions / CI
-├── api/                  Public and protected PHP APIs
-├── assets/               Public static assets
-├── config/               Bootstrap, auth, media, deployment and release config
-├── css/                  Public frontend styles
-├── database/             Base schema + explicit migrations
-├── discadmin/            Canonical DISCADMIN shell/modules/enhancements
-├── docs/                 Product/technical specification
-├── js/                   Public frontend JavaScript
-├── scripts/              Maintenance/support scripts
-├── storage/              Private/runtime application storage
-├── tests/                Contracts, MariaDB integration and browser tests
-├── uploads/              Managed uploaded media in production
-├── index.php             Public server-rendered delivery/router
-├── package.json          Browser-test tooling
-└── playwright.config.mjs Playwright configuration
-```
-
----
-
-## Local setup
-
-### Requirements
-
-- PHP 8.3+
-- PDO MySQL extension
-- MariaDB/MySQL-compatible server
-- Node.js for the test toolchain
-
-### Clone
-
-```bash
-git clone https://github.com/pl0n3r/brvtal.git
-cd brvtal
-```
-
-### Configuration
-
-```bash
-cp config/config.example.php config/config.php
-```
-
-Configure database/security values locally. `config/config.php` with real credentials is never committed.
-
-The example configuration also documents an optional operational storage quota used by System Status. Production currently has a safe known-plan fallback, but explicit configuration is preferred when hosting limits change.
-
-### Install test dependencies
-
-```bash
-npm install
-```
-
----
-
-## Database and migrations
-
-`database/schema.sql` is historical/base schema. New schema changes use explicit migrations in `database/`.
-
-Important production foundations already applied include:
-
-```text
-migration_content_core_01.sql
-migration_releases_01.sql
-migration_blog_01.sql
-migration_seo_01.sql
-migration_admin_activity_01.sql
-```
-
-TOTP encryption-key persistence was intentionally implemented using existing schema/Settings and did not require a new production migration.
-
-**Merging source code never means a database migration was automatically applied.**
-
-Rules:
-
-- migrations must be explicit and data-safe;
-- idempotent where practical;
-- never blindly rerun already-applied production migrations;
-- no destructive resets/seeds on production;
-- if new source depends on a migration, production SQL is applied and confirmed separately.
-
----
-
-## Public/admin API model
-
-`api/public.php` is the canonical read-only public-data allowlist. Do not create a second divergent public implementation.
-
-`api/index.php` and specialized protected APIs handle authenticated administration.
-
-Conceptual endpoints include:
+Endpoints/conceptos principales:
 
 ```text
 /api/index.php/auth
@@ -366,6 +495,7 @@ Conceptual endpoints include:
 /api/index.php/pages
 /api/index.php/settings
 /api/public.php
+/api/hero-slider.php
 /api/releases.php
 /api/blog.php
 /api/content-health.php
@@ -374,167 +504,425 @@ Conceptual endpoints include:
 /api/admin-activity.php
 ```
 
-Protected mutations require authentication and CSRF as appropriate.
+Las mutaciones administrativas requieren autenticación y CSRF según corresponda.
 
 ---
 
-## CI and testing
+## 14. Base de datos y migraciones
 
-The workflow file is historically named `.github/workflows/update-release-metadata.yml`, but the workflow itself is **BRVTAL CI**.
+`database/schema.sql` es histórico/base. Los cambios nuevos de schema se realizan mediante migraciones explícitas.
 
-CI currently validates combinations of:
+Foundations existentes incluyen, entre otras:
 
 ```text
-PHP syntax
-JavaScript syntax
-Core API contracts
-Media Library contracts
-Releases contracts
-Blog contracts
-Content Health contracts
-SEO contracts
-Global Search contracts
-Bulk Actions contracts
-Public Archive contracts
-Related Content contracts
-Admin Activity contracts
-System Status contracts
-Migration idempotency
-MariaDB persistence/integration
-Playwright browser behavior
-Chromium + targeted WebKit/Safari regressions
+migration_content_core_01.sql
+migration_releases_01.sql
+migration_blog_01.sql
+migration_seo_01.sql
+migration_admin_activity_01.sql
 ```
 
-CI does **not** rewrite `config/version.php` on every commit.
+Reglas:
 
-Deployment identity is resolved at runtime through `config/deployment.php`, allowing production to identify the actual Git checkout without metadata-only commits.
+- data-safe;
+- idempotentes cuando sea práctico;
+- source deploy y DB migration son procesos separados;
+- mergear código **no significa** que una migración se haya aplicado en producción;
+- nunca correr migraciones destructivas automáticamente contra producción.
 
 ---
 
-## Development and deployment workflow
+## 15. Observabilidad y operaciones
 
-```text
-main
-  ↓
-feature / fix / docs branch
-  ↓
-implementation + tests
-  ↓
-Pull Request
-  ↓
-BRVTAL CI
-  ↓
-squash merge to main
-  ↓
-main CI
-  ↓
-Hostinger Git auto-deploy
-  ↓
-production verification
-```
+### System Status v2
 
-Operational rules:
+El control room de DISCADMIN muestra, según disponibilidad:
 
-- no routine feature work directly on `main`;
-- one concern per PR where practical;
-- no FTP/manual deployment unless explicitly requested;
-- schema migrations are independent of source deployment;
-- do not create parallel DISCADMIN shells/sidebars;
-- preserve working production data;
-- distinguish CI success from production verification.
+- health score;
+- API/runtime/DB/security state;
+- deployment SHA y source;
+- content/database counts;
+- storage administrado por BRVTAL;
+- GitHub/source metrics;
+- Content Health;
+- recent admin activity;
+- actionable diagnostics.
 
----
+`config/deployment.php` resuelve el SHA en runtime mediante:
 
-## Current roadmap
+1. `BRVTAL_DEPLOY_COMMIT` si existe;
+2. Git checkout local;
+3. release/build fallback.
 
-The initial stabilization roadmap has been superseded. Major platform foundations already exist; current development should focus on operational maturity and deeper product value.
+Esto evita commits artificiales de metadata.
 
-### 1. Backups Foundation v1 — implemented
+### Backups Foundation
 
-Shared-hosting-safe backup foundation:
+Implementado:
 
-- authenticated manual DB backup;
+- backup manual autenticado de DB;
 - private backup storage;
-- media/file inventory and safe archive strategy;
-- manifest with timestamp, deploy SHA, size/checksum and components;
-- history/status/download inside the existing Technical/System Status experience;
-- activity logging;
-- **no one-click restore**.
+- manifest;
+- timestamp;
+- deploy SHA;
+- size/checksum/components;
+- history/status/download;
+- activity logging.
 
-### 2. Media Engine v2 UX — implemented
+**No existe one-click restore automático.** Esa omisión es deliberada por seguridad.
 
-Build on the existing variant engine:
+---
 
-- focal point;
-- crop previews;
-- context-aware variants;
-- stronger resolution/quality guidance;
-- better responsive delivery.
+## 16. Testing
 
-### 3. Editorial Version History v1 — implemented
+La estrategia completa vive en [`docs/TESTING.md`](docs/TESTING.md).
 
-Admin Activity now includes per-content timelines and readable field-level before/after diffs. History remains read-only; restore/revert requires a later explicit safeguards phase.
+### Capas de validación
 
-### 4. Public discovery and polish — active next priority
+1. PHP syntax.
+2. JavaScript syntax.
+3. Contract tests.
+4. Migration/idempotency checks.
+5. MariaDB disposable integration tests.
+6. Playwright browser tests.
+7. Targeted WebKit/Safari regressions.
+8. Production smoke separado cuando realmente se ejecuta.
 
-- richer Archive/Media discovery;
-- relationship-driven browsing;
-- public entity refinement;
-- performance and responsive polish;
-- reduced-motion quality.
+### Comandos locales
 
-### 5. Analytics/privacy foundation
+```bash
+npm run test:contracts
+npm run test:integration
+npm run test:e2e
+npm test
+```
 
-Prefer Google Analytics where appropriate and minimal privacy/cookie handling that matches the features actually deployed. Do not build a large custom analytics product prematurely.
+La integración local exige una DB cuyo nombre empiece con `brvtal_test` y la flag de seguridad indicada en `docs/TESTING.md`.
 
-The public site loads Google Analytics only when the active Theme Studio theme contains a valid GA4 measurement ID and the visitor accepts optional analytics. A persistent preference control allows rejection or later changes. No Google tag is loaded before consent. GTM, Meta Pixel and arbitrary tracking snippets saved in legacy theme fields are not executed by this foundation. Without a configured GA4 ID, no analytics preference UI appears and no analytics is sent. Reports remain in Google Analytics; the existing `analytics_events` table is not populated by this feature.
+---
 
-### Known stabilization debt
+## 17. CI / deploy
 
-Content Core's real-stack create/update workflow has automated coverage from PRs #68–#70. Authenticated production smoke coverage remains separate and must be recorded before claiming production validation. Fix any newly reproduced defects in focused PRs.
+El workflow histórico se conserva en:
 
-### Latest verified source state (2026-09-13)
+```text
+.github/workflows/update-release-metadata.yml
+```
 
-PRs #71–#78 improved public mobile readability, image loading, accessibility, keyboard navigation, and touch scrolling. PR #79 stops costly continuous home effects on touch; #80 makes Google Fonts nonblocking; #81 removes the artificial home loader on touch while retaining desktop behavior. PR #81 was squash-merged as `39c0349096e72ff9898da214478db71376b2bbf2`. [BRVTAL CI #215](https://github.com/pl0n3r/brvtal/actions/runs/34779731048) passed for that exact `main` SHA, including PHP/JavaScript, contracts, MariaDB integration, and Playwright. This is code validation, not evidence of a completed Hostinger deploy or visual production check. Continue with measured public mobile performance/Core Web Vitals work; check current PRs before selecting changes.
+Su nombre visible es **BRVTAL CI**.
 
-### Explicitly deferred
+### Triggers
 
-- complex RBAC;
+- Pull Request → `main`;
+- push → `main`;
+- manual `workflow_dispatch`.
+
+### Flujo obligatorio
+
+```text
+current green main
+       ↓
+feature/fix/docs branch
+       ↓
+implementation
+       ↓
+contracts + integration + browser tests
+       ↓
+Pull Request
+       ↓
+BRVTAL CI green
+       ↓
+squash merge
+       ↓
+BRVTAL CI on exact merged main SHA
+       ↓
+Hostinger Git auto-deploy
+       ↓
+production verification when performed
+```
+
+### Build / Deploy Summary
+
+Cada run de BRVTAL CI publica un **GitHub Actions Job Summary** con contexto operativo, incluyendo:
+
+- event (`pull_request`, `push`, manual);
+- source branch / base branch;
+- PR cuando aplica;
+- source SHA y checkout SHA;
+- commit subject/timestamp;
+- actor;
+- run/attempt;
+- archivos cambiados;
+- áreas del sistema afectadas;
+- si el run es elegible para auto-deploy (`push` a `main`) o solo validación;
+- resultado final de CI;
+- runtime/tool versions disponibles.
+
+El summary facilita leer cada deploy sin crear commits de metadata.
+
+### Regla de metadata
+
+**BRVTAL CI nunca debe reescribir `config/version.php` ni crear commits de versión por cada cambio.**
+
+El SHA de deploy se resuelve en runtime mediante `config/deployment.php`.
+
+---
+
+## 18. Checklist de características solicitadas vs estado actual
+
+Leyenda:
+
+- `[x]` terminado / implementado y cubierto por el flujo actual;
+- `[ ]` pendiente, incompleto o explícitamente diferido;
+- `⚠` implementado pero con verificación operacional adicional pendiente.
+
+### DISCADMIN / UX
+
+- [x] Un solo shell/sidebar/session/workspace.
+- [x] Sidebar responsive/mobile.
+- [x] Listas administrativas usables en mobile.
+- [x] Forms/dialogs consistentes y prevención de double-save.
+- [x] Theme selector rápido directamente en sidebar.
+- [x] Dark mode.
+- [x] Light mode.
+- [x] Glass / iOS-like mode.
+- [x] Preferencia de appearance persistente.
+- [x] Sesión administrativa extendida para evitar relogin frecuente.
+- [x] Global Search.
+- [x] Content Health.
+- [x] Safe Bulk Actions.
+- [ ] Bulk Delete — **deliberadamente no implementado**.
+- [ ] RBAC complejo — diferido hasta existir una necesidad real multiusuario.
+
+### Content / CMS
+
+- [x] Events CRUD y lifecycle.
+- [x] Event tickets.
+- [x] Event lineup / roster / artist participation.
+- [x] Artists CRUD.
+- [x] Sets CRUD + relaciones/plataformas.
+- [x] Releases / label catalog.
+- [x] Blog + tags + relaciones.
+- [x] CMS Pages.
+- [x] Content Core guided workflow.
+- [x] SEO fields + intelligent defaults.
+- [x] Draft/private visibility rules.
+- [x] Admin Activity append-only.
+- [x] Editorial Version History read-only.
+- [ ] Automatic restore/revert desde history — deliberadamente diferido.
+
+### Hero Slider
+
+- [x] Hero Manager dentro del DISCADMIN canónico.
+- [x] Image slides.
+- [x] Muted inline video slides.
+- [x] Múltiples slides.
+- [x] Autoplay / interval / pause controls.
+- [x] Mobile-specific media override.
+- [x] Desktop/mobile preview.
+- [x] Permanent static hero fallback.
+- [x] Visual layers: text/image/logo/CTA.
+- [x] Drag/pointer/touch positioning.
+- [x] Layer entrance animation + delay/duration.
+- [x] Per-layer mobile position/width/media overrides.
+- [x] Hide layer on mobile.
+- [x] Duplicate slide.
+- [x] Reduced-motion behavior.
+- [x] Deferred loading de inactive slide images.
+- [ ] Scheduled start/end publication.
+- [ ] Full timeline editor tipo LayerSlider.
+- [ ] Drag-and-drop slide ordering; v1 usa controles explícitos.
+
+### Media
+
+- [x] Media Library visual.
+- [x] Media picker reutilizable.
+- [x] Upload validation.
+- [x] Original preservation.
+- [x] WebP/context variants.
+- [x] Focal point.
+- [x] Crop/context preview.
+- [x] Resolution/quality guidance.
+- [x] Reference-aware delete protection.
+
+### Public experience
+
+- [x] Responsive public Home.
+- [x] Mobile performance fallbacks para efectos pesados.
+- [x] Non-blocking Google Fonts.
+- [x] Mobile loader bypass.
+- [x] Touch targets / keyboard focus/accessibility passes.
+- [x] Public Events lifecycle rendering.
+- [x] Archive histórico.
+- [x] Archive year/search/relationship filters.
+- [x] Archive filters shareable in URL + browser history.
+- [x] Public Media discovery.
+- [x] Media filters shareable in URL + browser history.
+- [x] Related Content entre entidades.
+- [x] Canonical public entity pages.
+- [x] SEO/OG/Twitter/JSON-LD.
+- [x] Analytics consent foundation.
+- [ ] Medición periódica documentada de Core Web Vitals en producción.
+- [ ] Registro formal de authenticated production smoke después de releases relevantes. ⚠
+
+### Security
+
+- [x] Centralized admin auth.
+- [x] CSRF.
+- [x] Prepared statement policy.
+- [x] Login rate limiting.
+- [x] TOTP / 2FA enrollment + challenge.
+- [x] Encrypted TOTP secret storage.
+- [x] Recovery codes.
+- [x] Safari/WebKit login regression coverage.
+- [x] Private settings protection.
+
+### Operations / deploy
+
+- [x] GitHub PR workflow.
+- [x] BRVTAL CI.
+- [x] MariaDB disposable integration tests.
+- [x] Playwright browser tests.
+- [x] Exact-main-SHA CI gate antes de siguiente branch.
+- [x] GitHub `main` → Hostinger auto-deploy.
+- [x] Runtime deployment SHA resolution.
+- [x] System Status v2.
+- [x] Backups Foundation v1.
+- [x] Build/Deploy Job Summary en GitHub Actions.
+- [ ] Automated one-click restore — deliberadamente no implementado.
+- [ ] Backup restore rehearsal documentado en entorno seguro.
+- [ ] Producción autenticada validada automáticamente — no se habilita hasta tener un método seguro/no destructivo.
+
+### Futuro de producto
+
+- [ ] Booking/community capabilities.
+- [ ] Multi-admin/RBAC avanzado si el producto lo requiere.
+- [ ] Richer relationship-driven public browsing.
+- [ ] Mayor profundidad editorial/label según necesidades reales.
+
+---
+
+## 19. Deuda conocida / siguiente prioridad
+
+Prioridades actuales:
+
+1. public discovery y relationship-driven browsing más profundo;
+2. performance/responsive polish basado en mediciones reales;
+3. authenticated production smoke documentado;
+4. backup recovery rehearsal seguro;
+5. continuar estabilizando Content Core cuando se reproduzcan defectos reales;
+6. mejoras incrementales del Hero Slider sin convertirlo en un page builder genérico.
+
+Evitar trabajo prematuro en:
+
+- Wix/Elementor-style generic builder;
+- event-site builder arbitrario;
+- large custom analytics product;
 - Bulk Delete;
-- one-click restore;
-- generic Wix/Elementor-style builders;
-- arbitrary event-site/skin builders;
-- large custom analytics infrastructure;
-- unnecessary language selector/i18n complexity.
+- automatic restore;
+- RBAC complejo sin necesidad real.
 
 ---
 
-## Product principles
+## 20. Local setup
 
-1. **One platform, not disconnected tools.**
-2. **Relationships are structured data, not duplicated text.**
-3. **Drafts are first-class.**
-4. **CMS intelligence advises; it does not autonomously publish.**
-5. **Media is reusable and source originals are preserved.**
-6. **Public exposure is explicit and allowlisted.**
-7. **Production SQL is deliberate and separate from source deployment.**
-8. **Visual identity matters on public and admin surfaces.**
-9. **Accessibility, mobile and reduced motion are first-class.**
-10. **A feature is complete only after production verification.**
+### Requisitos
+
+- PHP 8.3+;
+- PDO MySQL;
+- MariaDB/MySQL-compatible server;
+- Node.js para testing/tooling.
+
+### Clone
+
+```bash
+git clone https://github.com/pl0n3r/brvtal.git
+cd brvtal
+```
+
+### Config
+
+```bash
+cp config/config.example.php config/config.php
+```
+
+Configura DB y valores de seguridad localmente. Nunca commitear credenciales reales.
+
+### Dependencies de test
+
+```bash
+npm install
+npx playwright install chromium webkit
+```
 
 ---
 
-## Primary references
+## 21. Runbook rápido
 
-- [`docs/BRVTAL-SPEC.md`](docs/BRVTAL-SPEC.md) — master product/technical specification
-- [`database/CONTENT_CORE_README.md`](database/CONTENT_CORE_README.md) — Content Core database notes
-- [`config/config.example.php`](config/config.example.php) — local/private configuration shape
-- [`.github/workflows/update-release-metadata.yml`](.github/workflows/update-release-metadata.yml) — canonical CI environment
+### Antes de desarrollar
 
-When README, older conversation notes and current implementation disagree on architecture, inspect the master specification **and the current repository** before changing behavior. Newer explicit product decisions supersede older roadmap notes.
+1. leer `AGENTS.md`;
+2. revisar este README;
+3. revisar PRs abiertos;
+4. revisar el último CI de `main`;
+5. no abrir nueva branch hasta que el exact-main CI anterior esté verde.
+
+### Antes de mergear
+
+1. branch enfocada;
+2. tests aplicables;
+3. PR;
+4. BRVTAL CI verde;
+5. corregir en la misma PR si falla;
+6. squash merge.
+
+### Después de mergear
+
+1. identificar el SHA exacto resultante;
+2. verificar BRVTAL CI para ese SHA;
+3. revisar el Build/Deploy Summary;
+4. distinguir auto-deploy esperado de deploy comprobado;
+5. hacer production smoke cuando el cambio lo amerite y sea seguro.
+
+### Si hay una migración
+
+No asumir que Hostinger la aplicó. Source deploy y DB migration son operaciones separadas.
+
+### Si falla producción
+
+Prioridad:
+
+1. diagnosticar;
+2. preservar datos;
+3. evitar resets destructivos;
+4. corregir mediante branch/PR;
+5. usar restore solo mediante procedimiento explícito y seguro.
 
 ---
 
-## Ownership and use
+## 22. Fuentes de verdad
 
-BRVTAL is a proprietary project. Repository availability does not imply permission to reuse its brand, visual identity, private operational configuration or proprietary product work outside the terms chosen by its owner.
+| Documento | Responsabilidad |
+|---|---|
+| `README.md` | Overview técnico, estado, checklist, operación |
+| `docs/BRVTAL-SPEC.md` | Producto/arquitectura detallada y contratos funcionales |
+| `docs/HERO-SLIDER.md` | Contrato específico Hero Slider |
+| `docs/DISCADMIN-UX-AUDIT.md` | Deuda y criterios UX/responsive del admin |
+| `docs/TESTING.md` | Estrategia y comandos de validación |
+| `AGENTS.md` | Reglas cortas para futuras sesiones/agentes |
+| Código + PRs recientes | Fuente final cuando contradicen documentación antigua |
+
+---
+
+## 23. Principios de producto
+
+1. **Una plataforma, no herramientas desconectadas.**
+2. **Las relaciones son structured data, no texto duplicado.**
+3. **Drafts son first-class.**
+4. **El CMS aconseja; no publica de forma autónoma.**
+5. **Media es reutilizable y el original se preserva.**
+6. **Public exposure es explícito y allowlisted.**
+7. **Production SQL es deliberado y separado del source deploy.**
+8. **Mobile es un target de primera clase.**
+9. **CI demuestra código; no inventa validación de producción.**
+10. **La observabilidad no debe generar commits de metadata.**
