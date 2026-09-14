@@ -1,0 +1,89 @@
+name: README Deploy Snapshot
+run-name: README Deploy Snapshot · PR #${{ github.event.pull_request.number }}
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-deploy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify README matches this deploy exactly
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          base = os.environ['BASE_SHA']
+          head = os.environ['HEAD_SHA']
+          changed = sorted(
+              line.strip()
+              for line in subprocess.check_output(
+                  ['git', 'diff', '--name-only', base, head],
+                  text=True,
+              ).splitlines()
+              if line.strip()
+          )
+
+          readme = Path('README.md').read_text(encoding='utf-8')
+          required = [
+              '# BRVTAL — Último deploy',
+              '## Qué se hizo',
+              '## Archivos modificados en este deploy',
+              '## Validación',
+              '## Qué sigue',
+          ]
+          missing_headings = [heading for heading in required if heading not in readme]
+          if missing_headings:
+              print('README missing required deploy-snapshot headings:', file=sys.stderr)
+              for heading in missing_headings:
+                  print(f'  - {heading}', file=sys.stderr)
+              sys.exit(1)
+
+          section = re.search(
+              r'## Archivos modificados en este deploy\s*\n(.*?)(?=\n## |\Z)',
+              readme,
+              flags=re.S,
+          )
+          if not section:
+              print('README changed-files section could not be parsed.', file=sys.stderr)
+              sys.exit(1)
+
+          listed = sorted(re.findall(r'^- `([^`]+)`(?:\s+—.*)?$', section.group(1), flags=re.M))
+          if changed != listed:
+              print('README deploy file list does not match the PR diff.', file=sys.stderr)
+              print('\nChanged in PR:', file=sys.stderr)
+              for path in changed:
+                  print(f'  {path}', file=sys.stderr)
+              print('\nListed in README:', file=sys.stderr)
+              for path in listed:
+                  print(f'  {path}', file=sys.stderr)
+              print('\nRefresh README.md before merge.', file=sys.stderr)
+              sys.exit(1)
+
+          if len(readme.encode('utf-8')) >= 8000:
+              print('README is too large for a deploy snapshot (must stay under 8 KB).', file=sys.stderr)
+              sys.exit(1)
+
+          print(f'README deploy snapshot matches {len(changed)} changed files.')
+          PY
