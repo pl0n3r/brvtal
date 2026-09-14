@@ -59,7 +59,10 @@ related_expect(str_contains($public, 'NULL AS event_title'), 'Set event title mu
 related_expect(str_contains($public, 'brvtal_public_sanitize_set_relations'), 'Public API must sanitize Set relation IDs before delivery');
 related_expect(str_contains($public, "'relations' => \$relations"), 'Public API payload must expose the compact relation graph');
 related_expect(str_contains($archiveJs, "new CustomEvent('brvtal:public-data'"), 'Archive loader must publish canonical public data to cross-cutting public modules');
-related_expect(str_contains($archiveJs, "import('/js/related-content.js')"), 'Public related-content module must be loaded by the existing public data bootstrap');
+related_expect(str_contains($archiveJs, "searchParams.get('v')"), 'Related Content bootstrap must inherit the deploy version from archive.js');
+related_expect(str_contains($archiveJs, "relatedAssetUrl('/js/related-content.js')"), 'Public related-content module must use the inherited deploy version');
+related_expect(str_contains($archiveJs, "relatedAssetUrl('/css/related-content.css')"), 'Related Content stylesheet must use the inherited deploy version');
+related_expect(!str_contains($archiveJs, "import('/js/related-content.js')"), 'Public related-content module must not be imported through an unversioned URL');
 related_expect(str_contains($relatedJs, 'RELATED CONTENT / PUBLIC GRAPH'), 'Related Content UI must render as a BRVTAL public graph explorer');
 related_expect(str_contains($relatedJs, 'data-related-mode="sets"'), 'Connected must expose Sets as a first-class graph layer');
 related_expect(str_contains($relatedJs, 'data-related-mode="releases"'), 'Connected must expose Releases as a first-class graph layer');

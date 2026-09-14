@@ -7,18 +7,17 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se simplificó el README para que funcione como handoff corto del deploy actual.
-- Se dejó de usar como manual técnico acumulativo o tablero histórico de características.
-- Se formalizó que cada PR destinada a `main` debe reemplazar este snapshot con el alcance real de ese deploy.
-- Se añadió un gate de GitHub Actions que compara el diff real del PR contra la lista de archivos del README y falla si falta o sobra alguno.
-- El detalle arquitectónico y las decisiones durables permanecen en `AGENTS.md`/`docs`, evitando duplicación y desactualización.
+- Se corrigió el versionado de los assets de CONNECTED/Related Content que todavía podían cargarse sin `?v=<deploy-sha>`.
+- `archive.js` ahora toma su propio parámetro `v` del script ya versionado y lo reutiliza tanto para `related-content.js` como para `related-content.css`.
+- El CSS se inserta antes del import dinámico con el marcador que ya entiende `related-content.js`, evitando una segunda hoja de estilos.
+- Se añadió cobertura contractual para impedir que vuelva el import literal sin versión.
+- No se cambió la lógica del grafo, las relaciones públicas ni el diseño de CONNECTED.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/readme-deploy-snapshot.yml` — valida que el README enumere exactamente los archivos del PR antes del merge.
-- `AGENTS.md` — contrato operativo para mantener este README por deploy y refrescarlo si cambia el alcance.
-- `README.md` — nuevo formato de snapshot del último deploy.
-- `tests/project-operations-contract.php` — contrato que protege el formato compacto y evita volver al README acumulativo.
+- `js/archive.js` — propaga el SHA del deploy al módulo y stylesheet de Related Content.
+- `README.md` — snapshot operativo de este deploy.
+- `tests/related-content-contract.php` — protege el versionado del JS/CSS y prohíbe el import dinámico sin versión.
 
 ## Validación
 
@@ -28,9 +27,9 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué sigue
 
-1. Corregir el versionado de `js/related-content.js` y `css/related-content.css` para que usen el mismo SHA del deploy que el resto del runtime público.
-2. Repetir medición del waterfall sobre `https://www.brvtal.com.co` y confirmar el redirect canónico bare → `www` en producción.
-3. Continuar optimización pública solo sobre cuellos de botella medidos, sin degradar la experiencia visual ni reintroducir dependencias pesadas en mobile.
+1. Repetir el waterfall/PageSpeed de `https://www.brvtal.com.co` y confirmar que `archive.js`, `related-content.js` y `related-content.css` comparten el mismo `?v=<deploy-sha>`.
+2. Confirmar en producción el redirect canónico `brvtal.com.co/*` → `https://www.brvtal.com.co/*`.
+3. Continuar con el siguiente cuello medido de imágenes, priorizando Genesis/logo y variantes responsive sin degradar calidad visual.
 
 ## Contexto durable
 
