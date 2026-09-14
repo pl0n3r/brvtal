@@ -318,6 +318,10 @@ Rutas canónicas:
 
 Hero Slider puede sustituir el primer hero solo cuando hay configuración válida. El hero estático permanece como fallback permanente.
 
+El Home canónico usa un **runtime loader adaptativo**. En pointer coarse/mobile y en `prefers-reduced-motion`, el navegador no descarga GSAP, ScrollTrigger ni Lenis; carga directamente el runtime de contenido. En desktop/fine-pointer con motion permitido conserva el stack visual completo. `app.js → archive.js → public-media.js` mantiene orden determinista y continúa sin bloquear el contenido si falla el CDN opcional de motion.
+
+Esta es una optimización validable en código; no sustituye una medición real de Core Web Vitals en producción.
+
 ### Archive / Media Discovery
 
 Archive soporta año, texto y relaciones. Media soporta búsqueda y tipo. Ambos persisten filtros en URL y restauran estado mediante Back/Forward.
@@ -605,6 +609,8 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 
 - [x] Responsive Home.
 - [x] Mobile performance fallbacks.
+- [x] Mobile/reduced-motion evita descargar GSAP / ScrollTrigger / Lenis y conserva el runtime de contenido.
+- [x] Fallback de contenido si falla el CDN opcional de motion.
 - [x] Non-blocking Google Fonts.
 - [x] Mobile loader bypass.
 - [x] Keyboard/touch accessibility passes.
@@ -666,7 +672,7 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 ## 19. Siguiente prioridad
 
 1. profundizar Archive/Media solo donde existan relaciones estructuradas reales y útiles;
-2. performance/responsive polish basado en mediciones reales;
+2. continuar performance/responsive polish basado en mediciones reales; el runtime adaptativo ya elimina dependencias motion innecesarias en mobile/reduced-motion, pero CWV de producción sigue sin documentar;
 3. authenticated production smoke seguro/documentado;
 4. backup recovery rehearsal aislado;
 5. seguir simplificando DISCADMIN solo cuando haya fricción concreta;
