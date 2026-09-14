@@ -19,6 +19,13 @@
     'https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js'
   ];
   const coreScripts = ['js/app.js', 'js/archive.js', 'js/public-media.js'];
+  const enhancementScripts = [
+    'js/menu-accessibility.js',
+    'js/input-accessibility.js',
+    'js/mobile-events.js',
+    'js/hero-slider.js',
+    'js/public-discovery-url-state.js'
+  ];
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -60,6 +67,7 @@
     }
 
     await loadSequence(coreScripts.map(localUrl));
+    await loadSequence(enhancementScripts.map(localUrl));
     return { mode, coarsePointer, reducedMotion };
   }
 
