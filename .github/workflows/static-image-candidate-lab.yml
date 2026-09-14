@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y imagemagick webp
-          convert -version
+          cwebp -version
 
       - name: Build and score WebP candidates
         shell: bash
@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/static-image-candidates
           report="artifacts/static-image-candidates/report.tsv"
-          printf 'asset\tsource_width\tsource_height\tcandidate_width\tquality\tbytes\tssim\n' > "$report"
+          printf 'asset\tsource_width\tsource_height\tcandidate_width\tquality\tbytes\tpsnr_db\n' > "$report"
 
           score_candidates() {
             local label="$1"
@@ -47,17 +47,17 @@ jobs:
               convert "$src" -auto-orient -resize "${width}x>" -strip "$ref"
               for quality in 82 86 90 92; do
                 local out="artifacts/static-image-candidates/${label}-${width}-q${quality}.webp"
-                convert "$src" -auto-orient -resize "${width}x>" -strip -quality "$quality" -define webp:method=6 "$out"
-                local bytes ssim
+                cwebp -quiet -mt -m 6 -sharp_yuv -q "$quality" -resize "$width" 0 "$src" -o "$out"
+                local bytes psnr
                 bytes=$(stat -c%s "$out")
-                ssim=$(compare -metric SSIM "$ref" "$out" null: 2>&1 || true)
-                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$label" "$source_w" "$source_h" "$width" "$quality" "$bytes" "$ssim" >> "$report"
+                psnr=$(compare -metric PSNR "$ref" "$out" null: 2>&1 || true)
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$label" "$source_w" "$source_h" "$width" "$quality" "$bytes" "$psnr" >> "$report"
               done
             done
           }
 
           score_candidates logo assets/brvtal-logo.jpeg 512 640 768 886
-          score_candidates genesis assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg 640 768 960 1280 1600 1920
+          score_candidates genesis assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg 512 640 768 886
 
           echo '### Candidate matrix' >> "$GITHUB_STEP_SUMMARY"
           echo >> "$GITHUB_STEP_SUMMARY"
