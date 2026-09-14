@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/seo_defaults.php';
+require_once __DIR__ . '/public_visibility.php';
 
 function brvtal_public_base_url(array $config): string
 {
@@ -20,21 +21,23 @@ function brvtal_public_absolute_url(string $value, string $base): string
 
 function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
 {
+    $eventStatuses = brvtal_public_visible_event_statuses();
+    $eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
     $definitions = [
-        'events' => ['events', 'title', 'description', 'cover_image', "status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')", 'MusicEvent'],
-        'artists' => ['artists', 'name', 'bio', 'photo', "status='published'", 'MusicGroup'],
-        'sets' => ['sets_media', 'title', 'description', 'cover_image', "status='published'", 'MusicRecording'],
-        'releases' => ['releases', 'title', 'description', 'artwork', "status='published'", 'MusicAlbum'],
-        'blog' => ['blog_posts', 'title', 'excerpt', 'cover_image', "status='published'", 'BlogPosting'],
-        'pages' => ['pages', 'title', 'content_json', "''", "status='published' AND locale='en'", 'WebPage'],
+        'events' => ['events', 'title', 'description', 'cover_image', $eventWhere, 'MusicEvent', $eventStatuses],
+        'artists' => ['artists', 'name', 'bio', 'photo', "status='published'", 'MusicGroup', []],
+        'sets' => ['sets_media', 'title', 'description', 'cover_image', "status='published'", 'MusicRecording', []],
+        'releases' => ['releases', 'title', 'description', 'artwork', "status='published'", 'MusicAlbum', []],
+        'blog' => ['blog_posts', 'title', 'excerpt', 'cover_image', "status='published'", 'BlogPosting', []],
+        'pages' => ['pages', 'title', 'content_json', "''", "status='published' AND locale='en'", 'WebPage', []],
     ];
     if (!isset($definitions[$type]) || !preg_match('/^[a-z0-9-]{1,190}$/', $slug)) return null;
-    [$table, $titleField, $descriptionField, $imageField, $where, $schemaType] = $definitions[$type];
+    [$table, $titleField, $descriptionField, $imageField, $where, $schemaType, $whereParameters] = $definitions[$type];
     $imageSelect = $imageField === "''" ? "'' AS image" : "`{$imageField}` AS image";
     $sql = "SELECT id,slug,`{$titleField}` AS title,`{$descriptionField}` AS description,seo_title,seo_description,{$imageSelect} FROM `{$table}` WHERE slug=? AND {$where} LIMIT 1";
     try {
         $statement = $pdo->prepare($sql);
-        $statement->execute([$slug]);
+        $statement->execute(array_merge([$slug], $whereParameters));
         $row = $statement->fetch();
     } catch (Throwable) {
         return null;
