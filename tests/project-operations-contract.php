@@ -4,6 +4,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $readme = (string) file_get_contents($root . '/README.md');
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
+$performanceWorkflow = (string) file_get_contents($root . '/.github/workflows/production-performance.yml');
+$performanceProbe = (string) file_get_contents($root . '/tests/e2e/production-performance-probe.mjs');
 $agents = (string) file_get_contents($root . '/AGENTS.md');
 $publicHtaccess = (string) file_get_contents($root . '/.htaccess');
 $privateHtaccess = (string) file_get_contents($root . '/.private/.htaccess');
@@ -64,6 +66,21 @@ $assert(str_contains($workflow, 'run_webkit'), 'CI planner must make WebKit path
 $assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the runner MySQL client with mariadb-client');
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
+
+// Production performance must be measured after a green main CI run and tied to the exact deploy SHA.
+$assert(str_contains($performanceWorkflow, 'name: Production Performance'), 'production performance workflow must remain explicit');
+$assert(str_contains($performanceWorkflow, 'workflow_dispatch:'), 'production performance measurement must be manually repeatable');
+$assert(str_contains($performanceWorkflow, 'workflows: ["BRVTAL CI"]'), 'production performance measurement must follow BRVTAL CI');
+$assert(str_contains($performanceWorkflow, 'https://www.brvtal.com.co/'), 'production performance workflow must target the canonical www origin');
+$assert(str_contains($performanceWorkflow, 'github.event.workflow_run.head_sha'), 'production performance workflow must preserve exact-main SHA traceability');
+$assert(str_contains($performanceWorkflow, '?v=$short_sha'), 'production performance workflow must wait for the exact Hostinger deploy marker');
+$assert(str_contains($performanceWorkflow, 'production-performance-mobile.json') && str_contains($performanceWorkflow, 'production-performance-desktop.json'), 'production performance workflow must retain mobile and desktop evidence');
+$assert(str_contains($performanceWorkflow, 'actions/upload-artifact@v4'), 'production performance evidence must be downloadable from the run');
+$assert(str_contains($performanceProbe, 'largest-contentful-paint'), 'production performance probe must observe LCP directly in Chromium');
+$assert(str_contains($performanceProbe, 'layout-shift'), 'production performance probe must observe CLS directly in Chromium');
+$assert(str_contains($performanceProbe, 'resourceLoadDelay'), 'production performance probe must expose LCP resource load delay');
+$assert(str_contains($performanceProbe, 'resourceLoadDuration'), 'production performance probe must expose LCP resource load duration');
+$assert(str_contains($performanceProbe, 'elementRenderDelay'), 'production performance probe must expose LCP element render delay');
 
 // Public web-server performance contract: compress text payloads and cache deploy-versioned assets without wasting CPU on binaries.
 $assert(str_contains($publicHtaccess, '<IfModule mod_deflate.c>'), 'public .htaccess must enable Apache/LiteSpeed-compatible compression when available');

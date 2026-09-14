@@ -1,0 +1,116 @@
+name: Production Performance
+run-name: Production Performance #${{ github.run_number }} · ${{ github.event_name }}
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["BRVTAL CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-production-performance
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: measure
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      BRVTAL_PERF_URL: https://www.brvtal.com.co/
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for exact Hostinger deploy
+        if: github.event_name == 'workflow_run'
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          short_sha="${EXPECTED_SHA:0:7}"
+          observed=false
+
+          for attempt in $(seq 1 18); do
+            html=$(curl -fsSL --connect-timeout 10 --max-time 25 "$BRVTAL_PERF_URL" || true)
+            if [[ "$html" == *"?v=$short_sha"* ]]; then
+              observed=true
+              echo "Observed production deploy marker ?v=$short_sha on attempt $attempt."
+              {
+                echo "## Production deploy observation"
+                echo
+                echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
+                echo "- Exact source SHA: \`$EXPECTED_SHA\`"
+                echo "- Production marker: \`?v=$short_sha\`"
+                echo "- Status: **DEPLOYED marker observed**"
+                echo
+              } >> "$GITHUB_STEP_SUMMARY"
+              break
+            fi
+
+            echo "Deploy marker ?v=$short_sha not visible yet (attempt $attempt/18)."
+            sleep 10
+          done
+
+          if [[ "$observed" != "true" ]]; then
+            {
+              echo "## Production deploy observation"
+              echo
+              echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
+              echo "- Exact source SHA: \`$EXPECTED_SHA\`"
+              echo "- Expected marker: \`?v=$short_sha\`"
+              echo "- Status: **NOT OBSERVED**"
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Exact deploy marker was not observed in production within the wait window." >&2
+            exit 1
+          fi
+
+      - name: Verify canonical production is reachable
+        if: github.event_name == 'workflow_dispatch'
+        run: curl -fsSIL --connect-timeout 10 --max-time 25 "$BRVTAL_PERF_URL" >/dev/null
+
+      - name: Measure mobile production performance
+        env:
+          BRVTAL_PERF_MODE: mobile
+          BRVTAL_PERF_OUTPUT: artifacts/production-performance-mobile.json
+        run: node tests/e2e/production-performance-probe.mjs
+
+      - name: Measure desktop production performance
+        env:
+          BRVTAL_PERF_MODE: desktop
+          BRVTAL_PERF_OUTPUT: artifacts/production-performance-desktop.json
+        run: node tests/e2e/production-performance-probe.mjs
+
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-performance-${{ github.run_id }}
+          path: artifacts/production-performance-*.json
+          if-no-files-found: ignore
+          retention-days: 14
