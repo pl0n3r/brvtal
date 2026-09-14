@@ -7,29 +7,31 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se respondió al hallazgo medido de Pingdom que calificó con `F` la compresión HTTP.
-- `.htaccess` habilita compresión DEFLATE para HTML, texto, CSS, JavaScript, JSON, XML, XHTML y SVG cuando `mod_deflate` está disponible en LiteSpeed/Apache.
-- Se excluyen de forma intencional JPEG, WOFF2 y otros binarios ya comprimidos para evitar trabajo inútil del servidor.
-- Se añadió una cobertura contractual que protege la configuración de compresión y evita regresiones hacia recomprimir JPEG/WOFF2.
-- No se modificó diseño, contenido, imágenes, base de datos ni comportamiento de DISCADMIN.
+- El HAR de producción confirmó que el deploy anterior está activo en Hostinger, PHP 8.5 sirve el Home y Brotli comprime HTML/CSS/JavaScript correctamente.
+- Se alineó la política de caché de JavaScript first-party con CSS/imágenes: un año + `immutable` para archivos `.js` versionados por deploy.
+- Se añadió cobertura explícita para el MIME `application/x-javascript` que LiteSpeed/Hostinger está entregando en producción.
+- Se actualizó el contrato para impedir regresiones en compresión y caché de JavaScript.
+- `AGENTS.md` dejó de marcar como pendiente el versionado de `related-content.js/css`, porque ya está implementado, y ahora prioriza mediciones con navegador moderno.
+- No se modificaron diseño, contenido, base de datos ni comportamiento funcional de DISCADMIN.
 
 ## Archivos modificados en este deploy
 
-- `.htaccess` — activa compresión HTTP para respuestas textuales compatibles.
-- `tests/project-operations-contract.php` — valida el contrato de compresión del servidor web.
+- `.htaccess` — añade expiración anual e `immutable` para JavaScript y cubre `application/x-javascript` en compresión.
+- `tests/project-operations-contract.php` — protege la política de compresión/caché de JavaScript.
+- `AGENTS.md` — actualiza el estado durable y las prioridades de rendimiento.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- El deploy debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y `README Deploy Snapshot / verify` antes del merge.
+- El PR debe pasar `README Deploy Snapshot / verify`, `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
 - CI verde significa **VALIDATED IN CODE**; no equivale por sí solo a **VALIDATED IN PRODUCTION**.
-- Producción canónica: `https://www.brvtal.com.co`.
+- La evidencia HAR previa sí valida en producción el deploy anterior de compresión: `Content-Encoding: br` y `PHP/8.5.6` en `https://www.brvtal.com.co`.
 
 ## Qué sigue
 
-1. Repetir Pingdom contra `https://www.brvtal.com.co` y comprobar que la recomendación de compresión deja de ser `F`.
-2. Confirmar en producción `Content-Encoding: gzip` o `br` en HTML/CSS/JS/JSON textuales.
-3. Con esa evidencia, atacar el siguiente hallazgo medido: requests/Expires/redirects, sin aumentar complejidad ni degradar el contenido visual.
+1. Tras el deploy, verificar en producción que `/js/public-runtime-loader.js?v=<sha>` responde con `Cache-Control: public, max-age=31536000, immutable` y expiración anual.
+2. Repetir Lighthouse/PageSpeed con Chrome moderno sobre `https://www.brvtal.com.co` y usar ese waterfall para decidir el siguiente cambio.
+3. Tratar las descargas masivas de imágenes de Pingdom/Chrome 61 como una limitación de ese navegador, que no soporta `loading="lazy"`; no degradar el frontend moderno para mejorar esa métrica heredada.
 
 ## Contexto durable
 

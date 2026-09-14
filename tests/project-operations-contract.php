@@ -65,14 +65,19 @@ $assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the run
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
 
-// Public web-server performance contract: compress text payloads without wasting CPU on binaries.
+// Public web-server performance contract: compress text payloads and cache deploy-versioned assets without wasting CPU on binaries.
 $assert(str_contains($publicHtaccess, '<IfModule mod_deflate.c>'), 'public .htaccess must enable Apache/LiteSpeed-compatible compression when available');
 $assert(str_contains($publicHtaccess, 'DEFLATE text/html'), 'HTML responses must be compression-eligible');
 $assert(str_contains($publicHtaccess, 'application/javascript'), 'JavaScript responses must be compression-eligible');
+$assert(str_contains($publicHtaccess, 'application/x-javascript'), 'LiteSpeed application/x-javascript responses must be compression-eligible');
 $assert(str_contains($publicHtaccess, 'application/json'), 'JSON responses must be compression-eligible');
 $assert(str_contains($publicHtaccess, 'image/svg+xml'), 'SVG responses must be compression-eligible');
 $assert(!str_contains($publicHtaccess, 'DEFLATE image/jpeg'), 'JPEG assets must not be redundantly recompressed by mod_deflate');
 $assert(!str_contains($publicHtaccess, 'DEFLATE font/woff2'), 'WOFF2 assets must not be redundantly recompressed by mod_deflate');
+$assert(str_contains($publicHtaccess, 'ExpiresByType application/x-javascript "access plus 1 year"'), 'LiteSpeed JavaScript MIME must receive a one-year expiry');
+$assert(str_contains($publicHtaccess, 'ExpiresByType text/javascript "access plus 1 year"'), 'text/javascript responses must receive a one-year expiry');
+$assert(preg_match('/FilesMatch\s+"\\\\\.\(\?:css\|js\|/i', $publicHtaccess) === 1 || str_contains($publicHtaccess, '(?:css|js|'), 'immutable static-asset cache policy must include JavaScript');
+$assert(str_contains($publicHtaccess, 'max-age=31536000, immutable'), 'versioned static assets must retain immutable one-year Cache-Control');
 
 // Web-deny contract for the project-level private storage root.
 $assert(str_contains($privateHtaccess, 'Options -Indexes'), '.private must disable directory indexing');
