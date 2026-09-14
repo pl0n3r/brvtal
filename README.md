@@ -283,7 +283,7 @@ Relaciones importantes:
 
 Las relaciones son structured data, no texto duplicado. Drafts son first-class y la publicación requiere validación más fuerte que guardar.
 
-**Incidencia de producción — Releases (2026-09-13):** al editar un lanzamiento y guardar una fecha válida en **Release date**, DISCADMIN puede responder `INTERNAL_ERROR`. El lanzamiento permanece publicado, pero la fecha no se persiste y el catálogo muestra `DATE TBD`. Se reprodujo con `UMBRAL 03` (`BRVTAL003`). Corregirlo en una PR acotada con regresión que cree y actualice una fecha `YYYY-MM-DD` por el flujo autenticado UI/API, sin exponer trazas, y verificarlo en el administrador de producción tras el despliegue.
+**Incidencia de producción — Releases (2026-09-13):** se reprodujo que guardar una fecha válida en **Release date** puede responder `INTERNAL_ERROR` y dejar `DATE TBD`. La lógica de fecha/UPDATE de `api/releases.php` no mostró un defecto equivalente; como mitigación de schema drift, `database/migration_releases_02.sql` reconcilia de forma aditiva/idempotente tablas `releases` preexistentes incompletas y una integración MariaDB verifica que `release_date` se pueda crear y actualizar. Esto está **VALIDATED IN CODE**, no en producción. Pendiente operacional: revisar `brvtal_log` y `SHOW COLUMNS FROM releases;` en producción; aplicar la migración allí solo si el drift se confirma y mediante una acción de esquema explícitamente autorizada.
 
 ---
 
@@ -333,6 +333,8 @@ Archive soporta año, texto y relaciones. Media soporta búsqueda y tipo. Ambos 
 ### Related Content
 
 Events, Artists, Sets y Releases se relacionan mediante datos reales; el servidor elimina drafts/private relations antes de exposición pública. CONNECTED permite seleccionar las cuatro capas y navegar Set → Artist/Event y Release → Artists sin degradar Sets/Releases a enlaces terminales.
+
+La visibilidad pública de Events tiene una sola fuente de verdad en `config/public_visibility.php`. API pública, páginas de entidad, SEO, sitemap y relaciones deben derivar de esa política mediante parámetros preparados; no duplicar manualmente el literal de estados públicos.
 
 ---
 
@@ -411,6 +413,8 @@ Mutaciones administrativas requieren auth + CSRF según corresponda.
 ## 14. Base de datos y migraciones
 
 `database/schema.sql` es base/histórico. Cambios nuevos usan migraciones explícitas, data-safe e idempotentes cuando sea práctico.
+
+`database/migration_releases_02.sql` existe específicamente para reconciliar una tabla Releases preexistente que pudo quedar incompleta aunque `CREATE TABLE IF NOT EXISTS` no fallara. Su idempotencia y persistencia de `release_date` están cubiertas por integración MariaDB.
 
 Mergear source **no significa** que una migración se ejecutó en producción.
 
@@ -626,6 +630,7 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 - [x] Media URL state + browser history.
 - [x] Related Content.
 - [x] CONNECTED navegable en Artists / Events / Sets / Releases.
+- [x] Política única de visibilidad pública de Events compartida por API/SEO/sitemap/relaciones.
 - [x] Canonical entity pages.
 - [x] SEO/OG/Twitter/JSON-LD.
 - [x] Analytics consent foundation.
@@ -644,6 +649,7 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 - [x] Recovery codes.
 - [x] WebKit login regression coverage.
 - [x] Private settings protection.
+- [x] `.private/` protegido con directivas Apache 2.4/LiteSpeed + compatibilidad legacy.
 
 ### Operations / deploy
 
@@ -654,6 +660,7 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 - [x] Database / Chromium / Real-stack / WebKit separados para paralelismo.
 - [x] Cache de npm/browsers en CI.
 - [x] MariaDB integration tests.
+- [x] Releases schema reconciliation regression sobre MariaDB real.
 - [x] Playwright browser tests.
 - [x] Exact-main-SHA full CI gate.
 - [x] Check agregado final `validate` estable.
@@ -675,12 +682,13 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 
 ## 19. Siguiente prioridad
 
-1. profundizar Archive/Media solo donde existan relaciones estructuradas reales y útiles;
+1. cerrar la incidencia de Release date en producción: revisar `brvtal_log` y `SHOW COLUMNS FROM releases;`; `migration_releases_02.sql` está validada en código, pero no debe aplicarse ni declararse resuelta en producción sin confirmar el schema drift;
 2. continuar performance/responsive polish basado en mediciones reales; el runtime adaptativo ya elimina dependencias motion innecesarias en mobile/reduced-motion, pero CWV de producción sigue sin documentar;
 3. authenticated production smoke seguro/documentado;
 4. backup recovery rehearsal aislado;
-5. seguir simplificando DISCADMIN solo cuando haya fricción concreta;
-6. Hero Slider incremental sin convertirlo en page builder genérico.
+5. profundizar Archive/Media solo donde existan relaciones estructuradas reales y útiles;
+6. seguir simplificando DISCADMIN solo cuando haya fricción concreta;
+7. Hero Slider incremental sin convertirlo en page builder genérico.
 
 Evitar trabajo prematuro en Wix/Elementor-style builders, Bulk Delete, automatic restore y RBAC complejo.
 
@@ -748,5 +756,3 @@ Source deploy y DB migration son operaciones separadas.
 8. Production SQL es deliberado y separado del source deploy.
 9. Mobile es target de primera clase.
 10. CI demuestra código; no inventa validación de producción.
-11. Observabilidad no genera commits de metadata.
-12. Fast feedback en PR no reemplaza la validación completa del SHA exacto de `main`.
