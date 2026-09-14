@@ -11,6 +11,7 @@ function harness() {
   return `<!doctype html><html><head><style>${iaCss}</style></head><body><div id="app"></div><script>
     window.state={authed:true,section:'dashboard'};
     window.__legacyOpen=[];
+    window.__moduleLoadOptions=[];
     function navButton(label,handler,data=''){return '<button '+(data?'data-admin-nav="'+data+'" ':'')+'onclick="'+handler+'">'+label+'</button>'}
     window.__renderShell=function(section){
       state.section=section;
@@ -39,9 +40,17 @@ function harness() {
     window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
     window.BRVTALAdminModules={
       cancel(){},
-      async load(section){
+      async load(section,options={}){
         if(section!=='content-core')return;
-        const host=document.getElementById('admin-module-host');
+        window.__moduleLoadOptions.push(options);
+        state.section=section;
+        window.__renderShell(section);
+        let host=document.getElementById('admin-module-host');
+        if(!host){
+          host=document.createElement('div');
+          host.id='admin-module-host';
+          document.querySelector('.main').appendChild(host);
+        }
         host.innerHTML='<section data-admin-module="content-core"><div class="wrap"><div class="tabs"><button data-tab="events" class="active">EVENT EDITOR</button><button data-tab="roster">COLLECTIVE ROSTER</button></div><section id="eventsTab">EVENTS TABLE</section><section id="rosterTab" style="display:none">ROSTER TABLE</section></div><div id="eventModal"><div class="ey">CONTENT CORE / EVENT</div></div></section>';
         const root=host.firstElementChild;
         root.querySelector('[data-tab="roster"]').addEventListener('click',()=>{root.querySelector('#eventsTab').style.display='none';root.querySelector('#rosterTab').style.display='block';});
@@ -77,6 +86,8 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await expect(page.locator('#rosterTab')).toBeHidden();
   await expect(page.locator('#eventModal .ey')).toHaveText('EVENTS / EDITOR');
   await expect(page.getByText('Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('events');
+  await expect.poll(() => page.evaluate(() => window.__moduleLoadOptions.at(-1)?.syncUrl)).toBe(false);
 
   await page.evaluate(() => window.openModal('events', 42));
   await expect.poll(() => page.evaluate(() => window.__openedEvent)).toBe(42);
@@ -97,6 +108,7 @@ test('collective membership is an Artists sub-workflow instead of a top-level mo
   await expect(page.locator('#eventsTab')).toBeHidden();
   await expect(page.locator('#rosterTab')).toBeVisible();
   await expect(page.getByRole('button',{name:'← ARTIST PROFILES'})).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
 });
 
 test('DISCADMIN wrapper loads the IA layer after existing enhancements', async () => {
