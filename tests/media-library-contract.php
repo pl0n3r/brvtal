@@ -36,6 +36,7 @@ $delivery = brvtal_public_media_delivery_sanitize([
     'variants' => [
         'square' => ['path'=>'/uploads/media/example--square-800.webp','width'=>800,'height'=>800,'mime_type'=>'image/webp'],
         'card' => ['path'=>'/uploads/media/example--card-1200x900.webp','width'=>1200,'height'=>900,'mime_type'=>'image/webp'],
+        'display' => ['path'=>'/uploads/media/example--display-1920x1080.webp','width'=>1920,'height'=>1080,'mime_type'=>'image/webp'],
         'w1280' => ['path'=>'/uploads/media/example--w1280.webp','width'=>1280,'height'=>720,'mime_type'=>'image/webp'],
         'w1920' => ['path'=>'/uploads/media/example--w1920.webp','width'=>1920,'height'=>1080,'mime_type'=>'image/webp'],
         'unsafe' => ['path'=>'https://example.com/image.webp','width'=>300,'height'=>300,'mime_type'=>'image/webp'],
@@ -44,6 +45,7 @@ $delivery = brvtal_public_media_delivery_sanitize([
 media_assert(is_array($delivery), 'public image delivery should accept a valid Media Engine sidecar');
 media_assert(($delivery['variants']['square']['src'] ?? '') === '/uploads/media/example--square-800.webp', 'square WebP variant should be exposed');
 media_assert(($delivery['variants']['card']['src'] ?? '') === '/uploads/media/example--card-1200x900.webp', 'card WebP variant should be exposed');
+media_assert(($delivery['variants']['display']['src'] ?? '') === '/uploads/media/example--display-1920x1080.webp', 'generic preserve-aspect display WebP should be exposed');
 media_assert(($delivery['variants']['w1280']['src'] ?? '') === '/uploads/media/example--w1280.webp', 'preserve-aspect WebP variant should be exposed for generic public delivery');
 media_assert(($delivery['variants']['w1920']['src'] ?? '') === '/uploads/media/example--w1920.webp', 'large preserve-aspect WebP variant should be exposed for viewer delivery');
 media_assert(!isset($delivery['variants']['unsafe']), 'non-allowlisted variant names must stay private');
@@ -53,6 +55,7 @@ media_assert(brvtal_public_media_delivery_sanitize([
 ]) === null, 'public delivery must reject external originals');
 
 $api = (string)file_get_contents(__DIR__ . '/../api/media-library.php');
+$mediaConfig = (string)file_get_contents(__DIR__ . '/../config/media.php');
 media_assert(str_contains($api, "brvtal_admin_require_csrf"), 'writes must require CSRF');
 media_assert(str_contains($api, "MEDIA_IN_USE"), 'delete must block referenced media');
 media_assert(str_contains($api, "brvtal_media_usage"), 'delete/detail must inspect media usage');
@@ -61,6 +64,10 @@ media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported')
 media_assert(str_contains($api, "\$action === 'transform'"), 'Media Engine v2 must expose a focal-point transform action');
 media_assert(str_contains($api, 'brvtal_media_remove_generated_variants'), 'regeneration must clean previously tracked variants');
 media_assert(!str_contains($api, "image/svg+xml"), 'SVG uploads stay disabled until a sanitizer exists');
+media_assert(str_contains($mediaConfig, "in_array(\$mime, ['image/jpeg', 'image/png'], true)"), 'JPEG and PNG uploads must generate a generic preserve-aspect WebP');
+media_assert(str_contains($mediaConfig, "\$result['variants']['display']"), 'Media Engine must track the generic display WebP in its sidecar');
+media_assert(str_contains($mediaConfig, "--display-"), 'generic upload WebP filenames must be deterministic and context-identifiable');
+media_assert(str_contains($mediaConfig, "'original' => [") && str_contains($mediaConfig, "'path' => brvtal_media_public_upload_path(\$absoluteOriginal)"), 'Media Engine must keep the uploaded original authoritative');
 
 $permissionApi = (string)file_get_contents(__DIR__ . '/../api/media-permissions.php');
 media_assert(str_contains($permissionApi, 'brvtal_admin_require_csrf'), 'media permission repair must require CSRF');
@@ -91,6 +98,7 @@ media_assert(str_contains($sessionBootstrap, "window.restoreSession = async func
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 $publicMedia = (string)file_get_contents(__DIR__ . '/../js/public-media.js');
 $publicDeliveryApi = (string)file_get_contents(__DIR__ . '/../api/public-image-delivery.php');
+$publicDeliveryLib = (string)file_get_contents(__DIR__ . '/../api/public-media-delivery.php');
 $publicIndex = (string)file_get_contents(__DIR__ . '/../index.html');
 $publicRuntime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $publicPage = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
@@ -113,9 +121,10 @@ media_assert(str_contains($publicMedia, "image.closest('.related-item-image')") 
 media_assert(str_contains($publicMedia, "scope.querySelectorAll('img')"), 'public delivery must inspect every public image node for eligible uploaded media');
 media_assert(str_contains($publicMedia, "image.getAttribute('data-src')"), 'deferred Hero Slider images must be eligible for WebP before activation');
 media_assert(str_contains($publicMedia, "image.matches('.brvtal-hero-media')") && str_contains($publicMedia, "return 'hero'"), 'Hero Slider uploaded images must use the hero WebP context');
-media_assert(str_contains($publicMedia, "context === 'preserve'") && str_contains($publicMedia, 'variants.w1280'), 'generic uploaded images must use a preserve-aspect WebP variant');
+media_assert(str_contains($publicMedia, "context === 'preserve'") && str_contains($publicMedia, 'variants.display'), 'generic uploaded images must fall back to the preserve-aspect display WebP');
 media_assert(str_contains($publicMedia, "context === 'viewer'") && str_contains($publicMedia, 'variants.w1920'), 'full-screen viewer must prefer the largest preserve-aspect WebP variant');
 media_assert(str_contains($publicMedia, 'brvtalWebpFallbackBound') && str_contains($publicMedia, 'brvtalOriginalSrc'), 'WebP delivery must retain an automatic original-image fallback');
+media_assert(str_contains($publicDeliveryLib, "'display'"), 'sanitized public delivery must allow the generic display WebP variant');
 media_assert(str_contains($publicDeliveryApi, "status='published' AND type='image'"), 'public image delivery endpoint must be limited to published image records');
 media_assert(str_contains($publicDeliveryApi, 'brvtal_public_media_delivery_map'), 'public image delivery endpoint must use sanitized Media Engine sidecars');
 
