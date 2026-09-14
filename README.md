@@ -7,17 +7,17 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se corrigió el versionado de los assets de CONNECTED/Related Content que todavía podían cargarse sin `?v=<deploy-sha>`.
-- `archive.js` ahora toma su propio parámetro `v` del script ya versionado y lo reutiliza tanto para `related-content.js` como para `related-content.css`.
-- El CSS se inserta antes del import dinámico con el marcador que ya entiende `related-content.js`, evitando una segunda hoja de estilos.
-- Se añadió cobertura contractual para impedir que vuelva el import literal sin versión.
-- No se cambió la lógica del grafo, las relaciones públicas ni el diseño de CONNECTED.
+- Se respondió al hallazgo medido de Pingdom que calificó con `F` la compresión HTTP.
+- `.htaccess` habilita compresión DEFLATE para HTML, texto, CSS, JavaScript, JSON, XML, XHTML y SVG cuando `mod_deflate` está disponible en LiteSpeed/Apache.
+- Se excluyen de forma intencional JPEG, WOFF2 y otros binarios ya comprimidos para evitar trabajo inútil del servidor.
+- Se añadió una cobertura contractual que protege la configuración de compresión y evita regresiones hacia recomprimir JPEG/WOFF2.
+- No se modificó diseño, contenido, imágenes, base de datos ni comportamiento de DISCADMIN.
 
 ## Archivos modificados en este deploy
 
-- `js/archive.js` — propaga el SHA del deploy al módulo y stylesheet de Related Content.
+- `.htaccess` — activa compresión HTTP para respuestas textuales compatibles.
+- `tests/project-operations-contract.php` — valida el contrato de compresión del servidor web.
 - `README.md` — snapshot operativo de este deploy.
-- `tests/related-content-contract.php` — protege el versionado del JS/CSS y prohíbe el import dinámico sin versión.
 
 ## Validación
 
@@ -27,9 +27,9 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué sigue
 
-1. Repetir el waterfall/PageSpeed de `https://www.brvtal.com.co` y confirmar que `archive.js`, `related-content.js` y `related-content.css` comparten el mismo `?v=<deploy-sha>`.
-2. Confirmar en producción el redirect canónico `brvtal.com.co/*` → `https://www.brvtal.com.co/*`.
-3. Continuar con el siguiente cuello medido de imágenes, priorizando Genesis/logo y variantes responsive sin degradar calidad visual.
+1. Repetir Pingdom contra `https://www.brvtal.com.co` y comprobar que la recomendación de compresión deja de ser `F`.
+2. Confirmar en producción `Content-Encoding: gzip` o `br` en HTML/CSS/JS/JSON textuales.
+3. Con esa evidencia, atacar el siguiente hallazgo medido: requests/Expires/redirects, sin aumentar complejidad ni degradar el contenido visual.
 
 ## Contexto durable
 
