@@ -7,34 +7,28 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- `Next Experience` deja de publicar datos fijos de Genesis y se alimenta del evento público activo del CMS.
-- La selección prioriza un evento marcado `featured`; si no existe, usa el próximo evento activo por fecha.
-- Fecha, hora, ciudad, venue, portada, título, navegación y CTA se renderizan en servidor desde el evento seleccionado.
-- El CTA usa la ruta canónica `/events/<slug>`.
-- Si no existe un evento elegible o la consulta falla, la portada muestra un fallback neutro (`NEXT SIGNAL`, fecha/hora/ubicación TBA) sin reutilizar datos ni arte de Genesis.
-- Se añade cobertura contractual para selección, escape HTML, ruta, portada y fallback.
+- Se añade una regresión autenticada para el issue #122 usando el stack real de CI: PHP 8.5 + MariaDB + sesión admin + CSRF.
+- La prueba crea una CMS Page publicada con `content_json` válido (`{"text":"Manifiesto"}`), vuelve a consultarla por API y verifica que JSON, locale, status y metadata persistan.
+- El smoke deja de usar una contraseña fallback dentro del spec y exige la credencial efímera que ya exporta el runner real-stack.
+- No cambia comportamiento de producción, esquema, contenido ni datos reales.
 
 ## Archivos modificados en este deploy
 
-- `config/public_home.php` — selección y render SSR de `Next Experience` desde Events públicos.
-- `index.php` — integra el evento dinámico antes de las transformaciones de assets del Home.
-- `tests/public-home-contract.php` — regresión del Home dinámico y fallback seguro.
-- `scripts/php85-compatibility.sh` — incorpora el nuevo contrato a la puerta PHP 8.5.
+- `tests/e2e/content-core-real-stack.spec.mjs` — cobertura autenticada de persistencia de Pages y credencial solo vía entorno.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
-- La selección reutiliza el allowlist canónico de estados públicos de Events y no expone drafts.
-- Sin cambios de esquema, SQL de producción ni mutaciones de contenido.
+- La regresión corre únicamente contra la MariaDB desechable del job `real-stack`; no toca producción.
+- Si pasa, #122 queda validado en código como no reproducible en el stack actual con una sesión recién autenticada; seguirá pendiente únicamente de reproducción autenticada en producción.
 - Producción canónica: `https://www.brvtal.com.co`.
-- La validación real de producción se hará después del deploy; CI por sí solo no la sustituye.
 
 ## Qué sigue
 
-1. Confirmar en producción que `Next Experience` refleja el evento CMS seleccionado y cerrar #126 si coincide.
-2. Validar de forma autenticada en DISCADMIN los fixes #123, #124 y #125.
-3. Reproducir #122 con sesión recién autenticada antes de clasificarlo como defecto de Pages.
+1. Registrar el resultado de esta regresión en #122.
+2. Validar de forma autenticada en producción los fixes ya integrados de #123, #124 y #125 antes de cerrar esos issues.
+3. Mantener el workflow `Production Performance` corto; la última medición saludable completó en decenas de segundos con Chromium cacheado.
 
 ## Contexto durable
 
