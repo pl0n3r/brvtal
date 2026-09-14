@@ -1,0 +1,187 @@
+name: Static Image Integration
+
+on:
+  push:
+    branches: ["perf/static-image-candidates"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    name: integrate
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: perf/static-image-candidates
+
+      - name: Integrate responsive static WebP delivery
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Needle not found in {path}: {old[:100]!r}")
+              if text.count(old) != 1:
+                  raise SystemExit(f"Needle is not unique in {path}: {text.count(old)} matches")
+              p.write_text(text.replace(old, new, 1))
+
+          public_assets = Path('config/public_assets.php')
+          text = public_assets.read_text()
+          old = '''function brvtal_public_version_assets(string $html, string $version): string
+          {
+              if ($version === '') return $html;
+
+              return preg_replace_callback(
+                  '~(?<prefix>(?:href|src)="/?(?:css|js|assets|uploads)/[^"?]+)(?:\\?[^"#]*)?(?<suffix>")~',
+                  static fn(array $match): string => $match['prefix'] . '?v=' . rawurlencode($version) . $match['suffix'],
+                  $html
+              ) ?? $html;
+          }
+          '''.replace('          ', '')
+          new = '''function brvtal_public_version_srcset_value(string $value, string $version): string
+          {
+              if ($version === '') return $value;
+
+              return preg_replace_callback(
+                  '~(?<url>/?(?:assets|uploads)/[^,\\s?]+)(?:\\?[^,\\s]*)?~',
+                  static fn(array $match): string => $match['url'] . '?v=' . rawurlencode($version),
+                  $value
+              ) ?? $value;
+          }
+
+          function brvtal_public_version_assets(string $html, string $version): string
+          {
+              if ($version === '') return $html;
+
+              $html = preg_replace_callback(
+                  '~(?<prefix>(?:href|src)="/?(?:css|js|assets|uploads)/[^"?]+)(?:\\?[^"#]*)?(?<suffix>")~',
+                  static fn(array $match): string => $match['prefix'] . '?v=' . rawurlencode($version) . $match['suffix'],
+                  $html
+              ) ?? $html;
+
+              return preg_replace_callback(
+                  '~(?<attribute>srcset|imagesrcset)="(?<value>[^"]+)"~i',
+                  static fn(array $match): string => $match['attribute'] . '="' . brvtal_public_version_srcset_value($match['value'], $version) . '"',
+                  $html
+              ) ?? $html;
+          }
+          '''.replace('          ', '')
+          if old not in text:
+              raise SystemExit('version_assets block not found')
+          text = text.replace(old, new, 1)
+
+          old = '''function brvtal_public_preload_home_lcp(string $html): string
+          {
+              $coreStyle = '<link rel="stylesheet" href="css/style.css">';
+              $preload = '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">';
+
+              if (!str_contains($html, $coreStyle) || str_contains($html, $preload)) {
+                  return $html;
+              }
+
+              return str_replace($coreStyle, $preload . "\\n  " . $coreStyle, $html);
+          }
+          '''.replace('          ', '')
+          new = '''function brvtal_public_preload_home_lcp(string $html): string
+          {
+              $coreStyle = '<link rel="stylesheet" href="css/style.css">';
+              $desktopPreload = '<link data-brvtal-lcp-preload="desktop" rel="preload" as="image" href="assets/brvtal-logo-640.webp" imagesrcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" imagesizes="(min-width: 1239px) 520px, 42vw" type="image/webp" media="(min-width: 901px)" fetchpriority="high">';
+              $mobilePreload = '<link data-brvtal-lcp-preload="mobile" rel="preload" as="image" href="assets/brvtal-logo.jpeg" media="(max-width: 900px)" fetchpriority="high">';
+
+              if (!str_contains($html, $coreStyle) || str_contains($html, 'data-brvtal-lcp-preload="desktop"')) {
+                  return $html;
+              }
+
+              return str_replace($coreStyle, $desktopPreload . "\\n  " . $mobilePreload . "\\n  " . $coreStyle, $html);
+          }
+          '''.replace('          ', '')
+          if old not in text:
+              raise SystemExit('preload block not found')
+          text = text.replace(old, new, 1)
+
+          old = '<div class="hero-logo-glitch" style="background-image:none"><img src="assets/brvtal-logo.jpeg" alt="" aria-hidden="true" loading="eager" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>'
+          new = '<div class="hero-logo-glitch" style="background-image:none"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" sizes="(min-width: 1239px) 520px, 42vw"><img src="assets/brvtal-logo.jpeg" alt="" aria-hidden="true" loading="eager" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></picture></div>'
+          if old not in text:
+              raise SystemExit('hero glitch injection not found')
+          text = text.replace(old, new, 1)
+
+          old = '<div class="genesis-bg" style="background-image:none"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>'
+          new = '<div class="genesis-bg" style="background-image:none"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w" sizes="100vw"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></picture></div>'
+          if old not in text:
+              raise SystemExit('genesis background injection not found')
+          text = text.replace(old, new, 1)
+          public_assets.write_text(text)
+
+          index = Path('index.html')
+          text = index.read_text()
+          replace_map = {
+              '        <img src="assets/brvtal-logo.jpeg" alt="BRVTAL official logo" class="hero-logo">': '''        <picture style="display:block;width:100%">
+                  <source media="(min-width: 901px)" type="image/webp" srcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" sizes="(min-width: 1239px) 520px, 42vw">
+                  <img src="assets/brvtal-logo.jpeg" alt="BRVTAL official logo" class="hero-logo">
+                </picture>'''.replace('              ', ''),
+              '      <div class="manifesto-art"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Genesis artwork"></div>': '''      <div class="manifesto-art"><picture style="display:block;width:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w" sizes="(min-width: 1425px) 470px, 33vw"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Genesis artwork"></picture></div>'''.replace('      ', ''),
+              '          <div class="event-img"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Genesis"></div>': '''          <div class="event-img"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w" sizes="(min-width: 1334px) 880px, 66vw"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Genesis"></picture></div>'''.replace('          ', ''),
+          }
+          for old, new in replace_map.items():
+              if old not in text:
+                  raise SystemExit(f'index.html needle not found: {old[:80]}')
+              text = text.replace(old, new, 1)
+          index.write_text(text)
+
+          tests = Path('tests/project-operations-contract.php')
+          text = tests.read_text()
+          old = "$indexPhp = (string) file_get_contents($root . '/index.php');"
+          new = old + "\n$indexHtml = (string) file_get_contents($root . '/index.html');"
+          if old not in text:
+              raise SystemExit('indexPhp test setup not found')
+          text = text.replace(old, new, 1)
+
+          needle = "$assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS backgrounds must be suppressed before browser fetch');"
+          addition = needle + "\n$assert(str_contains($assetFixture, 'assets/brvtal-logo-640.webp?v=abc1234 640w'), 'decorative logo WebP srcset must receive deploy versioning');\n$assert(str_contains($assetFixture, 'assets/flyers/genesis-640.webp?v=abc1234 640w'), 'decorative Genesis WebP srcset must receive deploy versioning');\n$assert(str_contains($indexHtml, 'assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w'), 'Home hero must expose responsive desktop WebP derivatives');\n$assert(str_contains($indexHtml, 'assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w'), 'Home Genesis artwork must expose responsive desktop WebP derivatives');\n$assert(is_file($root . '/assets/brvtal-logo-640.webp') && is_file($root . '/assets/brvtal-logo-886.webp'), 'selected logo WebP derivatives must exist');\n$assert(is_file($root . '/assets/flyers/genesis-640.webp') && is_file($root . '/assets/flyers/genesis-886.webp'), 'selected Genesis WebP derivatives must exist');"
+          if needle not in text:
+              raise SystemExit('asset fixture assertion anchor not found')
+          text = text.replace(needle, addition, 1)
+
+          old = "$preloadNeedle = '<link rel=\"preload\" as=\"image\" href=\"assets/brvtal-logo.jpeg\" fetchpriority=\"high\">';"
+          new = "$desktopPreloadNeedle = '<link data-brvtal-lcp-preload=\"desktop\" rel=\"preload\" as=\"image\" href=\"assets/brvtal-logo-640.webp\" imagesrcset=\"assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w\" imagesizes=\"(min-width: 1239px) 520px, 42vw\" type=\"image/webp\" media=\"(min-width: 901px)\" fetchpriority=\"high\">';\n$mobilePreloadNeedle = '<link data-brvtal-lcp-preload=\"mobile\" rel=\"preload\" as=\"image\" href=\"assets/brvtal-logo.jpeg\" media=\"(max-width: 900px)\" fetchpriority=\"high\">';"
+          if old not in text:
+              raise SystemExit('old preload needle not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('$preloadPosition = strpos($lcpFixture, $preloadNeedle);', '$desktopPreloadPosition = strpos($lcpFixture, $desktopPreloadNeedle);\n$mobilePreloadPosition = strpos($lcpFixture, $mobilePreloadNeedle);', 1)
+          text = text.replace('$assert($preloadPosition !== false && $coreCssPosition !== false && $preloadPosition < $coreCssPosition, \'LCP preload must appear before core style.css in transformed Home HTML\');', "$assert($desktopPreloadPosition !== false && $coreCssPosition !== false && $desktopPreloadPosition < $coreCssPosition, 'desktop WebP LCP preload must appear before core style.css');\n$assert($mobilePreloadPosition !== false && $coreCssPosition !== false && $mobilePreloadPosition < $coreCssPosition, 'mobile JPEG LCP preload must appear before core style.css');", 1)
+          text = text.replace('$assert(substr_count($lcpFixture, $preloadNeedle) === 1, \'Home LCP preload helper must add exactly one preload\');', "$assert(substr_count($lcpFixture, $desktopPreloadNeedle) === 1, 'Home LCP helper must add exactly one desktop preload');\n$assert(substr_count($lcpFixture, $mobilePreloadNeedle) === 1, 'Home LCP helper must add exactly one mobile preload');", 1)
+          old = "$assert(substr_count($lcpFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 2, 'preload and hero image must resolve to the exact same deploy-versioned logo URL');"
+          new = "$assert(substr_count($lcpFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 2, 'mobile preload and hero fallback must resolve to the exact same deploy-versioned logo URL');\n$assert(str_contains($lcpFixture, 'assets/brvtal-logo-640.webp?v=abc1234 640w'), 'desktop LCP imagesrcset must receive deploy versioning');\n$assert(str_contains($lcpFixture, 'assets/brvtal-logo-886.webp?v=abc1234 886w'), 'desktop LCP imagesrcset must version every candidate');"
+          if old not in text:
+              raise SystemExit('old final LCP assertion not found')
+          text = text.replace(old, new, 1)
+          tests.write_text(text)
+
+          agents = Path('AGENTS.md')
+          text = agents.read_text()
+          old = '17. **First-party text/static delivery is deploy-versioned and cache-aware.** Keep text compression enabled, keep versioned first-party CSS/JS on long immutable caching, and do not trade cache correctness for synthetic-score shortcuts.'
+          new = old + '\n18. **Static Home artwork uses measured desktop WebP derivatives without sacrificing the mobile CDN path.** Preserve the original JPEGs as fallback/source assets; desktop may use responsive WebP derivatives selected from measured candidates, while mobile keeps the original URL so Hostinger/hcdn can continue its stronger device-specific optimization.'
+          if old not in text:
+              raise SystemExit('AGENTS decision anchor not found')
+          agents.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add config/public_assets.php index.html tests/project-operations-contract.php AGENTS.md
+          git diff --cached --check
+          git commit -m "perf: serve measured static WebP derivatives [generated-integration]"
+          git push origin HEAD:perf/static-image-candidates
