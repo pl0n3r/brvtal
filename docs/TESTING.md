@@ -1,21 +1,59 @@
 # BRVTAL Automated Testing Strategy
 
-This document defines how BRVTAL reduces manual production testing and catches regressions before GitHub -> Hostinger deployment.
+This document defines how BRVTAL catches regressions before GitHub -> Hostinger deployment and how validation evidence must be interpreted.
 
 ## Current baseline
 
-The CI workflow runs on every push to `main`, every pull request into `main`, and manual dispatch.
+`BRVTAL CI` runs on:
 
-It currently validates:
+- every pull request into `main`;
+- every push to `main`;
+- manual `workflow_dispatch`.
 
-- PHP syntax for `config`, `discadmin`, `api`, and `tests`.
-- JavaScript syntax for `discadmin` and `tests/e2e`.
-- API contract tests with `tests/api-contract.php`.
-- Media Library contract tests with `tests/media-library-contract.php`.
-- MariaDB integration tests with `tests/integration/content-persistence.php`.
-- Browser UI smoke tests with Playwright under `tests/e2e`.
+The workflow validates combinations of:
 
-The CI workflow must not commit build metadata automatically. Product version and build metadata are deliberate release data, not per-change noise.
+- PHP syntax for `config`, `discadmin`, `api`, and `tests`;
+- JavaScript syntax for `discadmin`, public `js`, and Playwright tests;
+- API/security contracts;
+- Media Library contracts;
+- Releases and Blog contracts;
+- Content Health and SEO contracts;
+- Global Search and Bulk Actions contracts;
+- Public Archive / Entity / Related Content contracts;
+- Admin Activity and Backups contracts;
+- project operations/documentation contract;
+- migration idempotency checks;
+- MariaDB disposable integration tests;
+- Playwright browser behavior;
+- targeted Chromium and WebKit/Safari regressions;
+- Content Core real-stack test harness.
+
+The CI workflow must **not** commit build metadata automatically. Product version metadata is deliberate release data, not per-change noise.
+
+## GitHub Actions build/deploy summary
+
+Every CI run publishes a `GITHUB_STEP_SUMMARY`.
+
+At the beginning of the job it records build context such as:
+
+- event type;
+- branch/ref;
+- PR number/title when applicable;
+- source and checkout SHAs;
+- commit subject/time;
+- changed file count/list;
+- detected product areas affected;
+- deploy eligibility.
+
+At the end of the job it appends:
+
+- final job status;
+- PHP/Node/MariaDB client versions available in the runner;
+- deploy note.
+
+A `push` to `main` is marked as an **auto-deploy candidate** because Hostinger is connected to `main`. This summary still does not prove that Hostinger completed the deployment or that the deployed behavior was visually/operationally verified.
+
+The workflow path remains `.github/workflows/update-release-metadata.yml` for historical compatibility, while the visible workflow name is `BRVTAL CI`.
 
 ## Commands
 
@@ -23,6 +61,12 @@ Run contract tests:
 
 ```bash
 npm run test:contracts
+```
+
+Run the project operations contract directly:
+
+```bash
+php tests/project-operations-contract.php
 ```
 
 Run MariaDB integration tests:
@@ -48,108 +92,94 @@ Run the full local suite:
 npm test
 ```
 
-Install Playwright locally only when you want to run browser tests on your own machine:
+Install Playwright locally only when browser tests are needed:
 
 ```bash
 npm install
-npx playwright install chromium
+npx playwright install chromium webkit
 ```
 
-GitHub Actions installs Node dependencies and Chromium automatically, so local installation is optional. The MariaDB integration step runs against a disposable service container in CI.
+GitHub Actions installs test dependencies and browser engines automatically. MariaDB integration runs against a disposable service container.
 
 ## Testing pyramid
 
 ### 1. Static checks
 
-Purpose: catch syntax and unsafe patterns quickly.
+Purpose: catch syntax errors and unsafe patterns quickly.
 
 Examples:
 
-- `php -l` for PHP files.
-- `node --check` for JavaScript and Playwright test files.
-- Contract scans for risky code paths, such as public settings exposure or media deletion without usage checks.
+- `php -l` for PHP files;
+- `node --check` for JS/MJS;
+- contract scans for risky public exposure or destructive admin behavior.
 
 ### 2. Contract tests
 
-Purpose: verify that critical routes, file contracts, and security rules keep behaving as expected without requiring a live production session.
+Purpose: verify critical file, route, security, architecture, and operational invariants without a production session.
 
-Current examples:
+Examples include:
 
-- `/events/{id}/lineup` routing contract.
-- Public API settings allowlist contract.
-- Media Library upload/security/delete/picker contracts.
+- Event lineup route behavior;
+- public API settings allowlist;
+- Media Library upload/reference protection;
+- Release/Blog contracts;
+- deployment traceability;
+- Hero Slider public/admin contract;
+- project operations contract.
 
-Future contracts should cover:
+`tests/project-operations-contract.php` specifically protects the operational documentation contract:
 
-- 2FA/TOTP required files and safe redirects.
-- DISCADMIN module loading contract.
-- Event lifecycle fields.
-- Ticket type visibility.
-- Releases and Blog contracts once implemented.
+- README must keep architecture, CI/deploy, and feature-checklist sections;
+- CI must keep GitHub Job Summary reporting;
+- CI must expose deploy eligibility and changed-file context;
+- CI must not reintroduce automatic writes/commits to `config/version.php`.
 
-### 3. Integration tests with a database fixture
+### 3. Database integration tests
 
-Purpose: verify actual persistence against disposable MariaDB data.
-
-Current integration coverage:
-
-- Creates temporary Media, Event, Artist, Lineup, Set, Ticket, Page, and Setting records inside MariaDB.
-- Persists `events.cover_image`.
-- Persists `events.ticket_qr`.
-- Persists `artists.photo`.
-- Persists `event_artists.lineup_order` and `event_artists.role`.
-- Persists `event_ticket_types.qr_image` and active status.
-- Confirms `brvtal_media_usage()` detects references in Event, Event QR, Artist, Set, Ticket QR, Page, and Setting.
-- Confirms unused media reports no references.
+Purpose: verify actual persistence and relational behavior against disposable MariaDB.
 
 Safety rules:
 
-- The test only runs when `BRVTAL_INTEGRATION_TESTS=1`.
-- The database name must start with `brvtal_test`.
-- The test uses `CREATE TEMPORARY TABLE`, so it does not drop, alter, or overwrite production tables.
-- The CI workflow provides a disposable MariaDB service container.
+- only runs when `BRVTAL_INTEGRATION_TESTS=1` where required;
+- DB name must use the `brvtal_test...` namespace for guarded suites;
+- CI uses a disposable MariaDB service;
+- production tables are not reset or seeded.
 
-Future integration tests should add:
-
-- Full API-level create/update/delete Event.
-- Full API-level create/update/delete Artist.
-- Public API visibility for tickets and events.
-- Settings public/private separation with real API responses.
-- Releases and Blog persistence once implemented.
+Coverage includes content persistence plus specialized integration for Search, Bulk Actions, Public Archive, Related Content, Admin Activity, and Backups.
 
 ### 4. Browser UI tests
 
-Purpose: replace repetitive manual clicking in DISCADMIN.
+Purpose: replace repetitive manual clicking and catch regressions in responsive/admin/public behavior.
 
-Current Playwright coverage:
+Coverage includes, among other flows:
 
-- Media Picker attaches to Event and Artist image fields.
-- Selecting media normalizes `uploads/...` to `/uploads/...`.
-- Selecting media updates the input value.
-- Selecting media updates the thumbnail preview.
-- Selecting media shows the instruction to press SAVE.
-- Saving Event sends `cover_image` in the payload.
-- Saving Artist sends `photo` in the payload.
-- Successful mutations display global feedback.
-- Failed mutations display persistent error feedback.
-- Broken thumbnails degrade to a safe placeholder.
+- DISCADMIN shell and responsive navigation;
+- Media Picker/form behavior;
+- Content Core create/update regression coverage;
+- admin forms/dialogs/feedback;
+- 2FA browser regressions;
+- Hero Slider and mobile overrides/layers;
+- public Archive/Media discovery;
+- shareable discovery URL state;
+- public accessibility/responsive behavior.
 
-These tests run against a mocked browser harness. They do not log into production, do not call `brvtal.com.co`, and do not mutate real content.
+Browser harness tests do not imply production validation.
 
 ### 5. Production smoke tests
 
-Purpose: verify deployment after Hostinger auto-deploy without mutating production data.
+Purpose: verify the actual Hostinger deployment without destructive production mutations.
 
-Safe checks:
+Safe checks can include:
 
-- Public homepage returns 200.
-- Public API returns valid JSON.
-- Public API does not expose private settings.
-- DISCADMIN login page returns 200.
-- Static assets needed by DISCADMIN return 200.
-- Version endpoint/status, if available, matches expected release.
+- public homepage returns 200;
+- public API returns valid JSON;
+- public API does not expose private settings;
+- DISCADMIN login page returns 200;
+- required static assets return 200;
+- System Status/deployment SHA matches the intended source;
+- key public navigation and responsive rendering behave correctly.
 
-Avoid production smoke tests that create/edit/delete real production content unless there is a dedicated test namespace or cleanup mechanism.
+Authenticated production checks must avoid creating/editing/deleting real content unless a dedicated safe test namespace exists.
 
 ## Release metadata policy
 
@@ -157,19 +187,20 @@ Do not auto-update `config/version.php` on every push.
 
 Preferred model:
 
-- `BRVTAL_APP_VERSION`: manually controlled product version.
-- `BRVTAL_APP_BUILD`: updated only for intentional releases, or left as the last stamped release/build.
-- CI validates code but does not push metadata commits.
+- `BRVTAL_APP_VERSION`: manually controlled product version;
+- `BRVTAL_APP_BUILD`: intentional release/fallback metadata;
+- actual deployment identity: resolved at runtime by `config/deployment.php`;
+- CI: reports the Git SHA in Job Summary without committing metadata.
 
-If an intentional release stamp is needed later, create a separate manual-only workflow named `Stamp Release Metadata` and trigger it explicitly.
+If an intentional release stamp is needed later, it should be a separate manual-only operation.
 
 ## Definition of done
 
-For each change, report the real state using these labels:
+Use these labels precisely:
 
-- IMPLEMENTED: code changed.
-- VALIDATED IN CODE: CI/static/contract/integration/browser tests passed.
-- DEPLOYED: Hostinger auto-deploy has picked up the commit.
-- VALIDATED IN PRODUCTION: the deployed behavior was actually checked on `brvtal.com.co`.
+- **IMPLEMENTED** — code changed;
+- **VALIDATED IN CODE** — applicable automated validation passed;
+- **DEPLOYED** — Hostinger has picked up the source;
+- **VALIDATED IN PRODUCTION** — deployed behavior was actually checked.
 
 Never claim production validation from CI alone.
