@@ -115,18 +115,25 @@
     navTimer = setTimeout(rebuildNavigation, 20);
   }
 
-  function workspaceHost() {
+  function ensureWorkspaceHost() {
+    let host = document.getElementById('admin-module-host');
+    if (host) return host;
     const main = document.querySelector('.main');
     if (!main) return null;
-    [...main.children].forEach(child => {
-      if (!child.classList.contains('top')) child.remove();
-    });
-    const host = document.createElement('div');
+    host = document.createElement('div');
     host.id = 'admin-module-host';
     host.setAttribute('aria-live','polite');
-    host.textContent = 'LOADING…';
     main.appendChild(host);
     return host;
+  }
+
+  function restoreVisibleSection(section) {
+    if (typeof state === 'object' && state) state.section = section;
+    const title = document.querySelector('.main > .top h1');
+    if (title) title.textContent = section.toUpperCase();
+    document.querySelectorAll('.side .nav > button').forEach(button => {
+      button.classList.toggle('active', buttonKey(button) === section);
+    });
   }
 
   function contextBar(title, description, actions = []) {
@@ -203,15 +210,18 @@
     await originalGo.call(window, visibleSection);
     if (token !== routeToken) return;
 
-    const host = workspaceHost();
-    if (!host || !window.BRVTALAdminModules?.load) return;
-    await window.BRVTALAdminModules.load('content-core');
+    if (!window.BRVTALAdminModules?.load) return;
+    ensureWorkspaceHost();
+    await window.BRVTALAdminModules.load('content-core', {syncUrl:false});
     if (token !== routeToken) return;
 
-    const root = host.querySelector('[data-admin-module="content-core"]');
+    const root = document.querySelector('#admin-module-host [data-admin-module="content-core"]');
+    if (!root) throw new Error('DISCADMIN internal content workflow failed to mount');
+
     if (context === 'roster') simplifyRoster(root);
     else simplifyEventEditor(root);
     rebuildNavigation();
+    restoreVisibleSection(visibleSection);
   }
 
   function enhanceArtistsList() {
