@@ -7,9 +7,9 @@ const iaCss = readFileSync(join(process.cwd(), 'discadmin/admin-information-arch
 const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
-function harness() {
+function harness(authed = true) {
   return `<!doctype html><html><head><style>${iaCss}</style></head><body><div id="app"></div><script>
-    window.state={authed:true,section:'dashboard'};
+    window.state={authed:${authed ? 'true' : 'false'},section:'dashboard'};
     window.__legacyOpen=[];
     window.__moduleLoadOptions=[];
     function navButton(label,handler,data=''){return '<button '+(data?'data-admin-nav="'+data+'" ':'')+'onclick="'+handler+'">'+label+'</button>'}
@@ -61,8 +61,8 @@ function harness() {
   </script><script>${iaJs}</script></body></html>`;
 }
 
-async function serveHarness(page) {
-  await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
+async function serveHarness(page, {authed = true} = {}) {
+  await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
 test('sidebar exposes destinations while Content Core stays internal', async ({ page }) => {
@@ -153,6 +153,22 @@ test('direct Events URL restores the guided editor rather than exposing Content 
   await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','events');
   await expect(page.getByRole('button',{name:'CONTENT CORE'})).toBeHidden();
   expect(new URL(page.url()).searchParams.get('module')).toBe('events');
+});
+
+test('deep link survives authentication redirect to Dashboard', async ({ page }) => {
+  await serveHarness(page, {authed:false});
+  await page.goto(`${harnessUrl}?module=artists`);
+
+  await page.waitForTimeout(80);
+  await page.evaluate(async () => {
+    window.state.authed = true;
+    await window.go('dashboard');
+  });
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
 });
 
 test('system destination participates in the same URL state', async ({ page }) => {
