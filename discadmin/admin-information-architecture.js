@@ -314,6 +314,8 @@
       }
     }
 
+    if (!applyingRoute) initialRouteApplied = true;
+
     let result;
     if (section === 'events') result = await loadContentCoreContext('events');
     else {
@@ -328,6 +330,7 @@
 
   if (typeof originalTech === 'function') {
     window.tech = async function(section, ...args) {
+      if (!applyingRoute) initialRouteApplied = true;
       ++routeToken;
       const result = await originalTech.apply(this, [section, ...args]);
       syncRouteUrl(section);
