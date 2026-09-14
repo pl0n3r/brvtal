@@ -7,15 +7,15 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se hace determinista la navegación rápida entre destinos de DISCADMIN: la navegación más reciente siempre conserva autoridad sobre el workspace y la URL.
+- Se evita que una navegación dinámica obsoleta de Media, Releases o Blog recupere el workspace después de que el usuario ya cambió de destino.
 - Una navegación nueva cancela inmediatamente cualquier fragment fetch dinámico anterior y vuelve obsoletas las esperas de scripts pendientes de Media, Releases o Blog.
 - Si un módulo dinámico viejo termina de cargar después de haber cambiado de destino, ya no puede montar su contenido ni reescribir `?module=`.
-- Events / Content Core y System Status participan en el mismo mecanismo de cancelación sin cambiar ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
+- Events / Content Core y System Status cancelan también cualquier fragment dinámico anterior al tomar el control del workspace.
 - No hay cambios de API, base de datos ni contratos de publicación.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/admin-information-architecture.js` — coordina cancelación, dependencias dinámicas y tokens de navegación para que solo el destino vigente pueda completar.
+- `discadmin/admin-information-architecture.js` — coordina cancelación, dependencias dinámicas y tokens de navegación para descartar módulos dinámicos obsoletos.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — fuerza una carrera Releases → Media con la dependencia de Releases retrasada y exige que Media permanezca como destino final.
 - `README.md` — snapshot operativo de este deploy.
 
