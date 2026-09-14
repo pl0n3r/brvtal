@@ -113,6 +113,16 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     return $data;
 }
 
+function brvtal_public_connected_url(array $entity): string
+{
+    $type = (string)($entity['route_type'] ?? '');
+    $id = (int)($entity['id'] ?? 0);
+    if ($id < 1 || !in_array($type, ['artists', 'events', 'sets', 'releases'], true)) {
+        return '';
+    }
+    return '/?network_type=' . rawurlencode($type) . '&network_id=' . $id . '#network';
+}
+
 function brvtal_public_entity_page(array $page, array $seo, string $analytics = ''): string
 {
     $entity = $page['entity'];
@@ -133,6 +143,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     foreach ($page['links'] as $label => $url) {
         $href = $safeUrl($url);
         if ($href !== '') $links .= '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">' . $escape($label) . ' ↗</a>';
+    }
+    $connectedUrl = brvtal_public_connected_url($entity);
+    if ($connectedUrl !== '') {
+        $links .= '<a href="' . $escape($connectedUrl) . '">EXPLORE CONNECTIONS ↗</a>';
     }
     $related = '';
     foreach ($page['related'] as $heading => $items) {
