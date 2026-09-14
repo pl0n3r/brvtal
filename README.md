@@ -7,30 +7,30 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se conecta el Archive público con **CONNECTED** usando únicamente relaciones ya servidas por la API.
-- Un registro histórico que tenga lineup y/o sets relacionados muestra `EXPLORE CONNECTIONS ↗`; un registro sin relaciones no muestra ese CTA.
-- La ruta conserva los query params actuales de discovery, añade `network_type=events` + `network_id=<event>` y salta a `#network`, por lo que reutiliza el estado compartible desplegado en el ciclo anterior.
-- `OPEN RECORD ↗` permanece separado y sigue apuntando a la página canónica del Event.
-- No se añade modelo de datos, endpoint, recomendador ni relación duplicada en frontend.
+- Se cierra la navegación bidireccional entre páginas canónicas y **CONNECTED**.
+- Las páginas públicas de Artist, Event, Set y Release muestran `EXPLORE CONNECTIONS ↗`, apuntando a su misma entidad dentro del grafo mediante `network_type`, `network_id` y `#network`.
+- Blog y CMS Pages permanecen fuera porque no son capas de CONNECTED; no se inventan relaciones ni destinos inexistentes.
+- Los enlaces externos existentes (tickets, plataformas, redes) permanecen sin cambios y el nuevo CTA interno reutiliza el estado URL ya desplegado.
+- Se añade cobertura del allowlist de cuatro capas y de IDs inválidos.
 
 ## Archivos modificados en este deploy
 
-- `js/archive.js` — genera la ruta Archive → CONNECTED solo para eventos con relaciones públicas reales.
-- `tests/e2e/public-archive.spec.mjs` — valida CTA, parámetros de red/hash y ausencia del CTA cuando no hay relaciones.
+- `config/public_page.php` — añade el helper de ruta CONNECTED y el CTA interno para las cuatro entidades del grafo.
+- `tests/public-entity-contract.php` — valida las cuatro rutas permitidas y rechaza Blog/Pages/IDs inválidos.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README antes del merge.
-- Chromium debe validar que el Event histórico relacionado conserva `OPEN RECORD`, recibe `EXPLORE CONNECTIONS` con `network_type=events`, `network_id` correcto y `#network`, y que un Event sin relaciones no recibe ese enlace.
+- `Public Entity contract` debe validar URLs exactas para Artists, Events, Sets y Releases y asegurar que Blog/Pages no reclamen una capa del grafo.
 - Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
 - CI verde implica **VALIDATED IN CODE**; observar el SHA exacto en Hostinger implica **DEPLOYED**.
 
 ## Qué sigue
 
-1. Continuar cerrando rutas de discovery únicamente cuando una relación estructurada pública ya exista y aporte navegación real.
-2. Mantener performance/recovery como mantenimiento medido, no como trabajo repetitivo sin evidencia.
-3. Mantener pendientes #122–#125 hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
+1. No extender Media hacia CONNECTED mientras Media no tenga relaciones estructuradas públicas propias.
+2. Pasar a la siguiente fricción concreta de DISCADMIN si no aparece otra ruta de discovery respaldada por relaciones reales.
+3. Mantener #122–#125 abiertos hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
 
 ## Contexto durable
 
