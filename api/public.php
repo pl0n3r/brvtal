@@ -203,17 +203,21 @@ try {
     }
 
     $pdo = db();
+    $eventStatuses = brvtal_public_visible_event_statuses();
+    $eventPlaceholders = brvtal_public_sql_placeholders($eventStatuses);
 
     // Public lifecycle states are visible; draft remains private. Past dates are
     // partitioned into archive below even if the editor has not manually finished them.
-    $allEvents = $pdo->query(
+    $eventsStatement = $pdo->prepare(
         "SELECT id,title,slug,event_date,archive_year,venue,city,description,seo_title,seo_description,skin,accent,
                 cover_image,ticket_url,ticket_instructions,ticket_qr,featured,published_at,
                 cancelled_at,finished_at,status,sort_order
          FROM events
-         WHERE status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')
+         WHERE status IN ({$eventPlaceholders})
          ORDER BY event_date ASC, sort_order ASC, id ASC"
-    )->fetchAll();
+    );
+    $eventsStatement->execute($eventStatuses);
+    $allEvents = $eventsStatement->fetchAll();
 
     $artists = $pdo->query(
         "SELECT id,name,slug,bio,seo_title,seo_description,photo,instagram_url,soundcloud_url,website_url,
@@ -265,16 +269,18 @@ try {
         $ticketsByEvent[(string)$ticket['event_id']][] = $ticket;
     }
 
-    $lineup = $pdo->query(
+    $lineupStatement = $pdo->prepare(
         "SELECT ea.event_id,ea.artist_id,ea.lineup_order,ea.role,
                 a.name,a.slug,a.photo
          FROM event_artists ea
          JOIN artists a ON a.id=ea.artist_id
          JOIN events e ON e.id=ea.event_id
-         WHERE e.status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')
+         WHERE e.status IN ({$eventPlaceholders})
            AND a.status='published'
          ORDER BY ea.event_id,ea.lineup_order,a.name"
-    )->fetchAll();
+    );
+    $lineupStatement->execute($eventStatuses);
+    $lineup = $lineupStatement->fetchAll();
 
     $lineupByEvent = [];
     foreach ($lineup as $item) {
