@@ -8,6 +8,14 @@ const publicEntry = readFileSync(join(process.cwd(), 'index.php'), 'utf8');
 const publicHtml = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-motion-runtime-e2e.html';
 const version = 'abc123';
+const enhancementMarkers = {
+  '/js/menu-accessibility.js': 'menu-accessibility',
+  '/js/input-accessibility.js': 'input-accessibility',
+  '/js/mobile-events.js': 'mobile-events',
+  '/js/hero-slider.js': 'hero-slider',
+  '/js/public-discovery-url-state.js': 'url-state'
+};
+const coreAndEnhancements = ['app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state'];
 
 const isMotionCdn = url => url.includes('cdn.jsdelivr.net/npm/gsap@3.13.0') || url.includes('cdn.jsdelivr.net/npm/lenis@1.3.4');
 
@@ -50,16 +58,14 @@ async function openRuntimeHarness(page, { coarse = false, reduced = false, failS
       return;
     }
 
-    if (parsed.pathname === '/js/app.js') {
-      await route.fulfill({ contentType: 'text/javascript', body: "window.__runtimeOrder.push('app');" });
-      return;
-    }
-    if (parsed.pathname === '/js/archive.js') {
-      await route.fulfill({ contentType: 'text/javascript', body: "window.__runtimeOrder.push('archive');" });
-      return;
-    }
-    if (parsed.pathname === '/js/public-media.js') {
-      await route.fulfill({ contentType: 'text/javascript', body: "window.__runtimeOrder.push('media');" });
+    const coreMarkers = {
+      '/js/app.js': 'app',
+      '/js/archive.js': 'archive',
+      '/js/public-media.js': 'media'
+    };
+    const marker = coreMarkers[parsed.pathname] || enhancementMarkers[parsed.pathname];
+    if (marker) {
+      await route.fulfill({ contentType: 'text/javascript', body: `window.__runtimeOrder.push('${marker}');` });
       return;
     }
 
@@ -94,20 +100,20 @@ test('base public html exposes only the adaptive runtime entry', async () => {
   expect(publicHtml).not.toContain('cdn.jsdelivr.net/npm/lenis');
   expect(publicHtml).not.toContain('<script src="js/app.js"></script>');
   expect(publicEntry).not.toContain("str_replace('<script src=\"js/app.js\"></script>'");
+  expect(publicEntry).not.toContain('js/mobile-events.js');
 });
 
-test('touch runtime skips desktop motion downloads and preserves versioned core order', async ({ page }) => {
+test('touch runtime skips desktop motion downloads and preserves versioned module order', async ({ page }) => {
   const requests = await openRuntimeHarness(page, { coarse: true });
 
   expect(requests.filter(isMotionCdn)).toHaveLength(0);
   expect(requests.some(url => url.endsWith(`/js/mobile-performance.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/app.js?v=${version}`))).toBe(true);
-  expect(requests.some(url => url.endsWith(`/js/archive.js?v=${version}`))).toBe(true);
-  expect(requests.some(url => url.endsWith(`/js/public-media.js?v=${version}`))).toBe(true);
+  expect(requests.some(url => url.endsWith(`/js/public-discovery-url-state.js?v=${version}`))).toBe(true);
   await expect(page.locator('#loader')).toHaveCount(0);
   await expect(page.locator('#fxCanvas')).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-motion-runtime', 'touch-lite');
-  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['mobile-performance', 'app', 'archive', 'media']);
+  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['mobile-performance', ...coreAndEnhancements]);
 });
 
 test('reduced-motion runtime skips desktop motion downloads without requiring touch mode', async ({ page }) => {
@@ -116,21 +122,21 @@ test('reduced-motion runtime skips desktop motion downloads without requiring to
   expect(requests.filter(isMotionCdn)).toHaveLength(0);
   expect(requests.some(url => url.includes('/js/mobile-performance.js'))).toBe(false);
   await expect(page.locator('html')).toHaveAttribute('data-motion-runtime', 'reduced-lite');
-  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['app', 'archive', 'media']);
+  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(coreAndEnhancements);
 });
 
-test('fine-pointer full-motion runtime loads motion stack before core modules', async ({ page }) => {
+test('fine-pointer full-motion runtime loads motion stack before all public modules', async ({ page }) => {
   const requests = await openRuntimeHarness(page);
 
   expect(requests.filter(isMotionCdn)).toHaveLength(3);
   expect(requests.some(url => url.includes('/js/mobile-performance.js'))).toBe(false);
   await expect(page.locator('html')).toHaveAttribute('data-motion-runtime', 'enhanced');
-  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['gsap', 'scrolltrigger', 'lenis', 'app', 'archive', 'media']);
+  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['gsap', 'scrolltrigger', 'lenis', ...coreAndEnhancements]);
 });
 
 test('core runtime still starts when an enhanced-motion CDN dependency fails', async ({ page }) => {
   await openRuntimeHarness(page, { failScrollTrigger: true });
 
   await expect(page.locator('html')).toHaveAttribute('data-motion-runtime', 'fallback');
-  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['gsap', 'app', 'archive', 'media']);
+  expect(await page.evaluate(() => window.__runtimeOrder)).toEqual(['gsap', ...coreAndEnhancements]);
 });
