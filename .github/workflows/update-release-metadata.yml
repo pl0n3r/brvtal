@@ -16,27 +16,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  plan:
+    name: plan
     runs-on: ubuntu-latest
-    services:
-      mariadb:
-        image: mariadb:11.4
-        env:
-          MARIADB_ROOT_PASSWORD: brvtal_root
-          MARIADB_DATABASE: brvtal_test_ci
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
+    outputs:
+      run_db: ${{ steps.scope.outputs.run_db }}
+      run_browser: ${{ steps.scope.outputs.run_browser }}
+      run_realstack: ${{ steps.scope.outputs.run_realstack }}
+      run_webkit: ${{ steps.scope.outputs.run_webkit }}
+      full: ${{ steps.scope.outputs.full }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Publish build context
+      - name: Detect validation scope and publish build context
+        id: scope
         shell: bash
         env:
           BRVTAL_EVENT: ${{ github.event_name }}
@@ -55,18 +50,13 @@ jobs:
           BRVTAL_REPOSITORY: ${{ github.repository }}
           BRVTAL_RUN_ID: ${{ github.run_id }}
         run: |
-          set +e
+          set -euo pipefail
 
           source_sha="$BRVTAL_SHA"
           if [[ "$BRVTAL_EVENT" == "pull_request" && -n "$BRVTAL_PR_HEAD_SHA" ]]; then
             source_sha="$BRVTAL_PR_HEAD_SHA"
           fi
           short_sha="${source_sha:0:7}"
-
-          commit_subject=$(git log -1 --pretty=%s "$source_sha" 2>/dev/null || git log -1 --pretty=%s HEAD 2>/dev/null || echo "unknown")
-          commit_time=$(git log -1 --pretty=%cI "$source_sha" 2>/dev/null || git log -1 --pretty=%cI HEAD 2>/dev/null || echo "unknown")
-          safe_subject="${commit_subject//$'\n'/ }"
-          safe_subject="${safe_subject//|/\\|}"
 
           changed_file_list=""
           if [[ "$BRVTAL_EVENT" == "pull_request" && -n "$BRVTAL_BASE_REF" ]]; then
@@ -83,6 +73,19 @@ jobs:
           changed_file_list=$(printf '%s\n' "$changed_file_list" | sed '/^[[:space:]]*$/d' | sort -u)
           changed_count=$(printf '%s\n' "$changed_file_list" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
 
+          full=false
+          run_db=false
+          run_browser=false
+          run_realstack=false
+          run_webkit=false
+          if [[ "$BRVTAL_EVENT" == "workflow_dispatch" || ( "$BRVTAL_EVENT" == "push" && "$BRVTAL_REF" == "main" ) ]]; then
+            full=true
+            run_db=true
+            run_browser=true
+            run_realstack=true
+            run_webkit=true
+          fi
+
           areas=""
           add_area() {
             local area="$1"
@@ -94,27 +97,61 @@ jobs:
           while IFS= read -r file; do
             [[ -z "$file" ]] && continue
             case "$file" in
-              discadmin/*) add_area "DISCADMIN" ;;
-              api/*) add_area "API" ;;
-              database/*) add_area "Database/migrations" ;;
-              tests/*|playwright.config.mjs|package.json|package-lock.json) add_area "Tests/tooling" ;;
-              docs/*|README.md|AGENTS.md) add_area "Docs/operations" ;;
-              .github/*) add_area "CI/CD" ;;
-              config/*) add_area "Runtime config" ;;
-              assets/*|uploads/*) add_area "Media/assets" ;;
-              css/*|js/*|index.php|index.html) add_area "Public web" ;;
-              *) add_area "Other" ;;
+              discadmin/*)
+                add_area "DISCADMIN"; run_db=true; run_browser=true; run_realstack=true ;;
+              api/*)
+                add_area "API"; run_db=true; run_realstack=true ;;
+              database/*)
+                add_area "Database/migrations"; run_db=true; run_realstack=true ;;
+              config/*)
+                add_area "Runtime config"; run_db=true; run_realstack=true ;;
+              js/*|css/*|index.php|index.html|assets/*|uploads/*)
+                add_area "Public web"; run_browser=true ;;
+              tests/integration/*)
+                add_area "Tests/tooling"; run_db=true ;;
+              tests/e2e/content-core-real-stack.spec.mjs|tests/e2e/run-content-core-real-stack.sh)
+                add_area "Tests/tooling"; run_realstack=true ;;
+              tests/e2e/discadmin-totp-login.spec.mjs)
+                add_area "Tests/tooling"; run_browser=true; run_webkit=true ;;
+              tests/e2e/*)
+                add_area "Tests/tooling"; run_browser=true ;;
+              playwright.config.mjs|package.json|package-lock.json)
+                add_area "Tests/tooling"; run_browser=true; run_realstack=true; run_webkit=true ;;
+              .github/workflows/update-release-metadata.yml)
+                add_area "CI/CD"; run_db=true; run_browser=true; run_realstack=true; run_webkit=true ;;
+              .github/*)
+                add_area "CI/CD" ;;
+              docs/*|README.md|AGENTS.md)
+                add_area "Docs/operations" ;;
+              tests/*.php)
+                add_area "Tests/tooling" ;;
+              *)
+                add_area "Other"; run_db=true; run_browser=true; run_realstack=true ;;
+            esac
+
+            case "$file" in
+              config/admin_auth.php|config/totp*.php|discadmin/totp*|discadmin/index.php|api/index.php)
+                run_webkit=true ;;
             esac
           done <<< "$changed_file_list"
           [[ -z "$areas" ]] && areas="None detected"
 
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "run_db=$run_db" >> "$GITHUB_OUTPUT"
+          echo "run_browser=$run_browser" >> "$GITHUB_OUTPUT"
+          echo "run_realstack=$run_realstack" >> "$GITHUB_OUTPUT"
+          echo "run_webkit=$run_webkit" >> "$GITHUB_OUTPUT"
+
+          commit_subject=$(git log -1 --pretty=%s "$source_sha" 2>/dev/null || git log -1 --pretty=%s HEAD 2>/dev/null || echo "unknown")
+          commit_time=$(git log -1 --pretty=%cI "$source_sha" 2>/dev/null || git log -1 --pretty=%cI HEAD 2>/dev/null || echo "unknown")
+          safe_subject="${commit_subject//$'\n'/ }"
+          safe_subject="${safe_subject//|/\\|}"
           pr_context="—"
           if [[ -n "$BRVTAL_PR_NUMBER" ]]; then
             clean_pr_title="${BRVTAL_PR_TITLE//$'\n'/ }"
             clean_pr_title="${clean_pr_title//|/\\|}"
             pr_context="#$BRVTAL_PR_NUMBER — $clean_pr_title"
           fi
-
           deploy_eligibility="NO — validation only"
           if [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_REF" == "main" ]]; then
             deploy_eligibility="YES — push to main / Hostinger auto-deploy candidate"
@@ -123,7 +160,7 @@ jobs:
           {
             echo "# BRVTAL CI / Deploy Candidate"
             echo
-            echo "> Runtime build context. A deploy-eligible run does not by itself prove that Hostinger completed deployment or that production smoke was performed."
+            echo "> Runtime build context. A deploy-eligible run does not by itself prove Hostinger deployment completion or production behavior."
             echo
             echo "| Field | Value |"
             echo "|---|---|"
@@ -140,6 +177,7 @@ jobs:
             echo "| Deploy eligibility | **$deploy_eligibility** |"
             echo "| Changed files | **$changed_count** |"
             echo "| Change surface | $areas |"
+            echo "| Validation scope | fast=YES · db=$run_db · chromium=$run_browser · real-stack=$run_realstack · webkit=$run_webkit · full=$full |"
             echo
             echo "## Changed files"
             if [[ -n "$changed_file_list" ]]; then
@@ -155,192 +193,328 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Install PHP database extension
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y php-mysql mariadb-client
+  fast:
+    name: fast
+    needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Validate PHP syntax
-        run: |
-          find config discadmin api tests -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find config discadmin api tests -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Validate JavaScript syntax
-        run: |
-          find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
+        run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
 
       - name: Run API contract tests
         run: php tests/api-contract.php
-
       - name: Run Media Library contract tests
         run: php tests/media-library-contract.php
-
       - name: Run Releases contract tests
         run: php tests/releases-contract.php
-
       - name: Run Blog contract tests
         run: php tests/blog-contract.php
-
       - name: Run Content Health contract tests
         run: php tests/content-health-contract.php
-
       - name: Run SEO metadata contract tests
         run: php tests/seo-contract.php
-
       - name: Run Global Search contract tests
         run: php tests/global-search-contract.php
-
       - name: Run Bulk Actions contract tests
         run: php tests/bulk-actions-contract.php
-
       - name: Run Public Archive contract tests
         run: php tests/public-archive-contract.php
-
       - name: Run Public Entity contract tests
         run: php tests/public-entity-contract.php
-
       - name: Run Related Content contract tests
         run: php tests/related-content-contract.php
-
       - name: Run Admin Activity contract tests
         run: php tests/admin-activity-contract.php
-
       - name: Run Backups contract tests
         run: php tests/backups-contract.php
-
       - name: Run Project Operations contract tests
         run: php tests/project-operations-contract.php
 
+  database:
+    name: database
+    needs: [plan, fast]
+    if: needs.plan.outputs.run_db == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install PHP database extension
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-mysql
+
       - name: Validate Blog migration is idempotent
         run: |
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
-          count=$(mariadb -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations');")
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations');")
           test "$count" = "4"
 
-      - name: Run MariaDB integration tests
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
-        run: npm run test:integration
-
-      - name: Run Global Search MariaDB integration
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
-        run: php tests/integration/global-search.php
-
-      - name: Run Bulk Actions MariaDB integration
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
-        run: php tests/integration/bulk-actions.php
-
-      - name: Run Public Archive MariaDB integration
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
-        run: php tests/integration/public-archive.php
-
-      - name: Run Related Content MariaDB integration
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
-        run: php tests/integration/related-content.php
-
-      - name: Validate Admin Activity migration is idempotent
+      - name: Run MariaDB integrations
         run: |
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS admins (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin', is_active TINYINT(1) NOT NULL DEFAULT 1, last_login_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
-          count=$(mariadb -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME='admin_activity_log';")
-          test "$count" = "1"
+          npm run test:integration
+          php tests/integration/global-search.php
+          php tests/integration/bulk-actions.php
+          php tests/integration/public-archive.php
+          php tests/integration/related-content.php
 
-      - name: Run Admin Activity MariaDB integration
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
-        run: php tests/integration/admin-activity.php
+      - name: Validate Admin Activity migration and integration
+        run: |
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS admins (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin', is_active TINYINT(1) NOT NULL DEFAULT 1, last_login_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME='admin_activity_log';")
+          test "$count" = "1"
+          php tests/integration/admin-activity.php
 
       - name: Run Backups MariaDB integration
-        env:
-          BRVTAL_INTEGRATION_TESTS: '1'
-          BRVTAL_TEST_DB_HOST: 127.0.0.1
-          BRVTAL_TEST_DB_PORT: '3306'
-          BRVTAL_TEST_DB_NAME: brvtal_test_ci
-          BRVTAL_TEST_DB_USER: root
-          BRVTAL_TEST_DB_PASS: brvtal_root
         run: php tests/integration/backups.php
 
       - name: Validate SEO migration is idempotent
         run: |
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS events (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS artists (id INT PRIMARY KEY, bio TEXT); CREATE TABLE IF NOT EXISTS sets_media (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS releases (id INT PRIMARY KEY, description TEXT);"
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
-          mariadb -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
-          count=$(mariadb -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('events','artists','sets_media','releases') AND COLUMN_NAME IN ('seo_title','seo_description');")
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS events (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS artists (id INT PRIMARY KEY, bio TEXT); CREATE TABLE IF NOT EXISTS sets_media (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS releases (id INT PRIMARY KEY, description TEXT);"
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('events','artists','sets_media','releases') AND COLUMN_NAME IN ('seo_title','seo_description');")
           test "$count" = "8"
 
+  browser:
+    name: chromium
+    needs: [plan, fast]
+    if: needs.plan.outputs.run_browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
       - name: Install Node test dependencies
-        run: npm install
+        run: npm install --prefer-offline --no-audit --no-fund
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium webkit
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
 
-      - name: Run browser tests
-        run: npm run test:e2e
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run Chromium browser tests
+        run: npx playwright test --project=chromium
+
+  realstack:
+    name: real-stack
+    needs: [plan, fast]
+    if: needs.plan.outputs.run_realstack == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+      BRVTAL_REAL_STACK_FORCE: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install PHP database extension
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-mysql
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run authenticated PHP/MariaDB browser smoke
+        run: bash tests/e2e/run-content-core-real-stack.sh
+
+  webkit:
+    name: webkit-totp
+    needs: [plan, fast]
+    if: needs.plan.outputs.run_webkit == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache WebKit
+        id: webkit-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-webkit-${{ hashFiles('package.json') }}
+
+      - name: Install WebKit system dependencies
+        run: npx playwright install-deps webkit
+
+      - name: Install WebKit browser
+        if: steps.webkit-cache.outputs.cache-hit != 'true'
+        run: npx playwright install webkit
+
+      - name: Run targeted WebKit TOTP regression
+        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs --project=webkit-totp
+
+  validate:
+    name: validate
+    if: always()
+    needs: [plan, fast, database, browser, realstack, webkit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce validation gates
+        shell: bash
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          FAST_RESULT: ${{ needs.fast.result }}
+          DB_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          REALSTACK_RESULT: ${{ needs.realstack.result }}
+          WEBKIT_RESULT: ${{ needs.webkit.result }}
+          RUN_DB: ${{ needs.plan.outputs.run_db }}
+          RUN_BROWSER: ${{ needs.plan.outputs.run_browser }}
+          RUN_REALSTACK: ${{ needs.plan.outputs.run_realstack }}
+          RUN_WEBKIT: ${{ needs.plan.outputs.run_webkit }}
+        run: |
+          set -euo pipefail
+          failures=0
+
+          require_success() {
+            local name="$1" result="$2"
+            if [[ "$result" != "success" ]]; then
+              echo "Required gate $name ended as $result" >&2
+              failures=1
+            fi
+          }
+          require_optional() {
+            local name="$1" expected="$2" result="$3"
+            if [[ "$expected" == "true" ]]; then
+              require_success "$name" "$result"
+            elif [[ "$result" != "skipped" && "$result" != "success" ]]; then
+              echo "Skipped gate $name ended unexpectedly as $result" >&2
+              failures=1
+            fi
+          }
+
+          require_success plan "$PLAN_RESULT"
+          require_success fast "$FAST_RESULT"
+          require_optional database "$RUN_DB" "$DB_RESULT"
+          require_optional chromium "$RUN_BROWSER" "$BROWSER_RESULT"
+          require_optional real-stack "$RUN_REALSTACK" "$REALSTACK_RESULT"
+          require_optional webkit "$RUN_WEBKIT" "$WEBKIT_RESULT"
+
+          exit "$failures"
 
       - name: Publish validation result
         if: always()
         shell: bash
         env:
-          BRVTAL_JOB_STATUS: ${{ job.status }}
           BRVTAL_EVENT: ${{ github.event_name }}
           BRVTAL_REF: ${{ github.ref_name }}
-          BRVTAL_SHA: ${{ github.sha }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          FAST_RESULT: ${{ needs.fast.result }}
+          DB_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          REALSTACK_RESULT: ${{ needs.realstack.result }}
+          WEBKIT_RESULT: ${{ needs.webkit.result }}
         run: |
           set +e
-          php_version=$(php -r 'echo PHP_VERSION;' 2>/dev/null || echo 'unavailable')
-          node_version=$(node --version 2>/dev/null || echo 'unavailable')
-          mariadb_version=$(mariadb --version 2>/dev/null | head -1 || echo 'unavailable')
           deploy_note="Validation only."
           if [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_REF" == "main" ]]; then
             deploy_note="Source is eligible for Hostinger auto-deploy from main."
           fi
-          status_upper=$(printf '%s' "$BRVTAL_JOB_STATUS" | tr '[:lower:]' '[:upper:]')
           {
+            echo "# BRVTAL validation result"
             echo
-            echo "## Validation result"
-            echo
-            echo "| Field | Value |"
+            echo "| Gate | Result |"
             echo "|---|---|"
-            echo "| CI job | **$status_upper** |"
-            echo "| PHP | \`$php_version\` |"
-            echo "| Node | \`$node_version\` |"
-            echo "| MariaDB client | \`$mariadb_version\` |"
+            echo "| Plan | **$PLAN_RESULT** |"
+            echo "| Fast syntax/contracts | **$FAST_RESULT** |"
+            echo "| MariaDB | **$DB_RESULT** |"
+            echo "| Chromium | **$BROWSER_RESULT** |"
+            echo "| Real-stack smoke | **$REALSTACK_RESULT** |"
+            echo "| WebKit TOTP | **$WEBKIT_RESULT** |"
             echo "| Deploy note | $deploy_note |"
             echo
-            echo "> CI success validates source and automated tests. It does **not** prove Hostinger deployment completion or production behavior."
+            echo "> Pull requests use path-aware gates. Every push to exact \`main\` runs the full validation matrix. CI success does **not** prove Hostinger deployment completion or production behavior."
           } >> "$GITHUB_STEP_SUMMARY"
