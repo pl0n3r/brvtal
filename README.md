@@ -7,16 +7,17 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- PageSpeed identificó el logo oficial de BRVTAL como elemento LCP y mostró alrededor de 350 ms de `Resource load delay` antes de iniciar su descarga.
-- El Home ahora declara un `preload` de imagen con `fetchpriority="high"` para `assets/brvtal-logo.jpeg` antes de `css/style.css`, de modo que el navegador puede solicitar el LCP antes de completar el descubrimiento normal del body.
-- La inserción vive en un helper idempotente y testeable; el preload y el `<img>` principal pasan por el mismo versionado de deploy (`?v=<sha>`), evitando una segunda URL de caché o una descarga duplicada.
-- No se recomprimió ni reemplazó el logo, Genesis ni ningún asset histórico; este cambio no modifica calidad visual, contenido ni base de datos.
+- El preload del logo LCP introducido en el deploy anterior se mantiene intacto y sigue adelantando la descarga del logo oficial de BRVTAL.
+- El Home ahora añade además un estilo crítico mínimo antes de `css/style.css` que mantiene `.hero-logo-wrap` visible desde el primer render con `opacity:1!important`.
+- Esto evita que la animación de entrada de escritorio pueda ocultar temporalmente el elemento LCP mediante una opacidad inline, sin eliminar sus transformaciones visuales de escala/rotación ni el resto del motion stack.
+- El helper de visibilidad es idempotente y no añade una nueva petición de red: el CSS crítico viaja inline en el HTML.
+- No se recomprimieron imágenes, no se modificó contenido editorial y no hubo cambios de base de datos.
 
 ## Archivos modificados en este deploy
 
-- `config/public_assets.php` — añade el helper idempotente que inserta el preload del LCP antes de `style.css`.
-- `index.php` — aplica el helper del preload al Home antes del resto de transformaciones de assets.
-- `tests/project-operations-contract.php` — valida sobre HTML transformado el orden, idempotencia y reutilización de la misma URL versionada entre preload e imagen.
+- `config/public_assets.php` — añade el helper crítico e idempotente que mantiene visible el wrapper del LCP antes del stylesheet principal.
+- `index.php` — aplica el helper de visibilidad inmediatamente después del preload del LCP.
+- `tests/project-operations-contract.php` — protege orden temprano, `opacity:1!important`, idempotencia y coexistencia con el preload versionado.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
@@ -27,9 +28,9 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué sigue
 
-1. Tras el deploy, repetir PageSpeed/Lighthouse sobre `https://www.brvtal.com.co` y comparar específicamente `Resource load delay`, `Resource load duration` y `Element render delay` del LCP.
-2. Si el retraso de descarga baja pero el `Element render delay` sigue alto, revisar la fase de render/animación del Hero antes de recomprimir imágenes.
-3. Solo si `Improve image delivery` sigue siendo material después de esta medición, optimizar `assets/brvtal-logo.jpeg` y Genesis con comparación visual previa, manteniendo los originales.
+1. Tras el deploy, repetir PageSpeed/Lighthouse sobre `https://www.brvtal.com.co` y comparar `Resource load delay`, `Resource load duration` y `Element render delay` del logo LCP contra la medición anterior.
+2. Si el render delay sigue siendo material, revisar el loader de arranque y cualquier otra capa que pueda cubrir el Hero antes de tocar calidad de imagen.
+3. Optimizar `assets/brvtal-logo.jpeg` y Genesis solo si `Improve image delivery` continúa siendo un cuello de botella relevante y con comparación visual previa.
 
 ## Contexto durable
 
