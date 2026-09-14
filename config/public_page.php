@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/media.php';
+require_once __DIR__ . '/public_visibility.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
 {
@@ -31,6 +32,8 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     $id = (int)$entity['id'];
     $type = (string)$entity['route_type'];
     $data = ['entity' => $entity, 'facts' => [], 'links' => [], 'related' => []];
+    $eventStatuses = brvtal_public_visible_event_statuses();
+    $eventPlaceholders = brvtal_public_sql_placeholders($eventStatuses);
 
     if ($type === 'events') {
         $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,ticket_url,ticket_instructions FROM events WHERE id=? LIMIT 1", [$id]);
@@ -49,7 +52,11 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['COLLECTIVE' => strtoupper(str_replace('_', ' ', (string)($detail['collective_status'] ?? '')))]);
         $data['links'] = array_filter(['INSTAGRAM' => $detail['instagram_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'WEBSITE' => $detail['website_url'] ?? '']);
-        $data['related']['EVENTS'] = brvtal_page_rows($pdo, "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived') ORDER BY e.event_date DESC", [$id]);
+        $data['related']['EVENTS'] = brvtal_page_rows(
+            $pdo,
+            "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
+            array_merge([$id], $eventStatuses)
+        );
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE artist_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         $data['related']['RELEASES'] = brvtal_page_rows($pdo, "SELECT r.title,r.slug,r.artwork AS image,CONCAT_WS(' / ',UPPER(r.release_type),r.catalog_number) AS meta,'releases' AS route_type FROM release_artists ra JOIN releases r ON r.id=ra.release_id AND r.status='published' WHERE ra.artist_id=? ORDER BY r.release_date DESC,r.sort_order", [$id]);
     } elseif ($type === 'releases') {
@@ -67,15 +74,19 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['facts']['TAGS'] = implode(' / ', array_column($tags, 'title'));
         $relations = brvtal_page_rows($pdo, "SELECT related_type,related_id FROM blog_post_relations WHERE post_id=? ORDER BY sort_order", [$id]);
         $map = [
-            'event' => ['events','title','cover_image','events',"status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"],
-            'artist' => ['artists','name','photo','artists',"status='published'"],
-            'set' => ['sets_media','title','cover_image','sets',"status='published'"],
-            'release' => ['releases','title','artwork','releases',"status='published'"],
+            'event' => ['events','title','cover_image','events',"status IN ({$eventPlaceholders})",$eventStatuses],
+            'artist' => ['artists','name','photo','artists',"status='published'",[]],
+            'set' => ['sets_media','title','cover_image','sets',"status='published'",[]],
+            'release' => ['releases','title','artwork','releases',"status='published'",[]],
         ];
         foreach ($relations as $relation) {
             if (!isset($map[$relation['related_type']])) continue;
-            [$table,$title,$image,$route,$where] = $map[$relation['related_type']];
-            $item = brvtal_page_row($pdo, "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type FROM `{$table}` WHERE id=? AND {$where} LIMIT 1", [(int)$relation['related_id']]);
+            [$table,$title,$image,$route,$where,$whereParameters] = $map[$relation['related_type']];
+            $item = brvtal_page_row(
+                $pdo,
+                "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
+                array_merge([(int)$relation['related_id']], $whereParameters)
+            );
             if ($item) $data['related']['RELATED'][] = $item;
         }
     } elseif ($type === 'sets') {
@@ -84,7 +95,13 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['facts'] = array_filter(['PLATFORM' => strtoupper((string)($detail['platform'] ?? ''))]);
         $data['links'] = array_filter(['LISTEN' => $detail['external_url'] ?? '']);
         if (!empty($detail['artist_id'])) $data['related']['ARTIST'] = brvtal_page_rows($pdo, "SELECT name AS title,slug,photo AS image,'artists' AS route_type FROM artists WHERE id=? AND status='published'", [(int)$detail['artist_id']]);
-        if (!empty($detail['event_id'])) $data['related']['EVENT'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,'events' AS route_type FROM events WHERE id=? AND status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')", [(int)$detail['event_id']]);
+        if (!empty($detail['event_id'])) {
+            $data['related']['EVENT'] = brvtal_page_rows(
+                $pdo,
+                "SELECT title,slug,cover_image AS image,'events' AS route_type FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
+                array_merge([(int)$detail['event_id']], $eventStatuses)
+            );
+        }
     } elseif ($type === 'pages') {
         $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id]);
         $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
