@@ -21,8 +21,20 @@ if [[ ! "$DB_NAME" =~ ^brvtal_test[a-zA-Z0-9_]*$ ]]; then
   exit 1
 fi
 
-mysql_root=(mariadb -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS")
-mysql_db=(mariadb -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME")
+DB_CLI="${BRVTAL_TEST_DB_CLI:-}"
+if [[ -z "$DB_CLI" ]]; then
+  if command -v mariadb >/dev/null 2>&1; then
+    DB_CLI="mariadb"
+  elif command -v mysql >/dev/null 2>&1; then
+    DB_CLI="mysql"
+  else
+    echo "Neither mariadb nor mysql client is available." >&2
+    exit 1
+  fi
+fi
+
+mysql_root=("$DB_CLI" -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS")
+mysql_db=("$DB_CLI" -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME")
 
 "${mysql_root[@]}" -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
