@@ -74,8 +74,8 @@ $assert(str_contains($publicHtaccess, 'application/json'), 'JSON responses must 
 $assert(str_contains($publicHtaccess, 'image/svg+xml'), 'SVG responses must be compression-eligible');
 $assert(!str_contains($publicHtaccess, 'DEFLATE image/jpeg'), 'JPEG assets must not be redundantly recompressed by mod_deflate');
 $assert(!str_contains($publicHtaccess, 'DEFLATE font/woff2'), 'WOFF2 assets must not be redundantly recompressed by mod_deflate');
-$assert(str_contains($publicHtaccess, 'ExpiresByType application/javascript "access plus 1 year"'), 'versioned JavaScript must receive a one-year expiry');
 $assert(str_contains($publicHtaccess, 'ExpiresByType application/x-javascript "access plus 1 year"'), 'LiteSpeed JavaScript MIME must receive a one-year expiry');
+$assert(str_contains($publicHtaccess, 'ExpiresByType text/javascript "access plus 1 year"'), 'text/javascript responses must receive a one-year expiry');
 $assert(preg_match('/FilesMatch\s+"\\\\\.\(\?:css\|js\|/i', $publicHtaccess) === 1 || str_contains($publicHtaccess, '(?:css|js|'), 'immutable static-asset cache policy must include JavaScript');
 $assert(str_contains($publicHtaccess, 'max-age=31536000, immutable'), 'versioned static assets must retain immutable one-year Cache-Control');
 
