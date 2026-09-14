@@ -343,6 +343,22 @@ function brvtal_media_generate_variants(string $absoluteOriginal, string $mime, 
         }
     }
 
+    // Every static JPEG/PNG upload gets one preserve-aspect WebP suitable for
+    // generic public <img> delivery. Originals remain untouched and authoritative.
+    if (in_array($mime, ['image/jpeg', 'image/png'], true)) {
+        $displayWidth = min(1920, $width);
+        $displayHeight = max(1, (int)round($height * ($displayWidth / $width)));
+        $displayPath = $base . '--display-' . $displayWidth . 'x' . $displayHeight . '.webp';
+        if (brvtal_media_write_variant($source, $width, $height, $displayPath, $displayWidth, $displayHeight, false)) {
+            $result['variants']['display'] = [
+                'path' => brvtal_media_public_upload_path($displayPath),
+                'width' => $displayWidth,
+                'height' => $displayHeight,
+                'mime_type' => 'image/webp',
+            ];
+        }
+    }
+
     foreach ([1280, 1920] as $targetWidth) {
         if ($width <= $targetWidth) {
             continue;

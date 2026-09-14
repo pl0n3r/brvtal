@@ -7,31 +7,33 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- El HAR de producción confirmó que el deploy anterior está activo en Hostinger, PHP 8.5 sirve el Home y Brotli comprime HTML/CSS/JavaScript correctamente.
-- Se alineó la política de caché de JavaScript first-party con CSS/imágenes: un año + `immutable` para archivos `.js` versionados por deploy.
-- Se añadió cobertura explícita para el MIME `application/x-javascript` que LiteSpeed/Hostinger está entregando en producción.
-- Se actualizó el contrato para impedir regresiones en compresión y caché de JavaScript.
-- `AGENTS.md` dejó de marcar como pendiente el versionado de `related-content.js/css`, porque ya está implementado, y ahora prioriza mediciones con navegador moderno.
-- No se modificaron diseño, contenido, base de datos ni comportamiento funcional de DISCADMIN.
+- Cada JPEG/PNG nuevo subido por Media Library genera además un WebP `display` que conserva la proporción, con ancho máximo de 1920 px; el archivo original permanece intacto y autoritativo.
+- El mapa público de Media Engine expone esa variante WebP de forma allowlisted junto a `square`, `card`, `hero` y variantes preserve-aspect existentes.
+- El runtime público revisa cualquier `<img>` local de `/uploads/`, incluso imágenes insertadas dinámicamente o diferidas con `data-src`, y usa el WebP más adecuado para su contexto.
+- Hero Slider usa contexto `hero`; CONNECTED usa `square`; Media usa `card`; imágenes genéricas conservan proporción; el visor prioriza la variante preserve-aspect de mayor tamaño.
+- Si una variante WebP falla, el navegador vuelve automáticamente al original. Los originales WebP ya permanecen WebP y los GIF no se convierten de forma destructiva.
+- No se modificaron base de datos, contenido editorial ni originales almacenados.
 
 ## Archivos modificados en este deploy
 
-- `.htaccess` — añade expiración anual e `immutable` para JavaScript y cubre `application/x-javascript` en compresión.
-- `tests/project-operations-contract.php` — protege la política de compresión/caché de JavaScript.
-- `AGENTS.md` — actualiza el estado durable y las prioridades de rendimiento.
+- `config/media.php` — genera el WebP preserve-aspect `display` para nuevos JPEG/PNG sin reemplazar el original.
+- `api/public-media-delivery.php` — permite exponer de forma segura la variante `display`.
+- `js/public-media.js` — aplica WebP globalmente a imágenes `/uploads/`, incluidos Hero Slider y nodos dinámicos, con fallback al original.
+- `tests/media-library-contract.php` — protege generación, allowlist, contextos WebP y fallback.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `README Deploy Snapshot / verify`, `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
 - CI verde significa **VALIDATED IN CODE**; no equivale por sí solo a **VALIDATED IN PRODUCTION**.
-- La evidencia HAR previa sí valida en producción el deploy anterior de compresión: `Content-Encoding: br` y `PHP/8.5.6` en `https://www.brvtal.com.co`.
+- Producción canónica: `https://www.brvtal.com.co`.
 
 ## Qué sigue
 
-1. Tras el deploy, verificar en producción que `/js/public-runtime-loader.js?v=<sha>` responde con `Cache-Control: public, max-age=31536000, immutable` y expiración anual.
-2. Repetir Lighthouse/PageSpeed con Chrome moderno sobre `https://www.brvtal.com.co` y usar ese waterfall para decidir el siguiente cambio.
-3. Tratar las descargas masivas de imágenes de Pingdom/Chrome 61 como una limitación de ese navegador, que no soporta `loading="lazy"`; no degradar el frontend moderno para mejorar esa métrica heredada.
+1. Verificar en producción que una imagen subida/regenerada por Media Library se entregue como `--display-*.webp`, `--hero-*.webp`, `--card-*.webp` o `--square-*.webp` según contexto, manteniendo el original como fallback.
+2. Repetir PageSpeed/Lighthouse y comprobar la reducción del bloque `Improve image delivery` para imágenes de `/uploads/`.
+3. Tratar por separado los assets estáticos históricos como `assets/brvtal-logo.jpeg` y Genesis; no recomprimirlos sin comparación visual.
+4. Si sigue siendo relevante después de imágenes/caché, revisar el retraso de render del LCP y el CLS móvil del Hero.
 
 ## Contexto durable
 

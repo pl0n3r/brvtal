@@ -33,7 +33,7 @@ function brvtal_public_media_delivery_sanitize(array $sidecar): ?array
         return null;
     }
 
-    $allowedVariantNames = ['square', 'card', 'hero', 'w1280', 'w1920'];
+    $allowedVariantNames = ['square', 'card', 'hero', 'display', 'w1280', 'w1920'];
     $variants = [];
     foreach ($allowedVariantNames as $name) {
         $variant = is_array($sidecar['variants'][$name] ?? null) ? $sidecar['variants'][$name] : null;
