@@ -25,7 +25,7 @@ public_pages_expect(!str_contains($pages, "status<>'draft'"), 'set pages must no
 public_pages_expect(str_contains($pages, 'brvtal_public_visible_event_statuses()'), 'event relationships must use the canonical public event status policy');
 public_pages_expect(str_contains($pages, 'brvtal_public_sql_placeholders($eventStatuses)'), 'event relationship queries must use prepared placeholders for the canonical status policy');
 public_pages_expect(!str_contains($pages, "status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"), 'public entity pages must not duplicate the Event visibility allowlist');
-public_pages_expect(!str_contains($pages, "($href ?: '#')"), 'cards without a destination must not be dead links');
+public_pages_expect(!str_contains($pages, "(\$href ?: '#')"), 'cards without a destination must not be dead links');
 public_pages_expect(str_contains($pages, 'htmlspecialchars'), 'editorial content must be escaped before HTML rendering');
 public_pages_expect(str_contains($pages, "rel=\"noopener noreferrer\""), 'external calls to action must isolate their browsing context');
 public_pages_expect(str_contains($css, '@media(max-width:620px)'), 'entity pages must include a mobile layout');
