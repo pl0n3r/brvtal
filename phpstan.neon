@@ -1,0 +1,9 @@
+parameters:
+    level: 3
+    paths:
+        - config/deployment.php
+        - config/migrations.php
+        - config/public_visibility.php
+        - scripts/migrations.php
+    tmpDir: .phpstan-cache
+    treatPhpDocTypesAsCertain: false
