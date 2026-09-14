@@ -5,6 +5,7 @@ $root = dirname(__DIR__);
 $readme = (string) file_get_contents($root . '/README.md');
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
 $agents = (string) file_get_contents($root . '/AGENTS.md');
+$privateHtaccess = (string) file_get_contents($root . '/.private/.htaccess');
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -54,5 +55,10 @@ $assert(str_contains($workflow, 'run_webkit'), 'CI planner must make WebKit path
 $assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the runner MySQL client with mariadb-client');
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
+
+// Web-deny contract for the project-level private storage root.
+$assert(str_contains($privateHtaccess, 'Options -Indexes'), '.private must disable directory indexing');
+$assert(str_contains($privateHtaccess, 'Require all denied'), '.private must use Apache 2.4/LiteSpeed deny syntax');
+$assert(str_contains($privateHtaccess, 'Deny from all'), '.private must retain legacy access-compat denial');
 
 fwrite(STDOUT, "Project operations contract OK\n");
