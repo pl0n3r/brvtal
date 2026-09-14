@@ -29,6 +29,7 @@ if ($entity) {
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
 $html = brvtal_public_preload_home_lcp($html);
+$html = brvtal_public_keep_home_lcp_visible($html);
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n</head>", $html);
