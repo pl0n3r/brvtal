@@ -6,6 +6,7 @@ $readme = (string) file_get_contents($root . '/README.md');
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
 $agents = (string) file_get_contents($root . '/AGENTS.md');
 $privateHtaccess = (string) file_get_contents($root . '/.private/.htaccess');
+$indexPhp = (string) file_get_contents($root . '/index.php');
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -60,6 +61,22 @@ $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 
 $assert(str_contains($privateHtaccess, 'Options -Indexes'), '.private must disable directory indexing');
 $assert(str_contains($privateHtaccess, 'Require all denied'), '.private must use Apache 2.4/LiteSpeed deny syntax');
 $assert(str_contains($privateHtaccess, 'Deny from all'), '.private must retain legacy access-compat denial');
+
+// Public asset request dedupe: decorative copies must reuse the same deploy-versioned URLs.
+require_once $root . '/config/public_assets.php';
+$assetFixture = '<html><head></head><body>'
+    . '<img class="hero-logo" src="assets/brvtal-logo.jpeg">'
+    . '<div class="hero-logo-glitch"></div>'
+    . '<img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg">'
+    . '<div class="genesis-bg"></div>'
+    . '</body></html>';
+$assetFixture = brvtal_public_dedupe_decorative_assets($assetFixture);
+$assetFixture = brvtal_public_version_assets($assetFixture, 'abc1234');
+$assert(str_contains($indexPhp, 'brvtal_public_dedupe_decorative_assets($html)'), 'Home renderer must normalize decorative asset URLs before versioning');
+$assert(substr_count($assetFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 3, 'favicon, hero and glitch logo must share one versioned cache URL');
+$assert(substr_count($assetFixture, 'F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg?v=abc1234') === 2, 'Genesis image and decorative background must share one versioned cache URL');
+$assert(str_contains($assetFixture, 'rel="icon"'), 'Home must declare an explicit favicon instead of triggering /favicon.ico');
+$assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS backgrounds must be suppressed before browser fetch');
 
 // Migration-state controls are part of operations safety and therefore ride the always-on fast gate.
 require __DIR__ . '/migrations-contract.php';
