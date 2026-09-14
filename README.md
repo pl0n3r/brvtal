@@ -4,7 +4,8 @@
 > Manual técnico, mapa de arquitectura y tablero operativo del software BRVTAL.
 
 [![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
-![PHP](https://img.shields.io/badge/PHP-8.3%2B-777BB4?logo=php&logoColor=white)
+[![PHP 8.5 Compatibility](https://github.com/pl0n3r/brvtal/actions/workflows/php85-compatibility.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/php85-compatibility.yml)
+![PHP](https://img.shields.io/badge/PHP-8.5-777BB4?logo=php&logoColor=white)
 ![MariaDB](https://img.shields.io/badge/MariaDB-11.x-003545?logo=mariadb&logoColor=white)
 ![Status](https://img.shields.io/badge/status-active_development-111111)
 
@@ -23,12 +24,12 @@ Este README es la referencia humana del proyecto: describe qué software existe,
 | Repositorio | `pl0n3r/brvtal` |
 | Branch canónica | `main` |
 | Hosting | Hostinger shared / LiteSpeed |
-| Backend | PHP 8.3+ |
+| Backend | PHP 8.5 |
 | Base de datos | MariaDB / MySQL-compatible |
 | Frontend público | HTML + CSS + JavaScript vanilla |
 | Admin | DISCADMIN propietario |
 | Browser tests | Playwright / Chromium + WebKit donde aplica |
-| CI | GitHub Actions — `BRVTAL CI` |
+| CI | GitHub Actions — `BRVTAL CI` + `PHP 8.5 Compatibility` |
 | Deploy | `main` → integración Git de Hostinger |
 | Idioma público | English |
 | Reglas para IA | [`AGENTS.md`](AGENTS.md) |
@@ -89,6 +90,7 @@ flowchart LR
     MEDIA --> UPLOADS[(uploads)]
 
     GITHUB[GitHub main] --> CI[BRVTAL CI]
+    GITHUB --> PHP85[PHP 8.5 Compatibility]
     GITHUB --> HOST[Hostinger Git auto-deploy]
     HOST --> PROD[www.brvtal.com.co]
 ```
@@ -128,13 +130,13 @@ flowchart LR
 
 | Capa | Tecnología / decisión |
 |---|---|
-| Backend | PHP 8.3+ |
+| Backend | PHP 8.5 |
 | Database | MariaDB / MySQL-compatible SQL |
 | Public frontend | HTML, CSS, vanilla JS |
 | Admin frontend | DISCADMIN + módulos JS/CSS en el mismo shell |
 | Auth | PHP sessions + CSRF + rate limiting + TOTP |
 | Media | PHP filesystem/media engine + browser picker |
-| Testing | PHP contracts + MariaDB integration + Playwright |
+| Testing | PHP 8.5 contracts + MariaDB integration + Playwright |
 | CI | GitHub Actions |
 | Hosting | Hostinger shared / LiteSpeed |
 | Deployment | GitHub `main` → Hostinger Git integration |
@@ -451,17 +453,19 @@ No existe one-click restore automático.
 
 La validación está dividida para dar feedback temprano sin perder la cobertura completa de `main`:
 
-1. **Fast** — PHP syntax, JavaScript syntax y contratos; siempre corre.
-2. **Database** — migraciones/idempotencia + MariaDB integration; path-aware en PRs.
-3. **Chromium** — Playwright general; path-aware en PRs.
-4. **Real-stack** — PHP + MariaDB + Chromium autenticado para superficies admin/backend relevantes.
-5. **WebKit TOTP** — regresión Safari/WebKit enfocada en auth/2FA; path-aware en PRs.
-6. **Exact `main`** — ejecuta las cinco capas siempre, sin importar los paths del merge.
-7. **Production smoke** — separado y solo cuenta cuando realmente se ejecuta.
+1. **PHP 8.5 Compatibility** — provisiona PHP 8.5 explícitamente, hace lint y ejecuta contratos con `E_ALL`; cualquier warning, notice o deprecation falla el gate.
+2. **Fast** — PHP syntax, JavaScript syntax y contratos; siempre corre.
+3. **Database** — migraciones/idempotencia + MariaDB integration; path-aware en PRs.
+4. **Chromium** — Playwright general; path-aware en PRs.
+5. **Real-stack** — PHP + MariaDB + Chromium autenticado para superficies admin/backend relevantes.
+6. **WebKit TOTP** — regresión Safari/WebKit enfocada en auth/2FA; path-aware en PRs.
+7. **Exact `main`** — ejecuta las capas de BRVTAL CI siempre y además debe quedar verde PHP 8.5 Compatibility.
+8. **Production smoke** — separado y solo cuenta cuando realmente se ejecuta.
 
 Los browsers y descargas npm usan caches de GitHub Actions donde aplica. El real-stack reutiliza un cliente MySQL/MariaDB compatible disponible en el runner en vez de reemplazar paquetes innecesariamente.
 
 ```bash
+bash scripts/php85-compatibility.sh
 npm run test:contracts
 npm run test:integration
 npm run test:e2e
@@ -474,17 +478,20 @@ Detalles: [`docs/TESTING.md`](docs/TESTING.md).
 
 ## 17. CI / deploy
 
-Workflow histórico:
+Workflows:
 
 ```text
-.github/workflows/update-release-metadata.yml
+.github/workflows/update-release-metadata.yml   # BRVTAL CI
+.github/workflows/php85-compatibility.yml       # PHP 8.5 Compatibility
 ```
 
-Nombre visible: **BRVTAL CI**.
+El primero conserva la matriz operacional completa. El segundo representa explícitamente el runtime PHP de producción y debe permanecer verde en PRs y `main`.
 
 ### Topología de fast feedback
 
 ```text
+PHP 8.5 Compatibility / php85
+
 plan
   ↓
 fast (siempre)
@@ -496,7 +503,7 @@ fast (siempre)
        validate
 ```
 
-`validate` permanece como check final estable. En pull requests, el planner evita gates caros que no aportan señal para los archivos modificados. En `push` a `main` y `workflow_dispatch`, todos los gates son obligatorios.
+`validate` permanece como check final estable de BRVTAL CI. En pull requests, el planner evita gates caros que no aportan señal para los archivos modificados. En `push` a `main` y `workflow_dispatch`, todos los gates de BRVTAL CI son obligatorios; PHP 8.5 Compatibility también corre en PRs y pushes a `main`.
 
 Flujo obligatorio:
 
@@ -511,11 +518,11 @@ batched branch update
   ↓
 Pull Request
   ↓
-path-aware BRVTAL CI → validate green
+BRVTAL CI / validate + PHP 8.5 Compatibility green
   ↓
 squash merge
   ↓
-full BRVTAL CI on exact merged main SHA
+full BRVTAL CI + PHP 8.5 Compatibility on exact merged main SHA
   ↓
 Hostinger Git auto-deploy
   ↓
@@ -655,6 +662,8 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 
 - [x] GitHub PR workflow.
 - [x] BRVTAL CI.
+- [x] PHP 8.5 como runtime de producción documentado.
+- [x] Gate `PHP 8.5 Compatibility` explícito en PRs y `main`.
 - [x] Fast syntax/contract gate siempre activo.
 - [x] PR CI path-aware con gates caros selectivos.
 - [x] Database / Chromium / Real-stack / WebKit separados para paralelismo.
@@ -700,7 +709,7 @@ Evitar trabajo prematuro en Wix/Elementor-style builders, Bulk Delete, automatic
 
 1. leer `AGENTS.md`;
 2. revisar PRs abiertos y CI de `main`;
-3. no abrir nueva branch hasta tener exact-main CI verde.
+3. no abrir nueva branch hasta tener exact-main CI verde, incluido PHP 8.5 Compatibility.
 
 ### Antes de abrir/actualizar PR
 
@@ -713,13 +722,13 @@ Evitar trabajo prematuro en Wix/Elementor-style builders, Bulk Delete, automatic
 
 1. tests aplicables;
 2. PR;
-3. check final `validate` verde;
+3. `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` verdes;
 4. squash merge.
 
 ### Después de mergear
 
 1. obtener SHA exacto;
-2. verificar el full BRVTAL CI sobre ese SHA;
+2. verificar el full BRVTAL CI y PHP 8.5 Compatibility sobre ese SHA;
 3. revisar Build / Deploy Summary;
 4. distinguir auto-deploy esperado de deploy comprobado;
 5. hacer production smoke cuando sea seguro y realmente necesario.
