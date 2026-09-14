@@ -176,8 +176,7 @@
     if (wrap && !wrap.querySelector('[data-ia-events-intro]')) {
       const intro = contextBar(
         'EVENTS',
-        'Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.',
-        [{label:'+ NEW EVENT', primary:true, onClick:() => window.BRVTALContentCore?.openEvent?.()}]
+        'Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.'
       );
       intro.dataset.iaEventsIntro = '1';
       wrap.prepend(intro);
