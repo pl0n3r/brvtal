@@ -10,7 +10,8 @@ if (!['mobile', 'desktop'].includes(mode)) {
   throw new Error(`Unsupported BRVTAL_PERF_MODE: ${mode}`);
 }
 
-const round = (value) => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+const roundMs = (value) => Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+const roundCls = (value) => Number.isFinite(value) ? Math.round(value * 1000) / 1000 : null;
 const formatMs = (value) => value == null ? '—' : `${Math.round(value)} ms`;
 const formatKb = (value) => value == null ? '—' : `${Math.round(value / 1024)} KiB`;
 
@@ -160,21 +161,21 @@ try {
     requestedUrl: targetUrl,
     finalUrl: result.finalUrl,
     metrics: {
-      firstContentfulPaint: round(result.firstContentfulPaint),
-      largestContentfulPaint: round(lcpStart),
-      cumulativeLayoutShift: round(result.cls),
-      domContentLoaded: round(result.document?.domContentLoaded),
-      loadEventEnd: round(result.document?.loadEventEnd),
+      firstContentfulPaint: roundMs(result.firstContentfulPaint),
+      largestContentfulPaint: roundMs(lcpStart),
+      cumulativeLayoutShift: roundCls(result.cls),
+      domContentLoaded: roundMs(result.document?.domContentLoaded),
+      loadEventEnd: roundMs(result.document?.loadEventEnd),
     },
     lcp: {
       selector: result.lcp.selector,
       tagName: result.lcp.tagName,
       url: result.lcp.url || null,
-      size: round(result.lcp.size),
+      size: roundMs(result.lcp.size),
       resourceTransferSize: resource?.transferSize ?? null,
       resourceEncodedBodySize: resource?.encodedBodySize ?? null,
       resourceDecodedBodySize: resource?.decodedBodySize ?? null,
-      breakdown: Object.fromEntries(Object.entries(breakdown).map(([key, value]) => [key, round(value)])),
+      breakdown: Object.fromEntries(Object.entries(breakdown).map(([key, value]) => [key, roundMs(value)])),
     },
     page: {
       title: result.title,
