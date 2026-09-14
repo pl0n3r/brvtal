@@ -33,11 +33,11 @@
     const delivery = path ? state.delivery[path] : null;
     const variants = delivery?.variants || {};
     let candidate = null;
-    if (context === 'square') candidate = variants.square || variants.card || variants.w1280 || null;
-    else if (context === 'hero') candidate = variants.hero || variants.w1920 || variants.w1280 || null;
-    else if (context === 'viewer') candidate = variants.w1920 || variants.w1280 || null;
-    else if (context === 'preserve') candidate = variants.w1280 || variants.w1920 || null;
-    else candidate = variants.card || variants.w1280 || variants.square || null;
+    if (context === 'square') candidate = variants.square || variants.card || variants.w1280 || variants.display || null;
+    else if (context === 'hero') candidate = variants.hero || variants.w1920 || variants.w1280 || variants.display || null;
+    else if (context === 'viewer') candidate = variants.w1920 || variants.w1280 || variants.display || null;
+    else if (context === 'preserve') candidate = variants.w1280 || variants.w1920 || variants.display || null;
+    else candidate = variants.card || variants.w1280 || variants.square || variants.display || null;
     return candidate?.src ? candidate : null;
   }
 
