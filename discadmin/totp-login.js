@@ -74,6 +74,21 @@
     });
   }
 
+  async function restoreInitialAdminRoute() {
+    const requestedModule = new URLSearchParams(location.search).get('module');
+    if (requestedModule && !window.BRVTALAdminIA && document.readyState === 'loading') {
+      await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once:true}));
+    }
+
+    if (requestedModule && typeof window.BRVTALAdminIA?.applyRoute === 'function') {
+      const applied = await window.BRVTALAdminIA.applyRoute();
+      if (applied) return;
+    }
+
+    const initialSection = window.BRVTALAdminModules.initialSection();
+    await window.go(initialSection);
+  }
+
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (...args) => {
     const request = args[0];
@@ -92,9 +107,9 @@
   };
 
   /* This is the last shell bootstrap hook before index-core.php calls restoreSession().
-     Route the authenticated initial section through window.go so dynamic modules such as
-     Media, Releases and Blog always mount on the first navigation instead of falling back
-     to the legacy inline renderer captured by the original restoreSession function. */
+     Dynamic modules can mount immediately; visible deep-links are handed to the final
+     Information Architecture route layer once parsing finishes so native destinations
+     and the guided Events workflow never flash through Dashboard or a legacy workspace. */
   if (typeof window.restoreSession === 'function' && window.BRVTALAdminModules) {
     window.restoreSession = async function() {
       try {
@@ -106,8 +121,7 @@
           catch (e) {
             if (e?.message !== 'AUTH_REQUIRED') window.BRVTALFeedback?.error?.('Media thumbnail access check failed: ' + e.message,'media-permissions');
           }
-          const initialSection = window.BRVTALAdminModules.initialSection();
-          await window.go(initialSection);
+          await restoreInitialAdminRoute();
           return true;
         }
       } catch (_) {}
