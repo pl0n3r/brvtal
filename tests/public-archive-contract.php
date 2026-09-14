@@ -57,12 +57,19 @@ archive_expect(str_contains($archiveJs, 'applyArchiveFilters'), 'Archive search,
 archive_expect(str_contains($archiveJs, '/events/${encodeURIComponent(slug)}'), 'Archived records must link to canonical public event pages');
 archive_expect(str_contains($archiveJs, "['/api/public.php', '/api/public'"), 'Archive loader must prefer the production public PHP endpoint');
 
+$logoDimensions = brvtal_public_local_image_dimensions('assets/brvtal-logo.jpeg');
+archive_expect(is_array($logoDimensions) && $logoDimensions['width'] > 0 && $logoDimensions['height'] > 0, 'Local public image dimensions must resolve from the actual asset');
+archive_expect(brvtal_public_local_image_dimensions('https://example.com/logo.jpg') === null, 'External images must not trigger local filesystem inspection');
+archive_expect(brvtal_public_local_image_dimensions('../config/config.php') === null, 'Traversal paths must never resolve as public image assets');
+
 $optimizedIndex = brvtal_public_optimize_home_images($index);
-archive_expect(str_contains($optimizedIndex, 'loading="eager" fetchpriority="high" decoding="async" src="assets/brvtal-logo.jpeg"'), 'Hero logo must remain eager and high priority');
+archive_expect(str_contains($optimizedIndex, 'loading="eager" fetchpriority="high" decoding="async"'), 'Hero logo must remain eager and high priority');
 preg_match_all('~<img\b[^>]*>~i', $optimizedIndex, $optimizedImages);
 archive_expect(!empty($optimizedImages[0]), 'Optimized public homepage must contain images');
 foreach ($optimizedImages[0] as $tag) {
     archive_expect(str_contains($tag, 'decoding="async"'), 'Public homepage images must decode asynchronously');
+    archive_expect(preg_match('~\bwidth="[1-9][0-9]*"~', $tag) === 1, 'Initial public images must expose intrinsic width');
+    archive_expect(preg_match('~\bheight="[1-9][0-9]*"~', $tag) === 1, 'Initial public images must expose intrinsic height');
     if (str_contains($tag, 'hero-logo')) continue;
     archive_expect(str_contains($tag, 'loading="lazy"'), 'Below-fold fallback images must lazy-load');
     archive_expect(!str_contains($tag, 'fetchpriority="high"'), 'Only the hero logo may receive high fetch priority');
@@ -70,6 +77,9 @@ foreach ($optimizedImages[0] as $tag) {
 $manualImage = brvtal_public_optimize_home_images('<img src="/manual.jpg" loading="eager" decoding="sync" alt="Manual">');
 archive_expect(substr_count($manualImage, 'loading=') === 1 && str_contains($manualImage, 'loading="eager"'), 'Existing image loading policy must not be duplicated or overwritten');
 archive_expect(substr_count($manualImage, 'decoding=') === 1 && str_contains($manualImage, 'decoding="sync"'), 'Existing image decoding policy must not be duplicated or overwritten');
+$presizedImage = brvtal_public_optimize_home_images('<img src="assets/brvtal-logo.jpeg" width="10" height="20" alt="Manual size">');
+archive_expect(substr_count($presizedImage, 'width=') === 1 && str_contains($presizedImage, 'width="10"'), 'Existing image width must be preserved');
+archive_expect(substr_count($presizedImage, 'height=') === 1 && str_contains($presizedImage, 'height="20"'), 'Existing image height must be preserved');
 
 $versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script>', 'abc123');
 archive_expect(str_contains($versioned, 'css/style.css?v=abc123') && str_contains($versioned, 'js/app.js?v=abc123'), 'Asset versioning must remain intact after image optimization changes');
