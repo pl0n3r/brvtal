@@ -101,13 +101,17 @@ $assert(str_contains($assetFixture, 'rel="icon"'), 'Home must declare an explici
 $assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS backgrounds must be suppressed before browser fetch');
 
 // Home LCP discovery: the critical hero logo must begin fetching before the core blocking stylesheet.
-$assert(str_contains($indexPhp, '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">'), 'Home must preload the measured LCP logo with high fetch priority');
 $preloadNeedle = '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">';
 $coreCssNeedle = '<link rel="stylesheet" href="css/style.css">';
-$preloadPosition = strpos($indexPhp, $preloadNeedle);
-$coreCssPosition = strpos($indexPhp, $coreCssNeedle);
-$assert($preloadPosition !== false && $coreCssPosition !== false && $preloadPosition < $coreCssPosition, 'LCP preload must be declared before core style.css in the Home transform');
-$lcpFixture = brvtal_public_version_assets($preloadNeedle . '<img src="assets/brvtal-logo.jpeg">', 'abc1234');
+$lcpFixture = '<html><head>' . $coreCssNeedle . '</head><body><img src="assets/brvtal-logo.jpeg"></body></html>';
+$lcpFixture = brvtal_public_preload_home_lcp($lcpFixture);
+$preloadPosition = strpos($lcpFixture, $preloadNeedle);
+$coreCssPosition = strpos($lcpFixture, $coreCssNeedle);
+$assert(str_contains($indexPhp, 'brvtal_public_preload_home_lcp($html)'), 'Home renderer must apply the LCP preload helper before later asset transforms');
+$assert($preloadPosition !== false && $coreCssPosition !== false && $preloadPosition < $coreCssPosition, 'LCP preload must appear before core style.css in transformed Home HTML');
+$assert(substr_count($lcpFixture, $preloadNeedle) === 1, 'Home LCP preload helper must add exactly one preload');
+$assert(brvtal_public_preload_home_lcp($lcpFixture) === $lcpFixture, 'Home LCP preload helper must be idempotent');
+$lcpFixture = brvtal_public_version_assets($lcpFixture, 'abc1234');
 $assert(substr_count($lcpFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 2, 'preload and hero image must resolve to the exact same deploy-versioned logo URL');
 
 // Tiny Home-only Hero CSS is critical but should not incur separate render-blocking requests.
