@@ -32,6 +32,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/admin-shell.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-record-lists.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-form-dialogs.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/admin-reliability.js' . $suffix . '"></script>'
     . '<script src="/discadmin/hero-slider-state-bridge.js' . $suffix . '"></script>'
     . '<script src="/discadmin/hero-slider.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-appearance.js' . $suffix . '"></script>'
