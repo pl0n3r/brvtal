@@ -2,31 +2,32 @@
 
 > **THIS FILE IS THE CANONICAL BOOTSTRAP FOR CHATGPT, WORK, CODEX OR ANY CODING AGENT.**
 >
-> Read **this file first**. No previous chat, saved memory, prompt history or human recap is required to understand how to continue the project. After reading it, inspect the repository state (`main`, open PRs and CI) and continue from the current codebase. Other documentation is optional deep reference for the area being changed, not a prerequisite to begin.
+> Read **this file first**. No previous chat, saved memory, prompt history or human recap is required to understand how to continue the project. After reading it, inspect repository state (`main`, open PRs and CI) and continue from the current codebase.
 
 ## 0. AI start protocol
 
 For every new session:
 
 1. Read `AGENTS.md` completely.
-2. Inspect current `main`, open PRs and the latest **BRVTAL CI** runs.
-3. If an open PR already covers the next task, continue/fix it instead of duplicating work.
-4. If exact `main` CI is not green, do not open a new feature branch; finish that gate first.
-5. If no PR is active, use **Current priorities** below unless the user explicitly reprioritizes.
+2. Inspect current `main`, open PRs and latest **BRVTAL CI** runs.
+3. If an open PR covers the next task, continue/fix it instead of duplicating work.
+4. If exact `main` CI is not green, finish that gate before opening a new feature branch.
+5. If no PR is active, use **Current priorities** unless the user explicitly reprioritizes.
 6. Inspect implementation files and only the area-specific docs needed for the task.
 7. Follow branch → implementation → tests → PR → CI → fixes → squash merge → exact-main-CI without asking routine questions.
-8. If a PR materially changes product state, update this file and the corresponding README checklist/status.
+8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state and what comes next. Do not append history. If the PR scope changes before merge, refresh README again.
+9. If a PR materially changes durable product state or architecture, update the relevant sections in this file as well.
 
 ### Source-of-truth precedence
 
 1. current merged code on `main`;
 2. newer merged PR decisions/tests;
 3. this `AGENTS.md`;
-4. `README.md`;
-5. area-specific docs under `docs/`;
+4. area-specific docs under `docs/`;
+5. `README.md` only for the most recent deploy snapshot;
 6. old chat history or external memory.
 
-If code proves this file stale, correct this file in the same focused PR.
+If code proves this file stale, correct it in the same focused PR.
 
 ---
 
@@ -45,15 +46,13 @@ BRVTAL is a proprietary digital platform for an underground electronic-music col
 | Database | MariaDB / MySQL-compatible |
 | Public frontend | HTML + CSS + vanilla JavaScript |
 | Browser testing | Playwright; Chromium + targeted WebKit |
-| CI | GitHub Actions workflow **BRVTAL CI** + **PHP 8.5 Compatibility** |
+| CI | **BRVTAL CI** + **PHP 8.5 Compatibility** |
 | Deploy | GitHub `main` → Hostinger Git auto-deploy |
 | Public language | English |
 
-**Canonical host rule:** always use `www.brvtal.com.co` for production links, DISCADMIN links, production validation, PageSpeed/Lighthouse targets and durable documentation. Do not treat the bare `brvtal.com.co` host as the canonical project URL.
+**Canonical host rule:** always use `www.brvtal.com.co` for production links, DISCADMIN links, production validation, PageSpeed/Lighthouse targets and durable documentation. Do not treat bare `brvtal.com.co` as canonical.
 
-Production must remain compatible with shared hosting: no required long-running Node server, Docker runtime or SSH deploy.
-
-Do not use FTP/manual deploy as the normal path. Source deploy and DB migration are separate operations.
+Production must remain compatible with shared hosting: no required long-running Node server, Docker runtime or SSH deploy. Do not use FTP/manual deploy as the normal path. Source deploy and DB migration are separate operations.
 
 ---
 
@@ -74,41 +73,27 @@ Rules:
 - preserve keyboard focus/accessibility behavior;
 - prefer destinations in navigation over internal implementation concepts.
 
-### Canonical navigation / information architecture
-
-The sidebar is intentionally organized around what the owner wants to manage, not around internal subsystems:
+### Canonical navigation
 
 - **Dashboard**
 - **CONTENT** — Events, Artists, Releases, Sets, Blog, Pages
 - **MEDIA** — Media Library, Hero Slider
-- **SITE** — Theme Studio, Settings and site-level configuration
+- **SITE** — Theme Studio, Settings
 - **SYSTEM** — Security / 2FA, System Status, Backups, Activity when exposed
 
-Cross-cutting functions such as Global Search, Content Health, Bulk Actions, feedback and appearance should enhance the shell or relevant content screens instead of becoming competing top-level mental models.
+Cross-cutting functions such as Global Search, Content Health, Bulk Actions, feedback and appearance enhance the shell or relevant screens instead of becoming competing top-level mental models.
 
-### Content Core architectural decision
+### Content Core decision
 
 **Content Core is internal workflow infrastructure, not a user-facing top-level destination.**
 
-Its guided Event Editor is reused by **Events**, so the owner has one obvious place to create/edit event identity, date/place, lifecycle, tickets and lineup. Its collective-membership controls are reached from **Artists → Collective Status**, not from a separate Content Core menu item.
-
-Do not reintroduce a visible `CONTENT CORE` sidebar entry unless the user explicitly changes this decision.
-
-Legacy routes may remain compatible internally, but the visible product vocabulary should be Events / Artists / Media / Site / System.
+Events is the one visible event-management destination. Artists owns **Collective Status**. Do not reintroduce a visible `CONTENT CORE` sidebar entry unless the user explicitly changes this decision.
 
 ### Admin appearance
 
-A fast selector lives directly in the sidebar above Logout:
-
-- **Dark**
-- **Light**
-- **Glass** — translucent/iOS-inspired BRVTAL interpretation
-
-The choice is persistent and shell-wide. It is separate from public Theme Studio.
+The direct sidebar selector offers **Dark / Light / Glass**. The choice is persistent and shell-wide and is separate from public Theme Studio.
 
 ### Admin session policy
-
-The session is intentionally long-lived because the owner was being logged out too often:
 
 - idle timeout: about **7 days**;
 - absolute login lifetime: about **30 days**;
@@ -127,18 +112,18 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 ### DISCADMIN / editorial
 
 - canonical one-shell administration;
-- simplified destination-based sidebar grouped as Content / Media / Site / System;
+- destination-based sidebar grouped as Content / Media / Site / System;
 - responsive/mobile sidebar and record lists;
 - unified forms/dialogs, validation and double-save protection;
-- **Events uses the guided Content Core event workflow internally**;
+- Events uses the guided Content Core event workflow internally;
 - Events lifecycle, tickets and lineup/artist participation;
-- Artists CRUD plus **Collective Status** sub-workflow for active/alumni/order/history;
+- Artists CRUD plus Collective Status;
 - Sets CRUD with relations/platform links;
 - Releases / label catalog;
 - Blog, tags and relations;
 - CMS Pages;
 - Media Library + reusable picker;
-- Content Health on the operational dashboard;
+- Content Health;
 - SEO fields/defaults;
 - Global Search (`⌘K / Ctrl+K`);
 - safe Bulk Actions for allowed lifecycle/status changes;
@@ -158,26 +143,22 @@ Implemented:
 - image and muted inline video slides;
 - multiple slides;
 - enable/disable and ordering controls;
-- autoplay/interval/pause behavior;
+- autoplay/interval/pause;
 - optional mobile-specific media;
 - desktop/mobile preview;
-- permanent static hero fallback when no valid published slide exists;
-- visual layers: text, image, logo and CTA;
+- permanent static hero fallback;
+- text/image/logo/CTA layers;
 - pointer/touch drag positioning;
 - entrance animation, delay and duration;
 - per-layer mobile position/width/media overrides;
-- hide layer on mobile;
+- hide-on-mobile;
 - duplicate slide;
 - reduced-motion behavior;
 - deferred inactive images;
 - server allowlist/sanitization;
 - compatibility with older v1 fields.
 
-Not yet implemented:
-
-- scheduled start/end publication;
-- full LayerSlider-style timeline editor;
-- true drag-and-drop slide reordering if current code still uses explicit order controls.
+Not yet implemented: scheduled start/end publication, a full LayerSlider-style timeline editor, and true drag-and-drop slide ordering if current code still uses explicit controls.
 
 Read `docs/HERO-SLIDER.md` when changing this module.
 
@@ -187,10 +168,9 @@ Implemented:
 
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
-- **adaptive public runtime boot:** coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely, while fine-pointer full-motion desktop keeps the enhanced stack;
-- core public modules preserve `app → archive → media` order and continue in fallback mode if the optional motion CDN fails;
+- adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
+- core runtime preserves `app → archive → media` order and survives optional motion-CDN failure;
 - non-blocking Google Fonts;
-- mobile loader bypass and immediate hero-content improvements;
 - keyboard/touch accessibility passes;
 - canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
 - Event lifecycle/public archive behavior;
@@ -198,7 +178,7 @@ Implemented:
 - Public Media discovery;
 - Related Content relationship graph;
 - **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
-- Set graph detail links through its public Artist/Event relationships and keeps canonical Set/platform links;
+- Set graph detail links through public Artist/Event relationships and keeps canonical Set/platform links;
 - Release graph detail links through public Artists and keeps canonical Release/listen links;
 - Archive and Media filter state in **shareable URL query parameters**;
 - Back/Forward restores discovery state while preserving hashes;
@@ -207,33 +187,11 @@ Implemented:
 
 ### Media Engine
 
-Implemented foundations:
-
-- validated uploads;
-- reusable media paths/picker;
-- original preservation;
-- metadata/dimensions;
-- WebP/context variants where supported;
-- focal point;
-- crop/context preview;
-- resolution/quality guidance;
-- reference-aware deletion protection.
+Validated uploads, reusable paths/picker, original preservation, metadata/dimensions, WebP/context variants where supported, focal point, crop/context preview, resolution/quality guidance and reference-aware deletion protection.
 
 ### Security
 
-Implemented contract:
-
-- centralized admin authentication/session;
-- CSRF on mutations;
-- prepared statements for DB input;
-- login rate limiting;
-- TOTP / Google Authenticator-compatible 2FA;
-- AES-256-GCM encrypted TOTP secrets;
-- hashed recovery codes;
-- private setting protection;
-- public allowlists and draft/private filtering;
-- no public stack traces/secrets;
-- browser regression coverage for password → TOTP → authenticated session including WebKit/Safari behavior.
+Centralized auth/session, CSRF on mutations, prepared statements, login rate limiting, TOTP/2FA, AES-256-GCM encrypted TOTP secrets, hashed recovery codes, private setting protection, public allowlists/draft filtering, no public secrets/stack traces, and browser regression coverage including targeted WebKit.
 
 ---
 
@@ -241,19 +199,20 @@ Implemented contract:
 
 1. **DISCADMIN must feel simple to operate.** Navigation exposes destinations, not internal architecture jargon.
 2. **Content Core is internal.** Events is the one visible event-management destination; Artists owns Collective Status.
-3. **Dark / Light / Glass** are the three admin appearance modes and switch directly from the sidebar.
+3. **Dark / Light / Glass** are the three admin appearance modes.
 4. **Admin sessions stay long-lived** enough for daily work while keeping CSRF, Strict cookies and absolute re-login boundaries.
-5. The Hero Slider should feel easy/reliable like LayerSlider, especially on mobile, but remain BRVTAL-specific.
+5. Hero Slider should feel easy/reliable like LayerSlider, especially on mobile, but remain BRVTAL-specific.
 6. Hero mobile editing supports optional mobile assets/overrides.
 7. A valid static Home hero remains a permanent fallback.
 8. Public Archive/Media discovery filters are shareable through URL state and respect Back/Forward.
-9. `README.md` is a human technical/operations dashboard, not marketing copy.
+9. **`README.md` is only the latest deploy snapshot.** It must not accumulate architecture, old checklists or development history.
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
-11. The repository itself contains enough durable context that an AI can resume without previous conversation memory.
-12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph; do not regress Sets/Releases to terminal relation links.
-13. **CI optimizes for fast feedback without weakening `main`.** Pull requests use a fast syntax/contract gate plus path-aware parallel DB/Chromium/real-stack/WebKit gates; every exact `main` push runs the full matrix and ends in the stable `validate` aggregate check.
-14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors; core content/runtime must remain functional without the motion CDN.
-15. **Production PHP runtime is 8.5.** Keep the dedicated `PHP 8.5 Compatibility` workflow green on PRs and exact `main`; it must lint and run the PHP contract suite without PHP warnings, notices or deprecations.
+11. The repository contains enough durable context for AI to resume without previous conversation memory.
+12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph.
+13. **CI optimizes for fast feedback without weakening `main`.** Pull requests use path-aware gates; every exact `main` push runs the full matrix and ends in the stable `validate` aggregate check.
+14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors.
+15. **Production PHP runtime is 8.5.** Keep `PHP 8.5 Compatibility` green without warnings, notices or deprecations.
+16. **Canonical production origin is `https://www.brvtal.com.co`.** Bare-host requests must converge on it.
 
 ---
 
@@ -262,7 +221,7 @@ Implemented contract:
 - `api/public.php` is the canonical public read-only allowlist; do not create a second divergent public-data implementation.
 - Protected admin APIs require authentication and CSRF as appropriate.
 - Relationships are structured data, not duplicated display text.
-- Drafts are first-class and may be incomplete; publication states require stronger validation.
+- Drafts are first-class and may be incomplete; publication requires stronger validation.
 - Public delivery filters drafts/private relations server-side.
 - Media is reusable content; preserve originals and protect referenced media from unsafe deletion.
 - Use transactions/row locking where multi-record integrity matters.
@@ -275,71 +234,51 @@ Never run destructive production SQL, resets/seeds or irreversible data changes 
 
 ## 6. Testing / CI / deployment contract
 
-Historical main workflow filename:
+Main workflow file: `.github/workflows/update-release-metadata.yml`  
+Visible workflow name: **BRVTAL CI**.
 
-`.github/workflows/update-release-metadata.yml`
-
-Visible main workflow name: **BRVTAL CI**.
-
-PHP production-runtime compatibility workflow:
-
-`.github/workflows/php85-compatibility.yml`
-
-Visible compatibility workflow name: **PHP 8.5 Compatibility**.
+PHP compatibility workflow: `.github/workflows/php85-compatibility.yml`  
+Visible workflow name: **PHP 8.5 Compatibility**.
 
 ### Fast-feedback topology
 
-The CI is intentionally layered:
+- `plan` computes changed-file surfaces and optional gates;
+- `fast` always runs PHP/JS syntax and contracts;
+- `database` runs disposable MariaDB validation when relevant;
+- `browser` runs Chromium when relevant;
+- `realstack` runs authenticated PHP + MariaDB + Chromium smoke for relevant surfaces;
+- `webkit` is a targeted Safari/WebKit TOTP regression;
+- `validate` aggregates all required BRVTAL CI gates;
+- `php85` explicitly validates the production PHP 8.5 runtime.
 
-- `plan` computes changed-file surfaces and which optional gates apply;
-- `fast` always runs PHP syntax, JavaScript syntax and contract tests without waiting for MariaDB or browsers;
-- `database` runs disposable MariaDB migrations/integration when DB/backend/admin surfaces require it;
-- `browser` runs Chromium when public/admin browser-facing surfaces require it;
-- `realstack` runs the authenticated PHP + MariaDB + Chromium smoke for relevant admin/API/config/database changes;
-- `webkit` is a targeted Safari/WebKit TOTP regression and is path-aware on PRs;
-- `validate` is the final aggregate BRVTAL CI check and must remain stable for branch-protection compatibility;
-- `PHP 8.5 Compatibility / php85` explicitly provisions PHP 8.5 and rejects PHP warnings, notices and deprecations in the contract suite.
+Every push to exact `main` and manual workflow dispatch runs the full BRVTAL CI matrix. Pull requests may skip irrelevant expensive gates, but `fast` always runs.
 
-Every `push` to exact `main` and every manual workflow dispatch runs the **full BRVTAL CI matrix**; the PHP 8.5 compatibility workflow also runs on PRs and pushes to `main`. Pull requests may skip irrelevant expensive BRVTAL CI gates, but `fast` always runs. Browser/npm downloads use GitHub Actions caches where practical.
+### README per-deploy contract
 
-The real-stack harness accepts either the `mariadb` or preinstalled `mysql` CLI. Do not reintroduce `mariadb-client` installation merely to replace a compatible runner client.
+For every deploy-bound PR:
 
-### AI / Work execution efficiency
+- replace `README.md` completely; do not append a changelog;
+- list **only the files modified in that deploy** plus a short explanation of each;
+- include a concise **Qué se hizo** summary;
+- include current validation status without claiming production validation from CI;
+- include **Qué sigue** with the next actionable work;
+- keep durable architecture/product history in `AGENTS.md` or the relevant `docs/` file;
+- if a CI fix or late edit changes the PR file set or scope, refresh README before merge.
 
-When an AI session changes a branch:
-
-1. make the logical set of related edits first;
-2. run/inspect the most targeted applicable checks before publishing the branch when tooling permits;
-3. avoid pushing one micro-edit at a time when several edits belong to the same logical fix, because each push can cancel/restart CI;
-4. once a PR exists, fix failures on that same branch and prefer one coherent update per diagnosis;
-5. never trade away the full exact-`main` gate for speed.
-
-CI covers combinations of:
-
-- PHP 8.5 compatibility with warnings/notices/deprecations rejected;
-- PHP syntax;
-- JavaScript syntax;
-- API/module contract tests;
-- migration idempotency;
-- disposable MariaDB integration;
-- Playwright Chromium;
-- authenticated real-stack smoke;
-- targeted WebKit regressions;
-- project-operations/documentation contract.
-
-Each run publishes GitHub Actions summaries with event/ref/PR, SHA, changed files/surfaces, deploy eligibility, selected validation scope and final gate results.
+The README is intentionally transient. It should remain compact and useful during active development.
 
 ### Mandatory delivery loop
 
 1. Start a focused branch from current green `main`.
-2. Implement the logical change + applicable targeted tests; batch related edits before pushing where practical.
-3. Open PR to `main`.
-4. Wait for the final **BRVTAL CI / validate** result and the **PHP 8.5 Compatibility / php85** result.
-5. Fix failures on the same PR branch.
-6. When green, squash merge.
-7. Get the exact merged `main` SHA.
-8. Verify full BRVTAL CI and PHP 8.5 Compatibility succeed on that exact SHA.
-9. Only then begin the next branch.
+2. Implement the logical change + applicable tests.
+3. Refresh `README.md` with the exact deploy snapshot.
+4. Open PR to `main`.
+5. Wait for **BRVTAL CI / validate** and **PHP 8.5 Compatibility / php85**.
+6. Fix failures on the same branch; refresh README again if scope/file set changed.
+7. When green, squash merge.
+8. Get the exact merged `main` SHA.
+9. Verify full BRVTAL CI and PHP 8.5 Compatibility succeed on that exact SHA.
+10. Only then begin the next branch.
 
 Routine development operations do not require asking again.
 
@@ -369,9 +308,7 @@ Explicit confirmation is required before:
 - irreversible data migrations/actions;
 - bypassing GitHub → Hostinger deployment.
 
-Do not ask for confirmation for ordinary safe development steps.
-
-Never commit credentials, tokens, passwords, private user data or production DB contents.
+Do not ask for confirmation for ordinary safe development steps. Never commit credentials, tokens, passwords, private user data or production DB contents.
 
 ---
 
@@ -382,7 +319,7 @@ Unless explicitly reprioritized:
 - Bulk Delete;
 - automatic one-click restore;
 - automatic editorial revert;
-- complex RBAC before there is a real need;
+- complex RBAC before real need;
 - generic Wix/Elementor-style builder;
 - arbitrary per-event site builder;
 - large custom analytics product;
@@ -395,11 +332,11 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public discovery / relationship-driven browsing** — the core CONNECTED graph already covers Artists, Events, Sets and Releases as navigable layers. Only deepen Archive/Media pathways when supported by real structured relationships; do not invent duplicated relation data just to add links.
-2. **Measured public performance / responsive polish** — use real evidence/Core Web Vitals and reproducible bottlenecks. The adaptive motion-runtime boot is one completed code-level improvement; production CWV still requires real measurement evidence.
+1. **Measured public performance / responsive polish** — immediately fix known cache-busting inconsistency for `js/related-content.js` and `css/related-content.css`, then remeasure real waterfall/Core Web Vitals on canonical `https://www.brvtal.com.co`. Do not optimize source images blindly when CDN/device delivery already performs well.
+2. **Public discovery / relationship-driven browsing** — deepen Archive/Media pathways only when supported by real structured relationships; do not invent duplicated relation data.
 3. **Authenticated production smoke process** — safe and non-destructive; never claim it exists until actually run.
 4. **Backup recovery rehearsal** — isolated/test environment only; no automatic production restore.
-5. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication; preserve destination-based navigation and internal Content Core architecture.
+5. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
 6. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.
 7. **Analytics/privacy maturity** proportional to real product needs.
 
@@ -407,13 +344,13 @@ An explicit user request always overrides this order.
 
 ---
 
-## 10. Human dashboard and optional deep references
+## 10. Human handoff and optional deep references
 
-`README.md` is the human technical manual + requested-vs-completed checklist. **AI sessions should not require reading README before they can begin**.
+`README.md` is the **latest deploy handoff only**. It is not a technical manual, architecture source, feature checklist or durable roadmap. **AI sessions should not require reading README before they can begin**.
 
 Optional references, read only when needed:
 
-- `README.md` — human dashboard, architecture overview, checklist and roadmap;
+- `README.md` — most recent deploy: changed files, summary, validation state, next action;
 - `docs/BRVTAL-SPEC.md` — deeper product/architecture specification;
 - `docs/DISCADMIN-UX-AUDIT.md` — responsive/admin UX debt/history;
 - `docs/TESTING.md` — detailed test commands/evidence model;
@@ -448,13 +385,14 @@ index.php      public router/delivery
 
 The goal is that a completely new AI session can continue with **only the repository**.
 
-Whenever a PR materially changes product state:
+Whenever a deploy-bound PR is prepared:
 
-- update relevant current-state, decision, priority or deferred sections here;
-- update the corresponding README checklist/status;
+- rewrite `README.md` as the current deploy snapshot, never as cumulative history;
+- make its file list match the actual PR scope;
+- summarize what changed and what follows next;
+- update durable current-state, decision, priority or deferred sections here only when product state actually changes;
 - do not write transient SHA/run numbers here as permanent state;
 - keep current SHA/CI identity dynamic in Actions/System Status;
-- remove completed priorities or clearly identify the next actionable continuation;
 - record architectural decisions here, not only in chat;
 - keep this file sufficient for the prompt **“Read AGENTS.md and continue the project autonomously”**.
 
