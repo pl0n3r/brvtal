@@ -7,6 +7,7 @@ require_once __DIR__ . '/config/public_assets.php';
 require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
+require_once __DIR__ . '/config/public_home.php';
 
 $type = trim((string)($_GET['type'] ?? ''));
 $slug = trim((string)($_GET['slug'] ?? ''));
@@ -28,6 +29,18 @@ if ($entity) {
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
+try {
+    $nextExperience = brvtal_public_next_experience(db());
+} catch (Throwable $e) {
+    $nextExperience = null;
+    if (function_exists('brvtal_log')) {
+        brvtal_log('PUBLIC_HOME_ERROR', 'Next Experience lookup failed', [
+            'class' => get_class($e),
+            'message' => $e->getMessage(),
+        ]);
+    }
+}
+$html = brvtal_public_render_next_experience($html, $nextExperience);
 $html = brvtal_public_preload_home_lcp($html);
 $html = brvtal_public_keep_home_lcp_visible($html);
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
