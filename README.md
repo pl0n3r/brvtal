@@ -7,30 +7,31 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se hace persistente la navegación visible de DISCADMIN mediante `?module=<destino>` sin crear rutas ni mini-admins fuera de `/discadmin`.
-- Artists, Events, Releases, Sets, Blog, Pages, Media, Hero Slider, Theme Studio, Settings, Security, System Status, Backups y Activity pueden restaurarse desde URL, refresh y Back/Forward.
-- `content-core` sigue siendo infraestructura interna: cualquier estado equivalente se canoniza al destino visible `events`.
-- Un deep-link conserva su destino incluso si primero exige autenticación y el login heredado intenta abrir Dashboard.
-- Dashboard continúa siendo la URL limpia de `/discadmin`; parámetros y hash ajenos al estado del módulo se conservan.
+- Se estabiliza el arranque autenticado de deep-links de DISCADMIN después de hacer persistente `?module=<destino>`.
+- Cuando existe un deep-link visible y la autenticación responde antes de que termine de cargar el shell, el bootstrap espera la capa final de Information Architecture y le entrega la restauración.
+- Artists, Pages, Theme Studio y demás destinos nativos dejan de poder abrir Dashboard primero para corregirse después.
+- Events conserva el camino canónico por el editor guiado de Content Core, sin exponer una vista legacy intermedia.
+- Se mantiene el fallback actual si la capa de rutas no está disponible y Media continúa validando montaje directo de sesión restaurada.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/admin-information-architecture.js` — sincroniza el workspace visible con History API, restaura deep-links y preserva el destino a través del login.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — cubre URL state, deep-link, login, Back/Forward, Events guiado y System Status.
+- `discadmin/totp-login.js` — coordina la restauración autenticada con la capa final de rutas cuando existe un deep-link visible.
+- `tests/e2e/discadmin-initial-media.spec.mjs` — reproduce auth inmediata antes de cargar IA y exige que un deep-link nativo nunca pase por Dashboard; conserva la regresión de Media inicial.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README antes del merge.
-- La prueba dirigida de Information Architecture debe demostrar que la navegación normal actualiza `?module=`, Back restaura el workspace, los deep-links nativos y Events se recuperan correctamente y el destino sobrevive al login.
+- Chromium debe demostrar que auth inmediata + `?module=artists` produce una única navegación a Artists y cero navegaciones a Dashboard, incluso cuando IA se carga después de iniciar `restoreSession()`.
+- La regresión existente debe seguir demostrando que `?module=media` monta Media en la primera navegación autenticada.
 - Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
 - CI verde implica **VALIDATED IN CODE**; observar el SHA exacto en Hostinger implica **DEPLOYED**.
 
 ## Qué sigue
 
 1. Continuar simplificando DISCADMIN solo ante fricciones reproducibles del shell/workspace, manteniendo ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
-2. No extender Media hacia CONNECTED mientras Media no tenga relaciones estructuradas públicas propias.
-3. Mantener #122–#125 abiertos hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
+2. Mantener #122–#125 abiertos hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
+3. No extender Media hacia CONNECTED mientras Media no tenga relaciones estructuradas públicas propias.
 
 ## Contexto durable
 
