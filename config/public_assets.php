@@ -12,6 +12,31 @@ function brvtal_public_version_assets(string $html, string $version): string
     ) ?? $html;
 }
 
+function brvtal_public_dedupe_decorative_assets(string $html): string
+{
+    if (!str_contains($html, 'rel="icon"')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"icon\" type=\"image/jpeg\" href=\"assets/brvtal-logo.jpeg\">\n</head>",
+            $html
+        );
+    }
+
+    $html = str_replace(
+        '<div class="hero-logo-glitch"></div>',
+        '<div class="hero-logo-glitch" style="background-image:none"><img src="assets/brvtal-logo.jpeg" alt="" aria-hidden="true" loading="eager" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>',
+        $html
+    );
+
+    $html = str_replace(
+        '<div class="genesis-bg"></div>',
+        '<div class="genesis-bg" style="background-image:none"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>',
+        $html
+    );
+
+    return $html;
+}
+
 function brvtal_public_optimize_font_stylesheet(string $html): string
 {
     $href = 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap';
