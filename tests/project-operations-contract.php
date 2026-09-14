@@ -61,4 +61,7 @@ $assert(str_contains($privateHtaccess, 'Options -Indexes'), '.private must disab
 $assert(str_contains($privateHtaccess, 'Require all denied'), '.private must use Apache 2.4/LiteSpeed deny syntax');
 $assert(str_contains($privateHtaccess, 'Deny from all'), '.private must retain legacy access-compat denial');
 
+// Migration-state controls are part of operations safety and therefore ride the always-on fast gate.
+require __DIR__ . '/migrations-contract.php';
+
 fwrite(STDOUT, "Project operations contract OK\n");
