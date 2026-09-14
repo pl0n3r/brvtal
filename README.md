@@ -7,29 +7,29 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se estabiliza el arranque autenticado de deep-links de DISCADMIN después de hacer persistente `?module=<destino>`.
-- Cuando existe un deep-link visible y la autenticación responde antes de que termine de cargar el shell, el bootstrap espera la capa final de Information Architecture y le entrega la restauración.
-- Artists, Pages, Theme Studio y demás destinos nativos dejan de poder abrir Dashboard primero para corregirse después.
-- Events conserva el camino canónico por el editor guiado de Content Core, sin exponer una vista legacy intermedia.
-- Se mantiene el fallback actual si la capa de rutas no está disponible y Media continúa validando montaje directo de sesión restaurada.
+- Se evita que una navegación dinámica obsoleta de Media, Releases o Blog recupere el workspace después de que el usuario ya cambió de destino.
+- Una navegación nueva cancela inmediatamente cualquier fragment fetch dinámico anterior y vuelve obsoletas las esperas de scripts pendientes de Media, Releases o Blog.
+- Si un módulo dinámico viejo termina de cargar después de haber cambiado de destino, ya no puede montar su contenido ni reescribir `?module=`.
+- Events / Content Core y System Status cancelan también cualquier fragment dinámico anterior al tomar el control del workspace.
+- No hay cambios de API, base de datos ni contratos de publicación.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/totp-login.js` — coordina la restauración autenticada con la capa final de rutas cuando existe un deep-link visible.
-- `tests/e2e/discadmin-initial-media.spec.mjs` — reproduce auth inmediata antes de cargar IA y exige que un deep-link nativo nunca pase por Dashboard; conserva la regresión de Media inicial.
+- `discadmin/admin-information-architecture.js` — coordina cancelación, dependencias dinámicas y tokens de navegación para descartar módulos dinámicos obsoletos.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — fuerza una carrera Releases → Media con la dependencia de Releases retrasada y exige que Media permanezca como destino final.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README antes del merge.
-- Chromium debe demostrar que auth inmediata + `?module=artists` produce una única navegación a Artists y cero navegaciones a Dashboard, incluso cuando IA se carga después de iniciar `restoreSession()`.
-- La regresión existente debe seguir demostrando que `?module=media` monta Media en la primera navegación autenticada.
+- La rama debe pasar sintaxis JavaScript y la regresión dirigida de Information Architecture antes del merge.
+- El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README.
+- Chromium debe demostrar que una navegación a Releases que sigue esperando su script no puede reaparecer después de que Media ya sea el destino vigente.
 - Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
 - CI verde implica **VALIDATED IN CODE**; observar el SHA exacto en Hostinger implica **DEPLOYED**.
 
 ## Qué sigue
 
-1. Continuar simplificando DISCADMIN solo ante fricciones reproducibles del shell/workspace, manteniendo ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
+1. Continuar simplificando DISCADMIN solo ante fricciones reproducibles del shell/workspace.
 2. Mantener #122–#125 abiertos hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
 3. No extender Media hacia CONNECTED mientras Media no tenga relaciones estructuradas públicas propias.
 

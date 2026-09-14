@@ -12,6 +12,8 @@ function harness(authed = true) {
     window.state={authed:${authed ? 'true' : 'false'},section:'dashboard'};
     window.__legacyOpen=[];
     window.__moduleLoadOptions=[];
+    window.__nativeGo=[];
+    window.__moduleCancels=0;
     function navButton(label,handler,data=''){return '<button '+(data?'data-admin-nav="'+data+'" ':'')+'onclick="'+handler+'">'+label+'</button>'}
     window.__renderShell=function(section){
       state.section=section;
@@ -35,11 +37,11 @@ function harness(authed = true) {
         +navButton('ACTIVITY',"go('activity')",'activity')
         +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+artistToolbar+'</main></div>';
     };
-    window.go=async function(section){window.__renderShell(section);};
+    window.go=async function(section){window.__nativeGo.push(section);window.__renderShell(section);};
     window.tech=async function(section){window.__renderShell(section);};
     window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
     window.BRVTALAdminModules={
-      cancel(){},
+      cancel(){window.__moduleCancels+=1;},
       async load(section,options={}){
         if(section!=='content-core')return;
         window.__moduleLoadOptions.push(options);
@@ -169,6 +171,43 @@ test('deep link survives authentication redirect to Dashboard', async ({ page })
   await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
   await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toBeVisible();
   expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
+});
+
+test('latest navigation wins when an older dynamic module dependency resolves late', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    const media = document.createElement('script');
+    media.id = 'brvtal-media-library-script';
+    media.dataset.ready = '1';
+    document.head.appendChild(media);
+
+    const releases = document.createElement('script');
+    releases.id = 'brvtal-releases-script';
+    document.head.appendChild(releases);
+
+    window.__staleReleaseNavigation = window.go('releases');
+  });
+
+  await expect.poll(() => page.evaluate(() => window.__nativeGo.includes('releases'))).toBe(false);
+
+  await page.evaluate(() => window.go('media'));
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('media');
+
+  await page.evaluate(() => {
+    const releases = document.getElementById('brvtal-releases-script');
+    releases.dataset.ready = '1';
+    releases.dispatchEvent(new Event('load'));
+  });
+  await page.evaluate(() => window.__staleReleaseNavigation);
+
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  expect(await page.evaluate(() => window.state.section)).toBe('media');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('media');
+  expect(await page.evaluate(() => window.__nativeGo)).toEqual(['media']);
+  expect(await page.evaluate(() => window.__moduleCancels)).toBeGreaterThanOrEqual(2);
 });
 
 test('system destination participates in the same URL state', async ({ page }) => {
