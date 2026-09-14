@@ -1,13 +1,30 @@
 <?php
 declare(strict_types=1);
 
+function brvtal_public_version_srcset_value(string $value, string $version): string
+{
+    if ($version === '') return $value;
+
+    return preg_replace_callback(
+        '~(?<url>/?(?:assets|uploads)/[^,\s?]+)(?:\?[^,\s]*)?~',
+        static fn(array $match): string => $match['url'] . '?v=' . rawurlencode($version),
+        $value
+    ) ?? $value;
+}
+
 function brvtal_public_version_assets(string $html, string $version): string
 {
     if ($version === '') return $html;
 
-    return preg_replace_callback(
+    $html = preg_replace_callback(
         '~(?<prefix>(?:href|src)="/?(?:css|js|assets|uploads)/[^"?]+)(?:\?[^"#]*)?(?<suffix>")~',
         static fn(array $match): string => $match['prefix'] . '?v=' . rawurlencode($version) . $match['suffix'],
+        $html
+    ) ?? $html;
+
+    return preg_replace_callback(
+        '~(?<attribute>srcset|imagesrcset)="(?<value>[^"]+)"~i',
+        static fn(array $match): string => $match['attribute'] . '="' . brvtal_public_version_srcset_value($match['value'], $version) . '"',
         $html
     ) ?? $html;
 }
@@ -15,13 +32,14 @@ function brvtal_public_version_assets(string $html, string $version): string
 function brvtal_public_preload_home_lcp(string $html): string
 {
     $coreStyle = '<link rel="stylesheet" href="css/style.css">';
-    $preload = '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">';
+    $desktopPreload = '<link data-brvtal-lcp-preload="desktop" rel="preload" as="image" href="assets/brvtal-logo-640.webp" imagesrcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" imagesizes="(min-width: 1239px) 520px, 42vw" type="image/webp" media="(min-width: 901px)" fetchpriority="high">';
+    $mobilePreload = '<link data-brvtal-lcp-preload="mobile" rel="preload" as="image" href="assets/brvtal-logo.jpeg" media="(max-width: 900px)" fetchpriority="high">';
 
-    if (!str_contains($html, $coreStyle) || str_contains($html, $preload)) {
+    if (!str_contains($html, $coreStyle) || str_contains($html, 'data-brvtal-lcp-preload="desktop"')) {
         return $html;
     }
 
-    return str_replace($coreStyle, $preload . "\n  " . $coreStyle, $html);
+    return str_replace($coreStyle, $desktopPreload . "\n  " . $mobilePreload . "\n  " . $coreStyle, $html);
 }
 
 function brvtal_public_keep_home_lcp_visible(string $html): string
@@ -48,13 +66,13 @@ function brvtal_public_dedupe_decorative_assets(string $html): string
 
     $html = str_replace(
         '<div class="hero-logo-glitch"></div>',
-        '<div class="hero-logo-glitch" style="background-image:none"><img src="assets/brvtal-logo.jpeg" alt="" aria-hidden="true" loading="eager" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>',
+        '<div class="hero-logo-glitch" style="background-image:none"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" sizes="(min-width: 1239px) 520px, 42vw"><img src="assets/brvtal-logo.jpeg" alt="" aria-hidden="true" loading="eager" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></picture></div>',
         $html
     );
 
     $html = str_replace(
         '<div class="genesis-bg"></div>',
-        '<div class="genesis-bg" style="background-image:none"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>',
+        '<div class="genesis-bg" style="background-image:none"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w" sizes="100vw"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></picture></div>',
         $html
     );
 

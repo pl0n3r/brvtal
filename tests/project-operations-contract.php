@@ -10,6 +10,7 @@ $agents = (string) file_get_contents($root . '/AGENTS.md');
 $publicHtaccess = (string) file_get_contents($root . '/.htaccess');
 $privateHtaccess = (string) file_get_contents($root . '/.private/.htaccess');
 $indexPhp = (string) file_get_contents($root . '/index.php');
+$indexHtml = (string) file_get_contents($root . '/index.html');
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -116,28 +117,40 @@ $assert(substr_count($assetFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 3, 
 $assert(substr_count($assetFixture, 'F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg?v=abc1234') === 2, 'Genesis image and decorative background must share one versioned cache URL');
 $assert(str_contains($assetFixture, 'rel="icon"'), 'Home must declare an explicit favicon instead of triggering /favicon.ico');
 $assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS backgrounds must be suppressed before browser fetch');
+$assert(str_contains($assetFixture, 'assets/brvtal-logo-640.webp?v=abc1234 640w'), 'decorative logo WebP srcset must receive deploy versioning');
+$assert(str_contains($assetFixture, 'assets/flyers/genesis-640.webp?v=abc1234 640w'), 'decorative Genesis WebP srcset must receive deploy versioning');
+$assert(str_contains($indexHtml, 'assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w'), 'Home hero must expose responsive desktop WebP derivatives');
+$assert(str_contains($indexHtml, 'assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w'), 'Home Genesis artwork must expose responsive desktop WebP derivatives');
+$assert(is_file($root . '/assets/brvtal-logo-640.webp') && is_file($root . '/assets/brvtal-logo-886.webp'), 'selected logo WebP derivatives must exist');
+$assert(is_file($root . '/assets/flyers/genesis-640.webp') && is_file($root . '/assets/flyers/genesis-886.webp'), 'selected Genesis WebP derivatives must exist');
 
 // Home LCP discovery and visibility: fetch early and never let intro motion hide the measured image.
-$preloadNeedle = '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">';
+$desktopPreloadNeedle = '<link data-brvtal-lcp-preload="desktop" rel="preload" as="image" href="assets/brvtal-logo-640.webp" imagesrcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" imagesizes="(min-width: 1239px) 520px, 42vw" type="image/webp" media="(min-width: 901px)" fetchpriority="high">';
+$mobilePreloadNeedle = '<link data-brvtal-lcp-preload="mobile" rel="preload" as="image" href="assets/brvtal-logo.jpeg" media="(max-width: 900px)" fetchpriority="high">';
 $criticalVisibility = '<style data-brvtal-lcp-visible>.hero-logo-wrap{opacity:1!important}</style>';
 $coreCssNeedle = '<link rel="stylesheet" href="css/style.css">';
 $lcpFixture = '<html><head>' . $coreCssNeedle . '</head><body><img src="assets/brvtal-logo.jpeg"></body></html>';
 $lcpFixture = brvtal_public_preload_home_lcp($lcpFixture);
 $lcpFixture = brvtal_public_keep_home_lcp_visible($lcpFixture);
-$preloadPosition = strpos($lcpFixture, $preloadNeedle);
+$desktopPreloadPosition = strpos($lcpFixture, $desktopPreloadNeedle);
+$mobilePreloadPosition = strpos($lcpFixture, $mobilePreloadNeedle);
 $visibilityPosition = strpos($lcpFixture, $criticalVisibility);
 $coreCssPosition = strpos($lcpFixture, $coreCssNeedle);
 $assert(str_contains($indexPhp, 'brvtal_public_preload_home_lcp($html)'), 'Home renderer must apply the LCP preload helper before later asset transforms');
 $assert(str_contains($indexPhp, 'brvtal_public_keep_home_lcp_visible($html)'), 'Home renderer must keep the LCP visible before later asset transforms');
-$assert($preloadPosition !== false && $coreCssPosition !== false && $preloadPosition < $coreCssPosition, 'LCP preload must appear before core style.css in transformed Home HTML');
+$assert($desktopPreloadPosition !== false && $coreCssPosition !== false && $desktopPreloadPosition < $coreCssPosition, 'desktop WebP LCP preload must appear before core style.css');
+$assert($mobilePreloadPosition !== false && $coreCssPosition !== false && $mobilePreloadPosition < $coreCssPosition, 'mobile JPEG LCP preload must appear before core style.css');
 $assert($visibilityPosition !== false && $coreCssPosition !== false && $visibilityPosition < $coreCssPosition, 'critical LCP visibility style must appear before core style.css');
 $assert(str_contains($criticalVisibility, 'opacity:1!important'), 'critical LCP visibility must override normal inline animation opacity');
-$assert(substr_count($lcpFixture, $preloadNeedle) === 1, 'Home LCP preload helper must add exactly one preload');
+$assert(substr_count($lcpFixture, $desktopPreloadNeedle) === 1, 'Home LCP helper must add exactly one desktop preload');
+$assert(substr_count($lcpFixture, $mobilePreloadNeedle) === 1, 'Home LCP helper must add exactly one mobile preload');
 $assert(substr_count($lcpFixture, $criticalVisibility) === 1, 'Home LCP visibility helper must add exactly one critical style');
 $assert(brvtal_public_preload_home_lcp($lcpFixture) === $lcpFixture, 'Home LCP preload helper must be idempotent');
 $assert(brvtal_public_keep_home_lcp_visible($lcpFixture) === $lcpFixture, 'Home LCP visibility helper must be idempotent');
 $lcpFixture = brvtal_public_version_assets($lcpFixture, 'abc1234');
-$assert(substr_count($lcpFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 2, 'preload and hero image must resolve to the exact same deploy-versioned logo URL');
+$assert(substr_count($lcpFixture, 'assets/brvtal-logo.jpeg?v=abc1234') === 2, 'mobile preload and hero fallback must resolve to the exact same deploy-versioned logo URL');
+$assert(str_contains($lcpFixture, 'assets/brvtal-logo-640.webp?v=abc1234 640w'), 'desktop LCP imagesrcset must receive deploy versioning');
+$assert(str_contains($lcpFixture, 'assets/brvtal-logo-886.webp?v=abc1234 886w'), 'desktop LCP imagesrcset must version every candidate');
 
 // Tiny Home-only Hero CSS is critical but should not incur separate render-blocking requests.
 $heroCssFixture = '<html><head>'

@@ -214,6 +214,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 15. **Production PHP runtime is 8.5.** Keep `PHP 8.5 Compatibility` green without warnings, notices or deprecations.
 16. **Canonical production origin is `https://www.brvtal.com.co`.** Bare-host requests must converge on it.
 17. **First-party text/static delivery is deploy-versioned and cache-aware.** Keep text compression enabled, keep versioned first-party CSS/JS on long immutable caching, and do not trade cache correctness for synthetic-score shortcuts.
+18. **Static Home artwork uses measured desktop WebP derivatives without sacrificing the mobile CDN path.** Preserve the original JPEGs as fallback/source assets; desktop may use responsive WebP derivatives selected from measured candidates, while mobile keeps the original URL so Hostinger/hcdn can continue its stronger device-specific optimization.
 
 ---
 
