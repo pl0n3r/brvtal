@@ -6,18 +6,22 @@ require_once __DIR__ . '/config/public_seo.php';
 
 $base = brvtal_public_base_url($config);
 $urls = [[$base . '/', null]];
+$eventStatuses = brvtal_public_visible_event_statuses();
+$eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
 $definitions = [
-    ['events', "status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"],
-    ['artists', "status='published'"],
-    ['sets_media', "status='published'"],
-    ['releases', "status='published'"],
-    ['blog_posts', "status='published'"],
-    ['pages', "status='published' AND locale='en'"],
+    ['events', $eventWhere, $eventStatuses],
+    ['artists', "status='published'", []],
+    ['sets_media', "status='published'", []],
+    ['releases', "status='published'", []],
+    ['blog_posts', "status='published'", []],
+    ['pages', "status='published' AND locale='en'", []],
 ];
 $routes = ['events'=>'events','artists'=>'artists','sets_media'=>'sets','releases'=>'releases','blog_posts'=>'blog','pages'=>'pages'];
-foreach ($definitions as [$table, $where]) {
+foreach ($definitions as [$table, $where, $parameters]) {
     try {
-        $rows = db()->query("SELECT slug,updated_at FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id")->fetchAll();
+        $statement = db()->prepare("SELECT slug,updated_at FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id");
+        $statement->execute($parameters);
+        $rows = $statement->fetchAll();
     } catch (Throwable) {
         continue;
     }
