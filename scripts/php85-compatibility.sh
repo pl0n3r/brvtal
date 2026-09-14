@@ -21,6 +21,7 @@ contracts=(
   tests/global-search-contract.php
   tests/bulk-actions-contract.php
   tests/public-archive-contract.php
+  tests/public-home-contract.php
   tests/public-entity-contract.php
   tests/related-content-contract.php
   tests/admin-activity-contract.php
