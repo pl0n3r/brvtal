@@ -7,30 +7,31 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- El preload del logo LCP introducido en el deploy anterior se mantiene intacto y sigue adelantando la descarga del logo oficial de BRVTAL.
-- El Home ahora añade además un estilo crítico mínimo antes de `css/style.css` que mantiene `.hero-logo-wrap` visible desde el primer render con `opacity:1!important`.
-- Esto evita que la animación de entrada de escritorio pueda ocultar temporalmente el elemento LCP mediante una opacidad inline, sin eliminar sus transformaciones visuales de escala/rotación ni el resto del motion stack.
-- El helper de visibilidad es idempotente y no añade una nueva petición de red: el CSS crítico viaja inline en el HTML.
-- No se recomprimieron imágenes, no se modificó contenido editorial y no hubo cambios de base de datos.
+- Se añadió una medición reproducible de rendimiento real contra `https://www.brvtal.com.co/` usando Chromium/Playwright, sin depender de PageSpeed o GTmetrix para obtener el desglose básico del LCP.
+- El nuevo workflow `Production Performance` corre automáticamente después de un `BRVTAL CI` exitoso de `main` y también puede ejecutarse manualmente.
+- Antes de medir tras un deploy, el workflow espera a que producción exponga `?v=<short-sha>` del commit exacto; así evita atribuir métricas a un deploy anterior.
+- La medición registra móvil y escritorio: FCP, LCP, CLS, TTFB, `resource load delay`, `resource load duration`, `element render delay`, transferencia del recurso LCP y cantidad de requests.
+- Los resultados quedan en el Job Summary y como JSON descargable por 14 días. No se cambió UI, contenido, base de datos ni calidad de imágenes.
 
 ## Archivos modificados en este deploy
 
-- `config/public_assets.php` — añade el helper crítico e idempotente que mantiene visible el wrapper del LCP antes del stylesheet principal.
-- `index.php` — aplica el helper de visibilidad inmediatamente después del preload del LCP.
-- `tests/project-operations-contract.php` — protege orden temprano, `opacity:1!important`, idempotencia y coexistencia con el preload versionado.
+- `.github/workflows/production-performance.yml` — ejecuta la medición post-deploy y manual, verifica el SHA desplegado y guarda evidencia.
+- `tests/e2e/production-performance-probe.mjs` — mide Web Vitals y descompone el LCP directamente en Chromium.
+- `tests/project-operations-contract.php` — protege URL canónica, trazabilidad del SHA, medición móvil/escritorio y métricas del LCP.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `README Deploy Snapshot / verify`, `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
-- CI verde significa **VALIDATED IN CODE**; no equivale por sí solo a **VALIDATED IN PRODUCTION**.
+- Después del merge, el SHA exacto de `main` debe volver a pasar ambos gates.
+- El primer `Production Performance` exitoso sobre ese SHA será evidencia de **DEPLOYED** y de medición real del Home; las métricas resultantes podrán usarse para decidir el siguiente ajuste.
 - Producción canónica: `https://www.brvtal.com.co`.
 
 ## Qué sigue
 
-1. Tras el deploy, repetir PageSpeed/Lighthouse sobre `https://www.brvtal.com.co` y comparar `Resource load delay`, `Resource load duration` y `Element render delay` del logo LCP contra la medición anterior.
-2. Si el render delay sigue siendo material, revisar el loader de arranque y cualquier otra capa que pueda cubrir el Hero antes de tocar calidad de imagen.
-3. Optimizar `assets/brvtal-logo.jpeg` y Genesis solo si `Improve image delivery` continúa siendo un cuello de botella relevante y con comparación visual previa.
+1. Revisar el primer run automático de `Production Performance` y comparar el LCP móvil/escritorio con la evidencia anterior de PageSpeed, especialmente `resource load delay`, `resource load duration` y `element render delay`.
+2. Si el render delay sigue siendo material, revisar el loader/capas de arranque antes de recomprimir imágenes.
+3. Si el cuello de botella pasa a ser transferencia de imagen, optimizar el logo estático y Genesis con comparación visual previa, preservando originales.
 
 ## Contexto durable
 
