@@ -4,6 +4,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $workflowPath = $root . '/.github/workflows/production-authenticated-smoke.yml';
 $probePath = $root . '/tests/e2e/production-authenticated-smoke.mjs';
+$writeWorkflowPath = $root . '/.github/workflows/production-page-write-smoke.yml';
+$writeProbePath = $root . '/tests/e2e/production-page-write-smoke.mjs';
 $testingPath = $root . '/docs/TESTING.md';
 
 $assert = static function (bool $condition, string $message): void {
@@ -15,9 +17,13 @@ $assert = static function (bool $condition, string $message): void {
 
 $assert(is_file($workflowPath), 'manual production smoke workflow must exist');
 $assert(is_file($probePath), 'authenticated production smoke probe must exist');
+$assert(is_file($writeWorkflowPath), 'controlled Page write smoke workflow must exist');
+$assert(is_file($writeProbePath), 'controlled Page write smoke probe must exist');
 
 $workflow = (string) file_get_contents($workflowPath);
 $probe = (string) file_get_contents($probePath);
+$writeWorkflow = (string) file_get_contents($writeWorkflowPath);
+$writeProbe = (string) file_get_contents($writeProbePath);
 $testing = (string) file_get_contents($testingPath);
 
 // The authenticated production smoke is deliberately manual-only. It must never
@@ -53,8 +59,42 @@ $assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POS
 $assert(!preg_match('/context\.request\.(?:put|patch|delete)\s*\(/i', $probe), 'probe must not directly mutate production content through APIRequestContext');
 $assert(!preg_match('/page\.request\.(?:post|put|patch|delete)\s*\(/i', $probe), 'probe must not mutate production content through page.request');
 
+// #122 needs a real production write to validate the original failure mode, but
+// that capability must remain isolated, explicitly confirmed, narrowly scoped,
+// uniquely named, and self-cleaning.
+$assert(str_contains($writeWorkflow, 'name: Controlled Production Page Write Smoke'), 'controlled write workflow name must remain explicit');
+$assert(str_contains($writeWorkflow, "  workflow_dispatch:\n"), 'controlled write workflow must remain manually dispatchable');
+$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $writeWorkflow), 'controlled write workflow must remain manual-only');
+$assert(str_contains($writeWorkflow, 'confirm:'), 'controlled write workflow must require a confirmation input');
+$assert(str_contains($writeWorkflow, "inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE'"), 'controlled write job must require the exact confirmation token');
+$assert(str_contains($writeWorkflow, "github.ref == 'refs/heads/main'"), 'controlled write workflow must refuse non-main refs');
+$assert(str_contains($writeWorkflow, 'environment: production-smoke'), 'controlled write workflow must isolate production credentials');
+$assert(str_contains($writeWorkflow, 'https://www.brvtal.com.co'), 'controlled write workflow must use the canonical www production origin');
+$assert(str_contains($writeWorkflow, 'BRVTAL_EXPECTED_SHA: ${{ github.sha }}'), 'controlled write evidence must be tied to the dispatched main SHA');
+$assert(str_contains($writeWorkflow, 'BRVTAL_PROD_PAGE_WRITE_CONFIRM: ${{ inputs.confirm }}'), 'confirmation token must be passed explicitly to the probe');
+$assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
+$assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');
+$assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_TOTP_SECRET'), 'controlled write TOTP must come from a secret when enabled');
+$assert(str_contains($writeWorkflow, 'actions/upload-artifact@v4'), 'controlled write workflow must retain evidence');
+$assert(!preg_match('/BRVTAL_PROD_ADMIN_PASSWORD:\s*["\']?[A-Za-z0-9]/', $writeWorkflow), 'controlled write workflow must not hardcode an admin password');
+$assert(!preg_match('/BRVTAL_PROD_TOTP_SECRET:\s*["\']?[A-Z2-7]{8,}/', $writeWorkflow), 'controlled write workflow must not hardcode a TOTP secret');
+
+$assert(str_contains($writeProbe, "const requiredConfirmation = 'WRITE_AND_DELETE_TEMP_PAGE';"), 'write probe must independently require the confirmation token');
+$assert(str_contains($writeProbe, 'BRVTAL_EXPECTED_SHA is required for controlled production writes'), 'write probe must require exact deployment identity');
+$assert(str_contains($writeProbe, '`production-smoke-122-${shortSha}-${uniqueSuffix}`'), 'write probe must use a unique #122 namespace');
+$assert(str_contains($writeProbe, "const pageContent = { text: 'Manifiesto' };"), 'write probe must reproduce the valid JSON payload');
+$assert(str_contains($writeProbe, "status: 'published'"), 'write probe must reproduce the published Page status');
+$assert(str_contains($writeProbe, 'content_json: JSON.stringify(pageContent)'), 'write probe must submit content_json through the production Pages API');
+$assert(substr_count($writeProbe, 'context.request.post') === 3, 'write probe POST calls must be login, optional TOTP, and one Page create');
+$assert(substr_count($writeProbe, 'context.request.delete') === 1, 'write probe must delete only the temporary Page it created');
+$assert(!preg_match('/context\.request\.(?:put|patch)\s*\(/i', $writeProbe), 'write probe must not PUT/PATCH production content');
+$assert(str_contains($writeProbe, 'await deleteCreatedPage(context, csrf, createdPageId);'), 'write probe must always attempt cleanup of its temporary Page');
+$assert(str_contains($writeProbe, "verifyResponse.status() !== 404"), 'write probe must verify the temporary Page is absent after cleanup');
+$assert(str_contains($writeProbe, 'findPageBySlug(context, pageSlug)'), 'write probe must recover and remove a uniquely named Page even after an ambiguous create response');
+
 // Documentation must preserve the distinction between code-ready and actually run.
 $assert(str_contains($testing, 'Authenticated production smoke'), 'testing docs must document the authenticated smoke procedure');
+$assert(str_contains($testing, 'Controlled production Page write smoke'), 'testing docs must document the isolated #122 production write procedure');
 $assert(str_contains($testing, 'VALIDATED IN PRODUCTION'), 'testing docs must preserve production-validation terminology');
 
 echo "Production smoke safety contract passed.\n";
