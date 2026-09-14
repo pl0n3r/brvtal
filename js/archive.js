@@ -240,7 +240,36 @@
 
   window.BRVTALPublicArchive = {init,renderArchive,renderActive,applyYearFilter,applyArchiveFilters,getData:()=>state.data};
 
-  import('/js/related-content.js').catch(() => {
+  function runtimeAssetVersion() {
+    const archiveScript = [...document.scripts].find(script => {
+      try {
+        return new URL(script.src, location.href).pathname.endsWith('/js/archive.js');
+      } catch (_) {
+        return false;
+      }
+    });
+    if (!archiveScript) return '';
+    try {
+      return new URL(archiveScript.src, location.href).searchParams.get('v') || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function relatedAssetUrl(path) {
+    const version = runtimeAssetVersion();
+    return `${path}${version ? `?v=${encodeURIComponent(version)}` : ''}`;
+  }
+
+  if (!document.querySelector('link[data-related-content-style]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = relatedAssetUrl('/css/related-content.css');
+    link.dataset.relatedContentStyle = '1';
+    document.head.appendChild(link);
+  }
+
+  import(relatedAssetUrl('/js/related-content.js')).catch(() => {
     document.documentElement.dataset.related = 'unavailable';
   });
 })();
