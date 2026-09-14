@@ -7,27 +7,29 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- `Production Performance` ahora comprueba conectividad con producción antes de instalar Node, dependencias o Chromium.
-- Si un runner de GitHub no puede alcanzar Hostinger, el workflow falla rápido en lugar de esperar cerca de seis minutos.
-- La espera del marcador exacto del deploy quedó acotada a 8 intentos, con cache-busting explícito para evitar leer HTML viejo desde CDN.
-- El navegador de Playwright queda cacheado entre runs para evitar descargar cientos de MB innecesariamente.
+- Se corrigió la reapertura de fechas de Events: los valores de MariaDB se normalizan al formato que exige `datetime-local`.
+- Sets ahora carga conjuntamente Sets, Artists y Events antes de renderizar el workspace, por lo que New Set dispone de sus relaciones aunque se entre directamente al módulo.
+- Se añadió un contrato específico para impedir regresiones de ambos estados de formulario.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-performance.yml` — fail-fast de conectividad, espera acotada y caché de Chromium.
 - `README.md` — snapshot operativo de este deploy.
+- `discadmin/admin-relational-forms.js` — normalización de fechas e hidratación de relaciones de Sets.
+- `discadmin/index.php` — carga la nueva capa dentro del shell canónico de DISCADMIN.
+- `scripts/php85-compatibility.sh` — incorpora el contrato nuevo a la suite PHP 8.5.
+- `tests/admin-relational-forms-contract.php` — cobertura contractual para Issues #123 y #124.
 
 ## Validación
 
 - El PR debe pasar `README Deploy Snapshot · PR / verify`, `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
-- El workflow conserva la trazabilidad al SHA exacto de `main` y sigue exigiendo el marcador `?v=<short-sha>` antes de medir.
+- No hay cambios de esquema ni mutaciones de datos de producción.
 - Producción canónica: `https://www.brvtal.com.co`.
 
 ## Qué sigue
 
-1. Confirmar en el próximo run automático que un problema de conectividad falla rápido y que un deploy accesible evita reinstalar Chromium cuando existe caché.
-2. Resolver los issues abiertos validados, priorizando inconsistencias de contenido y relaciones del CMS.
-3. Repetir la medición de rendimiento solo después de confirmar el SHA exacto en producción.
+1. Validar el SHA exacto de `main` después del merge y comprobar el despliegue automático.
+2. Resolver el bloqueo intermitente del Hero Slider reportado en #125 con timeout/Retry explícitos.
+3. Sustituir el bloque Next Experience hard-coded de Genesis reportado en #126 por contenido derivado del CMS.
 
 ## Contexto durable
 
