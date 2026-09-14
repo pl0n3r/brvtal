@@ -77,6 +77,8 @@ function brvtal_public_next_experience_date_parts(?array $event): array
 
 function brvtal_public_next_experience_tag(?array $event): string
 {
+    if ($event === null) return 'NEW DATE TO BE ANNOUNCED.';
+
     $status = strtolower(trim((string)($event['status'] ?? '')));
     return match ($status) {
         'sold_out' => 'SOLD OUT.',
