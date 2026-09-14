@@ -6,71 +6,44 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  candidates:
-    name: candidates
+  materialize:
+    name: materialize
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: perf/static-image-candidates
 
-      - name: Install image tooling
+      - name: Install WebP tooling
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y imagemagick webp
-          cwebp -version
+          sudo apt-get install -y webp
 
-      - name: Build and score WebP candidates
+      - name: Generate selected derivatives
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/static-image-candidates
-          cp assets/brvtal-logo.jpeg artifacts/static-image-candidates/logo-original.jpeg
-          cp assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg artifacts/static-image-candidates/genesis-original.jpeg
-          report="artifacts/static-image-candidates/report.tsv"
-          printf 'asset\tsource_width\tsource_height\tcandidate_width\tquality\tbytes\tpsnr_db\n' > "$report"
+          cwebp -quiet -mt -m 6 -sharp_yuv -q 82 -resize 640 0 assets/brvtal-logo.jpeg -o assets/brvtal-logo-640.webp
+          cwebp -quiet -mt -m 6 -sharp_yuv -q 82 -resize 886 0 assets/brvtal-logo.jpeg -o assets/brvtal-logo-886.webp
+          cwebp -quiet -mt -m 6 -sharp_yuv -q 82 -resize 640 0 assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg -o assets/flyers/genesis-640.webp
+          cwebp -quiet -mt -m 6 -sharp_yuv -q 82 -resize 886 0 assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg -o assets/flyers/genesis-886.webp
+          ls -lh assets/brvtal-logo-*.webp assets/flyers/genesis-*.webp
 
-          score_candidates() {
-            local label="$1"
-            local src="$2"
-            shift 2
-            local dims source_w source_h
-            dims=$(identify -format '%w %h' "$src")
-            read -r source_w source_h <<< "$dims"
-            echo "SOURCE $label: ${source_w}x${source_h}, $(stat -c%s "$src") bytes"
-
-            for width in "$@"; do
-              if (( width > source_w )); then
-                continue
-              fi
-              local ref="/tmp/${label}-${width}-reference.png"
-              convert "$src" -auto-orient -resize "${width}x>" -strip "$ref"
-              for quality in 82 86 90 92; do
-                local out="artifacts/static-image-candidates/${label}-${width}-q${quality}.webp"
-                cwebp -quiet -mt -m 6 -sharp_yuv -q "$quality" -resize "$width" 0 "$src" -o "$out"
-                local bytes psnr
-                bytes=$(stat -c%s "$out")
-                psnr=$(compare -metric PSNR "$ref" "$out" null: 2>&1 || true)
-                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$label" "$source_w" "$source_h" "$width" "$quality" "$bytes" "$psnr" >> "$report"
-              done
-            done
-          }
-
-          score_candidates logo assets/brvtal-logo.jpeg 512 640 768 886
-          score_candidates genesis assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg 512 640 768 886
-
-          echo '### Candidate matrix' >> "$GITHUB_STEP_SUMMARY"
-          echo >> "$GITHUB_STEP_SUMMARY"
-          echo '```tsv' >> "$GITHUB_STEP_SUMMARY"
-          cat "$report" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat "$report"
-
-      - name: Upload candidate evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: static-image-candidates-${{ github.run_id }}
-          path: artifacts/static-image-candidates/
-          retention-days: 7
+      - name: Commit generated derivatives to candidate branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/brvtal-logo-640.webp assets/brvtal-logo-886.webp assets/flyers/genesis-640.webp assets/flyers/genesis-886.webp
+          if git diff --cached --quiet; then
+            echo "Selected derivatives are already current."
+            exit 0
+          fi
+          git commit -m "perf: add selected static WebP derivatives [generated-assets]"
+          git push origin HEAD:perf/static-image-candidates
