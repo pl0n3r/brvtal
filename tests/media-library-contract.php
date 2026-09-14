@@ -32,16 +32,20 @@ media_assert(brvtal_media_public_upload_path($file) === '/uploads/contract-test/
 @rmdir($dir);
 
 $delivery = brvtal_public_media_delivery_sanitize([
-    'original' => ['path'=>'/uploads/media/example.png','width'=>1200,'height'=>900,'mime_type'=>'image/png'],
+    'original' => ['path'=>'/uploads/media/example.png','width'=>1920,'height'=>1080,'mime_type'=>'image/png'],
     'variants' => [
         'square' => ['path'=>'/uploads/media/example--square-800.webp','width'=>800,'height'=>800,'mime_type'=>'image/webp'],
         'card' => ['path'=>'/uploads/media/example--card-1200x900.webp','width'=>1200,'height'=>900,'mime_type'=>'image/webp'],
+        'w1280' => ['path'=>'/uploads/media/example--w1280.webp','width'=>1280,'height'=>720,'mime_type'=>'image/webp'],
+        'w1920' => ['path'=>'/uploads/media/example--w1920.webp','width'=>1920,'height'=>1080,'mime_type'=>'image/webp'],
         'unsafe' => ['path'=>'https://example.com/image.webp','width'=>300,'height'=>300,'mime_type'=>'image/webp'],
     ],
 ]);
 media_assert(is_array($delivery), 'public image delivery should accept a valid Media Engine sidecar');
 media_assert(($delivery['variants']['square']['src'] ?? '') === '/uploads/media/example--square-800.webp', 'square WebP variant should be exposed');
 media_assert(($delivery['variants']['card']['src'] ?? '') === '/uploads/media/example--card-1200x900.webp', 'card WebP variant should be exposed');
+media_assert(($delivery['variants']['w1280']['src'] ?? '') === '/uploads/media/example--w1280.webp', 'preserve-aspect WebP variant should be exposed for generic public delivery');
+media_assert(($delivery['variants']['w1920']['src'] ?? '') === '/uploads/media/example--w1920.webp', 'large preserve-aspect WebP variant should be exposed for viewer delivery');
 media_assert(!isset($delivery['variants']['unsafe']), 'non-allowlisted variant names must stay private');
 media_assert(brvtal_public_media_delivery_sanitize([
     'original'=>['path'=>'https://example.com/private.png','width'=>100,'height'=>100],
@@ -62,7 +66,7 @@ $permissionApi = (string)file_get_contents(__DIR__ . '/../api/media-permissions.
 media_assert(str_contains($permissionApi, 'brvtal_admin_require_csrf'), 'media permission repair must require CSRF');
 media_assert(str_contains($permissionApi, '0644'), 'public media files must be readable by the web server');
 media_assert(str_contains($permissionApi, '0755'), 'public media directories must be traversable by the web server');
-media_assert(str_contains($permissionApi, 'brvtal_media_local_absolute'), 'permission repair must stay inside uploads');
+media_assert(str_contains($permissionApi, 'brvtal_media_local_absolute'), 'media permission repair must stay inside uploads');
 
 $module = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.php');
 media_assert(str_contains($module, 'data-admin-module="media"'), 'Media Library must be a shell module fragment');
@@ -105,7 +109,13 @@ media_assert(str_contains($publicMedia, 'role="dialog"') && str_contains($public
 media_assert(str_contains($publicMedia, "['image','video','audio']"), 'public Media discovery must support image, video and audio types');
 media_assert(str_contains($publicMedia, '/api/public-image-delivery.php'), 'public Media must load the allowlisted image-delivery map');
 media_assert(str_contains($publicMedia, "deliveryCandidate(url, 'card')"), 'public Media grid must prefer card WebP variants');
-media_assert(str_contains($publicMedia, ".related-item-image img") && str_contains($publicMedia, "'square'"), 'related thumbnails must prefer square WebP variants');
+media_assert(str_contains($publicMedia, "image.closest('.related-item-image')") && str_contains($publicMedia, "return 'square'"), 'related thumbnails must prefer square WebP variants');
+media_assert(str_contains($publicMedia, "scope.querySelectorAll('img')"), 'public delivery must inspect every public image node for eligible uploaded media');
+media_assert(str_contains($publicMedia, "image.getAttribute('data-src')"), 'deferred Hero Slider images must be eligible for WebP before activation');
+media_assert(str_contains($publicMedia, "image.matches('.brvtal-hero-media')") && str_contains($publicMedia, "return 'hero'"), 'Hero Slider uploaded images must use the hero WebP context');
+media_assert(str_contains($publicMedia, "context === 'preserve'") && str_contains($publicMedia, 'variants.w1280'), 'generic uploaded images must use a preserve-aspect WebP variant');
+media_assert(str_contains($publicMedia, "context === 'viewer'") && str_contains($publicMedia, 'variants.w1920'), 'full-screen viewer must prefer the largest preserve-aspect WebP variant');
+media_assert(str_contains($publicMedia, 'brvtalWebpFallbackBound') && str_contains($publicMedia, 'brvtalOriginalSrc'), 'WebP delivery must retain an automatic original-image fallback');
 media_assert(str_contains($publicDeliveryApi, "status='published' AND type='image'"), 'public image delivery endpoint must be limited to published image records');
 media_assert(str_contains($publicDeliveryApi, 'brvtal_public_media_delivery_map'), 'public image delivery endpoint must use sanitized Media Engine sidecars');
 
