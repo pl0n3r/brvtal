@@ -247,6 +247,7 @@ Implemented contract:
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
 11. The repository itself contains enough durable context that an AI can resume without previous conversation memory.
 12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph; do not regress Sets/Releases to terminal relation links.
+13. **CI optimizes for fast feedback without weakening `main`.** Pull requests use a fast syntax/contract gate plus path-aware parallel DB/Chromium/real-stack/WebKit gates; every exact `main` push runs the full matrix and ends in the stable `validate` aggregate check.
 
 ---
 
@@ -274,6 +275,32 @@ Historical workflow filename:
 
 Visible workflow name: **BRVTAL CI**.
 
+### Fast-feedback topology
+
+The CI is intentionally layered:
+
+- `plan` computes changed-file surfaces and which optional gates apply;
+- `fast` always runs PHP syntax, JavaScript syntax and contract tests without waiting for MariaDB or browsers;
+- `database` runs disposable MariaDB migrations/integration when DB/backend/admin surfaces require it;
+- `browser` runs Chromium when public/admin browser-facing surfaces require it;
+- `realstack` runs the authenticated PHP + MariaDB + Chromium smoke for relevant admin/API/config/database changes;
+- `webkit` is a targeted Safari/WebKit TOTP regression and is path-aware on PRs;
+- `validate` is the final aggregate check and must remain stable for branch-protection compatibility.
+
+Every `push` to exact `main` and every manual workflow dispatch runs the **full matrix**, regardless of changed paths. Pull requests may skip irrelevant expensive gates, but `fast` always runs. Browser/npm downloads use GitHub Actions caches where practical.
+
+The real-stack harness accepts either the `mariadb` or preinstalled `mysql` CLI. Do not reintroduce `mariadb-client` installation merely to replace a compatible runner client.
+
+### AI / Work execution efficiency
+
+When an AI session changes a branch:
+
+1. make the logical set of related edits first;
+2. run/inspect the most targeted applicable checks before publishing the branch when tooling permits;
+3. avoid pushing one micro-edit at a time when several edits belong to the same logical fix, because each push can cancel/restart CI;
+4. once a PR exists, fix failures on that same branch and prefer one coherent update per diagnosis;
+5. never trade away the full exact-`main` gate for speed.
+
 CI covers combinations of:
 
 - PHP syntax;
@@ -281,22 +308,23 @@ CI covers combinations of:
 - API/module contract tests;
 - migration idempotency;
 - disposable MariaDB integration;
-- Playwright browser tests;
+- Playwright Chromium;
+- authenticated real-stack smoke;
 - targeted WebKit regressions;
 - project-operations/documentation contract.
 
-Each run publishes a GitHub Actions Job Summary with event/ref/PR, SHA, changed files/surfaces, deploy eligibility, validation result and runtime versions.
+Each run publishes GitHub Actions summaries with event/ref/PR, SHA, changed files/surfaces, deploy eligibility, selected validation scope and final gate results.
 
 ### Mandatory delivery loop
 
 1. Start a focused branch from current green `main`.
-2. Implement change + applicable tests.
+2. Implement the logical change + applicable targeted tests; batch related edits before pushing where practical.
 3. Open PR to `main`.
-4. Wait for **BRVTAL CI**.
+4. Wait for the final **BRVTAL CI / validate** result.
 5. Fix failures on the same PR branch.
 6. When green, squash merge.
 7. Get the exact merged `main` SHA.
-8. Verify BRVTAL CI succeeds on that exact SHA.
+8. Verify full BRVTAL CI succeeds on that exact SHA.
 9. Only then begin the next branch.
 
 Routine development operations do not require asking again.
