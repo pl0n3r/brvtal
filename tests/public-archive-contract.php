@@ -40,9 +40,11 @@ archive_expect($past['ticket_types'] === [], 'Historical event must not expose t
 
 $public = file_get_contents(__DIR__ . '/../api/public.php');
 $index = file_get_contents(__DIR__ . '/../index.html');
+$indexPhp = file_get_contents(__DIR__ . '/../index.php');
 $archiveJs = file_get_contents(__DIR__ . '/../js/archive.js');
 $runtimeLoader = file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
-archive_expect(is_string($public) && is_string($index) && is_string($archiveJs) && is_string($runtimeLoader), 'Archive sources must be readable');
+$htaccess = file_get_contents(__DIR__ . '/../.htaccess');
+archive_expect(is_string($public) && is_string($index) && is_string($indexPhp) && is_string($archiveJs) && is_string($runtimeLoader) && is_string($htaccess), 'Archive/public delivery sources must be readable');
 archive_expect(str_contains($public, "require_once __DIR__ . '/public-archive.php';"), 'Public API must use canonical archive lifecycle helper');
 archive_expect(str_contains($public, "WHERE status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"), 'Public API must expose only explicit non-draft event lifecycle states');
 archive_expect(str_contains($public, "'archive' => \$archive"), 'Public API payload must expose archive data');
@@ -50,6 +52,7 @@ archive_expect(str_contains($public, "'related_sets'"), 'Historical events must 
 archive_expect(str_contains($index, 'id="eventArchive"'), 'Public frontend must contain a dedicated archive workspace');
 archive_expect(str_contains($index, 'css/archive.css') && str_contains($index, 'js/public-runtime-loader.js'), 'Public frontend must load archive styles and adaptive runtime');
 archive_expect(str_contains($runtimeLoader, "'js/archive.js'"), 'Adaptive public runtime must load the Archive controller');
+archive_expect(str_contains($runtimeLoader, 'window.BRVTAL_PUBLIC_VERSION = version'), 'Adaptive public runtime must expose the deployment version for lazy-module cache busting');
 archive_expect(!str_contains($archiveJs, 'ticket_instructions'), 'Archive UI must not render payment instructions');
 archive_expect(str_contains($index, 'data-archive-search'), 'Archive must expose public text search');
 archive_expect(str_contains($index, 'data-archive-relation="sets"'), 'Archive must expose relationship filters');
@@ -81,7 +84,22 @@ $presizedImage = brvtal_public_optimize_home_images('<img src="assets/brvtal-log
 archive_expect(substr_count($presizedImage, 'width=') === 1 && str_contains($presizedImage, 'width="10"'), 'Existing image width must be preserved');
 archive_expect(substr_count($presizedImage, 'height=') === 1 && str_contains($presizedImage, 'height="20"'), 'Existing image height must be preserved');
 
-$versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script>', 'abc123');
-archive_expect(str_contains($versioned, 'css/style.css?v=abc123') && str_contains($versioned, 'js/app.js?v=abc123'), 'Asset versioning must remain intact after image optimization changes');
+$deferred = brvtal_public_defer_stylesheets(
+    '<link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/archive.css">',
+    ['css/archive.css']
+);
+archive_expect(str_contains($deferred, '<link rel="stylesheet" href="css/style.css">'), 'Critical public stylesheet must remain render-blocking');
+archive_expect(str_contains($deferred, 'href="css/archive.css" media="print" onload="this.media=\'all\'"'), 'Below-fold public stylesheet must load without blocking first render');
+archive_expect(str_contains($deferred, '<noscript><link rel="stylesheet" href="css/archive.css"></noscript>'), 'Deferred stylesheet must retain a no-JavaScript fallback');
+archive_expect(str_contains($indexPhp, "'css/archive.css'") && str_contains($indexPhp, "'css/public-media.css'") && str_contains($indexPhp, "'css/input-accessibility.css'") && str_contains($indexPhp, "'css/mobile-events.css'"), 'Canonical Home delivery must defer the known below-fold/support stylesheets');
+archive_expect(!str_contains($indexPhp, "'css/style.css',"), 'Primary Home stylesheet must not be deferred');
+archive_expect(!str_contains($indexPhp, "'css/hero-slider.css',") && !str_contains($indexPhp, "'css/hero-slider-v2.css',"), 'Hero slider styles must remain synchronous until its mount path explicitly waits for CSS readiness');
+
+$versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script><img src="assets/brvtal-logo.jpeg">', 'abc123');
+archive_expect(str_contains($versioned, 'css/style.css?v=abc123') && str_contains($versioned, 'js/app.js?v=abc123'), 'CSS/JS deployment versioning must remain intact');
+archive_expect(str_contains($versioned, 'assets/brvtal-logo.jpeg?v=abc123'), 'Initial static image URLs must receive deploy-SHA cache busting before long-lived caching');
+archive_expect(str_contains($htaccess, 'ExpiresByType text/css "access plus 1 year"'), 'Versioned CSS must receive a long browser cache lifetime');
+archive_expect(str_contains($htaccess, 'ExpiresByType image/jpeg "access plus 1 year"') && str_contains($htaccess, 'max-age=31536000, immutable'), 'Static image/font delivery must receive immutable long-lived caching');
+archive_expect(!str_contains($htaccess, 'ExpiresByType application/javascript'), 'JavaScript must not become immutable until every lazy import is deploy-versioned');
 
 echo "BRVTAL Public Archive contract tests passed.\n";
