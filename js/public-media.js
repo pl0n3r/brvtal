@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const state = {items:[],type:'all',query:'',lastFocus:null,viewerItems:[],viewerIndex:0};
+  const state = {items:[],type:'all',query:'',lastFocus:null,viewerItems:[],viewerIndex:0,delivery:{}};
   const qs = (selector, root=document) => root.querySelector(selector);
   const searchText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -17,6 +17,65 @@
     const mime = String(item?.mime_type || '').toLowerCase().split('/')[0];
     return ['image','video','audio'].includes(mime) ? mime : 'other';
   };
+  const localUploadPath = value => {
+    const raw = fileUrl(value);
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, location.href);
+      return url.origin === location.origin && url.pathname.startsWith('/uploads/') ? url.pathname : '';
+    } catch (_) {
+      return raw.startsWith('/uploads/') ? raw.split(/[?#]/, 1)[0] : '';
+    }
+  };
+
+  function deliveryCandidate(value, context='card') {
+    const path = localUploadPath(value);
+    const delivery = path ? state.delivery[path] : null;
+    const variants = delivery?.variants || {};
+    let candidate = null;
+    if (context === 'square') candidate = variants.square || variants.card || variants.w1280 || null;
+    else if (context === 'preserve') candidate = variants.w1280 || variants.w1920 || null;
+    else candidate = variants.card || variants.w1280 || variants.square || null;
+    return candidate?.src ? candidate : null;
+  }
+
+  function applyResponsiveImage(image, context) {
+    if (!(image instanceof HTMLImageElement)) return;
+    const original = image.dataset.brvtalOriginalSrc || image.getAttribute('src') || '';
+    if (!original) return;
+    if (!image.dataset.brvtalOriginalSrc) image.dataset.brvtalOriginalSrc = original;
+    const candidate = deliveryCandidate(original, context);
+    if (!candidate || image.getAttribute('src') === candidate.src) return;
+    image.src = candidate.src;
+    if (Number(candidate.width) > 0) image.width = Number(candidate.width);
+    if (Number(candidate.height) > 0) image.height = Number(candidate.height);
+  }
+
+  function applyDocumentImageDelivery(root=document) {
+    const scope = root instanceof Element || root instanceof Document ? root : document;
+    scope.querySelectorAll('.public-media-item img').forEach(image => applyResponsiveImage(image, 'card'));
+    scope.querySelectorAll('.related-item-image img').forEach(image => applyResponsiveImage(image, 'square'));
+  }
+
+  let imageDeliveryPromise = null;
+  function loadImageDelivery() {
+    if (imageDeliveryPromise) return imageDeliveryPromise;
+    imageDeliveryPromise = fetch('/api/public-image-delivery.php', {
+      credentials: 'same-origin',
+      headers: {'Accept':'application/json'}
+    })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+      .then(payload => {
+        state.delivery = payload?.ok && payload.data && typeof payload.data === 'object' ? payload.data : {};
+        applyDocumentImageDelivery();
+        return state.delivery;
+      })
+      .catch(() => {
+        state.delivery = {};
+        return state.delivery;
+      });
+    return imageDeliveryPromise;
+  }
 
   function closeViewer() {
     const viewer = document.getElementById('public-media-viewer');
@@ -74,8 +133,13 @@
     const url = fileUrl(item.file_path);
     const title = item.title || item.alt_text || 'BRVTAL media';
     if (!url || type === 'other') return '';
+    const candidate = type === 'image' ? deliveryCandidate(url, 'card') : null;
+    const previewUrl = candidate?.src || url;
+    const dimensions = candidate && Number(candidate.width) > 0 && Number(candidate.height) > 0
+      ? ` width="${Number(candidate.width)}" height="${Number(candidate.height)}"`
+      : '';
     const visual = type === 'image'
-      ? `<button type="button" class="public-media-open" data-public-media-open="${Number(item.id)||0}" aria-label="Open ${esc(title)}"><img src="${esc(url)}" alt="${esc(item.alt_text || title)}" loading="lazy" decoding="async"></button>`
+      ? `<button type="button" class="public-media-open" data-public-media-open="${Number(item.id)||0}" aria-label="Open ${esc(title)}"><img src="${esc(previewUrl)}" data-brvtal-original-src="${esc(url)}"${dimensions} alt="${esc(item.alt_text || title)}" loading="lazy" decoding="async"></button>`
       : type === 'video'
         ? `<video src="${esc(url)}" controls preload="metadata" aria-label="${esc(title)}"></video>`
         : `<div class="public-media-audio"><span class="mono">AUDIO SIGNAL</span><audio src="${esc(url)}" controls preload="none" aria-label="${esc(title)}"></audio></div>`;
@@ -152,6 +216,22 @@
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   });
-  window.addEventListener('brvtal:public-data', event => render(event.detail?.media || []));
-  window.BRVTALPublicMedia = {render,applyFilters,openViewer,closeViewer};
+
+  const observer = new MutationObserver(records => {
+    if (!Object.keys(state.delivery).length) return;
+    records.forEach(record => record.addedNodes.forEach(node => {
+      if (!(node instanceof Element)) return;
+      if (node.matches('.public-media-item img')) applyResponsiveImage(node, 'card');
+      if (node.matches('.related-item-image img')) applyResponsiveImage(node, 'square');
+      applyDocumentImageDelivery(node);
+    }));
+  });
+  observer.observe(document.documentElement, {childList:true,subtree:true});
+
+  window.addEventListener('brvtal:public-data', event => {
+    const items = event.detail?.media || [];
+    loadImageDelivery().then(() => render(items));
+  });
+  loadImageDelivery();
+  window.BRVTALPublicMedia = {render,applyFilters,openViewer,closeViewer,loadImageDelivery,applyDocumentImageDelivery};
 })();
