@@ -27,6 +27,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/static-image-candidates
+          cp assets/brvtal-logo.jpeg artifacts/static-image-candidates/logo-original.jpeg
+          cp assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg artifacts/static-image-candidates/genesis-original.jpeg
           report="artifacts/static-image-candidates/report.tsv"
           printf 'asset\tsource_width\tsource_height\tcandidate_width\tquality\tbytes\tpsnr_db\n' > "$report"
 
