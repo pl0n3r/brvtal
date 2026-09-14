@@ -324,7 +324,7 @@ Archive soporta año, texto y relaciones. Media soporta búsqueda y tipo. Ambos 
 
 ### Related Content
 
-Events, Artists, Sets y Releases se relacionan mediante datos reales; el servidor elimina drafts/private relations antes de exposición pública.
+Events, Artists, Sets y Releases se relacionan mediante datos reales; el servidor elimina drafts/private relations antes de exposición pública. CONNECTED permite seleccionar las cuatro capas y navegar Set → Artist/Event y Release → Artists sin degradar Sets/Releases a enlaces terminales.
 
 ---
 
@@ -437,16 +437,17 @@ No existe one-click restore automático.
 
 ## 16. Testing
 
-Capas:
+La validación está dividida para dar feedback temprano sin perder la cobertura completa de `main`:
 
-1. PHP syntax.
-2. JavaScript syntax.
-3. Contract tests.
-4. Migration/idempotency checks.
-5. MariaDB disposable integration.
-6. Playwright Chromium.
-7. WebKit targeted regressions.
-8. Production smoke separado cuando realmente se ejecuta.
+1. **Fast** — PHP syntax, JavaScript syntax y contratos; siempre corre.
+2. **Database** — migraciones/idempotencia + MariaDB integration; path-aware en PRs.
+3. **Chromium** — Playwright general; path-aware en PRs.
+4. **Real-stack** — PHP + MariaDB + Chromium autenticado para superficies admin/backend relevantes.
+5. **WebKit TOTP** — regresión Safari/WebKit enfocada en auth/2FA; path-aware en PRs.
+6. **Exact `main`** — ejecuta las cinco capas siempre, sin importar los paths del merge.
+7. **Production smoke** — separado y solo cuenta cuando realmente se ejecuta.
+
+Los browsers y descargas npm usan caches de GitHub Actions donde aplica. El real-stack reutiliza un cliente MySQL/MariaDB compatible disponible en el runner en vez de reemplazar paquetes innecesariamente.
 
 ```bash
 npm run test:contracts
@@ -469,6 +470,22 @@ Workflow histórico:
 
 Nombre visible: **BRVTAL CI**.
 
+### Topología de fast feedback
+
+```text
+plan
+  ↓
+fast (siempre)
+  ├── database      ┐
+  ├── chromium      ├── en paralelo según paths del PR
+  ├── real-stack    │
+  └── webkit-totp   ┘
+          ↓
+       validate
+```
+
+`validate` permanece como check final estable. En pull requests, el planner evita gates caros que no aportan señal para los archivos modificados. En `push` a `main` y `workflow_dispatch`, todos los gates son obligatorios.
+
 Flujo obligatorio:
 
 ```text
@@ -476,24 +493,28 @@ green main
   ↓
 focused branch
   ↓
-implementation + tests
+implementation + targeted tests
+  ↓
+batched branch update
   ↓
 Pull Request
   ↓
-BRVTAL CI green
+path-aware BRVTAL CI → validate green
   ↓
 squash merge
   ↓
-BRVTAL CI on exact merged main SHA
+full BRVTAL CI on exact merged main SHA
   ↓
 Hostinger Git auto-deploy
   ↓
 production verification when actually performed
 ```
 
+Para trabajo asistido por IA, los cambios relacionados se agrupan antes del push cuando sea práctico. Esto evita iniciar y cancelar múltiples runs por micro-ediciones consecutivas. Los fallos de CI se corrigen en la misma PR y el exact-main gate nunca se omite por velocidad.
+
 ### Build / Deploy Summary
 
-Cada run publica un GitHub Actions Job Summary con, cuando aplica:
+Cada run publica GitHub Actions Job Summaries con, cuando aplica:
 
 - event/ref/PR;
 - source SHA y checkout SHA;
@@ -502,8 +523,9 @@ Cada run publica un GitHub Actions Job Summary con, cuando aplica:
 - archivos cambiados;
 - áreas afectadas;
 - deploy eligibility;
-- resultado final de CI;
-- runtime/tool versions.
+- scope de validación seleccionado;
+- resultado de Fast / MariaDB / Chromium / Real-stack / WebKit;
+- nota explícita de que CI no prueba el deploy de Hostinger ni producción.
 
 No se reescribe `config/version.php` ni se crean commits de metadata por deploy.
 
@@ -593,10 +615,11 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 - [x] Public Media discovery.
 - [x] Media URL state + browser history.
 - [x] Related Content.
+- [x] CONNECTED navegable en Artists / Events / Sets / Releases.
 - [x] Canonical entity pages.
 - [x] SEO/OG/Twitter/JSON-LD.
 - [x] Analytics consent foundation.
-- [ ] Richer relationship-driven browsing entre Sets/Releases y el resto del grafo.
+- [ ] Mayor profundidad Archive/Media mediante relaciones reales cuando aporte valor.
 - [ ] Core Web Vitals production measurements documentadas.
 - [ ] Authenticated production smoke formal. ⚠
 
@@ -616,9 +639,14 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 
 - [x] GitHub PR workflow.
 - [x] BRVTAL CI.
+- [x] Fast syntax/contract gate siempre activo.
+- [x] PR CI path-aware con gates caros selectivos.
+- [x] Database / Chromium / Real-stack / WebKit separados para paralelismo.
+- [x] Cache de npm/browsers en CI.
 - [x] MariaDB integration tests.
 - [x] Playwright browser tests.
-- [x] Exact-main-SHA CI gate.
+- [x] Exact-main-SHA full CI gate.
+- [x] Check agregado final `validate` estable.
 - [x] GitHub `main` → Hostinger auto-deploy.
 - [x] Runtime deploy SHA resolution.
 - [x] System Status v2.
@@ -637,7 +665,7 @@ Leyenda: `[x]` implementado; `[ ]` pendiente/diferido; `⚠` requiere verificaci
 
 ## 19. Siguiente prioridad
 
-1. relationship-driven public browsing más profundo;
+1. profundizar Archive/Media solo donde existan relaciones estructuradas reales y útiles;
 2. performance/responsive polish basado en mediciones reales;
 3. authenticated production smoke seguro/documentado;
 4. backup recovery rehearsal aislado;
@@ -656,18 +684,24 @@ Evitar trabajo prematuro en Wix/Elementor-style builders, Bulk Delete, automatic
 2. revisar PRs abiertos y CI de `main`;
 3. no abrir nueva branch hasta tener exact-main CI verde.
 
-### Antes de mergear
+### Antes de abrir/actualizar PR
 
 1. branch enfocada;
-2. tests aplicables;
-3. PR;
-4. CI verde;
-5. squash merge.
+2. completar el conjunto lógico de cambios antes de hacer push cuando sea práctico;
+3. ejecutar/inspeccionar los tests más dirigidos disponibles;
+4. evitar micro-pushes que solo reinician CI sin aportar una nueva hipótesis.
+
+### Antes de mergear
+
+1. tests aplicables;
+2. PR;
+3. check final `validate` verde;
+4. squash merge.
 
 ### Después de mergear
 
 1. obtener SHA exacto;
-2. verificar BRVTAL CI sobre ese SHA;
+2. verificar el full BRVTAL CI sobre ese SHA;
 3. revisar Build / Deploy Summary;
 4. distinguir auto-deploy esperado de deploy comprobado;
 5. hacer production smoke cuando sea seguro y realmente necesario.
@@ -705,3 +739,4 @@ Source deploy y DB migration son operaciones separadas.
 9. Mobile es target de primera clase.
 10. CI demuestra código; no inventa validación de producción.
 11. Observabilidad no genera commits de metadata.
+12. Fast feedback en PR no reemplaza la validación completa del SHA exacto de `main`.
