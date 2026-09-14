@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 const baseUrl = process.env.BRVTAL_REAL_STACK_URL || '';
 const adminEmail = process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL || 'ci-admin@brvtal.test';
-const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || ['brvtal', 'ci', 'password'].join('-');
+const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || '';
 
 // The normal browser suite runs against lightweight page harnesses. This smoke is
 // opt-in because it requires the PHP application and MariaDB to be running.
-test.skip(!baseUrl, 'BRVTAL_REAL_STACK_URL is required for the real-stack smoke');
+test.skip(!baseUrl || !adminPassword, 'BRVTAL_REAL_STACK_URL and admin credentials are required for the real-stack smoke');
 
 test('Content Core persists create, edit, lifecycle, tickets, roster and SEO through the real PHP/MariaDB stack', async ({ page }) => {
   const login = await page.request.post(`${baseUrl}/api/index.php/auth`, {
@@ -153,4 +153,36 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   const finalTickets = await finalTicketsResponse.json();
   const persistedTicket = finalTickets.data.find(row => Number(row.event_id) === Number(persisted.id));
   expect(Number(persistedTicket.price)).toBe(25000);
+
+  // Regression for #122: valid CMS Page JSON must persist through the same
+  // authenticated PHP/MariaDB stack used by DISCADMIN.
+  const pageSlug = 'manifiesto-brvtal-ci';
+  const pageContent = { text: 'Manifiesto' };
+  const createPageResponse = await page.request.post(`${baseUrl}/api/index.php/pages`, {
+    headers: { 'X-CSRF-Token': loginPayload.csrf },
+    data: {
+      title: 'MANIFIESTO BRVTAL CI',
+      slug: pageSlug,
+      locale: 'es',
+      status: 'published',
+      content_json: JSON.stringify(pageContent),
+      seo_title: 'Manifiesto BRVTAL CI',
+      seo_description: 'Authenticated real-stack regression for valid CMS Page JSON.',
+    },
+  });
+  const createPageBody = await createPageResponse.text();
+  expect(createPageResponse.ok(), `Pages create failed with HTTP ${createPageResponse.status()}: ${createPageBody}`).toBeTruthy();
+  const createPagePayload = JSON.parse(createPageBody);
+  expect(createPagePayload.ok).toBe(true);
+  expect(Number(createPagePayload.id || createPagePayload.data?.id)).toBeGreaterThan(0);
+
+  const pagesResponse = await page.request.get(`${baseUrl}/api/index.php/pages`);
+  expect(pagesResponse.ok(), `Pages list failed with HTTP ${pagesResponse.status()}`).toBeTruthy();
+  const pagesPayload = await pagesResponse.json();
+  const persistedPage = pagesPayload.data.find(row => row.slug === pageSlug);
+  expect(persistedPage).toBeTruthy();
+  expect(persistedPage.title).toBe('MANIFIESTO BRVTAL CI');
+  expect(persistedPage.locale).toBe('es');
+  expect(persistedPage.status).toBe('published');
+  expect(JSON.parse(persistedPage.content_json)).toEqual(pageContent);
 });
