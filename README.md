@@ -8,14 +8,16 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 ## Qué se hizo
 
 - Se implementa un smoke autenticado de producción para cerrar la brecha de validación de #123, #124 y #125 sin crear, editar ni eliminar contenido real.
-- El workflow es exclusivamente manual, solo corre desde `main`, comprueba el SHA exacto desplegado en Hostinger y usa credenciales aisladas en el environment `production-smoke`.
+- El workflow de producción es exclusivamente manual, solo corre desde `main`, comprueba el SHA exacto desplegado en Hostinger y usa credenciales aisladas en el environment `production-smoke`.
 - Después del login/2FA, el navegador queda protegido por una guardia read-only: solo GET/HEAD/OPTIONS llegan a producción; el POST automático de reparación de permisos de Media se responde localmente y cualquier otra mutación se bloquea y falla la ejecución.
 - La evidencia JSON comprueba reapertura de fecha de Event (#123), relaciones publicadas en New Set (#124) y tres aperturas consecutivas del Hero Slider (#125).
 - Se añade un contrato estático para impedir que el smoke se convierta accidentalmente en automático, use credenciales embebidas o pierda la barrera no destructiva.
+- Un workflow liviano separado ejecuta ese contrato en PR y en `main`; no autentica contra producción ni usa secretos.
 
 ## Archivos modificados en este deploy
 
 - `.github/workflows/production-authenticated-smoke.yml` — workflow manual autenticado, restringido a `main`, con evidencia descargable.
+- `.github/workflows/production-smoke-contract.yml` — gate liviano de seguridad del smoke para PR/`main`, sin acceso a producción.
 - `tests/e2e/production-authenticated-smoke.mjs` — probe Chromium read-only para #123, #124 y #125 con soporte TOTP.
 - `tests/production-smoke-contract.php` — contrato de seguridad/operación del smoke.
 - `package.json` — incorpora el nuevo contrato a `npm run test:contracts`.
@@ -24,8 +26,8 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Validación
 
-- El PR debe pasar `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
-- El nuevo contrato corre dentro de la suite normal y valida que el workflow siga siendo manual-only, canónico y protegido contra mutaciones de contenido.
+- El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y `Production Smoke Contract / contract` antes del merge.
+- El contrato valida que el workflow de producción siga siendo manual-only, use el origen canónico/secretos y conserve el bloqueo de mutaciones posterior al login.
 - Este deploy **no equivale todavía a VALIDATED IN PRODUCTION**: el smoke autenticado debe ejecutarse manualmente desde `main` después del merge, con los secretos del environment `production-smoke` configurados.
 - Producción canónica: `https://www.brvtal.com.co`.
 
