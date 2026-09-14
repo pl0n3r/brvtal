@@ -54,7 +54,14 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="20"]')).toContainText('Session Five');
   await expect(page.locator('[data-archive-id="20"]')).toContainText('5 ARTISTS / 1 SET');
-  await expect(page.locator('[data-archive-id="20"] a')).toHaveAttribute('href', '/events/session-five');
+  await expect(page.locator('[data-archive-id="20"] a[href="/events/session-five"]')).toHaveText('OPEN RECORD ↗');
+  const connections = page.locator('[data-archive-id="20"] [data-archive-connections]');
+  await expect(connections).toHaveText('EXPLORE CONNECTIONS ↗');
+  const connectionsHref = new URL(await connections.getAttribute('href'), page.url());
+  expect(connectionsHref.searchParams.get('network_type')).toBe('events');
+  expect(connectionsHref.searchParams.get('network_id')).toBe('20');
+  expect(connectionsHref.hash).toBe('#network');
+  await expect(page.locator('[data-archive-id="21"] [data-archive-connections]')).toHaveCount(0);
   await expect(page.locator('.archive-summary')).toHaveText('2 NIGHTS / 1 RELATED SETS / 9 VISUAL RECORDS');
   await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
   await page.locator('[data-archive-search]').fill('final signal');
