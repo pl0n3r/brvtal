@@ -281,6 +281,8 @@ Relaciones importantes:
 
 Las relaciones son structured data, no texto duplicado. Drafts son first-class y la publicación requiere validación más fuerte que guardar.
 
+**Incidencia de producción — Releases (2026-09-13):** al editar un lanzamiento y guardar una fecha válida en **Release date**, DISCADMIN puede responder `INTERNAL_ERROR`. El lanzamiento permanece publicado, pero la fecha no se persiste y el catálogo muestra `DATE TBD`. Se reprodujo con `UMBRAL 03` (`BRVTAL003`). Corregirlo en una PR acotada con regresión que cree y actualice una fecha `YYYY-MM-DD` por el flujo autenticado UI/API, sin exponer trazas, y verificarlo en el administrador de producción tras el despliegue.
+
 ---
 
 ## 9. Media Library / Media Engine
