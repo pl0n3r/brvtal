@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const adminModulesJs = readFileSync(join(process.cwd(), 'discadmin/admin-modules.js'), 'utf8');
 const mediaLibraryJs = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
 const totpLoginJs = readFileSync(join(process.cwd(), 'discadmin/totp-login.js'), 'utf8');
+const adminIaJs = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e-initial-media.html';
 
 const mediaFragment = `
@@ -29,7 +30,7 @@ const mediaFragment = `
   </div>
 </section>`;
 
-async function installRoutes(page) {
+async function installRoutes(page, {loadIaAfterRestore = false} = {}) {
   await page.route('**/discadmin/e2e-initial-media.html**', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html><head></head><body>
@@ -38,14 +39,16 @@ async function installRoutes(page) {
         var csrf = '';
         var state = { authed:false, section:'dashboard', rows:[] };
         window.__legacyRestoreCalled = false;
+        window.__goCalls = [];
         function render() {
-          document.getElementById('app').innerHTML = '<div class="shell"><aside class="side"><div class="nav"><button onclick="go(\\'dashboard\\')">DASHBOARD</button><button onclick="go(\\'media\\')">MEDIA</button><div class="navgroup">TECHNICAL</div></div></aside><main class="main"><div class="top">BRVTAL CMS</div></main></div>';
+          document.getElementById('app').innerHTML = '<div class="shell"><aside class="side"><div class="nav"><button onclick="go(\\'dashboard\\')">DASHBOARD</button><button onclick="go(\\'artists\\')">ARTISTS</button><button onclick="go(\\'media\\')">MEDIA</button><div class="navgroup">TECHNICAL</div></div></aside><main class="main"><div class="top"><h1>'+String(state.section).toUpperCase()+'</h1></div><div class="toolbar"></div></main></div>';
         }
         async function req(path) {
           if (path === '/auth') return { authenticated:true, csrf:'csrf-token' };
           return { data:[] };
         }
-        async function go(section) { state.section = section; render(); }
+        async function go(section) { window.__goCalls.push(section); state.section = section; render(); }
+        async function tech(section) { window.__goCalls.push(section); state.section = section; render(); }
         function openModal() {}
         async function login() { return true; }
         async function restoreSession() { window.__legacyRestoreCalled = true; return false; }
@@ -54,6 +57,7 @@ async function installRoutes(page) {
       <script>${adminModulesJs}</script>
       <script>${totpLoginJs}</script>
       <script>window.__restorePromise = window.restoreSession();</script>
+      ${loadIaAfterRestore ? `<script>${adminIaJs}</script>` : ''}
     </body></html>`
   }));
 
@@ -84,5 +88,17 @@ test('restored session mounts Media on the first direct navigation', async ({ pa
   await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
   await expect(page.locator('#media-grid')).toBeVisible();
   expect(await page.evaluate(() => window.state.section)).toBe('media');
+  expect(await page.evaluate(() => window.__legacyRestoreCalled)).toBe(false);
+});
+
+test('fast authenticated native deep-link waits for IA and never opens Dashboard first', async ({ page }) => {
+  await installRoutes(page, {loadIaAfterRestore:true});
+  await page.goto(harnessUrl + '?module=artists');
+  await page.evaluate(() => window.__restorePromise);
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  expect(await page.evaluate(() => window.__goCalls)).toEqual(['artists']);
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
   expect(await page.evaluate(() => window.__legacyRestoreCalled)).toBe(false);
 });
