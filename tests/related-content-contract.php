@@ -51,7 +51,8 @@ related_expect($graph['counts']['artist_release'] === 2, 'Artist↔Release count
 $public = file_get_contents(__DIR__ . '/../api/public.php');
 $archiveJs = file_get_contents(__DIR__ . '/../js/archive.js');
 $relatedJs = file_get_contents(__DIR__ . '/../js/related-content.js');
-related_expect(is_string($public) && is_string($archiveJs) && is_string($relatedJs), 'Related Content sources must be readable');
+$relatedCss = file_get_contents(__DIR__ . '/../css/related-content.css');
+related_expect(is_string($public) && is_string($archiveJs) && is_string($relatedJs) && is_string($relatedCss), 'Related Content sources must be readable');
 related_expect(str_contains($public, "require_once __DIR__ . '/public-related.php';"), 'Public API must use the canonical related-content helper');
 related_expect(str_contains($public, "LEFT JOIN artists a ON a.id=s.artist_id AND a.status='published'"), 'Set artist join must be restricted to public artists');
 related_expect(str_contains($public, 'NULL AS event_title'), 'Set event title must be resolved only after public lifecycle partitioning');
@@ -60,6 +61,15 @@ related_expect(str_contains($public, "'relations' => \$relations"), 'Public API 
 related_expect(str_contains($archiveJs, "new CustomEvent('brvtal:public-data'"), 'Archive loader must publish canonical public data to cross-cutting public modules');
 related_expect(str_contains($archiveJs, "import('/js/related-content.js')"), 'Public related-content module must be loaded by the existing public data bootstrap');
 related_expect(str_contains($relatedJs, 'RELATED CONTENT / PUBLIC GRAPH'), 'Related Content UI must render as a BRVTAL public graph explorer');
+related_expect(str_contains($relatedJs, 'data-related-mode="sets"'), 'Connected must expose Sets as a first-class graph layer');
+related_expect(str_contains($relatedJs, 'data-related-mode="releases"'), 'Connected must expose Releases as a first-class graph layer');
+related_expect(str_contains($relatedJs, 'function renderSetDetail'), 'Connected must render contextual Set detail');
+related_expect(str_contains($relatedJs, 'function renderReleaseDetail'), 'Connected must render contextual Release detail');
+related_expect(str_contains($relatedJs, "['artists','events','sets','releases']"), 'All four canonical entity types must be navigable inside the graph');
+related_expect(str_contains($relatedJs, "entityUrl('sets', set.slug)"), 'Set graph detail must preserve the canonical public Set route');
+related_expect(str_contains($relatedJs, "entityUrl('releases', release.slug)"), 'Release graph detail must preserve the canonical public Release route');
 related_expect(str_contains($relatedJs, "group('RELEASES'"), 'Artist discovery must include Releases');
+related_expect(str_contains($relatedCss, 'grid-template-columns:repeat(4,minmax(0,1fr))'), 'Connected desktop tabs must accommodate all four graph layers');
+related_expect(str_contains($relatedCss, 'grid-template-columns:repeat(2,minmax(0,1fr))'), 'Connected mobile tabs must remain usable with four graph layers');
 
 echo "BRVTAL Related Content contract tests passed.\n";

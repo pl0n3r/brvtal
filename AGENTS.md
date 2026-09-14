@@ -193,6 +193,9 @@ Implemented:
 - Archive discovery by year/search/relationships;
 - Public Media discovery;
 - Related Content relationship graph;
+- **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
+- Set graph detail links through its public Artist/Event relationships and keeps canonical Set/platform links;
+- Release graph detail links through public Artists and keeps canonical Release/listen links;
 - Archive and Media filter state in **shareable URL query parameters**;
 - Back/Forward restores discovery state while preserving hashes;
 - SEO canonical/OG/Twitter/JSON-LD/sitemap/robots/404-noindex safeguards;
@@ -243,6 +246,7 @@ Implemented contract:
 9. `README.md` is a human technical/operations dashboard, not marketing copy.
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
 11. The repository itself contains enough durable context that an AI can resume without previous conversation memory.
+12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph; do not regress Sets/Releases to terminal relation links.
 
 ---
 
@@ -349,7 +353,7 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public discovery / relationship-driven browsing** — deepen useful navigation between Events, Artists, Sets, Releases, Archive and Media.
+1. **Public discovery / relationship-driven browsing** — the core CONNECTED graph already covers Artists, Events, Sets and Releases as navigable layers. Only deepen Archive/Media pathways when supported by real structured relationships; do not invent duplicated relation data just to add links.
 2. **Measured public performance / responsive polish** — use real evidence/Core Web Vitals and reproducible bottlenecks.
 3. **Authenticated production smoke process** — safe and non-destructive; never claim it exists until actually run.
 4. **Backup recovery rehearsal** — isolated/test environment only; no automatic production restore.

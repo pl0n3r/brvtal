@@ -1,0 +1,95 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const relatedJs = readFileSync(join(process.cwd(), 'js/related-content.js'), 'utf8');
+const harnessUrl = 'http://127.0.0.1:4173/public-related-content-e2e.html';
+
+const data = {
+  events: [{
+    id: 10,
+    title: 'NEXT NIGHT',
+    slug: 'next-night',
+    status: 'upcoming',
+    event_date: '2026-10-10 22:00:00',
+    venue: 'WAREHOUSE',
+    city: 'PEREIRA',
+    cover_image: ''
+  }],
+  archive: { events: [] },
+  artists: [{
+    id: 1,
+    name: 'PL0N3R',
+    slug: 'pl0n3r',
+    bio: 'INDUSTRIAL HARD TECHNO',
+    photo: ''
+  }],
+  sets: [{
+    id: 20,
+    title: 'PL0N3R SET',
+    slug: 'pl0n3r-set',
+    artist_id: 1,
+    artist_name: 'PL0N3R',
+    event_id: 10,
+    event_title: 'NEXT NIGHT',
+    platform: 'soundcloud',
+    external_url: 'https://soundcloud.com/example',
+    description: 'LIVE RECORDING',
+    cover_image: ''
+  }],
+  releases: [{
+    id: 30,
+    title: 'SIGNAL 001',
+    slug: 'signal-001',
+    release_type: 'ep',
+    release_date: '2026-09-01',
+    description: 'BRVTAL CATALOG RELEASE',
+    artwork: '',
+    spotify_url: 'https://open.spotify.com/track/example'
+  }],
+  relations: {
+    artists: { '1': { events: [10], sets: [20], releases: [30] } },
+    events: { '10': { artists: [1], sets: [20] } },
+    sets: { '20': { artist: 1, event: 10 } },
+    releases: { '30': { artists: [1] } },
+    counts: { event_artist: 1, event_set: 1, artist_set: 1, artist_release: 1 }
+  }
+};
+
+function harness() {
+  const payload = JSON.stringify(data).replace(/</g, '\\u003c');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body><main><section id="media"></section></main><script>${relatedJs}</script><script>window.BRVTALRelatedContent.init(${payload});</script></body></html>`;
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.route(harnessUrl, route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: harness() }));
+  await page.goto(harnessUrl);
+});
+
+test('Connected exposes Artists, Events, Sets and Releases as first-class layers', async ({ page }) => {
+  await expect(page.getByRole('tab')).toHaveText(['ARTISTS', 'EVENTS', 'SETS', 'RELEASES']);
+  await expect(page.getByRole('tab', { name: 'ARTISTS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R');
+
+  await page.locator('[data-related-detail] [data-related-select][data-related-type="sets"][data-related-id="20"]').click();
+  await expect(page.getByRole('tab', { name: 'SETS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R SET');
+  await expect(page.getByRole('link', { name: 'VIEW SET ↗' })).toHaveAttribute('href', '/sets/pl0n3r-set');
+  await expect(page.getByRole('link', { name: 'OPEN PLATFORM ↗' })).toHaveAttribute('target', '_blank');
+
+  await page.locator('[data-related-detail] [data-related-select][data-related-type="events"][data-related-id="10"]').click();
+  await expect(page.getByRole('tab', { name: 'EVENTS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
+});
+
+test('Release detail remains inside the graph and links back to its artist', async ({ page }) => {
+  await page.locator('[data-related-detail] [data-related-select][data-related-type="releases"][data-related-id="30"]').click();
+  await expect(page.getByRole('tab', { name: 'RELEASES' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('SIGNAL 001');
+  await expect(page.getByRole('link', { name: 'VIEW RELEASE ↗' })).toHaveAttribute('href', '/releases/signal-001');
+  await expect(page.getByRole('link', { name: 'LISTEN ↗' })).toHaveAttribute('target', '_blank');
+
+  await page.locator('[data-related-detail] [data-related-select][data-related-type="artists"][data-related-id="1"]').click();
+  await expect(page.getByRole('tab', { name: 'ARTISTS' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R');
+});

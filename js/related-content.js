@@ -71,6 +71,8 @@ const BRVTALRelatedContent = (() => {
     const rel = relation(type, id) || {};
     if (type === 'artists') return (rel.events?.length || 0) + (rel.sets?.length || 0) + (rel.releases?.length || 0);
     if (type === 'events') return (rel.artists?.length || 0) + (rel.sets?.length || 0);
+    if (type === 'sets') return (Number(rel.artist) > 0 ? 1 : 0) + (Number(rel.event) > 0 ? 1 : 0);
+    if (type === 'releases') return rel.artists?.length || 0;
     return 0;
   }
 
@@ -94,6 +96,8 @@ const BRVTALRelatedContent = (() => {
           <div class="related-network-tabs" role="tablist" aria-label="Content type">
             <button type="button" role="tab" aria-selected="true" data-related-mode="artists">ARTISTS</button>
             <button type="button" role="tab" aria-selected="false" data-related-mode="events">EVENTS</button>
+            <button type="button" role="tab" aria-selected="false" data-related-mode="sets">SETS</button>
+            <button type="button" role="tab" aria-selected="false" data-related-mode="releases">RELEASES</button>
           </div>
           <div class="related-network-list" data-related-list></div>
         </aside>
@@ -123,24 +127,51 @@ const BRVTALRelatedContent = (() => {
 
   function entityLabel(type, entity) {
     if (type === 'artists') return String(entity?.name || 'UNKNOWN ARTIST');
-    return String(entity?.title || 'UNTITLED EVENT');
+    if (type === 'events') return String(entity?.title || 'UNTITLED EVENT');
+    if (type === 'sets') return String(entity?.title || 'UNTITLED SET');
+    if (type === 'releases') return String(entity?.title || 'UNTITLED RELEASE');
+    return 'UNTITLED';
   }
 
   function entityMeta(type, entity, id) {
+    const rel = relation(type, id) || {};
     if (type === 'artists') {
-      const rel = relation(type, id) || {};
       return `${rel.events?.length || 0} EVENTS / ${rel.sets?.length || 0} SETS / ${rel.releases?.length || 0} RELEASES`;
     }
-    const rel = relation(type, id) || {};
-    const status = String(entity?.status || 'published').toUpperCase().replaceAll('_', ' ');
-    return `${status} / ${rel.artists?.length || 0} ARTISTS / ${rel.sets?.length || 0} SETS`;
+    if (type === 'events') {
+      const status = String(entity?.status || 'published').toUpperCase().replaceAll('_', ' ');
+      return `${status} / ${rel.artists?.length || 0} ARTISTS / ${rel.sets?.length || 0} SETS`;
+    }
+    if (type === 'sets') {
+      const platform = String(entity?.platform || 'SET').toUpperCase();
+      return `${platform} / ${Number(rel.artist) > 0 ? '1 ARTIST' : 'NO ARTIST'} / ${Number(rel.event) > 0 ? '1 EVENT' : 'NO EVENT'}`;
+    }
+    if (type === 'releases') {
+      const releaseType = String(entity?.release_type || 'RELEASE').toUpperCase();
+      const date = formatDate(entity?.release_date);
+      return [releaseType, `${rel.artists?.length || 0} ARTISTS`, date].filter(Boolean).join(' / ');
+    }
+    return '';
+  }
+
+  function mapFor(type, maps) {
+    return maps[type] instanceof Map ? maps[type] : new Map();
+  }
+
+  function syncTabs() {
+    const root = mount();
+    root.querySelectorAll('[data-related-mode]').forEach(button => {
+      const active = button.dataset.relatedMode === state.mode;
+      button.setAttribute('aria-selected', String(active));
+      button.classList.toggle('active', active);
+    });
   }
 
   function renderList() {
     const root = mount();
     const list = qs('[data-related-list]', root);
     const maps = indexes();
-    const map = state.mode === 'events' ? maps.events : maps.artists;
+    const map = mapFor(state.mode, maps);
     const entries = [...map.entries()].sort((a, b) => {
       const degreeDiff = degree(state.mode, b[0]) - degree(state.mode, a[0]);
       return degreeDiff || entityLabel(state.mode, a[1]).localeCompare(entityLabel(state.mode, b[1]));
@@ -161,9 +192,9 @@ const BRVTALRelatedContent = (() => {
     const title = type === 'artist' ? entity?.name : entity?.title;
     const image = imgUrl(entity?.photo || entity?.cover_image || entity?.artwork || '');
     const meta = options.meta || '';
-    const navigable = type === 'artist' || type === 'event';
-    const selectType = type === 'artist' ? 'artists' : type === 'event' ? 'events' : '';
-    const href = entityUrl(`${type}s`, entity?.slug) || (options.href ? cleanUrl(options.href) : '');
+    const selectType = `${type}s`;
+    const navigable = ['artists','events','sets','releases'].includes(selectType) && Number(entity?.id) > 0;
+    const href = entityUrl(selectType, entity?.slug) || (options.href ? cleanUrl(options.href) : '');
     const inner = `${image ? `<span class="related-item-image"><img src="${esc(image)}" alt="" loading="lazy" decoding="async"></span>` : '<span class="related-item-image related-item-placeholder"></span>'}
       <span class="related-item-copy"><strong>${esc(title || 'UNTITLED')}</strong><small class="mono">${esc(meta)}</small></span><span class="related-item-arrow">${navigable || href ? '↗' : '—'}</span>`;
 
@@ -183,14 +214,21 @@ const BRVTALRelatedContent = (() => {
     return release?.spotify_url || release?.soundcloud_url || release?.bandcamp_url || release?.youtube_url || release?.beatport_url || '';
   }
 
+  function detailLinks(items) {
+    const links = (Array.isArray(items) ? items : []).filter(item => item?.href);
+    if (!links.length) return '';
+    return `<div class="related-detail-links">${links.map(item => `<a class="related-detail-link mono" href="${esc(item.href)}"${item.external ? ' target="_blank" rel="noopener"' : ''}>${esc(item.label)} ↗</a>`).join('')}</div>`;
+  }
+
   function renderArtistDetail(artist, rel, maps) {
     const eventItems = (rel.events || []).map(id => maps.events.get(Number(id))).filter(Boolean);
     const setItems = (rel.sets || []).map(id => maps.sets.get(Number(id))).filter(Boolean);
     const releaseItems = (rel.releases || []).map(id => maps.releases.get(Number(id))).filter(Boolean);
     const photo = imgUrl(artist.photo);
+    const canonical = entityUrl('artists', artist.slug);
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${photo ? `<img src="${esc(photo)}" alt="${esc(artist.name || 'Artist')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / ARTIST</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">ARTIST / CONTENT PATH</div><h3>${esc(artist.name || 'UNKNOWN')}</h3><p>${esc(artist.bio || 'BRVTAL ARTIST')}</p>${entityUrl('artists', artist.slug) ? `<a class="related-detail-link mono" href="${esc(entityUrl('artists', artist.slug))}">VIEW ARTIST ↗</a>` : ''}</div>
+      <div class="related-detail-copy"><div class="mono">ARTIST / CONTENT PATH</div><h3>${esc(artist.name || 'UNKNOWN')}</h3><p>${esc(artist.bio || 'BRVTAL ARTIST')}</p>${detailLinks([{href:canonical,label:'VIEW ARTIST'}])}</div>
     </div>
     <div class="related-groups">
       ${group('EVENTS', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
@@ -204,9 +242,10 @@ const BRVTALRelatedContent = (() => {
     const setItems = (rel.sets || []).map(id => maps.sets.get(Number(id))).filter(Boolean);
     const image = imgUrl(event.cover_image);
     const status = String(event.status || 'published').toUpperCase().replaceAll('_', ' ');
+    const canonical = entityUrl('events', event.slug);
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / EVENT</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${entityUrl('events', event.slug) ? `<a class="related-detail-link mono" href="${esc(entityUrl('events', event.slug))}">VIEW EVENT ↗</a>` : ''}</div>
+      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VIEW EVENT'}])}</div>
     </div>
     <div class="related-groups">
       ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
@@ -214,17 +253,66 @@ const BRVTALRelatedContent = (() => {
     </div>`;
   }
 
+  function renderSetDetail(set, rel, maps) {
+    const artist = Number(rel.artist) > 0 ? maps.artists.get(Number(rel.artist)) : null;
+    const event = Number(rel.event) > 0 ? maps.events.get(Number(rel.event)) : null;
+    const image = imgUrl(set.cover_image);
+    const platform = String(set.platform || 'SET').toUpperCase();
+    const canonical = entityUrl('sets', set.slug);
+    const external = cleanUrl(set.external_url);
+    const description = set.description || [set.artist_name, set.event_title].filter(Boolean).join(' / ') || 'BRVTAL SET';
+    return `<div class="related-detail-hero">
+      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(set.title || 'Set')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / SET</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">SET / ${esc(platform)}</div><h3>${esc(set.title || 'UNTITLED SET')}</h3><p>${esc(description)}</p>${detailLinks([{href:canonical,label:'VIEW SET'},{href:external,label:'OPEN PLATFORM',external:true}])}</div>
+    </div>
+    <div class="related-groups">
+      ${group('ARTIST', artist ? [artist] : [], item => relationItem('artist', item, { meta: item.bio || 'BRVTAL ARTIST' }))}
+      ${group('EVENT', event ? [event] : [], item => relationItem('event', item, { meta: [formatDate(item.event_date), item.city].filter(Boolean).join(' / ') }))}
+    </div>`;
+  }
+
+  function renderReleaseDetail(release, rel, maps) {
+    const artistItems = (rel.artists || []).map(id => maps.artists.get(Number(id))).filter(Boolean);
+    const image = imgUrl(release.artwork);
+    const releaseType = String(release.release_type || 'RELEASE').toUpperCase();
+    const canonical = entityUrl('releases', release.slug);
+    const external = cleanUrl(releaseHref(release));
+    const meta = [formatDate(release.release_date), release.catalog_number].filter(Boolean).join(' / ');
+    return `<div class="related-detail-hero">
+      <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(release.title || 'Release')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / RELEASE</div>'}</div>
+      <div class="related-detail-copy"><div class="mono">${esc(releaseType)} / CATALOG</div><h3>${esc(release.title || 'UNTITLED RELEASE')}</h3><p>${esc(release.description || meta || 'BRVTAL RELEASE')}</p>${detailLinks([{href:canonical,label:'VIEW RELEASE'},{href:external,label:'LISTEN',external:true}])}</div>
+    </div>
+    <div class="related-groups">
+      ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
+    </div>`;
+  }
+
   function select(type, id) {
     const maps = indexes();
-    const map = type === 'events' ? maps.events : maps.artists;
+    const map = mapFor(type, maps);
     const entity = map.get(Number(id));
     if (!entity) return;
+
     state.mode = type;
     state.selectedType = type;
     state.selectedId = Number(id);
+    syncTabs();
+
     const detail = qs('[data-related-detail]', mount());
-    const rel = relation(type, id) || (type === 'artists' ? {events:[],sets:[],releases:[]} : {artists:[],sets:[]});
-    detail.innerHTML = type === 'artists' ? renderArtistDetail(entity, rel, maps) : renderEventDetail(entity, rel, maps);
+    const defaults = {
+      artists: {events:[],sets:[],releases:[]},
+      events: {artists:[],sets:[]},
+      sets: {artist:null,event:null},
+      releases: {artists:[]},
+    };
+    const rel = relation(type, id) || defaults[type] || {};
+    const renderers = {
+      artists: renderArtistDetail,
+      events: renderEventDetail,
+      sets: renderSetDetail,
+      releases: renderReleaseDetail,
+    };
+    detail.innerHTML = renderers[type]?.(entity, rel, maps) || '';
     renderList();
     qs('[data-related-detail]', state.root)?.scrollTo?.({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
@@ -233,7 +321,7 @@ const BRVTALRelatedContent = (() => {
     const summary = qs('[data-related-summary]', mount());
     const counts = state.data?.relations?.counts || {};
     const total = Object.values(counts).reduce((sum, value) => sum + (Number(value) || 0), 0);
-    summary.textContent = `${total} PUBLIC LINKS / ${Number(counts.event_artist || 0)} EVENT↔ARTIST / ${Number(counts.artist_release || 0)} ARTIST↔RELEASE`;
+    summary.textContent = `${total} PUBLIC LINKS / ${Number(counts.event_artist || 0)} EVENT↔ARTIST / ${Number(counts.event_set || 0)} EVENT↔SET / ${Number(counts.artist_set || 0)} ARTIST↔SET / ${Number(counts.artist_release || 0)} ARTIST↔RELEASE`;
   }
 
   function render() {
@@ -244,11 +332,7 @@ const BRVTALRelatedContent = (() => {
       return;
     }
     root.hidden = false;
-    root.querySelectorAll('[data-related-mode]').forEach(button => {
-      const active = button.dataset.relatedMode === state.mode;
-      button.setAttribute('aria-selected', String(active));
-      button.classList.toggle('active', active);
-    });
+    syncTabs();
     renderSummary();
     const entries = renderList();
     if (!state.selectedType || state.selectedType !== state.mode || !state.selectedId) {
