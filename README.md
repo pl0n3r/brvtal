@@ -7,23 +7,23 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se evita que una navegación dinámica obsoleta de Media, Releases o Blog recupere el workspace después de que el usuario ya cambió de destino.
-- Una navegación nueva cancela inmediatamente cualquier fragment fetch dinámico anterior y vuelve obsoletas las esperas de scripts pendientes de Media, Releases o Blog.
-- Si un módulo dinámico viejo termina de cargar después de haber cambiado de destino, ya no puede montar su contenido ni reescribir `?module=`.
-- Events / Content Core y System Status cancelan también cualquier fragment dinámico anterior al tomar el control del workspace.
+- Se evita que una respuesta nativa obsoleta de DISCADMIN sobrescriba los datos o el workspace de un destino más reciente.
+- Las lecturas iniciadas sincrónicamente por una navegación reciben el mismo token de ruta; si terminan después de que el usuario cambió de destino, se descartan antes de que el legacy escriba `state.rows` o renderice.
+- El fence solo aplica a requests capturados dentro de una navegación; mutaciones y requests ordinarios conservan su comportamiento actual.
+- La protección dinámica previa de Media, Releases y Blog permanece intacta.
 - No hay cambios de API, base de datos ni contratos de publicación.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/admin-information-architecture.js` — coordina cancelación, dependencias dinámicas y tokens de navegación para descartar módulos dinámicos obsoletos.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — fuerza una carrera Releases → Media con la dependencia de Releases retrasada y exige que Media permanezca como destino final.
+- `discadmin/admin-information-architecture.js` — añade un fence de requests ligado al token de navegación y usa el mismo coordinador para rutas nativas y Events / Content Core.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — fuerza Artists lento → Pages rápido y exige que la respuesta tardía de Artists no cambie section, rows, render ni URL; conserva la regresión dinámica Releases → Media.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - La rama debe pasar sintaxis JavaScript y la regresión dirigida de Information Architecture antes del merge.
 - El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README.
-- Chromium debe demostrar que una navegación a Releases que sigue esperando su script no puede reaparecer después de que Media ya sea el destino vigente.
+- Chromium debe demostrar que, tras Pages, una respuesta tardía de Artists no puede reescribir los rows ni renderizar Artists.
 - Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
 - CI verde implica **VALIDATED IN CODE**; observar el SHA exacto en Hostinger implica **DEPLOYED**.
 
