@@ -299,6 +299,21 @@
 
   window.go = async function(section) {
     if (section === 'content-core') section = 'events';
+
+    if (section === 'dashboard' && !initialRouteApplied) {
+      const requested = routeFromUrl();
+      if (requested !== 'dashboard') {
+        applyingRoute = true;
+        try {
+          const result = await navigateRoute(requested);
+          initialRouteApplied = true;
+          return result;
+        } finally {
+          applyingRoute = false;
+        }
+      }
+    }
+
     let result;
     if (section === 'events') result = await loadContentCoreContext('events');
     else {
