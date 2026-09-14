@@ -33,6 +33,10 @@ $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n</head>", $html);
 $html = brvtal_public_dedupe_decorative_assets($html);
 $html = brvtal_public_optimize_font_stylesheet($html);
+$html = brvtal_public_inline_stylesheets($html, [
+    'css/hero-slider.css',
+    'css/hero-slider-v2.css',
+]);
 $html = brvtal_public_defer_stylesheets($html, [
     'css/archive.css',
     'css/public-media.css',
