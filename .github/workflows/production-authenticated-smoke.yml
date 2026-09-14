@@ -1,0 +1,104 @@
+name: Authenticated Production Smoke
+run-name: Authenticated Production Smoke #${{ github.run_number }} · ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-production-authenticated-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: read-only-admin-smoke
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-smoke
+    env:
+      BRVTAL_PROD_URL: https://www.brvtal.com.co
+      BRVTAL_PROD_ADMIN_EMAIL: ${{ secrets.BRVTAL_PROD_ADMIN_EMAIL }}
+      BRVTAL_PROD_ADMIN_PASSWORD: ${{ secrets.BRVTAL_PROD_ADMIN_PASSWORD }}
+      BRVTAL_PROD_TOTP_SECRET: ${{ secrets.BRVTAL_PROD_TOTP_SECRET }}
+      BRVTAL_EXPECTED_SHA: ${{ github.sha }}
+      BRVTAL_PROD_SMOKE_OUTPUT: artifacts/production-authenticated-smoke.json
+
+    steps:
+      - name: Check out exact main source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Require isolated smoke credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${BRVTAL_PROD_ADMIN_EMAIL}" || -z "${BRVTAL_PROD_ADMIN_PASSWORD}" ]]; then
+            echo "Configure BRVTAL_PROD_ADMIN_EMAIL and BRVTAL_PROD_ADMIN_PASSWORD in the production-smoke environment." >&2
+            exit 1
+          fi
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-production-auth-smoke-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-production-auth-smoke-npm-
+            ${{ runner.os }}-npm-
+
+      - name: Install test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-production-auth-smoke-chromium-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-production-auth-smoke-chromium-
+            ${{ runner.os }}-playwright-chromium-
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run authenticated production smoke
+        run: node tests/e2e/production-authenticated-smoke.mjs
+
+      - name: Publish smoke summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Authenticated production smoke"
+            echo
+            echo "- Canonical origin: \`${BRVTAL_PROD_URL}\`"
+            echo "- Source SHA: \`${GITHUB_SHA}\`"
+            echo "- Mode: **manual / authenticated / content-read-only**"
+            echo "- Checks: Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
+            echo "- Evidence: \`production-authenticated-smoke.json\` artifact"
+            echo
+            echo "The browser guard stubs the DISCADMIN media-permission repair locally and blocks any other post-login POST/PUT/PATCH/DELETE request."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-authenticated-smoke-${{ github.run_id }}
+          path: artifacts/production-authenticated-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
