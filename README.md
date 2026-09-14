@@ -7,31 +7,28 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 ## Qué se hizo
 
-- Se añadió una medición reproducible de rendimiento real contra `https://www.brvtal.com.co/` usando Chromium/Playwright, sin depender de PageSpeed o GTmetrix para obtener el desglose básico del LCP.
-- El nuevo workflow `Production Performance` corre automáticamente después de un `BRVTAL CI` exitoso de `main` y también puede ejecutarse manualmente.
-- Antes de medir tras un deploy, el workflow espera a que producción exponga `?v=<short-sha>` del commit exacto; así evita atribuir métricas a un deploy anterior.
-- La medición registra móvil y escritorio: FCP, LCP, CLS, TTFB, `resource load delay`, `resource load duration`, `element render delay`, transferencia del recurso LCP y cantidad de requests.
-- Los resultados quedan en el Job Summary y como JSON descargable por 14 días. No se cambió UI, contenido, base de datos ni calidad de imágenes.
+- Se corrigió el arranque del workflow `Production Performance`: el primer run falló antes de medir porque `actions/setup-node` con `cache: npm` exige un lockfile y este repositorio no usa `package-lock.json`.
+- El workflow ahora replica el patrón ya validado por BRVTAL CI: Node 24, caché explícito de `~/.npm` basado en `package.json` y `npm install --prefer-offline --no-audit --no-fund`.
+- La lógica de medición, el target canónico `https://www.brvtal.com.co/`, la verificación del marcador `?v=<short-sha>` y la evidencia móvil/escritorio permanecen sin cambios.
+- No se modificó UI, contenido, base de datos ni calidad de imágenes.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-performance.yml` — ejecuta la medición post-deploy y manual, verifica el SHA desplegado y guarda evidencia.
-- `tests/e2e/production-performance-probe.mjs` — mide Web Vitals y descompone el LCP directamente en Chromium.
-- `tests/project-operations-contract.php` — protege URL canónica, trazabilidad del SHA, medición móvil/escritorio y métricas del LCP.
+- `.github/workflows/production-performance.yml` — corrige instalación/caché de dependencias sin requerir un lockfile inexistente.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `README Deploy Snapshot / verify`, `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
 - Después del merge, el SHA exacto de `main` debe volver a pasar ambos gates.
-- El primer `Production Performance` exitoso sobre ese SHA será evidencia de **DEPLOYED** y de medición real del Home; las métricas resultantes podrán usarse para decidir el siguiente ajuste.
+- El siguiente `Production Performance` exitoso debe observar primero el SHA exacto en producción y luego medir FCP/LCP/CLS y el desglose del LCP.
 - Producción canónica: `https://www.brvtal.com.co`.
 
 ## Qué sigue
 
-1. Revisar el primer run automático de `Production Performance` y comparar el LCP móvil/escritorio con la evidencia anterior de PageSpeed, especialmente `resource load delay`, `resource load duration` y `element render delay`.
-2. Si el render delay sigue siendo material, revisar el loader/capas de arranque antes de recomprimir imágenes.
-3. Si el cuello de botella pasa a ser transferencia de imagen, optimizar el logo estático y Genesis con comparación visual previa, preservando originales.
+1. Confirmar que `Production Performance` complete la medición móvil y escritorio sobre el SHA exacto desplegado.
+2. Comparar `resource load delay`, `resource load duration` y `element render delay` con la evidencia anterior de PageSpeed.
+3. Solo con esa evidencia decidir si el siguiente cuello de botella está en render inicial o en transferencia de imágenes.
 
 ## Contexto durable
 
