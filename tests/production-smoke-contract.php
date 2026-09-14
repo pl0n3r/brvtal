@@ -42,14 +42,16 @@ $assert(!preg_match('/BRVTAL_PROD_TOTP_SECRET:\s*["\']?[A-Z2-7]{8,}/', $workflow
 // DISCADMIN permission-repair POST is fulfilled locally instead of reaching Hostinger.
 $assert(str_contains($probe, "['GET', 'HEAD', 'OPTIONS'].includes(method)"), 'probe must allow only read-only browser methods after auth');
 $assert(str_contains($probe, "url.pathname === '/api/media-permissions.php'"), 'probe must identify the automatic media-permission repair');
-$assert(str_contains($probe, "smoke_stub: true"), 'media-permission repair must be fulfilled locally');
+$assert(str_contains($probe, 'smoke_stub: true'), 'media-permission repair must be fulfilled locally');
 $assert(str_contains($probe, "route.abort('blockedbyclient')"), 'unexpected browser mutations must be blocked');
 $assert(str_contains($probe, 'blockedMutations'), 'blocked mutations must be captured in evidence');
 $assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');
 $assert(str_contains($probe, 'published Artist and one published Event'), '#124 must use existing published relations rather than creating data');
 $assert(str_contains($probe, "window.go('hero-slider')"), '#125 must exercise the real Hero Slider manager');
-$assert(substr_count($probe, "window.go('hero-slider')") >= 1 && str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
-$assert(!preg_match('/context\.request->?(?:post|put|patch|delete)/i', $probe), 'probe source must not use PHP-style request mutations');
+$assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
+$assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POST calls must be login and optional TOTP verification');
+$assert(!preg_match('/context\.request\.(?:put|patch|delete)\s*\(/i', $probe), 'probe must not directly mutate production content through APIRequestContext');
+$assert(!preg_match('/page\.request\.(?:post|put|patch|delete)\s*\(/i', $probe), 'probe must not mutate production content through page.request');
 
 // Documentation must preserve the distinction between code-ready and actually run.
 $assert(str_contains($testing, 'Authenticated production smoke'), 'testing docs must document the authenticated smoke procedure');
