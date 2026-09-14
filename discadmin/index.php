@@ -5,6 +5,14 @@ ob_start();
 require __DIR__ . '/index-core.php';
 $html = (string)ob_get_clean();
 
+$phpRuntime = htmlspecialchars(PHP_VERSION, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$html = preg_replace(
+    '~<div class="techcard"><h3>PHP</h3><div class="techvalue">[^<]*</div></div>~',
+    '<div class="techcard" data-runtime-card="php"><h3>PHP</h3><div class="techvalue">' . $phpRuntime . '</div></div>',
+    $html,
+    1
+) ?? $html;
+
 $assetVersion = function_exists('brvtal_deployment_short_sha')
     ? rawurlencode(brvtal_deployment_short_sha())
     : (defined('BRVTAL_APP_BUILD') ? rawurlencode((string)BRVTAL_APP_BUILD) : '');

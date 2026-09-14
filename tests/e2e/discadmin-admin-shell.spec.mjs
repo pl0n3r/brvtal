@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const css = readFileSync(join(process.cwd(), 'discadmin/admin-shell.css'), 'utf8');
 const js = readFileSync(join(process.cwd(), 'discadmin/admin-shell.js'), 'utf8');
+const indexPhp = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
 
 async function mount(page) {
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
@@ -44,4 +45,12 @@ test('Escape closes the mobile menu and returns focus; desktop sidebar stays vis
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(nav).toBeVisible();
   await expect(menu).toBeHidden();
+});
+
+test('dashboard PHP runtime label comes from the server runtime instead of a fixed version', async () => {
+  expect(indexPhp).toContain('PHP_VERSION');
+  expect(indexPhp).toContain('data-runtime-card="php"');
+  expect(indexPhp).toContain('$phpRuntime');
+  expect(indexPhp).toMatch(/<h3>PHP<\/h3><div class=\\?"techvalue\\?">\[\^<\]\*<\/div><\/div>/);
+  expect(indexPhp).not.toContain("$phpRuntime = '8.3+'");
 });
