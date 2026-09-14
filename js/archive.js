@@ -24,6 +24,17 @@
     if (Number.isNaN(date.getTime())) return String(value);
     return new Intl.DateTimeFormat(document.documentElement.lang || 'en',{day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
   };
+  const connectedEventUrl = id => {
+    const eventId = Number(id) || 0;
+    if (!eventId) return '';
+    try {
+      const url = new URL(location.href);
+      url.searchParams.set('network_type', 'events');
+      url.searchParams.set('network_id', String(eventId));
+      url.hash = 'network';
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch (_) { return ''; }
+  };
 
   function activeStatusLabel(status, index) {
     const labels = {
@@ -94,6 +105,7 @@
     const status = String(event.status || 'archive').toUpperCase().replaceAll('_',' ');
     const slug = String(event.slug || '').trim();
     const href = slug ? `/events/${encodeURIComponent(slug)}` : '';
+    const connectionsHref = relationParts.length ? connectedEventUrl(event.id) : '';
     const search = searchText([title,city,venue,...names].join(' '));
 
     return `<article class="archive-event" data-archive-event data-archive-year="${year||''}" data-archive-artists="${lineup.length?'1':'0'}" data-archive-sets="${sets.length?'1':'0'}" data-archive-search-value="${esc(search)}" data-archive-id="${Number(event.id)||0}">
@@ -103,6 +115,7 @@
         <h3>${esc(title)}</h3>
         <p>${esc([venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — '))}</p>
         <div class="archive-event-relations mono">${esc(relationParts.join(' / ') || 'HISTORICAL RECORD')}</div>
+        ${connectionsHref?`<a class="archive-event-link mono" data-archive-connections href="${esc(connectionsHref)}" aria-label="Explore connections for ${esc(title)}">EXPLORE CONNECTIONS ↗</a>`:''}
         ${href?`<a class="archive-event-link mono" href="${esc(href)}" aria-label="View ${esc(title)}">OPEN RECORD ↗</a>`:''}
       </div>
     </article>`;
