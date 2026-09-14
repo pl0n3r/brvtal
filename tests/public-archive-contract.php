@@ -95,7 +95,15 @@ archive_expect(str_contains($deferred, 'href="css/archive.css" media="print" onl
 archive_expect(str_contains($deferred, '<noscript><link rel="stylesheet" href="css/archive.css"></noscript>'), 'Deferred stylesheet must retain a no-JavaScript fallback');
 archive_expect(str_contains($indexPhp, "'css/archive.css'") && str_contains($indexPhp, "'css/public-media.css'") && str_contains($indexPhp, "'css/input-accessibility.css'") && str_contains($indexPhp, "'css/mobile-events.css'"), 'Canonical Home delivery must defer the known below-fold/support stylesheets');
 archive_expect(!str_contains($indexPhp, "'css/style.css',"), 'Primary Home stylesheet must not be deferred');
-archive_expect(!str_contains($indexPhp, "'css/hero-slider.css',") && !str_contains($indexPhp, "'css/hero-slider-v2.css',"), 'Hero slider styles must remain synchronous until its mount path explicitly waits for CSS readiness');
+$inlineHeroPos = strpos($indexPhp, 'brvtal_public_inline_stylesheets($html');
+$deferStylesPos = strpos($indexPhp, 'brvtal_public_defer_stylesheets($html');
+archive_expect($inlineHeroPos !== false && $deferStylesPos !== false && $inlineHeroPos < $deferStylesPos, 'Hero styles must be made synchronous before below-fold stylesheet deferral');
+$inlineHeroFixture = brvtal_public_inline_stylesheets(
+    '<link rel="stylesheet" href="css/hero-slider.css"><link rel="stylesheet" href="css/hero-slider-v2.css">',
+    ['css/hero-slider.css','css/hero-slider-v2.css']
+);
+archive_expect(str_contains($inlineHeroFixture, 'data-brvtal-inline="css/hero-slider.css"') && str_contains($inlineHeroFixture, 'data-brvtal-inline="css/hero-slider-v2.css"'), 'Hero slider styles must remain synchronous through inline critical CSS');
+archive_expect(!str_contains($inlineHeroFixture, 'href="css/hero-slider.css"') && !str_contains($inlineHeroFixture, 'href="css/hero-slider-v2.css"'), 'Inlined Hero styles must not leave render-blocking stylesheet requests');
 
 $versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script><img src="assets/brvtal-logo.jpeg">', 'abc123');
 archive_expect(str_contains($versioned, 'css/style.css?v=abc123') && str_contains($versioned, 'js/app.js?v=abc123'), 'CSS/JS deployment versioning must remain intact');

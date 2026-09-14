@@ -78,6 +78,25 @@ $assert(substr_count($assetFixture, 'F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_
 $assert(str_contains($assetFixture, 'rel="icon"'), 'Home must declare an explicit favicon instead of triggering /favicon.ico');
 $assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS backgrounds must be suppressed before browser fetch');
 
+// Tiny Home-only Hero CSS is critical but should not incur separate render-blocking requests.
+$heroCssFixture = '<html><head>'
+    . '<link rel="stylesheet" href="css/style.css">'
+    . '<link rel="stylesheet" href="css/hero-slider.css">'
+    . '<link rel="stylesheet" href="css/hero-slider-v2.css" data-hero-v2-public="1">'
+    . '</head></html>';
+$heroCssFixture = brvtal_public_inline_stylesheets($heroCssFixture, [
+    'css/hero-slider.css',
+    'css/hero-slider-v2.css',
+]);
+$assert(str_contains($indexPhp, 'brvtal_public_inline_stylesheets($html'), 'Home renderer must inline the tiny critical Hero styles');
+$assert(str_contains($heroCssFixture, 'data-brvtal-inline="css/hero-slider.css"'), 'base Hero Slider CSS must be inlined');
+$assert(str_contains($heroCssFixture, 'data-brvtal-inline="css/hero-slider-v2.css"'), 'Hero Slider v2 CSS must be inlined');
+$assert(!str_contains($heroCssFixture, 'href="css/hero-slider.css"'), 'base Hero CSS must not remain a blocking request');
+$assert(!str_contains($heroCssFixture, 'href="css/hero-slider-v2.css"'), 'Hero v2 CSS must not remain a blocking request');
+$assert(str_contains($heroCssFixture, 'href="css/style.css"'), 'core style.css must remain an external blocking stylesheet');
+$assert(str_contains($heroCssFixture, '.brvtal-hero-slider'), 'inlined Hero CSS must contain the actual slider rules');
+$assert(str_contains($heroCssFixture, '.brvtal-hero-layer'), 'inlined Hero v2 CSS must contain the layer rules');
+
 // Migration-state controls are part of operations safety and therefore ride the always-on fast gate.
 require __DIR__ . '/migrations-contract.php';
 
