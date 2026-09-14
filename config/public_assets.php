@@ -12,6 +12,18 @@ function brvtal_public_version_assets(string $html, string $version): string
     ) ?? $html;
 }
 
+function brvtal_public_preload_home_lcp(string $html): string
+{
+    $coreStyle = '<link rel="stylesheet" href="css/style.css">';
+    $preload = '<link rel="preload" as="image" href="assets/brvtal-logo.jpeg" fetchpriority="high">';
+
+    if (!str_contains($html, $coreStyle) || str_contains($html, $preload)) {
+        return $html;
+    }
+
+    return str_replace($coreStyle, $preload . "\n  " . $coreStyle, $html);
+}
+
 function brvtal_public_dedupe_decorative_assets(string $html): string
 {
     if (!str_contains($html, 'rel="icon"')) {
