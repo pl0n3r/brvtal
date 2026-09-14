@@ -38,10 +38,20 @@ $assert(str_contains($agents, 'Read AGENTS.md and continue the project autonomou
 $assert(str_contains($agents, 'AI sessions should not require reading README before they can begin'), 'README/docs must remain optional deep reference for startup');
 $assert(!str_contains($agents, 'Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs/TESTING.md` before changing the product'), 'AGENTS must not require reconstructing startup context from multiple files');
 
-// CI/deployment observability and metadata safety contract.
+// CI/deployment observability, fast-feedback topology and metadata safety contract.
 $assert(str_contains($workflow, 'GITHUB_STEP_SUMMARY'), 'BRVTAL CI must publish GitHub Actions job summaries');
 $assert(str_contains($workflow, 'Deploy eligibility'), 'CI summary must state whether a run is deploy-eligible');
 $assert(str_contains($workflow, 'Changed files'), 'CI summary must expose changed-file context');
+$assert(str_contains($workflow, "  plan:\n") && str_contains($workflow, "  fast:\n"), 'CI must expose a planning gate and a fast syntax/contract gate');
+$assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  browser:\n"), 'CI must split database and Chromium validation into independent jobs');
+$assert(str_contains($workflow, "  realstack:\n") && str_contains($workflow, "  webkit:\n"), 'CI must keep real-stack and targeted WebKit validation independent');
+$assert(str_contains($workflow, "  validate:\n"), 'CI must preserve a final validate check for branch-protection compatibility');
+$assert(str_contains($workflow, 'needs: [plan, fast, database, browser, realstack, webkit]'), 'final validate must aggregate every validation layer');
+$assert(str_contains($workflow, 'actions/cache@v4'), 'browser/npm setup must use reusable Actions caches');
+$assert(str_contains($workflow, '--project=chromium'), 'normal browser gate must target Chromium explicitly');
+$assert(str_contains($workflow, '--project=webkit-totp'), 'WebKit must remain a targeted TOTP regression');
+$assert(str_contains($workflow, 'run_webkit'), 'CI planner must make WebKit path-aware on pull requests');
+$assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the runner MySQL client with mariadb-client');
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
 
