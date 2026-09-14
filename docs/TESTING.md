@@ -28,6 +28,8 @@ The workflow validates combinations of:
 - targeted Chromium and WebKit/Safari regressions;
 - Content Core real-stack test harness.
 
+A separate `Backup Recovery Rehearsal` workflow proves that the generated backup artifacts can reconstruct a disposable database and media snapshot without enabling any production restore path.
+
 The CI workflow must **not** commit build metadata automatically. Product version metadata is deliberate release data, not per-change noise.
 
 ## GitHub Actions build/deploy summary
@@ -80,6 +82,18 @@ BRVTAL_TEST_DB_PASS=your_local_test_password \
 npm run test:integration
 ```
 
+Run the isolated backup recovery rehearsal only against a disposable test database:
+
+```bash
+BRVTAL_INTEGRATION_TESTS=1 \
+BRVTAL_BACKUP_RECOVERY_REHEARSAL=1 \
+BRVTAL_TEST_DB_HOST=127.0.0.1 \
+BRVTAL_TEST_DB_NAME=brvtal_test_backup_source \
+BRVTAL_TEST_DB_USER=root \
+BRVTAL_TEST_DB_PASS=your_local_test_password \
+php tests/integration/backup-recovery-rehearsal.php
+```
+
 Run browser UI tests:
 
 ```bash
@@ -126,7 +140,8 @@ Examples include:
 - deployment traceability;
 - Hero Slider public/admin contract;
 - project operations contract;
-- authenticated production smoke safety contract.
+- authenticated production smoke safety contract;
+- isolated backup recovery safety contract.
 
 `tests/project-operations-contract.php` specifically protects the operational documentation contract:
 
@@ -146,6 +161,15 @@ Examples include:
 - the separate #122 Page-write workflow also remains manual-only, requires an explicit confirmation token, uses a unique temporary namespace and must delete only the Page it created;
 - the #122 probe must verify cleanup by requiring the temporary Page ID to return 404 afterward.
 
+`tests/backup-recovery-rehearsal-contract.php` protects the recovery boundary:
+
+- the rehearsal uses only a disposable MariaDB service and fixed `brvtal_test_*` source namespace;
+- both integration and recovery-specific opt-in guards are required before destructive fixture SQL can run;
+- recovery is always into a unique `brvtal_test_recovery_*` database and that database is dropped in cleanup;
+- no production URL, GitHub secret or production environment is consumed;
+- database credentials are not embedded in command arguments or evidence;
+- DISCADMIN continues to reject restore and backup manifests continue to advertise `restore_supported=false`.
+
 ### 3. Database integration tests
 
 Purpose: verify actual persistence and relational behavior against disposable MariaDB.
@@ -157,7 +181,26 @@ Safety rules:
 - CI uses a disposable MariaDB service;
 - production tables are not reset or seeded.
 
-Coverage includes content persistence plus specialized integration for Search, Bulk Actions, Public Archive, Related Content, Admin Activity, and Backups.
+Coverage includes content persistence plus specialized integration for Search, Bulk Actions, Public Archive, Related Content, Admin Activity, Backups, and isolated backup recovery.
+
+#### Backup recovery rehearsal
+
+`.github/workflows/backup-recovery-rehearsal.yml` is an isolated CI/test workflow. It does **not** authenticate to BRVTAL production, does not consume production secrets and does not expose a restore action in DISCADMIN.
+
+The rehearsal uses a disposable source database named `brvtal_test_backup_source`, creates representative relational fixtures plus a view and temporary media files, then generates a normal BRVTAL database dump and media ZIP through the existing backup engine. After the snapshot it deliberately mutates the source data and media so the recovery check can prove it is reconstructing the backup point-in-time rather than the later source state.
+
+The SQL dump is imported with the MariaDB client into a unique database matching `brvtal_test_recovery_<random>`. The rehearsal then verifies:
+
+- the database artifact SHA-256 matches the manifest;
+- Unicode, apostrophes and `NULL` values survive restore;
+- rows created or modified after the backup are absent;
+- restored foreign-key constraints still enforce referential integrity;
+- the restored SQL view returns the expected snapshot result;
+- the media ZIP extracts to the expected paths and file hashes match the pre-backup snapshot.
+
+Both the source fixtures and the unique recovery database are removed in `finally` cleanup. A strict namespace guard prevents the rehearsal from creating or dropping an arbitrary database. The evidence artifact is `backup-recovery-rehearsal.json` and contains no database password.
+
+This rehearsal proves recoverability of the **backup format in an isolated test environment**. It does not authorize or implement a production restore. `restore_supported=false` remains the product contract and `/discadmin/backups.php` must continue returning `RESTORE_NOT_SUPPORTED` for restore attempts. Automatic or one-click production restore remains deliberately deferred.
 
 ### 4. Browser UI tests
 
