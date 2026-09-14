@@ -55,6 +55,7 @@ async function installRoutes(page, {loadIaAfterRestore = false} = {}) {
         render();
       </script>
       <script>${adminModulesJs}</script>
+      <script>window.BRVTALMediaPermissions.repair=async()=>({ok:true});</script>
       <script>${totpLoginJs}</script>
       <script>window.__restorePromise = window.restoreSession();</script>
       ${loadIaAfterRestore ? `<script>${adminIaJs}</script>` : ''}
