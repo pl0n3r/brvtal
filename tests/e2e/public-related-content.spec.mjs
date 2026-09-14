@@ -16,7 +16,17 @@ const data = {
     city: 'PEREIRA',
     cover_image: ''
   }],
-  archive: { events: [] },
+  archive: { events: [{
+    id: 11,
+    title: 'PAST NIGHT',
+    slug: 'past-night',
+    status: 'finished',
+    event_date: '2025-05-10 22:00:00',
+    archive_year: 2025,
+    venue: 'OLD WAREHOUSE',
+    city: 'PEREIRA',
+    cover_image: ''
+  }] },
   artists: [{
     id: 1,
     name: 'PL0N3R',
@@ -48,11 +58,14 @@ const data = {
     spotify_url: 'https://open.spotify.com/track/example'
   }],
   relations: {
-    artists: { '1': { events: [10], sets: [20], releases: [30] } },
-    events: { '10': { artists: [1], sets: [20] } },
+    artists: { '1': { events: [10, 11], sets: [20], releases: [30] } },
+    events: {
+      '10': { artists: [1], sets: [20] },
+      '11': { artists: [1], sets: [] }
+    },
     sets: { '20': { artist: 1, event: 10 } },
     releases: { '30': { artists: [1] } },
-    counts: { event_artist: 1, event_set: 1, artist_set: 1, artist_release: 1 }
+    counts: { event_artist: 2, event_set: 1, artist_set: 1, artist_release: 1 }
   }
 };
 
@@ -80,6 +93,27 @@ test('Connected exposes Artists, Events, Sets and Releases as first-class layers
   await page.locator('[data-related-detail] [data-related-select][data-related-type="events"][data-related-id="10"]').click();
   await expect(page.getByRole('tab', { name: 'EVENTS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
+});
+
+test('Archived Event returns to its exact Archive context while active Event does not', async ({ page }) => {
+  await page.evaluate(() => history.replaceState({}, '', '?network_type=events&network_id=11#network'));
+  await page.getByRole('tab', { name: 'EVENTS' }).click();
+  await page.locator('[data-related-select][data-related-type="events"][data-related-id="11"]').first().click();
+
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('PAST NIGHT');
+  const archiveLink = page.getByRole('link', { name: 'VIEW IN ARCHIVE ↗' });
+  await expect(archiveLink).toBeVisible();
+  const archiveHref = await archiveLink.getAttribute('href');
+  const archiveUrl = new URL(archiveHref, page.url());
+  expect(archiveUrl.searchParams.get('archive_year')).toBe('2025');
+  expect(archiveUrl.searchParams.get('archive_q')).toBe('PAST NIGHT');
+  expect(archiveUrl.searchParams.has('network_type')).toBe(false);
+  expect(archiveUrl.searchParams.has('network_id')).toBe(false);
+  expect(archiveUrl.hash).toBe('#eventArchive');
+
+  await page.locator('[data-related-select][data-related-type="events"][data-related-id="10"]').first().click();
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
+  await expect(page.getByRole('link', { name: 'VIEW IN ARCHIVE ↗' })).toHaveCount(0);
 });
 
 test('Release detail remains inside the graph and links back to its artist', async ({ page }) => {

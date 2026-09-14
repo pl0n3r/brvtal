@@ -27,6 +27,32 @@ const BRVTALRelatedContent = (() => {
     return new Intl.DateTimeFormat(document.documentElement.lang || 'en', { day:'2-digit', month:'2-digit', year:'numeric' }).format(date);
   };
 
+  function archiveEventUrl(event) {
+    const id = Number(event?.id) || 0;
+    if (!id) return '';
+    const archived = (Array.isArray(state.data?.archive?.events) ? state.data.archive.events : [])
+      .find(item => Number(item?.id) === id);
+    if (!archived) return '';
+
+    const title = String(archived.title || event?.title || '').trim().slice(0, 120);
+    const eventDate = archived.event_date ? new Date(String(archived.event_date).replace(' ', 'T')) : null;
+    const derivedYear = eventDate && !Number.isNaN(eventDate.getTime()) ? eventDate.getFullYear() : 0;
+    const numericYear = Number(archived.archive_year) || derivedYear;
+    const year = Number.isInteger(numericYear) && numericYear >= 1900 && numericYear <= 9999 ? String(numericYear) : '';
+
+    try {
+      const url = new URL(location.href);
+      url.searchParams.delete('network_type');
+      url.searchParams.delete('network_id');
+      if (year) url.searchParams.set('archive_year', year);
+      else url.searchParams.delete('archive_year');
+      if (title) url.searchParams.set('archive_q', title);
+      else url.searchParams.delete('archive_q');
+      url.hash = 'eventArchive';
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch (_) { return ''; }
+  }
+
   function ensureStyles() {
     if (document.querySelector('link[data-related-content-style]')) return;
     const link = document.createElement('link');
@@ -243,9 +269,10 @@ const BRVTALRelatedContent = (() => {
     const image = imgUrl(event.cover_image);
     const status = String(event.status || 'published').toUpperCase().replaceAll('_', ' ');
     const canonical = entityUrl('events', event.slug);
+    const archive = archiveEventUrl(event);
     return `<div class="related-detail-hero">
       <div class="related-detail-image">${image ? `<img src="${esc(image)}" alt="${esc(event.title || 'Event')}" loading="lazy" decoding="async">` : '<div class="related-detail-placeholder mono">BRVTAL / EVENT</div>'}</div>
-      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VIEW EVENT'}])}</div>
+      <div class="related-detail-copy"><div class="mono">EVENT / ${esc(status)}</div><h3>${esc(event.title || 'UNTITLED EVENT')}</h3><p>${esc([formatDate(event.event_date), event.venue, event.city].filter(Boolean).join(' / '))}</p>${detailLinks([{href:canonical,label:'VIEW EVENT'},{href:archive,label:'VIEW IN ARCHIVE'}])}</div>
     </div>
     <div class="related-groups">
       ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
