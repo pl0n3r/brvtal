@@ -1,0 +1,52 @@
+name: BRVTAL PHPStan
+run-name: BRVTAL PHPStan #${{ github.run_number }} · ${{ github.event_name }} · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.php'
+      - 'composer.json'
+      - 'phpstan.neon'
+      - '.github/workflows/phpstan.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.php'
+      - 'composer.json'
+      - 'phpstan.neon'
+      - '.github/workflows/phpstan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-phpstan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phpstan:
+    name: phpstan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Confirm PHP and Composer
+        run: |
+          php -v
+          composer --version
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.json') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install pinned development tooling
+        run: composer update --no-interaction --no-progress --prefer-dist
+
+      - name: Run PHPStan
+        run: composer analyse
