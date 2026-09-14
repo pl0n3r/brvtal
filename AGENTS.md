@@ -41,11 +41,11 @@ BRVTAL is a proprietary digital platform for an underground electronic-music col
 | Repository | `pl0n3r/brvtal` |
 | Canonical branch | `main` |
 | Hosting | Hostinger shared hosting / LiteSpeed |
-| Backend | PHP 8.3+ |
+| Backend | PHP 8.5 |
 | Database | MariaDB / MySQL-compatible |
 | Public frontend | HTML + CSS + vanilla JavaScript |
 | Browser testing | Playwright; Chromium + targeted WebKit |
-| CI | GitHub Actions workflow **BRVTAL CI** |
+| CI | GitHub Actions workflow **BRVTAL CI** + **PHP 8.5 Compatibility** |
 | Deploy | GitHub `main` → Hostinger Git auto-deploy |
 | Public language | English |
 
@@ -253,6 +253,7 @@ Implemented contract:
 12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph; do not regress Sets/Releases to terminal relation links.
 13. **CI optimizes for fast feedback without weakening `main`.** Pull requests use a fast syntax/contract gate plus path-aware parallel DB/Chromium/real-stack/WebKit gates; every exact `main` push runs the full matrix and ends in the stable `validate` aggregate check.
 14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors; core content/runtime must remain functional without the motion CDN.
+15. **Production PHP runtime is 8.5.** Keep the dedicated `PHP 8.5 Compatibility` workflow green on PRs and exact `main`; it must lint and run the PHP contract suite without PHP warnings, notices or deprecations.
 
 ---
 
@@ -274,11 +275,17 @@ Never run destructive production SQL, resets/seeds or irreversible data changes 
 
 ## 6. Testing / CI / deployment contract
 
-Historical workflow filename:
+Historical main workflow filename:
 
 `.github/workflows/update-release-metadata.yml`
 
-Visible workflow name: **BRVTAL CI**.
+Visible main workflow name: **BRVTAL CI**.
+
+PHP production-runtime compatibility workflow:
+
+`.github/workflows/php85-compatibility.yml`
+
+Visible compatibility workflow name: **PHP 8.5 Compatibility**.
 
 ### Fast-feedback topology
 
@@ -290,9 +297,10 @@ The CI is intentionally layered:
 - `browser` runs Chromium when public/admin browser-facing surfaces require it;
 - `realstack` runs the authenticated PHP + MariaDB + Chromium smoke for relevant admin/API/config/database changes;
 - `webkit` is a targeted Safari/WebKit TOTP regression and is path-aware on PRs;
-- `validate` is the final aggregate check and must remain stable for branch-protection compatibility.
+- `validate` is the final aggregate BRVTAL CI check and must remain stable for branch-protection compatibility;
+- `PHP 8.5 Compatibility / php85` explicitly provisions PHP 8.5 and rejects PHP warnings, notices and deprecations in the contract suite.
 
-Every `push` to exact `main` and every manual workflow dispatch runs the **full matrix**, regardless of changed paths. Pull requests may skip irrelevant expensive gates, but `fast` always runs. Browser/npm downloads use GitHub Actions caches where practical.
+Every `push` to exact `main` and every manual workflow dispatch runs the **full BRVTAL CI matrix**; the PHP 8.5 compatibility workflow also runs on PRs and pushes to `main`. Pull requests may skip irrelevant expensive BRVTAL CI gates, but `fast` always runs. Browser/npm downloads use GitHub Actions caches where practical.
 
 The real-stack harness accepts either the `mariadb` or preinstalled `mysql` CLI. Do not reintroduce `mariadb-client` installation merely to replace a compatible runner client.
 
@@ -308,6 +316,7 @@ When an AI session changes a branch:
 
 CI covers combinations of:
 
+- PHP 8.5 compatibility with warnings/notices/deprecations rejected;
 - PHP syntax;
 - JavaScript syntax;
 - API/module contract tests;
@@ -325,11 +334,11 @@ Each run publishes GitHub Actions summaries with event/ref/PR, SHA, changed file
 1. Start a focused branch from current green `main`.
 2. Implement the logical change + applicable targeted tests; batch related edits before pushing where practical.
 3. Open PR to `main`.
-4. Wait for the final **BRVTAL CI / validate** result.
+4. Wait for the final **BRVTAL CI / validate** result and the **PHP 8.5 Compatibility / php85** result.
 5. Fix failures on the same PR branch.
 6. When green, squash merge.
 7. Get the exact merged `main` SHA.
-8. Verify full BRVTAL CI succeeds on that exact SHA.
+8. Verify full BRVTAL CI and PHP 8.5 Compatibility succeed on that exact SHA.
 9. Only then begin the next branch.
 
 Routine development operations do not require asking again.
