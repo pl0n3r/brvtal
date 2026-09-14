@@ -228,7 +228,7 @@ try {
     $parents = $recovery->query('SELECT id,label,nullable_value FROM backup_recovery_parent ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     recovery_expect(count($parents) === 2, 'Recovered snapshot must contain exactly the two pre-backup parent rows.');
     recovery_expect(($parents[0]['label'] ?? null) === "O'Reilly / BRVTAL — áéí", 'Recovered Unicode/apostrophe value differs from snapshot.');
-    recovery_expect(($parents[0]['nullable_value'] ?? 'not-null') === null, 'Recovered NULL value differs from snapshot.');
+    recovery_expect(array_key_exists('nullable_value', $parents[0]) && $parents[0]['nullable_value'] === null, 'Recovered NULL value differs from snapshot.');
     recovery_expect(($parents[1]['label'] ?? null) === 'Second snapshot row', 'Second snapshot row missing after recovery.');
     $evidence['checks']['snapshotRows'] = true;
 
