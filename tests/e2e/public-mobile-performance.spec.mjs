@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const mobileScript = readFileSync(join(process.cwd(), 'js/mobile-performance.js'), 'utf8');
 const runtimeLoader = readFileSync(join(process.cwd(), 'js/public-runtime-loader.js'), 'utf8');
 const publicEntry = readFileSync(join(process.cwd(), 'index.php'), 'utf8');
+const publicHtml = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-motion-runtime-e2e.html';
 const version = 'abc123';
 
@@ -87,9 +88,11 @@ async function openRuntimeHarness(page, { coarse = false, reduced = false, failS
   return requests;
 }
 
-test('canonical public entry replaces eager desktop motion scripts with the adaptive loader', async () => {
-  expect(publicEntry).toContain('$legacyRuntime =');
-  expect(publicEntry).toContain('js/public-runtime-loader.js');
+test('base public html exposes only the adaptive runtime entry', async () => {
+  expect(publicHtml).toContain('<script src="js/public-runtime-loader.js"></script>');
+  expect(publicHtml).not.toContain('cdn.jsdelivr.net/npm/gsap');
+  expect(publicHtml).not.toContain('cdn.jsdelivr.net/npm/lenis');
+  expect(publicHtml).not.toContain('<script src="js/app.js"></script>');
   expect(publicEntry).not.toContain("str_replace('<script src=\"js/app.js\"></script>'");
 });
 
