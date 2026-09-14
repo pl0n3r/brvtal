@@ -9,8 +9,9 @@ Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs
 - Deployment is automatic from GitHub `main` to Hostinger Git. Never use FTP or manual deployment as the routine path. Source deployment and database migration are distinct.
 - DISCADMIN must preserve **ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE**. Modules change the workspace inside `/discadmin`; never add a mini-admin, second sidebar, or competing session.
 - DISCADMIN appearance is selected directly in the sidebar above Logout with three persistent local modes: **Dark**, **Light**, and **Glass**. Appearance is shell-level UI only and must not be coupled to the public Theme Studio.
-- The Home Hero Slider is a constrained LayerSlider-inspired DISCADMIN module with mobile-first editing, optional mobile media overrides and a permanent fallback to the current static hero. Its detailed contract is in `docs/HERO-SLIDER.md`.
-- The historical workflow path `.github/workflows/update-release-metadata.yml` is the **BRVTAL CI** workflow. Preserve its filename unless a real technical need requires renaming. Do not reintroduce automation that rewrites `config/version.php` per commit. Deployment SHA is resolved by `config/deployment.php`.
+- The Home Hero Slider is a constrained LayerSlider-inspired DISCADMIN module with mobile-first editing, optional mobile media/layer overrides and a permanent fallback to the current static hero. Its detailed contract is in `docs/HERO-SLIDER.md`.
+- `README.md` is the operational technical overview and feature-status checklist. When a PR materially changes a requested feature from pending/in-progress to implemented (or changes a major technical contract), update the relevant README checklist/section in the same PR. Do not hard-code a "latest SHA" in README; current build/deploy identity belongs in GitHub Actions Job Summary and System Status.
+- The historical workflow path `.github/workflows/update-release-metadata.yml` is the **BRVTAL CI** workflow. Preserve its filename unless a real technical need requires renaming. Keep the per-run GitHub Job Summary with build context, changed-file/change-surface data, deploy eligibility, and final validation result. Do not reintroduce automation that rewrites `config/version.php` per commit. Deployment SHA is resolved by `config/deployment.php`.
 
 ## Security and production boundaries
 
@@ -26,4 +27,4 @@ Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs
 4. Squash merge after CI passes. Verify the **BRVTAL CI run for the exact resulting `main` SHA**.
 5. Report code validation, automatic deployment, and actual production verification separately. A green CI run does not prove Hostinger deployed or that a visual production check occurred.
 
-Routine branch, test, PR, CI, and merge steps do not require another question. Confirm only the protected production/destructive operations above. For product direction and architecture use `docs/BRVTAL-SPEC.md`; for responsive admin debt use `docs/DISCADMIN-UX-AUDIT.md`; for test commands and evidence use `docs/TESTING.md`; for current status and roadmap use `README.md`.
+Routine branch, test, PR, CI, and merge steps do not require another question. Confirm only the protected production/destructive operations above. For product direction and architecture use `docs/BRVTAL-SPEC.md`; for responsive admin debt use `docs/DISCADMIN-UX-AUDIT.md`; for test commands and evidence use `docs/TESTING.md`; for current technical overview, feature status, and roadmap use `README.md`.
