@@ -1,0 +1,49 @@
+name: Production Smoke Contract
+run-name: Production Smoke Contract #${{ github.run_number }} · ${{ github.event_name }}
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-authenticated-smoke.yml'
+      - '.github/workflows/production-smoke-contract.yml'
+      - 'tests/e2e/production-authenticated-smoke.mjs'
+      - 'tests/production-smoke-contract.php'
+      - 'docs/TESTING.md'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-authenticated-smoke.yml'
+      - '.github/workflows/production-smoke-contract.yml'
+      - 'tests/e2e/production-authenticated-smoke.mjs'
+      - 'tests/production-smoke-contract.php'
+      - 'docs/TESTING.md'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          ini-file: production
+
+      - name: Validate smoke source syntax
+        run: |
+          php -l tests/production-smoke-contract.php
+          node --check tests/e2e/production-authenticated-smoke.mjs
+
+      - name: Enforce authenticated production smoke safety contract
+        run: php tests/production-smoke-contract.php
