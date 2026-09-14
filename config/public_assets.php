@@ -24,6 +24,18 @@ function brvtal_public_preload_home_lcp(string $html): string
     return str_replace($coreStyle, $preload . "\n  " . $coreStyle, $html);
 }
 
+function brvtal_public_keep_home_lcp_visible(string $html): string
+{
+    $coreStyle = '<link rel="stylesheet" href="css/style.css">';
+    $criticalStyle = '<style data-brvtal-lcp-visible>.hero-logo-wrap{opacity:1!important}</style>';
+
+    if (!str_contains($html, $coreStyle) || str_contains($html, $criticalStyle)) {
+        return $html;
+    }
+
+    return str_replace($coreStyle, $criticalStyle . "\n  " . $coreStyle, $html);
+}
+
 function brvtal_public_dedupe_decorative_assets(string $html): string
 {
     if (!str_contains($html, 'rel="icon"')) {
