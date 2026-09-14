@@ -61,8 +61,12 @@ function harness() {
   </script><script>${iaJs}</script></body></html>`;
 }
 
+async function serveHarness(page) {
+  await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
+}
+
 test('sidebar exposes destinations while Content Core stays internal', async ({ page }) => {
-  await page.route(harnessUrl, route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
+  await serveHarness(page);
   await page.goto(harnessUrl);
 
   await expect(page.locator('.ia-navgroup')).toHaveText(['CONTENT','MEDIA','SITE','SYSTEM']);
@@ -75,7 +79,7 @@ test('sidebar exposes destinations while Content Core stays internal', async ({ 
 });
 
 test('Events is the single entry to the guided event editor', async ({ page }) => {
-  await page.route(harnessUrl, route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
+  await serveHarness(page);
   await page.goto(harnessUrl);
 
   await page.evaluate(() => window.go('events'));
@@ -88,6 +92,7 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await expect(page.getByText('Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('events');
   await expect.poll(() => page.evaluate(() => window.__moduleLoadOptions.at(-1)?.syncUrl)).toBe(false);
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('events');
 
   await page.evaluate(() => window.openModal('events', 42));
   await expect.poll(() => page.evaluate(() => window.__openedEvent)).toBe(42);
@@ -95,7 +100,7 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
 });
 
 test('collective membership is an Artists sub-workflow instead of a top-level module', async ({ page }) => {
-  await page.route(harnessUrl, route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
+  await serveHarness(page);
   await page.goto(harnessUrl);
 
   await page.evaluate(() => window.go('artists'));
@@ -109,6 +114,54 @@ test('collective membership is an Artists sub-workflow instead of a top-level mo
   await expect(page.locator('#rosterTab')).toBeVisible();
   await expect(page.getByRole('button',{name:'← ARTIST PROFILES'})).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('artists');
+});
+
+test('DISCADMIN destinations persist in URL and browser Back restores the workspace', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => window.go('artists'));
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+
+  await page.evaluate(() => window.go('pages'));
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('pages');
+  await expect(page.locator('.main .top h1')).toHaveText('PAGES');
+
+  await page.goBack();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
+});
+
+test('direct native destination URL restores after the IA layer boots', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(`${harnessUrl}?module=artists`);
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
+});
+
+test('direct Events URL restores the guided editor rather than exposing Content Core', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(`${harnessUrl}?module=events`);
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('events');
+  await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','events');
+  await expect(page.getByRole('button',{name:'CONTENT CORE'})).toBeHidden();
+  expect(new URL(page.url()).searchParams.get('module')).toBe('events');
+});
+
+test('system destination participates in the same URL state', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => window.tech('system'));
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('system');
+  await expect(page.locator('.main .top h1')).toHaveText('SYSTEM');
 });
 
 test('DISCADMIN wrapper loads the IA layer after existing enhancements', async () => {
