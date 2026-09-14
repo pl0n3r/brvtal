@@ -4,6 +4,9 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $readme = (string) file_get_contents($root . '/README.md');
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
+$phpstanWorkflow = (string) file_get_contents($root . '/.github/workflows/phpstan.yml');
+$phpstanConfig = (string) file_get_contents($root . '/phpstan.neon');
+$composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
 $agents = (string) file_get_contents($root . '/AGENTS.md');
 $privateHtaccess = (string) file_get_contents($root . '/.private/.htaccess');
 
@@ -55,6 +58,19 @@ $assert(str_contains($workflow, 'run_webkit'), 'CI planner must make WebKit path
 $assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the runner MySQL client with mariadb-client');
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
+
+// Incremental PHPStan foundation: pinned, scoped and independently enforced without a blanket baseline.
+$assert(is_array($composer), 'composer.json must contain valid JSON');
+$assert(($composer['require-dev']['phpstan/phpstan'] ?? null) === '2.2.13', 'PHPStan must stay pinned until deliberately upgraded');
+$assert(($composer['config']['platform']['php'] ?? null) === '8.3.0', 'Composer tooling must target the production PHP 8.3 contract');
+$assert(str_contains($phpstanConfig, 'level: 3'), 'PHPStan foundation must keep the agreed initial level');
+$assert(str_contains($phpstanConfig, 'config/migrations.php'), 'PHPStan scope must cover migration-state helpers');
+$assert(str_contains($phpstanConfig, 'scripts/migrations.php'), 'PHPStan scope must cover the migration CLI');
+$assert(!str_contains($phpstanConfig, 'ignoreErrors'), 'PHPStan foundation must not hide findings behind ignoreErrors');
+$assert(!str_contains($phpstanConfig, 'baseline'), 'PHPStan foundation must not introduce a blanket baseline');
+$assert(str_contains($phpstanWorkflow, 'name: BRVTAL PHPStan'), 'PHPStan must have a dedicated CI workflow');
+$assert(str_contains($phpstanWorkflow, 'composer analyse'), 'PHPStan workflow must execute the configured analysis command');
+$assert(str_contains($phpstanWorkflow, "branches: [main]"), 'PHPStan workflow must validate main and PRs targeting main');
 
 // Web-deny contract for the project-level private storage root.
 $assert(str_contains($privateHtaccess, 'Options -Indexes'), '.private must disable directory indexing');
