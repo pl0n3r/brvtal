@@ -7,29 +7,34 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- Corrige la visualización de fechas de Events al volver a abrir registros guardados, normalizando el valor SQL al formato requerido por `datetime-local`.
-- Al entrar directamente a Sets, precarga Artists y Events para que los selectores de relaciones no dependan de navegación previa.
-- Las cargas de Settings/Media usadas por Hero Slider tienen un timeout explícito y pasan a estado de error en vez de quedar indefinidamente en `LOADING HERO MANAGER…`.
-- El error de Hero Slider ofrece `RETRY` para reintentar sin abandonar DISCADMIN.
+- `Next Experience` deja de publicar datos fijos de Genesis y se alimenta del evento público activo del CMS.
+- La selección prioriza un evento marcado `featured`; si no existe, usa el próximo evento activo por fecha.
+- Fecha, hora, ciudad, venue, portada, título, navegación y CTA se renderizan en servidor desde el evento seleccionado.
+- El CTA usa la ruta canónica `/events/<slug>`.
+- Si no existe un evento elegible o la consulta falla, la portada muestra un fallback neutro (`NEXT SIGNAL`, fecha/hora/ubicación TBA) sin reutilizar datos ni arte de Genesis.
+- Se añade cobertura contractual para selección, escape HTML, ruta, portada y fallback.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/admin-reliability.js` — correcciones de fecha, relaciones de Sets y timeout/retry del Hero Slider.
-- `discadmin/index.php` — carga el parche de fiabilidad dentro del shell canónico antes del Hero Slider.
+- `config/public_home.php` — selección y render SSR de `Next Experience` desde Events públicos.
+- `index.php` — integra el evento dinámico antes de las transformaciones de assets del Home.
+- `tests/public-home-contract.php` — regresión del Home dinámico y fallback seguro.
+- `scripts/php85-compatibility.sh` — incorpora el nuevo contrato a la puerta PHP 8.5.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
 - El PR debe pasar `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
-- Los cambios de `discadmin/` fuerzan Chromium y real-stack en el planner de CI.
-- Sin cambios de esquema, SQL de producción ni contenido.
-- Producción canónica: `https://www.brvtal.com.co/discadmin`.
+- La selección reutiliza el allowlist canónico de estados públicos de Events y no expone drafts.
+- Sin cambios de esquema, SQL de producción ni mutaciones de contenido.
+- Producción canónica: `https://www.brvtal.com.co`.
+- La validación real de producción se hará después del deploy; CI por sí solo no la sustituye.
 
 ## Qué sigue
 
-1. Validar en producción los issues #123, #124 y #125 después del deploy.
-2. Resolver #126 para que `Next Experience` deje de depender del bloque estático legado de Genesis.
-3. Reproducir #122 con una sesión recién autenticada antes de clasificarlo como defecto de Pages.
+1. Confirmar en producción que `Next Experience` refleja el evento CMS seleccionado y cerrar #126 si coincide.
+2. Validar de forma autenticada en DISCADMIN los fixes #123, #124 y #125.
+3. Reproducir #122 con sesión recién autenticada antes de clasificarlo como defecto de Pages.
 
 ## Contexto durable
 
