@@ -34,27 +34,66 @@
     const variants = delivery?.variants || {};
     let candidate = null;
     if (context === 'square') candidate = variants.square || variants.card || variants.w1280 || null;
+    else if (context === 'hero') candidate = variants.hero || variants.w1920 || variants.w1280 || null;
+    else if (context === 'viewer') candidate = variants.w1920 || variants.w1280 || null;
     else if (context === 'preserve') candidate = variants.w1280 || variants.w1920 || null;
     else candidate = variants.card || variants.w1280 || variants.square || null;
     return candidate?.src ? candidate : null;
   }
 
-  function applyResponsiveImage(image, context) {
+  function imageDeliveryContext(image) {
+    const explicit = String(image?.dataset?.brvtalImageContext || '').toLowerCase();
+    if (['square','card','hero','viewer','preserve'].includes(explicit)) return explicit;
+    if (image.closest('.related-item-image')) return 'square';
+    if (image.closest('.public-media-item')) return 'card';
+    if (image.matches('.brvtal-hero-media')) return 'hero';
+    if (image.closest('.brvtal-hero-layer')) return 'preserve';
+    return 'preserve';
+  }
+
+  function bindImageFallback(image) {
+    if (image.dataset.brvtalWebpFallbackBound) return;
+    image.dataset.brvtalWebpFallbackBound = '1';
+    image.addEventListener('error', () => {
+      const original = image.dataset.brvtalOriginalSrc || '';
+      if (!original || image.dataset.brvtalFallbackApplied === '1') return;
+      image.dataset.brvtalFallbackApplied = '1';
+      image.removeAttribute('data-brvtal-webp-src');
+      if (image.hasAttribute('src')) image.src = original;
+      else image.dataset.src = original;
+    });
+  }
+
+  function applyResponsiveImage(image, context=imageDeliveryContext(image)) {
     if (!(image instanceof HTMLImageElement)) return;
-    const original = image.dataset.brvtalOriginalSrc || image.getAttribute('src') || '';
-    if (!original) return;
+    const currentSrc = image.getAttribute('src') || '';
+    const deferredSrc = image.getAttribute('data-src') || '';
+    const original = image.dataset.brvtalOriginalSrc || currentSrc || deferredSrc;
+    const originalPath = localUploadPath(original);
+    if (!originalPath) return;
     if (!image.dataset.brvtalOriginalSrc) image.dataset.brvtalOriginalSrc = original;
+
     const candidate = deliveryCandidate(original, context);
-    if (!candidate || image.getAttribute('src') === candidate.src) return;
-    image.src = candidate.src;
-    if (Number(candidate.width) > 0) image.width = Number(candidate.width);
-    if (Number(candidate.height) > 0) image.height = Number(candidate.height);
+    if (!candidate || !candidate.src) return;
+    image.dataset.brvtalWebpSrc = candidate.src;
+    bindImageFallback(image);
+
+    if (currentSrc) {
+      if (currentSrc !== candidate.src) image.src = candidate.src;
+    } else if (deferredSrc && deferredSrc !== candidate.src) {
+      image.dataset.src = candidate.src;
+    }
+
+    const hasWidth = image.hasAttribute('width');
+    const hasHeight = image.hasAttribute('height');
+    if (!hasWidth && Number(candidate.width) > 0) image.width = Number(candidate.width);
+    if (!hasHeight && Number(candidate.height) > 0) image.height = Number(candidate.height);
   }
 
   function applyDocumentImageDelivery(root=document) {
     const scope = root instanceof Element || root instanceof Document ? root : document;
-    scope.querySelectorAll('.public-media-item img').forEach(image => applyResponsiveImage(image, 'card'));
-    scope.querySelectorAll('.related-item-image img').forEach(image => applyResponsiveImage(image, 'square'));
+    if (scope instanceof HTMLImageElement) applyResponsiveImage(scope);
+    scope.querySelectorAll('img').forEach(image => applyResponsiveImage(image));
   }
 
   let imageDeliveryPromise = null;
@@ -94,8 +133,11 @@
     const dialog = qs('[role="dialog"]', viewer);
     dialog.setAttribute('aria-label', title);
     const image = qs('img', viewer);
-    image.src = fileUrl(item.file_path);
+    image.dataset.brvtalOriginalSrc = fileUrl(item.file_path);
+    image.removeAttribute('data-brvtal-fallback-applied');
+    image.src = image.dataset.brvtalOriginalSrc;
     image.alt = item.alt_text || title;
+    applyResponsiveImage(image, 'viewer');
     qs('[data-public-media-title]', viewer).textContent = title;
     qs('[data-public-media-position]', viewer).textContent = `IMAGE ${state.viewerIndex + 1} / ${state.viewerItems.length}`;
   }
@@ -117,7 +159,7 @@
     const viewer = document.createElement('div');
     viewer.id = 'public-media-viewer';
     viewer.className = 'public-media-viewer';
-    viewer.innerHTML = '<div class="public-media-viewer-card" role="dialog" aria-modal="true" aria-label="BRVTAL media"><button type="button" class="public-media-close mono" data-public-media-close>CLOSE ×</button><img alt=""><div class="public-media-viewer-meta"><strong data-public-media-title></strong><span class="mono" data-public-media-position></span></div><div class="public-media-viewer-controls"><button type="button" class="mono" data-public-media-prev aria-label="Previous image">← PREVIOUS</button><button type="button" class="mono" data-public-media-next aria-label="Next image">NEXT →</button></div></div>';
+    viewer.innerHTML = '<div class="public-media-viewer-card" role="dialog" aria-modal="true" aria-label="BRVTAL media"><button type="button" class="public-media-close mono" data-public-media-close>CLOSE ×</button><img data-brvtal-image-context="viewer" alt=""><div class="public-media-viewer-meta"><strong data-public-media-title></strong><span class="mono" data-public-media-position></span></div><div class="public-media-viewer-controls"><button type="button" class="mono" data-public-media-prev aria-label="Previous image">← PREVIOUS</button><button type="button" class="mono" data-public-media-next aria-label="Next image">NEXT →</button></div></div>';
     document.body.appendChild(viewer);
     showViewerItem();
     viewer.querySelectorAll('[data-public-media-prev],[data-public-media-next]').forEach(button => { button.hidden = state.viewerItems.length < 2; });
@@ -139,7 +181,7 @@
       ? ` width="${Number(candidate.width)}" height="${Number(candidate.height)}"`
       : '';
     const visual = type === 'image'
-      ? `<button type="button" class="public-media-open" data-public-media-open="${Number(item.id)||0}" aria-label="Open ${esc(title)}"><img src="${esc(previewUrl)}" data-brvtal-original-src="${esc(url)}"${dimensions} alt="${esc(item.alt_text || title)}" loading="lazy" decoding="async"></button>`
+      ? `<button type="button" class="public-media-open" data-public-media-open="${Number(item.id)||0}" aria-label="Open ${esc(title)}"><img src="${esc(previewUrl)}" data-brvtal-original-src="${esc(url)}" data-brvtal-image-context="card"${dimensions} alt="${esc(item.alt_text || title)}" loading="lazy" decoding="async"></button>`
       : type === 'video'
         ? `<video src="${esc(url)}" controls preload="metadata" aria-label="${esc(title)}"></video>`
         : `<div class="public-media-audio"><span class="mono">AUDIO SIGNAL</span><audio src="${esc(url)}" controls preload="none" aria-label="${esc(title)}"></audio></div>`;
@@ -221,8 +263,6 @@
     if (!Object.keys(state.delivery).length) return;
     records.forEach(record => record.addedNodes.forEach(node => {
       if (!(node instanceof Element)) return;
-      if (node.matches('.public-media-item img')) applyResponsiveImage(node, 'card');
-      if (node.matches('.related-item-image img')) applyResponsiveImage(node, 'square');
       applyDocumentImageDelivery(node);
     }));
   });
@@ -233,5 +273,5 @@
     loadImageDelivery().then(() => render(items));
   });
   loadImageDelivery();
-  window.BRVTALPublicMedia = {render,applyFilters,openViewer,closeViewer,loadImageDelivery,applyDocumentImageDelivery};
+  window.BRVTALPublicMedia = {render,applyFilters,openViewer,closeViewer,loadImageDelivery,applyDocumentImageDelivery,applyResponsiveImage};
 })();
