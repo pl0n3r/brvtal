@@ -4,7 +4,10 @@
   const originalGo = window.go;
   const originalTech = window.tech;
   const originalOpenModal = window.openModal;
+  const originalReq = typeof window.req === 'function' ? window.req : null;
+  const STALE_NAVIGATION = 'BRVTAL_STALE_NAVIGATION';
   let routeToken = 0;
+  let navigationRequestToken = null;
   let navTimer = null;
   let applyingNav = false;
   let navObserver = null;
@@ -22,6 +25,47 @@
     ['blog', ['brvtal-media-library-script','brvtal-blog-script']]
   ]);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+
+  function staleNavigationError() {
+    const error = new Error(STALE_NAVIGATION);
+    error.code = STALE_NAVIGATION;
+    return error;
+  }
+
+  function isStaleNavigation(error) {
+    return error?.code === STALE_NAVIGATION || error?.message === STALE_NAVIGATION;
+  }
+
+  if (originalReq) {
+    window.req = async function(...args) {
+      const token = navigationRequestToken;
+      try {
+        const result = await originalReq.apply(this, args);
+        if (token !== null && token !== routeToken) throw staleNavigationError();
+        return result;
+      } catch (error) {
+        if (token !== null && token !== routeToken && !isStaleNavigation(error)) throw staleNavigationError();
+        throw error;
+      }
+    };
+  }
+
+  async function invokeOriginalGo(section, token) {
+    let result;
+    navigationRequestToken = token;
+    try {
+      result = originalGo.call(window, section);
+    } finally {
+      navigationRequestToken = null;
+    }
+    try {
+      await result;
+      return token === routeToken;
+    } catch (error) {
+      if (token !== routeToken && isStaleNavigation(error)) return false;
+      throw error;
+    }
+  }
 
   function canonicalRouteSection(section) {
     const value = String(section || '').trim().toLowerCase();
@@ -294,8 +338,8 @@
     const token = ++routeToken;
     window.BRVTALAdminModules?.cancel?.();
     const visibleSection = context === 'roster' ? 'artists' : 'events';
-    await originalGo.call(window, visibleSection);
-    if (token !== routeToken) return false;
+    const visibleApplied = await invokeOriginalGo(visibleSection, token);
+    if (!visibleApplied || token !== routeToken) return false;
 
     if (!window.BRVTALAdminModules?.load) return true;
     ensureWorkspaceHost();
@@ -354,8 +398,9 @@
       window.BRVTALAdminModules?.cancel?.();
       await waitForDynamicSection(section);
       if (token !== routeToken) return;
-      result = await originalGo.apply(this, [section]);
-      if (token !== routeToken) return result;
+      const applied = await invokeOriginalGo(section, token);
+      if (!applied || token !== routeToken) return;
+      result = true;
       if (section === 'artists') setTimeout(enhanceArtistsList, 0);
       setTimeout(rebuildNavigation, 0);
     }
