@@ -36,8 +36,8 @@ BRVTAL is a proprietary digital platform for an underground electronic-music col
 
 | Item | Canonical value |
 |---|---|
-| Production | `https://brvtal.com.co` |
-| Admin | `https://brvtal.com.co/discadmin` |
+| Production | `https://www.brvtal.com.co` |
+| Admin | `https://www.brvtal.com.co/discadmin` |
 | Repository | `pl0n3r/brvtal` |
 | Canonical branch | `main` |
 | Hosting | Hostinger shared hosting / LiteSpeed |
@@ -48,6 +48,8 @@ BRVTAL is a proprietary digital platform for an underground electronic-music col
 | CI | GitHub Actions workflow **BRVTAL CI** |
 | Deploy | GitHub `main` → Hostinger Git auto-deploy |
 | Public language | English |
+
+**Canonical host rule:** always use `www.brvtal.com.co` for production links, DISCADMIN links, production validation, PageSpeed/Lighthouse targets and durable documentation. Do not treat the bare `brvtal.com.co` host as the canonical project URL.
 
 Production must remain compatible with shared hosting: no required long-running Node server, Docker runtime or SSH deploy.
 

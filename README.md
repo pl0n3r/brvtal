@@ -18,8 +18,8 @@ Este README es la referencia humana del proyecto: describe qué software existe,
 
 | Dato | Valor |
 |---|---|
-| Producción | `https://brvtal.com.co` |
-| Administración | `https://brvtal.com.co/discadmin` |
+| Producción | `https://www.brvtal.com.co` |
+| Administración | `https://www.brvtal.com.co/discadmin` |
 | Repositorio | `pl0n3r/brvtal` |
 | Branch canónica | `main` |
 | Hosting | Hostinger shared / LiteSpeed |
@@ -32,6 +32,8 @@ Este README es la referencia humana del proyecto: describe qué software existe,
 | Deploy | `main` → integración Git de Hostinger |
 | Idioma público | English |
 | Reglas para IA | [`AGENTS.md`](AGENTS.md) |
+
+**Host canónico:** toda referencia operativa, documentación, validación de producción y medición PageSpeed debe usar `www.brvtal.com.co`; el host sin `www` no es la URL canónica del proyecto.
 
 ### Estados usados
 
@@ -88,7 +90,7 @@ flowchart LR
 
     GITHUB[GitHub main] --> CI[BRVTAL CI]
     GITHUB --> HOST[Hostinger Git auto-deploy]
-    HOST --> PROD[brvtal.com.co]
+    HOST --> PROD[www.brvtal.com.co]
 ```
 
 ### Separación de responsabilidades
