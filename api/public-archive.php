@@ -1,28 +1,16 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/public_visibility.php';
+
 /**
- * Public event lifecycle rules for BRVTAL.
+ * Public event lifecycle partitioning for BRVTAL.
  *
  * Drafts are never public. Public lifecycle states remain visible while future/current,
  * and naturally move into the archive after their event date. Explicit historical
  * states are archived only when the date is already historical or publication evidence
  * exists, preventing an accidentally archived unpublished future event from leaking.
  */
-function brvtal_public_event_statuses(): array
-{
-    return [
-        'active' => ['published', 'upcoming', 'tickets_available', 'last_tickets', 'sold_out'],
-        'historical' => ['finished', 'archived', 'cancelled'],
-    ];
-}
-
-function brvtal_public_visible_event_statuses(): array
-{
-    $groups = brvtal_public_event_statuses();
-    return array_values(array_unique(array_merge($groups['active'], $groups['historical'])));
-}
-
 function brvtal_public_partition_events(array $events, ?DateTimeImmutable $now = null): array
 {
     $now ??= new DateTimeImmutable('now');
