@@ -260,14 +260,6 @@
   });
   observeNavigation();
 
-  try {
-    const url = new URL(location.href);
-    if (url.searchParams.get('module') === 'content-core') {
-      url.searchParams.delete('module');
-      history.replaceState(history.state,'',url.pathname + url.search + url.hash);
-    }
-  } catch (_) {}
-
   setTimeout(() => {
     rebuildNavigation();
     if (typeof state !== 'undefined' && state.authed && state.section === 'content-core') window.go('events');
