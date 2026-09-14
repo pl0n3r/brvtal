@@ -15,6 +15,15 @@ releases_assert(str_contains($migration, 'CREATE TABLE IF NOT EXISTS release_art
 releases_assert(str_contains($migration, "ENUM('draft','published','archived')"), 'release lifecycle must include draft/published/archived');
 releases_assert(str_contains($migration, 'FOREIGN KEY (artist_id) REFERENCES artists(id)'), 'release artists must link to existing artists');
 
+$reconciliation = (string)file_get_contents(__DIR__ . '/../database/migration_releases_02.sql');
+releases_assert(str_contains($reconciliation, 'ALTER TABLE releases'), 'schema reconciliation migration must patch pre-existing releases tables');
+foreach (['release_date','seo_title','seo_description','published_at','updated_at'] as $column) {
+    releases_assert(str_contains($reconciliation, "ADD COLUMN IF NOT EXISTS {$column}"), "schema reconciliation must ensure releases.{$column}");
+}
+releases_assert(str_contains($reconciliation, 'ALTER TABLE release_artists'), 'schema reconciliation must patch pre-existing release_artists tables');
+releases_assert(str_contains($reconciliation, 'ADD COLUMN IF NOT EXISTS role'), 'schema reconciliation must ensure release_artists.role');
+releases_assert(str_contains($reconciliation, 'ADD COLUMN IF NOT EXISTS sort_order'), 'schema reconciliation must ensure release_artists.sort_order');
+
 $api = (string)file_get_contents(__DIR__ . '/../api/releases.php');
 releases_assert(str_contains($api, 'brvtal_admin_require();'), 'releases API must require admin authentication');
 releases_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'releases mutations must require CSRF');
