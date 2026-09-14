@@ -49,6 +49,19 @@ seo_assert(str_contains($public, 'description,seo_title,seo_description,artwork'
 seo_assert(str_contains($public, 'content_json,seo_title,seo_description'), 'Pages SEO metadata must remain exposed');
 seo_assert(str_contains($public, 'cover_image,seo_title,seo_description'), 'Blog SEO metadata must remain exposed');
 
+// Canonical host delivery must converge the bare production hostname on HTTPS + www
+// before public/entity/API/admin routing. REQUEST_URI keeps the full path while Apache
+// preserves the existing query string on redirects unless an explicit replacement is set.
+$htaccess = (string)file_get_contents(__DIR__ . '/../.htaccess');
+$hostCond = 'RewriteCond %{HTTP_HOST} ^brvtal\\.com\\.co(?::[0-9]+)?$ [NC]';
+$hostRule = 'RewriteRule ^ https://www.brvtal.com.co%{REQUEST_URI} [R=301,L,NE]';
+seo_assert(str_contains($htaccess, $hostCond), 'root .htaccess must match only the bare BRVTAL production host');
+seo_assert(str_contains($htaccess, $hostRule), 'bare production host must permanently redirect to canonical HTTPS www while preserving the request path');
+$canonicalPos = strpos($htaccess, $hostCond);
+$entityRoutePos = strpos($htaccess, 'RewriteRule ^(events|artists|sets|releases|blog|pages)');
+seo_assert($canonicalPos !== false && $entityRoutePos !== false && $canonicalPos < $entityRoutePos, 'canonical host redirect must run before entity routing');
+seo_assert(substr_count($htaccess, 'https://www.brvtal.com.co') === 1, 'canonical host redirect should have one unambiguous www target');
+
 echo "BRVTAL SEO metadata contract tests passed.\n";
 
 require __DIR__ . '/seo-defaults-contract.php';
