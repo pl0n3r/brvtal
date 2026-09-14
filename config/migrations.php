@@ -140,7 +140,7 @@ function brvtal_migration_record(
     $statement->execute([
         $migrationName,
         $checksum,
-        $actor !== null && $actor !== '' ? mb_substr($actor, 0, 120) : null,
+        $actor !== null && $actor !== '' ? substr($actor, 0, 120) : null,
         $deploySha !== null && $deploySha !== '' ? $deploySha : null,
     ]);
 }
