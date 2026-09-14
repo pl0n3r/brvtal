@@ -7,27 +7,29 @@ Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza 
 
 ## Qué se hizo
 
-- `Production Performance` ahora comprueba conectividad con producción antes de instalar Node, dependencias o Chromium.
-- Si un runner de GitHub no puede alcanzar Hostinger, el workflow falla rápido en lugar de esperar cerca de seis minutos.
-- La espera del marcador exacto del deploy quedó acotada a 8 intentos, con cache-busting explícito para evitar leer HTML viejo desde CDN.
-- El navegador de Playwright queda cacheado entre runs para evitar descargar cientos de MB innecesariamente.
+- Corrige la visualización de fechas de Events al volver a abrir registros guardados, normalizando el valor SQL al formato requerido por `datetime-local`.
+- Al entrar directamente a Sets, precarga Artists y Events para que los selectores de relaciones no dependan de navegación previa.
+- Las cargas de Settings/Media usadas por Hero Slider tienen un timeout explícito y pasan a estado de error en vez de quedar indefinidamente en `LOADING HERO MANAGER…`.
+- El error de Hero Slider ofrece `RETRY` para reintentar sin abandonar DISCADMIN.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-performance.yml` — fail-fast de conectividad, espera acotada y caché de Chromium.
+- `discadmin/admin-reliability.js` — correcciones de fecha, relaciones de Sets y timeout/retry del Hero Slider.
+- `discadmin/index.php` — carga el parche de fiabilidad dentro del shell canónico antes del Hero Slider.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- El PR debe pasar `README Deploy Snapshot · PR / verify`, `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
-- El workflow conserva la trazabilidad al SHA exacto de `main` y sigue exigiendo el marcador `?v=<short-sha>` antes de medir.
-- Producción canónica: `https://www.brvtal.com.co`.
+- El PR debe pasar `BRVTAL CI / validate` y `PHP 8.5 Compatibility / php85` antes del merge.
+- Los cambios de `discadmin/` fuerzan Chromium y real-stack en el planner de CI.
+- Sin cambios de esquema, SQL de producción ni contenido.
+- Producción canónica: `https://www.brvtal.com.co/discadmin`.
 
 ## Qué sigue
 
-1. Confirmar en el próximo run automático que un problema de conectividad falla rápido y que un deploy accesible evita reinstalar Chromium cuando existe caché.
-2. Resolver los issues abiertos validados, priorizando inconsistencias de contenido y relaciones del CMS.
-3. Repetir la medición de rendimiento solo después de confirmar el SHA exacto en producción.
+1. Validar en producción los issues #123, #124 y #125 después del deploy.
+2. Resolver #126 para que `Next Experience` deje de depender del bloque estático legado de Genesis.
+3. Reproducir #122 con una sesión recién autenticada antes de clasificarlo como defecto de Pages.
 
 ## Contexto durable
 
