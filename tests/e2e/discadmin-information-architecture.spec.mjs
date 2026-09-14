@@ -9,14 +9,32 @@ const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
 function harness(authed = true) {
   return `<!doctype html><html><head><style>${iaCss}</style></head><body><div id="app"></div><script>
-    window.state={authed:${authed ? 'true' : 'false'},section:'dashboard'};
+    window.state={authed:${authed ? 'true' : 'false'},section:'dashboard',rows:[]};
     window.__legacyOpen=[];
     window.__moduleLoadOptions=[];
     window.__nativeGo=[];
+    window.__nativeRenders=[];
     window.__moduleCancels=0;
+    window.__requestLog=[];
+    window.__deferredRequests={};
+    window.__requestResolvers={};
+    window.req=function(path){
+      window.__requestLog.push(path);
+      if(window.__deferredRequests[path]){
+        return new Promise(resolve=>{window.__requestResolvers[path]=resolve;});
+      }
+      return Promise.resolve({data:[{source:path}]});
+    };
+    window.__resolveRequest=function(path,data=[{source:path}]){
+      const resolve=window.__requestResolvers[path];
+      delete window.__deferredRequests[path];
+      delete window.__requestResolvers[path];
+      if(resolve)resolve({data});
+    };
     function navButton(label,handler,data=''){return '<button '+(data?'data-admin-nav="'+data+'" ':'')+'onclick="'+handler+'">'+label+'</button>'}
     window.__renderShell=function(section){
       state.section=section;
+      window.__nativeRenders.push(section);
       const artistToolbar=section==='artists'?'<div class="toolbar"><input class="search"><button class="btn red">+ NEW ARTIST</button></div>':'<div class="native-view">NATIVE '+section.toUpperCase()+'</div>';
       document.getElementById('app').innerHTML='<div class="shell"><aside class="side"><div class="nav">'
         +navButton('DASHBOARD',"go('dashboard')")
@@ -37,7 +55,15 @@ function harness(authed = true) {
         +navButton('ACTIVITY',"go('activity')",'activity')
         +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+artistToolbar+'</main></div>';
     };
-    window.go=async function(section){window.__nativeGo.push(section);window.__renderShell(section);};
+    window.go=async function(section){
+      window.__nativeGo.push(section);
+      state.section=section;
+      if(['events','artists','sets','media','pages','settings'].includes(section)){
+        const response=await req('/'+section);
+        state.rows=response.data||[];
+      }
+      window.__renderShell(section);
+    };
     window.tech=async function(section){window.__renderShell(section);};
     window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
     window.BRVTALAdminModules={
@@ -208,6 +234,31 @@ test('latest navigation wins when an older dynamic module dependency resolves la
   expect(new URL(page.url()).searchParams.get('module')).toBe('media');
   expect(await page.evaluate(() => window.__nativeGo)).toEqual(['media']);
   expect(await page.evaluate(() => window.__moduleCancels)).toBeGreaterThanOrEqual(2);
+});
+
+test('stale native response cannot overwrite the latest destination rows or render', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    window.__deferredRequests['/artists'] = true;
+    window.__slowArtistsNavigation = window.go('artists');
+  });
+  await expect.poll(() => page.evaluate(() => window.__requestLog.includes('/artists'))).toBe(true);
+
+  await page.evaluate(() => window.go('pages'));
+  await expect(page.locator('.main .top h1')).toHaveText('PAGES');
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('pages');
+  expect(await page.evaluate(() => window.state.rows[0]?.source)).toBe('/pages');
+
+  await page.evaluate(() => window.__resolveRequest('/artists'));
+  await page.evaluate(() => window.__slowArtistsNavigation);
+
+  await expect(page.locator('.main .top h1')).toHaveText('PAGES');
+  expect(await page.evaluate(() => window.state.section)).toBe('pages');
+  expect(await page.evaluate(() => window.state.rows[0]?.source)).toBe('/pages');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('pages');
+  expect(await page.evaluate(() => window.__nativeRenders.slice(-1)[0])).toBe('pages');
 });
 
 test('system destination participates in the same URL state', async ({ page }) => {
