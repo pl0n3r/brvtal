@@ -9,13 +9,14 @@ Este README es un **snapshot operativo del deploy más reciente**. Se reemplaza 
 
 - PageSpeed identificó el logo oficial de BRVTAL como elemento LCP y mostró alrededor de 350 ms de `Resource load delay` antes de iniciar su descarga.
 - El Home ahora declara un `preload` de imagen con `fetchpriority="high"` para `assets/brvtal-logo.jpeg` antes de `css/style.css`, de modo que el navegador puede solicitar el LCP antes de completar el descubrimiento normal del body.
-- El preload y el `<img>` principal pasan por el mismo versionado de deploy (`?v=<sha>`), evitando una segunda URL de caché o una descarga duplicada.
+- La inserción vive en un helper idempotente y testeable; el preload y el `<img>` principal pasan por el mismo versionado de deploy (`?v=<sha>`), evitando una segunda URL de caché o una descarga duplicada.
 - No se recomprimió ni reemplazó el logo, Genesis ni ningún asset histórico; este cambio no modifica calidad visual, contenido ni base de datos.
 
 ## Archivos modificados en este deploy
 
-- `index.php` — inserta el preload del logo LCP antes del stylesheet crítico y conserva el versionado de deploy.
-- `tests/project-operations-contract.php` — protege orden, prioridad y reutilización de la misma URL versionada entre preload e imagen.
+- `config/public_assets.php` — añade el helper idempotente que inserta el preload del LCP antes de `style.css`.
+- `index.php` — aplica el helper del preload al Home antes del resto de transformaciones de assets.
+- `tests/project-operations-contract.php` — valida sobre HTML transformado el orden, idempotencia y reutilización de la misma URL versionada entre preload e imagen.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
