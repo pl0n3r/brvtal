@@ -15,12 +15,16 @@ $assert = static function (bool $condition, string $message): void {
     }
 };
 
-// Human technical dashboard contract.
-$assert(str_contains($readme, '## 3. Arquitectura general'), 'README must describe the system architecture');
-$assert(str_contains($readme, '## 17. CI / deploy'), 'README must document CI/deploy behavior');
-$assert(str_contains($readme, '## 18. Checklist de características solicitadas vs estado actual'), 'README must keep the product feature checklist');
-$assert(str_contains($readme, 'VALIDATED IN PRODUCTION'), 'README must distinguish production validation from CI');
-$assert(str_contains($readme, 'Build / Deploy Summary'), 'README must explain the per-run build/deploy summary');
+// README is intentionally a compact, replace-on-deploy handoff rather than a cumulative manual.
+$assert(str_contains($readme, '# BRVTAL — Último deploy'), 'README must identify itself as the latest deploy snapshot');
+$assert(str_contains($readme, '## Qué se hizo'), 'README must summarize what changed in the current deploy');
+$assert(str_contains($readme, '## Archivos modificados en este deploy'), 'README must list files changed in the current deploy');
+$assert(str_contains($readme, '## Validación'), 'README must state current validation status');
+$assert(str_contains($readme, '## Qué sigue'), 'README must state the next actionable work');
+$assert(str_contains($readme, 'solo el deploy actual'), 'README must explicitly remain deploy-scoped');
+$assert(strlen($readme) < 8000, 'README must stay compact instead of becoming a cumulative technical manual');
+$assert(!str_contains($readme, '## 3. Arquitectura general'), 'README must not regress to the old cumulative architecture manual');
+$assert(!str_contains($readme, 'Checklist de características solicitadas vs estado actual'), 'README must not accumulate the historical feature checklist');
 
 // Single-source AI continuity contract.
 $assert(str_contains($agents, 'CANONICAL BOOTSTRAP FOR CHATGPT, WORK, CODEX OR ANY CODING AGENT'), 'AGENTS must identify itself as the canonical AI bootstrap');
@@ -37,7 +41,10 @@ $assert(str_contains($agents, 'shareable URL query parameters'), 'AGENTS must re
 $assert(str_contains($agents, '## 9. Current priorities'), 'AGENTS must expose the next autonomous work priorities');
 $assert(str_contains($agents, '## 12. State-maintenance contract for future AI work'), 'AGENTS must require future sessions to maintain durable state');
 $assert(str_contains($agents, 'Read AGENTS.md and continue the project autonomously'), 'AGENTS must define a minimal future-session prompt');
-$assert(str_contains($agents, 'AI sessions should not require reading README before they can begin'), 'README/docs must remain optional deep reference for startup');
+$assert(str_contains($agents, 'AI sessions should not require reading README before they can begin'), 'README must remain optional for AI startup');
+$assert(str_contains($agents, 'Every deploy-bound PR must replace `README.md`'), 'AGENTS must require a fresh README snapshot for every deploy-bound PR');
+$assert(str_contains($agents, 'if a CI fix or late edit changes the PR file set or scope, refresh README before merge'), 'AGENTS must require README refresh when deploy scope changes');
+$assert(!str_contains($agents, 'README.md` is the human technical manual + requested-vs-completed checklist'), 'AGENTS must not describe README as a cumulative manual');
 $assert(!str_contains($agents, 'Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs/TESTING.md` before changing the product'), 'AGENTS must not require reconstructing startup context from multiple files');
 
 // CI/deployment observability, fast-feedback topology and metadata safety contract.
