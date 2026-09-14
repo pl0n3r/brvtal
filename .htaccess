@@ -23,7 +23,6 @@ RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php
 <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType text/css "access plus 1 year"
-    ExpiresByType application/javascript "access plus 1 year"
     ExpiresByType application/x-javascript "access plus 1 year"
     ExpiresByType text/javascript "access plus 1 year"
     ExpiresByType image/jpeg "access plus 1 year"
