@@ -49,6 +49,42 @@ function brvtal_public_optimize_font_stylesheet(string $html): string
     return str_replace($blocking, $preload . "\n  " . $fallback, $html);
 }
 
+function brvtal_public_inline_stylesheets(string $html, array $paths): string
+{
+    $root = realpath(dirname(__DIR__));
+    if ($root === false) return $html;
+    $root = rtrim(str_replace('\\', '/', $root), '/');
+
+    $inline = [];
+    foreach ($paths as $requestedPath) {
+        $path = ltrim(trim((string)$requestedPath), '/');
+        if ($path === '' || !str_starts_with($path, 'css/') || str_contains($path, '..')) continue;
+
+        $absolute = realpath(dirname(__DIR__) . '/' . $path);
+        if ($absolute === false || !is_file($absolute)) continue;
+        $absolute = str_replace('\\', '/', $absolute);
+        if (!str_starts_with($absolute, $root . '/css/')) continue;
+
+        $css = @file_get_contents($absolute);
+        if (!is_string($css) || $css === '') continue;
+        $inline[$path] = $css;
+    }
+    if ($inline === []) return $html;
+
+    return preg_replace_callback(
+        '~<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="([^"]+)")[^>]*>~i',
+        static function (array $match) use ($inline): string {
+            $href = (string)$match[1];
+            $path = parse_url($href, PHP_URL_PATH);
+            $path = is_string($path) ? ltrim($path, '/') : '';
+            if (!isset($inline[$path])) return $match[0];
+
+            return '<style data-brvtal-inline="' . htmlspecialchars($path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">' . $inline[$path] . '</style>';
+        },
+        $html
+    ) ?? $html;
+}
+
 function brvtal_public_defer_stylesheets(string $html, array $paths): string
 {
     $targets = [];
