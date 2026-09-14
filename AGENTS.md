@@ -180,8 +180,9 @@ Implemented:
 - **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
 - Set graph detail links through public Artist/Event relationships and keeps canonical Set/platform links;
 - Release graph detail links through public Artists and keeps canonical Release/listen links;
-- Archive and Media filter state in **shareable URL query parameters**;
+- Archive, Media and CONNECTED graph selection state in **shareable URL query parameters**;
 - Back/Forward restores discovery state while preserving hashes;
+- exact-deploy Production Performance evidence with modern Chromium mobile/desktop metrics, LCP breakdown and resource waterfall diagnostics;
 - SEO canonical/OG/Twitter/JSON-LD/sitemap/robots/404-noindex safeguards;
 - optional GA4 consent foundation.
 
@@ -204,7 +205,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 5. Hero Slider should feel easy/reliable like LayerSlider, especially on mobile, but remain BRVTAL-specific.
 6. Hero mobile editing supports optional mobile assets/overrides.
 7. A valid static Home hero remains a permanent fallback.
-8. Public Archive/Media discovery filters are shareable through URL state and respect Back/Forward.
+8. Public Archive/Media filters and CONNECTED graph selection are shareable through URL state and respect Back/Forward.
 9. **`README.md` is only the latest deploy snapshot.** It must not accumulate architecture, old checklists or development history.
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
 11. The repository contains enough durable context for AI to resume without previous conversation memory.
@@ -215,6 +216,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 16. **Canonical production origin is `https://www.brvtal.com.co`.** Bare-host requests must converge on it.
 17. **First-party text/static delivery is deploy-versioned and cache-aware.** Keep text compression enabled, keep versioned first-party CSS/JS on long immutable caching, and do not trade cache correctness for synthetic-score shortcuts.
 18. **Static Home artwork uses measured desktop WebP derivatives without sacrificing the mobile CDN path.** Preserve the original JPEGs as fallback/source assets; desktop may use responsive WebP derivatives selected from measured candidates, while mobile keeps the original URL so Hostinger/hcdn can continue its stronger device-specific optimization.
+19. **Modern production performance evidence is continuous, not a one-off optimization target.** Production Performance records exact-deploy mobile/desktop metrics and resource-waterfall evidence; do not recompress or restructure assets without a measured regression, dominant bottleneck or visual justification.
 
 ---
 
@@ -334,13 +336,12 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Measured public performance / responsive polish** — remeasure canonical `https://www.brvtal.com.co` with a modern Chrome/Lighthouse waterfall after compression/cache changes. Prioritize real modern-browser bottlenecks; source-image recompression requires visual evidence, and Pingdom Chrome 61 eager-loading of native-lazy images is a legacy-tool artifact rather than a product regression.
-2. **Public discovery / relationship-driven browsing** — deepen Archive/Media pathways only when supported by real structured relationships; do not invent duplicated relation data.
-3. **Authenticated production smoke process** — safe and non-destructive; never claim it exists until actually run.
-4. **Backup recovery rehearsal** — isolated/test environment only; no automatic production restore.
-5. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
-6. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.
-7. **Analytics/privacy maturity** proportional to real product needs.
+1. **Public discovery / relationship-driven browsing** — deepen Archive/Media/CONNECTED pathways only when supported by real structured relationships; do not invent duplicated relation data.
+2. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
+3. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
+4. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.
+5. **Analytics/privacy maturity** proportional to real product needs.
+6. **Performance/recovery maintenance** — keep exact-deploy modern Chromium evidence and isolated backup recovery rehearsal green; re-optimize/rework only when measured evidence changes, and never enable automatic production restore.
 
 An explicit user request always overrides this order.
 
