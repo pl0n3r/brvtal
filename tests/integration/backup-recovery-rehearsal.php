@@ -127,6 +127,7 @@ $config = ['backups' => ['media_archive_max_bytes' => 1024 * 1024]];
 $manifest = null;
 $recoveryCreated = false;
 $sourceFixturesCreated = false;
+$failed = false;
 $evidence = [
     'checkedAt' => gmdate(DATE_ATOM),
     'mode' => 'isolated-ci-recovery-rehearsal',
@@ -266,12 +267,11 @@ try {
     recovery_write_evidence($outputPath, $evidence);
     fwrite(STDOUT, "BRVTAL isolated backup recovery rehearsal passed.\n");
 } catch (Throwable $error) {
+    $failed = true;
     $evidence['status'] = 'failed';
     $evidence['error'] = mb_substr($error->getMessage(), 0, 800);
     recovery_write_evidence($outputPath, $evidence);
     fwrite(STDERR, "BACKUP RECOVERY REHEARSAL FAILED: {$error->getMessage()}\n");
-    exitCode:
-    $failed = true;
 } finally {
     if ($sourceFixturesCreated) {
         try { $source->exec('DROP VIEW IF EXISTS backup_recovery_view'); } catch (Throwable) {}
@@ -287,4 +287,4 @@ try {
     recovery_remove_tree($tmpRoot);
 }
 
-if (!empty($failed)) exit(1);
+if ($failed) exit(1);
