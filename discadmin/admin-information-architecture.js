@@ -2,13 +2,73 @@
   'use strict';
 
   const originalGo = window.go;
+  const originalTech = window.tech;
   const originalOpenModal = window.openModal;
   let routeToken = 0;
   let navTimer = null;
   let applyingNav = false;
   let navObserver = null;
+  let applyingRoute = false;
+  let initialRouteApplied = false;
 
+  const ROUTE_PARAM = 'module';
+  const routeSections = new Set([
+    'dashboard','events','artists','releases','sets','blog','pages','media','hero-slider',
+    'theme','settings','security','system','backups','activity'
+  ]);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+
+  function canonicalRouteSection(section) {
+    const value = String(section || '').trim().toLowerCase();
+    if (value === 'content-core') return 'events';
+    return routeSections.has(value) ? value : 'dashboard';
+  }
+
+  function routeFromUrl() {
+    const raw = new URLSearchParams(location.search).get(ROUTE_PARAM);
+    if (!raw) return 'dashboard';
+    return canonicalRouteSection(raw);
+  }
+
+  function syncRouteUrl(section, mode = 'push') {
+    if (applyingRoute) return;
+    const canonical = canonicalRouteSection(section);
+    const url = new URL(location.href);
+    if (canonical === 'dashboard') url.searchParams.delete(ROUTE_PARAM);
+    else url.searchParams.set(ROUTE_PARAM, canonical);
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    const current = `${location.pathname}${location.search}${location.hash}`;
+    if (next === current) return;
+    history[mode === 'replace' ? 'replaceState' : 'pushState']({brvtalAdminRoute: canonical}, '', next);
+  }
+
+  async function navigateRoute(section) {
+    const canonical = canonicalRouteSection(section);
+    if (canonical === 'system' && typeof window.tech === 'function') return window.tech('system');
+    if (typeof window.go === 'function') return window.go(canonical);
+  }
+
+  async function applyUrlRoute() {
+    if (typeof state === 'undefined' || !state?.authed) return false;
+    const section = routeFromUrl();
+    if (section !== 'events' && state.section === section) {
+      initialRouteApplied = true;
+      return true;
+    }
+    applyingRoute = true;
+    try {
+      await navigateRoute(section);
+      initialRouteApplied = true;
+      return true;
+    } finally {
+      applyingRoute = false;
+    }
+  }
+
+  function scheduleInitialRoute() {
+    if (initialRouteApplied) return;
+    queueMicrotask(() => { applyUrlRoute().catch(() => {}); });
+  }
 
   function buttonKey(button) {
     const dataKey = String(button.dataset.adminNav || '').toLowerCase();
@@ -239,14 +299,27 @@
 
   window.go = async function(section) {
     if (section === 'content-core') section = 'events';
-    if (section === 'events') return loadContentCoreContext('events');
-
-    ++routeToken;
-    const result = await originalGo.apply(this, [section]);
-    if (section === 'artists') setTimeout(enhanceArtistsList, 0);
-    setTimeout(rebuildNavigation, 0);
+    let result;
+    if (section === 'events') result = await loadContentCoreContext('events');
+    else {
+      ++routeToken;
+      result = await originalGo.apply(this, [section]);
+      if (section === 'artists') setTimeout(enhanceArtistsList, 0);
+      setTimeout(rebuildNavigation, 0);
+    }
+    syncRouteUrl(section);
     return result;
   };
+
+  if (typeof originalTech === 'function') {
+    window.tech = async function(section, ...args) {
+      ++routeToken;
+      const result = await originalTech.apply(this, [section, ...args]);
+      syncRouteUrl(section);
+      setTimeout(rebuildNavigation, 0);
+      return result;
+    };
+  }
 
   window.openModal = async function(type, id = null) {
     if (type === 'events') {
@@ -260,17 +333,28 @@
   window.BRVTALAdminIA = {
     rebuildNavigation,
     openEvents:() => loadContentCoreContext('events'),
-    openCollectiveStatus:() => loadContentCoreContext('roster')
+    openCollectiveStatus:() => loadContentCoreContext('roster'),
+    readRoute: routeFromUrl,
+    applyRoute: applyUrlRoute
   };
+
+  window.addEventListener('popstate', () => {
+    initialRouteApplied = true;
+    applyUrlRoute().catch(() => {});
+  });
 
   navObserver = new MutationObserver(mutations => {
     if (applyingNav) return;
-    if (mutations.some(mutation => mutation.addedNodes.length || mutation.removedNodes.length)) scheduleNavigation();
+    if (mutations.some(mutation => mutation.addedNodes.length || mutation.removedNodes.length)) {
+      scheduleNavigation();
+      scheduleInitialRoute();
+    }
   });
   observeNavigation();
 
   setTimeout(() => {
     rebuildNavigation();
+    scheduleInitialRoute();
     if (typeof state !== 'undefined' && state.authed && state.section === 'content-core') window.go('events');
     else if (typeof state !== 'undefined' && state.authed && state.section === 'artists') enhanceArtistsList();
   }, 50);
