@@ -6,7 +6,7 @@ function brvtal_public_version_assets(string $html, string $version): string
     if ($version === '') return $html;
 
     return preg_replace_callback(
-        '~(?<prefix>(?:href|src)="(?:css|js)/[^"?]+)(?:\?[^"#]*)?(?<suffix>")~',
+        '~(?<prefix>(?:href|src)="/?(?:css|js|assets|uploads)/[^"?]+)(?:\?[^"#]*)?(?<suffix>")~',
         static fn(array $match): string => $match['prefix'] . '?v=' . rawurlencode($version) . $match['suffix'],
         $html
     ) ?? $html;
@@ -22,6 +22,31 @@ function brvtal_public_optimize_font_stylesheet(string $html): string
     $fallback = '<noscript><link href="' . $href . '" rel="stylesheet"></noscript>';
 
     return str_replace($blocking, $preload . "\n  " . $fallback, $html);
+}
+
+function brvtal_public_defer_stylesheets(string $html, array $paths): string
+{
+    $targets = [];
+    foreach ($paths as $path) {
+        $path = ltrim(trim((string)$path), '/');
+        if ($path !== '') $targets[$path] = true;
+    }
+    if (!$targets) return $html;
+
+    return preg_replace_callback(
+        '~<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="([^"]+)")[^>]*>~i',
+        static function (array $match) use ($targets): string {
+            $tag = $match[0];
+            $href = (string)$match[1];
+            $path = parse_url($href, PHP_URL_PATH);
+            $path = is_string($path) ? ltrim($path, '/') : '';
+            if (!isset($targets[$path])) return $tag;
+
+            return '<link rel="stylesheet" href="' . $href . '" media="print" onload="this.media=\'all\'">'
+                . '<noscript><link rel="stylesheet" href="' . $href . '"></noscript>';
+        },
+        $html
+    ) ?? $html;
 }
 
 function brvtal_public_local_image_dimensions(string $src): ?array

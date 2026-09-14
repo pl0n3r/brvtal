@@ -28,10 +28,12 @@ deployment_expect(str_contains($adminShell, "seo-editorial-defaults.js' . \$suff
 deployment_expect(str_contains($adminShell, "content-core-nav.js' . \$suffix"), 'Content Core direct navigation must load as a deployment-versioned enhancement');
 deployment_expect(str_contains($publicEntry, "require_once __DIR__ . '/config/deployment.php';"), 'public entrypoint must resolve the deployed commit');
 deployment_expect(str_contains($publicEntry, 'brvtal_public_version_assets($html, brvtal_deployment_short_sha())'), 'public entrypoint must version its local assets');
-$versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script><script src="js/archive.js?v=old"></script><img src="assets/logo.jpg">', 'abc1234');
+$versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script><script src="js/archive.js?v=old"></script><img src="assets/logo.jpg"><img src="/uploads/media/example.png"><img src="https://cdn.example.com/external.jpg">', 'abc1234');
 deployment_expect(str_contains($versioned, 'href="css/style.css?v=abc1234"'), 'public CSS must receive the deployed commit');
 deployment_expect(str_contains($versioned, 'src="js/app.js?v=abc1234"'), 'public JavaScript must receive the deployed commit');
 deployment_expect(str_contains($versioned, 'src="js/archive.js?v=abc1234"'), 'old public asset keys must be replaced');
-deployment_expect(str_contains($versioned, 'src="assets/logo.jpg"'), 'non-CSS/JS assets must remain unchanged');
+deployment_expect(str_contains($versioned, 'src="assets/logo.jpg?v=abc1234"'), 'repository static images must receive the deployed commit');
+deployment_expect(str_contains($versioned, 'src="/uploads/media/example.png?v=abc1234"'), 'public upload URLs in initial HTML must receive the deployed commit');
+deployment_expect(str_contains($versioned, 'src="https://cdn.example.com/external.jpg"'), 'external assets must remain untouched by local deployment versioning');
 
 echo "BRVTAL deployment traceability contract tests passed.\n";

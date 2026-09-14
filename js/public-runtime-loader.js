@@ -10,6 +10,8 @@
     }
   })();
 
+  window.BRVTAL_PUBLIC_VERSION = version;
+
   const localUrl = path => version ? `${path}?v=${encodeURIComponent(version)}` : path;
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
