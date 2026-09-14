@@ -32,6 +32,12 @@ $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n</head>", $html);
 $html = brvtal_public_optimize_font_stylesheet($html);
+$html = brvtal_public_defer_stylesheets($html, [
+    'css/archive.css',
+    'css/public-media.css',
+    'css/input-accessibility.css',
+    'css/mobile-events.css',
+]);
 $html = brvtal_public_optimize_home_images($html);
 $html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());
 $html = str_replace('</body>', $analytics . "\n</body>", $html);
