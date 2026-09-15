@@ -46,7 +46,7 @@ BRVTAL is a proprietary digital platform for an underground electronic-music col
 | Database | MariaDB / MySQL-compatible |
 | Public frontend | HTML + CSS + vanilla JavaScript |
 | Browser testing | Playwright; Chromium + targeted WebKit |
-| CI | **BRVTAL CI** + **PHP 8.5 Compatibility** |
+| CI | **BRVTAL CI** (single automatic code-validation workflow) |
 | Deploy | GitHub `main` → Hostinger Git auto-deploy |
 | Public language | English |
 
@@ -210,13 +210,14 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
 11. The repository contains enough durable context for AI to resume without previous conversation memory.
 12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph.
-13. **CI optimizes for fast feedback without weakening `main`.** Pull requests use path-aware gates; every exact `main` push runs the full matrix and ends in the stable `validate` aggregate check.
+13. **CI optimizes for minimum lead time without weakening the applicable gates.** Pull requests and exact `main` pushes use the same changed-file-aware gate selection; `fast` always runs; manual dispatch runs the full matrix; every run ends in the stable `validate` aggregate check.
 14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors.
-15. **Production PHP runtime is 8.5.** Keep `PHP 8.5 Compatibility` green without warnings, notices or deprecations.
+15. **Production PHP runtime is 8.5.** PHP 8.5 lint/compatibility and all top-level PHP contracts run inside the always-on `fast` job; do not reintroduce a duplicate compatibility workflow.
 16. **Canonical production origin is `https://www.brvtal.com.co`.** Bare-host requests must converge on it.
 17. **First-party text/static delivery is deploy-versioned and cache-aware.** Keep text compression enabled, keep versioned first-party CSS/JS on long immutable caching, and do not trade cache correctness for synthetic-score shortcuts.
 18. **Static Home artwork uses measured desktop WebP derivatives without sacrificing the mobile CDN path.** Preserve the original JPEGs as fallback/source assets; desktop may use responsive WebP derivatives selected from measured candidates, while mobile keeps the original URL so Hostinger/hcdn can continue its stronger device-specific optimization.
 19. **Modern production performance evidence is continuous, not a one-off optimization target.** Production Performance records exact-deploy mobile/desktop metrics and resource-waterfall evidence; do not recompress or restructure assets without a measured regression, dominant bottleneck or visual justification.
+20. **Specialized CI safety checks should be jobs, not duplicate workflows, when they are part of normal source validation.** README snapshot validation, PHP compatibility, production-smoke source contracts and isolated recovery rehearsal are consolidated into `BRVTAL CI`; actual production smokes remain explicit manual workflows.
 
 ---
 
@@ -241,21 +242,19 @@ Never run destructive production SQL, resets/seeds or irreversible data changes 
 Main workflow file: `.github/workflows/update-release-metadata.yml`  
 Visible workflow name: **BRVTAL CI**.
 
-PHP compatibility workflow: `.github/workflows/php85-compatibility.yml`  
-Visible workflow name: **PHP 8.5 Compatibility**.
-
 ### Fast-feedback topology
 
-- `plan` computes changed-file surfaces and optional gates;
-- `fast` always runs PHP/JS syntax and contracts;
-- `database` runs disposable MariaDB validation when relevant;
-- `browser` runs Chromium when relevant;
-- `realstack` runs authenticated PHP + MariaDB + Chromium smoke for relevant surfaces;
-- `webkit` is a targeted Safari/WebKit TOTP regression;
-- `validate` aggregates all required BRVTAL CI gates;
-- `php85` explicitly validates the production PHP 8.5 runtime.
+- `fast` is the only always-on runner: it computes changed-file scope, publishes build/deploy context, enforces PHP 8.5 compatibility, runs all top-level PHP contracts, checks JavaScript syntax and validates the README deploy snapshot on PRs;
+- `database` runs disposable MariaDB validation only when relevant;
+- `browser` runs Chromium only when relevant;
+- `realstack` runs authenticated PHP + MariaDB + Chromium smoke only for server/runtime surfaces that need it;
+- `webkit` is the targeted Safari/WebKit TOTP regression and is selected only by auth/TOTP-sensitive changes;
+- `recovery` runs the isolated backup recovery rehearsal only for backup/recovery surfaces or a full manual dispatch;
+- `validate` aggregates every required or intentionally skipped BRVTAL CI gate into one stable final check.
 
-Every push to exact `main` and manual workflow dispatch runs the full BRVTAL CI matrix. Pull requests may skip irrelevant expensive gates, but `fast` always runs.
+Pull requests and exact `main` pushes use the same diff-aware gate selection. `fast` always runs. `workflow_dispatch` intentionally runs the complete matrix. This keeps exact-main verification intact without rerunning unrelated expensive jobs after every squash merge.
+
+Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshots, recovery rehearsal and production-smoke source contracts are deliberately retired. Their checks live inside `BRVTAL CI`, avoiding duplicate runner setup and queue contention. The authenticated/read-only production smoke and controlled Page-write smoke remain separate **manual-only** workflows because they interact with real production.
 
 ### README per-deploy contract
 
@@ -277,11 +276,11 @@ The README is intentionally transient. It should remain compact and useful durin
 2. Implement the logical change + applicable tests.
 3. Refresh `README.md` with the exact deploy snapshot.
 4. Open PR to `main`.
-5. Wait for **BRVTAL CI / validate** and **PHP 8.5 Compatibility / php85**.
+5. Wait for **BRVTAL CI / validate**.
 6. Fix failures on the same branch; refresh README again if scope/file set changed.
 7. When green, squash merge.
 8. Get the exact merged `main` SHA.
-9. Verify full BRVTAL CI and PHP 8.5 Compatibility succeed on that exact SHA.
+9. Verify **BRVTAL CI / validate** succeeds on that exact SHA with the path-aware gates selected for that merge.
 10. Only then begin the next branch.
 
 Routine development operations do not require asking again.

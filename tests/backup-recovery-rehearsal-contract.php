@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
-$workflowPath = $root . '/.github/workflows/backup-recovery-rehearsal.yml';
+$workflowPath = $root . '/.github/workflows/update-release-metadata.yml';
 $rehearsalPath = $root . '/tests/integration/backup-recovery-rehearsal.php';
 $backupsPath = $root . '/config/backups.php';
 $endpointPath = $root . '/discadmin/backups.php';
@@ -15,7 +15,7 @@ $expect = static function (bool $condition, string $message): void {
     }
 };
 
-$expect(is_file($workflowPath), 'isolated recovery rehearsal workflow must exist');
+$expect(is_file($workflowPath), 'BRVTAL CI workflow must exist');
 $expect(is_file($rehearsalPath), 'isolated recovery rehearsal integration must exist');
 
 $workflow = (string)file_get_contents($workflowPath);
@@ -24,19 +24,21 @@ $backups = (string)file_get_contents($backupsPath);
 $endpoint = (string)file_get_contents($endpointPath);
 $testing = (string)file_get_contents($testingPath);
 
-// The rehearsal is CI/test-only. It may never gain production credentials or a
-// production target, and it must not become a scheduled/background restore.
-$expect(str_contains($workflow, 'name: Backup Recovery Rehearsal'), 'workflow name must remain explicit');
-$expect(str_contains($workflow, 'mariadb:11.4'), 'workflow must use an isolated MariaDB service');
+// Recovery is a path-aware BRVTAL CI job, not a standalone workflow. It must
+// remain isolated from production and only run when its planner output requires it.
+$expect(str_contains($workflow, "  recovery:\n"), 'BRVTAL CI must contain the recovery job');
+$expect(str_contains($workflow, 'name: recovery-rehearsal'), 'recovery job name must remain explicit');
+$expect(str_contains($workflow, "if: needs.fast.outputs.run_recovery == 'true'"), 'recovery must be path-aware');
+$expect(str_contains($workflow, 'run_recovery'), 'fast planner must expose the recovery decision');
+$expect(str_contains($workflow, 'config/backups.php|discadmin/backups.php|tests/backups-contract.php|tests/backup-recovery-rehearsal-contract.php'), 'backup surfaces must trigger recovery');
+$expect(str_contains($workflow, 'mariadb:11.4'), 'recovery must use an isolated MariaDB service');
 $expect(str_contains($workflow, 'MARIADB_DATABASE: brvtal_test_backup_source'), 'workflow source DB must be a fixed test namespace');
 $expect(str_contains($workflow, "BRVTAL_INTEGRATION_TESTS: '1'"), 'integration guard must be enabled explicitly');
 $expect(str_contains($workflow, "BRVTAL_BACKUP_RECOVERY_REHEARSAL: '1'"), 'recovery guard must be enabled explicitly');
 $expect(str_contains($workflow, 'BRVTAL_TEST_DB_NAME: brvtal_test_backup_source'), 'rehearsal must target only its disposable source DB');
 $expect(str_contains($workflow, 'actions/upload-artifact@v4'), 'recovery evidence must be retained');
-$expect(!preg_match('/^\s{2}(?:schedule|workflow_run):/m', $workflow), 'workflow must not run on schedule or workflow_run');
-$expect(!str_contains($workflow, 'production-smoke'), 'workflow must not use the production-smoke environment');
-$expect(!str_contains($workflow, 'secrets.'), 'workflow must not consume production or repository secrets');
-$expect(!str_contains($workflow, 'brvtal.com.co'), 'workflow must not target production URLs');
+$expect(!str_contains($workflow, 'secrets.'), 'BRVTAL CI recovery must not consume production or repository secrets');
+$expect(!str_contains($workflow, 'brvtal.com.co'), 'BRVTAL CI recovery must not target production URLs');
 
 // Two independent guards are required before any destructive fixture/recovery
 // SQL can execute. Both source and recovery databases stay in brvtal_test_*.

@@ -1,42 +1,49 @@
 # BRVTAL — Último deploy
 
 [![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
-[![PHP 8.5 Compatibility](https://github.com/pl0n3r/brvtal/actions/workflows/php85-compatibility.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/php85-compatibility.yml)
 
 Este README es un **snapshot operativo de solo el deploy actual**. El contexto durable vive en `AGENTS.md` y `docs/`.
 
 ## Qué se hizo
 
-- El rate limit del login por contraseña conserva el bloqueo activo antes de autenticar, pero ya no incrementa el contador por cada login válido.
-- Solo una contraseña inválida registra un fallo; una contraseña correcta elimina el estado previo de esa combinación IP + email antes de continuar al shell o al challenge TOTP.
-- HTTP 429 / `RATE_LIMITED` se muestra como un bloqueo temporal explícito, separado de credenciales inválidas y de fallos de servidor/red.
-- La política de almacenamiento del contador se aisló en `config/password_rate_limit.php` para mantener el flujo de autenticación legible y testeable.
-- La corrección de concurrencia interna de los archivos de rate limit queda deliberadamente fuera de este deploy y sigue separada del presente scope.
-- No hay cambios de esquema, migraciones, permisos ni datos de producción.
+- Se consolidó el ciclo automático de validación en un único workflow: `BRVTAL CI`.
+- `fast` ahora calcula el alcance del diff y ejecuta PHP 8.5, todos los contratos PHP de nivel superior, sintaxis JavaScript y la validación del snapshot README en PRs.
+- Pull requests y pushes exactos a `main` usan la misma selección path-aware; `workflow_dispatch` conserva la matriz completa.
+- Los cambios JS/CSS de DISCADMIN ya no fuerzan por defecto MariaDB + real-stack; los cambios PHP/API/config/database siguen seleccionando las capas de integración que corresponden.
+- El recovery rehearsal sigue existiendo como job aislado, pero solo se activa por superficies de backups/recovery o por ejecución manual completa.
+- Se eliminaron cuatro workflows automáticos redundantes para reducir checkout/setup duplicado y competencia por runners.
+- Los smokes reales de producción autenticado y Page-write permanecen manuales y separados.
+- No hay cambios de esquema, datos, permisos ni comportamiento de producción de la aplicación.
 
 ## Archivos modificados en este deploy
 
-- `api/index.php` — consulta el bloqueo antes de verificar, registra rate limit solo tras una contraseña inválida y resetea el estado tras contraseña válida.
-- `config/password_rate_limit.php` — política compartida para leer, registrar fallos y resetear el rate limit de password.
-- `discadmin/admin-reliability.js` — feedback diferenciado para rate limit, credenciales inválidas, validación incompleta y errores generales de login.
-- `tests/e2e/discadmin-password-login-rate-limit.spec.mjs` — regresiones del orden de operaciones backend y del feedback visible del login.
+- `.github/workflows/backup-recovery-rehearsal.yml` — eliminado; el rehearsal pasa al job path-aware `recovery` de BRVTAL CI.
+- `.github/workflows/php85-compatibility.yml` — eliminado; PHP 8.5 se valida dentro de `fast`.
+- `.github/workflows/production-smoke-contract.yml` — eliminado; su contrato PHP se ejecuta automáticamente dentro de `fast`.
+- `.github/workflows/readme-deploy-snapshot.yml` — eliminado; la verificación exacta del README se ejecuta dentro de `fast` en PRs.
+- `.github/workflows/update-release-metadata.yml` — consolida planificación + fast gate, selección path-aware para PR/main, recovery opcional y `validate` estable.
+- `AGENTS.md` — actualiza el contrato canónico del ciclo de entrega y elimina la dependencia del workflow PHP 8.5 separado.
+- `docs/TESTING.md` — documenta el CI consolidado, la selección por paths y el nuevo lugar del recovery rehearsal.
+- `scripts/php85-compatibility.sh` — auto-descubre y ejecuta todos los contratos PHP top-level además de lint/compatibilidad PHP 8.5.
+- `tests/backup-recovery-rehearsal-contract.php` — protege el recovery integrado en BRVTAL CI en lugar de exigir un workflow separado.
+- `tests/project-operations-contract.php` — protege la topología consolidada y evita que reaparezcan los workflows retirados.
 - `README.md` — snapshot operativo exacto de este deploy.
 
 ## Validación
 
-- Rama recompactada sobre `main` `9264215997c9695c3398f9ddb3154860c976dad0` después de los merges de #339 y #340.
-- El batch fue recontrastado contra #340: sus cambios de 2FA están en `config/totp_auth.php` / `discadmin/totp-api.php` y no sustituyen la política de password de este deploy.
-- En esa base, `fast` y PHP 8.5 Compatibility ya estaban verdes al rebase; la matriz exacta de `main` seguía ejecutándose.
-- El cambio mantiene el mismo contrato externo de `RATE_LIMITED` / HTTP 429; no cambia rutas ni crea superficies administrativas paralelas.
-- Pendiente de gates del PR y, tras el merge, matriz completa sobre el SHA exacto nuevo de `main`.
+- Base de trabajo: `main` `f591e85b43cb7b58bd317be85c271d36ccb8463a`, con BRVTAL CI exacto en verde antes de abrir este batch.
+- El diseño conserva `branch → tests → PR → CI → squash merge → exact-main-CI`; la optimización elimina gates duplicados y hace path-aware también el push de `main`.
+- `validate` continúa siendo el único resultado agregado estable del pipeline.
+- El propio cambio de `.github/workflows/update-release-metadata.yml` fuerza todos los jobs, incluido recovery, en este PR y en su primer push a `main`, para validar la nueva topología completa antes de beneficiarse del recorte en cambios posteriores.
+- Pendiente: ejecución de los gates del PR y, tras squash merge, validación del SHA exacto nuevo de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Ejecutar los gates del PR y corregir cualquier fallo en esta misma rama.
-2. Con CI verde, mantener un solo commit, hacer squash merge y verificar la matriz completa sobre el nuevo SHA exacto de `main`.
-3. Confirmar el cierre de #154 y #281 y refrescar nuevamente todos los Issues abiertos.
-4. Mantener #263 separado como hardening de concurrencia de los stores de rate limit.
+1. Abrir el PR y validar la topología consolidada completa.
+2. Corregir cualquier fallo en esta misma rama y refrescar este README si cambia el file set.
+3. Con `validate` verde, hacer squash merge y comprobar el nuevo SHA exacto de `main`.
+4. Medir los siguientes ciclos reales para confirmar reducción de cola/setup sin perder cobertura aplicable.
 
 ## Contexto durable
 
