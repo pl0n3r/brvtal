@@ -19,13 +19,17 @@ $definitions = [
 $routes = ['events'=>'events','artists'=>'artists','sets_media'=>'sets','releases'=>'releases','blog_posts'=>'blog','pages'=>'pages'];
 foreach ($definitions as [$table, $where, $parameters]) {
     try {
-        $statement = db()->prepare("SELECT slug,updated_at FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id");
+        $select = $table === 'events'
+            ? 'slug,updated_at,status,event_date,published_at'
+            : 'slug,updated_at';
+        $statement = db()->prepare("SELECT {$select} FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id");
         $statement->execute($parameters);
         $rows = $statement->fetchAll();
     } catch (Throwable) {
         continue;
     }
     foreach ($rows as $row) {
+        if ($table === 'events' && !brvtal_public_event_is_visible($row)) continue;
         $urls[] = [$base . '/' . $routes[$table] . '/' . rawurlencode((string)$row['slug']), $row['updated_at'] ?? null];
     }
 }
