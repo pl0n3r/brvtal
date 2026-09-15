@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../api/route.php';
 require_once __DIR__ . '/../api/pages-contract.php';
+require_once __DIR__ . '/../api/public-response.php';
 require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/public_health.php';
 
@@ -28,6 +29,13 @@ foreach ($cases as [$uri, $script, $resource, $id, $action]) {
     expect($route['id'] === $id, "ID mismatch for {$uri}");
     expect($route['action'] === $action, "Action mismatch for {$uri}");
 }
+
+$publicSuccessEnvelope = brvtal_public_envelope(['events' => []], 200);
+expect($publicSuccessEnvelope === ['ok' => true, 'data' => ['events' => []]], 'Public API success envelope must retain ok:true and data');
+$publicMethodError = brvtal_public_envelope(['error' => 'METHOD_NOT_ALLOWED'], 405);
+expect($publicMethodError === ['ok' => false, 'error' => 'METHOD_NOT_ALLOWED'], 'Public API 405 envelope must align with its HTTP error status');
+$publicFallbackError = brvtal_public_envelope([], 503);
+expect($publicFallbackError === ['ok' => false, 'error' => 'REQUEST_FAILED'], 'Public API errors without a code must fail closed with a generic error');
 
 expect(brvtal_page_content_json_error('') === null, 'Empty Page content JSON must remain allowed for incomplete drafts');
 expect(brvtal_page_content_json_error('{"text":"Manifesto"}') === null, 'Object Page content JSON must be accepted');
@@ -93,6 +101,9 @@ expect($authGatePos !== false && $delegatePos < $authGatePos, 'Public compatibil
 
 expect(str_contains($public, "WHERE setting_key IN ('site','social','appearance','theme.active')"), 'Public settings must use an explicit allowlist');
 expect(!str_contains($public, "SELECT setting_key,setting_value,is_json FROM settings ORDER BY setting_key"), 'Public API must never select all settings without filtering');
+expect(str_contains($public, "require_once __DIR__ . '/public-response.php';"), 'Public endpoint must load the canonical response envelope helper');
+expect(str_contains($public, 'brvtal_public_envelope($data, $status)'), 'Public JSON delivery must derive its body from HTTP status');
+expect(str_contains($public, "? 'Cache-Control: no-store'"), 'Public API error responses must not be cached as successful public data');
 expect(str_contains($publicApp, "'/api/public.php'"), 'Public frontend must include the production public PHP endpoint');
 expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/public'"), 'Production public PHP endpoint must be attempted before compatibility aliases');
 expect(str_contains($router, 'RewriteRule ^api/public/?$ api/public.php [L,QSA,NC]'), 'Clean public API aliases must delegate to api/public.php');
