@@ -118,8 +118,12 @@
 
   function closeViewer() {
     const viewer = document.getElementById('public-media-viewer');
-    if (!viewer) return;
+    if (!viewer) {
+      window.BRVTALScrollLock?.unlock('media-viewer');
+      return;
+    }
     viewer.remove();
+    window.BRVTALScrollLock?.unlock('media-viewer');
     state.lastFocus?.focus?.();
     state.lastFocus = null;
     state.viewerItems = [];
@@ -150,7 +154,7 @@
 
   function openViewer(item, trigger) {
     if (!fileUrl(item.file_path) || mediaType(item) !== 'image') return;
-    document.getElementById('public-media-viewer')?.remove();
+    if (document.getElementById('public-media-viewer')) closeViewer();
     state.lastFocus = trigger || null;
     const visibleIds = new Set([...document.querySelectorAll('[data-public-media-item]:not([hidden]) [data-public-media-open]')].map(button => Number(button.dataset.publicMediaOpen)));
     state.viewerItems = state.items.filter(entry => mediaType(entry) === 'image' && fileUrl(entry.file_path) && visibleIds.has(Number(entry.id)));
@@ -161,6 +165,7 @@
     viewer.className = 'public-media-viewer';
     viewer.innerHTML = '<div class="public-media-viewer-card" role="dialog" aria-modal="true" aria-label="BRVTAL media"><button type="button" class="public-media-close mono" data-public-media-close>CLOSE ×</button><img data-brvtal-image-context="viewer" alt=""><div class="public-media-viewer-meta"><strong data-public-media-title></strong><span class="mono" data-public-media-position></span></div><div class="public-media-viewer-controls"><button type="button" class="mono" data-public-media-prev aria-label="Previous image">← PREVIOUS</button><button type="button" class="mono" data-public-media-next aria-label="Next image">NEXT →</button></div></div>';
     document.body.appendChild(viewer);
+    window.BRVTALScrollLock?.lock('media-viewer');
     showViewerItem();
     viewer.querySelectorAll('[data-public-media-prev],[data-public-media-next]').forEach(button => { button.hidden = state.viewerItems.length < 2; });
     viewer.querySelector('[data-public-media-close]').addEventListener('click', closeViewer);
