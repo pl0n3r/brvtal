@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_visibility.php';
+require_once __DIR__ . '/../config/page_content.php';
+require_once __DIR__ . '/../api/pages-contract.php';
 
 function public_pages_expect(bool $condition, string $message): void
 {
@@ -13,11 +15,13 @@ function public_pages_expect(bool $condition, string $message): void
 
 $entry = (string)file_get_contents(__DIR__ . '/../index.php');
 $pages = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
+$seo = (string)file_get_contents(__DIR__ . '/../config/public_seo.php');
+$pageContractUi = (string)file_get_contents(__DIR__ . '/../discadmin/pages-publication-contract.js');
 $unavailable = (string)file_get_contents(__DIR__ . '/../config/public_unavailable.php');
 $css = (string)file_get_contents(__DIR__ . '/../css/public-entity.css');
 
 public_pages_expect(str_contains($entry, 'brvtal_public_entity_page'), 'entity routes must use the dedicated public renderer');
-foreach (['events','artists','releases','blog'] as $type) {
+foreach (['events','artists','releases','blog','pages'] as $type) {
     public_pages_expect(str_contains($pages, "\$type === '{$type}'"), "renderer must hydrate {$type}");
 }
 foreach (['event_artists','event_ticket_types','release_artists','blog_post_relations'] as $relation) {
@@ -42,6 +46,19 @@ public_pages_expect(str_contains($pages, 'htmlspecialchars'), 'editorial content
 public_pages_expect(str_contains($pages, "rel=\"noopener noreferrer\""), 'external calls to action must isolate their browsing context');
 public_pages_expect(str_contains($css, '@media(max-width:620px)'), 'entity pages must include a mobile layout');
 public_pages_expect(str_contains($css, 'prefers-reduced-motion:reduce'), 'entity pages must respect reduced motion');
+
+$pageBlocks = '{"blocks":[{"type":"heading","content":"About BRVTAL"},{"type":"paragraph","content":"Rave till Grave"},{"type":"text","text":"Pereira / Colombia"}]}';
+public_pages_expect(brvtal_page_content_structure_error($pageBlocks) === null, 'supported Page blocks must satisfy the canonical structure contract');
+public_pages_expect(brvtal_page_content_plain_text($pageBlocks) === "About BRVTAL\n\nRave till Grave\n\nPereira / Colombia", 'supported Page blocks must render to deterministic public text');
+public_pages_expect(brvtal_page_content_plain_text('{"text":"Manifesto"}') === 'Manifesto', 'legacy top-level Page text must remain supported');
+public_pages_expect(brvtal_page_content_plain_text('{"blocks":[{"type":"embed","content":"<iframe>unsafe</iframe>"}]}') === '', 'unsupported Page blocks must never leak raw structure or markup into public text');
+public_pages_expect(brvtal_page_content_structure_error('{"blocks":[{"type":"embed","content":"x"}]}') === 'PAGE_CONTENT_STRUCTURE_UNSUPPORTED', 'unsupported Page blocks must be rejected for publication');
+public_pages_expect(brvtal_page_publication_error(['status'=>'draft','locale'=>'en','content_json'=>'{"blocks":[{"type":"embed","content":"x"}]}']) === null, 'draft Pages may retain incomplete/unsupported future editor data');
+public_pages_expect(brvtal_page_publication_error(['status'=>'published','locale'=>'en','content_json'=>$pageBlocks]) === null, 'published English Pages must accept the supported block contract');
+public_pages_expect(brvtal_page_publication_error(['status'=>'published','locale'=>'en','content_json'=>'{"blocks":[{"type":"embed","content":"x"}]}']) === 'PAGE_CONTENT_STRUCTURE_UNSUPPORTED', 'published Pages must reject structures the public renderer cannot display');
+public_pages_expect(str_contains($seo, "require_once __DIR__ . '/page_content.php';"), 'public SEO resolution must load the canonical Page content contract');
+public_pages_expect(str_contains($seo, "if (\$type === 'pages')") && str_contains($seo, 'brvtal_page_content_plain_text'), 'Page SEO/entity descriptions must normalize content_json before public delivery');
+public_pages_expect(str_contains($pageContractUi, 'text · paragraph · heading blocks'), 'DISCADMIN must document the supported Page block types instead of promising an undefined builder');
 
 public_pages_expect(str_contains($pages, 'bool $required = false'), 'public entity query helper must distinguish required from optional reads');
 public_pages_expect(str_contains($pages, 'catch (Throwable $e)'), 'public entity query helper must retain query exceptions');
