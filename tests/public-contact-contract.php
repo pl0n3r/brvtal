@@ -70,4 +70,18 @@ contact_assert($mailSubject === '[BRVTAL CONTACT] Booking inquiry', 'mail subjec
 contact_assert(str_contains($body, 'Felipe Test') && str_contains($body, 'Booking inquiry'), 'mail body contains validated contact fields');
 contact_assert(str_contains($headers, 'Reply-To: felipe@example.com'), 'validated sender becomes Reply-To without exposing destination in the frontend');
 
+$ui = (string)file_get_contents(__DIR__ . '/../js/public-contact.js');
+$styles = (string)file_get_contents(__DIR__ . '/../css/contact-social.css');
+$loader = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
+foreach (['instagram', 'soundcloud', 'youtube', 'spotify'] as $network) {
+    contact_assert(str_contains($ui, "data-brvtal-social=\"{$network}\""), "{$network} has a public icon target");
+}
+contact_assert(str_contains($ui, 'aria-label=\"CAPTCHA answer\"'), 'CAPTCHA input exposes an accessible name');
+contact_assert(str_contains($ui, 'role=\"status\" aria-live=\"polite\"'), 'contact status is announced accessibly');
+contact_assert(str_contains($ui, 'form.reset()'), 'successful delivery clears the form only after confirmation');
+contact_assert(str_contains($styles, '.brvtal-social-link{') && str_contains($styles, 'width:46px;height:46px'), 'social icons expose touch-friendly base targets');
+contact_assert(str_contains($styles, '@media(max-width:900px)') && str_contains($styles, 'width:48px;height:48px'), 'mobile social targets remain at least 48px');
+contact_assert(str_contains($styles, 'font-size:16px'), 'mobile form controls avoid small iOS input text');
+contact_assert(str_contains($loader, "'js/public-contact.js'"), 'contact enhancement is loaded by the versioned public runtime');
+
 echo "Public contact contract passed.\n";
