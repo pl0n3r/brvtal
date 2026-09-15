@@ -29,6 +29,9 @@ bulk_assert(str_contains($library, 'count($rawIds) > 100'), 'request must enforc
 bulk_assert(str_contains($library, 'FOR UPDATE'), 'bulk status changes must lock selected rows');
 bulk_assert(str_contains($library, 'rollBack()'), 'bulk status changes must rollback on failure');
 bulk_assert(!str_contains($library, 'DELETE FROM'), 'Bulk Actions v1 must not expose bulk deletion');
+bulk_assert(str_contains($library, "require_once __DIR__ . '/../config/event_lifecycle.php';"), 'Bulk Actions must reuse the canonical Event lifecycle policy');
+bulk_assert(str_contains($library, 'brvtal_event_lifecycle_patch($row'), 'bulk Event updates must derive lifecycle timestamps from each locked row');
+bulk_assert(str_contains($library, 'published_at,cancelled_at,finished_at'), 'bulk Event locks must hydrate lifecycle timestamps');
 bulk_assert(str_contains($shell, '/discadmin/bulk-actions.js'), 'canonical shell must load Bulk Actions');
 bulk_assert(str_contains($ui, 'NO BULK DELETE'), 'UI must communicate that bulk deletion is unavailable');
 bulk_assert(str_contains($ui, "window.confirm(`Set"), 'UI must require confirmation before mutation');
