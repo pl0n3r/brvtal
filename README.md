@@ -7,35 +7,36 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Los recovery codes usados durante el login 2FA ahora solo autentican a la request que logra consumir atómicamente el código; una segunda request concurrente ya no puede aceptar el mismo código.
-- La desactivación de 2FA aplica un rate limit independiente del challenge de login para frenar intentos repetidos contra una sesión administrativa autenticada.
-- Cuando DISABLE 2FA utiliza un recovery code, su consumo ocurre dentro de la misma transacción que desactiva 2FA y elimina los códigos restantes; un fallo posterior ya no deja el código consumido fuera de la operación.
-- La desactivación también comprueba que el recovery code siga disponible al momento de consumirlo, cerrando la carrera entre verificaciones concurrentes.
-- Se ampliaron los contratos TOTP para fijar estas garantías de throttling y atomicidad.
+- El rate limit del login por contraseña conserva el bloqueo activo antes de autenticar, pero ya no incrementa el contador por cada login válido.
+- Solo una contraseña inválida registra un fallo; una contraseña correcta elimina el estado previo de esa combinación IP + email antes de continuar al shell o al challenge TOTP.
+- HTTP 429 / `RATE_LIMITED` se muestra como un bloqueo temporal explícito, separado de credenciales inválidas y de fallos de servidor/red.
+- La política de almacenamiento del contador se aisló en `config/password_rate_limit.php` para mantener el flujo de autenticación legible y testeable.
+- La corrección de concurrencia interna de los archivos de rate limit queda deliberadamente fuera de este deploy y sigue separada del presente scope.
 - No hay cambios de esquema, migraciones, permisos ni datos de producción.
 
 ## Archivos modificados en este deploy
 
-- `config/totp_auth.php` — scope compartido de throttling 2FA y consumo atómico de recovery code durante login.
-- `discadmin/totp-api.php` — throttling de DISABLE 2FA y consumo transaccional del recovery code.
-- `tests/totp-enrollment-contract.php` — regresiones contractuales para throttling y single-use/atomicidad.
-- `README.md` — snapshot operativo de este deploy.
+- `api/index.php` — consulta el bloqueo antes de verificar, registra rate limit solo tras una contraseña inválida y resetea el estado tras contraseña válida.
+- `config/password_rate_limit.php` — política compartida para leer, registrar fallos y resetear el rate limit de password.
+- `discadmin/admin-reliability.js` — feedback diferenciado para rate limit, credenciales inválidas, validación incompleta y errores generales de login.
+- `tests/e2e/discadmin-password-login-rate-limit.spec.mjs` — regresiones del orden de operaciones backend y del feedback visible del login.
+- `README.md` — snapshot operativo exacto de este deploy.
 
 ## Validación
 
-- Base actual: `main` `ce64a17519f9dd8ab136978a86fcccd449ee7cbf`, después del merge de #339.
-- El batch fue recontrastado y rebasado sobre ese SHA cuando `main` avanzó durante los gates; la rama queda un commit ahead y cero behind.
-- El alcance objetivo cierra #166, #226 y #264.
-- Los gates deben volver a quedar verdes sobre la base actual antes del squash merge.
-- Tras el merge se verificará la matriz completa sobre el SHA exacto nuevo de `main`.
+- Rama recompactada sobre `main` `9264215997c9695c3398f9ddb3154860c976dad0` después de los merges de #339 y #340.
+- El batch fue recontrastado contra #340: sus cambios de 2FA están en `config/totp_auth.php` / `discadmin/totp-api.php` y no sustituyen la política de password de este deploy.
+- En esa base, `fast` y PHP 8.5 Compatibility ya estaban verdes al rebase; la matriz exacta de `main` seguía ejecutándose.
+- El cambio mantiene el mismo contrato externo de `RATE_LIMITED` / HTTP 429; no cambia rutas ni crea superficies administrativas paralelas.
+- Pendiente de gates del PR y, tras el merge, matriz completa sobre el SHA exacto nuevo de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Revalidar los gates del PR sobre la base actual.
-2. Con CI verde, mantener la rama en un solo commit, hacer squash merge y verificar la matriz completa sobre el nuevo SHA exacto de `main`.
-3. Confirmar el cierre de #166, #226 y #264 y refrescar nuevamente todos los Issues abiertos.
-4. Seleccionar el siguiente batch homogéneo de Quick Wins, manteniendo seguridad/integridad por encima de mejoras cosméticas cuando el esfuerzo sea similar.
+1. Ejecutar los gates del PR y corregir cualquier fallo en esta misma rama.
+2. Con CI verde, mantener un solo commit, hacer squash merge y verificar la matriz completa sobre el nuevo SHA exacto de `main`.
+3. Confirmar el cierre de #154 y #281 y refrescar nuevamente todos los Issues abiertos.
+4. Mantener #263 separado como hardening de concurrencia de los stores de rate limit.
 
 ## Contexto durable
 

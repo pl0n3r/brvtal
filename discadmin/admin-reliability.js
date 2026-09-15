@@ -5,6 +5,7 @@
   const nativeReq = window.req;
   const nativeGo = window.go;
   const nativeEventForm = window.eventForm;
+  const nativeLogin = window.login;
 
   function withTimeoutSignal(options = {}, timeoutMs = RELATED_LOAD_TIMEOUT_MS) {
     if (options.signal || typeof AbortController !== 'function') return {options, cancel: () => {}};
@@ -28,6 +29,44 @@
         throw error;
       } finally {
         bounded.cancel();
+      }
+    };
+  }
+
+  function loginErrorMessage(error) {
+    const code = String(error?.message || '');
+    if (code === 'RATE_LIMITED') return 'Demasiados intentos. Acceso temporalmente limitado; inténtalo de nuevo más tarde.';
+    if (code === 'INVALID_CREDENTIALS') return 'Credenciales inválidas.';
+    if (code === 'EMAIL_AND_PASSWORD_REQUIRED') return 'Ingresa un correo y una contraseña válidos.';
+    if (code === 'AUTH_REQUIRED') return 'Sesión no válida.';
+    return 'No se pudo iniciar sesión. Inténtalo de nuevo.';
+  }
+
+  if (typeof nativeLogin === 'function' && typeof nativeReq === 'function') {
+    window.login = async function brvtalReliableLogin(event) {
+      event.preventDefault();
+      const form = event.target;
+      const data = new FormData(form);
+      const button = form.querySelector('button[type=submit],button');
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'AUTHENTICATING...';
+      }
+      try {
+        const response = await window.req('/auth', {
+          method: 'POST',
+          body: JSON.stringify({email:data.get('email'),password:data.get('password')})
+        });
+        csrf = response.csrf || '';
+        state.authed = true;
+        await window.go('dashboard');
+      } catch (error) {
+        const output = document.querySelector('.error');
+        if (output) output.textContent = loginErrorMessage(error);
+        if (button) {
+          button.disabled = false;
+          button.textContent = 'ENTER';
+        }
       }
     };
   }

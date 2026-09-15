@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/totp_auth.php';
+require_once __DIR__ . '/../config/password_rate_limit.php';
 require_once __DIR__ . '/route.php';
 require_once __DIR__ . '/pages-contract.php';
 
@@ -11,28 +12,21 @@ function client_key(): string {
     return hash('sha256', $ip . '|' . strtolower((string)($_POST['email'] ?? '')));
 }
 
-function rate_limit_login(string $email): void {
-    $dir = __DIR__ . '/../storage/rate_limits';
-    if (!is_dir($dir)) @mkdir($dir, 0750, true);
-    $key = hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '|' . strtolower($email));
-    $file = $dir . '/' . $key . '.json';
-    $now = time(); $window = 900; $max = 5;
-    $data = ['attempts'=>[], 'blocked_until'=>0];
-    if (is_file($file)) {
-        $decoded = json_decode((string)@file_get_contents($file), true);
-        if (is_array($decoded)) $data = array_replace($data, $decoded);
-    }
-    $data['attempts'] = array_values(array_filter((array)$data['attempts'], static fn($t) => is_int($t) && $t > $now - $window));
-    if ((int)$data['blocked_until'] > $now) {
-        json_response(['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>(int)$data['blocked_until']-$now],429,['Retry-After'=>(string)((int)$data['blocked_until']-$now)]);
-    }
-    $data['attempts'][] = $now;
-    if (count($data['attempts']) > $max) {
-        $data['blocked_until'] = $now + 900;
-        @file_put_contents($file, json_encode($data), LOCK_EX);
-        json_response(['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>900],429,['Retry-After'=>'900']);
-    }
-    @file_put_contents($file, json_encode($data), LOCK_EX);
+function rate_limit_login(string $email, bool $recordFailure = false): void {
+    $state = $recordFailure
+        ? brvtal_password_rate_limit_failure($email)
+        : brvtal_password_rate_limit_check($email);
+    if (!$state['limited']) return;
+    $retryAfter = max(1, (int)$state['retry_after']);
+    json_response(
+        ['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>$retryAfter],
+        429,
+        ['Retry-After'=>(string)$retryAfter]
+    );
+}
+
+function reset_login_rate_limit(string $email): void {
+    brvtal_password_rate_limit_reset($email);
 }
 
 function method_not_allowed(): never { json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST, PUT, DELETE']); }
@@ -126,7 +120,8 @@ try {
             if(!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>190||$pass==='') json_response(['ok'=>false,'error'=>'EMAIL_AND_PASSWORD_REQUIRED'],422);
             rate_limit_login($email);
             $st=db()->prepare('SELECT id,email,password_hash,name,totp_enabled,totp_secret_enc FROM admins WHERE email=? AND is_active=1 LIMIT 1'); $st->execute([$email]); $a=$st->fetch();
-  if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
+  if(!$a || !password_verify($pass,(string)$a['password_hash'])) { brvtal_log('AUTH_FAIL','Invalid admin login',['email'=>$email]); rate_limit_login($email,true); json_response(['ok'=>false,'error'=>'INVALID_CREDENTIALS'],401); }
+  reset_login_rate_limit($email);
   if((int)($a['totp_enabled'] ?? 0) === 1) {
       if(empty($a['totp_secret_enc'])) { brvtal_log('SECURITY','TOTP enabled without encrypted secret',['admin_id'=>(int)$a['id']]); json_response(['ok'=>false,'error'=>'TOTP_CONFIGURATION_ERROR'],503); }
       brvtal_totp_pending_set((int)$a['id'],(string)$a['email']);
