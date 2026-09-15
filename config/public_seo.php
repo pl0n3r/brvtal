@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/seo_defaults.php';
 require_once __DIR__ . '/public_visibility.php';
+require_once __DIR__ . '/page_content.php';
 
 function brvtal_public_base_url(array $config): string
 {
@@ -44,6 +45,9 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
         return null;
     }
     if (!$row || ($type === 'events' && !brvtal_public_event_is_visible($row))) return null;
+    if ($type === 'pages') {
+        $row['description'] = brvtal_page_content_plain_text($row['description'] ?? '');
+    }
     $row['schema_type'] = $schemaType;
     $row['route_type'] = $type;
     return $row;
