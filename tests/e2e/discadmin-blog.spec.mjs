@@ -36,14 +36,30 @@ const seedPost = {
   relations: [{ related_type: 'artist', related_id: 7, sort_order: 0 }]
 };
 
-async function mockApi(page) {
+async function mockApi(page, options = {}) {
+  const failedRelated = new Set(options.failedRelated || []);
+  const emptyRelated = new Set(options.emptyRelated || []);
+  const relatedPayload = (type, data) => {
+    if (failedRelated.has(type)) {
+      return {
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: `${type.toUpperCase()}_SOURCE_UNAVAILABLE` })
+      };
+    }
+    return {
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, data: emptyRelated.has(type) ? [] : data })
+    };
+  };
+
   await page.route('**/uploads/media/**', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>' }));
   await page.route('**/api/index.php/auth', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ authenticated: true, csrf: 'csrf-token' }) }));
   await page.route('**/api/media-library.php**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [mediaItem] }) }));
-  await page.route('**/api/index.php/events', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [{ id: 4, title: 'Genesis', slug: 'genesis' }] }) }));
-  await page.route('**/api/index.php/artists', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [{ id: 7, name: 'PL0N3R', slug: 'pl0n3r' }] }) }));
-  await page.route('**/api/index.php/sets', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [{ id: 5, title: 'BRVTAL Session', slug: 'brvtal-session' }] }) }));
-  await page.route('**/api/releases.php', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [{ id: 3, title: 'BRVTAL001', slug: 'brvtal001' }] }) }));
+  await page.route('**/api/index.php/events', route => route.fulfill(relatedPayload('event', [{ id: 4, title: 'Genesis', slug: 'genesis' }])));
+  await page.route('**/api/index.php/artists', route => route.fulfill(relatedPayload('artist', [{ id: 7, name: 'PL0N3R', slug: 'pl0n3r' }])));
+  await page.route('**/api/index.php/sets', route => route.fulfill(relatedPayload('set', [{ id: 5, title: 'BRVTAL Session', slug: 'brvtal-session' }])));
+  await page.route('**/api/releases.php', route => route.fulfill(relatedPayload('release', [{ id: 3, title: 'BRVTAL001', slug: 'brvtal001' }])));
   await page.route('**/api/blog.php**', async route => {
     const req = route.request();
     const url = new URL(req.url());
@@ -57,8 +73,8 @@ async function mockApi(page) {
   });
 }
 
-async function loadHarness(page) {
-  await mockApi(page);
+async function loadHarness(page, options = {}) {
+  await mockApi(page, options);
   await page.route(harnessUrl, route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html><body>
@@ -128,4 +144,38 @@ test('editing a blog post sends PUT and keeps existing taxonomy', async ({ page 
   const payload = await page.evaluate(() => window.__blogMutation.body);
   expect(payload.excerpt).toBe('Updated editorial excerpt.');
   expect(payload.tags).toEqual(['Hard Techno']);
+});
+
+test('editing preserves existing relations when one related source fails', async ({ page }) => {
+  await loadHarness(page, { failedRelated: ['artist'] });
+  await expect(page.locator('#blog-status')).toContainText('RELATED SOURCE WARNING');
+
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  const artists = page.locator('[data-blog-related-source="artist"]');
+  await expect(artists).toHaveAttribute('data-state', 'error');
+  await expect(artists).toContainText('Unable to load ARTISTS. Existing relations will be preserved.');
+  await expect(artists.locator('[data-blog-related-type="artist"]')).toHaveCount(0);
+
+  await page.locator('[data-blog-related-type="release"][data-blog-related-id="3"]').check();
+  await page.locator('#blog_excerpt').fill('Safe unrelated edit.');
+  await page.locator('#saveBtn').click();
+
+  await expect.poll(() => page.evaluate(() => window.__blogMutation?.method)).toBe('PUT');
+  const payload = await page.evaluate(() => window.__blogMutation.body);
+  expect(payload.excerpt).toBe('Safe unrelated edit.');
+  expect(payload.relations).toEqual([
+    { related_type: 'artist', related_id: 7, sort_order: 0 },
+    { related_type: 'release', related_id: 3, sort_order: 1 }
+  ]);
+});
+
+test('successful empty related source remains an authoritative empty state', async ({ page }) => {
+  await loadHarness(page, { emptyRelated: ['artist'] });
+  await expect(page.locator('#blog-status')).toHaveText('EDITORIAL READY');
+
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  const artists = page.locator('[data-blog-related-source="artist"]');
+  await expect(artists).toHaveAttribute('data-state', 'ready');
+  await expect(artists).toContainText('No records available.');
+  await expect(artists).not.toContainText('Unable to load');
 });
