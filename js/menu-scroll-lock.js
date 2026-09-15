@@ -3,10 +3,10 @@
 
   let lenisInstance = null;
   let resumeLenisAfterUnlock = false;
-  let locked = false;
   let scrollX = 0;
   let scrollY = 0;
   let previousStyles = null;
+  const owners = new Set();
 
   const OriginalLenis = window.Lenis;
   if (typeof OriginalLenis === 'function') {
@@ -39,15 +39,13 @@
     document.body.style.overflow = styles.bodyOverflow;
   };
 
-  const lock = () => {
-    if (locked) return;
-    locked = true;
+  const freezeDocument = () => {
     scrollX = window.scrollX;
     scrollY = window.scrollY;
     previousStyles = rememberStyles();
 
-    document.documentElement.classList.add('menu-scroll-locked');
-    document.body.classList.add('menu-scroll-locked');
+    document.documentElement.classList.add('public-scroll-locked');
+    document.body.classList.add('public-scroll-locked');
     document.documentElement.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.top = `-${scrollY}px`;
@@ -66,12 +64,9 @@
     }
   };
 
-  const unlock = () => {
-    if (!locked) return;
-    locked = false;
-
-    document.documentElement.classList.remove('menu-scroll-locked');
-    document.body.classList.remove('menu-scroll-locked');
+  const restoreDocument = () => {
+    document.documentElement.classList.remove('public-scroll-locked');
+    document.body.classList.remove('public-scroll-locked');
     if (previousStyles) restoreStyles(previousStyles);
     previousStyles = null;
 
@@ -85,13 +80,40 @@
     resumeLenisAfterUnlock = false;
   };
 
-  const init = () => {
+  const normalizeOwner = owner => String(owner || 'anonymous');
+
+  const lock = owner => {
+    const key = normalizeOwner(owner);
+    if (owners.has(key)) return;
+    const wasUnlocked = owners.size === 0;
+    owners.add(key);
+    if (wasUnlocked) freezeDocument();
+  };
+
+  const unlock = owner => {
+    const key = normalizeOwner(owner);
+    if (!owners.delete(key)) return;
+    if (owners.size === 0) restoreDocument();
+  };
+
+  const manager = {
+    lock,
+    unlock,
+    isLocked: () => owners.size > 0,
+    has: owner => owners.has(normalizeOwner(owner))
+  };
+  window.BRVTALScrollLock = manager;
+
+  const initMenu = () => {
     const panel = document.getElementById('menuPanel');
     if (!panel) return;
 
     const sync = () => {
-      if (panel.getAttribute('aria-hidden') === 'true') unlock();
-      else lock();
+      const open = panel.getAttribute('aria-hidden') !== 'true';
+      document.documentElement.classList.toggle('menu-scroll-locked', open);
+      document.body.classList.toggle('menu-scroll-locked', open);
+      if (open) manager.lock('menu');
+      else manager.unlock('menu');
     };
 
     new MutationObserver(sync).observe(panel, {
@@ -102,8 +124,8 @@
   };
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
+    document.addEventListener('DOMContentLoaded', initMenu, { once: true });
   } else {
-    init();
+    initMenu();
   }
 })();
