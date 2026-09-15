@@ -78,6 +78,30 @@ function brvtal_public_seo_document(?array $entity, string $base): array
     return compact('title', 'description', 'canonical', 'image', 'schema');
 }
 
+function brvtal_public_not_found_seo(string $base, string $type, string $slug): array
+{
+    $segments = array_values(array_filter([
+        trim($type) !== '' ? rawurlencode(trim($type)) : null,
+        trim($slug) !== '' ? rawurlencode(trim($slug)) : null,
+    ], static fn(mixed $value): bool => is_string($value) && $value !== ''));
+    $path = '/' . implode('/', $segments);
+    if ($path === '/') $path = '/404';
+
+    $canonical = rtrim($base, '/') . $path;
+    $title = 'Resource Not Found — BRVTAL';
+    $description = 'The requested BRVTAL public resource could not be found.';
+    $image = brvtal_public_absolute_url('', $base);
+    $schema = [
+        '@context' => 'https://schema.org',
+        '@type' => 'WebPage',
+        'name' => 'Resource Not Found',
+        'url' => $canonical,
+        'image' => $image,
+        'description' => $description,
+    ];
+    return compact('title', 'description', 'canonical', 'image', 'schema');
+}
+
 function brvtal_public_seo_tags(array $seo): string
 {
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

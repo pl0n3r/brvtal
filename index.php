@@ -7,20 +7,28 @@ require_once __DIR__ . '/config/public_assets.php';
 require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
+require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_home.php';
 
 $type = trim((string)($_GET['type'] ?? ''));
 $slug = trim((string)($_GET['slug'] ?? ''));
 $entity = null;
+$baseUrl = brvtal_public_base_url($config);
 if ($type !== '' || $slug !== '') {
     $entity = brvtal_public_seo_entity(db(), $type, $slug);
     if (!$entity) {
+        $seo = brvtal_public_not_found_seo($baseUrl, $type, $slug);
+        $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
         http_response_code(404);
         header('X-Robots-Tag: noindex, follow');
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+        echo brvtal_public_not_found_page($seo, $analytics);
+        exit;
     }
 }
 
-$seo = brvtal_public_seo_document($entity, brvtal_public_base_url($config));
+$seo = brvtal_public_seo_document($entity, $baseUrl);
 $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
 if ($entity) {
     header('Content-Type: text/html; charset=utf-8');
