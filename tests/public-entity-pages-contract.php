@@ -13,6 +13,7 @@ function public_pages_expect(bool $condition, string $message): void
 
 $entry = (string)file_get_contents(__DIR__ . '/../index.php');
 $pages = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
+$unavailable = (string)file_get_contents(__DIR__ . '/../config/public_unavailable.php');
 $css = (string)file_get_contents(__DIR__ . '/../css/public-entity.css');
 
 public_pages_expect(str_contains($entry, 'brvtal_public_entity_page'), 'entity routes must use the dedicated public renderer');
@@ -41,6 +42,27 @@ public_pages_expect(str_contains($pages, 'htmlspecialchars'), 'editorial content
 public_pages_expect(str_contains($pages, "rel=\"noopener noreferrer\""), 'external calls to action must isolate their browsing context');
 public_pages_expect(str_contains($css, '@media(max-width:620px)'), 'entity pages must include a mobile layout');
 public_pages_expect(str_contains($css, 'prefers-reduced-motion:reduce'), 'entity pages must respect reduced motion');
+
+public_pages_expect(str_contains($pages, 'bool $required = false'), 'public entity query helper must distinguish required from optional reads');
+public_pages_expect(str_contains($pages, 'catch (Throwable $e)'), 'public entity query helper must retain query exceptions');
+public_pages_expect(str_contains($pages, 'PUBLIC_ENTITY_QUERY_ERROR'), 'public entity query failures must be observable in server logs');
+public_pages_expect(str_contains($pages, 'brvtal_page_query_degraded(true)'), 'optional query failures must mark the page degraded');
+public_pages_expect(str_contains($pages, 'if ($required)') && str_contains($pages, 'throw $e;'), 'required query failures must propagate instead of becoming empty rows');
+public_pages_expect(substr_count($pages, '[$id], true)') >= 6, 'each canonical entity type must treat its essential detail read as required');
+public_pages_expect(str_contains($pages, 'brvtal_page_query_degraded(false)'), 'each entity hydration must reset degradation state');
+public_pages_expect(str_contains($pages, '$data[\'degraded\'] = brvtal_page_query_degraded();'), 'entity hydration must surface optional query degradation to delivery');
+public_pages_expect(str_contains($pages, 'DATA STATUS / DEGRADED'), 'partially degraded entity pages must visibly disclose incomplete connected data');
+public_pages_expect(str_contains($pages, '<meta name="robots" content="noindex, follow">'), 'partially degraded entity pages must not be indexed');
+public_pages_expect(str_contains($entry, "require_once __DIR__ . '/config/public_unavailable.php';"), 'entity delivery must load the dedicated unavailable renderer');
+public_pages_expect(str_contains($entry, 'PUBLIC_ENTITY_DATA_ERROR'), 'essential entity hydration failures must be logged at the delivery boundary');
+public_pages_expect(str_contains($entry, 'http_response_code(503)'), 'essential entity hydration failures must return HTTP 503');
+public_pages_expect(str_contains($entry, "header('Retry-After: 60')"), '503 entity responses must tell clients when to retry');
+public_pages_expect(str_contains($entry, "header('X-Robots-Tag: noindex, follow')"), 'entity degradation must set a noindex response header');
+public_pages_expect(str_contains($entry, "header('X-BRVTAL-Data-State: degraded')"), 'partial entity degradation must be observable in response headers');
+public_pages_expect(substr_count($entry, "header('Cache-Control: no-store')") >= 2, 'essential and partial entity failures must not be cached');
+public_pages_expect(str_contains($unavailable, 'DATA TEMPORARILY UNAVAILABLE'), 'essential failures must render an explicit unavailable experience');
+public_pages_expect(str_contains($unavailable, '503 / RETRY LATER'), 'unavailable renderer must communicate retry semantics');
+public_pages_expect(str_contains($unavailable, '<meta name="robots" content="noindex, follow">'), 'unavailable renderer must remain noindex');
 
 $ticketNow = new DateTimeImmutable('2026-09-15 12:00:00');
 public_pages_expect(brvtal_public_event_allows_ticketing([
