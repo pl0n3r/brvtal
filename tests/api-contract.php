@@ -40,9 +40,10 @@ expect(brvtal_page_publication_error(['status'=>'published','locale'=>'es']) ===
 $index = file_get_contents(__DIR__ . '/../api/index.php');
 $public = file_get_contents(__DIR__ . '/../api/public.php');
 $publicApp = file_get_contents(__DIR__ . '/../js/app.js');
+$router = file_get_contents(__DIR__ . '/../.htaccess');
 $discadminIndex = file_get_contents(__DIR__ . '/../discadmin/index.php');
 $pageContractJs = file_get_contents(__DIR__ . '/../discadmin/pages-publication-contract.js');
-expect(is_string($index) && is_string($public) && is_string($publicApp) && is_string($discadminIndex) && is_string($pageContractJs), 'API and Page contract sources must be readable');
+expect(is_string($index) && is_string($public) && is_string($publicApp) && is_string($router) && is_string($discadminIndex) && is_string($pageContractJs), 'API and Page contract sources must be readable');
 
 $delegatePos = strpos($index, "if(\$resource==='public')");
 $authGatePos = strpos($index, 'brvtal_admin_require();');
@@ -53,7 +54,10 @@ expect($authGatePos !== false && $delegatePos < $authGatePos, 'Public compatibil
 expect(str_contains($public, "WHERE setting_key IN ('site','social','appearance','theme.active')"), 'Public settings must use an explicit allowlist');
 expect(!str_contains($public, "SELECT setting_key,setting_value,is_json FROM settings ORDER BY setting_key"), 'Public API must never select all settings without filtering');
 expect(str_contains($publicApp, "'/api/public.php'"), 'Public frontend must include the production public PHP endpoint');
-expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/public'"), 'Production public PHP endpoint must be attempted before clean-route fallbacks');
+expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/public'"), 'Production public PHP endpoint must be attempted before compatibility aliases');
+expect(str_contains($router, 'RewriteRule ^api/public/?$ api/public.php [L,QSA,NC]'), 'Clean public API aliases must delegate to api/public.php');
+expect(str_contains($router, 'RewriteCond %{QUERY_STRING} (?:^|&)(?:route|action)=public(?:&|$) [NC]'), 'Query-string public API aliases must be explicitly recognized');
+expect(str_contains($router, 'RewriteRule ^api/index\.php$ api/public.php [L,QSA,NC]'), 'Query-string public API aliases must delegate to api/public.php before admin routing');
 expect(str_contains($public, "WHERE status IN ('active','sold_out')"), 'Public API must expose only active/sold-out ticket types');
 expect(str_contains($public, 'available_from,available_until'), 'Public API ticket query must hydrate availability windows');
 expect(str_contains($public, 'brvtal_public_ticket_type_is_available($ticket)'), 'Public API must apply the canonical Ticket Type availability policy');
