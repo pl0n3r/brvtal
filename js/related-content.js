@@ -102,6 +102,31 @@ const BRVTALRelatedContent = (() => {
     return 0;
   }
 
+  function activateTab(button) {
+    if (!button) return;
+    button.click();
+    button.focus();
+  }
+
+  function handleTabKeydown(event) {
+    const current = event.target.closest('[data-related-mode]');
+    if (!current) return;
+    const tabs = [...current.closest('[role="tablist"]')?.querySelectorAll('[data-related-mode]') || []];
+    if (!tabs.length) return;
+    const currentIndex = tabs.indexOf(current);
+    if (currentIndex < 0) return;
+
+    let targetIndex = -1;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') targetIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') targetIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') targetIndex = 0;
+    else if (event.key === 'End') targetIndex = tabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    activateTab(tabs[targetIndex]);
+  }
+
   function mount() {
     if (state.root?.isConnected) return state.root;
     ensureStyles();
@@ -120,12 +145,12 @@ const BRVTALRelatedContent = (() => {
       <div class="related-network-layout">
         <aside class="related-network-browser" aria-label="Explore related BRVTAL content">
           <div class="related-network-tabs" role="tablist" aria-label="Content type">
-            <button type="button" role="tab" aria-selected="true" data-related-mode="artists">ARTISTS</button>
-            <button type="button" role="tab" aria-selected="false" data-related-mode="events">EVENTS</button>
-            <button type="button" role="tab" aria-selected="false" data-related-mode="sets">SETS</button>
-            <button type="button" role="tab" aria-selected="false" data-related-mode="releases">RELEASES</button>
+            <button type="button" id="related-tab-artists" role="tab" aria-selected="true" aria-controls="related-network-panel" tabindex="0" data-related-mode="artists">ARTISTS</button>
+            <button type="button" id="related-tab-events" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="events">EVENTS</button>
+            <button type="button" id="related-tab-sets" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="sets">SETS</button>
+            <button type="button" id="related-tab-releases" role="tab" aria-selected="false" aria-controls="related-network-panel" tabindex="-1" data-related-mode="releases">RELEASES</button>
           </div>
-          <div class="related-network-list" data-related-list></div>
+          <div class="related-network-list" id="related-network-panel" role="tabpanel" aria-labelledby="related-tab-artists" tabindex="0" data-related-list></div>
         </aside>
         <div class="related-network-detail" data-related-detail aria-live="polite"></div>
       </div>`;
@@ -146,6 +171,7 @@ const BRVTALRelatedContent = (() => {
         select(selectButton.dataset.relatedType || state.mode, Number(selectButton.dataset.relatedId) || 0);
       }
     });
+    section.addEventListener('keydown', handleTabKeydown);
 
     state.root = section;
     return section;
@@ -186,11 +212,16 @@ const BRVTALRelatedContent = (() => {
 
   function syncTabs() {
     const root = mount();
+    let activeTab = null;
     root.querySelectorAll('[data-related-mode]').forEach(button => {
       const active = button.dataset.relatedMode === state.mode;
       button.setAttribute('aria-selected', String(active));
+      button.tabIndex = active ? 0 : -1;
       button.classList.toggle('active', active);
+      if (active) activeTab = button;
     });
+    const panel = qs('[data-related-list]', root);
+    if (panel && activeTab?.id) panel.setAttribute('aria-labelledby', activeTab.id);
   }
 
   function renderList() {
