@@ -36,6 +36,12 @@ $publicMethodError = brvtal_public_envelope(['error' => 'METHOD_NOT_ALLOWED'], 4
 expect($publicMethodError === ['ok' => false, 'error' => 'METHOD_NOT_ALLOWED'], 'Public API 405 envelope must align with its HTTP error status');
 $publicFallbackError = brvtal_public_envelope([], 503);
 expect($publicFallbackError === ['ok' => false, 'error' => 'REQUEST_FAILED'], 'Public API errors without a code must fail closed with a generic error');
+$etagPayload = ['events' => [['id' => 7, 'title' => 'GENESIS']], 'settings' => ['site' => ['name' => 'BRVTAL']]];
+$stableEtag = brvtal_public_etag($etagPayload);
+expect($stableEtag === brvtal_public_etag($etagPayload), 'Identical public payloads must retain the same ETag across requests');
+$changedEtagPayload = $etagPayload;
+$changedEtagPayload['events'][0]['title'] = 'GENESIS II';
+expect($stableEtag !== brvtal_public_etag($changedEtagPayload), 'A real public payload change must invalidate the ETag');
 
 expect(brvtal_page_content_json_error('') === null, 'Empty Page content JSON must remain allowed for incomplete drafts');
 expect(brvtal_page_content_json_error('{"text":"Manifesto"}') === null, 'Object Page content JSON must be accepted');
@@ -104,6 +110,8 @@ expect(!str_contains($public, "SELECT setting_key,setting_value,is_json FROM set
 expect(str_contains($public, "require_once __DIR__ . '/public-response.php';"), 'Public endpoint must load the canonical response envelope helper');
 expect(str_contains($public, 'brvtal_public_envelope($data, $status)'), 'Public JSON delivery must derive its body from HTTP status');
 expect(str_contains($public, "? 'Cache-Control: no-store'"), 'Public API error responses must not be cached as successful public data');
+expect(str_contains($public, '$etag = brvtal_public_etag($payload);'), 'Public endpoint must derive ETag from the canonical content payload');
+expect(!str_contains($public, "'generated_at'"), 'Public payload must not contain request-time metadata that changes representation bytes without content changes');
 expect(str_contains($publicApp, "'/api/public.php'"), 'Public frontend must include the production public PHP endpoint');
 expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/public'"), 'Production public PHP endpoint must be attempted before compatibility aliases');
 expect(str_contains($router, 'RewriteRule ^api/public/?$ api/public.php [L,QSA,NC]'), 'Clean public API aliases must delegate to api/public.php');
