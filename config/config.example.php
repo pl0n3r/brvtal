@@ -4,7 +4,7 @@ declare(strict_types=1);
 return [
     'app' => [
         'name' => 'BRVTAL',
-        'base_url' => 'https://brvtal.com.co',
+        'base_url' => 'https://www.brvtal.com.co',
         'timezone' => 'America/Bogota',
         'debug' => false,
     ],
@@ -20,6 +20,10 @@ return [
         'session_name' => 'BRVTAL_ADMIN',
         'csrf_key' => 'REPLACE_WITH_LONG_RANDOM_SECRET',
         'encryption_key' => 'REPLACE_WITH_32_PLUS_BYTE_RANDOM_SECRET',
+    ],
+    'contact' => [
+        // Public Contact form recipient. BRVTAL_CONTACT_TO can override this at runtime.
+        'to' => 'contact@brvtal.com.co',
     ],
     'hosting' => [
         // Optional operational quota used by DISCADMIN System Status.
