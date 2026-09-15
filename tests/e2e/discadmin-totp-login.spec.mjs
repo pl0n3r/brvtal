@@ -41,15 +41,18 @@ function harnessHtml() {
   </body></html>`;
 }
 
-test('TOTP login uses canonical auth route and reloads from authenticated session', async ({ page }) => {
-  let authenticated = false;
-  const requests = [];
-
+async function routeHarness(page) {
   await page.route('**/discadmin/e2e-totp-login.html**', route => route.fulfill({
     contentType: 'text/html',
     body: harnessHtml()
   }));
+}
 
+test('TOTP login uses canonical auth route and reloads from authenticated session', async ({ page }) => {
+  let authenticated = false;
+  const requests = [];
+
+  await routeHarness(page);
   await page.route('**/api/index.php/auth**', async route => {
     const request = route.request();
     const method = request.method();
@@ -99,8 +102,11 @@ test('TOTP login uses canonical auth route and reloads from authenticated sessio
   await page.locator('#password').fill('correct-password');
   await page.locator('#login-submit').click();
 
-  await expect(page.locator('#brvtal-totp-overlay')).toBeVisible();
-  await expect(page.getByRole('heading', { name:'2FA VERIFICATION' })).toBeVisible();
+  const dialog = page.getByRole('dialog', { name:'2FA VERIFICATION' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect(page.locator('#brvtal-totp-code')).toBeFocused();
+  await expect(page.getByRole('button', { name:'Use recovery code' })).toBeVisible();
   await page.locator('#brvtal-totp-code').fill('123456');
   await page.locator('#brvtal-totp-submit').click();
 
@@ -117,4 +123,54 @@ test('TOTP login uses canonical auth route and reloads from authenticated sessio
   expect(totpVerify?.pathname).toBe('/api/index.php/auth');
   expect(authenticatedBootstrap?.pathname).toBe('/api/index.php/auth');
   expect(requests.filter(entry => entry.body?.action === 'totp_verify')).toHaveLength(1);
+});
+
+test('TOTP challenge traps focus, toggles recovery mode by keyboard and cancels with Escape', async ({ page }) => {
+  let cancelRequests = 0;
+
+  await routeHarness(page);
+  await page.route('**/api/index.php/auth**', async route => {
+    const request = route.request();
+    const method = request.method();
+    const body = method === 'POST' ? request.postDataJSON() : null;
+
+    if (method === 'GET') {
+      return route.fulfill({ contentType:'application/json', body:JSON.stringify({ ok:true, authenticated:false, csrf:null }) });
+    }
+    if (body?.action === 'totp_cancel') {
+      cancelRequests += 1;
+      return route.fulfill({ contentType:'application/json', body:JSON.stringify({ ok:true }) });
+    }
+    if (body?.action === 'totp_verify') {
+      throw new Error('This regression should cancel before verification.');
+    }
+    return route.fulfill({
+      contentType:'application/json',
+      body:JSON.stringify({ ok:true, requires_totp:true, admin:{ id:1, name:'BRVTAL Admin', email:'admin@example.test' } })
+    });
+  });
+
+  await page.goto(harnessUrl);
+  await page.locator('#email').fill('admin@example.test');
+  await page.locator('#password').fill('correct-password');
+  const login = page.getByRole('button', { name:'LOGIN' });
+  await login.click();
+
+  const input = page.locator('#brvtal-totp-code');
+  const recovery = page.getByRole('button', { name:'Use recovery code' });
+  await expect(page.getByRole('dialog', { name:'2FA VERIFICATION' })).toBeVisible();
+  await expect(input).toBeFocused();
+
+  await page.keyboard.press('Shift+Tab');
+  await expect(recovery).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute('aria-label', 'Recovery code');
+  await expect(input).toHaveAttribute('maxlength', '10');
+  await expect(page.getByRole('button', { name:'Use authenticator code' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#brvtal-totp-overlay')).toHaveCount(0);
+  await expect(login).toBeFocused();
+  expect(cancelRequests).toBe(1);
 });

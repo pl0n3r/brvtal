@@ -5,6 +5,7 @@
   const origins = new WeakMap();
   let current = null;
   let queued = false;
+  let generatedId = 0;
 
   function visible(element) {
     if (!(element instanceof HTMLElement) || !element.isConnected) return false;
@@ -24,6 +25,9 @@
 
   function activeDescriptors() {
     const items = [];
+    const mediaPickers = [...document.querySelectorAll('.brvtal-media-picker')].filter(visible);
+    const media = mediaPickers.at(-1);
+    if (media) items.push(descriptor(media, media.querySelector('.brvtal-media-picker-box'), 'media', '[data-close]'));
     const bulk = document.querySelector('#brvtal-bulk-actions.open');
     if (bulk) items.push(descriptor(bulk, bulk.querySelector('.brvtal-bulk-dialog'), 'bulk', '.brvtal-bulk-close'));
     const search = document.querySelector('#brvtal-global-search.open');
@@ -49,6 +53,61 @@
     return active instanceof HTMLElement && !item.root.contains(active) ? active : null;
   }
 
+  function ensureDialogSemantics(item) {
+    if (!item || item.kind === 'sidebar') return;
+    if (!item.root.hasAttribute('role')) item.root.setAttribute('role', 'dialog');
+    item.root.setAttribute('aria-modal', 'true');
+    if (item.root.hasAttribute('aria-label') || item.root.hasAttribute('aria-labelledby')) return;
+    const heading = item.root.querySelector('h1,h2,h3');
+    if (!heading) return;
+    if (!heading.id) heading.id = `brvtal-admin-dialog-title-${++generatedId}`;
+    item.root.setAttribute('aria-labelledby', heading.id);
+  }
+
+  function themeFieldLabel(label, controls) {
+    const text = String(label.textContent || '').trim().replace(/\s+/g, ' ');
+    if (!text) return;
+    if (controls.length === 1 && controls[0].id) {
+      label.htmlFor = controls[0].id;
+      return;
+    }
+    controls.forEach(control => {
+      if (!(control instanceof HTMLElement) || control.hasAttribute('aria-label') || control.hasAttribute('aria-labelledby')) return;
+      let qualifier = 'value';
+      if (control instanceof HTMLSelectElement) qualifier = 'Media Library selection';
+      else if (control instanceof HTMLInputElement && control.type === 'color') qualifier = 'color picker';
+      else if (control.id.endsWith('_custom')) qualifier = 'custom path or URL';
+      else if (control.id.endsWith('_picker')) qualifier = 'picker';
+      control.setAttribute('aria-label', `${text} · ${qualifier}`);
+    });
+  }
+
+  function enhanceThemeStudio() {
+    document.querySelectorAll('.theme-field > label').forEach(label => {
+      if (!(label instanceof HTMLLabelElement)) return;
+      const field = label.parentElement;
+      if (!field) return;
+      const controls = [...field.querySelectorAll('input:not([type="hidden"]),select,textarea')];
+      if (controls.length) themeFieldLabel(label, controls);
+    });
+
+    document.querySelectorAll('.theme-file[type="file"]').forEach(input => {
+      if (!(input instanceof HTMLInputElement)) return;
+      const trigger = input.closest('label');
+      if (!(trigger instanceof HTMLLabelElement)) return;
+      trigger.setAttribute('role', 'button');
+      trigger.tabIndex = 0;
+      if (!trigger.hasAttribute('aria-label')) trigger.setAttribute('aria-label', 'Import theme configuration');
+      if (trigger.dataset.brvtalKeyboardImport === '1') return;
+      trigger.dataset.brvtalKeyboardImport = '1';
+      trigger.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        input.click();
+      });
+    });
+  }
+
   function focusInside(item) {
     if (!item || item.root.contains(document.activeElement)) return;
     const target = focusable(item.root)[0] || item.root;
@@ -70,7 +129,9 @@
 
   function sync() {
     queued = false;
+    enhanceThemeStudio();
     const next = topModal();
+    if (next) ensureDialogSemantics(next);
     if (current?.container === next?.container) return;
 
     const previous = current;

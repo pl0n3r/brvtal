@@ -46,7 +46,7 @@ $enabled = (bool)$admin['totp_enabled'];
 <div class="muted">If you cannot scan the QR, enter this setup key manually:</div>
 <div id="secret" class="secret"></div>
 <h2 style="margin-top:24px">2. Confirm</h2>
-<div class="row"><input id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"><button id="confirm">CONFIRM & ENABLE</button></div>
+<div class="row"><input id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="Authenticator confirmation code"><button id="confirm">CONFIRM & ENABLE</button></div>
 <div id="message"></div>
 </div>
 <?php else: ?>
@@ -55,7 +55,7 @@ $enabled = (bool)$admin['totp_enabled'];
 <div id="disableBox" class="setup">
 <h2>Verify before disabling</h2>
 <p class="muted">Enter a current six-digit authenticator code or one unused recovery code.</p>
-<div class="row"><input id="disableCode" inputmode="numeric" maxlength="20" autocomplete="one-time-code" placeholder="000000"><button id="disableConfirm">CONFIRM DISABLE</button></div>
+<div class="row"><input id="disableCode" inputmode="numeric" maxlength="20" autocomplete="one-time-code" placeholder="000000" aria-label="Authenticator or recovery code"><button id="disableConfirm">CONFIRM DISABLE</button></div>
 </div>
 <div id="message"></div>
 <?php endif; ?>
