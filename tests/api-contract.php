@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../api/route.php';
+require_once __DIR__ . '/../api/pages-contract.php';
 
 function expect(bool $condition, string $message): void
 {
@@ -26,10 +27,22 @@ foreach ($cases as [$uri, $script, $resource, $id, $action]) {
     expect($route['action'] === $action, "Action mismatch for {$uri}");
 }
 
+expect(brvtal_page_content_json_error('') === null, 'Empty Page content JSON must remain allowed for incomplete drafts');
+expect(brvtal_page_content_json_error('{"text":"Manifesto"}') === null, 'Object Page content JSON must be accepted');
+expect(brvtal_page_content_json_error('[]') === null, 'Array Page content JSON must be accepted');
+expect(brvtal_page_content_json_error('{"text":') === 'INVALID_PAGE_CONTENT_JSON', 'Malformed Page content JSON must be rejected');
+expect(brvtal_page_content_json_error('"text"') === 'INVALID_PAGE_CONTENT_JSON', 'Scalar Page content JSON must be rejected because the public renderer consumes arrays');
+expect(brvtal_page_content_json_error('123') === 'INVALID_PAGE_CONTENT_JSON', 'Numeric Page content JSON must be rejected because the public renderer consumes arrays');
+expect(brvtal_page_publication_error(['status'=>'draft','locale'=>'es']) === null, 'Spanish drafts must remain editable');
+expect(brvtal_page_publication_error(['status'=>'published','locale'=>'en']) === null, 'Published English Pages must remain valid');
+expect(brvtal_page_publication_error(['status'=>'published','locale'=>'es']) === 'PAGE_PUBLIC_LOCALE_MUST_BE_EN', 'Published Pages must use the public English locale');
+
 $index = file_get_contents(__DIR__ . '/../api/index.php');
 $public = file_get_contents(__DIR__ . '/../api/public.php');
 $publicApp = file_get_contents(__DIR__ . '/../js/app.js');
-expect(is_string($index) && is_string($public) && is_string($publicApp), 'API sources must be readable');
+$discadminIndex = file_get_contents(__DIR__ . '/../discadmin/index.php');
+$pageContractJs = file_get_contents(__DIR__ . '/../discadmin/pages-publication-contract.js');
+expect(is_string($index) && is_string($public) && is_string($publicApp) && is_string($discadminIndex) && is_string($pageContractJs), 'API and Page contract sources must be readable');
 
 $delegatePos = strpos($index, "if(\$resource==='public')");
 $authGatePos = strpos($index, 'brvtal_admin_require();');
@@ -44,6 +57,14 @@ expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/publi
 expect(str_contains($public, "WHERE status IN ('active','sold_out')"), 'Public API must expose only active/sold-out ticket types');
 expect(str_contains($public, "\$event['ticket_types']"), 'Public events must include ticket types');
 expect(str_contains($public, "\$event['lineup']"), 'Public events must include lineup data');
+
+expect(str_contains($index, "require_once __DIR__ . '/pages-contract.php';"), 'Core API must load the CMS Page publication contract');
+expect(str_contains($index, "if(\$resource==='pages'&&!array_key_exists('locale',\$p))\$p['locale']='en';"), 'Core API must default new CMS Pages to English');
+expect(str_contains($index, 'array_replace($before,$p)'), 'Partial Page PUT validation must combine the locked existing state with the patch');
+expect(str_contains($index, 'brvtal_page_content_json_error'), 'Core API must validate Page content JSON');
+expect(str_contains($index, 'brvtal_page_publication_error'), 'Core API must validate Page publication locale');
+expect(str_contains($discadminIndex, '/discadmin/pages-publication-contract.js'), 'DISCADMIN shell must load the Page publication enhancement');
+expect(str_contains($pageContractJs, "page.locale = 'en'"), 'New Page form enhancement must default missing locale to English');
 
 fwrite(STDOUT, "BRVTAL API contract tests passed.\n");
 
