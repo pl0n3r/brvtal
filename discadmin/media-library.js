@@ -6,6 +6,8 @@ window.BRVTALMediaLibrary = (() => {
   const store = {root:null,items:[],selected:null,engine:null,csrf:'',loading:false};
   let pickerObserver;
   let toastTimer = 0;
+  let selectionLoadId = 0;
+  let selectionController = null;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const bytes = n => {
@@ -318,12 +320,22 @@ window.BRVTALMediaLibrary = (() => {
   }
 
   async function select(id) {
+    const loadId = ++selectionLoadId;
+    selectionController?.abort();
+    const controller = new AbortController();
+    selectionController = controller;
     try {
       status('Loading asset…');
-      const j = await request('?action=detail&id=' + encodeURIComponent(id));
+      const j = await request('?action=detail&id=' + encodeURIComponent(id), {signal:controller.signal});
+      if (loadId !== selectionLoadId) return;
       store.selected = j.data;
       renderGrid(); renderInspector(store.selected); status('');
-    } catch (e) { status('Unable to load asset: ' + e.message, 'err'); }
+    } catch (e) {
+      if (e?.name === 'AbortError' || loadId !== selectionLoadId) return;
+      status('Unable to load asset: ' + e.message, 'err');
+    } finally {
+      if (loadId === selectionLoadId) selectionController = null;
+    }
   }
 
   async function refresh(selectId = null) {

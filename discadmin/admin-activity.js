@@ -5,6 +5,8 @@
   const sectionFor = resource => ({events:'events',artists:'artists',sets:'sets',pages:'pages',releases:'releases',blog:'blog',ticket_types:'events',event_lineup:'events'})[resource] || 'dashboard';
   const resources = ['','events','artists','sets','releases','blog','pages','ticket_types','event_lineup'];
   let loading = false;
+  let detailLoadId = 0;
+  let detailController = null;
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -41,8 +43,8 @@
     return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(date);
   }
 
-  async function fetchJson(url) {
-    const response = await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{Accept:'application/json',...(options.headers||{})}});
     const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
     if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
     return payload.data;
@@ -54,23 +56,39 @@
     return fetchJson(`${ENDPOINT}?${query}`);
   }
 
-  async function fetchDetail(id) {
-    return fetchJson(`${ENDPOINT}?id=${encodeURIComponent(id)}`);
+  async function fetchDetail(id, options = {}) {
+    return fetchJson(`${ENDPOINT}?id=${encodeURIComponent(id)}`, options);
   }
 
-  async function fetchHistory(resource, resourceId) {
+  async function fetchHistory(resource, resourceId, options = {}) {
     const query = new URLSearchParams({history:'1',resource,resource_id:String(resourceId),limit:'50'});
-    return fetchJson(`${ENDPOINT}?${query}`);
+    return fetchJson(`${ENDPOINT}?${query}`, options);
   }
 
-  function closeDetail() {
+  function removeDetailModal() {
     document.getElementById('brvtal-activity-modal')?.remove();
   }
 
+  function closeDetail() {
+    detailLoadId += 1;
+    detailController?.abort(); detailController = null;
+    removeDetailModal();
+  }
+
+  function beginDetailLoad() {
+    detailLoadId += 1;
+    detailController?.abort();
+    const controller = new AbortController();
+    detailController = controller;
+    return {loadId:detailLoadId,controller};
+  }
+
   async function openDetail(id) {
+    const {loadId,controller} = beginDetailLoad();
     try {
-      const item = await fetchDetail(id);
-      closeDetail();
+      const item = await fetchDetail(id,{signal:controller.signal});
+      if (loadId !== detailLoadId) return;
+      removeDetailModal();
       const modal = document.createElement('div');
       modal.id = 'brvtal-activity-modal';
       modal.className = 'activity-modal';
@@ -91,7 +109,10 @@
       modal.querySelector('[data-activity-close]').addEventListener('click', closeDetail);
       modal.addEventListener('click', event => { if (event.target === modal) closeDetail(); });
     } catch (error) {
+      if (error?.name === 'AbortError' || loadId !== detailLoadId) return;
       window.BRVTALFeedback?.error?.('Activity detail unavailable: ' + (error?.message || error),'admin-activity-detail');
+    } finally {
+      if (loadId === detailLoadId) detailController = null;
     }
   }
 
@@ -107,10 +128,12 @@
   }
 
   async function openHistory(resource, resourceId, label = '') {
+    const {loadId,controller} = beginDetailLoad();
     try {
-      const data = await fetchHistory(resource, resourceId);
+      const data = await fetchHistory(resource, resourceId,{signal:controller.signal});
+      if (loadId !== detailLoadId) return;
       const items = Array.isArray(data?.items) ? data.items : [];
-      closeDetail();
+      removeDetailModal();
       const modal = document.createElement('div');
       modal.id = 'brvtal-activity-modal';
       modal.className = 'activity-modal';
@@ -128,7 +151,10 @@
       modal.querySelector('[data-activity-close]').addEventListener('click', closeDetail);
       modal.addEventListener('click', event => { if (event.target === modal) closeDetail(); });
     } catch (error) {
+      if (error?.name === 'AbortError' || loadId !== detailLoadId) return;
       window.BRVTALFeedback?.error?.('Version history unavailable: ' + (error?.message || error),'editorial-version-history');
+    } finally {
+      if (loadId === detailLoadId) detailController = null;
     }
   }
 

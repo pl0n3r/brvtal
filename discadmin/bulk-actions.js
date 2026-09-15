@@ -11,7 +11,7 @@
     blog: {label:'BLOG', endpoint:'/api/blog.php', title:'title', statuses:[['draft','MOVE TO DRAFT'],['published','PUBLISH'],['archived','ARCHIVE']]},
   };
 
-  const state = {open:false,module:null,rows:[],selected:new Set(),query:''};
+  const state = {open:false,module:null,rows:[],rowsModule:null,selected:new Set(),query:'',loadId:0,loadController:null};
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
 
   function currentModule() {
@@ -109,7 +109,12 @@
     if (!module || !SPECS[module]) return;
     ensureStyle();
     const overlay = ensureOverlay();
-    state.open = true; state.module = module; state.rows = []; state.selected.clear(); state.query = '';
+    state.loadId += 1;
+    const loadId = state.loadId;
+    state.loadController?.abort();
+    const controller = new AbortController();
+    state.loadController = controller;
+    state.open = true; state.module = module; state.rows = []; state.rowsModule = null; state.selected.clear(); state.query = '';
     overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false'); document.body.style.overflow = 'hidden';
     overlay.querySelector('.brvtal-bulk-title').textContent = 'BULK · ' + SPECS[module].label;
     overlay.querySelector('.brvtal-bulk-search').value = '';
@@ -117,26 +122,36 @@
     overlay.querySelector('.brvtal-bulk-list').innerHTML = '<div class="brvtal-bulk-empty">LOADING CONTENT…</div>';
     updateControls();
     try {
-      const response = await fetch(SPECS[module].endpoint,{credentials:'same-origin',cache:'no-store'});
+      const response = await fetch(SPECS[module].endpoint,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
       const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
+      if (!state.open || state.module !== module || state.loadId !== loadId) return;
       state.rows = Array.isArray(payload.data) ? payload.data.slice(0,500) : [];
+      state.rowsModule = module;
       renderRows();
-      requestAnimationFrame(() => overlay.querySelector('.brvtal-bulk-search')?.focus());
+      requestAnimationFrame(() => {
+        if (state.open && state.module === module && state.loadId === loadId) overlay.querySelector('.brvtal-bulk-search')?.focus();
+      });
     } catch (error) {
+      if (error?.name === 'AbortError' || state.loadId !== loadId || !state.open || state.module !== module) return;
       overlay.querySelector('.brvtal-bulk-list').innerHTML = '<div class="brvtal-bulk-empty">BULK ACTIONS UNAVAILABLE</div>';
       window.BRVTALFeedback?.error?.('Bulk actions unavailable: ' + (error?.message || 'UNKNOWN_ERROR'),'bulk-actions');
+    } finally {
+      if (state.loadId === loadId) state.loadController = null;
     }
   }
 
   function close() {
     const overlay = document.getElementById('brvtal-bulk-actions');
     if (!overlay) return;
-    state.open = false; state.selected.clear();
+    state.loadId += 1;
+    state.loadController?.abort(); state.loadController = null;
+    state.open = false; state.rows = []; state.rowsModule = null; state.selected.clear();
     overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true'); document.body.style.overflow = '';
   }
 
   function visibleRows() {
+    if (!state.module || state.rowsModule !== state.module) return [];
     const q = state.query.trim().toLowerCase();
     if (!q) return state.rows;
     const spec = SPECS[state.module];
@@ -176,31 +191,40 @@
     if (!overlay) return;
     const status = overlay.querySelector('.brvtal-bulk-status')?.value || '';
     const count = state.selected.size;
+    const catalogReady = Boolean(state.module && state.rowsModule === state.module);
     const countNode = overlay.querySelector('.brvtal-bulk-count'); if (countNode) countNode.textContent = count + ' SELECTED';
-    const button = overlay.querySelector('.brvtal-bulk-apply'); if (button) button.disabled = !status || count < 1 || count > 100;
+    const button = overlay.querySelector('.brvtal-bulk-apply'); if (button) button.disabled = !catalogReady || !status || count < 1 || count > 100;
     const visible = visibleRows().map(row => Number(row.id || 0)).filter(Boolean);
     const allSelected = visible.length > 0 && visible.every(id => state.selected.has(id));
     const selectAll = overlay.querySelector('.brvtal-bulk-select-all'); if (selectAll) selectAll.textContent = allSelected ? 'CLEAR VISIBLE' : 'SELECT ALL';
   }
 
   async function apply() {
-    if (!state.module || !SPECS[state.module]) return;
+    const module = state.module;
+    if (!module || !SPECS[module] || state.rowsModule !== module) return;
     const overlay = ensureOverlay();
     const status = overlay.querySelector('.brvtal-bulk-status')?.value || '';
     const ids = [...state.selected];
+    const allowedIds = new Set(state.rows.map(row => Number(row.id || 0)).filter(Boolean));
     if (!status || !ids.length || ids.length > 100) return;
-    if (!window.confirm(`Set ${ids.length} ${SPECS[state.module].label.toLowerCase()} item${ids.length===1?'':'s'} to ${status.toUpperCase()}?`)) return;
+    if (ids.some(id => !allowedIds.has(Number(id)))) {
+      state.selected.clear(); updateControls();
+      window.BRVTALFeedback?.error?.('Bulk selection changed while loading. Re-select the intended records.','bulk-actions');
+      return;
+    }
+    const intentId = state.loadId;
+    if (!window.confirm(`Set ${ids.length} ${SPECS[module].label.toLowerCase()} item${ids.length===1?'':'s'} to ${status.toUpperCase()}?`)) return;
     const button = overlay.querySelector('.brvtal-bulk-apply'); if (button) button.disabled = true;
     try {
       const token = await getCsrf();
+      if (!state.open || state.module !== module || state.rowsModule !== module || state.loadId !== intentId) return;
       const response = await fetch(ENDPOINT,{
         method:'POST', credentials:'same-origin', cache:'no-store',
         headers:{'Content-Type':'application/json','X-CSRF-Token':token},
-        body:JSON.stringify({action:'set_status',resource:state.module,status,ids})
+        body:JSON.stringify({action:'set_status',resource:module,status,ids})
       });
       const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
-      const module = state.module;
       close();
       window.BRVTALFeedback?.success?.(`${payload.data?.matched ?? ids.length} ${SPECS[module].label.toLowerCase()} updated to ${status}.`,'bulk-actions');
       if (typeof window.go === 'function') await window.go(module);
