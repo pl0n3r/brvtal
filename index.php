@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
 require_once __DIR__ . '/config/public_not_found.php';
+require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
 
 $type = trim((string)($_GET['type'] ?? ''));
@@ -31,9 +32,36 @@ if ($type !== '' || $slug !== '') {
 $seo = brvtal_public_seo_document($entity, $baseUrl);
 $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
 if ($entity) {
+    try {
+        $page = brvtal_public_page_data(db(), $entity);
+    } catch (Throwable $e) {
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PUBLIC_ENTITY_DATA_ERROR', 'Essential canonical entity data failed to load', [
+                'type' => (string)($entity['route_type'] ?? ''),
+                'id' => (int)($entity['id'] ?? 0),
+                'class' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+        }
+        $unavailableSeo = brvtal_public_unavailable_seo($seo);
+        http_response_code(503);
+        header('Retry-After: 60');
+        header('X-Robots-Tag: noindex, follow');
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo brvtal_public_unavailable_page($unavailableSeo, $analytics);
+        exit;
+    }
+
     header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
-    echo brvtal_public_entity_page(brvtal_public_page_data(db(), $entity), $seo, $analytics);
+    if (!empty($page['degraded'])) {
+        header('X-Robots-Tag: noindex, follow');
+        header('X-BRVTAL-Data-State: degraded');
+        header('Cache-Control: no-store');
+    } else {
+        header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    }
+    echo brvtal_public_entity_page($page, $seo, $analytics);
     exit;
 }
 $html = (string)file_get_contents(__DIR__ . '/index.html');
