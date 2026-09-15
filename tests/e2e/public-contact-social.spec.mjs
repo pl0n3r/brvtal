@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const script = readFileSync(join(process.cwd(), 'js/public-contact.js'), 'utf8');
 const css = readFileSync(join(process.cwd(), 'css/contact-social.css'), 'utf8');
 
-const pageHtml = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+const pageHtml = `<!doctype html><html><head><base href="https://www.brvtal.com.co/"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 :root{--bg:#050505;--fg:#f2f2ef;--line:rgba(255,255,255,.14);--red:#9e0d12;--acid:#b8ff00}.mono{font-family:monospace}.footer{padding:40px;background:#050505;color:#f2f2ef}.footer-main h2{font-size:70px}.footer-bottom{display:flex;justify-content:space-between}.footer-cta{display:flex;gap:20px}
 ${css}
 </style><link id="brvtal-contact-social-style" rel="stylesheet" href="data:text/css,"></head><body><footer class="footer" id="contact"><div class="footer-main"><span class="mono">BRVTAL / PEREIRA / COLOMBIA</span><h2>RAVE<br><em>TILL GRAVE</em></h2><div class="footer-cta"><a href="mailto:contact@brvtal.com.co">CONTACT</a></div></div><div class="footer-bottom mono"><span>© 2026 BRVTAL</span><span>INSTAGRAM / SOUNDCLOUD / YOUTUBE</span><span>EN</span></div></footer></body></html>`;
@@ -26,12 +26,12 @@ function mockPublicData() {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route('https://www.brvtal.com.co/api/public.php', route => route.fulfill({
+  await page.route('**/api/public.php', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify(mockPublicData())
   }));
-  await page.route('https://www.brvtal.com.co/api/contact.php', async route => {
+  await page.route('**/api/contact.php', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok:true, data:{ question:'4 + 5 = ?', token:'signed-token', expires_in:600 } }) });
       return;
@@ -45,11 +45,6 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.setContent(pageHtml, { waitUntil:'domcontentloaded' });
-  await page.evaluate(() => {
-    const base = document.createElement('base');
-    base.href = 'https://www.brvtal.com.co/';
-    document.head.prepend(base);
-  });
   await page.addScriptTag({ content: script });
 });
 
