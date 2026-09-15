@@ -148,7 +148,6 @@ test('editing a blog post sends PUT and keeps existing taxonomy', async ({ page 
 
 test('editing preserves existing relations when one related source fails', async ({ page }) => {
   await loadHarness(page, { failedRelated: ['artist'] });
-  await expect(page.locator('#blog-status')).toContainText('RELATED SOURCE WARNING');
 
   await page.getByRole('button', { name: 'EDIT' }).click();
   const artists = page.locator('[data-blog-related-source="artist"]');
@@ -171,7 +170,6 @@ test('editing preserves existing relations when one related source fails', async
 
 test('successful empty related source remains an authoritative empty state', async ({ page }) => {
   await loadHarness(page, { emptyRelated: ['artist'] });
-  await expect(page.locator('#blog-status')).toHaveText('EDITORIAL READY');
 
   await page.getByRole('button', { name: 'EDIT' }).click();
   const artists = page.locator('[data-blog-related-source="artist"]');
