@@ -7,27 +7,30 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Las páginas canónicas de Events dejan de mostrar compra cuando el Event ya es histórico o su fecha ya pasó.
-- La política comercial queda centralizada en `brvtal_public_event_allows_ticketing()` dentro de la visibilidad pública compartida.
-- `finished`, `archived` y `cancelled` nunca exponen el CTA `TICKETS`, aunque los datos comerciales sigan almacenados para administración e historial.
-- Un Event todavía marcado como `published`/`upcoming` cuya fecha ya pasó tampoco mantiene CTAs de compra caducados.
-- Los Events futuros en lifecycle activo conservan sus enlaces y tipos de entrada; `sold_out` sigue siendo un estado activo y puede comunicar entradas agotadas.
-- Cuando ticketing ya no aplica, la hidratación de la página individual limpia `ticket_url` y `ticket_instructions` y evita consultar/renderizar `event_ticket_types`.
-- El payload público de Archive ya saneaba tickets históricos mediante la partición canónica y no se modifica innecesariamente en este deploy.
+- La entrega pública de Ticket Types ahora respeta `available_from` y `available_until` además del status.
+- La política queda centralizada en `brvtal_public_ticket_type_is_available()` para evitar divergencias entre superficies.
+- Los límites temporales son inclusivos: un ticket puede aparecer exactamente en `available_from` y permanece visible hasta `available_until` inclusive.
+- Tickets `active` o `sold_out` antes de su apertura o después de su cierre dejan de entregarse públicamente.
+- Una ventana no definida permanece abierta; una fecha no vacía pero inválida falla cerrada y no expone la oferta.
+- `api/public.php` filtra Ticket Types antes de agruparlos dentro de cada Event.
+- Las páginas canónicas `/events/{slug}` aplican la misma política antes de renderizar tarjetas de tickets.
+- La política de #197 para Events históricos/pasados se conserva: si el Event completo ya no admite ticketing, ni siquiera se publica su CTA comercial.
 
 ## Archivos modificados en este deploy
 
-- `config/public_visibility.php` — política canónica que decide si un Event todavía admite acciones de ticketing.
-- `config/public_page.php` — suprime CTA, instrucciones y tipos de entrada en páginas canónicas históricas/pasadas.
-- `tests/public-entity-pages-contract.php` — regresión determinista para Events futuros activos, sold out, cancelados, archivados y publicados con fecha pasada.
+- `config/public_visibility.php` — predicado canónico de disponibilidad temporal de Ticket Types.
+- `api/public.php` — filtra Ticket Types por la política compartida antes de construir el payload público.
+- `config/public_page.php` — filtra la sección TICKETS de la página canónica con la misma política.
+- `tests/api-contract.php` — contrato que exige hidratación de ventanas y aplicación del predicado en el API.
+- `tests/public-entity-pages-contract.php` — regresiones deterministas de status, ventanas, límites inclusivos y fail-closed.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `2d291630a1172b2de8d762d15fc999993572776a`.
-- Ese SHA exacto ya había pasado BRVTAL CI completo: fast, database, Chromium, WebKit, real-stack y validate; además PHP 8.5 Compatibility y Backup Recovery Rehearsal estaban verdes.
-- La implementación no borra datos comerciales ni modifica esquema/DB: solo controla su entrega pública en función del lifecycle y la fecha.
-- No se usa Work ni runner local en este flujo; la ejecución automatizada queda a cargo de los gates del PR.
+- Rama creada desde `main` `21720460a4c771c80f7ed3387e063d00d91e3e9a`.
+- Ese SHA exacto tenía BRVTAL CI completo, PHP 8.5 Compatibility, Backup Recovery Rehearsal y Production Performance en success.
+- No hay cambios de esquema ni migraciones: `available_from` y `available_until` ya existen como `DATETIME NULL` en `event_ticket_types`.
+- La implementación solo cambia la política de entrega pública; no borra ni modifica datos comerciales almacenados.
 - Pendiente de **BRVTAL CI / validate** y **PHP 8.5 Compatibility / php85** del PR.
 - Tras el merge se verificará la matriz completa sobre el SHA exacto de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
@@ -37,7 +40,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 1. Ejecutar los gates del PR y corregir en esta misma rama cualquier fallo detectado.
 2. Con CI verde, hacer squash merge.
 3. Verificar BRVTAL CI completo, PHP 8.5 y Backup Recovery sobre el SHA exacto resultante de `main`.
-4. Cerrar #197 y dar por completada la tanda #240 → #210 → #196 → #197.
+4. Cerrar #198 y continuar con el siguiente issue público prioritario que siga vigente.
 
 ## Contexto durable
 
