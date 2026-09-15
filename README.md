@@ -7,39 +7,36 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se cierra la carrera TOCTOU del borrado de Media mediante coordinación transaccional en MariaDB.
-- Las escrituras que pueden crear referencias a Media comparten un mutex InnoDB con el DELETE de Media.
-- DELETE vuelve a comprobar Events, Artists, Sets, Ticket Types, Releases, Blog, Pages y Settings mientras mantiene ese mutex.
-- Al completar un DELETE, el `file_path` queda tombstoned para impedir que una escritura posterior cree una referencia a un asset ya eliminado.
-- La solución conserva el modelo actual basado en rutas reutilizables; no introduce un segundo Media model ni mini-servicios.
-- Se añade una integración MariaDB que reproduce las dos intercalaciones de concurrencia relevantes.
+- Se corrige la contradicción entre la URL compartible de Public Discovery y el estado que realmente queda visible cuando un filtro solicitado ya no existe.
+- Un `archive_year` sin botón disponible vuelve a **ALL YEARS** y el parámetro inválido se elimina mediante `replaceState`.
+- Un `network_id` inexistente conserva el comportamiento actual de CONNECTED: la capa solicitada selecciona su primer registro disponible y la URL se normaliza a ese registro visible.
+- La canonicalización también se aplica al restaurar historial sin crear una entrada adicional de navegación.
+- Si los controles o la API de CONNECTED todavía no están disponibles durante el arranque, el estado solicitado se conserva hasta que pueda resolverse, evitando perder deep links válidos por una carrera de inicialización.
+- Se amplía el harness E2E para modelar correctamente que `BRVTALRelatedContent.select()` no cambia la selección ante un ID inexistente.
 
 ## Archivos modificados en este deploy
 
-- `database/migration_zz_media_reference_guard_01.sql` — mutex, tombstones y triggers de integridad para referencias/borrado de Media.
-- `tests/integration/media-reference-atomicity.php` — reproduce writer-first y delete-first contra MariaDB real.
-- `package.json` — incorpora la nueva integración al conjunto `test:integration`.
+- `js/public-discovery-url-state.js` — reconcilia estado solicitado, controles visibles y URL canónica después de aplicar filtros/deep links.
+- `tests/e2e/public-discovery-url-state.spec.mjs` — añade regresiones para año inexistente, ID CONNECTED inexistente y canonicalización durante `popstate` sin contaminar el historial.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Pendiente de BRVTAL CI y PHP 8.5 Compatibility del PR.
-- El cambio de aplicación es SQL aditivo e idempotente; no borra contenido existente.
-- **La migración no se ejecuta automáticamente en producción al hacer merge.** Source deploy y migración de base de datos siguen siendo operaciones separadas.
-- No se ejecutará SQL de producción desde este flujo sin aprobación explícita.
+- Revisión estática del flujo completada sobre la rama enfocada creada desde el `main` verde `b82b43f877e7c22a1e80db5c9d48fa0937c6eac3`.
+- Cobertura E2E dirigida añadida; su ejecución automatizada queda a cargo de los gates del PR porque este flujo no dispone de un runner local sin usar Work.
+- Pendiente de **BRVTAL CI / validate** y **PHP 8.5 Compatibility / php85** del PR.
 - Tras el merge se verificará la matriz completa sobre el SHA exacto de `main`.
-- CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION** ni **MIGRATION APPLIED IN PRODUCTION**.
+- CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Cerrar #294 después de CI verde y verificar el SHA exacto de `main`.
-2. Aplicar la migración en producción solo mediante el proceso explícito de migraciones y con autorización del usuario.
-3. Tras aplicar la migración, validar en producción un DELETE seguro de un asset de prueba no referenciado y el bloqueo de uno referenciado.
-4. Continuar con el siguiente bloque de estabilización del backlog.
+1. Abrir el PR y ejecutar los gates path-aware de BRVTAL CI.
+2. Corregir en la misma rama cualquier regresión detectada por Chromium/PHP 8.5.
+3. Con CI verde, hacer squash merge y verificar la matriz completa sobre el SHA exacto de `main`.
+4. Cerrar #292 con el merge y continuar con el siguiente hallazgo de Public Discovery del backlog.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de pruebas: `docs/TESTING.md`.
-- Estado/mecanismo de migraciones: `config/migrations.php`.
 - CI/deploy principal: `.github/workflows/update-release-metadata.yml`.

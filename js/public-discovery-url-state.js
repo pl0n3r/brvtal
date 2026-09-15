@@ -88,30 +88,52 @@
 
   function applyNetworkState(state) {
     networkExplicit = Boolean(state.networkType && state.networkId);
-    if (!qs('[data-related-mode]')) return;
+    if (!qs('[data-related-mode]')) return false;
 
     if (!networkExplicit) {
       clickMatching('[data-related-mode]', 'artists', 'relatedMode');
-      return;
+      return true;
     }
 
-    clickMatching('[data-related-mode]', state.networkType, 'relatedMode');
-    window.BRVTALRelatedContent?.select?.(state.networkType, Number(state.networkId));
+    const mode = clickMatching('[data-related-mode]', state.networkType, 'relatedMode');
+    if (!mode) return true;
+
+    const select = window.BRVTALRelatedContent?.select;
+    if (typeof select !== 'function') return false;
+    select(state.networkType, Number(state.networkId));
+    return true;
+  }
+
+  function canonicalStateFromControls(state, networkResolved) {
+    const next = currentControlsState();
+    if (!qs('[data-archive-filter]')) next.archiveYear = state.archiveYear;
+    if (!qs('[data-archive-relation]')) next.archiveRelation = state.archiveRelation;
+    if (!qs('[data-archive-search]')) next.archiveQuery = state.archiveQuery;
+    if (!qs('[data-public-media-type]')) next.mediaType = state.mediaType;
+    if (!qs('[data-public-media-search]')) next.mediaQuery = state.mediaQuery;
+    if (!networkResolved) {
+      next.networkType = state.networkType;
+      next.networkId = state.networkId;
+    }
+    return next;
   }
 
   function applyUrlState() {
     const state = urlState();
+    let networkResolved = false;
     applying = true;
     try {
-      clickMatching('[data-archive-filter]', state.archiveYear, 'archiveFilter');
+      const archiveYear = clickMatching('[data-archive-filter]', state.archiveYear, 'archiveFilter');
+      if (!archiveYear && qs('[data-archive-filter]')) clickMatching('[data-archive-filter]', 'all', 'archiveFilter');
       clickMatching('[data-archive-relation]', state.archiveRelation, 'archiveRelation');
       setInput('[data-archive-search]', state.archiveQuery);
       clickMatching('[data-public-media-type]', state.mediaType, 'publicMediaType');
       setInput('[data-public-media-search]', state.mediaQuery);
-      applyNetworkState(state);
+      networkResolved = applyNetworkState(state);
     } finally {
       applying = false;
     }
+    updateUrl(canonicalStateFromControls(state, networkResolved), 'replace');
   }
 
   function scheduleSearchSync() {

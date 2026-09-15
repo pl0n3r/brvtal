@@ -57,14 +57,18 @@ function body() {
       });
 
       function selectNetwork(type, id) {
+        const target = [...document.querySelectorAll('[data-related-select]')]
+          .find(button => button.dataset.relatedType === type && Number(button.dataset.relatedId) === Number(id));
+        if (!target) return false;
         document.querySelectorAll('[data-related-mode]').forEach(button => {
           const active = button.dataset.relatedMode === type;
           button.classList.toggle('active', active);
           button.setAttribute('aria-selected', String(active));
         });
         document.querySelectorAll('[data-related-select]').forEach(button => {
-          button.classList.toggle('active', button.dataset.relatedType === type && Number(button.dataset.relatedId) === Number(id));
+          button.classList.toggle('active', button === target);
         });
+        return true;
       }
       document.querySelectorAll('[data-related-mode]').forEach(button => button.addEventListener('click', () => {
         const type = button.dataset.relatedMode;
@@ -117,6 +121,45 @@ test('public discovery filters restore from URL and stay shareable', async ({ pa
   expect(new URL(page.url()).searchParams.get('network_type')).toBe('events');
   expect(new URL(page.url()).searchParams.get('network_id')).toBe('22');
   expect(new URL(page.url()).hash).toBe('#events');
+});
+
+test('invalid discovery URL state canonicalizes to the visible fallbacks', async ({ page }) => {
+  await page.route('**/public-discovery-url-state.html*', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: body()
+  }));
+
+  await page.goto(`${harness}?archive_year=2099&network_type=artists&network_id=999999#network`);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:public-data', { detail: {} })));
+
+  await expect(page.locator('[data-archive-filter="all"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-related-mode="artists"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-related-select][data-related-id="11"]')).toHaveClass(/active/);
+  await expect.poll(() => new URL(page.url()).searchParams.has('archive_year')).toBe(false);
+  expect(new URL(page.url()).searchParams.get('network_type')).toBe('artists');
+  expect(new URL(page.url()).searchParams.get('network_id')).toBe('11');
+  expect(new URL(page.url()).hash).toBe('#network');
+});
+
+test('canonicalization on popstate replaces invalid state without adding another history entry', async ({ page }) => {
+  await page.route('**/public-discovery-url-state.html*', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: body()
+  }));
+
+  await page.goto(`${harness}#network`);
+  const historyLength = await page.evaluate(() => history.length);
+  await page.evaluate(() => {
+    history.pushState({}, '', '?archive_year=2099&network_type=artists&network_id=999999#network');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+
+  await expect(page.locator('[data-archive-filter="all"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-related-select][data-related-id="11"]')).toHaveClass(/active/);
+  await expect.poll(() => new URL(page.url()).searchParams.has('archive_year')).toBe(false);
+  expect(new URL(page.url()).searchParams.get('network_type')).toBe('artists');
+  expect(new URL(page.url()).searchParams.get('network_id')).toBe('11');
+  expect(await page.evaluate(() => history.length)).toBe(historyLength + 1);
 });
 
 test('browser back restores discrete discovery filter state', async ({ page }) => {
