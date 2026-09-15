@@ -64,6 +64,20 @@ function brvtal_backup_sql_literal(PDO $pdo, mixed $value): string
     return $quoted;
 }
 
+function brvtal_backup_order_columns(PDO $pdo, string $quotedTable, array $columnNames): array
+{
+    $primary = $pdo->query("SHOW INDEX FROM {$quotedTable} WHERE Key_name='PRIMARY'")->fetchAll(PDO::FETCH_ASSOC);
+    usort($primary, static fn(array $a, array $b): int => (int)($a['Seq_in_index'] ?? 0) <=> (int)($b['Seq_in_index'] ?? 0));
+
+    $ordered = [];
+    foreach ($primary as $index) {
+        $column = (string)($index['Column_name'] ?? '');
+        if ($column !== '' && in_array($column, $columnNames, true)) $ordered[] = $column;
+    }
+
+    return $ordered !== [] ? array_values(array_unique($ordered)) : $columnNames;
+}
+
 function brvtal_backup_export_database(PDO $pdo, string $target): array
 {
     $part = $target . '.part';
@@ -116,9 +130,11 @@ function brvtal_backup_export_database(PDO $pdo, string $target): array
             $rowsTotal += $count;
             $chunk = 250;
             $columnSql = implode(',', array_map('brvtal_backup_identifier', $columnNames));
+            $orderColumns = brvtal_backup_order_columns($pdo, $quotedTable, $columnNames);
+            $orderSql = implode(',', array_map('brvtal_backup_identifier', $orderColumns));
 
             for ($offset = 0; $offset < $count; $offset += $chunk) {
-                $rows = $pdo->query("SELECT * FROM {$quotedTable} LIMIT {$chunk} OFFSET {$offset}")->fetchAll(PDO::FETCH_ASSOC);
+                $rows = $pdo->query("SELECT * FROM {$quotedTable} ORDER BY {$orderSql} LIMIT {$chunk} OFFSET {$offset}")->fetchAll(PDO::FETCH_ASSOC);
                 if ($rows === []) continue;
                 $values = [];
                 foreach ($rows as $row) {

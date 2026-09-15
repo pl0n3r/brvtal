@@ -51,13 +51,18 @@ $expect(str_contains($rehearsal, 'proc_open($command'), 'generated SQL must be e
 $expect(str_contains($rehearsal, "putenv('MYSQL_PWD=' . \$password)"), 'mysql password must be passed out-of-band rather than placed in command arguments');
 $expect(!str_contains($rehearsal, "'-p' . \$password"), 'mysql password must never be embedded in process arguments');
 
-// The rehearsal must prove snapshot semantics, schema integrity and media
-// recoverability, while product restore remains explicitly unsupported.
+// The rehearsal must prove snapshot semantics, deterministic multi-chunk row
+// coverage, schema integrity and media recoverability while restore stays off.
 $expect(str_contains($rehearsal, "(\$manifest['restore_supported'] ?? true) === false"), 'rehearsal must assert production restore remains disabled');
 $expect(str_contains($backups, "'restore_supported' => false"), 'backup manifest must still disable restore');
 $expect(str_contains($endpoint, "RESTORE_NOT_SUPPORTED"), 'DISCADMIN restore endpoint must remain rejected');
 $expect(str_contains($rehearsal, 'POST BACKUP ROW'), 'rehearsal must mutate source after the backup');
 $expect(str_contains($rehearsal, 'postBackupMutationAbsent'), 'rehearsal must prove later mutations are absent from recovery');
+$expect(str_contains($rehearsal, 'backup_recovery_chunked'), 'rehearsal must create a dedicated multi-chunk fixture table');
+$expect(str_contains($rehearsal, '$rowNumber <= 620'), 'multi-chunk fixture must exceed the 250-row export chunk size');
+$expect(str_contains($rehearsal, "'multiChunkRows' => false"), 'recovery evidence must track multi-chunk coverage');
+$expect(str_contains($rehearsal, "=== 620, 'Multi-chunk recovery must contain all 620 snapshot rows.'"), 'rehearsal must verify exact restored row count across chunks');
+$expect(str_contains($rehearsal, "id IN (1,250,251,500,501,620)"), 'rehearsal must verify rows on both sides of pagination boundaries');
 $expect(str_contains($rehearsal, 'foreignKey'), 'rehearsal must verify restored foreign-key behavior');
 $expect(str_contains($rehearsal, 'backup_recovery_view'), 'rehearsal must verify view recovery');
 $expect(str_contains($rehearsal, 'ZipArchive'), 'rehearsal must extract and verify the media archive');

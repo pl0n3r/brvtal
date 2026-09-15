@@ -171,12 +171,42 @@ try {
         }
         $title = brvtal_media_safe_text($data['title'] ?? 'Media', 180) ?: 'Media';
         $mime = brvtal_media_safe_text($data['mime_type'] ?? '', 120);
+        $size = 0;
+
+        if ($local) {
+            $absolute = brvtal_media_local_absolute($path);
+            if ($absolute === null || !is_file($absolute)) {
+                brvtal_media_json_response(['ok' => false, 'error' => 'LOCAL_MEDIA_NOT_FOUND'], 422);
+            }
+
+            $detectedMime = (new finfo(FILEINFO_MIME_TYPE))->file($absolute) ?: '';
+            $detectedType = match ($detectedMime) {
+                'image/jpeg', 'image/png', 'image/webp', 'image/gif' => 'image',
+                'video/mp4' => 'video',
+                'audio/mpeg', 'audio/wav' => 'audio',
+                'application/pdf' => 'document',
+                default => null,
+            };
+            if ($detectedType === null) {
+                brvtal_media_json_response(['ok' => false, 'error' => 'FILE_TYPE_NOT_ALLOWED', 'mime_type' => $detectedMime], 422);
+            }
+            if ($type !== $detectedType) {
+                brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_TYPE_MISMATCH', 'expected_type' => $detectedType], 422);
+            }
+            if ($detectedType === 'image' && @getimagesize($absolute) === false) {
+                brvtal_media_json_response(['ok' => false, 'error' => 'INVALID_IMAGE'], 422);
+            }
+
+            $mime = $detectedMime;
+            $size = max(0, (int)(@filesize($absolute) ?: 0));
+        }
+
         $alt = brvtal_media_safe_text($data['alt_text'] ?? '', 255);
         $status = ($data['status'] ?? 'published') === 'draft' ? 'draft' : 'published';
         $st = $pdo->prepare(
             'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
         );
-        $st->execute([$type, $title, $path, $mime, 0, $alt, $status]);
+        $st->execute([$type, $title, $path, $mime, $size, $alt, $status]);
         $row = brvtal_media_find($pdo, (int)$pdo->lastInsertId());
         brvtal_media_json_response(['ok' => true, 'data' => brvtal_media_asset_payload($row ?: [])], 201);
     }

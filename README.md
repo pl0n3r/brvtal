@@ -3,34 +3,38 @@
 [![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
 [![PHP 8.5 Compatibility](https://github.com/pl0n3r/brvtal/actions/workflows/php85-compatibility.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/php85-compatibility.yml)
 
-Este README es un **snapshot operativo de solo el deploy actual**. Se reemplaza en cada deploy. El contexto durable vive en `AGENTS.md` y, cuando aplica, en `docs/`.
+Este README es un **snapshot operativo de solo el deploy actual**. El contexto durable vive en `AGENTS.md` y `docs/`.
 
 ## Qué se hizo
 
-- Se cierra el recorrido bidireccional Archive ↔ CONNECTED para Events históricos usando únicamente el payload público existente.
-- Un Event seleccionado en CONNECTED muestra `VIEW IN ARCHIVE ↗` solo si su ID existe realmente en `archive.events`; los Events activos no reciben ese CTA.
-- El retorno limpia `network_type` / `network_id`, fija `archive_year` y `archive_q` con el registro histórico y aterriza en `#eventArchive`.
-- No se infiere archivo por estado, no se duplican relaciones y no hay cambios de API, base de datos ni CSS.
+- Media Register ya no acepta rutas locales `/uploads/...` inexistentes: resuelve el archivo dentro del uploads root, deriva MIME/tamaño desde bytes reales y rechaza discrepancias entre el tipo declarado y el archivo.
+- Las URLs externas de Media mantienen su semántica remota; no se intenta convertirlas en archivos locales.
+- El exportador de backups pagina cada tabla con un `ORDER BY` explícito: usa la PK (incluida PK compuesta) cuando existe y, si no existe, ordena por todas las columnas del registro.
+- El recovery rehearsal aislado fuerza una tabla de 620 filas para atravesar tres chunks y comprueba conteo, identidades y filas en los límites 250/251 y 500/501 después del restore.
+- Producción sigue sin exponer restore automático ni acciones destructivas nuevas.
 
 ## Archivos modificados en este deploy
 
-- `js/related-content.js` — genera el retorno contextual a Archive únicamente para Events presentes en `archive.events`.
-- `tests/e2e/public-related-content.spec.mjs` — cubre Event histórico → Archive, limpieza del estado CONNECTED y ausencia del CTA en Events activos.
+- `api/media-library.php` — valida existencia, containment, MIME, tipo y tamaño al registrar Media local existente.
+- `config/backups.php` — añade orden determinista a la paginación del dump SQL.
+- `tests/media-library-contract.php` — fija el contrato de validación de Media Register local.
+- `tests/backups-contract.php` — impide volver a paginación de backup sin `ORDER BY`.
+- `tests/integration/backup-recovery-rehearsal.php` — verifica recuperación exacta de 620 filas multi-chunk en MariaDB aislado.
+- `tests/backup-recovery-rehearsal-contract.php` — exige la evidencia multi-chunk y mantiene las barreras de seguridad del rehearsal.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- La rama debe pasar sintaxis JavaScript y la regresión dirigida de Related Content antes del merge.
-- El PR debe pasar `BRVTAL CI / validate`, `PHP 8.5 Compatibility / php85` y el gate de README.
-- Chromium debe demostrar que un Event histórico vuelve a su contexto exacto de Archive y que un Event activo no expone ese enlace.
-- Después del merge se verificará el CI completo del SHA exacto de `main` y el deploy exacto en Hostinger.
-- CI verde implica **VALIDATED IN CODE**; observar el SHA exacto en Hostinger implica **DEPLOYED**.
+- Pendiente de los gates del PR: sintaxis/contratos de BRVTAL CI, PHP 8.5 Compatibility y Backup Recovery Rehearsal.
+- El rehearsal usa exclusivamente bases `brvtal_test_*` efímeras y no consume credenciales ni URLs de producción.
+- Tras el merge se verificará BRVTAL CI y PHP 8.5 Compatibility sobre el SHA exacto de `main`.
+- CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Continuar discovery público solo con relaciones estructuradas reales y recorridos que hoy terminen en callejones sin salida.
-2. Mantener #122–#125 abiertos hasta ejecutar sus workflows autenticados y obtener evidencia real de producción.
-3. Volver a DISCADMIN solo ante fricción reproducible, preservando ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
+1. Resolver en un PR separado #296–#297: contrato JSON y locale English-first de CMS Pages.
+2. Diseñar una solución atómica para #294 sin introducir locks parciales o una falsa garantía referencial en Media deletion.
+3. Continuar el triage por integridad/severidad después de cerrar estos dos Issues.
 
 ## Contexto durable
 
