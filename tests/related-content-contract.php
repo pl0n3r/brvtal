@@ -33,6 +33,28 @@ related_expect($sets[0]['artist_id'] === 1 && $sets[0]['event_id'] === 10, 'Publ
 related_expect($sets[2]['artist_id'] === null && $sets[2]['artist_name'] === null, 'Private artist relation must be removed from a public Set');
 related_expect($sets[2]['event_id'] === null && $sets[2]['event_title'] === null, 'Private event relation must be removed from a public Set');
 
+$rawBlog = [[
+    'id'=>40,
+    'relations'=>[
+        ['related_type'=>'event','related_id'=>10,'sort_order'=>0],
+        ['related_type'=>'event','related_id'=>11,'sort_order'=>1],
+        ['related_type'=>'artist','related_id'=>1,'sort_order'=>2],
+        ['related_type'=>'set','related_id'=>20,'sort_order'=>3],
+        ['related_type'=>'release','related_id'=>30,'sort_order'=>4],
+        ['related_type'=>'artist','related_id'=>999,'sort_order'=>5],
+        ['related_type'=>'event','related_id'=>999,'sort_order'=>6],
+        ['related_type'=>'set','related_id'=>999,'sort_order'=>7],
+        ['related_type'=>'release','related_id'=>999,'sort_order'=>8],
+        ['related_type'=>'unknown','related_id'=>1,'sort_order'=>9],
+        ['related_type'=>'artist','related_id'=>0,'sort_order'=>10],
+        'not-a-relation',
+    ],
+]];
+$blog = brvtal_public_sanitize_blog_relations($rawBlog, $active, $archive, $artists, $sets, $releases);
+related_expect(array_column($blog[0]['relations'], 'related_type') === ['event','event','artist','set','release'], 'Blog must retain only supported public relation types');
+related_expect(array_column($blog[0]['relations'], 'related_id') === [10,11,1,20,30], 'Blog must retain only relation IDs present in the final public pools');
+related_expect(array_column($blog[0]['relations'], 'sort_order') === [0,1,2,3,4], 'Blog relation sanitization must preserve ordering metadata');
+
 $graph = brvtal_public_related_graph($active, $archive, $artists, $sets, $releases);
 related_expect($graph['events']['10']['artists'] === [1,2], 'Active event must expose its public artist roster');
 related_expect($graph['events']['10']['sets'] === [20], 'Active event must expose directly-related public Sets');
@@ -57,6 +79,7 @@ related_expect(str_contains($public, "require_once __DIR__ . '/public-related.ph
 related_expect(str_contains($public, "LEFT JOIN artists a ON a.id=s.artist_id AND a.status='published'"), 'Set artist join must be restricted to public artists');
 related_expect(str_contains($public, 'NULL AS event_title'), 'Set event title must be resolved only after public lifecycle partitioning');
 related_expect(str_contains($public, 'brvtal_public_sanitize_set_relations'), 'Public API must sanitize Set relation IDs before delivery');
+related_expect(str_contains($public, 'brvtal_public_sanitize_blog_relations'), 'Public API must sanitize Blog relation IDs against the final public entity pools');
 related_expect(str_contains($public, "'relations' => \$relations"), 'Public API payload must expose the compact relation graph');
 related_expect(str_contains($archiveJs, "new CustomEvent('brvtal:public-data'"), 'Archive loader must publish canonical public data to cross-cutting public modules');
 related_expect(str_contains($archiveJs, "searchParams.get('v')"), 'Related Content bootstrap must inherit the deploy version from archive.js');

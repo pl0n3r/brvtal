@@ -70,6 +70,44 @@ function brvtal_public_sanitize_set_relations(
     return $sets;
 }
 
+/**
+ * Blog relations carry only type/id references. Keep them only when the
+ * target exists in the same final public pools that power the public API.
+ * This prevents draft/private/deleted targets from leaking internal IDs.
+ */
+function brvtal_public_sanitize_blog_relations(
+    array $posts,
+    array $activeEvents,
+    array $archiveEvents,
+    array $artists,
+    array $sets,
+    array $releases
+): array {
+    $allowed = [
+        'event' => brvtal_public_relation_id_set(array_merge($activeEvents, $archiveEvents)),
+        'artist' => brvtal_public_relation_id_set($artists),
+        'set' => brvtal_public_relation_id_set($sets),
+        'release' => brvtal_public_relation_id_set($releases),
+    ];
+
+    foreach ($posts as &$post) {
+        if (!is_array($post)) continue;
+        $relations = is_array($post['relations'] ?? null) ? $post['relations'] : [];
+        $post['relations'] = array_values(array_filter(
+            $relations,
+            static function (mixed $relation) use ($allowed): bool {
+                if (!is_array($relation)) return false;
+                $type = strtolower(trim((string)($relation['related_type'] ?? '')));
+                $id = (int)($relation['related_id'] ?? 0);
+                return $id > 0 && isset($allowed[$type][$id]);
+            }
+        ));
+    }
+    unset($post);
+
+    return $posts;
+}
+
 function brvtal_public_related_graph(
     array $activeEvents,
     array $archiveEvents,
