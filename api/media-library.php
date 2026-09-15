@@ -134,7 +134,7 @@ try {
             $st = $pdo->prepare(
                 'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
             );
-            $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'published']);
+            $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'draft']);
             $mediaId = (int)$pdo->lastInsertId();
         } catch (Throwable $e) {
             @unlink($absolute);
