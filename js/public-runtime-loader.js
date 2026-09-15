@@ -26,7 +26,8 @@
     'js/input-accessibility.js',
     'js/mobile-events.js',
     'js/hero-slider.js',
-    'js/public-discovery-url-state.js'
+    'js/public-discovery-url-state.js',
+    'js/public-canonical-navigation.js'
   ];
 
   function loadScript(src) {
