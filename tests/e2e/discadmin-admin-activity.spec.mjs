@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const recordNavigationJs = readFileSync(join(process.cwd(), 'discadmin/content-core-nav.js'), 'utf8');
 const activityJs = readFileSync(join(process.cwd(), 'discadmin/admin-activity.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/admin-activity-e2e.html';
 
@@ -41,7 +42,7 @@ const earlierEventItem = {
   created_at: '2026-09-11 22:10:00',
 };
 
-test('Dashboard activity panel filters history and opens read-only before/after detail', async ({ page }) => {
+test('Dashboard activity panel filters history, opens detail and opens the audited record', async ({ page }) => {
   await page.route('**/api/admin-activity.php*', route => {
     const url = new URL(route.request().url());
     const id = url.searchParams.get('id');
@@ -75,8 +76,10 @@ test('Dashboard activity panel filters history and opens read-only before/after 
       <script>
         var state={authed:true,section:'dashboard'};
         window.go=async function(section){state.section=section;window.__went=section;return section;};
+        window.BRVTALContentCore={openEvent:async function(id){window.__openedRecordId=Number(id);}};
         window.BRVTALFeedback={error:function(message){window.__feedback=message;}};
       </script>
+      <script>${recordNavigationJs}</script>
       <script>${activityJs}</script>
     </body></html>`,
   }));
@@ -113,4 +116,5 @@ test('Dashboard activity panel filters history and opens read-only before/after 
   await page.getByRole('button', { name: 'CLOSE' }).click();
   await page.getByRole('button', { name: 'OPEN' }).click();
   await expect.poll(() => page.evaluate(() => window.__went)).toBe('events');
+  await expect.poll(() => page.evaluate(() => window.__openedRecordId)).toBe(9);
 });
