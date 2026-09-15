@@ -20,6 +20,7 @@ $cases = [
     ['/events/12/lineup', '/api/index.php', 'events', 12, 'lineup'],
     ['/api/auth', '/api/index.php', 'auth', null, ''],
     ['/api/events/42', '/api/index.php', 'events', 42, '42'],
+    ['/api/settings', '/api/index.php', 'settings', null, ''],
     ['/api/public', '/api/index.php', 'public', null, ''],
 ];
 
@@ -28,6 +29,22 @@ foreach ($cases as [$uri, $script, $resource, $id, $action]) {
     expect($route['resource'] === $resource, "Resource mismatch for {$uri}");
     expect($route['id'] === $id, "ID mismatch for {$uri}");
     expect($route['action'] === $action, "Action mismatch for {$uri}");
+}
+
+$invalidRouteShapes = [
+    ['/api/events/not-a-real-action', '/api/index.php'],
+    ['/api/events/42/not-a-real-action', '/api/index.php'],
+    ['/api/events/42/lineup/extra', '/api/index.php'],
+    ['/api/settings/1', '/api/index.php'],
+    ['/api/settings/raw', '/api/index.php'],
+    ['/api/auth/unexpected', '/api/index.php'],
+    ['/api/dashboard/1', '/api/index.php'],
+];
+foreach ($invalidRouteShapes as [$uri, $script]) {
+    $route = brvtal_api_parse_route($uri, $script);
+    expect($route['resource'] === '', "Invalid route shape must fail closed for {$uri}");
+    expect($route['id'] === null, "Invalid route shape must not expose an item ID for {$uri}");
+    expect($route['action'] === '', "Invalid route shape must not expose an action for {$uri}");
 }
 
 $publicSuccessEnvelope = brvtal_public_envelope(['events' => []], 200);
