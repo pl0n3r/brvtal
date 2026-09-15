@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
+require_once __DIR__ . '/public-response.php';
 
 /**
  * BRVTAL public read-only API.
@@ -187,10 +188,12 @@ function brvtal_public_json(mixed $data, int $status = 200): never
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
-    header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    header($status >= 400
+        ? 'Cache-Control: no-store'
+        : 'Cache-Control: public, max-age=60, stale-while-revalidate=300');
     header('X-Content-Type-Options: nosniff');
     echo json_encode(
-        ['ok' => true, 'data' => $data],
+        brvtal_public_envelope($data, $status),
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
     );
     exit;
