@@ -27,6 +27,14 @@ function brvtal_page_row(PDO $pdo, string $sql, array $parameters = []): array
     return brvtal_page_rows($pdo, $sql, $parameters)[0] ?? [];
 }
 
+function brvtal_page_public_event_rows(PDO $pdo, string $sql, array $parameters = []): array
+{
+    return array_values(array_filter(
+        brvtal_page_rows($pdo, $sql, $parameters),
+        static fn(array $event): bool => brvtal_public_event_is_visible($event)
+    ));
+}
+
 function brvtal_public_page_data(PDO $pdo, array $entity): array
 {
     $id = (int)$entity['id'];
@@ -52,9 +60,9 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['COLLECTIVE' => strtoupper(str_replace('_', ' ', (string)($detail['collective_status'] ?? '')))]);
         $data['links'] = array_filter(['INSTAGRAM' => $detail['instagram_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'WEBSITE' => $detail['website_url'] ?? '']);
-        $data['related']['EVENTS'] = brvtal_page_rows(
+        $data['related']['EVENTS'] = brvtal_page_public_event_rows(
             $pdo,
-            "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
+            "SELECT e.title,e.slug,e.cover_image AS image,CONCAT_WS(' / ',DATE_FORMAT(e.event_date,'%d.%m.%Y'),e.city) AS meta,'events' AS route_type,e.status,e.event_date,e.published_at FROM event_artists ea JOIN events e ON e.id=ea.event_id WHERE ea.artist_id=? AND e.status IN ({$eventPlaceholders}) ORDER BY e.event_date DESC",
             array_merge([$id], $eventStatuses)
         );
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE artist_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
@@ -82,12 +90,13 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         foreach ($relations as $relation) {
             if (!isset($map[$relation['related_type']])) continue;
             [$table,$title,$image,$route,$where,$whereParameters] = $map[$relation['related_type']];
+            $lifecycleSelect = $route === 'events' ? ',status,event_date,published_at' : '';
             $item = brvtal_page_row(
                 $pdo,
-                "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
+                "SELECT `{$title}` AS title,slug,`{$image}` AS image,'{$route}' AS route_type{$lifecycleSelect} FROM `{$table}` WHERE id=? AND {$where} LIMIT 1",
                 array_merge([(int)$relation['related_id']], $whereParameters)
             );
-            if ($item) $data['related']['RELATED'][] = $item;
+            if ($item && ($route !== 'events' || brvtal_public_event_is_visible($item))) $data['related']['RELATED'][] = $item;
         }
     } elseif ($type === 'sets') {
         $detail = brvtal_page_row($pdo, "SELECT platform,external_url,embed_url,artist_id,event_id FROM sets_media WHERE id=? LIMIT 1", [$id]);
@@ -96,9 +105,9 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['links'] = array_filter(['LISTEN' => $detail['external_url'] ?? '']);
         if (!empty($detail['artist_id'])) $data['related']['ARTIST'] = brvtal_page_rows($pdo, "SELECT name AS title,slug,photo AS image,'artists' AS route_type FROM artists WHERE id=? AND status='published'", [(int)$detail['artist_id']]);
         if (!empty($detail['event_id'])) {
-            $data['related']['EVENT'] = brvtal_page_rows(
+            $data['related']['EVENT'] = brvtal_page_public_event_rows(
                 $pdo,
-                "SELECT title,slug,cover_image AS image,'events' AS route_type FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
+                "SELECT title,slug,cover_image AS image,'events' AS route_type,status,event_date,published_at FROM events WHERE id=? AND status IN ({$eventPlaceholders})",
                 array_merge([(int)$detail['event_id']], $eventStatuses)
             );
         }
@@ -187,7 +196,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   {$tags}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
 </head>
 <body>
