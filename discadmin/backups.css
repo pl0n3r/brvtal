@@ -29,5 +29,5 @@
 .backup-empty{padding:28px;text-align:center}.backup-empty strong{display:block;font-size:11px;letter-spacing:1.4px}.backup-empty span{display:block;margin-top:6px;color:#687077;font-size:9px}
 .backup-foot{display:flex;justify-content:space-between;gap:12px;margin-top:9px;color:#5d656b;font-size:8px;letter-spacing:1.2px}
 .ssv2-backups.is-loading,.ssv2-backups.is-creating{opacity:.72}
-@media(max-width:950px){.backup-summary{grid-template-columns:repeat(2,1fr)}.backup-actions{grid-template-columns:1fr}.backup-refresh{min-height:42px}.backup-row{grid-template-columns:1fr}.backup-components{justify-content:flex-start}}
+@media(max-width:950px){.backup-summary{grid-template-columns:repeat(2,1fr)}.backup-actions{grid-template-columns:1fr}.backup-refresh{min-height:44px}.backup-actions button,.backup-error button,.backup-components a{min-height:44px}.backup-components a{display:inline-flex;align-items:center}.backup-row{grid-template-columns:1fr}.backup-components{justify-content:flex-start}}
 @media(max-width:560px){.backup-summary{grid-template-columns:1fr}.backup-actions>div{align-items:flex-start;flex-direction:column}.backup-foot{display:block}.backup-foot span{display:block;margin-top:5px}}
