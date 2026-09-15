@@ -6,6 +6,8 @@ const backupsCss = readFileSync(join(process.cwd(), 'discadmin/backups.css'), 'u
 const blogCss = readFileSync(join(process.cwd(), 'discadmin/blog.css'), 'utf8');
 const systemStatusCss = readFileSync(join(process.cwd(), 'discadmin/system-status-v2.css'), 'utf8');
 const adminShellCss = readFileSync(join(process.cwd(), 'discadmin/admin-shell.css'), 'utf8');
+const contentCoreCss = readFileSync(join(process.cwd(), 'discadmin/content-core.css'), 'utf8');
+const releasesCss = readFileSync(join(process.cwd(), 'discadmin/releases.css'), 'utf8');
 
 function injectedCss(path) {
   const source = readFileSync(join(process.cwd(), path), 'utf8');
@@ -139,4 +141,76 @@ test('shared shell enforces 44px mobile targets over injected module styles', as
   const checkbox = await sizeOf(page.locator('.brvtal-bulk-row input'));
   expect(checkbox.width).toBeGreaterThanOrEqual(22);
   expect(checkbox.height).toBeGreaterThanOrEqual(22);
+});
+
+test('mobile shell keeps MENU reachable while scrolling and quick controls touch-friendly', async ({ page }) => {
+  await page.setViewportSize(mobile);
+  await page.setContent(`
+    <style>body{margin:0}.top{display:flex;border-bottom:1px solid #222}</style>
+    <div class="shell">
+      <main class="main">
+        <header class="top">
+          <button class="admin-menu-toggle"><span>☰</span><span>MENU</span></button>
+          <div class="admin-page-title"><h1>EVENTS</h1></div>
+        </header>
+        <button class="theme-tab">IDENTITY</button>
+        <div data-admin-module="content-core"><button class="icon">EDIT</button></div>
+        <div style="height:2200px"></div>
+      </main>
+    </div>
+  `);
+  await page.addStyleTag({ content: adminShellCss });
+
+  expect(await heightOf(page.locator('.theme-tab'))).toBeGreaterThanOrEqual(44);
+  const iconSize = await sizeOf(page.locator('[data-admin-module="content-core"] .icon'));
+  expect(iconSize.width).toBeGreaterThanOrEqual(44);
+  expect(iconSize.height).toBeGreaterThanOrEqual(44);
+
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await page.waitForTimeout(50);
+  await expect(page.getByRole('button', { name: /MENU/ })).toBeVisible();
+  const menuBox = await page.getByRole('button', { name: /MENU/ }).boundingBox();
+  expect(menuBox?.y ?? 999).toBeLessThan(40);
+});
+
+test('Content Core Events keeps date and status visible on mobile', async ({ page }) => {
+  await page.setViewportSize(mobile);
+  await page.setContent(`
+    <div data-admin-module="content-core">
+      <div id="eventsTable" class="table">
+        <div class="tr">
+          <div><div class="title">GENESIS</div><div class="meta">Pereira</div></div>
+          <div data-kind="date">2026-09-15</div>
+          <div data-kind="status"><span class="pill">published</span></div>
+          <div class="actions"><button class="icon">EDIT</button></div>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.addStyleTag({ content: contentCoreCss });
+  await page.addStyleTag({ content: adminShellCss });
+
+  await expect(page.locator('[data-kind="date"]')).toBeVisible();
+  await expect(page.locator('[data-kind="status"]')).toBeVisible();
+  expect(await heightOf(page.getByRole('button', { name: 'EDIT' }))).toBeGreaterThanOrEqual(44);
+});
+
+test('Releases keeps linked artist attribution visible on tablet and mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 844 });
+  await page.setContent(`
+    <article class="release-row">
+      <div><div class="release-art-ph">NO ART</div></div>
+      <div><div class="release-title">BRVTAL001</div><div class="release-meta">SINGLE</div></div>
+      <div class="release-artists">PL0N3R · HAKKI</div>
+      <div class="release-date"><div class="release-meta">RELEASE DATE</div><b>2026-09-15</b></div>
+      <div class="release-actions"><button>EDIT</button></div>
+    </article>
+  `);
+  await page.addStyleTag({ content: releasesCss });
+  await expect(page.locator('.release-artists')).toBeVisible();
+  await expect(page.locator('.release-artists')).toContainText('PL0N3R');
+
+  await page.setViewportSize(mobile);
+  await expect(page.locator('.release-artists')).toBeVisible();
+  expect(await page.locator('.release-artists').evaluate(el => getComputedStyle(el).gridColumnStart)).toBe('2');
 });
