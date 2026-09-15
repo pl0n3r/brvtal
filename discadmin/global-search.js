@@ -30,6 +30,8 @@
       .brvtal-global-search-title{display:block;font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .brvtal-global-search-sub{display:block;margin-top:4px;color:#737b82;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .brvtal-global-search-status{border:1px solid #30353a;padding:5px 7px;color:#aab0b5;font:800 8px/1 monospace;text-transform:uppercase}
+      .brvtal-global-search-more{width:100%;margin-top:8px;border:1px solid #2d3236;background:#0d0f10;color:#aeb5ba;padding:10px 12px;font:800 8px/1 monospace;letter-spacing:1.4px}
+      .brvtal-global-search-more:hover,.brvtal-global-search-more:focus-visible{border-color:#fff;color:#fff;outline:none}.brvtal-global-search-more:disabled{opacity:.5;cursor:wait}
       .brvtal-global-search-empty{padding:42px 8px;text-align:center;color:#676f75;font-size:10px;line-height:1.6}
       .brvtal-global-search-loading{padding:34px 8px;text-align:center;color:#8d949a;font:800 9px/1.5 monospace;letter-spacing:1.5px}
       @media(max-width:850px){.brvtal-global-search-trigger kbd{display:none}.brvtal-global-search-overlay{padding-top:4vh}.brvtal-global-search-dialog{max-height:90vh}.brvtal-global-search-results{max-height:72vh}}
@@ -98,6 +100,26 @@
     return document.querySelector('#brvtal-global-search .brvtal-global-search-results');
   }
 
+  function resultMarkup(item, group) {
+    return `<button class="brvtal-global-search-item" type="button" data-search-module="${esc(item.module)}" data-search-id="${Number(item.id)}" data-search-title="${esc(item.title)}">
+      <span><span class="brvtal-global-search-title">${esc(item.title || 'Untitled')}</span><span class="brvtal-global-search-sub">${esc(item.subtitle || ('#' + item.id))}</span></span>
+      <span class="brvtal-global-search-status">${esc(item.status || group.label || item.type || '')}</span>
+    </button>`;
+  }
+
+  function bindResultButtons(root) {
+    root.querySelectorAll('[data-search-module]').forEach(button => {
+      if (button.dataset.searchBound === '1') return;
+      button.dataset.searchBound = '1';
+      button.addEventListener('click', () => activate(button));
+    });
+  }
+
+  function groupTotal(group) {
+    const reported = Number(group?.total);
+    return Number.isFinite(reported) && reported >= 0 ? reported : Number(group?.items?.length || 0);
+  }
+
   function render(data) {
     const host = resultHost();
     if (!host) return;
@@ -106,16 +128,63 @@
       host.innerHTML = `<div class="brvtal-global-search-empty">NO RESULTS FOR “${esc(data?.query || state.lastQuery)}”</div>`;
       return;
     }
-    host.innerHTML = groups.map(group => `
-      <section class="brvtal-global-search-group" data-search-group="${esc(group.type)}">
-        <div class="brvtal-global-search-group-title"><span>${esc(group.label || group.type || '')}</span><span>${Number(group.items?.length || 0)}</span></div>
-        ${(group.items || []).map(item => `
-          <button class="brvtal-global-search-item" type="button" data-search-module="${esc(item.module)}" data-search-id="${Number(item.id)}" data-search-title="${esc(item.title)}">
-            <span><span class="brvtal-global-search-title">${esc(item.title || 'Untitled')}</span><span class="brvtal-global-search-sub">${esc(item.subtitle || ('#' + item.id))}</span></span>
-            <span class="brvtal-global-search-status">${esc(item.status || group.label || item.type || '')}</span>
-          </button>`).join('')}
-      </section>`).join('');
-    host.querySelectorAll('[data-search-module]').forEach(button => button.addEventListener('click', () => activate(button)));
+    host.innerHTML = groups.map(group => {
+      const items = Array.isArray(group.items) ? group.items : [];
+      const total = groupTotal(group);
+      const remaining = Math.max(0, total - items.length);
+      return `<section class="brvtal-global-search-group" data-search-group="${esc(group.type)}" data-search-total="${total}">
+        <div class="brvtal-global-search-group-title"><span>${esc(group.label || group.type || '')}</span><span data-search-count>${items.length} / ${total}</span></div>
+        <div class="brvtal-global-search-items">${items.map(item => resultMarkup(item, group)).join('')}</div>
+        ${group.has_more ? `<button class="brvtal-global-search-more" type="button" data-search-more="${esc(group.type)}">LOAD MORE · ${remaining} MORE</button>` : ''}
+      </section>`;
+    }).join('');
+    bindResultButtons(host);
+    host.querySelectorAll('[data-search-more]').forEach(button => button.addEventListener('click', () => loadMore(button)));
+  }
+
+  async function loadMore(button) {
+    const section = button.closest('[data-search-group]');
+    const type = button.dataset.searchMore || '';
+    const query = state.lastQuery;
+    if (!section || !type || query.length < 2) return;
+    const itemsHost = section.querySelector('.brvtal-global-search-items');
+    const offset = section.querySelectorAll('.brvtal-global-search-item').length;
+    button.disabled = true;
+    button.textContent = 'LOADING…';
+    state.controller?.abort();
+    const controller = new AbortController();
+    state.controller = controller;
+    try {
+      const url = ENDPOINT + '?q=' + encodeURIComponent(query) + '&type=' + encodeURIComponent(type) + '&offset=' + offset;
+      const response = await fetch(url, {credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
+      if (query !== state.lastQuery) return;
+      const group = Array.isArray(payload?.data?.groups) ? payload.data.groups[0] : null;
+      if (!group || !itemsHost) {
+        button.remove();
+        return;
+      }
+      itemsHost.insertAdjacentHTML('beforeend', (group.items || []).map(item => resultMarkup(item, group)).join(''));
+      bindResultButtons(itemsHost);
+      const loaded = section.querySelectorAll('.brvtal-global-search-item').length;
+      const total = groupTotal(group);
+      section.dataset.searchTotal = String(total);
+      const count = section.querySelector('[data-search-count]');
+      if (count) count.textContent = `${loaded} / ${total}`;
+      const remaining = Math.max(0, total - loaded);
+      if (group.has_more && remaining > 0) {
+        button.disabled = false;
+        button.textContent = `LOAD MORE · ${remaining} MORE`;
+      } else {
+        button.remove();
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      button.disabled = false;
+      button.textContent = 'LOAD MORE · RETRY';
+      window.BRVTALFeedback?.error?.('Global search unavailable: ' + (error?.message || 'UNKNOWN_ERROR'),'global-search');
+    }
   }
 
   async function activate(button) {
