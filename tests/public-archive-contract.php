@@ -15,6 +15,13 @@ archive_expect($groups['historical'] === ['finished','archived','cancelled'], 'H
 archive_expect(!in_array('draft', brvtal_public_visible_event_statuses(), true), 'Draft must never be a public event state');
 
 $now = new DateTimeImmutable('2026-09-11 12:00:00');
+archive_expect(brvtal_public_event_is_visible(['status'=>'published','event_date'=>'2026-10-01 21:00:00'], $now), 'Active public Event must remain visible');
+archive_expect(!brvtal_public_event_is_visible(['status'=>'archived','event_date'=>'2026-12-18 21:00:00','published_at'=>null], $now), 'Future historical Event without publication proof must stay private');
+archive_expect(!brvtal_public_event_is_visible(['status'=>'cancelled','event_date'=>null,'published_at'=>null], $now), 'Undated historical Event without publication proof must stay private');
+archive_expect(brvtal_public_event_is_visible(['status'=>'cancelled','event_date'=>'2026-12-18 21:00:00','published_at'=>'2026-08-01 12:00:00'], $now), 'Published historical Event may remain discoverable before its original date');
+archive_expect(brvtal_public_event_is_visible(['status'=>'archived','event_date'=>'2025-06-01 21:00:00','published_at'=>null], $now), 'Past historical records must remain discoverable when legacy published_at is missing');
+archive_expect(!brvtal_public_event_is_visible(['status'=>'draft','event_date'=>'2025-06-01 21:00:00','published_at'=>'2025-01-01'], $now), 'Draft must never pass canonical Event visibility');
+
 $partition = brvtal_public_partition_events([
     ['id'=>1,'title'=>'Future published','event_date'=>'2026-10-01 21:00:00','status'=>'published','sort_order'=>0,'ticket_url'=>'https://example.com/1','ticket_types'=>[['id'=>1]]],
     ['id'=>2,'title'=>'Tickets live','event_date'=>'2026-09-20 21:00:00','status'=>'tickets_available','sort_order'=>0,'ticket_url'=>'https://example.com/2','ticket_types'=>[['id'=>2]]],

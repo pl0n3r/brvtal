@@ -34,7 +34,8 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     if (!isset($definitions[$type]) || !preg_match('/^[a-z0-9-]{1,190}$/', $slug)) return null;
     [$table, $titleField, $descriptionField, $imageField, $where, $schemaType, $whereParameters] = $definitions[$type];
     $imageSelect = $imageField === "''" ? "'' AS image" : "`{$imageField}` AS image";
-    $sql = "SELECT id,slug,`{$titleField}` AS title,`{$descriptionField}` AS description,seo_title,seo_description,{$imageSelect} FROM `{$table}` WHERE slug=? AND {$where} LIMIT 1";
+    $eventSelect = $type === 'events' ? ',status,event_date,published_at' : '';
+    $sql = "SELECT id,slug,`{$titleField}` AS title,`{$descriptionField}` AS description,seo_title,seo_description,{$imageSelect}{$eventSelect} FROM `{$table}` WHERE slug=? AND {$where} LIMIT 1";
     try {
         $statement = $pdo->prepare($sql);
         $statement->execute(array_merge([$slug], $whereParameters));
@@ -42,7 +43,7 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     } catch (Throwable) {
         return null;
     }
-    if (!$row) return null;
+    if (!$row || ($type === 'events' && !brvtal_public_event_is_visible($row))) return null;
     $row['schema_type'] = $schemaType;
     $row['route_type'] = $type;
     return $row;

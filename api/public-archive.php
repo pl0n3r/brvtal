@@ -16,41 +16,17 @@ function brvtal_public_partition_events(array $events, ?DateTimeImmutable $now =
     $now ??= new DateTimeImmutable('now');
     $today = $now->setTime(0, 0, 0);
     $groups = brvtal_public_event_statuses();
-    $visible = array_flip(brvtal_public_visible_event_statuses());
     $historicalStatuses = array_flip($groups['historical']);
 
     $active = [];
     $archive = [];
 
     foreach ($events as $event) {
-        if (!is_array($event)) continue;
+        if (!is_array($event) || !brvtal_public_event_is_visible($event, $now)) continue;
         $status = strtolower(trim((string)($event['status'] ?? '')));
-        if (!isset($visible[$status])) continue;
-
-        $eventDate = null;
-        $rawDate = trim((string)($event['event_date'] ?? ''));
-        if ($rawDate !== '') {
-            try { $eventDate = new DateTimeImmutable($rawDate); }
-            catch (Throwable) { $eventDate = null; }
-        }
-
-        $publishedAt = null;
-        $rawPublishedAt = trim((string)($event['published_at'] ?? ''));
-        if ($rawPublishedAt !== '') {
-            try { $publishedAt = new DateTimeImmutable($rawPublishedAt); }
-            catch (Throwable) { $publishedAt = null; }
-        }
-
+        $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
         $pastByDate = $eventDate !== null && $eventDate < $today;
         $explicitHistorical = isset($historicalStatuses[$status]);
-
-        // A future/undated historical state is not public unless it was previously
-        // published. Past events remain discoverable even when older records lack
-        // published_at metadata.
-        if ($explicitHistorical && !$pastByDate && $publishedAt === null) {
-            continue;
-        }
-
         $isHistorical = $explicitHistorical || $pastByDate;
 
         if ($isHistorical) {
