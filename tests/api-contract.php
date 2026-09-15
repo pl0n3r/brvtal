@@ -122,6 +122,21 @@ expect($delegatePos !== false, 'api/index.php must handle the public compatibili
 expect(strpos($index, "require __DIR__ . '/public.php';", $delegatePos) !== false, 'Public compatibility route must delegate to api/public.php');
 expect($authGatePos !== false && $delegatePos < $authGatePos, 'Public compatibility route must execute before admin authentication');
 
+$putStart = strpos($index, "if(\$method==='PUT'&&\$id!==null)");
+$deleteStart = strpos($index, "if(\$method==='DELETE'&&\$id!==null)");
+$settingsDeleteStart = strpos($index, "if(\$method==='DELETE'&&\$resource==='settings'&&\$id===null)");
+expect($putStart !== false && $deleteStart !== false && $settingsDeleteStart !== false, 'Core API item mutation branches must remain explicit');
+$putBlock = substr($index, $putStart, $deleteStart - $putStart);
+$deleteBlock = substr($index, $deleteStart, $settingsDeleteStart - $deleteStart);
+expect(str_contains($putBlock, '$pdo->beginTransaction();'), 'Every generic PUT item mutation must run inside a transaction');
+expect(str_contains($putBlock, 'brvtal_activity_fetch_resource($pdo,$table,$id,true)'), 'Generic PUT must lock and verify the target row before updating');
+expect(str_contains($putBlock, "if(\$before===null){\$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}"), 'Generic PUT must return NOT_FOUND before writing when the target row is missing');
+expect(str_contains($putBlock, "json_response(['ok'=>true,'changed'=>\$changed])"), 'Existing idempotent PUTs may still report changed:0 successfully');
+expect(str_contains($deleteBlock, '$pdo->beginTransaction();'), 'Every generic DELETE item mutation must run inside a transaction');
+expect(str_contains($deleteBlock, 'brvtal_activity_fetch_resource($pdo,$table,$id,true)'), 'Generic DELETE must lock and verify the target row before deleting');
+expect(str_contains($deleteBlock, "if(\$before===null){\$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}"), 'Generic DELETE must return NOT_FOUND before deleting when the target row is missing');
+expect(str_contains($deleteBlock, "if(\$deleted!==1){\$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}"), 'Generic DELETE success must mean one real target row was deleted');
+
 expect(str_contains($public, "WHERE setting_key IN ('site','social','appearance','theme.active')"), 'Public settings must use an explicit allowlist');
 expect(!str_contains($public, "SELECT setting_key,setting_value,is_json FROM settings ORDER BY setting_key"), 'Public API must never select all settings without filtering');
 expect(str_contains($public, "require_once __DIR__ . '/public-response.php';"), 'Public endpoint must load the canonical response envelope helper');
@@ -148,7 +163,7 @@ expect(str_contains($bootstrap, 'brvtal_public_health_sanitize'), 'JSON response
 
 expect(str_contains($index, "require_once __DIR__ . '/../config/event_lifecycle.php';"), 'Core API must load the canonical Event lifecycle mutation policy');
 expect(str_contains($index, "if(\$resource==='events')\$p=brvtal_event_lifecycle_patch([],\$p);"), 'Event creation must derive lifecycle timestamps server-side');
-expect(str_contains($index, "if(\$resource==='events'&&\$before!==null)\$p=brvtal_event_lifecycle_patch(\$before,\$p);"), 'Event updates must derive lifecycle timestamps from the locked previous state');
+expect(str_contains($putBlock, "if(\$resource==='events')\$p=brvtal_event_lifecycle_patch(\$before,\$p);"), 'Event updates must derive lifecycle timestamps from the locked previous state');
 expect(!str_contains($index, "'featured','published_at','cancelled_at','finished_at','archive_year'"), 'Event lifecycle timestamps must not remain directly writable payload fields');
 
 expect(str_contains($index, "require_once __DIR__ . '/pages-contract.php';"), 'Core API must load the CMS Page publication contract');
