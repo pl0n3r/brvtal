@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../api/route.php';
 require_once __DIR__ . '/../api/pages-contract.php';
+require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/public_health.php';
 
 function expect(bool $condition, string $message): void
@@ -37,6 +38,23 @@ expect(brvtal_page_content_json_error('123') === 'INVALID_PAGE_CONTENT_JSON', 'N
 expect(brvtal_page_publication_error(['status'=>'draft','locale'=>'es']) === null, 'Spanish drafts must remain editable');
 expect(brvtal_page_publication_error(['status'=>'published','locale'=>'en']) === null, 'Published English Pages must remain valid');
 expect(brvtal_page_publication_error(['status'=>'published','locale'=>'es']) === 'PAGE_PUBLIC_LOCALE_MUST_BE_EN', 'Published Pages must use the public English locale');
+
+$lifecycleNow = new DateTimeImmutable('2026-09-15 12:00:00');
+$lifecycleStamp = '2026-09-15 12:00:00';
+$publishedPatch = brvtal_event_lifecycle_patch(['status'=>'draft'], ['status'=>'published'], $lifecycleNow);
+expect(($publishedPatch['published_at'] ?? null) === $lifecycleStamp, 'first public Event transition must stamp published_at');
+$legacyCancelPatch = brvtal_event_lifecycle_patch(['status'=>'published','published_at'=>null,'cancelled_at'=>null], ['status'=>'cancelled'], $lifecycleNow);
+expect(($legacyCancelPatch['published_at'] ?? null) === $lifecycleStamp, 'historical transition from a legacy active Event must preserve proof of publication');
+expect(($legacyCancelPatch['cancelled_at'] ?? null) === $lifecycleStamp, 'cancelled Event transition must stamp cancelled_at');
+$finishedPatch = brvtal_event_lifecycle_patch(['status'=>'tickets_available','published_at'=>'2026-09-01 09:30:00','finished_at'=>null], ['status'=>'finished'], $lifecycleNow);
+expect(($finishedPatch['published_at'] ?? null) === null, 'existing published_at must not be rewritten into the patch');
+expect(($finishedPatch['finished_at'] ?? null) === $lifecycleStamp, 'finished Event transition must stamp finished_at');
+$archiveDraftPatch = brvtal_event_lifecycle_patch(['status'=>'draft','published_at'=>null], ['status'=>'archived'], $lifecycleNow);
+expect(!array_key_exists('published_at', $archiveDraftPatch), 'draft-to-archive must not invent prior public visibility');
+$repairPatch = brvtal_event_lifecycle_patch(['status'=>'sold_out','published_at'=>null], ['status'=>'sold_out'], $lifecycleNow);
+expect(($repairPatch['published_at'] ?? null) === $lifecycleStamp, 'saving a legacy active Event must repair missing published_at');
+$serverOwnedPatch = brvtal_event_lifecycle_patch(['status'=>'draft'], ['title'=>'Safe','published_at'=>'2000-01-01 00:00:00','cancelled_at'=>'2000-01-01 00:00:00'], $lifecycleNow);
+expect($serverOwnedPatch === ['title'=>'Safe'], 'lifecycle timestamps must remain server-owned when status is unchanged');
 
 expect(brvtal_public_health_request('/api/health.php'), 'Standalone public health endpoint must be recognized');
 expect(brvtal_public_health_request('/api/health'), 'Clean public health endpoint must be recognized');
@@ -91,6 +109,11 @@ expect(!str_contains($health, 'PDO::ATTR_DRIVER_NAME'), 'Standalone public healt
 expect(!str_contains($health, 'PHP_VERSION'), 'Standalone public health endpoint must not expose exact PHP version');
 expect(str_contains($bootstrap, 'brvtal_public_health_request'), 'JSON response boundary must recognize public health requests');
 expect(str_contains($bootstrap, 'brvtal_public_health_sanitize'), 'JSON response boundary must sanitize compatibility health responses');
+
+expect(str_contains($index, "require_once __DIR__ . '/../config/event_lifecycle.php';"), 'Core API must load the canonical Event lifecycle mutation policy');
+expect(str_contains($index, "if(\$resource==='events')\$p=brvtal_event_lifecycle_patch([],\$p);"), 'Event creation must derive lifecycle timestamps server-side');
+expect(str_contains($index, "if(\$resource==='events'&&\$before!==null)\$p=brvtal_event_lifecycle_patch(\$before,\$p);"), 'Event updates must derive lifecycle timestamps from the locked previous state');
+expect(!str_contains($index, "'featured','published_at','cancelled_at','finished_at','archive_year'"), 'Event lifecycle timestamps must not remain directly writable payload fields');
 
 expect(str_contains($index, "require_once __DIR__ . '/pages-contract.php';"), 'Core API must load the CMS Page publication contract');
 expect(str_contains($index, "if(\$resource==='pages'&&!array_key_exists('locale',\$p))\$p['locale']='en';"), 'Core API must default new CMS Pages to English');

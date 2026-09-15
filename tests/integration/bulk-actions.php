@@ -31,7 +31,9 @@ $pdo = new PDO($dsn, (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root'), (string)
     PDO::ATTR_EMULATE_PREPARES => false,
 ]);
 
-foreach (['events','artists','sets_media','pages','releases','blog_posts'] as $table) {
+$pdo->exec('DROP TEMPORARY TABLE IF EXISTS events');
+$pdo->exec("CREATE TEMPORARY TABLE events (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft',published_at DATETIME NULL,cancelled_at DATETIME NULL,finished_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+foreach (['artists','sets_media','pages','releases','blog_posts'] as $table) {
     $pdo->exec("DROP TEMPORARY TABLE IF EXISTS {$table}");
     $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
@@ -46,6 +48,25 @@ $result = brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
 ]));
 bulk_it_assert($result['matched'] === 2, 'events bulk action must match both selected rows');
 bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE status='published'")->fetchColumn() === 2, 'events bulk action must publish both rows');
+bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE published_at IS NOT NULL")->fetchColumn() === 2, 'bulk publishing Events must stamp published_at');
+$firstPublishedAt = (string)$pdo->query('SELECT published_at FROM events ORDER BY id LIMIT 1')->fetchColumn();
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'events',
+    'status'=>'archived',
+    'ids'=>[(int)$eventIds[0]],
+]));
+$archivedEvent = $pdo->query('SELECT status,published_at FROM events ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($archivedEvent['status'] ?? '') === 'archived', 'published Event must support archive in bulk');
+bulk_it_assert((string)($archivedEvent['published_at'] ?? '') === $firstPublishedAt, 'archiving an already public Event must preserve published_at');
+$pdo->exec("INSERT INTO events(status) VALUES ('draft')");
+$draftArchiveId = (int)$pdo->lastInsertId();
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'events',
+    'status'=>'archived',
+    'ids'=>[$draftArchiveId],
+]));
+$draftArchivedPublishedAt = $pdo->query("SELECT published_at FROM events WHERE id={$draftArchiveId}")->fetchColumn();
+bulk_it_assert($draftArchivedPublishedAt === null, 'bulk draft-to-archive must not invent publication history');
 
 $pdo->exec("INSERT INTO releases(status) VALUES ('draft'),('published')");
 $releaseIds = $pdo->query('SELECT id FROM releases ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);

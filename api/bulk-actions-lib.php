@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/event_lifecycle.php';
+
 function brvtal_bulk_resource_specs(): array
 {
     return [
@@ -87,9 +89,10 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
     $table = $specs[$resource]['table'];
     $labelColumn = $specs[$resource]['label'];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $lifecycleColumns = $resource === 'events' ? ',published_at,cancelled_at,finished_at' : '';
     $selectColumns = $audit === null
-        ? 'id,status'
-        : "id,status,`{$labelColumn}` AS resource_label";
+        ? "id,status{$lifecycleColumns}"
+        : "id,status{$lifecycleColumns},`{$labelColumn}` AS resource_label";
 
     $pdo->beginTransaction();
     try {
@@ -100,20 +103,63 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
             throw new RuntimeException('BULK_ITEMS_NOT_FOUND');
         }
 
-        $update = $pdo->prepare("UPDATE {$table} SET status=? WHERE id IN ({$placeholders})");
-        $update->execute(array_merge([$status], $ids));
-        $changed = $update->rowCount();
-
-        if ($audit !== null) {
+        $changed = 0;
+        if ($resource === 'events') {
+            $updateEvent = $pdo->prepare('UPDATE events SET status=?,published_at=?,cancelled_at=?,finished_at=? WHERE id=?');
             foreach ($rows as $row) {
-                if ((string)$row['status'] === $status) continue;
-                $audit(
-                    $resource,
+                $patch = brvtal_event_lifecycle_patch($row, ['status'=>$status]);
+                $after = array_replace($row, $patch);
+                $updateEvent->execute([
+                    (string)$after['status'],
+                    ($after['published_at'] ?? null) ?: null,
+                    ($after['cancelled_at'] ?? null) ?: null,
+                    ($after['finished_at'] ?? null) ?: null,
                     (int)$row['id'],
-                    ['id'=>(int)$row['id'],'status'=>(string)$row['status']],
-                    ['id'=>(int)$row['id'],'status'=>$status],
-                    (string)($row['resource_label'] ?? '')
-                );
+                ]);
+                $changed += $updateEvent->rowCount();
+
+                if ($audit !== null) {
+                    $beforeAudit = [
+                        'id'=>(int)$row['id'],
+                        'status'=>(string)$row['status'],
+                        'published_at'=>$row['published_at'] ?? null,
+                        'cancelled_at'=>$row['cancelled_at'] ?? null,
+                        'finished_at'=>$row['finished_at'] ?? null,
+                    ];
+                    $afterAudit = [
+                        'id'=>(int)$row['id'],
+                        'status'=>(string)$after['status'],
+                        'published_at'=>$after['published_at'] ?? null,
+                        'cancelled_at'=>$after['cancelled_at'] ?? null,
+                        'finished_at'=>$after['finished_at'] ?? null,
+                    ];
+                    if ($beforeAudit !== $afterAudit) {
+                        $audit(
+                            $resource,
+                            (int)$row['id'],
+                            $beforeAudit,
+                            $afterAudit,
+                            (string)($row['resource_label'] ?? '')
+                        );
+                    }
+                }
+            }
+        } else {
+            $update = $pdo->prepare("UPDATE {$table} SET status=? WHERE id IN ({$placeholders})");
+            $update->execute(array_merge([$status], $ids));
+            $changed = $update->rowCount();
+
+            if ($audit !== null) {
+                foreach ($rows as $row) {
+                    if ((string)$row['status'] === $status) continue;
+                    $audit(
+                        $resource,
+                        (int)$row['id'],
+                        ['id'=>(int)$row['id'],'status'=>(string)$row['status']],
+                        ['id'=>(int)$row['id'],'status'=>$status],
+                        (string)($row['resource_label'] ?? '')
+                    );
+                }
             }
         }
 
