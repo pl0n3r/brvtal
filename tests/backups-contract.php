@@ -32,6 +32,11 @@ backups_expect(str_contains($engine, "SHOW FULL TABLES"), 'database backup must 
 backups_expect(str_contains($engine, "SHOW CREATE TABLE"), 'database backup must preserve CREATE TABLE statements');
 backups_expect(str_contains($engine, 'REPEATABLE READ'), 'database backup must use a consistent transaction isolation level');
 backups_expect(str_contains($engine, 'FOREIGN_KEY_CHECKS=0'), 'database dump must guard FK ordering');
+backups_expect(str_contains($engine, 'function brvtal_backup_order_columns'), 'database backup must compute deterministic ordering columns');
+backups_expect(str_contains($engine, "SHOW INDEX FROM {\$quotedTable} WHERE Key_name='PRIMARY'"), 'database backup must prefer primary-key ordering');
+backups_expect(str_contains($engine, 'return $ordered !== [] ? array_values(array_unique($ordered)) : $columnNames;'), 'tables without a primary key must still receive explicit deterministic value ordering');
+backups_expect(str_contains($engine, 'ORDER BY {$orderSql} LIMIT {$chunk} OFFSET {$offset}'), 'every paginated database chunk must declare an explicit ORDER BY');
+backups_expect(!str_contains($engine, 'SELECT * FROM {$quotedTable} LIMIT {$chunk} OFFSET {$offset}'), 'unordered OFFSET pagination must not return');
 backups_expect(str_contains($engine, "hash_file('sha256'"), 'backup artifacts must receive SHA-256 checksums');
 backups_expect(str_contains($engine, "'restore_supported' => false"), 'manifest must explicitly disable restore');
 backups_expect(str_contains($engine, 'brvtal_deployment_sha()'), 'manifest must record deployment identity');
