@@ -8,8 +8,10 @@
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const cleanUrl = value => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
     try {
-      const url = new URL(String(value || ''), location.href);
+      const url = new URL(raw, location.href);
       return /^https?:$/i.test(url.protocol) ? url.href : '';
     } catch (_) { return ''; }
   };
