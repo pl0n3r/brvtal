@@ -6,33 +6,34 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se corrigió la legibilidad de títulos largos en **NEXT EXPERIENCE** para móvil, reproduciendo el problema observado en iPhone.
-- El título móvil usa una escala tipográfica menos agresiva, `line-height` seguro y tracking ligeramente más abierto para evitar que varias líneas se monten entre sí.
-- El glitch móvil se mantiene como parte de la identidad visual, pero con desplazamiento y franja reducidos para no dominar el texto.
-- Se añadió una regresión Playwright en viewport 390×844 que comprueba tamaño, interlineado, ancho y separación con el subtítulo siguiente.
-- Escritorio conserva sus reglas actuales; no hay cambios de esquema, datos, permisos ni APIs.
+- Se protege el editor canónico de Events para que un guardado no pueda reemplazar el lineup mientras la participación todavía está cargando o quedó en error.
+- La hidratación de lineup ahora usa política **latest-wins**, evitando que una respuesta tardía de otro Event vuelva a pintar relaciones obsoletas.
+- Al guardar participación existente se preservan `role` y `lineup_order`; editar fecha, venue u otros campos del Event ya no debe borrar roles ni reconstruir el running order según el catálogo global de Artists.
+- Los Artists recién añadidos al lineup se anexan después del mayor `lineup_order` existente sin renumerar relaciones previas.
+- Se añadió cobertura Playwright para la ventana de hidratación, preservación de metadata y carrera entre dos Events.
+- No hay cambios de esquema, migraciones ni acciones sobre datos de producción.
 
 ## Archivos modificados en este deploy
 
-- `css/style.css` — ajusta tipografía y glitch de NEXT EXPERIENCE dentro del breakpoint móvil.
-- `tests/e2e/public-mobile-readability.spec.mjs` — añade cobertura del título largo en viewport tipo iPhone.
+- `discadmin/content-core.js` — añade estado/token de hidratación del lineup y preservación de metadata relacional al guardar.
+- `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs` — regresiones de guardado temprano, `role`, `lineup_order` y latest-wins.
 - `README.md` — snapshot operativo exacto de este deploy.
 
 ## Validación
 
-- Base de trabajo: `main` `72ded3dc19e3b8ae1d349e152de4dfa7552815c9`, con **BRVTAL CI / validate** exacto en verde.
-- El defecto estaba previamente **VALIDATED IN PRODUCTION / REAL DEVICE** mediante evidencia visual en iPhone.
-- Pendiente: gates del PR y, tras squash merge, **BRVTAL CI / validate** sobre el nuevo SHA exacto de `main`.
-- CI verde significará **VALIDATED IN CODE**; la corrección visual solo se declarará **VALIDATED IN PRODUCTION** después de comprobar el deploy real.
+- Base de trabajo: `main` `8da56d9db304e951c8117a393b300c864e77e4ec`, con **BRVTAL CI / validate** exacto en verde antes de abrir este batch.
+- Los defectos #181, #230 y #231 estaban confirmados por inspección del flujo canónico de Content Core en `main`.
+- Pendiente: **BRVTAL CI / validate** del PR y, tras squash merge, validación del nuevo SHA exacto de `main`.
+- CI verde significa **VALIDATED IN CODE**; no implica validación del editor autenticado en producción.
 
 ## Qué sigue
 
 1. Ejecutar el CI path-aware del PR y corregir cualquier regresión en esta misma rama.
 2. Con `validate` verde, hacer squash merge y comprobar el SHA exacto nuevo de `main`.
-3. Confirmar en producción móvil que el título largo ya no se solapa y cerrar el Issue #255 con esa evidencia.
+3. Continuar con el siguiente hallazgo abierto de DISCADMIN sin duplicar trabajo.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de pruebas: `docs/TESTING.md`.
-- Issue de origen: `#255`.
+- Issues cubiertos: `#181`, `#230`, `#231`.
