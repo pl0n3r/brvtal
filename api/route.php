@@ -5,6 +5,10 @@ declare(strict_types=1);
  * Parse API routes consistently whether PHP receives a direct index.php path
  * (/api/index.php/events/12/lineup) or a rewritten path (/api/events/12/lineup).
  *
+ * Known resources fail closed when the URL shape is not one of their explicit
+ * collection, item or supported action forms. This prevents an unknown segment
+ * from silently falling through to collection CRUD.
+ *
  * @return array{resource:string,id:?int,action:string,segments:array<int,string>}
  */
 function brvtal_api_parse_route(string $requestUri, string $scriptName): array
@@ -25,6 +29,28 @@ function brvtal_api_parse_route(string $requestUri, string $scriptName): array
     $resource = $segments[0] ?? '';
     $id = isset($segments[1]) && ctype_digit($segments[1]) ? (int)$segments[1] : null;
     $action = $segments[2] ?? ($segments[1] ?? '');
+
+    $singleSegmentResources = ['health', 'auth', 'public', 'dashboard', 'upload', 'settings'];
+    $itemResources = ['events', 'artists', 'sets', 'media', 'pages', 'ticket_types'];
+    $validShape = true;
+
+    if (in_array($resource, $singleSegmentResources, true)) {
+        $validShape = count($segments) === 1;
+    } elseif (in_array($resource, $itemResources, true)) {
+        $validShape = count($segments) === 1
+            || (count($segments) === 2 && isset($segments[1]) && ctype_digit($segments[1]))
+            || ($resource === 'events'
+                && count($segments) === 3
+                && isset($segments[1], $segments[2])
+                && ctype_digit($segments[1])
+                && $segments[2] === 'lineup');
+    }
+
+    if (!$validShape) {
+        $resource = '';
+        $id = null;
+        $action = '';
+    }
 
     return [
         'resource' => $resource,
