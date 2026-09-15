@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 const accessibilitySource = readFileSync(join(process.cwd(), 'discadmin/admin-modal-accessibility.js'), 'utf8');
 const indexSource = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
+const mediaLibrarySource = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
+const totpStatusSource = readFileSync(join(process.cwd(), 'discadmin/totp-status.php'), 'utf8');
 
 test('shared keyboard accessibility loads after the admin shell', async () => {
   expect(indexSource).toContain('admin-modal-accessibility.js');
@@ -147,4 +149,80 @@ test('Admin Activity detail/history modal gets initial focus, trap, Escape and r
   await page.keyboard.press('Escape');
   await expect(page.locator('.activity-modal')).toHaveCount(0);
   await expect(origin).toBeFocused();
+});
+
+test('Media Picker overlays gain dialog semantics, focus containment, Escape and restoration', async ({ page }) => {
+  expect(mediaLibrarySource).toContain('function openPicker');
+  expect(mediaLibrarySource).toContain('function externalRegistrationModal');
+  expect((mediaLibrarySource.match(/brvtal-media-picker/g) || []).length).toBeGreaterThanOrEqual(2);
+
+  await page.setContent('<button id="media-origin">SELECT MEDIA</button><button id="background">BACKGROUND</button>');
+  await page.addScriptTag({ content: accessibilitySource });
+  const origin = page.getByRole('button', { name: 'SELECT MEDIA' });
+  await origin.focus();
+
+  await page.evaluate(() => {
+    const overlay = document.createElement('div');
+    overlay.className = 'brvtal-media-picker';
+    overlay.innerHTML = '<div class="brvtal-media-picker-box"><h3>SELECT MEDIA</h3><button type="button" data-close>CLOSE</button><input type="search" aria-label="Search media"></div>';
+    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  });
+
+  const selectDialog = page.getByRole('dialog', { name: 'SELECT MEDIA' });
+  await expect(selectDialog).toBeVisible();
+  await expect(selectDialog).toHaveAttribute('aria-modal', 'true');
+  await expect(page.getByRole('button', { name: 'CLOSE' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('searchbox', { name: 'Search media' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
+  await expect(origin).toBeFocused();
+
+  await origin.focus();
+  await page.evaluate(() => {
+    const overlay = document.createElement('div');
+    overlay.className = 'brvtal-media-picker';
+    overlay.innerHTML = '<div class="brvtal-media-picker-box"><h3>REGISTER EXTERNAL MEDIA</h3><button type="button" data-close>CLOSE</button><input aria-label="Title"></div>';
+    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  });
+  await expect(page.getByRole('dialog', { name: 'REGISTER EXTERNAL MEDIA' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(origin).toBeFocused();
+});
+
+test('Theme Studio fields are labelled and IMPORT is keyboard-operable', async ({ page }) => {
+  await page.setContent(`
+    <div class="theme-field"><label>Theme name</label><input id="th_name" value="Core"></div>
+    <div class="theme-field"><label>Main logo</label><select id="th_logo"><option value="a">A</option></select><input id="th_logo_custom" value="/uploads/a.png"></div>
+    <label class="btn ghost" id="theme-import">IMPORT<input class="theme-file" type="file" accept="application/json" style="display:none"></label>
+  `);
+  await page.evaluate(() => {
+    window.themeImportClicks = 0;
+    document.querySelector('.theme-file').addEventListener('click', event => {
+      event.preventDefault();
+      window.themeImportClicks += 1;
+    });
+  });
+  await page.addScriptTag({ content: accessibilitySource });
+
+  await expect(page.locator('.theme-field > label').first()).toHaveAttribute('for', 'th_name');
+  await expect(page.getByLabel('Theme name')).toHaveValue('Core');
+  await expect(page.locator('#th_logo')).toHaveAttribute('aria-label', 'Main logo · Media Library selection');
+  await expect(page.locator('#th_logo_custom')).toHaveAttribute('aria-label', 'Main logo · custom path or URL');
+
+  const importButton = page.getByRole('button', { name: 'Import theme configuration' });
+  await importButton.focus();
+  await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => window.themeImportClicks)).toBe(1);
+  await page.keyboard.press('Space');
+  expect(await page.evaluate(() => window.themeImportClicks)).toBe(2);
+});
+
+test('authenticated Security 2FA verification fields have explicit accessible names', async () => {
+  expect(totpStatusSource).toContain('id="code"');
+  expect(totpStatusSource).toContain('aria-label="Authenticator confirmation code"');
+  expect(totpStatusSource).toContain('id="disableCode"');
+  expect(totpStatusSource).toContain('aria-label="Authenticator or recovery code"');
 });
