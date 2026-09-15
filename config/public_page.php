@@ -11,20 +11,40 @@ function brvtal_public_media_variant(string $image, string $context): string
     return is_string($variant) && $variant !== '' ? $variant : $image;
 }
 
-function brvtal_page_rows(PDO $pdo, string $sql, array $parameters = []): array
+function brvtal_page_query_degraded(?bool $set = null): bool
+{
+    static $degraded = false;
+    if ($set !== null) {
+        $degraded = $set;
+    }
+    return $degraded;
+}
+
+function brvtal_page_rows(PDO $pdo, string $sql, array $parameters = [], bool $required = false): array
 {
     try {
         $statement = $pdo->prepare($sql);
         $statement->execute($parameters);
         return $statement->fetchAll();
-    } catch (Throwable) {
+    } catch (Throwable $e) {
+        brvtal_page_query_degraded(true);
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PUBLIC_ENTITY_QUERY_ERROR', 'Canonical entity query failed', [
+                'required' => $required,
+                'class' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+        }
+        if ($required) {
+            throw $e;
+        }
         return [];
     }
 }
 
-function brvtal_page_row(PDO $pdo, string $sql, array $parameters = []): array
+function brvtal_page_row(PDO $pdo, string $sql, array $parameters = [], bool $required = false): array
 {
-    return brvtal_page_rows($pdo, $sql, $parameters)[0] ?? [];
+    return brvtal_page_rows($pdo, $sql, $parameters, $required)[0] ?? [];
 }
 
 function brvtal_page_public_event_rows(PDO $pdo, string $sql, array $parameters = []): array
@@ -37,14 +57,15 @@ function brvtal_page_public_event_rows(PDO $pdo, string $sql, array $parameters 
 
 function brvtal_public_page_data(PDO $pdo, array $entity): array
 {
+    brvtal_page_query_degraded(false);
     $id = (int)$entity['id'];
     $type = (string)$entity['route_type'];
-    $data = ['entity' => $entity, 'facts' => [], 'links' => [], 'related' => []];
+    $data = ['entity' => $entity, 'facts' => [], 'links' => [], 'related' => [], 'degraded' => false];
     $eventStatuses = brvtal_public_visible_event_statuses();
     $eventPlaceholders = brvtal_public_sql_placeholders($eventStatuses);
 
     if ($type === 'events') {
-        $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,ticket_url,ticket_instructions FROM events WHERE id=? LIMIT 1", [$id]);
+        $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,ticket_url,ticket_instructions FROM events WHERE id=? LIMIT 1", [$id], true);
         $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
         if (!$allowsTicketing) {
             $detail['ticket_url'] = null;
@@ -67,7 +88,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             ));
         }
     } elseif ($type === 'artists') {
-        $detail = brvtal_page_row($pdo, "SELECT instagram_url,soundcloud_url,website_url,collective_status FROM artists WHERE id=? LIMIT 1", [$id]);
+        $detail = brvtal_page_row($pdo, "SELECT instagram_url,soundcloud_url,website_url,collective_status FROM artists WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['COLLECTIVE' => strtoupper(str_replace('_', ' ', (string)($detail['collective_status'] ?? '')))]);
         $data['links'] = array_filter(['INSTAGRAM' => $detail['instagram_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'WEBSITE' => $detail['website_url'] ?? '']);
@@ -79,13 +100,13 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE artist_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         $data['related']['RELEASES'] = brvtal_page_rows($pdo, "SELECT r.title,r.slug,r.artwork AS image,CONCAT_WS(' / ',UPPER(r.release_type),r.catalog_number) AS meta,'releases' AS route_type FROM release_artists ra JOIN releases r ON r.id=ra.release_id AND r.status='published' WHERE ra.artist_id=? ORDER BY r.release_date DESC,r.sort_order", [$id]);
     } elseif ($type === 'releases') {
-        $detail = brvtal_page_row($pdo, "SELECT release_type,catalog_number,release_date,spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url FROM releases WHERE id=? LIMIT 1", [$id]);
+        $detail = brvtal_page_row($pdo, "SELECT release_type,catalog_number,release_date,spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url FROM releases WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['FORMAT' => strtoupper((string)($detail['release_type'] ?? '')), 'CATALOG' => $detail['catalog_number'] ?? '', 'RELEASE DATE' => $detail['release_date'] ?? '']);
         $data['links'] = array_filter(['SPOTIFY' => $detail['spotify_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'BANDCAMP' => $detail['bandcamp_url'] ?? '', 'YOUTUBE' => $detail['youtube_url'] ?? '', 'BEATPORT' => $detail['beatport_url'] ?? '']);
         $data['related']['ARTISTS'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ra.role AS meta,'artists' AS route_type FROM release_artists ra JOIN artists a ON a.id=ra.artist_id AND a.status='published' WHERE ra.release_id=? ORDER BY ra.sort_order,a.name", [$id]);
     } elseif ($type === 'blog') {
-        $detail = brvtal_page_row($pdo, "SELECT body,published_at FROM blog_posts WHERE id=? LIMIT 1", [$id]);
+        $detail = brvtal_page_row($pdo, "SELECT body,published_at FROM blog_posts WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
         $data['entity']['description'] = $detail['body'] ?: $entity['description'];
         $data['facts'] = array_filter(['PUBLISHED' => isset($detail['published_at']) ? date('d.m.Y', strtotime((string)$detail['published_at'])) : '']);
@@ -110,7 +131,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             if ($item && ($route !== 'events' || brvtal_public_event_is_visible($item))) $data['related']['RELATED'][] = $item;
         }
     } elseif ($type === 'sets') {
-        $detail = brvtal_page_row($pdo, "SELECT platform,external_url,embed_url,artist_id,event_id FROM sets_media WHERE id=? LIMIT 1", [$id]);
+        $detail = brvtal_page_row($pdo, "SELECT platform,external_url,embed_url,artist_id,event_id FROM sets_media WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['PLATFORM' => strtoupper((string)($detail['platform'] ?? ''))]);
         $data['links'] = array_filter(['LISTEN' => $detail['external_url'] ?? '']);
@@ -123,13 +144,14 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
             );
         }
     } elseif ($type === 'pages') {
-        $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id]);
+        $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id], true);
         $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
         if (is_array($decoded)) {
             $text = $decoded['body'] ?? $decoded['content'] ?? $decoded['text'] ?? '';
             if (is_string($text)) $data['entity']['description'] = $text;
         }
     }
+    $data['degraded'] = brvtal_page_query_degraded();
     return $data;
 }
 
@@ -146,6 +168,7 @@ function brvtal_public_connected_url(array $entity): string
 function brvtal_public_entity_page(array $page, array $seo, string $analytics = ''): string
 {
     $entity = $page['entity'];
+    $degraded = !empty($page['degraded']);
     $escape = static fn(mixed $value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $safeUrl = static function (mixed $value) use ($escape): string {
         $url = trim((string)$value);
@@ -193,6 +216,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $backHref = $escape($backToSection ? '/#' . $routeTypeRaw : '/');
     $backLabel = $escape($backToSection ? '← BACK TO ARCHIVE' : '← BACK HOME');
     $tags = brvtal_public_seo_tags($seo);
+    $robots = $degraded ? '<meta name="robots" content="noindex, follow">' : '';
+    $degradedNotice = $degraded
+        ? '<section class="entity-statement" role="status"><div class="entity-section-label">DATA STATUS / DEGRADED</div><p>Some connected information is temporarily unavailable. This page will return to its complete state automatically when the data service recovers.</p></section>'
+        : '';
 
     return <<<HTML
 <!doctype html>
@@ -201,6 +228,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#050505">
+  {$robots}
   <meta name="description" content="{$description}">
   <title>{$title}</title>
   <base href="/">
@@ -219,6 +247,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
       <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kind} / {$entityId}</div><h1>{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
     <section class="entity-statement"><div class="entity-section-label">ABOUT / INFORMATION</div><p>{$body}</p></section>
+    {$degradedNotice}
     {$related}
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
