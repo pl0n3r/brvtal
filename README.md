@@ -6,25 +6,25 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- El editor de Blog ahora distingue una fuente relacionada realmente vacía de una fuente que falló al cargar.
-- Si Events, Artists, Sets o Releases falla temporalmente, el editor muestra una advertencia explícita en lugar de presentar ese origen como vacío.
-- Al guardar una edición, las relaciones existentes pertenecientes a una fuente fallida se conservan aunque no existan checkboxes disponibles para representarlas.
-- Las relaciones existentes que siguen seleccionadas mantienen su orden editorial y las relaciones nuevas se anexan después, evitando reemplazos destructivos por una falla transitoria.
-- Se añadió cobertura Playwright para preservar una relación Blog→Artist mientras Artists está caído y para diferenciar ese error de una respuesta válida con cero registros.
-- No hay cambios de esquema, migraciones ni acciones sobre datos de producción.
+- La confirmación de enrollment 2FA ahora serializa la transición `disabled → enabled` bloqueando la fila del administrador con `SELECT ... FOR UPDATE` dentro de la transacción final.
+- Después de adquirir el lock se vuelve a comprobar `totp_enabled`; una segunda confirmación concurrente ya no puede generar un nuevo juego de recovery codes ni invalidar los códigos devueltos por la primera respuesta exitosa.
+- El `UPDATE` que habilita 2FA queda condicionado a `totp_enabled=0` y exige una única fila modificada antes de generar recovery codes.
+- Se conserva intacta la atomicidad ya añadida para consumo de recovery codes en login y al desactivar 2FA.
+- Se amplió el contrato TOTP para proteger el orden transacción → lock → recheck → generación de recovery codes.
+- No hay cambios de esquema, migraciones ni acciones sobre 2FA o datos de producción.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/blog.js` — añade estado por fuente relacionada y combinación no destructiva de relaciones al guardar.
-- `tests/e2e/discadmin-blog.spec.mjs` — cubre fallo parcial de fuentes, preservación relacional y estado vacío válido.
+- `discadmin/totp-api.php` — serializa la confirmación concurrente de enrollment y evita regenerar recovery codes después de que 2FA ya fue habilitado.
+- `tests/totp-enrollment-contract.php` — añade regresiones de contrato para lock, recheck y transición condicional.
 - `README.md` — snapshot operativo exacto de este deploy.
 
 ## Validación
 
-- Base de trabajo: `main` `c8c3b85ffa3ce2ff2b9b67fdaa7a165cdfaaf8f4`, con **BRVTAL CI / validate** exacto en verde antes de abrir este batch.
-- El hallazgo #200 estaba confirmado por inspección del flujo de Blog en `main`: un fallo de carga se convertía en `[]` y el guardado reconstruía `relations` únicamente desde checkboxes visibles.
+- Base de trabajo: `main` `cc919680a8e2d2aeb71f6e25d6ed80f7758f670d`, con **BRVTAL CI / validate** exacto en verde antes de abrir este batch.
+- El hallazgo #285 seguía presente en `main`: dos confirmaciones podían validar el mismo enrollment antes de que la primera transacción habilitara 2FA y la segunda no releía el estado después de adquirir el lock implícito del `UPDATE`.
 - Pendiente: **BRVTAL CI / validate** del PR y, tras squash merge, validación del nuevo SHA exacto de `main`.
-- CI verde significa **VALIDATED IN CODE**; no implica validación funcional autenticada en producción.
+- CI verde significa **VALIDATED IN CODE**; no implica que se haya habilitado, deshabilitado o reconfigurado 2FA real en producción.
 
 ## Qué sigue
 
@@ -36,4 +36,4 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de pruebas: `docs/TESTING.md`.
-- Issue cubierto: `#200`.
+- Issue cubierto: `#285`.

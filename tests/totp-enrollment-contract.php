@@ -42,4 +42,17 @@ totp_enrollment_expect(str_contains($api, "return ['valid'=>true,'recovery_id'=>
 totp_enrollment_expect(str_contains($api, '$pdo->beginTransaction();if($verification[\'recovery_id\']!==null)'), 'disable recovery consumption must occur inside the disable transaction');
 totp_enrollment_expect(str_contains($api, '$consume->rowCount()!==1'), 'disable must reject a recovery code that another request consumed first');
 
+$confirmOffset = strpos($api, "if(\$action==='confirm')");
+$confirmBegin = $confirmOffset === false ? false : strpos($api, '$pdo->beginTransaction()', $confirmOffset);
+$confirmLock = $confirmOffset === false ? false : strpos($api, 'totp_admin_lock($pdo,$id)', $confirmOffset);
+$confirmRecheck = $confirmLock === false ? false : strpos($api, "(int)\$lockedAdmin['totp_enabled']", $confirmLock);
+$confirmGenerate = $confirmRecheck === false ? false : strpos($api, '$codes=totp_recovery_codes($pdo,$id)', $confirmRecheck);
+
+totp_enrollment_expect(str_contains($api, 'SELECT id,is_active,totp_enabled FROM admins WHERE id=? FOR UPDATE'), 'enrollment confirmation must lock the administrator row before finalizing 2FA');
+totp_enrollment_expect($confirmBegin !== false && $confirmLock !== false && $confirmBegin < $confirmLock, 'enrollment confirmation must acquire its row lock inside the transaction');
+totp_enrollment_expect($confirmRecheck !== false && $confirmGenerate !== false && $confirmRecheck < $confirmGenerate, 'enrollment confirmation must re-check enabled state before generating recovery codes');
+totp_enrollment_expect(str_contains($api, 'WHERE id=? AND totp_enabled=0'), 'enrollment enable update must remain conditional on the disabled state');
+totp_enrollment_expect(str_contains($api, '$enable->rowCount()!==1'), 'enrollment confirmation must reject a lost state transition instead of generating replacement recovery codes');
+totp_enrollment_expect(str_contains($api, "TOTP enrollment already confirmed"), 'a concurrent second confirmation must be recorded as already completed');
+
 echo "BRVTAL TOTP enrollment contract tests passed.\n";
