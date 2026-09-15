@@ -167,7 +167,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $description = $escape($seo['description']);
     $entityTitle = $escape($entity['title']);
     $entityId = $escape(str_pad((string)$entity['id'], 3, '0', STR_PAD_LEFT));
-    $routeType = $escape($entity['route_type']);
+    $routeTypeRaw = (string)$entity['route_type'];
+    $routeType = $escape($routeTypeRaw);
+    $backToSection = in_array($routeTypeRaw, ['events', 'artists', 'sets'], true);
+    $backHref = $escape($backToSection ? '/#' . $routeTypeRaw : '/');
+    $backLabel = $escape($backToSection ? '← BACK TO ARCHIVE' : '← BACK HOME');
     $tags = brvtal_public_seo_tags($seo);
 
     return <<<HTML
@@ -188,7 +192,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
 </head>
 <body>
   <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
-  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/#{$routeType}">← BACK TO ARCHIVE</a></header>
+  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="{$backHref}">{$backLabel}</a></header>
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
       <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kind} / BRVTAL</span></div>
