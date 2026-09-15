@@ -59,6 +59,25 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
     return $pastByDate || $publishedAt !== null;
 }
 
+/**
+ * Commercial ticket actions are public only while the Event remains in an
+ * active lifecycle state and has not passed its event date. Historical or
+ * past Events remain discoverable when allowed above, but never keep stale
+ * purchase CTAs merely because ticket data still exists in the database.
+ */
+function brvtal_public_event_allows_ticketing(array $event, ?DateTimeImmutable $now = null): bool
+{
+    $status = strtolower(trim((string)($event['status'] ?? '')));
+    if (!in_array($status, brvtal_public_event_statuses()['active'], true)) return false;
+    if (!brvtal_public_event_is_visible($event, $now)) return false;
+
+    $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
+    if ($eventDate === null) return true;
+
+    $now ??= new DateTimeImmutable('now');
+    return $eventDate >= $now->setTime(0, 0, 0);
+}
+
 function brvtal_public_sql_placeholders(array $values): string
 {
     if ($values === []) {
