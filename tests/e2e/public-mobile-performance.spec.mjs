@@ -13,9 +13,10 @@ const enhancementMarkers = {
   '/js/input-accessibility.js': 'input-accessibility',
   '/js/mobile-events.js': 'mobile-events',
   '/js/hero-slider.js': 'hero-slider',
-  '/js/public-discovery-url-state.js': 'url-state'
+  '/js/public-discovery-url-state.js': 'url-state',
+  '/js/public-canonical-navigation.js': 'canonical-navigation'
 };
-const coreAndEnhancements = ['app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state'];
+const coreAndEnhancements = ['app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation'];
 
 const isMotionCdn = url => url.includes('cdn.jsdelivr.net/npm/gsap@3.13.0') || url.includes('cdn.jsdelivr.net/npm/lenis@1.3.4');
 
