@@ -137,6 +137,7 @@ $evidence = [
     'checks' => [
         'databaseChecksum' => false,
         'snapshotRows' => false,
+        'multiChunkRows' => false,
         'postBackupMutationAbsent' => false,
         'foreignKey' => false,
         'view' => false,
@@ -152,6 +153,7 @@ try {
     $source->exec('DROP VIEW IF EXISTS backup_recovery_view');
     $source->exec('DROP TABLE IF EXISTS backup_recovery_child');
     $source->exec('DROP TABLE IF EXISTS backup_recovery_parent');
+    $source->exec('DROP TABLE IF EXISTS backup_recovery_chunked');
     $source->exec(
         'CREATE TABLE backup_recovery_parent (' .
         'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,' .
@@ -168,11 +170,21 @@ try {
         'CONSTRAINT fk_backup_recovery_parent FOREIGN KEY (parent_id) REFERENCES backup_recovery_parent(id)' .
         ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
     );
+    $source->exec(
+        'CREATE TABLE backup_recovery_chunked (' .
+        'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,' .
+        'payload VARCHAR(190) NOT NULL' .
+        ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
     $parentInsert = $source->prepare('INSERT INTO backup_recovery_parent(label,nullable_value) VALUES(?,?)');
     $parentInsert->execute(["O'Reilly / BRVTAL — áéí", null]);
     $parentInsert->execute(['Second snapshot row', 'preserved']);
     $childInsert = $source->prepare('INSERT INTO backup_recovery_child(parent_id,note) VALUES(?,?)');
     $childInsert->execute([1, 'linked before backup']);
+    $chunkInsert = $source->prepare('INSERT INTO backup_recovery_chunked(payload) VALUES(?)');
+    for ($rowNumber = 1; $rowNumber <= 620; $rowNumber++) {
+        $chunkInsert->execute([sprintf('chunk-row-%04d', $rowNumber)]);
+    }
     $source->exec(
         'CREATE VIEW backup_recovery_view AS ' .
         'SELECT p.id,p.label,COUNT(c.id) AS child_count ' .
@@ -212,6 +224,8 @@ try {
     // not these later changes.
     $source->exec("UPDATE backup_recovery_parent SET label='MUTATED AFTER BACKUP' WHERE id=1");
     $source->exec("INSERT INTO backup_recovery_parent(label,nullable_value) VALUES('POST BACKUP ROW','must-not-restore')");
+    $source->exec("DELETE FROM backup_recovery_chunked WHERE id BETWEEN 251 AND 370");
+    $source->exec("INSERT INTO backup_recovery_chunked(payload) VALUES('POST BACKUP CHUNK ROW')");
     file_put_contents($uploadsDir . '/2026/09/sample.txt', "MUTATED AFTER BACKUP\n");
 
     $server->exec('CREATE DATABASE ' . brvtal_backup_identifier($recoveryDb) . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
@@ -232,8 +246,23 @@ try {
     recovery_expect(($parents[1]['label'] ?? null) === 'Second snapshot row', 'Second snapshot row missing after recovery.');
     $evidence['checks']['snapshotRows'] = true;
 
+    $chunkSummary = $recovery->query(
+        'SELECT COUNT(*) AS row_count, COUNT(DISTINCT id) AS distinct_ids, MIN(id) AS min_id, MAX(id) AS max_id, SUM(id) AS id_sum ' .
+        'FROM backup_recovery_chunked'
+    )->fetch(PDO::FETCH_ASSOC) ?: [];
+    recovery_expect((int)($chunkSummary['row_count'] ?? 0) === 620, 'Multi-chunk recovery must contain all 620 snapshot rows.');
+    recovery_expect((int)($chunkSummary['distinct_ids'] ?? 0) === 620, 'Multi-chunk recovery must not duplicate row identities.');
+    recovery_expect((int)($chunkSummary['min_id'] ?? 0) === 1 && (int)($chunkSummary['max_id'] ?? 0) === 620, 'Multi-chunk recovery lost first/last row identity.');
+    recovery_expect((int)($chunkSummary['id_sum'] ?? 0) === 192510, 'Multi-chunk recovery row coverage checksum is incorrect.');
+    $chunkEdges = $recovery->query('SELECT id,payload FROM backup_recovery_chunked WHERE id IN (1,250,251,500,501,620) ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+    recovery_expect(count($chunkEdges) === 6, 'Multi-chunk recovery must preserve rows across every pagination boundary.');
+    recovery_expect(($chunkEdges[0]['payload'] ?? null) === 'chunk-row-0001' && ($chunkEdges[5]['payload'] ?? null) === 'chunk-row-0620', 'Multi-chunk recovery edge payloads are incorrect.');
+    $evidence['checks']['multiChunkRows'] = true;
+
     $postBackupCount = (int)$recovery->query("SELECT COUNT(*) FROM backup_recovery_parent WHERE label='POST BACKUP ROW' OR label='MUTATED AFTER BACKUP'")->fetchColumn();
     recovery_expect($postBackupCount === 0, 'Post-backup source mutation leaked into recovered snapshot.');
+    $postBackupChunkCount = (int)$recovery->query("SELECT COUNT(*) FROM backup_recovery_chunked WHERE payload='POST BACKUP CHUNK ROW'")->fetchColumn();
+    recovery_expect($postBackupChunkCount === 0, 'Post-backup chunk mutation leaked into recovered snapshot.');
     $evidence['checks']['postBackupMutationAbsent'] = true;
 
     $child = $recovery->query('SELECT parent_id,note FROM backup_recovery_child ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
@@ -277,6 +306,7 @@ try {
         try { $source->exec('DROP VIEW IF EXISTS backup_recovery_view'); } catch (Throwable) {}
         try { $source->exec('DROP TABLE IF EXISTS backup_recovery_child'); } catch (Throwable) {}
         try { $source->exec('DROP TABLE IF EXISTS backup_recovery_parent'); } catch (Throwable) {}
+        try { $source->exec('DROP TABLE IF EXISTS backup_recovery_chunked'); } catch (Throwable) {}
     }
     if ($recoveryCreated && preg_match('/^brvtal_test_recovery_[a-f0-9]{8}$/', $recoveryDb)) {
         try { $server->exec('DROP DATABASE IF EXISTS ' . brvtal_backup_identifier($recoveryDb)); } catch (Throwable) {}
