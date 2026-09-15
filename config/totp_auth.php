@@ -41,10 +41,11 @@ function brvtal_totp_pending_admin_id(): ?int {
     return $id;
 }
 
-function brvtal_totp_rate_limit(int $adminId): void {
+function brvtal_totp_rate_limit_scope(int $adminId, string $scope): void {
     $dir = __DIR__ . '/../storage/rate_limits';
     if (!is_dir($dir)) @mkdir($dir, 0750, true);
-    $key = hash('sha256', 'totp|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '|' . $adminId);
+    $prefix = $scope === 'login' ? 'totp|' : 'totp|' . $scope . '|';
+    $key = hash('sha256', $prefix . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '|' . $adminId);
     $file = $dir . '/' . $key . '.json';
     $now = time(); $window = 900; $max = 5;
     $data = ['attempts'=>[], 'blocked_until'=>0];
@@ -65,6 +66,10 @@ function brvtal_totp_rate_limit(int $adminId): void {
     @file_put_contents($file, json_encode($data), LOCK_EX);
 }
 
+function brvtal_totp_rate_limit(int $adminId): void {
+    brvtal_totp_rate_limit_scope($adminId, 'login');
+}
+
 function brvtal_totp_recovery_verify(PDO $pdo, int $adminId, string $code): bool {
     $normalized = strtoupper(preg_replace('/[^A-Z0-9]/', '', trim($code)) ?? '');
     if ($normalized === '' || strlen($normalized) !== 10) return false;
@@ -72,8 +77,9 @@ function brvtal_totp_recovery_verify(PDO $pdo, int $adminId, string $code): bool
     $st->execute([$adminId]);
     while ($row = $st->fetch()) {
         if (password_verify($normalized, (string)$row['code_hash'])) {
-            $pdo->prepare('UPDATE admin_recovery_codes SET used_at=NOW() WHERE id=? AND used_at IS NULL')->execute([(int)$row['id']]);
-            return true;
+            $consume = $pdo->prepare('UPDATE admin_recovery_codes SET used_at=NOW() WHERE id=? AND used_at IS NULL');
+            $consume->execute([(int)$row['id']]);
+            return $consume->rowCount() === 1;
         }
     }
     return false;

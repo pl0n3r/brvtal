@@ -35,4 +35,11 @@ totp_enrollment_expect(!str_contains($loginUi, "return new Response(JSON.stringi
 totp_enrollment_expect(str_contains($coreApi, "setting_key<>'security.totp_encryption_key'"), 'admin Settings must never return the database encryption key');
 totp_enrollment_expect(substr_count($coreApi, "PROTECTED_SETTING") >= 2, 'admin Settings must reject editing or deleting the encryption key');
 
+totp_enrollment_expect(str_contains($login, "brvtal_totp_rate_limit_scope(\$adminId, 'login')"), 'login TOTP throttling must retain its dedicated scope');
+totp_enrollment_expect(str_contains($api, "brvtal_totp_rate_limit_scope(\$id,'disable')"), '2FA disable must be rate limited independently from login challenges');
+totp_enrollment_expect(str_contains($login, 'return $consume->rowCount() === 1;'), 'login recovery codes must only succeed for the request that atomically consumes the code');
+totp_enrollment_expect(str_contains($api, "return ['valid'=>true,'recovery_id'=>(int)\$row['id']]"), 'disable recovery validation must defer consumption until the final transaction');
+totp_enrollment_expect(str_contains($api, '$pdo->beginTransaction();if($verification[\'recovery_id\']!==null)'), 'disable recovery consumption must occur inside the disable transaction');
+totp_enrollment_expect(str_contains($api, '$consume->rowCount()!==1'), 'disable must reject a recovery code that another request consumed first');
+
 echo "BRVTAL TOTP enrollment contract tests passed.\n";
