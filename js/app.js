@@ -215,8 +215,10 @@
       .replace(/'/g,'&#039;');
 
     const cleanUrl = (value) => {
+      const raw = String(value ?? '').trim();
+      if (!raw) return '';
       try {
-        const u = new URL(String(value || ''), location.href);
+        const u = new URL(raw, location.href);
         if (!/^https?:$/i.test(u.protocol)) return '';
         return u.href;
       } catch { return ''; }
@@ -325,7 +327,7 @@
       };
       Object.entries(socialMap).forEach(([key, keys]) => {
         const url = cleanUrl(pick(social, keys, ''));
-        qsa(`[data-social=\"${key}\"]`).forEach(el => {
+        qsa(`[data-social="${key}"]`).forEach(el => {
           if (url) {
             el.href = url;
             el.hidden = false;
