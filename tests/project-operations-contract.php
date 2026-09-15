@@ -65,7 +65,7 @@ $assert(str_contains($workflow, "  recovery:\n"), 'CI must keep isolated backup 
 $assert(str_contains($workflow, "  validate:\n"), 'CI must preserve a final validate check for branch-protection compatibility');
 $assert(str_contains($workflow, 'needs: [fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
 $assert(str_contains($workflow, 'run_recovery'), 'CI must make recovery path-aware');
-$assert(str_contains($workflow, 'Pull requests and exact `main` pushes use the same diff-aware gates'), 'exact main must use the same diff-aware scope instead of forcing every expensive job');
+$assert(str_contains($workflow, 'Pull requests and exact') && str_contains($workflow, 'pushes use the same diff-aware gates'), 'exact main must use the same diff-aware scope instead of forcing every expensive job');
 $assert(str_contains($workflow, 'actions/cache@v4'), 'browser/npm setup must use reusable Actions caches');
 $assert(str_contains($workflow, '--project=chromium'), 'normal browser gate must target Chromium explicitly');
 $assert(str_contains($workflow, '--project=webkit-totp'), 'WebKit must remain a targeted TOTP regression');
