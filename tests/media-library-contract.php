@@ -55,6 +55,7 @@ media_assert(brvtal_public_media_delivery_sanitize([
 ]) === null, 'public delivery must reject external originals');
 
 $api = (string)file_get_contents(__DIR__ . '/../api/media-library.php');
+$publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 $mediaConfig = (string)file_get_contents(__DIR__ . '/../config/media.php');
 media_assert(str_contains($api, "brvtal_admin_require_csrf"), 'writes must require CSRF');
 media_assert(str_contains($api, "MEDIA_IN_USE"), 'delete must block referenced media');
@@ -69,6 +70,13 @@ media_assert(str_contains($api, 'LOCAL_MEDIA_NOT_FOUND'), 'register must reject 
 media_assert(str_contains($api, 'finfo(FILEINFO_MIME_TYPE)'), 'register must derive MIME from local file bytes');
 media_assert(str_contains($api, 'MEDIA_TYPE_MISMATCH'), 'register must reject a declared type that disagrees with the local file');
 media_assert(str_contains($api, '$size = max(0, (int)(@filesize($absolute) ?: 0));'), 'register must persist the actual local file size');
+$uploadStart = strpos($api, "if (\$method === 'POST' && \$action === 'upload')");
+$registerStart = strpos($api, "if (\$method === 'POST' && \$action === 'register')");
+media_assert($uploadStart !== false && $registerStart !== false && $registerStart > $uploadStart, 'upload source block must remain discoverable');
+$uploadSource = substr($api, $uploadStart, $registerStart - $uploadStart);
+media_assert(str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$alt, 'draft']);"), 'new physical uploads must be persisted as draft');
+media_assert(!str_contains($uploadSource, "'published'"), 'upload path must not silently publish newly uploaded assets');
+media_assert(preg_match("/FROM media\\s+WHERE status='published'/", $publicApi) === 1, 'public Media must remain limited to explicitly published records');
 media_assert(str_contains($mediaConfig, "in_array(\$mime, ['image/jpeg', 'image/png'], true)"), 'JPEG and PNG uploads must generate a generic preserve-aspect WebP');
 media_assert(str_contains($mediaConfig, "\$result['variants']['display']"), 'Media Engine must track the generic display WebP in its sidecar');
 media_assert(str_contains($mediaConfig, "--display-"), 'generic upload WebP filenames must be deterministic and context-identifiable');
@@ -113,6 +121,7 @@ media_assert(str_contains($controller, 'FOCAL POINT / CROP'), 'inspector must ex
 media_assert(str_contains($controller, 'SAVE FOCUS + REGENERATE'), 'inspector must expose explicit variant regeneration');
 media_assert(str_contains($controller, "['square','card','hero']"), 'inspector must preview supported delivery contexts');
 media_assert(str_contains($controller, "?action=transform&id="), 'focal-point changes must use the protected transform endpoint');
+media_assert(str_contains($controller, 'media-edit-status') && str_contains($controller, "?action=update&id="), 'Media inspector must keep an explicit publication control for draft uploads');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$seo['image'], 'hero')"), 'public heroes must select the hero context variant');
 media_assert(str_contains($publicPage, "brvtal_public_media_variant((string)\$item['image'], 'card')"), 'public related cards must select the card context variant');
 media_assert(str_contains($publicIndex, 'data-public-media-search') && str_contains($publicIndex, 'data-public-media-type="image"'), 'public Media must expose search and type filters');
