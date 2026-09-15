@@ -7,26 +7,24 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Las rutas canónicas de entidades inexistentes o no públicas ya no continúan hacia el renderer completo de Home.
-- Un deep link inválido conserva HTTP 404 y `X-Robots-Tag: noindex, follow`, pero ahora devuelve una vista dedicada `RESOURCE NOT FOUND`.
-- La vista 404 ofrece recuperación clara hacia Home y no incluye el contenido `NEXT EXPERIENCE` ni el resto de la portada.
-- El SEO del 404 usa título/descripcion propios y un canonical que corresponde a la ruta solicitada, en lugar de describir `/`.
-- El body 404 incluye además `<meta name="robots" content="noindex, follow">` como defensa explícita en HTML.
+- Los fallbacks de API pública ya declarados por el frontend ahora existen realmente en el routing desplegable.
+- `/api/public` y `/api/public/` delegan a la implementación canónica `api/public.php`.
+- `/api/index.php?route=public` y `/api/index.php?action=public` también delegan a `api/public.php` antes de cualquier routing administrativo.
+- Se mantiene una sola implementación/allowlist pública; las aliases no duplican lógica de datos ni autenticación.
+- Si `/api/public.php` falla por una diferencia de URL/routing, los candidatos secundarios dejan de producir 404/401 falsos y pueden resolver el mismo payload público.
 
 ## Archivos modificados en este deploy
 
-- `index.php` — termina rutas canónicas inválidas antes de cargar/renderizar Home.
-- `config/public_seo.php` — añade documento SEO específico para recursos no encontrados.
-- `config/public_not_found.php` — renderer público dedicado de recuperación 404.
-- `tests/public-seo-delivery-contract.php` — cubre salida temprana, noindex, canonical solicitado y ausencia del Home en el 404.
+- `.htaccess` — añade aliases explícitas del API público hacia `api/public.php`.
+- `tests/api-contract.php` — exige que todos los candidatos declarados por el frontend tengan routing público soportado y previo al auth administrativo.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `2b49d9e8d7bf9c37b92e9b46bade19aca065315c`.
-- Ese SHA exacto tenía BRVTAL CI completo, PHP 8.5 Compatibility y Backup Recovery Rehearsal en success.
+- Rama creada desde `main` `b74ac4018a1ede5518bd2342183df751cfee49dd`.
+- Ese SHA exacto tenía BRVTAL CI completo, PHP 8.5 Compatibility, Backup Recovery Rehearsal y Production Performance en success.
 - No hay cambios de esquema, migraciones ni mutaciones de datos de producción.
-- La corrección reutiliza `public-entity.css` y el sistema SEO público existente; no crea una segunda experiencia de navegación.
+- `api/public.php` continúa siendo la única implementación pública de contenido/settings; las nuevas rutas son solo aliases de compatibilidad.
 - Pendiente de **BRVTAL CI / validate** y **PHP 8.5 Compatibility / php85** del PR.
 - Tras el merge se verificará la matriz completa sobre el SHA exacto de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
@@ -36,7 +34,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 1. Ejecutar los gates del PR y corregir en esta misma rama cualquier fallo detectado.
 2. Con CI verde, hacer squash merge.
 3. Verificar BRVTAL CI completo, PHP 8.5 y Backup Recovery sobre el SHA exacto resultante de `main`.
-4. Cerrar #277 y continuar con el siguiente issue público prioritario que siga vigente.
+4. Cerrar #253 y continuar con el siguiente issue público prioritario que siga vigente.
 
 ## Contexto durable
 
