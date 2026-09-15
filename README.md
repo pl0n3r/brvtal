@@ -7,26 +7,26 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- El visor fullscreen de Media ahora inmoviliza el documento subyacente mientras está abierto.
-- El lock público se amplió a un modelo con propietarios, de modo que MENU y Media viewer comparten la misma coordinación de scroll/Lenis sin desbloquearse entre sí.
-- Solo el primer modal activo congela la página y solo el último propietario que cierre restaura posición, estilos y Lenis.
-- `public-media.js` adquiere el lock al abrir una imagen y lo libera al cerrar por botón, backdrop o Escape.
-- La posición X/Y se conserva exactamente; en desktop enhanced Lenis se pausa/reanuda y en touch/reduced-motion el bloqueo funciona sin Lenis.
-- Se conserva la accesibilidad ya existente del viewer: `role=dialog`, `aria-modal`, foco inicial, Escape, flechas, focus trap y devolución de foco.
+- El health check público deja de exponer versiones exactas de PHP y MariaDB/MySQL, así como el driver de base de datos.
+- `/api/health.php` conserva únicamente señales operativas públicas: estado, disponibilidad genérica de DB, deployment, timestamp y latencia.
+- El límite común de `json_response()` reconoce también `/api/health` y `/api/index.php/health` y elimina `driver`, `server` y `php` antes de serializar cualquier respuesta pública de health.
+- Las superficies autenticadas siguen pudiendo mostrar diagnóstico técnico detallado; el hardening está restringido a las rutas públicas de health.
+- La trazabilidad pública de deployment se mantiene deliberadamente en el endpoint standalone.
 
 ## Archivos modificados en este deploy
 
-- `js/menu-scroll-lock.js` — generaliza el lock a propietarios públicos (`menu`, `media-viewer`) con restauración solo al liberar el último.
-- `js/public-media.js` — conecta el ciclo de vida del viewer al lock compartido.
-- `tests/e2e/public-media-viewer.spec.mjs` — regresión browser para wheel, Escape, foco, posición exacta, Lenis y ownership simultáneo.
+- `api/health.php` — elimina lectura/exposición explícita de versiones y driver en respuestas healthy/degraded.
+- `config/public_health.php` — nuevo helper puro para reconocer rutas públicas de health y sanear su payload.
+- `config/bootstrap.php` — aplica el saneamiento justo antes de emitir JSON únicamente para rutas públicas de health.
+- `tests/api-contract.php` — cubre aliases de health, eliminación de fingerprinting y preservación de señales operativas.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `f0e1ec584b3d2926f6663c2adef22d14cc612000`.
+- Rama creada desde `main` `45ea63ce0f476e17023bc7e2b12a420aa6da205b`.
 - Ese SHA exacto tenía BRVTAL CI completo, PHP 8.5 Compatibility y Backup Recovery Rehearsal en success.
+- El workflow Production Performance posterior a ese SHA falló en `Verify production connectivity` antes de ejecutar mediciones; se trata como evidencia operativa separada y no como validación de este cambio.
 - No hay cambios de esquema, migraciones ni mutaciones de datos de producción.
-- La corrección reutiliza la infraestructura de scroll lock ya validada por #238 en vez de duplicar otra implementación para Media.
 - Pendiente de **BRVTAL CI / validate** y **PHP 8.5 Compatibility / php85** del PR.
 - Tras el merge se verificará la matriz completa sobre el SHA exacto de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
@@ -36,7 +36,8 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 1. Ejecutar los gates del PR y corregir en esta misma rama cualquier fallo detectado.
 2. Con CI verde, hacer squash merge.
 3. Verificar BRVTAL CI completo, PHP 8.5 y Backup Recovery sobre el SHA exacto resultante de `main`.
-4. Cerrar #242 y continuar con el siguiente issue público prioritario que siga vigente.
+4. Cerrar #249 y continuar con el siguiente issue público prioritario vigente.
+5. Mantener separado el seguimiento del fallo de conectividad de Production Performance.
 
 ## Contexto durable
 
