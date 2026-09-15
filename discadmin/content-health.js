@@ -77,7 +77,7 @@
             <div class="content-health-type">${esc(String(item.type || '').toUpperCase())}</div>
             <div><div class="content-health-title">${esc(item.title || 'Untitled')}</div><div class="content-health-issues">${esc((item.issues || []).join(' · ') || 'No issues detected')}</div></div>
             <div class="content-health-pill ${scoreClass(Number(item.score || 0))}">${Number(item.score || 0)}%</div>
-            <button class="content-health-open" type="button" data-health-open="${esc(sectionFor(item.type))}">OPEN</button>
+            <button class="content-health-open" type="button" data-health-open="${esc(sectionFor(item.type))}" data-health-type="${esc(item.type || '')}" data-health-id="${Number(item.id || 0)}">OPEN</button>
           </div>`).join('') : '<div class="empty">No content records found.</div>'}
       </div>
       <div class="content-health-note">SEO title/description are scored only for content types that already persist those fields. The score is advisory and does not block drafts or publishing.</div>`;

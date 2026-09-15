@@ -2,10 +2,11 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const recordNavigationJs = readFileSync(join(process.cwd(), 'discadmin/content-core-nav.js'), 'utf8');
 const globalSearchJs = readFileSync(join(process.cwd(), 'discadmin/global-search.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/global-search-e2e.html';
 
-test('global search opens with Ctrl+K, groups results and routes through canonical shell', async ({ page }) => {
+test('global search opens with Ctrl+K, groups results and opens the selected record', async ({ page }) => {
   await page.route('**/api/admin-search.php?q=*', route => {
     const url = new URL(route.request().url());
     const q = url.searchParams.get('q') || '';
@@ -39,8 +40,10 @@ test('global search opens with Ctrl+K, groups results and routes through canonic
       <div class="main"><div class="top"><div><div class="eyebrow">BRVTAL / DISCADMIN</div><h1>DASHBOARD</h1></div><div class="status"><i></i>ONLINE</div></div></div>
       <script>
         window.go = async section => { window.__globalSearchRoute = section; };
+        window.BRVTALContentCore = { openEvent: async id => { window.__globalSearchRecordId = Number(id); } };
         window.BRVTALFeedback = { error: message => { window.__globalSearchError = message; } };
       </script>
+      <script>${recordNavigationJs}</script>
       <script>${globalSearchJs}</script>
     </body></html>`,
   }));
@@ -61,6 +64,7 @@ test('global search opens with Ctrl+K, groups results and routes through canonic
 
   await dialog.getByRole('button', { name: /Genesis Pereira/ }).click();
   await expect.poll(() => page.evaluate(() => window.__globalSearchRoute)).toBe('events');
+  await expect.poll(() => page.evaluate(() => window.__globalSearchRecordId)).toBe(10);
   await expect(dialog).toBeHidden();
 
   await page.keyboard.press('Control+K');
