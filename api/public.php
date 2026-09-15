@@ -361,10 +361,9 @@ try {
         'media' => $media,
         'pages' => $pages,
         'settings' => $settings,
-        'generated_at' => date(DATE_ATOM),
     ];
 
-    $etag = '"' . sha1(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"';
+    $etag = brvtal_public_etag($payload);
     header('ETag: ' . $etag);
 
     if (trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {
