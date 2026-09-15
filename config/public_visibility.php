@@ -21,6 +21,44 @@ function brvtal_public_visible_event_statuses(): array
     return array_values(array_unique(array_merge($groups['active'], $groups['historical'])));
 }
 
+function brvtal_public_event_datetime(mixed $value): ?DateTimeImmutable
+{
+    $raw = trim((string)$value);
+    if ($raw === '') return null;
+    try {
+        return new DateTimeImmutable($raw);
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+/**
+ * Decide whether one Event may be exposed on any public surface.
+ *
+ * Active lifecycle states are public. Historical states are public when the
+ * event date is already in the past, or when published_at proves the Event
+ * was intentionally public before it moved into a historical state. This
+ * keeps future/undated historical drafts from leaking through direct routes,
+ * relationships or the sitemap while preserving old records that predate
+ * lifecycle timestamps.
+ */
+function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = null): bool
+{
+    $status = strtolower(trim((string)($event['status'] ?? '')));
+    if (!in_array($status, brvtal_public_visible_event_statuses(), true)) return false;
+
+    $historical = brvtal_public_event_statuses()['historical'];
+    if (!in_array($status, $historical, true)) return true;
+
+    $now ??= new DateTimeImmutable('now');
+    $today = $now->setTime(0, 0, 0);
+    $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
+    $publishedAt = brvtal_public_event_datetime($event['published_at'] ?? null);
+    $pastByDate = $eventDate !== null && $eventDate < $today;
+
+    return $pastByDate || $publishedAt !== null;
+}
+
 function brvtal_public_sql_placeholders(array $values): string
 {
     if ($values === []) {
