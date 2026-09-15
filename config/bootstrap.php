@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/public_health.php';
+
 $loggerPath = __DIR__ . '/logger.php';
 if (is_file($loggerPath)) {
     require_once $loggerPath;
@@ -58,6 +60,9 @@ function db(): PDO {
 }
 
 function json_response(array $data, int $status = 200, array $headers = []): never {
+    if (brvtal_public_health_request((string)($_SERVER['REQUEST_URI'] ?? ''))) {
+        $data = brvtal_public_health_sanitize($data);
+    }
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     foreach ($headers as $name => $value) header($name . ': ' . $value);
