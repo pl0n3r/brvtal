@@ -7,25 +7,24 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Los helpers públicos de URL ahora rechazan `null`, cadenas vacías y valores compuestos solo por espacios antes de construir `new URL(...)`.
-- Home deja de convertir tickets, enlaces de Sets o redes sociales vacías en enlaces falsos hacia la página actual.
-- Archive deja de mostrar `TICKETS ↗` cuando el evento no tiene una URL editorial real.
-- CONNECTED aplica el mismo invariante a enlaces opcionales de Sets y Releases, evitando `OPEN PLATFORM ↗` o `LISTEN ↗` falsos.
-- Los valores HTTP(S) reales siguen admitiendo espacios accidentales alrededor y se normalizan después de `trim()`.
-- Se añade una regresión Playwright única para Home, Archive y CONNECTED.
+- Los listados públicos del Home enlazan ahora Events, Artists y Sets con sus páginas canónicas internas cuando existe un slug válido.
+- El título de cada Event abre `/events/{slug}` sin retirar el CTA externo de tickets.
+- Cada Artist usa `/artists/{slug}` como destino principal del elemento `PROFILE`, en lugar de sustituir el perfil BRVTAL por website/Instagram.
+- El título de cada Set abre `/sets/{slug}` y el enlace externo de escucha continúa disponible como CTA secundario.
+- Slugs vacíos o inválidos no generan rutas internas rotas.
+- La mejora se carga como enhancement público separado y reutiliza los datos CMS ya compartidos por el runtime.
 
 ## Archivos modificados en este deploy
 
-- `js/app.js` — rechaza URLs opcionales vacías antes de resolverlas contra `location.href`.
-- `js/archive.js` — aplica el mismo guard a tickets del runtime de Archive.
-- `js/related-content.js` — aplica el mismo guard a CTAs externos opcionales de CONNECTED.
-- `tests/e2e/public-empty-url-guards.spec.mjs` — cubre links vacíos/whitespace y un HTTP(S) real normalizado.
+- `js/public-canonical-navigation.js` — conecta los listados Home con rutas canónicas de Events, Artists y Sets.
+- `js/public-runtime-loader.js` — carga el enhancement de navegación canónica con la versión de deploy.
+- `tests/e2e/public-canonical-navigation.spec.mjs` — regresión Playwright para enlaces internos, CTAs externos y slugs inválidos.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `aa7b78dabfda205aae7acad3dbd689fe42f8f95f`, cuyo ciclo completo post-merge estaba verde antes de iniciar este trabajo.
-- El diff funcional permanece acotado: 8 líneas cambiadas en `app.js`, 4 en `archive.js` y 6 en `related-content.js`, además de la nueva regresión E2E.
+- Rama creada desde `main` `2b32b5f3395b6c7e538d2fed3607c736a6522e4b`, con BRVTAL CI y PHP 8.5 verdes sobre ese SHA exacto antes de iniciar el cambio.
+- El cambio no modifica contratos de datos ni elimina CTAs externos; añade únicamente navegación interna sobre slugs públicos válidos.
 - No se usa Work ni existe runner local en este flujo; la ejecución automatizada queda a cargo de los gates del PR.
 - Pendiente de **BRVTAL CI / validate** y **PHP 8.5 Compatibility / php85** del PR.
 - Tras el merge se verificará la matriz completa sobre el SHA exacto de `main`.
@@ -33,10 +32,10 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué sigue
 
-1. Abrir el PR y ejecutar los gates path-aware, incluido Chromium para la nueva regresión.
+1. Abrir el PR y ejecutar los gates path-aware, incluido Chromium para la regresión pública.
 2. Corregir en la misma rama cualquier fallo detectado por CI.
 3. Con CI verde, hacer squash merge y verificar la matriz completa sobre el SHA exacto de `main`.
-4. Cerrar #291 con el merge y continuar con el siguiente hallazgo abierto de Public Discovery según `AGENTS.md`.
+4. Cerrar #240 y continuar serialmente con #210.
 
 ## Contexto durable
 
