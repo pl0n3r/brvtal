@@ -164,19 +164,21 @@ if (function_exists('curl_init')) {
 
 $checks[] = checkRow('API', $apiStatus, $apiDetail);
 
+$failedStates = ['FAILED', 'OFFLINE', 'MISSING'];
+$warningStates = ['DEGRADED', 'READ-ONLY', 'UNKNOWN'];
+
 $bad = array_filter(
     $checks,
-    static fn(array $c): bool =>
-        in_array(
-            $c['status'],
-            ['FAILED', 'OFFLINE', 'MISSING'],
-            true
-        )
+    static fn(array $c): bool => in_array($c['status'], $failedStates, true)
+);
+$warnings = array_filter(
+    $checks,
+    static fn(array $c): bool => in_array($c['status'], $warningStates, true)
 );
 
-$overall = count($bad) === 0
-    ? 'HEALTHY'
-    : 'CHECK REQUIRED';
+$overall = count($bad) > 0
+    ? 'CHECK REQUIRED'
+    : (count($warnings) > 0 ? 'DEGRADED' : 'HEALTHY');
 ?>
 <!doctype html>
 <html lang="en">
@@ -233,14 +235,14 @@ a{color:#e6ff00;text-decoration:none}
 <?php foreach ($checks as $c):
 $class = in_array(
     $c['status'],
-    ['FAILED', 'OFFLINE', 'MISSING'],
+    $failedStates,
     true
 )
     ? 'bad'
     : (
         in_array(
             $c['status'],
-            ['DEGRADED', 'READ-ONLY', 'UNKNOWN'],
+            $warningStates,
             true
         )
         ? 'warn'

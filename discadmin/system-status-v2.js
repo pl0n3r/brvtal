@@ -41,6 +41,26 @@
     return payload;
   }
 
+  function unavailableSource(error) {
+    return {ok:false,error:String(error?.message || error || 'UNAVAILABLE')};
+  }
+
+  function sourceIssue(source, title) {
+    if (source?.ok !== false) return null;
+    return {
+      severity:'warning',
+      title,
+      detail:`UNAVAILABLE — ${String(source.error || 'request failed')}`,
+    };
+  }
+
+  function supplementalIssues(health, activity) {
+    return [
+      sourceIssue(health, 'CONTENT HEALTH'),
+      sourceIssue(activity, 'ADMIN ACTIVITY'),
+    ].filter(Boolean);
+  }
+
   function skeleton() {
     return `
       <section class="ssv2" id="system-status-v2" aria-live="polite">
@@ -94,6 +114,9 @@
   }
 
   function activityList(activity) {
+    if (activity?.ok === false) {
+      return `<div class="ssv2-empty"><strong>ADMIN ACTIVITY UNAVAILABLE</strong><br>${esc(activity.error || 'Request failed')} · use REFRESH to retry.</div>`;
+    }
     const items = activity?.data?.items || [];
     if (!items.length) return '<div class="ssv2-empty">NO RECENT ACTIVITY</div>';
     return items.map(item => `<div class="ssv2-activity-row">
@@ -103,6 +126,9 @@
   }
 
   function contentHealthBlock(health) {
+    if (health?.ok === false) {
+      return `<div class="ssv2-empty"><strong>CONTENT HEALTH UNAVAILABLE</strong><br>${esc(health.error || 'Request failed')} · use REFRESH to retry.</div>`;
+    }
     const data = health?.data || {};
     return `<div class="ssv2-content-health">
       ${ring(data.score ?? 100,'CONTENT HEALTH',`${number(data.ready || 0)} ready`,'small')}
@@ -136,7 +162,12 @@
     const runtime = data.runtime || {};
     const database = data.database || {};
     const storageUsed = clamp(storage.used_percent || 0);
-    const statusText = String(data.health?.status || 'unknown').toUpperCase();
+    const sourceIssues = supplementalIssues(health, activity);
+    const issues = [...(data.issues || []), ...sourceIssues];
+    const statusText = sourceIssues.length
+      ? 'DEGRADED'
+      : String(data.health?.status || 'unknown').toUpperCase();
+    const activityTotal = activity?.ok === false ? 'UNAVAILABLE' : `${number(activity?.data?.total || 0)} TOTAL`;
 
     root.innerHTML = `
       <div class="ssv2-hero">
@@ -157,7 +188,7 @@
 
       <div class="ssv2-grid two">
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>REPOSITORY</span><b>GITHUB + DEPLOYED SOURCE</b></div>${repositoryBlock(data)}</section>
-        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>EDITORIAL HEALTH</span><b>CONTENT CORE</b></div>${contentHealthBlock(health)}</section>
+        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>EDITORIAL HEALTH</span><b>${health?.ok === false ? 'UNAVAILABLE' : 'CONTENT CORE'}</b></div>${contentHealthBlock(health)}</section>
       </div>
 
       <div class="ssv2-grid split">
@@ -169,14 +200,14 @@
             <div><span>UPLOAD</span><strong>${esc(runtime.upload_max_filesize || '—')}</strong><small>max file</small></div>
           </div>
         </section>
-        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>ATTENTION REQUIRED</span><b>${number((data.issues || []).length)} SIGNALS</b></div><div class="ssv2-issues">${issueList(data.issues)}</div></section>
+        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>ATTENTION REQUIRED</span><b>${number(issues.length)} SIGNALS</b></div><div class="ssv2-issues">${issueList(issues)}</div></section>
       </div>
 
-      <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RECENT ADMIN ACTIVITY</span><b>${number(activity?.data?.total || 0)} TOTAL</b></div><div class="ssv2-activity">${activityList(activity)}</div></section>
+      <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RECENT ADMIN ACTIVITY</span><b>${esc(activityTotal)}</b></div><div class="ssv2-activity">${activityList(activity)}</div></section>
 
       <details class="ssv2-advanced"><summary>ADVANCED DIAGNOSTICS <span>RAW DATA / LOGS</span></summary>
         <div class="ssv2-advanced-actions"><button type="button" id="ssv2-load-logs">LOAD RECENT LOGS</button><span>Diagnostics are read-only. No automatic repair actions.</span></div>
-        <pre id="ssv2-raw">${esc(JSON.stringify(data,null,2))}</pre><pre id="ssv2-logs" hidden></pre>
+        <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
@@ -202,8 +233,8 @@
     try {
       const [data,health,activity] = await Promise.all([
         fetchJson(TECH),
-        fetchJson(HEALTH).catch(() => ({ok:false,data:{score:0}})),
-        fetchJson(ACTIVITY).catch(() => ({ok:false,data:{items:[],total:0}})),
+        fetchJson(HEALTH).catch(error => unavailableSource(error)),
+        fetchJson(ACTIVITY).catch(error => unavailableSource(error)),
       ]);
       if (id !== requestId || !root.isConnected) return;
       render(root,data,health,activity,performance.now()-started);

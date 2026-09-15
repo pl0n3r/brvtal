@@ -7,25 +7,23 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Content Health, Global Search y Admin Activity conservan ahora el ID del registro seleccionado y abren el editor exacto dentro del shell canónico de DISCADMIN.
-- La navegación exacta se centralizó en la capa compartida `content-core-nav.js`, reutilizando `go(...)`, los editores existentes y las superficies dinámicas de Releases, Blog y Media.
-- Global Search reutiliza su evento existente después de navegar al módulo; Admin Activity reutiliza el `resource_id` ya disponible en la fila; Content Health expone explícitamente `type` e `id` en su acción OPEN.
-- Los fallbacks siguen navegando al módulo canónico cuando no existe un editor exacto soportado; no se crean rutas ni mini-admins nuevos.
-- Se añadieron regresiones de navegador para comprobar que Search, Activity y Content Health abren el ID esperado, no solo el módulo.
-- No hay cambios de API, esquema, migraciones, permisos ni datos de producción.
+- System Status legacy ya no declara `HEALTHY` cuando existe un check `DEGRADED`, `READ-ONLY` o `UNKNOWN`; esos estados producen un resumen global `DEGRADED`.
+- System Status v2 deja de convertir fallos de Content Health y Admin Activity en score `0`, contadores `0` o una lista legítimamente vacía.
+- Cuando una subfuente falla, su panel muestra `UNAVAILABLE`, el resumen pasa a `DEGRADED` y `ATTENTION REQUIRED` incorpora una señal explícita con el error de la fuente.
+- El botón global `REFRESH` sigue siendo la vía de retry y Advanced Diagnostics conserva el estado de overview, Content Health y Activity para diagnóstico read-only.
+- Se añadieron regresiones para el resumen legacy y para fallos parciales de Content Health/Activity en System Status v2.
+- No hay cambios de API, base de datos, esquema, migraciones, permisos ni datos de producción.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/content-core-nav.js` — boundary compartido para navegar y revelar el registro administrativo exacto dentro del shell existente.
-- `discadmin/content-health.js` — conserva `type` e `id` en cada acción OPEN para navegación exacta.
-- `tests/e2e/discadmin-global-search.spec.mjs` — regresión de Global Search que exige abrir el Event ID seleccionado.
-- `tests/e2e/discadmin-admin-activity.spec.mjs` — regresión de Admin Activity que exige abrir el `resource_id` auditado.
-- `tests/e2e/discadmin-content-health-navigation.spec.mjs` — regresión específica para OPEN desde Content Health.
+- `discadmin/status.php` — clasificación global fail-visible para estados warning/degraded.
+- `discadmin/system-status-v2.js` — estados `UNAVAILABLE`, degradación parcial y señales de diagnóstico para subfuentes fallidas.
+- `tests/e2e/discadmin-system-status-degraded.spec.mjs` — regresiones para #161 y #256.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `8a29a206f87b8c63020484426ba461211bacd4b2`.
+- Rama creada desde `main` `29ad6620d1b03b331debd8201e3306bc6bcbf29a`.
 - Ese SHA exacto tenía BRVTAL CI completo —fast, database, Chromium, WebKit, real-stack y validate—, PHP 8.5 Compatibility y Backup Recovery Rehearsal en success.
 - Pendiente de gates del PR y, tras el merge, matriz completa sobre el SHA exacto nuevo de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
@@ -34,8 +32,8 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 1. Ejecutar los gates del PR y corregir cualquier fallo en esta misma rama.
 2. Con CI verde, hacer squash merge y verificar la matriz completa sobre el nuevo SHA exacto de `main`.
-3. Confirmar el cierre de #148, #170 y #172 y refrescar nuevamente todos los Issues abiertos.
-4. Seleccionar el siguiente batch homogéneo de Quick Wins de bajo riesgo sin mezclar cambios de seguridad/integridad de mayor alcance.
+3. Confirmar el cierre de #161 y #256 y refrescar nuevamente todos los Issues abiertos.
+4. Continuar con el siguiente batch pequeño de integridad/fiabilidad, manteniendo #332 separado como incidencia operativa de Production Performance.
 
 ## Contexto durable
 
