@@ -45,16 +45,23 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
 
     if ($type === 'events') {
         $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,ticket_url,ticket_instructions FROM events WHERE id=? LIMIT 1", [$id]);
+        $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
+        if (!$allowsTicketing) {
+            $detail['ticket_url'] = null;
+            $detail['ticket_instructions'] = null;
+        }
         $data['entity'] += $detail;
         $data['facts'] = array_filter([
             'DATE' => isset($detail['event_date']) ? date('d.m.Y / H:i', strtotime((string)$detail['event_date'])) : '',
             'LOCATION' => implode(' / ', array_filter([$detail['venue'] ?? '', $detail['city'] ?? ''])),
             'STATUS' => strtoupper(str_replace('_', ' ', (string)($detail['status'] ?? ''))),
         ]);
-        $data['links'] = array_filter(['TICKETS' => $detail['ticket_url'] ?? '']);
+        $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
         $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
-        $data['related']['TICKETS'] = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status AS meta FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
+        if ($allowsTicketing) {
+            $data['related']['TICKETS'] = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status AS meta FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
+        }
     } elseif ($type === 'artists') {
         $detail = brvtal_page_row($pdo, "SELECT instagram_url,soundcloud_url,website_url,collective_status FROM artists WHERE id=? LIMIT 1", [$id]);
         $data['entity'] += $detail;
