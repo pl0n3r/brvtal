@@ -73,11 +73,13 @@ contact_assert(str_contains($headers, 'Reply-To: felipe@example.com'), 'validate
 $ui = (string)file_get_contents(__DIR__ . '/../js/public-contact.js');
 $styles = (string)file_get_contents(__DIR__ . '/../css/contact-social.css');
 $loader = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
+contact_assert(str_contains($ui, "['instagram','soundcloud','youtube','spotify']"), 'all supported social networks are rendered in the public rail');
 foreach (['instagram', 'soundcloud', 'youtube', 'spotify'] as $network) {
-    contact_assert(str_contains($ui, "data-brvtal-social=\"{$network}\""), "{$network} has a public icon target");
+    contact_assert(str_contains($ui, $network . ": '<svg"), "{$network} has an inline SVG icon");
 }
-contact_assert(str_contains($ui, 'aria-label=\"CAPTCHA answer\"'), 'CAPTCHA input exposes an accessible name');
-contact_assert(str_contains($ui, 'role=\"status\" aria-live=\"polite\"'), 'contact status is announced accessibly');
+contact_assert(str_contains($ui, 'data-brvtal-social="${name}"'), 'generated social links expose stable data targets');
+contact_assert(str_contains($ui, 'aria-label="CAPTCHA answer"'), 'CAPTCHA input exposes an accessible name');
+contact_assert(str_contains($ui, 'role="status" aria-live="polite"'), 'contact status is announced accessibly');
 contact_assert(str_contains($ui, 'form.reset()'), 'successful delivery clears the form only after confirmation');
 contact_assert(str_contains($styles, '.brvtal-social-link{') && str_contains($styles, 'width:46px;height:46px'), 'social icons expose touch-friendly base targets');
 contact_assert(str_contains($styles, '@media(max-width:900px)') && str_contains($styles, 'width:48px;height:48px'), 'mobile social targets remain at least 48px');
