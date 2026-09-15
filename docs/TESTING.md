@@ -4,62 +4,66 @@ This document defines how BRVTAL catches regressions before GitHub -> Hostinger 
 
 ## Current baseline
 
-`BRVTAL CI` runs on:
+`BRVTAL CI` is the single automatic source-validation workflow. It runs on:
 
 - every pull request into `main`;
 - every push to `main`;
 - manual `workflow_dispatch`.
 
+Pull requests and exact `main` pushes use the same changed-file-aware gate selection. The always-on `fast` job computes scope, validates PHP 8.5, runs all top-level PHP contracts, checks JavaScript syntax, and verifies the per-deploy README snapshot on pull requests. Expensive jobs are selected only when the changed surfaces require them. Manual dispatch intentionally runs the complete matrix.
+
 The workflow validates combinations of:
 
-- PHP syntax for `config`, `discadmin`, `api`, and `tests`;
+- PHP 8.5 syntax and warning/deprecation compatibility for project PHP sources;
+- every top-level `tests/*-contract.php` safety/architecture contract;
 - JavaScript syntax for `discadmin`, public `js`, and Playwright tests;
-- API/security contracts;
-- Media Library contracts;
-- Releases and Blog contracts;
-- Content Health and SEO contracts;
-- Global Search and Bulk Actions contracts;
-- Public Archive / Entity / Related Content contracts;
-- Admin Activity and Backups contracts;
-- project operations/documentation contract;
-- migration idempotency checks;
-- MariaDB disposable integration tests;
-- Playwright browser behavior;
-- targeted Chromium and WebKit/Safari regressions;
-- Content Core real-stack test harness.
-
-A separate `Backup Recovery Rehearsal` workflow proves that the generated backup artifacts can reconstruct a disposable database and media snapshot without enabling any production restore path.
+- migration idempotency and disposable MariaDB integration tests when relevant;
+- Playwright Chromium behavior when relevant;
+- targeted WebKit/Safari TOTP regression when auth-sensitive paths change;
+- Content Core real-stack PHP + MariaDB + Chromium validation when relevant;
+- isolated backup recovery rehearsal when backup/recovery paths change;
+- one final stable `validate` aggregate check.
 
 The CI workflow must **not** commit build metadata automatically. Product version metadata is deliberate release data, not per-change noise.
 
+## Why the CI is consolidated
+
+Normal source validation lives in `.github/workflows/update-release-metadata.yml` under the visible workflow name **BRVTAL CI**. Standalone automatic wrappers for PHP 8.5 compatibility, README deploy-snapshot validation, backup recovery rehearsal, and production-smoke source contracts were removed because they duplicated checkout/runtime setup and could compete for runners.
+
+Their guarantees were not removed:
+
+- PHP 8.5 compatibility is enforced by `scripts/php85-compatibility.sh` inside `fast`;
+- README exact-diff validation runs inside `fast` on pull requests;
+- `tests/production-smoke-contract.php` runs with the other top-level PHP contracts;
+- Backup recovery rehearsal is the path-aware `recovery` job in BRVTAL CI.
+
+The actual authenticated production checks remain separate **manual-only** workflows because they interact with the deployed site rather than validating source in isolation.
+
 ## GitHub Actions build/deploy summary
 
-Every CI run publishes a `GITHUB_STEP_SUMMARY`.
+Every BRVTAL CI run publishes a `GITHUB_STEP_SUMMARY` with:
 
-At the beginning of the job it records build context such as:
-
-- event type;
-- branch/ref;
+- event type and branch/ref;
 - PR number/title when applicable;
 - source and checkout SHAs;
 - commit subject/time;
 - changed file count/list;
 - detected product areas affected;
-- deploy eligibility.
-
-At the end of the job it appends:
-
-- final job status;
-- PHP/Node/MariaDB client versions available in the runner;
-- deploy note.
+- deploy eligibility;
+- selected optional validation gates;
+- final aggregate gate results.
 
 A `push` to `main` is marked as an **auto-deploy candidate** because Hostinger is connected to `main`. This summary still does not prove that Hostinger completed the deployment or that the deployed behavior was visually/operationally verified.
 
-The workflow path remains `.github/workflows/update-release-metadata.yml` for historical compatibility, while the visible workflow name is `BRVTAL CI`.
-
 ## Commands
 
-Run contract tests:
+Run the same PHP 8.5 compatibility + top-level contract sweep used by the always-on fast gate:
+
+```bash
+bash scripts/php85-compatibility.sh
+```
+
+Run the package contract subset:
 
 ```bash
 npm run test:contracts
@@ -113,7 +117,7 @@ npm install
 npx playwright install chromium webkit
 ```
 
-GitHub Actions installs test dependencies and browser engines automatically. MariaDB integration runs against a disposable service container.
+GitHub Actions installs test dependencies and browser engines automatically. MariaDB integration runs against disposable service containers.
 
 ## Testing pyramid
 
@@ -125,6 +129,7 @@ Examples:
 
 - `php -l` for PHP files;
 - `node --check` for JS/MJS;
+- PHP 8.5 warnings/notices/deprecations treated as compatibility failures;
 - contract scans for risky public exposure or destructive admin behavior.
 
 ### 2. Contract tests
@@ -143,11 +148,15 @@ Examples include:
 - authenticated production smoke safety contract;
 - isolated backup recovery safety contract.
 
-`tests/project-operations-contract.php` specifically protects the operational documentation contract:
+`fast` auto-discovers top-level files matching `tests/*-contract.php`, so adding a new top-level contract automatically places it on the always-on gate without editing the workflow.
 
-- README must keep architecture, CI/deploy, and feature-checklist sections;
-- CI must keep GitHub Job Summary reporting;
-- CI must expose deploy eligibility and changed-file context;
+`tests/project-operations-contract.php` protects the operational delivery contract, including:
+
+- README remains a compact latest-deploy snapshot;
+- AGENTS remains the canonical AI/bootstrap source;
+- BRVTAL CI keeps GitHub Job Summary reporting and changed-file context;
+- PHP compatibility/README/recovery stay consolidated instead of regressing to duplicate workflows;
+- exact `main` uses diff-aware gates and retains the stable `validate` aggregate;
 - CI must not reintroduce automatic writes/commits to `config/version.php`.
 
 `tests/production-smoke-contract.php` protects both production-smoke boundaries:
@@ -163,7 +172,8 @@ Examples include:
 
 `tests/backup-recovery-rehearsal-contract.php` protects the recovery boundary:
 
-- the rehearsal uses only a disposable MariaDB service and fixed `brvtal_test_*` source namespace;
+- the BRVTAL CI `recovery` job uses only a disposable MariaDB service and fixed `brvtal_test_*` source namespace;
+- the job is selected through `run_recovery`, not run universally;
 - both integration and recovery-specific opt-in guards are required before destructive fixture SQL can run;
 - recovery is always into a unique `brvtal_test_recovery_*` database and that database is dropped in cleanup;
 - no production URL, GitHub secret or production environment is consumed;
@@ -185,7 +195,7 @@ Coverage includes content persistence plus specialized integration for Search, B
 
 #### Backup recovery rehearsal
 
-`.github/workflows/backup-recovery-rehearsal.yml` is an isolated CI/test workflow. It does **not** authenticate to BRVTAL production, does not consume production secrets and does not expose a restore action in DISCADMIN.
+Backup recovery is the `recovery` job inside `.github/workflows/update-release-metadata.yml`. It is selected only when backup/recovery paths change or when the full workflow is manually dispatched. It does **not** authenticate to BRVTAL production, does not consume production secrets and does not expose a restore action in DISCADMIN.
 
 The rehearsal uses a disposable source database named `brvtal_test_backup_source`, creates representative relational fixtures plus a view and temporary media files, then generates a normal BRVTAL database dump and media ZIP through the existing backup engine. After the snapshot it deliberately mutates the source data and media so the recovery check can prove it is reconstructing the backup point-in-time rather than the later source state.
 
