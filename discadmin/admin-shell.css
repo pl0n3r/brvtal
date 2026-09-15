@@ -43,6 +43,20 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   .actions{flex-wrap:wrap}
   .actions .iconbtn{min-height:40px}
   .modalbox{max-height:calc(100dvh - 24px)}
+  .content-health-open,
+  .brvtal-global-search-trigger,
+  .brvtal-global-search-close,
+  .brvtal-global-search-item,
+  .brvtal-bulk-trigger,
+  .brvtal-bulk-close,
+  .brvtal-bulk-select-all,
+  .brvtal-bulk-apply,
+  .brvtal-bulk-search,
+  .brvtal-bulk-status,
+  .activity-filter,
+  .activity-btn{min-height:44px!important}
+  .brvtal-bulk-row{min-height:44px!important}
+  .brvtal-bulk-row input{width:22px!important;height:22px!important}
 }
 @media(max-width:480px){
   .main{padding:16px 12px 40px}
