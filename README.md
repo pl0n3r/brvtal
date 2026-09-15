@@ -7,27 +7,25 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- El health check público deja de exponer versiones exactas de PHP y MariaDB/MySQL, así como el driver de base de datos.
-- `/api/health.php` conserva únicamente señales operativas públicas: estado, disponibilidad genérica de DB, deployment, timestamp y latencia.
-- El límite común de `json_response()` reconoce también `/api/health` y `/api/index.php/health` y elimina `driver`, `server` y `php` antes de serializar cualquier respuesta pública de health.
-- Las superficies autenticadas siguen pudiendo mostrar diagnóstico técnico detallado; el hardening está restringido a las rutas públicas de health.
-- La trazabilidad pública de deployment se mantiene deliberadamente en el endpoint standalone.
+- Los uploads físicos nuevos de Media Library nacen en estado `draft` en vez de publicarse automáticamente.
+- Los assets draft siguen disponibles dentro de DISCADMIN y en los pickers editoriales para preparar Events, Releases, Blog, Pages u otros contenidos antes de su publicación.
+- La colección pública de Media mantiene su allowlist actual: solo registros con `status='published'` son elegibles para entrega pública.
+- La publicación del asset sigue siendo una decisión editorial explícita desde el inspector de Media Library; publicar una entidad que lo referencia no publica automáticamente el Media global.
+- No se modifican assets existentes ni estados ya persistidos.
 
 ## Archivos modificados en este deploy
 
-- `api/health.php` — elimina lectura/exposición explícita de versiones y driver en respuestas healthy/degraded.
-- `config/public_health.php` — nuevo helper puro para reconocer rutas públicas de health y sanear su payload.
-- `config/bootstrap.php` — aplica el saneamiento justo antes de emitir JSON únicamente para rutas públicas de health.
-- `tests/api-contract.php` — cubre aliases de health, eliminación de fingerprinting y preservación de señales operativas.
+- `api/media-library.php` — cambia el estado inicial del upload físico de `published` a `draft`.
+- `tests/media-library-contract.php` — fija la política de draft por defecto, el filtro público `published` y el control explícito de publicación en DISCADMIN.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `45ea63ce0f476e17023bc7e2b12a420aa6da205b`.
+- Rama creada desde `main` `1949f203b228f90e942ca66efe375522c9b3721d`.
 - Ese SHA exacto tenía BRVTAL CI completo, PHP 8.5 Compatibility y Backup Recovery Rehearsal en success.
-- El workflow Production Performance posterior a ese SHA falló en `Verify production connectivity` antes de ejecutar mediciones; se trata como evidencia operativa separada y no como validación de este cambio.
 - No hay cambios de esquema, migraciones ni mutaciones de datos de producción.
-- Pendiente de **BRVTAL CI / validate** y **PHP 8.5 Compatibility / php85** del PR.
+- Los Media existentes conservan su estado actual; la nueva política aplica únicamente a uploads futuros.
+- Pendiente de **BRVTAL CI / validate**, **PHP 8.5 Compatibility / php85** y **Backup Recovery Rehearsal** del PR.
 - Tras el merge se verificará la matriz completa sobre el SHA exacto de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
 
@@ -36,8 +34,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 1. Ejecutar los gates del PR y corregir en esta misma rama cualquier fallo detectado.
 2. Con CI verde, hacer squash merge.
 3. Verificar BRVTAL CI completo, PHP 8.5 y Backup Recovery sobre el SHA exacto resultante de `main`.
-4. Cerrar #249 y continuar con el siguiente issue público prioritario vigente.
-5. Mantener separado el seguimiento del fallo de conectividad de Production Performance.
+4. Confirmar #201 cerrado y continuar con el siguiente issue público prioritario vigente.
 
 ## Contexto durable
 
