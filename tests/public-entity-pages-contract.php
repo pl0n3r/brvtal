@@ -50,7 +50,7 @@ public_pages_expect(str_contains($pages, 'brvtal_page_query_degraded(true)'), 'o
 public_pages_expect(str_contains($pages, 'if ($required)') && str_contains($pages, 'throw $e;'), 'required query failures must propagate instead of becoming empty rows');
 public_pages_expect(substr_count($pages, '[$id], true)') >= 6, 'each canonical entity type must treat its essential detail read as required');
 public_pages_expect(str_contains($pages, 'brvtal_page_query_degraded(false)'), 'each entity hydration must reset degradation state');
-public_pages_expect(str_contains($pages, "$data['degraded'] = brvtal_page_query_degraded();"), 'entity hydration must surface optional query degradation to delivery');
+public_pages_expect(str_contains($pages, '$data[\'degraded\'] = brvtal_page_query_degraded();'), 'entity hydration must surface optional query degradation to delivery');
 public_pages_expect(str_contains($pages, 'DATA STATUS / DEGRADED'), 'partially degraded entity pages must visibly disclose incomplete connected data');
 public_pages_expect(str_contains($pages, '<meta name="robots" content="noindex, follow">'), 'partially degraded entity pages must not be indexed');
 public_pages_expect(str_contains($entry, "require_once __DIR__ . '/config/public_unavailable.php';"), 'entity delivery must load the dedicated unavailable renderer');
