@@ -154,19 +154,33 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   const persistedTicket = finalTickets.data.find(row => Number(row.event_id) === Number(persisted.id));
   expect(Number(persistedTicket.price)).toBe(25000);
 
-  // Regression for #122: valid CMS Page JSON must persist through the same
-  // authenticated PHP/MariaDB stack used by DISCADMIN.
-  const pageSlug = 'manifiesto-brvtal-ci';
-  const pageContent = { text: 'Manifiesto' };
+  // Regression for #122 and #296/#297: valid Page JSON must persist through the
+  // authenticated stack, while published Pages must use the public English locale.
+  const rejectedPageResponse = await page.request.post(`${baseUrl}/api/index.php/pages`, {
+    headers: { 'X-CSRF-Token': loginPayload.csrf },
+    data: {
+      title: 'MANIFIESTO BRVTAL CI ES',
+      slug: 'manifiesto-brvtal-ci-es',
+      locale: 'es',
+      status: 'published',
+      content_json: JSON.stringify({ text: 'Manifiesto' }),
+    },
+  });
+  expect(rejectedPageResponse.status()).toBe(422);
+  const rejectedPagePayload = await rejectedPageResponse.json();
+  expect(rejectedPagePayload.error).toBe('PAGE_PUBLIC_LOCALE_MUST_BE_EN');
+
+  const pageSlug = 'manifesto-brvtal-ci';
+  const pageContent = { text: 'Manifesto' };
   const createPageResponse = await page.request.post(`${baseUrl}/api/index.php/pages`, {
     headers: { 'X-CSRF-Token': loginPayload.csrf },
     data: {
-      title: 'MANIFIESTO BRVTAL CI',
+      title: 'BRVTAL MANIFESTO CI',
       slug: pageSlug,
-      locale: 'es',
+      locale: 'en',
       status: 'published',
       content_json: JSON.stringify(pageContent),
-      seo_title: 'Manifiesto BRVTAL CI',
+      seo_title: 'BRVTAL Manifesto CI',
       seo_description: 'Authenticated real-stack regression for valid CMS Page JSON.',
     },
   });
@@ -181,8 +195,8 @@ test('Content Core persists create, edit, lifecycle, tickets, roster and SEO thr
   const pagesPayload = await pagesResponse.json();
   const persistedPage = pagesPayload.data.find(row => row.slug === pageSlug);
   expect(persistedPage).toBeTruthy();
-  expect(persistedPage.title).toBe('MANIFIESTO BRVTAL CI');
-  expect(persistedPage.locale).toBe('es');
+  expect(persistedPage.title).toBe('BRVTAL MANIFESTO CI');
+  expect(persistedPage.locale).toBe('en');
   expect(persistedPage.status).toBe('published');
   expect(JSON.parse(persistedPage.content_json)).toEqual(pageContent);
 });
