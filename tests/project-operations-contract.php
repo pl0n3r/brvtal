@@ -51,22 +51,32 @@ $assert(str_contains($agents, 'if a CI fix or late edit changes the PR file set 
 $assert(!str_contains($agents, 'README.md` is the human technical manual + requested-vs-completed checklist'), 'AGENTS must not describe README as a cumulative manual');
 $assert(!str_contains($agents, 'Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs/TESTING.md` before changing the product'), 'AGENTS must not require reconstructing startup context from multiple files');
 
-// CI/deployment observability, fast-feedback topology and metadata safety contract.
+// CI/deployment observability, consolidated fast gate and metadata safety contract.
 $assert(str_contains($workflow, 'GITHUB_STEP_SUMMARY'), 'BRVTAL CI must publish GitHub Actions job summaries');
 $assert(str_contains($workflow, 'Deploy eligibility'), 'CI summary must state whether a run is deploy-eligible');
 $assert(str_contains($workflow, 'Changed files'), 'CI summary must expose changed-file context');
-$assert(str_contains($workflow, "  plan:\n") && str_contains($workflow, "  fast:\n"), 'CI must expose a planning gate and a fast syntax/contract gate');
-$assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  browser:\n"), 'CI must split database and Chromium validation into independent jobs');
+$assert(str_contains($workflow, "  fast:\n"), 'CI must expose one always-on fast planning/syntax/contract gate');
+$assert(!str_contains($workflow, "  plan:\n"), 'CI must not reintroduce a separate planning runner before fast validation');
+$assert(str_contains($workflow, 'Run PHP 8.5 compatibility and contract suite'), 'fast must absorb the production PHP compatibility suite');
+$assert(str_contains($workflow, 'Verify README matches this deploy exactly'), 'README deploy-snapshot validation must remain in the main CI');
+$assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  browser:\n"), 'CI must split database and Chromium validation into independent path-aware jobs');
 $assert(str_contains($workflow, "  realstack:\n") && str_contains($workflow, "  webkit:\n"), 'CI must keep real-stack and targeted WebKit validation independent');
+$assert(str_contains($workflow, "  recovery:\n"), 'CI must keep isolated backup recovery as a path-aware job');
 $assert(str_contains($workflow, "  validate:\n"), 'CI must preserve a final validate check for branch-protection compatibility');
-$assert(str_contains($workflow, 'needs: [plan, fast, database, browser, realstack, webkit]'), 'final validate must aggregate every validation layer');
+$assert(str_contains($workflow, 'needs: [fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
+$assert(str_contains($workflow, 'run_recovery'), 'CI must make recovery path-aware');
+$assert(str_contains($workflow, 'Pull requests and exact `main` pushes use the same diff-aware gates'), 'exact main must use the same diff-aware scope instead of forcing every expensive job');
 $assert(str_contains($workflow, 'actions/cache@v4'), 'browser/npm setup must use reusable Actions caches');
 $assert(str_contains($workflow, '--project=chromium'), 'normal browser gate must target Chromium explicitly');
 $assert(str_contains($workflow, '--project=webkit-totp'), 'WebKit must remain a targeted TOTP regression');
-$assert(str_contains($workflow, 'run_webkit'), 'CI planner must make WebKit path-aware on pull requests');
+$assert(str_contains($workflow, 'run_webkit'), 'CI must make WebKit path-aware');
 $assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the runner MySQL client with mariadb-client');
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
+$assert(!is_file($root . '/.github/workflows/php85-compatibility.yml'), 'standalone PHP compatibility workflow must stay retired');
+$assert(!is_file($root . '/.github/workflows/readme-deploy-snapshot.yml'), 'standalone README snapshot workflow must stay retired');
+$assert(!is_file($root . '/.github/workflows/backup-recovery-rehearsal.yml'), 'standalone recovery workflow must stay retired');
+$assert(!is_file($root . '/.github/workflows/production-smoke-contract.yml'), 'standalone production-smoke contract workflow must stay retired');
 
 // Production performance must be measured after a green main CI run and tied to the exact deploy SHA.
 $assert(str_contains($performanceWorkflow, 'name: Production Performance'), 'production performance workflow must remain explicit');
