@@ -95,6 +95,49 @@ test('Connected exposes Artists, Events, Sets and Releases as first-class layers
   await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
 });
 
+test('CONNECTED tabs use roving focus and the expected keyboard navigation pattern', async ({ page }) => {
+  const artists = page.getByRole('tab', { name: 'ARTISTS' });
+  const events = page.getByRole('tab', { name: 'EVENTS' });
+  const sets = page.getByRole('tab', { name: 'SETS' });
+  const releases = page.getByRole('tab', { name: 'RELEASES' });
+  const panel = page.getByRole('tabpanel');
+
+  await expect(artists).toHaveAttribute('tabindex', '0');
+  await expect(events).toHaveAttribute('tabindex', '-1');
+  await expect(sets).toHaveAttribute('tabindex', '-1');
+  await expect(releases).toHaveAttribute('tabindex', '-1');
+  await expect(artists).toHaveAttribute('aria-controls', 'related-network-panel');
+  await expect(panel).toHaveAttribute('aria-labelledby', 'related-tab-artists');
+
+  await artists.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(events).toBeFocused();
+  await expect(events).toHaveAttribute('aria-selected', 'true');
+  await expect(events).toHaveAttribute('tabindex', '0');
+  await expect(artists).toHaveAttribute('tabindex', '-1');
+  await expect(panel).toHaveAttribute('aria-labelledby', 'related-tab-events');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
+
+  await page.keyboard.press('End');
+  await expect(releases).toBeFocused();
+  await expect(releases).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-related-detail] h3')).toHaveText('SIGNAL 001');
+
+  await page.keyboard.press('ArrowRight');
+  await expect(artists).toBeFocused();
+  await expect(artists).toHaveAttribute('aria-selected', 'true');
+
+  await page.keyboard.press('End');
+  await page.keyboard.press('Home');
+  await expect(artists).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(releases).toBeFocused();
+
+  await page.keyboard.press('Tab');
+  await expect(panel).toBeFocused();
+  await expect(sets).not.toBeFocused();
+});
+
 test('Archived Event returns to its exact Archive context while active Event does not', async ({ page }) => {
   await page.evaluate(() => history.replaceState({}, '', '?network_type=events&network_id=11#network'));
   await page.getByRole('tab', { name: 'EVENTS' }).click();
