@@ -78,6 +78,34 @@ function brvtal_public_event_allows_ticketing(array $event, ?DateTimeImmutable $
     return $eventDate >= $now->setTime(0, 0, 0);
 }
 
+/**
+ * Ticket Types are public only while their own lifecycle and optional
+ * availability window are valid. Window boundaries are inclusive. A malformed
+ * non-empty boundary fails closed so broken configuration cannot expose a
+ * commercial offer unexpectedly.
+ */
+function brvtal_public_ticket_type_is_available(array $ticket, ?DateTimeImmutable $now = null): bool
+{
+    $status = strtolower(trim((string)($ticket['status'] ?? '')));
+    if (!in_array($status, ['active', 'sold_out'], true)) return false;
+
+    $now ??= new DateTimeImmutable('now');
+
+    $fromRaw = trim((string)($ticket['available_from'] ?? ''));
+    if ($fromRaw !== '') {
+        $availableFrom = brvtal_public_event_datetime($fromRaw);
+        if ($availableFrom === null || $availableFrom > $now) return false;
+    }
+
+    $untilRaw = trim((string)($ticket['available_until'] ?? ''));
+    if ($untilRaw !== '') {
+        $availableUntil = brvtal_public_event_datetime($untilRaw);
+        if ($availableUntil === null || $availableUntil < $now) return false;
+    }
+
+    return true;
+}
+
 function brvtal_public_sql_placeholders(array $values): string
 {
     if ($values === []) {

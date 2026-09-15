@@ -263,6 +263,10 @@ try {
          WHERE status IN ('active','sold_out')
          ORDER BY event_id,sort_order,name"
     )->fetchAll();
+    $ticketTypes = array_values(array_filter(
+        $ticketTypes,
+        static fn(array $ticket): bool => brvtal_public_ticket_type_is_available($ticket)
+    ));
 
     $ticketsByEvent = [];
     foreach ($ticketTypes as $ticket) {

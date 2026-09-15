@@ -29,6 +29,8 @@ public_pages_expect(str_contains($pages, 'brvtal_public_sql_placeholders($eventS
 public_pages_expect(!str_contains($pages, "status IN ('published','upcoming','tickets_available','last_tickets','sold_out','cancelled','finished','archived')"), 'public entity pages must not duplicate the Event visibility allowlist');
 public_pages_expect(str_contains($pages, 'brvtal_public_event_allows_ticketing($detail)'), 'Event pages must derive ticket CTA visibility from the canonical commercial lifecycle policy');
 public_pages_expect(str_contains($pages, "if (\$allowsTicketing)"), 'Event ticket types must only be queried for commercially active Events');
+public_pages_expect(str_contains($pages, 'available_from,available_until'), 'Event page Ticket Type query must hydrate availability windows');
+public_pages_expect(str_contains($pages, 'brvtal_public_ticket_type_is_available($ticket)'), 'Event pages must apply the canonical Ticket Type availability policy');
 public_pages_expect(str_contains($pages, "\$detail['ticket_url'] = null"), 'historical Event page data must clear stale ticket URLs');
 public_pages_expect(str_contains($pages, "\$detail['ticket_instructions'] = null"), 'historical Event page data must clear stale ticket instructions');
 public_pages_expect(!str_contains($pages, "(\$href ?: '#')"), 'cards without a destination must not be dead links');
@@ -63,5 +65,37 @@ public_pages_expect(!brvtal_public_event_allows_ticketing([
     'event_date' => '2026-08-01 21:00:00',
 ], $ticketNow), 'archived Event must not expose ticket actions');
 
+public_pages_expect(brvtal_public_ticket_type_is_available([
+    'status' => 'active',
+    'available_from' => null,
+    'available_until' => null,
+], $ticketNow), 'active Ticket Type without bounds must remain public');
+public_pages_expect(brvtal_public_ticket_type_is_available([
+    'status' => 'sold_out',
+    'available_from' => '2026-09-15 10:00:00',
+    'available_until' => '2026-09-15 14:00:00',
+], $ticketNow), 'sold-out Ticket Type inside its window must remain visible');
+public_pages_expect(brvtal_public_ticket_type_is_available([
+    'status' => 'active',
+    'available_from' => '2026-09-15 12:00:00',
+    'available_until' => '2026-09-15 12:00:00',
+], $ticketNow), 'Ticket Type availability boundaries must be inclusive');
+public_pages_expect(!brvtal_public_ticket_type_is_available([
+    'status' => 'active',
+    'available_from' => '2026-09-15 12:00:01',
+], $ticketNow), 'Ticket Type must stay private before available_from');
+public_pages_expect(!brvtal_public_ticket_type_is_available([
+    'status' => 'active',
+    'available_until' => '2026-09-15 11:59:59',
+], $ticketNow), 'Ticket Type must disappear after available_until');
+public_pages_expect(!brvtal_public_ticket_type_is_available([
+    'status' => 'draft',
+    'available_from' => '2026-09-15 10:00:00',
+    'available_until' => '2026-09-15 14:00:00',
+], $ticketNow), 'draft Ticket Type must remain private even inside its window');
+public_pages_expect(!brvtal_public_ticket_type_is_available([
+    'status' => 'active',
+    'available_from' => 'not-a-date',
+], $ticketNow), 'malformed non-empty Ticket Type windows must fail closed');
 
 echo "BRVTAL public entity pages contract tests passed.\n";

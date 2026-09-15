@@ -55,6 +55,8 @@ expect(!str_contains($public, "SELECT setting_key,setting_value,is_json FROM set
 expect(str_contains($publicApp, "'/api/public.php'"), 'Public frontend must include the production public PHP endpoint');
 expect(strpos($publicApp, "'/api/public.php'") < strpos($publicApp, "'/api/public'"), 'Production public PHP endpoint must be attempted before clean-route fallbacks');
 expect(str_contains($public, "WHERE status IN ('active','sold_out')"), 'Public API must expose only active/sold-out ticket types');
+expect(str_contains($public, 'available_from,available_until'), 'Public API ticket query must hydrate availability windows');
+expect(str_contains($public, 'brvtal_public_ticket_type_is_available($ticket)'), 'Public API must apply the canonical Ticket Type availability policy');
 expect(str_contains($public, "\$event['ticket_types']"), 'Public events must include ticket types');
 expect(str_contains($public, "\$event['lineup']"), 'Public events must include lineup data');
 
