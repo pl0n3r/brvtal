@@ -16,7 +16,7 @@ const enhancementMarkers = {
   '/js/public-discovery-url-state.js': 'url-state',
   '/js/public-canonical-navigation.js': 'canonical-navigation'
 };
-const coreAndEnhancements = ['app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation'];
+const coreAndEnhancements = ['menu-scroll-lock', 'app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation'];
 
 const isMotionCdn = url => url.includes('cdn.jsdelivr.net/npm/gsap@3.13.0') || url.includes('cdn.jsdelivr.net/npm/lenis@1.3.4');
 
@@ -60,6 +60,7 @@ async function openRuntimeHarness(page, { coarse = false, reduced = false, failS
     }
 
     const coreMarkers = {
+      '/js/menu-scroll-lock.js': 'menu-scroll-lock',
       '/js/app.js': 'app',
       '/js/archive.js': 'archive',
       '/js/public-media.js': 'media'
@@ -109,6 +110,7 @@ test('touch runtime skips desktop motion downloads and preserves versioned modul
 
   expect(requests.filter(isMotionCdn)).toHaveLength(0);
   expect(requests.some(url => url.endsWith(`/js/mobile-performance.js?v=${version}`))).toBe(true);
+  expect(requests.some(url => url.endsWith(`/js/menu-scroll-lock.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/app.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-discovery-url-state.js?v=${version}`))).toBe(true);
   await expect(page.locator('#loader')).toHaveCount(0);
