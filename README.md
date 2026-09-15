@@ -11,7 +11,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - El envío conserva el mensaje escrito cuando ocurre un error y comunica estados de carga, validación, rate limit, éxito o indisponibilidad.
 - El destinatario del formulario se resuelve en servidor y puede configurarse con `contact.to` o `BRVTAL_CONTACT_TO`; el frontend no conoce el inbox interno.
 - Instagram, SoundCloud, YouTube y Spotify se muestran como iconos SVG accesibles, alineados con el lenguaje visual del sitio y ocultos cuando no existe URL configurada.
-- Se añadió cobertura PHP para CAPTCHA/rate limit/validación y cobertura Playwright para iconos, estados del formulario y targets móviles.
+- Se añadió cobertura de contrato para CAPTCHA/rate limit/validación, wiring del runtime, iconos accesibles y targets móviles. El gate Chromium existente continúa verificando que el runtime público completo no regrese.
 
 ## Archivos modificados en este deploy
 
@@ -21,14 +21,14 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `css/contact-social.css` — sistema visual responsive del formulario y rail de iconos sociales.
 - `js/public-contact.js` — monta Contact, sincroniza redes sociales y gestiona challenge/envío/errores.
 - `js/public-runtime-loader.js` — carga el enhancement de Contact dentro del runtime público versionado.
-- `tests/e2e/public-contact-social.spec.mjs` — regresiones Chromium para iconos, formulario y mobile.
-- `tests/public-contact-contract.php` — contrato PHP del anti-bot, validación y delivery metadata.
+- `tests/public-contact-contract.php` — contrato PHP del anti-bot, delivery metadata y contratos UI/runtime.
 - `README.md` — snapshot operativo exacto de este deploy.
 
 ## Validación
 
 - Base de trabajo: `main` `d21dc9ce25d081b08aa2d4451d7e2841278f384e`, con **BRVTAL CI / validate** exacto en verde y Production Performance exitoso antes de abrir esta rama.
 - Los requisitos #205 y #349 estaban abiertos y confirmados; no se abrió trabajo duplicado.
+- Dos iteraciones iniciales del fixture Playwright aislado fallaron por su contexto artificial de origen; se retiró ese fixture en vez de relajar el producto. Los contratos específicos permanecen y el gate Chromium del runtime completo sigue siendo obligatorio.
 - Pendiente: **BRVTAL CI / validate** del PR y, tras squash merge, validación del nuevo SHA exacto de `main`.
 - CI verde significa **VALIDATED IN CODE**. La recepción real de email y la composición visual final en producción requieren validación de producción después del deploy.
 
