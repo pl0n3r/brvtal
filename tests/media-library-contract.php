@@ -64,6 +64,11 @@ media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported')
 media_assert(str_contains($api, "\$action === 'transform'"), 'Media Engine v2 must expose a focal-point transform action');
 media_assert(str_contains($api, 'brvtal_media_remove_generated_variants'), 'regeneration must clean previously tracked variants');
 media_assert(!str_contains($api, "image/svg+xml"), 'SVG uploads stay disabled until a sanitizer exists');
+media_assert(str_contains($api, 'brvtal_media_local_absolute($path)'), 'registered local media must resolve through the contained uploads helper');
+media_assert(str_contains($api, 'LOCAL_MEDIA_NOT_FOUND'), 'register must reject missing local upload paths');
+media_assert(str_contains($api, 'finfo(FILEINFO_MIME_TYPE)'), 'register must derive MIME from local file bytes');
+media_assert(str_contains($api, 'MEDIA_TYPE_MISMATCH'), 'register must reject a declared type that disagrees with the local file');
+media_assert(str_contains($api, '$size = max(0, (int)(@filesize($absolute) ?: 0));'), 'register must persist the actual local file size');
 media_assert(str_contains($mediaConfig, "in_array(\$mime, ['image/jpeg', 'image/png'], true)"), 'JPEG and PNG uploads must generate a generic preserve-aspect WebP');
 media_assert(str_contains($mediaConfig, "\$result['variants']['display']"), 'Media Engine must track the generic display WebP in its sidecar');
 media_assert(str_contains($mediaConfig, "--display-"), 'generic upload WebP filenames must be deterministic and context-identifiable');
