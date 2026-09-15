@@ -60,7 +60,11 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         if ($allowsTicketing) {
-            $data['related']['TICKETS'] = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status AS meta FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
+            $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
+            $data['related']['TICKETS'] = array_values(array_filter(
+                $ticketRows,
+                static fn(array $ticket): bool => brvtal_public_ticket_type_is_available($ticket)
+            ));
         }
     } elseif ($type === 'artists') {
         $detail = brvtal_page_row($pdo, "SELECT instagram_url,soundcloud_url,website_url,collective_status FROM artists WHERE id=? LIMIT 1", [$id]);
