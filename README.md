@@ -7,22 +7,23 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- El parser del API administrativo ahora valida explícitamente la forma de URL permitida por cada recurso conocido.
-- Resources de colección única como `settings`, `auth`, `dashboard`, `upload`, `health` y `public` rechazan segmentos adicionales.
-- Events, Artists, Sets, Media, Pages y Ticket Types aceptan únicamente colección o `/{id}` numérico; Events conserva la acción canónica `/{id}/lineup`.
-- Rutas ambiguas como `/events/foo`, `/events/42/foo`, `/settings/1` o `/auth/extra` fallan cerradas y ya no pueden caer silenciosamente al CRUD genérico.
-- El contrato API cubre formas válidas e inválidas, incluido el caso `settings` documentado en #250.
+- PUT y DELETE item-level del CRUD administrativo genérico ahora verifican y bloquean la fila objetivo dentro de una transacción antes de mutarla.
+- Un ID inexistente responde `404 / NOT_FOUND` en vez de reportar éxito con `changed: 0` o `deleted: 0`.
+- Un PUT idempotente sobre una fila que sí existe conserva semántica de éxito y puede seguir devolviendo `changed: 0`.
+- La corrección aplica también a Media, que antes quedaba fuera del guard basado en Admin Activity.
+- DELETE exitoso significa que existía una fila objetivo y se eliminó exactamente una fila.
+- Se conserva Admin Activity para los recursos auditados y no se amplía este cambio a la política reference-aware de Media Library (#159).
 - No hay cambios de esquema, migraciones, permisos ni datos de producción.
 
 ## Archivos modificados en este deploy
 
-- `api/route.php` — contrato fail-closed para formas de ruta conocidas y acciones soportadas.
-- `tests/api-contract.php` — regresiones de routing para colecciones, items, lineup y segmentos inválidos.
+- `api/index.php` — existencia transaccional fail-closed para PUT/DELETE de recursos item-level.
+- `tests/api-contract.php` — contrato de lock, 404 previo a escritura/borrado y preservación de PUT idempotente.
 - `README.md` — snapshot operativo de este deploy.
 
 ## Validación
 
-- Rama creada desde `main` `854b08b124dbf7519c120bb4f67b7398999abc9a`.
+- Rama creada desde `main` `e6beea430d657e654e15c080be91ccbb2f8fcc32`.
 - Ese SHA exacto tenía BRVTAL CI completo —fast, database, Chromium, WebKit, real-stack y validate—, PHP 8.5 Compatibility y Backup Recovery Rehearsal en success.
 - Pendiente de gates del PR y, tras el merge, matriz completa sobre el SHA exacto nuevo de `main`.
 - CI verde significa **VALIDATED IN CODE**; no implica **VALIDATED IN PRODUCTION**.
@@ -31,7 +32,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 1. Ejecutar los gates del PR y corregir cualquier fallo en esta misma rama.
 2. Con CI verde, hacer squash merge y verificar la matriz completa sobre el nuevo SHA exacto de `main`.
-3. Continuar con #160/#189 como un batch separado de semántica transaccional para PUT/DELETE sobre IDs inexistentes.
+3. Continuar con otro batch pequeño de integridad del API/DISCADMIN sin mezclar la política canónica de Media Library.
 4. Mantener #332 separado como incidencia operativa de Production Performance / HTTP 403.
 
 ## Contexto durable

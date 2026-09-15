@@ -207,8 +207,31 @@ try {
         $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
         try{$st=$pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");$st->execute(array_values($p));$newId=(int)$pdo->lastInsertId();if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$newId);brvtal_activity_record($pdo,'create',$resource,$newId,null,$after,['source'=>'core_api']);$pdo->commit();}json_response(['ok'=>true,'id'=>$newId],201);}catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Insert failed',['resource'=>$resource,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
-    if($method==='PUT'&&$id!==null){$d=sanitize_payload($resource,input_json());$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();try{$before=$audited?brvtal_activity_fetch_resource($pdo,$table,$id,true):null;if($audited&&$before===null){if($pdo->inTransaction())$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}if($resource==='events'&&$before!==null)$p=brvtal_event_lifecycle_patch($before,$p);if($resource==='pages'&&$before!==null){$pageStateError=brvtal_page_publication_error(array_replace($before,$p));if($pageStateError!==null){if($pdo->inTransaction())$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}if(!$p){if($pdo->inTransaction())$pdo->rollBack();json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);}$set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$id);if($before!==null&&$after!==null)brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api']);$pdo->commit();}json_response(['ok'=>true,'changed'=>$changed]);}catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Update failed',['resource'=>$resource,'id'=>$id,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
-    if($method==='DELETE'&&$id!==null){$audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();try{$before=$audited?brvtal_activity_fetch_resource($pdo,$table,$id,true):null;$st=$pdo->prepare("DELETE FROM {$table} WHERE id=?");$st->execute([$id]);$deleted=(int)$st->rowCount();if($audited){if($deleted>0&&$before!==null)brvtal_activity_record($pdo,'delete',$resource,$id,$before,null,['source'=>'core_api']);$pdo->commit();}json_response(['ok'=>true,'deleted'=>$deleted]);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}}
+    if($method==='PUT'&&$id!==null){
+        $d=sanitize_payload($resource,input_json());$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);
+        $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
+        try{
+            $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
+            if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            if($resource==='events')$p=brvtal_event_lifecycle_patch($before,$p);
+            if($resource==='pages'){$pageStateError=brvtal_page_publication_error(array_replace($before,$p));if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}
+            if(!$p){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);}
+            $set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();
+            if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$id);if($after!==null)brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api']);}
+            $pdo->commit();json_response(['ok'=>true,'changed'=>$changed]);
+        }catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Update failed',['resource'=>$resource,'id'=>$id,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    }
+    if($method==='DELETE'&&$id!==null){
+        $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
+        try{
+            $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
+            if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            $st=$pdo->prepare("DELETE FROM {$table} WHERE id=?");$st->execute([$id]);$deleted=(int)$st->rowCount();
+            if($deleted!==1){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            if($audited)brvtal_activity_record($pdo,'delete',$resource,$id,$before,null,['source'=>'core_api']);
+            $pdo->commit();json_response(['ok'=>true,'deleted'=>1]);
+        }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    }
     if($method==='DELETE'&&$resource==='settings'&&$id===null){$key=preg_replace('/[^a-zA-Z0-9_.-]/','',(string)($_GET['key']??''))??'';if($key==='')json_response(['ok'=>false,'error'=>'KEY_REQUIRED'],422);if($key==='security.totp_encryption_key')json_response(['ok'=>false,'error'=>'PROTECTED_SETTING'],403);$st=$pdo->prepare('DELETE FROM settings WHERE setting_key=?');$st->execute([$key]);json_response(['ok'=>true,'deleted'=>(int)$st->rowCount()]);}
     method_not_allowed();
 } catch(Throwable $e) { handle_exception($e); }
