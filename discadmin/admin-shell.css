@@ -27,6 +27,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(max-width:850px){
   .shell{display:block;min-height:100dvh}
   .main{padding:20px 18px 48px}
+  .top{position:sticky;top:0;z-index:60;margin:0 -6px;padding:8px 6px 22px;background:color-mix(in srgb,Canvas 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
   .side{position:fixed;inset:0 auto 0 0;width:min(320px,calc(100vw - 48px));height:100dvh;max-height:none;padding:24px 16px;overflow-y:auto;border-right:1px solid #393e43;border-bottom:0;z-index:72;visibility:hidden;transform:translateX(-105%);transition:transform .2s ease,visibility .2s}
   .shell.admin-nav-open .side{visibility:visible;transform:translateX(0)}
   .admin-nav-scrim{position:fixed;inset:0;z-index:71;background:#000b;border:0;width:100%;height:100%;padding:0}
@@ -54,7 +55,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   .brvtal-bulk-search,
   .brvtal-bulk-status,
   .activity-filter,
-  .activity-btn{min-height:44px!important}
+  .activity-btn,
+  .theme-tab{min-height:44px!important}
+  [data-admin-module="content-core"] .icon{min-width:44px!important;min-height:44px!important}
   .brvtal-bulk-row{min-height:44px!important}
   .brvtal-bulk-row input{width:22px!important;height:22px!important}
 }
