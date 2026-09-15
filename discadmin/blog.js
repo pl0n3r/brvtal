@@ -2,7 +2,19 @@ window.BRVTALBlog = (() => {
   'use strict';
 
   const endpoint = '/api/blog.php';
-  const store = { root:null, posts:[], related:{event:[],artist:[],set:[],release:[]}, loading:false };
+  const relatedSources = {
+    event: '/api/index.php/events',
+    artist: '/api/index.php/artists',
+    set: '/api/index.php/sets',
+    release: '/api/releases.php'
+  };
+  const store = {
+    root:null,
+    posts:[],
+    related:{event:[],artist:[],set:[],release:[]},
+    relatedState:{event:'loading',artist:'loading',set:'loading',release:'loading'},
+    loading:false
+  };
   let editorLoadId = 0;
   let editorController = null;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -12,6 +24,7 @@ window.BRVTALBlog = (() => {
     return '/' + raw.replace(/^\.?\//,'').replace(/^\/+/,'');
   };
   const slugify = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const relationKey = relation => `${String(relation?.related_type || '')}:${Number(relation?.related_id)}`;
 
   function setStatus(message='',kind='') {
     const el=store.root?.querySelector('#blog-status'); if(!el)return;
@@ -34,14 +47,34 @@ window.BRVTALBlog = (() => {
   function render(){if(!store.root)return;renderMetrics();const grid=store.root.querySelector('#blog-grid');if(!grid)return;const rows=visibleRows();if(!rows.length){grid.innerHTML='<div class="blog-empty">NO POSTS MATCH THIS VIEW</div>';return}grid.innerHTML=rows.map(post=>`<article class="blog-row" data-blog-id="${Number(post.id)}"><div>${cover(post)}</div><div><div class="blog-title">${esc(post.title)}</div><div class="blog-meta">/${esc(post.slug)}${Number(post.featured)===1?' · FEATURED':''}</div></div><div class="blog-excerpt">${esc(post.excerpt||'NO EXCERPT')}</div><div class="blog-date"><div class="blog-meta">PUBLISHED</div><b>${esc(post.published_at||'NOT YET')}</b></div><div class="blog-actions"><span class="blog-status-wrap"><span class="blog-status-pill ${esc(post.status)}">${esc(post.status)}</span></span><button class="iconbtn" type="button" data-edit>EDIT</button><button class="iconbtn" type="button" data-delete>DELETE</button></div></article>`).join('');grid.querySelectorAll('[data-blog-id]').forEach(row=>{const id=Number(row.dataset.blogId);row.querySelector('[data-edit]')?.addEventListener('click',()=>openEditor(id));row.querySelector('[data-delete]')?.addEventListener('click',()=>remove(id))})}
 
   async function loadRelated(){
-    const fetchJson=async url=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store'});const j=await r.json().catch(()=>({}));return r.ok&&j.ok!==false&&Array.isArray(j.data)?j.data:[]};
-    const [events,artists,sets,releases]=await Promise.all([fetchJson('/api/index.php/events'),fetchJson('/api/index.php/artists'),fetchJson('/api/index.php/sets'),fetchJson('/api/releases.php')]);
-    store.related={event:events,artist:artists,set:sets,release:releases};
+    Object.keys(relatedSources).forEach(type=>{store.relatedState[type]='loading'});
+    const results=await Promise.all(Object.entries(relatedSources).map(async([type,url])=>{
+      try{
+        const r=await fetch(url,{credentials:'same-origin',cache:'no-store'});
+        const j=await r.json().catch(()=>null);
+        if(!r.ok||!j||j.ok===false||!Array.isArray(j.data))throw new Error(j?.error||('HTTP_'+r.status));
+        return [type,{state:'ready',data:j.data}];
+      }catch(error){
+        return [type,{state:'error',data:[],error:error?.message||'RELATED_SOURCE_UNAVAILABLE'}];
+      }
+    }));
+    results.forEach(([type,result])=>{store.related[type]=result.data;store.relatedState[type]=result.state});
   }
-  async function refresh(){if(store.loading)return;store.loading=true;try{setStatus('Loading blog…');const [result]=await Promise.all([request(''),loadRelated()]);store.posts=Array.isArray(result.data)?result.data:[];render();setStatus('EDITORIAL READY','ok')}catch(error){if(error?.message==='BLOG_SCHEMA_MISSING'){const grid=store.root?.querySelector('#blog-grid');if(grid)grid.innerHTML='<div class="blog-schema-note"><b>BLOG DATABASE MIGRATION REQUIRED</b><br>Run database/migration_blog_01.sql before using this module.</div>';setStatus('BLOG_SCHEMA_MISSING','err')}else setStatus('Unable to load blog: '+(error?.message||'UNKNOWN_ERROR'),'err')}finally{store.loading=false}}
+  async function refresh(){if(store.loading)return;store.loading=true;try{setStatus('Loading blog…');const [result]=await Promise.all([request(''),loadRelated()]);store.posts=Array.isArray(result.data)?result.data:[];render();const relatedErrors=Object.values(store.relatedState).some(state=>state==='error');setStatus(relatedErrors?'EDITORIAL READY · RELATED SOURCE WARNING':'EDITORIAL READY',relatedErrors?'err':'ok')}catch(error){if(error?.message==='BLOG_SCHEMA_MISSING'){const grid=store.root?.querySelector('#blog-grid');if(grid)grid.innerHTML='<div class="blog-schema-note"><b>BLOG DATABASE MIGRATION REQUIRED</b><br>Run database/migration_blog_01.sql before using this module.</div>';setStatus('BLOG_SCHEMA_MISSING','err')}else setStatus('Unable to load blog: '+(error?.message||'UNKNOWN_ERROR'),'err')}finally{store.loading=false}}
   function input(id){return document.getElementById(id)}function value(id){return input(id)?.value?.trim?.()??''}
   function relationLabel(type,item){if(type==='artist')return item.name||item.slug||('Artist '+item.id);return item.title||item.name||item.slug||(type+' '+item.id)}
-  function relationBoxes(record){const selected=new Set((record?.relations||[]).map(r=>`${r.related_type}:${Number(r.related_id)}`));return `<div class="blog-related-grid">${Object.entries(store.related).map(([type,items])=>`<div class="blog-related-box"><strong>${type.toUpperCase()}S</strong>${items.length?items.map(item=>`<label class="blog-related-item"><input type="checkbox" data-blog-related-type="${type}" data-blog-related-id="${Number(item.id)}" ${selected.has(type+':'+Number(item.id))?'checked':''}><span>${esc(relationLabel(type,item))}</span></label>`).join(''):'<span class="helper">No records available.</span>'}</div>`).join('')}</div>`}
+  function relationBoxes(record){const selected=new Set((record?.relations||[]).map(relationKey));return `<div class="blog-related-grid">${Object.entries(store.related).map(([type,items])=>{const state=store.relatedState[type];const body=state==='error'?`<span class="helper blog-related-error">Unable to load ${esc(type.toUpperCase())}S. Existing relations will be preserved.</span>`:items.length?items.map(item=>`<label class="blog-related-item"><input type="checkbox" data-blog-related-type="${type}" data-blog-related-id="${Number(item.id)}" ${selected.has(type+':'+Number(item.id))?'checked':''}><span>${esc(relationLabel(type,item))}</span></label>`).join(''):'<span class="helper">No records available.</span>';return `<div class="blog-related-box" data-blog-related-source="${type}" data-state="${state}"><strong>${type.toUpperCase()}S</strong>${body}</div>`}).join('')}</div>`}
+
+  function mergeRelations(existingRelations=[]){
+    const failedTypes=new Set(Object.entries(store.relatedState).filter(([,state])=>state==='error').map(([type])=>type));
+    const checked=[...document.querySelectorAll('[data-blog-related-type]:checked')].map(el=>({related_type:String(el.dataset.blogRelatedType||''),related_id:Number(el.dataset.blogRelatedId)})).filter(relation=>relation.related_type&&Number.isFinite(relation.related_id));
+    const checkedKeys=new Set(checked.map(relationKey));
+    const existing=(Array.isArray(existingRelations)?existingRelations:[]).map((relation,index)=>({related_type:String(relation?.related_type||''),related_id:Number(relation?.related_id),sort_order:Number.isFinite(Number(relation?.sort_order))?Number(relation.sort_order):index})).filter(relation=>relation.related_type&&Number.isFinite(relation.related_id)).sort((a,b)=>a.sort_order-b.sort_order);
+    const merged=[];const seen=new Set();
+    existing.forEach(relation=>{const key=relationKey(relation);if(failedTypes.has(relation.related_type)||checkedKeys.has(key)){merged.push({related_type:relation.related_type,related_id:relation.related_id});seen.add(key)}});
+    checked.forEach(relation=>{const key=relationKey(relation);if(!seen.has(key)){merged.push(relation);seen.add(key)}});
+    return merged.map((relation,index)=>({...relation,sort_order:index}));
+  }
 
   function openEditor(id=null){
     const loadId=++editorLoadId;
@@ -56,11 +89,11 @@ window.BRVTALBlog = (() => {
       content.innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="grid2"><div class="field"><label>Title *</label><input id="blog_title" value="${esc(r.title||'')}"></div><div class="field"><label>Slug *</label><input id="blog_slug" value="${esc(r.slug||'')}"></div><div class="field full"><label>Excerpt</label><textarea id="blog_excerpt">${esc(r.excerpt||'')}</textarea></div><div class="field full"><label>Body</label><textarea id="blog_body" style="min-height:300px">${esc(r.body||'')}</textarea></div><div class="field full"><label>Cover image</label><div class="blog-editor-cover thumbcell">${r.cover_image?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.cover_image))}" alt="${esc(r.title||'Cover')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(r.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label>Status</label><select id="blog_status_field"><option value="draft" ${r.status==='draft'||!r.status?'selected':''}>Draft</option><option value="published" ${r.status==='published'?'selected':''}>Published</option><option value="archived" ${r.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label>Sort order</label><input id="blog_sort_order" type="number" value="${Number(r.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(r.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>TAXONOMY</strong><span class="helper">Comma-separated tags</span></div><div class="field"><label>Tags</label><input class="blog-tag-input" id="blog_tags" value="${esc((r.tags||[]).map(t=>t.name).join(', '))}" placeholder="hard techno, culture, announcement"></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(r)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label>SEO title</label><input id="blog_seo_title" value="${esc(r.seo_title||'')}"></div><div class="field"><label>SEO description</label><textarea id="blog_seo_description">${esc(r.seo_description||'')}</textarea></div></div></div></div>`;
       const titleInput=input('blog_title'),slugInput=input('blog_slug');let slugTouched=Boolean(r.slug);slugInput?.addEventListener('input',()=>{slugTouched=true});titleInput?.addEventListener('input',()=>{if(!slugTouched&&slugInput)slugInput.value=slugify(titleInput.value)});
       document.getElementById('blog-cover-picker')?.addEventListener('click',()=>{const coverInput=input('blog_cover_image');if(coverInput&&window.BRVTALMediaLibrary?.openPicker)window.BRVTALMediaLibrary.openPicker(coverInput,{imagesOnly:true})});
-      saveButton.onclick=()=>save(id);modal.classList.add('open');
+      saveButton.onclick=()=>save(id,r);modal.classList.add('open');
     };load();
   }
-  function payload(){const tags=value('blog_tags').split(',').map(x=>x.trim()).filter(Boolean);const relations=[...document.querySelectorAll('[data-blog-related-type]:checked')].map((el,index)=>({related_type:el.dataset.blogRelatedType,related_id:Number(el.dataset.blogRelatedId),sort_order:index}));return{title:value('blog_title'),slug:value('blog_slug'),excerpt:value('blog_excerpt'),body:value('blog_body'),cover_image:normalizeMediaPath(value('blog_cover_image')),seo_title:value('blog_seo_title'),seo_description:value('blog_seo_description'),status:value('blog_status_field')||'draft',featured:input('blog_featured')?.checked?1:0,sort_order:Number(value('blog_sort_order')||0),tags,relations}}
-  async function save(id=null){const button=document.getElementById('saveBtn');if(button){button.disabled=true;button.textContent='SAVING…'}try{const data=payload();if(!data.title)throw new Error('TITLE_REQUIRED');if(!data.slug)data.slug=slugify(data.title);await request(id?'?id='+encodeURIComponent(id):'',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(typeof closeModal==='function')closeModal();await refresh();setStatus('Post saved.','ok')}catch(error){setStatus('Could not save post: '+(error?.message||'UNKNOWN_ERROR'),'err');window.BRVTALFeedback?.error?.((error?.message||'Blog save failed').replace(/_/g,' '),'blog-save')}finally{if(button?.isConnected){button.disabled=false;button.textContent='GUARDAR'}}}
+  function payload(existingRelations=[]){const tags=value('blog_tags').split(',').map(x=>x.trim()).filter(Boolean);const relations=mergeRelations(existingRelations);return{title:value('blog_title'),slug:value('blog_slug'),excerpt:value('blog_excerpt'),body:value('blog_body'),cover_image:normalizeMediaPath(value('blog_cover_image')),seo_title:value('blog_seo_title'),seo_description:value('blog_seo_description'),status:value('blog_status_field')||'draft',featured:input('blog_featured')?.checked?1:0,sort_order:Number(value('blog_sort_order')||0),tags,relations}}
+  async function save(id=null,record={}){const button=document.getElementById('saveBtn');if(button){button.disabled=true;button.textContent='SAVING…'}try{const data=payload(record?.relations||[]);if(!data.title)throw new Error('TITLE_REQUIRED');if(!data.slug)data.slug=slugify(data.title);await request(id?'?id='+encodeURIComponent(id):'',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(typeof closeModal==='function')closeModal();await refresh();setStatus('Post saved.','ok')}catch(error){setStatus('Could not save post: '+(error?.message||'UNKNOWN_ERROR'),'err');window.BRVTALFeedback?.error?.((error?.message||'Blog save failed').replace(/_/g,' '),'blog-save')}finally{if(button?.isConnected){button.disabled=false;button.textContent='GUARDAR'}}}
   async function remove(id){if(!confirm('Delete this blog post?'))return;try{await request('?id='+encodeURIComponent(id),{method:'DELETE'});await refresh();setStatus('Post deleted.','ok')}catch(error){setStatus('Could not delete post: '+(error?.message||'UNKNOWN_ERROR'),'err')}}
   function mount(root){store.root=root;root.querySelector('#blog-new')?.addEventListener('click',()=>openEditor());root.querySelector('#blog-search')?.addEventListener('input',render);root.querySelector('#blog-status-filter')?.addEventListener('change',render);refresh()}
   return {mount,refresh,openEditor};
