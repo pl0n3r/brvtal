@@ -6,25 +6,25 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se protege el editor canónico de Events para que un guardado no pueda reemplazar el lineup mientras la participación todavía está cargando o quedó en error.
-- La hidratación de lineup ahora usa política **latest-wins**, evitando que una respuesta tardía de otro Event vuelva a pintar relaciones obsoletas.
-- Al guardar participación existente se preservan `role` y `lineup_order`; editar fecha, venue u otros campos del Event ya no debe borrar roles ni reconstruir el running order según el catálogo global de Artists.
-- Los Artists recién añadidos al lineup se anexan después del mayor `lineup_order` existente sin renumerar relaciones previas.
-- Se añadió cobertura Playwright para la ventana de hidratación, preservación de metadata y carrera entre dos Events.
+- El editor de Blog ahora distingue una fuente relacionada realmente vacía de una fuente que falló al cargar.
+- Si Events, Artists, Sets o Releases falla temporalmente, el editor muestra una advertencia explícita en lugar de presentar ese origen como vacío.
+- Al guardar una edición, las relaciones existentes pertenecientes a una fuente fallida se conservan aunque no existan checkboxes disponibles para representarlas.
+- Las relaciones existentes que siguen seleccionadas mantienen su orden editorial y las relaciones nuevas se anexan después, evitando reemplazos destructivos por una falla transitoria.
+- Se añadió cobertura Playwright para preservar una relación Blog→Artist mientras Artists está caído y para diferenciar ese error de una respuesta válida con cero registros.
 - No hay cambios de esquema, migraciones ni acciones sobre datos de producción.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/content-core.js` — añade estado/token de hidratación del lineup y preservación de metadata relacional al guardar.
-- `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs` — regresiones de guardado temprano, `role`, `lineup_order` y latest-wins.
+- `discadmin/blog.js` — añade estado por fuente relacionada y combinación no destructiva de relaciones al guardar.
+- `tests/e2e/discadmin-blog.spec.mjs` — cubre fallo parcial de fuentes, preservación relacional y estado vacío válido.
 - `README.md` — snapshot operativo exacto de este deploy.
 
 ## Validación
 
-- Base de trabajo: `main` `8da56d9db304e951c8117a393b300c864e77e4ec`, con **BRVTAL CI / validate** exacto en verde antes de abrir este batch.
-- Los defectos #181, #230 y #231 estaban confirmados por inspección del flujo canónico de Content Core en `main`.
+- Base de trabajo: `main` `c8c3b85ffa3ce2ff2b9b67fdaa7a165cdfaaf8f4`, con **BRVTAL CI / validate** exacto en verde antes de abrir este batch.
+- El hallazgo #200 estaba confirmado por inspección del flujo de Blog en `main`: un fallo de carga se convertía en `[]` y el guardado reconstruía `relations` únicamente desde checkboxes visibles.
 - Pendiente: **BRVTAL CI / validate** del PR y, tras squash merge, validación del nuevo SHA exacto de `main`.
-- CI verde significa **VALIDATED IN CODE**; no implica validación del editor autenticado en producción.
+- CI verde significa **VALIDATED IN CODE**; no implica validación funcional autenticada en producción.
 
 ## Qué sigue
 
@@ -36,4 +36,4 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de pruebas: `docs/TESTING.md`.
-- Issues cubiertos: `#181`, `#230`, `#231`.
+- Issue cubierto: `#200`.
