@@ -20,7 +20,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `7 archivos` · **+232** líneas · **−45** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `7 archivos` · **+263** líneas · **−45** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### SYSTEM STATUS / GITHUB
@@ -33,7 +33,7 @@ Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este depl
 
 - `tests/system-status-contract.php` — 🟡 MOD · **+15 / −1** · exige query `is:issue is:open`, payload acotado, caché compatible, ausencia de token y separación semántica entre plataforma/backlog.
 - `tests/e2e/discadmin-system-status-v2.spec.mjs` — 🟡 MOD · **+63 / −11** · valida contador/listado GitHub, links, health independiente y mobile/touch/overflow usando el CSS real del módulo.
-- `tests/e2e/discadmin-system-status-degraded.spec.mjs` — 🟡 MOD · **+37 / −10** · valida fallos de Content Health/Activity y que un GitHub backlog unavailable nunca se convierta en `0` ni reduzca el health score.
+- `tests/e2e/discadmin-system-status-degraded.spec.mjs` — 🟡 MOD · **+68 / −10** · valida fallos de fuentes auxiliares y los tres estados del backlog: fresh, stale/cached y unavailable sin falso cero ni impacto en el health score.
 
 ### CONTEXTO DURABLE
 
@@ -47,16 +47,16 @@ Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este depl
 
 - Base exacta: `main` `83b6dc8e240010dc3f760daf6477000ace7a24fa`.
 - Esa base quedó completamente verde en **BRVTAL CI #636** después del squash merge de #408.
-- Issue: **#409**.
-- Rama: `fix/system-status-github-issues`.
+- PR: **#410** · issue: **#409**.
 - No hay migration, cambio de schema, credenciales nuevas ni mutación de producción.
 - El backlog GitHub es metadata pública read-only y permanece fuera del cálculo de salud operativa.
-- Pendiente: abrir PR, ejecutar BRVTAL CI + CodeRabbit, corregir cualquier hallazgo y hacer squash merge solo con validación verde.
+- BRVTAL CI **#639** quedó completamente verde sobre el head previo a añadir la regresión explícita de estado `stale`; al cambiar el head, ese run queda como evidencia intermedia y no como gate final de merge.
+- El head actual añade cobertura ejecutable de `stale/cached`; requiere un nuevo BRVTAL CI + re-revisión CodeRabbit antes del squash.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Validar #409 con BRVTAL CI + CodeRabbit.
+1. Validar el head final de #410 con BRVTAL CI + CodeRabbit.
 2. Squash merge solo con `validate` verde y revisión limpia.
 3. Verificar BRVTAL CI del SHA exacto resultante en `main`.
 4. Confirmar el deploy por separado antes de cualquier estado **VALIDATED IN PRODUCTION**.
