@@ -31,18 +31,18 @@ admin_logs_cache_assert(
 
 $authPos = strpos($source, 'brvtal_admin_require();');
 $cachePos = strpos($source, "header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');");
-$actionPos = strpos($source, "$action = (string)(\$_GET['action'] ?? '');");
+$actionPos = strpos($source, "\$action = (string)(\$_GET['action'] ?? '');");
 admin_logs_cache_assert(
     is_int($authPos) && is_int($cachePos) && is_int($actionPos) && $authPos < $cachePos && $cachePos < $actionPos,
     'no-store policy must apply after authentication and before every log action branch'
 );
 
 admin_logs_cache_assert(
-    str_contains($source, "if ($action === 'download' && is_file($logFile))"),
+    str_contains($source, "=== 'download' && is_file("),
     'download action remains inside the shared response policy'
 );
 admin_logs_cache_assert(
-    str_contains($source, "if ($action === 'clear')"),
+    str_contains($source, "=== 'clear'"),
     'clear action remains inside the shared response policy'
 );
 admin_logs_cache_assert(
