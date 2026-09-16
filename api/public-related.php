@@ -122,43 +122,139 @@ function brvtal_public_sanitize_blog_relations(
     return $posts;
 }
 
-function brvtal_public_related_graph(
+/**
+ * Keep Media relations only when their targets exist in the exact final public
+ * pools. Relations are also decorated here so the browser never needs a second
+ * lookup/request to render cultural context.
+ */
+function brvtal_public_sanitize_media_relations(
+    array $media,
     array $activeEvents,
     array $archiveEvents,
     array $artists,
     array $sets,
     array $releases
 ): array {
+    $maps = ['event'=>[], 'artist'=>[], 'set'=>[], 'release'=>[]];
+
+    foreach (array_merge($activeEvents, $archiveEvents) as $event) {
+        if (!is_array($event)) continue;
+        $id = (int)($event['id'] ?? 0);
+        if ($id > 0) {
+            $maps['event'][$id] = [
+                'title'=>(string)($event['title'] ?? ''),
+                'slug'=>(string)($event['slug'] ?? ''),
+                'route_type'=>'events',
+            ];
+        }
+    }
+    foreach ($artists as $artist) {
+        if (!is_array($artist)) continue;
+        $id = (int)($artist['id'] ?? 0);
+        if ($id > 0) {
+            $maps['artist'][$id] = [
+                'title'=>(string)($artist['name'] ?? ''),
+                'slug'=>(string)($artist['slug'] ?? ''),
+                'route_type'=>'artists',
+            ];
+        }
+    }
+    foreach ($sets as $set) {
+        if (!is_array($set)) continue;
+        $id = (int)($set['id'] ?? 0);
+        if ($id > 0) {
+            $maps['set'][$id] = [
+                'title'=>(string)($set['title'] ?? ''),
+                'slug'=>(string)($set['slug'] ?? ''),
+                'route_type'=>'sets',
+            ];
+        }
+    }
+    foreach ($releases as $release) {
+        if (!is_array($release)) continue;
+        $id = (int)($release['id'] ?? 0);
+        if ($id > 0) {
+            $maps['release'][$id] = [
+                'title'=>(string)($release['title'] ?? ''),
+                'slug'=>(string)($release['slug'] ?? ''),
+                'route_type'=>'releases',
+            ];
+        }
+    }
+
+    foreach ($media as &$item) {
+        if (!is_array($item)) continue;
+        $relations = is_array($item['relations'] ?? null) ? $item['relations'] : [];
+        $public = [];
+        foreach ($relations as $relation) {
+            if (!is_array($relation)) continue;
+            $type = strtolower(trim((string)($relation['related_type'] ?? '')));
+            $id = (int)($relation['related_id'] ?? 0);
+            if ($id < 1 || !isset($maps[$type][$id])) continue;
+            $target = $maps[$type][$id];
+            $public[] = [
+                'related_type'=>$type,
+                'related_id'=>$id,
+                'sort_order'=>(int)($relation['sort_order'] ?? 0),
+                'title'=>$target['title'],
+                'slug'=>$target['slug'],
+                'route_type'=>$target['route_type'],
+            ];
+        }
+        $item['relations'] = $public;
+    }
+    unset($item);
+
+    return $media;
+}
+
+function brvtal_public_related_graph(
+    array $activeEvents,
+    array $archiveEvents,
+    array $artists,
+    array $sets,
+    array $releases,
+    array $media = []
+): array {
     $events = array_merge($activeEvents, $archiveEvents);
     $eventIds = brvtal_public_relation_id_set($events);
     $artistIds = brvtal_public_relation_id_set($artists);
     $setIds = brvtal_public_relation_id_set($sets);
     $releaseIds = brvtal_public_relation_id_set($releases);
+    $mediaIds = brvtal_public_relation_id_set($media);
 
     $graph = [
         'events' => [],
         'artists' => [],
         'sets' => [],
         'releases' => [],
+        'media' => [],
         'counts' => [
             'event_artist' => 0,
             'event_set' => 0,
             'artist_set' => 0,
             'artist_release' => 0,
+            'event_media' => 0,
+            'artist_media' => 0,
+            'set_media' => 0,
+            'release_media' => 0,
         ],
     ];
 
     foreach (array_keys($eventIds) as $id) {
-        $graph['events'][(string)$id] = ['artists' => [], 'sets' => []];
+        $graph['events'][(string)$id] = ['artists' => [], 'sets' => [], 'media' => []];
     }
     foreach (array_keys($artistIds) as $id) {
-        $graph['artists'][(string)$id] = ['events' => [], 'sets' => [], 'releases' => []];
+        $graph['artists'][(string)$id] = ['events' => [], 'sets' => [], 'releases' => [], 'media' => []];
     }
     foreach (array_keys($setIds) as $id) {
-        $graph['sets'][(string)$id] = ['artist' => null, 'event' => null];
+        $graph['sets'][(string)$id] = ['artist' => null, 'event' => null, 'media' => []];
     }
     foreach (array_keys($releaseIds) as $id) {
-        $graph['releases'][(string)$id] = ['artists' => []];
+        $graph['releases'][(string)$id] = ['artists' => [], 'media' => []];
+    }
+    foreach (array_keys($mediaIds) as $id) {
+        $graph['media'][(string)$id] = ['events'=>[], 'artists'=>[], 'sets'=>[], 'releases'=>[]];
     }
 
     foreach ($events as $event) {
@@ -223,6 +319,32 @@ function brvtal_public_related_graph(
             brvtal_public_relation_add($graph['artists'][(string)$artistId]['releases'], $releaseId);
             if (count($graph['releases'][(string)$releaseId]['artists']) > $beforeRelease) {
                 $graph['counts']['artist_release']++;
+            }
+        }
+    }
+
+    $targetKey = [
+        'event'=>['events','events','event_media'],
+        'artist'=>['artists','artists','artist_media'],
+        'set'=>['sets','sets','set_media'],
+        'release'=>['releases','releases','release_media'],
+    ];
+    foreach ($media as $memory) {
+        if (!is_array($memory)) continue;
+        $mediaId = (int)($memory['id'] ?? 0);
+        if ($mediaId < 1 || !isset($mediaIds[$mediaId])) continue;
+        foreach ((array)($memory['relations'] ?? []) as $relation) {
+            if (!is_array($relation)) continue;
+            $type = strtolower(trim((string)($relation['related_type'] ?? '')));
+            $relatedId = (int)($relation['related_id'] ?? 0);
+            if ($relatedId < 1 || !isset($targetKey[$type])) continue;
+            [$graphGroup,$mediaGroup,$countKey] = $targetKey[$type];
+            if (!isset($graph[$graphGroup][(string)$relatedId])) continue;
+            $before = count($graph[$graphGroup][(string)$relatedId]['media']);
+            brvtal_public_relation_add($graph[$graphGroup][(string)$relatedId]['media'], $mediaId);
+            brvtal_public_relation_add($graph['media'][(string)$mediaId][$mediaGroup], $relatedId);
+            if (count($graph[$graphGroup][(string)$relatedId]['media']) > $before) {
+                $graph['counts'][$countKey]++;
             }
         }
     }
