@@ -6,31 +6,28 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Content Core valida y normaliza fechas de Events, Ticket Types y lifecycle del colectivo antes de escribir en MariaDB; input malformado o fechas imposibles devuelven HTTP 422 con el campo afectado.
-- Ticket Types rechaza ventanas de disponibilidad invertidas cuando `available_until` precede a `available_from`, incluyendo PUT parciales combinados con el estado existente.
-- Pages exige identidad editorial válida en POST/PUT: título no vacío y slug no vacío; en creación el slug puede generarse de forma segura desde un título válido.
-- El editor de Pages marca Title y Slug como campos obligatorios y conserva el locale público inglés por defecto.
-- Se añadieron contratos PHP y una regresión real-stack autenticada contra PHP/MariaDB para probar fechas, identidad y ventanas temporales.
+- Hero Slider público deja de convertir excepciones internas en una configuración válida `enabled:false`; ahora responde HTTP 503 con `ok:false`, `HERO_SLIDER_UNAVAILABLE`, `Retry-After` y `Cache-Control: no-store`.
+- Los fallos del endpoint público de Hero Slider quedan registrados mediante `PUBLIC_HERO_SLIDER_ERROR`, preservando el payload/cache existente en respuestas sanas.
+- Sitemap deja de omitir silenciosamente una familia cuando falla su query; cualquier fallo estructural durante la generación aborta el documento parcial y devuelve HTTP 503 `SITEMAP_UNAVAILABLE`.
+- Los fallos de Sitemap quedan registrados con la familia afectada y la respuesta degradada se marca `no-store`, `Retry-After` y `X-Robots-Tag: noindex, follow`.
+- Se añadió una regresión PHP que protege las semánticas de error y confirma que los caminos sanos conservan sus contratos de cache/XML.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/content-validation.php` — contrato compartido para fechas, ventanas de tickets e identidad de Pages.
-- `api/index.php` — aplica las validaciones compartidas antes de INSERT/UPDATE y sobre el estado final de PUT parciales.
-- `discadmin/pages-publication-contract.js` — expone Title/Slug como obligatorios en el editor de Pages.
-- `tests/content-validation-contract.php` — cubre normalización temporal, fechas imposibles, ventanas y Page identity.
-- `tests/e2e/content-validation-real-stack.spec.mjs` — prueba respuestas 422 y persistencia válida contra el stack real de CI.
+- `api/hero-slider.php` — separa respuestas exitosas de errores internos observables.
+- `sitemap.php` — falla de forma explícita en lugar de servir un sitemap parcial como HTTP 200.
+- `tests/public-failure-semantics-contract.php` — protege los contratos de error público del Hero Slider y Sitemap.
 
 ## Validación
 
-- Base exacta: `main` `2fa698a8198ef61ff1d6d3fc246dd03ce22cb998`, con `BRVTAL CI / validate` verde.
-- No había PRs abiertos al crear `fix/content-validation-quick-wins`.
-- Issues cubiertos: `#163`, `#225`, `#247`.
+- Base exacta: `main` `03bae7eb0ae70105616328f0fa40092919df38a9`, con `BRVTAL CI / validate` verde.
+- No había PRs abiertos al crear `fix/public-failure-semantics-quick-wins`.
+- Issues cubiertos: `#220`, `#254`.
 - No hay migración de base de datos, cambios de schema, borrado, restore ni mutación de datos de producción.
-- `datetime-local` válido se normaliza a formato SQL sin perder compatibilidad con los formularios actuales.
-- Campos temporales opcionales vacíos se normalizan a `NULL`; drafts incompletos siguen permitidos.
-- La validación de ventanas de tickets en PUT usa `array_replace($before, $p)` para no perder el extremo ya persistido.
-- Las regresiones quedan dentro de PHP 8.5 y real-stack; el clasificador de CI decidirá los gates adicionales por los archivos modificados.
+- Las respuestas sanas mantienen los contratos públicos existentes: Hero Slider conserva su cache público y Sitemap conserva XML + `max-age=900`.
+- Solo los fallos internos cambian de semántica: pasan de éxito silencioso/parcial a 503 observable y no-cacheable.
+- La regresión nueva queda dentro de la suite PHP 8.5 auto-discovered; el clasificador de CI decidirá browser/real-stack por los archivos modificados.
 - Pendiente en este snapshot: `BRVTAL CI / validate`, revisión advisory de CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
@@ -45,4 +42,4 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issues abordados: `#163`, `#225`, `#247`.
+- Issues abordados: `#220`, `#254`.
