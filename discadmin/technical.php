@@ -123,16 +123,41 @@ $githubMetrics = static function () use ($githubRequest): array {
         $decoded = json_decode((string)@file_get_contents($path), true);
         return is_array($decoded) ? $decoded : null;
     };
+    $hasBacklogSchema = static fn(array $value): bool => array_key_exists('open_issues', $value) && array_key_exists('recent_issues', $value);
+    $recentIssues = static function (array $body): array {
+        $items = [];
+        foreach (array_slice(is_array($body['items'] ?? null) ? $body['items'] : [], 0, 6) as $issue) {
+            if (!is_array($issue)) continue;
+            $number = (int)($issue['number'] ?? 0);
+            if ($number < 1) continue;
+            $labels = [];
+            foreach (array_slice(is_array($issue['labels'] ?? null) ? $issue['labels'] : [], 0, 4) as $label) {
+                if (!is_array($label)) continue;
+                $name = trim((string)($label['name'] ?? ''));
+                if ($name !== '') $labels[] = $name;
+            }
+            $items[] = [
+                'number' => $number,
+                'title' => trim((string)($issue['title'] ?? 'Untitled issue')),
+                'url' => 'https://github.com/pl0n3r/brvtal/issues/' . $number,
+                'labels' => $labels,
+                'updated_at' => (string)($issue['updated_at'] ?? ''),
+            ];
+        }
+        return $items;
+    };
 
     $cached = $readCache($cache);
-    if ($cached && (time() - (int)($cached['cached_at'] ?? 0)) < $ttl) {
+    if ($cached && $hasBacklogSchema($cached) && (time() - (int)($cached['cached_at'] ?? 0)) < $ttl) {
         $cached['cache'] = 'fresh';
+        $cached['backlog_state'] = 'fresh';
         return $cached;
     }
 
     $commits = $githubRequest('https://api.github.com/repos/pl0n3r/brvtal/commits?sha=main&per_page=1');
     $prs = $githubRequest('https://api.github.com/search/issues?q=repo%3Apl0n3r%2Fbrvtal+is%3Apr+is%3Amerged&per_page=1');
-    if ($commits && $prs) {
+    $issues = $githubRequest('https://api.github.com/search/issues?q=repo%3Apl0n3r%2Fbrvtal+is%3Aissue+is%3Aopen&sort=updated&order=desc&per_page=6');
+    if ($commits && $prs && $issues) {
         $commitCount = count($commits['body']);
         $link = (string)($commits['headers']['link'] ?? '');
         if (preg_match('/[?&]page=(\d+)>; rel="last"/', $link, $match)) $commitCount = (int)$match[1];
@@ -140,21 +165,40 @@ $githubMetrics = static function () use ($githubRequest): array {
             'ok' => true,
             'commits' => $commitCount,
             'merged_prs' => (int)($prs['body']['total_count'] ?? 0),
+            'open_issues' => (int)($issues['body']['total_count'] ?? 0),
+            'recent_issues' => $recentIssues($issues['body']),
+            'backlog_state' => 'fresh',
             'source' => 'github_public_api',
             'cached_at' => time(),
             'fetched_at' => date(DATE_ATOM),
             'cache' => 'fresh',
         ];
-        @file_put_contents($cache, json_encode($payload, JSON_UNESCAPED_SLASHES), LOCK_EX);
+        @file_put_contents($cache, json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
         return $payload;
     }
 
     if ($cached) {
         $cached['ok'] = true;
         $cached['cache'] = 'stale';
+        if ($hasBacklogSchema($cached)) {
+            $cached['backlog_state'] = 'stale';
+        } else {
+            $cached['open_issues'] = null;
+            $cached['recent_issues'] = [];
+            $cached['backlog_state'] = 'unavailable';
+        }
         return $cached;
     }
-    return ['ok'=>false, 'commits'=>null, 'merged_prs'=>null, 'source'=>'github_public_api', 'cache'=>'unavailable'];
+    return [
+        'ok'=>false,
+        'commits'=>null,
+        'merged_prs'=>null,
+        'open_issues'=>null,
+        'recent_issues'=>[],
+        'backlog_state'=>'unavailable',
+        'source'=>'github_public_api',
+        'cache'=>'unavailable',
+    ];
 };
 
 try {
@@ -221,8 +265,14 @@ try {
         }
 
         $github = $githubMetrics();
-        if (!$github['ok']) $issues[] = ['severity'=>'info','title'=>'GITHUB METRICS','detail'=>'GitHub metrics are temporarily unavailable; platform health is unaffected.'];
-        elseif (($github['cache'] ?? '') === 'stale') $issues[] = ['severity'=>'info','title'=>'GITHUB CACHE','detail'=>'Showing the most recent cached GitHub metrics.'];
+        if (!$github['ok']) {
+            $issues[] = ['severity'=>'info','title'=>'GITHUB METRICS','detail'=>'GitHub metrics are temporarily unavailable; platform health is unaffected.'];
+        } elseif (($github['cache'] ?? '') === 'stale') {
+            $issues[] = ['severity'=>'info','title'=>'GITHUB CACHE','detail'=>'Showing the most recent cached GitHub metrics.'];
+        }
+        if (($github['backlog_state'] ?? 'unavailable') === 'unavailable' && $github['ok']) {
+            $issues[] = ['severity'=>'info','title'=>'GITHUB BACKLOG','detail'=>'Open Issue metadata is temporarily unavailable; platform health is unaffected.'];
+        }
 
         echo json_encode([
             'ok' => true,
