@@ -6,43 +6,47 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se rediseñó la sección pública **MEMORIES** para que deje de sentirse como una grilla genérica de imágenes iguales y funcione como un archivo visual curado.
-- La composición dinámica usa una retícula editorial ordenada: una memoria dominante y piezas secundarias con distintos pesos, sin alterar el orden real de los medios entregados por el API.
-- La versión estática/fallback de Memories adopta la misma lógica visual y deja de depender de imágenes flotantes/absolutas dispersas.
-- La cabecera del archivo incorpora una jerarquía más clara, contexto editorial y controles de búsqueda/filtro integrados al sistema visual BRVTAL.
-- Las tarjetas reciben numeración de archivo, metadata más legible y transición grayscale → color contenida, manteniendo las imágenes como protagonista.
-- Tablet simplifica la retícula a seis columnas; móvil vuelve a una secuencia estable de una columna, con targets táctiles de 44 px y sin overflow horizontal incluso antes de que cargue la webfont condensada.
-- Se conservan sin cambios el API de Media, responsive image delivery, lazy loading, búsqueda, filtros, empty state y navegación accesible del visor.
-- Playwright ahora comprueba la jerarquía desktop, el orden móvil, targets táctiles y ausencia de overflow además de la funcionalidad existente de filtros y viewer.
+- Se implementó la **Fase A de la evolución pública de BRVTAL** (#399): el Home comunica desde el primer viewport que BRVTAL es una plataforma/colectivo de cultura electrónica underground nacida en Pereira, no solo una colección de secciones.
+- Se preservó y reforzó la estética existente: negro profundo, blanco sucio, tipografía brutalista, grano/micro-ruido, interferencia y glitch; el verde ácido funciona como señal/acento y no como fondo dominante.
+- `Next Experience` ahora se alimenta de las fuentes ya existentes del backend: lifecycle público de Events, `event_artists`, `ticket_url` y `event_ticket_types`. No se creó lógica editorial paralela ni schema nuevo.
+- La experiencia activa muestra título, fecha, hora, ciudad/venue, lineup estructurado y acceso a la página canónica del evento.
+- El CTA **TICKETS** solo aparece cuando existe una URL pública HTTP/HTTPS válida y el evento todavía admite ticketing según las reglas canónicas actuales. Si el Event no tiene `ticket_url`, se puede reutilizar el primer ticket type activo/disponible con `external_url` válida.
+- En móvil, fecha/localización, lineup y acciones reciben prioridad; los CTAs mantienen tamaño táctil suficiente y la composición evita overflow horizontal.
+- La nueva capa visual es CSS propio y liviano: no añade librerías, no modifica el runtime adaptativo de motion y respeta `prefers-reduced-motion`.
+- Las métricas de producción previas quedan como baseline histórico; el deploy nuevo deberá volver a medirse en mobile/desktop antes de considerar sus métricas como evidencia actual.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `index.html` — refuerza la cabecera y semántica de Memories con framing editorial y título accesible.
-- `css/public-media.css` — sustituye la grilla uniforme por la retícula editorial responsive, estiliza controles/tarjetas/fallback, protege el ancho móvil durante fallback tipográfico y conserva viewer/reduced-motion.
-- `tests/e2e/public-media.spec.mjs` — añade regresión de layout desktop/mobile, touch targets y overflow sin perder las pruebas existentes de discovery y viewer.
+- `config/public_home.php` — compone la declaración cultural del Home y enriquece Next Experience con lineup/ticket CTA usando contratos de backend existentes y fail-safe.
+- `css/public-home-phase-a.css` — tratamiento brutalista/grano/glitch de Fase A, jerarquía de Next Experience y responsive móvil.
+- `tests/public-home-phase-a-contract.php` — contratos de selección, URL segura, declaración cultural, lineup y Tickets CTA.
+- `tests/e2e/public-home-phase-a.spec.mjs` — regresión visual/estructural desktop y mobile, touch targets y overflow.
 
 ## Validación
 
-- Base exacta: `main` `825357089cab33f1b1b5cebac8181160adb04deb`.
-- La base quedó con `BRVTAL CI / validate` verde en el run #584.
-- Issue cubierto: `#394`.
+- Base exacta: `main` `d07a1ea067ddda66e6c3c75fc27b91819c2521f3`.
+- La base quedó con `BRVTAL CI / validate` verde en el run #588.
+- Issue cubierto: `#399`, Fase A de `#398`.
 - No hay migración, cambio de schema, restore, bulk delete ni mutación de datos de producción.
-- `js/public-media.js`, APIs públicos y Media Engine no se modificaron; el contrato funcional y la entrega responsive permanecen en su frontera existente.
-- Run #585: `fast` verde; Chromium ejecutó 167 pruebas, con 161 pasadas y 5 omitidas. La única falla aplicable fue la nueva regresión de overflow móvil de Memories; la jerarquía desktop y la funcionalidad existente de Public Media pasaron.
-- El overflow se corrigió sin relajar el test: el contenedor corta desbordamiento horizontal no intencional, el título usa fallback tipográfico explícito y una escala móvil que cabe aun antes de cargar Barlow Condensed, y los controles de audio respetan el ancho disponible.
-- Pendiente en este snapshot: nuevo `BRVTAL CI / validate` y revisión automática sobre el head corregido.
+- `api/public.php` sigue siendo el API público canónico y no se creó un segundo contrato público.
+- La implementación reutiliza `config/public_visibility.php` para lifecycle/ticketing y las relaciones existentes `event_artists` / `event_ticket_types`.
+- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión automática y cualquier corrección válida sobre el head de la rama.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
+- Tras deploy deberá ejecutarse nueva medición de Production Performance sobre el SHA exacto publicado; las métricas anteriores solo son baseline.
 
 ## Qué sigue
 
 1. Resolver en esta misma rama cualquier fallo o finding válido de BRVTAL CI/revisión automática.
-2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisión final limpia.
+2. Hacer squash merge solo con `BRVTAL CI / validate` verde.
 3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Retomar `#388` en su rama aislada `feature/system-status-reset-log` sin mezclar ambos cambios.
+4. Volver a medir producción del nuevo Home y comparar LCP/waterfall/mobile/desktop contra el baseline anterior.
+5. Implementar de forma separada `#400`: Settings tipados, IA lógica de configuración y wordmark SVG configurable en Theme Studio.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issue abordado: `#394`.
+- Visión pública: `#398`.
+- Issue abordado: `#399`.
+- Configuración/admin follow-up: `#400`.
