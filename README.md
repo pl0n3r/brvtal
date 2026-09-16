@@ -22,7 +22,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `9 archivos` · **+469** líneas · **−5** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `9 archivos` · **+527** líneas · **−5** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### PUBLIC ROSTER / DELIVERY
@@ -39,12 +39,12 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 ### TESTS
 
 - `tests/public-roster-contract.php` — 🟢 NEW · **+74 / −0** · clasificación, membership facts, lifecycle Event, privacidad editorial, navegación canónica y ausencia de request/API duplicada.
-- `tests/e2e/public-roster-phase-c.spec.mjs` — 🟢 NEW · **+62 / −0** · grupos del Roster, enlaces canónicos, legibilidad mobile, targets táctiles y no overflow.
+- `tests/e2e/public-roster-phase-c.spec.mjs` — 🟢 NEW · **+120 / −0** · además de layout/mobile, ejecuta `public-roster.js` con la Promise pública compartida para verificar render real, orden lifecycle, enlaces canónicos, preview y preservación del fallback ante fallo.
 - `tests/e2e/public-mobile-performance.spec.mjs` — 🟡 MOD · **+3 / −1** · reconoce el Roster como módulo core versionado y conserva la exigencia de orden/integridad del runtime adaptativo.
 
 ### CONTEXTO DURABLE
 
-- `AGENTS.md` — 🟡 MOD · **+5 / −2** · registra el Roster conectado, sus reglas semánticas y el nuevo orden `app → roster → archive → media`; deja Sets/listening discovery como siguiente prioridad de #398.
+- `AGENTS.md` — 🟡 MOD · **+5 / −2** · registra el Roster conectado, sus reglas semánticas y el nuevo orden `app → roster → archive → media`; deja Sets/listening discovery como siguiente fase pública.
 
 ### SNAPSHOT
 
@@ -58,9 +58,9 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - #179 y #180 ya están cerrados y el lifecycle/history de membership está **VALIDATED IN CODE** en la base.
 - El nuevo Roster no modifica schema ni `api/public.php`; consume los campos públicos de Artists que ya existen.
 - Run **#629** dejó PHP, database y real-stack verdes; Chromium detectó que el harness de performance no conocía el nuevo módulo core y por eso simulaba cuatro fallos de carga. Se actualizó el contrato para exigir `public-roster.js` versionado en el orden correcto, sin relajar runtime integrity ni añadir requests CMS.
-- Run **#631** quedó completamente verde sobre el head corregido: `fast`, Chromium, database, real-stack y `validate` pasaron; WebKit/recovery fueron correctamente omitidos por scope.
-- La revisión de CodeRabbit se volvió a solicitar después del fix y debe cerrarse sobre el head final que incluye también el contexto durable de `AGENTS.md`.
-- Pendiente: CI + CodeRabbit verdes sobre ese head final antes del squash merge.
+- Run **#631** quedó completamente verde tras ese fix.
+- CodeRabbit revisó el head posterior y señaló que la cobertura visual/contractual no ejecutaba el runtime real del Roster. Se añadió cobertura conductual Playwright sobre `BRVTALPublicDataPromise`, incluyendo fallback ante fallo.
+- Pendiente: BRVTAL CI + re-revisión de CodeRabbit sobre este head final antes del squash merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
@@ -68,8 +68,9 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 1. Validar el head final de #408 con BRVTAL CI + CodeRabbit.
 2. Squash merge solo con `validate` verde y revisión limpia.
 3. Verificar el CI del SHA exacto resultante en `main`.
-4. Continuar #398 Phase C con **Sets / listening discovery**, reutilizando relaciones estructuradas reales.
-5. Repetir mediciones de performance sobre el deploy exacto después de los cambios públicos; las métricas anteriores quedan como baseline histórico.
+4. Implementar **#409** para que System Status refleje el backlog abierto de GitHub sin confundirlo con incidentes operativos.
+5. Retomar #398 Phase C con **Sets / listening discovery** después de #409.
+6. Repetir mediciones de performance sobre el deploy exacto después de los cambios públicos; las métricas anteriores quedan como baseline histórico.
 
 ## Contexto durable
 
@@ -77,4 +78,5 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - Visión pública: `#398`.
 - Roster público: `#407`.
 - Lifecycle Artist: `#179`, `#180`, PR `#406`.
+- System Status / GitHub backlog: `#409`.
 - Estrategia de validación: `docs/TESTING.md`.
