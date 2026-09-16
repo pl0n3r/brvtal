@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+/** Parse an exact temporal value without accepting rollover or partial matches. */
 function brvtal_exact_temporal_value(string $value, array $formats): ?string
 {
     foreach ($formats as [$inputFormat, $outputFormat]) {
@@ -14,8 +15,37 @@ function brvtal_exact_temporal_value(string $value, array $formats): ?string
     return null;
 }
 
+/** Return the required editorial identity field for resources that cannot be emptied. */
+function brvtal_required_identity_field(string $resource): ?array
+{
+    return match ($resource) {
+        'events' => ['field' => 'title', 'error' => 'TITLE_REQUIRED'],
+        'artists' => ['field' => 'name', 'error' => 'NAME_REQUIRED'],
+        'sets' => ['field' => 'title', 'error' => 'TITLE_REQUIRED'],
+        default => null,
+    };
+}
+
+/**
+ * Reject explicit attempts to clear a required identity while still allowing
+ * partial updates that do not touch that field.
+ */
+function brvtal_required_identity_error(string $resource, array $payload): ?array
+{
+    $rule = brvtal_required_identity_field($resource);
+    if ($rule === null || !array_key_exists($rule['field'], $payload)) return null;
+    if (trim((string)$payload[$rule['field']]) !== '') return null;
+    return ['error' => $rule['error'], 'field' => $rule['field']];
+}
+
+/** Normalize supported temporal fields and surface deterministic validation errors. */
 function brvtal_content_temporal_normalize(string $resource, array $payload): array
 {
+    $identityError = brvtal_required_identity_error($resource, $payload);
+    if ($identityError !== null) {
+        return ['payload' => $payload, 'error' => $identityError];
+    }
+
     $fields = match ($resource) {
         'events' => [
             'event_date' => [
@@ -48,7 +78,14 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
 
     foreach ($fields as $field => $formats) {
         if (!array_key_exists($field, $payload)) continue;
-        $raw = trim((string)$payload[$field]);
+        $value = $payload[$field];
+        if (is_array($value) || is_object($value)) {
+            return [
+                'payload' => $payload,
+                'error' => ['error' => 'INVALID_DATE', 'field' => $field],
+            ];
+        }
+        $raw = trim((string)$value);
         if ($raw === '') {
             $payload[$field] = null;
             continue;
@@ -66,6 +103,7 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
     return ['payload' => $payload, 'error' => null];
 }
 
+/** Validate a Ticket Type availability interval when both bounds are present. */
 function brvtal_ticket_window_error(array $state): ?array
 {
     $from = trim((string)($state['available_from'] ?? ''));
@@ -78,6 +116,7 @@ function brvtal_ticket_window_error(array $state): ?array
     return null;
 }
 
+/** Validate the identity fields required for every CMS Page. */
 function brvtal_page_identity_error(array $state): ?array
 {
     if (trim((string)($state['title'] ?? '')) === '') {
