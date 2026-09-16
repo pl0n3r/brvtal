@@ -6,27 +6,31 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Las slides ocultas del Hero Slider quedan `inert`, por lo que sus CTAs ya no permanecen en el orden de foco; al activar una slide recupera interactividad.
-- Las páginas canónicas de Events/Artists/Sets/Releases/Blog/Pages pasan por el mismo versionado de assets del Home, evitando CSS stale bajo cache immutable.
-- El fallback estático deja de presentar Artists `href="#"` y acciones genéricas de SoundCloud como enlaces funcionales cuando la API pública no está disponible.
-- Los enlaces externos reales de Sets reciben un nombre accesible específico con título + plataforma.
-- Se añadieron regresiones PHP y Playwright para estos cuatro Quick Wins públicos.
+- Hero Slider ofrece una interacción equivalente de teclado para reordenar slides: `Alt+↑` y `Alt+↓` sobre la fila enfocada, con `aria-keyshortcuts` visible para tecnologías asistivas.
+- DISCADMIN incorpora una frontera común de autenticación: cualquier `401` same-origin de APIs administrativas invalida la sesión local, limpia CSRF y devuelve el shell al login, cubriendo Media, Releases, Blog y módulos dinámicos equivalentes.
+- System Status deja de presentar capacidad del filesystem del host como si fuera la cuota de BRVTAL cuando fallan las métricas administradas; muestra `UNAVAILABLE` y limita reintentos automáticos.
+- Backups deja de recortar silenciosamente la colección a los ocho elementos más recientes y vuelve accesibles todos los backups retenidos por el backend.
+- Se añadieron regresiones PHP y Playwright para los cuatro Quick Wins administrativos.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `index.php` — versiona assets de páginas canónicas, neutraliza acciones fallback falsas e inyecta el runtime público versionado.
-- `js/public-quick-wins.js` — sincroniza `inert` del Hero, nombres accesibles de Sets y seguridad semántica del fallback.
-- `tests/public-quick-wins-contract.php` — protege contratos de versionado, fallback y accesibilidad.
-- `tests/e2e/public-quick-wins.spec.mjs` — valida comportamiento de foco, placeholders y nombres accesibles en browser.
+- `discadmin/admin-auth-boundary.js` — política central de expiración de sesión para requests administrativos directos.
+- `discadmin/backups.js` — renderiza la colección completa de backups retenidos.
+- `discadmin/hero-slider-accessibility.js` — añade reorder de slides por teclado sin reestructurar el editor completo.
+- `discadmin/index.php` — carga las nuevas capas de reliability versionadas dentro del shell canónico.
+- `discadmin/system-status-storage.js` — muestra estado administrado degradado y aplica throttle a reintentos fallidos.
+- `tests/admin-reliability-quick-wins-contract.php` — protege los cuatro contratos del batch.
+- `tests/e2e/admin-reliability-quick-wins.spec.mjs` — valida expiración de sesión, reorder por teclado, storage degradado y colección completa de Backups.
 
 ## Validación
 
-- Base exacta: `main` `2fe3fb66c8c7147e677627dcdb9b404b72e13a8c`, con `BRVTAL CI / validate` verde.
-- No había PRs abiertos al crear `fix/public-quick-wins`.
-- Issues cubiertos: `#236`, `#251`, `#356`, `#358`.
-- No hay migración de base de datos, cambios de schema ni mutación de datos de producción.
-- Las correcciones se aplican en una capa pública pequeña en lugar de reescribir `js/app.js` o el runtime del Hero completo.
+- Base exacta: `main` `a40ee640b12459f231131a9178a630d8742c2520`, con `BRVTAL CI / validate` verde.
+- No había PRs abiertos al crear `fix/admin-reliability-quick-wins`.
+- Issues cubiertos: `#177`, `#207`, `#215`, `#265`.
+- No hay migración de base de datos, cambios de schema, restore, delete ni mutación de datos de producción.
+- La corrección de sesión se implementa en el shell compartido para evitar tres clientes HTTP con políticas divergentes.
+- La corrección de Hero Slider usa una interacción de teclado equivalente y no reescribe el módulo visual completo.
 - Las regresiones nuevas quedan dentro de las suites automáticas PHP 8.5 + Chromium.
 - Pendiente en este snapshot: `BRVTAL CI / validate`, revisión advisory de CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
@@ -42,4 +46,4 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issues abordados: `#236`, `#251`, `#356`, `#358`.
+- Issues abordados: `#177`, `#207`, `#215`, `#265`.

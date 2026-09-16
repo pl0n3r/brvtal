@@ -49,7 +49,7 @@
     if (!items.length) {
       return `<div class="backup-empty"><strong>NO BACKUPS YET</strong><span>Create the first private database + media inventory backup.</span></div>`;
     }
-    return items.slice(0, 8).map(item => {
+    return items.map(item => {
       const archive = item.components?.media_archive || {};
       const status = String(item.status || 'unknown').toLowerCase();
       return `<div class="backup-row" data-status="${esc(status)}">
@@ -155,4 +155,6 @@
   });
   observer.observe(document.documentElement, {childList:true,subtree:true});
   setTimeout(mount,120);
+
+  window.BRVTALBackupsUI = {backupRows, render};
 })();
