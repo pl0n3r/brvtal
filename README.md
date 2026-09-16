@@ -6,40 +6,42 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- La sección Contact ahora incorpora un formulario público responsive integrado con la estética BRVTAL.
-- El formulario usa un CAPTCHA first-party firmado y validado en servidor, honeypot, validación server-side y rate limiting por origen sin depender de un servicio Node ni exponer secretos al navegador.
-- El envío conserva el mensaje escrito cuando ocurre un error y comunica estados de carga, validación, rate limit, éxito o indisponibilidad.
-- El destinatario del formulario se resuelve en servidor y puede configurarse con `contact.to` o `BRVTAL_CONTACT_TO`; el frontend no conoce el inbox interno.
-- Instagram, SoundCloud, YouTube y Spotify se muestran como iconos SVG accesibles, alineados con el lenguaje visual del sitio y ocultos cuando no existe URL configurada.
-- Se añadió cobertura de contrato para CAPTCHA/rate limit/validación, wiring del runtime, iconos accesibles y targets móviles; el contrato Chromium del loader ahora incluye el nuevo módulo Contact en todos los modos de motion.
+- Theme Studio se reemplaza visualmente por una experiencia V2 dentro del mismo shell de DISCADMIN, organizada por Brand, Palette, Type, Navigation, Experience, SEO y Manage.
+- Logo principal, logo móvil, favicon, logo de preloader y OG image se seleccionan visualmente desde Media con buscador, preview, clear y navegación accesible por teclado.
+- El editor distingue claramente **Save Draft** de **Save & Activate**: guardar ya no activa el tema accidentalmente. También incorpora selector de temas, estado LIVE/NOT LIVE, cambios sin guardar, revert, duplicate y presets.
+- Los controles V2 expuestos están limitados a propiedades que tienen mapping público seguro; valores legacy no expuestos se preservan al guardar en lugar de borrarse silenciosamente.
+- El preview Desktop/Mobile usa los mismos grupos de branding, color y tipografía que el runtime público.
+- El nuevo runtime público reutiliza `BRVTALPublicDataPromise` para aplicar el tema activo sin otra petición cuando el payload ya existe. Conecta branding, logo responsive, favicon, tokens de color, tipografía, header/menu, scene/sound visibility y efectos seguros.
+- Analytics y custom code siguen fuera del payload ejecutable del runtime público.
+- Se amplió el contrato Chromium del loader y se añadió un contrato PHP específico de Theme Studio V2.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/contact.php` — endpoint público GET/POST para challenge y envío protegido del formulario.
-- `config/config.example.php` — documenta la configuración server-side del destinatario y corrige el origen canónico de ejemplo.
-- `config/public_contact.php` — CAPTCHA firmado, validación, rate limiting y composición/envío del mensaje.
-- `css/contact-social.css` — sistema visual responsive del formulario y rail de iconos sociales.
-- `js/public-contact.js` — monta Contact, sincroniza redes sociales y gestiona challenge/envío/errores.
-- `js/public-runtime-loader.js` — carga el enhancement de Contact dentro del runtime público versionado.
-- `tests/e2e/public-mobile-performance.spec.mjs` — actualiza el contrato Chromium del runtime modular para incluir Contact.
-- `tests/public-contact-contract.php` — contrato PHP del anti-bot, delivery metadata y contratos UI/runtime.
+- `discadmin/index.php` — carga versionada de Theme Studio V2 dentro del shell canónico.
+- `discadmin/theme-studio-v2.css` — layout responsive, preview y Media picker de Theme Studio V2.
+- `discadmin/theme-studio-v2.js` — editor V2, lifecycle draft/activate, picker visual de Media y preview.
+- `js/public-runtime-loader.js` — incorpora el runtime público de tema al pipeline versionado.
+- `js/public-theme-runtime.js` — aplica el tema activo real al frontend público sin ejecutar analytics/custom code.
+- `tests/e2e/public-mobile-performance.spec.mjs` — incluye Theme runtime en el contrato de orden/versionado del loader.
+- `tests/theme-studio-v2-contract.php` — contrato de wiring, seguridad y comportamiento de Theme Studio V2.
 
 ## Validación
 
-- Base de trabajo: `main` `d21dc9ce25d081b08aa2d4451d7e2841278f384e`, con **BRVTAL CI / validate** exacto en verde y Production Performance exitoso antes de abrir esta rama.
-- Los requisitos #205 y #349 estaban abiertos y confirmados; no se abrió trabajo duplicado.
-- Dos iteraciones iniciales de un fixture Playwright aislado fallaron por su contexto artificial y se retiraron. El fallo Chromium restante reveló correctamente que el contrato existente del loader debía reconocer el nuevo enhancement; ese contrato fue actualizado, sin relajar comportamiento de producto.
-- Pendiente: **BRVTAL CI / validate** del PR y, tras squash merge, validación del nuevo SHA exacto de `main`.
-- CI verde significa **VALIDATED IN CODE**. La recepción real de email y la composición visual final en producción requieren validación de producción después del deploy.
+- Base de trabajo: `main` `0d635035e62f23b5752637db9f1e28eebbe7360d`.
+- El SHA base tenía BRVTAL CI exacto en verde y Production Performance exitoso, incluido `Wait for exact Hostinger deploy`.
+- Se confirmaron sin PRs abiertos antes de iniciar esta rama los Issues existentes #207, #217, #232, #234 y #235; no se abrió trabajo duplicado.
+- La implementación mantiene ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE y no crea otro admin.
+- Pendiente: CI path-aware del PR y, después del squash merge, CI + Production Performance del SHA exacto de `main`.
+- CI verde significará **VALIDATED IN CODE**. La revisión visual final de Theme Studio y el resultado de un cambio de tema real siguen requiriendo validación en producción.
 
 ## Qué sigue
 
-1. Ejecutar el CI path-aware del PR y corregir cualquier regresión en esta misma rama.
-2. Con `validate` verde, hacer squash merge, confirmar el deploy exacto y validar Contact/redes en producción.
-3. Continuar con Theme Studio/branding y luego Dashboard, antes de retomar la auditoría diagnóstica.
+1. Ejecutar CI del PR, corregir cualquier regresión y hacer squash merge si `validate` queda verde.
+2. Confirmar deploy exacto en Hostinger para el nuevo SHA de `main`.
+3. Continuar inmediatamente con Dashboard V2 (#221) y luego retomar la auditoría diagnóstica.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
-- Issues cubiertos: `#205`, `#349`.
+- Issues objetivo: `#207`, `#217`, `#232`, `#234`, `#235`.
