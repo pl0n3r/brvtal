@@ -66,15 +66,15 @@ test('typed save preserves unknown sibling JSON keys', async ({ page }) => {
 
 test('SEO and Analytics are first-class typed Settings while raw editing stays Advanced', async ({ page }) => {
   await open(page);
-  await page.getByRole('button',{name:/03SEO/}).click();
+  await page.locator('[data-settings-tab="seo"]').click();
   await expect(page.locator('#sv2_seo_title')).toBeVisible();
   await expect(page.getByRole('button',{name:'CHOOSE FROM MEDIA'})).toBeVisible();
 
-  await page.getByRole('button',{name:/04ANALYTICS & PRIVACY/}).click();
+  await page.locator('[data-settings-tab="analytics"]').click();
   await expect(page.locator('#sv2_ga4_id')).toBeVisible();
   await expect(page.getByText('REQUIRED / USER CHOICE')).toBeVisible();
 
-  await page.getByRole('button',{name:/05ADVANCED/}).click();
+  await page.locator('[data-settings-tab="advanced"]').click();
   await expect(page.getByText('RAW SETTINGS')).toBeVisible();
   await page.locator('[data-settings-raw="appearance"]').click();
   await expect.poll(() => page.evaluate(() => window.__legacy)).toEqual(['appearance']);
