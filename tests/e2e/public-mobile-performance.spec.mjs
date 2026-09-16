@@ -15,9 +15,10 @@ const enhancementMarkers = {
   '/js/hero-slider.js': 'hero-slider',
   '/js/public-discovery-url-state.js': 'url-state',
   '/js/public-canonical-navigation.js': 'canonical-navigation',
-  '/js/public-contact.js': 'contact'
+  '/js/public-contact.js': 'contact',
+  '/js/public-theme-runtime.js': 'theme-runtime'
 };
-const coreAndEnhancements = ['menu-scroll-lock', 'app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation', 'contact'];
+const coreAndEnhancements = ['menu-scroll-lock', 'app', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation', 'contact', 'theme-runtime'];
 
 const isMotionCdn = url => url.includes('cdn.jsdelivr.net/npm/gsap@3.13.0') || url.includes('cdn.jsdelivr.net/npm/lenis@1.3.4');
 
@@ -115,6 +116,7 @@ test('touch runtime skips desktop motion downloads and preserves versioned modul
   expect(requests.some(url => url.endsWith(`/js/app.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-discovery-url-state.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-contact.js?v=${version}`))).toBe(true);
+  expect(requests.some(url => url.endsWith(`/js/public-theme-runtime.js?v=${version}`))).toBe(true);
   await expect(page.locator('#loader')).toHaveCount(0);
   await expect(page.locator('#fxCanvas')).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-motion-runtime', 'touch-lite');
