@@ -32,6 +32,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<link rel="stylesheet" href="/discadmin/theme-studio-reliability.css' . $suffix . '" data-theme-studio-reliability="1">'
     . '<script src="/discadmin/admin-auth-boundary.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-core-nav.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/event-workflow.js' . $suffix . '"></script>'
     . '<script src="/discadmin/dashboard-v2.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-health.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-editorial-defaults.js' . $suffix . '"></script>'
