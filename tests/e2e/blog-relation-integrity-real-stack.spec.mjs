@@ -15,6 +15,7 @@ test('Blog rejects dangling related content without partially updating the post'
   const headers = { 'X-CSRF-Token': auth.csrf };
   const runKey = `${Date.now().toString(36)}-${testInfo.workerIndex}`;
   let postId = 0;
+  let danglingPostId = 0;
 
   const artistsResponse = await page.request.get(`${baseUrl}/api/index.php/artists`);
   expect(artistsResponse.ok()).toBeTruthy();
@@ -80,13 +81,18 @@ test('Blog rejects dangling related content without partially updating the post'
         relations: [{ related_type: 'release', related_id: 999999, sort_order: 0 }],
       },
     });
+    const invalidCreateBody = await invalidCreate.json();
+    danglingPostId = Number(invalidCreateBody?.data?.id || 0);
     expect(invalidCreate.status()).toBe(422);
-    expect(await invalidCreate.json()).toMatchObject({ ok: false, error: 'BLOG_RELATION_NOT_FOUND' });
+    expect(invalidCreateBody).toMatchObject({ ok: false, error: 'BLOG_RELATION_NOT_FOUND' });
 
     const list = await page.request.get(`${baseUrl}/api/blog.php`);
     expect(list.ok()).toBeTruthy();
     expect(((await list.json()).data || []).some(row => row.slug === danglingSlug)).toBe(false);
   } finally {
+    if (danglingPostId > 0 && danglingPostId !== postId) {
+      await page.request.delete(`${baseUrl}/api/blog.php?id=${danglingPostId}`, { headers }).catch(() => {});
+    }
     if (postId > 0) {
       await page.request.delete(`${baseUrl}/api/blog.php?id=${postId}`, { headers }).catch(() => {});
     }
