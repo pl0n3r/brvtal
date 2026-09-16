@@ -28,7 +28,8 @@
     'js/hero-slider.js',
     'js/public-discovery-url-state.js',
     'js/public-canonical-navigation.js',
-    'js/public-contact.js'
+    'js/public-contact.js',
+    'js/public-theme-runtime.js'
   ];
 
   function loadScript(src) {
