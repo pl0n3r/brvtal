@@ -48,7 +48,14 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
 
     foreach ($fields as $field => $formats) {
         if (!array_key_exists($field, $payload)) continue;
-        $raw = trim((string)$payload[$field]);
+        $value = $payload[$field];
+        if (is_array($value) || is_object($value)) {
+            return [
+                'payload' => $payload,
+                'error' => ['error' => 'INVALID_DATE', 'field' => $field],
+            ];
+        }
+        $raw = trim((string)$value);
         if ($raw === '') {
             $payload[$field] = null;
             continue;
