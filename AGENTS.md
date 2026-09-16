@@ -169,11 +169,13 @@ Implemented:
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
 - adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
-- core runtime preserves `app → archive → media` order and survives optional motion-CDN failure;
+- core runtime preserves `app → roster → archive → media` order and survives optional motion-CDN failure;
 - non-blocking Google Fonts;
 - keyboard/touch accessibility passes;
 - canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
 - Event lifecycle/public archive behavior;
+- Home Artists is a connected **BRVTAL Roster**: real `active` and `alumni` membership states come from Collective Status, non-members remain Artists/collaborators, and canonical navigation stays on `/artists/{slug}`;
+- canonical Artist pages expose real membership facts and structured published Events/Sets/Releases/Transmissions without inferring genres or Memories;
 - Archive discovery by year/search/relationships;
 - Public Media discovery;
 - Related Content relationship graph;
@@ -219,6 +221,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 19. **Modern production performance evidence is continuous, not a one-off optimization target.** Production Performance records exact-deploy mobile/desktop metrics and resource-waterfall evidence; do not recompress or restructure assets without a measured regression, dominant bottleneck or visual justification.
 20. **Specialized CI safety checks should be jobs, not duplicate workflows, when they are part of normal source validation.** README snapshot validation, PHP compatibility, production-smoke source contracts and isolated recovery rehearsal are consolidated into `BRVTAL CI`; actual production smokes remain explicit manual workflows.
 21. **Artist Collective Status is lifecycle data, not free-form metadata.** Any mutation that touches membership status/dates must submit the complete lifecycle state; `none` has no membership dates, `active` requires a join date and no leave date, and `alumni` requires ordered join/leave dates. Successful Artist mutations synchronize `artist_collective_history` atomically with Admin Activity so future public Roster/history surfaces can rely on structured periods instead of inferred chronology.
+22. **Public Roster semantics come from real Artist lifecycle data.** `active` and `alumni` are the only collective-membership states exposed as such; an Artist with no membership is displayed contextually as a collaborator/network Artist, never persisted as a fake membership tier. The public Roster links to canonical Artist pages, does not treat bio text as genre metadata, and does not infer Memories or other relationships that are not structurally modeled.
 
 ---
 
@@ -336,7 +339,7 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public discovery / relationship-driven browsing** — deepen Archive/Media/CONNECTED pathways only when supported by real structured relationships; do not invent duplicated relation data.
+1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; after the Roster, deepen Sets/listening discovery and later archive pathways without inventing duplicated relation data.
 2. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
 3. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
 4. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.

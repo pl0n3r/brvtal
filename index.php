@@ -7,6 +7,7 @@ require_once __DIR__ . '/config/public_assets.php';
 require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
+require_once __DIR__ . '/config/public_artist.php';
 require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
@@ -50,6 +51,9 @@ $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_de
 if ($entity) {
     try {
         $page = brvtal_public_page_data(db(), $entity);
+        if (($entity['route_type'] ?? '') === 'artists') {
+            $page = brvtal_public_artist_enhance_page(db(), $page);
+        }
     } catch (Throwable $e) {
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_ENTITY_DATA_ERROR', 'Essential canonical entity data failed to load', [
@@ -78,6 +82,9 @@ if ($entity) {
         header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     }
     $entityHtml = brvtal_public_entity_page($page, $seo, $analytics);
+    if (($entity['route_type'] ?? '') === 'artists') {
+        $entityHtml = brvtal_public_artist_decorate_html($entityHtml, $page);
+    }
     $entityHtml = brvtal_public_version_assets($entityHtml, brvtal_deployment_short_sha());
     echo $entityHtml;
     exit;
@@ -105,11 +112,21 @@ $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('class="artist" href="#"', 'class="artist" aria-disabled="true"', $html);
 $html = str_replace(
+    '<div class="section-head"><span class="mono">ROSTER / 04</span><h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>',
+    '<div class="section-head"><span class="mono">BRVTAL ROSTER / 04</span><h2>ROSTER</h2><span class="mono">CORE / ALUMNI / ARTISTS</span></div>',
+    $html
+);
+$html = str_replace(
+    ['RAW / HARD TECHNO','HARDCORE / INDUSTRIAL','HARD TECHNO / RAW','TECHNO / HARD DANCE','PSY / HARDCORE'],
+    'ARTIST / PROFILE',
+    $html
+);
+$html = str_replace(
     'href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic"',
     'class="set-action magnetic" aria-disabled="true" aria-hidden="true" tabindex="-1"',
     $html
 );
-$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n</head>", $html);
+$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n</head>", $html);
 $html = str_replace('</body>', "  <script src=\"js/public-quick-wins.js\"></script>\n</body>", $html);
 $html = brvtal_public_dedupe_decorative_assets($html);
 $html = brvtal_public_optimize_font_stylesheet($html);
@@ -122,6 +139,7 @@ $html = brvtal_public_defer_stylesheets($html, [
     'css/public-media.css',
     'css/input-accessibility.css',
     'css/mobile-events.css',
+    'css/public-roster.css',
 ]);
 $html = brvtal_public_optimize_home_images($html);
 $html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());
