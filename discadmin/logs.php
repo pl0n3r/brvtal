@@ -4,6 +4,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 brvtal_admin_require();
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('X-Content-Type-Options: nosniff');
+header('X-Robots-Tag: noindex, nofollow, noarchive');
+
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
@@ -43,7 +48,6 @@ if ($action === 'download' && is_file($logFile)) {
     header('Content-Type: text/plain; charset=utf-8');
     header('Content-Disposition: attachment; filename="brvtal.log"');
     header('Content-Length: ' . filesize($logFile));
-    header('X-Content-Type-Options: nosniff');
 
     readfile($logFile);
     exit;
