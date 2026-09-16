@@ -17,7 +17,16 @@ brvtal_admin_require_csrf();
 
 try {
     $pdo = db();
-    $request = brvtal_event_workflow_request(input_json());
+    $input = input_json();
+    $request = brvtal_event_workflow_request($input);
+    $rawEvent = is_array($input['event'] ?? null) ? $input['event'] : [];
+    foreach (['seo_title'=>190,'seo_description'=>320] as $field=>$max) {
+        if (!array_key_exists($field, $rawEvent)) continue;
+        if (is_array($rawEvent[$field]) || is_object($rawEvent[$field])) {
+            throw new InvalidArgumentException('INVALID_FIELD_TYPE');
+        }
+        $request['event'][$field] = brvtal_event_workflow_text($rawEvent[$field], $max);
+    }
     $result = brvtal_event_workflow_apply(
         $pdo,
         $request,
