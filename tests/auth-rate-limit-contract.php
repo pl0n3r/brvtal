@@ -17,9 +17,11 @@ $totpSource = (string)file_get_contents(__DIR__ . '/../config/totp_auth.php');
 auth_rate_expect(str_contains($passwordSource, "fopen(\$file, 'c+')"), 'password failures must use a read/write handle');
 auth_rate_expect(str_contains($passwordSource, 'flock($handle, LOCK_EX)'), 'password failure updates must hold an exclusive lock across read-modify-write');
 auth_rate_expect(str_contains($passwordSource, 'ftruncate($handle, 0)'), 'password failure state must be replaced while holding the lock');
+auth_rate_expect(!str_contains($passwordSource, '@unlink($file)'), 'password reset must preserve the locked inode instead of unlinking it');
 auth_rate_expect(str_contains($totpSource, "fopen(\$file, 'c+')"), 'TOTP failures must use a read/write handle');
 auth_rate_expect(str_contains($totpSource, 'flock($handle, LOCK_EX)'), 'TOTP failure updates must hold an exclusive lock across read-modify-write');
 auth_rate_expect(str_contains($totpSource, 'ftruncate($handle, 0)'), 'TOTP failure state must be replaced while holding the lock');
+auth_rate_expect(!str_contains($totpSource, '@unlink($file)'), 'TOTP reset must preserve the locked inode instead of unlinking it');
 auth_rate_expect(str_contains($totpSource, "brvtal_totp_rate_limit_reset((int)\$admin['id'])"), 'successful TOTP login must reset the login-scope failure budget');
 
 $resetOffset = strpos($totpSource, "brvtal_totp_rate_limit_reset((int)\$admin['id'])");
@@ -42,6 +44,10 @@ try {
     auth_rate_expect((int)$blocked['retry_after'] > 0, 'blocked password state exposes a retry window');
 
     brvtal_password_rate_limit_reset($email, $tempDir, $ip);
+    $file = brvtal_password_rate_limit_path($email, $tempDir, $ip);
+    auth_rate_expect(is_file($file), 'reset keeps a stable limiter inode for concurrent requests');
+    $rawReset = json_decode((string)file_get_contents($file), true);
+    auth_rate_expect(is_array($rawReset) && ($rawReset['attempts'] ?? null) === [] && (int)($rawReset['blocked_until'] ?? -1) === 0, 'reset persists an explicit empty limiter state');
     $reset = brvtal_password_rate_limit_check($email, $tempDir, $now + BRVTAL_PASSWORD_RATE_LIMIT_MAX_FAILURES + 1, $ip);
     auth_rate_expect($reset['limited'] === false && $reset['attempts'] === [], 'successful password authentication can clear the failure budget');
 } finally {
