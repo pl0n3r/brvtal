@@ -166,6 +166,17 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         collective_expect(count($history) === 1 && $history[0]['status'] === 'alumni', 'active → alumni must close the existing period');
         collective_expect(str_starts_with((string)$history[0]['ended_at'], '2026-01-20'), 'alumni transition must store the explicit left date');
 
+        $overlappingAlumniRejoin = ['collective_status'=>'active','collective_joined_at'=>'2026-01-19','collective_left_at'=>null];
+        $overlapRejected = false;
+        try {
+            brvtal_artist_collective_sync_history($pdo, 'update', $artistId, $alumni, $overlappingAlumniRejoin, $adminId);
+        } catch (DomainException $e) {
+            $overlapRejected = $e->getMessage() === 'COLLECTIVE_HISTORY_OVERLAP';
+        }
+        collective_expect($overlapRejected, 'alumni → active must reject a re-entry date before the previous period ended');
+        $rows->execute([$artistId]);
+        collective_expect(count($rows->fetchAll()) === 1, 'rejected alumni → active overlap must not create a history row');
+
         $rejoined = ['collective_status'=>'active','collective_joined_at'=>'2026-06-01','collective_left_at'=>null];
         brvtal_artist_collective_sync_history($pdo, 'update', $artistId, $alumni, $rejoined, $adminId);
         $rows->execute([$artistId]);
@@ -187,11 +198,29 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         collective_expect(count($history) === 2 && $history[1]['status'] === 'alumni', 'active → none must close, not erase, the current history period');
         collective_expect((string)$history[1]['ended_at'] === '2026-09-16 12:00:00', 'active → none must close the period at the lifecycle-change time');
 
-        $beforeBio = $none + ['bio'=>'A'];
-        $afterBio = $none + ['bio'=>'B'];
+        $overlappingNoneRejoin = ['collective_status'=>'active','collective_joined_at'=>'2026-09-16','collective_left_at'=>null];
+        $noneOverlapRejected = false;
+        try {
+            brvtal_artist_collective_sync_history($pdo, 'update', $artistId, $none, $overlappingNoneRejoin, $adminId);
+        } catch (DomainException $e) {
+            $noneOverlapRejected = $e->getMessage() === 'COLLECTIVE_HISTORY_OVERLAP';
+        }
+        collective_expect($noneOverlapRejected, 'none → active must reject a re-entry date before the latest closed period ended');
+        $rows->execute([$artistId]);
+        collective_expect(count($rows->fetchAll()) === 2, 'rejected none → active overlap must not create a history row');
+
+        $rejoinedFromNone = ['collective_status'=>'active','collective_joined_at'=>'2026-09-17','collective_left_at'=>null];
+        brvtal_artist_collective_sync_history($pdo, 'update', $artistId, $none, $rejoinedFromNone, $adminId);
+        $rows->execute([$artistId]);
+        $history = $rows->fetchAll();
+        collective_expect(count($history) === 3, 'none → active valid re-entry must create a new non-overlapping period');
+        collective_expect($history[2]['status'] === 'active' && str_starts_with((string)$history[2]['started_at'], '2026-09-17'), 'none → active re-entry must start after the latest closed period');
+
+        $beforeBio = $rejoinedFromNone + ['bio'=>'A'];
+        $afterBio = $rejoinedFromNone + ['bio'=>'B'];
         brvtal_artist_collective_sync_history($pdo, 'update', $artistId, $beforeBio, $afterBio, $adminId);
         $rows->execute([$artistId]);
-        collective_expect(count($rows->fetchAll()) === 2, 'unrelated Artist edits must not create membership history');
+        collective_expect(count($rows->fetchAll()) === 3, 'unrelated Artist edits must not create membership history');
 
         $artistInsert->execute(['Historical Contract Artist', 'historical-contract-' . $stamp]);
         $historicalArtistId = (int)$pdo->lastInsertId();
