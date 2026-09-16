@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/seo_defaults.php';
 require_once __DIR__ . '/public_visibility.php';
 require_once __DIR__ . '/page_content.php';
+require_once __DIR__ . '/public_settings.php';
 
 function brvtal_public_base_url(array $config): string
 {
@@ -18,6 +19,17 @@ function brvtal_public_absolute_url(string $value, string $base): string
     if ($value === '') return $base . '/assets/brvtal-logo.jpeg';
     if (preg_match('#^https?://#i', $value)) return $value;
     return $base . '/' . ltrim($value, '/');
+}
+
+/** @return array{site_title:string,description:string,share_image:string} */
+function brvtal_public_global_seo(PDO $pdo): array
+{
+    $setting = brvtal_config_setting_json($pdo, 'seo');
+    $title = brvtal_seo_truncate(brvtal_seo_plain_text($setting['site_title'] ?? ''), 190);
+    $description = brvtal_seo_truncate(brvtal_seo_plain_text($setting['description'] ?? ''), 320);
+    $shareImage = trim((string)($setting['share_image'] ?? $setting['og_image'] ?? ''));
+    if ($shareImage !== '' && !preg_match('#^(?:https?://|/)#i', $shareImage)) $shareImage = '';
+    return ['site_title'=>$title,'description'=>$description,'share_image'=>$shareImage];
 }
 
 function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
@@ -53,7 +65,7 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     return $row;
 }
 
-function brvtal_public_seo_document(?array $entity, string $base): array
+function brvtal_public_seo_document(?array $entity, string $base, array $defaults = []): array
 {
     $siteName = 'BRVTAL';
     $path = $entity ? '/' . $entity['route_type'] . '/' . rawurlencode((string)$entity['slug']) : '/';
@@ -61,16 +73,26 @@ function brvtal_public_seo_document(?array $entity, string $base): array
 
     $customTitle = trim((string)($entity['seo_title'] ?? ''));
     $fallbackTitle = brvtal_seo_default_title($entity['title'] ?? '');
-    $title = $entity ? ($customTitle !== '' ? brvtal_seo_truncate(brvtal_seo_plain_text($customTitle), 190) : $fallbackTitle) : 'BRVTAL — Rave till Grave';
-    if ($entity && !str_contains(strtoupper($title), 'BRVTAL')) $title .= ' — BRVTAL';
+    if ($entity) {
+        $title = $customTitle !== '' ? brvtal_seo_truncate(brvtal_seo_plain_text($customTitle), 190) : $fallbackTitle;
+        if (!str_contains(strtoupper($title), 'BRVTAL')) $title .= ' — BRVTAL';
+    } else {
+        $title = brvtal_seo_truncate(brvtal_seo_plain_text($defaults['site_title'] ?? ''), 190);
+        if ($title === '') $title = 'BRVTAL — Rave till Grave';
+    }
 
     $customDescription = trim((string)($entity['seo_description'] ?? ''));
-    $description = $customDescription !== ''
-        ? brvtal_seo_truncate(brvtal_seo_plain_text($customDescription), 320)
-        : brvtal_seo_default_description($entity['description'] ?? '', 160);
+    if ($entity) {
+        $description = $customDescription !== ''
+            ? brvtal_seo_truncate(brvtal_seo_plain_text($customDescription), 320)
+            : brvtal_seo_default_description($entity['description'] ?? '', 160);
+    } else {
+        $description = brvtal_seo_truncate(brvtal_seo_plain_text($defaults['description'] ?? ''), 320);
+    }
     if ($description === '') $description = 'BRVTAL — Rave till Grave. Underground electronic music, experiences and events from Colombia.';
 
-    $image = brvtal_public_absolute_url((string)($entity['image'] ?? ''), $base);
+    $imageSource = $entity ? (string)($entity['image'] ?? '') : (string)($defaults['share_image'] ?? '');
+    $image = brvtal_public_absolute_url($imageSource, $base);
     $schema = [
         '@context' => 'https://schema.org',
         '@type' => $entity['schema_type'] ?? 'Organization',

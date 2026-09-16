@@ -1,16 +1,30 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/public_settings.php';
+
+function brvtal_public_ga_id_value(mixed $value): string
+{
+    $id = strtoupper(trim((string)$value));
+    return preg_match('/^G-[A-Z0-9]{4,20}$/', $id) ? $id : '';
+}
+
 function brvtal_public_ga_id_from_theme(mixed $theme): string
 {
     $analytics = is_array($theme) && is_array($theme['analytics'] ?? null) ? $theme['analytics'] : [];
-    $id = strtoupper(trim((string)($analytics['google'] ?? '')));
-    return preg_match('/^G-[A-Z0-9]{4,20}$/', $id) ? $id : '';
+    return brvtal_public_ga_id_value($analytics['google'] ?? '');
 }
 
 function brvtal_public_ga_id(PDO $pdo): string
 {
     try {
+        // Global analytics is behavior/integration configuration and therefore
+        // belongs to Settings. Existing theme.analytics.google remains a
+        // non-destructive fallback for installations created before #400.
+        $analytics = brvtal_config_setting_json($pdo, 'analytics');
+        $configured = brvtal_public_ga_id_value($analytics['ga4_id'] ?? $analytics['google'] ?? '');
+        if ($configured !== '') return $configured;
+
         $rows = $pdo->query("SELECT setting_key,setting_value FROM settings WHERE setting_key='theme.active' OR setting_key LIKE 'theme.%'")->fetchAll();
         $settings = [];
         foreach ($rows as $row) $settings[(string)$row['setting_key']] = (string)$row['setting_value'];
