@@ -2,17 +2,6 @@
   'use strict';
 
   const endpoint = '/api/contact.php';
-  const version = String(window.BRVTAL_PUBLIC_VERSION || '');
-  const versioned = path => version ? `${path}?v=${encodeURIComponent(version)}` : path;
-
-  function ensureStyle() {
-    if (document.getElementById('brvtal-contact-social-style')) return;
-    const link = document.createElement('link');
-    link.id = 'brvtal-contact-social-style';
-    link.rel = 'stylesheet';
-    link.href = versioned('css/contact-social.css');
-    document.head.appendChild(link);
-  }
 
   const cleanUrl = value => {
     const raw = String(value || '').trim();
@@ -42,30 +31,7 @@
 
   function socialMarkup() {
     return `<div class="brvtal-social-rail" aria-label="BRVTAL social links">
-      <span class="brvtal-social-label">FOLLOW / SIGNAL</span>
-      ${['instagram','soundcloud','youtube','spotify'].map(name => `<a class="brvtal-social-link magnetic" data-brvtal-social="${name}" href="#" target="_blank" rel="noopener noreferrer" aria-label="${name[0].toUpperCase() + name.slice(1)}" data-cursor="${name.toUpperCase()}" hidden>${icon(name)}</a>`).join('')}
-    </div>`;
-  }
-
-  function contactMarkup() {
-    return `<div class="brvtal-contact-shell">
-      <div class="brvtal-contact-intro">
-        <span class="mono">CONTACT / DIRECT CHANNEL</span>
-        <p>BOOKINGS, COLLABORATIONS, PRESS OR ANYTHING THAT NEEDS A HUMAN RESPONSE. SEND A CLEAN SIGNAL AND WE'LL GET BACK TO YOU.</p>
-      </div>
-      <form class="brvtal-contact-form" id="brvtalContactForm" novalidate>
-        <div class="brvtal-contact-field"><label for="contactName">NAME</label><input id="contactName" name="name" autocomplete="name" maxlength="100" required><span class="brvtal-contact-error" data-error-for="name"></span></div>
-        <div class="brvtal-contact-field"><label for="contactEmail">EMAIL</label><input id="contactEmail" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required><span class="brvtal-contact-error" data-error-for="email"></span></div>
-        <div class="brvtal-contact-field"><label for="contactSubject">SUBJECT</label><input id="contactSubject" name="subject" maxlength="140" required><span class="brvtal-contact-error" data-error-for="subject"></span></div>
-        <div class="brvtal-contact-field"><label for="contactMessage">MESSAGE</label><textarea id="contactMessage" name="message" maxlength="5000" required></textarea><span class="brvtal-contact-error" data-error-for="message"></span></div>
-        <label class="brvtal-contact-hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-        <div class="brvtal-captcha">
-          <div class="brvtal-captcha-copy"><span>ANTI-BOT CHECK</span><strong data-contact-captcha-question>LOADING…</strong><small>ENTER THE RESULT TO CONFIRM YOU'RE HUMAN.</small></div>
-          <div><label class="brvtal-contact-hp" for="contactCaptcha">CAPTCHA ANSWER</label><input id="contactCaptcha" class="brvtal-captcha-input" name="captcha_answer" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="CAPTCHA answer" required><span class="brvtal-contact-error" data-error-for="captcha"></span></div>
-        </div>
-        <input type="hidden" name="captcha_token" data-contact-captcha-token>
-        <div class="brvtal-contact-actions"><button class="brvtal-contact-submit magnetic" type="submit" data-cursor="SEND">SEND SIGNAL ↗</button><div class="brvtal-contact-status" role="status" aria-live="polite" data-contact-status>READY / WAITING FOR SIGNAL</div></div>
-      </form>
+      ${['instagram','soundcloud','youtube','spotify'].map(name => `<a class="brvtal-social-link" data-brvtal-social="${name}" href="#" target="_blank" rel="noopener noreferrer" aria-label="${name[0].toUpperCase() + name.slice(1)}" hidden>${icon(name)}</a>`).join('')}
     </div>`;
   }
 
@@ -85,7 +51,7 @@
     return normalizePayload(await response.json());
   }
 
-  function applySocials(data) {
+  function applySocials(data, root = document) {
     const social = data?.settings?.social && typeof data.settings.social === 'object' ? data.settings.social : {};
     const map = {
       instagram:['instagram','instagram_url','instagramUrl'],
@@ -94,7 +60,7 @@
       spotify:['spotify','spotify_url','spotifyUrl']
     };
     Object.entries(map).forEach(([name, keys]) => {
-      const link = document.querySelector(`[data-brvtal-social="${name}"]`);
+      const link = root.querySelector(`[data-brvtal-social="${name}"]`);
       if (!link) return;
       const url = cleanUrl(pick(social, keys));
       if (url) {
@@ -107,11 +73,20 @@
     });
   }
 
+  function setStatus(form, text, state = 'idle') {
+    const status = form.querySelector('[data-contact-status]');
+    if (!status) return;
+    status.textContent = text;
+    status.dataset.state = state;
+  }
+
   async function loadChallenge(form, { announce = false } = {}) {
     const question = form.querySelector('[data-contact-captcha-question]');
     const token = form.querySelector('[data-contact-captcha-token]');
     const answer = form.elements.captcha_answer;
     const submit = form.querySelector('[type="submit"]');
+    if (!question || !token || !answer || !submit) return;
+
     question.textContent = 'LOADING…';
     token.value = '';
     answer.value = '';
@@ -130,13 +105,6 @@
       question.textContent = 'CHECK UNAVAILABLE';
       setStatus(form, 'ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.', 'error');
     }
-  }
-
-  function setStatus(form, text, state = 'idle') {
-    const status = form.querySelector('[data-contact-status]');
-    if (!status) return;
-    status.textContent = text;
-    status.dataset.state = state;
   }
 
   function clearErrors(form) {
@@ -216,34 +184,25 @@
   }
 
   function init() {
-    const footer = document.getElementById('contact');
-    if (!footer || footer.dataset.brvtalContactReady === '1') return false;
-    footer.dataset.brvtalContactReady = '1';
-    ensureStyle();
+    const root = document.querySelector('[data-public-contact-page]');
+    if (!root || root.dataset.brvtalContactReady === '1') return false;
+    root.dataset.brvtalContactReady = '1';
 
-    const main = footer.querySelector('.footer-main');
-    if (main && !main.querySelector('.brvtal-contact-shell')) {
-      const existingCta = main.querySelector('.footer-cta');
-      if (existingCta) existingCta.remove();
-      main.insertAdjacentHTML('beforeend', contactMarkup());
+    const socialMount = root.querySelector('[data-contact-social-mount]');
+    if (socialMount && !socialMount.querySelector('.brvtal-social-rail')) {
+      socialMount.innerHTML = socialMarkup();
     }
 
-    const bottom = footer.querySelector('.footer-bottom');
-    if (bottom) {
-      bottom.classList.add('brvtal-footer-bottom');
-      if (!bottom.querySelector('.brvtal-social-rail')) bottom.insertAdjacentHTML('beforeend', socialMarkup());
-    }
-
-    const form = document.getElementById('brvtalContactForm');
+    const form = root.querySelector('#brvtalContactForm');
     if (form && !form.dataset.bound) {
       form.dataset.bound = '1';
       form.addEventListener('submit', submitContact);
       loadChallenge(form);
     }
 
-    const hydrate = () => getPublicData().then(applySocials).catch(() => {});
-    if (document.readyState === 'complete') window.setTimeout(hydrate, 180);
-    else window.addEventListener('load', () => window.setTimeout(hydrate, 180), { once:true });
+    const hydrate = () => getPublicData().then(data => applySocials(data, root)).catch(() => {});
+    if (document.readyState === 'complete') window.setTimeout(hydrate, 100);
+    else window.addEventListener('load', () => window.setTimeout(hydrate, 100), { once:true });
     return true;
   }
 
