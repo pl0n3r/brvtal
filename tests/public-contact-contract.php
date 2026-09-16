@@ -13,7 +13,10 @@ function contact_assert(bool $condition, string $message): void
 
 $config = [
     'security' => ['csrf_key' => str_repeat('contact-contract-secret-', 3)],
-    'contact' => ['to' => 'inbox@example.com'],
+    'contact' => [
+        'to' => 'inbox@example.com',
+        'trusted_proxies' => ['203.0.113.0/24', '2001:db8::/32'],
+    ],
 ];
 $now = 1_800_000_000;
 $challenge = brvtal_contact_issue_challenge($config, $now);
@@ -52,6 +55,48 @@ $invalid = brvtal_contact_validate_payload($bad, $config, $now + 3);
 contact_assert(($invalid['errors']['email'] ?? '') === 'INVALID_EMAIL', 'invalid email is rejected');
 contact_assert(($invalid['errors']['message'] ?? '') === 'INVALID_MESSAGE', 'short message is rejected');
 contact_assert(($invalid['errors']['form'] ?? '') === 'BOT_DETECTED', 'honeypot is enforced server-side');
+
+$originalRemote = $_SERVER['REMOTE_ADDR'] ?? null;
+$originalForwarded = $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null;
+try {
+    $_SERVER['REMOTE_ADDR'] = '198.51.100.10';
+    $_SERVER['HTTP_CF_CONNECTING_IP'] = '192.0.2.44';
+    contact_assert(
+        brvtal_contact_client_key($config) === hash('sha256', '198.51.100.10'),
+        'untrusted peers cannot spoof CF-Connecting-IP rate-limit buckets'
+    );
+
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.8';
+    $_SERVER['HTTP_CF_CONNECTING_IP'] = '192.0.2.44';
+    contact_assert(
+        brvtal_contact_client_key($config) === hash('sha256', '192.0.2.44'),
+        'trusted IPv4 proxy CIDRs may supply a validated CF-Connecting-IP address'
+    );
+
+    $_SERVER['REMOTE_ADDR'] = '2001:db8::8';
+    $_SERVER['HTTP_CF_CONNECTING_IP'] = '2001:db8:ffff::7';
+    contact_assert(
+        brvtal_contact_client_key($config) === hash('sha256', '2001:db8:ffff::7'),
+        'trusted IPv6 proxy CIDRs are supported'
+    );
+
+    $_SERVER['REMOTE_ADDR'] = '203.0.113.8';
+    $_SERVER['HTTP_CF_CONNECTING_IP'] = 'not-an-ip';
+    contact_assert(
+        brvtal_contact_client_key($config) === hash('sha256', '203.0.113.8'),
+        'invalid forwarded addresses fail closed to the immediate peer'
+    );
+} finally {
+    if ($originalRemote === null) unset($_SERVER['REMOTE_ADDR']); else $_SERVER['REMOTE_ADDR'] = $originalRemote;
+    if ($originalForwarded === null) unset($_SERVER['HTTP_CF_CONNECTING_IP']); else $_SERVER['HTTP_CF_CONNECTING_IP'] = $originalForwarded;
+}
+
+$rateLimitPath = str_replace('\\', '/', brvtal_contact_rate_limit_path());
+contact_assert(str_ends_with($rateLimitPath, '/storage/rate_limits/contact-rate-limit.json'), 'Contact rate-limit state lives under protected storage/rate_limits');
+$storageRules = (string)file_get_contents(__DIR__ . '/../storage/.htaccess');
+$rateLimitRules = (string)file_get_contents(__DIR__ . '/../storage/rate_limits/.htaccess');
+contact_assert(str_contains($storageRules, 'json'), 'storage root denies legacy JSON state files');
+contact_assert(str_contains($rateLimitRules, 'Require all denied'), 'rate-limit subtree denies all direct HTTP reads');
 
 $temp = sys_get_temp_dir() . '/brvtal-contact-rate-' . bin2hex(random_bytes(5)) . '.json';
 $key = hash('sha256', '127.0.0.1');
