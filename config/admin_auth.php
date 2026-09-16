@@ -6,6 +6,7 @@ declare(strict_types=1);
  * Canonical session/CSRF helpers for protected admin endpoints.
  */
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/admin_session_revalidation.php';
 
 const BRVTAL_ADMIN_IDLE_TIMEOUT = 604800; // 7 days without activity.
 const BRVTAL_ADMIN_ABSOLUTE_TIMEOUT = 2592000; // 30 days from login.
@@ -121,7 +122,8 @@ function brvtal_admin_is_authenticated(): bool
 {
     brvtal_admin_session_start();
 
-    if (empty($_SESSION['admin_id'])) {
+    $adminId = (int)($_SESSION['admin_id'] ?? 0);
+    if ($adminId < 1) {
         return false;
     }
 
@@ -131,6 +133,24 @@ function brvtal_admin_is_authenticated(): bool
 
     if (($last && ($now - $last) > BRVTAL_ADMIN_IDLE_TIMEOUT)
         || ($issued && ($now - $issued) > BRVTAL_ADMIN_ABSOLUTE_TIMEOUT)) {
+        brvtal_admin_logout();
+        return false;
+    }
+
+    try {
+        $active = brvtal_admin_account_is_active(db(), $adminId);
+    } catch (Throwable $e) {
+        brvtal_log('AUTH_REVALIDATION_ERROR', 'Admin session could not be revalidated', [
+            'admin_id' => $adminId,
+            'class' => get_class($e),
+        ]);
+        return false;
+    }
+
+    if (!$active) {
+        brvtal_log('SECURITY', 'Admin session revoked because account is inactive or missing', [
+            'admin_id' => $adminId,
+        ]);
         brvtal_admin_logout();
         return false;
     }
