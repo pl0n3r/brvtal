@@ -76,8 +76,8 @@ brvtal_ci_classify_files() {
         brvtal_ci_scope_add_area "CI/CD core"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true; BRVTAL_SCOPE_RUN_WEBKIT=true; BRVTAL_SCOPE_RUN_RECOVERY=true ;;
       .github/*)
         brvtal_ci_scope_add_area "CI/CD" ;;
-      .coderabbit.yaml)
-        brvtal_ci_scope_add_area "Review policy" ;;
+      .coderabbit.yaml|.sonarcloud.properties)
+        brvtal_ci_scope_add_area "Review/static analysis policy" ;;
       scripts/*|tests/*.php)
         brvtal_ci_scope_add_area "Fast tests/tooling" ;;
       docs/*|README.md|AGENTS.md)
@@ -97,7 +97,10 @@ brvtal_ci_classify_files() {
     esac
   done <<< "$changed_file_list"
 
-  [[ -z "$BRVTAL_SCOPE_AREAS" ]] && BRVTAL_SCOPE_AREAS="None detected"
+  if [[ -z "$BRVTAL_SCOPE_AREAS" ]]; then
+    BRVTAL_SCOPE_AREAS="None detected"
+  fi
+  return 0
 }
 
 brvtal_ci_scope_print() {
