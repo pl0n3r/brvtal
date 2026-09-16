@@ -14,7 +14,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - La versión de PHP se toma del health runtime y deja de depender de una etiqueta hard-coded.
 - Quick Create queda como acción secundaria y `MEDIA LIBRARY` navega al workflow canónico, evitando el alta legacy de Media desde Dashboard.
 - Se elimina de la experiencia V2 la métrica `ANALYTICS / 30D` basada en `analytics_events`, ya que esa tabla no representa la telemetría pública vigente.
-- Se añadió contrato PHP específico para el wiring, semántica de fuentes y comportamiento responsive de Dashboard V2.
+- Se añadieron contratos PHP y Chromium para el wiring, la separación public/draft, semántica de fuentes, navegación y comportamiento responsive de Dashboard V2.
 
 ## Archivos modificados en este deploy
 
@@ -22,10 +22,11 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `api/content-health.php` — separa salud pública de completitud de drafts.
 - `api/dashboard-overview.php` — fuente read-only de señales editoriales/operativas del Dashboard.
 - `discadmin/content-health.js` — presenta Public Score y Draft Backlog como señales distintas.
-- `discadmin/dashboard-v2.css` — layout responsive y jerarquía visual de Dashboard V2.
+- `discadmin/dashboard-v2.css` — layout responsive, jerarquía visual y compatibilidad Dark/Light/Glass de Dashboard V2.
 - `discadmin/dashboard-v2.js` — composición del overview, fuentes independientes, Next Event, health, storage, activity y quick actions seguros.
 - `discadmin/index.php` — carga versionada de Dashboard V2 dentro del shell canónico.
 - `tests/dashboard-v2-contract.php` — contrato de fuentes, lifecycle, resiliencia, navegación y responsive.
+- `tests/e2e/discadmin-content-health.spec.mjs` — regresión Chromium para Public Score, Draft Backlog y navegación canónica.
 
 ## Validación
 
@@ -34,7 +35,8 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - No había PRs abiertos al iniciar este bloque.
 - Se reutilizan hallazgos existentes de Dashboard y Content Health; no se abrió trabajo duplicado.
 - La implementación mantiene ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
-- Pendiente: CI path-aware del PR y, después del squash merge, CI + Production Performance del SHA exacto de `main`.
+- La primera pasada de Chromium detectó únicamente una expectativa textual antigua de Content Health; el contrato browser se actualizó a la nueva separación Public Score / Draft Backlog sin relajar el comportamiento probado.
+- Pendiente: CI del head final del PR y, después del squash merge, CI + Production Performance del SHA exacto de `main`.
 - CI verde significará **VALIDATED IN CODE**. La composición visual final y los datos reales del Dashboard requieren validación en producción tras deploy.
 
 ## Qué sigue
