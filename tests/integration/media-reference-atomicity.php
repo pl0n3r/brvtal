@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../config/media.php';
+require_once __DIR__ . '/../../config/media_integrity.php';
+
 function media_atomicity_assert(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -100,6 +103,22 @@ $writer->exec($schema);
 $migration = file_get_contents(__DIR__ . '/../../database/migration_zz_media_reference_guard_01.sql');
 media_atomicity_assert(is_string($migration) && trim($migration) !== '', 'guard migration must exist');
 $writer->exec($migration);
+
+// Existing duplicate local-path records must be treated as shared ownership.
+$duplicatePath = '/uploads/media/ci/shared-owner.jpg';
+$writer->prepare('INSERT INTO media(file_path,title) VALUES(?,?)')->execute([$duplicatePath, 'Shared owner A']);
+$duplicateA = (int)$writer->lastInsertId();
+$writer->prepare('INSERT INTO media(file_path,title) VALUES(?,?)')->execute([$duplicatePath, 'Shared owner B']);
+$duplicateB = (int)$writer->lastInsertId();
+$duplicateUsage = brvtal_media_duplicate_usage($writer, ['id'=>$duplicateA, 'file_path'=>$duplicatePath]);
+media_atomicity_assert(count($duplicateUsage) === 1, 'duplicate path must expose exactly the other Media owner');
+media_atomicity_assert(($duplicateUsage[0]['resource'] ?? '') === 'MEDIA', 'duplicate path usage must be identified as Media ownership');
+media_atomicity_assert((int)($duplicateUsage[0]['id'] ?? 0) === $duplicateB, 'duplicate usage must identify the sibling Media row');
+$combinedUsage = brvtal_media_integrity_usage($writer, ['id'=>$duplicateA, 'file_path'=>$duplicatePath]);
+media_atomicity_assert(count($combinedUsage) === 1, 'combined usage must block deletion when only a duplicate Media owner exists');
+$owner = brvtal_media_existing_local_owner($writer, $duplicatePath);
+media_atomicity_assert((int)($owner['id'] ?? 0) === $duplicateA, 'local register guard must find the first existing owner');
+$writer->prepare('DELETE FROM media WHERE id IN (?,?)')->execute([$duplicateA, $duplicateB]);
 
 $path = '/uploads/media/ci/atomic-race.jpg';
 $writer->prepare('INSERT INTO media(file_path,title) VALUES(?,?)')->execute([$path, 'Atomic race']);

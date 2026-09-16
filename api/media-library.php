@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/media.php';
+require_once __DIR__ . '/../config/media_integrity.php';
 
 brvtal_admin_require();
 header('X-Content-Type-Options: nosniff');
@@ -12,9 +13,13 @@ $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $action = strtolower(trim((string)($_GET['action'] ?? 'list')));
 $id = isset($_GET['id']) && ctype_digit((string)$_GET['id']) ? (int)$_GET['id'] : null;
 
-function brvtal_media_find(PDO $pdo, int $id): ?array
+function brvtal_media_find(PDO $pdo, int $id, bool $lock = false): ?array
 {
-    $st = $pdo->prepare('SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at FROM media WHERE id=? LIMIT 1');
+    $sql = 'SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at FROM media WHERE id=? LIMIT 1';
+    if ($lock) {
+        $sql .= ' FOR UPDATE';
+    }
+    $st = $pdo->prepare($sql);
     $st->execute([$id]);
     $row = $st->fetch();
     return is_array($row) ? $row : null;
@@ -63,7 +68,7 @@ try {
         if (!$row) {
             brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
         }
-        $usage = brvtal_media_usage($pdo, $row);
+        $usage = brvtal_media_integrity_usage($pdo, $row);
         $asset = brvtal_media_asset_payload($row);
         $asset['usage'] = $usage;
         $asset['usage_count'] = count($usage);
@@ -179,6 +184,15 @@ try {
                 brvtal_media_json_response(['ok' => false, 'error' => 'LOCAL_MEDIA_NOT_FOUND'], 422);
             }
 
+            $existingOwner = brvtal_media_existing_local_owner($pdo, $path);
+            if ($existingOwner !== null) {
+                brvtal_media_json_response([
+                    'ok' => false,
+                    'error' => 'LOCAL_MEDIA_ALREADY_REGISTERED',
+                    'media_id' => $existingOwner['id'],
+                ], 409);
+            }
+
             $detectedMime = (new finfo(FILEINFO_MIME_TYPE))->file($absolute) ?: '';
             $detectedType = match ($detectedMime) {
                 'image/jpeg', 'image/png', 'image/webp', 'image/gif' => 'image',
@@ -227,7 +241,7 @@ try {
         brvtal_media_remove_generated_variants($absolute, $metadata['variants']);
         brvtal_media_store_sidecar($absolute, $metadata);
         $asset = brvtal_media_asset_payload($row);
-        $asset['usage'] = brvtal_media_usage($pdo, $row);
+        $asset['usage'] = brvtal_media_integrity_usage($pdo, $row);
         brvtal_media_json_response(['ok'=>true,'data'=>$asset]);
     }
 
@@ -251,7 +265,7 @@ try {
         $st->execute([$title, $alt, $status, $id]);
         $updated = brvtal_media_find($pdo, $id);
         $asset = brvtal_media_asset_payload($updated ?: $row);
-        $asset['usage'] = brvtal_media_usage($pdo, $updated ?: $row);
+        $asset['usage'] = brvtal_media_integrity_usage($pdo, $updated ?: $row);
         $asset['usage_count'] = count($asset['usage']);
         brvtal_media_json_response(['ok' => true, 'data' => $asset]);
     }
@@ -261,27 +275,65 @@ try {
         if (!$id) {
             brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_ID_REQUIRED'], 422);
         }
-        $row = brvtal_media_find($pdo, $id);
-        if (!$row) {
-            brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
-        }
-        $usage = brvtal_media_usage($pdo, $row);
-        if ($usage !== []) {
-            brvtal_media_json_response([
-                'ok' => false,
-                'error' => 'MEDIA_IN_USE',
-                'usage' => $usage,
-                'usage_count' => count($usage),
-            ], 409);
+
+        $stage = null;
+        $committed = false;
+        $pdo->beginTransaction();
+        try {
+            brvtal_media_reference_mutex_lock($pdo);
+            $row = brvtal_media_find($pdo, $id, true);
+            if (!$row) {
+                $pdo->rollBack();
+                brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
+            }
+
+            $usage = brvtal_media_integrity_usage($pdo, $row);
+            if ($usage !== []) {
+                $pdo->rollBack();
+                brvtal_media_json_response([
+                    'ok' => false,
+                    'error' => 'MEDIA_IN_USE',
+                    'usage' => $usage,
+                    'usage_count' => count($usage),
+                ], 409);
+            }
+
+            $stage = brvtal_media_stage_delete($row);
+            if (($stage['ok'] ?? false) !== true) {
+                $pdo->rollBack();
+                brvtal_media_json_response([
+                    'ok' => false,
+                    'error' => 'MEDIA_FILE_STAGE_FAILED',
+                    'failed_file' => $stage['failed'] ?? null,
+                ], 500);
+            }
+
+            $st = $pdo->prepare('DELETE FROM media WHERE id=?');
+            $st->execute([$id]);
+            if ((int)$st->rowCount() !== 1) {
+                brvtal_media_restore_staged_delete($stage);
+                $pdo->rollBack();
+                brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_DELETE_CONFLICT'], 409);
+            }
+
+            $pdo->commit();
+            $committed = true;
+        } catch (Throwable $deleteError) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if (!$committed && is_array($stage) && ($stage['ok'] ?? false) === true) {
+                brvtal_media_restore_staged_delete($stage);
+            }
+            throw $deleteError;
         }
 
-        $st = $pdo->prepare('DELETE FROM media WHERE id=?');
-        $st->execute([$id]);
-        $deletedFiles = brvtal_media_delete_files($row);
+        $cleanup = brvtal_media_finalize_staged_delete(is_array($stage) ? $stage : []);
         brvtal_media_json_response([
             'ok' => true,
-            'deleted' => (int)$st->rowCount(),
-            'deleted_files' => $deletedFiles,
+            'deleted' => 1,
+            'deleted_files' => $cleanup['deleted'],
+            'private_cleanup_failed' => $cleanup['cleanup_failed'],
         ]);
     }
 

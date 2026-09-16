@@ -9,9 +9,13 @@ declare(strict_types=1);
  * collection, item or supported action forms. This prevents an unknown segment
  * from silently falling through to collection CRUD.
  *
+ * Legacy Media mutations also fail closed here so the canonical
+ * `/api/media-library.php` boundary is the only write/delete path. GET reads of
+ * the generic Media resource remain compatible.
+ *
  * @return array{resource:string,id:?int,action:string,segments:array<int,string>}
  */
-function brvtal_api_parse_route(string $requestUri, string $scriptName): array
+function brvtal_api_parse_route(string $requestUri, string $scriptName, ?string $requestMethod = null): array
 {
     $path = trim((string)(parse_url($requestUri, PHP_URL_PATH) ?? '/'), '/');
     $script = trim($scriptName, '/');
@@ -46,7 +50,11 @@ function brvtal_api_parse_route(string $requestUri, string $scriptName): array
                 && $segments[2] === 'lineup');
     }
 
-    if (!$validShape) {
+    $method = strtoupper(trim((string)($requestMethod ?? ($_SERVER['REQUEST_METHOD'] ?? 'GET'))));
+    $legacyMediaMutation = $resource === 'upload'
+        || ($resource === 'media' && $method !== 'GET');
+
+    if (!$validShape || $legacyMediaMutation) {
         $resource = '';
         $id = null;
         $action = '';

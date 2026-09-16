@@ -6,42 +6,46 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Content Core impide que un `PUT` vacíe la identidad editorial requerida de Events (`title`), Artists (`name`) o Sets (`title`), preservando updates parciales que no tocan esos campos.
-- Los JSON con `title`/`name` no escalares se rechazan antes del cast y las fechas no escalares devuelven un `422` limpio, evitando valores `Array` y warnings PHP.
-- La regresión real-stack usa identidades únicas, limpia Page/Ticket/Set/Artist/Event en `finally`, cubre directamente el PUT parcial de Ticket Type y comprueba que los `422` no modifiquen datos persistidos.
-- Bulk Actions al publicar Blog o Releases aplica el lifecycle de `published_at`: crea el timestamp una sola vez y lo conserva en cambios posteriores de estado.
-- La prueba MariaDB es la evidencia ejecutable del lifecycle de publicación masiva, evitando acoplar contratos a una forma concreta del SQL.
+- Se consolidó la política de mutaciones Media en `api/media-library.php`: las rutas legacy de upload y CRUD genérico ya no son alcanzables para escribir o borrar Media.
+- Los paths locales `/uploads/...` ya no pueden registrarse dos veces en el flujo canónico; duplicados históricos cuentan como ownership compartido y bloquean el borrado.
+- El delete canónico adquiere el mutex de referencias cuando está disponible, mueve original/sidecar/variantes al árbol web-denied `.private` antes de borrar la fila DB y restaura el staging si la transacción no puede completarse.
+- Un fallo de limpieza posterior al commit ya no deja archivos públicamente accesibles: queda como deuda privada reportada en la respuesta y registrada en el log operativo para limpieza posterior.
+- Se añadieron regresiones PHP, MariaDB y real-stack para rutas legacy, ownership duplicado, staging/rollback y el flujo canónico upload→register duplicate→delete.
+- La primera corrida CI detectó un contrato antiguo que buscaba `brvtal_media_usage` directamente en el endpoint; se actualizó para validar la nueva frontera `brvtal_media_integrity_usage` sin reducir cobertura.
+- Una corrida posterior detectó que Playwright no permite importar un archivo `.spec` desde otro `.spec`; el flujo Media quedó integrado directamente en el real-stack canónico y se eliminó el spec duplicado.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `config/bootstrap.php` — rechaza `title`/`name` no escalares al decodificar JSON antes de cualquier conversión a string.
-- `api/content-validation.php` — centraliza identidad requerida, tipos temporales seguros y documentación del contrato.
-- `api/bulk-actions-lib.php` — preserva el lifecycle `published_at` de Blog y Releases en cambios masivos.
-- `tests/content-validation-contract.php` — protege identidad requerida y fechas no escalares.
-- `tests/e2e/content-validation-real-stack.spec.mjs` — valida PUTs reales, no persistencia tras `422`, tipos inválidos y cleanup determinístico.
-- `tests/integration/bulk-actions.php` — verifica en MariaDB el stamp/preservación de `published_at` para Blog y Releases.
+- `api/media-library.php` — aplica ownership compartido, registro local único y borrado DB↔filesystem con staging privado/rollback.
+- `api/route.php` — cierra las mutaciones legacy de `upload` y `media` manteniendo GET Media compatible.
+- `config/media_integrity.php` — centraliza ownership duplicado, mutex opcional y staging/restauración/finalización privada del borrado.
+- `tests/media-integrity-contract.php` — prueba fail-closed de rutas legacy y comportamiento filesystem del staging/restauración.
+- `tests/media-library-contract.php` — valida que Media Library use la frontera integrity-aware y preserve las referencias editoriales canónicas.
+- `tests/integration/media-reference-atomicity.php` — valida en MariaDB que dos registros con el mismo path local se tratan como ownership compartido.
+- `tests/e2e/content-core-real-stack.spec.mjs` — ejecuta también el flujo Media real-stack: rutas legacy cerradas, upload canónico en draft, rechazo de ownership duplicado y delete seguro.
 
 ## Validación
 
-- Base exacta: `main` `cea4a357e518fac4bf39abed1acb9742b726280e`, con `BRVTAL CI / validate` verde (run #545).
-- No había PRs abiertos al crear `fix/content-integrity-review-quick-wins`.
-- Issues cubiertos: `#157`, `#168`.
-- También incorpora los tres hardenings accionables que CodeRabbit detectó después del merge de `#379` y los findings válidos de la primera revisión de `#382`.
-- No hay migración de base de datos, cambios de schema, restore, delete masivo ni mutación de datos de producción.
-- Las pruebas real-stack solo crean datos CI con namespace único y los eliminan en `finally`; la integración MariaDB usa tablas temporales en la base de test.
-- El head anterior de `#382` tuvo `fast`, `database`, `chromium`, `real-stack` y `validate` verdes; el head actualizado debe repetir los gates aplicables antes del merge.
+- Base exacta: `main` `2fe6ec647d5178b37cebc5535dd94674a47f8d33`, con `BRVTAL CI / validate` verde (run #553).
+- El PR residual #381 fue cerrado antes de iniciar esta rama porque su trabajo quedó absorbido y ampliado por #382.
+- Issues cubiertos: `#159`, `#227`, `#228`, `#371`.
+- No hay migración de base de datos, cambio de schema, restore, bulk delete ni mutación de datos de producción.
+- La nueva política reutiliza la migración de guardia/mutex ya existente cuando está instalada y mantiene compatibilidad con instalaciones donde aún no exista esa tabla auxiliar.
+- La prueba real-stack crea un asset CI mediante el endpoint canónico y lo elimina en `finally` si la prueba se interrumpe antes del delete esperado.
+- BRVTAL CI run #554 falló únicamente por un assertion de contrato desactualizado; run #558 falló únicamente porque Playwright prohíbe importar un `.spec` desde otro `.spec`. Ambos problemas de test quedaron corregidos en esta misma rama.
+- Pendiente en este snapshot: nueva corrida `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
 ## Qué sigue
 
-1. Esperar `BRVTAL CI / validate` y la revisión final de CodeRabbit sobre el head actualizado.
-2. Resolver cualquier finding válido restante en esta misma rama.
-3. Hacer squash merge y verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Continuar con el siguiente lote de Quick Wins de lifecycle: `#173` + `#180` si siguen vigentes contra el nuevo `main`.
+1. Resolver en esta misma rama cualquier finding válido de BRVTAL CI, CodeRabbit o SonarQube Cloud.
+2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisar los threads finales de CodeRabbit.
+3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
+4. Repriorizar el siguiente deploy por riesgo/impacto técnico entre revocación de sesiones (#167), invariantes de Content Core y deuda estructural restante de Media/DISCADMIN.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issues abordados: `#157`, `#168`.
+- Issues abordados: `#159`, `#227`, `#228`, `#371`.
