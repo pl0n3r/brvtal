@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const script = readFileSync(join(process.cwd(), 'discadmin/system-status-v2.js'), 'utf8');
+const styles = readFileSync(join(process.cwd(), 'discadmin/system-status-v2.css'), 'utf8');
 const storageScript = readFileSync(join(process.cwd(), 'discadmin/system-status-storage.js'), 'utf8');
 const harness = 'http://127.0.0.1:4173/discadmin/e2e-system-status-v2.html';
 
@@ -61,10 +62,12 @@ async function routeStatusSources(page, currentOverview=overview, currentHealth=
   await page.route('**/api/admin-activity.php?limit=5', route => route.fulfill({contentType:'application/json',body:JSON.stringify(currentActivity)}));
 }
 
+const shellMarkup = extraScripts => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles}</style></head><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script>${extraScripts || ''}</body></html>`;
+
 test('System Status v2 mounts on production markup, shows GitHub backlog and replaces host disk with BRVTAL managed storage', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:`<!doctype html><html><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div><div id="legacy">legacy</div></main><script>${script}</script><script>${storageScript}</script></body></html>`
+    body:shellMarkup(`<script>${storageScript}</script>`)
   }));
 
   await routeStatusSources(page);
@@ -129,7 +132,7 @@ test('healthy platform stays healthy with a non-empty GitHub backlog and remains
 
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><div><h1>SYSTEM</h1></div></div></main><script>${script}</script></body></html>`
+    body:shellMarkup('')
   }));
   await routeStatusSources(page, healthyOverview);
   await page.goto(harness);
