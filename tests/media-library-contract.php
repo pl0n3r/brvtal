@@ -57,9 +57,11 @@ media_assert(brvtal_public_media_delivery_sanitize([
 $api = (string)file_get_contents(__DIR__ . '/../api/media-library.php');
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 $mediaConfig = (string)file_get_contents(__DIR__ . '/../config/media.php');
+$mediaIntegrity = (string)file_get_contents(__DIR__ . '/../config/media_integrity.php');
 media_assert(str_contains($api, "brvtal_admin_require_csrf"), 'writes must require CSRF');
 media_assert(str_contains($api, "MEDIA_IN_USE"), 'delete must block referenced media');
-media_assert(str_contains($api, "brvtal_media_usage"), 'delete/detail must inspect media usage');
+media_assert(str_contains($api, 'brvtal_media_integrity_usage'), 'delete/detail must use the canonical integrity-aware usage boundary');
+media_assert(str_contains($mediaIntegrity, 'brvtal_media_usage($pdo, $media)') && str_contains($mediaIntegrity, 'brvtal_media_duplicate_usage($pdo, $media)'), 'integrity-aware usage must preserve editorial references and add duplicate local Media ownership');
 media_assert(str_contains($api, "25 * 1024 * 1024"), 'upload size ceiling must be explicit');
 media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported');
 media_assert(str_contains($api, "\$action === 'transform'"), 'Media Engine v2 must expose a focal-point transform action');
