@@ -122,11 +122,17 @@ $html = str_replace(
     $html
 );
 $html = str_replace(
+    '<div class="section-head"><span class="mono">AUDIO ARCHIVE / 05</span><h2>SETS</h2><span class="mono">SOUNDCLOUD / BRVTAL</span></div>',
+    '<div class="section-head"><span class="mono">SOUND LIBRARY / 05</span><h2>SETS</h2><span class="mono">LISTEN / EXPLORE</span></div>',
+    $html
+);
+$html = preg_replace('/(<div class="set-main">.*?<p>).*?(<\/p><\/div>)/sU', '$1SET / ARCHIVE$2', $html) ?? $html;
+$html = str_replace(
     'href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic"',
     'class="set-action magnetic" aria-disabled="true" aria-hidden="true" tabindex="-1"',
     $html
 );
-$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n</head>", $html);
+$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n  <link rel=\"stylesheet\" href=\"css/public-sets-library.css\">\n</head>", $html);
 $html = str_replace('</body>', "  <script src=\"js/public-quick-wins.js\"></script>\n</body>", $html);
 $html = brvtal_public_dedupe_decorative_assets($html);
 $html = brvtal_public_optimize_font_stylesheet($html);
@@ -140,6 +146,7 @@ $html = brvtal_public_defer_stylesheets($html, [
     'css/input-accessibility.css',
     'css/mobile-events.css',
     'css/public-roster.css',
+    'css/public-sets-library.css',
 ]);
 $html = brvtal_public_optimize_home_images($html);
 $html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());

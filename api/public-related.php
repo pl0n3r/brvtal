@@ -34,14 +34,24 @@ function brvtal_public_sanitize_set_relations(
     foreach ($artists as $artist) {
         if (!is_array($artist)) continue;
         $id = (int)($artist['id'] ?? 0);
-        if ($id > 0) $artistMap[$id] = (string)($artist['name'] ?? '');
+        if ($id > 0) {
+            $artistMap[$id] = [
+                'name' => (string)($artist['name'] ?? ''),
+                'slug' => (string)($artist['slug'] ?? ''),
+            ];
+        }
     }
 
     $eventMap = [];
     foreach (array_merge($activeEvents, $archiveEvents) as $event) {
         if (!is_array($event)) continue;
         $id = (int)($event['id'] ?? 0);
-        if ($id > 0) $eventMap[$id] = (string)($event['title'] ?? '');
+        if ($id > 0) {
+            $eventMap[$id] = [
+                'title' => (string)($event['title'] ?? ''),
+                'slug' => (string)($event['slug'] ?? ''),
+            ];
+        }
     }
 
     foreach ($sets as &$set) {
@@ -51,18 +61,22 @@ function brvtal_public_sanitize_set_relations(
         if ($artistId < 1 || !isset($artistMap[$artistId])) {
             $set['artist_id'] = null;
             $set['artist_name'] = null;
+            $set['artist_slug'] = null;
         } else {
             $set['artist_id'] = $artistId;
-            $set['artist_name'] = $artistMap[$artistId];
+            $set['artist_name'] = $artistMap[$artistId]['name'];
+            $set['artist_slug'] = $artistMap[$artistId]['slug'];
         }
 
         $eventId = (int)($set['event_id'] ?? 0);
         if ($eventId < 1 || !isset($eventMap[$eventId])) {
             $set['event_id'] = null;
             $set['event_title'] = null;
+            $set['event_slug'] = null;
         } else {
             $set['event_id'] = $eventId;
-            $set['event_title'] = $eventMap[$eventId];
+            $set['event_title'] = $eventMap[$eventId]['title'];
+            $set['event_slug'] = $eventMap[$eventId]['slug'];
         }
     }
     unset($set);

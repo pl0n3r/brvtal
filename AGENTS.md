@@ -169,13 +169,14 @@ Implemented:
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
 - adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
-- core runtime preserves `app → roster → archive → media` order and survives optional motion-CDN failure;
+- core runtime preserves `app → roster → sets → archive → media` order and survives optional motion-CDN failure;
 - non-blocking Google Fonts;
 - keyboard/touch accessibility passes;
 - canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
 - Event lifecycle/public archive behavior;
 - Home Artists is a connected **BRVTAL Roster**: real `active` and `alumni` membership states come from Collective Status, non-members remain Artists/collaborators, and canonical navigation stays on `/artists/{slug}`;
 - canonical Artist pages expose real membership facts and structured published Events/Sets/Releases/Transmissions without inferring genres or Memories;
+- Home Sets is a connected **BRVTAL listening library**: published Sets remain in canonical API order, filter by real public Artist/Event relations, navigate primarily to `/sets/{slug}`, preserve explicit external LISTEN actions, expose honest empty/failure states and never infer genre metadata;
 - Archive discovery by year/search/relationships;
 - Public Media discovery;
 - Related Content relationship graph;
@@ -223,6 +224,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 21. **Artist Collective Status is lifecycle data, not free-form metadata.** Any mutation that touches membership status/dates must submit the complete lifecycle state; `none` has no membership dates, `active` requires a join date and no leave date, and `alumni` requires ordered join/leave dates. Successful Artist mutations synchronize `artist_collective_history` atomically with Admin Activity so future public Roster/history surfaces can rely on structured periods instead of inferred chronology.
 22. **Public Roster semantics come from real Artist lifecycle data.** `active` and `alumni` are the only collective-membership states exposed as such; an Artist with no membership is displayed contextually as a collaborator/network Artist, never persisted as a fake membership tier. The public Roster links to canonical Artist pages, does not treat bio text as genre metadata, and does not infer Memories or other relationships that are not structurally modeled.
 23. **System Status separates operational health from development backlog.** `ATTENTION REQUIRED` may surface both platform signals and open GitHub Issues, but GitHub backlog items are read-only development metadata and never lower the platform health score. A GitHub/cache outage must render backlog as unavailable/stale, never as a fake zero or a global “no active issues” claim. The integration stays server-side, anonymous/public, bounded and cached for shared hosting.
+24. **Public Sets discovery is relationship-driven, not taxonomy-invented.** The listening library uses only published Set records plus public Artist/Event relations already modeled by `sets_media`; the API sanitizes those relations against final public pools before delivery. Set titles lead to canonical `/sets/{slug}` pages, external platforms remain secondary LISTEN actions, no genre is inferred from title/description, and a valid empty API result is distinct from a data/runtime failure.
 
 ---
 
@@ -340,7 +342,7 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; after the Roster, deepen Sets/listening discovery and later archive pathways without inventing duplicated relation data.
+1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; after the Roster and Sets listening library, deepen archive pathways and add Memories/event connections only when backed by explicit structured relations rather than heuristics.
 2. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
 3. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
 4. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.

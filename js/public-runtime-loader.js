@@ -20,7 +20,7 @@
     'https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js',
     'https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js'
   ];
-  const coreScripts = ['js/menu-scroll-lock.js', 'js/app.js', 'js/public-roster.js', 'js/archive.js', 'js/public-media.js'];
+  const coreScripts = ['js/menu-scroll-lock.js', 'js/app.js', 'js/public-roster.js', 'js/public-sets-library.js', 'js/archive.js', 'js/public-media.js'];
   const enhancementScripts = [
     'js/menu-accessibility.js',
     'js/input-accessibility.js',

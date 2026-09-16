@@ -19,7 +19,7 @@ const enhancementMarkers = {
   '/js/public-theme-runtime.js': 'theme-runtime',
   '/js/public-theme-branding-sync.js': 'theme-branding-sync'
 };
-const coreAndEnhancements = ['menu-scroll-lock', 'app', 'roster', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation', 'contact', 'theme-runtime', 'theme-branding-sync'];
+const coreAndEnhancements = ['menu-scroll-lock', 'app', 'roster', 'sets-library', 'archive', 'media', 'menu-accessibility', 'input-accessibility', 'mobile-events', 'hero-slider', 'url-state', 'canonical-navigation', 'contact', 'theme-runtime', 'theme-branding-sync'];
 
 const isMotionCdn = url => url.includes('cdn.jsdelivr.net/npm/gsap@3.13.0') || url.includes('cdn.jsdelivr.net/npm/lenis@1.3.4');
 
@@ -70,6 +70,7 @@ async function openRuntimeHarness(page, { coarse = false, reduced = false, failS
       '/js/menu-scroll-lock.js': 'menu-scroll-lock',
       '/js/app.js': 'app',
       '/js/public-roster.js': 'roster',
+      '/js/public-sets-library.js': 'sets-library',
       '/js/archive.js': 'archive',
       '/js/public-media.js': 'media'
     };
@@ -125,6 +126,7 @@ test('touch runtime skips desktop motion downloads and preserves versioned modul
   expect(requests.some(url => url.endsWith(`/js/menu-scroll-lock.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/app.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-roster.js?v=${version}`))).toBe(true);
+  expect(requests.some(url => url.endsWith(`/js/public-sets-library.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-discovery-url-state.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-contact.js?v=${version}`))).toBe(true);
   expect(requests.some(url => url.endsWith(`/js/public-theme-runtime.js?v=${version}`))).toBe(true);
@@ -173,6 +175,7 @@ test('a local core module failure reveals static fallback and continues later mo
   const order = await page.evaluate(() => window.__runtimeOrder);
   expect(order).not.toContain('menu-scroll-lock');
   expect(order).toContain('app');
+  expect(order).toContain('sets-library');
   expect(order).toContain('theme-branding-sync');
   const ready = await page.evaluate(() => window.BRVTALRuntimeReady);
   expect(ready.failures.some(item => item.phase === 'core' && item.source.includes('menu-scroll-lock.js'))).toBe(true);
