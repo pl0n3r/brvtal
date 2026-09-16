@@ -13,14 +13,14 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - **Analytics** vive en `settings.analytics.ga4_id`, se lee server-side, nunca se añade al API público y mantiene `theme.analytics.google` como fallback no destructivo. El consentimiento de usuario continúa siendo obligatorio.
 - Theme Studio mantiene BRAND / PALETTE / TYPE / NAVIGATION / EXPERIENCE / MANAGE como controles visuales principales y oculta el editor SEO duplicado.
 - Theme Studio incorpora un **BRVTAL wordmark** configurable dentro de `theme.<slug>.branding.wordmark`. Acepta una ruta/URL pública de imagen, incluido SVG externo, sin inyectar SVG/HTML inline.
-- El wordmark se aplica al header y loader solo después de cargar correctamente; ante ausencia/error conserva el texto `BRVTAL` como fallback.
+- El wordmark se integra en el Theme Runtime ya existente para header y loader; ante ausencia/error conserva el texto `BRVTAL` como fallback, sin añadir requests JS públicos nuevos.
 - Los campos históricos de tema que no tienen consumidor real se preservan como **PRESERVED / UNWIRED**, no como controles falsamente funcionales.
-- El runtime vuelve a aplicar el tema después del pase legacy de `appearance` y restaura después el SEO server-side, manteniendo una sola autoridad por categoría.
+- El runtime mantiene Theme Studio como autoridad visual y deja el SEO canónico bajo autoridad server-side.
 - Se documentó la propiedad de cada categoría en `docs/CONFIGURATION.md`.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `16 archivos` · **+960** líneas · **−12** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `15 archivos` · **+910** líneas · **−53** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### DISCADMIN
@@ -37,16 +37,15 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - `config/public_seo.php` — 🟡 MOD · **+29 / −7** · defaults SEO canónicos del Home desde Settings.
 - `config/public_settings.php` — 🟢 NEW · **+36 / −0** · lector server-side fail-safe de settings tipados.
 - `index.php` — 🟡 MOD · **+2 / −1** · aplica los defaults SEO server-side al documento público.
-- `js/public-runtime-loader.js` — 🟡 MOD · **+3 / −1** · carga resiliente de los nuevos módulos públicos.
-- `js/public-settings-harmony.js` — 🟢 NEW · **+52 / −0** · mantiene Theme Studio como autoridad visual y restaura SEO del servidor.
-- `js/public-theme-wordmark.js` — 🟢 NEW · **+87 / −0** · aplica el wordmark en header/loader con fallback textual seguro.
+- `js/public-theme-branding-sync.js` — 🟡 MOD · **+33 / −4** · reconcilia branding/social sin crear una segunda autoridad de tema.
+- `js/public-theme-runtime.js` — 🟡 MOD · **+50 / −38** · integra wordmark/fallback y evita que SEO legacy del tema sobrescriba el SEO server-side.
 
 ### DOCUMENTACIÓN / TESTS
 
 - `docs/CONFIGURATION.md` — 🟢 NEW · **+104 / −0** · define propiedad, compatibilidad y límites de cada categoría configurable.
-- `tests/e2e/configuration-runtime.spec.mjs` — 🟢 NEW · **+84 / −0** · cubre wordmark, fallback y autoridad del runtime.
+- `tests/e2e/configuration-runtime.spec.mjs` — 🟢 NEW · **+92 / −0** · cubre wordmark, fallback, SEO canónico y autoridad del runtime.
 - `tests/e2e/discadmin-settings-v2.spec.mjs` — 🟢 NEW · **+94 / −0** · cubre Settings desktop/mobile y preservación de JSON.
-- `tests/settings-control-plane-contract.php` — 🟢 NEW · **+68 / −0** · contratos de SEO/Analytics, privacidad, persistencia y wordmark.
+- `tests/settings-control-plane-contract.php` — 🟢 NEW · **+69 / −0** · contratos de SEO/Analytics, privacidad, persistencia y wordmark integrado.
 
 ### SNAPSHOT
 
@@ -61,8 +60,10 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - `api/public.php` no expone `settings.analytics` ni el setting SEO canónico; las credenciales/IDs de integración permanecen fuera del payload público.
 - El allowlist genérico de uploads no se amplía a SVG sin sanitización. El wordmark puede usar un SVG ya servido por una ruta/URL pública segura.
 - La especificación i18n de #212 sigue **NOT IMPLEMENTED**; los locales guardados se muestran solo como contexto y no como control prometido.
-- Run #591: PHP 8.5/contratos y sintaxis JS verdes; el primer intento falló solo por el formato de lista exacta del README. Se corrigió sin cambiar lógica.
-- Pendiente: nuevo `BRVTAL CI / validate`, revisión automática y cualquier corrección válida sobre el head actual.
+- Run #591 detectó el primer desfase del snapshot README; se corrigió sin cambiar lógica.
+- Run #592 validó PHP, real-stack, WebKit-TOTP y database; Chromium detectó integración/runtime y overflow móvil, que se corrigieron sin relajar tests.
+- Run #601 detectó únicamente un contrato PHP que todavía apuntaba al módulo wordmark ya integrado/eliminado; el contrato se alineó con `public-theme-runtime.js`.
+- Pendiente: `BRVTAL CI / validate` verde sobre el head actual y cierre de revisión automática.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
