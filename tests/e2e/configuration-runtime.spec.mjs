@@ -24,9 +24,9 @@ test('Theme Studio exposes wordmark while moving duplicate SEO out of the primar
   await expect(page.locator('[data-theme-tab="seo"]')).toBeHidden();
   await expect(page.locator('[data-theme-pane="seo"]')).toBeHidden();
   await expect(page.getByText('PRESERVED / UNWIRED')).toBeVisible();
-  await page.locator('#th_wordmark_custom').evaluate(input => {
-    input.value = '/assets/brvtal-wordmark.svg';
-    input.dispatchEvent(new Event('input',{bubbles:true}));
+  await page.evaluate(() => {
+    const input = document.querySelector('[data-theme-wordmark] input');
+    input.value = '/assets/brvtal-wordmark.svg'; input.dispatchEvent(new Event('input',{bubbles:true}));
   });
   await expect.poll(() => page.evaluate(() => window.state.theme.branding.wordmark)).toBe('/assets/brvtal-wordmark.svg');
 });
