@@ -194,7 +194,7 @@ function brvtal_media_restore_staged_delete(array $stage): void
 /**
  * Permanently remove already-private staged files after the DB commit. Failure
  * here cannot make the old public URL readable again, so it is reported only as
- * private cleanup debt.
+ * private cleanup debt and logged with enough metadata for manual cleanup.
  *
  * @param callable(string):bool|null $unlinker
  * @return array{deleted:array<int,string>,cleanup_failed:array<int,string>}
@@ -220,6 +220,12 @@ function brvtal_media_finalize_staged_delete(array $stage, ?callable $unlinker =
     $trashDir = (string)($stage['trash_dir'] ?? '');
     if ($trashDir !== '') {
         @rmdir($trashDir);
+    }
+    if ($failed !== [] && function_exists('brvtal_log')) {
+        brvtal_log('MEDIA_PRIVATE_CLEANUP_PENDING', 'Deleted Media has private staged files pending cleanup', [
+            'paths'=>$failed,
+            'trash_dir'=>$trashDir,
+        ]);
     }
     return ['deleted'=>$deleted, 'cleanup_failed'=>$failed];
 }
