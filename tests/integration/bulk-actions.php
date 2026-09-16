@@ -33,9 +33,13 @@ $pdo = new PDO($dsn, (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root'), (string)
 
 $pdo->exec('DROP TEMPORARY TABLE IF EXISTS events');
 $pdo->exec("CREATE TEMPORARY TABLE events (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft',published_at DATETIME NULL,cancelled_at DATETIME NULL,finished_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-foreach (['artists','sets_media','pages','releases','blog_posts'] as $table) {
+foreach (['artists','sets_media','pages'] as $table) {
     $pdo->exec("DROP TEMPORARY TABLE IF EXISTS {$table}");
     $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+foreach (['releases','blog_posts'] as $table) {
+    $pdo->exec("DROP TEMPORARY TABLE IF EXISTS {$table}");
+    $pdo->exec("CREATE TEMPORARY TABLE {$table} (id INT AUTO_INCREMENT PRIMARY KEY,status VARCHAR(30) NOT NULL DEFAULT 'draft',published_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 $pdo->exec("INSERT INTO events(status) VALUES ('draft'),('draft')");
@@ -68,14 +72,43 @@ brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
 $draftArchivedPublishedAt = $pdo->query("SELECT published_at FROM events WHERE id={$draftArchiveId}")->fetchColumn();
 bulk_it_assert($draftArchivedPublishedAt === null, 'bulk draft-to-archive must not invent publication history');
 
-$pdo->exec("INSERT INTO releases(status) VALUES ('draft'),('published')");
+$pdo->exec("INSERT INTO releases(status,published_at) VALUES ('draft',NULL),('published','2026-01-02 03:04:05')");
 $releaseIds = $pdo->query('SELECT id FROM releases ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
 brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
-    'resource' => 'releases',
-    'status' => 'archived',
-    'ids' => $releaseIds,
+    'resource'=>'releases',
+    'status'=>'published',
+    'ids'=>[(int)$releaseIds[0]],
+]));
+$publishedRelease = $pdo->query('SELECT status,published_at FROM releases ORDER BY id LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($publishedRelease['status'] ?? '') === 'published', 'bulk Release publish must update status');
+bulk_it_assert(trim((string)($publishedRelease['published_at'] ?? '')) !== '', 'bulk Release publish must stamp published_at');
+$releasePublishedAt = (string)$publishedRelease['published_at'];
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'releases',
+    'status'=>'archived',
+    'ids'=>$releaseIds,
 ]));
 bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM releases WHERE status='archived'")->fetchColumn() === 2, 'releases must support archive in bulk');
+bulk_it_assert((string)$pdo->query('SELECT published_at FROM releases ORDER BY id LIMIT 1')->fetchColumn() === $releasePublishedAt, 'archiving a Release must preserve its original published_at');
+bulk_it_assert((string)$pdo->query('SELECT published_at FROM releases ORDER BY id DESC LIMIT 1')->fetchColumn() === '2026-01-02 03:04:05', 'bulk archive must preserve an existing Release published_at');
+
+$pdo->exec("INSERT INTO blog_posts(status,published_at) VALUES ('draft',NULL)");
+$blogId = (int)$pdo->lastInsertId();
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog',
+    'status'=>'published',
+    'ids'=>[$blogId],
+]));
+$publishedBlog = $pdo->query("SELECT status,published_at FROM blog_posts WHERE id={$blogId}")->fetch(PDO::FETCH_ASSOC);
+bulk_it_assert(($publishedBlog['status'] ?? '') === 'published', 'bulk Blog publish must update status');
+bulk_it_assert(trim((string)($publishedBlog['published_at'] ?? '')) !== '', 'bulk Blog publish must stamp published_at');
+$blogPublishedAt = (string)$publishedBlog['published_at'];
+brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+    'resource'=>'blog',
+    'status'=>'archived',
+    'ids'=>[$blogId],
+]));
+bulk_it_assert((string)$pdo->query("SELECT published_at FROM blog_posts WHERE id={$blogId}")->fetchColumn() === $blogPublishedAt, 'archiving Blog must preserve its original published_at');
 
 $invalidStatusRejected = false;
 try {
