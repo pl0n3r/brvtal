@@ -120,10 +120,12 @@ function brvtal_password_rate_limit_reset(
     if (!$handle) return;
     try {
         if (flock($handle, LOCK_EX)) {
+            $encoded = json_encode(['attempts' => [], 'blocked_until' => 0], JSON_UNESCAPED_SLASHES);
+            if (!is_string($encoded)) return;
             rewind($handle);
             ftruncate($handle, 0);
+            fwrite($handle, $encoded);
             fflush($handle);
-            @unlink($file);
         }
     } finally {
         flock($handle, LOCK_UN);
