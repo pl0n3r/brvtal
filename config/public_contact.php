@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/rate_limit_store.php';
+
 /**
  * Stateless CAPTCHA + rate limiting helpers for the public Contact form.
  * The CAPTCHA token is signed with the existing application security secret,
@@ -146,6 +148,11 @@ function brvtal_contact_rate_limit_path(): string
     return dirname(__DIR__) . '/storage/rate_limits/contact-rate-limit.json';
 }
 
+function brvtal_contact_rate_limit_unavailable(): array
+{
+    return ['allowed' => false, 'retry_after' => 60, 'error' => 'RATE_LIMIT_UNAVAILABLE'];
+}
+
 function brvtal_contact_consume_rate_limit(
     string $key,
     ?string $path = null,
@@ -155,22 +162,16 @@ function brvtal_contact_consume_rate_limit(
 ): array {
     $path ??= brvtal_contact_rate_limit_path();
     $now ??= time();
-    $dir = dirname($path);
-    if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
-        return ['allowed' => false, 'retry_after' => 60, 'error' => 'RATE_LIMIT_UNAVAILABLE'];
-    }
-
-    $handle = @fopen($path, 'c+');
-    if (!$handle) return ['allowed' => false, 'retry_after' => 60, 'error' => 'RATE_LIMIT_UNAVAILABLE'];
+    $lock = brvtal_rate_limit_store_open_lock($path);
+    if (!$lock) return brvtal_contact_rate_limit_unavailable();
 
     try {
-        if (!flock($handle, LOCK_EX)) {
-            return ['allowed' => false, 'retry_after' => 60, 'error' => 'RATE_LIMIT_UNAVAILABLE'];
-        }
-        rewind($handle);
-        $raw = stream_get_contents($handle) ?: '';
-        $state = json_decode($raw, true);
-        if (!is_array($state)) $state = [];
+        if (!flock($lock, LOCK_EX)) return brvtal_contact_rate_limit_unavailable();
+
+        $raw = is_file($path) ? @file_get_contents($path) : '';
+        if ($raw === false) return brvtal_contact_rate_limit_unavailable();
+        $state = trim($raw) === '' ? [] : json_decode($raw, true);
+        if (!is_array($state)) return brvtal_contact_rate_limit_unavailable();
 
         $cutoff = $now - $windowSeconds;
         foreach ($state as $bucketKey => $timestamps) {
@@ -195,17 +196,13 @@ function brvtal_contact_consume_rate_limit(
         $bucket[] = $now;
         $state[$key] = $bucket;
         $encoded = json_encode($state, JSON_UNESCAPED_SLASHES);
-        if (!is_string($encoded)) {
-            return ['allowed' => false, 'retry_after' => 60, 'error' => 'RATE_LIMIT_UNAVAILABLE'];
+        if (!is_string($encoded) || !brvtal_rate_limit_store_atomic_replace($path, $encoded)) {
+            return brvtal_contact_rate_limit_unavailable();
         }
-        rewind($handle);
-        ftruncate($handle, 0);
-        fwrite($handle, $encoded);
-        fflush($handle);
         return ['allowed' => true, 'retry_after' => 0, 'error' => null];
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        @flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }
 
