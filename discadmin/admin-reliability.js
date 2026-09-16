@@ -130,14 +130,12 @@
 
   if (typeof nativeOpenSettingByKey === 'function') {
     window.openSettingByKey = function brvtalReliableOpenSettingByKey(key) {
-      const exists = Array.isArray(state?.rows)
-        && state.rows.some(row => String(row?.setting_key || '') === String(key));
       const result = nativeOpenSettingByKey.call(this, key);
       const input = document.getElementById('f_setting_key');
-      if (exists && input) {
+      if (input) {
         input.readOnly = true;
         input.setAttribute('aria-readonly', 'true');
-        input.title = 'Existing setting keys cannot be renamed here.';
+        input.title = 'Setting keys opened by name cannot be renamed here. Use Advanced Setting to create a new key.';
       }
       return result;
     };
