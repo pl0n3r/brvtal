@@ -6,46 +6,36 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se convirtió **DISCADMIN / Settings** en un control plane tipado: GENERAL, SOCIAL & CONTACT, SEO, ANALYTICS & PRIVACY y ADVANCED, sin crear otra tabla ni otro backend de configuración.
-- Los editores tipados reutilizan la tabla `settings` y `/settings`; al guardar fusionan sus campos con el JSON existente para conservar claves hermanas desconocidas.
-- El JSON crudo queda como escape técnico dentro de ADVANCED. `appearance` se clasifica como compatibilidad legacy y Theme Studio queda como autoridad visual.
-- **SEO** deja de tener dos dueños: los defaults canónicos del Home (`site_title`, `description`, `share_image`) viven en `settings.seo` y se aplican server-side. Los campos SEO de cada entidad siguen siendo autoridad de sus rutas.
-- **Analytics** vive en `settings.analytics.ga4_id`, se lee server-side, nunca se añade al API público y mantiene `theme.analytics.google` como fallback no destructivo. El consentimiento de usuario continúa siendo obligatorio.
-- Theme Studio mantiene BRAND / PALETTE / TYPE / NAVIGATION / EXPERIENCE / MANAGE como controles visuales principales y oculta el editor SEO duplicado.
-- Theme Studio incorpora un **BRVTAL wordmark** configurable dentro de `theme.<slug>.branding.wordmark`. Acepta una ruta/URL pública de imagen, incluido SVG externo, sin inyectar SVG/HTML inline.
-- El wordmark se integra en el Theme Runtime ya existente para header y loader; ante ausencia/error conserva el texto `BRVTAL` como fallback, sin añadir requests JS públicos nuevos.
-- Los campos históricos de tema que no tienen consumidor real se preservan como **PRESERVED / UNWIRED**, no como controles falsamente funcionales.
-- El runtime mantiene Theme Studio como autoridad visual y deja el SEO canónico bajo autoridad server-side.
-- Se documentó la propiedad de cada categoría en `docs/CONFIGURATION.md`.
+- Se inició **#398 / Phase B — EVENT RECORD** mediante el issue enfocado **#404**.
+- La URL canónica `/events/{slug}` evoluciona según el lifecycle existente: un Event activo conserva framing de experiencia/tickets y el mismo Event pasa a framing de archivo cuando su estado o fecha lo vuelve histórico.
+- Archive y Event Record comparten una única clasificación `brvtal_public_event_is_historical(...)`; no hay lógica de lifecycle duplicada entre superficies.
+- Los Event Records históricos mantienen artwork, fecha, ubicación, status y lineup real; los tickets siguen desapareciendo mediante la política comercial canónica ya existente.
+- Los Sets se obtienen únicamente mediante la relación existente `sets_media.event_id` y solo si están publicados.
+- Las piezas editoriales se muestran como **TRANSMISSIONS** únicamente cuando `blog_post_relations` enlaza explícitamente un post publicado con el Event.
+- **Memories no se infieren** por fecha, nombre de archivo o título: `media` todavía no posee una relación estructurada con Events, así que esta fase no presenta una sección falsa/vacía.
+- El Event Record mantiene la estética BRVTAL: negro/charcoal, rojo, grano/ruido, scanlines, interferencia y señal verde ácido controlada. El modo histórico es más denso/archival sin volverse limpio o corporativo.
+- No se añadió JavaScript público ni otra request de API para esta experiencia; la diferenciación active/historical se resuelve server-side y con CSS específico.
+- No hay migración ni cambio de schema.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `15 archivos` · **+911** líneas · **−53** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `6 archivos` · **+238** líneas · **−18** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
-### DISCADMIN
+### LIFECYCLE / PUBLIC DELIVERY
 
-- `discadmin/index.php` — 🟡 MOD · **+5 / −1** · carga Settings V2 y la extensión de configuración de Theme Studio.
-- `discadmin/settings-v2.css` — 🟢 NEW · **+1 / −0** · layout responsive y visual del nuevo control plane.
-- `discadmin/settings-v2.js` — 🟢 NEW · **+274 / −0** · General, Social, SEO, Analytics & Privacy y Advanced con persistencia tipada.
-- `discadmin/theme-studio-configuration.css` — 🟢 NEW · **+1 / −0** · estilos de wordmark y mapa de compatibilidad.
-- `discadmin/theme-studio-configuration.js` — 🟢 NEW · **+105 / −0** · wordmark configurable, ownership map, retiro del SEO duplicado y protección contra loops de preview.
+- `config/public_visibility.php` — 🟡 MOD · **+20 / −0** · añade la clasificación histórica canónica compartida por Archive y Event Record.
+- `api/public-archive.php` — 🟡 MOD · **+1 / −7** · elimina lógica duplicada y usa la clasificación histórica central.
+- `config/public_page.php` — 🟡 MOD · **+59 / −11** · convierte la página Event existente en Event Record lifecycle-aware y conecta Lineup, Sets y Transmissions estructuradas.
 
-### SERVER / PUBLIC DELIVERY
+### VISUAL
 
-- `config/public_analytics.php` — 🟡 MOD · **+16 / −2** · `settings.analytics` pasa a ser autoridad con fallback legacy de tema.
-- `config/public_seo.php` — 🟡 MOD · **+29 / −7** · defaults SEO canónicos del Home desde Settings.
-- `config/public_settings.php` — 🟢 NEW · **+36 / −0** · lector server-side fail-safe de settings tipados.
-- `index.php` — 🟡 MOD · **+2 / −1** · aplica los defaults SEO server-side al documento público.
-- `js/public-theme-branding-sync.js` — 🟡 MOD · **+33 / −4** · reconcilia branding/social sin crear una segunda autoridad de tema.
-- `js/public-theme-runtime.js` — 🟡 MOD · **+50 / −38** · integra wordmark/fallback y evita que SEO legacy del tema sobrescriba el SEO server-side.
+- `css/public-event-record.css` — 🟢 NEW · **+1 / −0** · capa brutalista específica de Event Record: grano, scanline, interferencia, señal ácida, estados active/historical y responsive móvil.
 
-### DOCUMENTACIÓN / TESTS
+### TESTS
 
-- `docs/CONFIGURATION.md` — 🟢 NEW · **+104 / −0** · define propiedad, compatibilidad y límites de cada categoría configurable.
-- `tests/e2e/configuration-runtime.spec.mjs` — 🟢 NEW · **+92 / −0** · cubre wordmark, fallback, SEO canónico y autoridad del runtime.
-- `tests/e2e/discadmin-settings-v2.spec.mjs` — 🟢 NEW · **+94 / −0** · cubre Settings desktop/mobile y preservación de JSON.
-- `tests/settings-control-plane-contract.php` — 🟢 NEW · **+69 / −0** · contratos de SEO/Analytics, privacidad, persistencia y wordmark integrado.
+- `tests/event-record-contract.php` — 🟢 NEW · **+97 / −0** · contratos de lifecycle, relaciones estructuradas, ausencia de Memories inferidas y render active/historical.
+- `tests/e2e/public-event-record.spec.mjs` — 🟢 NEW · **+60 / −0** · cobertura visual desktop/mobile, CTA activo, framing histórico, touch targets y ausencia de overflow.
 
 ### SNAPSHOT
 
@@ -53,26 +43,23 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 ## Validación
 
-- Base exacta: `main` `868c1b39b06845dcfd7c8289c9dab7efd11f8b0f`.
-- La base quedó con `BRVTAL CI / validate` verde en el run #590.
-- Issue cubierto: `#400`.
-- No hay migración ni cambio de schema. La tabla `settings`, el endpoint `/settings`, Theme Studio y Media existentes se reutilizan.
-- `api/public.php` no expone `settings.analytics` ni el setting SEO canónico; las credenciales/IDs de integración permanecen fuera del payload público.
-- El allowlist genérico de uploads no se amplía a SVG sin sanitización. El wordmark puede usar un SVG ya servido por una ruta/URL pública segura.
-- La especificación i18n de #212 sigue **NOT IMPLEMENTED**; los locales guardados se muestran solo como contexto y no como control prometido.
-- Run #591 detectó el primer desfase del snapshot README; se corrigió sin cambiar lógica.
-- Run #592 validó PHP, real-stack, WebKit-TOTP y database; Chromium detectó integración/runtime y overflow móvil, que se corrigieron sin relajar tests.
-- Run #601 detectó únicamente un contrato PHP que todavía apuntaba al módulo wordmark ya integrado/eliminado; el contrato se alineó con `public-theme-runtime.js`.
-- Run #604 dejó verde el resto de Chromium y reveló un loop real del `MutationObserver` al actualizar el preview del wordmark; se corrigió evitando reescribir un preview ya sincronizado.
-- Pendiente: `BRVTAL CI / validate` verde sobre el head actual y cierre de revisión automática.
+- Base exacta: `main` `060013230c0d9d3058d4e27bd2759aeb7cd1b485`.
+- La base quedó con `BRVTAL CI / validate` verde en el run **#607**.
+- Issue cubierto: `#404` · parent `#398` Phase B.
+- No hay migración, nueva tabla, mini-admin, endpoint paralelo ni JavaScript público adicional.
+- `api/public.php` sigue siendo la API pública canónica; esta fase trabaja sobre el renderer server-side existente.
+- Las relaciones usadas son únicamente `event_artists`, `sets_media.event_id` y `blog_post_relations` con publication gates existentes.
+- Memories quedan fuera hasta que el backend posea una relación Event ↔ Media explícita; no se introduce heurística ni dato duplicado.
+- La especificación i18n de #212 sigue **NOT IMPLEMENTED**.
+- Pendiente: `BRVTAL CI / validate` verde sobre el head de esta rama, revisión automática y correcciones válidas antes del merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Resolver cualquier fallo o finding válido de BRVTAL CI/revisión automática.
-2. Hacer squash merge solo con `BRVTAL CI / validate` verde.
+1. Ejecutar BRVTAL CI completo sobre el PR de #404 y resolver findings válidos sin relajar pruebas.
+2. Hacer squash merge solo con `validate` verde.
 3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Verificar el control plane en el deploy real y continuar las siguientes fases de #398 sin reestructurar el backend existente.
+4. Continuar #398 con la siguiente fase después de cerrar Event Record; la relación estructurada de Memories se resolverá con el trabajo de Cultural Archive, no con inferencias.
 
 ## Contexto durable
 
@@ -80,4 +67,4 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - Estrategia de validación: `docs/TESTING.md`.
 - Arquitectura de configuración: `docs/CONFIGURATION.md`.
 - Visión pública: `#398`.
-- Issue abordado: `#400`.
+- Issue abordado: `#404`.
