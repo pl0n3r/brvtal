@@ -10,7 +10,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Los JSON con `title`/`name` no escalares se rechazan antes del cast y las fechas no escalares devuelven un `422` limpio, evitando valores `Array` y warnings PHP.
 - La regresión real-stack usa identidades únicas, limpia Page/Ticket/Set/Artist/Event en `finally`, cubre directamente el PUT parcial de Ticket Type y comprueba que los `422` no modifiquen datos persistidos.
 - Bulk Actions al publicar Blog o Releases aplica el lifecycle de `published_at`: crea el timestamp una sola vez y lo conserva en cambios posteriores de estado.
-- Los checks de Bulk Actions priorizan comportamiento ejecutable MariaDB sobre coincidencias frágiles de texto fuente.
+- La prueba MariaDB es la evidencia ejecutable del lifecycle de publicación masiva, evitando acoplar contratos a una forma concreta del SQL.
 
 ## Archivos modificados en este deploy
 
@@ -20,7 +20,6 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `api/bulk-actions-lib.php` — preserva el lifecycle `published_at` de Blog y Releases en cambios masivos.
 - `tests/content-validation-contract.php` — protege identidad requerida y fechas no escalares.
 - `tests/e2e/content-validation-real-stack.spec.mjs` — valida PUTs reales, no persistencia tras `422`, tipos inválidos y cleanup determinístico.
-- `tests/bulk-actions-contract.php` — mantiene los invariantes estructurales de seguridad de Bulk Actions sin duplicar assertions de implementación ya cubiertas en integración.
 - `tests/integration/bulk-actions.php` — verifica en MariaDB el stamp/preservación de `published_at` para Blog y Releases.
 
 ## Validación
