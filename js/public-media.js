@@ -28,6 +28,26 @@
     }
   };
 
+  function memoryRelations(item) {
+    return (Array.isArray(item?.relations) ? item.relations : []).filter(relation => {
+      const route = String(relation?.route_type || '');
+      const slug = String(relation?.slug || '').trim();
+      return ['events','artists','sets','releases'].includes(route) && slug !== '';
+    });
+  }
+
+  function memoryContextHtml(item, viewer=false) {
+    const relations = memoryRelations(item);
+    if (!relations.length) return '';
+    const links = relations.map(relation => {
+      const href = `/${encodeURIComponent(relation.route_type)}/${encodeURIComponent(relation.slug)}`;
+      const type = String(relation.related_type || relation.route_type || '').replace(/s$/,'').toUpperCase();
+      const meta = String(relation.meta || '').trim();
+      return `<a href="${href}"${viewer ? '' : ''}><span>${esc(type)}</span><strong>${esc(relation.title || 'BRVTAL')}</strong>${meta ? `<small>${esc(meta)}</small>` : ''}</a>`;
+    }).join('');
+    return `<div class="public-memory-context${viewer ? ' viewer' : ''}"><span class="mono">CONNECTED MEMORY</span><div>${links}</div></div>`;
+  }
+
   function deliveryCandidate(value, context='card') {
     const path = localUploadPath(value);
     const delivery = path ? state.delivery[path] : null;
@@ -144,6 +164,8 @@
     applyResponsiveImage(image, 'viewer');
     qs('[data-public-media-title]', viewer).textContent = title;
     qs('[data-public-media-position]', viewer).textContent = `IMAGE ${state.viewerIndex + 1} / ${state.viewerItems.length}`;
+    const context = qs('[data-public-media-context]', viewer);
+    if (context) context.innerHTML = memoryContextHtml(item, true);
   }
 
   function moveViewer(direction) {
@@ -163,7 +185,7 @@
     const viewer = document.createElement('div');
     viewer.id = 'public-media-viewer';
     viewer.className = 'public-media-viewer';
-    viewer.innerHTML = '<div class="public-media-viewer-card" role="dialog" aria-modal="true" aria-label="BRVTAL media"><button type="button" class="public-media-close mono" data-public-media-close>CLOSE ×</button><img data-brvtal-image-context="viewer" alt=""><div class="public-media-viewer-meta"><strong data-public-media-title></strong><span class="mono" data-public-media-position></span></div><div class="public-media-viewer-controls"><button type="button" class="mono" data-public-media-prev aria-label="Previous image">← PREVIOUS</button><button type="button" class="mono" data-public-media-next aria-label="Next image">NEXT →</button></div></div>';
+    viewer.innerHTML = '<div class="public-media-viewer-card" role="dialog" aria-modal="true" aria-label="BRVTAL media"><button type="button" class="public-media-close mono" data-public-media-close>CLOSE ×</button><img data-brvtal-image-context="viewer" alt=""><div class="public-media-viewer-meta"><strong data-public-media-title></strong><span class="mono" data-public-media-position></span></div><div data-public-media-context></div><div class="public-media-viewer-controls"><button type="button" class="mono" data-public-media-prev aria-label="Previous image">← PREVIOUS</button><button type="button" class="mono" data-public-media-next aria-label="Next image">NEXT →</button></div></div>';
     document.body.appendChild(viewer);
     window.BRVTALScrollLock?.lock('media-viewer');
     showViewerItem();
@@ -190,7 +212,8 @@
       : type === 'video'
         ? `<video src="${esc(url)}" controls preload="metadata" aria-label="${esc(title)}"></video>`
         : `<div class="public-media-audio"><span class="mono">AUDIO SIGNAL</span><audio src="${esc(url)}" controls preload="none" aria-label="${esc(title)}"></audio></div>`;
-    return `<figure class="public-media-item" data-public-media-item data-public-media-type-value="${type}" data-public-media-search-value="${esc(searchText(`${title} ${item.alt_text || ''}`))}">${visual}<figcaption><strong>${esc(title)}</strong><span class="mono">${esc(type.toUpperCase())}</span></figcaption></figure>`;
+    const relationSearch = memoryRelations(item).map(relation => `${relation.title || ''} ${relation.meta || ''} ${relation.related_type || ''}`).join(' ');
+    return `<figure class="public-media-item" data-public-media-item data-public-media-type-value="${type}" data-public-media-search-value="${esc(searchText(`${title} ${item.alt_text || ''} ${relationSearch}`))}">${visual}<figcaption><strong>${esc(title)}</strong><span class="mono">${esc(type.toUpperCase())}</span>${memoryContextHtml(item)}</figcaption></figure>`;
   }
 
   function applyFilters() {
