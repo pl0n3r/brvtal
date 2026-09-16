@@ -18,6 +18,9 @@ content_validation_expect(($event['payload']['event_date'] ?? null) === '2026-10
 $invalidEvent = brvtal_content_temporal_normalize('events', ['event_date' => '2026-02-31T21:05']);
 content_validation_expect(($invalidEvent['error']['error'] ?? null) === 'INVALID_DATE', 'impossible Event dates must be rejected');
 content_validation_expect(($invalidEvent['error']['field'] ?? null) === 'event_date', 'Event date errors must identify event_date');
+$nonScalarEvent = brvtal_content_temporal_normalize('events', ['event_date' => ['2026-10-31T21:05']]);
+content_validation_expect(($nonScalarEvent['error']['error'] ?? null) === 'INVALID_DATE', 'array Event dates must fail cleanly before string conversion');
+content_validation_expect(($nonScalarEvent['error']['field'] ?? null) === 'event_date', 'non-scalar Event date errors must identify event_date');
 
 $artist = brvtal_content_temporal_normalize('artists', ['collective_joined_at' => '2026-09-16']);
 content_validation_expect($artist['error'] === null, 'valid Artist lifecycle DATE values must be accepted');
@@ -37,6 +40,11 @@ $invalidWindow = brvtal_ticket_window_error([
 content_validation_expect(($invalidWindow['error'] ?? null) === 'INVALID_AVAILABILITY_WINDOW', 'inverted Ticket availability windows must be rejected');
 content_validation_expect(($invalidWindow['field'] ?? null) === 'available_until', 'inverted Ticket windows must identify available_until');
 content_validation_expect(brvtal_ticket_window_error(['available_from' => '2026-10-10 20:00:00']) === null, 'open-ended Ticket availability must remain valid');
+
+content_validation_expect((brvtal_required_identity_error('events', ['title'=>''])['error'] ?? null) === 'TITLE_REQUIRED', 'Event updates must not clear title');
+content_validation_expect((brvtal_required_identity_error('artists', ['name'=>''])['error'] ?? null) === 'NAME_REQUIRED', 'Artist updates must not clear name');
+content_validation_expect((brvtal_required_identity_error('sets', ['title'=>''])['error'] ?? null) === 'TITLE_REQUIRED', 'Set updates must not clear title');
+content_validation_expect(brvtal_required_identity_error('events', ['city'=>'Pereira']) === null, 'partial Event updates that do not touch title must remain valid');
 
 content_validation_expect((brvtal_page_identity_error(['title'=>'','slug'=>'manifesto'])['field'] ?? null) === 'title', 'Pages must require a title');
 content_validation_expect((brvtal_page_identity_error(['title'=>'Manifesto','slug'=>''])['field'] ?? null) === 'slug', 'Pages must require a slug');
