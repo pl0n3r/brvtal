@@ -9,20 +9,79 @@ function ci_scope_expect(bool $condition, string $message): void
     }
 }
 
+/** @return array<string,string> */
+function ci_scope_run(array $files, string $event = 'pull_request'): array
+{
+    $script = realpath(__DIR__ . '/../scripts/ci-scope.sh');
+    ci_scope_expect(is_string($script) && $script !== '', 'shared CI scope classifier must exist');
+    $payload = implode("\n", array_map('strval', $files));
+    $command = [
+        'bash',
+        '-c',
+        'source "$1"; brvtal_ci_classify_files "$2" "$3"; brvtal_ci_scope_print',
+        '_',
+        $script,
+        $payload,
+        $event,
+    ];
+    $pipes = [];
+    $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    ci_scope_expect(is_resource($process), 'shared CI scope classifier must be executable');
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $status = proc_close($process);
+    ci_scope_expect($status === 0, 'shared CI scope classifier failed: ' . trim((string)$stderr));
+
+    $result = [];
+    foreach (preg_split('/\R/', trim((string)$stdout)) ?: [] as $line) {
+        if (!str_contains($line, '=')) continue;
+        [$key, $value] = explode('=', $line, 2);
+        $result[$key] = $value;
+    }
+    return $result;
+}
+
+function ci_scope_expect_flags(array $actual, array $expected, string $label): void
+{
+    foreach ($expected as $key => $value) {
+        ci_scope_expect(($actual[$key] ?? null) === $value, "{$label}: expected {$key}={$value}, got " . ($actual[$key] ?? '<missing>'));
+    }
+}
+
 $workflow = (string)file_get_contents(__DIR__ . '/../.github/workflows/update-release-metadata.yml');
 $package = (string)file_get_contents(__DIR__ . '/../package.json');
 $codeRabbit = (string)file_get_contents(__DIR__ . '/../.coderabbit.yaml');
 $sonar = (string)file_get_contents(__DIR__ . '/../.sonarcloud.properties');
 $performance = (string)file_get_contents(__DIR__ . '/../.github/workflows/production-performance.yml');
 
-ci_scope_expect(str_contains($workflow, 'api/contact.php|api/public*.php)'), 'public API changes must have an explicit validation scope');
-ci_scope_expect(str_contains($workflow, 'add_area "Public API"; run_db=true; run_browser=true; run_realstack=true'), 'public API changes must run DB, browser and real-stack gates');
-ci_scope_expect(str_contains($workflow, 'config/public_*.php)'), 'public runtime config must have an explicit validation scope');
-ci_scope_expect(str_contains($workflow, 'add_area "Public runtime config"; run_db=true; run_browser=true; run_realstack=true'), 'public runtime config must run browser coverage in addition to backend gates');
-ci_scope_expect(str_contains($workflow, 'playwright.config.mjs|package.json|package-lock.json)'), 'test tooling scope must remain explicit');
-ci_scope_expect(str_contains($workflow, 'add_area "Test tooling"; run_db=true; run_browser=true; run_realstack=true; run_webkit=true'), 'test tooling changes must include database coverage');
+ci_scope_expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'BRVTAL CI must execute the shared changed-file classifier');
+ci_scope_expect(str_contains($workflow, 'brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"'), 'workflow must pass its actual changed-file list and event to the shared classifier');
 ci_scope_expect(str_contains($workflow, 'run: npm run test:integration'), 'CI database gate must call the canonical integration script');
 ci_scope_expect(!str_contains($workflow, "php tests/integration/global-search.php\n          php tests/integration/bulk-actions.php"), 'CI must not maintain a second manual integration list');
+
+ci_scope_expect_flags(ci_scope_run(['api/hero-slider.php']), [
+    'full' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+], 'public hero API');
+ci_scope_expect_flags(ci_scope_run(['config/public_home.php']), [
+    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+], 'public runtime config');
+ci_scope_expect_flags(ci_scope_run(['package.json']), [
+    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+], 'test tooling');
+ci_scope_expect_flags(ci_scope_run(['config/totp_auth.php']), [
+    'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+], 'auth-sensitive runtime config');
+ci_scope_expect_flags(ci_scope_run(['config/backups.php']), [
+    'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'true',
+], 'backup runtime config');
+ci_scope_expect_flags(ci_scope_run(['README.md', 'api/hero-slider.php', 'config/totp_auth.php']), [
+    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+], 'combined changed-file union');
+ci_scope_expect_flags(ci_scope_run([], 'workflow_dispatch'), [
+    'full' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'true',
+], 'manual full matrix');
 
 $packageData = json_decode($package, true);
 ci_scope_expect(is_array($packageData), 'package.json must stay valid JSON');
