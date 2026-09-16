@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
 require_once __DIR__ . '/config/public_artist.php';
+require_once __DIR__ . '/config/public_memories.php';
 require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
@@ -54,6 +55,7 @@ if ($entity) {
         if (($entity['route_type'] ?? '') === 'artists') {
             $page = brvtal_public_artist_enhance_page(db(), $page);
         }
+        $page = brvtal_public_memories_enhance_page(db(), $page);
     } catch (Throwable $e) {
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_ENTITY_DATA_ERROR', 'Essential canonical entity data failed to load', [
