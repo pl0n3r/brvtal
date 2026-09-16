@@ -60,6 +60,18 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
 }
 
 /**
+ * BRVTAL currently delivers CMS Pages publicly only in English. Keep admin
+ * operational signals aligned with the same contract so legacy published
+ * non-English rows never appear as publicly delivered content.
+ */
+function brvtal_public_page_is_visible(array $page): bool
+{
+    $status = strtolower(trim((string)($page['status'] ?? '')));
+    $locale = strtolower(trim((string)($page['locale'] ?? '')));
+    return $status === 'published' && $locale === 'en';
+}
+
+/**
  * Commercial ticket actions are public only while the Event remains in an
  * active lifecycle state and has not passed its event date. Historical or
  * past Events remain discoverable when allowed above, but never keep stale
