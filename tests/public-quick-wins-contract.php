@@ -49,7 +49,7 @@ public_quick_win_assert(
     'Hero slides must synchronize keyboard interactivity with aria-hidden'
 );
 public_quick_win_assert(
-    str_contains($runtime, "link.setAttribute('aria-label', `Listen to ${title} on ${platform}`)"),
+    str_contains($runtime, 'link.setAttribute(\'aria-label\', `Listen to ${title} on ${platform}`)'),
     'dynamic Set external actions must receive a descriptive accessible name'
 );
 public_quick_win_assert(
