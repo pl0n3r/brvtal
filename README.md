@@ -12,6 +12,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Un fallo de limpieza posterior al commit ya no deja archivos públicamente accesibles: queda como deuda privada reportada en la respuesta y registrada en el log operativo para limpieza posterior.
 - Se añadieron regresiones PHP, MariaDB y real-stack para rutas legacy, ownership duplicado, staging/rollback y el flujo canónico upload→register duplicate→delete.
 - La primera corrida CI detectó un contrato antiguo que buscaba `brvtal_media_usage` directamente en el endpoint; se actualizó para validar la nueva frontera `brvtal_media_integrity_usage` sin reducir cobertura.
+- Una corrida posterior detectó que Playwright no permite importar un archivo `.spec` desde otro `.spec`; el flujo Media quedó integrado directamente en el real-stack canónico y se eliminó el spec duplicado.
 
 ## Archivos modificados en este deploy
 
@@ -22,8 +23,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `tests/media-integrity-contract.php` — prueba fail-closed de rutas legacy y comportamiento filesystem del staging/restauración.
 - `tests/media-library-contract.php` — valida que Media Library use la frontera integrity-aware y preserve las referencias editoriales canónicas.
 - `tests/integration/media-reference-atomicity.php` — valida en MariaDB que dos registros con el mismo path local se tratan como ownership compartido.
-- `tests/e2e/media-integrity-real-stack.spec.mjs` — prueba con PHP/MariaDB reales que solo Media Library puede mutar y que el flujo canónico conserva `draft`, rechaza duplicados y borra de forma segura.
-- `tests/e2e/content-core-real-stack.spec.mjs` — importa la regresión Media para que el job real-stack existente la ejecute junto al smoke de Content Core.
+- `tests/e2e/content-core-real-stack.spec.mjs` — ejecuta también el flujo Media real-stack: rutas legacy cerradas, upload canónico en draft, rechazo de ownership duplicado y delete seguro.
 
 ## Validación
 
@@ -33,7 +33,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - No hay migración de base de datos, cambio de schema, restore, bulk delete ni mutación de datos de producción.
 - La nueva política reutiliza la migración de guardia/mutex ya existente cuando está instalada y mantiene compatibilidad con instalaciones donde aún no exista esa tabla auxiliar.
 - La prueba real-stack crea un asset CI mediante el endpoint canónico y lo elimina en `finally` si la prueba se interrumpe antes del delete esperado.
-- BRVTAL CI run #554 falló únicamente por un assertion de contrato desactualizado después de que `tests/media-integrity-contract.php` ya había pasado; ese assertion quedó corregido en esta misma rama.
+- BRVTAL CI run #554 falló únicamente por un assertion de contrato desactualizado; run #558 falló únicamente porque Playwright prohíbe importar un `.spec` desde otro `.spec`. Ambos problemas de test quedaron corregidos en esta misma rama.
 - Pendiente en este snapshot: nueva corrida `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
