@@ -13,6 +13,26 @@ function brvtal_blog_relation_tables(): array
 }
 
 /**
+ * Parse a Blog related-content ID without PHP's lossy scalar coercions.
+ * Only a positive integer or canonical integer string is accepted.
+ */
+function brvtal_blog_relation_id(mixed $value): int
+{
+    if (is_bool($value) || is_float($value) || (!is_int($value) && !is_string($value))) {
+        throw new InvalidArgumentException('INVALID_BLOG_RELATION');
+    }
+
+    $validated = filter_var($value, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1],
+    ]);
+    if ($validated === false) {
+        throw new InvalidArgumentException('INVALID_BLOG_RELATION');
+    }
+
+    return (int)$validated;
+}
+
+/**
  * Verify and lock every polymorphic Blog relation target for the current
  * transaction. Fixed table names plus sorted IDs keep the query safe and the
  * lock order deterministic. Missing targets reject the whole Blog mutation.
@@ -28,10 +48,10 @@ function brvtal_blog_lock_relation_targets(PDO $pdo, array $relations): void
             throw new InvalidArgumentException('INVALID_BLOG_RELATION');
         }
         $type = strtolower(trim((string)($relation['related_type'] ?? '')));
-        $id = (int)($relation['related_id'] ?? 0);
-        if (!isset($tables[$type]) || $id < 1) {
+        if (!isset($tables[$type])) {
             throw new InvalidArgumentException('INVALID_BLOG_RELATION');
         }
+        $id = brvtal_blog_relation_id($relation['related_id'] ?? null);
         $grouped[$type][$id] = $id;
     }
 
