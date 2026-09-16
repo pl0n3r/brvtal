@@ -37,6 +37,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/content-health.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-editorial-defaults.js' . $suffix . '"></script>'
     . '<script src="/discadmin/seo-metadata.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/event-workflow-seo.js' . $suffix . '"></script>'
     . '<script src="/discadmin/global-search.js' . $suffix . '"></script>'
     . '<script src="/discadmin/bulk-actions.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-activity.js' . $suffix . '"></script>'
