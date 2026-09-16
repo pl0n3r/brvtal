@@ -36,6 +36,9 @@ system_status_expect(str_contains($technical, 'security.totp_encryption_key'), '
 system_status_expect(!str_contains($technical, 'SELECT setting_value'), 'TOTP encryption value must never be selected into diagnostics');
 system_status_expect(str_contains($technical, "'admin_activity_log'"), 'activity history readiness must be checked');
 system_status_expect(str_contains($technical, "'issues' => \$issues"), 'overview must provide actionable platform issues');
+system_status_expect(str_contains($technical, "'repository_diagnostics' => \$repositoryDiagnostics"), 'GitHub availability/cache notices must be emitted outside platform issues');
+system_status_expect(str_contains($technical, "\$repositoryDiagnostics[] = ['severity'=>'info','title'=>'GITHUB METRICS'"), 'GitHub metrics outage must be repository diagnostics');
+system_status_expect(str_contains($technical, "\$repositoryDiagnostics[] = ['severity'=>'info','title'=>'GITHUB CACHE'"), 'stale GitHub cache must be repository diagnostics');
 system_status_expect(str_contains($script, "'/api/content-health.php'"), 'visual status must include Content Health');
 system_status_expect(str_contains($script, "'/api/admin-activity.php?limit=5'"), 'visual status must include recent admin activity');
 system_status_expect(str_contains($script, 'ssv2-storage-ring'), 'visual status must render storage utilization');
@@ -46,6 +49,8 @@ system_status_expect(str_contains($script, 'GITHUB BACKLOG'), 'Attention Require
 system_status_expect(str_contains($script, 'NO ACTIVE PLATFORM SIGNALS'), 'healthy operational copy must be scoped to platform signals');
 system_status_expect(!str_contains($script, 'NO ACTIVE ISSUES'), 'System Status must not claim there are no issues when it only knows platform health');
 system_status_expect(str_contains($script, 'platformIssues'), 'GitHub backlog must remain separate from platform issue scoring/presentation');
+system_status_expect(str_contains($script, 'repository_diagnostics'), 'frontend must consume repository diagnostics separately');
+system_status_expect(str_contains($script, 'repositoryDiagnosticList'), 'repository diagnostics must have their own renderer');
 system_status_expect(str_contains($styles, 'conic-gradient'), 'visual status must use graphical ring indicators');
 system_status_expect(str_contains($styles, 'ssv2-backlog-item'), 'GitHub backlog must have a distinct visual treatment');
 system_status_expect(str_contains($shell, 'system-status-v2.css'), 'shell must load System Status stylesheet');
