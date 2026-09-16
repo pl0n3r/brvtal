@@ -103,6 +103,23 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
     return ['payload' => $payload, 'error' => null];
 }
 
+/** Validate the editorial invariants required for every non-draft Event state. */
+function brvtal_event_publication_error(array $state): ?array
+{
+    if (trim((string)($state['title'] ?? '')) === '') {
+        return ['error' => 'TITLE_REQUIRED', 'field' => 'title'];
+    }
+    $status = strtolower(trim((string)($state['status'] ?? 'draft')));
+    if ($status === 'draft') return null;
+    if (trim((string)($state['event_date'] ?? '')) === '') {
+        return ['error' => 'EVENT_DATE_REQUIRED', 'field' => 'event_date'];
+    }
+    if (trim((string)($state['city'] ?? '')) === '') {
+        return ['error' => 'EVENT_CITY_REQUIRED', 'field' => 'city'];
+    }
+    return null;
+}
+
 /** Validate a Ticket Type availability interval when both bounds are present. */
 function brvtal_ticket_window_error(array $state): ?array
 {

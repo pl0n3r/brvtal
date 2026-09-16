@@ -121,4 +121,7 @@ fi
 export BRVTAL_REAL_STACK_URL="$BASE_URL"
 export BRVTAL_REAL_STACK_ADMIN_EMAIL="$ADMIN_EMAIL"
 export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
-npx playwright test tests/e2e/content-core-real-stack.spec.mjs --project=chromium
+npx playwright test \
+  tests/e2e/content-core-real-stack.spec.mjs \
+  tests/e2e/event-publication-invariant-real-stack.spec.mjs \
+  --project=chromium
