@@ -328,6 +328,15 @@ try {
 
     $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
+    $media = brvtal_public_sanitize_media_relations(
+        $pdo,
+        $media,
+        $events,
+        $archiveEvents,
+        $artists,
+        $sets,
+        $releases
+    );
     $blog = brvtal_public_sanitize_blog_relations(
         brvtal_public_blog($pdo),
         $events,
@@ -336,7 +345,7 @@ try {
         $sets,
         $releases
     );
-    $relations = brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases);
+    $relations = brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases, $media);
 
     $archive = [
         'events' => $archiveEvents,
