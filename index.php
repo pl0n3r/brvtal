@@ -44,7 +44,8 @@ if ($type !== '' || $slug !== '') {
     }
 }
 
-$seo = brvtal_public_seo_document($entity, $baseUrl);
+$seoDefaults = brvtal_public_global_seo(db());
+$seo = brvtal_public_seo_document($entity, $baseUrl, $seoDefaults);
 $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
 if ($entity) {
     try {
