@@ -13,6 +13,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Contact deja de confiar en `CF-Connecting-IP` salvo peer explícitamente confiable, mueve su estado a `storage/rate_limits/` y bloquea `.json` legacy en `storage/`.
 - Password y TOTP comparten almacenamiento de rate limits con lock estable y reemplazo atómico: la escritura completa y el flush se validan antes del rename, evitando truncar un estado válido ante fallos de persistencia.
 - Los contratos ejecutan fallos concurrentes reales de password/TOTP para demostrar que no se pierden intentos, y verifican reset y umbrales de bloqueo.
+- El contrato de recovery ahora valida los triggers contra el mismo clasificador ejecutable que consume CI, eliminando una aserción textual obsoleta del workflow.
 - Production Performance diferencia una regresión medida de un runner sin conectividad: si producción no es alcanzable, el resultado queda **INCONCLUSIVE** y se omite la medición.
 
 ## Archivos modificados en este deploy
@@ -35,6 +36,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `scripts/ci-scope.sh` — clasificador ejecutable único para los gates diff-aware.
 - `storage/.htaccess` — niega acceso HTTP a JSON de estado legacy.
 - `tests/auth-rate-limit-contract.php` — regresión ejecutable de concurrencia, atomicidad, bloqueo y reset.
+- `tests/backup-recovery-rehearsal-contract.php` — valida recovery contra el clasificador compartido en vez de duplicar reglas del workflow.
 - `tests/ci-scope-contract.php` — ejecuta el clasificador y protege gates, CodeRabbit, Sonar automático y performance inconclusa.
 - `tests/e2e/discadmin-password-login-rate-limit.spec.mjs` — alinea la regresión browser con el store atómico compartido.
 - `tests/public-contact-contract.php` — cubre spoofing de headers, CIDR confiable y storage privado.
@@ -47,6 +49,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Se preserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 - CodeRabbit permanece no bloqueante; `BRVTAL CI / validate` sigue siendo la frontera automatizada de merge.
 - La primera revisión CodeRabbit emitió 4 findings accionables: browser gate de Hero Slider, persistencia fail-closed, concurrencia ejecutable de auth y classifier CI ejecutable. Los cuatro fueron incorporados en la misma rama.
+- Un primer head posterior falló `fast` porque el contrato de recovery seguía buscando reglas ya extraídas del workflow; el contrato fue alineado al clasificador compartido en la misma rama.
 - SonarQube Cloud ya está conectado mediante su GitHub App; el repositorio no añade una segunda ejecución de scanner.
 - Pendiente en este snapshot: re-review CodeRabbit + SonarQube Cloud + matriz BRVTAL CI sobre el head final y, tras squash merge, `validate` del SHA exacto de `main`.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobación del deploy real.
