@@ -201,8 +201,7 @@
     }
 
     const hydrate = () => getPublicData().then(data => applySocials(data, root)).catch(() => {});
-    if (document.readyState === 'complete') window.setTimeout(hydrate, 100);
-    else window.addEventListener('load', () => window.setTimeout(hydrate, 100), { once:true });
+    window.setTimeout(hydrate, 100);
     return true;
   }
 
