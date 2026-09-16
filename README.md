@@ -23,7 +23,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `index.php` — entrega `/contact` y convierte navegación/CTA de Home hacia la nueva ruta sin incrustar el formulario.
 - `js/public-contact.js` — limita la hidratación a Contact, elimina la carrera de inicialización social y conserva CAPTCHA, envío, errores/rate-limit y redes desde settings.
 - `sitemap.php` — publica `https://www.brvtal.com.co/contact` en el sitemap.
-- `tests/e2e/public-contact-page.spec.mjs` — regresión Chromium desktop/mobile, teclado, touch targets, CAPTCHA y redes configuradas.
+- `tests/e2e/public-contact-page.spec.mjs` — regresión Chromium desktop/mobile, teclado, touch targets, CAPTCHA y redes configuradas; el fixture se sirve desde un origen HTTP real para ejercer el sanitizer de URLs en las mismas condiciones que producción.
 - `tests/public-contact-contract.php` — mantiene la regresión de seguridad existente y añade contratos de routing, canonical, sitemap y separación Home/Contact.
 
 ## Validación
@@ -33,8 +33,9 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - No hay migración, cambio de schema, restore, bulk delete ni mutación de datos de producción.
 - `api/contact.php` y `config/public_contact.php` no se modificaron: las protecciones de CAPTCHA, rate limiting, trusted proxy y sanitización permanecen en su frontera existente.
 - La ejecución local dirigida no pudo materializar el checkout porque el runtime auxiliar no tiene resolución de red hacia GitHub; no se declara validación local inexistente.
-- El primer BRVTAL CI del PR (run #579) dejó `fast`, `database` y `real-stack` verdes y detectó una carrera en la hidratación social del nuevo smoke Chromium; la causa fue corregida en esta misma rama sin ampliar el file set.
-- Pendiente en este snapshot: nuevo `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
+- Run #579 dejó `fast`, `database` y `real-stack` verdes y detectó el primer defecto del smoke Chromium en la hidratación social; se corrigió la carrera de inicialización del runtime.
+- Run #581 volvió a dejar `fast`, `database` y `real-stack` verdes y demostró que el fallo restante estaba en el fixture: `page.setContent()` ejecutaba sobre un origen `null`, por lo que el sanitizer HTTP(S) de producto rechazaba correctamente las URLs sociales. El smoke ahora navega a un origen HTTP interceptado y conserva intacta la validación de seguridad de producción.
+- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final posterior a esta corrección.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
