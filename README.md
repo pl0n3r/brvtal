@@ -6,46 +6,40 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se consolidó la política de mutaciones Media en `api/media-library.php`: las rutas legacy de upload y CRUD genérico ya no son alcanzables para escribir o borrar Media.
-- Los paths locales `/uploads/...` ya no pueden registrarse dos veces en el flujo canónico; duplicados históricos cuentan como ownership compartido y bloquean el borrado.
-- El delete canónico adquiere el mutex de referencias cuando está disponible, mueve original/sidecar/variantes al árbol web-denied `.private` antes de borrar la fila DB y restaura el staging si la transacción no puede completarse.
-- Un fallo de limpieza posterior al commit ya no deja archivos públicamente accesibles: queda como deuda privada reportada en la respuesta y registrada en el log operativo para limpieza posterior.
-- Se añadieron regresiones PHP, MariaDB y real-stack para rutas legacy, ownership duplicado, staging/rollback y el flujo canónico upload→register duplicate→delete.
-- La primera corrida CI detectó un contrato antiguo que buscaba `brvtal_media_usage` directamente en el endpoint; se actualizó para validar la nueva frontera `brvtal_media_integrity_usage` sin reducir cobertura.
-- Una corrida posterior detectó que Playwright no permite importar un archivo `.spec` desde otro `.spec`; el flujo Media quedó integrado directamente en el real-stack canónico y se eliminó el spec duplicado.
+- DISCADMIN ya no considera válida una sesión únicamente por conservar `admin_id` y estar dentro de los timeouts: cada comprobación autenticada revalida el estado actual del administrador en la tabla `admins`.
+- Si el administrador fue desactivado (`is_active=0`) o eliminado, la sesión PHP se revoca y la autorización falla inmediatamente.
+- Si la base de datos no permite comprobar el estado actual de la cuenta, el perímetro de autenticación falla cerrado: no autoriza la sesión con estado desconocido.
+- La consulta de estado quedó aislada en un helper PDO pequeño y verificable, sin introducir una nueva tabla de sesiones ni cambiar cookies, CSRF, regeneración de session ID o los timeouts existentes.
+- Se añadieron contrato PHP y regresión MariaDB para admin activo, desactivado, reactivado y eliminado.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/media-library.php` — aplica ownership compartido, registro local único y borrado DB↔filesystem con staging privado/rollback.
-- `api/route.php` — cierra las mutaciones legacy de `upload` y `media` manteniendo GET Media compatible.
-- `config/media_integrity.php` — centraliza ownership duplicado, mutex opcional y staging/restauración/finalización privada del borrado.
-- `tests/media-integrity-contract.php` — prueba fail-closed de rutas legacy y comportamiento filesystem del staging/restauración.
-- `tests/media-library-contract.php` — valida que Media Library use la frontera integrity-aware y preserve las referencias editoriales canónicas.
-- `tests/integration/media-reference-atomicity.php` — valida en MariaDB que dos registros con el mismo path local se tratan como ownership compartido.
-- `tests/e2e/content-core-real-stack.spec.mjs` — ejecuta también el flujo Media real-stack: rutas legacy cerradas, upload canónico en draft, rechazo de ownership duplicado y delete seguro.
+- `config/admin_auth.php` — revalida `admins.is_active`, revoca sesiones inactivas/eliminadas y falla cerrado si la revalidación no está disponible.
+- `config/admin_session_revalidation.php` — helper PDO canónico para consultar el estado actual de una cuenta administrativa.
+- `package.json` — incorpora la regresión de sesión al suite de integración canónico.
+- `tests/admin-session-revalidation-contract.php` — protege la llamada de revalidación, el fail-closed y la destrucción de sesión para cuentas revocadas.
+- `tests/integration/admin-session-revalidation.php` — valida contra MariaDB de test los estados activo → desactivado → reactivado → eliminado.
 
 ## Validación
 
-- Base exacta: `main` `2fe6ec647d5178b37cebc5535dd94674a47f8d33`, con `BRVTAL CI / validate` verde (run #553).
-- El PR residual #381 fue cerrado antes de iniciar esta rama porque su trabajo quedó absorbido y ampliado por #382.
-- Issues cubiertos: `#159`, `#227`, `#228`, `#371`.
-- No hay migración de base de datos, cambio de schema, restore, bulk delete ni mutación de datos de producción.
-- La nueva política reutiliza la migración de guardia/mutex ya existente cuando está instalada y mantiene compatibilidad con instalaciones donde aún no exista esa tabla auxiliar.
-- La prueba real-stack crea un asset CI mediante el endpoint canónico y lo elimina en `finally` si la prueba se interrumpe antes del delete esperado.
-- BRVTAL CI run #554 falló únicamente por un assertion de contrato desactualizado; run #558 falló únicamente porque Playwright prohíbe importar un `.spec` desde otro `.spec`. Ambos problemas de test quedaron corregidos en esta misma rama.
-- Pendiente en este snapshot: nueva corrida `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
-- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
+- Base exacta: `main` `115a6659452e3d7f4cca95b6e767b8f88e42b720`, con `BRVTAL CI / validate` verde (run #562).
+- Issue cubierto: `#167`.
+- No hay migración, cambio de schema, nueva tabla de sesiones, restore, bulk delete ni mutación de datos de producción.
+- La regresión MariaDB crea una base scratch con namespace `brvtal_test...`, prueba únicamente una cuenta CI y elimina esa base al terminar.
+- Los controles existentes de sesión se conservan: idle ~7 días, absoluto ~30 días, cookie HttpOnly/SameSite=Strict, CSRF y regeneración del session ID.
+- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
+- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y una sesión autenticada controlada.
 
 ## Qué sigue
 
 1. Resolver en esta misma rama cualquier finding válido de BRVTAL CI, CodeRabbit o SonarQube Cloud.
 2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisar los threads finales de CodeRabbit.
 3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Repriorizar el siguiente deploy por riesgo/impacto técnico entre revocación de sesiones (#167), invariantes de Content Core y deuda estructural restante de Media/DISCADMIN.
+4. Repriorizar el siguiente deploy por impacto entre integridad editorial, trazabilidad administrativa y fallos públicos todavía abiertos.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issues abordados: `#159`, `#227`, `#228`, `#371`.
+- Issue abordado: `#167`.
