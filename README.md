@@ -15,22 +15,23 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `created_by` usa el administrador autenticado que realiza la mutación, manteniendo trazabilidad.
 - No se crea endpoint, tabla, migration ni modelo paralelo; se reutiliza `artist_collective_history` del Content Core existente.
 - Se añade cobertura PHP pura para las invariantes y cobertura MariaDB real para periodos, transición active → alumni, reingreso alumni → active, correcciones y actor.
-- El contrato compartido de validación también prueba que un update parcial de membership se rechaza explícitamente.
+- El contrato compartido de validación prueba que un update parcial de membership se rechaza explícitamente.
+- El fixture MariaDB del contrato es autocontenido y usa tablas temporales; además la detección de `artist_collective_history` comprueba que la tabla sea realmente consultable, funcionando con schema productivo y fixtures temporales.
 
 ## Archivos modificados en este deploy
 
-**Diff antes de este README:** `7 archivos` · **+469** líneas · **−6** líneas.  
+**Diff antes de este README:** `7 archivos` · **+504** líneas · **−6** líneas.  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### LIFECYCLE / API
 
 - `api/content-validation.php` — 🟡 MOD · **+10 / −0** · conecta la validación temporal de Artists con la autoridad canónica de Collective Status.
-- `config/artist_collective_lifecycle.php` — 🟢 NEW · **+250 / −0** · define invariantes y sincronización transaccional de periodos en `artist_collective_history`.
+- `config/artist_collective_lifecycle.php` — 🟢 NEW · **+254 / −0** · define invariantes, detección segura del schema y sincronización transaccional de periodos en `artist_collective_history`.
 - `config/admin_activity.php` — 🟡 MOD · **+12 / −0** · sincroniza el historial de membresía dentro de la misma transacción y con el actor de Admin Activity.
 
 ### TESTS / TOOLING
 
-- `tests/artist-collective-lifecycle-contract.php` — 🟢 NEW · **+179 / −0** · contratos de lifecycle y pruebas MariaDB del historial real.
+- `tests/artist-collective-lifecycle-contract.php` — 🟢 NEW · **+210 / −0** · contratos de lifecycle, verificación de migration y fixture MariaDB temporal para historial real.
 - `tests/content-validation-contract.php` — 🟡 MOD · **+14 / −3** · alinea el contrato temporal existente con el lifecycle completo y cubre rechazo de updates parciales.
 - `package.json` — 🟡 MOD · **+1 / −1** · incluye el contrato de Collective Status en `test:integration`.
 
@@ -44,9 +45,10 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - Base exacta: `main` `4373b3c265048a89a03c5bc592d0e77922d69e08`.
 - Esa base quedó con `BRVTAL CI / validate` verde en el run **#618**.
 - PR: **#406** · issues objetivo: **#179** y **#180** · parent: **#398 Phase C**.
-- Run **#619** detectó que el contrato heredado `content-validation-contract.php` todavía asumía que un Artist podía enviar solo `collective_joined_at`; el contrato se actualizó porque esa operación parcial es precisamente inválida bajo #180.
-- La nueva suite MariaDB usa el esquema real existente y no requiere migration de producción.
-- Pendiente: BRVTAL CI + CodeRabbit verdes sobre el head final después de esta corrección.
+- Run **#619** detectó que `content-validation-contract.php` aún asumía un update parcial de `collective_joined_at`; se alineó con la nueva invariancia y se añadió regresión explícita.
+- Run **#621** pasó `fast` pero el job database reveló que el nuevo contrato asumía que la suite compartía `artist_collective_history`; el fixture se hizo autocontenido con tablas temporales y conserva una verificación estática de que la migration real define esa tabla.
+- La suite MariaDB usa únicamente el database `brvtal_test*`; no ejecuta migration ni modifica datos de producción.
+- Pendiente: BRVTAL CI + CodeRabbit verdes sobre el head final después de estas correcciones.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
