@@ -13,6 +13,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - El payload GitHub incorpora `open_issues`, `recent_issues` y `backlog_state` con estados `fresh`, `stale` o `unavailable`.
 - La caché previa sin campos de backlog no puede presentarse como si conociera el número de Issues: si no puede refrescarse, el backlog se marca **UNAVAILABLE** en lugar de mostrar un falso cero.
 - `Attention Required` separa dos grupos: **PLATFORM SIGNALS** y **GITHUB BACKLOG**. Un Issue abierto de producto/desarrollo no se convierte en incidente de producción ni reduce el health score.
+- Los avisos de disponibilidad/caché GitHub ahora salen por `repository_diagnostics`; se muestran junto al backlog pero **no incrementan PLATFORM SIGNALS**.
 - Repository añade el contador **OPEN ISSUES** y el backlog muestra links canónicos a cada Issue más `VIEW ALL` hacia GitHub.
 - Los títulos/labels de GitHub se escapan al renderizar y las URLs individuales se reconstruyen desde el número de Issue del repositorio conocido.
 - La UI mantiene tratamiento brutalista, estados fresh/stale/unavailable, focus visible, targets táctiles y layout sin overflow en mobile.
@@ -20,20 +21,20 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `7 archivos` · **+263** líneas · **−45** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `7 archivos` · **+284** líneas · **−43** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### SYSTEM STATUS / GITHUB
 
-- `discadmin/technical.php` — 🟡 MOD · **+57 / −7** · extiende la caché GitHub con total/lista de Issues abiertos, freshness explícita y fallback honesto para caché legacy o API no disponible.
-- `discadmin/system-status-v2.js` — 🟡 MOD · **+50 / −8** · separa señales de plataforma del backlog GitHub, añade OPEN ISSUES, links canónicos, VIEW ALL y copy no ambiguo.
+- `discadmin/technical.php` — 🟡 MOD · **+58 / −6** · extiende la caché GitHub con total/lista de Issues abiertos, freshness explícita, fallback honesto y `repository_diagnostics` separado de salud operativa.
+- `discadmin/system-status-v2.js` — 🟡 MOD · **+55 / −7** · separa PLATFORM SIGNALS, diagnósticos del repositorio y GITHUB BACKLOG; añade OPEN ISSUES, links canónicos, VIEW ALL y copy no ambiguo.
 - `discadmin/system-status-v2.css` — 🟡 MOD · **+8 / −7** · presentación diferenciada del backlog, focus/touch targets y comportamiento responsive.
 
 ### TESTS
 
-- `tests/system-status-contract.php` — 🟡 MOD · **+15 / −1** · exige query `is:issue is:open`, payload acotado, caché compatible, ausencia de token y separación semántica entre plataforma/backlog.
+- `tests/system-status-contract.php` — 🟡 MOD · **+20 / −1** · exige query `is:issue is:open`, payload acotado, caché compatible, ausencia de token y separación explícita `issues` / `repository_diagnostics`.
 - `tests/e2e/discadmin-system-status-v2.spec.mjs` — 🟡 MOD · **+63 / −11** · valida contador/listado GitHub, links, health independiente y mobile/touch/overflow usando el CSS real del módulo.
-- `tests/e2e/discadmin-system-status-degraded.spec.mjs` — 🟡 MOD · **+68 / −10** · valida fallos de fuentes auxiliares y los tres estados del backlog: fresh, stale/cached y unavailable sin falso cero ni impacto en el health score.
+- `tests/e2e/discadmin-system-status-degraded.spec.mjs` — 🟡 MOD · **+78 / −10** · valida fallos de fuentes auxiliares y estados fresh/stale/unavailable; los diagnósticos GitHub permanecen visibles con `0 PLATFORM` y sin falso cero.
 
 ### CONTEXTO DURABLE
 
@@ -50,8 +51,9 @@ Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este depl
 - PR: **#410** · issue: **#409**.
 - No hay migration, cambio de schema, credenciales nuevas ni mutación de producción.
 - El backlog GitHub es metadata pública read-only y permanece fuera del cálculo de salud operativa.
-- BRVTAL CI **#639** quedó completamente verde sobre el head previo a añadir la regresión explícita de estado `stale`; al cambiar el head, ese run queda como evidencia intermedia y no como gate final de merge.
-- El head actual añade cobertura ejecutable de `stale/cached`; requiere un nuevo BRVTAL CI + re-revisión CodeRabbit antes del squash.
+- BRVTAL CI **#641** quedó completamente verde antes de los dos findings finales de CodeRabbit.
+- CodeRabbit detectó que los avisos `GITHUB METRICS / CACHE / BACKLOG` todavía se contaban como PLATFORM SIGNALS; se corrigió con `repository_diagnostics` separado y cobertura E2E de `0 PLATFORM` para stale/unavailable.
+- El head actual requiere BRVTAL CI + re-revisión CodeRabbit sobre estas correcciones antes del squash.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
