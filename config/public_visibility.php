@@ -6,6 +6,8 @@ declare(strict_types=1);
  *
  * Keep this as the single source of truth for every public query that can
  * expose an Event directly or through a relationship.
+ *
+ * @return array{active:list<string>,historical:list<string>}
  */
 function brvtal_public_event_statuses(): array
 {
@@ -15,12 +17,20 @@ function brvtal_public_event_statuses(): array
     ];
 }
 
+/**
+ * Return every lifecycle status that is eligible for public evaluation.
+ *
+ * @return list<string>
+ */
 function brvtal_public_visible_event_statuses(): array
 {
     $groups = brvtal_public_event_statuses();
     return array_values(array_unique(array_merge($groups['active'], $groups['historical'])));
 }
 
+/**
+ * Parse one lifecycle timestamp without allowing malformed editorial data to throw.
+ */
 function brvtal_public_event_datetime(mixed $value): ?DateTimeImmutable
 {
     $raw = trim((string)$value);
@@ -30,6 +40,23 @@ function brvtal_public_event_datetime(mixed $value): ?DateTimeImmutable
     } catch (Throwable) {
         return null;
     }
+}
+
+/**
+ * Resolve the clock used by public Event policy decisions.
+ *
+ * When callers do not inject a clock, the first value created in the request is
+ * reused by lifecycle, archive and ticket checks. This prevents a request that
+ * crosses midnight from classifying one Event with two different calendar days.
+ */
+function brvtal_public_event_policy_now(?DateTimeImmutable $now = null): DateTimeImmutable
+{
+    static $requestNow = null;
+    if ($now !== null) return $now;
+    if (!$requestNow instanceof DateTimeImmutable) {
+        $requestNow = new DateTimeImmutable('now');
+    }
+    return $requestNow;
 }
 
 /**
@@ -50,7 +77,7 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
     $historical = brvtal_public_event_statuses()['historical'];
     if (!in_array($status, $historical, true)) return true;
 
-    $now ??= new DateTimeImmutable('now');
+    $now = brvtal_public_event_policy_now($now);
     $today = $now->setTime(0, 0, 0);
     $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
     $publishedAt = brvtal_public_event_datetime($event['published_at'] ?? null);
@@ -69,7 +96,7 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
  */
 function brvtal_public_event_is_historical(array $event, ?DateTimeImmutable $now = null): bool
 {
-    $now ??= new DateTimeImmutable('now');
+    $now = brvtal_public_event_policy_now($now);
     if (!brvtal_public_event_is_visible($event, $now)) return false;
 
     $status = strtolower(trim((string)($event['status'] ?? '')));
@@ -98,6 +125,7 @@ function brvtal_public_page_is_visible(array $page): bool
  */
 function brvtal_public_event_allows_ticketing(array $event, ?DateTimeImmutable $now = null): bool
 {
+    $now = brvtal_public_event_policy_now($now);
     $status = strtolower(trim((string)($event['status'] ?? '')));
     if (!in_array($status, brvtal_public_event_statuses()['active'], true)) return false;
     if (!brvtal_public_event_is_visible($event, $now)) return false;
@@ -105,7 +133,6 @@ function brvtal_public_event_allows_ticketing(array $event, ?DateTimeImmutable $
     $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
     if ($eventDate === null) return true;
 
-    $now ??= new DateTimeImmutable('now');
     return $eventDate >= $now->setTime(0, 0, 0);
 }
 
@@ -120,7 +147,7 @@ function brvtal_public_ticket_type_is_available(array $ticket, ?DateTimeImmutabl
     $status = strtolower(trim((string)($ticket['status'] ?? '')));
     if (!in_array($status, ['active', 'sold_out'], true)) return false;
 
-    $now ??= new DateTimeImmutable('now');
+    $now = brvtal_public_event_policy_now($now);
 
     $fromRaw = trim((string)($ticket['available_from'] ?? ''));
     if ($fromRaw !== '') {
@@ -137,6 +164,11 @@ function brvtal_public_ticket_type_is_available(array $ticket, ?DateTimeImmutabl
     return true;
 }
 
+/**
+ * Build a prepared-statement placeholder list for a non-empty value set.
+ *
+ * @param list<mixed> $values
+ */
 function brvtal_public_sql_placeholders(array $values): string
 {
     if ($values === []) {
