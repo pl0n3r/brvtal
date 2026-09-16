@@ -31,7 +31,10 @@ test('password auth records only failures and resets pressure after a valid pass
 
   expect(rateLimitPhp).toContain('BRVTAL_PASSWORD_RATE_LIMIT_MAX_FAILURES = 5');
   expect(rateLimitPhp).toContain('function brvtal_password_rate_limit_failure(');
-  expect(rateLimitPhp).toContain('$attempts[] = $now;');
+  expect(rateLimitPhp).toContain("$data['attempts'][] = $now;");
+  expect(rateLimitPhp).toContain("fopen($file, 'c+')");
+  expect(rateLimitPhp).toContain('flock($handle, LOCK_EX)');
+  expect(rateLimitPhp).toContain('ftruncate($handle, 0)');
   expect(rateLimitPhp).toContain('function brvtal_password_rate_limit_reset(');
   expect(rateLimitPhp).toContain('@unlink($file)');
 });
