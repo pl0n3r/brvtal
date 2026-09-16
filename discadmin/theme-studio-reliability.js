@@ -15,7 +15,7 @@
     .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
   const themeRoot = () => document.getElementById('theme-root');
-  const inThemeStudio = () => typeof window.state === 'object' && window.state?.section === 'theme';
+  const inThemeStudio = () => typeof state !== 'undefined' && state?.section === 'theme';
   const hasUnsavedChanges = () => Boolean(document.querySelector('[data-theme-studio-v2][data-dirty]'));
 
   function feedback(kind, message, key = 'theme-studio-reliability') {
