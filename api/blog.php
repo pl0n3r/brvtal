@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/blog-relations.php';
 
 brvtal_admin_require();
 
@@ -56,6 +57,10 @@ function brvtal_blog_image(mixed $value): string
     return $path;
 }
 
+/**
+ * Normalize a Blog mutation payload and reject malformed related-content IDs
+ * before they can be coerced, locked, or persisted.
+ */
 function brvtal_blog_payload(array $input): array
 {
     $title = trim((string)($input['title'] ?? ''));
@@ -80,8 +85,8 @@ function brvtal_blog_payload(array $input): array
     foreach ((array)($input['relations'] ?? []) as $index => $relation) {
         if (!is_array($relation)) continue;
         $type = strtolower(trim((string)($relation['related_type'] ?? '')));
-        $id = (int)($relation['related_id'] ?? 0);
-        if (!in_array($type, ['event','artist','set','release'], true) || $id <= 0) continue;
+        if (!in_array($type, ['event','artist','set','release'], true)) continue;
+        $id = brvtal_blog_relation_id($relation['related_id'] ?? null);
         $key = $type . ':' . $id;
         $relations[$key] = [
             'related_type' => $type,
@@ -208,6 +213,7 @@ try {
     $before = null;
     $pdo->beginTransaction();
     try {
+        brvtal_blog_lock_relation_targets($pdo, $data['relations']);
         if ($method === 'POST') {
             $st = $pdo->prepare("INSERT INTO blog_posts(title,slug,excerpt,body,cover_image,seo_title,seo_description,status,featured,published_at,sort_order) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
             $st->execute([

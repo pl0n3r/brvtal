@@ -45,6 +45,7 @@ sed \
 
 "${mysql_db[@]}" < database/migration_content_core_01.sql
 "${mysql_db[@]}" < database/migration_releases_01.sql
+"${mysql_db[@]}" < database/migration_blog_01.sql
 "${mysql_db[@]}" < database/migration_seo_01.sql
 "${mysql_db[@]}" < database/migration_totp_foundation.sql
 "${mysql_db[@]}" < database/migration_admin_activity_01.sql
@@ -124,4 +125,5 @@ export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
 npx playwright test \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/event-publication-invariant-real-stack.spec.mjs \
+  tests/e2e/blog-relation-integrity-real-stack.spec.mjs \
   --project=chromium
