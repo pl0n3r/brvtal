@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../config/media_relations.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
 require_once __DIR__ . '/public-response.php';
@@ -259,6 +260,24 @@ try {
          ORDER BY id DESC"
     )->fetchAll();
 
+    // The additive Media relation migration is optional at runtime. Until it is
+    // applied, published Memories remain available with an empty relation set.
+    $mediaRelationRows = brvtal_media_relation_rows($pdo, array_column($media, 'id'));
+    $mediaRelationsById = [];
+    foreach ($mediaRelationRows as $relation) {
+        $mediaRelationsById[(string)$relation['media_id']][] = [
+            'related_type'=>$relation['related_type'],
+            'related_id'=>$relation['related_id'],
+            'sort_order'=>$relation['sort_order'],
+        ];
+    }
+    foreach ($media as &$memory) {
+        $memory['id'] = (int)$memory['id'];
+        $memory['file_size'] = (int)$memory['file_size'];
+        $memory['relations'] = $mediaRelationsById[(string)$memory['id']] ?? [];
+    }
+    unset($memory);
+
     $ticketTypes = $pdo->query(
         "SELECT id,event_id,name,description,price,currency,external_url,
                 payment_instructions,qr_image,status,available_from,available_until,sort_order
@@ -328,6 +347,14 @@ try {
 
     $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
+    $media = brvtal_public_sanitize_media_relations(
+        $media,
+        $events,
+        $archiveEvents,
+        $artists,
+        $sets,
+        $releases
+    );
     $blog = brvtal_public_sanitize_blog_relations(
         brvtal_public_blog($pdo),
         $events,
@@ -336,7 +363,7 @@ try {
         $sets,
         $releases
     );
-    $relations = brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases);
+    $relations = brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases, $media);
 
     $archive = [
         'events' => $archiveEvents,
