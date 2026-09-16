@@ -78,7 +78,13 @@ function input_json(): array {
     if (strlen($raw) > 2 * 1024 * 1024) json_response(['ok'=>false,'error'=>'PAYLOAD_TOO_LARGE'],413);
     $data = json_decode($raw, true);
     if ($raw !== '' && !is_array($data)) json_response(['ok'=>false,'error'=>'INVALID_JSON'],400);
-    return is_array($data) ? $data : [];
+    if (!is_array($data)) return [];
+    foreach (['title','name'] as $field) {
+        if (array_key_exists($field, $data) && is_array($data[$field])) {
+            json_response(['ok'=>false,'error'=>'INVALID_FIELD_TYPE','field'=>$field],422);
+        }
+    }
+    return $data;
 }
 
 function slugify(string $value): string {
