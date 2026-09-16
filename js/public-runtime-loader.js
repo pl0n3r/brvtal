@@ -27,7 +27,8 @@
     'js/mobile-events.js',
     'js/hero-slider.js',
     'js/public-discovery-url-state.js',
-    'js/public-canonical-navigation.js'
+    'js/public-canonical-navigation.js',
+    'js/public-contact.js'
   ];
 
   function loadScript(src) {
