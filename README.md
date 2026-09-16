@@ -20,7 +20,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `15 archivos` · **+910** líneas · **−53** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `15 archivos` · **+911** líneas · **−53** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### DISCADMIN
@@ -29,7 +29,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - `discadmin/settings-v2.css` — 🟢 NEW · **+1 / −0** · layout responsive y visual del nuevo control plane.
 - `discadmin/settings-v2.js` — 🟢 NEW · **+274 / −0** · General, Social, SEO, Analytics & Privacy y Advanced con persistencia tipada.
 - `discadmin/theme-studio-configuration.css` — 🟢 NEW · **+1 / −0** · estilos de wordmark y mapa de compatibilidad.
-- `discadmin/theme-studio-configuration.js` — 🟢 NEW · **+104 / −0** · wordmark configurable, ownership map y retiro del SEO duplicado como superficie principal.
+- `discadmin/theme-studio-configuration.js` — 🟢 NEW · **+105 / −0** · wordmark configurable, ownership map, retiro del SEO duplicado y protección contra loops de preview.
 
 ### SERVER / PUBLIC DELIVERY
 
@@ -63,6 +63,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - Run #591 detectó el primer desfase del snapshot README; se corrigió sin cambiar lógica.
 - Run #592 validó PHP, real-stack, WebKit-TOTP y database; Chromium detectó integración/runtime y overflow móvil, que se corrigieron sin relajar tests.
 - Run #601 detectó únicamente un contrato PHP que todavía apuntaba al módulo wordmark ya integrado/eliminado; el contrato se alineó con `public-theme-runtime.js`.
+- Run #604 dejó verde el resto de Chromium y reveló un loop real del `MutationObserver` al actualizar el preview del wordmark; se corrigió evitando reescribir un preview ya sincronizado.
 - Pendiente: `BRVTAL CI / validate` verde sobre el head actual y cierre de revisión automática.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
