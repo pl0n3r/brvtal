@@ -15,10 +15,11 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `created_by` usa el administrador autenticado que realiza la mutación, manteniendo trazabilidad.
 - No se crea endpoint, tabla, migration ni modelo paralelo; se reutiliza `artist_collective_history` del Content Core existente.
 - Se añade cobertura PHP pura para las invariantes y cobertura MariaDB real para periodos, transición active → alumni, reingreso alumni → active, correcciones y actor.
+- El contrato compartido de validación también prueba que un update parcial de membership se rechaza explícitamente.
 
 ## Archivos modificados en este deploy
 
-**Diff antes de este README:** `6 archivos` · **+455** líneas · **−3** líneas.  
+**Diff antes de este README:** `7 archivos` · **+469** líneas · **−6** líneas.  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### LIFECYCLE / API
@@ -30,6 +31,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 ### TESTS / TOOLING
 
 - `tests/artist-collective-lifecycle-contract.php` — 🟢 NEW · **+179 / −0** · contratos de lifecycle y pruebas MariaDB del historial real.
+- `tests/content-validation-contract.php` — 🟡 MOD · **+14 / −3** · alinea el contrato temporal existente con el lifecycle completo y cubre rechazo de updates parciales.
 - `package.json` — 🟡 MOD · **+1 / −1** · incluye el contrato de Collective Status en `test:integration`.
 
 ### CONTEXTO DURABLE
@@ -41,15 +43,16 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 - Base exacta: `main` `4373b3c265048a89a03c5bc592d0e77922d69e08`.
 - Esa base quedó con `BRVTAL CI / validate` verde en el run **#618**.
-- Issues objetivo: **#179** y **#180** · parent: **#398 Phase C**.
+- PR: **#406** · issues objetivo: **#179** y **#180** · parent: **#398 Phase C**.
+- Run **#619** detectó que el contrato heredado `content-validation-contract.php` todavía asumía que un Artist podía enviar solo `collective_joined_at`; el contrato se actualizó porque esa operación parcial es precisamente inválida bajo #180.
 - La nueva suite MariaDB usa el esquema real existente y no requiere migration de producción.
-- Pendiente: abrir PR, ejecutar BRVTAL CI y revisar CodeRabbit sobre el head final.
+- Pendiente: BRVTAL CI + CodeRabbit verdes sobre el head final después de esta corrección.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Abrir PR de `fix/artist-collective-lifecycle` contra `main` cerrando #179 y #180.
-2. Corregir cualquier finding válido de CI/CodeRabbit sobre la misma rama.
+1. Validar el head final de #406 con BRVTAL CI y CodeRabbit.
+2. Corregir cualquier finding válido sobre la misma rama.
 3. Squash merge solo con `BRVTAL CI / validate` verde y revisión limpia.
 4. Verificar el CI del SHA exacto resultante en `main`.
 5. Continuar #398 Phase C con el **Roster conectado público** y luego Sets discovery, usando únicamente relaciones estructuradas reales.
