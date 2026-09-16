@@ -93,3 +93,34 @@ test('GitHub backlog outage is unavailable rather than a fake zero and does not 
   await expect(attention).not.toContainText('NO OPEN GITHUB ISSUES');
   await expect(attention).not.toContainText('0 GITHUB');
 });
+
+test('stale GitHub backlog stays visible as cached data without becoming an operational failure', async ({ page }) => {
+  const stale = structuredClone(overview);
+  stale.repository.github = {
+    ok:true,
+    commits:142,
+    merged_prs:35,
+    open_issues:2,
+    recent_issues:[
+      {number:409,title:'System Status backlog',labels:['admin'],updated_at:'2026-09-16T19:05:58Z'},
+      {number:398,title:'Connected cultural archive',labels:['design'],updated_at:'2026-09-16T18:00:00Z'},
+    ],
+    backlog_state:'stale',
+    cache:'stale',
+  };
+  stale.issues = [{severity:'info',title:'GITHUB CACHE',detail:'Showing the most recent cached GitHub metrics.'}];
+
+  await mountStatus(page, stale);
+  await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify(healthySource)}));
+  await page.route('**/api/admin-activity.php?limit=5', route => route.fulfill({contentType:'application/json',body:JSON.stringify(healthyActivity)}));
+  await page.goto(harness);
+
+  await expect(page.locator('.ssv2-health-summary')).toContainText('100%');
+  await expect(page.locator('.ssv2-health-summary')).toContainText('HEALTHY');
+  const attention = page.locator('.ssv2-attention');
+  await expect(attention).toContainText('1 PLATFORM · 2 GITHUB');
+  await expect(attention).toContainText('CACHED GITHUB DATA');
+  await expect(attention).toContainText('GITHUB #409 · BACKLOG');
+  await expect(attention).toContainText('VIEW ALL 2');
+  await expect(attention).not.toContainText('GITHUB BACKLOG UNAVAILABLE');
+});
