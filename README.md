@@ -7,19 +7,20 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 ## Qué se hizo
 
 - Content Core impide que un `PUT` vacíe la identidad editorial requerida de Events (`title`), Artists (`name`) o Sets (`title`), preservando updates parciales que no tocan esos campos.
-- La validación temporal rechaza arrays/objetos antes de convertirlos a string, evitando warnings PHP y devolviendo un `422 INVALID_DATE` limpio.
-- La regresión real-stack de Content Core usa identidades únicas, limpia Page/Ticket/Set/Artist/Event en `finally` y cubre directamente el PUT parcial de Ticket Type contra el estado persistido.
-- Bulk Actions al publicar Blog o Releases ahora aplica el mismo lifecycle de `published_at` que sus APIs canónicos: crea el timestamp una sola vez y lo conserva en cambios posteriores de estado.
-- Se ampliaron contratos PHP, real-stack y MariaDB para proteger estos invariantes.
+- Los JSON con `title`/`name` no escalares se rechazan antes del cast y las fechas no escalares devuelven un `422` limpio, evitando valores `Array` y warnings PHP.
+- La regresión real-stack usa identidades únicas, limpia Page/Ticket/Set/Artist/Event en `finally`, cubre directamente el PUT parcial de Ticket Type y comprueba que los `422` no modifiquen datos persistidos.
+- Bulk Actions al publicar Blog o Releases aplica el lifecycle de `published_at`: crea el timestamp una sola vez y lo conserva en cambios posteriores de estado.
+- Los checks de Bulk Actions priorizan comportamiento ejecutable MariaDB sobre coincidencias frágiles de texto fuente.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
+- `config/bootstrap.php` — rechaza `title`/`name` no escalares al decodificar JSON antes de cualquier conversión a string.
 - `api/content-validation.php` — centraliza identidad requerida, tipos temporales seguros y documentación del contrato.
 - `api/bulk-actions-lib.php` — preserva el lifecycle `published_at` de Blog y Releases en cambios masivos.
 - `tests/content-validation-contract.php` — protege identidad requerida y fechas no escalares.
-- `tests/e2e/content-validation-real-stack.spec.mjs` — valida PUTs reales, tipos inválidos y cleanup determinístico.
-- `tests/bulk-actions-contract.php` — protege el lifecycle de publicación masiva.
+- `tests/e2e/content-validation-real-stack.spec.mjs` — valida PUTs reales, no persistencia tras `422`, tipos inválidos y cleanup determinístico.
+- `tests/bulk-actions-contract.php` — mantiene los invariantes estructurales de seguridad de Bulk Actions sin duplicar assertions de implementación ya cubiertas en integración.
 - `tests/integration/bulk-actions.php` — verifica en MariaDB el stamp/preservación de `published_at` para Blog y Releases.
 
 ## Validación
@@ -27,18 +28,18 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Base exacta: `main` `cea4a357e518fac4bf39abed1acb9742b726280e`, con `BRVTAL CI / validate` verde (run #545).
 - No había PRs abiertos al crear `fix/content-integrity-review-quick-wins`.
 - Issues cubiertos: `#157`, `#168`.
-- También incorpora los tres hardenings accionables que CodeRabbit detectó después del merge de `#379`: temporal no escalar, PUT parcial real de Ticket Type y cleanup único/autolimpiante del real-stack.
+- También incorpora los tres hardenings accionables que CodeRabbit detectó después del merge de `#379` y los findings válidos de la primera revisión de `#382`.
 - No hay migración de base de datos, cambios de schema, restore, delete masivo ni mutación de datos de producción.
 - Las pruebas real-stack solo crean datos CI con namespace único y los eliminan en `finally`; la integración MariaDB usa tablas temporales en la base de test.
-- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión advisory de CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
+- El head anterior de `#382` tuvo `fast`, `database`, `chromium`, `real-stack` y `validate` verdes; el head actualizado debe repetir los gates aplicables antes del merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
 ## Qué sigue
 
-1. Resolver en esta misma rama cualquier finding válido de BRVTAL CI, CodeRabbit o SonarQube Cloud.
-2. Hacer squash merge solo con `BRVTAL CI / validate` verde y después de revisar los threads finales de CodeRabbit.
-3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Continuar con otro lote de varios Quick Wins compatibles; `#173` queda para un batch específico de invariantes de Event porque requiere API + Bulk Actions.
+1. Esperar `BRVTAL CI / validate` y la revisión final de CodeRabbit sobre el head actualizado.
+2. Resolver cualquier finding válido restante en esta misma rama.
+3. Hacer squash merge y verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
+4. Continuar con el siguiente lote de Quick Wins de lifecycle: `#173` + `#180` si siguen vigentes contra el nuevo `main`.
 
 ## Contexto durable
 
