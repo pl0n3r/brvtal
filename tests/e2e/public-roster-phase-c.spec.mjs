@@ -6,6 +6,7 @@ const css = [
   'css/style.css',
   'css/public-roster.css',
 ].map(path => readFileSync(join(process.cwd(), path), 'utf8')).join('\n');
+const rosterScript = readFileSync(join(process.cwd(), 'js/public-roster.js'), 'utf8');
 
 const markup = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
 <section class="artists scene" id="artists">
@@ -25,6 +26,14 @@ const markup = `<!doctype html><html><head><meta name="viewport" content="width=
     </section>
   </div>
   <div class="artist-preview"></div><div class="artist-crosshair"></div>
+</section>
+</body></html>`;
+
+const runtimeMarkup = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
+<section class="artists scene" id="artists">
+  <div class="section-head"><span class="mono">ARTISTS / STATIC</span><h2>ARTISTS</h2><span class="mono">STATIC FALLBACK</span></div>
+  <div class="artist-list"><a class="artist" href="#artists"><span>01</span><strong>STATIC FALLBACK ARTIST</strong><i>STATIC</i></a></div>
+  <div class="artist-preview"><img src="/assets/fallback.jpg" alt=""></div><div class="artist-crosshair"></div>
 </section>
 </body></html>`;
 
@@ -59,4 +68,53 @@ test('Roster stays readable and touch-safe on mobile without horizontal overflow
   expect(pageMetrics.scrollWidth).toBeLessThanOrEqual(pageMetrics.viewport);
   await expect(page.locator('.artist--network strong')).toBeVisible();
   await expect(page.locator('.artist-preview')).toBeHidden();
+});
+
+test('Roster runtime renders the shared public payload with lifecycle ordering and canonical links', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setContent(runtimeMarkup);
+  await page.evaluate(() => {
+    window.__rosterRendered = null;
+    window.addEventListener('brvtal:roster-rendered', event => { window.__rosterRendered = event.detail; }, { once: true });
+    window.BRVTALPublicDataPromise = Promise.resolve({
+      payload: {
+        data: {
+          artists: [
+            {name:'NETWORK <SCRIPT>', slug:'network-artist', collective_status:'none', sort_order:1, bio:'SHOULD NOT LEAK', website_url:'https://example.com'},
+            {name:'ACTIVE SECOND', slug:'active-second', collective_status:'active', collective_order:8, sort_order:1, collective_joined_at:'2026-08-01', photo:'/uploads/active-second.jpg'},
+            {name:'ALUMNI ONE', slug:'alumni-one', collective_status:'alumni', collective_order:1, collective_joined_at:'2024-01-01', collective_left_at:'2025-12-31'},
+            {name:'ACTIVE FIRST', slug:'active-first', collective_status:'active', collective_order:2, sort_order:9, collective_joined_at:'2025-02-03', photo:'/uploads/active-first.jpg'},
+          ],
+        },
+      },
+    });
+  });
+  await page.addScriptTag({ content: rosterScript });
+  await page.evaluate(() => window.dispatchEvent(new Event('load')));
+
+  await expect(page.locator('html')).toHaveAttribute('data-public-roster', 'connected');
+  await expect(page.locator('.section-head > span').first()).toHaveText('BRVTAL ROSTER / 04');
+  await expect(page.locator('[data-roster-group="active"] .artist strong')).toHaveText(['ACTIVE FIRST', 'ACTIVE SECOND']);
+  await expect(page.locator('[data-roster-group="alumni"] .artist strong')).toHaveText(['ALUMNI ONE']);
+  await expect(page.locator('[data-roster-group="network"] .artist strong')).toHaveText(['NETWORK <SCRIPT>']);
+  await expect(page.locator('[data-roster-group="active"] .artist').first()).toHaveAttribute('href', '/artists/active-first');
+  await expect(page.locator('[data-roster-group="network"] .artist')).not.toHaveAttribute('href', 'https://example.com');
+  await expect(page.locator('.artist-list')).not.toContainText('SHOULD NOT LEAK');
+  await expect(page.locator('.artist-preview img')).toHaveAttribute('src', '/uploads/active-first.jpg');
+  expect(await page.evaluate(() => window.__rosterRendered)).toEqual({ count: 4 });
+});
+
+test('Roster runtime preserves the static fallback when the shared request fails', async ({ page }) => {
+  await page.setContent(runtimeMarkup);
+  await page.evaluate(() => {
+    window.BRVTALPublicDataPromise = {
+      then(_resolve, reject) { reject(new Error('offline')); },
+    };
+  });
+  await page.addScriptTag({ content: rosterScript });
+  await page.evaluate(() => window.dispatchEvent(new Event('load')));
+
+  await page.waitForTimeout(260);
+  await expect(page.locator('.artist-list')).toContainText('STATIC FALLBACK ARTIST');
+  await expect(page.locator('html')).not.toHaveAttribute('data-public-roster', 'connected');
 });
