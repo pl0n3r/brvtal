@@ -28,6 +28,33 @@
     }
   };
 
+  function memoryRelations(item) {
+    return (Array.isArray(item?.relations) ? item.relations : []).filter(relation => {
+      const type = String(relation?.related_type || '');
+      const route = String(relation?.route_type || '');
+      const slug = String(relation?.slug || '');
+      return ['event','artist','set','release'].includes(type)
+        && ['events','artists','sets','releases'].includes(route)
+        && /^[a-z0-9-]{1,190}$/i.test(slug);
+    });
+  }
+
+  function relationHref(relation) {
+    return `/${encodeURIComponent(String(relation.route_type))}/${encodeURIComponent(String(relation.slug))}`;
+  }
+
+  function relationContext(item) {
+    const relations = memoryRelations(item);
+    if (!relations.length) return '';
+    return `<div class="public-media-context" aria-label="Connected archive records">${relations.slice(0,4).map(relation =>
+      `<a href="${relationHref(relation)}"><span>${esc(String(relation.related_type).toUpperCase())}</span>${esc(relation.title || 'BRVTAL RECORD')}</a>`
+    ).join('')}</div>`;
+  }
+
+  function relationSearchText(item) {
+    return memoryRelations(item).map(relation => `${relation.related_type} ${relation.title || ''}`).join(' ');
+  }
+
   function deliveryCandidate(value, context='card') {
     const path = localUploadPath(value);
     const delivery = path ? state.delivery[path] : null;
@@ -190,7 +217,9 @@
       : type === 'video'
         ? `<video src="${esc(url)}" controls preload="metadata" aria-label="${esc(title)}"></video>`
         : `<div class="public-media-audio"><span class="mono">AUDIO SIGNAL</span><audio src="${esc(url)}" controls preload="none" aria-label="${esc(title)}"></audio></div>`;
-    return `<figure class="public-media-item" data-public-media-item data-public-media-type-value="${type}" data-public-media-search-value="${esc(searchText(`${title} ${item.alt_text || ''}`))}">${visual}<figcaption><strong>${esc(title)}</strong><span class="mono">${esc(type.toUpperCase())}</span></figcaption></figure>`;
+    const context = relationContext(item);
+    const searchable = searchText(`${title} ${item.alt_text || ''} ${relationSearchText(item)}`);
+    return `<figure class="public-media-item" data-public-media-item data-public-media-type-value="${type}" data-public-media-search-value="${esc(searchable)}">${visual}<figcaption><strong>${esc(title)}</strong><span class="mono">${esc(type.toUpperCase())}</span>${context}</figcaption></figure>`;
   }
 
   function applyFilters() {
