@@ -1,9 +1,9 @@
 #sets .sets-library-controls{position:relative;z-index:4;margin:-2vh 0 5vh;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:18px;align-items:start;min-width:0}
 #sets .sets-library-modes,#sets .sets-library-options{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+#sets .sets-library-modes[hidden],#sets .sets-library-options[hidden]{display:none}
 #sets .sets-library-modes button,#sets .sets-library-options button{min-height:44px;border:1px solid rgba(255,255,255,.18);background:#090909;color:#8d8d88;padding:0 14px;font:9px "Space Mono",monospace;letter-spacing:.09em;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
 #sets .sets-library-modes button:hover,#sets .sets-library-options button:hover,#sets .sets-library-modes button:focus-visible,#sets .sets-library-options button:focus-visible{border-color:var(--accent);color:#fff;outline:0}
 #sets .sets-library-modes button.active,#sets .sets-library-options button.active{border-color:var(--accent);background:var(--accent);color:#080808}
-#sets .sets-library-options[hidden]{display:none}
 #sets .sets-library-count{font-size:9px;color:#777;line-height:44px;white-space:nowrap;text-align:right}
 #sets .set-library-item{grid-template-columns:84px minmax(0,1fr) 132px;align-items:start;padding:26px 0;min-width:0}
 #sets .set-library-item .set-main{min-width:0}
@@ -26,6 +26,7 @@ html[data-public-sets="library"] #sets .soundcloud-note{opacity:.7}
 @media(max-width:760px){
   #sets .sets-library-controls{grid-template-columns:minmax(0,1fr);margin-top:0;gap:10px}
   #sets .sets-library-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+  #sets .sets-library-modes[hidden]{display:none}
   #sets .sets-library-modes button{padding:0 8px;min-width:0}
   #sets .sets-library-options{flex-wrap:nowrap;overflow-x:auto;padding-bottom:5px;scrollbar-width:thin;max-width:100%}
   #sets .sets-library-options button{flex:0 0 auto}
