@@ -14,20 +14,14 @@ require_once __DIR__ . '/../config/public_visibility.php';
 function brvtal_public_partition_events(array $events, ?DateTimeImmutable $now = null): array
 {
     $now ??= new DateTimeImmutable('now');
-    $today = $now->setTime(0, 0, 0);
-    $groups = brvtal_public_event_statuses();
-    $historicalStatuses = array_flip($groups['historical']);
 
     $active = [];
     $archive = [];
 
     foreach ($events as $event) {
         if (!is_array($event) || !brvtal_public_event_is_visible($event, $now)) continue;
-        $status = strtolower(trim((string)($event['status'] ?? '')));
         $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
-        $pastByDate = $eventDate !== null && $eventDate < $today;
-        $explicitHistorical = isset($historicalStatuses[$status]);
-        $isHistorical = $explicitHistorical || $pastByDate;
+        $isHistorical = brvtal_public_event_is_historical($event, $now);
 
         if ($isHistorical) {
             if (empty($event['archive_year']) && $eventDate !== null) {
