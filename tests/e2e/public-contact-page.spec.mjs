@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const runtime = readFileSync(join(process.cwd(), 'js/public-contact.js'), 'utf8');
 const styles = readFileSync(join(process.cwd(), 'css/contact-social.css'), 'utf8');
 
-const markup = `<!doctype html><html><head><style>${styles}</style></head><body class="brvtal-contact-page" data-public-contact-page>
+const markup = `<!doctype html><html><head><base href="http://127.0.0.1:4173/"><style>${styles}</style></head><body class="brvtal-contact-page" data-public-contact-page>
   <header class="contact-page-nav"><a class="contact-page-brand" href="/"><strong>BRVTAL</strong><span>RAVE TILL GRAVE</span></a><a class="contact-page-home mono" href="/">HOME ↙</a></header>
   <main class="contact-page-main">
     <section class="contact-page-hero"><h1>CONTACT</h1></section>
