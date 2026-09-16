@@ -11,6 +11,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - El delete canónico adquiere el mutex de referencias cuando está disponible, mueve original/sidecar/variantes al árbol web-denied `.private` antes de borrar la fila DB y restaura el staging si la transacción no puede completarse.
 - Un fallo de limpieza posterior al commit ya no deja archivos públicamente accesibles; queda como deuda privada reportada y registrada para limpieza.
 - Se añadieron regresiones PHP, MariaDB y real-stack para rutas legacy, ownership duplicado, staging/rollback y el flujo canónico upload→register duplicate→delete.
+- La primera corrida CI detectó un contrato antiguo que buscaba `brvtal_media_usage` directamente en el endpoint; se actualizó para validar la nueva frontera `brvtal_media_integrity_usage` sin reducir cobertura.
 
 ## Archivos modificados en este deploy
 
@@ -19,6 +20,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `api/route.php` — cierra las mutaciones legacy de `upload` y `media` manteniendo GET Media compatible.
 - `config/media_integrity.php` — centraliza ownership duplicado, mutex opcional y staging/restauración/finalización privada del borrado.
 - `tests/media-integrity-contract.php` — prueba fail-closed de rutas legacy y comportamiento filesystem del staging/restauración.
+- `tests/media-library-contract.php` — valida que Media Library use la frontera integrity-aware y preserve las referencias editoriales canónicas.
 - `tests/integration/media-reference-atomicity.php` — valida en MariaDB que dos registros con el mismo path local se tratan como ownership compartido.
 - `tests/e2e/media-integrity-real-stack.spec.mjs` — prueba con PHP/MariaDB reales que solo Media Library puede mutar y que el flujo canónico conserva `draft`, rechaza duplicados y borra de forma segura.
 
@@ -28,9 +30,10 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - El PR residual #381 fue cerrado antes de iniciar esta rama porque su trabajo quedó absorbido y ampliado por #382.
 - Issues cubiertos: `#159`, `#227`, `#228`, `#371`.
 - No hay migración de base de datos, cambio de schema, restore, bulk delete ni mutación de datos de producción.
-- La nueva política reutiliza la migración de guardia/mutex ya existente cuando está instalada y mantiene compatibilidad fail-safe con instalaciones donde aún no exista esa tabla auxiliar.
+- La nueva política reutiliza la migración de guardia/mutex ya existente cuando está instalada y mantiene compatibilidad con instalaciones donde aún no exista esa tabla auxiliar.
 - La prueba real-stack crea un asset CI mediante el endpoint canónico y lo elimina en `finally` si la prueba se interrumpe antes del delete esperado.
-- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
+- BRVTAL CI run #554 falló únicamente por un assertion de contrato desactualizado después de que `tests/media-integrity-contract.php` ya había pasado; ese assertion quedó corregido en esta misma rama.
+- Pendiente en este snapshot: nueva corrida `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
 ## Qué sigue
