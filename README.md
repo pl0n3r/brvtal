@@ -7,21 +7,22 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 ## Qué se hizo
 
 - Se cerró la integridad de relaciones polimórficas de Blog: una relación `event`, `artist`, `set` o `release` solo puede persistirse si el destino existe realmente.
+- `related_id` se valida antes de cualquier cast para rechazar valores malformados como decimales, booleanos o prefijos numéricos; no se permiten coerciones silenciosas hacia otro contenido.
 - La validación ocurre dentro de la misma transacción que crea/actualiza el Blog Post y bloquea los destinos válidos con `FOR UPDATE`, evitando que una eliminación concurrente deje una relación colgante entre validación y commit.
 - Un POST/PUT con destino inexistente devuelve `422 BLOG_RELATION_NOT_FOUND` antes de modificar el post o sus relaciones existentes.
 - Un PUT rechazado conserva tanto los campos anteriores del Blog Post como sus relaciones anteriores; no deja un estado parcial.
-- Se añadieron contrato PHP, regresión MariaDB y smoke autenticado PHP/MariaDB/Chromium para probar destinos válidos/inválidos y rollback de actualización.
+- Se añadieron contrato PHP, regresión MariaDB y smoke autenticado PHP/MariaDB/Chromium para probar destinos válidos/inválidos, IDs malformados, rollback de actualización y limpieza defensiva de fixtures.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/blog-relations.php` — frontera canónica para validar/bloquear destinos polimórficos de Blog dentro de la transacción.
-- `api/blog.php` — aplica la validación de relaciones antes de INSERT/UPDATE y antes de sincronizar relaciones.
+- `api/blog-relations.php` — frontera canónica para validar IDs, comprobar existencia y bloquear destinos polimórficos de Blog dentro de la transacción.
+- `api/blog.php` — valida el `related_id` crudo antes de normalizar y aplica la integridad de relaciones antes de INSERT/UPDATE y sincronización.
 - `package.json` — incorpora la regresión MariaDB de Blog al gate de integración canónico.
-- `tests/blog-contract.php` — contrato rápido del helper y del wiring transaccional del endpoint.
-- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs` — comprueba por HTTP autenticado que una relación inexistente devuelve 422 y no altera el post ni sus relaciones previas.
+- `tests/blog-contract.php` — contrato rápido del parser de IDs, helper y wiring transaccional del endpoint.
+- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs` — comprueba por HTTP autenticado que una relación inexistente devuelve 422, no altera el post ni sus relaciones previas y limpia cualquier create inesperado.
 - `tests/e2e/run-content-core-real-stack.sh` — incorpora el smoke real-stack de integridad de relaciones de Blog.
-- `tests/integration/blog-relations.php` — valida contra MariaDB los cuatro tipos de relación y el rechazo de destinos inexistentes.
+- `tests/integration/blog-relations.php` — valida contra MariaDB los cuatro tipos de relación, destinos inexistentes y rechazo de IDs malformados sin coerción.
 
 ## Validación
 
@@ -30,15 +31,16 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - No hay migración, cambio de schema, restore, bulk delete ni mutación de datos de producción.
 - Las pruebas MariaDB y real-stack usan únicamente la base `brvtal_test...` y fixtures CI.
 - El smoke real-stack confirma explícitamente rollback/no-mutación tras el 422.
-- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
+- Los findings válidos iniciales de CodeRabbit sobre coerción de `related_id`, cleanup del smoke y cobertura de docstrings fueron corregidos en la misma rama.
+- Pendiente en este snapshot: nuevo `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y una operación autenticada controlada.
 
 ## Qué sigue
 
-1. Resolver en esta misma rama cualquier finding válido de BRVTAL CI, CodeRabbit o SonarQube Cloud.
+1. Resolver en esta misma rama cualquier finding válido restante de BRVTAL CI, CodeRabbit o SonarQube Cloud.
 2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisar los threads finales de CodeRabbit.
 3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Recalcular el backlog y priorizar los requerimientos nuevos registrados (`#387`–`#391`) junto con los defects abiertos de mayor impacto, sin mezclar dominios arbitrariamente.
+4. Revisar/registrar correctamente el requerimiento de RESET/CLEAR LOG sin duplicar backend ni issue y continuar después con `#387` según el estado actual de `main`.
 
 ## Contexto durable
 
