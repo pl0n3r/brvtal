@@ -4,8 +4,9 @@ import { join } from 'node:path';
 
 const runtime = readFileSync(join(process.cwd(), 'js/public-contact.js'), 'utf8');
 const styles = readFileSync(join(process.cwd(), 'css/contact-social.css'), 'utf8');
+const fixtureUrl = 'http://127.0.0.1:4173/__contact-fixture';
 
-const markup = `<!doctype html><html><head><base href="http://127.0.0.1:4173/"><style>${styles}</style></head><body class="brvtal-contact-page" data-public-contact-page>
+const markup = `<!doctype html><html><head><style>${styles}</style></head><body class="brvtal-contact-page" data-public-contact-page>
   <header class="contact-page-nav"><a class="contact-page-brand" href="/"><strong>BRVTAL</strong><span>RAVE TILL GRAVE</span></a><a class="contact-page-home mono" href="/">HOME ↙</a></header>
   <main class="contact-page-main">
     <section class="contact-page-hero"><h1>CONTACT</h1></section>
@@ -27,6 +28,11 @@ const markup = `<!doctype html><html><head><base href="http://127.0.0.1:4173/"><
 </body></html>`;
 
 async function installContactRoutes(page) {
+  await page.route('**/__contact-fixture', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: markup,
+  }));
   await page.route('**/api/contact.php', async route => {
     const request = route.request();
     if (request.method() === 'GET') {
@@ -38,14 +44,18 @@ async function installContactRoutes(page) {
   await page.route('**/api/public.php', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({ data:{ settings:{ social:{ instagram:'https://instagram.com/brvtal', soundcloud:'https://soundcloud.com/brvtal' } } } }),
+    body: JSON.stringify({ ok:true, data:{ settings:{ social:{ instagram:'https://instagram.com/brvtal', soundcloud:'https://soundcloud.com/brvtal' } } } }),
   }));
+}
+
+async function openContactFixture(page) {
+  await page.goto(fixtureUrl, { waitUntil:'domcontentloaded' });
+  await page.addScriptTag({ content: runtime });
 }
 
 test('dedicated Contact runtime hydrates CAPTCHA and configured social links', async ({ page }) => {
   await installContactRoutes(page);
-  await page.setContent(markup, { waitUntil:'domcontentloaded' });
-  await page.addScriptTag({ content: runtime });
+  await openContactFixture(page);
 
   await expect(page.locator('[data-contact-captcha-question]')).toHaveText('4 + 5 = ?');
   await expect(page.locator('[data-contact-captcha-token]')).toHaveValue('signed.test');
@@ -65,8 +75,7 @@ test('Contact runtime does not inject a form into Home-like pages', async ({ pag
 test('Contact is keyboard-usable on desktop', async ({ page }) => {
   await installContactRoutes(page);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.setContent(markup, { waitUntil:'domcontentloaded' });
-  await page.addScriptTag({ content: runtime });
+  await openContactFixture(page);
 
   await page.locator('#contactName').focus();
   await expect(page.locator('#contactName')).toBeFocused();
@@ -79,10 +88,10 @@ test('Contact is keyboard-usable on desktop', async ({ page }) => {
 test('Contact stays readable and touch-safe on mobile', async ({ page }) => {
   await installContactRoutes(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.setContent(markup, { waitUntil:'domcontentloaded' });
-  await page.addScriptTag({ content: runtime });
+  await openContactFixture(page);
 
   await expect(page.locator('#brvtalContactForm')).toBeVisible();
+  await expect(page.locator('[data-brvtal-social="instagram"]')).toBeVisible();
   const submitBox = await page.locator('.brvtal-contact-submit').boundingBox();
   expect(submitBox?.height || 0).toBeGreaterThanOrEqual(44);
   const socialBox = await page.locator('[data-brvtal-social="instagram"]').boundingBox();
