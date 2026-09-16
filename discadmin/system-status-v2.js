@@ -4,6 +4,7 @@
   const TECH = '/discadmin/technical.php?action=overview';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
+  const GITHUB_ISSUES = 'https://github.com/pl0n3r/brvtal/issues';
   let mountTimer = null;
   let refreshTimer = null;
   let requestId = 0;
@@ -23,8 +24,9 @@
   }
 
   function relativeTime(value) {
-    const then = Date.parse(String(value || '').replace(' ', 'T') + (String(value || '').includes('T') ? '' : 'Z'));
-    if (!Number.isFinite(then)) return String(value || '');
+    const raw = String(value || '');
+    const then = Date.parse(raw.replace(' ', 'T') + (raw.includes('T') ? '' : 'Z'));
+    if (!Number.isFinite(then)) return raw;
     const diff = Math.max(0, Date.now() - then);
     const minutes = Math.floor(diff / 60000);
     if (minutes < 1) return 'NOW';
@@ -108,9 +110,43 @@
     </div>`).join('');
   }
 
-  function issueList(issues=[]) {
-    if (!issues.length) return `<div class="ssv2-no-issues"><i></i><div><strong>NO ACTIVE ISSUES</strong><span>All monitored platform checks are operating normally.</span></div></div>`;
+  function platformIssueList(issues=[]) {
+    if (!issues.length) return `<div class="ssv2-no-issues"><i></i><div><strong>NO ACTIVE PLATFORM SIGNALS</strong><span>All monitored platform checks are operating normally.</span></div></div>`;
     return issues.map(issue => `<div class="ssv2-issue ${esc(issue.severity || 'warning')}"><i></i><div><strong>${esc(issue.title)}</strong><span>${esc(issue.detail)}</span></div></div>`).join('');
+  }
+
+  function repositoryDiagnosticList(diagnostics=[]) {
+    if (!diagnostics.length) return '';
+    return `<div class="ssv2-repository-diagnostics">${diagnostics.map(issue => `<div class="ssv2-issue ${esc(issue.severity || 'info')}"><i></i><div><strong>${esc(issue.title)}</strong><span>${esc(issue.detail)}</span></div></div>`).join('')}</div>`;
+  }
+
+  function githubBacklog(github={}) {
+    const state = String(github.backlog_state || 'unavailable');
+    const known = github.open_issues !== null && github.open_issues !== undefined && state !== 'unavailable';
+    if (!known) {
+      return `<div class="ssv2-backlog-unavailable"><strong>GITHUB BACKLOG UNAVAILABLE</strong><span>Open Issue metadata could not be refreshed. Platform health is unaffected.</span></div>`;
+    }
+
+    const total = Math.max(0, Number(github.open_issues || 0));
+    if (total === 0) {
+      return `<div class="ssv2-backlog-empty"><strong>NO OPEN GITHUB ISSUES</strong><span>The repository backlog is currently empty.</span></div>`;
+    }
+
+    const items = Array.isArray(github.recent_issues) ? github.recent_issues : [];
+    const rows = items.map(issue => {
+      const issueNumber = Math.max(0, Number(issue?.number || 0));
+      if (!issueNumber) return '';
+      const labels = Array.isArray(issue?.labels) ? issue.labels.slice(0, 4).filter(Boolean) : [];
+      const meta = [labels.join(' / '), relativeTime(issue?.updated_at)].filter(Boolean).join(' · ');
+      const url = `${GITHUB_ISSUES}/${encodeURIComponent(issueNumber)}`;
+      return `<a class="ssv2-backlog-item" href="${esc(url)}" target="_blank" rel="noopener">
+        <span>GITHUB #${number(issueNumber)} · BACKLOG</span><strong>${esc(issue?.title || 'Untitled issue')}</strong><small>${esc(meta || 'OPEN')}</small>
+      </a>`;
+    }).join('');
+
+    return `${state === 'stale' ? '<div class="ssv2-backlog-state">CACHED GITHUB DATA</div>' : ''}
+      <div class="ssv2-backlog-list">${rows || '<div class="ssv2-empty">RECENT ISSUE LIST UNAVAILABLE</div>'}</div>
+      <a class="ssv2-view-all" href="${GITHUB_ISSUES}" target="_blank" rel="noopener">VIEW ALL ${number(total)} ↗</a>`;
   }
 
   function activityList(activity) {
@@ -146,12 +182,15 @@
     const github = repo.github || {};
     const deploy = data.deployment || {};
     const commitUrl = `https://github.com/pl0n3r/brvtal/commit/${encodeURIComponent(deploy.commit || deploy.short_commit || '')}`;
+    const backlogKnown = github.open_issues !== null && github.open_issues !== undefined && github.backlog_state !== 'unavailable';
+    const syncText = github.cache === 'stale' ? 'GitHub cached' : github.ok ? 'GitHub synced' : 'GitHub unavailable';
     return `<div class="ssv2-repo-metrics">
       <a href="https://github.com/pl0n3r/brvtal/commits/main" target="_blank" rel="noopener"><strong>${github.commits == null ? '—' : number(github.commits)}</strong><span>COMMITS / MAIN</span></a>
       <a href="https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr+is%3Amerged" target="_blank" rel="noopener"><strong>${github.merged_prs == null ? '—' : number(github.merged_prs)}</strong><span>MERGED PRs</span></a>
+      <a href="${GITHUB_ISSUES}" target="_blank" rel="noopener"><strong>${backlogKnown ? number(github.open_issues) : '—'}</strong><span>OPEN ISSUES</span><small>${backlogKnown ? esc(String(github.backlog_state || 'fresh').toUpperCase()) : 'UNAVAILABLE'}</small></a>
       <div><strong>${number(repo.source_lines)}</strong><span>SOURCE LOC</span><small>${number(repo.source_files)} source files</small></div>
     </div>
-    <div class="ssv2-repo-foot"><a href="${esc(commitUrl)}" target="_blank" rel="noopener">DEPLOY ${esc(deploy.short_commit || 'UNKNOWN')} ↗</a><span>${esc(github.cache === 'stale' ? 'GitHub cached' : 'GitHub synced')}</span></div>
+    <div class="ssv2-repo-foot"><a href="${esc(commitUrl)}" target="_blank" rel="noopener">DEPLOY ${esc(deploy.short_commit || 'UNKNOWN')} ↗</a><span>${esc(syncText)}</span></div>
     <div class="ssv2-language-bars">${languageBars(repo)}</div>`;
   }
 
@@ -161,9 +200,13 @@
     const deployment = data.deployment || {};
     const runtime = data.runtime || {};
     const database = data.database || {};
+    const github = data.repository?.github || {};
     const storageUsed = clamp(storage.used_percent || 0);
     const sourceIssues = supplementalIssues(health, activity);
-    const issues = [...(data.issues || []), ...sourceIssues];
+    const platformIssues = [...(data.issues || []), ...sourceIssues];
+    const repositoryDiagnostics = Array.isArray(data.repository_diagnostics) ? data.repository_diagnostics : [];
+    const githubKnown = github.open_issues !== null && github.open_issues !== undefined && github.backlog_state !== 'unavailable';
+    const githubSummary = githubKnown ? `${number(github.open_issues)} GITHUB` : 'GITHUB —';
     const statusText = sourceIssues.length
       ? 'DEGRADED'
       : String(data.health?.status || 'unknown').toUpperCase();
@@ -200,7 +243,12 @@
             <div><span>UPLOAD</span><strong>${esc(runtime.upload_max_filesize || '—')}</strong><small>max file</small></div>
           </div>
         </section>
-        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>ATTENTION REQUIRED</span><b>${number(issues.length)} SIGNALS</b></div><div class="ssv2-issues">${issueList(issues)}</div></section>
+        <section class="ssv2-panel ssv2-attention"><div class="ssv2-panel-head"><span>ATTENTION REQUIRED</span><b>${number(platformIssues.length)} PLATFORM · ${githubSummary}</b></div>
+          <div class="ssv2-attention-groups">
+            <div class="ssv2-attention-group"><div class="ssv2-attention-label"><span>PLATFORM SIGNALS</span><b>${number(platformIssues.length)}</b></div><div class="ssv2-issues">${platformIssueList(platformIssues)}</div></div>
+            <div class="ssv2-attention-group ssv2-github-backlog"><div class="ssv2-attention-label"><span>GITHUB BACKLOG</span><b>${githubKnown ? number(github.open_issues) : '—'}</b></div>${repositoryDiagnosticList(repositoryDiagnostics)}${githubBacklog(github)}</div>
+          </div>
+        </section>
       </div>
 
       <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RECENT ADMIN ACTIVITY</span><b>${esc(activityTotal)}</b></div><div class="ssv2-activity">${activityList(activity)}</div></section>

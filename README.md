@@ -6,77 +6,64 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se implementa **#398 / Phase C — Roster** mediante el issue **#407** sobre el lifecycle de Artists ya saneado por #406.
-- El bloque público de Artists pasa de catálogo genérico a **BRVTAL Roster**, agrupando registros publicados como `CORE / ACTIVE`, `ALUMNI / ARCHIVE` y `ARTISTS / COLLABORATORS` sin crear un nuevo valor de membership en backend.
-- El orden usa `collective_order` para miembros/alumni, conserva `sort_order` como fallback estable y finalmente nombre.
-- Cada Artist con slug navega a su URL canónica `/artists/{slug}`; el Roster deja de usar Website/Instagram como destino principal.
-- La bio deja de mostrarse como si fuera un género musical. El metadata de cada fila describe únicamente estado real o contexto público.
-- El runtime de Roster reutiliza `window.BRVTALPublicDataPromise`; **no hace una segunda petición** a `/api/public.php`.
-- La ficha canónica Artist conserva el renderer público existente y se enriquece en servidor con estado/membership real, próximos Events, `PAST NIGHTS`, Sets, Releases y `TRANSMISSIONS` relacionadas explícitamente mediante `blog_post_relations`.
-- Los Events relacionados se separan usando la política canónica `brvtal_public_event_is_historical(...)`, no lógica paralela de fechas.
-- Los posts editoriales solo aparecen si están `published` y relacionados explícitamente con el Artist.
-- Memories y géneros **no se infieren** porque todavía no existe metadata/relación estructurada que los respalde.
-- La capa visual conserva negro/rojo, grano/scanlines y usa verde ácido como señal controlada para miembros activos; mobile elimina el preview flotante, preserva targets táctiles y evita overflow.
-- `AGENTS.md` registra el Roster como estado durable y actualiza el orden del runtime público a `app → roster → archive → media`.
-- No se añadió tabla, migration ni API paralela. `api/public.php` sigue siendo la fuente pública canónica.
+- `DISCADMIN → System Status → Attention Required` ahora refleja también el backlog abierto de GitHub.
+- El estado sano deja de usar el ambiguo `NO ACTIVE ISSUES` y muestra **NO ACTIVE PLATFORM SIGNALS**, limitado a salud operativa.
+- `discadmin/technical.php` reutiliza la integración server-side existente con la GitHub Public API; no añade token, secreto, servicio nuevo ni request directo desde el navegador.
+- La consulta usa `is:issue is:open`, excluye Pull Requests y entrega el total de Issues abiertos más los seis actualizados más recientemente.
+- El payload GitHub expone `open_issues`, `recent_issues` y `backlog_state` con estados `fresh`, `stale` o `unavailable`.
+- Una caché legacy sin campos de backlog nunca se interpreta como un cero conocido; si no puede refrescarse, el backlog aparece como **UNAVAILABLE**.
+- `Attention Required` separa **PLATFORM SIGNALS** de **GITHUB BACKLOG**. Los Issues de desarrollo no reducen el health score ni se convierten en incidentes de producción.
+- Los avisos de disponibilidad/caché GitHub se exponen mediante `repository_diagnostics`: son visibles junto al backlog, pero nunca incrementan `PLATFORM SIGNALS`.
+- Repository añade **OPEN ISSUES**; el backlog muestra links canónicos a cada Issue y `VIEW ALL` hacia GitHub.
+- Títulos y labels se escapan al renderizar y las URLs individuales se reconstruyen a partir del número de Issue del repositorio conocido.
+- La UI conserva estados fresh/stale/unavailable, focus visible, targets táctiles y layout mobile sin overflow.
+- `AGENTS.md` registra como regla durable la separación entre salud operativa y backlog de desarrollo.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `9 archivos` · **+527** líneas · **−5** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
-Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
+**Diff funcional:** `7 archivos` · **+284** líneas · **−43** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
-### PUBLIC ROSTER / DELIVERY
+### SYSTEM STATUS / GITHUB
 
-- `config/public_artist.php` — 🟢 NEW · **+118 / −0** · autoridad de framing público Artist: membership facts, lifecycle de Events, Transmissions explícitas y decoración de la página canónica.
-- `index.php` — 🟡 MOD · **+19 / −1** · conecta el enhancer Artist, carga la capa Roster y neutraliza metadata estática que simulaba géneros.
-- `js/public-roster.js` — 🟢 NEW · **+143 / −0** · agrupa Roster con datos reales, orden estable, enlaces canónicos y reutilización de la Promise pública existente.
-- `js/public-runtime-loader.js` — 🟡 MOD · **+1 / −1** · incorpora el módulo Roster al runtime público canónico después de `app.js`.
-
-### VISUAL
-
-- `css/public-roster.css` — 🟢 NEW · **+44 / −0** · tratamiento brutalista Roster/Artist, estados active/alumni/network, responsive, touch targets y reduced motion.
+- `discadmin/technical.php` — 🟡 MOD · **+58 / −6** · total/lista de Issues abiertos, freshness explícita, fallback honesto y `repository_diagnostics` separado de salud operativa.
+- `discadmin/system-status-v2.js` — 🟡 MOD · **+55 / −7** · separa PLATFORM SIGNALS, diagnósticos del repositorio y GITHUB BACKLOG; añade OPEN ISSUES, links canónicos y VIEW ALL.
+- `discadmin/system-status-v2.css` — 🟡 MOD · **+8 / −7** · presentación diferenciada del backlog, focus/touch targets y comportamiento responsive.
 
 ### TESTS
 
-- `tests/public-roster-contract.php` — 🟢 NEW · **+74 / −0** · clasificación, membership facts, lifecycle Event, privacidad editorial, navegación canónica y ausencia de request/API duplicada.
-- `tests/e2e/public-roster-phase-c.spec.mjs` — 🟢 NEW · **+120 / −0** · además de layout/mobile, ejecuta `public-roster.js` con la Promise pública compartida para verificar render real, orden lifecycle, enlaces canónicos, preview y preservación del fallback ante fallo.
-- `tests/e2e/public-mobile-performance.spec.mjs` — 🟡 MOD · **+3 / −1** · reconoce el Roster como módulo core versionado y conserva la exigencia de orden/integridad del runtime adaptativo.
+- `tests/system-status-contract.php` — 🟡 MOD · **+20 / −1** · exige query `is:issue is:open`, payload acotado, caché compatible, ausencia de token y separación `issues` / `repository_diagnostics`.
+- `tests/e2e/discadmin-system-status-v2.spec.mjs` — 🟡 MOD · **+63 / −11** · valida contador/listado GitHub, links, health independiente y mobile/touch/overflow con el CSS real del módulo.
+- `tests/e2e/discadmin-system-status-degraded.spec.mjs` — 🟡 MOD · **+78 / −10** · valida fallos auxiliares y estados fresh/stale/unavailable; los diagnósticos GitHub permanecen visibles con `0 PLATFORM` y sin falso cero.
 
 ### CONTEXTO DURABLE
 
-- `AGENTS.md` — 🟡 MOD · **+5 / −2** · registra el Roster conectado, sus reglas semánticas y el nuevo orden `app → roster → archive → media`; deja Sets/listening discovery como siguiente fase pública.
+- `AGENTS.md` — 🟡 MOD · **+2 / −1** · registra que System Status muestra backlog GitHub read-only sin incorporarlo al health score ni falsear cero cuando la fuente no está disponible.
 
 ### SNAPSHOT
 
-- `README.md` — 🟡 MOD · **AUTO** · este mismo snapshot; su conteo se excluye para evitar referencia circular.
+- `README.md` — 🟡 MOD · **AUTO** · este snapshot operativo del deploy.
 
 ## Validación
 
-- Base exacta: `main` `1abbe4bf11b9f3b44fcf49732e8113e8a8bc7ab8`.
-- Esa base quedó con `BRVTAL CI / validate` verde en el run **#628**.
-- PR: **#408** · issue: **#407** · parent: **#398 Phase C**.
-- #179 y #180 ya están cerrados y el lifecycle/history de membership está **VALIDATED IN CODE** en la base.
-- El nuevo Roster no modifica schema ni `api/public.php`; consume los campos públicos de Artists que ya existen.
-- Run **#629** dejó PHP, database y real-stack verdes; Chromium detectó que el harness de performance no conocía el nuevo módulo core y por eso simulaba cuatro fallos de carga. Se actualizó el contrato para exigir `public-roster.js` versionado en el orden correcto, sin relajar runtime integrity ni añadir requests CMS.
-- Run **#631** quedó completamente verde tras ese fix.
-- CodeRabbit revisó el head posterior y señaló que la cobertura visual/contractual no ejecutaba el runtime real del Roster. Se añadió cobertura conductual Playwright sobre `BRVTALPublicDataPromise`, incluyendo fallback ante fallo.
-- Pendiente: BRVTAL CI + re-revisión de CodeRabbit sobre este head final antes del squash merge.
-- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
+- Base exacta: `main` `83b6dc8e240010dc3f760daf6477000ace7a24fa`.
+- Scope: issue **#409** / PR **#410**.
+- No hay migration, cambio de schema, credenciales nuevas ni mutación de producción.
+- Cobertura: contratos PHP 8.5, Chromium sobre estados fresh/stale/unavailable, mobile/touch/overflow y smoke autenticado real-stack.
+- El backlog GitHub permanece fuera del cálculo de salud operativa y los diagnósticos de repositorio tienen canal separado.
+- Estado del cambio: **IMPLEMENTED**. El merge exige `BRVTAL CI / validate` verde y revisión sin findings abiertos; la validación del SHA exacto de `main` se ejecuta después del squash.
+- CI no equivale a validación en producción.
 
 ## Qué sigue
 
-1. Validar el head final de #408 con BRVTAL CI + CodeRabbit.
-2. Squash merge solo con `validate` verde y revisión limpia.
-3. Verificar el CI del SHA exacto resultante en `main`.
-4. Implementar **#409** para que System Status refleje el backlog abierto de GitHub sin confundirlo con incidentes operativos.
-5. Retomar #398 Phase C con **Sets / listening discovery** después de #409.
-6. Repetir mediciones de performance sobre el deploy exacto después de los cambios públicos; las métricas anteriores quedan como baseline histórico.
+1. Squash merge de #410 únicamente con gates verdes.
+2. Verificar BRVTAL CI del SHA exacto resultante en `main`.
+3. Retomar #398 Phase C con **Sets / listening discovery**.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
-- Visión pública: `#398`.
-- Roster público: `#407`.
-- Lifecycle Artist: `#179`, `#180`, PR `#406`.
 - System Status / GitHub backlog: `#409`.
+- Visión pública: `#398`.
+- Roster público completado en PR `#408`.
 - Estrategia de validación: `docs/TESTING.md`.
