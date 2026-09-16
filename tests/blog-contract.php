@@ -25,10 +25,13 @@ blog_assert(str_contains($api, 'brvtal_blog_sync_tags'), 'blog API must persist 
 blog_assert(str_contains($api, 'brvtal_blog_sync_relations'), 'blog API must persist related content');
 blog_assert(str_contains($api, "['draft','published','archived']"), 'blog API must validate lifecycle status');
 blog_assert(str_contains($api, "require_once __DIR__ . '/blog-relations.php';"), 'blog API must load the relation integrity boundary');
+blog_assert(str_contains($api, "brvtal_blog_relation_id(\$relation['related_id'] ?? null)"), 'blog payload must validate raw relation IDs before persistence');
 blog_assert(str_contains($api, 'brvtal_blog_lock_relation_targets($pdo, $data[\'relations\']);'), 'blog API must validate and lock relation targets inside the mutation transaction');
 foreach (['event' => 'events','artist' => 'artists','set' => 'sets_media','release' => 'releases'] as $type => $table) {
     blog_assert(str_contains($relationsHelper, "'{$type}' => '{$table}'"), "relation helper must map {$type} to {$table}");
 }
+blog_assert(str_contains($relationsHelper, 'FILTER_VALIDATE_INT'), 'relation IDs must be validated without lossy scalar coercion');
+blog_assert(str_contains($relationsHelper, 'is_bool($value) || is_float($value)'), 'boolean and fractional relation IDs must be rejected explicitly');
 blog_assert(str_contains($relationsHelper, 'FOR UPDATE'), 'relation targets must remain locked through Blog commit');
 blog_assert(str_contains($relationsHelper, 'BLOG_RELATION_NOT_FOUND'), 'missing Blog relation targets must fail deterministically');
 
