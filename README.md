@@ -10,7 +10,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Los Sets publicados siguen usando `api/public.php` como fuente canónica y reutilizan `window.BRVTALPublicDataPromise`; no se añade una segunda llamada CMS ni endpoint paralelo.
 - La biblioteca ofrece vistas **LATEST / ARTIST / EVENT** utilizando únicamente relaciones estructuradas reales de `sets_media`.
 - Cada Set navega primero a su registro canónico `/sets/{slug}` y conserva un CTA secundario **LISTEN ↗** hacia la plataforma externa cuando existe una URL HTTP(S) válida.
-- Set → Artist y Set → Event se sanitizan server-side contra los pools públicos finales. Relaciones hacia entidades privadas/draft pierden id, nombre/título y slug antes de llegar al navegador.
+- Set → Artist y Set → Event se sanitizan server-side contra los pools públicos finales. Relaciones hacia entidades privadas/draft conservan campos explícitos en `null`, sin id, nombre/título ni slug utilizable en el navegador.
 - La UI expone contexto Artist/Event solo cuando la relación pública existe; los Sets sin relaciones aparecen como **INDEPENDENT RECORD**.
 - No se infieren géneros desde títulos/descripciones y no se crea filtro de género porque el modelo actual no tiene metadata estructurada que lo respalde.
 - Un payload público válido con `sets=[]` reemplaza el fallback estático por un empty state real; un fallo/rechazo del request compartido conserva el fallback existente.
@@ -20,7 +20,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `9 archivos` · **+479** líneas · **−9** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `9 archivos` · **+477** líneas · **−9** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### PUBLIC SETS / DELIVERY
@@ -36,7 +36,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 ### TESTS
 
-- `tests/public-sets-library-contract.php` — 🟢 NEW · **+58 / −0** · privacidad de relaciones, canonical routes, ausencia de género inventado y no duplicación del request público.
+- `tests/public-sets-library-contract.php` — 🟢 NEW · **+56 / −0** · privacidad de relaciones, nulls explícitos, canonical routes, ausencia de género inventado y no duplicación del request público.
 - `tests/e2e/public-sets-library-phase-c.spec.mjs` — 🟢 NEW · **+137 / −0** · ejecuta el módulo real con filtros, enlaces/CTA, relaciones, mobile, payload vacío válido y fallback ante fallo.
 - `tests/e2e/public-mobile-performance.spec.mjs` — 🟡 MOD · **+4 / −1** · exige Sets library como módulo core versionado sin degradar el runtime adaptativo.
 
@@ -52,15 +52,16 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 - Base exacta: `main` `8cc3b877cd61453e1743d25dd4df53c679f13e67`.
 - Esa base quedó verde en **BRVTAL CI #649** después del squash de #410.
-- Scope: issue **#411** · parent **#398 Phase C** · rama `design/public-sets-library-phase-c`.
+- Scope: issue **#411** · PR **#412** · parent **#398 Phase C** · rama `design/public-sets-library-phase-c`.
 - No hay migration, tabla, nuevo endpoint público, player pesado, autoplay ni cambio de i18n.
 - La API pública sigue siendo la autoridad y sanitiza las relaciones antes de entregarlas al browser.
-- Pendiente: abrir PR, ejecutar BRVTAL CI + CodeRabbit, corregir findings válidos y hacer squash solo con `validate` verde.
+- BRVTAL CI **#650** detectó una aserción incorrecta en el contrato nuevo: PHP `??` sustituía también valores `null`. El test se corrigió para exigir `array_key_exists(...)` y valor estrictamente `null`; la lógica productiva no necesitó cambios.
+- Pendiente: nuevo BRVTAL CI + CodeRabbit sobre el head corregido; squash únicamente con `validate` verde y revisión limpia.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobación real del deploy.
 
 ## Qué sigue
 
-1. Validar #411 con BRVTAL CI + CodeRabbit.
+1. Validar el head corregido de #412 con BRVTAL CI + CodeRabbit.
 2. Squash merge solo con gates verdes y revisión limpia.
 3. Verificar BRVTAL CI del SHA exacto resultante en `main`.
 4. Continuar #398 profundizando Archive/Memories únicamente con relaciones estructuradas reales.
