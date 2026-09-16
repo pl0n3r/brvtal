@@ -1,0 +1,41 @@
+#sets .sets-library-controls{position:relative;z-index:4;margin:-2vh 0 5vh;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:start}
+#sets .sets-library-modes,#sets .sets-library-options{display:flex;flex-wrap:wrap;gap:8px}
+#sets .sets-library-modes button,#sets .sets-library-options button{min-height:44px;border:1px solid rgba(255,255,255,.18);background:#090909;color:#8d8d88;padding:0 14px;font:9px "Space Mono",monospace;letter-spacing:.09em;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+#sets .sets-library-modes button:hover,#sets .sets-library-options button:hover,#sets .sets-library-modes button:focus-visible,#sets .sets-library-options button:focus-visible{border-color:var(--accent);color:#fff;outline:0}
+#sets .sets-library-modes button.active,#sets .sets-library-options button.active{border-color:var(--accent);background:var(--accent);color:#080808}
+#sets .sets-library-options[hidden]{display:none}
+#sets .sets-library-count{font-size:9px;color:#777;line-height:44px;white-space:nowrap;text-align:right}
+#sets .set-library-item{grid-template-columns:84px minmax(0,1fr) 132px;align-items:start;padding:26px 0}
+#sets .set-library-item .set-main>span{display:block;color:#777;font-size:9px;margin-bottom:8px}
+#sets .set-record-link{display:flex;gap:20px;align-items:baseline;text-decoration:none;min-width:0;width:max-content;max-width:100%}
+#sets .set-record-link h4{margin:0;font-size:clamp(34px,5vw,76px);line-height:.85;overflow-wrap:anywhere;transition:color .2s}
+#sets .set-record-link>span{font-size:8px;color:#6d6d69;white-space:nowrap}
+#sets .set-record-link:hover h4,#sets .set-record-link:focus-visible h4{color:var(--accent)}
+#sets .set-record-link:focus-visible,#sets .set-library-relations a:focus-visible,#sets .set-listen-action:focus-visible{outline:1px solid var(--accent);outline-offset:4px}
+#sets .set-library-relations{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:13px;font-size:8px;color:#73736f}
+#sets .set-library-relations a{color:#aaa;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.16);padding-bottom:2px}
+#sets .set-library-relations a:hover{color:var(--accent);border-color:var(--accent)}
+#sets .set-library-description{max-width:760px;margin:12px 0 0;color:#777;font-size:13px;line-height:1.45}
+#sets .set-listen-action{min-width:112px;min-height:48px;display:inline-flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;border:1px solid rgba(255,255,255,.16);text-decoration:none;font:9px "Space Mono",monospace;color:#aaa}
+#sets .set-listen-action:hover{border-color:var(--accent);color:var(--accent)}
+#sets .sets-library-empty{min-height:160px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;gap:6px;color:#777}
+#sets .sets-library-empty strong{font:12px "Space Mono",monospace;letter-spacing:.08em;color:#bbb}
+#sets .sets-library-empty span{font-size:13px}
+html[data-public-sets="library"] #sets .soundcloud-note{opacity:.7}
+@media(max-width:760px){
+  #sets .sets-library-controls{grid-template-columns:1fr;margin-top:0;gap:10px}
+  #sets .sets-library-modes{display:grid;grid-template-columns:repeat(3,1fr)}
+  #sets .sets-library-modes button{padding:0 8px}
+  #sets .sets-library-options{flex-wrap:nowrap;overflow-x:auto;padding-bottom:5px;scrollbar-width:thin}
+  #sets .sets-library-options button{flex:0 0 auto}
+  #sets .sets-library-count{line-height:1.4;text-align:left}
+  #sets .set-library-item{grid-template-columns:46px minmax(0,1fr);gap:10px;padding:22px 0}
+  #sets .set-library-item .set-num{padding-top:7px}
+  #sets .set-record-link{display:block;width:auto}
+  #sets .set-record-link>span{display:block;margin-top:8px}
+  #sets .set-library-description{font-size:12px}
+  #sets .set-listen-action{grid-column:2;justify-self:start;margin-top:4px}
+}
+@media(prefers-reduced-motion:reduce){
+  #sets .sets-library-modes button,#sets .sets-library-options button,#sets .set-record-link h4{transition:none}
+}
