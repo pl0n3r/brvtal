@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/event_lifecycle.php';
+require_once __DIR__ . '/../config/set_publication.php';
 
 function brvtal_bulk_resource_specs(): array
 {
@@ -90,9 +91,10 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
     $labelColumn = $specs[$resource]['label'];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $lifecycleColumns = $resource === 'events' ? ',published_at,cancelled_at,finished_at' : '';
+    $publicationColumns = $resource === 'sets' ? ',external_url' : '';
     $selectColumns = $audit === null
-        ? "id,status{$lifecycleColumns}"
-        : "id,status{$lifecycleColumns},`{$labelColumn}` AS resource_label";
+        ? "id,status{$lifecycleColumns}{$publicationColumns}"
+        : "id,status{$lifecycleColumns}{$publicationColumns},`{$labelColumn}` AS resource_label";
 
     $pdo->beginTransaction();
     try {
@@ -101,6 +103,15 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
         $rows = $select->fetchAll(PDO::FETCH_ASSOC);
         if (count($rows) !== count($ids)) {
             throw new RuntimeException('BULK_ITEMS_NOT_FOUND');
+        }
+
+        if ($resource === 'sets' && $status === 'published') {
+            foreach ($rows as $row) {
+                $publicationError = brvtal_set_publication_error(array_replace($row, ['status'=>'published']));
+                if ($publicationError !== null) {
+                    throw new InvalidArgumentException($publicationError);
+                }
+            }
         }
 
         $changed = 0;
