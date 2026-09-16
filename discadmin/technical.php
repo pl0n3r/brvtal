@@ -265,13 +265,14 @@ try {
         }
 
         $github = $githubMetrics();
+        $repositoryDiagnostics = [];
         if (!$github['ok']) {
-            $issues[] = ['severity'=>'info','title'=>'GITHUB METRICS','detail'=>'GitHub metrics are temporarily unavailable; platform health is unaffected.'];
+            $repositoryDiagnostics[] = ['severity'=>'info','title'=>'GITHUB METRICS','detail'=>'GitHub metrics are temporarily unavailable; platform health is unaffected.'];
         } elseif (($github['cache'] ?? '') === 'stale') {
-            $issues[] = ['severity'=>'info','title'=>'GITHUB CACHE','detail'=>'Showing the most recent cached GitHub metrics.'];
+            $repositoryDiagnostics[] = ['severity'=>'info','title'=>'GITHUB CACHE','detail'=>'Showing the most recent cached GitHub metrics.'];
         }
         if (($github['backlog_state'] ?? 'unavailable') === 'unavailable' && $github['ok']) {
-            $issues[] = ['severity'=>'info','title'=>'GITHUB BACKLOG','detail'=>'Open Issue metadata is temporarily unavailable; platform health is unaffected.'];
+            $repositoryDiagnostics[] = ['severity'=>'info','title'=>'GITHUB BACKLOG','detail'=>'Open Issue metadata is temporarily unavailable; platform health is unaffected.'];
         }
 
         echo json_encode([
@@ -310,6 +311,7 @@ try {
             ],
             'repository' => array_merge($sourceStats($root), ['github'=>$github]),
             'issues' => $issues,
+            'repository_diagnostics' => $repositoryDiagnostics,
             'time' => date(DATE_ATOM),
             'generated_ms' => round((microtime(true) - $started) * 1000, 2),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
