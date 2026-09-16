@@ -2,7 +2,7 @@
 
 [![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
 
-Este README es un **snapshot operativo de solo este deploy**. El contexto durable vive en `AGENTS.md`, `docs/` y los issues de producto.
+Este README es un **snapshot operativo de solo el deploy actual**. El contexto durable vive en `AGENTS.md`, `docs/` y los issues de producto.
 
 ## Qué se hizo
 
