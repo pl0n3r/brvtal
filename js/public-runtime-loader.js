@@ -30,7 +30,9 @@
     'js/public-canonical-navigation.js',
     'js/public-contact.js',
     'js/public-theme-runtime.js',
-    'js/public-theme-branding-sync.js'
+    'js/public-theme-branding-sync.js',
+    'js/public-theme-wordmark.js',
+    'js/public-settings-harmony.js'
   ];
 
   function loadScript(src) {
