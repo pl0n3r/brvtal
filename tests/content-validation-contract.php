@@ -18,6 +18,9 @@ content_validation_expect(($event['payload']['event_date'] ?? null) === '2026-10
 $invalidEvent = brvtal_content_temporal_normalize('events', ['event_date' => '2026-02-31T21:05']);
 content_validation_expect(($invalidEvent['error']['error'] ?? null) === 'INVALID_DATE', 'impossible Event dates must be rejected');
 content_validation_expect(($invalidEvent['error']['field'] ?? null) === 'event_date', 'Event date errors must identify event_date');
+$nonScalarEvent = brvtal_content_temporal_normalize('events', ['event_date' => ['2026-10-31T21:05']]);
+content_validation_expect(($nonScalarEvent['error']['error'] ?? null) === 'INVALID_DATE', 'array Event dates must fail cleanly before string conversion');
+content_validation_expect(($nonScalarEvent['error']['field'] ?? null) === 'event_date', 'non-scalar Event date errors must identify event_date');
 
 $artist = brvtal_content_temporal_normalize('artists', ['collective_joined_at' => '2026-09-16']);
 content_validation_expect($artist['error'] === null, 'valid Artist lifecycle DATE values must be accepted');
