@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_contact.php';
+require_once __DIR__ . '/../config/public_seo.php';
+require_once __DIR__ . '/../config/public_contact_page.php';
 
 function contact_assert(bool $condition, string $message): void
 {
@@ -115,20 +117,43 @@ contact_assert($mailSubject === '[BRVTAL CONTACT] Booking inquiry', 'mail subjec
 contact_assert(str_contains($body, 'Felipe Test') && str_contains($body, 'Booking inquiry'), 'mail body contains validated contact fields');
 contact_assert(str_contains($headers, 'Reply-To: felipe@example.com'), 'validated sender becomes Reply-To without exposing destination in the frontend');
 
+$seo = brvtal_public_contact_seo('https://www.brvtal.com.co');
+contact_assert($seo['canonical'] === 'https://www.brvtal.com.co/contact', 'Contact has its own canonical URL');
+contact_assert(($seo['schema']['@type'] ?? '') === 'ContactPage', 'Contact emits ContactPage structured data');
+$page = brvtal_public_contact_page($seo);
+contact_assert(str_contains($page, '<h1 id="contactTitle" data-text="CONTACT">CONTACT</h1>'), 'dedicated Contact page has a semantic BRVTAL hero');
+contact_assert(str_contains($page, 'id="brvtalContactForm"'), 'dedicated Contact page server-renders the full form');
+contact_assert(str_contains($page, 'aria-label="CAPTCHA answer"'), 'CAPTCHA input exposes an accessible name');
+contact_assert(str_contains($page, 'role="status" aria-live="polite"'), 'contact status is announced accessibly');
+contact_assert(str_contains($page, 'href="/" aria-label="BRVTAL Home"'), 'Contact brand returns to Home');
+contact_assert(str_contains($page, 'data-contact-social-mount'), 'dedicated Contact page exposes a social hydration target');
+
 $ui = (string)file_get_contents(__DIR__ . '/../js/public-contact.js');
 $styles = (string)file_get_contents(__DIR__ . '/../css/contact-social.css');
-$loader = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
+$indexPhp = (string)file_get_contents(__DIR__ . '/../index.php');
+$indexHtml = (string)file_get_contents(__DIR__ . '/../index.html');
+$htaccess = (string)file_get_contents(__DIR__ . '/../.htaccess');
+$sitemap = (string)file_get_contents(__DIR__ . '/../sitemap.php');
+
+contact_assert(str_contains($ui, "document.querySelector('[data-public-contact-page]')"), 'Contact runtime activates only on the dedicated page');
 contact_assert(str_contains($ui, "['instagram','soundcloud','youtube','spotify']"), 'all supported social networks are rendered in the public rail');
+contact_assert(str_contains($ui, 'data?.settings?.social'), 'social links continue to use public settings as their source of truth');
 foreach (['instagram', 'soundcloud', 'youtube', 'spotify'] as $network) {
     contact_assert(str_contains($ui, $network . ": '<svg"), "{$network} has an inline SVG icon");
 }
-contact_assert(str_contains($ui, 'data-brvtal-social="${name}"'), 'generated social links expose stable data targets');
-contact_assert(str_contains($ui, 'aria-label="CAPTCHA answer"'), 'CAPTCHA input exposes an accessible name');
-contact_assert(str_contains($ui, 'role="status" aria-live="polite"'), 'contact status is announced accessibly');
+contact_assert(str_contains($ui, 'rel="noopener noreferrer"'), 'external social links use safe opener isolation');
 contact_assert(str_contains($ui, 'form.reset()'), 'successful delivery clears the form only after confirmation');
-contact_assert(str_contains($styles, '.brvtal-social-link{') && str_contains($styles, 'width:46px;height:46px'), 'social icons expose touch-friendly base targets');
-contact_assert(str_contains($styles, '@media(max-width:900px)') && str_contains($styles, 'width:48px;height:48px'), 'mobile social targets remain at least 48px');
-contact_assert(str_contains($styles, 'font-size:16px'), 'mobile form controls avoid small iOS input text');
-contact_assert(str_contains($loader, "'js/public-contact.js'"), 'contact enhancement is loaded by the versioned public runtime');
+contact_assert(str_contains($styles, 'body.brvtal-contact-page{'), 'Contact has a dedicated BRVTAL page surface');
+contact_assert(str_contains($styles, '.brvtal-social-link{') && str_contains($styles, 'width:48px;height:48px'), 'social icons expose touch-friendly targets');
+contact_assert(str_contains($styles, '@media(max-width:900px)') && str_contains($styles, '@media(max-width:560px)'), 'Contact has first-class tablet/mobile layouts');
+contact_assert(str_contains($styles, '@media(prefers-reduced-motion:reduce)'), 'Contact respects reduced-motion preferences');
+contact_assert(str_contains($styles, 'font:16px "Space Mono"'), 'form controls avoid small iOS input text');
+
+contact_assert(!str_contains($indexHtml, 'id="brvtalContactForm"'), 'Home source does not contain the complete Contact form');
+contact_assert(str_contains($indexPhp, "str_replace('<a href=\"#contact\"><span>07</span>CONTACT</a>', '<a href=\"/contact\"><span>07</span>CONTACT</a>'"), 'Home navigation is server-rendered to the dedicated Contact route');
+contact_assert(str_contains($indexPhp, "href=\"/contact\" data-cursor=\"CONTACT\""), 'Home footer CTA routes to dedicated Contact');
+contact_assert(str_contains($indexPhp, "\$pageRoute === 'contact'"), 'canonical public router recognizes Contact');
+contact_assert(str_contains($htaccess, 'RewriteRule ^contact/?$ index.php?page=contact'), 'LiteSpeed direct load/refresh routes /contact server-side');
+contact_assert(str_contains($sitemap, "\$base . '/contact'"), 'public sitemap includes Contact');
 
 echo "Public contact contract passed.\n";
