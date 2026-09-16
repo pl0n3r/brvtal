@@ -3,7 +3,7 @@ window.BRVTALMediaLibrary = (() => {
   'use strict';
 
   const ENDPOINT = '/api/media-library.php';
-  const store = {root:null,items:[],selected:null,engine:null,csrf:'',loading:false};
+  const store = {root:null,items:[],selected:null,engine:null,csrf:'',loading:false,relationProvider:null};
   let pickerObserver;
   let toastTimer = 0;
   let selectionLoadId = 0;
@@ -378,14 +378,16 @@ window.BRVTALMediaLibrary = (() => {
       alt_text: store.root.querySelector('#media-edit-alt')?.value || '',
       status: store.root.querySelector('#media-edit-status')?.value || 'published'
     };
+    const relations = typeof store.relationProvider === 'function' ? store.relationProvider() : undefined;
+    if (Array.isArray(relations)) payload.relations = relations;
     try {
-      notify('processing', 'Saving media metadata…');
-      status('Saving media metadata…');
+      notify('processing', relations ? 'Saving media metadata + archive relations…' : 'Saving media metadata…');
+      status(relations ? 'Saving media metadata + archive relations…' : 'Saving media metadata…');
       const j = await request('?action=update&id=' + encodeURIComponent(store.selected.id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       store.selected = j.data;
       const idx = store.items.findIndex(x => Number(x.id) === Number(j.data.id));
       if (idx >= 0) store.items[idx] = {...store.items[idx],...j.data};
-      renderGrid(); renderInspector(store.selected); status('Media metadata saved.', 'ok');
+      renderGrid(); renderInspector(store.selected); status(relations ? 'Media metadata + archive relations saved.' : 'Media metadata saved.', 'ok');
     } catch (e) { status('Could not save media: ' + e.message, 'err'); }
   }
 
@@ -493,6 +495,10 @@ window.BRVTALMediaLibrary = (() => {
     decoratePickerInputs(document);
   }
 
+  function setRelationsProvider(provider) {
+    store.relationProvider = typeof provider === 'function' ? provider : null;
+  }
+
   function mount(root) {
     store.root = root; store.selected = null;
     const search = root.querySelector('#media-search'); const type = root.querySelector('#media-type-filter'); const month = root.querySelector('#media-month-filter');
@@ -511,5 +517,5 @@ window.BRVTALMediaLibrary = (() => {
 
   installGlobalFeedback();
   startPickerObserver();
-  return {mount,refresh,openPicker,decoratePickerInputs,notify,mediaUrl,handleImageError,handleThumbError};
+  return {mount,refresh,openPicker,decoratePickerInputs,notify,mediaUrl,handleImageError,handleThumbError,setRelationsProvider};
 })();
