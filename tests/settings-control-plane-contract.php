@@ -53,10 +53,11 @@ control_plane_assert(str_contains($themeExtension, 'branding = { ...(state.theme
 control_plane_assert(str_contains($themeExtension, 'data-theme-tab="seo"'), 'Theme Studio extension removes duplicate primary SEO editing');
 control_plane_assert(str_contains($themeExtension, 'PRESERVED / UNWIRED'), 'Theme Studio visibly classifies stored non-runtime options');
 
-$wordmarkRuntime = file_get_contents(__DIR__ . '/../js/public-theme-wordmark.js') ?: '';
-control_plane_assert(str_contains($wordmarkRuntime, 'branding.wordmark'), 'public runtime consumes theme branding wordmark');
-control_plane_assert(str_contains($wordmarkRuntime, 'image.addEventListener(\'error\''), 'wordmark keeps a text fallback on asset error');
-control_plane_assert(!str_contains($wordmarkRuntime, 'outerHTML'), 'wordmark runtime does not inject raw SVG/HTML strings');
+$themeRuntime = file_get_contents(__DIR__ . '/../js/public-theme-runtime.js') ?: '';
+control_plane_assert(str_contains($themeRuntime, 'currentBranding.wordmark'), 'public Theme Runtime consumes theme branding wordmark');
+control_plane_assert(str_contains($themeRuntime, 'image.onerror'), 'wordmark keeps a text fallback on asset error');
+control_plane_assert(!str_contains($themeRuntime, 'outerHTML'), 'Theme Runtime does not inject raw SVG/HTML strings');
+control_plane_assert(str_contains($themeRuntime, 'Legacy theme.seo values are kept'), 'Theme Runtime preserves legacy SEO without mutating canonical server SEO');
 
 $api = file_get_contents(__DIR__ . '/../api/public.php') ?: '';
 control_plane_assert(!str_contains($api, "setting_key IN ('site','social','appearance','analytics'"), 'standalone analytics is not exposed by public settings API');
