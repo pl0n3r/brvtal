@@ -11,10 +11,41 @@
     return `${n < 0.1 ? n.toFixed(2) : n.toFixed(1)}%`;
   };
 
-  function applyStorage(data) {
+  function storagePanel() {
     const root = document.getElementById('system-status-v2');
     const panel = root?.querySelector('.ssv2-panel.storage');
-    if (!root || !panel || !data?.ok) return false;
+    return root && panel ? panel : null;
+  }
+
+  function applyUnavailable() {
+    const panel = storagePanel();
+    if (!panel) return false;
+
+    const headValue = panel.querySelector('.ssv2-panel-head b');
+    const ring = panel.querySelector('.ssv2-storage-ring');
+    const ringValue = ring?.querySelector('strong');
+    const copy = panel.querySelector('.ssv2-storage-copy');
+
+    panel.dataset.storageScope = 'unavailable';
+    panel.title = 'BRVTAL managed storage metrics are unavailable. Host filesystem capacity is diagnostic only and is not shown as the application quota.';
+    if (headValue) headValue.textContent = 'UNAVAILABLE · BRVTAL DATA';
+    if (ring) ring.style.setProperty('--value', '0');
+    if (ringValue) ringValue.textContent = 'CHECK';
+
+    if (copy) {
+      const primary = copy.querySelector('strong');
+      const secondary = copy.querySelector('span');
+      const detail = copy.querySelector('small');
+      if (primary) primary.textContent = 'MANAGED STORAGE UNAVAILABLE';
+      if (secondary) secondary.textContent = 'RETRY METRICS';
+      if (detail) detail.textContent = 'Host filesystem capacity remains available only in Advanced Diagnostics.';
+    }
+    return true;
+  }
+
+  function applyStorage(data) {
+    const panel = storagePanel();
+    if (!panel || !data?.ok) return false;
 
     const usedPercent = Math.max(0, Math.min(100, Number(data.used_percent || 0)));
     const usedLabel = percentLabel(usedPercent);
@@ -49,11 +80,14 @@
       const suffix = force ? '?refresh=1' : '';
       const response = await fetch(ENDPOINT + suffix, {credentials:'same-origin', cache:'no-store'});
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.ok) return;
+      if (!response.ok || !data.ok) {
+        applyUnavailable();
+        return;
+      }
       lastFetchAt = Date.now();
       applyStorage(data);
     } catch (_) {
-      // The main System Status remains usable if managed-storage metrics are unavailable.
+      applyUnavailable();
     } finally {
       loading = false;
     }
@@ -78,4 +112,6 @@
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement, {childList:true, subtree:true});
   setTimeout(schedule, 120);
+
+  window.BRVTALManagedStorageStatus = {applyStorage, applyUnavailable, refresh};
 })();
