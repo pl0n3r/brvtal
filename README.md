@@ -19,7 +19,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `6 archivos` · **+238** líneas · **−18** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `6 archivos` · **+239** líneas · **−18** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### LIFECYCLE / PUBLIC DELIVERY
@@ -34,7 +34,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 ### TESTS
 
-- `tests/event-record-contract.php` — 🟢 NEW · **+97 / −0** · contratos de lifecycle, relaciones estructuradas, ausencia de Memories inferidas y render active/historical.
+- `tests/event-record-contract.php` — 🟢 NEW · **+98 / −0** · contratos de lifecycle, relaciones estructuradas, ausencia de Memories inferidas y render active/historical.
 - `tests/e2e/public-event-record.spec.mjs` — 🟢 NEW · **+60 / −0** · cobertura visual desktop/mobile, CTA activo, framing histórico, touch targets y ausencia de overflow.
 
 ### SNAPSHOT
@@ -51,6 +51,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - Las relaciones usadas son únicamente `event_artists`, `sets_media.event_id` y `blog_post_relations` con publication gates existentes.
 - Memories quedan fuera hasta que el backend posea una relación Event ↔ Media explícita; no se introduce heurística ni dato duplicado.
 - La especificación i18n de #212 sigue **NOT IMPLEMENTED**.
+- El primer run de PR (#608) detectó que el contrato aislado del renderer no cargaba `public_seo.php`; se corrigió el bootstrap del test sin cambiar la implementación.
 - Pendiente: `BRVTAL CI / validate` verde sobre el head de esta rama, revisión automática y correcciones válidas antes del merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
