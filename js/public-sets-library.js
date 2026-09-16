@@ -29,24 +29,6 @@
     return clean ? `/${type}/${encodeURIComponent(clean)}` : '';
   };
 
-  const numeric = (value, fallback = Number.MAX_SAFE_INTEGER) => {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
-  };
-
-  const latestTimestamp = item => {
-    const parsed = Date.parse(String(item?.created_at ?? '').replace(' ', 'T'));
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-
-  const latestOrder = (a, b) => {
-    const byTime = latestTimestamp(b) - latestTimestamp(a);
-    if (byTime) return byTime;
-    const bySort = numeric(a?.sort_order) - numeric(b?.sort_order);
-    if (bySort) return bySort;
-    return numeric(b?.id, 0) - numeric(a?.id, 0);
-  };
-
   const platformLabel = item => String(item?.platform ?? 'LISTEN').trim().toUpperCase() || 'LISTEN';
   const hasArtist = item => Number(item?.artist_id || 0) > 0 && String(item?.artist_name ?? '').trim() !== '';
   const hasEvent = item => Number(item?.event_id || 0) > 0 && String(item?.event_title ?? '').trim() !== '';
@@ -93,7 +75,8 @@
   };
 
   const visibleSets = () => {
-    const ordered = [...sets].sort(latestOrder);
+    // Preserve the canonical API order: editorial sort_order first, then newest created_at.
+    const ordered = [...sets];
     if (state.mode === 'artist') {
       return ordered.filter(item => hasArtist(item) && (!state.relation || String(item.artist_id) === state.relation));
     }
