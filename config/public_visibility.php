@@ -33,6 +33,26 @@ function brvtal_public_event_datetime(mixed $value): ?DateTimeImmutable
 }
 
 /**
+ * Public presentation mode for the canonical Event URL.
+ *
+ * Historical lifecycle states are always records once visible. An Event whose
+ * date has already passed also becomes a record even if editorial status has
+ * not been advanced yet, so stale lifecycle bookkeeping cannot leave an old
+ * night looking commercially active.
+ */
+function brvtal_public_event_is_historical(array $event, ?DateTimeImmutable $now = null): bool
+{
+    $status = strtolower(trim((string)($event['status'] ?? '')));
+    if (in_array($status, brvtal_public_event_statuses()['historical'], true)) return true;
+
+    $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
+    if ($eventDate === null) return false;
+
+    $now ??= new DateTimeImmutable('now');
+    return $eventDate < $now->setTime(0, 0, 0);
+}
+
+/**
  * Decide whether one Event may be exposed on any public surface.
  *
  * Active lifecycle states are public. Historical states are public when the
