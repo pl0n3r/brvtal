@@ -47,7 +47,7 @@
       html[data-theme-nav-transparent="0"] .nav{background:var(--theme-surface,var(--bg));}
       html[data-theme-nav-blur="0"] .nav{backdrop-filter:none;-webkit-backdrop-filter:none}
       html[data-theme-brand-position="center"] .brand{position:absolute;left:50%;transform:translateX(-50%);align-items:center;text-align:center}
-      .theme-brand-image{display:block;width:auto;max-width:108px;height:36px;object-fit:contain;object-position:left center}
+      .theme-brand-image{display:block;width:auto;max-width:132px;height:36px;object-fit:contain;object-position:left center}
       .brand[data-theme-logo="1"]>span[data-site-name]{display:none}
       html[data-theme-brand-position="center"] .theme-brand-image{object-position:center}
       html[data-theme-scene-indicator="0"] .nav-center{display:none!important}
@@ -74,13 +74,15 @@
       html[data-theme-menu-style="dropdown"][data-theme-menu-open="1"] .menu-panel{transform:translateY(0)!important}
       html[data-theme-menu-style="dropdown"] .menu-panel-inner{padding-top:105px}
       html[data-theme-menu-style="dropdown"] .menu-panel nav a{font-size:clamp(42px,7vw,96px)}
-      .theme-preloader-logo{display:block;max-width:min(280px,60vw);max-height:120px;object-fit:contain;margin:24px 0 14px}
+      .theme-preloader-logo{display:block;max-width:min(390px,72vw);max-height:110px;object-fit:contain;margin:20px 0 14px}
+      .loader-inner[data-theme-wordmark="1"] .loader-mark{display:none}
       html{--theme-display-font:"Barlow Condensed",Arial,sans-serif;--theme-body-font:"Barlow Condensed",Arial,sans-serif;--theme-mono-font:"Space Mono",monospace}
       body{font-family:var(--theme-body-font)}
       h1,h2,h3,h4,.brand,.menu-panel nav a,.loader-mark{font-family:var(--theme-display-font)}
       .mono,.eyebrow,.hero-sub,.hero-bottom,.scene-index,.nav-center,.sound,.menu,.event-status,.set-num{font-family:var(--theme-mono-font)}
       .hero-title{font-size:var(--theme-h1,clamp(100px,22vw,340px));letter-spacing:var(--theme-tracking,-.07em)}
       body{font-size:var(--theme-body-size,16px)}
+      @media(max-width:900px){.theme-brand-image{max-width:112px;height:30px}.theme-preloader-logo{max-width:min(300px,74vw);max-height:82px}}
     `;
     document.head.appendChild(style);
   }
@@ -89,36 +91,49 @@
     if (value) html.style.setProperty(name, value);
   }
 
+  function loadControlledImage(image, src, onReady, onError) {
+    image.onload = () => onReady?.(image);
+    image.onerror = () => onError?.(image);
+    image.src = src;
+    if (image.complete && image.naturalWidth > 0) onReady?.(image);
+  }
+
   function updateBrandLogo() {
     const branding = currentBranding || {};
     if (!mobileQuery) mobileQuery = window.matchMedia('(max-width: 900px)');
-    const logo = safeAsset((mobileQuery.matches ? branding.mobileLogo : '') || branding.logo);
+    const selectedVisualLogo = safeAsset((mobileQuery.matches ? branding.mobileLogo : '') || branding.logo);
     const mainLogo = safeAsset(branding.logo);
+    const wordmark = safeAsset(branding.wordmark);
+    const headerLogo = wordmark || selectedVisualLogo;
 
     const brand = document.querySelector('.brand');
     if (brand) {
       let image = brand.querySelector('.theme-brand-image');
-      if (logo) {
+      delete brand.dataset.themeLogo;
+      if (headerLogo) {
         if (!image) {
           image = document.createElement('img');
           image.className = 'theme-brand-image';
-          image.alt = String(branding.siteName || 'BRVTAL') + ' logo';
+          image.alt = String(branding.siteName || 'BRVTAL');
           brand.prepend(image);
         }
-        image.src = logo;
-        brand.dataset.themeLogo = '1';
+        loadControlledImage(image, headerLogo, () => {
+          brand.dataset.themeLogo = '1';
+        }, failed => {
+          delete brand.dataset.themeLogo;
+          failed.remove();
+        });
       } else {
         image?.remove();
-        delete brand.dataset.themeLogo;
       }
     }
 
     const heroLogo = document.querySelector('.hero-logo');
-    if (heroLogo && logo) {
-      heroLogo.src = logo;
+    if (heroLogo && selectedVisualLogo) {
+      heroLogo.src = selectedVisualLogo;
       heroLogo.removeAttribute('srcset');
       heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
-      heroLogo.closest('picture')?.querySelectorAll('source').forEach(source => { source.srcset = logo; source.sizes = '100vw'; });
+      heroLogo.closest('picture')?.querySelectorAll('source').forEach(source => { source.srcset = selectedVisualLogo; source.sizes = '100vw'; });
     } else if (heroLogo && mainLogo) {
       heroLogo.src = mainLogo;
     }
@@ -163,15 +178,29 @@
       link.href = favicon;
     }
 
-    const preloadLogo = safeAsset(currentBranding.preloaderLogo || currentBranding.logo);
+    const wordmark = safeAsset(currentBranding.wordmark);
+    const preloadLogo = wordmark || safeAsset(currentBranding.preloaderLogo || currentBranding.logo);
     const loaderInner = document.querySelector('.loader-inner');
-    if (loaderInner && preloadLogo && !loaderInner.querySelector('.theme-preloader-logo')) {
-      const image = document.createElement('img');
-      image.className = 'theme-preloader-logo';
-      image.src = preloadLogo;
-      image.alt = '';
-      image.setAttribute('aria-hidden', 'true');
-      loaderInner.querySelector('.loader-mark')?.after(image);
+    if (loaderInner) {
+      let image = loaderInner.querySelector('.theme-preloader-logo');
+      delete loaderInner.dataset.themeWordmark;
+      if (preloadLogo) {
+        if (!image) {
+          image = document.createElement('img');
+          image.className = 'theme-preloader-logo';
+          image.alt = '';
+          image.setAttribute('aria-hidden', 'true');
+          loaderInner.querySelector('.loader-mark')?.after(image);
+        }
+        loadControlledImage(image, preloadLogo, () => {
+          if (wordmark) loaderInner.dataset.themeWordmark = '1';
+        }, failed => {
+          delete loaderInner.dataset.themeWordmark;
+          failed.remove();
+        });
+      } else {
+        image?.remove();
+      }
     }
   }
 
@@ -227,24 +256,6 @@
     html.dataset.themeMotion = ['brvtal','subtle','minimal','reduced'].includes(String(e.motion || '')) ? String(e.motion) : 'brvtal';
   }
 
-  function applySeo(seo, branding) {
-    const s = seo || {};
-    const siteName = String(branding?.siteName || 'BRVTAL').trim() || 'BRVTAL';
-    const tagline = String(branding?.tagline || '').trim();
-    const title = String(s.siteTitle || '').trim();
-    if (title) document.title = title;
-    else if (tagline) document.title = `${siteName} — ${tagline}`;
-    const description = String(s.description || '').trim();
-    const meta = document.querySelector('meta[name="description"]');
-    if (meta && description) meta.setAttribute('content', description.slice(0, 320));
-    const ogImage = safeAsset(s.ogImage);
-    if (ogImage) {
-      let og = document.querySelector('meta[property="og:image"]');
-      if (!og) { og = document.createElement('meta'); og.setAttribute('property', 'og:image'); document.head.appendChild(og); }
-      og.setAttribute('content', ogImage);
-    }
-  }
-
   function applyTheme(theme) {
     if (!theme || typeof theme !== 'object') return false;
     ensureRuntimeStyle();
@@ -254,7 +265,8 @@
     applyNavigation(theme.navigation, theme.sound);
     applyEffects(theme.effects);
     applyBranding(theme.branding);
-    applySeo(theme.seo, theme.branding);
+    // Canonical SEO is rendered server-side. Legacy theme.seo values are kept
+    // in storage for round-trip compatibility but never mutate document meta.
     window.dispatchEvent(new CustomEvent('brvtal:theme-applied', { detail:{ slug:html.dataset.brvtalTheme } }));
     return true;
   }
