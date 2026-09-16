@@ -25,8 +25,21 @@ foreach ($definitions as [$table, $where, $parameters]) {
         $statement = db()->prepare("SELECT {$select} FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id");
         $statement->execute($parameters);
         $rows = $statement->fetchAll();
-    } catch (Throwable) {
-        continue;
+    } catch (Throwable $error) {
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PUBLIC_SITEMAP_ERROR', 'Sitemap content-family query failed', [
+                'table' => $table,
+                'class' => get_class($error),
+                'message' => $error->getMessage(),
+            ]);
+        }
+        http_response_code(503);
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
+        header('Retry-After: 60');
+        header('X-Robots-Tag: noindex, follow');
+        echo "SITEMAP_UNAVAILABLE\n";
+        exit;
     }
     foreach ($rows as $row) {
         if ($table === 'events' && !brvtal_public_event_is_visible($row)) continue;
