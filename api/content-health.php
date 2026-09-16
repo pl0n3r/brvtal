@@ -81,9 +81,13 @@ function brvtal_content_health_item(string $type, array $row): array
     }
     $score = $totalWeight > 0 ? (int)round(($earned / $totalWeight) * 100) : 100;
 
-    $isPublic = $type === 'events'
-        ? brvtal_public_event_is_visible($row)
-        : $status === 'published';
+    if ($type === 'events') {
+        $isPublic = brvtal_public_event_is_visible($row);
+    } elseif ($type === 'pages') {
+        $isPublic = brvtal_public_page_is_visible($row);
+    } else {
+        $isPublic = $status === 'published';
+    }
 
     return [
         'id' => (int)($row['id'] ?? 0),
