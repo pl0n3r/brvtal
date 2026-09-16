@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import './media-integrity-real-stack.spec.mjs';
 
 const baseUrl = process.env.BRVTAL_REAL_STACK_URL || '';
 const adminEmail = process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL || 'ci-admin@brvtal.test';
