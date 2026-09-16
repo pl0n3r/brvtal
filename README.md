@@ -6,27 +6,25 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- El rate limiter público de Contact deja de truncar y reescribir su JSON de estado in-place.
-- Contact reutiliza el lock estable compartido de rate limits y persiste mediante archivo temporal + escritura completa + `fflush`/`fsync` + rename atómico.
-- Un estado corrupto o un fallo de persistencia ahora falla cerrado con `RATE_LIMIT_UNAVAILABLE` en lugar de aceptar la solicitud o resetear silenciosamente el contador.
-- El helper atómico se extrae como primitiva reusable en `config/rate_limit_store.php`, preservando el comportamiento de Password/TOTP.
-- Se añade una regresión ejecutable para estado válido, lock estable, JSON corrupto y fallo de reemplazo sin destruir el último estado válido.
+- Las respuestas autenticadas de `discadmin/logs.php` ahora declaran `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` y `Pragma: no-cache`.
+- La política se aplica antes de seleccionar la acción, por lo que cubre la vista HTML, la descarga del log, errores y redirects del mismo endpoint.
+- Se mantiene `nosniff` y se añade `X-Robots-Tag: noindex, nofollow, noarchive` a nivel HTTP, además del meta robots existente.
+- Se añade un contrato de regresión para impedir que el boundary de no-cache desaparezca o quede aplicado solo a una rama del endpoint.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `config/public_contact.php` — Contact usa lock estable, lectura fail-closed y reemplazo atómico del estado.
-- `config/rate_limit_store.php` — expone el reemplazo atómico reusable con verificación de escritura/flush/fsync.
-- `tests/contact-rate-limit-persistence-contract.php` — regresión de persistencia y fallos del limiter de Contact.
+- `discadmin/logs.php` — desactiva almacenamiento/cache e indexación para todas las respuestas autenticadas del debug log.
+- `tests/admin-logs-cache-contract.php` — protege autenticación, headers y posición común de la política antes de las acciones.
 
 ## Validación
 
-- Base exacta: `main` `b51122778599df340b87e6e174b8d27fb920c9ef`.
-- No había PRs abiertos al crear `security/contact-rate-limit-persistence`.
-- Issue cubierto: `#373`.
+- Base exacta: `main` `c1dd30bb40f6e141b387b1a020b2d16954f257ff`, con `BRVTAL CI / validate` verde.
+- No había PRs abiertos al crear `security/admin-log-no-store`.
+- Issue cubierto: `#372`.
 - No hay migración de base de datos ni mutación de datos de producción.
-- Se preservan las garantías existentes de trusted proxies y storage privado para Contact.
-- `tests/contact-rate-limit-persistence-contract.php` queda auto-descubierto por la suite PHP 8.5 de contratos.
+- El endpoint sigue exigiendo sesión administrativa; la limpieza del log conserva CSRF y POST.
+- `tests/admin-logs-cache-contract.php` queda auto-descubierto por la suite PHP 8.5 de contratos.
 - Pendiente en este snapshot: `BRVTAL CI / validate`, revisión advisory de CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
@@ -41,4 +39,4 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issue abordado: `#373`.
+- Issue abordado: `#372`.
