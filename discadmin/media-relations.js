@@ -3,7 +3,6 @@
 
   const ENDPOINT = '/api/media-relations.php';
   const TYPES = ['event','artist','set','release'];
-  let csrf = '';
   let currentId = 0;
   let loadId = 0;
   let state = {relations:[],options:{},available:false};
@@ -12,19 +11,8 @@
   const inspector = () => document.querySelector('#media-inspector');
   const activeId = () => Number(document.querySelector('.media-card.active[data-media-id]')?.dataset.mediaId || 0);
 
-  async function getCsrf() {
-    if (csrf) return csrf;
-    const response = await fetch('/api/auth',{credentials:'same-origin',cache:'no-store'});
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.authenticated || !payload.csrf) throw new Error('AUTH_REQUIRED');
-    csrf = payload.csrf;
-    return csrf;
-  }
-
-  async function request(id, options = {}) {
-    const headers = {...(options.headers || {})};
-    if (options.method && options.method !== 'GET') headers['X-CSRF-Token'] = await getCsrf();
-    const response = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {credentials:'same-origin',cache:'no-store',...options,headers});
+  async function request(id) {
+    const response = await fetch(`${ENDPOINT}?id=${encodeURIComponent(id)}`, {credentials:'same-origin',cache:'no-store'});
     const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
     if (!response.ok || payload.ok === false) {
       const error = new Error(payload.error || `HTTP_${response.status}`);
@@ -33,6 +21,18 @@
       throw error;
     }
     return payload;
+  }
+
+  function serializedRelations() {
+    if (!state.available) return undefined;
+    return state.relations.map(item => ({
+      related_type:item.related_type,
+      related_id:Number(item.related_id),
+    }));
+  }
+
+  function registerProvider() {
+    window.BRVTALMediaLibrary?.setRelationsProvider?.(serializedRelations);
   }
 
   function optionRows(type) {
@@ -82,6 +82,8 @@
     panel.className = 'media-relations-panel';
 
     if (!data.relations_available) {
+      state.available = false;
+      registerProvider();
       panel.innerHTML = '<div class="media-relations-head"><b>ARCHIVE RELATIONS</b><span>UNAVAILABLE</span></div><p>Structured Memory relations require the media-relations migration. Existing media editing remains available.</p>';
       anchor.insertAdjacentElement('beforebegin', panel);
       return;
@@ -93,9 +95,10 @@
       related_id:Number(item.related_id || 0),
     })).filter(item => TYPES.includes(item.related_type) && item.related_id > 0) : [];
     state.options = data.relation_options && typeof data.relation_options === 'object' ? data.relation_options : {};
+    registerProvider();
 
     panel.innerHTML = `<div class="media-relations-head"><b>ARCHIVE RELATIONS</b><span>STRUCTURED</span></div>
-      <p>Connect this Memory explicitly to existing BRVTAL records. No relation is inferred.</p>
+      <p>Connect this Memory explicitly to existing BRVTAL records. No relation is inferred. Relations save with the Media Library SAVE action.</p>
       <div class="media-relations-add">
         <label>TYPE<select data-media-relation-type>${TYPES.map(type => `<option value="${type}">${type.toUpperCase()}</option>`).join('')}</select></label>
         <label>TARGET<select data-media-relation-target></select></label>
@@ -116,44 +119,10 @@
         renderRelationList(panel);
       }
     });
-
-    const save = box.querySelector('#media-save');
-    if (save && save.dataset.mediaRelationsSave !== '1') {
-      const replacement = save.cloneNode(true);
-      replacement.dataset.mediaRelationsSave = '1';
-      save.replaceWith(replacement);
-      replacement.addEventListener('click', saveCombined);
-    }
-  }
-
-  async function saveCombined() {
-    const box = inspector();
-    const id = activeId();
-    if (!box || id < 1 || !state.available) return;
-    const button = box.querySelector('#media-save');
-    if (button) button.disabled = true;
-    try {
-      window.BRVTALMediaLibrary?.notify?.('processing','Saving media metadata + archive relations…');
-      await request(id, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          title:box.querySelector('#media-edit-title')?.value || '',
-          alt_text:box.querySelector('#media-edit-alt')?.value || '',
-          status:box.querySelector('#media-edit-status')?.value || 'published',
-          relations:state.relations,
-        }),
-      });
-      window.BRVTALMediaLibrary?.notify?.('success','Media metadata + archive relations saved.');
-      await window.BRVTALMediaLibrary?.refresh?.(id);
-    } catch (error) {
-      window.BRVTALMediaLibrary?.notify?.('error',`Could not save archive relations · ${error.message}`,{timeout:0});
-    } finally {
-      if (button?.isConnected) button.disabled = false;
-    }
   }
 
   async function loadForActive() {
+    registerProvider();
     const id = activeId();
     const box = inspector();
     if (!box || id < 1 || !box.querySelector('#media-save')) return;
@@ -167,6 +136,7 @@
       decorate(payload.data);
     } catch (_) {
       if (token !== loadId || id !== activeId()) return;
+      registerProvider();
       const anchor = box.querySelector('.media-engine') || box.querySelector('.media-usage');
       if (!anchor) return;
       const panel = document.createElement('section');
@@ -182,5 +152,7 @@
     timer = window.setTimeout(loadForActive, 50);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+  registerProvider();
   window.setTimeout(loadForActive,120);
+  window.BRVTALMediaRelations = {serialize:serializedRelations,reload:loadForActive};
 })();
