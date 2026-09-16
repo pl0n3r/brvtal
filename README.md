@@ -21,19 +21,22 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `discadmin/index.php` — carga los módulos de Settings V2 y configuración extendida de Theme Studio.
-- `discadmin/settings-v2.js` / `discadmin/settings-v2.css` — editor tipado, navegación interna, Advanced y selector de Media para share image.
-- `discadmin/theme-studio-configuration.js` / `.css` — wordmark, ownership map y eliminación del SEO duplicado como superficie principal.
-- `config/public_settings.php` — lector server-side fail-safe de settings tipados.
 - `config/public_analytics.php` — `settings.analytics` como autoridad con fallback legacy de tema.
-- `config/public_seo.php` / `index.php` — defaults SEO del Home desde Settings en render server-side.
-- `js/public-theme-wordmark.js` — aplica wordmark con fallback textual seguro.
-- `js/public-settings-harmony.js` — mantiene Theme Studio como autoridad visual y restaura SEO server-side tras compatibilidad legacy.
-- `js/public-runtime-loader.js` — incorpora ambos módulos públicos a la carga resiliente existente.
+- `config/public_seo.php` — defaults SEO canónicos del Home desde Settings.
+- `config/public_settings.php` — lector server-side fail-safe de settings tipados.
+- `discadmin/index.php` — carga los módulos nuevos del control plane.
+- `discadmin/settings-v2.css` — layout responsive de Settings tipados.
+- `discadmin/settings-v2.js` — editores General, Social, SEO, Analytics y Advanced.
+- `discadmin/theme-studio-configuration.css` — estilos del wordmark y mapa de compatibilidad.
+- `discadmin/theme-studio-configuration.js` — wordmark, ownership map y SEO duplicado fuera de Theme Studio.
 - `docs/CONFIGURATION.md` — mapa durable de propiedad y compatibilidad de configuración.
+- `index.php` — aplica defaults SEO server-side al documento público.
+- `js/public-runtime-loader.js` — carga resiliente de los módulos públicos nuevos.
+- `js/public-settings-harmony.js` — conserva autoridad visual del tema y SEO del servidor.
+- `js/public-theme-wordmark.js` — aplica wordmark con fallback textual seguro.
+- `tests/e2e/configuration-runtime.spec.mjs` — wordmark/fallback y autoridad runtime.
+- `tests/e2e/discadmin-settings-v2.spec.mjs` — Settings desktop/mobile y preservación de JSON.
 - `tests/settings-control-plane-contract.php` — contratos de SEO/Analytics, privacidad, persistencia y wordmark.
-- `tests/e2e/discadmin-settings-v2.spec.mjs` — Settings tipados desktop/mobile y preservación de JSON.
-- `tests/e2e/configuration-runtime.spec.mjs` — wordmark/fallback, ownership Theme Studio y autoridad SEO/theme en runtime.
 
 ## Validación
 
@@ -44,7 +47,8 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `api/public.php` no expone `settings.analytics` ni el setting SEO canónico; las credenciales/IDs de integración permanecen fuera del payload público.
 - El allowlist genérico de uploads no se amplía a SVG sin sanitización. El wordmark puede usar un SVG ya servido por una ruta/URL pública segura.
 - La especificación i18n de #212 sigue **NOT IMPLEMENTED**; los locales guardados se muestran solo como contexto y no como control prometido.
-- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión automática y cualquier corrección válida sobre el head de la rama.
+- Run #591: PHP 8.5/contratos y sintaxis JS verdes; el primer intento falló solo porque el snapshot agrupaba varios paths en una viñeta. Se corrigió la lista exacta sin cambiar lógica.
+- Pendiente en este snapshot: nuevo `BRVTAL CI / validate`, revisión automática y cualquier corrección válida sobre el head corregido.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
