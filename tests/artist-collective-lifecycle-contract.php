@@ -81,6 +81,8 @@ collective_expect(($invalidDate['error']['error'] ?? '') === 'INVALID_DATE', 'in
 $activitySource = (string)file_get_contents(__DIR__ . '/../config/admin_activity.php');
 collective_expect(str_contains($activitySource, "require_once __DIR__ . '/artist_collective_lifecycle.php';"), 'Admin Activity must load the collective lifecycle authority');
 collective_expect(str_contains($activitySource, 'brvtal_artist_collective_sync_history('), 'Artist mutations must synchronize history in the audited transaction');
+$migrationSource = (string)file_get_contents(__DIR__ . '/../database/migration_content_core_01.sql');
+collective_expect(str_contains($migrationSource, 'CREATE TABLE IF NOT EXISTS artist_collective_history'), 'Content Core migration must define artist_collective_history');
 
 if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     $dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
@@ -98,7 +100,36 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
-    collective_expect(brvtal_artist_collective_history_schema_ready($pdo), 'artist_collective_history migration must exist in integration schema');
+    $pdo->exec("CREATE TEMPORARY TABLE admins (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(190) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(120) NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TEMPORARY TABLE artists (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(180) NOT NULL,
+        slug VARCHAR(190) NOT NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'draft',
+        collective_status VARCHAR(20) NOT NULL DEFAULT 'none',
+        collective_order INT NOT NULL DEFAULT 0,
+        collective_joined_at DATETIME NULL,
+        collective_left_at DATETIME NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TEMPORARY TABLE artist_collective_history (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        artist_id INT UNSIGNED NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        started_at DATETIME NOT NULL,
+        ended_at DATETIME NULL,
+        note VARCHAR(500) NULL,
+        created_by INT UNSIGNED NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_collective_artist (artist_id,started_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    collective_expect(brvtal_artist_collective_history_schema_ready($pdo), 'artist_collective_history must be queryable in the isolated integration fixture');
     $pdo->beginTransaction();
     try {
         $stamp = bin2hex(random_bytes(4));
