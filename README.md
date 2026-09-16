@@ -14,13 +14,14 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - La UI expone contexto Artist/Event solo cuando la relación pública existe; los Sets sin relaciones aparecen como **INDEPENDENT RECORD**.
 - No se infieren géneros desde títulos/descripciones y no se crea filtro de género porque el modelo actual no tiene metadata estructurada que lo respalde.
 - Un payload público válido con `sets=[]` reemplaza el fallback estático por un empty state real; un fallo/rechazo del request compartido conserva el fallback existente.
+- `hidden` domina explícitamente sobre los layouts flex/grid de los controles, de modo que el empty state no deja modos de descubrimiento visibles.
 - El runtime público pasa a `app → roster → sets → archive → media`, manteniendo versionado, degradación resiliente y arquitectura coarse-pointer/reduced-motion.
 - La capa visual conserva el lenguaje brutalista del sitio, focus visible, targets táctiles de al menos ~44 px y layout sin overflow en 390 px.
 - `AGENTS.md` registra como regla durable que Sets discovery es relationship-driven y que Memories/event connections futuras solo deben existir con relaciones estructuradas explícitas.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `9 archivos` · **+477** líneas · **−9** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `9 archivos` · **+478** líneas · **−9** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### PUBLIC SETS / DELIVERY
@@ -32,7 +33,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 ### VISUAL
 
-- `css/public-sets-library.css` — 🟢 NEW · **+42 / −0** · controles/listado brutalistas, focus/touch targets, relaciones, empty state y protección mobile contra overflow.
+- `css/public-sets-library.css` — 🟢 NEW · **+43 / −0** · controles/listado brutalistas, hidden-state efectivo, focus/touch targets, relaciones, empty state y protección mobile contra overflow.
 
 ### TESTS
 
@@ -56,12 +57,13 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - No hay migration, tabla, nuevo endpoint público, player pesado, autoplay ni cambio de i18n.
 - La API pública sigue siendo la autoridad y sanitiza las relaciones antes de entregarlas al browser.
 - BRVTAL CI **#650** detectó una aserción incorrecta en el contrato nuevo: PHP `??` sustituía también valores `null`. El test se corrigió para exigir `array_key_exists(...)` y valor estrictamente `null`; la lógica productiva no necesitó cambios.
-- Pendiente: nuevo BRVTAL CI + CodeRabbit sobre el head corregido; squash únicamente con `validate` verde y revisión limpia.
+- Run intermedio **#651** dejó PHP, MariaDB y real-stack funcionalmente verdes, y Chromium detectó que `.sets-library-modes { display:grid/flex }` mantenía visibles controles con atributo `hidden`. Se corrigió la cascada CSS para que `[hidden]` sea autoritativo.
+- Pendiente: BRVTAL CI + CodeRabbit sobre este head final; squash únicamente con `validate` verde y revisión limpia.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobación real del deploy.
 
 ## Qué sigue
 
-1. Validar el head corregido de #412 con BRVTAL CI + CodeRabbit.
+1. Validar el head final de #412 con BRVTAL CI + CodeRabbit.
 2. Squash merge solo con gates verdes y revisión limpia.
 3. Verificar BRVTAL CI del SHA exacto resultante en `main`.
 4. Continuar #398 profundizando Archive/Memories únicamente con relaciones estructuradas reales.
