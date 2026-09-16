@@ -44,22 +44,86 @@ function brvtal_public_select_next_experience(array $events, ?DateTimeImmutable 
     return $selected;
 }
 
+function brvtal_public_home_http_url(mixed $value): string
+{
+    $url = trim((string)$value);
+    if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) === false) return '';
+    $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+    return in_array($scheme, ['http', 'https'], true) ? $url : '';
+}
+
+function brvtal_public_next_experience_ticket_url(PDO $pdo, array $event, ?DateTimeImmutable $now = null): string
+{
+    if (!brvtal_public_event_allows_ticketing($event, $now)) return '';
+
+    $direct = brvtal_public_home_http_url($event['ticket_url'] ?? '');
+    if ($direct !== '') return $direct;
+
+    try {
+        $statement = $pdo->prepare(
+            "SELECT external_url,status,available_from,available_until,sort_order,id
+             FROM event_ticket_types
+             WHERE event_id=? AND status='active'
+             ORDER BY sort_order ASC,id ASC"
+        );
+        $statement->execute([(int)($event['id'] ?? 0)]);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $ticket) {
+            if (!brvtal_public_ticket_type_is_available($ticket, $now)) continue;
+            $url = brvtal_public_home_http_url($ticket['external_url'] ?? '');
+            if ($url !== '') return $url;
+        }
+    } catch (Throwable) {
+        // Ticket types are an enhancement. The Event remains renderable without them.
+    }
+
+    return '';
+}
+
+function brvtal_public_next_experience_lineup(PDO $pdo, int $eventId): array
+{
+    if ($eventId < 1) return [];
+
+    try {
+        $statement = $pdo->prepare(
+            "SELECT a.name,a.slug,ea.role,ea.lineup_order
+             FROM event_artists ea
+             JOIN artists a ON a.id=ea.artist_id
+             WHERE ea.event_id=? AND a.status='published'
+             ORDER BY ea.lineup_order ASC,a.name ASC"
+        );
+        $statement->execute([$eventId]);
+        return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable) {
+        return [];
+    }
+}
+
 function brvtal_public_next_experience(PDO $pdo, ?DateTimeImmutable $now = null): ?array
 {
     $statuses = brvtal_public_event_statuses()['active'];
     $placeholders = brvtal_public_sql_placeholders($statuses);
     $statement = $pdo->prepare(
-        "SELECT id,title,slug,event_date,venue,city,cover_image,featured,status,sort_order
+        "SELECT id,title,slug,event_date,venue,city,cover_image,ticket_url,featured,status,sort_order
          FROM events
          WHERE status IN ({$placeholders})"
     );
     $statement->execute($statuses);
-    return brvtal_public_select_next_experience($statement->fetchAll(PDO::FETCH_ASSOC), $now);
+    $selected = brvtal_public_select_next_experience($statement->fetchAll(PDO::FETCH_ASSOC), $now);
+    if ($selected === null) return null;
+
+    $selected['lineup'] = brvtal_public_next_experience_lineup($pdo, (int)($selected['id'] ?? 0));
+    $selected['public_ticket_url'] = brvtal_public_next_experience_ticket_url($pdo, $selected, $now);
+    return $selected;
 }
 
 function brvtal_public_home_escape(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function brvtal_public_home_upper(string $value): string
+{
+    return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
 }
 
 function brvtal_public_next_experience_date_parts(?array $event): array
@@ -85,12 +149,61 @@ function brvtal_public_next_experience_tag(?array $event): string
         'last_tickets' => 'LAST TICKETS.',
         'tickets_available' => 'TICKETS AVAILABLE.',
         'upcoming' => 'UPCOMING.',
-        default => 'BRVTAL EXPERIENCE.',
+        default => 'NEXT SIGNAL.',
     };
+}
+
+function brvtal_public_home_identity(string $html): string
+{
+    if (!str_contains($html, 'css/public-home-phase-a.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-home-phase-a.css\">\n</head>",
+            $html
+        );
+    }
+
+    $html = str_replace(
+        '<section class="hero scene" data-scene="CORE" data-index="01">',
+        '<section class="hero scene home-phase-a-hero" data-scene="CORE" data-index="01">',
+        $html
+    );
+    $html = str_replace(
+        '<div class="eyebrow mono">BRVTAL / PEREIRA / COLOMBIA / 2026</div>',
+        '<div class="eyebrow mono">UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA</div>',
+        $html
+    );
+
+    $heroSub = '<div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>';
+    if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration"')) {
+        $html = str_replace(
+            $heroSub,
+            $heroSub . '<div class="hero-declaration"><span class="mono">BRVTAL / CULTURAL SIGNAL</span><strong>EVENTS / SOUND / ARTISTS / ARCHIVE</strong><p>BUILT IN PEREIRA. CONNECTED THROUGH UNDERGROUND ELECTRONIC CULTURE.</p></div>',
+            $html
+        );
+    }
+
+    return $html;
+}
+
+function brvtal_public_next_experience_lineup_markup(?array $event): string
+{
+    $lineup = is_array($event['lineup'] ?? null) ? $event['lineup'] : [];
+    $names = [];
+    foreach ($lineup as $artist) {
+        $name = trim((string)($artist['name'] ?? ''));
+        if ($name !== '') $names[] = brvtal_public_home_escape($name);
+        if (count($names) >= 8) break;
+    }
+    if ($names === []) return '';
+
+    return '<div class="experience-lineup"><span class="mono">LINEUP</span><p>' . implode(' <i>/</i> ', $names) . '</p></div>';
 }
 
 function brvtal_public_render_next_experience(string $html, ?array $event): string
 {
+    $html = brvtal_public_home_identity($html);
+
     $sectionStart = strpos($html, '<section class="genesis scene');
     if ($sectionStart === false) return $html;
     $sectionEnd = strpos($html, '</section>', $sectionStart);
@@ -114,9 +227,10 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
 
     [$dateLabel, $timeLabel] = brvtal_public_next_experience_date_parts($event);
     $locationParts = array_values(array_filter([$city, $venue], static fn(string $value): bool => $value !== ''));
-    $location = $locationParts ? mb_strtoupper(implode(' / ', $locationParts), 'UTF-8') : 'LOCATION TBA';
+    $location = $locationParts ? brvtal_public_home_upper(implode(' / ', $locationParts)) : 'LOCATION TBA';
     $href = $slug !== '' ? '/events/' . rawurlencode($slug) : '#events';
     $cta = $event ? 'ENTER EXPERIENCE' : 'VIEW EVENTS';
+    $ticketUrl = $event ? brvtal_public_home_http_url($event['public_ticket_url'] ?? '') : '';
 
     $safeTitle = brvtal_public_home_escape($title);
     $safeHref = brvtal_public_home_escape($href);
@@ -124,6 +238,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $safeTag = brvtal_public_home_escape(brvtal_public_next_experience_tag($event));
 
     $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
+    $section = str_replace('class="genesis scene', 'class="genesis scene home-phase-a-experience', $section);
     $section = str_replace('data-scene="GENESIS"', 'data-scene="EXPERIENCE"', $section);
     $section = preg_replace(
         '~<div class="eyebrow mono">.*?</div>~s',
@@ -149,9 +264,17 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
         $section,
         1
     ) ?? $section;
+
+    $actions = '<div class="experience-actions"><a class="enter magnetic" href="' . $safeHref . '" data-cursor="ENTER">' . $cta . ' <span>↗</span></a>';
+    if ($ticketUrl !== '') {
+        $actions .= '<a class="ticket-cta magnetic" href="' . brvtal_public_home_escape($ticketUrl) . '" target="_blank" rel="noopener" data-cursor="TICKETS">TICKETS <span>↗</span></a>';
+    }
+    $actions .= '</div>';
+
+    $lineupMarkup = brvtal_public_next_experience_lineup_markup($event);
     $section = preg_replace(
         '~<a class="enter magnetic"[^>]*>.*?</a>~s',
-        '<a class="enter magnetic" href="' . $safeHref . '" data-cursor="ENTER">' . $cta . ' <span>↗</span></a>',
+        $lineupMarkup . $actions,
         $section,
         1
     ) ?? $section;
@@ -159,7 +282,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $background = '<div class="genesis-bg" style="background-image:none"></div>';
     if ($cover !== '') {
         $safeCover = brvtal_public_home_escape($cover);
-        $background = '<div class="genesis-bg" style="background-image:none"><img src="' . $safeCover . '" alt="" aria-hidden="true" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"></div>';
+        $background = '<div class="genesis-bg" style="background-image:none"><img src="' . $safeCover . '" alt="" aria-hidden="true" loading="lazy" decoding="async"></div>';
     }
     $section = str_replace('<div class="genesis-bg"></div>', $background, $section);
 
