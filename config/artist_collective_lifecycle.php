@@ -118,16 +118,20 @@ function brvtal_artist_collective_datetime(mixed $value): ?string
     return null;
 }
 
-/** Ensure the Content Core membership-history table exists before accepting traceable changes. */
+/** Ensure the Content Core membership-history table is queryable before accepting traceable changes. */
 function brvtal_artist_collective_history_schema_ready(PDO $pdo): bool
 {
     static $ready = [];
     $key = spl_object_id($pdo);
     if (($ready[$key] ?? false) === true) return true;
-    $st = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artist_collective_history'");
-    $isReady = (int)$st->fetchColumn() === 1;
-    if ($isReady) $ready[$key] = true;
-    return $isReady;
+
+    try {
+        $pdo->query('SELECT 1 FROM artist_collective_history LIMIT 0');
+        $ready[$key] = true;
+        return true;
+    } catch (PDOException) {
+        return false;
+    }
 }
 
 /** Fetch the most recent history period under the caller's existing transaction. */
