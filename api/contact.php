@@ -25,7 +25,7 @@ if ($method !== 'POST') {
     json_response(['ok' => false, 'error' => 'METHOD_NOT_ALLOWED'], 405);
 }
 
-$rate = brvtal_contact_consume_rate_limit(brvtal_contact_client_key());
+$rate = brvtal_contact_consume_rate_limit(brvtal_contact_client_key($config));
 if (!$rate['allowed']) {
     $status = ($rate['error'] ?? '') === 'RATE_LIMITED' ? 429 : 503;
     json_response(
