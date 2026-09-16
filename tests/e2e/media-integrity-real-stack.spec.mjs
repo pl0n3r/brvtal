@@ -15,7 +15,7 @@ test('Media writes stay behind the canonical Media Library integrity boundary', 
   const headers = {'X-CSRF-Token': auth.csrf};
 
   const png = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlDgYQAAAAASUVORK5CYII=',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
     'base64',
   );
   let mediaId = 0;
