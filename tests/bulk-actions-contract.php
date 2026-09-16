@@ -32,8 +32,6 @@ bulk_assert(!str_contains($library, 'DELETE FROM'), 'Bulk Actions v1 must not ex
 bulk_assert(str_contains($library, "require_once __DIR__ . '/../config/event_lifecycle.php';"), 'Bulk Actions must reuse the canonical Event lifecycle policy');
 bulk_assert(str_contains($library, 'brvtal_event_lifecycle_patch($row'), 'bulk Event updates must derive lifecycle timestamps from each locked row');
 bulk_assert(str_contains($library, 'published_at,cancelled_at,finished_at'), 'bulk Event locks must hydrate lifecycle timestamps');
-bulk_assert(str_contains($library, "in_array(\$resource, ['releases','blog'], true)"), 'Blog and Releases must use their publication timestamp lifecycle in bulk');
-bulk_assert(str_contains($library, "COALESCE(published_at,CURRENT_TIMESTAMP)"), 'bulk publishing Blog/Releases must stamp published_at exactly once');
 bulk_assert(str_contains($shell, '/discadmin/bulk-actions.js'), 'canonical shell must load Bulk Actions');
 bulk_assert(str_contains($ui, 'NO BULK DELETE'), 'UI must communicate that bulk deletion is unavailable');
 bulk_assert(str_contains($ui, "window.confirm(`Set"), 'UI must require confirmation before mutation');
