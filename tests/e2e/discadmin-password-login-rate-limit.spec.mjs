@@ -36,7 +36,8 @@ test('password auth records only failures and resets pressure after a valid pass
   expect(rateLimitPhp).toContain('flock($handle, LOCK_EX)');
   expect(rateLimitPhp).toContain('ftruncate($handle, 0)');
   expect(rateLimitPhp).toContain('function brvtal_password_rate_limit_reset(');
-  expect(rateLimitPhp).toContain('@unlink($file)');
+  expect(rateLimitPhp).toContain("json_encode(['attempts' => [], 'blocked_until' => 0]");
+  expect(rateLimitPhp).not.toContain('@unlink($file)');
 });
 
 test('password login shows rate limit, invalid credentials and server failures distinctly', async ({ page }) => {
