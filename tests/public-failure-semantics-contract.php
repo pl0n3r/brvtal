@@ -13,11 +13,11 @@ $hero = (string)file_get_contents(__DIR__ . '/../api/hero-slider.php');
 $sitemap = (string)file_get_contents(__DIR__ . '/../sitemap.php');
 
 public_failure_assert(
-    str_contains($hero, "function brvtal_hero_slider_error(string $error, int $status = 503): never"),
+    preg_match('/function\s+brvtal_hero_slider_error\(string\s+\$error,\s*int\s+\$status\s*=\s*503\):\s*never/', $hero) === 1,
     'Hero Slider must expose a dedicated error response path'
 );
 public_failure_assert(
-    str_contains($hero, "json_encode(['ok' => false, 'error' => $error]")
+    str_contains($hero, "json_encode(['ok' => false, 'error' => \$error]")
         && str_contains($hero, "header('Cache-Control: no-store')")
         && str_contains($hero, "header('Retry-After: 60')"),
     'Hero Slider errors must be observable, non-cacheable and retryable'
@@ -28,20 +28,24 @@ public_failure_assert(
     'Hero Slider internal exceptions must be logged and returned as HTTP 503 semantics'
 );
 public_failure_assert(
-    !str_contains($hero, "catch (Throwable $error) {\n    brvtal_hero_slider_json(['enabled' => false"),
+    preg_match('/catch\s*\(Throwable\s+\$error\).*?brvtal_hero_slider_error\(\'HERO_SLIDER_UNAVAILABLE\',\s*503\)/s', $hero) === 1,
+    'Hero Slider exceptions must use the observable error path'
+);
+public_failure_assert(
+    preg_match('/catch\s*\(Throwable\s+\$error\).*?brvtal_hero_slider_json\(\[\'enabled\'\s*=>\s*false/s', $hero) !== 1,
     'Hero Slider exceptions must not masquerade as a valid disabled slider'
 );
 
 public_failure_assert(
     str_contains($sitemap, "brvtal_log('PUBLIC_SITEMAP_ERROR'")
-        && str_contains($sitemap, "http_response_code(503)")
+        && str_contains($sitemap, 'http_response_code(503)')
         && str_contains($sitemap, "header('Cache-Control: no-store')")
         && str_contains($sitemap, "header('Retry-After: 60')")
         && str_contains($sitemap, 'SITEMAP_UNAVAILABLE'),
     'Sitemap family-query failures must be observable HTTP 503 responses'
 );
 public_failure_assert(
-    !preg_match('/catch\s*\(Throwable(?:\s+\$\w+)?\)\s*\{\s*continue\s*;\s*\}/s', $sitemap),
+    preg_match('/catch\s*\(Throwable(?:\s+\$\w+)?\)\s*\{\s*continue\s*;\s*\}/s', $sitemap) !== 1,
     'Sitemap must not silently continue after a failed content-family query'
 );
 public_failure_assert(
