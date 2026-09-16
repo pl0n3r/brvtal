@@ -20,8 +20,8 @@ dashboard_v2_assert(!str_contains($api, 'analytics_events'), 'Dashboard V2 must 
 dashboard_v2_assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+|FROM\s+)?[`a-z_]/i', $api), 'Dashboard overview must be read-only');
 
 $healthApi = (string)file_get_contents(__DIR__ . '/../api/content-health.php');
-dashboard_v2_assert(str_contains($healthApi, "'public' => $public"), 'Content Health must expose public readiness separately');
-dashboard_v2_assert(str_contains($healthApi, "'drafts' => $drafts"), 'Content Health must expose draft completeness separately');
+dashboard_v2_assert(str_contains($healthApi, "'public' => \$public"), 'Content Health must expose public readiness separately');
+dashboard_v2_assert(str_contains($healthApi, "'drafts' => \$drafts"), 'Content Health must expose draft completeness separately');
 dashboard_v2_assert(str_contains($healthApi, "'is_public'"), 'Content Health records must classify public visibility');
 dashboard_v2_assert(str_contains($healthApi, "'is_draft'"), 'Content Health records must classify drafts');
 
