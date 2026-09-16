@@ -14,18 +14,19 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Lineup, Sets y **TRANSMISSIONS** usan únicamente relaciones estructuradas y registros publicados: `event_artists`, `sets_media.event_id` y `blog_post_relations`.
 - **Memories no se infieren** por fecha, título o filename: todavía no existe una relación Event ↔ Media estructurada.
 - La capa visual mantiene BRVTAL negro/rojo, grano, scanlines e interferencia con verde ácido usado solo como señal; el modo histórico es más archival sin convertirse en una UI corporativa.
+- El acento Event usado como custom property CSS acepta únicamente hex válidos de 3/4/6/8 dígitos; cualquier valor inválido cae a `#b6ff00`.
 - No se añadió JavaScript público, endpoint paralelo, tabla nueva ni migración de schema.
-- La cobertura de Event Record ahora ejecuta `brvtal_public_page_data()` contra MariaDB con Events activos, históricos y draft, incluyendo relaciones publicadas/no publicadas y supresión real de tickets.
+- La cobertura ejecuta `brvtal_public_page_data()` contra MariaDB con Events activos, históricos y draft, incluyendo relaciones publicadas/no publicadas y supresión real de tickets.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `7 archivos` · **+451** líneas · **−22** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `8 archivos` · **+506** líneas · **−22** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### LIFECYCLE / PUBLIC DELIVERY
 
 - `api/public-archive.php` — 🟡 MOD · **+1 / −7** · usa la clasificación histórica canónica compartida.
-- `config/public_page.php` — 🟡 MOD · **+59 / −11** · transforma la página Event existente en Event Record y conecta Lineup, Sets y Transmissions estructuradas.
+- `config/public_page.php` — 🟡 MOD · **+60 / −11** · transforma la página Event existente en Event Record, conecta relaciones estructuradas y valida el color de señal.
 - `config/public_visibility.php` — 🟡 MOD · **+55 / −3** · centraliza estado histórico y reloj coherente por request para lifecycle/ticketing.
 
 ### VISUAL
@@ -36,6 +37,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 - `package.json` — 🟡 MOD · **+1 / −1** · incluye Event Record en la suite MariaDB canónica.
 - `tests/e2e/public-event-record.spec.mjs` — 🟢 NEW · **+60 / −0** · desktop/mobile, CTA activo, framing histórico, touch targets y no overflow.
+- `tests/event-record-color-contract.php` — 🟢 NEW · **+54 / −0** · acepta solo hex CSS 3/4/6/8 y verifica fallback ante longitudes inválidas.
 - `tests/event-record-contract.php` — 🟢 NEW · **+274 / −0** · lifecycle, reloj único, renderer y cobertura MariaDB de `page_data()` con filtros de publicación y ticketing.
 
 ### SNAPSHOT
@@ -49,16 +51,17 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - PR: `#405` · issue: `#404` · parent: `#398` Phase B.
 - Run #608 detectó un bootstrap incompleto del contrato aislado; se cargó `public_seo.php` sin cambiar lógica de producto.
 - Run #610 dejó fast, Chromium, real-stack, database y `validate` verdes.
-- CodeRabbit detectó dos riesgos válidos después de #610: reloj implícito duplicado cerca de medianoche y falta de cobertura ejecutable sobre `brvtal_public_page_data()`; ambos quedaron corregidos sin ampliar arquitectura.
+- CodeRabbit detectó después dos riesgos de lifecycle/cobertura; ambos fueron corregidos y marcados como addressed automáticamente.
+- Run #614 validó esas correcciones con fast, Chromium, MariaDB integration, real-stack, WebKit-TOTP y `validate` verdes.
+- La revisión posterior detectó además validación demasiado permisiva del color Event; se restringió a hex CSS válidos y se añadió regresión dedicada.
 - El contrato MariaDB usa únicamente tablas temporales y exige `BRVTAL_INTEGRATION_TESTS=1` + nombre `brvtal_test*`.
-- Las relaciones públicas siguen publication-gated; drafts no obtienen acciones comerciales.
 - `api/public.php` continúa siendo la API pública canónica y #212 i18n sigue **NOT IMPLEMENTED**.
-- Pendiente: CI y revisión automática verdes sobre el head posterior a estas correcciones antes del squash merge.
+- Pendiente: CI/revisión automática verdes sobre el head con la corrección de color antes del squash merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Validar el head corregido de #405 con BRVTAL CI y CodeRabbit.
+1. Validar el head final de #405 con BRVTAL CI y CodeRabbit.
 2. Hacer squash merge solo con `validate` verde y sin findings válidos pendientes.
 3. Verificar el `BRVTAL CI / validate` del SHA exacto resultante en `main`.
 4. Continuar #398 con la siguiente fase sin inventar la relación Event ↔ Media.
