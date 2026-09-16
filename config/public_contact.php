@@ -87,16 +87,63 @@ function brvtal_contact_verify_challenge(string $token, mixed $answer, array $co
     return $value !== false && $value === ($payload['a'] + $payload['b']);
 }
 
-function brvtal_contact_client_key(): string
+function brvtal_contact_ip_matches_rule(string $ip, string $rule): bool
 {
-    $ip = trim((string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown'));
-    if (strlen($ip) > 96) $ip = substr($ip, 0, 96);
-    return hash('sha256', $ip);
+    $ip = trim($ip);
+    $rule = trim($rule);
+    if (!filter_var($ip, FILTER_VALIDATE_IP) || $rule === '') return false;
+
+    if (!str_contains($rule, '/')) {
+        if (!filter_var($rule, FILTER_VALIDATE_IP)) return false;
+        $ipPacked = @inet_pton($ip);
+        $rulePacked = @inet_pton($rule);
+        return is_string($ipPacked) && is_string($rulePacked) && hash_equals($rulePacked, $ipPacked);
+    }
+
+    [$network, $prefixRaw] = array_pad(explode('/', $rule, 2), 2, '');
+    if (!filter_var($network, FILTER_VALIDATE_IP) || !preg_match('/^\d{1,3}$/', $prefixRaw)) return false;
+    $ipPacked = @inet_pton($ip);
+    $networkPacked = @inet_pton($network);
+    if (!is_string($ipPacked) || !is_string($networkPacked) || strlen($ipPacked) !== strlen($networkPacked)) return false;
+
+    $prefix = (int)$prefixRaw;
+    $maxBits = strlen($ipPacked) * 8;
+    if ($prefix < 0 || $prefix > $maxBits) return false;
+    $wholeBytes = intdiv($prefix, 8);
+    $remainingBits = $prefix % 8;
+    if ($wholeBytes > 0 && substr($ipPacked, 0, $wholeBytes) !== substr($networkPacked, 0, $wholeBytes)) return false;
+    if ($remainingBits === 0) return true;
+
+    $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
+    return (ord($ipPacked[$wholeBytes]) & $mask) === (ord($networkPacked[$wholeBytes]) & $mask);
+}
+
+function brvtal_contact_resolve_client_ip(array $config = []): string
+{
+    $remote = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    if (!filter_var($remote, FILTER_VALIDATE_IP)) return 'unknown';
+
+    $trusted = $config['contact']['trusted_proxies'] ?? [];
+    if (is_array($trusted)) {
+        foreach ($trusted as $rule) {
+            if (!is_string($rule) || !brvtal_contact_ip_matches_rule($remote, $rule)) continue;
+            $forwarded = trim((string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''));
+            if (filter_var($forwarded, FILTER_VALIDATE_IP)) return $forwarded;
+            break;
+        }
+    }
+
+    return $remote;
+}
+
+function brvtal_contact_client_key(array $config = []): string
+{
+    return hash('sha256', brvtal_contact_resolve_client_ip($config));
 }
 
 function brvtal_contact_rate_limit_path(): string
 {
-    return dirname(__DIR__) . '/storage/contact-rate-limit.json';
+    return dirname(__DIR__) . '/storage/rate_limits/contact-rate-limit.json';
 }
 
 function brvtal_contact_consume_rate_limit(
