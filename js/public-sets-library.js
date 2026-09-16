@@ -48,6 +48,7 @@
     <div class="sets-library-count mono" data-sets-count aria-live="polite"></div>`;
   intro.insertAdjacentElement('afterend', controls);
 
+  const modesRoot = controls.querySelector('.sets-library-modes');
   const optionsRoot = controls.querySelector('[data-sets-options]');
   const countRoot = controls.querySelector('[data-sets-count]');
 
@@ -105,6 +106,10 @@
 
   const renderRows = () => {
     const visible = visibleSets();
+    const emptyCopy = sets.length === 0
+      ? '<div class="sets-library-empty"><strong>NO PUBLISHED SETS YET.</strong><span>The listening archive will appear here when a Set is published.</span></div>'
+      : '<div class="sets-library-empty"><strong>NO SETS IN THIS VIEW.</strong><span>Choose another artist or event.</span></div>';
+
     list.innerHTML = visible.length ? visible.map((item, index) => {
       const title = String(item?.title ?? item?.name ?? 'BRVTAL SET');
       const slug = String(item?.slug ?? '').trim();
@@ -122,7 +127,7 @@
         </div>
         ${external ? `<a href="${escapeHtml(external)}" target="_blank" rel="noopener noreferrer" class="set-action set-listen-action magnetic" data-cursor="${escapeHtml(platformLabel(item))}"><span>LISTEN</span> ↗</a>` : ''}
       </article>`;
-    }).join('') : `<div class="sets-library-empty"><strong>NO SETS IN THIS VIEW.</strong><span>Choose another artist or event.</span></div>`;
+    }).join('') : emptyCopy;
 
     if (countRoot) countRoot.textContent = `${String(visible.length).padStart(2, '0')} / ${String(sets.length).padStart(2, '0')} RECORDS`;
     const sectionCount = section.querySelector('.section-head > span:first-child');
@@ -133,7 +138,7 @@
     if (!optionsRoot) return;
     const markup = optionMarkup(state.mode);
     optionsRoot.innerHTML = markup;
-    optionsRoot.hidden = state.mode === 'latest';
+    optionsRoot.hidden = state.mode === 'latest' || sets.length === 0;
     optionsRoot.querySelectorAll('[data-sets-relation]').forEach(button => {
       button.addEventListener('click', () => {
         state.relation = button.dataset.setsRelation || '';
@@ -161,9 +166,9 @@
   });
 
   const render = items => {
-    if (!Array.isArray(items) || items.length === 0) return false;
+    if (!Array.isArray(items)) return false;
     sets = items.filter(item => item && typeof item === 'object');
-    if (!sets.length) return false;
+    if (modesRoot) modesRoot.hidden = sets.length === 0;
     selectMode('latest');
     document.documentElement.dataset.publicSets = 'library';
     window.dispatchEvent(new CustomEvent('brvtal:sets-library-rendered', { detail: { count: sets.length } }));
@@ -181,13 +186,18 @@
       }
       await new Promise(resolve => window.setTimeout(resolve, 40));
     }
-    return [];
+    return null;
   };
 
   window.addEventListener('load', () => {
     window.setTimeout(async () => {
       try {
-        render(await dataFromSharedRequest());
+        const items = await dataFromSharedRequest();
+        if (items === null) {
+          controls.remove();
+          return;
+        }
+        render(items);
       } catch (_) {
         controls.remove();
         // Existing static/dynamic fallback remains visible if the shared request fails.
