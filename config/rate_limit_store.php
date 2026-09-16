@@ -28,32 +28,12 @@ function brvtal_rate_limit_store_open_lock(string $file)
 }
 
 /**
- * @return array{attempts:array<int,int>,blocked_until:int}|null
+ * Replace a rate-limit state file without exposing a truncated or partially
+ * written payload. Callers that perform read-modify-write operations must hold
+ * the stable sibling lock returned by brvtal_rate_limit_store_open_lock().
  */
-function brvtal_rate_limit_store_read(string $file): ?array
+function brvtal_rate_limit_store_atomic_replace(string $file, string $encoded): bool
 {
-    if (!is_file($file)) return ['attempts' => [], 'blocked_until' => 0];
-    $raw = @file_get_contents($file);
-    if ($raw === false) return null;
-    if (trim($raw) === '') return ['attempts' => [], 'blocked_until' => 0];
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded)) return null;
-    return [
-        'attempts' => array_values(array_filter(
-            (array)($decoded['attempts'] ?? []),
-            static fn($timestamp): bool => is_int($timestamp)
-        )),
-        'blocked_until' => (int)($decoded['blocked_until'] ?? 0),
-    ];
-}
-
-function brvtal_rate_limit_store_write(string $file, array $state): bool
-{
-    $encoded = json_encode([
-        'attempts' => array_values((array)($state['attempts'] ?? [])),
-        'blocked_until' => (int)($state['blocked_until'] ?? 0),
-    ], JSON_UNESCAPED_SLASHES);
-    if (!is_string($encoded)) return false;
     if (!brvtal_rate_limit_store_ensure_directory($file)) return false;
 
     try {
@@ -95,4 +75,34 @@ function brvtal_rate_limit_store_write(string $file, array $state): bool
         return false;
     }
     return true;
+}
+
+/**
+ * @return array{attempts:array<int,int>,blocked_until:int}|null
+ */
+function brvtal_rate_limit_store_read(string $file): ?array
+{
+    if (!is_file($file)) return ['attempts' => [], 'blocked_until' => 0];
+    $raw = @file_get_contents($file);
+    if ($raw === false) return null;
+    if (trim($raw) === '') return ['attempts' => [], 'blocked_until' => 0];
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) return null;
+    return [
+        'attempts' => array_values(array_filter(
+            (array)($decoded['attempts'] ?? []),
+            static fn($timestamp): bool => is_int($timestamp)
+        )),
+        'blocked_until' => (int)($decoded['blocked_until'] ?? 0),
+    ];
+}
+
+function brvtal_rate_limit_store_write(string $file, array $state): bool
+{
+    $encoded = json_encode([
+        'attempts' => array_values((array)($state['attempts'] ?? [])),
+        'blocked_until' => (int)($state['blocked_until'] ?? 0),
+    ], JSON_UNESCAPED_SLASHES);
+    if (!is_string($encoded)) return false;
+    return brvtal_rate_limit_store_atomic_replace($file, $encoded);
 }
