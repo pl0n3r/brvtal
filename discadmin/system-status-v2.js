@@ -115,6 +115,11 @@
     return issues.map(issue => `<div class="ssv2-issue ${esc(issue.severity || 'warning')}"><i></i><div><strong>${esc(issue.title)}</strong><span>${esc(issue.detail)}</span></div></div>`).join('');
   }
 
+  function repositoryDiagnosticList(diagnostics=[]) {
+    if (!diagnostics.length) return '';
+    return `<div class="ssv2-repository-diagnostics">${diagnostics.map(issue => `<div class="ssv2-issue ${esc(issue.severity || 'info')}"><i></i><div><strong>${esc(issue.title)}</strong><span>${esc(issue.detail)}</span></div></div>`).join('')}</div>`;
+  }
+
   function githubBacklog(github={}) {
     const state = String(github.backlog_state || 'unavailable');
     const known = github.open_issues !== null && github.open_issues !== undefined && state !== 'unavailable';
@@ -199,6 +204,7 @@
     const storageUsed = clamp(storage.used_percent || 0);
     const sourceIssues = supplementalIssues(health, activity);
     const platformIssues = [...(data.issues || []), ...sourceIssues];
+    const repositoryDiagnostics = Array.isArray(data.repository_diagnostics) ? data.repository_diagnostics : [];
     const githubKnown = github.open_issues !== null && github.open_issues !== undefined && github.backlog_state !== 'unavailable';
     const githubSummary = githubKnown ? `${number(github.open_issues)} GITHUB` : 'GITHUB —';
     const statusText = sourceIssues.length
@@ -240,7 +246,7 @@
         <section class="ssv2-panel ssv2-attention"><div class="ssv2-panel-head"><span>ATTENTION REQUIRED</span><b>${number(platformIssues.length)} PLATFORM · ${githubSummary}</b></div>
           <div class="ssv2-attention-groups">
             <div class="ssv2-attention-group"><div class="ssv2-attention-label"><span>PLATFORM SIGNALS</span><b>${number(platformIssues.length)}</b></div><div class="ssv2-issues">${platformIssueList(platformIssues)}</div></div>
-            <div class="ssv2-attention-group ssv2-github-backlog"><div class="ssv2-attention-label"><span>GITHUB BACKLOG</span><b>${githubKnown ? number(github.open_issues) : '—'}</b></div>${githubBacklog(github)}</div>
+            <div class="ssv2-attention-group ssv2-github-backlog"><div class="ssv2-attention-label"><span>GITHUB BACKLOG</span><b>${githubKnown ? number(github.open_issues) : '—'}</b></div>${repositoryDiagnosticList(repositoryDiagnostics)}${githubBacklog(github)}</div>
           </div>
         </section>
       </div>
