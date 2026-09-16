@@ -13,6 +13,17 @@ function brvtal_hero_slider_json(array $data, int $status = 200): never
     exit;
 }
 
+function brvtal_hero_slider_error(string $error, int $status = 503): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
+    if ($status === 503) header('Retry-After: 60');
+    echo json_encode(['ok' => false, 'error' => $error], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function brvtal_hero_slider_clean_url(mixed $value): string
 {
     $value = trim((string)$value);
@@ -112,5 +123,11 @@ try {
     $value = $row && (int)$row['is_json'] === 1 ? json_decode((string)$row['setting_value'], true) : null;
     brvtal_hero_slider_json(brvtal_hero_slider_payload($value));
 } catch (Throwable $error) {
-    brvtal_hero_slider_json(['enabled' => false, 'autoplay' => false, 'interval' => 7000, 'slides' => []]);
+    if (function_exists('brvtal_log')) {
+        brvtal_log('PUBLIC_HERO_SLIDER_ERROR', 'Hero Slider public endpoint failed', [
+            'class' => get_class($error),
+            'message' => $error->getMessage(),
+        ]);
+    }
+    brvtal_hero_slider_error('HERO_SLIDER_UNAVAILABLE', 503);
 }
