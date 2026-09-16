@@ -51,6 +51,15 @@ function brvtal_dashboard_status_counts(PDO $pdo, string $table, array $publicSt
     return ['available'=>true,'total'=>$total,'public'=>$public,'draft'=>$draft,'archived'=>$archived];
 }
 
+function brvtal_dashboard_page_status_counts(PDO $pdo): array
+{
+    $stats = brvtal_dashboard_status_counts($pdo, 'pages');
+    if ($stats['available']) {
+        $stats['public'] = brvtal_dashboard_count($pdo, 'pages', "status='published' AND locale='en'");
+    }
+    return $stats;
+}
+
 try {
     if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
         header('Allow: GET');
@@ -66,7 +75,7 @@ try {
         'artists' => brvtal_dashboard_status_counts($pdo, 'artists'),
         'sets' => brvtal_dashboard_status_counts($pdo, 'sets_media'),
         'releases' => brvtal_dashboard_status_counts($pdo, 'releases'),
-        'pages' => brvtal_dashboard_status_counts($pdo, 'pages'),
+        'pages' => brvtal_dashboard_page_status_counts($pdo),
         'blog' => brvtal_dashboard_status_counts($pdo, 'blog_posts'),
     ];
 
