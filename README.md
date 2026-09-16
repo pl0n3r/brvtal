@@ -17,11 +17,12 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Los posts editoriales solo aparecen si están `published` y relacionados explícitamente con el Artist.
 - Memories y géneros **no se infieren** porque todavía no existe metadata/relación estructurada que los respalde.
 - La capa visual conserva negro/rojo, grano/scanlines y usa verde ácido como señal controlada para miembros activos; mobile elimina el preview flotante, preserva targets táctiles y evita overflow.
+- `AGENTS.md` registra el Roster como estado durable y actualiza el orden del runtime público a `app → roster → archive → media`.
 - No se añadió tabla, migration ni API paralela. `api/public.php` sigue siendo la fuente pública canónica.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `8 archivos` · **+464** líneas · **−3** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `9 archivos` · **+469** líneas · **−5** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### PUBLIC ROSTER / DELIVERY
@@ -41,6 +42,10 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - `tests/e2e/public-roster-phase-c.spec.mjs` — 🟢 NEW · **+62 / −0** · grupos del Roster, enlaces canónicos, legibilidad mobile, targets táctiles y no overflow.
 - `tests/e2e/public-mobile-performance.spec.mjs` — 🟡 MOD · **+3 / −1** · reconoce el Roster como módulo core versionado y conserva la exigencia de orden/integridad del runtime adaptativo.
 
+### CONTEXTO DURABLE
+
+- `AGENTS.md` — 🟡 MOD · **+5 / −2** · registra el Roster conectado, sus reglas semánticas y el nuevo orden `app → roster → archive → media`; deja Sets/listening discovery como siguiente prioridad de #398.
+
 ### SNAPSHOT
 
 - `README.md` — 🟡 MOD · **AUTO** · este mismo snapshot; su conteo se excluye para evitar referencia circular.
@@ -53,12 +58,14 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - #179 y #180 ya están cerrados y el lifecycle/history de membership está **VALIDATED IN CODE** en la base.
 - El nuevo Roster no modifica schema ni `api/public.php`; consume los campos públicos de Artists que ya existen.
 - Run **#629** dejó PHP, database y real-stack verdes; Chromium detectó que el harness de performance no conocía el nuevo módulo core y por eso simulaba cuatro fallos de carga. Se actualizó el contrato para exigir `public-roster.js` versionado en el orden correcto, sin relajar runtime integrity ni añadir requests CMS.
-- Pendiente: BRVTAL CI + CodeRabbit verdes sobre el head corregido antes del squash merge.
+- Run **#631** quedó completamente verde sobre el head corregido: `fast`, Chromium, database, real-stack y `validate` pasaron; WebKit/recovery fueron correctamente omitidos por scope.
+- La revisión de CodeRabbit se volvió a solicitar después del fix y debe cerrarse sobre el head final que incluye también el contexto durable de `AGENTS.md`.
+- Pendiente: CI + CodeRabbit verdes sobre ese head final antes del squash merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Validar #408 mediante BRVTAL CI + CodeRabbit sobre el head corregido.
+1. Validar el head final de #408 con BRVTAL CI + CodeRabbit.
 2. Squash merge solo con `validate` verde y revisión limpia.
 3. Verificar el CI del SHA exacto resultante en `main`.
 4. Continuar #398 Phase C con **Sets / listening discovery**, reutilizando relaciones estructuradas reales.
