@@ -10,11 +10,26 @@ require_once __DIR__ . '/config/public_page.php';
 require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
+require_once __DIR__ . '/config/public_contact_page.php';
 
+$pageRoute = trim((string)($_GET['page'] ?? ''));
 $type = trim((string)($_GET['type'] ?? ''));
 $slug = trim((string)($_GET['slug'] ?? ''));
 $entity = null;
 $baseUrl = brvtal_public_base_url($config);
+
+if ($pageRoute === 'contact') {
+    $seo = brvtal_public_contact_seo($baseUrl);
+    $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
+    $contactHtml = brvtal_public_contact_page($seo, $analytics);
+    $contactHtml = brvtal_public_optimize_font_stylesheet($contactHtml);
+    $contactHtml = brvtal_public_version_assets($contactHtml, brvtal_deployment_short_sha());
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    echo $contactHtml;
+    exit;
+}
+
 if ($type !== '' || $slug !== '') {
     $entity = brvtal_public_seo_entity(db(), $type, $slug);
     if (!$entity) {
@@ -66,6 +81,7 @@ if ($entity) {
     echo $entityHtml;
     exit;
 }
+
 $html = (string)file_get_contents(__DIR__ . '/index.html');
 try {
     $nextExperience = brvtal_public_next_experience(db());
@@ -79,6 +95,9 @@ try {
     }
 }
 $html = brvtal_public_render_next_experience($html, $nextExperience);
+$html = str_replace('<a href="#contact"><span>07</span>CONTACT</a>', '<a href="/contact"><span>07</span>CONTACT</a>', $html);
+$html = str_replace('<footer class="footer scene" id="contact" data-scene="CORE">', '<footer class="footer scene" id="site-footer" data-scene="CORE">', $html);
+$html = str_replace('href="mailto:contact@brvtal.com.co" data-cursor="CONTACT"', 'href="/contact" data-cursor="CONTACT"', $html);
 $html = brvtal_public_preload_home_lcp($html);
 $html = brvtal_public_keep_home_lcp_visible($html);
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
