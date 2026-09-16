@@ -19,6 +19,7 @@ const overview = {
   deployment:{commit:'29ad6620d1b03b331debd8201e3306bc6bcbf29a',short_commit:'29ad662',source:'git_checkout',environment:'PRODUCTION'},
   repository:{source_files:1,source_lines:1,by_language:{PHP:{files:1,lines:1}},github:{ok:true,commits:1,merged_prs:1,open_issues:0,recent_issues:[],backlog_state:'fresh',cache:'fresh'}},
   issues:[],
+  repository_diagnostics:[],
 };
 
 const healthySource = {ok:true,data:{score:100,total:0,ready:0,needs_attention:0,missing_visuals:0,seo_gaps:0,items:[]}};
@@ -75,7 +76,8 @@ test('System Status v2 exposes Content Health and Activity failures instead of f
 test('GitHub backlog outage is unavailable rather than a fake zero and does not lower platform health score', async ({ page }) => {
   const unavailable = structuredClone(overview);
   unavailable.repository.github = {ok:false,commits:null,merged_prs:null,open_issues:null,recent_issues:[],backlog_state:'unavailable',cache:'unavailable'};
-  unavailable.issues = [{severity:'info',title:'GITHUB METRICS',detail:'GitHub metrics are temporarily unavailable; platform health is unaffected.'}];
+  unavailable.issues = [];
+  unavailable.repository_diagnostics = [{severity:'info',title:'GITHUB METRICS',detail:'GitHub metrics are temporarily unavailable; platform health is unaffected.'}];
 
   await mountStatus(page, unavailable);
   await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify(healthySource)}));
@@ -87,8 +89,11 @@ test('GitHub backlog outage is unavailable rather than a fake zero and does not 
   const repo = page.locator('.ssv2-panel', {hasText:'REPOSITORY'});
   await expect(repo.locator('a', {hasText:'OPEN ISSUES'}).locator('strong')).toHaveText('—');
   const attention = page.locator('.ssv2-attention');
-  await expect(attention).toContainText('1 PLATFORM · GITHUB —');
-  await expect(attention).toContainText('GITHUB METRICS');
+  const platform = attention.locator('.ssv2-attention-group').first();
+  await expect(attention).toContainText('0 PLATFORM · GITHUB —');
+  await expect(platform).toContainText('NO ACTIVE PLATFORM SIGNALS');
+  await expect(platform).not.toContainText('GITHUB METRICS');
+  await expect(attention.locator('.ssv2-repository-diagnostics')).toContainText('GITHUB METRICS');
   await expect(attention).toContainText('GITHUB BACKLOG UNAVAILABLE');
   await expect(attention).not.toContainText('NO OPEN GITHUB ISSUES');
   await expect(attention).not.toContainText('0 GITHUB');
@@ -108,7 +113,8 @@ test('stale GitHub backlog stays visible as cached data without becoming an oper
     backlog_state:'stale',
     cache:'stale',
   };
-  stale.issues = [{severity:'info',title:'GITHUB CACHE',detail:'Showing the most recent cached GitHub metrics.'}];
+  stale.issues = [];
+  stale.repository_diagnostics = [{severity:'info',title:'GITHUB CACHE',detail:'Showing the most recent cached GitHub metrics.'}];
 
   await mountStatus(page, stale);
   await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify(healthySource)}));
@@ -118,7 +124,11 @@ test('stale GitHub backlog stays visible as cached data without becoming an oper
   await expect(page.locator('.ssv2-health-summary')).toContainText('100%');
   await expect(page.locator('.ssv2-health-summary')).toContainText('HEALTHY');
   const attention = page.locator('.ssv2-attention');
-  await expect(attention).toContainText('1 PLATFORM · 2 GITHUB');
+  const platform = attention.locator('.ssv2-attention-group').first();
+  await expect(attention).toContainText('0 PLATFORM · 2 GITHUB');
+  await expect(platform).toContainText('NO ACTIVE PLATFORM SIGNALS');
+  await expect(platform).not.toContainText('GITHUB CACHE');
+  await expect(attention.locator('.ssv2-repository-diagnostics')).toContainText('GITHUB CACHE');
   await expect(attention).toContainText('CACHED GITHUB DATA');
   await expect(attention).toContainText('GITHUB #409 · BACKLOG');
   await expect(attention).toContainText('VIEW ALL 2');
