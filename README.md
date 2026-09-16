@@ -6,32 +6,31 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Hero Slider ofrece una interacción equivalente de teclado para reordenar slides: `Alt+↑` y `Alt+↓` sobre la fila enfocada, con `aria-keyshortcuts` visible para tecnologías asistivas.
-- DISCADMIN incorpora una frontera común de autenticación: cualquier `401` same-origin de APIs administrativas invalida la sesión local, limpia CSRF y devuelve el shell al login, cubriendo Media, Releases, Blog y módulos dinámicos equivalentes.
-- System Status deja de presentar capacidad del filesystem del host como si fuera la cuota de BRVTAL cuando fallan las métricas administradas; muestra `UNAVAILABLE` y limita reintentos automáticos.
-- Backups deja de recortar silenciosamente la colección a los ocho elementos más recientes y vuelve accesibles todos los backups retenidos por el backend.
-- Se añadieron regresiones PHP y Playwright para los cuatro Quick Wins administrativos.
+- Content Core valida y normaliza fechas de Events, Ticket Types y lifecycle del colectivo antes de escribir en MariaDB; input malformado o fechas imposibles devuelven HTTP 422 con el campo afectado.
+- Ticket Types rechaza ventanas de disponibilidad invertidas cuando `available_until` precede a `available_from`, incluyendo PUT parciales combinados con el estado existente.
+- Pages exige identidad editorial válida en POST/PUT: título no vacío y slug no vacío; en creación el slug puede generarse de forma segura desde un título válido.
+- El editor de Pages marca Title y Slug como campos obligatorios y conserva el locale público inglés por defecto.
+- Se añadieron contratos PHP y una regresión real-stack autenticada contra PHP/MariaDB para probar fechas, identidad y ventanas temporales.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `discadmin/admin-auth-boundary.js` — política central de expiración de sesión para requests administrativos directos.
-- `discadmin/backups.js` — renderiza la colección completa de backups retenidos.
-- `discadmin/hero-slider-accessibility.js` — añade reorder de slides por teclado sin reestructurar el editor completo.
-- `discadmin/index.php` — carga las nuevas capas de reliability versionadas dentro del shell canónico.
-- `discadmin/system-status-storage.js` — muestra estado administrado degradado y aplica throttle a reintentos fallidos.
-- `tests/admin-reliability-quick-wins-contract.php` — protege los cuatro contratos del batch.
-- `tests/e2e/admin-reliability-quick-wins.spec.mjs` — valida expiración de sesión, reorder por teclado, storage degradado y colección completa de Backups.
+- `api/content-validation.php` — contrato compartido para fechas, ventanas de tickets e identidad de Pages.
+- `api/index.php` — aplica las validaciones compartidas antes de INSERT/UPDATE y sobre el estado final de PUT parciales.
+- `discadmin/pages-publication-contract.js` — expone Title/Slug como obligatorios en el editor de Pages.
+- `tests/content-validation-contract.php` — cubre normalización temporal, fechas imposibles, ventanas y Page identity.
+- `tests/e2e/content-validation-real-stack.spec.mjs` — prueba respuestas 422 y persistencia válida contra el stack real de CI.
 
 ## Validación
 
-- Base exacta: `main` `a40ee640b12459f231131a9178a630d8742c2520`, con `BRVTAL CI / validate` verde.
-- No había PRs abiertos al crear `fix/admin-reliability-quick-wins`.
-- Issues cubiertos: `#177`, `#207`, `#215`, `#265`.
-- No hay migración de base de datos, cambios de schema, restore, delete ni mutación de datos de producción.
-- La corrección de sesión se implementa en el shell compartido para evitar tres clientes HTTP con políticas divergentes.
-- La corrección de Hero Slider usa una interacción de teclado equivalente y no reescribe el módulo visual completo.
-- Las regresiones nuevas quedan dentro de las suites automáticas PHP 8.5 + Chromium.
+- Base exacta: `main` `2fa698a8198ef61ff1d6d3fc246dd03ce22cb998`, con `BRVTAL CI / validate` verde.
+- No había PRs abiertos al crear `fix/content-validation-quick-wins`.
+- Issues cubiertos: `#163`, `#225`, `#247`.
+- No hay migración de base de datos, cambios de schema, borrado, restore ni mutación de datos de producción.
+- `datetime-local` válido se normaliza a formato SQL sin perder compatibilidad con los formularios actuales.
+- Campos temporales opcionales vacíos se normalizan a `NULL`; drafts incompletos siguen permitidos.
+- La validación de ventanas de tickets en PUT usa `array_replace($before, $p)` para no perder el extremo ya persistido.
+- Las regresiones quedan dentro de PHP 8.5 y real-stack; el clasificador de CI decidirá los gates adicionales por los archivos modificados.
 - Pendiente en este snapshot: `BRVTAL CI / validate`, revisión advisory de CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y la superficie correspondiente.
 
@@ -46,4 +45,4 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issues abordados: `#177`, `#207`, `#215`, `#265`.
+- Issues abordados: `#163`, `#225`, `#247`.
