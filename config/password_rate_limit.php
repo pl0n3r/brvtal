@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/rate_limit_store.php';
+
 const BRVTAL_PASSWORD_RATE_LIMIT_WINDOW = 900;
 const BRVTAL_PASSWORD_RATE_LIMIT_MAX_FAILURES = 5;
 const BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS = 900;
@@ -36,6 +38,15 @@ function brvtal_password_rate_limit_result(string $file, array $data, int $now):
     ];
 }
 
+function brvtal_password_rate_limit_blocked_fallback(string $file, int $now): array
+{
+    return brvtal_password_rate_limit_result(
+        $file,
+        ['attempts' => [], 'blocked_until' => $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS],
+        $now
+    );
+}
+
 function brvtal_password_rate_limit_state(
     string $email,
     ?string $directory = null,
@@ -44,19 +55,16 @@ function brvtal_password_rate_limit_state(
 ): array {
     $now ??= time();
     $file = brvtal_password_rate_limit_path($email, $directory, $ip);
-    if (!is_file($file)) return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => 0], $now);
-
-    $handle = @fopen($file, 'r');
-    if (!$handle) return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => 0], $now);
+    $lock = brvtal_rate_limit_store_open_lock($file);
+    if (!$lock) return brvtal_password_rate_limit_blocked_fallback($file, $now);
     try {
-        if (!flock($handle, LOCK_SH)) return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => 0], $now);
-        $raw = stream_get_contents($handle) ?: '';
-        $decoded = json_decode($raw, true);
-        $data = brvtal_password_rate_limit_normalize(is_array($decoded) ? $decoded : [], $now);
-        return brvtal_password_rate_limit_result($file, $data, $now);
+        if (!flock($lock, LOCK_SH)) return brvtal_password_rate_limit_blocked_fallback($file, $now);
+        $stored = brvtal_rate_limit_store_read($file);
+        if ($stored === null) return brvtal_password_rate_limit_blocked_fallback($file, $now);
+        return brvtal_password_rate_limit_result($file, brvtal_password_rate_limit_normalize($stored, $now), $now);
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }
 
@@ -77,35 +85,26 @@ function brvtal_password_rate_limit_failure(
 ): array {
     $now ??= time();
     $file = brvtal_password_rate_limit_path($email, $directory, $ip);
-    $directoryPath = dirname($file);
-    if (!is_dir($directoryPath) && !@mkdir($directoryPath, 0750, true) && !is_dir($directoryPath)) {
-        return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS], $now);
-    }
-
-    $handle = @fopen($file, 'c+');
-    if (!$handle) return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS], $now);
+    $lock = brvtal_rate_limit_store_open_lock($file);
+    if (!$lock) return brvtal_password_rate_limit_blocked_fallback($file, $now);
     try {
-        if (!flock($handle, LOCK_EX)) return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS], $now);
-        rewind($handle);
-        $raw = stream_get_contents($handle) ?: '';
-        $decoded = json_decode($raw, true);
-        $data = brvtal_password_rate_limit_normalize(is_array($decoded) ? $decoded : [], $now);
-        if ((int)$data['blocked_until'] <= $now) {
-            $data['attempts'][] = $now;
-            if (count($data['attempts']) > BRVTAL_PASSWORD_RATE_LIMIT_MAX_FAILURES) {
-                $data['blocked_until'] = $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS;
-            }
-            $encoded = json_encode($data, JSON_UNESCAPED_SLASHES);
-            if (!is_string($encoded)) return brvtal_password_rate_limit_result($file, ['attempts' => [], 'blocked_until' => $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS], $now);
-            rewind($handle);
-            ftruncate($handle, 0);
-            fwrite($handle, $encoded);
-            fflush($handle);
+        if (!flock($lock, LOCK_EX)) return brvtal_password_rate_limit_blocked_fallback($file, $now);
+        $stored = brvtal_rate_limit_store_read($file);
+        if ($stored === null) return brvtal_password_rate_limit_blocked_fallback($file, $now);
+        $data = brvtal_password_rate_limit_normalize($stored, $now);
+        if ((int)$data['blocked_until'] > $now) return brvtal_password_rate_limit_result($file, $data, $now);
+
+        $data['attempts'][] = $now;
+        if (count($data['attempts']) > BRVTAL_PASSWORD_RATE_LIMIT_MAX_FAILURES) {
+            $data['blocked_until'] = $now + BRVTAL_PASSWORD_RATE_LIMIT_BLOCK_SECONDS;
+        }
+        if (!brvtal_rate_limit_store_write($file, $data)) {
+            return brvtal_password_rate_limit_blocked_fallback($file, $now);
         }
         return brvtal_password_rate_limit_result($file, $data, $now);
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }
 
@@ -113,22 +112,15 @@ function brvtal_password_rate_limit_reset(
     string $email,
     ?string $directory = null,
     ?string $ip = null
-): void {
+): bool {
     $file = brvtal_password_rate_limit_path($email, $directory, $ip);
-    if (!is_file($file)) return;
-    $handle = @fopen($file, 'r+');
-    if (!$handle) return;
+    $lock = brvtal_rate_limit_store_open_lock($file);
+    if (!$lock) return false;
     try {
-        if (flock($handle, LOCK_EX)) {
-            $encoded = json_encode(['attempts' => [], 'blocked_until' => 0], JSON_UNESCAPED_SLASHES);
-            if (!is_string($encoded)) return;
-            rewind($handle);
-            ftruncate($handle, 0);
-            fwrite($handle, $encoded);
-            fflush($handle);
-        }
+        if (!flock($lock, LOCK_EX)) return false;
+        return brvtal_rate_limit_store_write($file, ['attempts' => [], 'blocked_until' => 0]);
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }
