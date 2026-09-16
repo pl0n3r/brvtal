@@ -18,26 +18,61 @@ $logFile = $logDir . '/brvtal.log';
 
 $action = (string)($_GET['action'] ?? '');
 
+function brvtal_log_json_requested(): bool
+{
+    return str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
+}
+
 if ($action === 'clear') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-        http_response_code(405);
         header('Allow: POST');
+        if (brvtal_log_json_requested()) {
+            json_response(
+                ['ok'=>false, 'error'=>'METHOD_NOT_ALLOWED'],
+                405,
+                ['Cache-Control'=>'no-store, no-cache, must-revalidate, max-age=0']
+            );
+        }
+        http_response_code(405);
         exit('METHOD NOT ALLOWED');
     }
 
-    $csrf = (string)($_POST['csrf'] ?? '');
+    brvtal_admin_require_csrf();
 
-    if (
-        empty($_SESSION['csrf']) ||
-        $csrf === '' ||
-        !hash_equals((string)$_SESSION['csrf'], $csrf)
-    ) {
-        http_response_code(419);
-        exit('CSRF');
+    $cleared = true;
+    if (is_file($logFile)) {
+        $written = @file_put_contents($logFile, '', LOCK_EX);
+        clearstatcache(true, $logFile);
+        $sizeAfter = is_file($logFile) ? @filesize($logFile) : 0;
+        $cleared = $written !== false && $sizeAfter !== false && (int)$sizeAfter === 0;
     }
 
-    if (is_file($logFile)) {
-        @file_put_contents($logFile, '');
+    if (!$cleared) {
+        brvtal_log('LOG_CLEAR_ERROR', 'Debug log could not be cleared.', ['file'=>'storage/logs/brvtal.log']);
+        if (brvtal_log_json_requested()) {
+            json_response(
+                ['ok'=>false, 'error'=>'LOG_CLEAR_FAILED'],
+                500,
+                ['Cache-Control'=>'no-store, no-cache, must-revalidate, max-age=0']
+            );
+        }
+        http_response_code(500);
+        exit('LOG CLEAR FAILED');
+    }
+
+    if (brvtal_log_json_requested()) {
+        json_response(
+            [
+                'ok'=>true,
+                'data'=>[
+                    'file'=>'storage/logs/brvtal.log',
+                    'lines'=>0,
+                    'content'=>'',
+                ],
+            ],
+            200,
+            ['Cache-Control'=>'no-store, no-cache, must-revalidate, max-age=0']
+        );
     }
 
     header('Location: logs.php');
