@@ -98,8 +98,8 @@ ci_scope_expect(str_contains($codeRabbit, 'Treat AGENTS.md as canonical'), 'Code
 
 ci_scope_expect(str_contains($sonar, 'sonar.sources=.'), 'SonarQube Cloud automatic analysis must keep the repository root as source scope');
 ci_scope_expect(str_contains($sonar, 'sonar.tests=tests'), 'SonarQube Cloud must classify tests separately from source code');
-ci_scope_expect(str_contains($sonar, 'sonar.exclusions=') && str_contains($sonar, 'tests/**') && str_contains($sonar, '.private/**'), 'SonarQube Cloud source scope must exclude tests and private runtime material');
-ci_scope_expect(str_contains($sonar, 'sonar.test.inclusions=tests/**'), 'SonarQube Cloud must explicitly include the tests tree as test code');
+ci_scope_expect(str_contains($sonar, 'sonar.exclusions=tests,assets,uploads,.private,discadmin/qrcode.min.js'), 'SonarQube Cloud automatic analysis must exclude test/private/binary surfaces using simple paths');
+ci_scope_expect(!str_contains($sonar, '/**') && !str_contains($sonar, 'sonar.test.inclusions='), 'automatic-analysis properties must not use unsupported wildcard path patterns');
 ci_scope_expect(!str_contains($workflow, 'sonarqube-scan-action') && !str_contains($workflow, 'sonarcloud-github-action'), 'BRVTAL CI must not duplicate SonarQube Cloud automatic analysis');
 
 ci_scope_expect(str_contains($performance, 'INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER'), 'unreachable production performance probes must be labeled inconclusive');
