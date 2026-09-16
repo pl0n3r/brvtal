@@ -29,7 +29,8 @@
     'js/public-discovery-url-state.js',
     'js/public-canonical-navigation.js',
     'js/public-contact.js',
-    'js/public-theme-runtime.js'
+    'js/public-theme-runtime.js',
+    'js/public-theme-branding-sync.js'
   ];
 
   function loadScript(src) {
@@ -47,13 +48,32 @@
     for (const source of sources) await loadScript(source);
   }
 
+  async function loadSequenceResilient(sources, phase) {
+    const failures = [];
+    for (const source of sources) {
+      try {
+        await loadScript(source);
+      } catch (error) {
+        failures.push({ phase, source, error });
+        console.warn(`[BRVTAL] ${phase} module unavailable; continuing degraded runtime.`, source, error);
+      }
+    }
+    return failures;
+  }
+
+  function revealStaticFallback(reason = 'runtime-degraded') {
+    document.getElementById('loader')?.remove();
+    document.documentElement.dataset.runtimeFallback = reason;
+  }
+
   async function boot() {
     let mode = 'enhanced';
+    const failures = [];
 
     if (coarsePointer) {
       mode = 'touch-lite';
       document.documentElement.dataset.motionRuntime = mode;
-      await loadScript(localUrl('js/mobile-performance.js'));
+      failures.push(...await loadSequenceResilient([localUrl('js/mobile-performance.js')], 'mobile-performance'));
     } else if (reducedMotion) {
       mode = 'reduced-lite';
       document.documentElement.dataset.motionRuntime = mode;
@@ -71,14 +91,29 @@
       document.documentElement.dataset.motionRuntime = mode;
     }
 
-    await loadSequence(coreScripts.map(localUrl));
-    await loadSequence(enhancementScripts.map(localUrl));
-    return { mode, coarsePointer, reducedMotion };
+    failures.push(...await loadSequenceResilient(coreScripts.map(localUrl), 'core'));
+    failures.push(...await loadSequenceResilient(enhancementScripts.map(localUrl), 'enhancement'));
+
+    if (failures.length) {
+      document.documentElement.dataset.runtimeIntegrity = 'degraded';
+      revealStaticFallback('module-load-failure');
+    } else {
+      document.documentElement.dataset.runtimeIntegrity = 'ok';
+    }
+
+    return {
+      mode,
+      coarsePointer,
+      reducedMotion,
+      failures: failures.map(item => ({ phase:item.phase, source:item.source, message:item.error?.message || 'SCRIPT_LOAD_FAILED' }))
+    };
   }
 
   window.BRVTALRuntimeReady = boot().catch(error => {
     document.documentElement.dataset.motionRuntime = 'error';
-    console.error('[BRVTAL] Public runtime failed to initialize.', error);
-    throw error;
+    document.documentElement.dataset.runtimeIntegrity = 'error';
+    revealStaticFallback('boot-error');
+    console.error('[BRVTAL] Public runtime failed to initialize; static fallback revealed.', error);
+    return { mode:'error', coarsePointer, reducedMotion, failures:[{ phase:'boot', source:'runtime', message:error?.message || 'BOOT_FAILED' }] };
   });
 })();
