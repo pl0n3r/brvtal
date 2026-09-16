@@ -16,10 +16,11 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Repository añade el contador **OPEN ISSUES** y el backlog muestra links canónicos a cada Issue más `VIEW ALL` hacia GitHub.
 - Los títulos/labels de GitHub se escapan al renderizar y las URLs individuales se reconstruyen desde el número de Issue del repositorio conocido.
 - La UI mantiene tratamiento brutalista, estados fresh/stale/unavailable, focus visible, targets táctiles y layout sin overflow en mobile.
+- `AGENTS.md` conserva la decisión durable de no confundir backlog de desarrollo con salud operativa.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `6 archivos` · **+230** líneas · **−44** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `7 archivos` · **+232** líneas · **−45** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### SYSTEM STATUS / GITHUB
@@ -33,6 +34,10 @@ Leyenda: 🟡 modificado · `+ / −` líneas frente al `main` base de este depl
 - `tests/system-status-contract.php` — 🟡 MOD · **+15 / −1** · exige query `is:issue is:open`, payload acotado, caché compatible, ausencia de token y separación semántica entre plataforma/backlog.
 - `tests/e2e/discadmin-system-status-v2.spec.mjs` — 🟡 MOD · **+63 / −11** · valida contador/listado GitHub, links, health independiente y mobile/touch/overflow usando el CSS real del módulo.
 - `tests/e2e/discadmin-system-status-degraded.spec.mjs` — 🟡 MOD · **+37 / −10** · valida fallos de Content Health/Activity y que un GitHub backlog unavailable nunca se convierta en `0` ni reduzca el health score.
+
+### CONTEXTO DURABLE
+
+- `AGENTS.md` — 🟡 MOD · **+2 / −1** · registra que System Status muestra backlog GitHub de forma read-only, sin incorporarlo al health score y sin falsear cero cuando la fuente no está disponible.
 
 ### SNAPSHOT
 
