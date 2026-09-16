@@ -28,6 +28,12 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     return id;
   };
 
+  const getOne = async (resource, id) => {
+    const response = await page.request.get(`${baseUrl}/api/index.php/${resource}/${id}`);
+    expect(response.ok(), `GET ${resource}/${id} failed with HTTP ${response.status()}`).toBeTruthy();
+    return (await response.json()).data;
+  };
+
   const cleanupResource = async (resource, id) => {
     try {
       const response = await page.request.delete(`${baseUrl}/api/index.php/${resource}/${id}`, {headers});
@@ -46,6 +52,13 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     });
     expect(badEvent.status()).toBe(422);
     expect(await badEvent.json()).toMatchObject({error:'INVALID_DATE', field:'event_date'});
+
+    const nonScalarIdentity = await page.request.post(`${baseUrl}/api/index.php/events`, {
+      headers,
+      data: {title:['CI ARRAY TITLE'], slug:`ci-array-title-${runKey}`, status:'draft'},
+    });
+    expect(nonScalarIdentity.status()).toBe(422);
+    expect(await nonScalarIdentity.json()).toMatchObject({error:'INVALID_FIELD_TYPE', field:'title'});
 
     const nonScalarEvent = await page.request.post(`${baseUrl}/api/index.php/events`, {
       headers,
@@ -79,9 +92,7 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     const pageId = track('pages', autoSlugPayload);
     expect(pageId).toBeGreaterThan(0);
 
-    const pages = await page.request.get(`${baseUrl}/api/index.php/pages`);
-    const pageRows = (await pages.json()).data;
-    const persistedPage = pageRows.find(row => Number(row.id) === pageId);
+    const persistedPage = await getOne('pages', pageId);
     expect(persistedPage?.slug).toBe(expectedPageSlug);
 
     const clearPageTitle = await page.request.put(`${baseUrl}/api/index.php/pages/${pageId}`, {
@@ -90,10 +101,12 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     });
     expect(clearPageTitle.status()).toBe(422);
     expect(await clearPageTitle.json()).toMatchObject({error:'TITLE_REQUIRED', field:'title'});
+    expect((await getOne('pages', pageId)).title).toBe(pageTitle);
 
+    const eventTitle = `CI TICKET WINDOW EVENT ${runKey}`;
     const eventCreate = await page.request.post(`${baseUrl}/api/index.php/events`, {
       headers,
-      data: {title:`CI TICKET WINDOW EVENT ${runKey}`, slug:`ci-ticket-window-event-${runKey}`, status:'draft', event_date:'2026-10-10T20:00'},
+      data: {title:eventTitle, slug:`ci-ticket-window-event-${runKey}`, status:'draft', event_date:'2026-10-10T20:00'},
     });
     expect(eventCreate.status()).toBe(201);
     const eventPayload = await eventCreate.json();
@@ -106,10 +119,12 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     });
     expect(clearEventTitle.status()).toBe(422);
     expect(await clearEventTitle.json()).toMatchObject({error:'TITLE_REQUIRED', field:'title'});
+    expect((await getOne('events', eventId)).title).toBe(eventTitle);
 
+    const artistName = `CI IDENTITY ARTIST ${runKey}`;
     const artistCreate = await page.request.post(`${baseUrl}/api/index.php/artists`, {
       headers,
-      data: {name:`CI IDENTITY ARTIST ${runKey}`, slug:`ci-identity-artist-${runKey}`, status:'draft'},
+      data: {name:artistName, slug:`ci-identity-artist-${runKey}`, status:'draft'},
     });
     expect(artistCreate.status()).toBe(201);
     const artistPayload = await artistCreate.json();
@@ -122,11 +137,13 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     });
     expect(clearArtistName.status()).toBe(422);
     expect(await clearArtistName.json()).toMatchObject({error:'NAME_REQUIRED', field:'name'});
+    expect((await getOne('artists', artistId)).name).toBe(artistName);
 
+    const setTitle = `CI IDENTITY SET ${runKey}`;
     const setCreate = await page.request.post(`${baseUrl}/api/index.php/sets`, {
       headers,
       data: {
-        title:`CI IDENTITY SET ${runKey}`,
+        title:setTitle,
         slug:`ci-identity-set-${runKey}`,
         artist_id:artistId,
         event_id:eventId,
@@ -145,6 +162,7 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     });
     expect(clearSetTitle.status()).toBe(422);
     expect(await clearSetTitle.json()).toMatchObject({error:'TITLE_REQUIRED', field:'title'});
+    expect((await getOne('sets', setId)).title).toBe(setTitle);
 
     const invertedWindow = await page.request.post(`${baseUrl}/api/index.php/ticket_types`, {
       headers,
@@ -171,6 +189,8 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     expect(invalidTicketDate.status()).toBe(422);
     expect(await invalidTicketDate.json()).toMatchObject({error:'INVALID_DATE', field:'available_from'});
 
+    const originalFrom = '2026-10-10 20:00:00';
+    const originalUntil = '2026-10-10 23:00:00';
     const validTicket = await page.request.post(`${baseUrl}/api/index.php/ticket_types`, {
       headers,
       data: {
@@ -192,6 +212,9 @@ test('Content Core rejects invalid identity and temporal values before MariaDB w
     });
     expect(invalidPartialWindow.status()).toBe(422);
     expect(await invalidPartialWindow.json()).toMatchObject({error:'INVALID_AVAILABILITY_WINDOW', field:'available_until'});
+    const persistedTicket = await getOne('ticket_types', ticketId);
+    expect(persistedTicket.available_from).toBe(originalFrom);
+    expect(persistedTicket.available_until).toBe(originalUntil);
   } finally {
     for (const resource of ['ticket_types', 'sets', 'artists', 'events', 'pages']) {
       for (const id of [...created[resource]].reverse()) {
