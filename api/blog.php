@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/blog-relations.php';
 
 brvtal_admin_require();
 
@@ -208,6 +209,7 @@ try {
     $before = null;
     $pdo->beginTransaction();
     try {
+        brvtal_blog_lock_relation_targets($pdo, $data['relations']);
         if ($method === 'POST') {
             $st = $pdo->prepare("INSERT INTO blog_posts(title,slug,excerpt,body,cover_image,seo_title,seo_description,status,featured,published_at,sort_order) VALUES(?,?,?,?,?,?,?,?,?,?,?)");
             $st->execute([
