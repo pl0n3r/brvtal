@@ -146,6 +146,21 @@ function brvtal_artist_collective_latest_history(PDO $pdo, int $artistId, bool $
     return $row ?: null;
 }
 
+/** Fetch and lock the most recently ended membership period. */
+function brvtal_artist_collective_latest_closed_history(PDO $pdo, int $artistId): ?array
+{
+    $st = $pdo->prepare(
+        'SELECT id,artist_id,status,started_at,ended_at,created_by
+         FROM artist_collective_history
+         WHERE artist_id=? AND ended_at IS NOT NULL
+         ORDER BY ended_at DESC,id DESC
+         LIMIT 1 FOR UPDATE'
+    );
+    $st->execute([$artistId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
 /** Insert one traceable collective-membership period. */
 function brvtal_artist_collective_insert_history(
     PDO $pdo,
@@ -222,6 +237,12 @@ function brvtal_artist_collective_sync_history(
                 $st = $pdo->prepare("UPDATE artist_collective_history SET status='active',started_at=?,ended_at=NULL WHERE id=?");
                 $st->execute([$joinedAt, (int)$open['id']]);
                 return;
+            }
+        } else {
+            $latestClosed = brvtal_artist_collective_latest_closed_history($pdo, $artistId);
+            $latestEndedAt = trim((string)($latestClosed['ended_at'] ?? ''));
+            if ($latestEndedAt !== '' && $joinedAt < $latestEndedAt) {
+                throw new DomainException('COLLECTIVE_HISTORY_OVERLAP');
             }
         }
         brvtal_artist_collective_insert_history($pdo, $artistId, 'active', $joinedAt, null, $actorId);
