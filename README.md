@@ -21,7 +21,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `7 archivos` · **+461** líneas · **−2** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `8 archivos` · **+464** líneas · **−3** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### PUBLIC ROSTER / DELIVERY
@@ -39,6 +39,7 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 - `tests/public-roster-contract.php` — 🟢 NEW · **+74 / −0** · clasificación, membership facts, lifecycle Event, privacidad editorial, navegación canónica y ausencia de request/API duplicada.
 - `tests/e2e/public-roster-phase-c.spec.mjs` — 🟢 NEW · **+62 / −0** · grupos del Roster, enlaces canónicos, legibilidad mobile, targets táctiles y no overflow.
+- `tests/e2e/public-mobile-performance.spec.mjs` — 🟡 MOD · **+3 / −1** · reconoce el Roster como módulo core versionado y conserva la exigencia de orden/integridad del runtime adaptativo.
 
 ### SNAPSHOT
 
@@ -48,15 +49,16 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 - Base exacta: `main` `1abbe4bf11b9f3b44fcf49732e8113e8a8bc7ab8`.
 - Esa base quedó con `BRVTAL CI / validate` verde en el run **#628**.
-- Issue: **#407** · parent: **#398 Phase C**.
+- PR: **#408** · issue: **#407** · parent: **#398 Phase C**.
 - #179 y #180 ya están cerrados y el lifecycle/history de membership está **VALIDATED IN CODE** en la base.
 - El nuevo Roster no modifica schema ni `api/public.php`; consume los campos públicos de Artists que ya existen.
-- Pendiente: abrir PR, ejecutar BRVTAL CI + CodeRabbit, corregir findings válidos, squash merge y verificar el CI del SHA exacto de `main`.
+- Run **#629** dejó PHP, database y real-stack verdes; Chromium detectó que el harness de performance no conocía el nuevo módulo core y por eso simulaba cuatro fallos de carga. Se actualizó el contrato para exigir `public-roster.js` versionado en el orden correcto, sin relajar runtime integrity ni añadir requests CMS.
+- Pendiente: BRVTAL CI + CodeRabbit verdes sobre el head corregido antes del squash merge.
 - CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Validar #407 mediante PR + BRVTAL CI + CodeRabbit.
+1. Validar #408 mediante BRVTAL CI + CodeRabbit sobre el head corregido.
 2. Squash merge solo con `validate` verde y revisión limpia.
 3. Verificar el CI del SHA exacto resultante en `main`.
 4. Continuar #398 Phase C con **Sets / listening discovery**, reutilizando relaciones estructuradas reales.
