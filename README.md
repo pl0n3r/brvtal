@@ -6,44 +6,45 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Se cerró la integridad de relaciones polimórficas de Blog: una relación `event`, `artist`, `set` o `release` solo puede persistirse si el destino existe realmente.
-- `related_id` se valida antes de cualquier cast para rechazar valores malformados como decimales, booleanos o prefijos numéricos; no se permiten coerciones silenciosas hacia otro contenido.
-- La validación ocurre dentro de la misma transacción que crea/actualiza el Blog Post y bloquea los destinos válidos con `FOR UPDATE`, evitando que una eliminación concurrente deje una relación colgante entre validación y commit.
-- Un POST/PUT con destino inexistente devuelve `422 BLOG_RELATION_NOT_FOUND` antes de modificar el post o sus relaciones existentes.
-- Un PUT rechazado conserva tanto los campos anteriores del Blog Post como sus relaciones anteriores; no deja un estado parcial.
-- Se añadieron contrato PHP, regresión MariaDB y smoke autenticado PHP/MariaDB/Chromium para probar destinos válidos/inválidos, IDs malformados, rollback de actualización y limpieza defensiva de fixtures.
+- El formulario completo de Contact deja de vivir dentro del Home: la navegación y el CTA públicos resuelven ahora a la ruta canónica `/contact`.
+- Se añadió una página Contact server-rendered con hero BRVTAL, contexto para bookings/collaborations/events/media, formulario completo y bloque de redes sociales.
+- La página reutiliza sin modificar el backend existente `/api/contact.php`: CAPTCHA firmado, trusted proxies, rate limiting fail-closed, validación, sanitización y transporte de correo conservan su frontera actual.
+- Las redes continúan hidratándose desde `settings.social` del API público; no se duplicaron URLs sociales en el frontend.
+- `/contact` recibe canonical/OG/Twitter/JSON-LD propios, entra al sitemap y tiene rewrite explícito para direct load/refresh en Hostinger/LiteSpeed.
+- El runtime de Contact ya no transforma el footer del Home; solo se activa dentro de la página dedicada.
+- Se añadió cobertura de contrato y Chromium para routing, SEO, seguridad heredada, hidratación social/CAPTCHA, teclado, targets táctiles, legibilidad móvil y ausencia de overflow horizontal.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/blog-relations.php` — frontera canónica para validar IDs, comprobar existencia y bloquear destinos polimórficos de Blog dentro de la transacción.
-- `api/blog.php` — valida el `related_id` crudo antes de normalizar y aplica la integridad de relaciones antes de INSERT/UPDATE y sincronización.
-- `package.json` — incorpora la regresión MariaDB de Blog al gate de integración canónico.
-- `tests/blog-contract.php` — contrato rápido del parser de IDs, helper y wiring transaccional del endpoint.
-- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs` — comprueba por HTTP autenticado que una relación inexistente devuelve 422, no altera el post ni sus relaciones previas y limpia cualquier create inesperado.
-- `tests/e2e/run-content-core-real-stack.sh` — incorpora el smoke real-stack de integridad de relaciones de Blog.
-- `tests/integration/blog-relations.php` — valida contra MariaDB los cuatro tipos de relación, destinos inexistentes y rechazo de IDs malformados sin coerción.
+- `.htaccess` — enruta `/contact` server-side a la entrega pública canónica.
+- `config/public_contact_page.php` — renderer server-side y SEO específico de la página Contact.
+- `css/contact-social.css` — superficie visual BRVTAL dedicada, formulario responsive, focus states y reduced-motion.
+- `index.php` — entrega `/contact` y convierte navegación/CTA de Home hacia la nueva ruta sin incrustar el formulario.
+- `js/public-contact.js` — limita la hidratación a Contact y conserva CAPTCHA, envío, errores/rate-limit y redes desde settings.
+- `sitemap.php` — publica `https://www.brvtal.com.co/contact` en el sitemap.
+- `tests/e2e/public-contact-page.spec.mjs` — regresión Chromium desktop/mobile, teclado, touch targets, CAPTCHA y redes configuradas.
+- `tests/public-contact-contract.php` — mantiene la regresión de seguridad existente y añade contratos de routing, canonical, sitemap y separación Home/Contact.
 
 ## Validación
 
-- Base exacta: `main` `ac614a48e66ebcdeb18d3f624a5243ffe962db71`, con `BRVTAL CI / validate` verde (run #569).
-- Issue cubierto: `#158`.
+- Base exacta: `main` `c67cd9d21f4255db20187c14340bd3611c4a018d`, con `BRVTAL CI / validate` verde (run #578).
+- Issue cubierto: `#387`.
 - No hay migración, cambio de schema, restore, bulk delete ni mutación de datos de producción.
-- Las pruebas MariaDB y real-stack usan únicamente la base `brvtal_test...` y fixtures CI.
-- El smoke real-stack confirma explícitamente rollback/no-mutación tras el 422.
-- Los findings válidos iniciales de CodeRabbit sobre coerción de `related_id`, cleanup del smoke y cobertura de docstrings fueron corregidos en la misma rama.
-- Pendiente en este snapshot: nuevo `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
-- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real y una operación autenticada controlada.
+- `api/contact.php` y `config/public_contact.php` no se modificaron: las protecciones de CAPTCHA, rate limiting, trusted proxy y sanitización permanecen en su frontera existente.
+- La ejecución local dirigida no pudo materializar el checkout porque el runtime auxiliar no tiene resolución de red hacia GitHub; no se declara validación local inexistente.
+- Pendiente en este snapshot: `BRVTAL CI / validate`, revisión CodeRabbit y análisis automático de SonarQube Cloud sobre el head final.
+- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobar el deploy real.
 
 ## Qué sigue
 
-1. Resolver en esta misma rama cualquier finding válido restante de BRVTAL CI, CodeRabbit o SonarQube Cloud.
-2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisar los threads finales de CodeRabbit.
+1. Resolver en esta misma rama cualquier fallo o finding válido de BRVTAL CI, CodeRabbit o SonarQube Cloud.
+2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisión final limpia.
 3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
-4. Revisar/registrar correctamente el requerimiento de RESET/CLEAR LOG sin duplicar backend ni issue y continuar después con `#387` según el estado actual de `main`.
+4. Continuar con `#388` para exponer de forma segura la acción CLEAR/RESET LOG ya existente dentro de System Status, sin duplicar backend.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Estrategia de validación: `docs/TESTING.md`.
-- Issue abordado: `#158`.
+- Issue abordado: `#387`.
