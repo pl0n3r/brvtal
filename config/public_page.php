@@ -60,26 +60,40 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     brvtal_page_query_degraded(false);
     $id = (int)$entity['id'];
     $type = (string)$entity['route_type'];
-    $data = ['entity' => $entity, 'facts' => [], 'links' => [], 'related' => [], 'degraded' => false];
+    $data = ['entity' => $entity, 'facts' => [], 'links' => [], 'related' => [], 'record' => [], 'degraded' => false];
     $eventStatuses = brvtal_public_visible_event_statuses();
     $eventPlaceholders = brvtal_public_sql_placeholders($eventStatuses);
 
     if ($type === 'events') {
-        $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,ticket_url,ticket_instructions FROM events WHERE id=? LIMIT 1", [$id], true);
+        $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,skin,accent,ticket_url,ticket_instructions,published_at,finished_at,cancelled_at FROM events WHERE id=? LIMIT 1", [$id], true);
+        $isHistorical = brvtal_public_event_is_historical($detail);
         $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
         if (!$allowsTicketing) {
             $detail['ticket_url'] = null;
             $detail['ticket_instructions'] = null;
         }
         $data['entity'] += $detail;
+        $recordYear = !empty($detail['event_date']) ? date('Y', strtotime((string)$detail['event_date'])) : '';
+        $recordStatus = strtoupper(str_replace('_', ' ', (string)($detail['status'] ?? '')));
+        $data['record'] = [
+            'state' => $isHistorical ? 'historical' : 'active',
+            'year' => $recordYear,
+            'status' => $recordStatus,
+        ];
         $data['facts'] = array_filter([
             'DATE' => isset($detail['event_date']) ? date('d.m.Y / H:i', strtotime((string)$detail['event_date'])) : '',
             'LOCATION' => implode(' / ', array_filter([$detail['venue'] ?? '', $detail['city'] ?? ''])),
-            'STATUS' => strtoupper(str_replace('_', ' ', (string)($detail['status'] ?? ''))),
+            'STATUS' => $recordStatus,
+            'RECORD' => $isHistorical && $recordYear !== '' ? 'ARCHIVE / ' . $recordYear : '',
         ]);
         $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
         $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
+        $data['related']['TRANSMISSIONS'] = brvtal_page_rows(
+            $pdo,
+            "SELECT bp.title,bp.slug,bp.cover_image AS image,DATE_FORMAT(COALESCE(bp.published_at,bp.updated_at),'%d.%m.%Y') AS meta,'blog' AS route_type FROM blog_post_relations rel JOIN blog_posts bp ON bp.id=rel.post_id AND bp.status='published' WHERE rel.related_type='event' AND rel.related_id=? ORDER BY rel.sort_order,COALESCE(bp.published_at,bp.updated_at) DESC,bp.id DESC",
+            [$id]
+        );
         if ($allowsTicketing) {
             $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
             $data['related']['TICKETS'] = array_values(array_filter(
@@ -174,7 +188,13 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $url = trim((string)$value);
         return preg_match('#^https?://#i', $url) ? $escape($url) : '';
     };
-    $kind = strtoupper(rtrim((string)$entity['route_type'], 'S'));
+    $routeTypeRaw = (string)$entity['route_type'];
+    $isEvent = $routeTypeRaw === 'events';
+    $recordState = $isEvent && (($page['record']['state'] ?? '') === 'historical') ? 'historical' : 'active';
+    $recordStatus = trim((string)($page['record']['status'] ?? $entity['status'] ?? ''));
+    $recordYear = trim((string)($page['record']['year'] ?? ''));
+    $kind = strtoupper(rtrim($routeTypeRaw, 'S'));
+    $kindLabel = $isEvent && $recordState === 'historical' ? 'EVENT RECORD' : $kind;
     $canonicalParts = parse_url((string)$seo['canonical']);
     $base = (($canonicalParts['scheme'] ?? 'https') . '://' . ($canonicalParts['host'] ?? 'www.brvtal.com.co'));
     $image = $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$seo['image'], 'hero'), $base));
@@ -192,6 +212,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $links .= '<a href="' . $escape($connectedUrl) . '">EXPLORE CONNECTIONS ↗</a>';
     }
     $related = '';
+    $historicalHeadings = [
+        'LINEUP' => 'LINEUP / RECORD',
+        'SETS' => 'RECORDED SETS',
+    ];
     foreach ($page['related'] as $heading => $items) {
         if (!$items) continue;
         $cards = '';
@@ -202,7 +226,8 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $content = $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span>';
             $cards .= $href ? '<a class="entity-card" href="' . $href . '">' . $content . '</a>' : '<div class="entity-card">' . $content . '</div>';
         }
-        $related .= '<section class="entity-related"><div class="entity-section-label">' . $escape($heading) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
+        $displayHeading = $isEvent && $recordState === 'historical' ? ($historicalHeadings[$heading] ?? $heading) : $heading;
+        $related .= '<section class="entity-related"><div class="entity-section-label">' . $escape($displayHeading) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
     }
     $body = nl2br($escape(trim((string)($entity['description'] ?? ''))));
     if ($body === '') $body = 'BRVTAL / RAVE TILL GRAVE';
@@ -210,16 +235,37 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $description = $escape($seo['description']);
     $entityTitle = $escape($entity['title']);
     $entityId = $escape(str_pad((string)$entity['id'], 3, '0', STR_PAD_LEFT));
-    $routeTypeRaw = (string)$entity['route_type'];
     $routeType = $escape($routeTypeRaw);
     $backToSection = in_array($routeTypeRaw, ['events', 'artists', 'sets'], true);
     $backHref = $escape($backToSection ? '/#' . $routeTypeRaw : '/');
-    $backLabel = $escape($backToSection ? '← BACK TO ARCHIVE' : '← BACK HOME');
+    if ($isEvent) {
+        $backLabel = $escape($recordState === 'historical' ? '← BACK TO ARCHIVE' : '← BACK TO EVENTS');
+    } else {
+        $backLabel = $escape($backToSection ? '← BACK TO ARCHIVE' : '← BACK HOME');
+    }
     $tags = brvtal_public_seo_tags($seo);
     $robots = $degraded ? '<meta name="robots" content="noindex, follow">' : '';
     $degradedNotice = $degraded
         ? '<section class="entity-statement" role="status"><div class="entity-section-label">DATA STATUS / DEGRADED</div><p>Some connected information is temporarily unavailable. This page will return to its complete state automatically when the data service recovers.</p></section>'
         : '';
+
+    $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
+    $eventSignalRaw = trim((string)($entity['accent'] ?? ''));
+    $eventSignal = $isEvent && preg_match('/^#[0-9a-f]{3,8}$/i', $eventSignalRaw) ? $eventSignalRaw : '#b6ff00';
+    $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState : 'entity-page';
+    $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
+    if ($isEvent) {
+        $bodyAttributes .= ' data-event-record-state="' . $escape($recordState) . '" style="--event-signal:' . $escape($eventSignal) . '"';
+    }
+    $statementLabel = $isEvent ? ($recordState === 'historical' ? 'RECORD / INFORMATION' : 'ABOUT / EXPERIENCE') : 'ABOUT / INFORMATION';
+    $recordBand = '';
+    if ($isEvent) {
+        $bandLabel = $recordState === 'historical' ? 'EVENT RECORD' : 'EVENT SIGNAL';
+        $bandValue = $recordState === 'historical' ? 'ARCHIVE' : 'ACTIVE EXPERIENCE';
+        if ($recordStatus !== '') $bandLabel .= ' / ' . $recordStatus;
+        if ($recordYear !== '') $bandValue .= ' / ' . $recordYear;
+        $recordBand = '<section class="event-record-band" aria-label="Event lifecycle"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>CANONICAL EVENT FILE / BRVTAL</p></section>';
+    }
 
     return <<<HTML
 <!doctype html>
@@ -237,16 +283,18 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
+  {$eventStylesheet}
 </head>
-<body>
+<body {$bodyAttributes}>
   <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
   <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="{$backHref}">{$backLabel}</a></header>
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
-      <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kind} / BRVTAL</span></div>
-      <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kind} / {$entityId}</div><h1>{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
+      <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kindLabel} / BRVTAL</span></div>
+      <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
-    <section class="entity-statement"><div class="entity-section-label">ABOUT / INFORMATION</div><p>{$body}</p></section>
+    {$recordBand}
+    <section class="entity-statement"><div class="entity-section-label">{$statementLabel}</div><p>{$body}</p></section>
     {$degradedNotice}
     {$related}
   </main>
