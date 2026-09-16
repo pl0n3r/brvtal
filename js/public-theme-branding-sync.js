@@ -2,6 +2,7 @@
   'use strict';
 
   let branding = null;
+  let settings = null;
   const mobileQuery = window.matchMedia('(max-width: 900px)');
 
   function safeAsset(value) {
@@ -71,7 +72,7 @@
   }
 
   function syncPreloaderLogo() {
-    const logo = versionedAsset(branding?.preloaderLogo || branding?.logo);
+    const logo = versionedAsset(branding?.wordmark || branding?.preloaderLogo || branding?.logo);
     if (!logo) return;
     const loaderInner = document.querySelector('.loader-inner');
     if (!loaderInner) return;
@@ -83,23 +84,51 @@
       image.setAttribute('aria-hidden', 'true');
       loaderInner.querySelector('.loader-mark')?.after(image);
     }
+    image.onload = () => {
+      if (branding?.wordmark) loaderInner.dataset.themeWordmark = '1';
+    };
+    image.onerror = () => {
+      delete loaderInner.dataset.themeWordmark;
+      image.remove();
+    };
     image.src = logo;
+  }
+
+  function syncSocial() {
+    const spotify = safeAsset(settings?.social?.spotify || settings?.social?.spotify_url || '');
+    document.querySelectorAll('[data-social="spotify"]').forEach(link => {
+      if (spotify) {
+        link.href = spotify;
+        link.hidden = false;
+      } else {
+        link.hidden = true;
+      }
+    });
+  }
+
+  function reconcileThemeAuthority() {
+    // app.js still supports legacy appearance defaults for old installations.
+    // Re-applying the active theme after that async pass keeps Theme Studio as
+    // the single visual authority without adding another public script/request.
+    if (settings?.theme) window.BRVTALThemeRuntime?.apply?.(settings.theme);
   }
 
   function sync() {
     syncHeroLogo();
     syncFavicon();
     syncPreloaderLogo();
+    syncSocial();
   }
 
   async function boot() {
     try { await window.BRVTALThemeReady; } catch (_) {}
     if (!window.BRVTALThemeRuntime?.resolveSettings) return false;
-    const settings = await window.BRVTALThemeRuntime.resolveSettings();
+    settings = await window.BRVTALThemeRuntime.resolveSettings();
     branding = settings?.theme?.branding || null;
-    if (!branding) return false;
-    sync();
+    if (branding) sync();
+    else syncSocial();
     mobileQuery.addEventListener?.('change', syncHeroLogo);
+    window.setTimeout(reconcileThemeAuthority, 260);
     return true;
   }
 
