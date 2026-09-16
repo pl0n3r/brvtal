@@ -179,6 +179,7 @@ function brvtal_public_connected_url(array $entity): string
     return '/?network_type=' . rawurlencode($type) . '&network_id=' . $id . '#network';
 }
 
+/** Render a canonical public entity page, including lifecycle-aware Event Record framing. */
 function brvtal_public_entity_page(array $page, array $seo, string $analytics = ''): string
 {
     $entity = $page['entity'];
@@ -251,7 +252,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
 
     $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
     $eventSignalRaw = trim((string)($entity['accent'] ?? ''));
-    $eventSignal = $isEvent && preg_match('/^#[0-9a-f]{3,8}$/i', $eventSignalRaw) ? $eventSignalRaw : '#b6ff00';
+    $eventSignal = $isEvent && preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $eventSignalRaw) ? $eventSignalRaw : '#b6ff00';
     $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState : 'entity-page';
     $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
     if ($isEvent) {
