@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
 require_once __DIR__ . '/public-response.php';
+require_once __DIR__ . '/public-media-relations.php';
 
 /**
  * BRVTAL public read-only API.
@@ -328,6 +329,7 @@ try {
 
     $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
+    $media = brvtal_public_media_relations($pdo, $media, $events, $archiveEvents, $artists, $sets, $releases);
     $blog = brvtal_public_sanitize_blog_relations(
         brvtal_public_blog($pdo),
         $events,
