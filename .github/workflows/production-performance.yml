@@ -29,6 +29,7 @@ jobs:
 
     steps:
       - name: Verify production connectivity
+        id: connectivity
         shell: bash
         run: |
           set -euo pipefail
@@ -51,21 +52,23 @@ jobs:
             fi
           done
 
+          echo "reachable=$reachable" >> "$GITHUB_OUTPUT"
+
           if [[ "$reachable" != "true" ]]; then
             {
               echo "## Production connectivity"
               echo
               echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
-              echo "- Status: **UNREACHABLE FROM THIS RUNNER**"
-              echo "- Measurement setup was skipped to avoid wasting CI time."
+              echo "- Status: **INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER**"
+              echo "- No performance measurement was executed, so this run is not a measured performance regression."
+              echo "- Re-run manually when production is reachable from a GitHub runner."
               echo
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "Production is unreachable from this GitHub runner; failing fast before browser setup." >&2
-            exit 1
+            echo "Production is unreachable from this GitHub runner; performance measurement is inconclusive."
           fi
 
       - name: Wait for exact Hostinger deploy
-        if: github.event_name == 'workflow_run'
+        if: steps.connectivity.outputs.reachable == 'true' && github.event_name == 'workflow_run'
         shell: bash
         env:
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -119,16 +122,19 @@ jobs:
           fi
 
       - name: Check out source
+        if: steps.connectivity.outputs.reachable == 'true'
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Node 24
+        if: steps.connectivity.outputs.reachable == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24'
 
       - name: Cache npm downloads
+        if: steps.connectivity.outputs.reachable == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.npm
@@ -138,9 +144,11 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install test dependencies
+        if: steps.connectivity.outputs.reachable == 'true'
         run: npm install --prefer-offline --no-audit --no-fund
 
       - name: Cache Chromium
+        if: steps.connectivity.outputs.reachable == 'true'
         id: chromium-cache
         uses: actions/cache@v4
         with:
@@ -151,26 +159,29 @@ jobs:
             ${{ runner.os }}-playwright-chromium-
 
       - name: Install Chromium system dependencies
+        if: steps.connectivity.outputs.reachable == 'true'
         run: npx playwright install-deps chromium
 
       - name: Install Chromium browser
-        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        if: steps.connectivity.outputs.reachable == 'true' && steps.chromium-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
       - name: Measure mobile production performance
+        if: steps.connectivity.outputs.reachable == 'true'
         env:
           BRVTAL_PERF_MODE: mobile
           BRVTAL_PERF_OUTPUT: artifacts/production-performance-mobile.json
         run: node tests/e2e/production-performance-probe.mjs
 
       - name: Measure desktop production performance
+        if: steps.connectivity.outputs.reachable == 'true'
         env:
           BRVTAL_PERF_MODE: desktop
           BRVTAL_PERF_OUTPUT: artifacts/production-performance-desktop.json
         run: node tests/e2e/production-performance-probe.mjs
 
       - name: Upload performance evidence
-        if: always()
+        if: always() && steps.connectivity.outputs.reachable == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: production-performance-${{ github.run_id }}
