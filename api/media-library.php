@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/media.php';
 require_once __DIR__ . '/../config/media_integrity.php';
+require_once __DIR__ . '/../config/media_relations.php';
 
 brvtal_admin_require();
 header('X-Content-Type-Options: nosniff');
@@ -43,6 +44,20 @@ function brvtal_media_safe_text(mixed $value, int $max): string
     return mb_substr(trim((string)$value), 0, $max);
 }
 
+/** Canonical Media Library detail payload, including optional structured archive relations. */
+function brvtal_media_detail_payload(PDO $pdo, array $row): array
+{
+    $asset = brvtal_media_asset_payload($row);
+    $usage = brvtal_media_integrity_usage($pdo, $row);
+    $asset['usage'] = $usage;
+    $asset['usage_count'] = count($usage);
+    $ready = brvtal_media_relations_ready($pdo);
+    $asset['relations_available'] = $ready;
+    $asset['relations'] = $ready ? brvtal_media_relations_list($pdo, (int)$row['id']) : [];
+    $asset['relation_options'] = $ready ? brvtal_media_relation_options($pdo) : [];
+    return $asset;
+}
+
 try {
     if ($method === 'GET' && $action === 'list') {
         $rows = $pdo->query(
@@ -68,11 +83,7 @@ try {
         if (!$row) {
             brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
         }
-        $usage = brvtal_media_integrity_usage($pdo, $row);
-        $asset = brvtal_media_asset_payload($row);
-        $asset['usage'] = $usage;
-        $asset['usage_count'] = count($usage);
-        brvtal_media_json_response(['ok' => true, 'data' => $asset]);
+        brvtal_media_json_response(['ok' => true, 'data' => brvtal_media_detail_payload($pdo, $row)]);
     }
 
     if ($method === 'POST' && $action === 'upload') {
@@ -250,24 +261,50 @@ try {
         if (!$id) {
             brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_ID_REQUIRED'], 422);
         }
-        $row = brvtal_media_find($pdo, $id);
-        if (!$row) {
-            brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
-        }
         $data = brvtal_media_input_json();
-        $title = brvtal_media_safe_text($data['title'] ?? $row['title'], 180);
-        if ($title === '') {
-            brvtal_media_json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
+        $hasRelations = array_key_exists('relations', $data);
+        if ($hasRelations && !brvtal_media_relations_ready($pdo)) {
+            brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_RELATIONS_MIGRATION_REQUIRED'], 409);
         }
-        $alt = brvtal_media_safe_text($data['alt_text'] ?? $row['alt_text'], 255);
-        $status = ($data['status'] ?? $row['status']) === 'draft' ? 'draft' : 'published';
-        $st = $pdo->prepare('UPDATE media SET title=?,alt_text=?,status=? WHERE id=?');
-        $st->execute([$title, $alt, $status, $id]);
+        try {
+            $relations = $hasRelations ? brvtal_media_relations_normalize($data['relations']) : [];
+        } catch (InvalidArgumentException $relationError) {
+            brvtal_media_json_response(['ok'=>false,'error'=>$relationError->getMessage()], 422);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $row = brvtal_media_find($pdo, $id, true);
+            if (!$row) {
+                $pdo->rollBack();
+                brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
+            }
+            $title = brvtal_media_safe_text($data['title'] ?? $row['title'], 180);
+            if ($title === '') {
+                $pdo->rollBack();
+                brvtal_media_json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
+            }
+            $alt = brvtal_media_safe_text($data['alt_text'] ?? $row['alt_text'], 255);
+            $status = ($data['status'] ?? $row['status']) === 'draft' ? 'draft' : 'published';
+            $st = $pdo->prepare('UPDATE media SET title=?,alt_text=?,status=? WHERE id=?');
+            $st->execute([$title, $alt, $status, $id]);
+            if ($hasRelations) {
+                brvtal_media_relations_replace($pdo, $id, $relations);
+            }
+            $pdo->commit();
+        } catch (InvalidArgumentException $relationError) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            brvtal_media_json_response(['ok'=>false,'error'=>$relationError->getMessage()], 422);
+        } catch (Throwable $writeError) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $writeError;
+        }
+
         $updated = brvtal_media_find($pdo, $id);
-        $asset = brvtal_media_asset_payload($updated ?: $row);
-        $asset['usage'] = brvtal_media_integrity_usage($pdo, $updated ?: $row);
-        $asset['usage_count'] = count($asset['usage']);
-        brvtal_media_json_response(['ok' => true, 'data' => $asset]);
+        if (!$updated) {
+            brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_NOT_FOUND'], 404);
+        }
+        brvtal_media_json_response(['ok' => true, 'data' => brvtal_media_detail_payload($pdo, $updated)]);
     }
 
     if ($method === 'DELETE') {
