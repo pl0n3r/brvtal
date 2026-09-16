@@ -77,7 +77,7 @@ test('failed logout keeps the local admin session visible until server logout is
   expect(succeeded.renderCount).toBe(1);
 });
 
-test('existing Setting keys are readonly while a new key remains editable', async ({ page }) => {
+test('Settings opened by an existing or predefined key keep that identity readonly', async ({ page }) => {
   await mountReliability(page);
   const existing = await page.evaluate(() => {
     window.openSettingByKey('existing.key');
@@ -86,12 +86,12 @@ test('existing Setting keys are readonly while a new key remains editable', asyn
   });
   expect(existing).toEqual({readOnly:true,aria:'true'});
 
-  const fresh = await page.evaluate(() => {
+  const predefined = await page.evaluate(() => {
     window.openSettingByKey('new.key');
     const input = document.getElementById('f_setting_key');
     return {readOnly:input.readOnly,aria:input.getAttribute('aria-readonly')};
   });
-  expect(fresh).toEqual({readOnly:false,aria:null});
+  expect(predefined).toEqual({readOnly:true,aria:'true'});
 });
 
 test('legacy admin module names resolve to canonical destinations', async ({ page }) => {
