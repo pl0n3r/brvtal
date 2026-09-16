@@ -155,6 +155,23 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
                     }
                 }
             }
+        } elseif (in_array($resource, ['releases','blog'], true)) {
+            $update = $pdo->prepare("UPDATE {$table} SET status=?, published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END WHERE id IN ({$placeholders})");
+            $update->execute(array_merge([$status, $status], $ids));
+            $changed = $update->rowCount();
+
+            if ($audit !== null) {
+                foreach ($rows as $row) {
+                    if ((string)$row['status'] === $status) continue;
+                    $audit(
+                        $resource,
+                        (int)$row['id'],
+                        ['id'=>(int)$row['id'],'status'=>(string)$row['status']],
+                        ['id'=>(int)$row['id'],'status'=>$status],
+                        (string)($row['resource_label'] ?? '')
+                    );
+                }
+            }
         } else {
             $update = $pdo->prepare("UPDATE {$table} SET status=? WHERE id IN ({$placeholders})");
             $update->execute(array_merge([$status], $ids));
