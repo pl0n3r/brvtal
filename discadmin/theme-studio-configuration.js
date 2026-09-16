@@ -94,7 +94,8 @@
     if (current) {
       const brand = root.querySelector('[data-preview-brand]');
       const src = path(current);
-      if (brand && src) brand.innerHTML = `<img class="tsv2-wordmark-preview" src="${esc(src)}" alt="BRVTAL">`;
+      const preview = brand?.querySelector('.tsv2-wordmark-preview');
+      if (brand && src && (!preview || preview.getAttribute('src') !== src)) brand.innerHTML = `<img class="tsv2-wordmark-preview" src="${esc(src)}" alt="BRVTAL">`;
     }
   }
 
