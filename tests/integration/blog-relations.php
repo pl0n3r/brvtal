@@ -79,4 +79,17 @@ try {
 }
 blog_rel_it_assert($zeroRejected, 'non-positive relation IDs must be rejected by the integrity helper');
 
+foreach ([1.9, true, '1foo'] as $malformedId) {
+    $malformedRejected = false;
+    try {
+        brvtal_blog_relation_id($malformedId);
+    } catch (InvalidArgumentException $e) {
+        $malformedRejected = $e->getMessage() === 'INVALID_BLOG_RELATION';
+    }
+    blog_rel_it_assert($malformedRejected, 'malformed relation IDs must be rejected without scalar coercion');
+}
+
+blog_rel_it_assert(brvtal_blog_relation_id(1) === 1, 'integer relation IDs must remain valid');
+blog_rel_it_assert(brvtal_blog_relation_id('1') === 1, 'canonical numeric-string relation IDs must remain valid');
+
 echo "BRVTAL Blog relation integrity integration passed.\n";
