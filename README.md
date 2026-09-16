@@ -6,41 +6,51 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Sets en `draft` pueden seguir incompletos, pero un Set no puede entrar a `published` sin una **Listening URL** válida.
-- La política de publicación exige URL `http(s)` y vive en una función canónica compartida, en vez de depender solo del formulario de DISCADMIN.
-- POST y PUT del API genérico validan el estado resultante completo; un PUT parcial que intente publicar un Set cuyo URL persistido está vacío también responde `422` sin modificar la fila.
-- Bulk Actions reutiliza la misma regla: antes de publicar Sets bloquea y revisa `external_url` de todos los IDs seleccionados dentro de la misma transacción. Si uno no está listo, el lote completo se rechaza.
-- El editor de Sets marca dinámicamente **Listening URL \*** al elegir `Published`, aplica `required`/`aria-required`, exige `http(s)` y enfoca el campo con feedback antes de enviar una publicación inválida.
-- Se mantiene una sola semántica entre Content Health y publicación real: un Set públicamente visible siempre tiene destino de escucha.
+- CodeRabbit queda versionado como capa de revisión **advisory** para PRs a `main`, con `AGENTS.md` como guía canónica y reglas específicas para seguridad, API, DISCADMIN, tests, CI y migraciones.
+- La suite local deja de mantener listas paralelas: `test:contracts` usa el mismo auto-discovery PHP 8.5 que CI y `test:integration` reúne las integraciones que CI antes añadía manualmente.
+- La selección diff-aware ahora manda cambios de APIs/config pública a Chromium + backend/real-stack y hace que cambios de tooling (`package.json`, lockfile, Playwright config) también ejecuten MariaDB.
+- Se añaden contratos que protegen el scope de CI, la política CodeRabbit y los límites de autenticación.
+- Contact deja de confiar en `CF-Connecting-IP` salvo peer explícitamente confiable, mueve su estado a `storage/rate_limits/` y bloquea `.json` legacy en `storage/`.
+- Los contadores de password/TOTP realizan read-modify-write bajo `flock`; un TOTP correcto limpia su presupuesto y un disable correcto limpia su scope independiente.
+- Production Performance diferencia una regresión medida de un runner sin conectividad: si producción no es alcanzable, el resultado queda **INCONCLUSIVE** y se omite la medición.
 
 ## Archivos modificados en este deploy
 
+- `.coderabbit.yaml` — política de revisión automática advisory y path instructions de BRVTAL.
+- `.github/workflows/production-performance.yml` — clasifica falta de conectividad como inconclusa y omite mediciones no ejecutables.
+- `.github/workflows/update-release-metadata.yml` — refuerza gates diff-aware y reutiliza la suite canónica de integración.
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/bulk-actions-lib.php` — valida Listening URL antes de una publicación masiva de Sets.
-- `api/index.php` — aplica el contrato de publicación en POST y PUT, incluidos updates parciales.
-- `config/set_publication.php` — política canónica `draft` vs `published` para Sets.
-- `discadmin/index.php` — carga versionada del guard editorial de Sets dentro del shell canónico.
-- `discadmin/set-publication-contract.js` — feedback inmediato y required state en el editor.
-- `tests/set-publication-contract.php` — regresión de política, API, Bulk Actions y UI.
+- `api/contact.php` — pasa la configuración al resolver el bucket de rate limit.
+- `config/config.example.php` — documenta la allowlist opcional de proxies confiables.
+- `config/password_rate_limit.php` — hace atómico el estado de fuerza bruta de password.
+- `config/public_contact.php` — valida proxy/IP y guarda el limiter bajo el subtree protegido.
+- `config/totp_auth.php` — hace atómico el limiter 2FA y resetea el scope de login tras éxito.
+- `discadmin/totp-api.php` — resetea el scope de rate limit tras deshabilitar 2FA correctamente.
+- `docs/TESTING.md` — documenta CodeRabbit + CI, suites canónicas, gates y semántica de performance.
+- `package.json` — alinea comandos locales de contratos e integración con CI.
+- `storage/.htaccess` — niega acceso HTTP a JSON de estado legacy.
+- `tests/auth-rate-limit-contract.php` — regresión de atomicidad y reset de autenticación.
+- `tests/ci-scope-contract.php` — protege selección de gates, CodeRabbit advisory y performance inconclusa.
+- `tests/public-contact-contract.php` — cubre spoofing de headers, CIDR confiable y storage privado.
 
 ## Validación
 
-- Base de trabajo: `main` `0e65905de4ff483714120d883ba6f4371baceda9`.
-- Ese SHA tenía BRVTAL CI exacto en verde y Production Performance exitoso, incluido `Wait for exact Hostinger deploy`.
-- No había PRs abiertos al iniciar este bloque.
-- Issue contrastado inmediatamente antes de desarrollar: `#234` = **Sets can be published without a listening URL**.
+- Base exacta: `main` `f61b3e990ea9ee6225defd61b6fe27656b939097`, con `BRVTAL CI / validate` en verde antes de iniciar.
+- No había PRs abiertos al crear `test/review-hardening`.
+- Issues cubiertos por las regresiones/correcciones: `#263`, `#363`, `#364` y `#367`.
 - Se preserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
-- No se publicaron ni alteraron Sets reales para validar esta corrección.
-- Pendiente: CI del head final del PR y, después del squash merge, CI + Production Performance del SHA exacto de `main`.
-- CI verde significará **VALIDATED IN CODE**. Una edición/publicación manual autenticada en producción seguirá siendo validación de producción separada.
+- CodeRabbit permanece no bloqueante; `BRVTAL CI / validate` sigue siendo la frontera automatizada de merge.
+- Pendiente en este snapshot: revisión CodeRabbit + matriz BRVTAL CI del PR y, tras squash merge, `validate` del SHA exacto de `main`.
+- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobación del deploy real.
 
 ## Qué sigue
 
-1. Ejecutar CI del PR, corregir cualquier regresión y hacer squash merge si `validate` queda verde.
-2. Confirmar deploy exacto en Hostinger para el nuevo SHA de `main`.
-3. Continuar la auditoría diagnóstica sobre el `main` desplegado, priorizando integridad editorial, seguridad y operaciones.
+1. Abrir PR y resolver cualquier finding válido de CodeRabbit o fallo de BRVTAL CI en la misma rama.
+2. Hacer squash merge solo con `BRVTAL CI / validate` verde y verificar el SHA exacto resultante en `main`.
+3. Activar en GitHub repository settings la protección/ruleset que exija `BRVTAL CI / validate` cuando se disponga de una conexión con permisos de Administration.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
-- Bug abordado por este bloque: `#234`.
+- Estrategia de validación: `docs/TESTING.md`.
+- Issues abordados: `#263`, `#363`, `#364`, `#367`.
