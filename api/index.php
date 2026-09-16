@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/event_lifecycle.php';
+require_once __DIR__ . '/../config/set_publication.php';
 require_once __DIR__ . '/../config/totp_auth.php';
 require_once __DIR__ . '/../config/password_rate_limit.php';
 require_once __DIR__ . '/route.php';
@@ -89,7 +90,6 @@ try {
             $GLOBALS['brvtal_auth_input']=$peek;
         }
 
-        // Logout is evaluated before POST login so /api/auth?logout=1 cannot fall through.
         if (($method==='POST' && isset($_GET['logout'])) || $method==='DELETE') {
             brvtal_admin_logout();
             json_response(['ok'=>true]);
@@ -137,8 +137,6 @@ try {
         method_not_allowed();
     }
 
-    // Keep a single public API implementation. api/public.php owns the allowlist
-    // for public settings and the public content contract.
     if($resource==='public') {
         require __DIR__ . '/public.php';
         exit;
@@ -198,7 +196,7 @@ try {
     if($method==='GET') { if($resource==='settings')$rows=$pdo->query("SELECT * FROM settings WHERE setting_key<>'security.totp_encryption_key' ORDER BY setting_key")->fetchAll(); else if($id!==null){$st=$pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");$st->execute([$id]);$rows=$st->fetch();if(!$rows)json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);} else $rows=$pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();json_response(['ok'=>true,'data'=>$rows]); }
     if($method==='POST') {
         $d=input_json(); if($resource==='settings'){ $key=trim((string)($d['setting_key']??''));$key=preg_replace('/[^a-zA-Z0-9_.-]/','',$key)??'';if($key===''||strlen($key)>120)json_response(['ok'=>false,'error'=>'KEY_REQUIRED'],422);if($key==='security.totp_encryption_key')json_response(['ok'=>false,'error'=>'PROTECTED_SETTING'],403);$value=(string)($d['setting_value']??'');if(strlen($value)>2*1024*1024)json_response(['ok'=>false,'error'=>'VALUE_TOO_LARGE'],422);if((int)($d['is_json']??0)===1&&json_decode($value,true)===null&&strtolower(trim($value))!=='null')json_response(['ok'=>false,'error'=>'INVALID_SETTING_JSON'],422);$st=$pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)');$st->execute([$key,$value,(int)($d['is_json']??0)]);json_response(['ok'=>true]); }
-        $d=sanitize_payload($resource,$d);$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if($resource==='events')$p=brvtal_event_lifecycle_patch([],$p); if($resource==='pages'&&!array_key_exists('locale',$p))$p['locale']='en';if($resource==='pages'){ $pageStateError=brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'],$p)); if($pageStateError!==null)json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422); }if($resource==='events'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if($resource==='artists'&&empty($p['name']))json_response(['ok'=>false,'error'=>'NAME_REQUIRED'],422);if($resource==='sets'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if(isset($p['slug'])&&$p['slug']==='')$p['slug']=slugify((string)($p['title']??$p['name']??'item'));if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$fields=array_keys($p);$cols=implode(',',array_map(fn($f)=>"`{$f}`",$fields));$marks=implode(',',array_fill(0,count($fields),'?'));
+        $d=sanitize_payload($resource,$d);$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if($resource==='events')$p=brvtal_event_lifecycle_patch([],$p); if($resource==='pages'&&!array_key_exists('locale',$p))$p['locale']='en';if($resource==='pages'){ $pageStateError=brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'],$p)); if($pageStateError!==null)json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422); }if($resource==='sets'){ $setPublicationError=brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],$p)); if($setPublicationError!==null)json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422); }if($resource==='events'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if($resource==='artists'&&empty($p['name']))json_response(['ok'=>false,'error'=>'NAME_REQUIRED'],422);if($resource==='sets'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if(isset($p['slug'])&&$p['slug']==='')$p['slug']=slugify((string)($p['title']??$p['name']??'item'));if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$fields=array_keys($p);$cols=implode(',',array_map(fn($f)=>"`{$f}`",$fields));$marks=implode(',',array_fill(0,count($fields),'?'));
         $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
         try{$st=$pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");$st->execute(array_values($p));$newId=(int)$pdo->lastInsertId();if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$newId);brvtal_activity_record($pdo,'create',$resource,$newId,null,$after,['source'=>'core_api']);$pdo->commit();}json_response(['ok'=>true,'id'=>$newId],201);}catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Insert failed',['resource'=>$resource,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
@@ -210,6 +208,7 @@ try {
             if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
             if($resource==='events')$p=brvtal_event_lifecycle_patch($before,$p);
             if($resource==='pages'){$pageStateError=brvtal_page_publication_error(array_replace($before,$p));if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}
+            if($resource==='sets'){$setPublicationError=brvtal_set_publication_error(array_replace($before,$p));if($setPublicationError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422);}}
             if(!$p){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);}
             $set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();
             if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$id);if($after!==null)brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api']);}
