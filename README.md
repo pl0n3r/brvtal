@@ -7,9 +7,9 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 ## Qué se hizo
 
 - Se consolidó la política de mutaciones Media en `api/media-library.php`: las rutas legacy de upload y CRUD genérico ya no son alcanzables para escribir o borrar Media.
-- Los paths locales `/uploads/...` ya no pueden registrarse dos veces; duplicados históricos cuentan como ownership compartido y bloquean el borrado canónico.
+- Los paths locales `/uploads/...` ya no pueden registrarse dos veces en el flujo canónico; duplicados históricos cuentan como ownership compartido y bloquean el borrado.
 - El delete canónico adquiere el mutex de referencias cuando está disponible, mueve original/sidecar/variantes al árbol web-denied `.private` antes de borrar la fila DB y restaura el staging si la transacción no puede completarse.
-- Un fallo de limpieza posterior al commit ya no deja archivos públicamente accesibles; queda como deuda privada reportada y registrada para limpieza.
+- Un fallo de limpieza posterior al commit ya no deja archivos públicamente accesibles: queda como deuda privada reportada en la respuesta y registrada en el log operativo para limpieza posterior.
 - Se añadieron regresiones PHP, MariaDB y real-stack para rutas legacy, ownership duplicado, staging/rollback y el flujo canónico upload→register duplicate→delete.
 - La primera corrida CI detectó un contrato antiguo que buscaba `brvtal_media_usage` directamente en el endpoint; se actualizó para validar la nueva frontera `brvtal_media_integrity_usage` sin reducir cobertura.
 
@@ -23,6 +23,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - `tests/media-library-contract.php` — valida que Media Library use la frontera integrity-aware y preserve las referencias editoriales canónicas.
 - `tests/integration/media-reference-atomicity.php` — valida en MariaDB que dos registros con el mismo path local se tratan como ownership compartido.
 - `tests/e2e/media-integrity-real-stack.spec.mjs` — prueba con PHP/MariaDB reales que solo Media Library puede mutar y que el flujo canónico conserva `draft`, rechaza duplicados y borra de forma segura.
+- `tests/e2e/content-core-real-stack.spec.mjs` — importa la regresión Media para que el job real-stack existente la ejecute junto al smoke de Content Core.
 
 ## Validación
 
