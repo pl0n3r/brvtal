@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_visibility.php';
+require_once __DIR__ . '/../config/public_seo.php';
 require_once __DIR__ . '/../config/public_page.php';
 
 function event_record_expect(bool $condition, string $message): void
