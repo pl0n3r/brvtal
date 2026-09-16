@@ -31,8 +31,9 @@ admin_quick_win_assert(
 
 admin_quick_win_assert(
     str_contains($hero, "'aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown'")
-        && str_contains($hero, "event.key === 'ArrowUp'")
-        && str_contains($hero, "event.key === 'ArrowDown'")
+        && str_contains($hero, "event.key !== 'ArrowUp'")
+        && str_contains($hero, "event.key !== 'ArrowDown'")
+        && str_contains($hero, "event.key === 'ArrowUp' ? 'up' : 'down'")
         && str_contains($hero, 'control.click()'),
     'Hero Slider reorder must expose an equivalent keyboard interaction'
 );
