@@ -29,12 +29,10 @@ public_sets_library_expect(($sanitized[0]['artist_slug'] ?? null) === 'dnl5', 'p
 public_sets_library_expect(($sanitized[0]['event_id'] ?? null) === 20, 'public Event relation must survive');
 public_sets_library_expect(($sanitized[0]['event_title'] ?? null) === 'GENESIS', 'public Event title must be canonical');
 public_sets_library_expect(($sanitized[0]['event_slug'] ?? null) === 'genesis', 'public Event slug must be exposed for canonical navigation');
-public_sets_library_expect(($sanitized[1]['artist_id'] ?? 'not-null') === null, 'non-public Artist id must be removed');
-public_sets_library_expect(($sanitized[1]['artist_name'] ?? 'not-null') === null, 'non-public Artist name must be removed');
-public_sets_library_expect(($sanitized[1]['artist_slug'] ?? 'not-null') === null, 'non-public Artist slug must be removed');
-public_sets_library_expect(($sanitized[1]['event_id'] ?? 'not-null') === null, 'non-public Event id must be removed');
-public_sets_library_expect(($sanitized[1]['event_title'] ?? 'not-null') === null, 'non-public Event title must be removed');
-public_sets_library_expect(($sanitized[1]['event_slug'] ?? 'not-null') === null, 'non-public Event slug must be removed');
+foreach (['artist_id','artist_name','artist_slug','event_id','event_title','event_slug'] as $field) {
+    public_sets_library_expect(array_key_exists($field, $sanitized[1]), "sanitized field {$field} must remain explicit");
+    public_sets_library_expect($sanitized[1][$field] === null, "non-public relation field {$field} must be null");
+}
 
 $script = (string)file_get_contents(__DIR__ . '/../js/public-sets-library.js');
 $runtime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
