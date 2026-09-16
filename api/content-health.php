@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/public_visibility.php';
 
 brvtal_admin_require();
 
@@ -39,7 +40,7 @@ function brvtal_content_health_item(string $type, array $row): array
     $slug = brvtal_content_health_pick($row, ['slug']);
     $description = brvtal_content_health_pick($row, ['description','bio','excerpt','body','content_json']);
     $image = brvtal_content_health_pick($row, ['cover_image','photo','artwork']);
-    $status = brvtal_content_health_pick($row, ['status']);
+    $status = strtolower(brvtal_content_health_pick($row, ['status']));
     $seoTitleSupported = array_key_exists('seo_title', $row);
     $seoDescriptionSupported = array_key_exists('seo_description', $row);
     $seoTitle = $seoTitleSupported ? trim((string)($row['seo_title'] ?? '')) : '';
@@ -80,6 +81,10 @@ function brvtal_content_health_item(string $type, array $row): array
     }
     $score = $totalWeight > 0 ? (int)round(($earned / $totalWeight) * 100) : 100;
 
+    $isPublic = $type === 'events'
+        ? brvtal_public_event_is_visible($row)
+        : $status === 'published';
+
     return [
         'id' => (int)($row['id'] ?? 0),
         'type' => $type,
@@ -89,6 +94,8 @@ function brvtal_content_health_item(string $type, array $row): array
         'issues' => $issues,
         'seo_supported' => $seoTitleSupported || $seoDescriptionSupported,
         'has_image' => $image !== '',
+        'is_public' => $isPublic,
+        'is_draft' => $status === 'draft',
     ];
 }
 
@@ -97,6 +104,34 @@ function brvtal_content_health_fetch(PDO $pdo, string $type, string $table): arr
     if (!brvtal_content_health_table_exists($pdo, $table)) return [];
     $rows = $pdo->query("SELECT * FROM `{$table}` ORDER BY id DESC")->fetchAll();
     return array_map(static fn(array $row): array => brvtal_content_health_item($type, $row), $rows ?: []);
+}
+
+function brvtal_content_health_summary(array $items): array
+{
+    usort($items, static function(array $a, array $b): int {
+        if ($a['score'] === $b['score']) return strcmp($a['type'] . $a['title'], $b['type'] . $b['title']);
+        return $a['score'] <=> $b['score'];
+    });
+
+    $total = count($items);
+    $score = $total ? (int)round(array_sum(array_column($items, 'score')) / $total) : 100;
+    $ready = count(array_filter($items, static fn(array $row): bool => $row['score'] >= 80));
+    $missingVisuals = count(array_filter($items, static fn(array $row): bool => !$row['has_image'] && $row['type'] !== 'pages'));
+    $seoGaps = 0;
+    foreach ($items as $item) {
+        if (!$item['seo_supported']) continue;
+        if (in_array('SEO title', $item['issues'], true) || in_array('SEO description', $item['issues'], true)) $seoGaps++;
+    }
+
+    return [
+        'score' => $score,
+        'total' => $total,
+        'ready' => $ready,
+        'needs_attention' => $total - $ready,
+        'missing_visuals' => $missingVisuals,
+        'seo_gaps' => $seoGaps,
+        'items' => array_values($items),
+    ];
 }
 
 try {
@@ -115,44 +150,43 @@ try {
         'blog' => 'blog_posts',
     ];
 
-    $items = [];
+    $allItems = [];
     $byType = [];
     foreach ($definitions as $type => $table) {
         $rows = brvtal_content_health_fetch($pdo, $type, $table);
+        $publicRows = array_values(array_filter($rows, static fn(array $row): bool => $row['is_public']));
+        $draftRows = array_values(array_filter($rows, static fn(array $row): bool => $row['is_draft']));
         $byType[$type] = [
             'total' => count($rows),
-            'average_score' => $rows ? (int)round(array_sum(array_column($rows, 'score')) / count($rows)) : null,
-            'needs_attention' => count(array_filter($rows, static fn(array $row): bool => $row['score'] < 80)),
+            'public' => count($publicRows),
+            'drafts' => count($draftRows),
+            'public_average_score' => $publicRows ? (int)round(array_sum(array_column($publicRows, 'score')) / count($publicRows)) : null,
+            'draft_average_score' => $draftRows ? (int)round(array_sum(array_column($draftRows, 'score')) / count($draftRows)) : null,
         ];
-        array_push($items, ...$rows);
+        array_push($allItems, ...$rows);
     }
 
-    usort($items, static function(array $a, array $b): int {
-        if ($a['score'] === $b['score']) return strcmp($a['type'] . $a['title'], $b['type'] . $b['title']);
-        return $a['score'] <=> $b['score'];
-    });
+    $publicItems = array_values(array_filter($allItems, static fn(array $row): bool => $row['is_public']));
+    $draftItems = array_values(array_filter($allItems, static fn(array $row): bool => $row['is_draft']));
+    $public = brvtal_content_health_summary($publicItems);
+    $drafts = brvtal_content_health_summary($draftItems);
 
-    $total = count($items);
-    $score = $total ? (int)round(array_sum(array_column($items, 'score')) / $total) : 100;
-    $ready = count(array_filter($items, static fn(array $row): bool => $row['score'] >= 80));
-    $missingVisuals = count(array_filter($items, static fn(array $row): bool => !$row['has_image'] && $row['type'] !== 'pages'));
-    $seoGaps = 0;
-    foreach ($items as $item) {
-        if (!$item['seo_supported']) continue;
-        if (in_array('SEO title', $item['issues'], true) || in_array('SEO description', $item['issues'], true)) $seoGaps++;
-    }
-
+    // Compatibility fields now intentionally represent public/publishable health.
+    // Draft completeness is exposed separately and no longer lowers the public score.
     brvtal_content_health_json([
         'ok' => true,
         'data' => [
-            'score' => $score,
-            'total' => $total,
-            'ready' => $ready,
-            'needs_attention' => $total - $ready,
-            'missing_visuals' => $missingVisuals,
-            'seo_gaps' => $seoGaps,
+            'score' => $public['score'],
+            'total' => $public['total'],
+            'ready' => $public['ready'],
+            'needs_attention' => $public['needs_attention'],
+            'missing_visuals' => $public['missing_visuals'],
+            'seo_gaps' => $public['seo_gaps'],
             'by_type' => $byType,
-            'items' => $items,
+            'items' => $public['items'],
+            'public' => $public,
+            'drafts' => $drafts,
+            'inventory_total' => count($allItems),
         ],
     ]);
 } catch (Throwable $e) {
