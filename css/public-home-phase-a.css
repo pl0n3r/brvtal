@@ -177,7 +177,7 @@
     top:36vh;
   }
   .hero-declaration{
-    position:fixed;
+    position:absolute;
     left:18px;
     right:18px;
     top:auto;
