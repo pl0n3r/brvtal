@@ -6,6 +6,8 @@
   const nativeGo = window.go;
   const nativeEventForm = window.eventForm;
   const nativeLogin = window.login;
+  const nativeOpenModal = window.openModal;
+  const nativeOpenSettingByKey = window.openSettingByKey;
 
   function withTimeoutSignal(options = {}, timeoutMs = RELATED_LOAD_TIMEOUT_MS) {
     if (options.signal || typeof AbortController !== 'function') return {options, cancel: () => {}};
@@ -71,6 +73,24 @@
     };
   }
 
+  if (typeof nativeReq === 'function') {
+    window.logout = async function brvtalReliableLogout() {
+      try {
+        await nativeReq('/auth', {method:'DELETE'});
+      } catch (error) {
+        if (String(error?.message || '') === 'AUTH_REQUIRED') {
+          csrf = '';
+          return;
+        }
+        window.alert?.('LOGOUT COULD NOT BE CONFIRMED. TRY AGAIN.');
+        return;
+      }
+      csrf = '';
+      state.authed = false;
+      render();
+    };
+  }
+
   function normalizeDatetimeLocal(value) {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -98,6 +118,28 @@
     window.go = async function brvtalReliableGo(section) {
       if (section === 'sets') await hydrateSetRelations();
       return nativeGo(section);
+    };
+  }
+
+  if (typeof nativeOpenModal === 'function') {
+    window.openModal = async function brvtalReliableOpenModal(type, id = null) {
+      if (type === 'sets') await hydrateSetRelations();
+      return nativeOpenModal.call(this, type, id);
+    };
+  }
+
+  if (typeof nativeOpenSettingByKey === 'function') {
+    window.openSettingByKey = function brvtalReliableOpenSettingByKey(key) {
+      const exists = Array.isArray(state?.rows)
+        && state.rows.some(row => String(row?.setting_key || '') === String(key));
+      const result = nativeOpenSettingByKey.call(this, key);
+      const input = document.getElementById('f_setting_key');
+      if (exists && input) {
+        input.readOnly = true;
+        input.setAttribute('aria-readonly', 'true');
+        input.title = 'Existing setting keys cannot be renamed here.';
+      }
+      return result;
     };
   }
 
