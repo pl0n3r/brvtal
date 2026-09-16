@@ -17,12 +17,20 @@ blog_assert(str_contains($migration, "ENUM('draft','published','archived')"), 'b
 blog_assert(str_contains($migration, "ENUM('event','artist','set','release')"), 'blog relations must support core content types');
 
 $api = (string)file_get_contents(__DIR__ . '/../api/blog.php');
+$relationsHelper = (string)file_get_contents(__DIR__ . '/../api/blog-relations.php');
 blog_assert(str_contains($api, 'brvtal_admin_require();'), 'blog API must require admin authentication');
 blog_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'blog mutations must require CSRF');
 blog_assert(str_contains($api, 'BLOG_SCHEMA_MISSING'), 'blog API must fail explicitly before migration');
 blog_assert(str_contains($api, 'brvtal_blog_sync_tags'), 'blog API must persist tags');
 blog_assert(str_contains($api, 'brvtal_blog_sync_relations'), 'blog API must persist related content');
 blog_assert(str_contains($api, "['draft','published','archived']"), 'blog API must validate lifecycle status');
+blog_assert(str_contains($api, "require_once __DIR__ . '/blog-relations.php';"), 'blog API must load the relation integrity boundary');
+blog_assert(str_contains($api, 'brvtal_blog_lock_relation_targets($pdo, $data[\'relations\']);'), 'blog API must validate and lock relation targets inside the mutation transaction');
+foreach (['event' => 'events','artist' => 'artists','set' => 'sets_media','release' => 'releases'] as $type => $table) {
+    blog_assert(str_contains($relationsHelper, "'{$type}' => '{$table}'"), "relation helper must map {$type} to {$table}");
+}
+blog_assert(str_contains($relationsHelper, 'FOR UPDATE'), 'relation targets must remain locked through Blog commit');
+blog_assert(str_contains($relationsHelper, 'BLOG_RELATION_NOT_FOUND'), 'missing Blog relation targets must fail deterministically');
 
 $fragment = (string)file_get_contents(__DIR__ . '/../discadmin/blog.php');
 blog_assert(str_contains($fragment, 'data-admin-module="blog"'), 'blog must render as canonical shell module');
