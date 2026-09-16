@@ -80,13 +80,14 @@
       const suffix = force ? '?refresh=1' : '';
       const response = await fetch(ENDPOINT + suffix, {credentials:'same-origin', cache:'no-store'});
       const data = await response.json().catch(() => ({}));
+      lastFetchAt = Date.now();
       if (!response.ok || !data.ok) {
         applyUnavailable();
         return;
       }
-      lastFetchAt = Date.now();
       applyStorage(data);
     } catch (_) {
+      lastFetchAt = Date.now();
       applyUnavailable();
     } finally {
       loading = false;
