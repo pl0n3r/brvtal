@@ -109,6 +109,21 @@ test('Sets library is touch-safe and does not overflow a 390px viewport', async 
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.viewport);
 });
 
+test('valid empty public Sets data replaces the static fallback with a true empty archive state', async ({ page }) => {
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:markup(`window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:[]}}});`),
+  }));
+  await page.goto(harness);
+
+  await expect(page.locator('html')).toHaveAttribute('data-public-sets', 'library');
+  await expect(page.locator('#fallback-set')).toHaveCount(0);
+  await expect(page.locator('.sets-library-empty')).toContainText('NO PUBLISHED SETS YET.');
+  await expect(page.locator('[data-sets-count]')).toHaveText('00 / 00 RECORDS');
+  await expect(page.locator('.sets-library-modes')).toBeHidden();
+  await expect(page.locator('.section-head > span').first()).toHaveText('SOUND LIBRARY / 00');
+});
+
 test('shared public request failure preserves the static fallback and removes discovery controls', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
