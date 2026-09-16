@@ -39,7 +39,7 @@ test('password auth records only failures and resets pressure after a valid pass
   expect(rateLimitPhp).toContain('function brvtal_password_rate_limit_reset(');
   expect(rateLimitPhp).toContain("brvtal_rate_limit_store_write($file, ['attempts' => [], 'blocked_until' => 0])");
 
-  expect(rateStorePhp).toContain("return $file + '.lock';".replace('+', '.'));
+  expect(rateStorePhp).toContain("return $file . '.lock';");
   expect(rateStorePhp).toContain("fopen($temporary, 'x+b')");
   expect(rateStorePhp).toContain('while ($offset < $length)');
   expect(rateStorePhp).toContain('if ($ok && !fflush($handle)) $ok = false;');
