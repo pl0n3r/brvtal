@@ -122,43 +122,170 @@ function brvtal_public_sanitize_blog_relations(
     return $posts;
 }
 
-function brvtal_public_related_graph(
+/** Build display metadata only from entities already admitted to public delivery. */
+function brvtal_public_memory_target_maps(
     array $activeEvents,
     array $archiveEvents,
     array $artists,
     array $sets,
     array $releases
 ): array {
+    $maps = ['event'=>[], 'artist'=>[], 'set'=>[], 'release'=>[]];
+
+    foreach (array_merge($activeEvents, $archiveEvents) as $item) {
+        if (!is_array($item)) continue;
+        $id = (int)($item['id'] ?? 0);
+        if ($id > 0) $maps['event'][$id] = [
+            'title'=>(string)($item['title'] ?? ''),
+            'slug'=>(string)($item['slug'] ?? ''),
+            'route_type'=>'events',
+            'image'=>(string)($item['cover_image'] ?? ''),
+        ];
+    }
+    foreach ($artists as $item) {
+        if (!is_array($item)) continue;
+        $id = (int)($item['id'] ?? 0);
+        if ($id > 0) $maps['artist'][$id] = [
+            'title'=>(string)($item['name'] ?? ''),
+            'slug'=>(string)($item['slug'] ?? ''),
+            'route_type'=>'artists',
+            'image'=>(string)($item['photo'] ?? ''),
+        ];
+    }
+    foreach ($sets as $item) {
+        if (!is_array($item)) continue;
+        $id = (int)($item['id'] ?? 0);
+        if ($id > 0) $maps['set'][$id] = [
+            'title'=>(string)($item['title'] ?? ''),
+            'slug'=>(string)($item['slug'] ?? ''),
+            'route_type'=>'sets',
+            'image'=>(string)($item['cover_image'] ?? ''),
+        ];
+    }
+    foreach ($releases as $item) {
+        if (!is_array($item)) continue;
+        $id = (int)($item['id'] ?? 0);
+        if ($id > 0) $maps['release'][$id] = [
+            'title'=>(string)($item['title'] ?? ''),
+            'slug'=>(string)($item['slug'] ?? ''),
+            'route_type'=>'releases',
+            'image'=>(string)($item['artwork'] ?? ''),
+        ];
+    }
+    return $maps;
+}
+
+/**
+ * Attach explicit Memory relations without exposing relation targets outside
+ * the final public entity pools. Missing migration is a supported state.
+ */
+function brvtal_public_sanitize_media_relations(
+    PDO $pdo,
+    array $media,
+    array $activeEvents,
+    array $archiveEvents,
+    array $artists,
+    array $sets,
+    array $releases
+): array {
+    foreach ($media as &$item) {
+        if (is_array($item)) $item['relations'] = [];
+    }
+    unset($item);
+    if ($media === []) return [];
+
+    try {
+        $exists = $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='media_relations'"
+        );
+        if ((int)$exists->fetchColumn() < 1) return $media;
+    } catch (Throwable) {
+        return $media;
+    }
+
+    $mediaIndexes = [];
+    foreach ($media as $index => $item) {
+        if (!is_array($item)) continue;
+        $id = (int)($item['id'] ?? 0);
+        if ($id > 0) $mediaIndexes[$id] = $index;
+    }
+    if ($mediaIndexes === []) return $media;
+
+    $targets = brvtal_public_memory_target_maps($activeEvents, $archiveEvents, $artists, $sets, $releases);
+    $rows = $pdo->query(
+        "SELECT rel.media_id,rel.related_type,rel.related_id,rel.sort_order
+         FROM media_relations rel
+         JOIN media m ON m.id=rel.media_id AND m.status='published'
+         ORDER BY rel.media_id,rel.sort_order,rel.related_type,rel.related_id"
+    )->fetchAll();
+
+    foreach ($rows ?: [] as $row) {
+        $mediaId = (int)($row['media_id'] ?? 0);
+        $type = strtolower(trim((string)($row['related_type'] ?? '')));
+        $targetId = (int)($row['related_id'] ?? 0);
+        if (!isset($mediaIndexes[$mediaId], $targets[$type][$targetId])) continue;
+        $target = $targets[$type][$targetId];
+        $media[$mediaIndexes[$mediaId]]['relations'][] = [
+            'related_type' => $type,
+            'related_id' => $targetId,
+            'sort_order' => (int)($row['sort_order'] ?? 0),
+            'title' => $target['title'],
+            'slug' => $target['slug'],
+            'route_type' => $target['route_type'],
+            'image' => $target['image'],
+        ];
+    }
+    return $media;
+}
+
+function brvtal_public_related_graph(
+    array $activeEvents,
+    array $archiveEvents,
+    array $artists,
+    array $sets,
+    array $releases,
+    array $media = []
+): array {
     $events = array_merge($activeEvents, $archiveEvents);
     $eventIds = brvtal_public_relation_id_set($events);
     $artistIds = brvtal_public_relation_id_set($artists);
     $setIds = brvtal_public_relation_id_set($sets);
     $releaseIds = brvtal_public_relation_id_set($releases);
+    $memoryIds = brvtal_public_relation_id_set($media);
 
     $graph = [
         'events' => [],
         'artists' => [],
         'sets' => [],
         'releases' => [],
+        'memories' => [],
         'counts' => [
             'event_artist' => 0,
             'event_set' => 0,
             'artist_set' => 0,
             'artist_release' => 0,
+            'event_memory' => 0,
+            'artist_memory' => 0,
+            'set_memory' => 0,
+            'release_memory' => 0,
         ],
     ];
 
     foreach (array_keys($eventIds) as $id) {
-        $graph['events'][(string)$id] = ['artists' => [], 'sets' => []];
+        $graph['events'][(string)$id] = ['artists' => [], 'sets' => [], 'memories' => []];
     }
     foreach (array_keys($artistIds) as $id) {
-        $graph['artists'][(string)$id] = ['events' => [], 'sets' => [], 'releases' => []];
+        $graph['artists'][(string)$id] = ['events' => [], 'sets' => [], 'releases' => [], 'memories' => []];
     }
     foreach (array_keys($setIds) as $id) {
-        $graph['sets'][(string)$id] = ['artist' => null, 'event' => null];
+        $graph['sets'][(string)$id] = ['artist' => null, 'event' => null, 'memories' => []];
     }
     foreach (array_keys($releaseIds) as $id) {
-        $graph['releases'][(string)$id] = ['artists' => []];
+        $graph['releases'][(string)$id] = ['artists' => [], 'memories' => []];
+    }
+    foreach (array_keys($memoryIds) as $id) {
+        $graph['memories'][(string)$id] = ['events'=>[], 'artists'=>[], 'sets'=>[], 'releases'=>[]];
     }
 
     foreach ($events as $event) {
@@ -223,6 +350,38 @@ function brvtal_public_related_graph(
             brvtal_public_relation_add($graph['artists'][(string)$artistId]['releases'], $releaseId);
             if (count($graph['releases'][(string)$releaseId]['artists']) > $beforeRelease) {
                 $graph['counts']['artist_release']++;
+            }
+        }
+    }
+
+    $memoryCountKeys = [
+        'event' => 'event_memory',
+        'artist' => 'artist_memory',
+        'set' => 'set_memory',
+        'release' => 'release_memory',
+    ];
+    $memoryGraphBuckets = [
+        'event' => 'events',
+        'artist' => 'artists',
+        'set' => 'sets',
+        'release' => 'releases',
+    ];
+    foreach ($media as $memory) {
+        if (!is_array($memory)) continue;
+        $memoryId = (int)($memory['id'] ?? 0);
+        if ($memoryId < 1 || !isset($memoryIds[$memoryId])) continue;
+        foreach (is_array($memory['relations'] ?? null) ? $memory['relations'] : [] as $relation) {
+            if (!is_array($relation)) continue;
+            $type = strtolower(trim((string)($relation['related_type'] ?? '')));
+            $targetId = (int)($relation['related_id'] ?? 0);
+            $bucket = $memoryGraphBuckets[$type] ?? '';
+            if ($targetId < 1 || $bucket === '' || !isset($graph[$bucket][(string)$targetId])) continue;
+
+            $before = count($graph[$bucket][(string)$targetId]['memories']);
+            brvtal_public_relation_add($graph[$bucket][(string)$targetId]['memories'], $memoryId);
+            brvtal_public_relation_add($graph['memories'][(string)$memoryId][$bucket], $targetId);
+            if (count($graph[$bucket][(string)$targetId]['memories']) > $before) {
+                $graph['counts'][$memoryCountKeys[$type]]++;
             }
         }
     }
