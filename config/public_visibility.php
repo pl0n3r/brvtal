@@ -60,6 +60,26 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
 }
 
 /**
+ * Canonical presentation/archive classification for a public Event.
+ *
+ * A public Event is historical when its explicit lifecycle is historical or
+ * its date is already before today. This intentionally matches the public
+ * Archive partition so canonical Event pages and archive discovery can never
+ * disagree about whether the same night is an active experience or a record.
+ */
+function brvtal_public_event_is_historical(array $event, ?DateTimeImmutable $now = null): bool
+{
+    $now ??= new DateTimeImmutable('now');
+    if (!brvtal_public_event_is_visible($event, $now)) return false;
+
+    $status = strtolower(trim((string)($event['status'] ?? '')));
+    if (in_array($status, brvtal_public_event_statuses()['historical'], true)) return true;
+
+    $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
+    return $eventDate !== null && $eventDate < $now->setTime(0, 0, 0);
+}
+
+/**
  * Pages are publicly deliverable only when they are published in the single
  * locale currently supported by the BRVTAL public frontend.
  */
