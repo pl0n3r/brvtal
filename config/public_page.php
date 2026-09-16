@@ -66,11 +66,13 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
 
     if ($type === 'events') {
         $detail = brvtal_page_row($pdo, "SELECT event_date,venue,city,status,ticket_url,ticket_instructions FROM events WHERE id=? LIMIT 1", [$id], true);
+        $isHistorical = brvtal_public_event_is_historical($detail);
         $allowsTicketing = brvtal_public_event_allows_ticketing($detail);
         if (!$allowsTicketing) {
             $detail['ticket_url'] = null;
             $detail['ticket_instructions'] = null;
         }
+        $data['event_mode'] = $isHistorical ? 'record' : 'experience';
         $data['entity'] += $detail;
         $data['facts'] = array_filter([
             'DATE' => isset($detail['event_date']) ? date('d.m.Y / H:i', strtotime((string)$detail['event_date'])) : '',
@@ -80,6 +82,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
         $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
+        $data['related']['TRANSMISSIONS'] = brvtal_page_rows($pdo, "SELECT b.title,b.slug,b.cover_image AS image,DATE_FORMAT(b.published_at,'%d.%m.%Y') AS meta,'blog' AS route_type FROM blog_post_relations br JOIN blog_posts b ON b.id=br.post_id AND b.status='published' WHERE br.related_type='event' AND br.related_id=? ORDER BY b.published_at DESC,b.sort_order,b.id DESC", [$id]);
         if ($allowsTicketing) {
             $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
             $data['related']['TICKETS'] = array_values(array_filter(
@@ -212,6 +215,16 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $entityId = $escape(str_pad((string)$entity['id'], 3, '0', STR_PAD_LEFT));
     $routeTypeRaw = (string)$entity['route_type'];
     $routeType = $escape($routeTypeRaw);
+    $isEvent = $routeTypeRaw === 'events';
+    $eventMode = $isEvent && (($page['event_mode'] ?? '') === 'record') ? 'record' : 'experience';
+    $isEventRecord = $isEvent && $eventMode === 'record';
+    $pageClass = $isEvent ? 'entity-page entity-page--event-' . $eventMode : 'entity-page';
+    $heroBadge = $isEventRecord ? 'EVENT RECORD / BRVTAL' : $kind . ' / BRVTAL';
+    $heroKicker = $isEventRecord ? 'BRVTAL / EVENT RECORD / ' . $entityId : 'BRVTAL / ' . $kind . ' / ' . $entityId;
+    $statementLabel = $isEventRecord ? 'EVENT RECORD / CONTEXT' : 'ABOUT / INFORMATION';
+    $eventRecordStatus = $isEventRecord
+        ? '<section class="event-record-status" aria-label="Event record archive status"><span>ARCHIVE STATUS</span><strong>EVENT RECORD / PERMANENT URL</strong><small>DATE / PLACE / LINEUP / SOUND / TRANSMISSIONS</small></section>'
+        : '';
     $backToSection = in_array($routeTypeRaw, ['events', 'artists', 'sets'], true);
     $backHref = $escape($backToSection ? '/#' . $routeTypeRaw : '/');
     $backLabel = $escape($backToSection ? '← BACK TO ARCHIVE' : '← BACK HOME');
@@ -238,15 +251,16 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
 </head>
-<body>
+<body class="{$pageClass}" data-event-mode="{$eventMode}">
   <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
   <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="{$backHref}">{$backLabel}</a></header>
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
-      <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kind} / BRVTAL</span></div>
-      <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kind} / {$entityId}</div><h1>{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
+      <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$heroBadge}</span></div>
+      <div class="entity-copy"><div class="entity-kicker">{$heroKicker}</div><h1>{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
-    <section class="entity-statement"><div class="entity-section-label">ABOUT / INFORMATION</div><p>{$body}</p></section>
+    {$eventRecordStatus}
+    <section class="entity-statement"><div class="entity-section-label">{$statementLabel}</div><p>{$body}</p></section>
     {$degradedNotice}
     {$related}
   </main>
