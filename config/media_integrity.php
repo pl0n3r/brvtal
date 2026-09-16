@@ -11,9 +11,9 @@ declare(strict_types=1);
  */
 
 /**
- * Return other Media rows that point at the same path as the selected record.
- * Existing duplicates are treated as references so canonical deletion cannot
- * remove a shared local file out from under another Media record.
+ * Return other Media rows that point at the same local path as the selected
+ * record. Existing local duplicates are treated as references so canonical
+ * deletion cannot remove a shared file out from under another Media record.
  *
  * @return array<int,array{resource:string,id:int,field:string,title:string}>
  */
@@ -21,7 +21,7 @@ function brvtal_media_duplicate_usage(PDO $pdo, array $media): array
 {
     $path = trim((string)($media['file_path'] ?? ''));
     $id = (int)($media['id'] ?? 0);
-    if ($path === '' || $id < 1) {
+    if (!str_starts_with($path, '/uploads/') || $id < 1) {
         return [];
     }
 
@@ -40,7 +40,7 @@ function brvtal_media_duplicate_usage(PDO $pdo, array $media): array
 }
 
 /**
- * Merge editorial references with duplicate Media ownership references.
+ * Merge editorial references with duplicate local Media ownership references.
  *
  * @return array<int,array{resource:string,id:int,field:string,title:string}>
  */
