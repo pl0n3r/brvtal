@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/artist_collective_lifecycle.php';
+
 /** Parse an exact temporal value without accepting rollover or partial matches. */
 function brvtal_exact_temporal_value(string $value, array $formats): ?string
 {
@@ -98,6 +100,14 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
             ];
         }
         $payload[$field] = $normalized;
+    }
+
+    if ($resource === 'artists') {
+        $collective = brvtal_artist_collective_normalize_payload($payload);
+        if ($collective['error'] !== null) {
+            return ['payload' => $collective['payload'], 'error' => $collective['error']];
+        }
+        $payload = $collective['payload'];
     }
 
     return ['payload' => $payload, 'error' => null];

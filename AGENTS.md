@@ -117,7 +117,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 - unified forms/dialogs, validation and double-save protection;
 - Events uses the guided Content Core event workflow internally;
 - Events lifecycle, tickets and lineup/artist participation;
-- Artists CRUD plus Collective Status;
+- Artists CRUD plus Collective Status with canonical lifecycle validation and transactional `artist_collective_history` periods;
 - Sets CRUD with relations/platform links;
 - Releases / label catalog;
 - Blog, tags and relations;
@@ -218,6 +218,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 18. **Static Home artwork uses measured desktop WebP derivatives without sacrificing the mobile CDN path.** Preserve the original JPEGs as fallback/source assets; desktop may use responsive WebP derivatives selected from measured candidates, while mobile keeps the original URL so Hostinger/hcdn can continue its stronger device-specific optimization.
 19. **Modern production performance evidence is continuous, not a one-off optimization target.** Production Performance records exact-deploy mobile/desktop metrics and resource-waterfall evidence; do not recompress or restructure assets without a measured regression, dominant bottleneck or visual justification.
 20. **Specialized CI safety checks should be jobs, not duplicate workflows, when they are part of normal source validation.** README snapshot validation, PHP compatibility, production-smoke source contracts and isolated recovery rehearsal are consolidated into `BRVTAL CI`; actual production smokes remain explicit manual workflows.
+21. **Artist Collective Status is lifecycle data, not free-form metadata.** Any mutation that touches membership status/dates must submit the complete lifecycle state; `none` has no membership dates, `active` requires a join date and no leave date, and `alumni` requires ordered join/leave dates. Successful Artist mutations synchronize `artist_collective_history` atomically with Admin Activity so future public Roster/history surfaces can rely on structured periods instead of inferred chronology.
 
 ---
 

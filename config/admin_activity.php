@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/admin_auth.php';
+require_once __DIR__ . '/artist_collective_lifecycle.php';
 
 function brvtal_activity_schema_ready(PDO $pdo): bool
 {
@@ -165,6 +166,17 @@ function brvtal_activity_record(
     if ($action === 'update' && $changed === []) return null;
 
     $actor = brvtal_activity_actor($pdo);
+    if ($resource === 'artists' && $resourceId !== null && in_array($action, ['create', 'update'], true)) {
+        brvtal_artist_collective_sync_history(
+            $pdo,
+            $action,
+            $resourceId,
+            $before,
+            $after,
+            isset($actor['id']) ? (int)$actor['id'] : null
+        );
+    }
+
     $label = brvtal_activity_label($resource, $safeAfter ?? $safeBefore, $label);
     $safeMeta = brvtal_activity_sanitize_value($meta);
 
