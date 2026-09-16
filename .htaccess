@@ -15,6 +15,7 @@ RewriteCond %{QUERY_STRING} (?:^|&)(?:route|action)=public(?:&|$) [NC]
 RewriteRule ^api/index\.php$ api/public.php [L,QSA,NC]
 
 RewriteRule ^sitemap\.xml$ sitemap.php [L,QSA]
+RewriteRule ^contact/?$ index.php?page=contact [L,QSA,NC]
 RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?type=$1&slug=$2 [L,QSA,NC]
 
 # Compress text responses at the web-server layer. LiteSpeed is Apache-compatible

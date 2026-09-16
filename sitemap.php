@@ -5,7 +5,10 @@ require_once __DIR__ . '/config/bootstrap.php';
 require_once __DIR__ . '/config/public_seo.php';
 
 $base = brvtal_public_base_url($config);
-$urls = [[$base . '/', null]];
+$urls = [
+    [$base . '/', null],
+    [$base . '/contact', null],
+];
 $eventStatuses = brvtal_public_visible_event_statuses();
 $eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
 $definitions = [
