@@ -52,6 +52,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/hero-slider.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-appearance.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-information-architecture.js' . $suffix . '"></script>'
+    . '<script src="/discadmin/admin-route-aliases.js' . $suffix . '"></script>'
     . '<script src="/discadmin/theme-studio-v2.js' . $suffix . '"></script>'
     . '<script src="/discadmin/theme-studio-reliability.js' . $suffix . '"></script>';
 
