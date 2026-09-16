@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const reliabilityJs = readFileSync(join(process.cwd(), 'discadmin/admin-reliability.js'), 'utf8');
 const apiIndexPhp = readFileSync(join(process.cwd(), 'api/index.php'), 'utf8');
 const rateLimitPhp = readFileSync(join(process.cwd(), 'config/password_rate_limit.php'), 'utf8');
+const rateStorePhp = readFileSync(join(process.cwd(), 'config/rate_limit_store.php'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/password-login-rate-limit-e2e.html';
 
 test('password auth records only failures and resets pressure after a valid password', async () => {
@@ -29,11 +30,20 @@ test('password auth records only failures and resets pressure after a valid pass
   expect(totpChallenge).toBeGreaterThan(reset);
   expect(apiIndexPhp).not.toContain("$data['attempts'][] = $now;");
 
+  expect(rateLimitPhp).toContain("require_once __DIR__ . '/rate_limit_store.php';");
   expect(rateLimitPhp).toContain('BRVTAL_PASSWORD_RATE_LIMIT_MAX_FAILURES = 5');
   expect(rateLimitPhp).toContain('function brvtal_password_rate_limit_failure(');
-  expect(rateLimitPhp).toContain('$attempts[] = $now;');
+  expect(rateLimitPhp).toContain("$data['attempts'][] = $now;");
+  expect(rateLimitPhp).toContain('flock($lock, LOCK_EX)');
+  expect(rateLimitPhp).toContain('brvtal_rate_limit_store_write($file, $data)');
   expect(rateLimitPhp).toContain('function brvtal_password_rate_limit_reset(');
-  expect(rateLimitPhp).toContain('@unlink($file)');
+  expect(rateLimitPhp).toContain("brvtal_rate_limit_store_write($file, ['attempts' => [], 'blocked_until' => 0])");
+
+  expect(rateStorePhp).toContain("return $file . '.lock';");
+  expect(rateStorePhp).toContain("fopen($temporary, 'x+b')");
+  expect(rateStorePhp).toContain('while ($offset < $length)');
+  expect(rateStorePhp).toContain('if ($ok && !fflush($handle)) $ok = false;');
+  expect(rateStorePhp).toContain('@rename($temporary, $file)');
 });
 
 test('password login shows rate limit, invalid credentials and server failures distinctly', async ({ page }) => {

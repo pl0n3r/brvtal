@@ -10,9 +10,18 @@ This document defines how BRVTAL catches regressions before GitHub -> Hostinger 
 - every push to `main`;
 - manual `workflow_dispatch`.
 
-Pull requests and exact `main` pushes use the same changed-file-aware gate selection. The always-on `fast` job computes scope, validates PHP 8.5, runs all top-level PHP contracts, checks JavaScript syntax, and verifies the per-deploy README snapshot on pull requests. Expensive jobs are selected only when the changed surfaces require them. Manual dispatch intentionally runs the complete matrix.
+Pull requests and exact `main` pushes use the same changed-file-aware gate selection. The always-on `fast` job computes scope, validates PHP 8.5, runs every top-level PHP contract, checks JavaScript syntax, and verifies the per-deploy README snapshot on pull requests. Expensive jobs are selected only when the changed surfaces require them. Manual dispatch intentionally runs the complete matrix.
 
-The workflow validates combinations of:
+CodeRabbit is an additional advisory review layer on pull requests. It reads `AGENTS.md` as a repository guideline and applies path-specific review instructions from `.coderabbit.yaml`. It does **not** replace BRVTAL CI, execute the full runtime test matrix, prove deployment, or authorize merge by itself.
+
+The source-validation stack therefore has two complementary parts:
+
+1. **CodeRabbit review** finds semantic, security, architectural and maintainability risks that may not already have a regression test.
+2. **BRVTAL CI** executes deterministic checks proving that known invariants and changed runtime surfaces still work.
+
+When CodeRabbit or another audit finds a valid deterministic defect, the preferred closure is **fix + regression test** whenever the behavior can be exercised safely. A review comment alone is not durable protection against recurrence.
+
+BRVTAL CI validates combinations of:
 
 - PHP 8.5 syntax and warning/deprecation compatibility for project PHP sources;
 - every top-level `tests/*-contract.php` safety/architecture contract;
@@ -39,6 +48,23 @@ Their guarantees were not removed:
 
 The actual authenticated production checks remain separate **manual-only** workflows because they interact with the deployed site rather than validating source in isolation.
 
+## Diff-aware gate policy
+
+The path classifier must err toward running too much rather than silently missing a runtime surface.
+
+Important mappings include:
+
+- `api/contact.php` and `api/public*.php` -> database + Chromium + real-stack;
+- `config/public_*.php` -> database + Chromium + real-stack;
+- `config/*` -> database + real-stack, with auth-sensitive files also selecting WebKit;
+- `discadmin/*.php` -> Chromium + real-stack;
+- `discadmin/*.js` / `discadmin/*.css` -> Chromium;
+- `package.json`, lockfiles and `playwright.config.mjs` -> database + Chromium + real-stack + WebKit;
+- backup/recovery implementation -> database + isolated recovery rehearsal;
+- manual `workflow_dispatch` -> full matrix.
+
+`tests/ci-scope-contract.php` protects these mappings against accidental regression.
+
 ## GitHub Actions build/deploy summary
 
 Every BRVTAL CI run publishes a `GITHUB_STEP_SUMMARY` with:
@@ -53,29 +79,23 @@ Every BRVTAL CI run publishes a `GITHUB_STEP_SUMMARY` with:
 - selected optional validation gates;
 - final aggregate gate results.
 
-A `push` to `main` is marked as an **auto-deploy candidate** because Hostinger is connected to `main`. This summary still does not prove that Hostinger completed the deployment or that the deployed behavior was visually/operationally verified.
+A `push` to `main` is marked as an **auto-deploy candidate** because Hostinger is connected to `main`. This summary still does not prove that Hostinger completed the deployment or that deployed behavior was visually/operationally verified.
 
-## Commands
+## Canonical commands
 
-Run the same PHP 8.5 compatibility + top-level contract sweep used by the always-on fast gate:
-
-```bash
-bash scripts/php85-compatibility.sh
-```
-
-Run the package contract subset:
+Run the same PHP 8.5 compatibility + auto-discovered top-level contract sweep used by the always-on fast gate:
 
 ```bash
 npm run test:contracts
 ```
 
-Run the project operations contract directly:
+Equivalent direct entry point:
 
 ```bash
-php tests/project-operations-contract.php
+bash scripts/php85-compatibility.sh
 ```
 
-Run MariaDB integration tests:
+Run the canonical MariaDB integration suite:
 
 ```bash
 BRVTAL_INTEGRATION_TESTS=1 \
@@ -86,31 +106,23 @@ BRVTAL_TEST_DB_PASS=your_local_test_password \
 npm run test:integration
 ```
 
-Run the isolated backup recovery rehearsal only against a disposable test database:
+The integration command includes Content Persistence, Releases schema, Migrations, Media reference atomicity, Global Search, Bulk Actions, Public Archive, Related Content, Admin Activity and Backups. CI calls this same command instead of maintaining a second list.
 
-```bash
-BRVTAL_INTEGRATION_TESTS=1 \
-BRVTAL_BACKUP_RECOVERY_REHEARSAL=1 \
-BRVTAL_TEST_DB_HOST=127.0.0.1 \
-BRVTAL_TEST_DB_NAME=brvtal_test_backup_source \
-BRVTAL_TEST_DB_USER=root \
-BRVTAL_TEST_DB_PASS=your_local_test_password \
-php tests/integration/backup-recovery-rehearsal.php
-```
-
-Run browser UI tests:
+Run browser UI + targeted WebKit + Content Core real-stack tests:
 
 ```bash
 npm run test:e2e
 ```
 
-Run the full local suite:
+Run the regular complete local suite:
 
 ```bash
 npm test
 ```
 
-Install Playwright locally only when browser tests are needed:
+`npm test` requires the MariaDB integration environment above and Playwright browsers. The destructive-format recovery rehearsal remains a separately guarded test and is intentionally not hidden inside `npm test`.
+
+Install browser dependencies locally only when needed:
 
 ```bash
 npm install
@@ -140,10 +152,13 @@ Examples include:
 
 - Event lineup route behavior;
 - public API settings allowlist;
+- Contact proxy and private rate-limit-storage boundaries;
+- authentication rate-limit atomicity and success-reset invariants;
 - Media Library upload/reference protection;
 - Release/Blog contracts;
 - deployment traceability;
 - Hero Slider public/admin contract;
+- path-aware CI selection;
 - project operations contract;
 - authenticated production smoke safety contract;
 - isolated backup recovery safety contract.
@@ -158,6 +173,14 @@ Examples include:
 - PHP compatibility/README/recovery stay consolidated instead of regressing to duplicate workflows;
 - exact `main` uses diff-aware gates and retains the stable `validate` aggregate;
 - CI must not reintroduce automatic writes/commits to `config/version.php`.
+
+`tests/ci-scope-contract.php` additionally protects the testing-layer audit decisions:
+
+- public APIs and `config/public_*` select browser validation;
+- test-tooling changes select MariaDB as well as browser/real-stack/WebKit gates;
+- CI uses the same integration command developers run locally;
+- CodeRabbit remains advisory while its signal/noise is calibrated;
+- unreachable production performance probes are classified as inconclusive instead of measured regressions.
 
 `tests/production-smoke-contract.php` protects both production-smoke boundaries:
 
@@ -191,22 +214,34 @@ Safety rules:
 - CI uses a disposable MariaDB service;
 - production tables are not reset or seeded.
 
-Coverage includes content persistence plus specialized integration for Search, Bulk Actions, Public Archive, Related Content, Admin Activity, Backups, and isolated backup recovery.
+Coverage includes content persistence plus specialized integration for Search, Bulk Actions, Public Archive, Related Content, Admin Activity, Backups, Migrations, Releases and Media reference atomicity.
 
 #### Backup recovery rehearsal
 
 Backup recovery is the `recovery` job inside `.github/workflows/update-release-metadata.yml`. It is selected only when backup/recovery paths change or when the full workflow is manually dispatched. It does **not** authenticate to BRVTAL production, does not consume production secrets and does not expose a restore action in DISCADMIN.
 
+Run it locally only against a disposable test database:
+
+```bash
+BRVTAL_INTEGRATION_TESTS=1 \
+BRVTAL_BACKUP_RECOVERY_REHEARSAL=1 \
+BRVTAL_TEST_DB_HOST=127.0.0.1 \
+BRVTAL_TEST_DB_NAME=brvtal_test_backup_source \
+BRVTAL_TEST_DB_USER=root \
+BRVTAL_TEST_DB_PASS=your_local_test_password \
+php tests/integration/backup-recovery-rehearsal.php
+```
+
 The rehearsal uses a disposable source database named `brvtal_test_backup_source`, creates representative relational fixtures plus a view and temporary media files, then generates a normal BRVTAL database dump and media ZIP through the existing backup engine. After the snapshot it deliberately mutates the source data and media so the recovery check can prove it is reconstructing the backup point-in-time rather than the later source state.
 
-The SQL dump is imported with the MariaDB client into a unique database matching `brvtal_test_recovery_<random>`. The rehearsal then verifies:
+The SQL dump is imported with the MariaDB client into a unique database matching `brvtal_test_recovery_<random>`. The rehearsal verifies:
 
 - the database artifact SHA-256 matches the manifest;
 - Unicode, apostrophes and `NULL` values survive restore;
 - rows created or modified after the backup are absent;
 - restored foreign-key constraints still enforce referential integrity;
 - the restored SQL view returns the expected snapshot result;
-- the media ZIP extracts to the expected paths and file hashes match the pre-backup snapshot.
+- the media ZIP extracts to expected paths and file hashes match the pre-backup snapshot.
 
 Both the source fixtures and the unique recovery database are removed in `finally` cleanup. A strict namespace guard prevents the rehearsal from creating or dropping an arbitrary database. The evidence artifact is `backup-recovery-rehearsal.json` and contains no database password.
 
@@ -278,8 +313,6 @@ Run it only from `main`, after the intended SHA is deployed, and type the exact 
 WRITE_AND_DELETE_TEMP_PAGE
 ```
 
-It uses the same `production-smoke` environment secrets as the read-only authenticated smoke. The probe independently requires the confirmation token and the exact expected SHA before it can write anything.
-
 The controlled sequence is intentionally narrow:
 
 1. authenticate through the normal admin API, including TOTP when enabled;
@@ -294,6 +327,39 @@ If the create response is ambiguous, cleanup searches only for the unique slug g
 Because the temporary Page is intentionally `published` to reproduce #122 faithfully, there is a brief interval between creation and cleanup in which that unique slug can technically exist publicly. The slug is generated per run and the probe performs cleanup immediately even when verification fails. A run with failed or unverified cleanup must be treated as a production incident to inspect before retrying.
 
 A green CI/contract run does **not** validate #122 in production. Only a green manual `Controlled Production Page Write Smoke` run against the intended deployed SHA, with `cleanup.verifiedAbsent=true` in the evidence artifact, is sufficient to mark #122 **VALIDATED IN PRODUCTION**.
+
+### 6. Production performance evidence
+
+`.github/workflows/production-performance.yml` runs only after a successful `main` BRVTAL CI push or by manual dispatch. It first checks whether the canonical production origin is reachable from that GitHub runner.
+
+The result semantics are deliberate:
+
+- **measured failure**: production was reachable, the expected deploy was observable when required, measurement ran, and a performance assertion failed;
+- **inconclusive**: the runner could not reach production, so no performance measurement was executed;
+- **success**: the requested measurements completed successfully.
+
+An unreachable runner must not be presented as evidence that BRVTAL performance regressed. The summary records `INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER` and skips browser setup/measurement.
+
+## CodeRabbit policy
+
+`.coderabbit.yaml` keeps automatic PR review enabled for `main`, but `request_changes_workflow` remains disabled while review signal/noise is calibrated. CodeRabbit therefore contributes findings without replacing the mandatory `BRVTAL CI / validate` decision boundary.
+
+Path guidance specifically asks CodeRabbit to scrutinize:
+
+- authentication/session/rate-limit/proxy/filesystem boundaries under `config/**`;
+- authorization, validation, publication contracts and information exposure under `api/**`;
+- the ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE invariant in `discadmin/**`;
+- deterministic regression coverage in `tests/**`;
+- false-negative path selection and production-vs-source semantics in `.github/workflows/**`;
+- destructive/idempotency risks in `database/**`.
+
+Once CodeRabbit has been observed across several real PRs, its blocking role can be reconsidered separately. Until then, it is deliberately advisory.
+
+## Branch protection
+
+Repository settings should require `BRVTAL CI / validate` before merging into `main`. This is a GitHub repository administration setting, not a source-file setting. If the active automation connection lacks GitHub Administration permission, it cannot be enforced from repository code; configure the required status check through GitHub rulesets/branch protection using an account with admin rights.
+
+CodeRabbit should not be made a required blocking check during the initial calibration period.
 
 ## Release metadata policy
 

@@ -6,41 +6,63 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 
 ## Qué se hizo
 
-- Sets en `draft` pueden seguir incompletos, pero un Set no puede entrar a `published` sin una **Listening URL** válida.
-- La política de publicación exige URL `http(s)` y vive en una función canónica compartida, en vez de depender solo del formulario de DISCADMIN.
-- POST y PUT del API genérico validan el estado resultante completo; un PUT parcial que intente publicar un Set cuyo URL persistido está vacío también responde `422` sin modificar la fila.
-- Bulk Actions reutiliza la misma regla: antes de publicar Sets bloquea y revisa `external_url` de todos los IDs seleccionados dentro de la misma transacción. Si uno no está listo, el lote completo se rechaza.
-- El editor de Sets marca dinámicamente **Listening URL \*** al elegir `Published`, aplica `required`/`aria-required`, exige `http(s)` y enfoca el campo con feedback antes de enviar una publicación inválida.
-- Se mantiene una sola semántica entre Content Health y publicación real: un Set públicamente visible siempre tiene destino de escucha.
+- CodeRabbit queda versionado como capa de revisión **advisory** para PRs a `main`, con `AGENTS.md` como guía canónica y reglas específicas para seguridad, API, DISCADMIN, tests, CI y migraciones.
+- SonarQube Cloud queda configurado para su análisis automático ya conectado a GitHub: separa source/tests, excluye material privado/binario y evita duplicar el scanner dentro de BRVTAL CI.
+- La suite local deja de mantener listas paralelas: `test:contracts` usa el mismo auto-discovery PHP 8.5 que CI y `test:integration` reúne las integraciones que CI antes añadía manualmente.
+- La selección diff-aware usa un clasificador ejecutable compartido por CI y tests; APIs/config pública activan Chromium + backend/real-stack, `api/hero-slider.php` queda incluido y cambios del propio clasificador ejecutan la matriz completa.
+- Contact deja de confiar en `CF-Connecting-IP` salvo peer explícitamente confiable, mueve su estado a `storage/rate_limits/` y bloquea `.json` legacy en `storage/`.
+- Password y TOTP comparten almacenamiento de rate limits con lock estable y reemplazo atómico: la escritura completa y el flush se validan antes del rename, evitando truncar un estado válido ante fallos de persistencia.
+- Los contratos ejecutan fallos concurrentes reales de password/TOTP para demostrar que no se pierden intentos, y verifican reset y umbrales de bloqueo.
+- El contrato de recovery ahora valida los triggers contra el mismo clasificador ejecutable que consume CI, eliminando una aserción textual obsoleta del workflow.
+- Production Performance diferencia una regresión medida de un runner sin conectividad: si producción no es alcanzable, el resultado queda **INCONCLUSIVE** y se omite la medición.
 
 ## Archivos modificados en este deploy
 
+- `.coderabbit.yaml` — política de revisión automática advisory y path instructions de BRVTAL.
+- `.github/workflows/production-performance.yml` — clasifica falta de conectividad como inconclusa y omite mediciones no ejecutables.
+- `.github/workflows/update-release-metadata.yml` — consume el clasificador diff-aware compartido y reutiliza la suite canónica de integración.
+- `.sonarcloud.properties` — scope del análisis automático de SonarQube Cloud sin scanner CI duplicado.
 - `README.md` — snapshot operativo exacto de este deploy.
-- `api/bulk-actions-lib.php` — valida Listening URL antes de una publicación masiva de Sets.
-- `api/index.php` — aplica el contrato de publicación en POST y PUT, incluidos updates parciales.
-- `config/set_publication.php` — política canónica `draft` vs `published` para Sets.
-- `discadmin/index.php` — carga versionada del guard editorial de Sets dentro del shell canónico.
-- `discadmin/set-publication-contract.js` — feedback inmediato y required state en el editor.
-- `tests/set-publication-contract.php` — regresión de política, API, Bulk Actions y UI.
+- `api/contact.php` — pasa la configuración al resolver el bucket de rate limit.
+- `config/config.example.php` — documenta la allowlist opcional de proxies confiables.
+- `config/password_rate_limit.php` — usa almacenamiento atómico y lock estable para fuerza bruta de password.
+- `config/public_contact.php` — valida proxy/IP y guarda el limiter bajo el subtree protegido.
+- `config/rate_limit_store.php` — persistencia reusable con short-write/flush checks y rename atómico.
+- `config/totp_auth.php` — consume el limiter 2FA aislado y resetea el scope de login tras éxito.
+- `config/totp_rate_limit.php` — limiter 2FA testeable y concurrent-safe fuera del bootstrap de autenticación.
+- `discadmin/totp-api.php` — resetea el scope de rate limit tras deshabilitar 2FA correctamente.
+- `docs/TESTING.md` — documenta CodeRabbit + CI, suites canónicas, gates y semántica de performance.
+- `package.json` — alinea comandos locales de contratos e integración con CI.
+- `scripts/ci-scope.sh` — clasificador ejecutable único para los gates diff-aware.
+- `storage/.htaccess` — niega acceso HTTP a JSON de estado legacy.
+- `tests/auth-rate-limit-contract.php` — regresión ejecutable de concurrencia, atomicidad, bloqueo y reset.
+- `tests/backup-recovery-rehearsal-contract.php` — valida recovery contra el clasificador compartido en vez de duplicar reglas del workflow.
+- `tests/ci-scope-contract.php` — ejecuta el clasificador y protege gates, CodeRabbit, Sonar automático y performance inconclusa.
+- `tests/e2e/discadmin-password-login-rate-limit.spec.mjs` — alinea la regresión browser con el store atómico compartido.
+- `tests/public-contact-contract.php` — cubre spoofing de headers, CIDR confiable y storage privado.
 
 ## Validación
 
-- Base de trabajo: `main` `0e65905de4ff483714120d883ba6f4371baceda9`.
-- Ese SHA tenía BRVTAL CI exacto en verde y Production Performance exitoso, incluido `Wait for exact Hostinger deploy`.
-- No había PRs abiertos al iniciar este bloque.
-- Issue contrastado inmediatamente antes de desarrollar: `#234` = **Sets can be published without a listening URL**.
+- Base exacta: `main` `f61b3e990ea9ee6225defd61b6fe27656b939097`, con `BRVTAL CI / validate` en verde antes de iniciar.
+- No había PRs abiertos al crear `test/review-hardening`.
+- Issues cubiertos por las regresiones/correcciones: `#263`, `#363`, `#364` y `#367`.
 - Se preserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
-- No se publicaron ni alteraron Sets reales para validar esta corrección.
-- Pendiente: CI del head final del PR y, después del squash merge, CI + Production Performance del SHA exacto de `main`.
-- CI verde significará **VALIDATED IN CODE**. Una edición/publicación manual autenticada en producción seguirá siendo validación de producción separada.
+- CodeRabbit permanece no bloqueante; `BRVTAL CI / validate` sigue siendo la frontera automatizada de merge.
+- La primera revisión CodeRabbit emitió 4 findings accionables: browser gate de Hero Slider, persistencia fail-closed, concurrencia ejecutable de auth y classifier CI ejecutable. Los cuatro fueron incorporados en la misma rama.
+- Un primer head posterior falló `fast` porque el contrato de recovery seguía buscando reglas ya extraídas del workflow; el contrato fue alineado al clasificador compartido en la misma rama.
+- SonarQube Cloud ya está conectado mediante su GitHub App; el repositorio no añade una segunda ejecución de scanner.
+- Pendiente en este snapshot: re-review CodeRabbit + SonarQube Cloud + matriz BRVTAL CI sobre el head final y, tras squash merge, `validate` del SHA exacto de `main`.
+- CI verde significará **VALIDATED IN CODE**. No se declarará **VALIDATED IN PRODUCTION** sin comprobación del deploy real.
 
 ## Qué sigue
 
-1. Ejecutar CI del PR, corregir cualquier regresión y hacer squash merge si `validate` queda verde.
-2. Confirmar deploy exacto en Hostinger para el nuevo SHA de `main`.
-3. Continuar la auditoría diagnóstica sobre el `main` desplegado, priorizando integridad editorial, seguridad y operaciones.
+1. Resolver cualquier finding nuevo válido de CodeRabbit, SonarQube Cloud o BRVTAL CI en la misma rama.
+2. Hacer squash merge solo con `BRVTAL CI / validate` verde y revisar las señales externas antes del merge.
+3. Verificar `BRVTAL CI / validate` del SHA exacto resultante en `main`.
+4. Activar en GitHub repository settings la protección/ruleset que exija `BRVTAL CI / validate` cuando se disponga de una conexión con permisos de Administration.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
-- Bug abordado por este bloque: `#234`.
+- Estrategia de validación: `docs/TESTING.md`.
+- Issues abordados: `#263`, `#363`, `#364`, `#367`.

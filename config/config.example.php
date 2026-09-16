@@ -24,6 +24,9 @@ return [
     'contact' => [
         // Public Contact form recipient. BRVTAL_CONTACT_TO can override this at runtime.
         'to' => 'contact@brvtal.com.co',
+        // Only peers listed here may supply CF-Connecting-IP for Contact rate limiting.
+        // Keep empty on shared hosting unless the immediate proxy addresses/CIDRs are known.
+        'trusted_proxies' => [],
     ],
     'hosting' => [
         // Optional operational quota used by DISCADMIN System Status.

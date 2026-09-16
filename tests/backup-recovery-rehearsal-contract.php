@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $workflowPath = $root . '/.github/workflows/update-release-metadata.yml';
+$scopePath = $root . '/scripts/ci-scope.sh';
 $rehearsalPath = $root . '/tests/integration/backup-recovery-rehearsal.php';
 $backupsPath = $root . '/config/backups.php';
 $endpointPath = $root . '/discadmin/backups.php';
@@ -16,9 +17,11 @@ $expect = static function (bool $condition, string $message): void {
 };
 
 $expect(is_file($workflowPath), 'BRVTAL CI workflow must exist');
+$expect(is_file($scopePath), 'shared CI scope classifier must exist');
 $expect(is_file($rehearsalPath), 'isolated recovery rehearsal integration must exist');
 
 $workflow = (string)file_get_contents($workflowPath);
+$scope = (string)file_get_contents($scopePath);
 $rehearsal = (string)file_get_contents($rehearsalPath);
 $backups = (string)file_get_contents($backupsPath);
 $endpoint = (string)file_get_contents($endpointPath);
@@ -30,7 +33,8 @@ $expect(str_contains($workflow, "  recovery:\n"), 'BRVTAL CI must contain the re
 $expect(str_contains($workflow, 'name: recovery-rehearsal'), 'recovery job name must remain explicit');
 $expect(str_contains($workflow, "if: needs.fast.outputs.run_recovery == 'true'"), 'recovery must be path-aware');
 $expect(str_contains($workflow, 'run_recovery'), 'fast planner must expose the recovery decision');
-$expect(str_contains($workflow, 'config/backups.php|discadmin/backups.php|tests/backups-contract.php|tests/backup-recovery-rehearsal-contract.php'), 'backup surfaces must trigger recovery');
+$expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'workflow must consume the shared CI scope classifier');
+$expect(str_contains($scope, 'config/backups.php|discadmin/backups.php|tests/backups-contract.php|tests/backup-recovery-rehearsal-contract.php'), 'backup surfaces must trigger recovery');
 $expect(str_contains($workflow, 'mariadb:11.4'), 'recovery must use an isolated MariaDB service');
 $expect(str_contains($workflow, 'MARIADB_DATABASE: brvtal_test_backup_source'), 'workflow source DB must be a fixed test namespace');
 $expect(str_contains($workflow, "BRVTAL_INTEGRATION_TESTS: '1'"), 'integration guard must be enabled explicitly');

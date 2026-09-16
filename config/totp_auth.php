@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/totp.php';
+require_once __DIR__ . '/totp_rate_limit.php';
 
 function brvtal_totp_secret_key(): string {
     return brvtal_totp_encryption_key();
@@ -42,28 +43,10 @@ function brvtal_totp_pending_admin_id(): ?int {
 }
 
 function brvtal_totp_rate_limit_scope(int $adminId, string $scope): void {
-    $dir = __DIR__ . '/../storage/rate_limits';
-    if (!is_dir($dir)) @mkdir($dir, 0750, true);
-    $prefix = $scope === 'login' ? 'totp|' : 'totp|' . $scope . '|';
-    $key = hash('sha256', $prefix . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '|' . $adminId);
-    $file = $dir . '/' . $key . '.json';
-    $now = time(); $window = 900; $max = 5;
-    $data = ['attempts'=>[], 'blocked_until'=>0];
-    if (is_file($file)) {
-        $decoded = json_decode((string)@file_get_contents($file), true);
-        if (is_array($decoded)) $data = array_replace($data, $decoded);
-    }
-    $data['attempts'] = array_values(array_filter((array)$data['attempts'], static fn($t) => is_int($t) && $t > $now - $window));
-    if ((int)$data['blocked_until'] > $now) {
-        json_response(['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>(int)$data['blocked_until']-$now],429,['Retry-After'=>(string)((int)$data['blocked_until']-$now)]);
-    }
-    $data['attempts'][] = $now;
-    if (count($data['attempts']) > $max) {
-        $data['blocked_until'] = $now + 900;
-        @file_put_contents($file, json_encode($data), LOCK_EX);
-        json_response(['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>900],429,['Retry-After'=>'900']);
-    }
-    @file_put_contents($file, json_encode($data), LOCK_EX);
+    $state = brvtal_totp_rate_limit_failure($adminId, $scope);
+    if (!$state['limited']) return;
+    $retryAfter = max(1, (int)$state['retry_after']);
+    json_response(['ok'=>false,'error'=>'RATE_LIMITED','retry_after'=>$retryAfter],429,['Retry-After'=>(string)$retryAfter]);
 }
 
 function brvtal_totp_rate_limit(int $adminId): void {
@@ -86,6 +69,7 @@ function brvtal_totp_recovery_verify(PDO $pdo, int $adminId, string $code): bool
 }
 
 function brvtal_totp_complete_login(PDO $pdo, array $admin): never {
+    brvtal_totp_rate_limit_reset((int)$admin['id']);
     brvtal_totp_pending_clear();
     brvtal_admin_login_session((int)$admin['id']);
     $pdo->prepare('UPDATE admins SET last_login_at=NOW() WHERE id=?')->execute([(int)$admin['id']]);

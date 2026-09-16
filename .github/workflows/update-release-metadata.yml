@@ -74,82 +74,15 @@ jobs:
           changed_file_list=$(printf '%s\n' "$changed_file_list" | sed '/^[[:space:]]*$/d' | sort -u)
           changed_count=$(printf '%s\n' "$changed_file_list" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
 
-          full=false
-          run_db=false
-          run_browser=false
-          run_realstack=false
-          run_webkit=false
-          run_recovery=false
-          if [[ "$BRVTAL_EVENT" == "workflow_dispatch" ]]; then
-            full=true
-            run_db=true
-            run_browser=true
-            run_realstack=true
-            run_webkit=true
-            run_recovery=true
-          fi
-
-          areas=""
-          add_area() {
-            local area="$1"
-            case ",$areas," in
-              *",$area,"*) ;;
-              *) areas="${areas:+$areas, }$area" ;;
-            esac
-          }
-
-          while IFS= read -r file; do
-            [[ -z "$file" ]] && continue
-            case "$file" in
-              discadmin/*.js|discadmin/*.css)
-                add_area "DISCADMIN UI"; run_browser=true ;;
-              discadmin/*.php)
-                add_area "DISCADMIN PHP"; run_browser=true; run_realstack=true ;;
-              discadmin/*)
-                add_area "DISCADMIN"; run_browser=true ;;
-              api/*)
-                add_area "API"; run_db=true; run_realstack=true ;;
-              database/*)
-                add_area "Database/migrations"; run_db=true; run_realstack=true ;;
-              config/*)
-                add_area "Runtime config"; run_db=true; run_realstack=true ;;
-              js/*|css/*|index.php|index.html|sitemap.php|assets/*|uploads/*)
-                add_area "Public web"; run_browser=true ;;
-              tests/integration/backup-recovery-rehearsal.php)
-                add_area "Recovery testing"; run_db=true; run_recovery=true ;;
-              tests/integration/*)
-                add_area "Integration tests"; run_db=true ;;
-              tests/e2e/content-core-real-stack.spec.mjs|tests/e2e/run-content-core-real-stack.sh)
-                add_area "Real-stack tests"; run_realstack=true ;;
-              tests/e2e/discadmin-totp-login.spec.mjs)
-                add_area "Auth browser tests"; run_browser=true; run_webkit=true ;;
-              tests/e2e/*)
-                add_area "Browser tests"; run_browser=true ;;
-              playwright.config.mjs|package.json|package-lock.json)
-                add_area "Test tooling"; run_browser=true; run_realstack=true; run_webkit=true ;;
-              .github/workflows/update-release-metadata.yml)
-                add_area "CI/CD core"; run_db=true; run_browser=true; run_realstack=true; run_webkit=true; run_recovery=true ;;
-              .github/*)
-                add_area "CI/CD" ;;
-              scripts/*|tests/*.php)
-                add_area "Fast tests/tooling" ;;
-              docs/*|README.md|AGENTS.md)
-                add_area "Docs/operations" ;;
-              *)
-                add_area "Other"; run_db=true; run_browser=true; run_realstack=true ;;
-            esac
-
-            case "$file" in
-              config/backups.php|discadmin/backups.php|tests/backups-contract.php|tests/backup-recovery-rehearsal-contract.php)
-                run_db=true; run_recovery=true ;;
-            esac
-
-            case "$file" in
-              config/admin_auth.php|config/totp*.php|discadmin/totp*|discadmin/index.php|api/index.php)
-                run_webkit=true ;;
-            esac
-          done <<< "$changed_file_list"
-          [[ -z "$areas" ]] && areas="None detected"
+          source scripts/ci-scope.sh
+          brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"
+          full="$BRVTAL_SCOPE_FULL"
+          run_db="$BRVTAL_SCOPE_RUN_DB"
+          run_browser="$BRVTAL_SCOPE_RUN_BROWSER"
+          run_realstack="$BRVTAL_SCOPE_RUN_REALSTACK"
+          run_webkit="$BRVTAL_SCOPE_RUN_WEBKIT"
+          run_recovery="$BRVTAL_SCOPE_RUN_RECOVERY"
+          areas="$BRVTAL_SCOPE_AREAS"
 
           echo "full=$full" >> "$GITHUB_OUTPUT"
           echo "run_db=$run_db" >> "$GITHUB_OUTPUT"
@@ -332,25 +265,8 @@ jobs:
           count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations');")
           test "$count" = "4"
 
-      - name: Run MariaDB integrations
-        run: |
-          npm run test:integration
-          php tests/integration/global-search.php
-          php tests/integration/bulk-actions.php
-          php tests/integration/public-archive.php
-          php tests/integration/related-content.php
-
-      - name: Validate Admin Activity migration and integration
-        run: |
-          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS admins (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin', is_active TINYINT(1) NOT NULL DEFAULT 1, last_login_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
-          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
-          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_admin_activity_01.sql
-          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME='admin_activity_log';")
-          test "$count" = "1"
-          php tests/integration/admin-activity.php
-
-      - name: Run Backups MariaDB integration
-        run: php tests/integration/backups.php
+      - name: Run canonical MariaDB integration suite
+        run: npm run test:integration
 
       - name: Validate SEO migration is idempotent
         run: |

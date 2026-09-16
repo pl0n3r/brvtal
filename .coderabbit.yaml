@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    base_branches:
+      - main
+  path_filters:
+    - "!**/node_modules/**"
+    - "!assets/**"
+    - "!uploads/**"
+    - "!discadmin/qrcode.min.js"
+    - "!**/.DS_Store"
+  path_instructions:
+    - path: "config/**"
+      instructions: |
+        Treat AGENTS.md as canonical. Prioritize authentication, session, CSRF, rate-limit, filesystem, proxy-boundary and fail-closed behavior. Flag read-modify-write state that is not atomic. Any deterministic security defect fixed here should normally gain a regression contract.
+    - path: "api/**"
+      instructions: |
+        Check authentication/authorization, CSRF, validation, publication invariants, HTTP status semantics, information exposure and transaction boundaries. Public routes must fail closed and must not expose private settings or server state.
+    - path: "discadmin/**"
+      instructions: |
+        Preserve ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE and canonical /discadmin navigation. Check session-expiry behavior, accessible keyboard/modal interactions, mobile behavior and that UI validation never substitutes for server validation.
+    - path: "tests/**"
+      instructions: |
+        Require meaningful regression coverage for deterministic defects. Prefer executable behavior tests over source-string assertions when the runtime can be exercised safely. Keep production mutation tests explicitly gated, uniquely namespaced and self-cleaning.
+    - path: ".github/workflows/**"
+      instructions: |
+        Preserve BRVTAL CI as the canonical source-validation workflow and its stable validate aggregate. Check path-aware gate selection for false negatives. A production connectivity failure must not be mislabeled as a measured performance regression.
+    - path: "database/**"
+      instructions: |
+        Flag destructive or irreversible operations, unsafe non-idempotent migrations and changes that can target production. Test fixtures and recovery rehearsals must stay inside guarded brvtal_test* namespaces.
+    - path: "js/**"
+      instructions: |
+        Check public runtime fallbacks, accessibility, responsive behavior, URL-state safety and that broken or missing backend data does not leave misleading interactive controls.
+    - path: "README.md"
+      instructions: |
+        README is a transient exact deploy snapshot, not cumulative history. Its changed-file list must match the PR diff exactly and stay concise.
+knowledge_base:
+  code_guidelines:
+    enabled: true
