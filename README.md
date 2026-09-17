@@ -16,6 +16,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `robots.txt` ya apuntaba correctamente a `https://www.brvtal.com.co/sitemap.xml` y no requiere modificación.
 - Se añade un contrato que mantiene sincronizados el registro de contenido, el routing público, el renderer XML y la URL anunciada a crawlers.
 - El contrato existente de Contact se adapta al nuevo registro canónico sin reducir su garantía de que `/contact` pertenezca al sitemap.
+- El contrato de fallos públicos mantiene `503 + no-store` ante errores del sitemap y actualiza la respuesta sana al nuevo cache revalidable.
 - No hay cambios de base de datos ni migraciones.
 
 ## Archivos modificados en este deploy
@@ -27,6 +28,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `sitemap.php` — sitemap dinámico basado en el registro común y revalidado en cada consulta.
 - `tests/public-sitemap-contract.php` — contrato de sincronización entre contenido público, routing, XML y `robots.txt`.
 - `tests/public-contact-contract.php` — garantía de Contact actualizada para leer la fuente canónica del sitemap.
+- `tests/public-failure-semantics-contract.php` — semántica de error conservada y cache sano alineado a revalidación.
 
 ## Validación
 
