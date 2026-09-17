@@ -1,3 +1,4 @@
+/** Enhance the public Sets archive with browsing controls backed by shared data. */
 (() => {
   'use strict';
 
