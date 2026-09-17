@@ -21,8 +21,10 @@
     return value.slice(start, end);
   }
   const safeSlug = value => trimEdgeDashes(
-    String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-')
-  ).slice(0, 60);
+    trimEdgeDashes(
+      String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-')
+    ).slice(0, 60)
+  );
   const imagePath = value => {
     const raw = String(value || '').trim();
     if (!raw) return '';
