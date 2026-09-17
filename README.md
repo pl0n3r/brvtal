@@ -8,38 +8,36 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Se cierra el único finding válido de CodeRabbit posterior a #461 sin modificar lógica de producción.
-- La cobertura Playwright de record lists ahora fuerza decoraciones repetidas y comprueba que metadata `data-label` obsoleta se elimine antes de reconstruir el esquema responsive.
-- La cobertura Playwright de la librería pública de Sets ahora comprueba que `.sets-library-controls` quede inmediatamente después de `.sets-intro`, preservando la semántica de `Element.after()` entregada por #461.
-- Los contratos fuente de #461 permanecen intactos; este deploy añade evidencia ejecutable del comportamiento real solicitado por revisión.
-- No se modifican APIs, base de datos, rutas, estilos ni código de producción.
+- Se cierra la advertencia documental que CodeRabbit dejó en #461 después de que #462 ya integrara y validara la cobertura ejecutable solicitada.
+- `js/public-sets-library.js` recibe un docblock breve para el enhancer IIFE de Public Sets; no cambia ninguna instrucción ejecutable ni su comportamiento.
+- La documentación queda alineada con el estándar de cobertura de docstrings que CodeRabbit aplicó al código tocado en #461.
+- No se modifican APIs, base de datos, rutas, orden editorial, estilos, contratos ni lógica de negocio.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `tests/e2e/discadmin-mobile-record-lists.spec.mjs` — regresión para limpieza de `data-label` en decoraciones repetidas.
-- `tests/e2e/public-sets-library-phase-c.spec.mjs` — regresión para posición de controles inmediatamente después de `.sets-intro`.
+- `js/public-sets-library.js` — docblock del enhancer de la librería pública de Sets, sin cambios funcionales.
 
 ## Validación
 
-- Base exacta: `main` `d0d65de8131889f20400df53587b24d7164d23b5`.
-- Ese SHA exacto pasó BRVTAL CI #809 con conclusión `success`; #461 queda **VALIDATED IN CODE** en `main`.
-- Production Performance #497 también concluyó `success`, pero esto no se considera por sí solo validación funcional de producción.
-- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- CI verde significará **VALIDATED IN CODE**, no validación de producción.
+- Base exacta recontrastada: `main` `1ff5a6cb2a1f7967482b41a4dfb0c40a818c5a9b`.
+- Ese SHA exacto pasó BRVTAL CI #812 con `fast`, `chromium` y `validate` en `success`; #462 queda **VALIDATED IN CODE** en `main`.
+- #462 cerró el finding ejecutable de CodeRabbit de #461 con regresiones de decoraciones repetidas y posición de controles de Sets.
+- Este micro-cambio debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
+- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Integrar este follow-up de cobertura solo con gates exactos verdes y verificar el SHA exacto resultante de `main`.
-- Preparar en un PR separado los HIGH DOM todavía vigentes en `discadmin/bulk-actions.js` y `discadmin/global-search.js` usando `status.before(trigger)` para preservar el orden actual.
-- Continuar #451 por riesgo con los siguientes findings vigentes, recontrastados siempre contra `main`.
+- Completar los gates exactos de este micro-cambio documental, hacer squash merge y verificar el nuevo `main`.
+- Tratar en un PR separado los HIGH DOM de `discadmin/bulk-actions.js` y `discadmin/global-search.js`, usando `status.before(trigger)` como reemplazo equivalente de `top.insertBefore(trigger, status)`.
+- Continuar #451 por riesgo con los siguientes findings vigentes recontrastados contra el código actual.
 - Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
 
 ## Panorama general pendiente
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **Cobertura DOM:** follow-up de #461 — cerrar la evidencia ejecutable solicitada por CodeRabbit para record lists y Sets.
+- **DOM API quick wins:** #461 integrado y VALIDATED IN CODE; #462 integrado y VALIDATED IN CODE con la cobertura ejecutable solicitada; este micro-cambio cierra la advertencia documental restante.
 - **DOM API siguiente bloque:** `discadmin/bulk-actions.js` y `discadmin/global-search.js` conservan dos HIGH equivalentes de inserción DOM; el reemplazo correcto y equivalente es `status.before(trigger)`.
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
 - **Sonar / calidad:** #451 — continuar la cola por riesgo y área, evitando refactors masivos y revalidando cada finding contra el código vigente.
