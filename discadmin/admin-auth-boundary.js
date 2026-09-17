@@ -7,19 +7,11 @@
   let expiring = false;
 
   function adminState() {
-    try {
-      if (typeof state === 'object' && state) return state;
-    } catch (_) {}
     return window.state && typeof window.state === 'object' ? window.state : null;
   }
 
   function clearCsrf() {
-    try {
-      if (typeof csrf !== 'undefined') csrf = '';
-    } catch (_) {}
-    try {
-      if ('csrf' in window) window.csrf = '';
-    } catch (_) {}
+    if ('csrf' in window) window.csrf = '';
   }
 
   function expireSession() {
