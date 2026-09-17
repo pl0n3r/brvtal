@@ -61,9 +61,10 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 - Base exacta: `main` `c262a8af5d1df0e520bdb1ad4d297df9cf206fa6`.
 - Esa base quedó completamente verde en **BRVTAL CI #655** después del merge de #412.
-- Scope canónico: issue **#415** · parent **#398 Phase D** · rama `design/public-memories-phase-d`; #416 cerrado como duplicado.
+- Scope canónico: issue **#415** · PR **#417** · parent **#398 Phase D** · rama `design/public-memories-phase-d`; #416 cerrado como duplicado.
 - No se ejecutó SQL de producción, no se añadió token/credencial y no se creó una segunda API pública.
-- Pendiente: abrir PR, ejecutar BRVTAL CI + CodeRabbit, corregir findings válidos, squash merge y validar el SHA exacto de `main`.
+- BRVTAL CI **#656** llegó al contrato nuevo y detectó una aserción textual que esperaba `data.relations` / `data.media` aunque el runtime usa optional chaining `data?.relations` / `data?.media`. Se alineó el contrato sin cambiar lógica productiva ni reducir cobertura.
+- Pendiente: BRVTAL CI + CodeRabbit sobre este head corregido; squash solo con `validate` verde y revisión limpia.
 - CI verde significará **VALIDATED IN CODE**, no **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
