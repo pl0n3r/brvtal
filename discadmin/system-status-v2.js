@@ -47,70 +47,96 @@
   }
 
   async function csrfToken() {
-    if (window.csrf) return window.csrf;
+    if (globalThis.csrf) {
+      return globalThis.csrf;
+    }
     const auth = await fetchJson(AUTH);
-    if (!auth.authenticated || !auth.csrf) throw new Error('AUTH_REQUIRED');
-    window.csrf = auth.csrf;
+    if (!auth.authenticated || !auth.csrf) {
+      throw new Error('AUTH_REQUIRED');
+    }
+    globalThis.csrf = auth.csrf;
     return auth.csrf;
   }
 
   function renderLogPayload(root, payload) {
     const output = root.querySelector('#ssv2-logs');
     const meta = root.querySelector('#ssv2-log-meta');
-    if (!output || !meta) return;
+    if (!output || !meta) {
+      return;
+    }
     output.hidden = false;
     output.textContent = payload.content || 'No log entries.';
     meta.textContent = `${number(payload.lines)} LINES · ${number(payload.bytes)} B`;
   }
 
-  async function loadLogs(root, button) {
+  function setLogMeta(root, message) {
     const meta = root.querySelector('#ssv2-log-meta');
+    if (meta) {
+      meta.textContent = message;
+    }
+  }
+
+  async function loadLogs(root, button) {
     button.disabled = true;
     button.textContent = 'LOADING…';
     try {
       renderLogPayload(root, await fetchJson(LOGS));
       button.textContent = 'REFRESH LOGS';
     } catch (error) {
-      if (meta) meta.textContent = `LOAD FAILED · ${error.message}`;
+      setLogMeta(root, `LOAD FAILED · ${error.message}`);
       button.textContent = 'RETRY LOGS';
     } finally {
       button.disabled = false;
     }
   }
 
+  async function requestLogReset(token) {
+    const response = await fetch(LOG_RESET, {
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{
+        'Accept':'application/json',
+        'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
+      },
+      body:new URLSearchParams({csrf:token}).toString(),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.error || `HTTP_${response.status}`);
+    }
+    return payload;
+  }
+
+  async function refreshLogsAfterReset(root) {
+    try {
+      renderLogPayload(root, await fetchJson(LOGS));
+    } catch (error) {
+      setLogMeta(root, `RESET COMPLETE · REFRESH FAILED · ${error.message}`);
+    }
+  }
+
   async function resetLogs(root, button) {
-    if (!window.confirm('Reset the current BRVTAL debug log? This empties the log file and cannot be undone.')) return;
-    const meta = root.querySelector('#ssv2-log-meta');
+    const confirmed = globalThis.confirm('Reset the current BRVTAL debug log? This empties the log file and cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
     const output = root.querySelector('#ssv2-logs');
     button.disabled = true;
     button.textContent = 'RESETTING…';
     try {
       const token = await csrfToken();
-      const response = await fetch(LOG_RESET, {
-        method:'POST',
-        credentials:'same-origin',
-        cache:'no-store',
-        headers:{
-          'Accept':'application/json',
-          'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
-        },
-        body:new URLSearchParams({csrf:token}).toString(),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP_${response.status}`);
-      if (meta) meta.textContent = 'RESET COMPLETE';
+      await requestLogReset(token);
+      setLogMeta(root, 'RESET COMPLETE');
       if (output) {
         output.hidden = false;
         output.textContent = 'No log entries.';
       }
-      try {
-        renderLogPayload(root, await fetchJson(LOGS));
-      } catch (refreshError) {
-        if (meta) meta.textContent = `RESET COMPLETE · REFRESH FAILED · ${refreshError.message}`;
-      }
+      await refreshLogsAfterReset(root);
       button.textContent = 'RESET LOG';
     } catch (error) {
-      if (meta) meta.textContent = `RESET FAILED · ${error.message}`;
+      setLogMeta(root, `RESET FAILED · ${error.message}`);
       button.textContent = 'RETRY RESET';
     } finally {
       button.disabled = false;
