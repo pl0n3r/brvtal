@@ -17,22 +17,83 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
     exit(0);
 }
 
-$dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
-media_rel_it_expect((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/', $dbName), 'test database name must start with brvtal_test');
+$baseDb = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
+media_rel_it_expect((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/', $baseDb), 'test database name must start with brvtal_test');
 
-$dsn = sprintf(
-    'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
-    (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1'),
-    (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306),
-    $dbName
+$host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1');
+$port = (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306);
+$user = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
+$pass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
+$dbName = $baseDb . '_media_rel_' . strtolower(bin2hex(random_bytes(4)));
+media_rel_it_expect((bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/', $dbName), 'scratch database must stay inside the test namespace');
+
+$server = new PDO(
+    sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $host, $port),
+    $user,
+    $pass,
+    [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES=>false]
 );
-$pdo = new PDO($dsn, (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root'), (string)(getenv('BRVTAL_TEST_DB_PASS') ?: ''), [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES => false,
-]);
+$server->exec("CREATE DATABASE `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+$cleanup = static function () use ($server, $dbName): void {
+    try {
+        $server->exec("DROP DATABASE IF EXISTS `{$dbName}`");
+    } catch (Throwable) {
+    }
+};
+register_shutdown_function($cleanup);
+
+$pdo = new PDO(
+    sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $dbName),
+    $user,
+    $pass,
+    [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]
+);
+
+$pdo->exec(<<<'SQL'
+CREATE TABLE media (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  type ENUM('image','video','audio','document') NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  file_path VARCHAR(500) NOT NULL,
+  mime_type VARCHAR(120) NULL,
+  file_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  alt_text VARCHAR(255) NULL,
+  status ENUM('draft','published') NOT NULL DEFAULT 'published',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+CREATE TABLE events (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  slug VARCHAR(190) NOT NULL UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'draft'
+) ENGINE=InnoDB;
+CREATE TABLE artists (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(180) NOT NULL,
+  slug VARCHAR(190) NOT NULL UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'draft'
+) ENGINE=InnoDB;
+CREATE TABLE sets_media (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  slug VARCHAR(190) NOT NULL UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'draft'
+) ENGINE=InnoDB;
+CREATE TABLE releases (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  slug VARCHAR(190) NOT NULL UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'draft'
+) ENGINE=InnoDB;
+SQL);
 
 $migration = (string)file_get_contents(__DIR__ . '/../../database/migration_media_relations_01.sql');
+$pdo->exec($migration);
 $pdo->exec($migration);
 media_rel_it_expect(brvtal_media_relations_ready($pdo), 'media_relations must be queryable after additive migration');
 
@@ -130,7 +191,5 @@ $count->execute([$mediaId]);
 media_rel_it_expect((int)$count->fetchColumn() === 0, 'Media deletion must cascade semantic relation rows');
 $deleteMedia->execute([$draftMediaId]);
 
-$pdo->prepare('DELETE FROM events WHERE id=?')->execute([$eventId]);
-$pdo->prepare('DELETE FROM artists WHERE id IN (?,?)')->execute([$artistId,$privateArtistId]);
-
+$cleanup();
 echo "BRVTAL Media relations MariaDB integration tests passed.\n";
