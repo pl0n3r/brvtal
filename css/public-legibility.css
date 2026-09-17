@@ -1,0 +1,79 @@
+:root{
+  --brvtal-functional-text:12px;
+  --brvtal-functional-muted:#9a9a95;
+}
+
+/* Meaningful public microcopy must remain readable; 8–10px is reserved for decoration only. */
+.brand small,.nav-center,.sound,.menu,.menu-label,.menu-footer,.menu-panel nav a span,
+.eyebrow,.hero-sub,.manifesto-top,.section-head>span,.genesis-data,
+.event-info>span.mono,.event-status,.archive-mark,.artist span,.artist i,.artist-crosshair,
+.sets-intro p,.set-num,.set-main span,.set-main p,.media-title>span,.media-end,
+.footer-main>span,.footer-bottom,.public-media-count,.public-media-tools label>span,
+.public-media-viewer-meta,.archive-event-kicker,.archive-summary,.archive-search span,
+.archive-event-meta,.archive-event-relations,.archive-results{
+  font-size:var(--brvtal-functional-text);
+  line-height:1.45;
+}
+
+.hero-sub,.genesis-data,.event-info p,.footer-bottom,.media-title-note p{
+  color:#aaa;
+}
+.event-info p{font-size:15px;line-height:1.45}
+.footer-bottom{color:#858580}
+
+/* Preserve brutalist scale without letting display type swallow or crop the viewport. */
+.hero-title{font-size:clamp(92px,18vw,280px)}
+.manifesto-line{font-size:clamp(72px,12vw,190px)}
+.manifesto-final{font-size:clamp(78px,13vw,205px)}
+.genesis-copy h2{font-size:clamp(86px,19vw,300px)}
+.section-head h2{font-size:clamp(64px,10vw,165px)}
+.sets-intro h3{font-size:clamp(58px,8vw,130px)}
+.media-title h2{font-size:clamp(76px,13vw,195px)}
+.footer-main h2{font-size:clamp(82px,15vw,225px)}
+
+/* Dedicated Contact page. */
+.contact-page-brand span{font-size:10px}
+.contact-page-nav-meta,.contact-page-home,.contact-page-eyebrow,.contact-page-index,
+.contact-page-kicker,.contact-page-context>p,.contact-page-topics span,
+.contact-page-socials>span,.brvtal-contact-intro>span,.brvtal-contact-intro p,
+.brvtal-contact-field label,.brvtal-captcha-copy span,.brvtal-captcha-copy small,
+.brvtal-contact-error,.brvtal-contact-status,.contact-page-footer{
+  font-size:12px;
+  line-height:1.55;
+}
+.contact-page-hero p{font-size:12px;line-height:1.75;color:#aaa}
+.contact-page-hero h1{font-size:clamp(92px,18vw,260px)}
+.contact-page-context h2{font-size:clamp(66px,8vw,120px)}
+.contact-page-footer{color:#858580}
+
+/* Canonical entity pages. */
+.entity-nav,.entity-kicker,.entity-section-label,.entity-image>span,.entity-facts span,
+.entity-card small,body:has(.entity-hero)>footer{
+  font-size:12px;
+  line-height:1.45;
+}
+.entity-brand small{font-size:10px}
+.entity-actions a{font-size:12px}
+.entity-copy h1{font-size:clamp(64px,9vw,150px)}
+
+@media(max-width:900px){
+  .hero-title{font-size:clamp(82px,22vw,150px)}
+  .manifesto-line{font-size:19vw}
+  .manifesto-final{font-size:20vw}
+  .section-head h2{font-size:clamp(56px,17vw,105px)}
+  .sets-intro h3{font-size:clamp(54px,17vw,110px)}
+  .media-title h2{font-size:clamp(70px,20vw,130px)}
+  .footer-main h2{font-size:clamp(76px,22vw,140px)}
+}
+
+@media(max-width:560px){
+  .contact-page-hero h1{font-size:clamp(82px,24vw,118px)}
+  .contact-page-context h2{font-size:clamp(62px,18vw,96px)}
+  .contact-page-nav-meta,.contact-page-home,.contact-page-eyebrow,.contact-page-index,
+  .contact-page-kicker,.contact-page-context>p,.contact-page-topics span,
+  .contact-page-socials>span,.brvtal-contact-intro>span,.brvtal-contact-intro p,
+  .brvtal-contact-field label,.brvtal-captcha-copy span,.brvtal-captcha-copy small,
+  .brvtal-contact-error,.brvtal-contact-status,.contact-page-footer{
+    font-size:11px;
+  }
+}

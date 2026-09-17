@@ -82,6 +82,11 @@ if ($entity) {
         header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     }
     $entityHtml = brvtal_public_entity_page($page, $seo, $analytics);
+    $entityHtml = str_replace(
+        '</head>',
+        "  <link rel=\"stylesheet\" href=\"/css/public-controls.css\">\n  <link rel=\"stylesheet\" href=\"/css/public-legibility.css\">\n</head>",
+        $entityHtml
+    );
     if (($entity['route_type'] ?? '') === 'artists') {
         $entityHtml = brvtal_public_artist_decorate_html($entityHtml, $page);
     }

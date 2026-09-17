@@ -1,0 +1,91 @@
+:root{
+  --brvtal-control-height:48px;
+  --brvtal-control-border:rgba(255,255,255,.28);
+  --brvtal-control-surface:#080808;
+  --brvtal-control-text:#f2f2ef;
+  --brvtal-control-accent:#9e0d12;
+}
+
+:is(.enter,.ticket-cta,.event-ticket,.footer-link,.archive-event-link,.archive-no-results button,.archive-relations button,.archive-years button,.public-media-types button,.public-media-empty button,.public-media-close,.public-media-viewer-controls button,.entity-actions a,.contact-page-home,.brvtal-contact-submit,.brvtal-hero-cta,.brvtal-hero-layer.type-cta){
+  min-height:var(--brvtal-control-height);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 18px;
+  border:1px solid var(--brvtal-control-border);
+  border-radius:0;
+  background:var(--brvtal-control-surface);
+  color:var(--brvtal-control-text);
+  font:700 12px/1 "Space Mono",monospace;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  text-decoration:none;
+  cursor:pointer;
+  transition:background-color .18s ease,border-color .18s ease,color .18s ease,transform .18s ease;
+}
+
+:is(.ticket-cta,.event-ticket,.brvtal-contact-submit,.entity-actions a:first-child){
+  border-color:var(--brvtal-control-accent);
+  background:var(--brvtal-control-accent);
+  color:#fff;
+}
+
+:is(.enter,.footer-link,.archive-event-link,.brvtal-hero-cta,.brvtal-hero-layer.type-cta){
+  border-color:rgba(255,255,255,.36);
+  background:rgba(5,5,5,.72);
+}
+
+:is(.archive-relations button,.archive-years button,.archive-no-results button,.public-media-types button,.public-media-empty button,.public-media-close,.public-media-viewer-controls button){
+  padding-inline:14px;
+  background:#070707;
+  color:#b9b9b4;
+}
+
+:is(.archive-relations button,.archive-years button,.public-media-types button).active,
+:is(.archive-relations button,.archive-years button,.public-media-types button)[aria-pressed="true"]{
+  border-color:#f2f2ef;
+  background:#f2f2ef;
+  color:#050505;
+}
+
+:is(.set-action,.brvtal-social-link,.brvtal-hero-controls>button,.brvtal-hero-dots button){
+  min-width:48px;
+  min-height:48px;
+}
+
+:is(.enter,.ticket-cta,.event-ticket,.footer-link,.archive-event-link,.archive-no-results button,.archive-relations button,.archive-years button,.public-media-types button,.public-media-empty button,.public-media-close,.public-media-viewer-controls button,.entity-actions a,.contact-page-home,.brvtal-contact-submit,.brvtal-hero-cta,.brvtal-hero-layer.type-cta,.set-action,.brvtal-social-link,.brvtal-hero-controls button):focus-visible{
+  outline:2px solid #f2f2ef;
+  outline-offset:4px;
+}
+
+@media (hover:hover) and (pointer:fine){
+  :is(.ticket-cta,.event-ticket,.brvtal-contact-submit,.entity-actions a:first-child):hover{
+    border-color:#f2f2ef;
+    background:#f2f2ef;
+    color:#050505;
+    transform:translateY(-2px);
+  }
+  :is(.enter,.footer-link,.archive-event-link,.archive-no-results button,.archive-relations button,.archive-years button,.public-media-types button,.public-media-empty button,.public-media-close,.public-media-viewer-controls button,.entity-actions a:not(:first-child),.contact-page-home,.brvtal-hero-cta,.brvtal-hero-layer.type-cta):hover{
+    border-color:#f2f2ef;
+    background:#111;
+    color:#fff;
+    transform:translateY(-2px);
+  }
+}
+
+:is(.brvtal-contact-submit,button)[disabled]{
+  cursor:not-allowed;
+}
+
+@media(max-width:700px){
+  :is(.enter,.ticket-cta,.event-ticket,.footer-link,.archive-event-link,.archive-no-results button,.archive-relations button,.archive-years button,.public-media-types button,.public-media-empty button,.public-media-close,.public-media-viewer-controls button,.entity-actions a,.contact-page-home,.brvtal-contact-submit,.brvtal-hero-cta,.brvtal-hero-layer.type-cta){
+    min-height:48px;
+    font-size:12px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  :is(.enter,.ticket-cta,.event-ticket,.footer-link,.archive-event-link,.archive-no-results button,.archive-relations button,.archive-years button,.public-media-types button,.public-media-empty button,.public-media-close,.public-media-viewer-controls button,.entity-actions a,.contact-page-home,.brvtal-contact-submit,.brvtal-hero-cta,.brvtal-hero-layer.type-cta){
+    transition:none!important;
+  }
+}
