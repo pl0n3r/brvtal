@@ -8,45 +8,44 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con dos quick wins DOM revalidados en Media Library.
-- `handleImageError()` elimina el fallback consumido mediante `delete img.dataset.fallback`, preservando la semántica de un solo reintento antes de degradar a placeholder.
-- `decoratePickerInputs()` usa `input.after(button)` para mantener el botón `SELECT MEDIA` inmediatamente después del input decorado.
-- La regresión Playwright verifica la adyacencia del botón y que `data-fallback` desaparece antes de un segundo fallo.
-- Se añade un contrato auto-descubierto que exige las APIs DOM modernas y bloquea el regreso de las expresiones legacy equivalentes.
-- No se modifican APIs, base de datos, rutas, permisos, estilos ni contratos públicos.
+- Corrige #391: el bloque compartido de SEO vuelve a respetar el gutter visual de los editores.
+- `.brvtal-seo-section` usa el mismo padding horizontal de 17 px que las secciones canónicas de Content Core.
+- El componente ocupa el ancho disponible sin escapar del contenedor ni generar overflow horizontal.
+- `grid-column:1/-1` evita que el SEO quede atrapado en una sola columna cuando se monta dentro de formularios grid, como Releases y editores legacy.
+- Se conserva la lógica existente de carga, preview y persistencia SEO; el cambio es exclusivamente de layout.
+- La regresión Playwright compara geometría real contra la sección canónica en desktop y verifica que mobile permanezca dentro del viewport.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/media-library.js` — modernización equivalente de eliminación de dataset e inserción DOM.
-- `tests/media-library-dom-contract.php` — contrato fuente para las dos APIs DOM.
-- `tests/e2e/discadmin-media.spec.mjs` — regresiones de adyacencia y fallback de un solo uso.
+- `discadmin/seo-metadata.js` — contrato visual reutilizable del bloque SEO.
+- `tests/e2e/discadmin-seo-gutter.spec.mjs` — regresión desktop/mobile de gutter y overflow.
 
 ## Validación
 
-- Base exacta: `main` `8dfabab609e2db087f5d81b95031e895da7e8e93`.
-- Ese SHA exacto pasó BRVTAL CI #857 y queda **VALIDATED IN CODE**.
-- La rama permanece limitada a los dos cambios funcionales de Media Library y su cobertura.
+- Base exacta: `main` `ce91a61bb677dae4fdede7501438e92e9ccf2744`.
+- Ese SHA exacto pasó BRVTAL CI #859 y queda **VALIDATED IN CODE**.
 - El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Cerrar gates exactos de este bloque, corregir findings válidos, hacer squash merge y verificar el nuevo `main`.
-- Atacar #391 como siguiente quick win: alinear el bloque SEO con el gutter canónico de los editores.
-- Después corregir #260 para que el inspector de Media Library sea accesible inmediatamente al seleccionar un asset en móvil.
+- Cerrar gates exactos de #391, corregir findings válidos, hacer squash merge y verificar el nuevo `main`.
+- Corregir #260 para que el inspector de Media Library sea accesible inmediatamente al seleccionar un asset en móvil.
+- Continuar después con #388 y #365 como siguientes bloques pequeños/medianos independientes.
 - Mantener #451 activo por riesgo con findings revalidados contra el código actual.
 
 ## Panorama general pendiente
 
 - **Sonar / calidad:** #451 — continuar por riesgo y área, con PRs pequeños y comportamiento preservado.
-- **SEO editorial:** #391 es el siguiente quick win; #182, #214, #204 y #272 deben sanearse antes de construir #390.
 - **Media / mobile:** #260 — acercar el inspector al asset seleccionado en móvil.
+- **System Status:** #388 — RESET LOG seguro reutilizando el boundary existente con POST + auth + CSRF.
 - **Dashboard / DISCADMIN:** #365, #348 y #351 — consolidación del Dashboard, IA y Theme Studio.
+- **SEO editorial:** #182, #214, #204 y #272 deben sanearse antes de construir #390.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193 — dirty state, modal lifecycle y navegación transaccional.
 - **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
 - **Content / Media integrity:** #191, #224 y #252 — referencias válidas y edición coherente con el modelo.
-- **Activity / operaciones:** #232, #195 y #388 — historial navegable, cobertura de audit log y RESET LOG seguro. #207 ya fue revalidado y cerrado.
+- **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log. #207 ya fue revalidado y cerrado.
 - **Bulk Actions:** #275 — eliminar el truncado silencioso de catálogos >500.
 - **Archivo cultural:** #398 / #403 — seguir con relaciones estructuradas reales y Event Records.
 - **Memories:** #415 / PR #434 requiere reconciliación cuidadosa con `main` y mantiene la migración de producción separada.
