@@ -4,6 +4,9 @@
   const TECH = '/discadmin/technical.php?action=overview';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
+  const LOGS = '/discadmin/technical.php?action=logs';
+  const LOG_RESET = '/discadmin/logs.php?action=clear&format=json';
+  const AUTH = '/api/index.php/auth';
   const GITHUB_ISSUES = 'https://github.com/pl0n3r/brvtal/issues';
   let mountTimer = null;
   let refreshTimer = null;
@@ -41,6 +44,77 @@
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP_${response.status}`);
     return payload;
+  }
+
+  async function csrfToken() {
+    if (window.csrf) return window.csrf;
+    const auth = await fetchJson(AUTH);
+    if (!auth.authenticated || !auth.csrf) throw new Error('AUTH_REQUIRED');
+    window.csrf = auth.csrf;
+    return auth.csrf;
+  }
+
+  function renderLogPayload(root, payload) {
+    const output = root.querySelector('#ssv2-logs');
+    const meta = root.querySelector('#ssv2-log-meta');
+    if (!output || !meta) return;
+    output.hidden = false;
+    output.textContent = payload.content || 'No log entries.';
+    meta.textContent = `${number(payload.lines)} LINES · ${number(payload.bytes)} B`;
+  }
+
+  async function loadLogs(root, button) {
+    const meta = root.querySelector('#ssv2-log-meta');
+    button.disabled = true;
+    button.textContent = 'LOADING…';
+    try {
+      renderLogPayload(root, await fetchJson(LOGS));
+      button.textContent = 'REFRESH LOGS';
+    } catch (error) {
+      if (meta) meta.textContent = `LOAD FAILED · ${error.message}`;
+      button.textContent = 'RETRY LOGS';
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function resetLogs(root, button) {
+    if (!window.confirm('Reset the current BRVTAL debug log? This empties the log file and cannot be undone.')) return;
+    const meta = root.querySelector('#ssv2-log-meta');
+    const output = root.querySelector('#ssv2-logs');
+    button.disabled = true;
+    button.textContent = 'RESETTING…';
+    try {
+      const token = await csrfToken();
+      const response = await fetch(LOG_RESET, {
+        method:'POST',
+        credentials:'same-origin',
+        cache:'no-store',
+        headers:{
+          'Accept':'application/json',
+          'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body:new URLSearchParams({csrf:token}).toString(),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP_${response.status}`);
+      if (meta) meta.textContent = 'RESET COMPLETE';
+      if (output) {
+        output.hidden = false;
+        output.textContent = 'No log entries.';
+      }
+      try {
+        renderLogPayload(root, await fetchJson(LOGS));
+      } catch (refreshError) {
+        if (meta) meta.textContent = `RESET COMPLETE · REFRESH FAILED · ${refreshError.message}`;
+      }
+      button.textContent = 'RESET LOG';
+    } catch (error) {
+      if (meta) meta.textContent = `RESET FAILED · ${error.message}`;
+      button.textContent = 'RETRY RESET';
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function unavailableSource(error) {
@@ -254,24 +328,13 @@
       <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RECENT ADMIN ACTIVITY</span><b>${esc(activityTotal)}</b></div><div class="ssv2-activity">${activityList(activity)}</div></section>
 
       <details class="ssv2-advanced"><summary>ADVANCED DIAGNOSTICS <span>RAW DATA / LOGS</span></summary>
-        <div class="ssv2-advanced-actions"><button type="button" id="ssv2-load-logs">LOAD RECENT LOGS</button><span>Diagnostics are read-only. No automatic repair actions.</span></div>
+        <div class="ssv2-advanced-actions"><div class="ssv2-log-actions"><button type="button" id="ssv2-load-logs">LOAD RECENT LOGS</button><button type="button" id="ssv2-reset-logs" class="ssv2-danger">RESET LOG</button></div><span id="ssv2-log-meta">LOG NOT LOADED</span></div>
         <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
-    root.querySelector('#ssv2-load-logs')?.addEventListener('click', async event => {
-      const button = event.currentTarget;
-      const output = root.querySelector('#ssv2-logs');
-      button.disabled = true; button.textContent = 'LOADING…';
-      try {
-        const logs = await fetchJson('/discadmin/technical.php?action=logs');
-        output.hidden = false; output.textContent = logs.content || 'No log entries.';
-        button.textContent = 'REFRESH LOGS';
-      } catch (error) {
-        output.hidden = false; output.textContent = `LOG ERROR: ${error.message}`;
-        button.textContent = 'RETRY LOGS';
-      } finally { button.disabled = false; }
-    });
+    root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => loadLogs(root, event.currentTarget));
+    root.querySelector('#ssv2-reset-logs')?.addEventListener('click', event => resetLogs(root, event.currentTarget));
   }
 
   async function load(root, manual=false) {

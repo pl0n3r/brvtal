@@ -17,11 +17,21 @@ $logDir = $root . '/storage/logs';
 $logFile = $logDir . '/brvtal.log';
 
 $action = (string)($_GET['action'] ?? '');
+$wantsJson = (string)($_GET['format'] ?? '') === 'json'
+    || str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
+
+$respondJson = static function (array $payload, int $status = 200): void {
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+};
 
 if ($action === 'clear') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-        http_response_code(405);
         header('Allow: POST');
+        if ($wantsJson) $respondJson(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
+        http_response_code(405);
         exit('METHOD NOT ALLOWED');
     }
 
@@ -32,12 +42,19 @@ if ($action === 'clear') {
         $csrf === '' ||
         !hash_equals((string)$_SESSION['csrf'], $csrf)
     ) {
+        if ($wantsJson) $respondJson(['ok'=>false,'error'=>'CSRF'], 419);
         http_response_code(419);
         exit('CSRF');
     }
 
-    if (is_file($logFile)) {
-        @file_put_contents($logFile, '');
+    if (is_file($logFile) && @file_put_contents($logFile, '', LOCK_EX) === false) {
+        if ($wantsJson) $respondJson(['ok'=>false,'error'=>'LOG_CLEAR_FAILED'], 500);
+        http_response_code(500);
+        exit('LOG CLEAR FAILED');
+    }
+
+    if ($wantsJson) {
+        $respondJson(['ok'=>true,'file'=>'storage/logs/brvtal.log','bytes'=>0,'lines'=>0]);
     }
 
     header('Location: logs.php');
