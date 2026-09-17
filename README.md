@@ -6,34 +6,36 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 
 ## Qué se hizo
 
-- Se corrige la configuración de **SonarQube Cloud Automatic Analysis** que fallaba con `Source and test paths overlap`.
-- `sonar.sources` deja de apuntar a todo el repositorio (`.`) y pasa a declarar únicamente las raíces reales de código/producto, separadas de `tests`.
-- `sonar.tests=tests` queda como raíz exclusiva de pruebas; no se añade scanner duplicado en GitHub Actions porque BRVTAL sigue usando Automatic Analysis.
-- Se conserva fuera del análisis el bundle vendorizado `discadmin/qrcode.min.js`.
-- Se añade un contrato PHP que falla si `sonar.sources` vuelve a incluir `.` o si alguna raíz source/test se solapa en el futuro.
-- Se actualiza el contrato de scope ya existente para que valide la configuración Sonar corregida en vez de exigir el antiguo `sonar.sources=.` que provocaba el conflicto.
+- Se implementa **#419** para endurecer el menú público en mobile/touch y limpiar la composición del header.
+- El estado del menú pasa a derivarse de `aria-hidden` y el controlador accesible toma el toggle en capture phase, evitando que el booleano privado del listener legacy se desincronice al cerrar por Escape, navegación u otros controles.
+- MENU mantiene `aria-controls`, `aria-expanded`, diálogo modal, focus trap, Escape y retorno de foco; además sincroniza `inert`, visibilidad, transform y pointer events en cada cambio de estado.
+- Al navegar desde el panel, el menú se cierra y libera el scroll lock antes de continuar.
+- Se elimina el texto duplicado visual del cursor sobre MENU dejando vacío su cursor-label dinámico, pero conservando el cursor gráfico y el botón funcional.
+- SOUND se conserva sin autoplay y permanece como control explícito para el futuro soundscape BRVTAL.
+- Header y controles reciben targets táctiles de 44 px, separación estable, icono `+ / ×` con caja propia y ajustes mobile para evitar solapes y overflow.
+- El panel mobile admite scroll vertical, usa `100svh` como mínimo y reduce la escala de enlaces para que la navegación siga alcanzable en pantallas cortas.
+- La regresión Playwright existente ahora cubre apertura/cierre repetido, scroll lock, Escape/foco, cierre por navegación, geometría SOUND/MENU y ausencia de overflow a 390 px.
 
 ## Archivos modificados en este deploy
 
-- `.sonarcloud.properties` — 🟡 MOD · separa de forma explícita source roots y test root para Automatic Analysis.
-- `tests/ci-scope-contract.php` — 🟡 MOD · reemplaza la expectativa obsoleta del root completo por el contrato de sources explícitas y tests disjuntos.
-- `tests/sonarqube-scope-contract.php` — 🟢 NEW · regresión específica que protege la separación source/test.
+- `css/input-accessibility.css` — 🟡 MOD · targets táctiles, geometría del header, icono MENU y layout/scroll del panel mobile.
+- `js/menu-accessibility.js` — 🟡 MOD · controlador touch-safe basado en estado ARIA, foco, inert y cierre fiable.
+- `tests/e2e/public-menu-accessibility.spec.mjs` — 🟡 MOD · cobertura desktop + mobile de interacción, scroll lock, foco, repetición y geometría.
 - `README.md` — 🟡 MOD · snapshot exacto del deploy + panorama compacto de pendientes.
 
 ## Validación
 
-- Base exacta: `main` `46f3562219c1e7f56fd3031b931602eaf28f467c`.
-- Esa base tiene **BRVTAL CI #671** verde; Production Performance del mismo SHA también terminó correctamente.
-- **BRVTAL CI #672** detectó correctamente una expectativa obsoleta en `tests/ci-scope-contract.php` que todavía exigía `sonar.sources=.`; se corrigió el contrato sin debilitar la validación.
-- La configuración mantiene `sonar.sources` y `sonar.tests` como conjuntos explícitos y separados y conserva Automatic Analysis sin scanner duplicado en CI.
-- No hay cambios en runtime público, DISCADMIN, API, base de datos, migrations ni producción.
-- Pendiente: nuevo **BRVTAL CI / validate**, CodeRabbit y la siguiente ejecución automática de SonarQube Cloud sobre el head actualizado.
-- CI verde significará **VALIDATED IN CODE**; Sonar verde confirmará que el análisis externo acepta el scope. Ninguno de los dos equivale por sí solo a **VALIDATED IN PRODUCTION**.
+- Base exacta: `main` `301820895bdcdef04886ce59596904b9f3c494c4`.
+- Esa base tiene **BRVTAL CI #675** verde.
+- El fix anterior de SonarQube Cloud quedó squash-merged en esa base y SonarQube reportó **Quality Gate passed**, sin volver a presentar el solapamiento source/test.
+- Este cambio no toca API, base de datos, migrations, DISCADMIN ni el modelo de contenido.
+- Pendiente en este head: **BRVTAL CI / validate** y CodeRabbit antes de squash merge.
+- CI verde significará **VALIDATED IN CODE**. La validación real del menú en dispositivos/producción sigue separada y no se declarará automáticamente.
 
 ## Panorama general de lo pendiente
 
 ### P0 — bugs funcionales públicos
-1. **#419 Menú mobile / header** — MENU no abre de forma fiable en mobile; corregir apertura/cierre, foco, Escape, scroll lock, targets y composición de header conservando SOUND.
+1. **#419 Menú mobile / header** — implementado en este deploy; pendiente CI/review/merge y validación real posterior.
 2. **#420 Resize / scroll / Events** — resize puede romper el scroll y Events secuestra el wheel vertical; hacer el runtime resize-safe y devolver scroll vertical nativo.
 
 ### P1 — quick wins globales
@@ -56,15 +58,15 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 
 ## Qué sigue
 
-1. Dejar **BRVTAL CI / validate** y CodeRabbit verdes en este PR, squash merge y verificar el SHA exacto de `main`.
-2. Confirmar que SonarQube Cloud ya no reporta el solapamiento source/test en su siguiente Automatic Analysis.
-3. Continuar inmediatamente con **#419** y después **#420**, antes del batch visual #421/#422.
+1. Llevar #419 a PR, dejar **BRVTAL CI / validate** y CodeRabbit verdes, squash merge y verificar el SHA exacto de `main`.
+2. Continuar inmediatamente con **#420** — resize/scroll y eliminación del scroll hijacking de Events.
+3. Después ejecutar el batch global **#421** y la evolución visual **#422** antes de entrar al nuevo modelo de Memories #415.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Visión pública: `#398`.
 - Memories curado: `#415`.
-- Quick wins nuevos: `#419`, `#420`, `#421`, `#422`.
+- Quick wins: `#419`, `#420`, `#421`, `#422`.
 - Testing/validación: `docs/TESTING.md`.
 - GitHub Issues es la fuente de verdad para cada tarea individual y su estado.
