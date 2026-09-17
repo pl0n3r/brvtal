@@ -8,15 +8,16 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- El sitemap público queda alimentado directamente por el contenido público/indexable actual de BRVTAL, sin XML estático.
-- Se centralizan `events`, `artists`, `sets`, `releases`, `blog` y `pages` en un registro compartido por SEO y sitemap.
+- El sitemap público se genera desde el contenido público/indexable actual de BRVTAL, sin XML estático.
+- `events`, `artists`, `sets`, `releases`, `blog` y `pages` comparten un registro canónico usado por SEO y sitemap.
 - Publicar, despublicar o actualizar contenido se refleja en la siguiente lectura; borradores, DISCADMIN, APIs y recursos privados quedan fuera.
 - `/sitemap.xml` es la URL canónica; `/sitemap.php` redirige permanentemente al XML y PHP queda como renderer interno.
 - El sitemap exige revalidación en vez del cache público anterior de 15 minutos.
-- El renderer XML se separa en una función pura y se endurece según el protocolo soportado por Google: UTF-8, `urlset` con namespace estándar, `url > loc`, URLs HTTPS absolutas del host canónico, `<loc>` menor de 2048 caracteres, entity escaping y `lastmod` válido `YYYY-MM-DD` cuando exista.
-- Un contrato ejecutable genera y parsea el XML con `DOMDocument`; rechaza XML mal formado, URLs relativas/off-host, fechas inválidas y regresiones de namespace/estructura.
+- El origen queda fijado estrictamente a `https://www.brvtal.com.co`: no se confía en hosts alternos configurados ni en puertos HTTPS no estándar.
+- El renderer XML cumple el contrato de Sitemaps usado por Google: UTF-8, `urlset` con namespace estándar, `url > loc`, URLs HTTPS absolutas, `<loc>` menor de 2048 caracteres, entity escaping y `lastmod` válido `YYYY-MM-DD` cuando exista.
+- Un contrato ejecutable genera y parsea XML con `DOMDocument`, y cubre URLs relativas/off-host, puerto no estándar, base HTTPS alternativa, fechas inválidas y regresiones de namespace/estructura.
+- Cache/headers sanos, rutas estáticas, Contact y tipos Schema.org se validan mediante boundaries ejecutables en vez de depender de búsquedas textuales frágiles.
 - `robots.txt` continúa anunciando únicamente `https://www.brvtal.com.co/sitemap.xml`.
-- Los contratos existentes de SEO, Contact y semántica de fallos se alinean al registro/cache nuevos sin reducir garantías.
 - `AGENTS.md` incorpora la regla canónica de paralelismo seguro; los merges a `main` siguen serializados.
 - No hay cambios de base de datos ni migraciones.
 
@@ -27,28 +28,29 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
 - `config/public_routes.php` — registro canónico de familias, structured data y rutas indexables.
 - `config/public_seo.php` — consumo del registro común para entidades SEO.
-- `config/public_sitemap.php` — renderer XML compatible con el protocolo de Sitemaps y guardas de URL/fecha.
-- `sitemap.php` — sitemap dinámico, revalidado y renderizado mediante el helper validado.
-- `tests/public-contact-contract.php` — Contact usa la fuente canónica del sitemap.
+- `config/public_sitemap.php` — origen canónico fijo, renderer XML, URL collection y response policy ejecutables.
+- `sitemap.php` — sitemap dinámico que consume las boundaries validadas.
+- `tests/public-contact-contract.php` — Contact se comprueba dentro del XML renderizado.
 - `tests/public-failure-semantics-contract.php` — semántica de error y cache sano actualizados.
-- `tests/public-seo-delivery-contract.php` — structured data validado desde el registro compartido.
-- `tests/public-sitemap-contract.php` — sincronización de registro, routing, renderer XML y `robots.txt`.
+- `tests/public-seo-delivery-contract.php` — tipos Schema.org y XML verificados mediante configuración/renderer ejecutables.
+- `tests/public-sitemap-contract.php` — registro, response policy, routing y `robots.txt`.
 - `tests/public-sitemap-xml-contract.php` — parseo real y contrato estructural compatible con Google/Sitemaps.
 - `tests/seo-defaults-contract.php` — fallback `content_json` de Pages desde el registro común.
 
 ## Validación
 
-- Base exacta recontrastada: `main` `49a1bfe7490ed98daf183801ac9f6e200fb99f57`; BRVTAL CI #820 quedó verde y #468 está **VALIDATED IN CODE**.
-- Los heads previos del PR detectaron y corrigieron dos contratos SEO textuales obsoletos; `e06aa25d9737640bce73613b934b4cbf205c45a3` pasó BRVTAL CI #835 y Sonar Quality Gate.
-- El head `6efd3f9b94e5f6baec70dd3cbdbaf3e482f647f4` pasó BRVTAL CI #838 (`fast`, `database`, `real-stack`, `chromium`, `validate`) y Sonar Quality Gate; CodeRabbit permanecía pendiente.
-- La validación XML añadida cambia nuevamente el head: BRVTAL CI, SonarQube Cloud y CodeRabbit deben ejecutarse sobre el SHA exacto nuevo antes del squash merge.
-- El contrato XML comprueba de forma ejecutable la estructura publicada por Google/Sitemaps; no se declara validación de producción por pasar CI.
-- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; verde significará **VALIDATED IN CODE**.
+- Base exacta: `main` `49a1bfe7490ed98daf183801ac9f6e200fb99f57`; BRVTAL CI #820 quedó verde y #468 está **VALIDATED IN CODE**.
+- El head `ed1a98caa96e99d277fd2509d8f8ff61b399f3ec` pasó BRVTAL CI #845 completo (`fast`, `database`, `real-stack`, `chromium`, `validate`) y SonarQube Cloud Quality Gate.
+- En ese head, el contrato Google/Sitemaps fue ejecutado dentro de la suite PHP 8.5 y pasó con parseo DOM real.
+- CodeRabbit cerró la revisión de `ed1a98c...` con dos findings válidos: fijar el origen canónico y reemplazar aserciones textuales del sitemap por pruebas ejecutables. Ambos quedan corregidos en este deploy.
+- Esas correcciones cambian nuevamente el head; BRVTAL CI, SonarQube Cloud y CodeRabbit deben volver a pasar sobre el SHA exacto final antes del squash merge.
+- CI verde significa **VALIDATED IN CODE**, no validación de producción.
+- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 
 ## Qué sigue
 
-- Cerrar gates del head exacto, corregir findings válidos, squash merge y verificar el nuevo `main`.
-- Retomar #451 con el HIGH `javascript:S7761` de `discadmin/content-core-nav.js`, preservando la presencia de `data-health-open` incluso cuando su valor sea vacío y cubriéndolo en navegador.
+- Cerrar gates del head exacto final, resolver cualquier finding válido restante, squash merge y verificar el nuevo `main`.
+- Retomar #451 con el HIGH `javascript:S7761` de `discadmin/content-core-nav.js`, preservando la presencia de `data-health-open` incluso con valor vacío y cubriéndolo en navegador.
 - Revalidar luego los quick wins vigentes de `discadmin/media-library.js` sin mezclar el refactor de complejidad.
 - Mantener #434 (Memories) separado; no ejecutar automáticamente su migración de producción.
 
@@ -56,7 +58,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - **Sitemap / SEO técnico:** tras integrar, verificar `/sitemap.xml` en producción/Search Console y mantener el registro canónico al añadir nuevas familias públicas.
 - **DOM API quick wins:** #461, #462, #466 y #468 integrados y **VALIDATED IN CODE**; continuar solo con findings vigentes.
-- **Content Core navigation:** HIGH `S7761` revalidado y preflightado como siguiente bloque.
+- **Content Core navigation:** HIGH `S7761` revalidado; implementación y regresión del siguiente bloque ya están preparadas en una rama independiente, sin merge paralelo.
 - **Media Library DOM:** quick wins `dataset`/`Element.after()` revalidados; tratarlos separados de complejidad.
 - **Memories administrable:** #415 / PR #434 — cerrar Quality Gate y tratar su migración de producción aparte.
 - **Sonar / calidad:** #451 — continuar por riesgo y área con PRs pequeños.
