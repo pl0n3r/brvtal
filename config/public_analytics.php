@@ -51,7 +51,6 @@ function brvtal_public_analytics_markup(string $id, string $version): string
 {
     if ($id === '') return '';
     $version = rawurlencode($version);
-    return '<link rel="stylesheet" href="/css/public-analytics.css?v=' . $version . '">' . "\n"
-        . '<script defer src="/js/public-analytics.js?v=' . $version . '" data-gtm-id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n"
+    return '<script defer src="/js/public-analytics.js?v=' . $version . '" data-gtm-id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n"
         . '<script defer src="/js/public-measurement.js?v=' . $version . '"></script>';
 }
