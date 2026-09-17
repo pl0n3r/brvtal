@@ -62,6 +62,7 @@
     return overlay;
   }
 
+  /** Ensure the canonical global-search trigger is mounted in the admin header. */
   function ensureTrigger() {
     const top = document.querySelector('.main .top');
     if (!top || top.querySelector('.brvtal-global-search-trigger')) return;
@@ -72,7 +73,7 @@
     trigger.innerHTML = 'SEARCH <kbd>⌘K / CTRL K</kbd>';
     trigger.addEventListener('click', open);
     const status = top.querySelector('.status');
-    if (status) top.insertBefore(trigger,status); else top.appendChild(trigger);
+    if (status) status.before(trigger); else top.appendChild(trigger);
   }
 
   function open() {
