@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 const BRVTAL_SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+const BRVTAL_SITEMAP_CANONICAL_ORIGIN = 'https://www.brvtal.com.co';
 
 /** Normalize a sitemap last-modified value to the W3C date form Google accepts. */
 function brvtal_public_sitemap_lastmod(mixed $modified): ?string
@@ -20,30 +21,70 @@ function brvtal_public_sitemap_lastmod(mixed $modified): ?string
     return $isValid ? $date : null;
 }
 
+/** Require the one public BRVTAL origin, without alternate hosts or ports. */
+function brvtal_public_sitemap_origin_is_canonical(string $origin): bool
+{
+    $parts = parse_url(trim($origin));
+    if (!is_array($parts)) {
+        return false;
+    }
+
+    $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+    $host = strtolower((string) ($parts['host'] ?? ''));
+    $port = (int) ($parts['port'] ?? 443);
+    $path = (string) ($parts['path'] ?? '');
+    $hasAuthorityExtras = isset($parts['user']) || isset($parts['pass']);
+    $hasSuffix = isset($parts['query']) || isset($parts['fragment']);
+
+    return $scheme === 'https'
+        && $host === 'www.brvtal.com.co'
+        && $port === 443
+        && ($path === '' || $path === '/')
+        && !$hasAuthorityExtras
+        && !$hasSuffix;
+}
+
 /** Keep only absolute canonical-site URLs that are safe to publish in the sitemap. */
 function brvtal_public_sitemap_location(string $location, string $base): ?string
 {
     $location = trim($location);
     $locationParts = parse_url($location);
-    $baseParts = parse_url($base);
     $hasValidShape = $location !== ''
         && strlen($location) < 2048
         && is_array($locationParts)
-        && is_array($baseParts);
+        && brvtal_public_sitemap_origin_is_canonical($base);
     if (!$hasValidShape) {
         return null;
     }
 
     $locationScheme = strtolower((string) ($locationParts['scheme'] ?? ''));
-    $baseScheme = strtolower((string) ($baseParts['scheme'] ?? ''));
     $locationHost = strtolower((string) ($locationParts['host'] ?? ''));
-    $baseHost = strtolower((string) ($baseParts['host'] ?? ''));
-    $isCanonical = $baseScheme === 'https'
-        && $locationScheme === $baseScheme
-        && $locationHost !== ''
-        && $locationHost === $baseHost;
+    $locationPort = (int) ($locationParts['port'] ?? 443);
+    $hasAuthorityExtras = isset($locationParts['user']) || isset($locationParts['pass']);
+    $isCanonical = $locationScheme === 'https'
+        && $locationHost === 'www.brvtal.com.co'
+        && $locationPort === 443
+        && !$hasAuthorityExtras
+        && !isset($locationParts['fragment']);
 
     return $isCanonical ? $location : null;
+}
+
+/**
+ * Build sitemap rows for public static routes without coupling tests to the endpoint script.
+ *
+ * @param list<string> $paths
+ * @return list<array{0:string,1:null}>
+ */
+function brvtal_public_sitemap_static_urls(string $base, array $paths): array
+{
+    $origin = rtrim($base, '/');
+    $urls = [];
+    foreach ($paths as $path) {
+        $normalizedPath = $path === '/' ? '/' : '/' . ltrim($path, '/');
+        $urls[] = [$origin . $normalizedPath, null];
+    }
+    return $urls;
 }
 
 /**
@@ -79,4 +120,21 @@ function brvtal_public_sitemap_xml(array $urls, string $base): string
 
     $lines[] = '</urlset>';
     return implode("\n", $lines) . "\n";
+}
+
+/**
+ * Build the healthy sitemap response policy and body as one executable boundary.
+ *
+ * @param list<array{0:string,1:mixed}> $urls
+ * @return array{headers:list<string>,body:string}
+ */
+function brvtal_public_sitemap_response(array $urls, string $base): array
+{
+    return [
+        'headers' => [
+            'Content-Type: application/xml; charset=utf-8',
+            'Cache-Control: no-cache, must-revalidate',
+        ],
+        'body' => brvtal_public_sitemap_xml($urls, $base),
+    ];
 }
