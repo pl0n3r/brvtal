@@ -6,10 +6,7 @@ require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_sitemap.php';
 
 $base = brvtal_public_base_url($config);
-$urls = [];
-foreach (brvtal_public_static_routes() as $path) {
-    $urls[] = [$base . ($path === '/' ? '/' : $path), null];
-}
+$urls = brvtal_public_sitemap_static_urls($base, brvtal_public_static_routes());
 
 foreach (brvtal_public_content_definitions() as $route => $definition) {
     $table = $definition['table'];
@@ -51,6 +48,8 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
     }
 }
 
-header('Content-Type: application/xml; charset=utf-8');
-header('Cache-Control: no-cache, must-revalidate');
-echo brvtal_public_sitemap_xml($urls, $base);
+$response = brvtal_public_sitemap_response($urls, $base);
+foreach ($response['headers'] as $headerLine) {
+    header($headerLine);
+}
+echo $response['body'];
