@@ -12,6 +12,7 @@ require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
 require_once __DIR__ . '/config/public_contact_page.php';
+require_once __DIR__ . '/api/public-memory-relations.php';
 
 $pageRoute = trim((string)($_GET['page'] ?? ''));
 $type = trim((string)($_GET['type'] ?? ''));
@@ -53,6 +54,12 @@ if ($entity) {
         $page = brvtal_public_page_data(db(), $entity);
         if (($entity['route_type'] ?? '') === 'artists') {
             $page = brvtal_public_artist_enhance_page(db(), $page);
+        }
+        $memoryTypes = ['events'=>'event','artists'=>'artist','sets'=>'set','releases'=>'release'];
+        $routeType = (string)($entity['route_type'] ?? '');
+        if (isset($memoryTypes[$routeType])) {
+            $memories = brvtal_public_memories_for_entity(db(), $memoryTypes[$routeType], (int)($entity['id'] ?? 0));
+            if ($memories !== []) $page['related']['MEMORIES'] = $memories;
         }
     } catch (Throwable $e) {
         if (function_exists('brvtal_log')) {
@@ -132,7 +139,7 @@ $html = str_replace(
     'class="set-action magnetic" aria-disabled="true" aria-hidden="true" tabindex="-1"',
     $html
 );
-$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n  <link rel=\"stylesheet\" href=\"css/public-sets-library.css\">\n</head>", $html);
+$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n  <link rel=\"stylesheet\" href=\"css/public-sets-library.css\">\n  <link rel=\"stylesheet\" href=\"css/public-memory-relations.css\">\n</head>", $html);
 $html = str_replace('</body>', "  <script src=\"js/public-quick-wins.js\"></script>\n</body>", $html);
 $html = brvtal_public_dedupe_decorative_assets($html);
 $html = brvtal_public_optimize_font_stylesheet($html);
@@ -147,6 +154,7 @@ $html = brvtal_public_defer_stylesheets($html, [
     'css/mobile-events.css',
     'css/public-roster.css',
     'css/public-sets-library.css',
+    'css/public-memory-relations.css',
 ]);
 $html = brvtal_public_optimize_home_images($html);
 $html = brvtal_public_version_assets($html, brvtal_deployment_short_sha());
