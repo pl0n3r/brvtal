@@ -122,7 +122,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 - Releases / label catalog;
 - Blog, tags and relations;
 - CMS Pages;
-- Media Library + reusable picker;
+- Media Library + reusable picker + explicit Cultural Context relations to Events/Artists/Sets/Releases;
 - Content Health;
 - SEO fields/defaults;
 - Global Search (`⌘K / Ctrl+K`);
@@ -169,20 +169,21 @@ Implemented:
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
 - adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
-- core runtime preserves `app → roster → sets → archive → media` order and survives optional motion-CDN failure;
+- core runtime preserves `app → roster → sets → archive → media → memory-relations` order and survives optional motion-CDN failure;
 - non-blocking Google Fonts;
 - keyboard/touch accessibility passes;
 - canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
 - Event lifecycle/public archive behavior;
 - Home Artists is a connected **BRVTAL Roster**: real `active` and `alumni` membership states come from Collective Status, non-members remain Artists/collaborators, and canonical navigation stays on `/artists/{slug}`;
-- canonical Artist pages expose real membership facts and structured published Events/Sets/Releases/Transmissions without inferring genres or Memories;
+- canonical Artist pages expose real membership facts and structured published Events/Sets/Releases/Transmissions; Memories appear only through explicit Media relations and genre is never inferred;
 - Home Sets is a connected **BRVTAL listening library**: published Sets remain in canonical API order, filter by real public Artist/Event relations, navigate primarily to `/sets/{slug}`, preserve explicit external LISTEN actions, expose honest empty/failure states and never infer genre metadata;
 - Archive discovery by year/search/relationships;
-- Public Media discovery;
-- Related Content relationship graph;
-- **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
+- Public Media discovery with explicit Memory context chips/search terms backed by structured Media relations;
+- Related Content relationship graph with Memory edges visible inside the existing four selectable entity layers;
+- **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**; Memories enrich those details but do not add a fifth selector layer;
 - Set graph detail links through public Artist/Event relationships and keeps canonical Set/platform links;
 - Release graph detail links through public Artists and keeps canonical Release/listen links;
+- Event/Artist/Set/Release pages may surface published Memories only through explicit structured relations;
 - Archive, Media and CONNECTED graph selection state in **shareable URL query parameters**;
 - Back/Forward restores discovery state while preserving hashes;
 - exact-deploy Production Performance evidence with modern Chromium mobile/desktop metrics, LCP breakdown and resource waterfall diagnostics;
@@ -191,7 +192,7 @@ Implemented:
 
 ### Media Engine
 
-Validated uploads, reusable paths/picker, original preservation, metadata/dimensions, WebP/context variants where supported, focal point, crop/context preview, resolution/quality guidance and reference-aware deletion protection.
+Validated uploads, reusable paths/picker, original preservation, metadata/dimensions, WebP/context variants where supported, focal point, crop/context preview, resolution/quality guidance and reference-aware deletion protection. Semantic `media_relations` are cultural context and remain distinct from file/reference usage tracking.
 
 ### Security
 
@@ -212,7 +213,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 9. **`README.md` is only the latest deploy snapshot.** It must not accumulate architecture, old checklists or development history.
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
 11. The repository contains enough durable context for AI to resume without previous conversation memory.
-12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph.
+12. **CONNECTED remains a four-layer public selector graph:** Artists, Events, Sets and Releases remain navigable inside the graph; Memories are structured edges/content within those layers rather than a new top-level selector.
 13. **CI optimizes for minimum lead time without weakening the applicable gates.** Pull requests and exact `main` pushes use the same changed-file-aware gate selection; `fast` always runs; manual dispatch runs the full matrix; every run ends in the stable `validate` aggregate check.
 14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors.
 15. **Production PHP runtime is 8.5.** PHP 8.5 lint/compatibility and all top-level PHP contracts run inside the always-on `fast` job; do not reintroduce a duplicate compatibility workflow.
@@ -222,9 +223,10 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 19. **Modern production performance evidence is continuous, not a one-off optimization target.** Production Performance records exact-deploy mobile/desktop metrics and resource-waterfall evidence; do not recompress or restructure assets without a measured regression, dominant bottleneck or visual justification.
 20. **Specialized CI safety checks should be jobs, not duplicate workflows, when they are part of normal source validation.** README snapshot validation, PHP compatibility, production-smoke source contracts and isolated recovery rehearsal are consolidated into `BRVTAL CI`; actual production smokes remain explicit manual workflows.
 21. **Artist Collective Status is lifecycle data, not free-form metadata.** Any mutation that touches membership status/dates must submit the complete lifecycle state; `none` has no membership dates, `active` requires a join date and no leave date, and `alumni` requires ordered join/leave dates. Successful Artist mutations synchronize `artist_collective_history` atomically with Admin Activity so future public Roster/history surfaces can rely on structured periods instead of inferred chronology.
-22. **Public Roster semantics come from real Artist lifecycle data.** `active` and `alumni` are the only collective-membership states exposed as such; an Artist with no membership is displayed contextually as a collaborator/network Artist, never persisted as a fake membership tier. The public Roster links to canonical Artist pages, does not treat bio text as genre metadata, and does not infer Memories or other relationships that are not structurally modeled.
+22. **Public Roster semantics come from real Artist lifecycle data.** `active` and `alumni` are the only collective-membership states exposed as such; an Artist with no membership is displayed contextually as a collaborator/network Artist, never persisted as a fake membership tier. The public Roster links to canonical Artist pages, does not treat bio text as genre metadata, and only surfaces Memories when explicit Media relations exist.
 23. **System Status separates operational health from development backlog.** `ATTENTION REQUIRED` may surface both platform signals and open GitHub Issues, but GitHub backlog items are read-only development metadata and never lower the platform health score. A GitHub/cache outage must render backlog as unavailable/stale, never as a fake zero or a global “no active issues” claim. The integration stays server-side, anonymous/public, bounded and cached for shared hosting.
 24. **Public Sets discovery is relationship-driven, not taxonomy-invented.** The listening library uses only published Set records plus public Artist/Event relations already modeled by `sets_media`; the API sanitizes those relations against final public pools before delivery. Set titles lead to canonical `/sets/{slug}` pages, external platforms remain secondary LISTEN actions, no genre is inferred from title/description, and a valid empty API result is distinct from a data/runtime failure.
+25. **Memories are reusable Media with explicit cultural relations, not a duplicate content type.** `media_relations` connects one Media asset to many Events/Artists/Sets/Releases. Admin edits context inside the existing Media Library; metadata + relation replacement is transactional and target IDs are validated server-side. Public delivery decorates relations only from final published entity pools, so draft/private IDs and labels never leak. Media deletion cascades semantic rows, while existing reference tracking continues to protect files from unsafe deletion. Source code must remain safe before the migration is applied: public delivery falls back to unattached Media and relation editing reports migration-required rather than failing the site.
 
 ---
 
@@ -236,6 +238,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 - Drafts are first-class and may be incomplete; publication requires stronger validation.
 - Public delivery filters drafts/private relations server-side.
 - Media is reusable content; preserve originals and protect referenced media from unsafe deletion.
+- Semantic Media relations and physical/reference usage are separate concerns; never infer one from the other.
 - Use transactions/row locking where multi-record integrity matters.
 - Use explicit data-safe migrations for schema changes.
 - **Merging source does not mean a production migration ran.**
@@ -342,7 +345,7 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; after the Roster and Sets listening library, deepen archive pathways and add Memories/event connections only when backed by explicit structured relations rather than heuristics.
+1. **Public cultural archive / relationship-driven browsing** — continue #398 from structured Roster, Sets and Memories; deepen archive pathways only through explicit modeled relationships and then proceed to Phase E polish once Phase D is validated.
 2. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
 3. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
 4. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.
