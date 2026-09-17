@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const analyticsJs = readFileSync(join(process.cwd(), 'js/public-analytics.js'), 'utf8');
 const measurementJs = readFileSync(join(process.cwd(), 'js/public-measurement.js'), 'utf8');
 const url = 'http://127.0.0.1:4173/';
-const consentUrl = 'http://127.0.0.1:4173/public-measurement-consent-e2e.html';
+const fullUrl = 'http://127.0.0.1:4173/public-measurement-gtm-e2e.html';
 
 function harness() {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -33,7 +33,7 @@ function harness() {
   </body></html>`;
 }
 
-function consentHarness() {
+function fullHarness() {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
   <body><main><section class="hero scene" style="height:100vh">HERO</section></main>
     <script data-gtm-id="GTM-W23PHGJG">${analyticsJs}</script>
@@ -41,8 +41,7 @@ function consentHarness() {
   </body></html>`;
 }
 
-async function open(page, choice) {
-  await page.addInitScript(value => localStorage.setItem('brvtal.analytics.choice.v1', value), choice);
+async function open(page) {
   await page.route(url, route => route.fulfill({ contentType:'text/html; charset=utf-8', body:harness() }));
   await page.goto(url);
 }
@@ -51,21 +50,18 @@ function measurementEvents(page) {
   return page.evaluate(() => (window.dataLayer || []).filter(item => item && String(item.event || '').startsWith('brvtal_')));
 }
 
-test('public measurement stays silent without accepted analytics consent', async ({ page }) => {
-  await open(page, 'rejected');
-  await page.getByRole('button', { name:'MENU' }).click();
-  await page.locator('#declared').click();
-  await page.locator('#outbound').click();
-  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
-  await page.waitForTimeout(50);
+test('public measurement runs immediately even if a legacy rejected choice exists', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('brvtal.analytics.choice.v1', 'rejected'));
+  await open(page);
 
-  expect(await measurementEvents(page)).toEqual([]);
-  expect(await page.evaluate(() => window.BRVTALMeasure.enabled())).toBe(false);
-  expect(await page.evaluate(() => window.BRVTALMeasure.push('brvtal_manual_test', { section:'events' }))).toBe(false);
+  await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_page_view')).toBe(true);
+  expect(await page.evaluate(() => window.BRVTALMeasure.enabled())).toBe(true);
+  expect(await page.evaluate(() => window.BRVTALMeasure.push('brvtal_manual_test', { section:'events' }))).toBe(true);
+  await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_manual_test')).toBe(true);
 });
 
-test('accepted visitors emit normalized page, section, navigation, action and scroll signals', async ({ page }) => {
-  await open(page, 'accepted');
+test('public measurement emits normalized page, section, navigation, action and scroll signals', async ({ page }) => {
+  await open(page);
 
   await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_page_view')).toBe(true);
   const pageView = (await measurementEvents(page)).find(item => item.event === 'brvtal_page_view');
@@ -89,25 +85,18 @@ test('accepted visitors emit normalized page, section, navigation, action and sc
 
   await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight * 0.8));
   await expect.poll(async () => (await measurementEvents(page)).filter(item => item.event === 'brvtal_scroll_depth').map(item => item.depth)).toEqual(expect.arrayContaining([25, 50, 75]));
-
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:analytics-settings-open')));
-  await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_analytics_settings_open')).toBe(true);
 });
 
-test('accepting analytics starts measurement and records the consent action only after opt-in', async ({ page }) => {
+test('GTM and measurement both start on the first page load', async ({ page }) => {
   let tagManagerRequests = 0;
   await page.route('https://www.googletagmanager.com/gtm.js**', route => {
     tagManagerRequests++;
     return route.fulfill({ contentType:'text/javascript', body:'' });
   });
-  await page.route(consentUrl, route => route.fulfill({ contentType:'text/html; charset=utf-8', body:consentHarness() }));
-  await page.goto(consentUrl);
+  await page.route(fullUrl, route => route.fulfill({ contentType:'text/html; charset=utf-8', body:fullHarness() }));
+  await page.goto(fullUrl);
 
-  expect(await measurementEvents(page)).toEqual([]);
-  expect(tagManagerRequests).toBe(0);
-
-  await page.getByRole('button', { name:'ALLOW ANALYTICS' }).click();
   await expect.poll(() => tagManagerRequests).toBe(1);
   await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_page_view')).toBe(true);
-  await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_analytics_consent' && item.action === 'accepted')).toBe(true);
+  await expect(page.locator('.analytics-choice')).toHaveCount(0);
 });
