@@ -266,7 +266,7 @@ const BRVTALRelatedContent = (() => {
 
   function group(title, items, renderItem) {
     const list = Array.isArray(items) ? items.filter(Boolean) : [];
-    return `<section class="related-group"><div class="related-group-head"><h4>${esc(title)}</h4><span class="mono">${list.length}</span></div><div class="related-group-list">${list.length ? list.map(renderItem).join('') : '<div class="related-group-empty mono">NO PUBLIC RELATIONS</div>'}</div></section>`;
+    return `<section class="related-group"><div class="related-group-head"><h4>${esc(title)}</h4><span class="mono">${list.length}</span></div><div class="related-group-list">${list.length ? list.map(item => renderItem(item)).join('') : '<div class="related-group-empty mono">NO PUBLIC RELATIONS</div>'}</div></section>`;
   }
 
   function releaseHref(release) {
