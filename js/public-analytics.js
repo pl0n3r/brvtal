@@ -11,7 +11,7 @@
   const save = choice => {
     try { localStorage.setItem(key, choice); } catch { /* Still honor this visit's choice. */ }
   };
-  const announce = name => window.dispatchEvent(new CustomEvent(name));
+  const announce = (name, detail = undefined) => window.dispatchEvent(new CustomEvent(name, { detail }));
   let loaded = false;
   let panel;
 
@@ -54,8 +54,10 @@
     save(value);
     panel?.remove();
     panel = null;
-    if (value === 'accepted') loadTagManager();
-    else if (loaded) revokeTagManager();
+    if (value === 'accepted') {
+      loadTagManager();
+      announce('brvtal:analytics-choice', { choice: 'accepted' });
+    } else if (loaded) revokeTagManager();
   }
 
   function show() {
