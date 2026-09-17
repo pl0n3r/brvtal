@@ -6,31 +6,44 @@
   const qs = (selector, root=document) => root.querySelector(selector);
   const searchText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+  function create(tag, className = '', text = null) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== null) element.textContent = String(text);
+    return element;
+  }
+
   const cleanUrl = value => {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
     try {
-      const url = new URL(raw, location.href);
+      const url = new URL(raw, `${location.origin}/`);
       return /^https?:$/i.test(url.protocol) ? url.href : '';
     } catch (_) { return ''; }
   };
+
   const imgUrl = value => {
-    const raw = String(value || '').trim();
-    if (!raw || /^(?:https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
-    return raw.replace(/^\.?\//,'');
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, `${location.origin}/`);
+      if (!/^https?:$/i.test(url.protocol)) return '';
+      return url.origin === location.origin ? `${url.pathname}${url.search}${url.hash}` : url.href;
+    } catch (_) { return ''; }
   };
+
   const formatDate = value => {
     if (!value) return '';
     const date = new Date(String(value).replace(' ','T'));
     if (Number.isNaN(date.getTime())) return String(value);
     return new Intl.DateTimeFormat(document.documentElement.lang || 'en',{day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
   };
+
   const connectedEventUrl = id => {
     const eventId = Number(id) || 0;
     if (!eventId) return '';
     try {
-      const url = new URL(location.href);
+      const url = new URL(location.pathname || '/', location.origin);
       url.searchParams.set('network_type', 'events');
       url.searchParams.set('network_id', String(eventId));
       url.hash = 'network';
@@ -57,6 +70,45 @@
     return [...track.querySelectorAll('[data-public-event-id]')].map(card => `${Number(card.dataset.publicEventId)||0}:${card.querySelector('.event-status')?.textContent?.trim()||''}`).join('|');
   }
 
+  function activeCard(event, index) {
+    const title = String(event.title || 'UNTITLED EVENT');
+    const image = imgUrl(event.cover_image);
+    const date = formatDate(event.event_date);
+    const city = String(event.city || '');
+    const venue = String(event.venue || '');
+    const description = String(event.description || 'BRVTAL');
+    const status = String(event.status || 'published').toLowerCase();
+    const ticket = status === 'sold_out' ? '' : cleanUrl(event.ticket_url);
+
+    const article = create('article', `event-card${index === 0 ? ' event-active' : ''}`);
+    article.dataset.publicEventId = String(Number(event.id) || 0);
+
+    const imageHost = create('div', 'event-img');
+    if (image) {
+      const img = create('img');
+      img.src = image;
+      img.alt = title;
+      img.loading = index ? 'lazy' : 'eager';
+      imageHost.appendChild(img);
+    }
+
+    const info = create('div', 'event-info');
+    info.appendChild(create('span', 'mono', [date,city].filter(Boolean).join(' / ')));
+    info.appendChild(create('h3', '', title));
+    info.appendChild(create('p', '', [venue,description].filter(Boolean).join(' / ')));
+    info.appendChild(create('span', 'event-status', activeStatusLabel(status,index)));
+    if (ticket) {
+      const link = create('a', 'event-ticket mono', 'TICKETS ↗');
+      link.href = ticket;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      info.appendChild(link);
+    }
+
+    article.append(imageHost, info);
+    return article;
+  }
+
   function renderActive(items) {
     const track = qs('.events-track');
     if (!track) return;
@@ -65,30 +117,11 @@
     if (currentActiveSignature(track) === expected) return;
 
     if (!events.length) {
-      track.innerHTML = '<div class="events-empty mono">NO UPCOMING EVENTS / THE ARCHIVE REMAINS ACTIVE</div>';
+      track.replaceChildren(create('div', 'events-empty mono', 'NO UPCOMING EVENTS / THE ARCHIVE REMAINS ACTIVE'));
       return;
     }
 
-    track.innerHTML = events.map((event,index) => {
-      const title = String(event.title || 'UNTITLED EVENT');
-      const image = imgUrl(event.cover_image);
-      const date = formatDate(event.event_date);
-      const city = String(event.city || '');
-      const venue = String(event.venue || '');
-      const description = String(event.description || 'BRVTAL');
-      const status = String(event.status || 'published').toLowerCase();
-      const ticket = status === 'sold_out' ? '' : cleanUrl(event.ticket_url);
-      return `<article class="event-card ${index===0?'event-active':''}" data-public-event-id="${Number(event.id)||0}">
-        <div class="event-img">${image?`<img src="${esc(image)}" alt="${esc(title)}" loading="${index?'lazy':'eager'}">`:''}</div>
-        <div class="event-info">
-          <span class="mono">${esc([date,city].filter(Boolean).join(' / '))}</span>
-          <h3>${esc(title)}</h3>
-          <p>${esc([venue,description].filter(Boolean).join(' / '))}</p>
-          <span class="event-status">${esc(activeStatusLabel(status,index))}</span>
-          ${ticket?`<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">TICKETS ↗</a>`:''}
-        </div>
-      </article>`;
-    }).join('');
+    track.replaceChildren(...events.map(activeCard));
   }
 
   function archiveCard(event) {
@@ -100,7 +133,7 @@
     const year = Number(event.archive_year) || (event.event_date ? new Date(String(event.event_date).replace(' ','T')).getFullYear() : 0);
     const lineup = Array.isArray(event.lineup) ? event.lineup : [];
     const sets = Array.isArray(event.related_sets) ? event.related_sets : [];
-    const names = lineup.map(item => item.name).filter(Boolean);
+    const names = lineup.map(item => String(item?.name || '')).filter(Boolean);
     const relationParts = [];
     if (lineup.length) relationParts.push(`${lineup.length} ARTIST${lineup.length===1?'':'S'}`);
     if (sets.length) relationParts.push(`${sets.length} SET${sets.length===1?'':'S'}`);
@@ -110,17 +143,52 @@
     const connectionsHref = relationParts.length ? connectedEventUrl(event.id) : '';
     const search = searchText([title,city,venue,...names].join(' '));
 
-    return `<article class="archive-event" data-archive-event data-archive-year="${year||''}" data-archive-artists="${lineup.length?'1':'0'}" data-archive-sets="${sets.length?'1':'0'}" data-archive-search-value="${esc(search)}" data-archive-id="${Number(event.id)||0}">
-      <div class="archive-event-image">${image?`<img src="${esc(image)}" alt="${esc(title)}" loading="lazy">`:'<div class="archive-event-placeholder mono">BRVTAL / ARCHIVE</div>'}</div>
-      <div class="archive-event-copy">
-        <div class="archive-event-meta mono"><span>${esc([date,city].filter(Boolean).join(' / '))}</span><span>${esc(status)}</span></div>
-        <h3>${esc(title)}</h3>
-        <p>${esc([venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — '))}</p>
-        <div class="archive-event-relations mono">${esc(relationParts.join(' / ') || 'HISTORICAL RECORD')}</div>
-        ${connectionsHref?`<a class="archive-event-link mono" data-archive-connections href="${esc(connectionsHref)}" aria-label="Explore connections for ${esc(title)}">EXPLORE CONNECTIONS ↗</a>`:''}
-        ${href?`<a class="archive-event-link mono" href="${esc(href)}" aria-label="View ${esc(title)}">OPEN RECORD ↗</a>`:''}
-      </div>
-    </article>`;
+    const article = create('article', 'archive-event');
+    article.dataset.archiveEvent = '';
+    article.dataset.archiveYear = String(year || '');
+    article.dataset.archiveArtists = lineup.length ? '1' : '0';
+    article.dataset.archiveSets = sets.length ? '1' : '0';
+    article.dataset.archiveSearchValue = search;
+    article.dataset.archiveId = String(Number(event.id) || 0);
+
+    const imageHost = create('div', 'archive-event-image');
+    if (image) {
+      const img = create('img');
+      img.src = image;
+      img.alt = title;
+      img.loading = 'lazy';
+      imageHost.appendChild(img);
+    } else {
+      imageHost.appendChild(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVE'));
+    }
+
+    const copy = create('div', 'archive-event-copy');
+    const meta = create('div', 'archive-event-meta mono');
+    meta.append(
+      create('span', '', [date,city].filter(Boolean).join(' / ')),
+      create('span', '', status)
+    );
+    copy.appendChild(meta);
+    copy.appendChild(create('h3', '', title));
+    copy.appendChild(create('p', '', [venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — ')));
+    copy.appendChild(create('div', 'archive-event-relations mono', relationParts.join(' / ') || 'HISTORICAL RECORD'));
+
+    if (connectionsHref) {
+      const connections = create('a', 'archive-event-link mono', 'EXPLORE CONNECTIONS ↗');
+      connections.dataset.archiveConnections = '';
+      connections.href = connectionsHref;
+      connections.setAttribute('aria-label', `Explore connections for ${title}`);
+      copy.appendChild(connections);
+    }
+    if (href) {
+      const record = create('a', 'archive-event-link mono', 'OPEN RECORD ↗');
+      record.href = href;
+      record.setAttribute('aria-label', `View ${title}`);
+      copy.appendChild(record);
+    }
+
+    article.append(imageHost, copy);
+    return article;
   }
 
   function applyArchiveFilters() {
@@ -177,10 +245,19 @@
     root.hidden = false;
 
     if (yearHost) {
-      yearHost.innerHTML = `<button type="button" class="active" data-archive-filter="all">ALL YEARS</button>${years.map(year => `<button type="button" data-archive-filter="${year}">${year}</button>`).join('')}`;
+      const allYears = create('button', 'active', 'ALL YEARS');
+      allYears.type = 'button';
+      allYears.dataset.archiveFilter = 'all';
+      const yearButtons = years.map(year => {
+        const button = create('button', '', String(year));
+        button.type = 'button';
+        button.dataset.archiveFilter = String(year);
+        return button;
+      });
+      yearHost.replaceChildren(allYears, ...yearButtons);
       yearHost.querySelectorAll('[data-archive-filter]').forEach(button => button.addEventListener('click', () => applyYearFilter(button.dataset.archiveFilter || 'all')));
     }
-    if (grid) grid.innerHTML = events.map(archiveCard).join('');
+    if (grid) grid.replaceChildren(...events.map(archiveCard));
     root.querySelectorAll('[data-archive-relation]').forEach(button => button.addEventListener('click', () => {
       state.archiveRelation = button.dataset.archiveRelation || 'all';
       applyArchiveFilters();
