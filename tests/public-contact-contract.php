@@ -154,6 +154,7 @@ contact_assert(str_contains($indexPhp, "str_replace('<a href=\"#contact\"><span>
 contact_assert(str_contains($indexPhp, "href=\"/contact\" data-cursor=\"CONTACT\""), 'Home footer CTA routes to dedicated Contact');
 contact_assert(str_contains($indexPhp, "\$pageRoute === 'contact'"), 'canonical public router recognizes Contact');
 contact_assert(str_contains($htaccess, 'RewriteRule ^contact/?$ index.php?page=contact'), 'LiteSpeed direct load/refresh routes /contact server-side');
-contact_assert(str_contains($sitemap, "\$base . '/contact'"), 'public sitemap includes Contact');
+contact_assert(in_array('/contact', brvtal_public_static_routes(), true), 'canonical sitemap route registry includes Contact');
+contact_assert(str_contains($sitemap, 'brvtal_public_static_routes()'), 'public sitemap consumes the canonical static route registry');
 
 echo "Public contact contract passed.\n";
