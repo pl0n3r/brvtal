@@ -17,8 +17,9 @@ $logDir = $root . '/storage/logs';
 $logFile = $logDir . '/brvtal.log';
 
 $action = (string)($_GET['action'] ?? '');
+$acceptHeader = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
 $wantsJson = (string)($_GET['format'] ?? '') === 'json'
-    || str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
+    || stripos($acceptHeader, 'application/json') !== false;
 
 $respondJson = static function (array $payload, int $status = 200): void {
     http_response_code($status);
