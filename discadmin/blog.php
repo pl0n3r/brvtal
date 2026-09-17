@@ -28,6 +28,7 @@ brvtal_admin_require();
   </div>
 
   <div class="toolbar blog-toolbar">
+    <label class="admin-sr-only" for="blog-search">Search blog posts</label>
     <input class="search" id="blog-search" placeholder="Search title, excerpt or slug…" autocomplete="off">
     <select id="blog-status-filter" aria-label="Filter posts by status">
       <option value="">ALL STATUS</option>

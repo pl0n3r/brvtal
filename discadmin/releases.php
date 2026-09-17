@@ -28,6 +28,7 @@ brvtal_admin_require();
   </div>
 
   <div class="toolbar releases-toolbar">
+    <label class="admin-sr-only" for="release-search">Search releases</label>
     <input class="search" id="release-search" placeholder="Search title, catalog or artist…" autocomplete="off">
     <select id="release-status-filter" aria-label="Filter releases by status">
       <option value="">ALL STATUS</option>
