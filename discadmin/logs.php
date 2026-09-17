@@ -30,7 +30,9 @@ $respondJson = static function (array $payload, int $status = 200): void {
 if ($action === 'clear') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
         header('Allow: POST');
-        if ($wantsJson) {\n            $respondJson(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);\n        }
+        if ($wantsJson) {
+            $respondJson(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
+        }
         http_response_code(405);
         exit('METHOD NOT ALLOWED');
     }
@@ -42,13 +44,17 @@ if ($action === 'clear') {
         $csrf === '' ||
         !hash_equals((string)$_SESSION['csrf'], $csrf)
     ) {
-        if ($wantsJson) {\n            $respondJson(['ok'=>false,'error'=>'CSRF'], 419);\n        }
+        if ($wantsJson) {
+            $respondJson(['ok'=>false,'error'=>'CSRF'], 419);
+        }
         http_response_code(419);
         exit('CSRF');
     }
 
     if (is_file($logFile) && file_put_contents($logFile, '', LOCK_EX) === false) {
-        if ($wantsJson) {\n            $respondJson(['ok'=>false,'error'=>'LOG_CLEAR_FAILED'], 500);\n        }
+        if ($wantsJson) {
+            $respondJson(['ok'=>false,'error'=>'LOG_CLEAR_FAILED'], 500);
+        }
         http_response_code(500);
         exit('LOG CLEAR FAILED');
     }
