@@ -14,15 +14,38 @@
   let loaded = false;
   let panel;
 
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+
+  function queueConsent(command, analyticsState) {
+    window.dataLayer = window.dataLayer || [];
+    gtag('consent', command, {
+      analytics_storage: analyticsState,
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
+  }
+
   function loadTagManager() {
     if (loaded) return;
     loaded = true;
     window.dataLayer = window.dataLayer || [];
+    queueConsent('default', 'denied');
+    queueConsent('update', 'granted');
     window.dataLayer.push({ 'gtm.start': Date.now(), event: 'gtm.js' });
     const script = document.createElement('script');
     script.async = true;
+    script.dataset.brvtalGtm = '1';
     script.src = 'https://www.googletagmanager.com/gtm.js?id=' + encodeURIComponent(id);
     document.head.appendChild(script);
+  }
+
+  function revokeTagManager() {
+    queueConsent('update', 'denied');
+    document.querySelector('script[data-brvtal-gtm]')?.remove();
+    setTimeout(() => location.reload(), 0);
   }
 
   function choose(value) {
@@ -30,7 +53,7 @@
     panel?.remove();
     panel = null;
     if (value === 'accepted') loadTagManager();
-    else if (loaded) location.reload();
+    else if (loaded) revokeTagManager();
   }
 
   function show() {
