@@ -10,22 +10,25 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 - `sonar.sources` deja de apuntar a todo el repositorio (`.`) y pasa a declarar únicamente las raíces reales de código/producto, separadas de `tests`.
 - `sonar.tests=tests` queda como raíz exclusiva de pruebas; no se añade scanner duplicado en GitHub Actions porque BRVTAL sigue usando Automatic Analysis.
 - Se conserva fuera del análisis el bundle vendorizado `discadmin/qrcode.min.js`.
-- Se añade un contrato PHP pequeño que falla si `sonar.sources` vuelve a incluir `.` o si alguna raíz source/test se solapa en el futuro.
+- Se añade un contrato PHP que falla si `sonar.sources` vuelve a incluir `.` o si alguna raíz source/test se solapa en el futuro.
+- Se actualiza el contrato de scope ya existente para que valide la configuración Sonar corregida en vez de exigir el antiguo `sonar.sources=.` que provocaba el conflicto.
 
 ## Archivos modificados en este deploy
 
 - `.sonarcloud.properties` — 🟡 MOD · separa de forma explícita source roots y test root para Automatic Analysis.
-- `tests/sonarqube-scope-contract.php` — 🟢 NEW · regresión que protege la separación source/test.
+- `tests/ci-scope-contract.php` — 🟡 MOD · reemplaza la expectativa obsoleta del root completo por el contrato de sources explícitas y tests disjuntos.
+- `tests/sonarqube-scope-contract.php` — 🟢 NEW · regresión específica que protege la separación source/test.
 - `README.md` — 🟡 MOD · snapshot exacto del deploy + panorama compacto de pendientes.
 
 ## Validación
 
 - Base exacta: `main` `46f3562219c1e7f56fd3031b931602eaf28f467c`.
 - Esa base tiene **BRVTAL CI #671** verde; Production Performance del mismo SHA también terminó correctamente.
-- La corrección sigue la configuración oficial de Automatic Analysis: `sonar.sources` y `sonar.tests` usan rutas simples y deben formar conjuntos separados.
+- **BRVTAL CI #672** detectó correctamente una expectativa obsoleta en `tests/ci-scope-contract.php` que todavía exigía `sonar.sources=.`; se corrigió el contrato sin debilitar la validación.
+- La configuración mantiene `sonar.sources` y `sonar.tests` como conjuntos explícitos y separados y conserva Automatic Analysis sin scanner duplicado en CI.
 - No hay cambios en runtime público, DISCADMIN, API, base de datos, migrations ni producción.
-- Pendiente: **BRVTAL CI / validate**, CodeRabbit y una nueva ejecución automática de SonarQube Cloud sobre el commit/PR actualizado.
-- CI verde significará **VALIDATED IN CODE**; Sonar verde confirmará que el análisis externo volvió a ejecutar correctamente. Ninguno de los dos equivale por sí solo a **VALIDATED IN PRODUCTION**.
+- Pendiente: nuevo **BRVTAL CI / validate**, CodeRabbit y la siguiente ejecución automática de SonarQube Cloud sobre el head actualizado.
+- CI verde significará **VALIDATED IN CODE**; Sonar verde confirmará que el análisis externo acepta el scope. Ninguno de los dos equivale por sí solo a **VALIDATED IN PRODUCTION**.
 
 ## Panorama general de lo pendiente
 
@@ -53,7 +56,7 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 
 ## Qué sigue
 
-1. Llevar este fix de SonarQube a PR, dejar **BRVTAL CI / validate** y CodeRabbit verdes, squash merge y verificar el SHA exacto de `main`.
+1. Dejar **BRVTAL CI / validate** y CodeRabbit verdes en este PR, squash merge y verificar el SHA exacto de `main`.
 2. Confirmar que SonarQube Cloud ya no reporta el solapamiento source/test en su siguiente Automatic Analysis.
 3. Continuar inmediatamente con **#419** y después **#420**, antes del batch visual #421/#422.
 
