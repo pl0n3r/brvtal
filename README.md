@@ -6,73 +6,65 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 
 ## Qué se hizo
 
-- Se prepara el repositorio para aprovechar **GitHub Copilot / custom agents** sin cambiar runtime público, DISCADMIN, API ni base de datos.
-- Se añade `.github/copilot-instructions.md`, obligando a leer `AGENTS.md` y respetar arquitectura, seguridad, CI, mobile, accesibilidad, rendimiento y lenguaje de validación.
-- Se añaden cuatro agentes especializados: **Implementer**, **Test Specialist**, **UX and Accessibility** y **CI Fixer**.
-- Se corrige el contrato del Implementer: `README.md` debe listar exactamente el diff actual del PR y refrescarse si cambia antes del merge.
-- Los agentes no pueden ejecutar SQL destructivo, restores, despliegues manuales ni declarar producción validada a partir de CI.
+- Se corrige la configuración de **SonarQube Cloud Automatic Analysis** que fallaba con `Source and test paths overlap`.
+- `sonar.sources` deja de apuntar a todo el repositorio (`.`) y pasa a declarar únicamente las raíces reales de código/producto, separadas de `tests`.
+- `sonar.tests=tests` queda como raíz exclusiva de pruebas; no se añade scanner duplicado en GitHub Actions porque BRVTAL sigue usando Automatic Analysis.
+- Se conserva fuera del análisis el bundle vendorizado `discadmin/qrcode.min.js`.
+- Se añade un contrato PHP que falla si `sonar.sources` vuelve a incluir `.` o si alguna raíz source/test se solapa en el futuro.
+- Se actualiza el contrato de scope ya existente para que valide la configuración Sonar corregida en vez de exigir el antiguo `sonar.sources=.` que provocaba el conflicto.
 
 ## Archivos modificados en este deploy
 
-- `.github/copilot-instructions.md` — 🟢 NEW · reglas globales para GitHub Copilot.
-- `.github/agents/brvtal-implementer.md` — 🟢 NEW · implementación enfocada + contrato README/diff.
-- `.github/agents/brvtal-test-specialist.md` — 🟢 NEW · regresiones y testing.
-- `.github/agents/brvtal-ux-accessibility.md` — 🟢 NEW · UX responsive, mobile, motion y accesibilidad.
-- `.github/agents/brvtal-ci-fixer.md` — 🟢 NEW · CI y findings válidos de review.
-- `README.md` — 🟡 MOD · snapshot del deploy + panorama compacto de pendientes.
+- `.sonarcloud.properties` — 🟡 MOD · separa de forma explícita source roots y test root para Automatic Analysis.
+- `tests/ci-scope-contract.php` — 🟡 MOD · reemplaza la expectativa obsoleta del root completo por el contrato de sources explícitas y tests disjuntos.
+- `tests/sonarqube-scope-contract.php` — 🟢 NEW · regresión específica que protege la separación source/test.
+- `README.md` — 🟡 MOD · snapshot exacto del deploy + panorama compacto de pendientes.
 
 ## Validación
 
-- Base: `main` `c262a8af5d1df0e520bdb1ad4d297df9cf206fa6`; **BRVTAL CI #655** verde.
-- Primer head del PR: **BRVTAL CI #667** verde.
-- CodeRabbit detectó un finding válido sobre el contrato README; fue corregido y el thread quedó resuelto.
-- **BRVTAL CI #669** detectó que este snapshot perdió el encabezado contractual `## Qué sigue`; este commit lo corrige sin debilitar el test.
-- No hay cambios de PHP, JavaScript/CSS productivo, schema, migrations ni APIs.
-- Pendiente: nuevo **BRVTAL CI / validate** y re-review del head actualizado.
-- CI verde = **VALIDATED IN CODE**, no **VALIDATED IN PRODUCTION**.
+- Base exacta: `main` `46f3562219c1e7f56fd3031b931602eaf28f467c`.
+- Esa base tiene **BRVTAL CI #671** verde; Production Performance del mismo SHA también terminó correctamente.
+- **BRVTAL CI #672** detectó correctamente una expectativa obsoleta en `tests/ci-scope-contract.php` que todavía exigía `sonar.sources=.`; se corrigió el contrato sin debilitar la validación.
+- La configuración mantiene `sonar.sources` y `sonar.tests` como conjuntos explícitos y separados y conserva Automatic Analysis sin scanner duplicado en CI.
+- No hay cambios en runtime público, DISCADMIN, API, base de datos, migrations ni producción.
+- Pendiente: nuevo **BRVTAL CI / validate**, CodeRabbit y la siguiente ejecución automática de SonarQube Cloud sobre el head actualizado.
+- CI verde significará **VALIDATED IN CODE**; Sonar verde confirmará que el análisis externo acepta el scope. Ninguno de los dos equivale por sí solo a **VALIDATED IN PRODUCTION**.
 
 ## Panorama general de lo pendiente
 
-### P0 — bugs funcionales
-1. **Menú mobile**: no abre. Corregir tap/click, apertura/cierre, foco, Escape, scroll lock y navegación; Playwright mobile.
-2. **Resize / scroll**: cambiar el viewport rompe el scroll hasta reload. Hacer desktop↔mobile resiliente y eliminar estados frágiles de Lenis/ScrollTrigger/pins.
-3. **Events scroll**: retirar wheel vertical→horizontal y pinning. El scroll vertical siempre baja la página; horizontal solo por drag/touch/trackpad natural.
+### P0 — bugs funcionales públicos
+1. **#419 Menú mobile / header** — MENU no abre de forma fiable en mobile; corregir apertura/cierre, foco, Escape, scroll lock, targets y composición de header conservando SOUND.
+2. **#420 Resize / scroll / Events** — resize puede romper el scroll y Events secuestra el wheel vertical; hacer el runtime resize-safe y devolver scroll vertical nativo.
 
-### P1 — quick wins de UI
-4. Quitar `LIVE / CMS CONNECTED`.
-5. Quitar contadores de escena `NN / 07` fuera del Hero; el Hero solo debe mostrar el contador real de banners cuando aplique.
-6. Header: un solo `MENU`, icono separado, targets táctiles claros y alineación con **SOUND**. **SOUND se conserva** para audio futuro.
-7. Subir legibilidad global: footer, Contact, metadata, labels, botones y microtexto; reducir headings que se cortan o dominan demasiado.
-8. Definir un **Button Design System** consistente para primary, secondary, utility e icon buttons.
+### P1 — quick wins globales
+3. **#421 Legibilidad y sistema UI** — quitar `LIVE / CMS CONNECTED`, retirar contadores de escena fuera del Hero, aumentar microtexto funcional, reducir headings excesivos y normalizar botones/CTAs.
+4. Revisar footer y Contact con la misma escala tipográfica y contraste funcional.
 
-### P2 — impacto visual
-9. Diferenciar cada sección del Home con skins/texturas/fotografía/profundidad/motion, manteniendo una sola identidad BRVTAL.
-10. Glitch controlado en títulos principales; rojo BRVTAL como base y otros acentos solo cuando corresponda.
-11. Hero con glitch ambiental sutil, barridos/interferencia y parallax ligero; versión simple para mobile/reduced motion.
-12. Events: cards coherentes con imagen + fecha/ciudad + estado + nombre + descripción + CTA; desktop ~2–2.5 visibles, sin secuestrar scroll.
+### P2 — dirección visual
+5. **#422 Home visual** — diferenciar secciones con skins/texturas/profundidad, glitch controlado en títulos, Hero ambiental y Events con cards coherentes; sin reintroducir scroll hijacking ni motion pesado en mobile.
 
 ### P3 — Memories
-13. **Media Library = almacenamiento; Memories = curaduría.** Issue canónica: `#415`.
-14. Añadir `MEDIA → Memories` en DISCADMIN para seleccionar media existente (imagen/video/audio), título, orden y estado; quitar de Memories sin borrar el asset.
-15. Public Memories: grid editorial/asimétrico; mobile 2 columnas con piezas destacadas de ancho completo; viewer inmersivo con PREV/NEXT/cierre.
-16. No reutilizar ciegamente el enfoque relation-first de PR `#417`; quedó superseded.
+6. **#415 Memories administrable** — Media Library = almacenamiento; Memories = curaduría.
+7. Añadir `MEDIA → Memories` en DISCADMIN para seleccionar media existente, título, orden y publicación sin duplicar/borrar el asset original.
+8. Public Memories: grid editorial/asimétrico, mobile 2 columnas con ritmo y viewer inmersivo PREV/NEXT/cierre.
+9. No reutilizar ciegamente el enfoque relation-first del PR cerrado `#417`; quedó superseded por el modelo de galería curada.
 
-### P4 — después
-17. Añadir soundscape BRVTAL a **SOUND**, siempre opt-in.
-18. Continuar simplificación de DISCADMIN sobre fricciones concretas; después Hero Slider, SEO/backups y otras features según prioridad/evidencia.
-19. Ejecutar smokes autenticados de producción solo cuando exista acceso autorizado; CI no sustituye validación real.
+### P4 — backlog posterior
+10. Soundscape BRVTAL para **SOUND**, siempre opt-in.
+11. Continuar simplificación de DISCADMIN sobre fricciones concretas; después Hero Slider, SEO centralizado, backups programados/off-site y demás backlog según prioridad/evidencia.
+12. Smokes autenticados de producción solo cuando exista acceso autorizado; CI no sustituye validación real.
 
 ## Qué sigue
 
-1. Dejar este PR de tooling verde, resolver cualquier finding válido, squash merge y verificar CI del SHA exacto de `main`.
-2. Crear issues pequeños/no duplicados para P0/P1.
-3. Implementar primero **menú mobile**, después **resize/scroll + Events scroll**, y luego el batch visual rápido.
-4. Seguir con dirección visual Home/Events y, finalmente, **Memories administrable #415**.
+1. Dejar **BRVTAL CI / validate** y CodeRabbit verdes en este PR, squash merge y verificar el SHA exacto de `main`.
+2. Confirmar que SonarQube Cloud ya no reporta el solapamiento source/test en su siguiente Automatic Analysis.
+3. Continuar inmediatamente con **#419** y después **#420**, antes del batch visual #421/#422.
 
 ## Contexto durable
 
 - Bootstrap canónico: `AGENTS.md`.
 - Visión pública: `#398`.
 - Memories curado: `#415`.
+- Quick wins nuevos: `#419`, `#420`, `#421`, `#422`.
 - Testing/validación: `docs/TESTING.md`.
 - GitHub Issues es la fuente de verdad para cada tarea individual y su estado.
