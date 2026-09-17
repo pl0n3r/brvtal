@@ -7,7 +7,7 @@
   let decorateTimer = null;
 
   function esc(value) {
-    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[ch]));
   }
 
   function ensureStyle() {
@@ -15,7 +15,7 @@
     const style = document.createElement('style');
     style.id = 'brvtal-seo-metadata-style';
     style.textContent = `
-      .brvtal-seo-section{margin-top:18px;border-top:1px solid #2b3034;padding-top:16px}
+      .brvtal-seo-section{box-sizing:border-box;width:100%;max-width:100%;grid-column:1/-1;margin-top:18px;border:1px solid #2b3034;background:#090a0b;padding:16px 17px 17px}
       .brvtal-seo-section .seo-kicker{font:800 8px/1.2 monospace;letter-spacing:1.6px;color:#7f878d;margin-bottom:5px}
       .brvtal-seo-section .seo-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:12px}
       .brvtal-seo-section .seo-head strong{font-size:13px;letter-spacing:.02em}
