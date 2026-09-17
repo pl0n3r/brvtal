@@ -54,6 +54,23 @@ test('mobile legacy lists preserve every meaningful field and actions', async ({
   }
 });
 
+test('repeated decoration removes stale data-label metadata before rebuilding the row schema', async ({ page }) => {
+  await mount(page, 'EVENTS');
+  const row = page.locator('#rows .tr');
+  const cells = row.locator(':scope > div');
+
+  await cells.nth(0).evaluate(cell => { cell.dataset.label = 'STALE MAIN'; });
+  await cells.nth(4).evaluate(cell => { cell.dataset.label = 'STALE ACTIONS'; });
+  await page.evaluate(() => window.BRVTALAdminRecordLists.decorate());
+  await page.evaluate(() => window.BRVTALAdminRecordLists.decorate());
+
+  await expect(cells.nth(0)).not.toHaveAttribute('data-label');
+  await expect(cells.nth(4)).not.toHaveAttribute('data-label');
+  await expect(cells.nth(1)).toHaveAttribute('data-label', 'DATE');
+  await expect(cells.nth(2)).toHaveAttribute('data-label', 'LOCATION');
+  await expect(cells.nth(3)).toHaveAttribute('data-label', 'STATUS');
+});
+
 test('event card shows date, location and status that legacy CSS used to hide', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mount(page, 'EVENTS');
