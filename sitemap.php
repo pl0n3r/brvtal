@@ -5,24 +5,17 @@ require_once __DIR__ . '/config/bootstrap.php';
 require_once __DIR__ . '/config/public_seo.php';
 
 $base = brvtal_public_base_url($config);
-$urls = [
-    [$base . '/', null],
-    [$base . '/contact', null],
-];
-$eventStatuses = brvtal_public_visible_event_statuses();
-$eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
-$definitions = [
-    ['events', $eventWhere, $eventStatuses],
-    ['artists', "status='published'", []],
-    ['sets_media', "status='published'", []],
-    ['releases', "status='published'", []],
-    ['blog_posts', "status='published'", []],
-    ['pages', "status='published' AND locale='en'", []],
-];
-$routes = ['events'=>'events','artists'=>'artists','sets_media'=>'sets','releases'=>'releases','blog_posts'=>'blog','pages'=>'pages'];
-foreach ($definitions as [$table, $where, $parameters]) {
+$urls = [];
+foreach (brvtal_public_static_routes() as $path) {
+    $urls[] = [$base . ($path === '/' ? '/' : $path), null];
+}
+
+foreach (brvtal_public_content_definitions() as $route => $definition) {
+    $table = $definition['table'];
+    $where = $definition['where'];
+    $parameters = $definition['parameters'];
     try {
-        $select = $table === 'events'
+        $select = $definition['event_visibility']
             ? 'slug,updated_at,status,event_date,published_at'
             : 'slug,updated_at';
         $statement = db()->prepare("SELECT {$select} FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id");
@@ -45,13 +38,13 @@ foreach ($definitions as [$table, $where, $parameters]) {
         exit;
     }
     foreach ($rows as $row) {
-        if ($table === 'events' && !brvtal_public_event_is_visible($row)) continue;
-        $urls[] = [$base . '/' . $routes[$table] . '/' . rawurlencode((string)$row['slug']), $row['updated_at'] ?? null];
+        if ($definition['event_visibility'] && !brvtal_public_event_is_visible($row)) continue;
+        $urls[] = [$base . '/' . $route . '/' . rawurlencode((string)$row['slug']), $row['updated_at'] ?? null];
     }
 }
 
 header('Content-Type: application/xml; charset=utf-8');
-header('Cache-Control: public, max-age=900');
+header('Cache-Control: no-cache, must-revalidate');
 echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
 foreach ($urls as [$location, $modified]) {
     echo '  <url><loc>' . htmlspecialchars($location, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc>';
