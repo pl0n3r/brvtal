@@ -52,15 +52,20 @@ $artistStmt = $pdo->prepare("INSERT INTO artists(name,slug,status) VALUES(?,?,'d
 $artistStmt->execute(['MEMORY PRIVATE ARTIST', $privateArtistSlug]);
 $privateArtistId = (int)$pdo->lastInsertId();
 
-$mediaStmt = $pdo->prepare("INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES('image',?,'/uploads/media/test-memory.jpg','image/jpeg',10,'Memory fixture','published')");
-$mediaStmt->execute(['MEMORY FIXTURE ' . $suffix]);
+$mediaStmt = $pdo->prepare("INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES('image',?,?,'image/jpeg',10,'Memory fixture',?)");
+$mediaStmt->execute(['MEMORY FIXTURE ' . $suffix, '/uploads/media/test-memory-' . $suffix . '.jpg', 'published']);
 $mediaId = (int)$pdo->lastInsertId();
+$mediaStmt->execute(['PRIVATE MEMORY ' . $suffix, '/uploads/media/private-memory-' . $suffix . '.jpg', 'draft']);
+$draftMediaId = (int)$pdo->lastInsertId();
 
 $pdo->beginTransaction();
 brvtal_media_replace_relations($pdo, $mediaId, [
     ['related_type'=>'event','related_id'=>$eventId],
     ['related_type'=>'artist','related_id'=>$artistId],
     ['related_type'=>'artist','related_id'=>$privateArtistId],
+    ['related_type'=>'event','related_id'=>$eventId],
+]);
+brvtal_media_replace_relations($pdo, $draftMediaId, [
     ['related_type'=>'event','related_id'=>$eventId],
 ]);
 $pdo->commit();
@@ -87,7 +92,7 @@ $publicMedia = brvtal_public_attach_memory_relations(
         'id'=>$mediaId,
         'type'=>'image',
         'title'=>'MEMORY FIXTURE',
-        'file_path'=>'/uploads/media/test-memory.jpg',
+        'file_path'=>'/uploads/media/test-memory-' . $suffix . '.jpg',
         'status'=>'published',
     ]],
     [['id'=>$eventId,'title'=>'MEMORY PUBLIC EVENT','slug'=>$eventSlug]],
@@ -102,6 +107,11 @@ media_rel_it_expect(!in_array($privateArtistId, array_column($relations, 'relate
 $labels = array_column($relations, 'label');
 media_rel_it_expect(in_array('MEMORY PUBLIC EVENT', $labels, true) && in_array('MEMORY PUBLIC ARTIST', $labels, true), 'public relations must decorate from final public entities');
 media_rel_it_expect(!in_array('MEMORY PRIVATE ARTIST', $labels, true), 'private target label must never leak into Memory payload');
+
+$entityMemories = brvtal_public_memories_for_entity($pdo, 'event', $eventId);
+media_rel_it_expect(count($entityMemories) === 1, 'canonical entity page lookup must include only published Memories');
+media_rel_it_expect((int)$entityMemories[0]['id'] === $mediaId, 'canonical entity page lookup must exclude draft Memory relation');
+media_rel_it_expect(!str_contains(json_encode($entityMemories), 'PRIVATE MEMORY'), 'draft Memory title must not leak through entity lookup');
 
 $graph = brvtal_public_add_memory_edges([
     'events'=>[(string)$eventId=>['artists'=>[],'sets'=>[]]],
@@ -118,6 +128,7 @@ $deleteMedia->execute([$mediaId]);
 $count = $pdo->prepare('SELECT COUNT(*) FROM media_relations WHERE media_id=?');
 $count->execute([$mediaId]);
 media_rel_it_expect((int)$count->fetchColumn() === 0, 'Media deletion must cascade semantic relation rows');
+$deleteMedia->execute([$draftMediaId]);
 
 $pdo->prepare('DELETE FROM events WHERE id=?')->execute([$eventId]);
 $pdo->prepare('DELETE FROM artists WHERE id IN (?,?)')->execute([$artistId,$privateArtistId]);
