@@ -39,6 +39,8 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/contact-social.css">
+  <link rel="stylesheet" href="css/public-controls.css">
+  <link rel="stylesheet" href="css/public-legibility.css">
   <link rel="icon" type="image/jpeg" href="assets/brvtal-logo.jpeg">
   ' . $seoTags . '
 </head>
