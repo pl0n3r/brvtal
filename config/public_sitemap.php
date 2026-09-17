@@ -7,35 +7,43 @@ const BRVTAL_SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 function brvtal_public_sitemap_lastmod(mixed $modified): ?string
 {
     $value = trim((string) $modified);
-    if ($value === '') return null;
-
     $date = substr($value, 0, 10);
     $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
     $errors = DateTimeImmutable::getLastErrors();
-    if ($parsed === false) return null;
-    if ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)) return null;
-    return $parsed->format('Y-m-d') === $date ? $date : null;
+    $hasDateErrors = $errors !== false
+        && ($errors['warning_count'] > 0 || $errors['error_count'] > 0);
+    $isValid = $value !== ''
+        && $parsed !== false
+        && !$hasDateErrors
+        && $parsed->format('Y-m-d') === $date;
+
+    return $isValid ? $date : null;
 }
 
 /** Keep only absolute canonical-site URLs that are safe to publish in the sitemap. */
 function brvtal_public_sitemap_location(string $location, string $base): ?string
 {
     $location = trim($location);
-    if ($location === '' || strlen($location) >= 2048) return null;
-
     $locationParts = parse_url($location);
     $baseParts = parse_url($base);
-    if (!is_array($locationParts) || !is_array($baseParts)) return null;
+    $hasValidShape = $location !== ''
+        && strlen($location) < 2048
+        && is_array($locationParts)
+        && is_array($baseParts);
+    if (!$hasValidShape) {
+        return null;
+    }
 
     $locationScheme = strtolower((string) ($locationParts['scheme'] ?? ''));
     $baseScheme = strtolower((string) ($baseParts['scheme'] ?? ''));
     $locationHost = strtolower((string) ($locationParts['host'] ?? ''));
     $baseHost = strtolower((string) ($baseParts['host'] ?? ''));
+    $isCanonical = $baseScheme === 'https'
+        && $locationScheme === $baseScheme
+        && $locationHost !== ''
+        && $locationHost === $baseHost;
 
-    if ($locationScheme !== 'https' || $locationScheme !== $baseScheme) return null;
-    if ($locationHost === '' || $locationHost !== $baseHost) return null;
-
-    return $location;
+    return $isCanonical ? $location : null;
 }
 
 /**
@@ -52,7 +60,9 @@ function brvtal_public_sitemap_xml(array $urls, string $base): string
 
     foreach ($urls as [$location, $modified]) {
         $canonicalLocation = brvtal_public_sitemap_location((string) $location, $base);
-        if ($canonicalLocation === null) continue;
+        if ($canonicalLocation === null) {
+            continue;
+        }
 
         $escapedLocation = htmlspecialchars(
             $canonicalLocation,
