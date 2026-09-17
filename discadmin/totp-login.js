@@ -160,13 +160,13 @@
      Dynamic modules can mount immediately; visible deep-links are handed to the final
      Information Architecture route layer once parsing finishes so native destinations
      and the guided Events workflow never flash through Dashboard or a legacy workspace. */
-  if (typeof window.restoreSession === 'function' && window.BRVTALAdminModules) {
+  if (typeof window.restoreSession === 'function' && window.BRVTALAdminModules && window.state) {
     window.restoreSession = async function() {
       try {
         const d = await req('/auth',{method:'GET'});
         if (d.authenticated) {
-          csrf = d.csrf || '';
-          state.authed = true;
+          window.csrf = d.csrf || '';
+          window.state.authed = true;
           try { await window.BRVTALMediaPermissions?.repair?.(); }
           catch (e) {
             if (e?.message !== 'AUTH_REQUIRED') window.BRVTALFeedback?.error?.('Media thumbnail access check failed: ' + e.message,'media-permissions');
