@@ -71,8 +71,11 @@ test('SEO and Analytics are first-class typed Settings while raw editing stays A
   await expect(page.getByRole('button',{name:'CHOOSE FROM MEDIA'})).toBeVisible();
 
   await page.locator('[data-settings-tab="analytics"]').click();
-  await expect(page.locator('#sv2_ga4_id')).toBeVisible();
+  await expect(page.locator('#sv2_gtm_id')).toBeVisible();
+  await expect(page.locator('#sv2_ga4_id')).toHaveCount(0);
   await expect(page.getByText('REQUIRED / USER CHOICE')).toBeVisible();
+  await expect(page.getByText('DIRECT GA4')).toBeVisible();
+  await expect(page.getByText('RETIRED')).toBeVisible();
 
   await page.locator('[data-settings-tab="advanced"]').click();
   await expect(page.getByText('RAW SETTINGS')).toBeVisible();

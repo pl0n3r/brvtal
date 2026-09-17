@@ -12,8 +12,8 @@ function control_plane_assert(bool $condition, string $message): void
     }
 }
 
-control_plane_assert(brvtal_public_ga_id_value('g-abcd1234') === 'G-ABCD1234', 'GA4 IDs normalize and validate');
-control_plane_assert(brvtal_public_ga_id_value('UA-123') === '', 'legacy/invalid analytics IDs fail closed');
+control_plane_assert(brvtal_public_gtm_id_value('gtm-w23phgjg') === 'GTM-W23PHGJG', 'GTM IDs normalize and validate');
+control_plane_assert(brvtal_public_gtm_id_value('G-ABCD1234') === '', 'direct GA4 IDs are not accepted as the public tag layer');
 
 $seo = brvtal_public_seo_document(null, 'https://www.brvtal.com.co', [
     'site_title' => 'BRVTAL / UNDERGROUND SIGNAL',
@@ -45,6 +45,10 @@ control_plane_assert(str_contains($settingsUi, "['general','GENERAL']"), 'Settin
 control_plane_assert(str_contains($settingsUi, "['social','SOCIAL & CONTACT']"), 'Settings exposes Social typed section');
 control_plane_assert(str_contains($settingsUi, "['seo','SEO']"), 'Settings exposes canonical SEO section');
 control_plane_assert(str_contains($settingsUi, "['analytics','ANALYTICS & PRIVACY']"), 'Settings exposes Analytics & Privacy section');
+control_plane_assert(str_contains($settingsUi, 'Google Tag Manager Container ID'), 'Analytics Settings exposes GTM as the canonical tag layer');
+control_plane_assert(str_contains($settingsUi, "read('gtm_id').toUpperCase()"), 'GTM save path normalizes the container ID');
+control_plane_assert(str_contains($settingsUi, "['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']"), 'saving canonical GTM retires legacy direct/alias keys');
+control_plane_assert(!str_contains($settingsUi, 'Google Analytics 4 ID'), 'direct GA4 field is removed from primary Settings UI');
 control_plane_assert(str_contains($settingsUi, "const next = { ...current, ...patch }"), 'typed saves preserve unknown sibling JSON keys');
 control_plane_assert(str_contains($settingsUi, 'reserved for #212'), 'language metadata is not misrepresented as implemented i18n');
 

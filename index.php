@@ -21,7 +21,7 @@ $baseUrl = brvtal_public_base_url($config);
 
 if ($pageRoute === 'contact') {
     $seo = brvtal_public_contact_seo($baseUrl);
-    $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
+    $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtal_deployment_short_sha());
     $contactHtml = brvtal_public_contact_page($seo, $analytics);
     $contactHtml = brvtal_public_optimize_font_stylesheet($contactHtml);
     $contactHtml = brvtal_public_version_assets($contactHtml, brvtal_deployment_short_sha());
@@ -35,7 +35,7 @@ if ($type !== '' || $slug !== '') {
     $entity = brvtal_public_seo_entity(db(), $type, $slug);
     if (!$entity) {
         $seo = brvtal_public_not_found_seo($baseUrl, $type, $slug);
-        $analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
+        $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtal_deployment_short_sha());
         http_response_code(404);
         header('X-Robots-Tag: noindex, follow');
         header('Content-Type: text/html; charset=utf-8');
@@ -47,7 +47,7 @@ if ($type !== '' || $slug !== '') {
 
 $seoDefaults = brvtal_public_global_seo(db());
 $seo = brvtal_public_seo_document($entity, $baseUrl, $seoDefaults);
-$analytics = brvtal_public_analytics_markup(brvtal_public_ga_id(db()), brvtal_deployment_short_sha());
+$analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtal_deployment_short_sha());
 if ($entity) {
     try {
         $page = brvtal_public_page_data(db(), $entity);

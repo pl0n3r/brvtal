@@ -115,13 +115,17 @@
 
   function analyticsPane() {
     const analytics = jsonValue('analytics');
+    const hasCanonicalGtm = Object.prototype.hasOwnProperty.call(analytics,'gtm_id');
+    const legacyGtm = analytics.google_tag_manager || analytics.tag_manager || analytics.gtm || '';
+    const gtmId = String(hasCanonicalGtm ? analytics.gtm_id : legacyGtm).trim().toUpperCase();
+    const connected = /^GTM-[A-Z0-9]{4,20}$/.test(gtmId);
     return `<section class="sv2-pane ${V2.tab==='analytics'?'active':''}" data-settings-pane="analytics">
-      <header class="sv2-section-head"><div><span>04 / ANALYTICS & PRIVACY</span><h3>Measurement</h3></div><p>Analytics remains optional and consent-gated. No secret credentials belong in this setting.</p></header>
-      <div class="sv2-grid two">${text('ga4_id','Google Analytics 4 ID',analytics.ga4_id || analytics.google || '','Format: G-XXXXXXXX. Leave empty to disable GA4.')}
-        <div class="sv2-readonly"><span>CONSENT MODE</span><strong>REQUIRED / USER CHOICE</strong><p>The current public analytics runtime does not load Google Analytics until the visitor explicitly allows it. This safety policy is not disabled from Settings.</p></div>
+      <header class="sv2-section-head"><div><span>04 / ANALYTICS & PRIVACY</span><h3>Tag delivery</h3></div><p>Google Tag Manager is the single public tag-delivery layer. It stays blocked until the visitor explicitly accepts analytics.</p></header>
+      <div class="sv2-grid two">${text('gtm_id','Google Tag Manager Container ID',gtmId,'Format: GTM-XXXXXXX. GA4, pixels and other optional tracking tags are managed inside GTM.')}
+        <div class="sv2-readonly"><span>INTEGRATION STATUS</span><strong>${connected?'CONNECTED':'NOT CONFIGURED'}</strong><p>${connected?'The validated container is ready for consent-gated public loading.':'Save a valid GTM container ID to enable public tag delivery.'}</p></div>
       </div>
-      <div class="sv2-context-grid"><article><span>PUBLIC API</span><strong>PRIVATE CONFIG</strong><p>The analytics setting is read server-side and is not included in <code>api/public.php</code>.</p></article><article><span>LEGACY FALLBACK</span><strong>SUPPORTED</strong><p>Existing <code>theme.analytics.google</code> remains readable as a fallback while configuration migrates non-destructively.</p></article></div>
-      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="analytics">SAVE ANALYTICS</button></div>
+      <div class="sv2-context-grid"><article><span>CONSENT MODE</span><strong>REQUIRED / USER CHOICE</strong><p>BRVTAL does not request GTM until the visitor allows analytics. This policy cannot be disabled from Settings.</p></article><article><span>DIRECT GA4</span><strong>RETIRED</strong><p>BRVTAL no longer loads GA4 directly. Configure GA4 and other optional tags inside Google Tag Manager.</p></article><article><span>PUBLIC API</span><strong>PRIVATE CONFIG</strong><p>The GTM container setting is read server-side and is not included in <code>api/public.php</code>.</p></article></div>
+      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="analytics">SAVE TAG MANAGER</button></div>
     </section>`;
   }
 
@@ -155,9 +159,10 @@
     </div>`;
   }
 
-  async function persistJson(key, patch) {
+  async function persistJson(key, patch, removeKeys = []) {
     const current = jsonValue(key);
     const next = { ...current, ...patch };
+    removeKeys.forEach(removeKey => delete next[removeKey]);
     await req('/settings', {method:'POST', body:JSON.stringify({setting_key:key, setting_value:JSON.stringify(next), is_json:1})});
     const response = await req('/settings');
     state.rows = response.data || [];
@@ -191,9 +196,9 @@
         if (share && !validHttpUrl(share) && !share.startsWith('/')) throw new Error('Share image must be an HTTP/HTTPS URL or an absolute public path.');
         await persistJson('seo',{site_title:read('seo_title'),description:read('seo_description').slice(0,320),share_image:share});
       } else if (section === 'analytics') {
-        const ga4 = read('ga4_id').toUpperCase();
-        if (ga4 && !/^G-[A-Z0-9]{4,20}$/.test(ga4)) throw new Error('GA4 ID must use the G-XXXXXXXX format.');
-        await persistJson('analytics',{ga4_id:ga4});
+        const gtm = read('gtm_id').toUpperCase();
+        if (gtm && !/^GTM-[A-Z0-9]{4,20}$/.test(gtm)) throw new Error('Google Tag Manager ID must use the GTM-XXXXXXX format.');
+        await persistJson('analytics',{gtm_id:gtm},['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']);
       }
       feedback('success','Settings saved.');
     } catch (error) {
