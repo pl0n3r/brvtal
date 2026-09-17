@@ -12,6 +12,7 @@ function media_rel_expect(bool $condition, string $message): void
     }
 }
 
+$schema = (string)file_get_contents(__DIR__ . '/../database/schema.sql');
 $migration = (string)file_get_contents(__DIR__ . '/../database/migration_media_relations_01.sql');
 $adminEndpoint = (string)file_get_contents(__DIR__ . '/../api/media-context.php');
 $adminScript = (string)file_get_contents(__DIR__ . '/../discadmin/media-relations.js');
@@ -21,9 +22,9 @@ $publicScript = (string)file_get_contents(__DIR__ . '/../js/public-memory-relati
 $runtime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $publicIndex = (string)file_get_contents(__DIR__ . '/../index.php');
 
+media_rel_expect(str_contains($schema, "CREATE TABLE media (\n  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY"), 'canonical Media id must remain unsigned');
 media_rel_expect(str_contains($migration, 'CREATE TABLE IF NOT EXISTS media_relations'), 'migration must be additive/idempotent');
-media_rel_expect(str_contains($migration, 'media_id INT NOT NULL'), 'media relation FK must match the canonical signed Media id type');
-media_rel_expect(!str_contains($migration, 'media_id INT UNSIGNED'), 'media relation FK must not drift to an unsigned type');
+media_rel_expect(str_contains($migration, 'media_id INT UNSIGNED NOT NULL'), 'media relation FK must match the canonical Media id type');
 media_rel_expect(str_contains($migration, "ENUM('event','artist','set','release')"), 'relation types must be bounded');
 media_rel_expect(str_contains($migration, 'PRIMARY KEY (media_id,related_type,related_id)'), 'duplicate semantic edges must be impossible');
 media_rel_expect(str_contains($migration, 'ON DELETE CASCADE'), 'deleting Media must cascade semantic relations');
