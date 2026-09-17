@@ -15,17 +15,19 @@ measurement_expect(str_contains($markup, '/js/public-measurement.js?v=abcdef1'),
 
 $runtime = file_get_contents(__DIR__ . '/../js/public-measurement.js');
 measurement_expect(is_string($runtime), 'read measurement runtime');
-measurement_expect(str_contains($runtime, "brvtal.analytics.choice.v1"), 'measurement reuses canonical analytics consent');
+measurement_expect(!str_contains($runtime, "brvtal.analytics.choice.v1"), 'measurement has no acceptance gate');
 measurement_expect(str_contains($runtime, "brvtal_page_view"), 'page view event exists');
 measurement_expect(str_contains($runtime, "brvtal_section_view"), 'section visibility event exists');
 measurement_expect(str_contains($runtime, "brvtal_scroll_depth"), 'scroll milestone event exists');
 measurement_expect(str_contains($runtime, "brvtal_navigation_click"), 'navigation event exists');
 measurement_expect(str_contains($runtime, "brvtal_outbound_click"), 'outbound event exists');
-measurement_expect(str_contains($runtime, "brvtal_analytics_consent"), 'accepted-consent event exists');
+measurement_expect(!str_contains($runtime, "brvtal_analytics_consent"), 'obsolete consent event is removed');
+measurement_expect(!str_contains($runtime, "brvtal_analytics_settings_open"), 'obsolete analytics settings event is removed');
 measurement_expect(str_contains($runtime, "IntersectionObserver"), 'section visibility uses IntersectionObserver');
 measurement_expect(str_contains($runtime, "SCROLL_MILESTONES = [25, 50, 75, 90]"), 'scroll measurement is milestone-based');
 measurement_expect(str_contains($runtime, "data-measure-event"), 'declarative content instrumentation hook exists');
 measurement_expect(str_contains($runtime, "window.BRVTALMeasure"), 'shared public measurement API is exposed');
+measurement_expect(str_contains($runtime, "enabled: () => true"), 'measurement API reports immediate availability');
 measurement_expect(!str_contains($runtime, 'mousemove'), 'mousemove is not measured');
 measurement_expect(!str_contains($runtime, 'pointermove'), 'pointer movement is not measured');
 measurement_expect(!str_contains($runtime, '.value'), 'form field values are not harvested');
