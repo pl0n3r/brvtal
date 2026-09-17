@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/public_contact.php';
 require_once __DIR__ . '/../config/public_seo.php';
 require_once __DIR__ . '/../config/public_contact_page.php';
+require_once __DIR__ . '/../config/public_sitemap.php';
 
 function contact_assert(bool $condition, string $message): void
 {
@@ -133,7 +134,6 @@ $styles = (string)file_get_contents(__DIR__ . '/../css/contact-social.css');
 $indexPhp = (string)file_get_contents(__DIR__ . '/../index.php');
 $indexHtml = (string)file_get_contents(__DIR__ . '/../index.html');
 $htaccess = (string)file_get_contents(__DIR__ . '/../.htaccess');
-$sitemap = (string)file_get_contents(__DIR__ . '/../sitemap.php');
 
 contact_assert(str_contains($ui, "document.querySelector('[data-public-contact-page]')"), 'Contact runtime activates only on the dedicated page');
 contact_assert(str_contains($ui, "['instagram','soundcloud','youtube','spotify']"), 'all supported social networks are rendered in the public rail');
@@ -154,6 +154,18 @@ contact_assert(str_contains($indexPhp, "str_replace('<a href=\"#contact\"><span>
 contact_assert(str_contains($indexPhp, "href=\"/contact\" data-cursor=\"CONTACT\""), 'Home footer CTA routes to dedicated Contact');
 contact_assert(str_contains($indexPhp, "\$pageRoute === 'contact'"), 'canonical public router recognizes Contact');
 contact_assert(str_contains($htaccess, 'RewriteRule ^contact/?$ index.php?page=contact'), 'LiteSpeed direct load/refresh routes /contact server-side');
-contact_assert(str_contains($sitemap, "\$base . '/contact'"), 'public sitemap includes Contact');
+contact_assert(in_array('/contact', brvtal_public_static_routes(), true), 'canonical sitemap route registry includes Contact');
+$contactSitemapRows = brvtal_public_sitemap_static_urls(
+    BRVTAL_SITEMAP_CANONICAL_ORIGIN,
+    brvtal_public_static_routes()
+);
+$contactSitemapXml = brvtal_public_sitemap_xml(
+    $contactSitemapRows,
+    BRVTAL_SITEMAP_CANONICAL_ORIGIN
+);
+contact_assert(
+    str_contains($contactSitemapXml, '<loc>https://www.brvtal.com.co/contact</loc>'),
+    'Contact reaches rendered sitemap XML through the executable static-route boundary'
+);
 
 echo "Public contact contract passed.\n";

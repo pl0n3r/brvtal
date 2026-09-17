@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/public_sitemap.php';
+
 function public_failure_assert(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -48,10 +50,16 @@ public_failure_assert(
     preg_match('/catch\s*\(Throwable(?:\s+\$\w+)?\)\s*\{\s*continue\s*;\s*\}/s', $sitemap) !== 1,
     'Sitemap must not silently continue after a failed content-family query'
 );
+$healthySitemap = brvtal_public_sitemap_response(
+    [[BRVTAL_SITEMAP_CANONICAL_ORIGIN . '/', null]],
+    BRVTAL_SITEMAP_CANONICAL_ORIGIN
+);
 public_failure_assert(
-    str_contains($sitemap, "header('Content-Type: application/xml; charset=utf-8')")
-        && str_contains($sitemap, "header('Cache-Control: public, max-age=900')"),
-    'healthy Sitemap responses must retain the existing XML/cache contract'
+    $healthySitemap['headers'] === [
+        'Content-Type: application/xml; charset=utf-8',
+        'Cache-Control: no-cache, must-revalidate',
+    ],
+    'healthy Sitemap responses must stay XML and revalidate before reuse'
 );
 
 echo "BRVTAL public failure semantics contract tests passed.\n";
