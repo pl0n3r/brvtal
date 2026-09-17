@@ -32,6 +32,7 @@ const context = {
 };
 
 test('Media inspector saves metadata and cultural relations atomically through the context endpoint', async ({ page }) => {
+  let savedPayload = null;
   await page.setContent(markup);
   await page.evaluate(() => {
     window.__legacySaveClicks = 0;
@@ -46,9 +47,8 @@ test('Media inspector saves metadata and cultural relations atomically through t
     if (route.request().method() === 'GET') {
       return route.fulfill({contentType:'application/json',body:JSON.stringify(context)});
     }
-    const body = route.request().postDataJSON();
-    await route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{media_id:9,relations_ready:true,relations:body.relations}})});
-    await page.evaluate(payload => { window.__savedPayload = payload; }, body);
+    savedPayload = route.request().postDataJSON();
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{media_id:9,relations_ready:true,relations:savedPayload.relations}})});
   });
   await page.route('**/api/auth', route => route.fulfill({contentType:'application/json',body:JSON.stringify({authenticated:true,csrf:'test-csrf'})}));
 
@@ -62,10 +62,9 @@ test('Media inspector saves metadata and cultural relations atomically through t
   await page.locator('#media-save').click();
 
   await expect.poll(() => page.evaluate(() => window.__refreshId || 0)).toBe(9);
-  const saved = await page.evaluate(() => window.__savedPayload);
-  expect(saved.title).toBe('UPDATED MEMORY');
-  expect(saved.status).toBe('published');
-  expect(saved.relations).toEqual([
+  expect(savedPayload?.title).toBe('UPDATED MEMORY');
+  expect(savedPayload?.status).toBe('published');
+  expect(savedPayload?.relations).toEqual([
     {related_type:'event',related_id:4,sort_order:0},
     {related_type:'artist',related_id:7,sort_order:1},
   ]);
