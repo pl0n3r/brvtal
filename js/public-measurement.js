@@ -49,7 +49,10 @@
     const contentType = routeTypes[segments[0]] || '';
     if (!contentType) return { page_type: 'public' };
     const context = { page_type: contentType, content_type: contentType };
-    if (segments[1]) context.content_slug = decodeURIComponent(segments[1]).slice(0, 160);
+    if (segments[1]) {
+      try { context.content_slug = decodeURIComponent(segments[1]).slice(0, 160); }
+      catch { context.content_slug = segments[1].slice(0, 160); }
+    }
     return context;
   }
 
@@ -217,6 +220,11 @@
   });
 
   window.addEventListener('brvtal:analytics-ready', start);
+  window.addEventListener('brvtal:analytics-choice', event => {
+    if (event.detail?.choice === 'accepted') {
+      push('brvtal_analytics_consent', { action: 'accepted', control: 'analytics_choice' });
+    }
+  });
   window.addEventListener('brvtal:analytics-settings-open', () => {
     if (started) push('brvtal_analytics_settings_open', { control: 'analytics_settings' });
   });
