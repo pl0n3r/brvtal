@@ -6,37 +6,37 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 
 ## Qué se hizo
 
-- Se implementa **#419** para endurecer el menú público en mobile/touch y limpiar la composición del header.
-- El estado del menú pasa a derivarse de `aria-hidden` y el controlador accesible toma el toggle en capture phase, evitando que el booleano privado del listener legacy se desincronice al cerrar por Escape, navegación u otros controles.
-- MENU mantiene `aria-controls`, `aria-expanded`, diálogo modal, focus trap, Escape y retorno de foco; además sincroniza `inert`, visibilidad, transform y pointer events en cada cambio de estado.
-- Al navegar desde el panel, el menú se cierra y libera el scroll lock antes de continuar.
-- Se elimina el texto duplicado visual del cursor sobre MENU dejando vacío su cursor-label dinámico, pero conservando el cursor gráfico y el botón funcional.
-- SOUND se conserva sin autoplay y permanece como control explícito para el futuro soundscape BRVTAL.
-- Header y controles reciben targets táctiles de 44 px, separación estable, icono `+ / ×` con caja propia y ajustes mobile para evitar solapes y overflow.
-- El panel mobile admite scroll vertical, usa `100svh` como mínimo y reduce la escala de enlaces para que la navegación siga alcanzable en pantallas cortas.
-- La regresión Playwright existente ahora cubre apertura/cierre repetido, scroll lock, Escape/foco, cierre por navegación, geometría SOUND/MENU y ausencia de overflow a 390 px.
+- Se implementa **#420** para eliminar el secuestro del scroll vertical en Events y hacer el runtime público más seguro al redimensionar la ventana.
+- Events deja de depender del túnel horizontal con `pin`: el pin legacy se desmonta en todos los viewports y el track pasa a navegación horizontal nativa.
+- El wheel/trackpad vertical vuelve a continuar por el Home; el contenido horizontal conserva swipe/touch, scroll horizontal real, teclado y drag con mouse.
+- El snap horizontal cambia a `proximity` para que la navegación sea menos rígida.
+- En desktop las cards de Events se reducen para mostrar más contexto simultáneamente; en mobile conservan tamaño táctil sin bloquear el scroll vertical.
+- El coordinador público de scroll sincroniza Lenis y ScrollTrigger tras `resize`/cambio de orientación, con debounce por animation frame y sin refrescar mientras existe un scroll lock activo.
+- Se añaden regresiones Playwright para pin removal, wheel vertical, drag horizontal, overflow y resize desktop → narrow → desktop sin quedar bloqueado.
 
 ## Archivos modificados en este deploy
 
-- `css/input-accessibility.css` — 🟡 MOD · targets táctiles, geometría del header, icono MENU y layout/scroll del panel mobile.
-- `js/menu-accessibility.js` — 🟡 MOD · controlador touch-safe basado en estado ARIA, foco, inert y cierre fiable.
-- `tests/e2e/public-menu-accessibility.spec.mjs` — 🟡 MOD · cobertura desktop + mobile de interacción, scroll lock, foco, repetición y geometría.
 - `README.md` — 🟡 MOD · snapshot exacto del deploy + panorama compacto de pendientes.
+- `css/mobile-events.css` — 🟡 MOD · Events nativo en todos los viewports, snap suave y cards más contenidas.
+- `js/menu-scroll-lock.js` — 🟡 MOD · sincronización resize-safe de Lenis/ScrollTrigger.
+- `js/mobile-events.js` — 🟡 MOD · elimina el pin de Events globalmente y añade navegación nativa/drag/teclado.
+- `tests/e2e/public-mobile-events.spec.mjs` — 🟡 MOD · cobertura de scroll vertical, drag horizontal y eliminación del pin.
+- `tests/e2e/public-scroll-resize.spec.mjs` — 🟢 NEW · regresión de resize y continuidad del scroll.
 
 ## Validación
 
-- Base exacta: `main` `301820895bdcdef04886ce59596904b9f3c494c4`.
-- Esa base tiene **BRVTAL CI #675** verde.
-- El fix anterior de SonarQube Cloud quedó squash-merged en esa base y SonarQube reportó **Quality Gate passed**, sin volver a presentar el solapamiento source/test.
+- Base exacta: `main` `4cbb1c62a8f94f411367f5e754c9ebd7d2b5376a`.
+- Esa base corresponde al merge de **#424 / #419** y tiene **BRVTAL CI #677** verde.
+- #419 quedó **VALIDATED IN CODE**; no se declara validación real de producción desde CI.
 - Este cambio no toca API, base de datos, migrations, DISCADMIN ni el modelo de contenido.
-- Pendiente en este head: **BRVTAL CI / validate** y CodeRabbit antes de squash merge.
-- CI verde significará **VALIDATED IN CODE**. La validación real del menú en dispositivos/producción sigue separada y no se declarará automáticamente.
+- Pendiente en este head: **BRVTAL CI / validate**, SonarQube Cloud y CodeRabbit antes de squash merge.
+- CI verde significará **VALIDATED IN CODE**. La comprobación real de resize/scroll en producción queda separada.
 
 ## Panorama general de lo pendiente
 
 ### P0 — bugs funcionales públicos
-1. **#419 Menú mobile / header** — implementado en este deploy; pendiente CI/review/merge y validación real posterior.
-2. **#420 Resize / scroll / Events** — resize puede romper el scroll y Events secuestra el wheel vertical; hacer el runtime resize-safe y devolver scroll vertical nativo.
+1. **#419 Menú mobile / header** — mergeado en `main`; pendiente validación real posterior en producción/dispositivo.
+2. **#420 Resize / scroll / Events** — implementado en este deploy; pendiente CI/review/merge.
 
 ### P1 — quick wins globales
 3. **#421 Legibilidad y sistema UI** — quitar `LIVE / CMS CONNECTED`, retirar contadores de escena fuera del Hero, aumentar microtexto funcional, reducir headings excesivos y normalizar botones/CTAs.
@@ -58,9 +58,9 @@ Este README es un **snapshot operativo de solo el deploy actual**. Por decisión
 
 ## Qué sigue
 
-1. Llevar #419 a PR, dejar **BRVTAL CI / validate** y CodeRabbit verdes, squash merge y verificar el SHA exacto de `main`.
-2. Continuar inmediatamente con **#420** — resize/scroll y eliminación del scroll hijacking de Events.
-3. Después ejecutar el batch global **#421** y la evolución visual **#422** antes de entrar al nuevo modelo de Memories #415.
+1. Llevar **#420** a PR, dejar BRVTAL CI, SonarQube y CodeRabbit verdes, squash merge y verificar el SHA exacto de `main`.
+2. Continuar inmediatamente con **#421** — legibilidad, contadores, estado CMS y sistema global de botones.
+3. Después ejecutar **#422** — evolución visual de Home — antes de entrar al nuevo modelo de Memories **#415**.
 
 ## Contexto durable
 
