@@ -14,6 +14,7 @@ const fixtures = {
   PAGES: ['ABOUT','en','published','','EDIT DEL'],
 };
 
+/** Mount a minimal admin record list for the requested module. */
 async function mount(page, moduleName) {
   const cells = fixtures[moduleName];
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${legacyCss}</style><style>${css}</style></head><body>
@@ -52,6 +53,17 @@ test('mobile legacy lists preserve every meaningful field and actions', async ({
     }
     await expect(row.locator('.record-actions')).toBeVisible();
   }
+});
+
+test('redecorating removes stale data-label metadata before applying the current schema', async ({ page }) => {
+  await mount(page, 'PAGES');
+  const spacer = page.locator('#rows .tr > div').nth(3);
+
+  await spacer.evaluate(element => { element.dataset.label = 'STALE'; });
+  await expect(spacer).toHaveAttribute('data-label', 'STALE');
+  await page.evaluate(() => window.BRVTALAdminRecordLists.decorate());
+
+  expect(await spacer.getAttribute('data-label')).toBeNull();
 });
 
 test('event card shows date, location and status that legacy CSS used to hide', async ({ page }) => {

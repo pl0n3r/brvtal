@@ -25,6 +25,7 @@ const sets = [
   },
 ];
 
+/** Build the isolated public Sets harness used by the browser contract. */
 function markup(promiseScript) {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     :root{--line:rgba(255,255,255,.14);--magenta:#ff147f;--accent:#ff147f}*{box-sizing:border-box}html,body{margin:0;background:#090909;color:#eee;font-family:Arial,sans-serif}.mono{font-family:monospace}.sets{padding:40px 5vw;--accent:var(--magenta)}.sets-intro{margin:30px 0}.set-list{border-top:1px solid var(--line)}.set-item{display:grid;grid-template-columns:100px 1fr 80px;gap:20px;padding:28px 0;border-bottom:1px solid var(--line)}
@@ -39,6 +40,7 @@ function markup(promiseScript) {
   </body></html>`;
 }
 
+/** Open the public Sets harness with canonical shared data resolved. */
 async function openWithSets(page) {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
@@ -50,6 +52,11 @@ async function openWithSets(page) {
 
 test('Sets library renders canonical records and real Artist/Event relations from shared public data', async ({ page }) => {
   await openWithSets(page);
+
+  const controlsFollowIntro = await page.locator('.sets-intro').evaluate(
+    intro => intro.nextElementSibling?.classList.contains('sets-library-controls') === true
+  );
+  expect(controlsFollowIntro).toBe(true);
 
   const rows = page.locator('.set-library-item');
   await expect(rows).toHaveCount(4);
