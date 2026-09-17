@@ -21,7 +21,7 @@ foreach ($files as $label => $source) {
         "{$label} must insert its trigger before status through Element.before()."
     );
     sonar_dom_before_expect(
-        preg_match('/top\\.insertBefore\\s*\\(\\s*trigger\\s*,\\s*status\\s*\\)/', $source) !== 1,
+        preg_match('/top\s*\.\s*insertBefore\s*\(\s*trigger\s*,\s*status\s*\)/', $source) !== 1,
         "{$label} must not restore the S7768 insertBefore pattern."
     );
 }
