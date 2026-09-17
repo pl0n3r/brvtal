@@ -3,6 +3,7 @@
 
   const nativeFetch = window.fetch.bind(window);
   const AUTO_DESCRIPTION_LIMIT = 160;
+  const SEO_TRAILING_CHARS = new Set([' ', ',', '.', ';', ':', '-']);
   let dedupeTimer = null;
 
   function plainText(value) {
@@ -34,11 +35,7 @@
 
   function trimSeoSuffix(value) {
     let end = value.length;
-    while (end > 0) {
-      const char = value[end - 1];
-      if (char !== ' ' && char !== ',' && char !== '.' && char !== ';' && char !== ':' && char !== '-') break;
-      end -= 1;
-    }
+    while (end > 0 && SEO_TRAILING_CHARS.has(value[end - 1])) end -= 1;
     return value.slice(0, end);
   }
 
