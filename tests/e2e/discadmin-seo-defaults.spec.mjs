@@ -105,3 +105,17 @@ test('Page save derives SEO description from textual JSON blocks and ignores med
   expect(saved.seo_description).not.toContain('/uploads/media/poster.jpg');
   expect(saved.seo_description.length).toBeLessThanOrEqual(160);
 });
+
+test('SEO truncation stays bounded on long words and strips a trailing punctuation run', async ({ page }) => {
+  await loadHarness(page);
+
+  const values = await page.evaluate(() => {
+    const longWordBoundary = BRVTALSEODefaults.truncate(`${'A'.repeat(110)} ${'B'.repeat(120)}`, 160);
+    const punctuationTail = BRVTALSEODefaults.truncate(`${'alpha '.repeat(20)}signal----- ${'omega '.repeat(20)}`, 80);
+    return { longWordBoundary, punctuationTail };
+  });
+
+  expect(values.longWordBoundary).toBe('A'.repeat(110));
+  expect(values.punctuationTail.length).toBeLessThanOrEqual(80);
+  expect(' ,.;:-').not.toContain(values.punctuationTail.at(-1));
+});
