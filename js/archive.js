@@ -121,7 +121,7 @@
       return;
     }
 
-    track.replaceChildren(...events.map(activeCard));
+    track.replaceChildren(...events.map((event, index) => activeCard(event, index)));
   }
 
   function archiveCard(event) {
@@ -257,7 +257,7 @@
       yearHost.replaceChildren(allYears, ...yearButtons);
       yearHost.querySelectorAll('[data-archive-filter]').forEach(button => button.addEventListener('click', () => applyYearFilter(button.dataset.archiveFilter || 'all')));
     }
-    if (grid) grid.replaceChildren(...events.map(archiveCard));
+    if (grid) grid.replaceChildren(...events.map(event => archiveCard(event)));
     root.querySelectorAll('[data-archive-relation]').forEach(button => button.addEventListener('click', () => {
       state.archiveRelation = button.dataset.archiveRelation || 'all';
       applyArchiveFilters();
