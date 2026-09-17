@@ -34,6 +34,18 @@ function brvtal_media_context_text(mixed $value, int $max): string
     return mb_substr(trim((string)$value), 0, $max);
 }
 
+function brvtal_media_context_fail(Throwable $e, int $id, string $method): never
+{
+    if (function_exists('brvtal_log')) {
+        brvtal_log('MEDIA_CONTEXT_ERROR', 'Media cultural context request failed.', [
+            'media_id' => $id,
+            'method' => $method,
+            'class' => get_class($e),
+        ]);
+    }
+    brvtal_media_context_response(['ok' => false, 'error' => 'MEDIA_CONTEXT_ERROR'], 500);
+}
+
 try {
     if ($id < 1) {
         brvtal_media_context_response(['ok' => false, 'error' => 'MEDIA_ID_REQUIRED'], 422);
@@ -107,15 +119,10 @@ try {
 } catch (InvalidArgumentException $e) {
     brvtal_media_context_response(['ok' => false, 'error' => $e->getMessage()], 422);
 } catch (RuntimeException $e) {
-    $status = $e->getMessage() === 'MEDIA_RELATIONS_NOT_READY' ? 409 : 500;
-    brvtal_media_context_response(['ok' => false, 'error' => $e->getMessage()], $status);
-} catch (Throwable $e) {
-    if (function_exists('brvtal_log')) {
-        brvtal_log('MEDIA_CONTEXT_ERROR', 'Media cultural context request failed.', [
-            'media_id' => $id,
-            'method' => $method,
-            'class' => get_class($e),
-        ]);
+    if ($e->getMessage() === 'MEDIA_RELATIONS_NOT_READY') {
+        brvtal_media_context_response(['ok' => false, 'error' => 'MEDIA_RELATIONS_NOT_READY'], 409);
     }
-    brvtal_media_context_response(['ok' => false, 'error' => 'MEDIA_CONTEXT_ERROR'], 500);
+    brvtal_media_context_fail($e, $id, $method);
+} catch (Throwable $e) {
+    brvtal_media_context_fail($e, $id, $method);
 }
