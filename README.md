@@ -8,42 +8,41 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con dos HIGH equivalentes de Maintainability ya revalidados en DISCADMIN.
-- `discadmin/bulk-actions.js` inserta el trigger antes del estado con `status.before(trigger)` en lugar de `top.insertBefore(trigger,status)` (`javascript:S7768`).
-- `discadmin/global-search.js` aplica el mismo reemplazo DOM, preservando posición, fallback y comportamiento visible.
-- Ambos `ensureTrigger()` reciben documentación breve para mantener la cobertura de docstrings del cambio.
-- Se añade un contrato dirigido que exige `Element.before()` en ambos módulos y evita la regresión al patrón legacy.
-- No se modifican APIs, base de datos, rutas, permisos, búsquedas, acciones bulk ni comportamiento visible.
+- Continúa #451 con dos HIGH de Maintainability (`javascript:S7768`) revalidados en DISCADMIN.
+- `discadmin/bulk-actions.js` reemplaza `top.insertBefore(trigger, status)` por `status.before(trigger)` al montar el trigger de Bulk Actions.
+- `discadmin/global-search.js` aplica el mismo reemplazo al trigger de Global Search.
+- `status.before(trigger)` conserva exactamente el orden DOM anterior: el trigger queda inmediatamente antes del nodo de estado; si no existe status se conserva `top.appendChild(trigger)`.
+- Se documentan las dos funciones `ensureTrigger()` tocadas y se añade un contrato dirigido que exige el patrón moderno e impide restaurar el `insertBefore` anterior.
+- No se modifican APIs, base de datos, rutas, permisos, búsquedas, operaciones bulk, estilos ni comportamiento visible.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `discadmin/bulk-actions.js` — modernización de inserción del trigger bulk y docblock de la función tocada.
-- `discadmin/global-search.js` — modernización de inserción del trigger de búsqueda global y docblock de la función tocada.
-- `tests/sonar-dom-before-contract.php` — contrato dirigido de regresión para los dos HIGH de inserción DOM.
+- `discadmin/bulk-actions.js` — inserción moderna y equivalente del trigger de Bulk Actions.
+- `discadmin/global-search.js` — inserción moderna y equivalente del trigger de Global Search.
+- `tests/sonar-dom-before-contract.php` — contrato dirigido contra la regresión de ambos patrones S7768.
 
 ## Validación
 
-- Base exacta recontrastada: `main` `1ff5a6cb2a1f7967482b41a4dfb0c40a818c5a9b`.
-- Ese SHA exacto de `main` pasó BRVTAL CI #812 con conclusión `success`; #462 queda **VALIDATED IN CODE** en `main`.
-- #462 añadió regresiones de navegador para el comportamiento de los cambios DOM de #461; este bloque es independiente y no modifica esos archivos.
-- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- Tras el merge, el SHA exacto resultante de `main` debe volver a pasar BRVTAL CI antes de considerar este bloque **VALIDATED IN CODE**.
-- CI verde no equivale a validación en producción.
+- Base exacta recontrastada: `main` `fb4dc334d150e18e514e8b8b6f7a82507a54a19b`.
+- Ese SHA exacto pasó BRVTAL CI #816 con `fast`, `chromium` y `validate` en `success`; #466 queda **VALIDATED IN CODE** en `main`.
+- El head anterior de este PR fue evaluado sobre una base previa, pero esos resultados no se reutilizan tras este refresh.
+- El head final refrescado debe pasar nuevamente BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
+- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Completar los gates del PR de `bulk-actions/global-search`, resolver cualquier finding válido, hacer squash merge y verificar CI del SHA exacto resultante de `main`.
-- Continuar #451 por riesgo con el siguiente bloque de Reliability / accesibilidad o Maintainability acotada revalidado contra el `main` resultante.
+- Completar los gates del head exacto de #465, resolver findings válidos, hacer squash merge y verificar el CI exacto del nuevo `main`.
+- Continuar #451 por riesgo con los siguientes findings vigentes, siempre recontrastados contra el código actual y en bloques pequeños.
 - Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
 
 ## Panorama general pendiente
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **DOM API maintainability:** #461 y su follow-up de navegador #462 están **VALIDATED IN CODE**; este deploy elimina los dos HIGH equivalentes de `insertBefore` en `bulk-actions.js` y `global-search.js`.
+- **DOM API maintainability:** #461 y #462 ya están VALIDATED IN CODE; #466 cerró la advertencia documental restante; #465 aborda los dos HIGH S7768 de triggers administrativos pendientes.
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
-- **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871`, `S7727`, los cuatro `S8786`, labels de Blog/Media/Releases, labels/semántica de Content Core y los primeros quick wins DOM están trabajados; continúa la cola por riesgo y área.
+- **Sonar / calidad:** #451 — continuar la cola por riesgo y área, evitando refactors masivos y revalidando cada finding contra el código vigente.
 - **Archivo cultural:** #398 / #403 — profundizar relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory sin inferencias falsas.
 - **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4 y preparar lectura segura futura en Dashboard.
 - **SEO:** #390, #391 y #272 — workspace SEO, alineación del bloque actual y structured data por entidad.
