@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
+require_once __DIR__ . '/public-memory-relations.php';
 require_once __DIR__ . '/public-response.php';
 
 /**
@@ -336,7 +337,19 @@ try {
         $sets,
         $releases
     );
-    $relations = brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases);
+    $media = brvtal_public_attach_memory_relations(
+        $pdo,
+        $media,
+        $events,
+        $archiveEvents,
+        $artists,
+        $sets,
+        $releases
+    );
+    $relations = brvtal_public_add_memory_edges(
+        brvtal_public_related_graph($events, $archiveEvents, $artists, $sets, $releases),
+        $media
+    );
 
     $archive = [
         'events' => $archiveEvents,
