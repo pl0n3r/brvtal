@@ -11,6 +11,7 @@
   const save = choice => {
     try { localStorage.setItem(key, choice); } catch { /* Still honor this visit's choice. */ }
   };
+  const announce = (name, detail = undefined) => window.dispatchEvent(new CustomEvent(name, { detail }));
   let loaded = false;
   let panel;
 
@@ -40,6 +41,7 @@
     script.dataset.brvtalGtm = '1';
     script.src = 'https://www.googletagmanager.com/gtm.js?id=' + encodeURIComponent(id);
     document.head.appendChild(script);
+    announce('brvtal:analytics-ready');
   }
 
   function revokeTagManager() {
@@ -52,12 +54,15 @@
     save(value);
     panel?.remove();
     panel = null;
-    if (value === 'accepted') loadTagManager();
-    else if (loaded) revokeTagManager();
+    if (value === 'accepted') {
+      loadTagManager();
+      announce('brvtal:analytics-choice', { choice: 'accepted' });
+    } else if (loaded) revokeTagManager();
   }
 
   function show() {
     if (panel) return;
+    if (consent() === 'accepted') announce('brvtal:analytics-settings-open');
     panel = document.createElement('section');
     panel.className = 'analytics-choice';
     panel.setAttribute('aria-label', 'Analytics preferences');
