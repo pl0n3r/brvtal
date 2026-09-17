@@ -16,6 +16,8 @@ $expect(str_contains($archive, 'replaceChildren('), 'Public Archive must replace
 $expect(str_contains($archive, '.textContent ='), 'Public Archive must render untrusted text through textContent');
 $expect(str_contains($archive, 'document.createElement('), 'Public Archive must construct rendered markup with DOM APIs');
 $expect(str_contains($archive, "if (!/^https?:$/i.test(url.protocol)) return '';"), 'Public Archive image URLs must reject non-HTTP(S) schemes');
+$expect(!str_contains($archive, 'events.map(activeCard)'), 'Public Archive must adapt activeCard explicitly when used as an Array.map callback');
+$expect(!str_contains($archive, 'events.map(archiveCard)'), 'Public Archive must adapt archiveCard explicitly when used as an Array.map callback');
 
 $expect(str_contains($release, 'Path(__file__).resolve().parents[1]'), 'Release metadata path must be anchored to the repository root');
 $expect(str_contains($release, "CONFIG_ROOT = (REPO_ROOT / 'config').resolve()"), 'Release metadata writes must be anchored to the resolved config directory');
