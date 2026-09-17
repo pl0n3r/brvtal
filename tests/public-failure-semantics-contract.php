@@ -50,8 +50,8 @@ public_failure_assert(
 );
 public_failure_assert(
     str_contains($sitemap, "header('Content-Type: application/xml; charset=utf-8')")
-        && str_contains($sitemap, "header('Cache-Control: public, max-age=900')"),
-    'healthy Sitemap responses must retain the existing XML/cache contract'
+        && str_contains($sitemap, "header('Cache-Control: no-cache, must-revalidate')"),
+    'healthy Sitemap responses must stay XML and revalidate before reuse'
 );
 
 echo "BRVTAL public failure semantics contract tests passed.\n";
