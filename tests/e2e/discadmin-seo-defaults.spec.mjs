@@ -117,5 +117,5 @@ test('SEO truncation stays bounded on long words and strips a trailing punctuati
 
   expect(values.longWordBoundary).toBe('A'.repeat(110));
   expect(values.punctuationTail.length).toBeLessThanOrEqual(80);
-  expect(' ,.;:-').not.toContain(values.punctuationTail.at(-1));
+  expect(' ,.;:-'.includes(values.punctuationTail.at(-1) || '')).toBe(false);
 });
