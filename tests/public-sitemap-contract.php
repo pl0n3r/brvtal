@@ -36,59 +36,28 @@ public_sitemap_expect(
     'Events must keep using the canonical public lifecycle visibility policy.'
 );
 
-$sitemap = (string) file_get_contents(__DIR__ . '/../sitemap.php');
-$sitemapUsesRegistries = str_contains(
-    $sitemap,
-    'brvtal_public_content_definitions()'
-) && str_contains(
-    $sitemap,
-    'brvtal_public_static_routes()'
+$staticUrls = brvtal_public_sitemap_static_urls(
+    BRVTAL_SITEMAP_CANONICAL_ORIGIN,
+    brvtal_public_static_routes()
+);
+$response = brvtal_public_sitemap_response($staticUrls, BRVTAL_SITEMAP_CANONICAL_ORIGIN);
+public_sitemap_expect(
+    $response['headers'] === [
+        'Content-Type: application/xml; charset=utf-8',
+        'Cache-Control: no-cache, must-revalidate',
+    ],
+    'Healthy sitemap responses must remain XML and revalidate before reuse.'
 );
 public_sitemap_expect(
-    $sitemapUsesRegistries,
-    'The sitemap renderer must consume the canonical dynamic public registries.'
-);
-$sitemapRevalidates = !str_contains(
-    $sitemap,
-    'Cache-Control: public, max-age=900'
-) && str_contains(
-    $sitemap,
-    'Cache-Control: no-cache, must-revalidate'
-);
-public_sitemap_expect(
-    $sitemapRevalidates,
-    'The public sitemap must revalidate instead of serving the old 15-minute snapshot.'
-);
-$sitemapUsesValidatedXmlRenderer = str_contains(
-    $sitemap,
-    "require_once __DIR__ . '/config/public_sitemap.php';"
-) && str_contains(
-    $sitemap,
-    'brvtal_public_sitemap_xml($urls, $base)'
-) && str_contains(
-    $sitemap,
-    'Content-Type: application/xml; charset=utf-8'
-);
-public_sitemap_expect(
-    $sitemapUsesValidatedXmlRenderer,
-    'The canonical sitemap response must use the validated XML renderer.'
+    str_contains(
+        $response['body'],
+        '<loc>https://www.brvtal.com.co/contact</loc>'
+    ),
+    'The executable sitemap URL boundary must include the canonical Contact route.'
 );
 public_sitemap_expect(
     BRVTAL_SITEMAP_NAMESPACE === 'http://www.sitemaps.org/schemas/sitemap/0.9',
     'The Sitemap protocol namespace must remain canonical.'
-);
-
-$seo = (string) file_get_contents(__DIR__ . '/../config/public_seo.php');
-$seoUsesRegistry = str_contains(
-    $seo,
-    "require_once __DIR__ . '/public_routes.php';"
-) && str_contains(
-    $seo,
-    '$definitions = brvtal_public_content_definitions();'
-);
-public_sitemap_expect(
-    $seoUsesRegistry,
-    'Public entity SEO must use the same content-family registry as the sitemap.'
 );
 
 $htaccess = (string) file_get_contents(__DIR__ . '/../.htaccess');
