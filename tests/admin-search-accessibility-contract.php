@@ -10,7 +10,10 @@ function admin_search_a11y_assert(bool $condition, string $message): void
     }
 }
 
-/** Parse the HTML portion of a DISCADMIN fragment for structural assertions. */
+/**
+ * Parse each live DISCADMIN fragment so assertions validate DOM relationships
+ * rather than depending on attribute order or serialized source formatting.
+ */
 function admin_search_a11y_document(string $fragment): DOMDocument
 {
     admin_search_a11y_assert(class_exists(DOMDocument::class), 'PHP DOM extension is required for accessibility contract checks.');
