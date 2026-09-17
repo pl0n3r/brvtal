@@ -14,7 +14,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Al revocar consentimiento se envía primero una actualización `denied`, se retira el loader de GTM y después se recarga la página para dejar el contenedor fuera de la siguiente navegación.
 - Al guardar GTM se limpian las claves legacy de GA4/aliases conocidas sin tocar otras claves hermanas del JSON de Analytics.
 - Se conserva compatibilidad de lectura con claves GTM legacy de Theme Studio mientras se migra al campo canónico `analytics.gtm_id`.
-- Se actualiza la documentación durable para dejar GTM-only como arquitectura canónica y se amplían contratos PHP/Playwright para consentimiento y revocación.
+- Se actualiza la documentación durable para dejar GTM-only como arquitectura canónica y se amplían contratos PHP/Playwright para consentimiento, revocación y el editor tipado de Settings.
 
 ## Archivos modificados en este deploy
 
@@ -25,9 +25,10 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `docs/CONFIGURATION.md` — documenta propiedad, consentimiento y reglas de configuración de GTM.
 - `index.php` — resuelve Analytics públicas mediante el Container ID canónico de GTM.
 - `js/public-analytics.js` — carga `gtm.js` solo tras consentimiento y envía Consent Mode antes de carga/revocación.
+- `tests/e2e/discadmin-settings-v2.spec.mjs` — alinea la regresión del editor tipado con el campo GTM y confirma que el campo GA4 directo ya no existe.
+- `tests/e2e/public-analytics.spec.mjs` — cubre rechazo, aceptación, Consent Mode y revocación sin requests GTM prematuros.
 - `tests/public-analytics-contract.php` — cubre validación, entrega GTM, lecturas seguras y contrato de consentimiento sin `gtag.js` directo.
 - `tests/settings-control-plane-contract.php` — cubre el control plane GTM-only y la retirada del campo GA4.
-- `tests/e2e/public-analytics.spec.mjs` — cubre rechazo, aceptación, Consent Mode y revocación sin requests GTM prematuros.
 
 ## Validación
 
