@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/seo_defaults.php';
 require_once __DIR__ . '/public_visibility.php';
+require_once __DIR__ . '/public_routes.php';
 require_once __DIR__ . '/page_content.php';
 require_once __DIR__ . '/public_settings.php';
 
@@ -34,20 +35,19 @@ function brvtal_public_global_seo(PDO $pdo): array
 
 function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
 {
-    $eventStatuses = brvtal_public_visible_event_statuses();
-    $eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
-    $definitions = [
-        'events' => ['events', 'title', 'description', 'cover_image', $eventWhere, 'MusicEvent', $eventStatuses],
-        'artists' => ['artists', 'name', 'bio', 'photo', "status='published'", 'MusicGroup', []],
-        'sets' => ['sets_media', 'title', 'description', 'cover_image', "status='published'", 'MusicRecording', []],
-        'releases' => ['releases', 'title', 'description', 'artwork', "status='published'", 'MusicAlbum', []],
-        'blog' => ['blog_posts', 'title', 'excerpt', 'cover_image', "status='published'", 'BlogPosting', []],
-        'pages' => ['pages', 'title', 'content_json', "''", "status='published' AND locale='en'", 'WebPage', []],
-    ];
+    $definitions = brvtal_public_content_definitions();
     if (!isset($definitions[$type]) || !preg_match('/^[a-z0-9-]{1,190}$/', $slug)) return null;
-    [$table, $titleField, $descriptionField, $imageField, $where, $schemaType, $whereParameters] = $definitions[$type];
-    $imageSelect = $imageField === "''" ? "'' AS image" : "`{$imageField}` AS image";
-    $eventSelect = $type === 'events' ? ',status,event_date,published_at' : '';
+
+    $definition = $definitions[$type];
+    $table = $definition['table'];
+    $titleField = $definition['title_field'];
+    $descriptionField = $definition['description_field'];
+    $imageField = $definition['image_field'];
+    $where = $definition['where'];
+    $schemaType = $definition['schema_type'];
+    $whereParameters = $definition['parameters'];
+    $imageSelect = $imageField === '' ? "'' AS image" : "`{$imageField}` AS image";
+    $eventSelect = $definition['event_visibility'] ? ',status,event_date,published_at' : '';
     $sql = "SELECT id,slug,`{$titleField}` AS title,`{$descriptionField}` AS description,seo_title,seo_description,{$imageSelect}{$eventSelect} FROM `{$table}` WHERE slug=? AND {$where} LIMIT 1";
     try {
         $statement = $pdo->prepare($sql);
@@ -56,7 +56,7 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     } catch (Throwable) {
         return null;
     }
-    if (!$row || ($type === 'events' && !brvtal_public_event_is_visible($row))) return null;
+    if (!$row || ($definition['event_visibility'] && !brvtal_public_event_is_visible($row))) return null;
     if ($type === 'pages') {
         $row['description'] = brvtal_page_content_plain_text($row['description'] ?? '');
     }
