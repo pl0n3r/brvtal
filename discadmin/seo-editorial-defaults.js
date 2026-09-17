@@ -3,6 +3,7 @@
 
   const nativeFetch = window.fetch.bind(window);
   const AUTO_DESCRIPTION_LIMIT = 160;
+  const SEO_TRAILING_CHARS = new Set([' ', ',', '.', ';', ':', '-']);
   let dedupeTimer = null;
 
   function plainText(value) {
@@ -32,13 +33,20 @@
     return String(holder.textContent || holder.innerText || '').replace(/\s+/g,' ').trim();
   }
 
+  function trimSeoSuffix(value) {
+    let end = value.length;
+    while (end > 0 && SEO_TRAILING_CHARS.has(value[end - 1])) end -= 1;
+    return value.slice(0, end);
+  }
+
   function truncate(value, limit) {
     const text = plainText(value);
     if (!text || text.length <= limit) return text;
     let cut = text.slice(0, limit).trimEnd();
-    const boundary = cut.replace(/\s+\S*$/, '');
+    const lastSpace = cut.lastIndexOf(' ');
+    const boundary = lastSpace >= 0 ? cut.slice(0, lastSpace) : '';
     if (boundary.length >= Math.floor(limit * 0.65)) cut = boundary;
-    return cut.replace(/[\s,.;:-]+$/g,'');
+    return trimSeoSuffix(cut);
   }
 
   function withDefaults(payload, kind) {

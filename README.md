@@ -8,30 +8,35 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un PR pequeño de Reliability para `js/related-content.js` y el finding Sonar `javascript:S7727`.
-- El helper `group()` deja de pasar `renderItem` directamente a `Array.map()` y usa un callback de un solo argumento, evitando que `map()` entregue también índice y array al renderer.
-- El HTML generado y el comportamiento visible de CONNECTED se mantienen sin cambios; la corrección solo hace explícita la firma esperada del callback.
-- Se añade un contrato auto-descubierto que falla si reaparece `list.map(renderItem)` o desaparece el wrapper de un solo argumento.
-- No se modifica el modelo de relaciones, navegación, APIs, datos públicos ni estilos de CONNECTED.
+- Continúa #451 con un bloque acotado de Reliability para tres findings Sonar `javascript:S8786`.
+- `discadmin/seo-editorial-defaults.js` reemplaza dos regex de truncación potencialmente super-lineales por búsqueda del último espacio y limpieza lineal del sufijo, conservando el límite y el corte por palabra.
+- `js/public-measurement.js` reemplaza la regex de barras finales por un recorrido lineal que conserva la normalización de rutas públicas.
+- Se amplían las pruebas Playwright existentes con texto SEO adversarial y rutas con múltiples `/` finales.
+- Se añade un contrato auto-descubierto que impide reintroducir los tres patrones `S8786` tratados en este deploy.
+- El finding `S8786` de `discadmin/theme-studio-v2.js` queda deliberadamente separado para el siguiente PR y no se declara resuelto aquí.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `js/related-content.js` — wrapper explícito de un argumento para el renderer usado por `Array.map()`.
-- `tests/related-content-map-callback-contract.php` — contrato de regresión específico para `S7727`.
+- `discadmin/seo-editorial-defaults.js` — truncación SEO lineal sin los dos regex `S8786` reportados.
+- `js/public-measurement.js` — normalización lineal de barras finales en rutas públicas.
+- `tests/e2e/discadmin-seo-defaults.spec.mjs` — cobertura ejecutable de truncación larga y limpieza de sufijo.
+- `tests/e2e/public-measurement.spec.mjs` — cobertura de contexto de entidad con barras finales repetidas.
+- `tests/sonar-regex-reliability-contract.php` — contrato fuente para los tres patrones `S8786` resueltos.
 
 ## Validación
 
-- Base exacta: `main` `b05060047360ccfcaf57533e9279a73f4e198ebc`.
+- Base exacta: `main` `e3e2bf6a8acae0366c30bf372c51f2d910b18de9`.
 - Ese SHA exacto de `main` pasó BRVTAL CI con `fast`, Chromium y `validate` verdes; los gates no aplicables quedaron omitidos según el selector de scope.
 - La rama debe pasar BRVTAL CI, SonarQube Cloud y revisión automatizada sobre el SHA exacto del PR antes del squash merge.
-- Las pruebas existentes de CONNECTED siguen siendo la evidencia ejecutable de comportamiento; el contrato nuevo bloquea específicamente la regresión `S7727`.
+- La validación dirigida incluye las suites Playwright existentes de SEO defaults y public measurement, además del contrato fuente nuevo.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
 - Resolver cualquier finding válido de CI, Sonar o CodeRabbit sobre este PR; hacer squash merge solo con los gates aplicables verdes y verificar BRVTAL CI del SHA exacto resultante de `main`.
-- Continuar #451 por riesgo con los findings regex `S8786` en un PR separado, después de identificar sus ubicaciones exactas sobre el nuevo `main`.
+- Resolver el `S8786` restante de `discadmin/theme-studio-v2.js` en un PR separado con cobertura del slug, sin reescribir el editor completo.
+- Continuar #451 por riesgo con los siguientes findings Reliability de DISCADMIN, priorizando problemas funcionales/accesibilidad antes de deuda puramente estilística.
 - Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
 
 ## Panorama general pendiente
@@ -39,7 +44,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
-- **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871` y este bloque `S7727` ya se trabajaron; quedan findings HIGH/MEDIUM de Reliability, incluidos regex `S8786`, y deuda Maintainability a resolver por riesgo y por área.
+- **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871` y `S7727` ya se trabajaron; este deploy resuelve 3 de los 4 `S8786` identificados y deja Theme Studio aislado como siguiente bloque; después siguen Reliability y deuda Maintainability por riesgo y área.
 - **Archivo cultural:** #398 / #403 — profundizar relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory sin inferencias falsas.
 - **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4 y preparar lectura segura futura en Dashboard.
 - **SEO:** #390, #391 y #272 — workspace SEO, alineación del bloque actual y structured data por entidad.

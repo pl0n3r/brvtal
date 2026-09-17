@@ -25,8 +25,14 @@
   const seenSections = new Set();
   const seenDepths = new Set();
 
+  function trimTrailingSlashes(value) {
+    let end = value.length;
+    while (end > 0 && value.endsWith('/', end)) end -= 1;
+    return value.slice(0, end);
+  }
+
   function pageContext() {
-    const path = location.pathname.replace(/\/+$/, '') || '/';
+    const path = trimTrailingSlashes(location.pathname) || '/';
     const segments = path.split('/').filter(Boolean);
     const routeTypes = {
       artists: 'artist',
