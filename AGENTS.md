@@ -18,6 +18,15 @@ For every new session:
 8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state, what comes next, and an updated **general panorama of meaningful work still pending across BRVTAL**. The panorama is mandatory and must not be limited to the immediate next task. Do not append deploy history. If the PR scope changes before merge, refresh README again.
 9. If a PR materially changes durable product state or architecture, update the relevant sections in this file as well.
 
+### Parallel execution rule
+
+- **Parallelize everything that is safely independent** when it reduces lead time: analysis, preflight, source inspection, test preparation, gate review and separate implementation lines may proceed concurrently.
+- Use up to **4 concurrent work lines** when they are genuinely independent and unlikely to overlap files, mutable state or review scope.
+- Use time waiting on external gates to advance independent preflight or analysis instead of idling.
+- **Merges to `main` are always serialized.** Before every merge, re-read the exact current `main` SHA, the PR head SHA and all applicable gates; if `main` moved, recontrast the branch against the new base before merging.
+- Same-file write sequences, dependent branches and shared mutable state remain serialized to avoid conflicting or stale edits.
+- Production migrations, destructive production operations and other protected actions are never parallelized or run automatically.
+
 ### Source-of-truth precedence
 
 1. current merged code on `main`;
