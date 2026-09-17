@@ -52,7 +52,7 @@ media_rel_expect(str_contains($publicApi, 'brvtal_public_attach_memory_relations
 media_rel_expect(str_contains($publicApi, 'brvtal_public_add_memory_edges'), 'public graph must receive Memory edges');
 media_rel_expect(str_contains($runtime, "'js/public-memory-relations.js'"), 'Memory context must load in the canonical public runtime');
 media_rel_expect(!str_contains($publicScript, "fetch('/api/public.php") && !str_contains($publicScript, 'fetch("/api/public.php'), 'Memory runtime must not duplicate the CMS request');
-media_rel_expect(str_contains($publicScript, 'data.relations') && str_contains($publicScript, 'data.media'), 'public runtime must consume structured Memory edges');
+media_rel_expect(str_contains($publicScript, 'data?.relations') && str_contains($publicScript, 'data?.media'), 'public runtime must consume structured Memory edges and Media from the shared payload');
 media_rel_expect(str_contains($publicIndex, 'brvtal_public_memories_for_entity'), 'canonical entity pages must surface explicit Memories');
 media_rel_expect(str_contains($publicIndex, 'public-memory-relations.css'), 'Home must load Memory relation presentation');
 
