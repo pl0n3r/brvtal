@@ -65,7 +65,8 @@
       return;
     }
     output.hidden = false;
-    output.textContent = payload.content || 'No log entries.';
+    const logContent = String(payload.content ?? '');
+    output.textContent = logContent === '' ? 'No log entries.' : logContent;
     meta.textContent = `${number(payload.lines)} LINES · ${number(payload.bytes)} B`;
   }
 
@@ -103,7 +104,8 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error || `HTTP_${response.status}`);
+      const resetError = String(payload.error ?? '').trim();
+      throw new Error(resetError === '' ? `HTTP_${response.status}` : resetError);
     }
     return payload;
   }
