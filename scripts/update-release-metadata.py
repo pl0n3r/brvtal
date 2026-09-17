@@ -4,10 +4,14 @@ import re
 import subprocess
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-VERSION_FILE = (REPO_ROOT / 'config' / 'version.php').resolve()
-EXPECTED_VERSION_FILE = (REPO_ROOT / 'config' / 'version.php').resolve()
+CONFIG_ROOT = (REPO_ROOT / 'config').resolve()
+VERSION_FILE = (CONFIG_ROOT / 'version.php').resolve()
 
-if VERSION_FILE != EXPECTED_VERSION_FILE or VERSION_FILE.parent != (REPO_ROOT / 'config').resolve():
+try:
+    VERSION_FILE.relative_to(CONFIG_ROOT)
+except ValueError as exc:
+    raise SystemExit('Refusing to write release metadata outside config') from exc
+if VERSION_FILE != CONFIG_ROOT / 'version.php':
     raise SystemExit('Refusing to write release metadata outside config/version.php')
 
 with VERSION_FILE.open('r', encoding='utf-8') as handle:
