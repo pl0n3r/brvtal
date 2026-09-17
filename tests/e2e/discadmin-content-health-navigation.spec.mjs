@@ -6,7 +6,7 @@ const recordNavigationJs = readFileSync(join(process.cwd(), 'discadmin/content-c
 const contentHealthJs = readFileSync(join(process.cwd(), 'discadmin/content-health.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/content-health-record-navigation-e2e.html';
 
-test('Content Health OPEN routes through the canonical shell and opens the exact record', async ({ page }) => {
+test('Content Health OPEN preserves health routing when data-health-open is present but empty', async ({ page }) => {
   await page.route('**/api/content-health.php', route => route.fulfill({
     contentType: 'application/json; charset=utf-8',
     body: JSON.stringify({
@@ -47,7 +47,12 @@ test('Content Health OPEN routes through the canonical shell and opens the exact
   await expect(page.getByRole('heading', { name: 'CONTENT HEALTH' })).toBeVisible();
   await expect(page.locator('#brvtal-content-health')).toContainText('GENESIS');
 
-  await page.getByRole('button', { name: 'OPEN' }).click();
+  const openButton = page.getByRole('button', { name: 'OPEN' });
+  await expect(openButton).toHaveAttribute('data-health-open', 'events');
+  await openButton.evaluate(button => button.setAttribute('data-health-open', ''));
+  await expect(openButton).toHaveAttribute('data-health-open', '');
+
+  await openButton.click();
   await expect.poll(() => page.evaluate(() => window.__went)).toBe('events');
   await expect.poll(() => page.evaluate(() => window.__openedRecordId)).toBe(7);
   await expect.poll(() => page.evaluate(() => window.__feedback || '')).toBe('');
