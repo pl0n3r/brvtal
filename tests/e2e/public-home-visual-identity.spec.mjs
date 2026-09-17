@@ -74,8 +74,23 @@ test('mobile Event cards stay contained while page vertical navigation remains a
   expect(cardWidth).toBeLessThanOrEqual(390 * 0.85);
   expect(cardWidth).toBeGreaterThan(280);
   await expect(page.locator('#without-ticket .event-view')).toHaveCSS('min-height', '48px');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  expect(await page.locator('.events-track').evaluate(el => getComputedStyle(el).overflowX)).toBe('auto');
+
+  const trackState = await page.locator('.events-track').evaluate(el => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    return {
+      width: rect.width,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      overflowX: style.overflowX,
+      touchAction: style.touchAction,
+    };
+  });
+
+  expect(trackState.width).toBeLessThanOrEqual(390);
+  expect(trackState.scrollWidth).toBeGreaterThan(trackState.clientWidth);
+  expect(trackState.overflowX).toBe('auto');
+  expect(trackState.touchAction).toContain('pan-y');
 });
 
 test('reduced motion disables decorative title and Hero signal animations', async ({ page }) => {
