@@ -6,6 +6,7 @@
   let scrollX = 0;
   let scrollY = 0;
   let previousStyles = null;
+  let viewportFrame = 0;
   const owners = new Set();
 
   const OriginalLenis = window.Lenis;
@@ -37,6 +38,23 @@
     document.body.style.right = styles.bodyRight;
     document.body.style.width = styles.bodyWidth;
     document.body.style.overflow = styles.bodyOverflow;
+  };
+
+  const refreshMotionRuntime = () => {
+    if (lenisInstance && typeof lenisInstance.resize === 'function') {
+      lenisInstance.resize();
+    }
+    if (window.ScrollTrigger && typeof window.ScrollTrigger.refresh === 'function') {
+      window.ScrollTrigger.refresh();
+    }
+  };
+
+  const syncViewport = () => {
+    cancelAnimationFrame(viewportFrame);
+    viewportFrame = requestAnimationFrame(() => {
+      if (owners.size > 0) return;
+      refreshMotionRuntime();
+    });
   };
 
   const freezeDocument = () => {
@@ -71,9 +89,7 @@
     previousStyles = null;
 
     window.scrollTo(scrollX, scrollY);
-    if (lenisInstance && typeof lenisInstance.resize === 'function') {
-      lenisInstance.resize();
-    }
+    refreshMotionRuntime();
     if (resumeLenisAfterUnlock && lenisInstance && typeof lenisInstance.start === 'function') {
       lenisInstance.start();
     }
@@ -99,10 +115,14 @@
   const manager = {
     lock,
     unlock,
+    syncViewport,
     isLocked: () => owners.size > 0,
     has: owner => owners.has(normalizeOwner(owner))
   };
   window.BRVTALScrollLock = manager;
+
+  window.addEventListener('resize', syncViewport, { passive: true });
+  window.addEventListener('orientationchange', syncViewport, { passive: true });
 
   const initMenu = () => {
     const panel = document.getElementById('menuPanel');

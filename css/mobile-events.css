@@ -1,30 +1,66 @@
+html.native-events-scroll .events {
+  min-height: auto;
+  overflow: visible;
+  padding-bottom: 8vh;
+}
+
+html.native-events-scroll .events-track {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scroll-padding-inline: 7vw;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  touch-action: pan-x pan-y;
+  cursor: grab;
+}
+
+html.native-events-scroll .events-track.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
+
+html.native-events-scroll .event-card {
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+}
+
+html.native-events-scroll .events-track:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: -2px;
+}
+
+@media (min-width: 901px) and (pointer: fine) {
+  html.native-events-scroll .event-card {
+    width: clamp(420px, 42vw, 720px);
+  }
+
+  html.native-events-scroll .event-img {
+    height: clamp(340px, 50vh, 560px);
+  }
+}
+
 @media (max-width: 900px), (pointer: coarse) {
   html.native-events-scroll .events {
-    min-height: auto;
-    overflow: visible;
-    padding-bottom: 8vh;
+    padding-bottom: 6vh;
   }
 
   html.native-events-scroll .events-track {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: inline mandatory;
+    gap: 18px;
+    padding: 6vh 18px 9vh;
     scroll-padding-inline: 18px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    touch-action: pan-x pan-y;
+    cursor: auto;
   }
 
   html.native-events-scroll .event-card {
-    scroll-snap-align: start;
-    scroll-snap-stop: normal;
+    width: min(84vw, 560px);
   }
 
-  html.native-events-scroll .events-track:focus-visible {
-    outline: 2px solid var(--red);
-    outline-offset: -2px;
+  html.native-events-scroll .event-img {
+    height: min(58vh, 520px);
   }
 }
