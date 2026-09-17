@@ -46,7 +46,7 @@
     </div>
     <div class="sets-library-options" data-sets-options hidden></div>
     <div class="sets-library-count mono" data-sets-count aria-live="polite"></div>`;
-  intro.insertAdjacentElement('afterend', controls);
+  intro.after(controls);
 
   const modesRoot = controls.querySelector('.sets-library-modes');
   const optionsRoot = controls.querySelector('[data-sets-options]');
