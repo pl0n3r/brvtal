@@ -21,6 +21,7 @@ measurement_expect(str_contains($runtime, "brvtal_section_view"), 'section visib
 measurement_expect(str_contains($runtime, "brvtal_scroll_depth"), 'scroll milestone event exists');
 measurement_expect(str_contains($runtime, "brvtal_navigation_click"), 'navigation event exists');
 measurement_expect(str_contains($runtime, "brvtal_outbound_click"), 'outbound event exists');
+measurement_expect(str_contains($runtime, "brvtal_analytics_consent"), 'accepted-consent event exists');
 measurement_expect(str_contains($runtime, "IntersectionObserver"), 'section visibility uses IntersectionObserver');
 measurement_expect(str_contains($runtime, "SCROLL_MILESTONES = [25, 50, 75, 90]"), 'scroll measurement is milestone-based');
 measurement_expect(str_contains($runtime, "data-measure-event"), 'declarative content instrumentation hook exists');
