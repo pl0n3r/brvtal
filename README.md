@@ -5,8 +5,6 @@
 Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
 
 > **Regla permanente del proyecto:** cada deploy debe dejar aquí, además del snapshot exacto de lo que cambió, un **panorama general actualizado de lo que sigue pendiente por hacer/desarrollar**.
->
-> **Regla permanente de ejecución:** paralelizar todo lo que sea razonablemente independiente para reducir tiempos, usando líneas de análisis/preflight/trabajo en paralelo cuando no compitan entre sí. Los merges contra `main` permanecen serializados y, antes de cada merge, se recontrastan `main` y los gates del head exacto.
 
 ## Qué se hizo
 
@@ -19,20 +17,22 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Se añade un contrato que mantiene sincronizados el registro de contenido, el routing público, el renderer XML y la URL anunciada a crawlers.
 - Los contratos existentes de SEO se alinean al nuevo registro canónico: structured data y fallback de Pages se verifican desde la nueva fuente de verdad, no desde definiciones duplicadas.
 - Los contratos existentes de Contact y fallos públicos se adaptan al registro/cache nuevos sin reducir sus garantías.
+- `AGENTS.md` incorpora como regla canónica de ejecución el paralelismo seguro del trabajo independiente; los merges a `main` permanecen serializados.
 - No hay cambios de base de datos ni migraciones.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
 - `.htaccess` — canonicalización pública `sitemap.php` → `sitemap.xml` y render interno del XML.
+- `AGENTS.md` — regla canónica de paralelismo seguro y merges serializados.
+- `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
 - `config/public_routes.php` — registro canónico de familias, structured data y rutas públicas indexables.
 - `config/public_seo.php` — consumo del registro común para resolver entidades SEO sin duplicar definiciones.
 - `sitemap.php` — sitemap dinámico basado en el registro común y revalidado en cada consulta.
-- `tests/public-sitemap-contract.php` — contrato de sincronización entre contenido público, routing, XML y `robots.txt`.
-- `tests/public-seo-delivery-contract.php` — contrato SEO actualizado para validar los tipos estructurados desde el registro canónico compartido.
-- `tests/seo-defaults-contract.php` — contrato de defaults actualizado para comprobar el fallback `content_json` de Pages desde el registro común.
 - `tests/public-contact-contract.php` — garantía de Contact actualizada para leer la fuente canónica del sitemap.
 - `tests/public-failure-semantics-contract.php` — semántica de error conservada y cache sano alineado a revalidación.
+- `tests/public-seo-delivery-contract.php` — contrato SEO actualizado para validar los tipos estructurados desde el registro canónico compartido.
+- `tests/public-sitemap-contract.php` — contrato de sincronización entre contenido público, routing, XML y `robots.txt`.
+- `tests/seo-defaults-contract.php` — contrato de defaults actualizado para comprobar el fallback `content_json` de Pages desde el registro común.
 
 ## Validación
 
@@ -40,9 +40,9 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Ese SHA exacto pasó BRVTAL CI #820 con `fast`, `chromium` y `validate` en `success`; #468 queda **VALIDATED IN CODE** en `main`.
 - BRVTAL CI #830 detectó que el contrato SEO todavía buscaba los tipos Schema.org dentro de `public_seo.php`; se alineó con `config/public_routes.php` sin cambiar comportamiento público.
 - BRVTAL CI #833 confirmó ese primer ajuste y detectó el segundo contrato textual obsoleto: Pages todavía esperaba `content_json` definido dentro de `public_seo.php`. Se cambió a una aserción ejecutable sobre `brvtal_public_content_definitions()`.
-- SonarQube Cloud pasó Quality Gate en el head anterior, con 0 Security Hotspots; los findings nuevos siguen sujetos a revisión antes del merge.
+- El head previo `e06aa25d9737640bce73613b934b4cbf205c45a3` pasó BRVTAL CI #835 (`fast`, `database`, `real-stack`, `chromium`, `validate`) y SonarQube Cloud Quality Gate, con 0 Security Hotspots.
+- La actualización de `AGENTS.md`/README cambia el head; el SHA exacto nuevo debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit antes del squash merge.
 - Este cambio no requiere migración de base de datos.
-- El head exacto actualizado debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit antes del squash merge.
 - Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
