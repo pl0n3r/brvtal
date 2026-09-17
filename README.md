@@ -15,7 +15,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - La URL pública canónica queda en `/sitemap.xml`; una solicitud directa a `/sitemap.php` redirige permanentemente al XML mientras PHP sigue siendo solo el renderer interno.
 - `robots.txt` ya apuntaba correctamente a `https://www.brvtal.com.co/sitemap.xml` y no requiere modificación.
 - Se añade un contrato que mantiene sincronizados el registro de contenido, el routing público, el renderer XML y la URL anunciada a crawlers.
-- El contrato existente de SEO se alinea al nuevo registro canónico de rutas para seguir verificando todos los tipos de structured data desde su nueva fuente de verdad.
+- Los contratos existentes de SEO se alinean al nuevo registro canónico: structured data y fallback de Pages se verifican desde la nueva fuente de verdad, no desde definiciones duplicadas.
 - Los contratos existentes de Contact y fallos públicos se adaptan al registro/cache nuevos sin reducir sus garantías.
 - No hay cambios de base de datos ni migraciones.
 
@@ -28,6 +28,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `sitemap.php` — sitemap dinámico basado en el registro común y revalidado en cada consulta.
 - `tests/public-sitemap-contract.php` — contrato de sincronización entre contenido público, routing, XML y `robots.txt`.
 - `tests/public-seo-delivery-contract.php` — contrato SEO actualizado para validar los tipos estructurados desde el registro canónico compartido.
+- `tests/seo-defaults-contract.php` — contrato de defaults actualizado para comprobar el fallback `content_json` de Pages desde el registro común.
 - `tests/public-contact-contract.php` — garantía de Contact actualizada para leer la fuente canónica del sitemap.
 - `tests/public-failure-semantics-contract.php` — semántica de error conservada y cache sano alineado a revalidación.
 
@@ -35,7 +36,8 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - Base exacta recontrastada: `main` `49a1bfe7490ed98daf183801ac9f6e200fb99f57`.
 - Ese SHA exacto pasó BRVTAL CI #820 con `fast`, `chromium` y `validate` en `success`; #468 queda **VALIDATED IN CODE** en `main`.
-- BRVTAL CI #830 del PR detectó correctamente que el contrato SEO todavía buscaba los tipos Schema.org dentro de `public_seo.php`; el registro se había movido a `config/public_routes.php`. El contrato fue corregido sin cambiar comportamiento público.
+- BRVTAL CI #830 detectó que el contrato SEO todavía buscaba los tipos Schema.org dentro de `public_seo.php`; se alineó con `config/public_routes.php` sin cambiar comportamiento público.
+- BRVTAL CI #833 confirmó ese primer ajuste y detectó el segundo contrato textual obsoleto: Pages todavía esperaba `content_json` definido dentro de `public_seo.php`. Se cambió a una aserción ejecutable sobre `brvtal_public_content_definitions()`.
 - SonarQube Cloud pasó Quality Gate en el head anterior, con 0 Security Hotspots; los findings nuevos siguen sujetos a revisión antes del merge.
 - Este cambio no requiere migración de base de datos.
 - El head exacto actualizado debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit antes del squash merge.
