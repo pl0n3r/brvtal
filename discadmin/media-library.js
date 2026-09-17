@@ -144,7 +144,7 @@ window.BRVTALMediaLibrary = (() => {
   function handleImageError(img) {
     const fallback = img.dataset.fallback;
     if (fallback && img.src !== new URL(fallback, window.location.origin).href) {
-      img.removeAttribute('data-fallback');
+      delete img.dataset.fallback;
       img.src = fallback;
       return;
     }
@@ -479,7 +479,7 @@ window.BRVTALMediaLibrary = (() => {
       input.value = normalizeMediaPath(input.value);
       const button = document.createElement('button'); button.type = 'button'; button.className = 'media-picker-btn'; button.textContent = 'SELECT MEDIA';
       button.addEventListener('click',() => openPicker(input,{imagesOnly:true}));
-      input.insertAdjacentElement('afterend',button);
+      input.after(button);
     });
   }
 
