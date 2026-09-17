@@ -73,3 +73,34 @@ test('SEO metadata uses the canonical editor gutter on desktop and mobile', asyn
   expect(mobile.boxRight).toBeLessThanOrEqual(mobile.viewportWidth);
   expect(mobile.scrollWidth).toBeLessThanOrEqual(mobile.viewportWidth);
 });
+
+
+test('SEO metadata spans the full width of grid-based editor forms', async ({ page }) => {
+  await page.setViewportSize({ width: 1180, height: 800 });
+  await page.setContent(`<!doctype html><html><head><meta charset="utf-8"></head><body>
+    <div id="mcontent">
+      <div class="form" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;width:760px">
+        <input id="release_title" value="">
+        <input id="release_slug" value="">
+      </div>
+    </div>
+  </body></html>`);
+  await page.addScriptTag({ content: seoJs });
+
+  const seo = page.locator('.brvtal-seo-section[data-seo-editor="release"]');
+  await expect(seo).toBeVisible();
+
+  const geometry = await page.evaluate(() => {
+    const form = document.querySelector('#mcontent .form');
+    const section = document.querySelector('.brvtal-seo-section[data-seo-editor="release"]');
+    const formBox = form.getBoundingClientRect();
+    const sectionBox = section.getBoundingClientRect();
+    return {
+      leftDelta: Math.abs(formBox.left - sectionBox.left),
+      widthDelta: Math.abs(formBox.width - sectionBox.width),
+    };
+  });
+
+  expect(geometry.leftDelta).toBeLessThan(1);
+  expect(geometry.widthDelta).toBeLessThan(1);
+});
