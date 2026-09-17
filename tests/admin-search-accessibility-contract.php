@@ -12,18 +12,27 @@ function admin_search_a11y_assert(bool $condition, string $message): void
 $blog = (string)file_get_contents(__DIR__ . '/../discadmin/blog.php');
 $media = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.php');
 $releases = (string)file_get_contents(__DIR__ . '/../discadmin/releases.php');
+$adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
+
+foreach ([
+    [$blog, 'blog-search', 'Search blog posts'],
+    [$media, 'media-search', 'Search media library'],
+    [$media, 'media-file', 'Choose media file to upload'],
+    [$releases, 'release-search', 'Search releases'],
+] as [$fragment, $controlId, $label]) {
+    admin_search_a11y_assert(
+        str_contains($fragment, 'for="' . $controlId . '">' . $label . '</label>'),
+        "{$controlId} must have an associated label."
+    );
+    admin_search_a11y_assert(
+        str_contains($fragment, 'id="' . $controlId . '"'),
+        "Labeled control {$controlId} must remain present."
+    );
+}
 
 admin_search_a11y_assert(
-    str_contains($blog, 'id="blog-search" aria-label="Search blog posts"'),
-    'Blog search must expose an accessible name.'
-);
-admin_search_a11y_assert(
-    str_contains($media, 'id="media-search" class="search" type="search" aria-label="Search media library"'),
-    'Media search must expose an accessible name.'
-);
-admin_search_a11y_assert(
-    str_contains($media, 'id="media-file" type="file" aria-label="Choose media file to upload" hidden'),
-    'Hidden Media file input must retain an explicit accessible name for static analysis.'
+    str_contains($adminCss, '.admin-sr-only{'),
+    'Screen-reader-only labels must remain visually hidden without leaving the accessibility tree.'
 );
 admin_search_a11y_assert(
     str_contains($media, '<output id="media-status" class="media-status" aria-live="polite"></output>'),
@@ -32,10 +41,6 @@ admin_search_a11y_assert(
 admin_search_a11y_assert(
     !str_contains($media, 'id="media-status" class="media-status" role="status"'),
     'Media status must not restore the generic status role container.'
-);
-admin_search_a11y_assert(
-    str_contains($releases, 'id="release-search" aria-label="Search releases"'),
-    'Releases search must expose an accessible name.'
 );
 
 echo "Admin search accessibility contract passed.\n";
