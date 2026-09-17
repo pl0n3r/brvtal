@@ -12,11 +12,17 @@ const items = [
 ];
 
 test('Media Library month filter keeps unique months in descending order', async ({ page }) => {
-  await page.route('**/api/media-library.php**', route => route.fulfill({
-    contentType: 'application/json',
-    body: JSON.stringify({ok:true,data:items,engine:{gd:false,webp:false}})
-  }));
+  await page.route('https://www.brvtal.test/**', route => {
+    if (route.request().url().includes('/api/media-library.php')) {
+      return route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ok:true,data:items,engine:{gd:false,webp:false}})
+      });
+    }
+    return route.fulfill({contentType:'text/html', body:'<!doctype html><html><body></body></html>'});
+  });
 
+  await page.goto('https://www.brvtal.test/discadmin');
   await page.setContent(`<!doctype html><html><body>
     <section id="media-root">
       <input id="media-search">
