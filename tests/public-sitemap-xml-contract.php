@@ -13,11 +13,22 @@ function public_sitemap_xml_expect(bool $condition, string $message): void
 }
 
 $base = 'https://www.brvtal.com.co';
+public_sitemap_xml_expect(
+    brvtal_public_sitemap_origin_is_canonical($base),
+    'the canonical BRVTAL sitemap origin must be accepted.'
+);
+public_sitemap_xml_expect(
+    !brvtal_public_sitemap_origin_is_canonical('https://staging.example.com')
+        && !brvtal_public_sitemap_origin_is_canonical('https://www.brvtal.com.co:8443'),
+    'alternate hosts and non-default HTTPS ports must not be trusted as sitemap origins.'
+);
+
 $xml = brvtal_public_sitemap_xml([
     [$base . '/', null],
     [$base . '/events/genesis?source=search&medium=organic', '2026-09-17 21:45:00'],
     [$base . '/artists/pl0n3r', 'not-a-date'],
     ['https://example.com/off-site', '2026-09-17'],
+    ['https://www.brvtal.com.co:8443/events/non-default-port', '2026-09-17'],
     ['/relative-url', '2026-09-17'],
 ], $base);
 
@@ -66,8 +77,18 @@ public_sitemap_xml_expect(
     'XML-sensitive URL characters must be entity escaped.'
 );
 public_sitemap_xml_expect(
-    !str_contains($xml, 'example.com/off-site') && !str_contains($xml, '<loc>/relative-url</loc>'),
-    'off-host and relative URLs must never reach the public sitemap.'
+    !str_contains($xml, 'example.com/off-site')
+        && !str_contains($xml, ':8443/events/non-default-port')
+        && !str_contains($xml, '<loc>/relative-url</loc>'),
+    'off-host, non-default-port and relative URLs must never reach the public sitemap.'
+);
+
+$alternateBaseXml = brvtal_public_sitemap_xml([
+    ['https://staging.example.com/events/genesis', '2026-09-17'],
+], 'https://staging.example.com');
+public_sitemap_xml_expect(
+    !str_contains($alternateBaseXml, '<url><loc>'),
+    'a different configured HTTPS base must not become an accepted sitemap origin.'
 );
 
 echo "Public sitemap XML contract passed.\n";
