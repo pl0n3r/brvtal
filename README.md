@@ -28,13 +28,12 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - Base exacta recontrastada: `main` `feac972b6f62797ec4f07a2c1dc2f32a1c4a3e97`.
 - Ese SHA exacto de `main` pasó BRVTAL CI #795 con conclusión `success`; #456 queda VALIDATED IN CODE en `main`.
-- Sobre la preparación anterior de #457, BRVTAL CI #794 y CodeRabbit quedaron verdes tras corregir los findings válidos de `clip`, parsing estructural y tolerancia a whitespace.
-- Este head refrescado debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge; no se reutilizan gates de un SHA anterior.
+- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge; no se reutilizan gates de un SHA anterior.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Cerrar los gates del SHA exacto refrescado de #457, resolver cualquier finding válido, hacer squash merge y verificar BRVTAL CI del SHA exacto resultante de `main`.
+- Cerrar los gates del SHA exacto de #457, resolver cualquier finding válido, hacer squash merge y verificar BRVTAL CI del SHA exacto resultante de `main`.
 - Después, recontrastar y retargetear #458 (Content Core accessibility) contra ese nuevo `main`, refrescar README y ejecutar sus gates completos.
 - Mantener #459 (DOM API quick wins) en paralelo, pero refrescarlo contra el `main` vigente antes de cualquier merge.
 - Continuar #451 por riesgo con los siguientes findings de accesibilidad / Reliability y después Maintainability acotada.
@@ -44,7 +43,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **Content Core accessibility:** PR #458 — asociaciones de labels y nombres accesibles preparados; revisión manual de CodeRabbit en curso por ser un PR apilado.
+- **Content Core accessibility:** PR #458 — asociaciones de labels y nombres accesibles preparados; el contrato estructural ya incorporó el finding válido de revisión y se revalidará sobre `main` después de #457.
 - **DOM API maintainability:** PR #459 — dos HIGH quick wins (`dataset` y `Element.after`) ya implementados y con CI/CodeRabbit tempranos verdes; requiere refresco contra `main` antes de integración.
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
 - **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871`, `S7727` y los cuatro `S8786` identificados están trabajados en código; continúan accesibilidad y deuda Maintainability por riesgo y por área.
