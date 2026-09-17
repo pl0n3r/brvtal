@@ -87,6 +87,15 @@ test('public measurement emits normalized page, section, navigation, action and 
   await expect.poll(async () => (await measurementEvents(page)).filter(item => item.event === 'brvtal_scroll_depth').map(item => item.depth)).toEqual(expect.arrayContaining([25, 50, 75]));
 });
 
+test('public measurement normalizes repeated trailing slashes before deriving entity context', async ({ page }) => {
+  const entityUrl = 'http://127.0.0.1:4173/artists/pl0n3r////';
+  await page.route(entityUrl, route => route.fulfill({ contentType:'text/html; charset=utf-8', body:harness() }));
+  await page.goto(entityUrl);
+
+  const context = await page.evaluate(() => window.BRVTALMeasure.context());
+  expect(context).toMatchObject({ page_type:'artist', content_type:'artist', content_slug:'pl0n3r' });
+});
+
 test('GTM and measurement both start on the first page load', async ({ page }) => {
   let tagManagerRequests = 0;
   await page.route('https://www.googletagmanager.com/gtm.js**', route => {
