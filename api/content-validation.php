@@ -154,3 +154,21 @@ function brvtal_page_identity_error(array $state): ?array
     }
     return null;
 }
+
+/** Keep Theme Studio setting writes aligned with the public theme identity contract. */
+function brvtal_theme_setting_error(string $key, string $value): ?array
+{
+    $slugPattern = '/^[a-z0-9_-]{1,60}$/';
+
+    if ($key === 'theme.active') {
+        return preg_match($slugPattern, $value) === 1
+            ? null
+            : ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_value'];
+    }
+
+    if (!str_starts_with($key, 'theme.')) return null;
+    $slug = substr($key, strlen('theme.'));
+    return preg_match($slugPattern, $slug) === 1
+        ? null
+        : ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_key'];
+}
