@@ -4,72 +4,70 @@
 
 Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
 
-> **Regla permanente del proyecto:** cada deploy debe dejar aquí, además del snapshot exacto de lo que cambió, un **panorama general actualizado de lo que sigue pendiente por hacer/desarrollar**.
+> **Regla permanente del proyecto:** cada deploy debe dejar aquí el snapshot exacto de lo que cambió y un panorama general actualizado de lo pendiente.
 
 ## Qué se hizo
 
-- El sitemap público queda alimentado directamente por el estado actual del contenido público/indexable de BRVTAL, sin generar ni mantener un archivo XML estático.
-- Se centralizan las familias públicas `events`, `artists`, `sets`, `releases`, `blog` y `pages` en un único registro compartido por SEO y sitemap.
-- Publicar, despublicar o actualizar contenido se refleja automáticamente en la siguiente lectura del sitemap; los borradores, DISCADMIN, APIs y recursos privados siguen fuera del índice.
-- Se elimina el cache público de 15 minutos del sitemap y se exige revalidación para no servir snapshots SEO obsoletos.
-- La URL pública canónica queda en `/sitemap.xml`; una solicitud directa a `/sitemap.php` redirige permanentemente al XML mientras PHP sigue siendo solo el renderer interno.
-- `robots.txt` ya apuntaba correctamente a `https://www.brvtal.com.co/sitemap.xml` y no requiere modificación.
-- Se añade un contrato que mantiene sincronizados el registro de contenido, el routing público, el renderer XML y la URL anunciada a crawlers.
-- Los contratos existentes de SEO se alinean al nuevo registro canónico: structured data y fallback de Pages se verifican desde la nueva fuente de verdad, no desde definiciones duplicadas.
-- Los contratos existentes de Contact y fallos públicos se adaptan al registro/cache nuevos sin reducir sus garantías.
-- `AGENTS.md` incorpora como regla canónica de ejecución el paralelismo seguro del trabajo independiente; los merges a `main` permanecen serializados.
+- El sitemap público queda alimentado directamente por el contenido público/indexable actual de BRVTAL, sin XML estático.
+- Se centralizan `events`, `artists`, `sets`, `releases`, `blog` y `pages` en un registro compartido por SEO y sitemap.
+- Publicar, despublicar o actualizar contenido se refleja en la siguiente lectura; borradores, DISCADMIN, APIs y recursos privados quedan fuera.
+- `/sitemap.xml` es la URL canónica; `/sitemap.php` redirige permanentemente al XML y PHP queda como renderer interno.
+- El sitemap exige revalidación en vez del cache público anterior de 15 minutos.
+- El renderer XML se separa en una función pura y se endurece según el protocolo soportado por Google: UTF-8, `urlset` con namespace estándar, `url > loc`, URLs HTTPS absolutas del host canónico, `<loc>` menor de 2048 caracteres, entity escaping y `lastmod` válido `YYYY-MM-DD` cuando exista.
+- Un contrato ejecutable genera y parsea el XML con `DOMDocument`; rechaza XML mal formado, URLs relativas/off-host, fechas inválidas y regresiones de namespace/estructura.
+- `robots.txt` continúa anunciando únicamente `https://www.brvtal.com.co/sitemap.xml`.
+- Los contratos existentes de SEO, Contact y semántica de fallos se alinean al registro/cache nuevos sin reducir garantías.
+- `AGENTS.md` incorpora la regla canónica de paralelismo seguro; los merges a `main` siguen serializados.
 - No hay cambios de base de datos ni migraciones.
 
 ## Archivos modificados en este deploy
 
-- `.htaccess` — canonicalización pública `sitemap.php` → `sitemap.xml` y render interno del XML.
-- `AGENTS.md` — regla canónica de paralelismo seguro y merges serializados.
-- `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `config/public_routes.php` — registro canónico de familias, structured data y rutas públicas indexables.
-- `config/public_seo.php` — consumo del registro común para resolver entidades SEO sin duplicar definiciones.
-- `sitemap.php` — sitemap dinámico basado en el registro común y revalidado en cada consulta.
-- `tests/public-contact-contract.php` — garantía de Contact actualizada para leer la fuente canónica del sitemap.
-- `tests/public-failure-semantics-contract.php` — semántica de error conservada y cache sano alineado a revalidación.
-- `tests/public-seo-delivery-contract.php` — contrato SEO actualizado para validar los tipos estructurados desde el registro canónico compartido.
-- `tests/public-sitemap-contract.php` — contrato de sincronización entre contenido público, routing, XML y `robots.txt`.
-- `tests/seo-defaults-contract.php` — contrato de defaults actualizado para comprobar el fallback `content_json` de Pages desde el registro común.
+- `.htaccess` — canonicalización pública `sitemap.php` → `sitemap.xml` y render interno.
+- `AGENTS.md` — paralelismo seguro y merges serializados como regla canónica.
+- `README.md` — snapshot exacto del deploy y panorama pendiente.
+- `config/public_routes.php` — registro canónico de familias, structured data y rutas indexables.
+- `config/public_seo.php` — consumo del registro común para entidades SEO.
+- `config/public_sitemap.php` — renderer XML compatible con el protocolo de Sitemaps y guardas de URL/fecha.
+- `sitemap.php` — sitemap dinámico, revalidado y renderizado mediante el helper validado.
+- `tests/public-contact-contract.php` — Contact usa la fuente canónica del sitemap.
+- `tests/public-failure-semantics-contract.php` — semántica de error y cache sano actualizados.
+- `tests/public-seo-delivery-contract.php` — structured data validado desde el registro compartido.
+- `tests/public-sitemap-contract.php` — sincronización de registro, routing, renderer XML y `robots.txt`.
+- `tests/public-sitemap-xml-contract.php` — parseo real y contrato estructural compatible con Google/Sitemaps.
+- `tests/seo-defaults-contract.php` — fallback `content_json` de Pages desde el registro común.
 
 ## Validación
 
-- Base exacta recontrastada: `main` `49a1bfe7490ed98daf183801ac9f6e200fb99f57`.
-- Ese SHA exacto pasó BRVTAL CI #820 con `fast`, `chromium` y `validate` en `success`; #468 queda **VALIDATED IN CODE** en `main`.
-- BRVTAL CI #830 detectó que el contrato SEO todavía buscaba los tipos Schema.org dentro de `public_seo.php`; se alineó con `config/public_routes.php` sin cambiar comportamiento público.
-- BRVTAL CI #833 confirmó ese primer ajuste y detectó el segundo contrato textual obsoleto: Pages todavía esperaba `content_json` definido dentro de `public_seo.php`. Se cambió a una aserción ejecutable sobre `brvtal_public_content_definitions()`.
-- El head previo `e06aa25d9737640bce73613b934b4cbf205c45a3` pasó BRVTAL CI #835 (`fast`, `database`, `real-stack`, `chromium`, `validate`) y SonarQube Cloud Quality Gate, con 0 Security Hotspots.
-- La actualización de `AGENTS.md`/README cambia el head; el SHA exacto nuevo debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit antes del squash merge.
-- Este cambio no requiere migración de base de datos.
-- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significará **VALIDATED IN CODE**, no validación de producción.
+- Base exacta recontrastada: `main` `49a1bfe7490ed98daf183801ac9f6e200fb99f57`; BRVTAL CI #820 quedó verde y #468 está **VALIDATED IN CODE**.
+- Los heads previos del PR detectaron y corrigieron dos contratos SEO textuales obsoletos; `e06aa25d9737640bce73613b934b4cbf205c45a3` pasó BRVTAL CI #835 y Sonar Quality Gate.
+- El head `6efd3f9b94e5f6baec70dd3cbdbaf3e482f647f4` pasó BRVTAL CI #838 (`fast`, `database`, `real-stack`, `chromium`, `validate`) y Sonar Quality Gate; CodeRabbit permanecía pendiente.
+- La validación XML añadida cambia nuevamente el head: BRVTAL CI, SonarQube Cloud y CodeRabbit deben ejecutarse sobre el SHA exacto nuevo antes del squash merge.
+- El contrato XML comprueba de forma ejecutable la estructura publicada por Google/Sitemaps; no se declara validación de producción por pasar CI.
+- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; verde significará **VALIDATED IN CODE**.
 
 ## Qué sigue
 
-- Completar los gates exactos del sitemap dinámico, corregir findings válidos, hacer squash merge y verificar el nuevo SHA exacto de `main`.
-- Después retomar #451 con el HIGH `javascript:S7761` revalidado en `discadmin/content-core-nav.js`, preservando la semántica de `data-health-open` y su cobertura de navegador.
-- Revalidar después los quick wins todavía vigentes en `discadmin/media-library.js` sin mezclar su refactor de complejidad más amplio.
-- Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
+- Cerrar gates del head exacto, corregir findings válidos, squash merge y verificar el nuevo `main`.
+- Retomar #451 con el HIGH `javascript:S7761` de `discadmin/content-core-nav.js`, preservando la presencia de `data-health-open` incluso cuando su valor sea vacío y cubriéndolo en navegador.
+- Revalidar luego los quick wins vigentes de `discadmin/media-library.js` sin mezclar el refactor de complejidad.
+- Mantener #434 (Memories) separado; no ejecutar automáticamente su migración de producción.
 
 ## Panorama general pendiente
 
-Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
-
-- **Sitemap / SEO técnico:** este deploy centraliza y automatiza el sitemap público; tras integrar, verificar el XML en producción y mantener el registro canónico como única fuente al añadir futuras familias públicas.
-- **DOM API quick wins:** #461, #462, #466 y #468 integrados y **VALIDATED IN CODE**; continuar solo con findings vigentes recontrastados.
-- **Content Core navigation:** `discadmin/content-core-nav.js` conserva un HIGH `S7761` revalidado; tratarlo en un bloque separado.
-- **Media Library DOM:** permanecen revalidados quick wins `dataset`/`Element.after()`; tratarlos aparte de findings de complejidad para mantener el riesgo acotado.
-- **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
-- **Sonar / calidad:** #451 — continuar la cola por riesgo y área, evitando refactors masivos y revalidando cada finding contra el código vigente.
-- **Archivo cultural:** #398 / #403 — profundizar relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory sin inferencias falsas.
-- **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4 y preparar lectura segura futura en Dashboard.
-- **SEO editorial:** #390, #391 y #272 — workspace SEO, alineación editorial y structured data por entidad.
-- **DISCADMIN:** #348, #351 y #365 — simplificación de navegación, Theme Studio y consolidación de Dashboard.
-- **Operación / historial:** #232, #207 y #388 — Activity completo, System Status fiable y RESET LOG seguro.
-- **Media / mobile:** #260 — inspector accesible inmediatamente tras seleccionar un asset en móvil.
-- **Seguridad editorial / UX:** #257 — proteger cambios no guardados en editores legacy.
-- **Backups:** #389 — scheduling seguro y copia opcional a Google Drive cuando existan autorización/credenciales.
-- **Bulk Actions:** #275 — alcanzar registros más allá del recorte local de 500 sin presentar búsquedas parciales como exhaustivas.
-- **Idioma:** #212 — futura experiencia ES/EN manteniendo español canónico.
-- **Performance / recovery:** conservar evidencia y optimizar solo ante regresiones o cuellos de botella medidos.
+- **Sitemap / SEO técnico:** tras integrar, verificar `/sitemap.xml` en producción/Search Console y mantener el registro canónico al añadir nuevas familias públicas.
+- **DOM API quick wins:** #461, #462, #466 y #468 integrados y **VALIDATED IN CODE**; continuar solo con findings vigentes.
+- **Content Core navigation:** HIGH `S7761` revalidado y preflightado como siguiente bloque.
+- **Media Library DOM:** quick wins `dataset`/`Element.after()` revalidados; tratarlos separados de complejidad.
+- **Memories administrable:** #415 / PR #434 — cerrar Quality Gate y tratar su migración de producción aparte.
+- **Sonar / calidad:** #451 — continuar por riesgo y área con PRs pequeños.
+- **Archivo cultural:** #398 / #403 — relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory.
+- **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4.
+- **SEO editorial:** #390, #391 y #272 — workspace SEO y structured data por entidad.
+- **DISCADMIN:** #348, #351 y #365 — navegación, Theme Studio y Dashboard.
+- **Operación / historial:** #232, #207 y #388 — Activity, System Status y RESET LOG seguro.
+- **Media / mobile:** #260 — inspector accesible tras seleccionar un asset en móvil.
+- **Seguridad editorial / UX:** #257 — proteger cambios no guardados.
+- **Backups:** #389 — scheduling seguro y copia opcional a Google Drive con autorización.
+- **Bulk Actions:** #275 — superar el recorte local de 500 sin búsquedas parciales engañosas.
+- **Idioma:** #212 — experiencia ES/EN manteniendo español canónico.
+- **Performance / recovery:** optimizar solo con evidencia de regresiones o cuellos medidos.
