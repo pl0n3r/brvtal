@@ -54,7 +54,8 @@ test('Events use native horizontal browsing and remove the legacy pin on desktop
   await expect(track).toHaveAttribute('tabindex', '0');
   await expect(track).toHaveAttribute('aria-label', /Drag, swipe or scroll horizontally/i);
   await expect.poll(() => track.evaluate(el => getComputedStyle(el).overflowX)).toBe('auto');
-  await expect.poll(() => track.evaluate(el => getComputedStyle(el).scrollSnapType)).toContain('proximity');
+  await expect.poll(() => track.evaluate(el => getComputedStyle(el).scrollSnapType)).toContain('inline');
+  expect(css).toContain('scroll-snap-type: inline proximity');
 
   const state = await page.evaluate(() => ({
     pinKilled: window.__pinKilled,
