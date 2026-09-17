@@ -22,6 +22,8 @@ $runtime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js'
 $publicIndex = (string)file_get_contents(__DIR__ . '/../index.php');
 
 media_rel_expect(str_contains($migration, 'CREATE TABLE IF NOT EXISTS media_relations'), 'migration must be additive/idempotent');
+media_rel_expect(str_contains($migration, 'media_id INT NOT NULL'), 'media relation FK must match the canonical signed Media id type');
+media_rel_expect(!str_contains($migration, 'media_id INT UNSIGNED'), 'media relation FK must not drift to an unsigned type');
 media_rel_expect(str_contains($migration, "ENUM('event','artist','set','release')"), 'relation types must be bounded');
 media_rel_expect(str_contains($migration, 'PRIMARY KEY (media_id,related_type,related_id)'), 'duplicate semantic edges must be impossible');
 media_rel_expect(str_contains($migration, 'ON DELETE CASCADE'), 'deleting Media must cascade semantic relations');
