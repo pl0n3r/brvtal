@@ -79,6 +79,7 @@
     return overlay;
   }
 
+  /** Keep the bulk-actions trigger immediately before the status indicator when present. */
   function ensureTrigger() {
     const top = document.querySelector('.main .top');
     const existing = document.querySelector('.brvtal-bulk-trigger');
@@ -94,7 +95,7 @@
     trigger.textContent = 'BULK ACTIONS';
     trigger.addEventListener('click', () => open(module));
     const status = top.querySelector('.status');
-    if (status) top.insertBefore(trigger,status); else top.appendChild(trigger);
+    if (status) status.before(trigger); else top.appendChild(trigger);
   }
 
   async function getCsrf() {
