@@ -11,20 +11,21 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Continúa #451 con un bloque acotado de accesibilidad en Content Core, sin cambiar el comportamiento de los editores.
 - Las búsquedas de Events y Artists reciben asociaciones `<label for>` reales y reutilizan la utilidad compartida `.admin-sr-only` entregada por #457.
 - Los 14 campos visibles del editor de Events asocian explícitamente cada `<label>` con su `input`, `textarea` o `select` correspondiente.
-- El contrato de regresión parsea el fragmento con DOMDocument/DOMXPath y verifica estructuralmente las asociaciones label/control, el tipo de control y que las dos búsquedas conserven su label accesible oculto visualmente.
+- Los cinco pasos visuales del wizard dejan de anunciarse falsamente como botones: el runtime solo los usa como indicadores de estado y no les asigna interacción directa.
+- El contrato de regresión parsea el fragmento con DOMDocument/DOMXPath y verifica estructuralmente las asociaciones label/control, el tipo de control, los labels ocultos de búsqueda y que los indicadores del wizard no entren al tab order ni reclamen semántica interactiva.
 - No se modifican APIs, base de datos, navegación, lifecycle, tickets ni lógica de negocio.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `discadmin/content-core.php` — asociaciones accesibles para búsquedas y campos visibles del editor de Events.
+- `discadmin/content-core.php` — asociaciones accesibles para búsquedas/campos visibles y semántica correcta de los indicadores del wizard.
 - `tests/content-core-form-accessibility-contract.php` — contrato estructural de regresión para Content Core.
 
 ## Validación
 
 - Base exacta recontrastada: `main` `6cc3308f584d5e4713193a494bb4db14000defe5`.
 - Ese SHA exacto de `main` pasó BRVTAL CI #799 con conclusión `success`; #457 queda **VALIDATED IN CODE** en `main`.
-- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge; no se reutilizan gates de la preparación apilada anterior.
+- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge; no se reutilizan gates de la preparación apilada anterior ni de SHA previos.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue

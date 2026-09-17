@@ -93,4 +93,13 @@ foreach ([
     content_core_a11y_label_targets_control($document, $controlId);
 }
 
+$xpath = new DOMXPath($document);
+$wizardSteps = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " step ")]');
+content_core_a11y_assert($wizardSteps !== false && $wizardSteps->length === 5, 'Event wizard must keep five step indicators.');
+foreach ($wizardSteps as $wizardStep) {
+    content_core_a11y_assert($wizardStep instanceof DOMElement, 'Wizard step indicator must remain an element.');
+    content_core_a11y_assert(!$wizardStep->hasAttribute('role'), 'Wizard step indicators must not claim button semantics without interaction.');
+    content_core_a11y_assert(!$wizardStep->hasAttribute('tabindex'), 'Wizard step indicators must not enter the tab order when they are not interactive.');
+}
+
 echo "Content Core form accessibility contract passed.\n";
