@@ -24,7 +24,7 @@ Responsibilities:
 Before handing off a deploy-bound change:
 
 1. run the most relevant targeted tests and syntax/lint checks available in the repository;
-2. make `README.md` a fresh deploy snapshot that lists exactly the files changed in this task, what changed, validation state, and what comes next;
+2. make `README.md` a fresh deploy snapshot that lists exactly the files in the current PR diff, what changed, validation state, and what comes next; derive the file list from the PR diff and refresh it whenever later edits change the PR file set;
 3. update `AGENTS.md` only when the task changes durable product state, architecture, or operating rules;
 4. report failures or unresolved product decisions explicitly instead of guessing.
 
