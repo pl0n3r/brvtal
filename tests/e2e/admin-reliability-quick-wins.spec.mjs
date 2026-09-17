@@ -15,8 +15,8 @@ test('same-origin admin 401 returns the shell to login state', async ({ page }) 
       return;
     }
     await route.fulfill({status:200, contentType:'text/html', body:`<!doctype html><html><body><script>
-      var csrf = 'csrf-token';
-      var state = {authed:true};
+      window.csrf = 'csrf-token';
+      window.state = {authed:true};
       var renderCount = 0;
       var closeCount = 0;
       var authEvents = 0;
@@ -30,7 +30,7 @@ test('same-origin admin 401 returns the shell to login state', async ({ page }) 
   await page.addScriptTag({content: authBoundary});
   const result = await page.evaluate(async () => {
     const response = await fetch('/api/media-library.php');
-    return {status:response.status, authed:state.authed, csrf, renderCount, closeCount, authEvents};
+    return {status:response.status, authed:window.state.authed, csrf:window.csrf, renderCount, closeCount, authEvents};
   });
 
   expect(result).toEqual({status:401, authed:false, csrf:'', renderCount:1, closeCount:1, authEvents:1});
