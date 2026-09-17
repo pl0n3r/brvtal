@@ -87,6 +87,9 @@
     if (event && track.hasPointerCapture?.(event.pointerId)) {
       track.releasePointerCapture(event.pointerId);
     }
+    if (dragged) {
+      window.setTimeout(() => { dragged = false; }, 0);
+    }
   };
 
   track.addEventListener('pointerup', stopDrag);
