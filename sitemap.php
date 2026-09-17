@@ -18,7 +18,9 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
         $select = $definition['event_visibility']
             ? 'slug,updated_at,status,event_date,published_at'
             : 'slug,updated_at';
-        $statement = db()->prepare("SELECT {$select} FROM `{$table}` WHERE {$where} AND slug<>'' ORDER BY id");
+        $sql = "SELECT {$select} FROM `{$table}` "
+            . "WHERE {$where} AND slug<>'' ORDER BY id";
+        $statement = db()->prepare($sql);
         $statement->execute($parameters);
         $rows = $statement->fetchAll();
     } catch (Throwable $error) {
@@ -37,18 +39,36 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
         echo "SITEMAP_UNAVAILABLE\n";
         exit;
     }
+
     foreach ($rows as $row) {
-        if ($definition['event_visibility'] && !brvtal_public_event_is_visible($row)) continue;
-        $urls[] = [$base . '/' . $route . '/' . rawurlencode((string)$row['slug']), $row['updated_at'] ?? null];
+        $requiresEventVisibility = $definition['event_visibility'];
+        if ($requiresEventVisibility && !brvtal_public_event_is_visible($row)) {
+            continue;
+        }
+        $location = $base . '/' . $route . '/' . rawurlencode((string)$row['slug']);
+        $urls[] = [$location, $row['updated_at'] ?? null];
     }
 }
 
 header('Content-Type: application/xml; charset=utf-8');
 header('Cache-Control: no-cache, must-revalidate');
-echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
+echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
 foreach ($urls as [$location, $modified]) {
-    echo '  <url><loc>' . htmlspecialchars($location, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc>';
-    if ($modified) echo '<lastmod>' . htmlspecialchars(substr((string)$modified, 0, 10), ENT_XML1, 'UTF-8') . '</lastmod>';
+    $escapedLocation = htmlspecialchars(
+        $location,
+        ENT_XML1 | ENT_QUOTES,
+        'UTF-8'
+    );
+    echo '  <url><loc>' . $escapedLocation . '</loc>';
+    if ($modified) {
+        $escapedModified = htmlspecialchars(
+            substr((string)$modified, 0, 10),
+            ENT_XML1,
+            'UTF-8'
+        );
+        echo '<lastmod>' . $escapedModified . '</lastmod>';
+    }
     echo "</url>\n";
 }
 echo "</urlset>\n";
