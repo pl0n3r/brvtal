@@ -15,7 +15,7 @@ For every new session:
 5. If no PR is active, use **Current priorities** unless the user explicitly reprioritizes.
 6. Inspect implementation files and only the area-specific docs needed for the task.
 7. Follow branch → implementation → tests → PR → CI → fixes → squash merge → exact-main-CI without asking routine questions.
-8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state and what comes next. Do not append history. If the PR scope changes before merge, refresh README again.
+8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state, what comes next, and an updated **general panorama of meaningful work still pending across BRVTAL**. The panorama is mandatory and must not be limited to the immediate next task. Do not append deploy history. If the PR scope changes before merge, refresh README again.
 9. If a PR materially changes durable product state or architecture, update the relevant sections in this file as well.
 
 ### Source-of-truth precedence
@@ -24,7 +24,7 @@ For every new session:
 2. newer merged PR decisions/tests;
 3. this `AGENTS.md`;
 4. area-specific docs under `docs/`;
-5. `README.md` only for the most recent deploy snapshot;
+5. `README.md` only for the most recent deploy snapshot and current pending-work panorama;
 6. old chat history or external memory.
 
 If code proves this file stale, correct it in the same focused PR.
@@ -209,7 +209,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 6. Hero mobile editing supports optional mobile assets/overrides.
 7. A valid static Home hero remains a permanent fallback.
 8. Public Archive/Media filters and CONNECTED graph selection are shareable through URL state and respect Back/Forward.
-9. **`README.md` is only the latest deploy snapshot.** It must not accumulate architecture, old checklists or development history.
+9. **`README.md` is the latest deploy snapshot plus the current pending-work panorama.** It must not accumulate deploy history, architecture prose or stale checklists, but every deploy must keep a concise overview of meaningful work still pending across the project.
 10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
 11. The repository contains enough durable context for AI to resume without previous conversation memory.
 12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph.
@@ -226,6 +226,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 23. **System Status separates operational health from development backlog.** `ATTENTION REQUIRED` may surface both platform signals and open GitHub Issues, but GitHub backlog items are read-only development metadata and never lower the platform health score. A GitHub/cache outage must render backlog as unavailable/stale, never as a fake zero or a global “no active issues” claim. The integration stays server-side, anonymous/public, bounded and cached for shared hosting.
 24. **Public Sets discovery is relationship-driven, not taxonomy-invented.** The listening library uses only published Set records plus public Artist/Event relations already modeled by `sets_media`; the API sanitizes those relations against final public pools before delivery. Set titles lead to canonical `/sets/{slug}` pages, external platforms remain secondary LISTEN actions, no genre is inferred from title/description, and a valid empty API result is distinct from a data/runtime failure.
 25. **Google Tag Manager is the single public tag-delivery layer.** DISCADMIN stores only a validated `GTM-...` container ID; direct GA4 loading and raw executable analytics snippets are not part of the primary model. GTM loads automatically on every public page with analytics storage granted at bootstrap; BRVTAL keeps advertising storage, advertising user data and advertising personalization denied. Legacy Analytics acceptance state is not a runtime gate.
+26. **Every deploy README must preserve situational awareness.** Besides the exact deploy snapshot, it must include an updated project-wide pending-work panorama so a human or new AI session can see what remains without reconstructing the backlog from chat history. The panorama is not a changelog and should be revised as work is completed or reprioritized.
 
 ---
 
@@ -273,16 +274,18 @@ For every deploy-bound PR:
 - include a concise **Qué se hizo** summary;
 - include current validation status without claiming production validation from CI;
 - include **Qué sigue** with the next actionable work;
+- include a concise, updated **Panorama general pendiente** covering meaningful work still open across BRVTAL, not only the next task;
+- remove or revise panorama items as they are completed, invalidated or reprioritized so the overview does not become stale;
 - keep durable architecture/product history in `AGENTS.md` or the relevant `docs/` file;
 - if a CI fix or late edit changes the PR file set or scope, refresh README before merge.
 
-The README is intentionally transient. It should remain compact and useful during active development.
+The README is intentionally transient. It should remain compact and useful during active development; the pending-work panorama is a current operational view, not cumulative history.
 
 ### Mandatory delivery loop
 
 1. Start a focused branch from current green `main`.
 2. Implement the logical change + applicable tests.
-3. Refresh `README.md` with the exact deploy snapshot.
+3. Refresh `README.md` with the exact deploy snapshot and updated pending-work panorama.
 4. Open PR to `main`.
 5. Wait for **BRVTAL CI / validate**.
 6. Fix failures on the same branch; refresh README again if scope/file set changed.
@@ -356,11 +359,11 @@ An explicit user request always overrides this order.
 
 ## 10. Human handoff and optional deep references
 
-`README.md` is the **latest deploy handoff only**. It is not a technical manual, architecture source, feature checklist or durable roadmap. **AI sessions should not require reading README before they can begin**.
+`README.md` is the **latest deploy handoff plus current pending-work panorama**. It is not a technical manual, architecture source or cumulative changelog. **AI sessions should not require reading README before they can begin**, but humans and continuation sessions may use its panorama for current situational awareness.
 
 Optional references, read only when needed:
 
-- `README.md` — most recent deploy: changed files, summary, validation state, next action;
+- `README.md` — most recent deploy: changed files, summary, validation state, next action and project-wide pending-work panorama;
 - `docs/BRVTAL-SPEC.md` — deeper product/architecture specification;
 - `docs/DISCADMIN-UX-AUDIT.md` — responsive/admin UX debt/history;
 - `docs/TESTING.md` — detailed test commands/evidence model;
@@ -397,9 +400,10 @@ The goal is that a completely new AI session can continue with **only the reposi
 
 Whenever a deploy-bound PR is prepared:
 
-- rewrite `README.md` as the current deploy snapshot, never as cumulative history;
+- rewrite `README.md` as the current deploy snapshot, never as cumulative deploy history;
 - make its file list match the actual PR scope;
 - summarize what changed and what follows next;
+- refresh the **Panorama general pendiente** so it still reflects meaningful open work across BRVTAL;
 - update durable current-state, decision, priority or deferred sections here only when product state actually changes;
 - do not write transient SHA/run numbers here as permanent state;
 - keep current SHA/CI identity dynamic in Actions/System Status;
