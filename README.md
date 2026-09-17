@@ -9,25 +9,27 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 ## Qué se hizo
 
 - Continúa #451 con un bloque pequeño de Reliability / accesibilidad en módulos canónicos de DISCADMIN.
-- `discadmin/blog.php` da nombre accesible a la búsqueda editorial.
-- `discadmin/media-library.php` da nombre accesible a la búsqueda y al input de carga, y reemplaza el contenedor genérico `role="status"` por el elemento semántico `output`.
-- `discadmin/releases.php` da nombre accesible a la búsqueda del catálogo.
-- Se añade un contrato fuente auto-descubierto que protege estos nombres accesibles y la semántica del estado de Media.
+- `discadmin/blog.php`, `discadmin/media-library.php` y `discadmin/releases.php` asocian labels reales a los controles que Sonar reportó sin etiqueta válida.
+- `discadmin/admin-modules.css` añade una utilidad compartida para mantener esos labels disponibles a lectores de pantalla sin alterar el layout visual.
+- `discadmin/media-library.php` reemplaza además el contenedor genérico `role="status"` por el elemento semántico `output`.
+- Se añade un contrato fuente auto-descubierto que protege asociaciones label/control, la utilidad accesible y la semántica del estado de Media.
 - Este PR no cambia lógica de APIs, datos, navegación ni comportamiento de negocio.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `discadmin/blog.php` — nombre accesible para la búsqueda de Blog.
-- `discadmin/media-library.php` — nombres accesibles para controles de Media y estado nativo con `output`.
-- `discadmin/releases.php` — nombre accesible para la búsqueda de Releases.
-- `tests/admin-search-accessibility-contract.php` — contrato de regresión para los hallazgos de accesibilidad tratados.
+- `discadmin/admin-modules.css` — utilidad visualmente oculta para labels accesibles.
+- `discadmin/blog.php` — label asociado a la búsqueda de Blog.
+- `discadmin/media-library.php` — labels asociados a búsqueda/carga y estado nativo con `output`.
+- `discadmin/releases.php` — label asociado a la búsqueda de Releases.
+- `tests/admin-search-accessibility-contract.php` — contrato de regresión para las asociaciones y semántica tratadas.
 
 ## Validación
 
 - Base exacta de preparación: `main` `c5c713ec94e344e753600d2315bff2bde7debbc5`.
 - Ese SHA exacto de `main` pasó BRVTAL CI #771 con `fast`, Chromium y `validate` verdes.
-- La rama debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre el SHA exacto del PR.
+- La primera pasada de Sonar sobre este PR confirmó que `aria-label` no satisfacía los cuatro `InputWithoutLabelCheck`; se sustituyeron por asociaciones `<label for>` reales antes de continuar.
+- La rama debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre el SHA exacto actualizado.
 - Como #456 sigue delante en la cola de merge, este PR se recontrastará con el `main` resultante y se actualizará este snapshot antes de cualquier merge.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
@@ -43,7 +45,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **Theme Studio / Sonar:** PR #456 — cuarto `S8786` aislado, con CI y CodeRabbit en revisión final; debe cerrar Sonar y pasar por squash merge antes que este PR.
+- **Theme Studio / Sonar:** PR #456 — cuarto `S8786` aislado; BRVTAL CI y CodeRabbit están verdes en el head actual y falta obtener Sonar sobre ese mismo SHA antes del merge.
 - **Content Core accessibility:** rama `quality/content-core-form-accessibility` — asociaciones de 14 labels y nombres accesibles de las 2 búsquedas ya preparadas; falta entrar al slot de PR y pasar todos los gates.
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
 - **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871`, `S7727` y los primeros `S8786` ya se trabajaron; continuar Reliability y luego Maintainability por riesgo y área.
