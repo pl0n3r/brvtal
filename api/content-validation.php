@@ -154,3 +154,44 @@ function brvtal_page_identity_error(array $state): ?array
     }
     return null;
 }
+
+/** Preserve legacy setting-key cleanup while refusing lossy normalization for Theme keys. */
+function brvtal_setting_key_normalize(string $rawKey): array
+{
+    $key = trim($rawKey);
+    $key = preg_replace('/[^a-zA-Z0-9_.-]/', '', $key) ?? '';
+    $themeCandidate = str_starts_with(strtolower($key), 'theme.');
+
+    if ($themeCandidate && ($rawKey !== $key || !str_starts_with($key, 'theme.'))) {
+        return [
+            'key' => $key,
+            'error' => ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_key'],
+        ];
+    }
+
+    return ['key' => $key, 'error' => null];
+}
+
+/** Return whether a Theme slug is canonical and safe to persist or activate. */
+function brvtal_theme_slug_is_valid(string $slug): bool
+{
+    return preg_match('/\A[a-z0-9_-]{1,60}\z/', $slug) === 1
+        && !str_starts_with($slug, '-')
+        && !str_ends_with($slug, '-');
+}
+
+/** Keep Theme Studio setting writes aligned with the public theme identity contract. */
+function brvtal_theme_setting_error(string $key, string $value): ?array
+{
+    if ($key === 'theme.active') {
+        return brvtal_theme_slug_is_valid($value)
+            ? null
+            : ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_value'];
+    }
+
+    if (!str_starts_with($key, 'theme.')) return null;
+    $slug = substr($key, strlen('theme.'));
+    return brvtal_theme_slug_is_valid($slug)
+        ? null
+        : ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_key'];
+}

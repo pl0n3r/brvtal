@@ -8,47 +8,46 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque pequeño de Reliability / accesibilidad en módulos canónicos de DISCADMIN.
-- `discadmin/blog.php`, `discadmin/media-library.php` y `discadmin/releases.php` asocian labels reales a los controles que Sonar reportó sin etiqueta válida.
-- `discadmin/admin-modules.css` añade una utilidad compartida para mantener esos labels disponibles a lectores de pantalla sin alterar el layout visual.
-- `discadmin/media-library.php` reemplaza además el contenedor genérico `role="status"` por el elemento semántico `output`.
-- Se añade un contrato fuente auto-descubierto que protege asociaciones label/control, la utilidad accesible y la semántica del estado de Media.
-- Este PR no cambia lógica de APIs, datos, navegación ni comportamiento de negocio.
+- Continúa #451 con un bloque acotado de Reliability / accesibilidad en módulos canónicos de DISCADMIN.
+- Blog, Media Library y Releases asocian labels reales a los controles de búsqueda/carga que Sonar reportó sin etiqueta válida.
+- `discadmin/admin-modules.css` incorpora una utilidad compartida visualmente oculta para mantener esos labels disponibles a lectores de pantalla sin alterar el layout.
+- Media Library usa además un elemento nativo `<output>` con anuncio `polite` para el estado, en lugar del contenedor genérico con `role="status"`.
+- El contrato de regresión parsea el markup con DOMDocument/DOMXPath y valida estructuralmente las asociaciones label/control, la semántica de `output` y la ausencia del `clip` CSS deprecado, incluso con variantes de whitespace.
+- No se modifican APIs, base de datos, navegación ni lógica de negocio.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `discadmin/admin-modules.css` — utilidad visualmente oculta para labels accesibles.
+- `discadmin/admin-modules.css` — utilidad compartida para labels accesibles visualmente ocultos.
 - `discadmin/blog.php` — label asociado a la búsqueda de Blog.
-- `discadmin/media-library.php` — labels asociados a búsqueda/carga y estado nativo con `output`.
+- `discadmin/media-library.php` — labels asociados a búsqueda/carga y estado nativo con `<output>`.
 - `discadmin/releases.php` — label asociado a la búsqueda de Releases.
-- `tests/admin-search-accessibility-contract.php` — contrato de regresión para las asociaciones y semántica tratadas.
+- `tests/admin-search-accessibility-contract.php` — contrato estructural de regresión para las asociaciones y semántica tratadas.
 
 ## Validación
 
-- Base exacta de preparación: `main` `c5c713ec94e344e753600d2315bff2bde7debbc5`.
-- Ese SHA exacto de `main` pasó BRVTAL CI #771 con `fast`, Chromium y `validate` verdes.
-- La primera pasada de Sonar sobre este PR confirmó que `aria-label` no satisfacía los cuatro `InputWithoutLabelCheck`; se sustituyeron por asociaciones `<label for>` reales antes de continuar.
-- La rama debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre el SHA exacto actualizado.
-- Como #456 sigue delante en la cola de merge, este PR se recontrastará con el `main` resultante y se actualizará este snapshot antes de cualquier merge.
+- Base exacta recontrastada: `main` `feac972b6f62797ec4f07a2c1dc2f32a1c4a3e97`.
+- Ese SHA exacto de `main` pasó BRVTAL CI #795 con conclusión `success`; #456 queda VALIDATED IN CODE en `main`.
+- Sobre la preparación anterior de #457, BRVTAL CI #794 y CodeRabbit quedaron verdes tras corregir los findings válidos de `clip`, parsing estructural y tolerancia a whitespace.
+- Este head refrescado debe volver a pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge; no se reutilizan gates de un SHA anterior.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Resolver cualquier finding válido de CI, Sonar o CodeRabbit de este PR mientras #456 termina sus gates.
-- Después del squash merge de #456 y de validar su SHA exacto en `main`, recontrastar esta rama contra el nuevo `main`, actualizar este README y volver a ejecutar los gates aplicables antes de mergear.
-- Mantener `quality/content-core-form-accessibility` como siguiente carril preparado, sin abrir un tercer PR deploy-bound hasta liberar uno de los dos slots activos.
-- Continuar #451 por riesgo con los siguientes findings Reliability antes de deuda puramente estilística.
+- Cerrar los gates del SHA exacto refrescado de #457, resolver cualquier finding válido, hacer squash merge y verificar BRVTAL CI del SHA exacto resultante de `main`.
+- Después, recontrastar y retargetear #458 (Content Core accessibility) contra ese nuevo `main`, refrescar README y ejecutar sus gates completos.
+- Mantener #459 (DOM API quick wins) en paralelo, pero refrescarlo contra el `main` vigente antes de cualquier merge.
+- Continuar #451 por riesgo con los siguientes findings de accesibilidad / Reliability y después Maintainability acotada.
 - Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
 
 ## Panorama general pendiente
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **Theme Studio / Sonar:** PR #456 — cuarto `S8786` aislado; BRVTAL CI y CodeRabbit están verdes en el head actual y falta obtener Sonar sobre ese mismo SHA antes del merge.
-- **Content Core accessibility:** rama `quality/content-core-form-accessibility` — asociaciones de 14 labels y nombres accesibles de las 2 búsquedas ya preparadas; falta entrar al slot de PR y pasar todos los gates.
+- **Content Core accessibility:** PR #458 — asociaciones de labels y nombres accesibles preparados; revisión manual de CodeRabbit en curso por ser un PR apilado.
+- **DOM API maintainability:** PR #459 — dos HIGH quick wins (`dataset` y `Element.after`) ya implementados y con CI/CodeRabbit tempranos verdes; requiere refresco contra `main` antes de integración.
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
-- **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871`, `S7727` y los primeros `S8786` ya se trabajaron; continuar Reliability y luego Maintainability por riesgo y área.
+- **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871`, `S7727` y los cuatro `S8786` identificados están trabajados en código; continúan accesibilidad y deuda Maintainability por riesgo y por área.
 - **Archivo cultural:** #398 / #403 — profundizar relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory sin inferencias falsas.
 - **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4 y preparar lectura segura futura en Dashboard.
 - **SEO:** #390, #391 y #272 — workspace SEO, alineación del bloque actual y structured data por entidad.
