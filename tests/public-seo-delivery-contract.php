@@ -45,7 +45,7 @@ public_seo_expect(str_contains($seo, 'status,event_date,published_at'), 'canonic
 public_seo_expect(str_contains($sitemap, 'brvtal_public_event_is_visible($row)'), 'sitemap must apply the same canonical Event visibility predicate');
 public_seo_expect(str_contains($sitemap, 'status,event_date,published_at'), 'sitemap Event rows must include publication-proof lifecycle fields');
 public_seo_expect(str_contains($pages, 'brvtal_page_public_event_rows'), 'entity relationships must filter Event rows through canonical visibility');
-public_seo_expect(str_contains($pages, "$route !== 'events' || brvtal_public_event_is_visible($item)"), 'Blog Event relationships must apply canonical visibility');
+public_seo_expect(str_contains($pages, "\$route !== 'events' || brvtal_public_event_is_visible(\$item)"), 'Blog Event relationships must apply canonical visibility');
 public_seo_expect(str_contains($robots, 'Sitemap: https://www.brvtal.com.co/sitemap.xml'), 'robots must advertise the canonical sitemap');
 public_seo_expect(str_contains($html, '<base href="/">'), 'nested public routes must resolve assets from the site root');
 
