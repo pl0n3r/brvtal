@@ -26,14 +26,13 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - Base exacta recontrastada: `main` `7de90b80df954a963dc3cc9e1610fe069dd017e3`.
 - Ese SHA exacto de `main` pasó BRVTAL CI #804 con `fast`, `chromium`, `real-stack` y `validate` en `success`; #460 queda **VALIDATED IN CODE** en `main`.
-- El PR previo #459 conserva una base antigua y no se integrará así; este deploy se reconstruye desde el `main` exacto validado para evitar arrastrar historial stale.
-- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge; no se reutilizan gates de #459 ni de SHA previos.
+- El PR previo #459 fue cerrado sin merge porque conservaba una base antigua; #461 es el reemplazo limpio reconstruido desde el `main` exacto validado.
+- El head exacto de #461 debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit antes del squash merge; no se reutilizan gates de #459 ni de SHA previos.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Cerrar #459 sin merge una vez abierto el reemplazo limpio y usar únicamente los gates del nuevo head exacto.
-- Resolver cualquier finding válido del reemplazo, hacer squash merge solo con todos los gates aplicables verdes y verificar BRVTAL CI del SHA exacto resultante de `main`.
+- Completar los gates del head exacto de #461, resolver cualquier finding válido, hacer squash merge solo con todos los gates aplicables verdes y verificar BRVTAL CI del SHA exacto resultante de `main`.
 - Preparar en un PR separado los HIGH DOM todavía vigentes en `discadmin/bulk-actions.js` y `discadmin/global-search.js`.
 - Continuar #451 por riesgo con los siguientes findings de Reliability / accesibilidad y después Maintainability acotada.
 - Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
@@ -42,7 +41,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **DOM API maintainability:** reemplazo limpio de #459 — dos HIGH quick wins (`dataset` y `Element.after`) recontrastados contra `main` `7de90b8`; falta completar gates del nuevo head, merge serializado y CI exacto de `main`.
+- **DOM API maintainability:** PR #461 — dos HIGH quick wins (`dataset` y `Element.after`) recontrastados contra `main` `7de90b8`; falta completar gates del head exacto, merge serializado y CI exacto de `main`.
 - **DOM API siguiente bloque:** `discadmin/bulk-actions.js` y `discadmin/global-search.js` conservan dos HIGH equivalentes de inserción DOM ya revalidados y se tratarán en un PR separado.
 - **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
 - **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871`, `S7727`, los cuatro `S8786`, labels de Blog/Media/Releases y labels/semántica del wizard de Content Core están trabajados; continúa la cola por riesgo y área.
