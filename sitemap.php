@@ -5,7 +5,7 @@ require_once __DIR__ . '/config/bootstrap.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_sitemap.php';
 
-$base = brvtal_public_base_url($config);
+$base = BRVTAL_SITEMAP_CANONICAL_ORIGIN;
 $urls = brvtal_public_sitemap_static_urls($base, brvtal_public_static_routes());
 
 foreach (brvtal_public_content_definitions() as $route => $definition) {
