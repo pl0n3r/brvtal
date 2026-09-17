@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const systemStatusJs = readFileSync(join(process.cwd(), 'discadmin/system-status-v2.js'), 'utf8');
 const harness = 'http://127.0.0.1:4173/discadmin/e2e-system-status-reset-log.html';
+const JSON_TYPE = 'application/json';
 
 const overview = {
   ok:true,
@@ -24,22 +25,24 @@ async function mount(page, resetStatus=200) {
   let cleared = false;
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:`<!doctype html><html><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><h1>SYSTEM</h1></div></main><script>window.csrf='csrf-token';</script><script>${systemStatusJs}</script></body></html>`,
+    body:`<!doctype html><html><body><nav class="nav"><button class="active">SYSTEM STATUS</button></nav><main class="main"><div class="top"><h1>SYSTEM</h1></div></main><script>globalThis.csrf='csrf-token';</script><script>${systemStatusJs}</script></body></html>`,
   }));
-  await page.route('**/discadmin/technical.php?action=overview', route => route.fulfill({contentType:'application/json',body:JSON.stringify(overview)}));
-  await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify(health)}));
-  await page.route('**/api/admin-activity.php?limit=5', route => route.fulfill({contentType:'application/json',body:JSON.stringify(activity)}));
+  await page.route('**/discadmin/technical.php?action=overview', route => route.fulfill({contentType:JSON_TYPE,body:JSON.stringify(overview)}));
+  await page.route('**/api/content-health.php', route => route.fulfill({contentType:JSON_TYPE,body:JSON.stringify(health)}));
+  await page.route('**/api/admin-activity.php?limit=5', route => route.fulfill({contentType:JSON_TYPE,body:JSON.stringify(activity)}));
   await page.route('**/discadmin/technical.php?action=logs', route => route.fulfill({
-    contentType:'application/json',
+    contentType:JSON_TYPE,
     body:JSON.stringify(cleared ? {ok:true,file:'storage/logs/brvtal.log',bytes:0,lines:0,content:''} : {ok:true,file:'storage/logs/brvtal.log',bytes:16,lines:1,content:'before reset'})
   }));
-  await page.route('**/discadmin/logs.php?action=clear&format=json', async route => {
+  await page.route('**/discadmin/logs.php?action=clear&format=json', route => {
     resetCalls++;
     expect(route.request().method()).toBe('POST');
     expect(route.request().postData()).toContain('csrf=csrf-token');
-    if (resetStatus !== 200) return route.fulfill({status:resetStatus,contentType:'application/json',body:JSON.stringify({ok:false,error:'LOG_CLEAR_FAILED'})});
+    if (resetStatus !== 200) {
+      return route.fulfill({status:resetStatus,contentType:JSON_TYPE,body:JSON.stringify({ok:false,error:'LOG_CLEAR_FAILED'})});
+    }
     cleared = true;
-    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,file:'storage/logs/brvtal.log',bytes:0,lines:0})});
+    return route.fulfill({contentType:JSON_TYPE,body:JSON.stringify({ok:true,file:'storage/logs/brvtal.log',bytes:0,lines:0})});
   });
   await page.goto(harness);
   await expect(page.locator('#system-status-v2')).toBeVisible();
