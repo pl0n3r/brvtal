@@ -61,10 +61,21 @@ content_validation_expect((brvtal_page_identity_error(['title'=>'','slug'=>'mani
 content_validation_expect((brvtal_page_identity_error(['title'=>'Manifesto','slug'=>''])['field'] ?? null) === 'slug', 'Pages must require a slug');
 content_validation_expect(brvtal_page_identity_error(['title'=>'Manifesto','slug'=>'manifesto']) === null, 'valid Page identity must pass');
 
+content_validation_expect(brvtal_theme_setting_error('site', 'anything') === null, 'non-theme settings must remain unaffected');
+content_validation_expect(brvtal_theme_setting_error('theme.core', '{}') === null, 'valid theme keys must remain accepted');
+content_validation_expect(brvtal_theme_setting_error('theme.hard_techno-01', '{}') === null, 'valid theme slug characters must remain accepted');
+content_validation_expect(brvtal_theme_setting_error('theme.active', 'genesis') === null, 'valid active theme values must remain accepted');
+content_validation_expect((brvtal_theme_setting_error('theme.foo.bar', '{}')['field'] ?? null) === 'setting_key', 'theme keys with extra separators must be rejected');
+content_validation_expect((brvtal_theme_setting_error('theme.' . str_repeat('a', 61), '{}')['field'] ?? null) === 'setting_key', 'overlong theme keys must be rejected');
+content_validation_expect((brvtal_theme_setting_error('theme.Core', '{}')['field'] ?? null) === 'setting_key', 'theme keys must use canonical lowercase slugs');
+content_validation_expect((brvtal_theme_setting_error('theme.active', 'foo.bar')['field'] ?? null) === 'setting_value', 'invalid active theme values must be rejected');
+content_validation_expect((brvtal_theme_setting_error('theme.active', str_repeat('a', 61))['field'] ?? null) === 'setting_value', 'overlong active theme values must be rejected');
+
 $index = (string)file_get_contents(__DIR__ . '/../api/index.php');
 $pageUi = (string)file_get_contents(__DIR__ . '/../discadmin/pages-publication-contract.js');
 content_validation_expect(str_contains($index, "require_once __DIR__ . '/content-validation.php';"), 'Core API must load the shared content validation contract');
 content_validation_expect(str_contains($index, 'brvtal_content_temporal_normalize($resource,$d)'), 'Core API must normalize temporal fields before database writes');
+content_validation_expect(str_contains($index, 'brvtal_theme_setting_error($key,$value)'), 'Settings POST must enforce the shared Theme identity contract');
 content_validation_expect(str_contains($index, 'brvtal_ticket_window_error(array_replace($before,$p))'), 'Ticket PUT validation must compare the final merged window');
 content_validation_expect(str_contains($index, 'brvtal_page_identity_error($pageState)'), 'Page PUT validation must use the final merged identity');
 content_validation_expect(str_contains($pageUi, 'title.required = true') && str_contains($pageUi, 'slug.required = true'), 'Page editor must expose required identity fields');
