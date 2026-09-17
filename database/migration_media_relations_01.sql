@@ -3,7 +3,7 @@
 -- Existing media/content is preserved. Source deploy does not execute this migration.
 
 CREATE TABLE IF NOT EXISTS media_relations (
-  media_id INT UNSIGNED NOT NULL,
+  media_id INT NOT NULL,
   related_type ENUM('event','artist','set','release') NOT NULL,
   related_id INT UNSIGNED NOT NULL,
   sort_order INT NOT NULL DEFAULT 0,
