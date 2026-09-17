@@ -59,12 +59,12 @@ async function loadMedia(page, width = 390) {
     </body></html>`
   }));
   await page.goto(harnessUrl);
-  await expect(page.getByRole('button', {name:/Asset 1/i})).toBeVisible();
+  await expect(page.locator('[data-media-id="1"]')).toBeVisible();
 }
 
 test('mobile asset selection reveals the inspector immediately', async ({page}) => {
   await loadMedia(page, 390);
-  await page.getByRole('button', {name:/Asset 1/i}).click();
+  await page.locator('[data-media-id="1"]').click();
   await expect(page.locator('#media-edit-title')).toHaveValue('Asset 1');
 
   expect(await page.evaluate(() => window.__mediaInspectorScrolls)).toEqual([{
@@ -79,7 +79,7 @@ test('mobile asset selection reveals the inspector immediately', async ({page}) 
 
 test('desktop asset selection keeps the current viewport position', async ({page}) => {
   await loadMedia(page, 1200);
-  await page.getByRole('button', {name:/Asset 2/i}).click();
+  await page.locator('[data-media-id="2"]').click();
   await expect(page.locator('#media-edit-title')).toHaveValue('Asset 2');
   expect(await page.evaluate(() => window.__mediaInspectorScrolls.length)).toBe(0);
 });
