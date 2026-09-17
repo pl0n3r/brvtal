@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_routes.php';
+require_once __DIR__ . '/../config/public_sitemap.php';
 
 /** Fail when the canonical public sitemap contract drifts. */
 function public_sitemap_expect(bool $condition, string $message): void
@@ -58,16 +59,23 @@ public_sitemap_expect(
     $sitemapRevalidates,
     'The public sitemap must revalidate instead of serving the old 15-minute snapshot.'
 );
-$sitemapIsXml = str_contains(
+$sitemapUsesValidatedXmlRenderer = str_contains(
     $sitemap,
-    'Content-Type: application/xml; charset=utf-8'
+    "require_once __DIR__ . '/config/public_sitemap.php';"
 ) && str_contains(
     $sitemap,
-    '<?xml version='
+    'brvtal_public_sitemap_xml($urls, $base)'
+) && str_contains(
+    $sitemap,
+    'Content-Type: application/xml; charset=utf-8'
 );
 public_sitemap_expect(
-    $sitemapIsXml,
-    'The canonical sitemap response must remain XML.'
+    $sitemapUsesValidatedXmlRenderer,
+    'The canonical sitemap response must use the validated XML renderer.'
+);
+public_sitemap_expect(
+    BRVTAL_SITEMAP_NAMESPACE === 'http://www.sitemaps.org/schemas/sitemap/0.9',
+    'The Sitemap protocol namespace must remain canonical.'
 );
 
 $seo = (string) file_get_contents(__DIR__ . '/../config/public_seo.php');
