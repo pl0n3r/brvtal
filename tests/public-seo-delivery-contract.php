@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../config/public_routes.php';
+require_once __DIR__ . '/../config/public_sitemap.php';
+
 function public_seo_expect(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -12,9 +15,7 @@ function public_seo_expect(bool $condition, string $message): void
 $router = (string)file_get_contents(__DIR__ . '/../.htaccess');
 $renderer = (string)file_get_contents(__DIR__ . '/../index.php');
 $seo = (string)file_get_contents(__DIR__ . '/../config/public_seo.php');
-$routes = (string)file_get_contents(__DIR__ . '/../config/public_routes.php');
 $sitemap = (string)file_get_contents(__DIR__ . '/../sitemap.php');
-$sitemapXml = (string)file_get_contents(__DIR__ . '/../config/public_sitemap.php');
 $pages = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 $notFound = (string)file_get_contents(__DIR__ . '/../config/public_not_found.php');
 $robots = (string)file_get_contents(__DIR__ . '/../robots.txt');
@@ -26,9 +27,15 @@ foreach (['events','artists','sets','releases','blog','pages'] as $route) {
 foreach (['canonical','og:title','og:description','og:image','twitter:card','application/ld+json'] as $marker) {
     public_seo_expect(str_contains($seo, $marker), "server-rendered metadata must include {$marker}");
 }
-foreach (['MusicEvent','MusicGroup','MusicRecording','MusicAlbum','BlogPosting','WebPage'] as $type) {
-    public_seo_expect(str_contains($routes, $type), "canonical public route registry must support {$type} structured data");
-}
+$expectedSchemaTypes = ['MusicEvent','MusicGroup','MusicRecording','MusicAlbum','BlogPosting','WebPage'];
+$actualSchemaTypes = array_values(array_map(
+    static fn(array $definition): string => (string) ($definition['schema_type'] ?? ''),
+    brvtal_public_content_definitions()
+));
+public_seo_expect(
+    $actualSchemaTypes === $expectedSchemaTypes,
+    'canonical public route registry must expose the expected structured-data types'
+);
 public_seo_expect(str_contains($renderer, "http_response_code(404)"), 'unknown or private entities must return HTTP 404');
 public_seo_expect(str_contains($renderer, 'X-Robots-Tag: noindex, follow'), 'not-found entity routes must be excluded from indexing');
 public_seo_expect(str_contains($renderer, 'brvtal_public_not_found_seo($baseUrl, $type, $slug)'), 'invalid entity routes must receive dedicated not-found SEO');
@@ -40,10 +47,13 @@ public_seo_expect(str_contains($notFound, '<meta name="robots" content="noindex,
 public_seo_expect(str_contains($notFound, 'RESOURCE NOT FOUND'), 'not-found HTML must clearly identify the missing resource');
 public_seo_expect(str_contains($notFound, 'BACK HOME'), 'not-found HTML must provide a clear recovery route');
 public_seo_expect(str_contains($router, 'sitemap.php'), 'sitemap.xml must be served dynamically');
+$sitemapResponse = brvtal_public_sitemap_response(
+    brvtal_public_sitemap_static_urls(BRVTAL_SITEMAP_CANONICAL_ORIGIN, ['/']),
+    BRVTAL_SITEMAP_CANONICAL_ORIGIN
+);
 public_seo_expect(
-    str_contains($sitemap, 'brvtal_public_sitemap_xml($urls, $base)')
-        && str_contains($sitemapXml, '<urlset xmlns='),
-    'sitemap must use the standard XML URL set through the validated renderer'
+    str_contains($sitemapResponse['body'], '<urlset xmlns="' . BRVTAL_SITEMAP_NAMESPACE . '">'),
+    'sitemap must render the standard XML URL set through the executable renderer'
 );
 public_seo_expect(str_contains($seo, 'brvtal_public_event_is_visible($row)'), 'canonical Event resolver must apply publication-proof visibility');
 public_seo_expect(str_contains($seo, 'status,event_date,published_at'), 'canonical Event resolver must hydrate lifecycle evidence used by visibility policy');
