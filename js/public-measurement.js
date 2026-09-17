@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  const CONSENT_KEY = 'brvtal.analytics.choice.v1';
   const EVENT_RE = /^brvtal_[a-z0-9_]{1,56}$/;
   const TEXT_KEYS = new Set([
     'page_type', 'content_type', 'content_slug', 'content_title', 'section',
@@ -25,11 +24,6 @@
   let scrollQueued = false;
   const seenSections = new Set();
   const seenDepths = new Set();
-
-  function analyticsAccepted() {
-    try { return localStorage.getItem(CONSENT_KEY) === 'accepted'; }
-    catch { return false; }
-  }
 
   function pageContext() {
     const path = location.pathname.replace(/\/+$/, '') || '/';
@@ -71,7 +65,7 @@
   }
 
   function push(eventName, params = {}) {
-    if (!analyticsAccepted() || !EVENT_RE.test(String(eventName || ''))) return false;
+    if (!EVENT_RE.test(String(eventName || ''))) return false;
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
       event: eventName,
@@ -205,7 +199,7 @@
   }
 
   function start() {
-    if (started || !analyticsAccepted()) return;
+    if (started) return;
     started = true;
     push('brvtal_page_view');
     observeSections();
@@ -216,18 +210,10 @@
   window.BRVTALMeasure = Object.freeze({
     push,
     context: pageContext,
-    enabled: analyticsAccepted,
+    enabled: () => true,
   });
 
   window.addEventListener('brvtal:analytics-ready', start);
-  window.addEventListener('brvtal:analytics-choice', event => {
-    if (event.detail?.choice === 'accepted') {
-      push('brvtal_analytics_consent', { action: 'accepted', control: 'analytics_choice' });
-    }
-  });
-  window.addEventListener('brvtal:analytics-settings-open', () => {
-    if (started) push('brvtal_analytics_settings_open', { control: 'analytics_settings' });
-  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start, { once: true });
