@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
+const baseCss = readFileSync(join(root, 'css/style.css'), 'utf8');
 const visualCss = readFileSync(join(root, 'css/public-visual-identity.css'), 'utf8');
 const mobileEventsCss = readFileSync(join(root, 'css/mobile-events.css'), 'utf8');
 const controlCss = readFileSync(join(root, 'css/public-controls.css'), 'utf8');
@@ -12,7 +13,7 @@ const contact = readFileSync(join(root, 'config/public_contact_page.php'), 'utf8
 
 const fixture = `<!doctype html><html class="native-events-scroll"><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>${controlCss}\n${mobileEventsCss}\n${visualCss}</style></head><body>
+<style>${baseCss}\n${controlCss}\n${mobileEventsCss}\n${visualCss}</style></head><body>
 <section class="hero"><div class="hero-title">BRVTAL</div></section>
 <section class="events">
   <div class="section-head"><h2>EVENTS</h2></div>
