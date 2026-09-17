@@ -15,6 +15,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - La URL pública canónica queda en `/sitemap.xml`; una solicitud directa a `/sitemap.php` redirige permanentemente al XML mientras PHP sigue siendo solo el renderer interno.
 - `robots.txt` ya apuntaba correctamente a `https://www.brvtal.com.co/sitemap.xml` y no requiere modificación.
 - Se añade un contrato que mantiene sincronizados el registro de contenido, el routing público, el renderer XML y la URL anunciada a crawlers.
+- El contrato existente de Contact se adapta al nuevo registro canónico sin reducir su garantía de que `/contact` pertenezca al sitemap.
 - No hay cambios de base de datos ni migraciones.
 
 ## Archivos modificados en este deploy
@@ -25,6 +26,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `config/public_seo.php` — consumo del registro común para resolver entidades SEO sin duplicar definiciones.
 - `sitemap.php` — sitemap dinámico basado en el registro común y revalidado en cada consulta.
 - `tests/public-sitemap-contract.php` — contrato de sincronización entre contenido público, routing, XML y `robots.txt`.
+- `tests/public-contact-contract.php` — garantía de Contact actualizada para leer la fuente canónica del sitemap.
 
 ## Validación
 
