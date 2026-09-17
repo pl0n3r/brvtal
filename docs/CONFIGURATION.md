@@ -76,10 +76,14 @@ Entity-specific SEO fields remain authoritative for Events, Artists, Sets, Relea
 
 ### Analytics & Privacy — `analytics`
 
-- `ga4_id` is the supported global analytics identifier.
-- Google Analytics stays consent-gated by the existing public analytics runtime.
+- `gtm_id` is the canonical public tag-delivery identifier and accepts only validated `GTM-...` container IDs.
+- Google Tag Manager is the only public tag-delivery layer; BRVTAL does not load GA4 directly.
+- GA4, pixels and other optional measurement/marketing tags are configured inside GTM rather than as executable snippets in DISCADMIN.
+- GTM is blocked until the visitor explicitly accepts Analytics. The runtime queues Google Consent Mode defaults before loading the container and sends a denial update before reloading when consent is revoked.
+- The Analytics choice grants only `analytics_storage`; advertising storage, advertising user data and ad personalization remain denied unless a future product decision introduces separate marketing consent.
+- Tags configured inside GTM must honor Google consent checks/additional consent requirements. Essential site behavior must never depend on GTM.
 - The standalone `analytics` setting is server-side configuration and is not exposed through `api/public.php`.
-- Existing `theme.analytics.google` remains a temporary fallback so current installations migrate non-destructively.
+- Legacy GTM aliases may be read only as migration fallbacks; saving the typed Settings control rewrites configuration to `gtm_id` and removes direct GA4/legacy alias keys.
 
 ### Advanced
 
