@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const bulkActions = readFileSync(join(process.cwd(), 'discadmin/bulk-actions.js'), 'utf8');
 const globalSearch = readFileSync(join(process.cwd(), 'discadmin/global-search.js'), 'utf8');
 
+/** Build a minimal DISCADMIN shell for trigger-order browser assertions. */
 function shell(script, { withModule = false } = {}) {
   return `<!doctype html><html><body>
     ${withModule ? '<nav class="nav"><button class="active" data-admin-nav="events">Events</button></nav>' : ''}
