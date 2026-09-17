@@ -78,7 +78,10 @@ brvtal_admin_require();
     <div class="form">
       <div class="field"><label for="e_title">Name *</label><input id="e_title"></div>
       <div class="field"><label for="e_slug">Slug</label><input id="e_slug" placeholder="Generated automatically"></div>
-      <div class="field full"><label for="e_description">Description</label><textarea id="e_description"></textarea></div>
+      <div class="field full">
+        <label for="e_description">Description</label>
+        <textarea id="e_description"></textarea>
+      </div>
       <div class="field">
         <label for="e_cover_image">Cover image</label>
         <input id="e_cover_image" placeholder="Media path / URL">
