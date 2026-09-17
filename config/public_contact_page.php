@@ -41,6 +41,7 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   <link rel="stylesheet" href="css/contact-social.css">
   <link rel="stylesheet" href="css/public-controls.css">
   <link rel="stylesheet" href="css/public-legibility.css">
+  <link rel="stylesheet" href="css/public-visual-identity.css">
   <link rel="icon" type="image/jpeg" href="assets/brvtal-logo.jpeg">
   ' . $seoTags . '
 </head>
