@@ -35,6 +35,7 @@ test('Theme Studio slug cleanup trims edge dashes, keeps allowed underscores and
     return [
       readSlug('---My Theme!!__---'),
       readSlug(`${'-'.repeat(120)}${'A'.repeat(80)}${'-'.repeat(120)}`),
+      readSlug(`${'a'.repeat(59)}-${'b'.repeat(10)}`),
       readSlug('---'),
     ];
   });
@@ -42,6 +43,7 @@ test('Theme Studio slug cleanup trims edge dashes, keeps allowed underscores and
   expect(slugs).toEqual([
     'my-theme-__',
     'a'.repeat(60),
+    'a'.repeat(59),
     'theme',
   ]);
 });
