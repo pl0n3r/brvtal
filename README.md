@@ -8,43 +8,42 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque acotado de Reliability para tres findings Sonar `javascript:S8786`.
-- `discadmin/seo-editorial-defaults.js` reemplaza dos regex de truncación potencialmente super-lineales por búsqueda del último espacio y limpieza lineal del sufijo, conservando el límite y el corte por palabra.
-- `js/public-measurement.js` reemplaza la regex de barras finales por un recorrido lineal que conserva la normalización de rutas públicas.
-- Se amplían las pruebas Playwright existentes con texto SEO adversarial y rutas con múltiples `/` finales.
-- Se añade un contrato auto-descubierto que impide reintroducir los tres patrones `S8786` tratados en este deploy.
-- El finding `S8786` de `discadmin/theme-studio-v2.js` queda deliberadamente separado para el siguiente PR y no se declara resuelto aquí.
+- Continúa #451 con dos HIGH de Maintainability revalidados contra el `main` actual y aislados en un carril independiente.
+- `discadmin/admin-record-lists.js` elimina `data-label` mediante `dataset`, conservando exactamente la limpieza previa del atributo y cerrando `javascript:S7761`.
+- `js/public-sets-library.js` inserta los controles con `Element.after()`, conservando la misma posición inmediatamente posterior al bloque intro y cerrando `javascript:S7768`.
+- Se añade un contrato fuente auto-descubierto que bloquea la reintroducción de ambos patrones reportados.
+- No se cambian APIs, datos, rutas, orden editorial, estilos ni comportamiento visible.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `discadmin/seo-editorial-defaults.js` — truncación SEO lineal sin los dos regex `S8786` reportados.
-- `js/public-measurement.js` — normalización lineal de barras finales en rutas públicas.
-- `tests/e2e/discadmin-seo-defaults.spec.mjs` — cobertura ejecutable de truncación larga y limpieza de sufijo.
-- `tests/e2e/public-measurement.spec.mjs` — cobertura de contexto de entidad con barras finales repetidas.
-- `tests/sonar-regex-reliability-contract.php` — contrato fuente para los tres patrones `S8786` resueltos.
+- `discadmin/admin-record-lists.js` — eliminación de `data-label` mediante `dataset`.
+- `js/public-sets-library.js` — inserción equivalente de controles mediante `Element.after()`.
+- `tests/sonar-dom-api-quick-wins-contract.php` — contrato de regresión para los dos findings Sonar tratados.
 
 ## Validación
 
-- Base exacta: `main` `e3e2bf6a8acae0366c30bf372c51f2d910b18de9`.
-- Ese SHA exacto de `main` pasó BRVTAL CI con `fast`, Chromium y `validate` verdes; los gates no aplicables quedaron omitidos según el selector de scope.
-- La rama debe pasar BRVTAL CI, SonarQube Cloud y revisión automatizada sobre el SHA exacto del PR antes del squash merge.
-- La validación dirigida incluye las suites Playwright existentes de SEO defaults y public measurement, además del contrato fuente nuevo.
+- Base exacta de preparación: `main` `c5c713ec94e344e753600d2315bff2bde7debbc5`.
+- Ese SHA exacto de `main` pasó BRVTAL CI #771 con `fast`, Chromium y `validate` verdes.
+- La rama debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes de ser elegible para merge.
+- Como existen PRs anteriores en la cola, antes del merge se recontrastará contra el `main` resultante, se actualizará este snapshot y se repetirán los gates aplicables.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Resolver cualquier finding válido de CI, Sonar o CodeRabbit sobre este PR; hacer squash merge solo con los gates aplicables verdes y verificar BRVTAL CI del SHA exacto resultante de `main`.
-- Resolver el `S8786` restante de `discadmin/theme-studio-v2.js` en un PR separado con cobertura del slug, sin reescribir el editor completo.
-- Continuar #451 por riesgo con los siguientes findings Reliability de DISCADMIN, priorizando problemas funcionales/accesibilidad antes de deuda puramente estilística.
+- Mantener el orden de integración serial de los PRs activos y aprovechar CI/Sonar/CodeRabbit en paralelo.
+- Resolver cualquier finding válido de este PR sin ampliar el alcance más allá de los quick wins DOM.
+- Continuar #451 con los HIGH restantes de Maintainability por riesgo, separando refactors de complejidad de cambios mecánicos de bajo riesgo.
 - Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
 
 ## Panorama general pendiente
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
-- **Sonar / calidad:** #451 — los BLOCKER de seguridad/globals, `S2871` y `S7727` ya se trabajaron; este deploy resuelve 3 de los 4 `S8786` identificados y deja Theme Studio aislado como siguiente bloque; después siguen Reliability y deuda Maintainability por riesgo y área.
+- **Theme Studio / calidad:** PR #456 — cierre del cuarto `S8786` y validación server-side del slug; pendiente cerrar gates exactos y merge serial.
+- **Accesibilidad DISCADMIN:** PR #457 — Blog, Media y Releases; PR #458 apilado — Content Core labels; ambos requieren recontraste final contra el `main` que resulte de los PRs anteriores.
+- **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
+- **Sonar / calidad:** #451 — BLOCKER y HIGH de Reliability tratados; continúan HIGH/MEDIUM de Maintainability y Reliability restante por riesgo y área.
 - **Archivo cultural:** #398 / #403 — profundizar relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory sin inferencias falsas.
 - **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4 y preparar lectura segura futura en Dashboard.
 - **SEO:** #390, #391 y #272 — workspace SEO, alineación del bloque actual y structured data por entidad.
