@@ -169,7 +169,7 @@
       ? event.target.closest('[data-health-open],[data-activity-open]')
       : null;
     if (!button) return;
-    const target = button.hasAttribute('data-health-open')
+    const target = 'healthOpen' in button.dataset
       ? healthRecordTarget(button)
       : activityRecordTarget(button);
     if (!target) return;
