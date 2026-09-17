@@ -59,8 +59,8 @@
           method: 'POST',
           body: JSON.stringify({email:data.get('email'),password:data.get('password')})
         });
-        csrf = response.csrf || '';
-        state.authed = true;
+        window.csrf = response.csrf || '';
+        window.state.authed = true;
         await window.go('dashboard');
       } catch (error) {
         const output = document.querySelector('.error');
@@ -79,14 +79,14 @@
         await nativeReq('/auth', {method:'DELETE'});
       } catch (error) {
         if (String(error?.message || '') === 'AUTH_REQUIRED') {
-          csrf = '';
+          window.csrf = '';
           return;
         }
         window.alert?.('LOGOUT COULD NOT BE CONFIRMED. TRY AGAIN.');
         return;
       }
-      csrf = '';
-      state.authed = false;
+      window.csrf = '';
+      window.state.authed = false;
       render();
     };
   }
@@ -110,8 +110,8 @@
       nativeReq('/artists'),
       nativeReq('/events')
     ]);
-    if (artistsResult.status === 'fulfilled') state.artists = artistsResult.value.data || [];
-    if (eventsResult.status === 'fulfilled') state.events = eventsResult.value.data || [];
+    if (artistsResult.status === 'fulfilled') window.state.artists = artistsResult.value.data || [];
+    if (eventsResult.status === 'fulfilled') window.state.events = eventsResult.value.data || [];
   }
 
   if (typeof nativeGo === 'function') {
