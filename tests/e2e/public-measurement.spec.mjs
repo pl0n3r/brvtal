@@ -2,8 +2,10 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const analyticsJs = readFileSync(join(process.cwd(), 'js/public-analytics.js'), 'utf8');
 const measurementJs = readFileSync(join(process.cwd(), 'js/public-measurement.js'), 'utf8');
 const url = 'http://127.0.0.1:4173/';
+const consentUrl = 'http://127.0.0.1:4173/public-measurement-consent-e2e.html';
 
 function harness() {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -27,6 +29,14 @@ function harness() {
         if (event.target.closest('a')) event.preventDefault();
       });
     </script>
+    <script>${measurementJs}</script>
+  </body></html>`;
+}
+
+function consentHarness() {
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body><main><section class="hero scene" style="height:100vh">HERO</section></main>
+    <script data-gtm-id="GTM-W23PHGJG">${analyticsJs}</script>
     <script>${measurementJs}</script>
   </body></html>`;
 }
@@ -82,4 +92,22 @@ test('accepted visitors emit normalized page, section, navigation, action and sc
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:analytics-settings-open')));
   await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_analytics_settings_open')).toBe(true);
+});
+
+test('accepting analytics starts measurement and records the consent action only after opt-in', async ({ page }) => {
+  let tagManagerRequests = 0;
+  await page.route('https://www.googletagmanager.com/gtm.js**', route => {
+    tagManagerRequests++;
+    return route.fulfill({ contentType:'text/javascript', body:'' });
+  });
+  await page.route(consentUrl, route => route.fulfill({ contentType:'text/html; charset=utf-8', body:consentHarness() }));
+  await page.goto(consentUrl);
+
+  expect(await measurementEvents(page)).toEqual([]);
+  expect(tagManagerRequests).toBe(0);
+
+  await page.getByRole('button', { name:'ALLOW ANALYTICS' }).click();
+  await expect.poll(() => tagManagerRequests).toBe(1);
+  await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_page_view')).toBe(true);
+  await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_analytics_consent' && item.action === 'accepted')).toBe(true);
 });
