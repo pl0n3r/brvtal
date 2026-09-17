@@ -23,6 +23,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `docs/ANALYTICS-MEASUREMENT.md` — actualiza el contrato de medición y GTM → GA4.
 - `js/public-analytics.js` — bootstrap inmediato de GTM y Consent Mode para Analytics.
 - `js/public-measurement.js` — elimina la compuerta basada en `localStorage` y mide desde primera carga.
+- `tests/e2e/discadmin-settings-v2.spec.mjs` — actualiza la expectativa de Settings a la política de carga inmediata.
 - `tests/e2e/public-analytics.spec.mjs` — verifica petición inmediata a GTM y ausencia de UI de consentimiento.
 - `tests/e2e/public-measurement.spec.mjs` — verifica medición inmediata, incluso ante valores legacy de rechazo.
 - `tests/public-analytics-contract.php` — contrato PHP actualizado para bootstrap inmediato.
