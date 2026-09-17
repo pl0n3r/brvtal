@@ -18,16 +18,17 @@ Este README es un **snapshot operativo de solo el deploy actual**. El contexto d
 - Event Record y páginas Artist/Set/Release pueden mostrar únicamente Memories publicados relacionados explícitamente.
 - El runtime core pasa a `app → roster → sets → archive → media → memory-relations`, reutilizando el mismo payload público sin segundo request CMS.
 - Se añade cobertura PHP, MariaDB y Playwright para atomicidad, target validation, rollback, cascade, draft/private filtering, migration-pending, mobile/touch y runtime order.
+- La migration usa el mismo tipo firmado de `media.id` para su FK; el contrato bloquea futuras incompatibilidades `SIGNED/UNSIGNED`.
 - **La migration NO fue ejecutada en producción.** Aplicar SQL sigue siendo una operación separada y explícita.
 
 ## Archivos modificados en este deploy
 
-**Diff funcional:** `19 archivos` · **+1225** líneas · **−22** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
+**Diff funcional:** `19 archivos` · **+1232** líneas · **−22** líneas *(sin contar README, porque este snapshot modifica su propio diff al actualizarse).*  
 Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` base de este deploy.
 
 ### DATA / ADMIN
 
-- `database/migration_media_relations_01.sql` — 🟢 NEW · **+13 / −0** · tabla aditiva many-to-many Media → Event/Artist/Set/Release con cascade al borrar Media.
+- `database/migration_media_relations_01.sql` — 🟢 NEW · **+13 / −0** · tabla aditiva many-to-many Media → Event/Artist/Set/Release, FK compatible con `media.id` y cascade al borrar Media.
 - `api/media-relations.php` — 🟢 NEW · **+177 / −0** · normalización, validación estricta, locking de targets, catálogo admin y reemplazo transaccional de relaciones.
 - `api/media-context.php` — 🟢 NEW · **+128 / −0** · endpoint protegido GET/PUT para contexto cultural y guardado atómico de metadata + relaciones.
 - `discadmin/media-relations.js` — 🟢 NEW · **+171 / −0** · editor CULTURAL CONTEXT dentro del inspector existente y fallback seguro si la migration falta.
@@ -45,9 +46,9 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 
 ### TESTS / CONTEXTO
 
-- `tests/media-relations-contract.php` — 🟢 NEW · **+83 / −0** · contratos de schema, auth/CSRF, atomicidad, privacidad, graph y runtime.
+- `tests/media-relations-contract.php` — 🟢 NEW · **+85 / −0** · contratos de schema/FK, auth/CSRF, atomicidad, privacidad, graph y runtime.
 - `tests/integration/media-relations.php` — 🟢 NEW · **+136 / −0** · MariaDB real: migration, de-dupe, locking, rollback, privacidad, draft Media y cascade.
-- `tests/e2e/discadmin-media-relations.spec.mjs` — 🟢 NEW · **+104 / −0** · inspector real, PUT combinado, fallback pre-migration y mobile.
+- `tests/e2e/discadmin-media-relations.spec.mjs` — 🟢 NEW · **+109 / −0** · inspector real bajo origen HTTP, PUT combinado, fallback pre-migration y mobile.
 - `tests/e2e/public-memories-phase-d.spec.mjs` — 🟢 NEW · **+80 / −0** · chips canónicos, escaping, search context, CONNECTED Memories y mobile.
 - `tests/e2e/public-mobile-performance.spec.mjs` — 🟡 MOD · **+6 / −3** · exige el nuevo módulo core en el orden/versionado correcto.
 - `package.json` — 🟡 MOD · **+1 / −1** · conecta la integración MariaDB al pipeline canónico.
@@ -63,7 +64,9 @@ Leyenda: 🟢 nuevo · 🟡 modificado · `+ / −` líneas frente al `main` bas
 - Esa base quedó completamente verde en **BRVTAL CI #655** después del merge de #412.
 - Scope canónico: issue **#415** · PR **#417** · parent **#398 Phase D** · rama `design/public-memories-phase-d`; #416 cerrado como duplicado.
 - No se ejecutó SQL de producción, no se añadió token/credencial y no se creó una segunda API pública.
-- BRVTAL CI **#656** llegó al contrato nuevo y detectó una aserción textual que esperaba `data.relations` / `data.media` aunque el runtime usa optional chaining `data?.relations` / `data?.media`. Se alineó el contrato sin cambiar lógica productiva ni reducir cobertura.
+- BRVTAL CI **#656** detectó una aserción textual del contrato incompatible con optional chaining y se alineó sin cambiar lógica productiva.
+- BRVTAL CI **#658** dejó `fast`, real-stack y WebKit verdes; Chromium expuso que el harness Media corría sobre `about:blank`, y MariaDB detectó que `media_relations.media_id` no coincidía en signedness con `media.id`.
+- Ambos hallazgos se corrigieron: Playwright usa un origen HTTP real y la migration/contrato mantienen el FK firmado compatible con Media.
 - Pendiente: BRVTAL CI + CodeRabbit sobre este head corregido; squash solo con `validate` verde y revisión limpia.
 - CI verde significará **VALIDATED IN CODE**, no **VALIDATED IN PRODUCTION**.
 
