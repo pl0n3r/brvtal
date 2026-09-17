@@ -12,7 +12,7 @@ brvtal_admin_require();
 <section data-admin-module="media" class="brvtal-media-library">
   <div class="media-toolbar">
     <div class="media-toolbar-main">
-      <input id="media-search" class="search" type="search" placeholder="Search media…" autocomplete="off">
+      <input id="media-search" class="search" type="search" aria-label="Search media library" placeholder="Search media…" autocomplete="off">
       <select id="media-type-filter" class="media-select" aria-label="Filter media type">
         <option value="">ALL TYPES</option>
         <option value="image">IMAGES</option>
@@ -27,7 +27,7 @@ brvtal_admin_require();
     <div class="media-toolbar-actions">
       <button id="media-register" class="btn ghost" type="button">REGISTER EXTERNAL</button>
       <button id="media-upload" class="btn red" type="button">+ UPLOAD MEDIA</button>
-      <input id="media-file" type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf">
+      <input id="media-file" type="file" aria-label="Choose media file to upload" hidden accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf">
     </div>
   </div>
 
@@ -36,7 +36,7 @@ brvtal_admin_require();
     <span>Originals are preserved. Image variants are generated when GD/WebP is available.</span>
   </div>
 
-  <div id="media-status" class="media-status" role="status" aria-live="polite"></div>
+  <output id="media-status" class="media-status" aria-live="polite"></output>
 
   <div class="media-layout">
     <div>
