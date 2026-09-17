@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const script = readFileSync(join(process.cwd(), 'discadmin/media-relations.js'), 'utf8');
 const styles = readFileSync(join(process.cwd(), 'discadmin/media-relations.css'), 'utf8');
+const harness = 'http://127.0.0.1:4173/discadmin/e2e-media-relations.html';
 
 const markup = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${styles}</style></head><body>
 <div id="media-grid"><button class="media-card active" type="button" data-media-id="9">MEMORY</button></div>
@@ -31,18 +32,13 @@ const context = {
   },
 };
 
+async function openHarness(page) {
+  await page.route(harness, route => route.fulfill({contentType:'text/html; charset=utf-8',body:markup}));
+  await page.goto(harness);
+}
+
 test('Media inspector saves metadata and cultural relations atomically through the context endpoint', async ({ page }) => {
   let savedPayload = null;
-  await page.setContent(markup);
-  await page.evaluate(() => {
-    window.__legacySaveClicks = 0;
-    document.getElementById('media-save').addEventListener('click', () => { window.__legacySaveClicks++; });
-    window.BRVTALMediaLibrary = {
-      notify(){},
-      async refresh(id){ window.__refreshId = id; },
-    };
-  });
-
   await page.route('**/api/media-context.php?id=9', async route => {
     if (route.request().method() === 'GET') {
       return route.fulfill({contentType:'application/json',body:JSON.stringify(context)});
@@ -51,6 +47,15 @@ test('Media inspector saves metadata and cultural relations atomically through t
     return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{media_id:9,relations_ready:true,relations:savedPayload.relations}})});
   });
   await page.route('**/api/auth', route => route.fulfill({contentType:'application/json',body:JSON.stringify({authenticated:true,csrf:'test-csrf'})}));
+  await openHarness(page);
+  await page.evaluate(() => {
+    window.__legacySaveClicks = 0;
+    document.getElementById('media-save').addEventListener('click', () => { window.__legacySaveClicks++; });
+    window.BRVTALMediaLibrary = {
+      notify(){},
+      async refresh(id){ window.__refreshId = id; },
+    };
+  });
 
   await page.addScriptTag({content:script});
   await expect(page.locator('.media-cultural-context')).toBeVisible();
@@ -72,16 +77,16 @@ test('Media inspector saves metadata and cultural relations atomically through t
 });
 
 test('Media inspector degrades honestly before the migration and leaves legacy metadata SAVE usable', async ({ page }) => {
-  await page.setContent(markup);
+  await page.route('**/api/media-context.php?id=9', route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({ok:true,data:{media_id:9,relations_ready:false,relations:[],relation_catalog:{}}}),
+  }));
+  await openHarness(page);
   await page.evaluate(() => {
     window.__legacySaveClicks = 0;
     document.getElementById('media-save').addEventListener('click', () => { window.__legacySaveClicks++; });
     window.BRVTALMediaLibrary = {notify(){},refresh(){}};
   });
-  await page.route('**/api/media-context.php?id=9', route => route.fulfill({
-    contentType:'application/json',
-    body:JSON.stringify({ok:true,data:{media_id:9,relations_ready:false,relations:[],relation_catalog:{}}}),
-  }));
 
   await page.addScriptTag({content:script});
   await expect(page.locator('.media-cultural-context')).toContainText('RELATIONS MIGRATION REQUIRED');
@@ -91,9 +96,9 @@ test('Media inspector degrades honestly before the migration and leaves legacy m
 
 test('Media cultural context remains touch-safe and avoids horizontal overflow on mobile', async ({ page }) => {
   await page.setViewportSize({width:390,height:844});
-  await page.setContent(markup);
-  await page.evaluate(() => { window.BRVTALMediaLibrary = {notify(){},refresh(){}}; });
   await page.route('**/api/media-context.php?id=9', route => route.fulfill({contentType:'application/json',body:JSON.stringify(context)}));
+  await openHarness(page);
+  await page.evaluate(() => { window.BRVTALMediaLibrary = {notify(){},refresh(){}}; });
   await page.addScriptTag({content:script});
 
   const option = page.locator('.media-cultural-option').first();
