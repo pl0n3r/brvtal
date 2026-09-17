@@ -16,6 +16,7 @@ GTM remains the only tag-delivery layer. The site does not load GA4 directly and
 | `brvtal_menu_toggle` | Main menu opens/closes | `action`, `control` |
 | `brvtal_navigation_click` | Header/menu navigation | `destination`, `source` |
 | `brvtal_outbound_click` | HTTP(S) navigation leaves BRVTAL | `destination` without query string |
+| `brvtal_analytics_consent` | Visitor explicitly accepts Analytics | `action=accepted`, `control=analytics_choice` |
 | `brvtal_analytics_settings_open` | An already-consented visitor opens Analytics preferences | `control` |
 
 The runtime also supports declarative content events through `data-measure-event="brvtal_..."` plus approved `data-measure-*` parameters. Content-specific Events, Artists, Sets, Memories and Contact instrumentation should use this shared contract instead of adding independent analytics listeners.
@@ -62,9 +63,10 @@ No title or database ID is inferred from arbitrary rendered text. Content module
 ## Consent behavior
 
 - Before Analytics acceptance, the measurement API returns without pushing events.
-- Accepting Analytics loads GTM and starts measurement from that point forward.
+- Accepting Analytics loads GTM, starts measurement, and can emit `brvtal_analytics_consent` only after the opt-in has been persisted.
+- A rejection before consent is **not** transmitted to GTM/GA4 because BRVTAL intentionally sends no analytics data before opt-in.
 - Section and scroll events that happened before consent are not replayed.
-- Revocation is handled by the canonical Analytics runtime: Consent Mode is updated to denied before GTM is unloaded/reloaded.
+- Revocation is handled by the canonical Analytics runtime: Consent Mode is updated to denied before GTM is unloaded/reloaded. The revocation click itself is not sent as a new analytics event.
 - Advertising consent remains denied by the current Analytics-only choice.
 
 ## GTM → GA4 mapping
@@ -81,6 +83,7 @@ Recommended initial mapping:
 | `brvtal_menu_toggle` | custom `menu_toggle` |
 | `brvtal_navigation_click` | custom `navigation_click` |
 | `brvtal_outbound_click` | custom `outbound_click` |
+| `brvtal_analytics_consent` | custom `analytics_consent` |
 | `brvtal_analytics_settings_open` | custom `analytics_settings_open` |
 
 ### Avoid duplicates
