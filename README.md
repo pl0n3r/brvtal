@@ -8,47 +8,47 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Corrige #391: el bloque compartido de SEO vuelve a respetar el gutter visual de los editores.
-- `.brvtal-seo-section` usa el mismo padding horizontal de 17 px que las secciones canónicas de Content Core.
-- El componente ocupa el ancho disponible sin escapar del contenedor ni generar overflow horizontal.
-- `grid-column:1/-1` evita que el SEO quede atrapado en una sola columna cuando se monta dentro de formularios grid, como Releases y editores legacy.
-- Se conserva la lógica existente de carga, preview y persistencia SEO; el cambio es exclusivamente de layout.
-- La regresión Playwright compara geometría real contra la sección canónica en desktop y verifica que mobile permanezca dentro del viewport.
+- Corrige #260 en Media Library móvil/tablet apilado.
+- Al tocar un asset, el inspector recién renderizado se revela inmediatamente mediante un desplazamiento explícito al panel de detalle.
+- El desplazamiento solo ocurre en selecciones iniciadas por el usuario y hasta 1050 px; desktop conserva su posición.
+- Refresh, upload, regeneración y otras recargas internas de la selección no fuerzan saltos de viewport.
+- La regresión Playwright cubre selección móvil, ausencia de salto en refresh interno y comportamiento desktop.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/seo-metadata.js` — contrato visual reutilizable del bloque SEO.
-- `tests/e2e/discadmin-seo-gutter.spec.mjs` — regresión desktop/mobile de gutter y overflow.
+- `discadmin/media-library.js` — revela el inspector tras una selección manual en layout apilado.
+- `tests/e2e/discadmin-media-mobile-inspector.spec.mjs` — regresiones móvil/desktop y protección contra saltos en refresh.
 
 ## Validación
 
-- Base exacta: `main` `ce91a61bb677dae4fdede7501438e92e9ccf2744`.
-- Ese SHA exacto pasó BRVTAL CI #859 y queda **VALIDATED IN CODE**.
-- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significa **VALIDATED IN CODE**, no validación de producción.
+- Base exacta: `main` `58d92fdf5ab75c5995a3d7f1c5edcc8a4a9f797c`.
+- Ese SHA exacto pasó BRVTAL CI #862 y queda **VALIDATED IN CODE**.
+- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit antes del squash merge.
+- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Cerrar gates exactos de #391, corregir findings válidos, hacer squash merge y verificar el nuevo `main`.
-- Corregir #260 para que el inspector de Media Library sea accesible inmediatamente al seleccionar un asset en móvil.
-- Continuar después con #388 y #365 como siguientes bloques pequeños/medianos independientes.
-- Mantener #451 activo por riesgo con findings revalidados contra el código actual.
+- Cerrar gates exactos de #260, corregir findings válidos, squash merge y verificar el nuevo `main`.
+- Continuar con #388: RESET LOG seguro desde System Status reutilizando el boundary existente.
+- Después atacar #365: Dashboard V2 como superficie autoritativa de Health/Activity con navegación al registro exacto.
+- Mantener #451 como burn-down continuo con cambios pequeños y revalidados.
 
 ## Panorama general pendiente
 
-- **Sonar / calidad:** #451 — continuar por riesgo y área, con PRs pequeños y comportamiento preservado.
-- **Media / mobile:** #260 — acercar el inspector al asset seleccionado en móvil.
-- **System Status:** #388 — RESET LOG seguro reutilizando el boundary existente con POST + auth + CSRF.
-- **Dashboard / DISCADMIN:** #365, #348 y #351 — consolidación del Dashboard, IA y Theme Studio.
-- **SEO editorial:** #182, #214, #204 y #272 deben sanearse antes de construir #390.
-- **Seguridad editorial / navegación:** #257, #216, #174 y #193 — dirty state, modal lifecycle y navegación transaccional.
+- **Sonar / calidad:** #451 continúa por riesgo y área, con PRs pequeños.
+- **System Status:** #388 — RESET LOG autenticado, con CSRF y confirmación.
+- **Dashboard / DISCADMIN:** #365, #348 y #351 — autoridad del Dashboard, IA y Theme Studio.
+- **Settings / Theme:** #191 — integridad referencial de `theme.active`.
 - **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
-- **Content / Media integrity:** #191, #224 y #252 — referencias válidas y edición coherente con el modelo.
-- **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log. #207 ya fue revalidado y cerrado.
-- **Bulk Actions:** #275 — eliminar el truncado silencioso de catálogos >500.
-- **Archivo cultural:** #398 / #403 — seguir con relaciones estructuradas reales y Event Records.
-- **Memories:** #415 / PR #434 requiere reconciliación cuidadosa con `main` y mantiene la migración de producción separada.
-- **Idioma:** #212 — futura experiencia ES/EN con español canónico y traducción automática por fases.
-- **Backups:** #389 — scheduling seguro y copia opcional a Google Drive con autorización externa.
-- **Performance / recovery:** optimizar solo ante regresiones o cuellos medidos y mantener producción separada de la validación CI.
+- **Apariencia:** #149 — completar Light en módulos modernos.
+- **Seguridad editorial / navegación:** #257, #216, #174 y #193.
+- **SEO editorial:** #182, #214, #204 y #272 antes de #390.
+- **Content / edición:** #224 y #252 — ticket types e integridad de media.
+- **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
+- **Bulk Actions:** #275 — resolver catálogos mayores de 500 sin truncado silencioso.
+- **Archivo cultural:** #398 / #403 — Event Records y relaciones estructuradas.
+- **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
+- **Idioma:** #212 — ES canónico + EN automático por fases.
+- **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
