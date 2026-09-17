@@ -13,8 +13,18 @@
   const escapeHtml = value => String(value ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-  const safeSlug = value => String(value || '').trim().toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  function trimEdgeDashes(value) {
+    let start = 0;
+    let end = value.length;
+    while (start < end && value.startsWith('-', start)) start += 1;
+    while (end > start && value.endsWith('-', end)) end -= 1;
+    return value.slice(start, end);
+  }
+  const safeSlug = value => trimEdgeDashes(
+    trimEdgeDashes(
+      String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-')
+    ).slice(0, 60)
+  );
   const imagePath = value => {
     const raw = String(value || '').trim();
     if (!raw) return '';
