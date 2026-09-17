@@ -252,7 +252,7 @@ window.BRVTALMediaLibrary = (() => {
       `<div class="media-month-heading">${esc(monthLabel(key))}<span>${rows.length}</span></div>` +
       rows.map(item => card(item, store.selected && Number(store.selected.id) === Number(item.id))).join('')
     ).join('');
-    grid.querySelectorAll('[data-media-id]').forEach(btn => btn.addEventListener('click', () => select(Number(btn.dataset.mediaId))));
+    grid.querySelectorAll('[data-media-id]').forEach(btn => btn.addEventListener('click', () => select(Number(btn.dataset.mediaId), {reveal:true})));
   }
 
   function renderInspector(item) {
@@ -319,7 +319,7 @@ window.BRVTALMediaLibrary = (() => {
     } catch (e) { status('Could not regenerate variants: ' + e.message, 'err'); }
   }
 
-  async function select(id) {
+  async function select(id, options = {}) {
     const loadId = ++selectionLoadId;
     selectionController?.abort();
     const controller = new AbortController();
@@ -330,6 +330,9 @@ window.BRVTALMediaLibrary = (() => {
       if (loadId !== selectionLoadId) return;
       store.selected = j.data;
       renderGrid(); renderInspector(store.selected); status('');
+      if (options.reveal && window.matchMedia('(max-width: 1050px)').matches) {
+        store.root?.querySelector('#media-inspector')?.scrollIntoView({behavior:'auto',block:'start'});
+      }
     } catch (e) {
       if (e?.name === 'AbortError' || loadId !== selectionLoadId) return;
       status('Unable to load asset: ' + e.message, 'err');
