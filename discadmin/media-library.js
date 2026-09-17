@@ -9,7 +9,7 @@ window.BRVTALMediaLibrary = (() => {
   let selectionLoadId = 0;
   let selectionController = null;
 
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[ch]));
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const bytes = n => {
     n = Number(n || 0);
     if (!n) return '0 B';
