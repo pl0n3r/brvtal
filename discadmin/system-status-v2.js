@@ -39,10 +39,17 @@
     return `${Math.floor(hours / 24)}D`;
   }
 
-  async function fetchJson(url) {
-    const response = await fetch(url, {credentials:'same-origin', cache:'no-store'});
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, {
+      credentials:'same-origin',
+      cache:'no-store',
+      ...options,
+    });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP_${response.status}`);
+    if (!response.ok || payload.ok === false) {
+      const requestError = String(payload.error ?? '').trim();
+      throw new Error(requestError === '' ? `HTTP_${response.status}` : requestError);
+    }
     return payload;
   }
 
@@ -92,22 +99,14 @@
   }
 
   async function requestLogReset(token) {
-    const response = await fetch(LOG_RESET, {
+    return fetchJson(LOG_RESET, {
       method:'POST',
-      credentials:'same-origin',
-      cache:'no-store',
       headers:{
         'Accept':'application/json',
         'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
       },
       body:new URLSearchParams({csrf:token}).toString(),
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.ok === false) {
-      const resetError = String(payload.error ?? '').trim();
-      throw new Error(resetError === '' ? `HTTP_${response.status}` : resetError);
-    }
-    return payload;
   }
 
   async function refreshLogsAfterReset(root) {
