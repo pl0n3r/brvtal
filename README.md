@@ -8,50 +8,48 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con el HIGH `javascript:S7761` revalidado en la navegación de Content Core.
-- `discadmin/content-core-nav.js` deja de consultar `data-health-open` mediante `hasAttribute()` y usa presencia de la clave `healthOpen` en `dataset`.
-- Se preserva exactamente la semántica anterior: `data-health-open=""` sigue clasificando el botón como Content Health; no se usa truthiness del valor.
-- La regresión Playwright existente ahora fuerza `data-health-open=""`, hace clic en OPEN y exige que el shell navegue a Events y abra exactamente el Event #7 sin feedback de error.
-- Se añade un contrato fuente auto-descubierto que exige la comprobación por presencia y bloquea el regreso de `hasAttribute('data-health-open')`.
-- No se modifican APIs, base de datos, permisos, rutas, estilos ni comportamiento visible.
+- Continúa #451 con dos quick wins DOM revalidados en Media Library.
+- `handleImageError()` elimina el fallback consumido mediante `delete img.dataset.fallback`, preservando la semántica de un solo reintento antes de degradar a placeholder.
+- `decoratePickerInputs()` usa `input.after(button)` para mantener el botón `SELECT MEDIA` inmediatamente después del input decorado.
+- La regresión Playwright verifica la adyacencia del botón y que `data-fallback` desaparece antes de un segundo fallo.
+- Se añade un contrato auto-descubierto que exige las APIs DOM modernas y bloquea el regreso de las expresiones legacy equivalentes.
+- No se modifican APIs, base de datos, rutas, permisos, estilos ni contratos públicos.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/content-core-nav.js` — modernización equivalente de la detección de `data-health-open`.
-- `tests/content-core-health-presence-contract.php` — contrato fuente de semántica por presencia.
-- `tests/e2e/discadmin-content-health-navigation.spec.mjs` — regresión ejecutable del atributo presente con valor vacío.
+- `discadmin/media-library.js` — modernización equivalente de eliminación de dataset e inserción DOM.
+- `tests/media-library-dom-contract.php` — contrato fuente para las dos APIs DOM.
+- `tests/e2e/discadmin-media.spec.mjs` — regresiones de adyacencia y fallback de un solo uso.
 
 ## Validación
 
-- Base exacta: `main` `4b9daa710a7b917ff7887f10a73f64427a23d3f9`.
-- Ese SHA exacto pasó BRVTAL CI #855 (`fast`, `database`, `real-stack`, `chromium`, `validate`) y #469 queda **VALIDATED IN CODE**.
-- La rama fue reconstruida sobre ese `main` exacto después del merge de #469; no arrastra el README ni archivos del sitemap como diff propio.
-- Este head debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significará **VALIDATED IN CODE**, no validación de producción.
+- Base exacta: `main` `8dfabab609e2db087f5d81b95031e895da7e8e93`.
+- Ese SHA exacto pasó BRVTAL CI #857 y queda **VALIDATED IN CODE**.
+- La rama permanece limitada a los dos cambios funcionales de Media Library y su cobertura.
+- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
+- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`; CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Cerrar gates exactos de este bloque, corregir findings válidos, squash merge y verificar el nuevo `main`.
-- Revalidar y tratar por separado los quick wins DOM todavía vigentes en `discadmin/media-library.js` (`dataset` y `Element.after()`) sin mezclar complejidad.
-- Continuar #451 por riesgo con findings vigentes recontrastados contra el código actual.
-- Mantener #434 (Memories) separado y no ejecutar automáticamente su migración de producción.
+- Cerrar gates exactos de este bloque, corregir findings válidos, hacer squash merge y verificar el nuevo `main`.
+- Atacar #391 como siguiente quick win: alinear el bloque SEO con el gutter canónico de los editores.
+- Después corregir #260 para que el inspector de Media Library sea accesible inmediatamente al seleccionar un asset en móvil.
+- Mantener #451 activo por riesgo con findings revalidados contra el código actual.
 
 ## Panorama general pendiente
 
-- **Sitemap / SEO técnico:** #469 integrado y **VALIDATED IN CODE**; la validación externa de producción/Search Console sigue separada de CI.
-- **Content Core navigation:** este deploy cierra el HIGH `S7761` de presencia de `data-health-open` con contrato y Playwright.
-- **Media Library DOM:** quick wins `dataset`/`Element.after()` siguen revalidados; tratarlos en un PR pequeño separado.
-- **Memories administrable:** #415 / PR #434 — cerrar su Quality Gate y tratar la migración de producción aparte.
-- **Sonar / calidad:** #451 — continuar por riesgo y área evitando refactors masivos.
-- **Archivo cultural:** #398 / #403 — relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory.
-- **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4.
-- **SEO editorial:** #390, #391 y #272 — workspace SEO y structured data por entidad.
-- **DISCADMIN:** #348, #351 y #365 — navegación, Theme Studio y consolidación de Dashboard.
-- **Operación / historial:** #232, #207 y #388 — Activity, System Status y RESET LOG seguro.
-- **Media / mobile:** #260 — inspector accesible inmediatamente tras seleccionar un asset en móvil.
-- **Seguridad editorial / UX:** #257 — proteger cambios no guardados.
-- **Backups:** #389 — scheduling seguro y copia opcional a Google Drive con autorización.
-- **Bulk Actions:** #275 — superar el recorte local de 500 sin búsquedas parciales engañosas.
-- **Idioma:** #212 — futura experiencia ES/EN manteniendo español canónico.
-- **Performance / recovery:** optimizar solo ante regresiones o cuellos medidos.
+- **Sonar / calidad:** #451 — continuar por riesgo y área, con PRs pequeños y comportamiento preservado.
+- **SEO editorial:** #391 es el siguiente quick win; #182, #214, #204 y #272 deben sanearse antes de construir #390.
+- **Media / mobile:** #260 — acercar el inspector al asset seleccionado en móvil.
+- **Dashboard / DISCADMIN:** #365, #348 y #351 — consolidación del Dashboard, IA y Theme Studio.
+- **Seguridad editorial / navegación:** #257, #216, #174 y #193 — dirty state, modal lifecycle y navegación transaccional.
+- **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
+- **Content / Media integrity:** #191, #224 y #252 — referencias válidas y edición coherente con el modelo.
+- **Activity / operaciones:** #232, #195 y #388 — historial navegable, cobertura de audit log y RESET LOG seguro. #207 ya fue revalidado y cerrado.
+- **Bulk Actions:** #275 — eliminar el truncado silencioso de catálogos >500.
+- **Archivo cultural:** #398 / #403 — seguir con relaciones estructuradas reales y Event Records.
+- **Memories:** #415 / PR #434 requiere reconciliación cuidadosa con `main` y mantiene la migración de producción separada.
+- **Idioma:** #212 — futura experiencia ES/EN con español canónico y traducción automática por fases.
+- **Backups:** #389 — scheduling seguro y copia opcional a Google Drive con autorización externa.
+- **Performance / recovery:** optimizar solo ante regresiones o cuellos medidos y mantener producción separada de la validación CI.

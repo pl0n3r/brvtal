@@ -129,6 +129,7 @@ test('media picker normalizes paths, updates inputs/previews, and shows guidance
   await loadMediaLibraryHarness(page);
 
   await expect(page.locator('.media-picker-btn').first()).toBeVisible();
+  await expect(page.locator('#f_cover_image + .media-picker-btn')).toHaveText('SELECT MEDIA');
   await page.locator('.media-picker-btn').first().click();
   await expect(page.locator('.brvtal-media-picker h3')).toHaveText('SELECT MEDIA');
   await page.getByRole('button', { name: /Genesis poster/i }).click();
@@ -136,6 +137,24 @@ test('media picker normalizes paths, updates inputs/previews, and shows guidance
   await expect(page.locator('#f_cover_image')).toHaveValue('/uploads/media/2026/09/genesis.jpg');
   await expect(page.locator('.thumbcell img').first()).toHaveAttribute('src', '/uploads/media/2026/09/genesis.jpg');
   await expect(page.getByText('Media selected. Press SAVE to persist this record.')).toBeVisible();
+});
+
+test('image fallback is consumed before a repeated failure degrades to a placeholder', async ({ page }) => {
+  await loadHarness(page, `<script>${mediaLibraryJs}</script>`);
+  await page.evaluate(() => {
+    const img = document.createElement('img');
+    img.id = 'fallback-image';
+    img.src = '/uploads/media/generated.webp';
+    img.dataset.fallback = '/uploads/media/original.jpg';
+    document.body.appendChild(img);
+    window.BRVTALMediaLibrary.handleImageError(img);
+  });
+
+  await expect(page.locator('#fallback-image')).toHaveAttribute('src', '/uploads/media/original.jpg');
+  await expect(page.locator('#fallback-image')).not.toHaveAttribute('data-fallback');
+
+  await page.evaluate(() => window.BRVTALMediaLibrary.handleImageError(document.getElementById('fallback-image')));
+  await expect(page.locator('.media-kind')).toHaveText('IMG');
 });
 
 test('media inspector previews contexts and submits a focal point regeneration', async ({ page }) => {
