@@ -62,7 +62,7 @@ admin_search_a11y_assert(
     'Screen-reader-only labels must remain visually hidden without deprecated clip.'
 );
 admin_search_a11y_assert(
-    !str_contains($adminCss, 'clip:rect('),
+    preg_match('/\bclip\s*:\s*rect\s*\(/i', $adminCss) !== 1,
     'Screen-reader-only utility must not restore deprecated clip.'
 );
 
