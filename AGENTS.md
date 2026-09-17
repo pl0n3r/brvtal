@@ -187,7 +187,7 @@ Implemented:
 - Back/Forward restores discovery state while preserving hashes;
 - exact-deploy Production Performance evidence with modern Chromium mobile/desktop metrics, LCP breakdown and resource waterfall diagnostics;
 - SEO canonical/OG/Twitter/JSON-LD/sitemap/robots/404-noindex safeguards;
-- consent-gated Google Tag Manager as the sole public tag-delivery layer; direct GA4 loading is retired and GA4/pixels/other optional tags are configured inside GTM.
+- Google Tag Manager as the sole public tag-delivery layer, loaded automatically on public pages; direct GA4 loading is retired and GA4/pixels/other optional tags are configured inside GTM.
 
 ### Media Engine
 
@@ -225,7 +225,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 22. **Public Roster semantics come from real Artist lifecycle data.** `active` and `alumni` are the only collective-membership states exposed as such; an Artist with no membership is displayed contextually as a collaborator/network Artist, never persisted as a fake membership tier. The public Roster links to canonical Artist pages, does not treat bio text as genre metadata, and does not infer Memories or other relationships that are not structurally modeled.
 23. **System Status separates operational health from development backlog.** `ATTENTION REQUIRED` may surface both platform signals and open GitHub Issues, but GitHub backlog items are read-only development metadata and never lower the platform health score. A GitHub/cache outage must render backlog as unavailable/stale, never as a fake zero or a global “no active issues” claim. The integration stays server-side, anonymous/public, bounded and cached for shared hosting.
 24. **Public Sets discovery is relationship-driven, not taxonomy-invented.** The listening library uses only published Set records plus public Artist/Event relations already modeled by `sets_media`; the API sanitizes those relations against final public pools before delivery. Set titles lead to canonical `/sets/{slug}` pages, external platforms remain secondary LISTEN actions, no genre is inferred from title/description, and a valid empty API result is distinct from a data/runtime failure.
-25. **Google Tag Manager is the single public tag-delivery layer.** DISCADMIN stores only a validated `GTM-...` container ID; direct GA4 loading and raw executable analytics snippets are not part of the primary model. GTM remains blocked until explicit Analytics consent, revocation sends a denied Consent Mode update before unloading the container, and the Analytics choice never grants advertising storage/user-data/personalization consent.
+25. **Google Tag Manager is the single public tag-delivery layer.** DISCADMIN stores only a validated `GTM-...` container ID; direct GA4 loading and raw executable analytics snippets are not part of the primary model. GTM loads automatically on every public page with analytics storage granted at bootstrap; BRVTAL keeps advertising storage, advertising user data and advertising personalization denied. Legacy Analytics acceptance state is not a runtime gate.
 
 ---
 
