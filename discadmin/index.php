@@ -5,6 +5,13 @@ ob_start();
 require __DIR__ . '/index-core.php';
 $html = (string)ob_get_clean();
 
+$runtimeDeclaration = "const API='../api/index.php';let csrf='';let state=";
+$explicitRuntimeDeclaration = "const API='../api/index.php';window.csrf='';window.state=";
+$html = str_replace($runtimeDeclaration, $explicitRuntimeDeclaration, $html, $runtimeReplacementCount);
+if ($runtimeReplacementCount !== 1) {
+    throw new RuntimeException('DISCADMIN runtime declaration could not be made explicit');
+}
+
 $phpRuntime = htmlspecialchars(PHP_VERSION, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $html = preg_replace(
     '~<div class="techcard"><h3>PHP</h3><div class="techvalue">[^<]*</div></div>~',
