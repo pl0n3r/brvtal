@@ -226,7 +226,7 @@ window.BRVTALMediaLibrary = (() => {
     const select = store.root.querySelector('#media-month-filter');
     if (!select) return;
     const previous = select.value;
-    const months = [...new Set(store.items.map(monthKey))].sort().reverse();
+    const months = [...new Set(store.items.map(monthKey))].sort((a, b) => b.localeCompare(a));
     select.innerHTML = '<option value="">ALL DATES</option>' + months.map(m => `<option value="${esc(m)}">${esc(monthLabel(m))}</option>`).join('');
     if (months.includes(previous)) select.value = previous;
   }
