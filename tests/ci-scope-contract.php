@@ -96,9 +96,10 @@ ci_scope_expect(str_contains($codeRabbit, 'request_changes_workflow: false'), 'C
 ci_scope_expect(str_contains($codeRabbit, 'base_branches:') && str_contains($codeRabbit, '- main'), 'CodeRabbit auto-review must target main PRs');
 ci_scope_expect(str_contains($codeRabbit, 'Treat AGENTS.md as canonical'), 'CodeRabbit security review must follow canonical repository guidance');
 
-ci_scope_expect(str_contains($sonar, 'sonar.sources=.'), 'SonarQube Cloud automatic analysis must keep the repository root as source scope');
+ci_scope_expect(str_contains($sonar, 'sonar.sources=api,config,css,database,discadmin,js,scripts,index.html,index.php,sitemap.php'), 'SonarQube Cloud automatic analysis must use explicit production source roots');
+ci_scope_expect(!str_contains($sonar, 'sonar.sources=.'), 'SonarQube Cloud source scope must not contain the test tree through the repository root');
 ci_scope_expect(str_contains($sonar, 'sonar.tests=tests'), 'SonarQube Cloud must classify tests separately from source code');
-ci_scope_expect(str_contains($sonar, 'sonar.exclusions=tests,assets,uploads,.private,discadmin/qrcode.min.js'), 'SonarQube Cloud automatic analysis must exclude test/private/binary surfaces using simple paths');
+ci_scope_expect(str_contains($sonar, 'sonar.exclusions=discadmin/qrcode.min.js'), 'SonarQube Cloud must keep the vendored QR bundle out of analysis');
 ci_scope_expect(!str_contains($sonar, '/**') && !str_contains($sonar, 'sonar.test.inclusions='), 'automatic-analysis properties must not use unsupported wildcard path patterns');
 ci_scope_expect(!str_contains($workflow, 'sonarqube-scan-action') && !str_contains($workflow, 'sonarcloud-github-action'), 'BRVTAL CI must not duplicate SonarQube Cloud automatic analysis');
 
