@@ -14,6 +14,7 @@ $renderer = (string)file_get_contents(__DIR__ . '/../index.php');
 $seo = (string)file_get_contents(__DIR__ . '/../config/public_seo.php');
 $routes = (string)file_get_contents(__DIR__ . '/../config/public_routes.php');
 $sitemap = (string)file_get_contents(__DIR__ . '/../sitemap.php');
+$sitemapXml = (string)file_get_contents(__DIR__ . '/../config/public_sitemap.php');
 $pages = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 $notFound = (string)file_get_contents(__DIR__ . '/../config/public_not_found.php');
 $robots = (string)file_get_contents(__DIR__ . '/../robots.txt');
@@ -39,7 +40,11 @@ public_seo_expect(str_contains($notFound, '<meta name="robots" content="noindex,
 public_seo_expect(str_contains($notFound, 'RESOURCE NOT FOUND'), 'not-found HTML must clearly identify the missing resource');
 public_seo_expect(str_contains($notFound, 'BACK HOME'), 'not-found HTML must provide a clear recovery route');
 public_seo_expect(str_contains($router, 'sitemap.php'), 'sitemap.xml must be served dynamically');
-public_seo_expect(str_contains($sitemap, '<urlset'), 'sitemap must use the standard XML URL set');
+public_seo_expect(
+    str_contains($sitemap, 'brvtal_public_sitemap_xml($urls, $base)')
+        && str_contains($sitemapXml, '<urlset xmlns='),
+    'sitemap must use the standard XML URL set through the validated renderer'
+);
 public_seo_expect(str_contains($seo, 'brvtal_public_event_is_visible($row)'), 'canonical Event resolver must apply publication-proof visibility');
 public_seo_expect(str_contains($seo, 'status,event_date,published_at'), 'canonical Event resolver must hydrate lifecycle evidence used by visibility policy');
 public_seo_expect(str_contains($sitemap, 'brvtal_public_event_is_visible($row)'), 'sitemap must apply the same canonical Event visibility predicate');
