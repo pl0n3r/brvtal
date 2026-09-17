@@ -69,6 +69,15 @@ test('Sets library renders canonical records and real Artist/Event relations fro
   await expect(independent.locator('.set-library-relations a')).toHaveCount(0);
 });
 
+test('Sets discovery controls are inserted immediately after the intro block', async ({ page }) => {
+  await openWithSets(page);
+
+  const controlsFollowIntro = await page.locator('.sets-intro').evaluate(intro =>
+    intro.nextElementSibling?.classList.contains('sets-library-controls') === true
+  );
+  expect(controlsFollowIntro).toBe(true);
+});
+
 test('Artist and Event modes filter only structurally related Sets and expose specific relation choices', async ({ page }) => {
   await openWithSets(page);
 
