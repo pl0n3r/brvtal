@@ -2,22 +2,30 @@
 
 BRVTAL uses one public measurement path:
 
-**Public UI → consent-aware `dataLayer` → Google Tag Manager → GA4 / optional destinations**
+**Public UI → `dataLayer` → Google Tag Manager → GA4 / optional destinations**
 
-GTM remains the only tag-delivery layer. The site does not load GA4 directly and does not send BRVTAL measurement events before the visitor has accepted Analytics.
+Google Tag Manager is the only public tag-delivery layer. It loads automatically on public pages when a valid `GTM-...` container is configured. BRVTAL does not load GA4 directly.
+
+## Bootstrap policy
+
+- GTM is requested automatically on the first public page load; no Analytics acceptance dialog is required.
+- `analytics_storage` starts as `granted` so analytics measurement can begin immediately.
+- `ad_storage`, `ad_user_data` and `ad_personalization` remain `denied` in the BRVTAL bootstrap.
+- BRVTAL itself does not inject arbitrary raw analytics snippets from DISCADMIN; optional tags are configured inside GTM.
+- Legacy `brvtal.analytics.choice.v1` values are ignored by the current runtime.
+
+Any tag added inside GTM must still be configured appropriately for the data it collects and the jurisdictions in which it is used.
 
 ## Foundation events
 
 | dataLayer event | Meaning | Core parameters |
 |---|---|---|
-| `brvtal_page_view` | Consented public page view | `page_type`, optional `content_type`, `content_slug` |
+| `brvtal_page_view` | Public page view | `page_type`, optional `content_type`, `content_slug` |
 | `brvtal_section_view` | A Home section reaches the controlled viewport band | `section` |
 | `brvtal_scroll_depth` | Visitor crosses a meaningful depth milestone | `depth` = 25 / 50 / 75 / 90 |
 | `brvtal_menu_toggle` | Main menu opens/closes | `action`, `control` |
 | `brvtal_navigation_click` | Header/menu navigation | `destination`, `source` |
 | `brvtal_outbound_click` | HTTP(S) navigation leaves BRVTAL | `destination` without query string |
-| `brvtal_analytics_consent` | Visitor explicitly accepts Analytics | `action=accepted`, `control=analytics_choice` |
-| `brvtal_analytics_settings_open` | An already-consented visitor opens Analytics preferences | `control` |
 
 The runtime also supports declarative content events through `data-measure-event="brvtal_..."` plus approved `data-measure-*` parameters. Content-specific Events, Artists, Sets, Memories and Contact instrumentation should use this shared contract instead of adding independent analytics listeners.
 
@@ -44,7 +52,7 @@ The runtime accepts only an explicit allowlist. Current fields are:
 - `result_state`
 - `depth`
 
-Arbitrary DOM text, form values, email addresses, names, IPs, query strings, admin/session data and unknown dataset fields are not harvested.
+Arbitrary DOM text, form values, email addresses, names, IPs, query strings, admin/session data and unknown dataset fields are not harvested by the BRVTAL measurement runtime.
 
 ## Page context
 
@@ -60,15 +68,6 @@ The shared runtime derives stable context from the public route:
 
 No title or database ID is inferred from arbitrary rendered text. Content modules may pass those fields only when they already have structured public data.
 
-## Consent behavior
-
-- Before Analytics acceptance, the measurement API returns without pushing events.
-- Accepting Analytics loads GTM, starts measurement, and can emit `brvtal_analytics_consent` only after the opt-in has been persisted.
-- A rejection before consent is **not** transmitted to GTM/GA4 because BRVTAL intentionally sends no analytics data before opt-in.
-- Section and scroll events that happened before consent are not replayed.
-- Revocation is handled by the canonical Analytics runtime: Consent Mode is updated to denied before GTM is unloaded/reloaded. The revocation click itself is not sent as a new analytics event.
-- Advertising consent remains denied by the current Analytics-only choice.
-
 ## GTM → GA4 mapping
 
 Create GTM **Custom Event** triggers for the `brvtal_*` events and Data Layer Variables for the parameters above. Configure GA4 event tags from those triggers.
@@ -83,8 +82,6 @@ Recommended initial mapping:
 | `brvtal_menu_toggle` | custom `menu_toggle` |
 | `brvtal_navigation_click` | custom `navigation_click` |
 | `brvtal_outbound_click` | custom `outbound_click` |
-| `brvtal_analytics_consent` | custom `analytics_consent` |
-| `brvtal_analytics_settings_open` | custom `analytics_settings_open` |
 
 ### Avoid duplicates
 
@@ -92,7 +89,7 @@ If `brvtal_page_view` is mapped to GA4 `page_view`, configure the Google tag in 
 
 ## Runtime API
 
-Consented public modules may emit structured events through:
+Public modules may emit structured events through:
 
 ```js
 window.BRVTALMeasure?.push('brvtal_example_action', {
@@ -104,7 +101,7 @@ window.BRVTALMeasure?.push('brvtal_example_action', {
 });
 ```
 
-The API still enforces consent, event-name format and the parameter allowlist.
+The API enforces event-name format and the parameter allowlist.
 
 ## Next measurement slices
 
