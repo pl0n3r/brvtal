@@ -47,8 +47,13 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     $schemaType = $definition['schema_type'];
     $whereParameters = $definition['parameters'];
     $imageSelect = $imageField === '' ? "'' AS image" : "`{$imageField}` AS image";
-    $eventSelect = $definition['event_visibility'] ? ',status,event_date,published_at' : '';
-    $sql = "SELECT id,slug,`{$titleField}` AS title,`{$descriptionField}` AS description,seo_title,seo_description,{$imageSelect}{$eventSelect} FROM `{$table}` WHERE slug=? AND {$where} LIMIT 1";
+    $eventSelect = $definition['event_visibility']
+        ? ',status,event_date,published_at'
+        : '';
+    $sql = "SELECT id,slug,`{$titleField}` AS title,"
+        . "`{$descriptionField}` AS description,seo_title,seo_description,"
+        . "{$imageSelect}{$eventSelect} FROM `{$table}` "
+        . "WHERE slug=? AND {$where} LIMIT 1";
     try {
         $statement = $pdo->prepare($sql);
         $statement->execute(array_merge([$slug], $whereParameters));
@@ -56,7 +61,8 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     } catch (Throwable) {
         return null;
     }
-    if (!$row || ($definition['event_visibility'] && !brvtal_public_event_is_visible($row))) return null;
+    $requiresEventVisibility = $definition['event_visibility'];
+    if (!$row || ($requiresEventVisibility && !brvtal_public_event_is_visible($row))) return null;
     if ($type === 'pages') {
         $row['description'] = brvtal_page_content_plain_text($row['description'] ?? '');
     }
