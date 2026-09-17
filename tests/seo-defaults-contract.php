@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/seo_defaults.php';
+require_once __DIR__ . '/../config/public_routes.php';
 
 function seo_defaults_assert(bool $condition, string $message): void
 {
@@ -53,8 +54,12 @@ $metadataPos = strpos($entry, '/discadmin/seo-metadata.js');
 seo_defaults_assert($defaultsPos !== false, 'DISCADMIN must load the SEO defaults enhancement');
 seo_defaults_assert($metadataPos !== false && $defaultsPos < $metadataPos, 'SEO defaults must wrap fetch before the metadata persistence enhancement');
 
+$definitions = brvtal_public_content_definitions();
+seo_defaults_assert(
+    ($definitions['pages']['description_field'] ?? null) === 'content_json',
+    'Pages must derive public fallback descriptions from content JSON'
+);
 $publicSeo = (string)file_get_contents(__DIR__ . '/../config/public_seo.php');
-seo_defaults_assert(str_contains($publicSeo, "'pages' => ['pages', 'title', 'content_json'"), 'Pages must derive public fallback descriptions from content JSON');
 seo_defaults_assert(str_contains($publicSeo, "brvtal_seo_default_description(\$entity['description'] ?? '', 160)"), 'public automatic descriptions must use the SEO cap');
 
 echo "BRVTAL SEO editorial defaults contract tests passed.\n";
