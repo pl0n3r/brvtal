@@ -8,43 +8,45 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- #435 corrige los dos BLOCKER de seguridad reportados por SonarQube Cloud sobre `main` sin mezclar el trabajo con Memories ni con la limpieza general de deuda Sonar.
-- El Archive público deja de construir contenido derivado del API con `innerHTML`; tarjetas, filtros, textos y enlaces se crean con DOM APIs, `textContent` y propiedades de nodo.
-- URLs de imágenes y tickets del Archive aceptan únicamente esquemas HTTP(S); esquemas no permitidos se descartan antes de asignarse al DOM.
-- El enlace de conexiones del archivo se construye desde un path local conocido y un ID numérico, sin propagar el URL completo controlable del navegador al renderizado.
-- `scripts/update-release-metadata.py` ancla la lectura/escritura a `config/version.php` resuelto desde la ubicación real del repositorio y rechaza escapes fuera de `config`.
-- Los callbacks usados por `Array.map(...)` en Archive se adaptan explícitamente para evitar las dos advertencias de Reliability introducidas por el primer hardening.
-- Se añade cobertura Playwright con payloads hostiles para demostrar que strings HTML se renderizan como texto y que `javascript:` no genera imágenes ni enlaces ejecutables.
-- El contrato Sonar auto-descubierto impide reintroducir `innerHTML`, callbacks directos problemáticos o una ruta de metadata dependiente del working directory.
-- El resto del baseline Sonar queda documentado y priorizado en #451; el finding de `discadmin/media-library.js` se atiende allí en un PR separado para mantener #438 enfocado.
+- Continúa #451 atacando los cuatro BLOCKER `javascript:S2703` restantes del baseline Sonar sin mezclar refactors de Maintainability de otras áreas.
+- La ruta canónica `/discadmin` expone `csrf` y `state` como propiedades explícitas de `window` en lugar de depender de bindings globales léxicos que los módulos externos modificaban implícitamente.
+- `admin-auth-boundary.js`, `admin-reliability.js` y `totp-login.js` actualizan el mismo estado/CSRF canónico mediante `window.state` y `window.csrf`.
+- El antiguo Hero Slider state bridge deja de crear un setter con asignación implícita y pasa a verificar la superficie explícita ya creada por el shell.
+- `index-core.php` conserva su fallback interno: el override TOTP solo adopta el estado explícito cuando se ejecuta desde la ruta canónica envuelta por `discadmin/index.php`.
+- Se añade un contrato auto-descubierto que impide reintroducir asignaciones implícitas de `csrf` o `state`, y la prueba Playwright del boundary usa la nueva superficie explícita.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `js/archive.js` — elimina sinks DOM XSS, endurece URLs y adapta callbacks de `map`.
-- `scripts/update-release-metadata.py` — ancla y valida la ruta fija de metadata de release.
-- `tests/e2e/public-archive.spec.mjs` — prueba ejecutable contra HTML/XSS y esquemas URL hostiles.
-- `tests/sonar-security-contract.php` — regresión contractual para los hardenings y callbacks del Archive.
+- `discadmin/index.php` — convierte la declaración runtime del shell canónico a `window.csrf` / `window.state` y falla si el patrón esperado no aparece exactamente una vez.
+- `discadmin/admin-auth-boundary.js` — limpia sesión/CSRF usando propiedades explícitas.
+- `discadmin/admin-reliability.js` — login, logout y relaciones usan el estado explícito del shell.
+- `discadmin/hero-slider-state-bridge.js` — retira el setter implícito y valida la disponibilidad del estado canónico.
+- `discadmin/totp-login.js` — restore de sesión usa `window.csrf` / `window.state` solo cuando la superficie canónica existe.
+- `tests/admin-runtime-globals-contract.php` — contrato contra regresiones S2703 en los cuatro módulos.
+- `tests/e2e/admin-reliability-quick-wins.spec.mjs` — verifica que un 401 limpie el estado/CSRF explícito y vuelva al login.
 
 ## Validación
 
-- Base exacta: `main` `8118d66c7263aaee57464ad7765c341521c3ffcc`.
-- En el head anterior de #438, BRVTAL CI terminó verde y SonarQube Cloud falló únicamente el Quality Gate por Reliability C en código nuevo.
-- El head actual incluye la corrección de esas dos advertencias y la cobertura Playwright solicitada por CodeRabbit; requiere una nueva pasada de BRVTAL CI, SonarQube Cloud y revisión automatizada sobre el SHA exacto antes del squash merge.
+- Base exacta: `main` `104b20daaf8db077acd59924f24168392b784f8f`.
+- Ese SHA exacto de `main` pasó BRVTAL CI: `fast`, Chromium y `validate` verdes; los gates no aplicables quedaron omitidos según el selector de scope.
+- La rama debe pasar BRVTAL CI, SonarQube Cloud y revisión automatizada aplicable sobre el SHA exacto del PR antes del squash merge.
+- Por tocar TOTP/sesión, el selector de CI debe mantener la cobertura aplicable de autenticación, incluido WebKit cuando corresponda.
 - CI verde significará **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Confirmar BRVTAL CI + Sonar + review sobre el head exacto de #438; resolver cualquier finding válido restante, hacer squash merge y verificar BRVTAL CI del SHA exacto resultante de `main`.
-- Continuar #451 por riesgo: primero BLOCKER/HIGH reales, luego Reliability con efecto de runtime/accesibilidad y después Maintainability en PRs pequeños por área.
-- Mantener #434 (Memories) separado; no debe mergearse mientras su Quality Gate de Sonar siga rojo.
+- Resolver cualquier finding válido de CI, Sonar o CodeRabbit sobre este PR; hacer squash merge solo con los gates aplicables verdes y verificar BRVTAL CI del SHA exacto resultante de `main`.
+- Reconsultar Sonar tras el merge para confirmar que los cuatro BLOCKER `S2703` desaparecieron del baseline.
+- Continuar #451 con Reliability de mayor impacto: `discadmin/media-library.js` `S2871`, `js/related-content.js` `S7727` y regex `S8786`, cada uno en PRs pequeños con cobertura proporcional.
+- Mantener #434 (Memories) separado hasta resolver su propio Quality Gate y tratar su migración de producción por separado.
 
 ## Panorama general pendiente
 
 Este panorama debe mantenerse actualizado en **cada deploy** y resumir trabajo relevante todavía abierto, aunque no forme parte del deploy actual.
 
-- **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial. Falta cerrar Quality Gate y luego ejecutar la migración de producción por separado.
-- **Sonar / calidad:** #451 — baseline de 2.141 findings agrupado por riesgo; después de #438 siguen cuatro BLOCKER de declaraciones JS, Reliability HIGH/MEDIUM y deuda Maintainability que debe resolverse por áreas sin refactors masivos.
+- **Memories administrable:** #415 / PR #434 — galería curada desde DISCADMIN usando Media Library existente, con publicación, orden y viewer editorial; falta cerrar Quality Gate y ejecutar la migración de producción por separado.
+- **Sonar / calidad:** #451 — después de este bloque quedan findings HIGH/MEDIUM de Reliability y deuda Maintainability; continuar por riesgo, no por volumen.
 - **Archivo cultural:** #398 / #403 — profundizar relaciones explícitas Event ↔ Artist ↔ Set ↔ Release ↔ Memory sin inferencias falsas.
 - **Analytics / GA4:** #427 — completar mapeo `brvtal_*` en GTM/GA4 y preparar lectura segura futura en Dashboard.
 - **SEO:** #390, #391 y #272 — workspace SEO, alineación del bloque actual y structured data por entidad.
