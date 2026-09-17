@@ -5,6 +5,8 @@
 Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
 
 > **Regla permanente del proyecto:** cada deploy debe dejar aquí, además del snapshot exacto de lo que cambió, un **panorama general actualizado de lo que sigue pendiente por hacer/desarrollar**.
+>
+> **Regla permanente de ejecución:** paralelizar todo lo que sea razonablemente independiente para reducir tiempos, usando líneas de análisis/preflight/trabajo en paralelo cuando no compitan entre sí. Los merges contra `main` permanecen serializados y, antes de cada merge, se recontrastan `main` y los gates del head exacto.
 
 ## Qué se hizo
 
