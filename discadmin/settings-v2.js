@@ -120,11 +120,11 @@
     const gtmId = String(hasCanonicalGtm ? analytics.gtm_id : legacyGtm).trim().toUpperCase();
     const connected = /^GTM-[A-Z0-9]{4,20}$/.test(gtmId);
     return `<section class="sv2-pane ${V2.tab==='analytics'?'active':''}" data-settings-pane="analytics">
-      <header class="sv2-section-head"><div><span>04 / ANALYTICS & PRIVACY</span><h3>Tag delivery</h3></div><p>Google Tag Manager is the single public tag-delivery layer. It stays blocked until the visitor explicitly accepts analytics.</p></header>
+      <header class="sv2-section-head"><div><span>04 / ANALYTICS & PRIVACY</span><h3>Tag delivery</h3></div><p>Google Tag Manager is the single public tag-delivery layer and loads automatically on every public page.</p></header>
       <div class="sv2-grid two">${text('gtm_id','Google Tag Manager Container ID',gtmId,'Format: GTM-XXXXXXX. GA4, pixels and other optional tracking tags are managed inside GTM.')}
-        <div class="sv2-readonly"><span>INTEGRATION STATUS</span><strong>${connected?'CONNECTED':'NOT CONFIGURED'}</strong><p>${connected?'The validated container is ready for consent-gated public loading.':'Save a valid GTM container ID to enable public tag delivery.'}</p></div>
+        <div class="sv2-readonly"><span>INTEGRATION STATUS</span><strong>${connected?'CONNECTED':'NOT CONFIGURED'}</strong><p>${connected?'The validated container is ready for immediate public loading.':'Save a valid GTM container ID to enable public tag delivery.'}</p></div>
       </div>
-      <div class="sv2-context-grid"><article><span>CONSENT MODE</span><strong>REQUIRED / USER CHOICE</strong><p>BRVTAL does not request GTM until the visitor allows analytics. This policy cannot be disabled from Settings.</p></article><article><span>DIRECT GA4</span><strong>RETIRED</strong><p>BRVTAL no longer loads GA4 directly. Configure GA4 and other optional tags inside Google Tag Manager.</p></article><article><span>PUBLIC API</span><strong>PRIVATE CONFIG</strong><p>The GTM container setting is read server-side and is not included in <code>api/public.php</code>.</p></article></div>
+      <div class="sv2-context-grid"><article><span>LOAD POLICY</span><strong>IMMEDIATE / ALL PUBLIC PAGES</strong><p>BRVTAL requests GTM automatically. Analytics storage starts granted; advertising storage, user data and personalization remain denied by the BRVTAL bootstrap.</p></article><article><span>DIRECT GA4</span><strong>RETIRED</strong><p>BRVTAL no longer loads GA4 directly. Configure GA4 and other optional tags inside Google Tag Manager.</p></article><article><span>PUBLIC API</span><strong>PRIVATE CONFIG</strong><p>The GTM container setting is read server-side and is not included in <code>api/public.php</code>.</p></article></div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="analytics">SAVE TAG MANAGER</button></div>
     </section>`;
   }
