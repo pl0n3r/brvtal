@@ -33,7 +33,7 @@
 
       cells.forEach((cell, index) => {
         cell.classList.remove('record-main','record-field','record-status','record-actions','record-spacer');
-        cell.removeAttribute('data-label');
+        delete cell.dataset.label;
 
         if (index === 0) {
           cell.classList.add('record-main');
