@@ -4,9 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/public_visibility.php';
 
 /**
- * Build one canonical public content-family definition.
+ * Build one standard public content-family definition.
  *
- * @param list<string> $parameters
  * @return array{
  *   table:string,
  *   title_field:string,
@@ -23,10 +22,8 @@ function brvtal_public_route_definition(
     string $titleField,
     string $descriptionField,
     string $imageField,
-    string $where,
     string $schemaType,
-    array $parameters = [],
-    bool $eventVisibility = false
+    string $where = "status='published'"
 ): array {
     return [
         'table' => $table,
@@ -35,8 +32,8 @@ function brvtal_public_route_definition(
         'image_field' => $imageField,
         'where' => $where,
         'schema_type' => $schemaType,
-        'parameters' => $parameters,
-        'event_visibility' => $eventVisibility,
+        'parameters' => [],
+        'event_visibility' => false,
     ];
 }
 
@@ -58,26 +55,54 @@ function brvtal_public_content_definitions(): array
 {
     $eventStatuses = brvtal_public_visible_event_statuses();
     $eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
-    $published = "status='published'";
+    $event = brvtal_public_route_definition(
+        'events',
+        'title',
+        'description',
+        'cover_image',
+        'MusicEvent',
+        $eventWhere
+    );
+    $event['parameters'] = $eventStatuses;
+    $event['event_visibility'] = true;
 
     return [
-        'events' => brvtal_public_route_definition(
-            'events', 'title', 'description', 'cover_image', $eventWhere, 'MusicEvent', $eventStatuses, true
-        ),
+        'events' => $event,
         'artists' => brvtal_public_route_definition(
-            'artists', 'name', 'bio', 'photo', $published, 'MusicGroup'
+            'artists',
+            'name',
+            'bio',
+            'photo',
+            'MusicGroup'
         ),
         'sets' => brvtal_public_route_definition(
-            'sets_media', 'title', 'description', 'cover_image', $published, 'MusicRecording'
+            'sets_media',
+            'title',
+            'description',
+            'cover_image',
+            'MusicRecording'
         ),
         'releases' => brvtal_public_route_definition(
-            'releases', 'title', 'description', 'artwork', $published, 'MusicAlbum'
+            'releases',
+            'title',
+            'description',
+            'artwork',
+            'MusicAlbum'
         ),
         'blog' => brvtal_public_route_definition(
-            'blog_posts', 'title', 'excerpt', 'cover_image', $published, 'BlogPosting'
+            'blog_posts',
+            'title',
+            'excerpt',
+            'cover_image',
+            'BlogPosting'
         ),
         'pages' => brvtal_public_route_definition(
-            'pages', 'title', 'content_json', '', "{$published} AND locale='en'", 'WebPage'
+            'pages',
+            'title',
+            'content_json',
+            '',
+            'WebPage',
+            "status='published' AND locale='en'"
         ),
     ];
 }
