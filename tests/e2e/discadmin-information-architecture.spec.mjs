@@ -106,6 +106,49 @@ test('sidebar exposes destinations while Content Core stays internal', async ({ 
   expect(visibleLabels.indexOf('THEME STUDIO')).toBeLessThan(visibleLabels.indexOf('SYSTEM STATUS'));
 });
 
+test('navigation label fallbacks preserve canonical and fuzzy destination keys', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const keys = await page.evaluate(() => {
+    const nav = document.querySelector('.side .nav');
+    const labels = [
+      'MEDIA LIBRARY',
+      'PRIMARY HERO SLIDER',
+      'VISUAL THEME TOOLS',
+      'ACCOUNT 2FA',
+      'SYSTEM STATUS / HOST',
+      'BACKUP VAULT',
+      'ADMIN ACTIVITY LOG',
+      'LEGACY CONTENT CORE',
+      'SEO TOOLS',
+      'CUSTOM TOOL'
+    ];
+    const buttons = labels.map(label => {
+      const button = document.createElement('button');
+      button.textContent = label;
+      nav.appendChild(button);
+      return button;
+    });
+    window.BRVTALAdminIA.rebuildNavigation();
+    return Object.fromEntries(buttons.map(button => [button.textContent, button.dataset.iaKey]));
+  });
+
+  expect(keys).toEqual({
+    'MEDIA LIBRARY':'media',
+    'PRIMARY HERO SLIDER':'hero-slider',
+    'VISUAL THEME TOOLS':'theme',
+    'ACCOUNT 2FA':'security',
+    'SYSTEM STATUS / HOST':'system',
+    'BACKUP VAULT':'backups',
+    'ADMIN ACTIVITY LOG':'activity',
+    'LEGACY CONTENT CORE':'content-core',
+    'SEO TOOLS':'seo',
+    'CUSTOM TOOL':'other:custom tool'
+  });
+  await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
+});
+
 test('Events is the single entry to the guided event editor', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
