@@ -62,6 +62,8 @@ test('v2 admin and endpoint keep constraints explicit', async () => {
   expect(adminScript).toContain("['text','image','logo','cta']");
   expect(adminScript).toContain('pointerdown');
   expect(adminScript).toContain('data-duplicate-slide');
+  expect(adminScript).toContain('getRandomValues');
+  expect(adminScript).not.toContain('Math.random');
   expect(endpoint).toContain(', 0, 12');
   expect(endpoint).not.toContain('SELECT * FROM settings');
 });
