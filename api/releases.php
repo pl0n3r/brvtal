@@ -259,7 +259,7 @@ try {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
-        brvtal_indexnow_notify_change($pdo, 'releases', $before, null);
+        brvtalIndexNowNotifyChange($pdo, 'releases', $before, null);
         brvtal_releases_json(['ok' => true, 'deleted' => $id]);
     }
 
@@ -312,7 +312,7 @@ try {
         throw $e;
     }
 
-    brvtal_indexnow_notify_change($pdo, 'releases', $before, $after);
+    brvtalIndexNowNotifyChange($pdo, 'releases', $before, $after);
     brvtal_releases_json(['ok' => true, 'data' => $after], $method === 'POST' ? 201 : 200);
 } catch (InvalidArgumentException $e) {
     brvtal_releases_json(['ok' => false, 'error' => $e->getMessage()], 422);
