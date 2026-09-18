@@ -223,9 +223,9 @@ jobs:
               'deploy status table in Estado del deploy': '| Señal | Estado | Evidencia |' in status_section,
               'Mermaid diagram in Flujo de entrega': '```mermaid' in flow_section,
               'PR snapshot stage': 'PR + snapshot exacto' in flow_section,
-              'parallel BRVTAL CI gate': 'A --> B' in flow_section and 'BRVTAL CI' in flow_section,
-              'parallel Sonar gate': 'A --> C' in flow_section and 'Sonar' in flow_section,
-              'parallel CodeRabbit gate': 'A --> D' in flow_section and 'CodeRabbit' in flow_section,
+              'parallel BRVTAL CI gate': 'A["PR + snapshot exacto"] --> B["BRVTAL CI"]' in flow_section,
+              'parallel Sonar gate': 'A --> C["Sonar"]' in flow_section,
+              'parallel CodeRabbit gate': 'A --> D["CodeRabbit"]' in flow_section,
               'squash merge stage': 'Squash merge' in flow_section,
               'exact-main validation stage': 'CI del SHA exacto de main' in flow_section,
           }
