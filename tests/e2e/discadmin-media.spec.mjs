@@ -125,6 +125,42 @@ async function loadAdminHarness(page) {
   `);
 }
 
+async function loadFeedbackHarness(page) {
+  await loadHarness(page, `
+    <script>
+      window.state = { section: 'events' };
+      window.csrf = 'csrf-token';
+      window.render = () => {};
+      window.go = async section => section;
+      window.openModal = () => {};
+      window.fetch = (input, init = {}) => {
+        window.__nativeFetchCall = { input:String(input), method:init.method || 'GET' };
+        return new Promise(resolve => {
+          window.__releaseNativeFetch = () => resolve(new Response(
+            JSON.stringify({ok:true, data:{}}),
+            {status:200, headers:{'Content-Type':'application/json'}}
+          ));
+        });
+      };
+    </script>
+    <script>${adminModulesJs}</script>
+  `);
+}
+
+async function expectMutationFeedback(page, {url, method, working, done}) {
+  await page.evaluate(({requestUrl, requestMethod}) => {
+    window.__pendingFeedbackMutation = fetch(requestUrl, {
+      method:requestMethod,
+      body:'{}'
+    });
+  }, {requestUrl:url, requestMethod:method});
+
+  await expect(page.getByText(working, {exact:true})).toBeVisible();
+  await page.evaluate(() => window.__releaseNativeFetch());
+  await page.evaluate(() => window.__pendingFeedbackMutation);
+  await expect(page.getByText(done, {exact:true})).toBeVisible();
+}
+
 test('media picker normalizes paths, updates inputs/previews, and shows guidance', async ({ page }) => {
   await loadMediaLibraryHarness(page);
 
@@ -192,6 +228,23 @@ test('artist save sends selected media path', async ({ page }) => {
   expect(lastReq.path).toBe('/artists/7');
   expect(lastReq.method).toBe('PUT');
   expect(JSON.parse(lastReq.body).photo).toBe('/uploads/media/2026/09/genesis.jpg');
+});
+
+test('mutation feedback preserves endpoint-specific labels and precedence', async ({ page }) => {
+  await loadFeedbackHarness(page);
+
+  const cases = [
+    {url:'/api/test-media-library.php?action=upload', method:'POST', working:'Uploading media…', done:'Media uploaded.'},
+    {url:'/api/releases.php', method:'DELETE', working:'Deleting release…', done:'Release deleted.'},
+    {url:'/api/blog.php', method:'POST', working:'Saving blog post…', done:'Blog post saved.'},
+    {url:'/api/index.php/settings-feedback', method:'POST', working:'Saving settings…', done:'Settings saved.'},
+    {url:'/api/index.php/events-feedback/42', method:'DELETE', working:'Deleting…', done:'Deleted.'},
+    {url:'/api/index.php/events-feedback/42', method:'PUT', working:'Saving changes…', done:'Changes saved.'}
+  ];
+
+  for (const feedbackCase of cases) {
+    await expectMutationFeedback(page, feedbackCase);
+  }
 });
 
 test('failed mutations show persistent error feedback', async ({ page }) => {
