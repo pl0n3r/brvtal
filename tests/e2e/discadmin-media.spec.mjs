@@ -131,13 +131,10 @@ async function expectMutationFeedback(page, {url, method, working, done}) {
   const responseGate = new Promise(resolve => { releaseResponse = resolve; });
   const requestStarted = new Promise(resolve => { markRequestStarted = resolve; });
   const absoluteUrl = new URL(url, harnessUrl).href;
-  const escapedUrl = absoluteUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\async function expectMutationFeedback(page, {url, method, working, done}) {
-  let releaseResponse;
-  const responseGate = new Promise(resolve => { releaseResponse = resolve; });
-  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const routePattern = new RegExp(escapedUrl + '$');
+  const routeMatcher = candidate => candidate.href === absoluteUrl;
 
-  await page.route(routePattern, async route => {
+  await page.route(routeMatcher, async route => {
+    markRequestStarted();
     await responseGate;
     await route.fulfill({
       contentType: 'application/json',
@@ -152,14 +149,14 @@ async function expectMutationFeedback(page, {url, method, working, done}) {
     });
   }, {requestUrl:url, requestMethod:method});
 
+  await requestStarted;
   await expect(page.getByText(working, {exact:true})).toBeVisible();
   releaseResponse();
   await page.evaluate(() => window.__pendingFeedbackMutation);
   await expect(page.getByText(done, {exact:true})).toBeVisible();
-  await page.unroute(routePattern);
+  await page.unroute(routeMatcher);
 }
-');
-  const routePattern = new RegExp('^' + escapedUrl + '
+
 test('media picker normalizes paths, updates inputs/previews, and shows guidance', async ({ page }) => {
   await loadMediaLibraryHarness(page);
 
