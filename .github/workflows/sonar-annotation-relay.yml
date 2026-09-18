@@ -16,12 +16,13 @@ on:
 
 permissions:
   checks: read
-  contents: read
-  issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   relay:
+    concurrency:
+      group: sonar-annotation-relay-${{ github.repository }}
+      queue: max
     name: relay
     if: github.event_name == 'workflow_dispatch' || github.event.check_run.name == 'SonarCloud Code Analysis'
     runs-on: ubuntu-latest
@@ -89,6 +90,19 @@ jobs:
               raise SystemExit(0)
 
           head_sha = str(check_run.get("head_sha") or "")
+          if event_name == "workflow_dispatch" and head_sha:
+              associated = api(
+                  "GET",
+                  f"/repos/{repository}/commits/{urllib.parse.quote(head_sha)}/pulls?per_page=100",
+              ) or []
+              associated_numbers = {int(item["number"]) for item in associated if item.get("number")}
+              if pr_number not in associated_numbers:
+                  print(
+                      f"Manual check {check_run_id} head {head_sha} is not associated with PR #{pr_number}; "
+                      "nothing to relay."
+                  )
+                  raise SystemExit(0)
+
           if pr_number == 0 and head_sha:
               associated = api(
                   "GET",
@@ -156,7 +170,18 @@ jobs:
 
           body = "\\n".join(lines).strip() + "\\n"
 
-          comments = api("GET", f"/repos/{repository}/issues/{pr_number}/comments?per_page=100") or []
+          comments = []
+          comments_page = 1
+          while True:
+              batch = api(
+                  "GET",
+                  f"/repos/{repository}/issues/{pr_number}/comments?per_page=100&page={comments_page}",
+              ) or []
+              comments.extend(batch)
+              if len(batch) < 100:
+                  break
+              comments_page += 1
+
           existing = next(
               (
                   comment for comment in comments
