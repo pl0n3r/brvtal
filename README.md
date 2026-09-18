@@ -4,7 +4,7 @@
 
 # BRVTAL — Último deploy
 
-<p align="center"><strong>Cultural Archive · Home TRANSMISSIONS</strong></p>
+<p align="center"><strong>Sonar · risk burn-down closure</strong></p>
 
 <p align="center">
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml"><img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg"></a>
@@ -16,11 +16,11 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `824114b4dbe105bc701c75cf2fb998fda5d1aed1` · BRVTAL CI #1096 |
-| Alcance | 🧪 **#506 / #398** | Blog publicado → TRANSMISSIONS en Home |
-| Datos | 🔗 **Estructurados** | reutiliza Blog + relaciones Event/Artist/Set/Release |
-| Browser | 🌐 **Playwright** | render, navegación, vacío/fallo y mobile |
-| Producción | ⚪ **No validada** | CI no equivale a validación de producción |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `45d195de05e263f06264b57e2131572e5396774f` · BRVTAL CI #1106 |
+| Alcance | 🧪 **#451** | cierre del burn-down Sonar por riesgo |
+| Riesgo | ✅ **P0–P2 cubiertos** | seguridad, reliability y HIGH mantenibilidad documentados |
+| Sonar main | 🧹 **2.044 issues residuales** | deuda MEDIUM/LOW principalmente mecánica; 0 security hotspots |
+| Producción | ⚪ **No validada** | este deploy documental no implica validación de producción |
 
 ## Flujo de entrega
 
@@ -39,48 +39,38 @@ flowchart LR
 
 ## Qué se hizo
 
-- Añade **TRANSMISSIONS** a Home como capa editorial BRVTAL sobre el Blog publicado existente.
-- Reutiliza `window.BRVTALPublicDataPromise`; no crea endpoint ni segunda petición CMS.
-- Conserva el orden canónico del payload y limita Home a cuatro señales editoriales.
-- Los títulos navegan a `/blog/{slug}` y las relaciones `related_id` se resuelven únicamente contra los pools públicos finales Event/Artist/Set/Release, incluidos Events archivados.
-- Añade estados honestos para colección vacía y fallo del payload compartido.
-- Añade layout mobile-first, targets táctiles y protección contra overflow.
-- No incluye migraciones ni cambios de esquema.
+- Cierra el objetivo de **#451** como burn-down por riesgo, no como intento de borrar masivamente cada aviso histórico de estilo.
+- Deja registrados como cubiertos los bloques P0, P1 y P2 ya validados en PRs acotados.
+- Registra el baseline fresco de Sonar en `main`: **2.044 issues** bajo el período actual y **0 security hotspots**.
+- Formaliza **Clean as You Code**: ningún PR debe introducir issues accionables nuevos.
+- La deuda MEDIUM/LOW puramente mecánica se seguirá corrigiendo oportunísticamente o en slices acotados con validación de comportamiento.
+- Un nuevo hallazgo de seguridad, reliability o impacto alto vuelve a tratarse como issue focalizado; no se esconderá dentro de deuda mecánica.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — contrato durable de TRANSMISSIONS, relaciones reales y orden del runtime.
-- `README.md` — snapshot exacto y panorama pendiente.
-- `index.html` — mount y fallback estático de TRANSMISSIONS.
-- `index.php` — entrega/defer versionado de estilos.
-- `js/public-runtime-loader.js` — carga TRANSMISSIONS dentro del core runtime.
-- `js/public-transmissions.js` — render editorial desde el payload público compartido.
-- `css/public-transmissions.css` — lenguaje visual Archive/System y responsive.
-- `tests/public-transmissions-contract.php` — contratos de wiring, datos y rutas.
-- `tests/e2e/public-mobile-performance.spec.mjs` — contrato del orden del runtime público con TRANSMISSIONS.
-- `tests/e2e/public-transmissions.spec.mjs` — render, relaciones, vacío/fallo y mobile.
+- `AGENTS.md` — política durable de Sonar risk-first + Clean as You Code tras #451.
+- `README.md` — snapshot exacto del cierre de #451 y panorama actualizado.
 
 ## Validación
 
-- La base exacta `824114b4dbe105bc701c75cf2fb998fda5d1aed1` pasó BRVTAL CI #1096.
-- El branch debe pasar ahora tests dirigidos, BRVTAL CI / validate, Sonar y CodeRabbit.
+- Base exacta `45d195de05e263f06264b57e2131572e5396774f` pasó BRVTAL CI #1106 con `fast`, Chromium y `validate`.
+- Sonar sobre esa base pasó Quality Gate y reportó **0 security hotspots**.
+- Este branch debe pasar BRVTAL CI / validate, Sonar y CodeRabbit antes de merge.
 - Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - No se declara **VALIDATED IN PRODUCTION** desde CI.
 
 ## Qué sigue
 
-1. Cerrar tests y gates de #506.
-2. Squash merge + exact-main CI.
-3. Implementar #481 IndexNow como notificación SEO event-driven sobre cambios públicos reales.
-4. Retomar #398 profundizando rutas de archivo cultural con relaciones explícitas.
+1. Cerrar #451 después del squash merge y del exact-main CI.
+2. Implementar #481 IndexNow como notificación SEO event-driven sobre cambios públicos reales.
+3. Retomar #398 y profundizar el archivo cultural mediante relaciones explícitas.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
+| 🔎 **SEO / IndexNow** | #481 · próximo slice preparado |
 | 🗃️ **Archivo cultural** | #398 · profundizar navegación relacional tras TRANSMISSIONS |
-| 🔎 **SEO / IndexNow** | #481 · integración preparada |
-| 🧪 **Sonar / calidad** | #451 · continuar burn-down por riesgo |
 | 🎛️ **Apariencia** | #149 · completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
