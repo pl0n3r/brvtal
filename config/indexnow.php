@@ -29,7 +29,7 @@ function brvtalIndexNowKeyValid(string $key): bool
 
 function brvtalIndexNowKeyLocationValid(string $location): bool
 {
-    return preg_match('#^/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$#', $location) === 1;
+    return preg_match('#^/indexnow-[A-Za-z0-9][A-Za-z0-9-]{0,90}\.txt$#', $location) === 1;
 }
 
 function brvtalIndexNowEndpointValid(string $endpoint): bool
