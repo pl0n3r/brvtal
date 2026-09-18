@@ -14,7 +14,8 @@
       const url = new URL(raw, location.origin);
       if (url.origin !== location.origin || !url.pathname.startsWith('/uploads/')) return '';
       return `${url.pathname}${url.search}`;
-    } catch (_) {
+    } catch (error) {
+      // Invalid or malformed asset URLs are intentionally rejected.
       return '';
     }
   };
@@ -27,7 +28,6 @@
       if (value === false || value === null || value === undefined) return;
       const stringValue = String(value);
       switch (name) {
-        case 'src': element.setAttribute('src', stringValue); break;
         case 'alt': element.setAttribute('alt', stringValue); break;
         case 'loading': element.setAttribute('loading', stringValue); break;
         case 'preload': element.setAttribute('preload', stringValue); break;
@@ -54,8 +54,7 @@
   };
 
   function csrfToken() {
-    try { if (typeof csrf !== 'undefined' && csrf) return csrf; } catch (_) {}
-    return '';
+    return typeof window.csrf === 'string' ? window.csrf : '';
   }
 
   async function api(action, {method='GET', id=0, body=null} = {}) {
@@ -91,10 +90,16 @@
     const type = String(item.media_type || item.type || '').toLowerCase();
     const src = normalizePath(item.file_path);
     if (type === 'image' && src) {
-      return create('img', {className,attrs:{src,alt:item.alt_text || item.title || item.media_title || 'Memory',loading:'lazy'}});
+      const image = create('img', {
+        className,
+        attrs:{alt:item.alt_text || item.title || item.media_title || 'Memory',loading:'lazy'},
+      });
+      image.src = src;
+      return image;
     }
     if (type === 'video' && src) {
-      const video = create('video', {className, attrs:{src,muted:true,playsinline:true,preload:'metadata'}});
+      const video = create('video', {className, attrs:{muted:true,playsinline:true,preload:'metadata'}});
+      video.src = src;
       video.muted = true;
       video.playsInline = true;
       return video;
@@ -153,7 +158,7 @@
     const body = {media_id:Number(item.media_id),title:card.querySelector('[data-memory-title]')?.value || '',context:card.querySelector('[data-memory-context]')?.value || '',sort_order:Number(card.querySelector('[data-memory-order]')?.value || 0),status:card.querySelector('[data-memory-status]')?.value || 'draft'};
     status('SAVING MEMORY…');
     try { await api('update', {method:'PUT', id, body}); await refresh(); window.BRVTALFeedback?.success?.('Memory saved.','memories'); }
-    catch (error) { status(String(error.message || error), 'error'); window.BRVTALFeedback?.error?.(String(error.message || error).replace(/_/g,' '),'memories'); }
+    catch (error) { status(String(error.message || error), 'error'); window.BRVTALFeedback?.error?.(String(error.message || error).replaceAll('_',' '),'memories'); }
   }
 
   async function removeMemory(id) {
@@ -161,7 +166,7 @@
     if (!confirm(`Remove “${item.title || item.media_title || 'Memory'}” from public Memories? The Media Library asset will be kept.`)) return;
     status('REMOVING MEMORY…');
     try { await api('delete', {method:'DELETE', id}); await refresh(); window.BRVTALFeedback?.success?.('Memory removed. Source media kept.','memories'); }
-    catch (error) { status(String(error.message || error), 'error'); window.BRVTALFeedback?.error?.(String(error.message || error).replace(/_/g,' '),'memories'); }
+    catch (error) { status(String(error.message || error), 'error'); window.BRVTALFeedback?.error?.(String(error.message || error).replaceAll('_',' '),'memories'); }
   }
 
   function closePicker() { picker?.remove(); picker = null; window.BRVTALAdminModalAccessibility?.sync?.(); }
@@ -172,11 +177,24 @@
     button.append(previewNode(item));
     const copy = create('span', {className:'memory-picker-copy'});
     copy.append(create('strong', {text:item.title || `Media #${item.id}`}),create('span', {text:`${String(item.type || '').toUpperCase()} / ${item.status || ''}${curated ? ' / ALREADY CURATED' : ''}`}));
-    button.append(copy); if (!curated) button.addEventListener('click', () => createMemory(Number(item.id) || 0)); return button;
+    button.append(copy);
+    if (!curated) {
+      button.addEventListener('click', () => createMemory(Number(item.id) || 0));
+    }
+    return button;
   }
   function renderPicker(query='') {
-    if (!picker) return; const grid = picker.querySelector('[data-memories-picker-grid]'); if (!grid) return;
-    const items = pickerItems(query); if (!items.length) { grid.replaceChildren(create('div', {className:'memories-admin-empty', text:'No matching image, video or audio assets.'})); return; }
+    if (!picker) return;
+    const grid = picker.querySelector('[data-memories-picker-grid]');
+    if (!grid) return;
+    const items = pickerItems(query);
+    if (!items.length) {
+      grid.replaceChildren(create('div', {
+        className:'memories-admin-empty',
+        text:'No matching image, video or audio assets.',
+      }));
+      return;
+    }
     grid.replaceChildren(...items.map(pickerItemNode));
   }
   function buildPicker() {
@@ -197,7 +215,7 @@
     const asset = availableItems.find(item => Number(item.id) === Number(mediaId)); if (!asset) return;
     const maxOrder = currentItems.reduce((max,item) => Math.max(max, Number(item.sort_order || 0)), -1);
     try { await api('create', {method:'POST',body:{media_id:mediaId,title:asset.title || 'Memory',context:'',status:'draft',sort_order:maxOrder + 1}}); closePicker(); await refresh(); window.BRVTALFeedback?.success?.('Memory added as draft.','memories'); }
-    catch (error) { window.BRVTALFeedback?.error?.(String(error.message || error).replace(/_/g,' '),'memories'); }
+    catch (error) { window.BRVTALFeedback?.error?.(String(error.message || error).replaceAll('_',' '),'memories'); }
   }
 
   function setNavActive(active) {
@@ -216,7 +234,11 @@
     const nav = document.querySelector('.side .nav'); if (!nav || nav.querySelector('[data-memories-nav]')) return;
     const button = create('button', {text:'MEMORIES', attrs:{type:'button'}, dataset:{adminNav:'media',memoriesNav:'1'}}); button.addEventListener('click', () => open({mode:'push'}));
     const heroSlider = [...nav.querySelectorAll(':scope > button')].find(item => String(item.textContent || '').trim().toUpperCase() === 'HERO SLIDER');
-    if (heroSlider) nav.insertBefore(button, heroSlider); else nav.appendChild(button);
+    if (heroSlider) {
+      heroSlider.before(button);
+    } else {
+      nav.appendChild(button);
+    }
   }
   function buildWorkspace() {
     const section = create('section', {className:'memories-admin'}); section.dataset.adminModule = 'memories';
@@ -229,30 +251,79 @@
     section.append(head, statusNode, grid, empty); return section;
   }
   async function open({mode='push'} = {}) {
-    const token = ++openToken; try { if (typeof state !== 'undefined' && !state?.authed) return; } catch (_) { return; }
-    if (typeof nativeGo === 'function') await nativeGo.call(window,'media'); if (token !== openToken) return;
-    const host = document.getElementById('admin-module-host'); if (!host) return; host.replaceChildren(buildWorkspace());
-    const title = document.querySelector('.main > .top h1'); if (title) title.textContent = 'MEMORIES';
-    host.querySelector('[data-memories-add]')?.addEventListener('click', openPicker); setNavActive(true); syncUrl(true, mode);
-    try { await refresh(); } catch (error) { status(String(error.message || error).replace(/_/g,' '), 'error'); window.BRVTALFeedback?.error?.(String(error.message || error).replace(/_/g,' '),'memories'); }
+    const token = ++openToken;
+    if (!window.state?.authed) return;
+    if (typeof nativeGo === 'function') {
+      await nativeGo.call(window, 'media');
+    }
+    if (token !== openToken) return;
+
+    const host = document.getElementById('admin-module-host');
+    if (!host) return;
+    host.replaceChildren(buildWorkspace());
+
+    const title = document.querySelector('.main > .top h1');
+    if (title) title.textContent = 'MEMORIES';
+
+    host.querySelector('[data-memories-add]')?.addEventListener('click', openPicker);
+    setNavActive(true);
+    syncUrl(true, mode);
+    try {
+      await refresh();
+    } catch (error) {
+      const message = String(error.message || error).replaceAll('_', ' ');
+      status(message, 'error');
+      window.BRVTALFeedback?.error?.(message, 'memories');
+    }
   }
 
   window.go = async function(section, ...args) {
-    if (section === 'memories') return open({mode:'push'}); ++openToken; closePicker();
-    const result = typeof nativeGo === 'function' ? await nativeGo.call(this, section, ...args) : undefined;
-    if (section === 'media') { setNavActive(false); syncUrl(false,'replace'); }
-    ensureNav(); return result;
+    if (section === 'memories') {
+      return open({mode:'push'});
+    }
+    ++openToken;
+    closePicker();
+    const result = typeof nativeGo === 'function'
+      ? await nativeGo.call(this, section, ...args)
+      : undefined;
+    if (section === 'media') {
+      setNavActive(false);
+      syncUrl(false, 'replace');
+    }
+    ensureNav();
+    return result;
   };
   const navObserver = new MutationObserver(() => ensureNav()); navObserver.observe(document.documentElement,{childList:true,subtree:true}); ensureNav();
   function restoreRoute() {
-    const params = new URLSearchParams(location.search); if (params.get('module') !== 'media' || params.get('view') !== 'memories') return;
-    let attempts = 0; const timer = setInterval(() => { attempts++; let authed = false; try { authed = typeof state !== 'undefined' && Boolean(state?.authed); } catch (_) {}
-      if (authed) { clearInterval(timer); open({mode:'replace'}).catch(() => {}); } else if (attempts >= 100) clearInterval(timer); }, 100);
+    const params = new URLSearchParams(location.search);
+    if (params.get('module') !== 'media' || params.get('view') !== 'memories') return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (window.state?.authed) {
+        clearInterval(timer);
+        open({mode:'replace'}).catch(() => {
+          // Route restoration failure is surfaced by the workspace on the next explicit open.
+        });
+      } else if (attempts >= 100) {
+        clearInterval(timer);
+      }
+    }, 100);
   }
   window.addEventListener('popstate', () => {
     const params = new URLSearchParams(location.search);
-    if (params.get('module') === 'media' && params.get('view') === 'memories') open({mode:'replace'}).catch(() => {});
-    else if (params.get('module') === 'media') { ++openToken; closePicker(); setNavActive(false); if (typeof nativeGo === 'function') nativeGo.call(window,'media'); }
+    if (params.get('module') === 'media' && params.get('view') === 'memories') {
+      open({mode:'replace'}).catch(() => {
+        // Browser-history restoration can safely defer to the next explicit navigation.
+      });
+    } else if (params.get('module') === 'media') {
+      ++openToken;
+      closePicker();
+      setNavActive(false);
+      if (typeof nativeGo === 'function') {
+        nativeGo.call(window, 'media');
+      }
+    }
   });
   restoreRoute();
 })();
