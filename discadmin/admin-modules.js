@@ -14,9 +14,21 @@ window.BRVTALAdminModules = (() => {
     if (document.getElementById(id)) return;
     const link = document.createElement('link'); link.id = id; link.rel = 'stylesheet'; link.href = versioned(href); document.head.appendChild(link);
   }
-  function ensureScript(id, src) {
+  function ensureScript(id, src, readyGlobal = '') {
+    const globalReady = () => readyGlobal !== '' && typeof window[readyGlobal] !== 'undefined';
     const existing = document.getElementById(id);
-    if (existing) return existing.dataset.ready === '1' ? Promise.resolve() : new Promise((resolve,reject) => { existing.addEventListener('load',resolve,{once:true}); existing.addEventListener('error',reject,{once:true}); });
+    if (existing) {
+      if (existing.dataset.ready === '1' || globalReady()) {
+        existing.dataset.ready = '1';
+        return Promise.resolve();
+      }
+      return new Promise((resolve,reject) => {
+        const onLoad = () => { existing.dataset.ready='1'; resolve(); };
+        existing.addEventListener('load',onLoad,{once:true});
+        existing.addEventListener('error',reject,{once:true});
+        if (globalReady()) onLoad();
+      });
+    }
     return new Promise((resolve,reject) => {
       const script = document.createElement('script'); script.id = id; script.src = versioned(src); script.defer = true;
       script.addEventListener('load',() => { script.dataset.ready='1'; resolve(); },{once:true});
@@ -397,15 +409,18 @@ window.BRVTALAdminModules = (() => {
   ensureStyle('brvtal-media-library-style','/discadmin/media-library.css');
   ensureStyle('brvtal-releases-style','/discadmin/releases.css');
   ensureStyle('brvtal-blog-style','/discadmin/blog.css');
-  const mediaReady = ensureScript('brvtal-media-library-script','/discadmin/media-library.js');
-  const releasesReady = ensureScript('brvtal-releases-script','/discadmin/releases.js');
-  const blogReady = ensureScript('brvtal-blog-script','/discadmin/blog.js');
+  const mediaReady = ensureScript('brvtal-media-library-script','/discadmin/media-library.js','BRVTALMediaLibrary');
+  const releasesReady = ensureScript('brvtal-releases-script','/discadmin/releases.js','BRVTALReleases');
+  const blogReady = ensureScript('brvtal-blog-script','/discadmin/blog.js','BRVTALBlog');
   const sectionReady = new Map([
     ['media', mediaReady],
     ['releases', Promise.all([mediaReady,releasesReady])],
     ['blog', Promise.all([mediaReady,blogReady])]
   ]);
-  const waitForSection = section => sectionReady.get(String(section || '').toLowerCase()) || Promise.resolve();
+  const waitForSection = section => {
+    const key = String(section || '').toLowerCase();
+    return sectionReady.has(key) ? sectionReady.get(key) : Promise.resolve();
+  };
 
   const modules = {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},

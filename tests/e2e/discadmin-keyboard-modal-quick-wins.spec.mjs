@@ -163,10 +163,10 @@ test('Admin Activity detail/history modal gets initial focus, trap, Escape and r
   await expect(origin).toBeFocused();
 });
 
-test('Media Picker overlays gain dialog semantics, focus containment, Escape and restoration', async ({ page }) => {
+test('Media Picker overlay gains dialog semantics, focus containment, Escape and restoration', async ({ page }) => {
   expect(mediaLibrarySource).toContain('function openPicker');
-  expect(mediaLibrarySource).toContain('function externalRegistrationModal');
-  expect((mediaLibrarySource.match(/brvtal-media-picker/g) || []).length).toBeGreaterThanOrEqual(2);
+  expect(mediaLibrarySource).not.toContain('function externalRegistrationModal');
+  expect((mediaLibrarySource.match(/brvtal-media-picker/g) || []).length).toBeGreaterThanOrEqual(1);
 
   await page.setContent('<button id="media-origin">SELECT MEDIA</button><button id="background">BACKGROUND</button>');
   await page.addScriptTag({ content: accessibilitySource });
@@ -191,17 +191,6 @@ test('Media Picker overlays gain dialog semantics, focus containment, Escape and
   await expect(page.locator('.brvtal-media-picker')).toHaveCount(0);
   await expect(origin).toBeFocused();
 
-  await origin.focus();
-  await page.evaluate(() => {
-    const overlay = document.createElement('div');
-    overlay.className = 'brvtal-media-picker';
-    overlay.innerHTML = '<div class="brvtal-media-picker-box"><h3>REGISTER EXTERNAL MEDIA</h3><button type="button" data-close>CLOSE</button><input aria-label="Title"></div>';
-    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.remove());
-    document.body.appendChild(overlay);
-  });
-  await expect(page.getByRole('dialog', { name: 'REGISTER EXTERNAL MEDIA' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(origin).toBeFocused();
 });
 
 test('Theme Studio fields are labelled and IMPORT is keyboard-operable', async ({ page }) => {

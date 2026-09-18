@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+94** | **−88** | **+6** |
+| **10** | **+138** | **−107** | **+31** |
 
 ## Calidad y entrega
 
@@ -71,6 +71,8 @@ flowchart LR
 - `discadmin/media-library.php` — elimina External Registry de la toolbar.
 - `discadmin/media-library.js` — elimina modal/binding de registro externo.
 - `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins usa el owner canónico de readiness.
+- `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
 - `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real.
 - `AGENTS.md` — persiste la frontera canónica de readiness.
 - `README.md` — dashboard exacto de #522.

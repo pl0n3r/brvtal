@@ -74,6 +74,25 @@ function harness(authed = true) {
     window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
     window.BRVTALAdminModules={
       cancel(){window.__moduleCancels+=1;},
+      async waitForSection(section){
+        const dependencies={
+          media:['brvtal-media-library-script'],
+          releases:['brvtal-media-library-script','brvtal-releases-script'],
+          blog:['brvtal-media-library-script','brvtal-blog-script']
+        }[section]||[];
+        await Promise.all(dependencies.map(id=>{
+          const script=document.getElementById(id);
+          if(!script||script.dataset.ready==='1')return Promise.resolve();
+          return new Promise((resolve,reject)=>{
+            const onLoad=()=>{cleanup();resolve();};
+            const onError=()=>{cleanup();reject(new Error('Unable to load '+id));};
+            const cleanup=()=>{script.removeEventListener('load',onLoad);script.removeEventListener('error',onError);};
+            script.addEventListener('load',onLoad,{once:true});
+            script.addEventListener('error',onError,{once:true});
+            if(script.dataset.ready==='1')onLoad();
+          });
+        }));
+      },
       async load(section,options={}){
         if(section!=='content-core')return;
         window.__moduleLoadOptions.push(options);
