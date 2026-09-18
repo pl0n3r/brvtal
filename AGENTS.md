@@ -384,8 +384,9 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; with Roster, Sets and curated Memories established, deepen archive/event pathways and connect Memories to other entities only after adding explicit structured relations rather than heuristics.
-2. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
+1. **DISCADMIN configurable Dashboard — #513** — after the active #511 cultural slice closes, implement per-admin Dashboard composition: module picker, drag/reorder, validated resize spans on a responsive grid, reset-to-default, keyboard/touch fallbacks, and optional Analytics previews only when backed by real data. Preserve ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE and the existing “WHAT NEEDS ATTENTION NOW” visual framing.
+2. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; with Roster, Sets, curated Memories and contextual TRANSMISSIONS established, deepen remaining archive/event pathways without heuristics.
+3. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
 3. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
 4. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.
 5. **Analytics/privacy maturity** proportional to real product needs.
