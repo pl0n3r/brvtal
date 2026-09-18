@@ -19,7 +19,7 @@ RewriteCond %{THE_REQUEST} \s/+sitemap\.php(?:[?\s]) [NC]
 RewriteRule ^sitemap\.php$ /sitemap.xml [R=301,L,NE]
 RewriteRule ^sitemap\.xml$ sitemap.php [L,QSA]
 RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$ indexnow-key.php [L,QSA,NC]
+RewriteRule ^indexnow-[A-Za-z0-9][A-Za-z0-9-]{0,90}\.txt$ indexnow-key.php [L,QSA,NC]
 RewriteRule ^contact/?$ index.php?page=contact [L,QSA,NC]
 RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?type=$1&slug=$2 [L,QSA,NC]
 
