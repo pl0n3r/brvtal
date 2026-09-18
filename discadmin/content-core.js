@@ -15,7 +15,18 @@ function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('
 function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===5?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===5?'SAVE EVENT':'SAVE DRAFT'}
 function addTicket(t={}){const d=document.createElement('div');d.className='ticket-row';if(t.id)d.dataset.id=String(t.id);d.innerHTML=`<input data-k="name" aria-label="Ticket name" placeholder="Name" value="${esc(t.name||'')}"><input data-k="price" aria-label="Ticket price" type="number" min="0" step="0.01" placeholder="Price" value="${esc(t.price??'')}"><select data-k="status" aria-label="Ticket status"><option ${t.status==='draft'?'selected':''}>draft</option><option ${!t.status||t.status==='active'?'selected':''}>active</option><option ${t.status==='inactive'?'selected':''}>inactive</option><option ${t.status==='sold_out'?'selected':''}>sold_out</option></select><input data-k="external_url" aria-label="Ticket external URL" placeholder="External ticket URL" value="${esc(t.external_url||'')}"><button type="button" class="icon" aria-label="Remove ticket type" onclick="this.parentElement.remove()">×</button>`;$('#tickets').appendChild(d)}
 function ticketPayload(row,eventId,i){const o={event_id:eventId,sort_order:i};row.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value);return o}
-function validateEventPayload(payload){if(!payload.title)return 'Name is required.';if(payload.accent&&!/^#[0-9a-f]{6}$/i.test(payload.accent))return 'Accent must be a 6-digit HEX color.';if(payload.status!=='draft'&&(!payload.event_date||!payload.city))return 'Name, date and city are required before leaving draft.';return ''}
+function validateEventPayload(payload){
+  if(!payload.title){
+    return 'Name is required.';
+  }
+  if(payload.accent&&!/^#[0-9a-f]{6}$/i.test(payload.accent)){
+    return 'Accent must be a 6-digit HEX color.';
+  }
+  if(payload.status!=='draft'&&(!payload.event_date||!payload.city)){
+    return 'Name, date and city are required before leaving draft.';
+  }
+  return '';
+}
 function ticketFieldError(index,field,message){
   currentStep=4;
   setStep();
