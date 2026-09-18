@@ -155,8 +155,9 @@ test('public theme runtime falls back to the valid main logo when preferred asse
   await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
 });
 
-test('public theme runtime removes a failed header logo so text branding remains available', async ({ page }) => {
+test('public theme runtime falls back from failed branding images and recovers the hero on a later valid update', async ({ page }) => {
   await page.route('**/broken.png', route => route.abort('failed'));
+  await page.route('**/brand-recovered.png', route => route.fulfill({contentType:'image/png',body:pixel}));
   await page.route(harnessUrl, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:harness({
@@ -177,4 +178,22 @@ test('public theme runtime removes a failed header logo so text branding remains
   await expect(page.locator('.brand')).not.toHaveAttribute('data-theme-logo','1');
   await expect(page.locator('[data-site-name]')).toHaveText('STATIC FALLBACK');
   await expect(page.locator('[data-site-name]')).toBeVisible();
+  await expect(page.locator('.hero-logo')).toBeHidden();
+  await expect(page.locator('.hero-logo')).not.toHaveAttribute('src', /.+/);
+  await expect(page.locator('picture source')).not.toHaveAttribute('srcset', /.+/);
+
+  await page.evaluate(() => window.BRVTALThemeRuntime.apply({
+    slug:'recovered-branding',
+    branding:{siteName:'RECOVERED BRANDING',logo:'/brand-recovered.png'},
+    colors:{},
+    typography:{},
+    navigation:{},
+    effects:{},
+    sound:{},
+  }));
+
+  await expect(page.locator('.hero-logo')).toBeVisible();
+  await expect(page.locator('.hero-logo')).toHaveAttribute('src',/\/brand-recovered\.png$/);
+  await expect(page.locator('picture source')).toHaveAttribute('srcset',/\/brand-recovered\.png$/);
+  await expect(page.locator('[data-site-name]')).toHaveText('RECOVERED BRANDING');
 });
