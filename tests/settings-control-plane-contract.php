@@ -58,7 +58,9 @@ control_plane_assert(str_contains($themeExtension, 'data-theme-tab="seo"'), 'The
 control_plane_assert(str_contains($themeExtension, 'PRESERVED / UNWIRED'), 'Theme Studio visibly classifies stored non-runtime options');
 
 $themeRuntime = file_get_contents(__DIR__ . '/../js/public-theme-runtime.js') ?: '';
-control_plane_assert(str_contains($themeRuntime, 'currentBranding.wordmark'), 'public Theme Runtime consumes theme branding wordmark');
+control_plane_assert(str_contains($themeRuntime, 'branding.wordmark'), 'public Theme Runtime consumes theme branding wordmark');
+control_plane_assert(str_contains($themeRuntime, 'headerLogo: wordmark || selectedVisualLogo'), 'public Theme Runtime prioritizes wordmark for header branding');
+control_plane_assert(str_contains($themeRuntime, 'logo: wordmark || safeAsset(branding.preloaderLogo || branding.logo)'), 'public Theme Runtime prioritizes wordmark for preloader branding');
 control_plane_assert(str_contains($themeRuntime, 'image.onerror'), 'wordmark keeps a text fallback on asset error');
 control_plane_assert(!str_contains($themeRuntime, 'outerHTML'), 'Theme Runtime does not inject raw SVG/HTML strings');
 control_plane_assert(str_contains($themeRuntime, 'Legacy theme.seo values are kept'), 'Theme Runtime preserves legacy SEO without mutating canonical server SEO');
