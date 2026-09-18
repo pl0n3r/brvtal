@@ -39,11 +39,11 @@ theme_reference_assert($activePointerDelete === null, 'deleting the pointer itse
 $api = file_get_contents(__DIR__ . '/../api/index.php') ?: '';
 $settingsUi = file_get_contents(__DIR__ . '/../discadmin/settings-v2.js') ?: '';
 theme_reference_assert(str_contains($api, "SELECT setting_value FROM settings WHERE setting_key=? AND is_json=1 LIMIT 1"), 'API must fetch the target theme payload before activation');
-theme_reference_assert(str_contains($api, "'theme.'.\$slug"), 'API must query the canonical theme.<slug> key');
-theme_reference_assert(str_contains($api, 'json_decode($raw,true)'), 'API must require the target theme JSON to decode before activation.');
+theme_reference_assert(str_contains($api, "'theme.' . \$slug"), 'API must query the canonical theme.<slug> key');
+theme_reference_assert(str_contains($api, 'json_decode($raw, true)'), 'API must require the target theme JSON to decode before activation.');
 theme_reference_assert(str_contains($api, 'return is_array($decoded)'), 'API must reject non-object theme payloads as dangling references.');
 theme_reference_assert(str_contains($api, 'brvtalThemeDeleteReferenceError'), 'Settings DELETE must protect the active theme record.');
-theme_reference_assert(str_contains($api, "['ok' => false, 'error' => $themeDeleteError['error'], 'field' => $themeDeleteError['field']]"), 'Settings DELETE must propagate the helper conflict payload.');
+theme_reference_assert(str_contains($api, '409'), 'Settings DELETE must return an HTTP 409 conflict for the protected active theme.');
 theme_reference_assert(str_contains($settingsUi, 'data-settings-theme-studio'), 'Settings must route theme.active to Theme Studio');
 theme_reference_assert(str_contains($settingsUi, "globalThis.go?.('theme')"), 'Settings must keep Theme Studio inside the canonical shell');
 
