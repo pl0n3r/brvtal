@@ -181,7 +181,9 @@
     const current = jsonValue(key);
     const next = { ...current, ...patch };
     removeKeys.forEach(removeKey => delete next[removeKey]);
-    await req('/settings', {method:'POST', body:JSON.stringify({setting_key:key, setting_value:JSON.stringify(next), is_json:1})});
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      await req('/settings', {method:'POST', body:JSON.stringify({setting_key:key, setting_value:JSON.stringify(next), is_json:1})});
+    }
     if (!refresh) return;
     const response = await req('/settings');
     state.rows = response.data || [];
