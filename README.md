@@ -69,14 +69,15 @@ flowchart LR
 ## Qué sigue
 
 1. Cerrar #511 y actualizar el progreso maestro de #398.
-2. Continuar el siguiente slice real de #398 sin repetir Event Record/Roster/Sets/Memories/Archive/Transmissions ya integrados.
-3. Mantener pruebas behavior-first y selectores estables en cambios futuros.
+2. Implementar #513 — Dashboard DISCADMIN modular, drag/drop, redimensionable y persistido por administrador.
+3. Retomar el siguiente slice real de #398 después de #513, sin repetir Event Record/Roster/Sets/Memories/Archive/Transmissions ya integrados.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🗃️ **Archivo cultural** | #398 · implementación incremental activa |
+| 🧩 **Dashboard configurable** | #513 · siguiente prioridad: módulos, drag/drop, resize responsive grid y previews Analytics reales |
+| 🗃️ **Archivo cultural** | #398 · implementación incremental activa; pausa después de #511 mientras se ejecuta #513 |
 | 🎛️ **Apariencia** | #149 · completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
