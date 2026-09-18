@@ -53,6 +53,25 @@
       .filter(el => el.offsetParent !== null);
   }
 
+  function trapTabWithin(container, event) {
+    const items = focusableWithin(container);
+    if (!items.length) return false;
+    const first = items[0];
+    const last = items[items.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return true;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+      return true;
+    }
+    return false;
+  }
+
   function isOpen() {
     return modal.classList.contains('open');
   }
@@ -337,50 +356,32 @@
     }
   });
 
-  document.addEventListener('keydown', event => {
-    if (isOpen()) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        if (typeof window.closeModal === 'function') window.closeModal();
-        return;
-      }
-      if (event.key === 'Tab') {
-        const items = focusableWithin(modal);
-        if (!items.length) return;
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
+  function activeKeyboardDialog() {
+    if (isOpen()) return modal;
+    return contentCoreModal?.classList.contains('open') ? contentCoreModal : null;
+  }
+
+  function closeKeyboardDialog(dialog) {
+    if (dialog === modal) {
+      if (typeof window.closeModal === 'function') window.closeModal();
       return;
     }
+    if (window.BRVTALContentCore?.closeEvent) window.BRVTALContentCore.closeEvent();
+    else dialog.classList.remove('open');
+  }
 
-    const cc = contentCoreModal;
-    if (!cc?.classList.contains('open')) return;
+  function handleDialogKeydown(event) {
+    const dialog = activeKeyboardDialog();
+    if (!dialog) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (window.BRVTALContentCore?.closeEvent) window.BRVTALContentCore.closeEvent();
-      else cc.classList.remove('open');
+      closeKeyboardDialog(dialog);
       return;
     }
-    if (event.key !== 'Tab') return;
-    const items = focusableWithin(cc);
-    if (!items.length) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
+    if (event.key === 'Tab') trapTabWithin(dialog, event);
+  }
+
+  document.addEventListener('keydown', handleDialogKeydown);
 
   new MutationObserver(handleOpenState).observe(modal, { attributes: true, attributeFilter: ['class'] });
   const content = document.getElementById('mcontent');
