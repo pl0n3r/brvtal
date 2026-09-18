@@ -54,11 +54,13 @@ flowchart LR
 - Los fallos de IndexNow son no-fatales para el guardado editorial y usan timeouts estrictos.
 - No se programa un envío periódico masivo de todas las URLs.
 - El real-stack usa un receptor IndexNow local y el usuario E2E aislado; CI nunca llama al endpoint real de IndexNow.
+- La estrategia de prueba queda **behavior-first**: contratos PHP prueban invariantes ejecutables, E2E usa `data-testid`/helpers estables y el validador README comprueba semántica en vez de una sintaxis Mermaid exacta.
 
 ## Archivos modificados en este deploy
 
+- `.github/workflows/update-release-metadata.yml` — validación semántica del snapshot README.
 - `.htaccess` — ruta pública de verificación `/indexnow-key.txt`.
-- `AGENTS.md` — política durable event-driven y configuración desde Settings.
+- `AGENTS.md` — políticas durables de IndexNow y testing behavior-first.
 - `README.md` — snapshot exacto del deploy #481.
 - `api/blog.php` — notificaciones para Blog publicado.
 - `api/bulk-actions.php` — notificaciones después de publish/unpublish masivo.
@@ -71,10 +73,11 @@ flowchart LR
 - `discadmin/settings-v2.css` — estilos para controles IndexNow.
 - `discadmin/settings-v2.js` — UI y persistencia de IndexNow dentro de Settings → SEO.
 - `indexnow-key.php` — renderer dinámico de la key de verificación.
-- `tests/e2e/indexnow-real-stack.spec.mjs` — prueba autenticada con usuario E2E.
+- `tests/e2e/helpers/discadmin.mjs` — helper estable para navegación DISCADMIN autenticada.
+- `tests/e2e/indexnow-real-stack.spec.mjs` — prueba autenticada con selectores estables.
 - `tests/e2e/indexnow-receiver.mjs` — receptor local para verificar payloads sin red externa.
 - `tests/e2e/run-content-core-real-stack.sh` — arranque/cleanup del receptor y ejecución del spec.
-- `tests/indexnow-contract.php` — contratos de key, visibilidad, URLs y wiring.
+- `tests/indexnow-contract.php` — invariantes ejecutables de key, endpoints, visibilidad y URLs.
 
 ## Operación en producción
 
