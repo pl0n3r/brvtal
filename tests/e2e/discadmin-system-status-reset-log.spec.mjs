@@ -56,18 +56,20 @@ test('RESET LOG confirms, posts CSRF, and refreshes visible log state', async ({
   await expect(page.locator('#ssv2-logs')).toContainText('before reset');
   await expect(page.locator('#ssv2-log-meta')).toHaveText('1 LINES · 16 B');
 
-  page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button',{name:'RESET LOG'}).click();
+  await expect(page.getByRole('button',{name:'CONFIRM RESET'})).toBeVisible();
+  expect(state.resetCalls()).toBe(0);
+  await page.getByRole('button',{name:'CONFIRM RESET'}).click();
 
   await expect(page.locator('#ssv2-logs')).toHaveText('No log entries.');
   await expect(page.locator('#ssv2-log-meta')).toHaveText('0 LINES · 0 B');
   expect(state.resetCalls()).toBe(1);
 });
 
-test('RESET LOG cancellation sends no mutation', async ({page}) => {
+test('RESET LOG requires a second explicit activation before mutation', async ({page}) => {
   const state = await mount(page);
-  page.once('dialog', dialog => dialog.dismiss());
   await page.getByRole('button',{name:'RESET LOG'}).click();
+  await expect(page.getByRole('button',{name:'CONFIRM RESET'})).toBeVisible();
   expect(state.resetCalls()).toBe(0);
 });
 
@@ -76,8 +78,8 @@ test('RESET LOG failure preserves the current visible log', async ({page}) => {
   await page.getByRole('button',{name:'LOAD RECENT LOGS'}).click();
   await expect(page.locator('#ssv2-logs')).toContainText('before reset');
 
-  page.once('dialog', dialog => dialog.accept());
   await page.getByRole('button',{name:'RESET LOG'}).click();
+  await page.getByRole('button',{name:'CONFIRM RESET'}).click();
 
   await expect(page.locator('#ssv2-logs')).toContainText('before reset');
   await expect(page.locator('#ssv2-log-meta')).toContainText('RESET FAILED · LOG_CLEAR_FAILED');
