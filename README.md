@@ -4,43 +4,42 @@
 
 Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
 
-> **Regla permanente del proyecto:** cada deploy debe dejar aquí el snapshot exacto de lo que cambió y un panorama general actualizado de lo pendiente.
-
 ## Qué se hizo
 
 - Implementa #388 dentro de System Status → Advanced Diagnostics.
-- Añade una acción destructiva y claramente diferenciada **RESET LOG** junto a los controles de logs.
-- La acción exige confirmación explícita de dos pasos en el propio botón, usa POST autenticado con CSRF y reutiliza `discadmin/logs.php?action=clear` como única frontera de borrado.
-- `logs.php` conserva el flujo HTML existente y añade una respuesta JSON opcional para el workspace interno; no se duplica lógica de filesystem en `technical.php`.
-- El borrado usa `LOCK_EX` y devuelve error explícito si el archivo no puede vaciarse.
-- Tras éxito, System Status vuelve a leer el log y actualiza contenido, líneas y bytes; un fallo de reset conserva el estado visible y muestra error.
-- Se añade estilo de peligro/focus visible y cobertura Playwright para primer clic sin mutación, confirmación, éxito y fallo.
-- Se añade contrato PHP para mantener POST-only, CSRF, locking y reutilización del endpoint canónico.
+- Añade **RESET LOG** con confirmación explícita de dos pasos antes de cualquier mutación.
+- El reset reutiliza `discadmin/logs.php?action=clear`, exige sesión admin + POST + CSRF y conserva el comportamiento standalone existente.
+- La política destructiva se extrae a un helper reutilizado por el endpoint y probado sobre un archivo temporal aislado; no se toca el log real durante tests.
+- El borrado usa `LOCK_EX`, reporta fallos de escritura y refresca contenido, líneas y bytes tras éxito.
+- Las lecturas/reset comparten una generación de operación para impedir que una respuesta previa al reset sobrescriba el estado ya limpiado.
+- Si el reset falla por CSRF/autenticación, el token cacheado se invalida para que el siguiente intento consulte un token actual.
+- La cobertura Chromium incluye confirmación, éxito, fallo, carrera de respuesta vieja y recuperación tras CSRF obsoleto.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/logs.php` — respuesta JSON opcional y fallo explícito del reset, preservando la UI standalone.
-- `discadmin/system-status-v2.js` — RESET LOG, confirmación de dos pasos, CSRF, loading/error y refresh del estado visible.
-- `discadmin/system-status-v2.css` — agrupación de acciones, estilo destructivo y foco visible.
-- `discadmin/technical.php` — metadata de bytes para el log leído por System Status.
-- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de primer clic sin mutación, confirmación, éxito y fallo.
-- `tests/system-status-reset-log-contract.php` — contrato de seguridad y arquitectura del reset.
+- `config/admin_log.php` — política testable y aislada para validar/ejecutar el clear del log.
+- `discadmin/logs.php` — frontera autenticada/CSRF del reset y respuesta JSON opcional.
+- `discadmin/system-status-v2.css` — agrupación de acciones, estado destructivo y foco visible.
+- `discadmin/system-status-v2.js` — RESET LOG, confirmación, refresh, serialización de operaciones y recuperación de CSRF.
+- `discadmin/technical.php` — metadata de bytes/lectura defensiva del log.
+- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de UI, concurrencia y token CSRF.
+- `tests/system-status-reset-log-contract.php` — contrato ejecutable con archivo temporal auto-limpiable.
 
 ## Validación
 
 - Base exacta: `main` `96d39ba580a1f4e0bd33907f38378cbc33a82642`.
-- Ese SHA exacto pasó BRVTAL CI #865 y queda **VALIDATED IN CODE**.
-- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Esa base pasó BRVTAL CI #865 y queda **VALIDATED IN CODE**.
+- El head final del PR debe volver a pasar BRVTAL CI, SonarCloud y CodeRabbit después de los fixes de review.
+- Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
-- No se ejecutan operaciones destructivas en producción durante esta validación.
+- Ningún test ni paso automático limpia el log de producción.
 
 ## Qué sigue
 
-- Cerrar gates exactos de #388, corregir findings válidos, squash merge y verificar el nuevo `main`.
-- Atacar #365: hacer Dashboard V2 autoritativo para Health/Activity sin perder navegación al registro exacto.
-- Continuar después con #191 y #237 como bloques independientes de tamaño pequeño/medio.
+- Cerrar gates exactos de #388, resolver findings válidos, squash merge y verificar el nuevo `main`.
+- Continuar con #365: Dashboard V2 autoritativo para Health/Activity con navegación al registro exacto.
+- Después continuar #191 y #237 como bloques independientes.
 - Mantener #451 como burn-down continuo con cambios pequeños revalidados contra el código actual.
 
 ## Panorama general pendiente
@@ -59,4 +58,3 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
 - **Idioma:** #212 — español canónico + inglés automático por fases.
 - **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
-- **Completados recientemente:** #207, #391 y #260 ya fueron revalidados/cerrados en código.
