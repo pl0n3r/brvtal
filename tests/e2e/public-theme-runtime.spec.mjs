@@ -196,4 +196,19 @@ test('public theme runtime falls back from failed branding images and recovers t
   await expect(page.locator('.hero-logo')).toHaveAttribute('src',/\/brand-recovered\.png$/);
   await expect(page.locator('picture source')).toHaveAttribute('srcset',/\/brand-recovered\.png$/);
   await expect(page.locator('[data-site-name]')).toHaveText('RECOVERED BRANDING');
+
+  await page.evaluate(() => window.BRVTALThemeRuntime.apply({
+    slug:'text-only-branding',
+    branding:{siteName:'TEXT ONLY'},
+    colors:{},
+    typography:{},
+    navigation:{},
+    effects:{},
+    sound:{},
+  }));
+
+  await expect(page.locator('.hero-logo')).toBeHidden();
+  await expect(page.locator('.hero-logo')).not.toHaveAttribute('src', /.+/);
+  await expect(page.locator('picture source')).not.toHaveAttribute('srcset', /.+/);
+  await expect(page.locator('[data-site-name]')).toHaveText('TEXT ONLY');
 });
