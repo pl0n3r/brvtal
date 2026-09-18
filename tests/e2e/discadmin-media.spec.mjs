@@ -227,7 +227,7 @@ test('mutation feedback preserves endpoint-specific labels and precedence', asyn
 
   const cases = [
     {
-      url:'/api/media-library.php?action=upload',
+      url:'/api/test/media-library.php?action=upload',
       method:'POST',
       working:'Uploading media…',
       done:'Media uploaded.'
@@ -245,19 +245,19 @@ test('mutation feedback preserves endpoint-specific labels and precedence', asyn
       done:'Blog post saved.'
     },
     {
-      url:'/api/index.php/settings',
+      url:'/api/index.php/settings-feedback',
       method:'POST',
       working:'Saving settings…',
       done:'Settings saved.'
     },
     {
-      url:'/api/index.php/events/42',
+      url:'/api/index.php/events-feedback/42',
       method:'DELETE',
       working:'Deleting…',
       done:'Deleted.'
     },
     {
-      url:'/api/index.php/events/42',
+      url:'/api/index.php/events-feedback/42',
       method:'PUT',
       working:'Saving changes…',
       done:'Changes saved.'
