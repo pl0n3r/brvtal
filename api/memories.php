@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/memory_relations.php';
 
 brvtal_admin_require();
 header('X-Content-Type-Options: nosniff');
@@ -59,8 +60,7 @@ function brvtal_memories_validate(PDO $pdo, array $input, ?array $existing = nul
     $title = mb_substr(trim((string)($input['title'] ?? $existing['title'] ?? $media['title'] ?? '')), 0, 180);
     if ($title === '') $title = mb_substr((string)($media['title'] ?? 'Memory'), 0, 180);
     $context = mb_substr(trim((string)($input['context'] ?? $existing['context'] ?? '')), 0, 320);
-    $sortOrder = (int)($input['sort_order'] ?? $existing['sort_order'] ?? 0);
-    $sortOrder = max(-100000, min(100000, $sortOrder));
+    $sortOrder = max(-100000, min(100000, (int)($input['sort_order'] ?? $existing['sort_order'] ?? 0)));
 
     return [
         'media_id'=>$mediaId,
@@ -74,11 +74,9 @@ function brvtal_memories_validate(PDO $pdo, array $input, ?array $existing = nul
 function brvtal_memories_validation_error(InvalidArgumentException $error): string
 {
     return match ($error->getMessage()) {
-        'MEDIA_REQUIRED' => 'MEDIA_REQUIRED',
-        'MEDIA_NOT_FOUND' => 'MEDIA_NOT_FOUND',
-        'MEDIA_TYPE_NOT_ALLOWED' => 'MEDIA_TYPE_NOT_ALLOWED',
-        'INVALID_STATUS' => 'INVALID_STATUS',
-        'MEDIA_NOT_PUBLIC' => 'MEDIA_NOT_PUBLIC',
+        'MEDIA_REQUIRED','MEDIA_NOT_FOUND','MEDIA_TYPE_NOT_ALLOWED','INVALID_STATUS','MEDIA_NOT_PUBLIC',
+        'INVALID_MEMORY_RELATION','INVALID_MEMORY_RELATIONS','TOO_MANY_MEMORY_RELATIONS',
+        'MEMORY_RELATION_NOT_FOUND','INVALID_MEMORY_ID' => $error->getMessage(),
         default => 'INVALID_REQUEST',
     };
 }
@@ -100,6 +98,7 @@ function brvtal_memories_fetch(PDO $pdo, int $id): ?array
     $row['media_id'] = (int)$row['media_id'];
     $row['sort_order'] = (int)$row['sort_order'];
     $row['file_size'] = (int)$row['file_size'];
+    $row['relations'] = brvtal_memory_load_relations($pdo, $id);
     return $row;
 }
 
@@ -113,11 +112,12 @@ function brvtal_memories_list(PDO $pdo): array
          JOIN media ON media.id=m.media_id
          ORDER BY m.sort_order ASC,m.id ASC"
     )->fetchAll(PDO::FETCH_ASSOC);
-    return array_map(static function(array $row): array {
+    return array_map(static function (array $row) use ($pdo): array {
         $row['id'] = (int)$row['id'];
         $row['media_id'] = (int)$row['media_id'];
         $row['sort_order'] = (int)$row['sort_order'];
         $row['file_size'] = (int)$row['file_size'];
+        $row['relations'] = brvtal_memory_load_relations($pdo, $row['id']);
         return $row;
     }, $rows ?: []);
 }
@@ -132,7 +132,7 @@ function brvtal_memories_available(PDO $pdo): array
          WHERE media.type IN ('image','video','audio')
          ORDER BY media.created_at DESC,media.id DESC"
     )->fetchAll(PDO::FETCH_ASSOC);
-    return array_map(static function(array $row): array {
+    return array_map(static function (array $row): array {
         $row['id'] = (int)$row['id'];
         $row['memory_id'] = $row['memory_id'] === null ? null : (int)$row['memory_id'];
         $row['file_size'] = (int)$row['file_size'];
@@ -151,37 +151,82 @@ $id = isset($_GET['id']) && ctype_digit((string)$_GET['id']) ? (int)$_GET['id'] 
 
 try {
     if ($method === 'GET' && $action === 'list') {
-        brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_list($pdo)]);
+        brvtal_memories_json([
+            'ok'=>true,
+            'data'=>brvtal_memories_list($pdo),
+            'relations_ready'=>brvtal_memory_relations_ready($pdo),
+        ]);
     }
     if ($method === 'GET' && $action === 'available') {
         brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_available($pdo)]);
     }
+    if ($method === 'GET' && $action === 'catalog') {
+        brvtal_memories_json([
+            'ok'=>true,
+            'data'=>brvtal_memory_relation_catalog($pdo),
+            'relations_ready'=>brvtal_memory_relations_ready($pdo),
+        ]);
+    }
 
     if ($method === 'POST' && $action === 'create') {
         brvtal_admin_require_csrf();
-        $data = brvtal_memories_validate($pdo, brvtal_memories_body());
-        $st = $pdo->prepare('INSERT INTO memories(media_id,title,context,status,sort_order) VALUES(?,?,?,?,?)');
+        $input = brvtal_memories_body();
+        $relationsProvided = array_key_exists('relations', $input);
+        if ($relationsProvided && !brvtal_memory_relations_ready($pdo)) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
+        }
+        $data = brvtal_memories_validate($pdo, $input);
         try {
+            $pdo->beginTransaction();
+            $st = $pdo->prepare('INSERT INTO memories(media_id,title,context,status,sort_order) VALUES(?,?,?,?,?)');
             $st->execute([$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order']]);
-        } catch (PDOException $e) {
-            if ((int)($e->errorInfo[1] ?? 0) === 1062) brvtal_memories_json(['ok'=>false,'error'=>'MEDIA_ALREADY_CURATED'], 409);
+            $createdId = (int)$pdo->lastInsertId();
+            if ($relationsProvided) {
+                brvtal_memory_replace_relations($pdo, $createdId, $input['relations']);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($e instanceof PDOException && (int)($e->errorInfo[1] ?? 0) === 1062) {
+                brvtal_memories_json(['ok'=>false,'error'=>'MEDIA_ALREADY_CURATED'], 409);
+            }
             throw $e;
         }
-        $created = brvtal_memories_fetch($pdo, (int)$pdo->lastInsertId());
-        brvtal_memories_json(['ok'=>true,'data'=>$created], 201);
+        brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_fetch($pdo, $createdId)], 201);
     }
 
     if ($method === 'PUT' && $action === 'update') {
         brvtal_admin_require_csrf();
-        if ($id < 1) brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_ID_REQUIRED'], 422);
+        if ($id < 1) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_ID_REQUIRED'], 422);
+        }
         $existing = brvtal_memories_fetch($pdo, $id);
-        if (!$existing) brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_NOT_FOUND'], 404);
-        $data = brvtal_memories_validate($pdo, brvtal_memories_body(), $existing);
-        $st = $pdo->prepare('UPDATE memories SET media_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
+        if (!$existing) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_NOT_FOUND'], 404);
+        }
+        $input = brvtal_memories_body();
+        $relationsProvided = array_key_exists('relations', $input);
+        if ($relationsProvided && !brvtal_memory_relations_ready($pdo)) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
+        }
+        $data = brvtal_memories_validate($pdo, $input, $existing);
         try {
+            $pdo->beginTransaction();
+            $st = $pdo->prepare('UPDATE memories SET media_id=?,title=?,context=?,status=?,sort_order=? WHERE id=?');
             $st->execute([$data['media_id'],$data['title'],$data['context'],$data['status'],$data['sort_order'],$id]);
-        } catch (PDOException $e) {
-            if ((int)($e->errorInfo[1] ?? 0) === 1062) brvtal_memories_json(['ok'=>false,'error'=>'MEDIA_ALREADY_CURATED'], 409);
+            if ($relationsProvided) {
+                brvtal_memory_replace_relations($pdo, $id, $input['relations']);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($e instanceof PDOException && (int)($e->errorInfo[1] ?? 0) === 1062) {
+                brvtal_memories_json(['ok'=>false,'error'=>'MEDIA_ALREADY_CURATED'], 409);
+            }
             throw $e;
         }
         brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_fetch($pdo, $id)]);
@@ -189,9 +234,13 @@ try {
 
     if ($method === 'DELETE') {
         brvtal_admin_require_csrf();
-        if ($id < 1) brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_ID_REQUIRED'], 422);
+        if ($id < 1) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_ID_REQUIRED'], 422);
+        }
         $existing = brvtal_memories_fetch($pdo, $id);
-        if (!$existing) brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_NOT_FOUND'], 404);
+        if (!$existing) {
+            brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_NOT_FOUND'], 404);
+        }
         $pdo->prepare('DELETE FROM memories WHERE id=?')->execute([$id]);
         brvtal_memories_json(['ok'=>true,'deleted_id'=>$id]);
     }
@@ -201,6 +250,9 @@ try {
 } catch (InvalidArgumentException $e) {
     brvtal_memories_json(['ok'=>false,'error'=>brvtal_memories_validation_error($e)], 422);
 } catch (Throwable $e) {
+    if ($e instanceof RuntimeException && $e->getMessage() === 'MEMORY_RELATIONS_SCHEMA_MISSING') {
+        brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_RELATIONS_SCHEMA_MISSING'], 409);
+    }
     if (function_exists('brvtal_log')) {
         brvtal_log('MEMORIES_ADMIN_ERROR', 'Memories admin API failure', ['class'=>get_class($e)]);
     }

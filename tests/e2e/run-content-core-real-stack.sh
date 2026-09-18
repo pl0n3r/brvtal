@@ -49,6 +49,8 @@ sed \
 "${mysql_db[@]}" < database/migration_seo_01.sql
 "${mysql_db[@]}" < database/migration_totp_foundation.sql
 "${mysql_db[@]}" < database/migration_admin_activity_01.sql
+"${mysql_db[@]}" < database/migration_memories_01.sql
+"${mysql_db[@]}" < database/migration_memory_relations_01.sql
 
 ADMIN_HASH="$(php -r 'echo password_hash(getenv("BRVTAL_REAL_STACK_ADMIN_PASSWORD") ?: "brvtal-ci-password", PASSWORD_DEFAULT);')"
 "${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0);"
@@ -127,4 +129,5 @@ npx playwright test \
   tests/e2e/theme-active-reference-real-stack.spec.mjs \
   tests/e2e/event-publication-invariant-real-stack.spec.mjs \
   tests/e2e/blog-relation-integrity-real-stack.spec.mjs \
+  tests/e2e/memory-relations-real-stack.spec.mjs \
   --project=chromium

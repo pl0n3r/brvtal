@@ -8,7 +8,7 @@ const memoriesCss = readFileSync(join(process.cwd(), 'css/public-memories.css'),
 const harnessUrl = 'http://127.0.0.1:4173/public-media-e2e.html';
 
 const items = [
-  {id:1,media_id:101,type:'image',title:'Warehouse Memory',context:'Crowd pressure / Pereira',alt_text:'Crowd in Pereira',file_path:'/uploads/warehouse.jpg',sort_order:10},
+  {id:1,media_id:101,type:'image',title:'Warehouse Memory',context:'Crowd pressure / Pereira',alt_text:'Crowd in Pereira',file_path:'/uploads/warehouse.jpg',sort_order:10,relations:[{related_type:'event',related_id:10,route_type:'events',slug:'genesis',label:'GENESIS'}]},
   {id:2,media_id:102,type:'audio',title:'Closing Signal',context:'Final minutes before lights on',file_path:'/uploads/closing.mp3',sort_order:20},
   {id:3,media_id:103,type:'video',title:'Red Strobe',context:'Thirty seconds from the floor',file_path:'/uploads/strobe.mp4',sort_order:30},
   {id:4,media_id:104,type:'image',title:'Afterhours',context:'Afterimage / 05:12',file_path:'/uploads/afterhours.jpg',sort_order:40},
@@ -35,6 +35,7 @@ test('public Memories supports curated search/type discovery and an immersive mu
   await expect(page.locator('[data-public-media-item] img').first()).toHaveAttribute('decoding','async');
   await expect(page.locator('[data-public-media-count]')).toHaveText('4 MEMORIES FOUND');
   await expect(page.getByText('Crowd pressure / Pereira')).toBeVisible();
+  await expect(page.getByRole('link',{name:'EVENT / GENESIS'})).toHaveAttribute('href','/events/genesis');
   const cards=page.locator('[data-public-media-item]'),first=await cards.nth(0).boundingBox(),second=await cards.nth(1).boundingBox(); expect(first).not.toBeNull();expect(second).not.toBeNull();expect(first.width).toBeGreaterThan(second.width*1.25);expect(first.height).toBeGreaterThan(second.height*1.35);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.getByRole('button',{name:'AUDIO'}).click(); await expect(page.locator('[data-public-media-type-value="audio"]')).toBeVisible(); await expect(page.locator('[data-public-media-type-value="image"]').first()).toBeHidden(); await page.locator('[data-public-media-search]').fill('closing'); await expect(page.locator('[data-public-media-count]')).toHaveText('1 MEMORY FOUND');
   await page.getByRole('button',{name:'Open Closing Signal'}).click(); await expect(page.getByRole('dialog',{name:'Closing Signal'})).toBeVisible(); await expect(page.getByRole('dialog').locator('audio')).toHaveCount(1); await expect(page.getByRole('dialog')).toContainText('Final minutes before lights on'); await page.keyboard.press('Escape'); await expect(page.getByRole('button',{name:'Open Closing Signal'})).toBeFocused();
@@ -62,5 +63,5 @@ test('Home Memories consumes only the curated collection from the canonical publ
 test('Memories keeps a two-column mobile editorial rhythm with deliberate full-span records and no overflow', async ({ page }) => {
   await page.setViewportSize({width:390,height:844}); await mountHarness(page); const cards=page.locator('[data-public-media-item]'); await expect(cards).toHaveCount(4); const boxes=await Promise.all([0,1,2,3].map(index=>cards.nth(index).boundingBox())); for(const box of boxes)expect(box).not.toBeNull();
   expect(boxes[0].width).toBeGreaterThan(340);expect(boxes[1].width).toBeGreaterThan(160);expect(boxes[1].width).toBeLessThan(180);expect(Math.abs(boxes[1].y-boxes[2].y)).toBeLessThan(4);expect(boxes[2].x).toBeGreaterThan(boxes[1].x+boxes[1].width-2);expect(boxes[3].y).toBeGreaterThan(boxes[1].y+100);
-  for(const button of await page.locator('[data-public-media-type]').all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);} expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true); await expect(page.getByRole('heading',{name:'MEMORIES'})).toBeVisible(); await expect(page.getByText('THE NIGHT REMAINS.')).toBeVisible();
+  for(const button of await page.locator('[data-public-media-type]').all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);} const relationBox=await page.getByRole('link',{name:'EVENT / GENESIS'}).boundingBox();expect(relationBox.height).toBeGreaterThanOrEqual(44);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true); await expect(page.getByRole('heading',{name:'MEMORIES'})).toBeVisible(); await expect(page.getByText('THE NIGHT REMAINS.')).toBeVisible();
 });

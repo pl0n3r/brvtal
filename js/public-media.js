@@ -167,6 +167,31 @@
     viewer.addEventListener('click',event=>{if(event.target===viewer)closeViewer();}); close.focus();
   }
 
+  function relationHref(relation) {
+    const route = String(relation?.route_type || '');
+    const slug = String(relation?.slug || '');
+    if (!['events','artists','sets','releases'].includes(route) || !/^[a-z0-9-]{1,190}$/.test(slug)) return '';
+    return `/${route}/${encodeURIComponent(slug)}`;
+  }
+
+  function relationContextNode(item) {
+    const relations = Array.isArray(item?.relations) ? item.relations : [];
+    const links = relations.map(relation => {
+      const href = relationHref(relation);
+      const label = String(relation?.label || '').trim();
+      const type = String(relation?.related_type || '').toUpperCase();
+      if (!href || !label) return null;
+      const link = create('a', {text:`${type} / ${label}`});
+      link.href = href;
+      link.className = 'public-memory-context-link mono';
+      return link;
+    }).filter(Boolean);
+    if (!links.length) return null;
+    const context = create('div', {className:'public-memory-context'});
+    context.append(...links);
+    return context;
+  }
+
   function itemNode(item) {
     if (!item || typeof item !== 'object') return null;
     const type = mediaType(item);
@@ -177,8 +202,11 @@
     const figure = create('figure', {className:'public-media-item'});
     figure.dataset.publicMediaItem = '';
     figure.dataset.publicMediaTypeValue = type;
+    const relationSearch = (Array.isArray(item.relations) ? item.relations : [])
+      .map(relation => `${relation?.related_type || ''} ${relation?.label || ''}`)
+      .join(' ');
     figure.dataset.publicMediaSearchValue = searchText(
-      `${title} ${item.context || ''} ${item.alt_text || ''}`
+      `${title} ${item.context || ''} ${item.alt_text || ''} ${relationSearch}`
     );
 
     const open = create('button', {className:'public-media-open'});
@@ -228,6 +256,8 @@
     if (item.context) {
       copy.append(create('p', {text:item.context}));
     }
+    const relationContext = relationContextNode(item);
+    if (relationContext) copy.append(relationContext);
     caption.append(copy, create('span', {className:'mono',text:type.toUpperCase()}));
     figure.append(open, caption);
     return figure;
