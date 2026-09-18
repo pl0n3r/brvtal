@@ -29,6 +29,26 @@ $missing = brvtalThemeActiveReferenceError('theme.active', 'missing-theme', stat
 theme_reference_assert(($missing['error'] ?? '') === 'THEME_NOT_FOUND', 'missing theme slug must be rejected');
 theme_reference_assert(($missing['field'] ?? '') === 'setting_value', 'missing theme error must identify setting_value');
 
+$activeDefinitionInvalidFlag = brvtalThemeDefinitionUpdateError(
+    'theme.core',
+    0,
+    '{"name":"CORE"}',
+    'core'
+);
+theme_reference_assert(
+    ($activeDefinitionInvalidFlag['error'] ?? '') === 'INVALID_SETTING_JSON',
+    'active theme definition must remain marked as JSON'
+);
+$activeDefinitionInvalidPayload = brvtalThemeDefinitionUpdateError('theme.core', 1, '"scalar"', 'core');
+theme_reference_assert(
+    ($activeDefinitionInvalidPayload['error'] ?? '') === 'INVALID_SETTING_JSON',
+    'active theme definition must remain a JSON object/array'
+);
+$activeDefinitionValid = brvtalThemeDefinitionUpdateError('theme.core', 1, '{"name":"CORE"}', 'core');
+theme_reference_assert($activeDefinitionValid === null, 'valid active theme definition updates must remain allowed');
+$inactiveDefinition = brvtalThemeDefinitionUpdateError('theme.alt', 0, 'legacy-value', 'core');
+theme_reference_assert($inactiveDefinition === null, 'inactive theme definitions remain governed by activation-time validation');
+
 $activeDelete = brvtalThemeDeleteReferenceError('theme.core', 'core');
 theme_reference_assert(($activeDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED', 'active theme record deletion must be rejected');
 $inactiveDelete = brvtalThemeDeleteReferenceError('theme.alt', 'core');
@@ -44,18 +64,21 @@ theme_reference_assert(str_contains($api, 'json_decode($raw, true)'), 'API must 
 theme_reference_assert(str_contains($api, 'return is_array($decoded)'), 'API must reject non-object theme payloads as dangling references.');
 theme_reference_assert(str_contains($api, 'brvtalThemeDeleteReferenceError'), 'Settings DELETE must protect the active theme record.');
 $settingsPostStart = strpos($api, 'if ($resource === \'settings\') {');
-$settingsPostEnd = strpos($api, '$d=sanitize_payload', $settingsPostStart);
-$settingsPostBlock = $settingsPostStart !== false && $settingsPostEnd !== false
-    ? substr($api, $settingsPostStart, $settingsPostEnd - $settingsPostStart)
-    : '';
+theme_reference_assert($settingsPostStart !== false, 'Settings POST block marker must remain present');
+$settingsPostEnd = strpos($api, '$d=sanitize_payload', (int)$settingsPostStart);
+theme_reference_assert($settingsPostEnd !== false, 'Settings POST block end marker must remain present');
+$settingsPostBlock = substr($api, (int)$settingsPostStart, (int)$settingsPostEnd - (int)$settingsPostStart);
+
 $settingsDeleteStart = strpos($api, 'if ($method === \'DELETE\' && $resource === \'settings\' && $id === null)');
-$settingsDeleteEnd = strpos($api, 'method_not_allowed();', $settingsDeleteStart);
-$settingsDeleteBlock = $settingsDeleteStart !== false && $settingsDeleteEnd !== false
-    ? substr($api, $settingsDeleteStart, $settingsDeleteEnd - $settingsDeleteStart)
-    : '';
+theme_reference_assert($settingsDeleteStart !== false, 'Settings DELETE block marker must remain present');
+$settingsDeleteEnd = strpos($api, 'method_not_allowed();', (int)$settingsDeleteStart);
+theme_reference_assert($settingsDeleteEnd !== false, 'Settings DELETE block end marker must remain present');
+$settingsDeleteBlock = substr($api, (int)$settingsDeleteStart, (int)$settingsDeleteEnd - (int)$settingsDeleteStart);
 theme_reference_assert(str_contains($api, 'SELECT GET_LOCK(?, 5)'), 'Theme mutations must acquire a cross-session Theme mutex');
 theme_reference_assert(str_contains($api, 'SELECT RELEASE_LOCK(?)'), 'Theme mutations must release the cross-session Theme mutex');
 theme_reference_assert(str_contains($settingsPostBlock, 'brvtalAcquireThemeReferenceMutex($pdo)'), 'Settings POST must serialize theme writes before reference validation');
+theme_reference_assert(str_contains($settingsPostBlock, 'brvtalThemeDefinitionUpdateError'), 'Settings POST must protect the concrete active theme definition before upsert');
+theme_reference_assert(str_contains($settingsPostBlock, "setting_key='theme.active' LIMIT 1 FOR UPDATE"), 'Settings POST must lock theme.active while protecting active definition updates');
 theme_reference_assert(str_contains($settingsPostBlock, 'LIMIT 1 FOR UPDATE'), 'theme.active activation must lock the target theme row inside its transaction');
 theme_reference_assert(str_contains($settingsDeleteBlock, "brvtal_setting_key_normalize((string)(\$_GET['key'] ?? ''))"), 'Settings DELETE must apply the canonical setting-key validator before database access');
 theme_reference_assert(str_contains($settingsDeleteBlock, 'brvtalAcquireThemeReferenceMutex($pdo)'), 'Settings DELETE must share the same Theme mutation mutex');

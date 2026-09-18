@@ -12,11 +12,12 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - El backend rechaza activar slugs inexistentes con `THEME_NOT_FOUND` y conserva la validación sintáctica existente.
 - La referencia solo se considera válida cuando existe `theme.<slug>`, está marcada como JSON y decodifica a un objeto/array de configuración válido.
 - No se puede borrar el registro `theme.<slug>` que está actualmente referenciado por `theme.active`; el servidor responde `ACTIVE_THEME_DELETE_BLOCKED`.
+- Tampoco se puede degradar o corromper la definición `theme.<slug>` que está activa: mientras esté referenciada debe conservar `is_json=1` y un payload JSON de configuración válido.
 - Las mutaciones `theme.*` se serializan entre sesiones con un mutex de MariaDB y transacción; la validación, el bloqueo de filas y la escritura/borrado ya no pueden intercalarse dejando una referencia colgante.
 - `DELETE /settings` usa el mismo normalizador canónico que `POST`, por lo que variantes como `Theme.core` se rechazan antes de tocar la base de datos.
 - El fallback `core` sin `theme.active` sigue intacto: Theme Studio guarda primero `theme.core` antes de persistir `theme.active=core` cuando se activa explícitamente.
 - Settings deja de ofrecer RAW EDIT para `theme.active` y lo dirige a Theme Studio dentro del mismo shell.
-- Se añaden regresiones PHP y Playwright para integridad referencial y navegación desde Settings.
+- Se añaden regresiones PHP, Playwright y real-stack autenticadas para activación inexistente, actualización inválida, borrado protegido y navegación desde Settings.
 - Se conserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 
 ## Archivos modificados en este deploy
@@ -29,6 +30,8 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `tests/api-contract.php` — conserva la detección del branch DELETE de Settings tras hacerlo legible.
 - `tests/content-validation-contract.php` — mantiene los marcadores de validación de Settings tras el formateo.
 - `tests/e2e/discadmin-settings-theme-active.spec.mjs` — regresión de navegación desde Settings.
+- `tests/e2e/theme-active-reference-real-stack.spec.mjs` — regresión autenticada sobre MariaDB aislada para la integridad de `theme.active`.
+- `tests/e2e/run-content-core-real-stack.sh` — incorpora la regresión de Settings al gate real-stack.
 
 ## Validación
 
@@ -53,7 +56,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - **Apariencia:** #149 — completar Light en módulos modernos.
 - **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193.
-- **SEO editorial:** #182, #214, #204 y #272 antes de #390.
+- **SEO editorial / entrega pública:** #182, #214, #204 y #272 antes de #390; #479 corrige imágenes públicas sin `alt` reportadas por Bing.
 - **Content / edición:** #224 y #252 — Ticket Types e integridad de media.
 - **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
 - **Bulk Actions:** #275 — resolver catálogos mayores de 500 sin truncado silencioso.

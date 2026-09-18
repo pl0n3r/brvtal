@@ -210,6 +210,28 @@ function brvtalThemeActiveReferenceError(string $key, string $value, callable $t
         : ['error' => 'THEME_NOT_FOUND', 'field' => 'setting_value'];
 }
 
+/** Keep the concrete active Theme definition valid while it is being updated. */
+function brvtalThemeDefinitionUpdateError(string $key, int $isJson, string $value, ?string $activeSlug): ?array
+{
+    if ($activeSlug === null || $key === 'theme.active' || !str_starts_with($key, 'theme.')) {
+        return null;
+    }
+
+    $slug = substr($key, strlen('theme.'));
+    if (!hash_equals($activeSlug, $slug)) {
+        return null;
+    }
+
+    if ($isJson !== 1) {
+        return ['error' => 'INVALID_SETTING_JSON', 'field' => 'setting_value'];
+    }
+
+    $decoded = json_decode($value, true);
+    return is_array($decoded)
+        ? null
+        : ['error' => 'INVALID_SETTING_JSON', 'field' => 'setting_value'];
+}
+
 /** Prevent deleting the concrete theme record currently referenced by theme.active. */
 function brvtalThemeDeleteReferenceError(string $key, ?string $activeSlug): ?array
 {

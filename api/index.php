@@ -252,7 +252,8 @@ try {
             if (strlen($value) > 2 * 1024 * 1024) {
                 json_response(['ok' => false, 'error' => 'VALUE_TOO_LARGE'], 422);
             }
-            $invalidJson = (int)($d['is_json'] ?? 0) === 1
+            $isJson = (int)($d['is_json'] ?? 0);
+            $invalidJson = $isJson === 1
                 && json_decode($value, true) === null
                 && strtolower(trim($value)) !== 'null';
             if ($invalidJson) {
@@ -267,6 +268,28 @@ try {
             try {
                 if ($themeMutation) {
                     $pdo->beginTransaction();
+
+                    $activeTheme = $pdo->query(
+                        "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
+                    )->fetchColumn();
+                    $themeDefinitionUpdateError = brvtalThemeDefinitionUpdateError(
+                        $key,
+                        $isJson,
+                        $value,
+                        is_string($activeTheme) ? trim($activeTheme) : null
+                    );
+                    if ($themeDefinitionUpdateError !== null) {
+                        $pdo->rollBack();
+                        brvtalReleaseThemeReferenceMutex($pdo);
+                        json_response(
+                            [
+                                'ok' => false,
+                                'error' => $themeDefinitionUpdateError['error'],
+                                'field' => $themeDefinitionUpdateError['field'],
+                            ],
+                            422
+                        );
+                    }
                 }
 
                 $themeReferenceError = brvtalThemeActiveReferenceError(
@@ -306,7 +329,7 @@ try {
                     'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
                     . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'
                 );
-                $st->execute([$key, $value, (int)($d['is_json'] ?? 0)]);
+                $st->execute([$key, $value, $isJson]);
 
                 if ($themeMutation) {
                     $pdo->commit();
