@@ -62,7 +62,8 @@ function brvtal_activity_fetch_resource(PDO $pdo, string $table, int $id, bool $
     $st=$pdo->prepare($sql);$st->execute([$id]);$row=$st->fetch(PDO::FETCH_ASSOC);return $row?:null;
 }
 /** Acquire the cross-session database mutex that serializes Theme setting references. */
-function brvtalAcquireThemeReferenceMutex(PDO $pdo): void {
+function brvtalAcquireThemeReferenceMutex(PDO $pdo): void
+{
     $st = $pdo->prepare('SELECT GET_LOCK(?, 5)');
     $st->execute(['brvtal.theme_reference']);
     if ((int)$st->fetchColumn() !== 1) {
@@ -71,7 +72,8 @@ function brvtalAcquireThemeReferenceMutex(PDO $pdo): void {
 }
 
 /** Release the Theme reference mutex without masking the request result. */
-function brvtalReleaseThemeReferenceMutex(PDO $pdo): void {
+function brvtalReleaseThemeReferenceMutex(PDO $pdo): void
+{
     try {
         $st = $pdo->prepare('SELECT RELEASE_LOCK(?)');
         $st->execute(['brvtal.theme_reference']);
@@ -291,7 +293,11 @@ try {
                         brvtalReleaseThemeReferenceMutex($pdo);
                     }
                     json_response(
-                        ['ok' => false, 'error' => $themeReferenceError['error'], 'field' => $themeReferenceError['field']],
+                        [
+                            'ok' => false,
+                            'error' => $themeReferenceError['error'],
+                            'field' => $themeReferenceError['field'],
+                        ],
                         422
                     );
                 }
