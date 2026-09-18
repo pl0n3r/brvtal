@@ -103,7 +103,7 @@ test('blog catalog renders published editorial content', async ({ page }) => {
   await expect(page.locator('#blog-featured')).toHaveText('1');
 });
 
-test('new blog post uses Media Library, tags and related content', async ({ page }) => {
+test('new blog post uses Media Library and related content without manual taxonomy', async ({ page }) => {
   await loadHarness(page);
   await page.locator('#blog-new').click();
   await expect(page.locator('#mtitle')).toHaveText('NEW BLOG POST');
@@ -112,7 +112,8 @@ test('new blog post uses Media Library, tags and related content', async ({ page
   await expect(page.locator('#blog_slug')).toHaveValue('underground-signal');
   await page.locator('#blog_excerpt').fill('A new BRVTAL editorial signal.');
   await page.locator('#blog_body').fill('Long-form editorial content.');
-  await page.locator('#blog_tags').fill('Hard Techno, Culture');
+  await expect(page.locator('#blog_tags')).toHaveCount(0);
+  await expect(page.getByText('TAXONOMY', { exact: true })).toHaveCount(0);
   await page.locator('[data-blog-related-type="artist"][data-blog-related-id="7"]').check();
   await page.locator('[data-blog-related-type="release"][data-blog-related-id="3"]').check();
 
@@ -125,17 +126,18 @@ test('new blog post uses Media Library, tags and related content', async ({ page
   const payload = await page.evaluate(() => window.__blogMutation.body);
   expect(payload.title).toBe('Underground Signal');
   expect(payload.cover_image).toBe('/uploads/media/2026/09/editorial.jpg');
-  expect(payload.tags).toEqual(['Hard Techno','Culture']);
+  expect(payload).not.toHaveProperty('tags');
   expect(payload.relations).toEqual([
     { related_type: 'artist', related_id: 7, sort_order: 0 },
     { related_type: 'release', related_id: 3, sort_order: 1 }
   ]);
 });
 
-test('editing a blog post sends PUT and keeps existing taxonomy', async ({ page }) => {
+test('editing a blog post leaves existing taxonomy untouched without exposing controls', async ({ page }) => {
   await loadHarness(page);
   await page.getByRole('button', { name: 'EDIT' }).click();
-  await expect(page.locator('#blog_tags')).toHaveValue('Hard Techno');
+  await expect(page.locator('#blog_tags')).toHaveCount(0);
+  await expect(page.getByText('TAXONOMY', { exact: true })).toHaveCount(0);
   await expect(page.locator('[data-blog-related-type="artist"][data-blog-related-id="7"]')).toBeChecked();
   await page.locator('#blog_excerpt').fill('Updated editorial excerpt.');
   await page.locator('#saveBtn').click();
@@ -143,7 +145,7 @@ test('editing a blog post sends PUT and keeps existing taxonomy', async ({ page 
   await expect.poll(() => page.evaluate(() => window.__blogMutation?.method)).toBe('PUT');
   const payload = await page.evaluate(() => window.__blogMutation.body);
   expect(payload.excerpt).toBe('Updated editorial excerpt.');
-  expect(payload.tags).toEqual(['Hard Techno']);
+  expect(payload).not.toHaveProperty('tags');
 });
 
 test('editing preserves existing relations when one related source fails', async ({ page }) => {

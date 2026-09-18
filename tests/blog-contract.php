@@ -44,7 +44,8 @@ blog_assert(str_contains($controller, "const endpoint = '/api/blog.php'"), 'blog
 blog_assert(str_contains($controller, 'BRVTALMediaLibrary?.openPicker'), 'blog cover must use Media Library picker');
 blog_assert(str_contains($controller, 'data-blog-related-type'), 'blog editor must support related content');
 blog_assert(str_contains($controller, "method:id?'PUT':'POST'"), 'blog editor must create and update posts');
-blog_assert(str_contains($controller, "split(',')"), 'blog editor must support simple tag taxonomy');
+blog_assert(!str_contains($controller, 'id="blog_tags"'), 'ordinary blog editor must not expose manual taxonomy controls');
+blog_assert(!str_contains($controller, "split(',')"), 'ordinary blog saves must not synthesize or clear taxonomy from a manual comma field');
 
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 blog_assert(str_contains($adminModules, "blog: {url:'/discadmin/blog.php'"), 'canonical shell loader must register blog module');
