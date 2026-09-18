@@ -108,11 +108,6 @@
     history[mode === 'replace' ? 'replaceState' : 'pushState']({brvtalAdminRoute: canonical}, '', next);
   }
 
-  async function waitForDynamicSection(section) {
-    const waitForSection = window.BRVTALAdminModules?.waitForSection;
-    if (typeof waitForSection === 'function') await waitForSection(section);
-  }
-
   async function navigateRoute(section) {
     const canonical = canonicalRouteSection(section);
     if (canonical === 'system' && typeof window.tech === 'function') return window.tech('system');
@@ -389,8 +384,6 @@
     } else {
       const token = ++routeToken;
       window.BRVTALAdminModules?.cancel?.();
-      await waitForDynamicSection(section);
-      if (token !== routeToken) return;
       const applied = await invokeOriginalGo(section, token);
       if (!applied || token !== routeToken) return;
       result = true;

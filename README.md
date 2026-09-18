@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+138** | **−107** | **+31** |
+| **10** | **+157** | **−117** | **+40** |
 
 ## Calidad y entrega
 
@@ -32,7 +32,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
-| Browser | Dashboard → Media no depende de un evento `load` tardío |
+| Browser | Dashboard → Media no depende de un evento `load` tardío; fallo real muestra ERROR + RETRY |
 | Real-stack | Dashboard → Media · Sets → Media · deep-link Media |
 | UI | `REGISTER EXTERNAL` no se renderiza |
 | Sonar | Clean-as-You-Code en paralelo |
@@ -60,6 +60,7 @@ flowchart LR
 
 - Media, Releases y Blog comparten una única frontera de readiness administrada por `BRVTALAdminModules`.
 - La capa de información/navegación ya no instala listeners duplicados que pueden esperar un `load` ya ocurrido.
+- Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY.
 - Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
 - Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.
 - Se añade cobertura de navegador y real-stack autenticada con el usuario E2E.

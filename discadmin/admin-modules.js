@@ -426,17 +426,14 @@ window.BRVTALAdminModules = (() => {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},
     security: {url:'/discadmin/totp-status.php', mount:root=>BRVTALSecurity.mount(root)},
     media: {url:'/discadmin/media-library.php', mount:async root=>{
-      await waitForSection('media');
       try { await mediaPermissions.repair(); }
       catch (e) { Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
       BRVTALMediaLibrary.mount(root);
     }},
     releases: {url:'/discadmin/releases.php', mount:async root=>{
-      await waitForSection('releases');
       BRVTALReleases.mount(root);
     }},
     blog: {url:'/discadmin/blog.php', mount:async root=>{
-      await waitForSection('blog');
       BRVTALBlog.mount(root);
     }}
   };
@@ -453,6 +450,8 @@ window.BRVTALAdminModules = (() => {
     const host=document.getElementById('admin-module-host');
     if (!host || !modules[section]) return;
     try {
+      await waitForSection(section);
+      if(controller.signal.aborted || !host.isConnected) return;
       const response=await fetch(modules[section].url, {
         credentials:'same-origin', cache:'no-store', signal:controller.signal,
         headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
@@ -525,7 +524,6 @@ window.BRVTALAdminModules = (() => {
   window.go=async function(section) {
     if(section==='media' || section==='releases' || section==='blog') {
       prepareModuleWorkspace(section);
-      await waitForSection(section);
       await load(section);
       ensureDynamicNavigation();
       return;

@@ -18,6 +18,7 @@ function harness(authed = true) {
     window.__requestLog=[];
     window.__deferredRequests={};
     window.__requestResolvers={};
+    window.__dynamicNavigationToken=0;
     window.req=function(path){
       window.__requestLog.push(path);
       if(window.__deferredRequests[path]){
@@ -62,6 +63,11 @@ function harness(authed = true) {
       document.querySelector('[data-new-event]')?.addEventListener('click',()=>window.openModal('events'));
     };
     window.go=async function(section){
+      if(['media','releases','blog'].includes(section)){
+        const token=++window.__dynamicNavigationToken;
+        await window.BRVTALAdminModules.waitForSection(section);
+        if(token!==window.__dynamicNavigationToken)return;
+      }
       window.__nativeGo.push(section);
       state.section=section;
       if(['events','artists','sets','media','pages','settings'].includes(section)){
@@ -73,7 +79,7 @@ function harness(authed = true) {
     window.tech=async function(section){window.__renderShell(section);};
     window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
     window.BRVTALAdminModules={
-      cancel(){window.__moduleCancels+=1;},
+      cancel(){window.__moduleCancels+=1;window.__dynamicNavigationToken+=1;},
       async waitForSection(section){
         const dependencies={
           media:['brvtal-media-library-script'],

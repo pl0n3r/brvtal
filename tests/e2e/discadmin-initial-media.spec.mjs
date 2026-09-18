@@ -29,7 +29,7 @@ const mediaFragment = `
   </div>
 </section>`;
 
-async function installRoutes(page, {loadIaAfterRestore = false} = {}) {
+async function installRoutes(page, {loadIaAfterRestore = false, failMediaScript = false} = {}) {
   await page.route('**/discadmin/e2e-initial-media.html**', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html><head></head><body>
@@ -61,9 +61,10 @@ async function installRoutes(page, {loadIaAfterRestore = false} = {}) {
     </body></html>`
   }));
 
-  await page.route('**/discadmin/media-library.js**', route => route.fulfill({
-    contentType: 'application/javascript', body: mediaLibraryJs
-  }));
+  await page.route('**/discadmin/media-library.js**', route => {
+    if (failMediaScript) return route.abort('failed');
+    return route.fulfill({contentType: 'application/javascript', body: mediaLibraryJs});
+  });
   await page.route('**/discadmin/releases.js**', route => route.fulfill({
     contentType: 'application/javascript', body: 'window.BRVTALReleases={mount(){}};'
   }));
@@ -111,6 +112,16 @@ test('Dashboard to Media uses canonical readiness even after the dependency load
   await expect(page.locator('#media-register')).toHaveCount(0);
   expect(await page.evaluate(() => window.state.section)).toBe('media');
   expect(new URL(page.url()).searchParams.get('module')).toBe('media');
+});
+
+test('Media dependency failure renders the canonical module error with Retry', async ({ page }) => {
+  await installRoutes(page, {failMediaScript:true});
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.__restorePromise);
+
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  await expect(page.locator('#admin-module-host .error')).toContainText('Unable to load this module');
+  await expect(page.getByRole('button', {name:'RETRY', exact:true})).toBeVisible();
 });
 
 test('Media dropzone uses native button semantics and keyboard activation opens the file picker', async ({ page }) => {
