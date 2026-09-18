@@ -8,34 +8,36 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque P2 acotado en `discadmin/settings-v2.js`.
-- `save()` deja de concentrar toda la lógica condicional de General, Social, SEO y Analytics.
-- Cada sección tipada tiene ahora un handler pequeño y explícito; `save()` solo orquesta feedback + dispatch.
-- Se preservan validaciones, merge de JSON existente, claves desconocidas, normalización de GTM y limpieza de claves legacy.
-- La cobertura Playwright valida Social, SEO y Analytics además del flujo General ya existente.
-- También verifica que URLs/containers inválidos no persistan cambios.
-- No cambia API, formato almacenado, navegación, permisos ni UI visible.
+- Continúa #451 con un bloque de accesibilidad confirmado por Sonar en DISCADMIN.
+- El modal legacy deja de renderizar un `<h2>` vacío y ahora expone un título inicial accesible; los flujos existentes siguen reemplazándolo dinámicamente al abrir cada editor.
+- Media Library deja de usar `tabindex` sobre un `div` y convierte el dropzone en un `button type="button"` nativo.
+- El dropzone conserva drag/drop y activación por teclado; la activación nativa abre el selector de archivos mediante el mismo input existente.
+- El CSS conserva el layout visual del dropzone tras el cambio de elemento.
+- Se añade cobertura estática y Playwright para heading no vacío, semántica nativa del dropzone y activación por Enter.
+- No cambia API, upload, persistencia, permisos, rutas ni comportamiento editorial.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/settings-v2.js` — handlers tipados para reducir complejidad en guardado.
-- `tests/e2e/discadmin-settings-v2.spec.mjs` — cobertura de persistencia y validación por sección.
+- `discadmin/index-core.php` — título inicial accesible para el modal legacy.
+- `discadmin/media-library.php` — dropzone convertido a botón nativo sin `tabindex`.
+- `discadmin/media-library.js` — activación nativa por click en lugar de emulación manual de teclado.
+- `discadmin/media-library.css` — preserva ancho, tipografía y alineación del dropzone nativo.
+- `tests/e2e/discadmin-initial-media.spec.mjs` — prueba de semántica y activación por teclado del dropzone.
+- `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — contratos de heading y dropzone accesibles.
 
 ## Validación
 
-- Base exacta: `main` `f3ce5cd3f6d60b02f5985e1018e7639e88ca9642`.
-- Esa base pasó **BRVTAL CI #997** y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `ed62896a8bdc8a49c1c38a91d8b82d8b0973b8aa`.
+- Esa base pasó **BRVTAL CI #999** y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Tachar `settings-v2.js` en #451 solo después del merge y del CI verde del `main` exacto.
-- Continuar con el siguiente P2 que siga reproduciéndose.
-- Resolver en un bloque separado el warning de Sonar sobre `sonar.python.version`, usando la versión/rango real del proyecto.
-- Revalidar aparte el bloque Sonar de `Math.random()` reportado por el usuario antes de modificarlo.
+- Tachar este bloque de accesibilidad en #451 solo después del merge y del CI verde del `main` exacto.
+- Continuar con los findings Sonar reportados por el usuario, incluyendo `Math.random()`, `replaceAll()` y la configuración `sonar.python.version`, cada uno en scope separado.
 - Reconciliar PR #434 / Memories aparte, sin ejecutar migraciones de producción automáticamente.
 - Mantener #479, #480 y #481 como frentes separados.
 
