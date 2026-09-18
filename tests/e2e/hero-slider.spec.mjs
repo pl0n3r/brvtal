@@ -77,14 +77,14 @@ test('public hero reapplies responsive media and layer overrides after crossing 
   await expect(second).toHaveClass(/active/);
   await expect(media).toHaveAttribute('src','/two-desktop.jpg');
   await expect(art.locator('img')).toHaveAttribute('src','/layer-desktop.png');
-  expect(await art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
+  await expect.poll(() => art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
   await expect(second.getByText('HIDE ME')).toHaveCount(1);
 
   await page.setViewportSize({ width:390, height:844 });
   await expect(second).toHaveClass(/active/);
   await expect(media).toHaveAttribute('src','/two-mobile.jpg');
   await expect(art.locator('img')).toHaveAttribute('src','/layer-mobile.png');
-  expect(await art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['35%','45%','55%']);
+  await expect.poll(() => art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['35%','45%','55%']);
   await expect(second.getByText('HIDE ME')).toHaveCount(0);
   await expect(page.locator('[data-hero-current]')).toHaveText('02');
 
@@ -92,7 +92,7 @@ test('public hero reapplies responsive media and layer overrides after crossing 
   await expect(second).toHaveClass(/active/);
   await expect(media).toHaveAttribute('src','/two-desktop.jpg');
   await expect(art.locator('img')).toHaveAttribute('src','/layer-desktop.png');
-  expect(await art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
+  await expect.poll(() => art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
   await expect(second.getByText('HIDE ME')).toHaveCount(1);
 });
 
