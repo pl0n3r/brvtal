@@ -67,7 +67,7 @@ flowchart LR
 ## Qué sigue
 
 1. Tachar el warning de configuración Python en #451 solo después de merge + exact-main CI verde.
-2. Diagnosticar por separado el fallo de Production Performance #716 sin asumir todavía una regresión de producción.
+2. Repetir Production Performance cuando el marcador del deploy exacto sea visible; #716 fue inconcluso y no ejecutó mediciones.
 3. Continuar #451 con los P2 que todavía reproduzcan en el código actual.
 4. Mantener #479, #480 y #481 como frentes independientes.
 5. Reconciliar PR #434 / Memories contra el `main` actual sin ejecutar migraciones de producción automáticamente.
@@ -77,7 +77,7 @@ flowchart LR
 | Frente | Estado / siguiente foco |
 | --- | --- |
 | 🧪 **Sonar / calidad** | #451 — Python config en este PR; luego P2 vigentes |
-| ⚡ **Performance** | Production Performance #716 falló sobre `1e3ef8b`; diagnóstico separado pendiente |
+| ⚡ **Performance** | #716 fue inconcluso: producción respondió, pero el marcador `1e3ef8b` no apareció en la ventana; no hubo medición |
 | 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial de media · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
