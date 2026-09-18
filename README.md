@@ -10,8 +10,8 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - Continúa #451 con un bloque P1 de accesibilidad de formularios en DISCADMIN.
 - Blog y Releases asocian explícitamente sus labels con inputs, selects y textareas dinámicos.
-- La fila de artistas de Releases deja de envolver dos controles dentro de un único `label`; checkbox y rol reciben nombres accesibles independientes.
-- Content Core da nombres accesibles a Ticket Types dinámicos, al botón de eliminación y a los checkboxes del lineup.
+- La fila de artistas de Releases deja de envolver dos controles dentro de un único `label`; checkbox y rol reciben nombres accesibles independientes. El nombre visible queda asociado nativamente con su checkbox para ampliar el target de interacción.
+- Content Core da nombres accesibles a Ticket Types dinámicos, al botón de eliminación y a los checkboxes del lineup. Los nombres visibles del lineup también quedan asociados con su checkbox.
 - El editor de lifecycle de Artists asocia cada label con su control.
 - El buscador del Media Picker recibe un nombre accesible explícito.
 - No cambia payload, validación, persistencia, rutas ni comportamiento editorial.

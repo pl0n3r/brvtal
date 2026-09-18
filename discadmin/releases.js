@@ -148,8 +148,8 @@ window.BRVTALReleases = (() => {
     return store.artists.map(artist => {
       const current = linked.get(Number(artist.id));
       return `<div class="release-artist-item">
-        <input type="checkbox" data-release-artist="${Number(artist.id)}" aria-label="Link ${esc(artist.name)} to release" ${current?'checked':''}>
-        <span><b>${esc(artist.name)}</b><span class="meta">${esc(artist.slug || '')}</span></span>
+        <input id="release_artist_${Number(artist.id)}" type="checkbox" data-release-artist="${Number(artist.id)}" aria-label="Link ${esc(artist.name)} to release" ${current?'checked':''}>
+        <span><label for="release_artist_${Number(artist.id)}"><b>${esc(artist.name)}</b><span class="meta">${esc(artist.slug || '')}</span></label></span>
         <input type="text" data-release-role="${Number(artist.id)}" value="${esc(current?.role || 'Primary')}" placeholder="Role" aria-label="Role for ${esc(artist.name)}">
       </div>`;
     }).join('');

@@ -30,6 +30,10 @@ foreach ([
         str_contains($blog, 'label for="' . $controlId . '"'),
         "Blog control {$controlId} must keep an explicit label association."
     );
+    editor_a11y_assert(
+        str_contains($blog, 'id="' . $controlId . '"'),
+        "Blog label target {$controlId} must remain present."
+    );
 }
 
 foreach ([
@@ -51,6 +55,10 @@ foreach ([
     editor_a11y_assert(
         str_contains($releases, 'label for="' . $controlId . '"'),
         "Release control {$controlId} must keep an explicit label association."
+    );
+    editor_a11y_assert(
+        str_contains($releases, 'id="' . $controlId . '"'),
+        "Release label target {$controlId} must remain present."
     );
 }
 
@@ -82,10 +90,24 @@ foreach (['a_name','a_status','a_order','a_joined','a_left'] as $controlId) {
         str_contains($core, 'label for="' . $controlId . '"'),
         "Artist lifecycle control {$controlId} must keep an explicit label association."
     );
+    editor_a11y_assert(
+        str_contains($core, 'id="' . $controlId . '"'),
+        "Artist lifecycle label target {$controlId} must remain present."
+    );
 }
 editor_a11y_assert(
     str_contains($core, 'aria-label="Include ${esc(a.name)} in event lineup"'),
     'Event lineup checkbox must keep an artist-specific accessible name.'
+);
+editor_a11y_assert(
+    str_contains($core, 'for="event_artist_${Number(a.id)}"')
+        && str_contains($core, 'id="event_artist_${Number(a.id)}"'),
+    'Event lineup visible artist name must remain natively associated with its checkbox.'
+);
+editor_a11y_assert(
+    str_contains($releases, 'for="release_artist_${Number(artist.id)}"')
+        && str_contains($releases, 'id="release_artist_${Number(artist.id)}"'),
+    'Release artist visible name must remain natively associated with its checkbox.'
 );
 
 editor_a11y_assert(
