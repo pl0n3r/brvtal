@@ -133,7 +133,7 @@ try {
         throw $e;
     }
 
-    brvtal_indexnow_notify_entity_id($pdo, $resource, $id);
+    brvtalIndexNowNotifyEntityId($pdo, $resource, $id);
 
     brvtal_seo_json([
         'ok'=>true,
