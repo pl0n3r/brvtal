@@ -67,6 +67,18 @@ async function mockApi(page) {
     contentType: 'application/json',
     body: JSON.stringify({ ok: true, data: { id: 7 } })
   }));
+  await page.route('**/api/releases.php', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} })
+  }));
+  await page.route('**/api/blog.php', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} })
+  }));
+  await page.route('**/api/index.php/settings', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} })
+  }));
   await page.route('**/api/index.php/sets**', route => route.fulfill({
     status: 500,
     contentType: 'application/json',
@@ -192,6 +204,53 @@ test('artist save sends selected media path', async ({ page }) => {
   expect(lastReq.path).toBe('/artists/7');
   expect(lastReq.method).toBe('PUT');
   expect(JSON.parse(lastReq.body).photo).toBe('/uploads/media/2026/09/genesis.jpg');
+});
+
+test('mutation feedback preserves endpoint-specific labels and precedence', async ({ page }) => {
+  await loadAdminHarness(page);
+
+  const observed = await page.evaluate(async () => {
+    const events = [];
+    const originalProgress = window.BRVTALFeedback.progress;
+    const originalSuccess = window.BRVTALFeedback.success;
+    window.BRVTALFeedback.progress = message => { events.push(['progress', message]); };
+    window.BRVTALFeedback.success = message => { events.push(['success', message]); };
+
+    const cases = [
+      ['/api/media-library.php?action=upload', 'POST'],
+      ['/api/releases.php', 'DELETE'],
+      ['/api/blog.php', 'POST'],
+      ['/api/index.php/settings', 'POST'],
+      ['/api/index.php/events/42', 'DELETE'],
+      ['/api/index.php/events/42', 'PUT']
+    ];
+
+    try {
+      for (const [url, method] of cases) {
+        await fetch(url, { method, body: '{}' });
+      }
+    } finally {
+      window.BRVTALFeedback.progress = originalProgress;
+      window.BRVTALFeedback.success = originalSuccess;
+    }
+
+    return events;
+  });
+
+  expect(observed).toEqual([
+    ['progress','Uploading media…'],
+    ['success','Media uploaded.'],
+    ['progress','Deleting release…'],
+    ['success','Release deleted.'],
+    ['progress','Saving blog post…'],
+    ['success','Blog post saved.'],
+    ['progress','Saving settings…'],
+    ['success','Settings saved.'],
+    ['progress','Deleting…'],
+    ['success','Deleted.'],
+    ['progress','Saving changes…'],
+    ['success','Changes saved.']
+  ]);
 });
 
 test('failed mutations show persistent error feedback', async ({ page }) => {
