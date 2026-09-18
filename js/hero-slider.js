@@ -32,7 +32,10 @@
     if (slide.mediaType === 'video') {
       return `<video class="brvtal-hero-media" muted loop playsinline preload="metadata" ${slide.poster ? `poster="${esc(slide.poster)}"` : ''}><source src="${esc(src)}"></video>`;
     }
-    return `<img class="brvtal-hero-media" ${position === index ? `src="${esc(src)}" loading="eager" fetchpriority="high"` : `data-src="${esc(src)}"`} alt="" decoding="async">`;
+    const sourceAttr = position === index
+      ? 'src="' + esc(src) + '" loading="eager" fetchpriority="high"'
+      : 'data-src="' + esc(src) + '"';
+    return `<img class="brvtal-hero-media" ${sourceAttr} alt="" decoding="async">`;
   }
 
   function layerMarkup(layer, position) {
@@ -45,7 +48,10 @@
     const style = `left:${Number(x)}%;top:${Number(y)}%;width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
     if (layer.type === 'image' || layer.type === 'logo') {
       if (!src) return '';
-      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${position === index ? `src="${esc(src)}"` : `data-src="${esc(src)}"`} alt="" decoding="async"></div>`;
+      const sourceAttr = position === index
+        ? 'src="' + esc(src) + '"'
+        : 'data-src="' + esc(src) + '"';
+      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${sourceAttr} alt="" decoding="async"></div>`;
     }
     if (layer.type === 'cta') {
       const text = esc(layer.text || 'ENTER EXPERIENCE');
