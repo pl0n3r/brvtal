@@ -25,7 +25,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+51** | **−67** | **−16** |
+| **3** | **+50** | **−66** | **-16** |
 
 La huella se calcula con `git diff --numstat` y CI rechaza el README si queda desactualizada.
 
@@ -46,11 +46,11 @@ La huella se calcula con `git diff --numstat` y CI rechaza el README si queda de
 
 ```mermaid
 flowchart LR
-    A["#520 · una lista Events"] --> T["E2E real-stack"]
+    A["PR + snapshot exacto · #520"] --> T["E2E real-stack"]
     T --> P["PR"]
     P --> C["CI + Sonar + CodeRabbit"]
     C --> M["Squash merge"]
-    M --> X["Exact-main CI"]
+    M --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
