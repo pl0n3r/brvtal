@@ -35,6 +35,8 @@ async function captured(page) {
 test('IndexNow is configurable in Settings and submits real public mutations', async ({ page }, testInfo) => {
   const auth = await login(page);
   const key = 'BRVTAL-IndexNow-2026-E2E';
+  const keyLocation = '/indexnow-ci-key.txt';
+  const endpoint = 'https://www.bing.com/indexnow';
   const runKey = `${Date.now().toString(36)}-${testInfo.workerIndex}`;
   const oldSlug = `indexnow-artist-${runKey}`;
   const newSlug = `${oldSlug}-renamed`;
@@ -62,6 +64,8 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
   await page.locator('[data-settings-tab="seo"]').click();
   await page.locator('#sv2_indexnow_enabled').selectOption('1');
   await page.locator('#sv2_indexnow_key').fill(key);
+  await page.locator('#sv2_indexnow_key_location').fill(keyLocation);
+  await page.locator('#sv2_indexnow_endpoint').selectOption(endpoint);
   await page.locator('[data-settings-save="indexnow"]').click();
 
   await expect.poll(async () => {
@@ -70,7 +74,12 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
     if (!row) return null;
     try { return JSON.parse(String(row.setting_value || '{}')); }
     catch { return null; }
-  }, {timeout:10_000}).toEqual({enabled:true,key});
+  }, {timeout:10_000}).toEqual({
+    enabled:true,
+    key,
+    key_location:keyLocation,
+    endpoint,
+  });
 
   const keyResponse = await page.request.get(`${baseUrl}/indexnow-key.php`);
   expect(keyResponse.status()).toBe(200);
@@ -89,7 +98,7 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
       const payloads = await captured(page);
       return payloads.some(payload =>
         payload.key === key
-        && payload.keyLocation === `${baseUrl}/indexnow-key.txt`
+        && payload.keyLocation === `${baseUrl}${keyLocation}`
         && Array.isArray(payload.urlList)
         && payload.urlList.includes(`${baseUrl}/artists/${oldSlug}`)
         && payload.urlList.includes(`${baseUrl}/`)
