@@ -5,12 +5,36 @@ require_once __DIR__ . '/public_settings.php';
 require_once __DIR__ . '/public_routes.php';
 
 const BRVTAL_INDEXNOW_SETTING_KEY = 'indexnow';
-const BRVTAL_INDEXNOW_KEY_LOCATION = '/indexnow-key.txt';
+const BRVTAL_INDEXNOW_DEFAULT_KEY_LOCATION = '/indexnow-key.txt';
 const BRVTAL_INDEXNOW_DEFAULT_ENDPOINT = 'https://api.indexnow.org/indexnow';
+
+/** @return array<string,string> */
+function brvtalIndexNowEndpoints(): array
+{
+    return [
+        'global' => 'https://api.indexnow.org/indexnow',
+        'amazon' => 'https://indexnow.amazonbot.amazon/indexnow',
+        'bing' => 'https://www.bing.com/indexnow',
+        'naver' => 'https://searchadvisor.naver.com/indexnow',
+        'seznam' => 'https://search.seznam.cz/indexnow',
+        'yandex' => 'https://yandex.com/indexnow',
+        'yep' => 'https://indexnow.yep.com/indexnow',
+    ];
+}
 
 function brvtalIndexNowKeyValid(string $key): bool
 {
     return preg_match('/^[A-Za-z0-9-]{8,128}$/', $key) === 1;
+}
+
+function brvtalIndexNowKeyLocationValid(string $location): bool
+{
+    return preg_match('#^/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$#', $location) === 1;
+}
+
+function brvtalIndexNowEndpointValid(string $endpoint): bool
+{
+    return in_array($endpoint, array_values(brvtalIndexNowEndpoints()), true);
 }
 
 /** @return array{error:string,field:string}|null */
@@ -32,28 +56,53 @@ function brvtalIndexNowSettingError(string $rawValue, int $isJson): ?array
 
     $enabled = filter_var($enabledRaw, FILTER_VALIDATE_BOOL);
     $key = trim((string)($decoded['key'] ?? ''));
+    $keyLocation = trim((string)($decoded['key_location'] ?? BRVTAL_INDEXNOW_DEFAULT_KEY_LOCATION));
+    $endpoint = trim((string)($decoded['endpoint'] ?? BRVTAL_INDEXNOW_DEFAULT_ENDPOINT));
+
     if ($key !== '' && !brvtalIndexNowKeyValid($key)) {
         return ['error' => 'INDEXNOW_KEY_INVALID', 'field' => 'setting_value'];
     }
     if ($enabled && $key === '') {
         return ['error' => 'INDEXNOW_KEY_REQUIRED', 'field' => 'setting_value'];
     }
+    if (!brvtalIndexNowKeyLocationValid($keyLocation)) {
+        return ['error' => 'INDEXNOW_KEY_LOCATION_INVALID', 'field' => 'setting_value'];
+    }
+    if (!brvtalIndexNowEndpointValid($endpoint)) {
+        return ['error' => 'INDEXNOW_ENDPOINT_INVALID', 'field' => 'setting_value'];
+    }
 
     return null;
 }
 
-/** @return array{enabled:bool,key:string} */
+/** @return array{enabled:bool,key:string,key_location:string,endpoint:string} */
 function brvtalIndexNowSetting(PDO $pdo): array
 {
     $setting = brvtal_config_setting_json($pdo, BRVTAL_INDEXNOW_SETTING_KEY);
     $key = trim((string)($setting['key'] ?? ''));
+    $keyLocation = trim((string)($setting['key_location'] ?? BRVTAL_INDEXNOW_DEFAULT_KEY_LOCATION));
+    $endpoint = trim((string)($setting['endpoint'] ?? BRVTAL_INDEXNOW_DEFAULT_ENDPOINT));
     $enabled = filter_var($setting['enabled'] ?? false, FILTER_VALIDATE_BOOL);
 
     if (!brvtalIndexNowKeyValid($key)) {
-        return ['enabled' => false, 'key' => ''];
+        $key = '';
+        $enabled = false;
+    }
+    if (!brvtalIndexNowKeyLocationValid($keyLocation)) {
+        $keyLocation = BRVTAL_INDEXNOW_DEFAULT_KEY_LOCATION;
+        $enabled = false;
+    }
+    if (!brvtalIndexNowEndpointValid($endpoint)) {
+        $endpoint = BRVTAL_INDEXNOW_DEFAULT_ENDPOINT;
+        $enabled = false;
     }
 
-    return ['enabled' => $enabled, 'key' => $key];
+    return [
+        'enabled' => $enabled,
+        'key' => $key,
+        'key_location' => $keyLocation,
+        'endpoint' => $endpoint,
+    ];
 }
 
 function brvtalIndexNowBaseUrl(): string
@@ -74,18 +123,24 @@ function brvtalIndexNowBaseUrl(): string
     return $base;
 }
 
-function brvtalIndexNowEndpoint(): string
+/** @param array{enabled:bool,key:string,key_location:string,endpoint:string} $setting */
+function brvtalIndexNowEndpoint(array $setting): string
 {
     global $config;
 
-    $candidate = trim((string)($config['indexnow']['endpoint'] ?? ''));
-    if ($candidate !== ''
-        && filter_var($candidate, FILTER_VALIDATE_URL)
-        && preg_match('#^https?://#i', $candidate)) {
-        return $candidate;
+    $baseHost = strtolower((string)(parse_url(brvtalIndexNowBaseUrl(), PHP_URL_HOST) ?? ''));
+    $testOverride = trim((string)($config['indexnow']['endpoint'] ?? ''));
+    $localRuntime = in_array($baseHost, ['127.0.0.1', 'localhost'], true);
+    if ($localRuntime
+        && $testOverride !== ''
+        && filter_var($testOverride, FILTER_VALIDATE_URL)
+        && preg_match('#^https?://#i', $testOverride)) {
+        return $testOverride;
     }
 
-    return BRVTAL_INDEXNOW_DEFAULT_ENDPOINT;
+    return brvtalIndexNowEndpointValid($setting['endpoint'])
+        ? $setting['endpoint']
+        : BRVTAL_INDEXNOW_DEFAULT_ENDPOINT;
 }
 
 function brvtalIndexNowRowIsPublic(string $resource, array $row): bool
@@ -210,8 +265,11 @@ function brvtalIndexNowNotifySetting(PDO $pdo, string $settingKey): void
         return;
     }
 
-    $publicSetting = in_array($settingKey, ['site', 'social', 'seo', 'appearance', 'home.hero.slider'], true)
-        || str_starts_with($settingKey, 'theme.');
+    $publicSetting = in_array(
+        $settingKey,
+        ['site', 'social', 'seo', 'appearance', 'home.hero.slider'],
+        true
+    ) || str_starts_with($settingKey, 'theme.');
     if (!$publicSetting) {
         return;
     }
@@ -243,10 +301,12 @@ function brvtalIndexNowEnqueueUrls(PDO $pdo, array $urls): void
         if ($url === '') {
             continue;
         }
+
         $urlHost = (string)(parse_url($url, PHP_URL_HOST) ?? '');
         if ($urlHost !== $host) {
             continue;
         }
+
         $normalized[$url] = true;
         if (count($normalized) >= 10000) {
             break;
@@ -258,10 +318,10 @@ function brvtalIndexNowEnqueueUrls(PDO $pdo, array $urls): void
 
     if (!isset($GLOBALS['brvtal_indexnow_pending']) || !is_array($GLOBALS['brvtal_indexnow_pending'])) {
         $GLOBALS['brvtal_indexnow_pending'] = [
-            'endpoint' => brvtalIndexNowEndpoint(),
+            'endpoint' => brvtalIndexNowEndpoint($setting),
             'host' => $host,
             'key' => $setting['key'],
-            'keyLocation' => $base . BRVTAL_INDEXNOW_KEY_LOCATION,
+            'keyLocation' => $base . $setting['key_location'],
             'urls' => [],
         ];
     }
@@ -337,7 +397,8 @@ function brvtalIndexNowSubmit(array $payload): void
         $context = stream_context_create([
             'http' => [
                 'method' => 'POST',
-                'header' => "Content-Type: application/json; charset=utf-8\r\nUser-Agent: BRVTAL-IndexNow/1.0\r\n",
+                'header' => "Content-Type: application/json; charset=utf-8\r\n"
+                    . "User-Agent: BRVTAL-IndexNow/1.0\r\n",
                 'content' => $body,
                 'timeout' => 2,
                 'ignore_errors' => true,
@@ -351,10 +412,14 @@ function brvtalIndexNowSubmit(array $payload): void
     }
 
     if (!in_array($status, [200, 202], true) && function_exists('brvtal_log')) {
-        brvtal_log('INDEXNOW_SUBMIT_FAILED', 'IndexNow submission failed without blocking editorial save', [
-            'status' => $status,
-            'url_count' => count($payload['urls']),
-            'error' => $error,
-        ]);
+        brvtal_log(
+            'INDEXNOW_SUBMIT_FAILED',
+            'IndexNow submission failed without blocking editorial save',
+            [
+                'status' => $status,
+                'url_count' => count($payload['urls']),
+                'error' => $error,
+            ]
+        );
     }
 }
