@@ -7,13 +7,15 @@
 
   const loader = qs('#loader');
   const pct = qs('#loadPct'), bar = qs('.loader-progress i');
+  const loaderSteps = [11, 7, 14, 9, 13, 6];
+  let loaderStepIndex = 0;
 
   const boot = () => {
     if (!loader) return;
     if (reduce || !motionReady) { loader.remove(); return; }
     let n = 0;
     const timer = setInterval(() => {
-      n = Math.min(100, n + Math.floor(Math.random()*12) + 5);
+      n = Math.min(100, n + loaderSteps[loaderStepIndex++ % loaderSteps.length]);
       if (pct) pct.textContent = String(n).padStart(2,'0') + '%';
       if (bar) bar.style.width = n + '%';
       if (n >= 100) {
@@ -172,12 +174,23 @@
   const canvas=qs('#fxCanvas'), ctx=canvas&&canvas.getContext('2d');
   if(canvas&&ctx&&!reduce){
     let w,h,t=0;
+    // Decorative-only PRNG: never used for IDs, tokens or security decisions.
+    let visualNoiseState = 0x9e3779b9;
+    const nextVisualNoise = () => {
+      visualNoiseState ^= visualNoiseState << 13;
+      visualNoiseState ^= visualNoiseState >>> 17;
+      visualNoiseState ^= visualNoiseState << 5;
+      return (visualNoiseState >>> 0) / 4294967296;
+    };
     const resize=()=>{w=canvas.width=innerWidth;h=canvas.height=innerHeight};
     resize(); addEventListener('resize',resize);
     const draw=()=>{
       t++; ctx.clearRect(0,0,w,h);
       ctx.globalAlpha=.035;
-      for(let i=0;i<110;i++){ctx.fillStyle=Math.random()>.5?'#fff':'#000';ctx.fillRect(Math.random()*w,Math.random()*h,Math.random()*140+20,1)}
+      for(let i=0;i<110;i++){
+        ctx.fillStyle=nextVisualNoise()>.5?'#fff':'#000';
+        ctx.fillRect(nextVisualNoise()*w,nextVisualNoise()*h,nextVisualNoise()*140+20,1);
+      }
       ctx.globalAlpha=.025;ctx.fillStyle='#fff';ctx.fillRect(0,(t*2)%h,w,1);
       requestAnimationFrame(draw);
     };
