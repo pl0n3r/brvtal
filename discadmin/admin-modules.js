@@ -137,21 +137,34 @@ window.BRVTALAdminModules = (() => {
   };
   window.BRVTALMediaPermissions = mediaPermissions;
 
+  const mutationFeedbackRules = [
+    {path:'media-library.php', action:'upload', labels:['Uploading media…','Media uploaded.']},
+    {path:'media-library.php', action:'register', labels:['Registering media…','Media registered.']},
+    {path:'media-library.php', action:'update', labels:['Saving media metadata…','Media metadata saved.']},
+    {path:'media-library.php', method:'DELETE', labels:['Deleting media…','Media deleted.']},
+    {path:'releases.php', method:'DELETE', labels:['Deleting release…','Release deleted.']},
+    {path:'releases.php', labels:['Saving release…','Release saved.']},
+    {path:'blog.php', method:'DELETE', labels:['Deleting blog post…','Blog post deleted.']},
+    {path:'blog.php', labels:['Saving blog post…','Blog post saved.']},
+    {path:'totp-api.php', labels:['Updating security…','Security updated.']},
+    {method:'DELETE', labels:['Deleting…','Deleted.']},
+    {path:'/settings', labels:['Saving settings…','Settings saved.']}
+  ];
+
+  function mutationFeedbackRuleMatches(rule, context) {
+    return (!rule.path || context.path.includes(rule.path))
+      && (!rule.action || context.action === rule.action)
+      && (!rule.method || context.method === rule.method);
+  }
+
   function mutationLabels(url, method) {
-    const action = (url.searchParams.get('action') || '').toLowerCase();
-    const path = url.pathname.toLowerCase();
-    if (path.includes('media-library.php') && action === 'upload') return ['Uploading media…','Media uploaded.'];
-    if (path.includes('media-library.php') && action === 'register') return ['Registering media…','Media registered.'];
-    if (path.includes('media-library.php') && action === 'update') return ['Saving media metadata…','Media metadata saved.'];
-    if (path.includes('media-library.php') && method === 'DELETE') return ['Deleting media…','Media deleted.'];
-    if (path.includes('releases.php') && method === 'DELETE') return ['Deleting release…','Release deleted.'];
-    if (path.includes('releases.php')) return ['Saving release…','Release saved.'];
-    if (path.includes('blog.php') && method === 'DELETE') return ['Deleting blog post…','Blog post deleted.'];
-    if (path.includes('blog.php')) return ['Saving blog post…','Blog post saved.'];
-    if (path.includes('totp-api.php')) return ['Updating security…','Security updated.'];
-    if (method === 'DELETE') return ['Deleting…','Deleted.'];
-    if (path.includes('/settings')) return ['Saving settings…','Settings saved.'];
-    return ['Saving changes…','Changes saved.'];
+    const context = {
+      action:(url.searchParams.get('action') || '').toLowerCase(),
+      path:url.pathname.toLowerCase(),
+      method
+    };
+    return mutationFeedbackRules.find(rule => mutationFeedbackRuleMatches(rule, context))?.labels
+      || ['Saving changes…','Changes saved.'];
   }
 
   function readableError(payload, status) {
