@@ -124,70 +124,94 @@
     track.replaceChildren(...events.map((event, index) => activeCard(event, index)));
   }
 
+  function archiveYear(event) {
+    const explicitYear = Number(event.archive_year) || 0;
+    if (explicitYear) return explicitYear;
+    if (!event.event_date) return 0;
+    return new Date(String(event.event_date).replace(' ','T')).getFullYear() || 0;
+  }
+
+  function relationCountLabel(count, singular) {
+    if (!count) return '';
+    return `${count} ${singular}${count === 1 ? '' : 'S'}`;
+  }
+
+  function archiveRelationSummary(lineup, sets) {
+    return [
+      relationCountLabel(lineup.length, 'ARTIST'),
+      relationCountLabel(sets.length, 'SET'),
+    ].filter(Boolean);
+  }
+
+  function archiveImageHost(image, title) {
+    const host = create('div', 'archive-event-image');
+    if (!image) {
+      host.appendChild(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVE'));
+      return host;
+    }
+
+    const img = create('img');
+    img.src = image;
+    img.alt = title;
+    img.loading = 'lazy';
+    host.appendChild(img);
+    return host;
+  }
+
+  function archiveAction(href, label, ariaLabel, datasetKey = '') {
+    if (!href) return null;
+    const link = create('a', 'archive-event-link mono', label);
+    link.href = href;
+    link.setAttribute('aria-label', ariaLabel);
+    if (datasetKey) link.dataset[datasetKey] = '';
+    return link;
+  }
+
   function archiveCard(event) {
     const title = String(event.title || 'UNTITLED EVENT');
-    const image = imgUrl(event.cover_image);
     const date = formatDate(event.event_date);
     const city = String(event.city || '');
     const venue = String(event.venue || '');
-    const year = Number(event.archive_year) || (event.event_date ? new Date(String(event.event_date).replace(' ','T')).getFullYear() : 0);
     const lineup = Array.isArray(event.lineup) ? event.lineup : [];
     const sets = Array.isArray(event.related_sets) ? event.related_sets : [];
     const names = lineup.map(item => String(item?.name || '')).filter(Boolean);
-    const relationParts = [];
-    if (lineup.length) relationParts.push(`${lineup.length} ARTIST${lineup.length===1?'':'S'}`);
-    if (sets.length) relationParts.push(`${sets.length} SET${sets.length===1?'':'S'}`);
-    const status = String(event.status || 'archive').toUpperCase().replaceAll('_',' ');
+    const relationParts = archiveRelationSummary(lineup, sets);
     const slug = String(event.slug || '').trim();
     const href = slug ? `/events/${encodeURIComponent(slug)}` : '';
     const connectionsHref = relationParts.length ? connectedEventUrl(event.id) : '';
-    const search = searchText([title,city,venue,...names].join(' '));
 
     const article = create('article', 'archive-event');
     article.dataset.archiveEvent = '';
-    article.dataset.archiveYear = String(year || '');
+    article.dataset.archiveYear = String(archiveYear(event) || '');
     article.dataset.archiveArtists = lineup.length ? '1' : '0';
     article.dataset.archiveSets = sets.length ? '1' : '0';
-    article.dataset.archiveSearchValue = search;
+    article.dataset.archiveSearchValue = searchText([title,city,venue,...names].join(' '));
     article.dataset.archiveId = String(Number(event.id) || 0);
-
-    const imageHost = create('div', 'archive-event-image');
-    if (image) {
-      const img = create('img');
-      img.src = image;
-      img.alt = title;
-      img.loading = 'lazy';
-      imageHost.appendChild(img);
-    } else {
-      imageHost.appendChild(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVE'));
-    }
 
     const copy = create('div', 'archive-event-copy');
     const meta = create('div', 'archive-event-meta mono');
     meta.append(
       create('span', '', [date,city].filter(Boolean).join(' / ')),
-      create('span', '', status)
+      create('span', '', String(event.status || 'archive').toUpperCase().replaceAll('_',' '))
     );
-    copy.appendChild(meta);
-    copy.appendChild(create('h3', '', title));
-    copy.appendChild(create('p', '', [venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — ')));
-    copy.appendChild(create('div', 'archive-event-relations mono', relationParts.join(' / ') || 'HISTORICAL RECORD'));
+    copy.append(
+      meta,
+      create('h3', '', title),
+      create('p', '', [venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — ')),
+      create('div', 'archive-event-relations mono', relationParts.join(' / ') || 'HISTORICAL RECORD')
+    );
 
-    if (connectionsHref) {
-      const connections = create('a', 'archive-event-link mono', 'EXPLORE CONNECTIONS ↗');
-      connections.dataset.archiveConnections = '';
-      connections.href = connectionsHref;
-      connections.setAttribute('aria-label', `Explore connections for ${title}`);
-      copy.appendChild(connections);
-    }
-    if (href) {
-      const record = create('a', 'archive-event-link mono', 'OPEN RECORD ↗');
-      record.href = href;
-      record.setAttribute('aria-label', `View ${title}`);
-      copy.appendChild(record);
-    }
+    [
+      archiveAction(
+        connectionsHref,
+        'EXPLORE CONNECTIONS ↗',
+        `Explore connections for ${title}`,
+        'archiveConnections'
+      ),
+      archiveAction(href, 'OPEN RECORD ↗', `View ${title}`),
+    ].filter(Boolean).forEach(link => copy.appendChild(link));
 
-    article.append(imageHost, copy);
+    article.append(archiveImageHost(imgUrl(event.cover_image), title), copy);
     return article;
   }
 

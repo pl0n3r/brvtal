@@ -62,6 +62,7 @@ test('public archive separates active lifecycle from historical nights and filte
   expect(connectionsHref.searchParams.get('network_id')).toBe('20');
   expect(connectionsHref.hash).toBe('#network');
   await expect(page.locator('[data-archive-id="21"] [data-archive-connections]')).toHaveCount(0);
+  await expect(page.locator('[data-archive-id="21"] .archive-event-relations')).toHaveText('HISTORICAL RECORD');
   await expect(page.locator('.archive-summary')).toHaveText('2 NIGHTS / 1 RELATED SETS / 9 VISUAL RECORDS');
   await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
   await page.locator('[data-archive-search]').fill('final signal');
@@ -175,6 +176,7 @@ test('public archive renders hostile API strings as text and rejects unsafe URL 
   await expect(page.locator('[data-archive-id="199"] h3')).toHaveText(archivedTitle);
   await expect(page.locator('[data-archive-id="199"] .archive-event-copy p')).toContainText('<iframe src="javascript:window.__archiveXss=4"></iframe>');
   await expect(page.locator('[data-archive-id="199"] img')).toHaveCount(0);
+  await expect(page.locator('[data-archive-id="199"] .archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVE');
 
   await expect(page.locator('#archive-active-xss')).toHaveCount(0);
   await expect(page.locator('#archive-history-xss')).toHaveCount(0);
