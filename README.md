@@ -8,36 +8,35 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque de accesibilidad confirmado por Sonar en DISCADMIN.
-- El modal legacy deja de renderizar un `<h2>` vacío y ahora expone un título inicial accesible; los flujos existentes siguen reemplazándolo dinámicamente al abrir cada editor.
-- Media Library deja de usar `tabindex` sobre un `div` y convierte el dropzone en un `button type="button"` nativo.
-- El dropzone conserva drag/drop y activación por teclado; la activación nativa abre el selector de archivos mediante el mismo input existente.
-- El CSS conserva el layout visual del dropzone tras el cambio de elemento.
-- Se añade cobertura estática y Playwright para heading no vacío, semántica nativa del dropzone y activación por Enter.
-- No cambia API, upload, persistencia, permisos, rutas ni comportamiento editorial.
+- Continúa #451 con un bloque P3 mecánico reportado por Sonar.
+- Los helpers de escape HTML de `js/app.js` y `js/public-roster.js` dejan de usar cinco regex globales con `.replace(.../g,...)` y pasan a `String.prototype.replaceAll()`.
+- Se conservan exactamente las entidades usadas para `&`, `<`, `>`, comillas dobles y comillas simples.
+- No se cambian otros `.replace()` de una sola ocurrencia: normalización de rutas, fechas y otras transformaciones permanecen intactas.
+- La cobertura Playwright verifica que Home y Roster rendericen caracteres especiales literalmente, escapen atributos sensibles (`src`/`data-image`) y no creen elementos HTML a partir de contenido CMS.
+- No cambia API, payload, rutas, orden editorial, estilos ni persistencia.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/index-core.php` — título inicial accesible para el modal legacy.
-- `discadmin/media-library.php` — dropzone convertido a botón nativo sin `tabindex`.
-- `discadmin/media-library.js` — activación nativa por click en lugar de emulación manual de teclado.
-- `discadmin/media-library.css` — preserva ancho, tipografía y alineación del dropzone nativo.
-- `tests/e2e/discadmin-initial-media.spec.mjs` — prueba de semántica y activación por teclado del dropzone.
-- `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — contratos de heading y dropzone accesibles.
+- `js/app.js` — `replaceAll()` en el helper de escape HTML del frontend dinámico.
+- `js/public-roster.js` — `replaceAll()` en el helper de escape HTML del roster.
+- `tests/e2e/public-runtime-fallback.spec.mjs` — regresión de escaping del Home dinámico.
+- `tests/e2e/public-roster-phase-c.spec.mjs` — regresión de escaping del roster público.
 
 ## Validación
 
-- Base exacta: `main` `ed62896a8bdc8a49c1c38a91d8b82d8b0973b8aa`.
-- Esa base pasó **BRVTAL CI #999** y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `599e07893e2172ead205eb4ec36115609150982c`.
+- Esa base pasó **BRVTAL CI #1003** y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Tachar este bloque de accesibilidad en #451 solo después del merge y del CI verde del `main` exacto.
-- Continuar con los findings Sonar reportados por el usuario, incluyendo `Math.random()`, `replaceAll()` y la configuración `sonar.python.version`, cada uno en scope separado.
+- Tachar el bloque `replaceAll()` en #451 solo después del merge y del CI verde del `main` exacto.
+- Revalidar el conjunto completo de warnings de `Math.random()` antes de modificar comportamiento.
+- Resolver aparte el warning de configuración `sonar.python.version` usando la versión/rango real del proyecto.
+- Continuar los P2 de #451 que todavía reproduzcan en código actual.
 - Reconciliar PR #434 / Memories aparte, sin ejecutar migraciones de producción automáticamente.
 - Mantener #479, #480 y #481 como frentes separados.
 

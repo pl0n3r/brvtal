@@ -80,10 +80,10 @@ test('Roster runtime renders the shared public payload with lifecycle ordering a
       payload: {
         data: {
           artists: [
-            {name:'NETWORK <SCRIPT>', slug:'network-artist', collective_status:'none', sort_order:1, bio:'SHOULD NOT LEAK', website_url:'https://example.com'},
+            {name:'NETWORK <SCRIPT> & "RAVE" \'NIGHT\'', slug:'network-artist', collective_status:'none', sort_order:1, bio:'SHOULD NOT LEAK', website_url:'https://example.com'},
             {name:'ACTIVE SECOND', slug:'active-second', collective_status:'active', collective_order:8, sort_order:1, collective_joined_at:'2026-08-01', photo:'/uploads/active-second.jpg'},
             {name:'ALUMNI ONE', slug:'alumni-one', collective_status:'alumni', collective_order:1, collective_joined_at:'2024-01-01', collective_left_at:'2025-12-31'},
-            {name:'ACTIVE FIRST', slug:'active-first', collective_status:'active', collective_order:2, sort_order:9, collective_joined_at:'2025-02-03', photo:'/uploads/active-first.jpg'},
+            {name:'ACTIVE FIRST', slug:'active<&"first', collective_status:'active', collective_order:2, sort_order:9, collective_joined_at:'2025-02-03', photo:'/uploads/active-"first"&<cut>.jpg'},
           ],
         },
       },
@@ -96,11 +96,13 @@ test('Roster runtime renders the shared public payload with lifecycle ordering a
   await expect(page.locator('.section-head > span').first()).toHaveText('BRVTAL ROSTER / 04');
   await expect(page.locator('[data-roster-group="active"] .artist strong')).toHaveText(['ACTIVE FIRST', 'ACTIVE SECOND']);
   await expect(page.locator('[data-roster-group="alumni"] .artist strong')).toHaveText(['ALUMNI ONE']);
-  await expect(page.locator('[data-roster-group="network"] .artist strong')).toHaveText(['NETWORK <SCRIPT>']);
-  await expect(page.locator('[data-roster-group="active"] .artist').first()).toHaveAttribute('href', '/artists/active-first');
+  await expect(page.locator('[data-roster-group="network"] .artist strong')).toHaveText(['NETWORK <SCRIPT> & "RAVE" \'NIGHT\'']);
+  await expect(page.locator('.artist-list script')).toHaveCount(0);
+  await expect(page.locator('[data-roster-group="active"] .artist').first()).toHaveAttribute('href', '/artists/active%3C%26%22first');
+  await expect(page.locator('[data-roster-group="active"] .artist').first()).toHaveAttribute('data-image', '/uploads/active-"first"&<cut>.jpg');
   await expect(page.locator('[data-roster-group="network"] .artist')).not.toHaveAttribute('href', 'https://example.com');
   await expect(page.locator('.artist-list')).not.toContainText('SHOULD NOT LEAK');
-  await expect(page.locator('.artist-preview img')).toHaveAttribute('src', '/uploads/active-first.jpg');
+  await expect(page.locator('.artist-preview img')).toHaveAttribute('src', '/uploads/active-"first"&<cut>.jpg');
   expect(await page.evaluate(() => window.__rosterRendered)).toEqual({ count: 4 });
 });
 
