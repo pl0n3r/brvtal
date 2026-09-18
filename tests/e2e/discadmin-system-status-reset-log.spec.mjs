@@ -182,6 +182,7 @@ test('failed reset after rerender updates the current controls and restores visi
   const state = await mount(page,{holdReset:true,resetStatuses:[500]});
 
   await page.getByRole('button',{name:'LOAD RECENT LOGS'}).click();
+  await expect(page.locator('#ssv2-logs')).toBeVisible();
   await expect(page.locator('#ssv2-logs')).toHaveText('before reset');
   await confirmReset(page);
   await expect.poll(() => state.resetCalls()).toBe(1);
