@@ -24,7 +24,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+39** | **−48** | **-9** |
+| **2** | **+37** | **−46** | **-9** |
 
 ## Calidad y entrega
 
@@ -43,7 +43,7 @@
 
 ```mermaid
 flowchart LR
-    A["#539 hotfix"] --> P["preflight"]
+    A["PR + snapshot exacto"] --> P["preflight"]
     P --> F["fast"]
     P --> C["Chromium"]
     A --> S["Sonar"]
@@ -53,7 +53,7 @@ flowchart LR
     S --> G
     R --> G
     G --> M["Squash merge"]
-    M --> X["exact-main validate"]
+    M --> X["CI del SHA exacto de main"]
     X --> N["#521 Event Accent picker"]
 ```
 
