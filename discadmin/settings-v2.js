@@ -2,6 +2,15 @@
   'use strict';
 
   const V2 = { tab:'general', pickerTarget:null, lastFocus:null };
+  const INDEXNOW_ENDPOINTS = [
+    ['https://api.indexnow.org/indexnow','IndexNow Global'],
+    ['https://indexnow.amazonbot.amazon/indexnow','Amazon'],
+    ['https://www.bing.com/indexnow','Bing'],
+    ['https://searchadvisor.naver.com/indexnow','Naver'],
+    ['https://search.seznam.cz/indexnow','Seznam.cz'],
+    ['https://yandex.com/indexnow','Yandex'],
+    ['https://indexnow.yep.com/indexnow','Yep'],
+  ];
   const legacyOpenSettingByKey = window.openSettingByKey;
 
   const esc = value => String(value ?? '')
@@ -100,7 +109,18 @@
     const indexnow = jsonValue('indexnow');
     const share = seo.share_image || seo.og_image || '';
     const indexNowKey = String(indexnow.key || '').trim();
-    const indexNowEnabled = Boolean(indexnow.enabled) && /^[A-Za-z0-9-]{8,128}$/.test(indexNowKey);
+    const keyLocation = String(indexnow.key_location || '/indexnow-key.txt').trim();
+    const endpoint = String(indexnow.endpoint || INDEXNOW_ENDPOINTS[0][0]).trim();
+    const keyValid = /^[A-Za-z0-9-]{8,128}$/.test(indexNowKey);
+    const keyLocationValid = /^\/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$/.test(keyLocation);
+    const endpointValid = INDEXNOW_ENDPOINTS.some(([value]) => value === endpoint);
+    const indexNowEnabled = Boolean(indexnow.enabled) && keyValid && keyLocationValid && endpointValid;
+    const endpointOptions = INDEXNOW_ENDPOINTS.map(([value,label]) => {
+      const selected = value === endpoint ? 'selected' : '';
+      return `<option value="${esc(value)}" ${selected}>${esc(label)}</option>`;
+    }).join('');
+    const verificationUrl = `https://www.brvtal.com.co${keyLocationValid ? keyLocation : '/indexnow-key.txt'}`;
+
     return `<section class="sv2-pane ${V2.tab==='seo'?'active':''}" data-settings-pane="seo">
       <header class="sv2-section-head"><div><span>03 / SEO</span><h3>Canonical site defaults</h3></div><p>Server-owned defaults for public documents plus event-driven indexing controls. Entity-specific SEO fields remain authoritative for Events, Artists, Sets, Releases, Blog and Pages.</p></header>
       <div class="sv2-grid">${text('seo_title','Default Home title',seo.site_title || 'BRVTAL — Rave till Grave','Server-rendered Home title fallback.')}
@@ -115,13 +135,20 @@
       <div class="sv2-integration">
         <div class="sv2-section-head"><div><span>INDEXNOW</span><h3>Search-engine change notifications</h3></div><p>Notify participating search engines only when public URLs are created, updated, unpublished or removed. No scheduled full-site resubmission.</p></div>
         <div class="sv2-grid two">
-          <label class="sv2-field"><span>IndexNow</span><select id="sv2_indexnow_enabled"><option value="0" ${indexNowEnabled?'':'selected'}>DISABLED</option><option value="1" ${indexNowEnabled?'selected':''}>ENABLED</option></select><small>Enable after saving a valid 8–128 character IndexNow key.</small></label>
+          <label class="sv2-field"><span>IndexNow</span><select id="sv2_indexnow_enabled"><option value="0" ${indexNowEnabled?'':'selected'}>DISABLED</option><option value="1" ${indexNowEnabled?'selected':''}>ENABLED</option></select><small>Enable after saving a valid IndexNow configuration.</small></label>
           ${text('indexnow_key','IndexNow key',indexNowKey,'Allowed: A–Z, a–z, 0–9 and hyphens; 8–128 characters.')}
+          ${text('indexnow_key_location','Key location',keyLocation,'Root-level UTF-8 key file path, for example /indexnow-key.txt.')}
+          <label class="sv2-field"><span>Submission endpoint</span><select id="sv2_indexnow_endpoint">${endpointOptions}</select><small>Official participating endpoint. Global IndexNow is the default.</small></label>
         </div>
         <div class="sv2-context-grid">
           <article><span>STATUS</span><strong>${indexNowEnabled?'CONNECTED':'NOT CONFIGURED'}</strong><p>Submissions are queued after successful editorial commits and never make a save fail.</p></article>
-          <article><span>KEY LOCATION</span><strong>/indexnow-key.txt</strong><p>The verification response is generated dynamically from this Settings value; no key is committed to Git.</p></article>
+          <article><span>CANONICAL HOST</span><strong>www.brvtal.com.co</strong><p>Derived automatically and intentionally not editable.</p></article>
+          <article><span>KEY VERIFICATION</span><strong>${esc(verificationUrl)}</strong><p>The response is generated dynamically; no live key is committed to Git.</p></article>
+        </div>
+        <div class="sv2-context-grid">
           <article><span>SUBMISSION POLICY</span><strong>EVENT-DRIVEN</strong><p>Changed canonical URLs are deduplicated per request; sitemap remains the full-site catch-up signal.</p></article>
+          <article><span>URL LIST</span><strong>AUTOMATIC</strong><p>Only URLs affected by the successful public mutation are submitted.</p></article>
+          <article><span>BATCH LIMIT</span><strong>10,000 URLS</strong><p>Protocol maximum; BRVTAL normally sends much smaller change sets.</p></article>
         </div>
         <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="indexnow">SAVE INDEXNOW</button></div>
       </div>
@@ -231,14 +258,29 @@
 
   async function saveIndexNow() {
     const indexNowKey = read('indexnow_key');
+    const keyLocation = read('indexnow_key_location');
+    const endpoint = read('indexnow_endpoint');
     const indexNowEnabled = read('indexnow_enabled') === '1';
+
     if (indexNowKey && !/^[A-Za-z0-9-]{8,128}$/.test(indexNowKey)) {
       throw new Error('IndexNow key must be 8–128 characters using only letters, numbers and hyphens.');
     }
     if (indexNowEnabled && !indexNowKey) {
       throw new Error('IndexNow key is required before enabling the integration.');
     }
-    await persistJson('indexnow',{enabled:indexNowEnabled,key:indexNowKey});
+    if (!/^\/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$/.test(keyLocation)) {
+      throw new Error('Key location must be a root-level .txt path such as /indexnow-key.txt.');
+    }
+    if (!INDEXNOW_ENDPOINTS.some(([value]) => value === endpoint)) {
+      throw new Error('Select an official IndexNow endpoint.');
+    }
+
+    await persistJson('indexnow',{
+      enabled:indexNowEnabled,
+      key:indexNowKey,
+      key_location:keyLocation,
+      endpoint
+    });
   }
 
   async function saveAnalytics() {
