@@ -56,6 +56,7 @@ flowchart LR
 - `js/public-transmissions.js` — render editorial desde el payload público compartido.
 - `css/public-transmissions.css` — lenguaje visual Archive/System y responsive.
 - `tests/public-transmissions-contract.php` — contratos de wiring, datos y rutas.
+- `tests/e2e/public-mobile-performance.spec.mjs` — contrato del orden del runtime público con TRANSMISSIONS.
 - `tests/e2e/public-transmissions.spec.mjs` — render, relaciones, vacío/fallo y mobile.
 
 ## Validación
