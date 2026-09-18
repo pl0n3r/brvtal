@@ -147,11 +147,11 @@ window.BRVTALReleases = (() => {
     if (!store.artists.length) return '<div class="helper">No artists available.</div>';
     return store.artists.map(artist => {
       const current = linked.get(Number(artist.id));
-      return `<label class="release-artist-item">
-        <input type="checkbox" data-release-artist="${Number(artist.id)}" ${current?'checked':''}>
+      return `<div class="release-artist-item">
+        <input type="checkbox" data-release-artist="${Number(artist.id)}" aria-label="Link ${esc(artist.name)} to release" ${current?'checked':''}>
         <span><b>${esc(artist.name)}</b><span class="meta">${esc(artist.slug || '')}</span></span>
-        <input type="text" data-release-role="${Number(artist.id)}" value="${esc(current?.role || 'Primary')}" placeholder="Role">
-      </label>`;
+        <input type="text" data-release-role="${Number(artist.id)}" value="${esc(current?.role || 'Primary')}" placeholder="Role" aria-label="Role for ${esc(artist.name)}">
+      </div>`;
     }).join('');
   }
 
@@ -169,24 +169,24 @@ window.BRVTALReleases = (() => {
     if (notice) notice.className = 'notice';
     content.innerHTML = `<div class="form">
       <div class="section"><div class="sectionhead"><strong>RELEASE DATA</strong><span class="helper">Label catalog metadata</span></div><div class="grid2">
-        <div class="field"><label>Title *</label><input id="release_title" value="${esc(r.title || '')}"></div>
-        <div class="field"><label>Slug *</label><input id="release_slug" value="${esc(r.slug || '')}"></div>
-        <div class="field"><label>Type</label><select id="release_type"><option value="single" ${r.release_type==='single'||!r.release_type?'selected':''}>Single</option><option value="ep" ${r.release_type==='ep'?'selected':''}>EP</option><option value="album" ${r.release_type==='album'?'selected':''}>Album</option><option value="compilation" ${r.release_type==='compilation'?'selected':''}>Compilation</option><option value="other" ${r.release_type==='other'?'selected':''}>Other</option></select></div>
-        <div class="field"><label>Catalog number</label><input id="release_catalog" value="${esc(r.catalog_number || '')}" placeholder="BRVTAL001"></div>
-        <div class="field"><label>Release date</label><input id="release_date" type="date" value="${esc(r.release_date || '')}"></div>
-        <div class="field"><label>Status</label><select id="release_status_field"><option value="draft" ${r.status==='draft'||!r.status?'selected':''}>Draft</option><option value="published" ${r.status==='published'?'selected':''}>Published</option><option value="archived" ${r.status==='archived'?'selected':''}>Archived</option></select></div>
-        <div class="field full"><label>Artwork</label><div class="release-editor-artwork thumbcell">${r.artwork?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.artwork))}" alt="${esc(r.title || 'Artwork')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="release_artwork" value="${esc(normalizeMediaPath(r.artwork || ''))}"><button class="media-picker-btn" id="release-artwork-picker" type="button">SELECT MEDIA</button></div></div></div>
-        <div class="field full"><label>Description</label><textarea id="release_description">${esc(r.description || '')}</textarea></div>
+        <div class="field"><label for="release_title">Title *</label><input id="release_title" value="${esc(r.title || '')}"></div>
+        <div class="field"><label for="release_slug">Slug *</label><input id="release_slug" value="${esc(r.slug || '')}"></div>
+        <div class="field"><label for="release_type">Type</label><select id="release_type"><option value="single" ${r.release_type==='single'||!r.release_type?'selected':''}>Single</option><option value="ep" ${r.release_type==='ep'?'selected':''}>EP</option><option value="album" ${r.release_type==='album'?'selected':''}>Album</option><option value="compilation" ${r.release_type==='compilation'?'selected':''}>Compilation</option><option value="other" ${r.release_type==='other'?'selected':''}>Other</option></select></div>
+        <div class="field"><label for="release_catalog">Catalog number</label><input id="release_catalog" value="${esc(r.catalog_number || '')}" placeholder="BRVTAL001"></div>
+        <div class="field"><label for="release_date">Release date</label><input id="release_date" type="date" value="${esc(r.release_date || '')}"></div>
+        <div class="field"><label for="release_status_field">Status</label><select id="release_status_field"><option value="draft" ${r.status==='draft'||!r.status?'selected':''}>Draft</option><option value="published" ${r.status==='published'?'selected':''}>Published</option><option value="archived" ${r.status==='archived'?'selected':''}>Archived</option></select></div>
+        <div class="field full"><label for="release_artwork">Artwork</label><div class="release-editor-artwork thumbcell">${r.artwork?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.artwork))}" alt="${esc(r.title || 'Artwork')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="release_artwork" value="${esc(normalizeMediaPath(r.artwork || ''))}"><button class="media-picker-btn" id="release-artwork-picker" type="button">SELECT MEDIA</button></div></div></div>
+        <div class="field full"><label for="release_description">Description</label><textarea id="release_description">${esc(r.description || '')}</textarea></div>
         <label class="release-featured full"><input id="release_featured" type="checkbox" ${Number(r.featured)===1?'checked':''}><span><b>FEATURED RELEASE</b><span class="meta">Highlight this release in public surfaces.</span></span></label>
-        <div class="field"><label>Sort order</label><input id="release_sort_order" type="number" value="${Number(r.sort_order || 0)}"></div>
+        <div class="field"><label for="release_sort_order">Sort order</label><input id="release_sort_order" type="number" value="${Number(r.sort_order || 0)}"></div>
       </div></div>
       <div class="section"><div class="sectionhead"><strong>ARTISTS</strong><span class="helper">Link existing BRVTAL artist profiles</span></div><div class="release-artist-list">${artistEditor(r)}</div></div>
       <div class="section"><div class="sectionhead"><strong>PLATFORMS</strong><span class="helper">Public listening / purchase links</span></div><div class="release-platform-grid">
-        <div class="field"><label>Spotify</label><input id="release_spotify" value="${esc(r.spotify_url || '')}"></div>
-        <div class="field"><label>SoundCloud</label><input id="release_soundcloud" value="${esc(r.soundcloud_url || '')}"></div>
-        <div class="field"><label>Bandcamp</label><input id="release_bandcamp" value="${esc(r.bandcamp_url || '')}"></div>
-        <div class="field"><label>YouTube</label><input id="release_youtube" value="${esc(r.youtube_url || '')}"></div>
-        <div class="field"><label>Beatport</label><input id="release_beatport" value="${esc(r.beatport_url || '')}"></div>
+        <div class="field"><label for="release_spotify">Spotify</label><input id="release_spotify" value="${esc(r.spotify_url || '')}"></div>
+        <div class="field"><label for="release_soundcloud">SoundCloud</label><input id="release_soundcloud" value="${esc(r.soundcloud_url || '')}"></div>
+        <div class="field"><label for="release_bandcamp">Bandcamp</label><input id="release_bandcamp" value="${esc(r.bandcamp_url || '')}"></div>
+        <div class="field"><label for="release_youtube">YouTube</label><input id="release_youtube" value="${esc(r.youtube_url || '')}"></div>
+        <div class="field"><label for="release_beatport">Beatport</label><input id="release_beatport" value="${esc(r.beatport_url || '')}"></div>
       </div></div>
     </div>`;
 

@@ -8,36 +8,41 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Reduce duplicación y complejidad del manejo de teclado de los formularios modales de DISCADMIN dentro de #451.
-- Legacy y Content Core comparten ahora el mismo focus trap para Tab / Shift+Tab.
-- Escape usa una única ruta de selección/cierre del diálogo activo, preservando los handlers nativos de cada editor.
-- Se mantiene la prioridad del modal legacy si por error hubiera más de un diálogo abierto.
-- Se añade regresión Playwright para comprobar el focus trap de Content Core además del modal legacy existente.
-- No cambia validación, guardado, lifecycle ni contenido de formularios.
+- Continúa #451 con un bloque P1 de accesibilidad de formularios en DISCADMIN.
+- Blog y Releases asocian explícitamente sus labels con inputs, selects y textareas dinámicos.
+- La fila de artistas de Releases deja de envolver dos controles dentro de un único `label`; checkbox y rol reciben nombres accesibles independientes.
+- Content Core da nombres accesibles a Ticket Types dinámicos, al botón de eliminación y a los checkboxes del lineup.
+- El editor de lifecycle de Artists asocia cada label con su control.
+- El buscador del Media Picker recibe un nombre accesible explícito.
+- No cambia payload, validación, persistencia, rutas ni comportamiento editorial.
+- Se añade un contrato dedicado que cubre estos nombres y asociaciones.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/admin-form-dialogs.js` — helpers compartidos para focus trap y cierre por teclado.
-- `tests/e2e/discadmin-form-dialogs.spec.mjs` — cobertura de Tab / Shift+Tab en Content Core.
+- `discadmin/blog.js` — asociaciones label/control del editor Blog.
+- `discadmin/content-core.js` — nombres accesibles de tickets, lineup y lifecycle de Artists.
+- `discadmin/media-library.js` — nombre accesible del buscador del Media Picker.
+- `discadmin/releases.js` — asociaciones label/control y separación semántica de controles por artista.
+- `tests/discadmin-editor-accessibility-contract.php` — regresión de accesibilidad para los cuatro módulos.
 
 ## Validación
 
-- Base exacta: `main` `d2b045a36aab51d0929fb192c35a5a9966c6ce57`.
-- Esa base pasó BRVTAL CI #970 y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `8d48bd81f7b6aaee79632a8eb99057b2abd7d6dc`.
+- Esa base pasó BRVTAL CI #972 y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Cerrar este grupo pequeño de #451 y continuar el burn-down con deuda que siga reproduciéndose en el código actual.
-- Reconciliar PR #434 / Memories aparte, sin mezclarlo con refactors de calidad.
+- Cerrar este bloque de #451 y continuar con deuda que siga reproduciéndose en el código actual.
+- Reconciliar PR #434 / Memories aparte, sin mezclarlo con calidad de formularios.
 - Mantener #479, #480 y #481 como frentes separados de SEO/experiencia pública.
 
 ## Panorama general pendiente
 
-- **Sonar / calidad:** #451 continúa por riesgo y área; varios P1 del export original ya no se reproducen en `main`.
+- **Sonar / calidad:** #451 continúa por riesgo y área; los S2703, S7727 y S8786 del export original ya no se reproducen en `main`.
 - **Apariencia:** #149 — completar Light en módulos modernos.
 - **Hero Slider:** #221 — integridad editorial de media; #480 — regresión visual del Hero en desktop.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193.
