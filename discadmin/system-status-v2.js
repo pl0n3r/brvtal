@@ -98,7 +98,7 @@
     }
   }
 
-  async function requestLogReset(token) {
+  function requestLogReset(token) {
     return fetchJson(LOG_RESET, {
       method:'POST',
       headers:{
