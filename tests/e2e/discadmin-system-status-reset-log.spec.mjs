@@ -166,7 +166,7 @@ test('reset lock survives a System Status rerender while reset is in flight', as
   await page.getByRole('button',{name:'CONFIRM RESET'}).click();
   await expect.poll(() => state.resetCalls()).toBe(1);
 
-  await page.getByRole('button',{name:'REFRESH'}).click();
+  await page.getByRole('button',{name:'REFRESH',exact:true}).click();
   const resetButton = page.locator('#ssv2-reset-logs');
   await expect(resetButton).toBeDisabled();
 
@@ -186,7 +186,7 @@ test('failed reset after rerender updates the current controls and restores visi
   await confirmReset(page);
   await expect.poll(() => state.resetCalls()).toBe(1);
 
-  await page.getByRole('button',{name:'REFRESH'}).click();
+  await page.getByRole('button',{name:'REFRESH',exact:true}).click();
   await expect(page.locator('#ssv2-reset-logs')).toBeDisabled();
 
   state.releaseReset();
