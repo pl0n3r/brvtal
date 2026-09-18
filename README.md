@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+251** | **−126** | **+125** |
+| **12** | **+278** | **−126** | **+152** |
 
 ## Calidad y entrega
 
@@ -31,7 +31,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack · webkit** |
 | Browser | Dashboard → Media no depende de un evento `load` tardío; fallo real muestra ERROR + RETRY |
 | Real-stack | Dashboard → Media · Sets → Media · deep-link Media |
 | UI | `REGISTER EXTERNAL` no se renderiza |
@@ -61,6 +61,7 @@ flowchart LR
 - Media, Releases y Blog comparten una única frontera de readiness y navegación administrada por `BRVTALAdminModules.navigate()`.
 - La capa de información/navegación ya no instala listeners duplicados ni deja que Media/Releases/Blog caigan al CRUD legado; delega esos destinos al navegador dinámico canónico.
 - Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY; RETRY invalida promesas rechazadas y vuelve a crear dependencias de script fallidas.
+- Las rutas dinámicas sincronizan `?module=` al iniciar la navegación, antes de esperar readiness, para que cualquier reconciliación concurrente converja al destino solicitado.
 - Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
 - Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.
 - Se añade cobertura de navegador y real-stack autenticada con el usuario E2E.
@@ -73,7 +74,7 @@ flowchart LR
 - `discadmin/media-library.php` — elimina External Registry de la toolbar.
 - `discadmin/media-library.js` — elimina modal/binding de registro externo.
 - `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido y recuperación real tras un fallo transitorio mediante RETRY.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins usa el owner canónico de readiness.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins y sincronización temprana de URL antes de readiness.
 - `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
 - `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real.
 - `tests/e2e/indexnow-real-stack.spec.mjs` — aislamiento por URL única; evita falsos fallos con workers concurrentes.

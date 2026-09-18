@@ -179,6 +179,31 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
   await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
 });
 
+test('dynamic routes update the URL before readiness settles', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    const script = document.createElement('script');
+    script.id = 'brvtal-media-library-script';
+    document.head.appendChild(script);
+    window.__pendingMediaNavigation = window.go('media');
+  });
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('media');
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('dashboard');
+
+  await page.evaluate(() => {
+    const script = document.getElementById('brvtal-media-library-script');
+    script.dataset.ready = '1';
+    script.dispatchEvent(new Event('load'));
+  });
+  await page.evaluate(() => window.__pendingMediaNavigation);
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('media');
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+});
+
 test('Events is the single entry to the guided event editor', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);

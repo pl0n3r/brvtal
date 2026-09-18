@@ -388,6 +388,7 @@
     } else {
       const token = ++routeToken;
       window.BRVTALAdminModules?.cancel?.();
+      if (dynamicModuleSections.has(section)) syncRouteUrl(section);
       const applied = await invokeOriginalGo(section, token);
       if (!applied || token !== routeToken) return;
       result = true;
