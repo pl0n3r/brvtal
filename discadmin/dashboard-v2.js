@@ -8,7 +8,7 @@
     storage:'/discadmin/storage-metrics.php',
     activity:'/api/admin-activity.php?limit=4'
   };
-  const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog'})[type] || 'dashboard';
+  const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
   let mounting = false;
   let mountSerial = 0;
 
@@ -54,9 +54,11 @@
   }
 
   function clearLegacyDashboard(main) {
+    main.querySelector('#brvtal-content-health')?.remove();
+    main.querySelector('#brvtal-admin-activity')?.remove();
     [...main.children].forEach(child => {
       if (child.classList.contains('top')) return;
-      if (child.id === 'brvtal-dashboard-v2' || child.id === 'brvtal-content-health' || child.id === 'brvtal-admin-activity') return;
+      if (child.id === 'brvtal-dashboard-v2') return;
       if (child.matches('.stats,.system-pulse,.dashsection,.dashgrid')) child.remove();
     });
   }
@@ -110,7 +112,7 @@
     const items = (Array.isArray(publicHealth.items) ? publicHealth.items : []).filter(item => Number(item.score || 0) < 80).slice(0,4);
     return `<section class="dashboard-v2-panel">
       <div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">PUBLIC READINESS</div><h2>NEEDS ATTENTION</h2><p>Only public/publishable records affect this signal. Draft completeness is tracked separately.</p></div><span class="dashboard-v2-state ${stateClass(publicHealth.score)}">${Number(publicHealth.score ?? 100)}%</span></div>
-      <div class="dashboard-v2-list">${items.length ? items.map(item => `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(item.title || 'Untitled')}</div><div class="dashboard-v2-row-meta">${esc(String(item.type || '').toUpperCase())} · ${esc((item.issues || []).slice(0,3).join(' · ') || 'Review required')}</div></div><div class="dashboard-v2-row-actions"><span class="dashboard-v2-score ${stateClass(item.score)}">${Number(item.score || 0)}%</span><button class="dashboard-v2-button" type="button" data-dashboard-go="${esc(sectionFor(item.type))}">OPEN</button></div></div>`).join('') : '<div class="dashboard-v2-empty">No public records currently require attention.</div>'}</div>
+      <div class="dashboard-v2-list">${items.length ? items.map(item => `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(item.title || 'Untitled')}</div><div class="dashboard-v2-row-meta">${esc(String(item.type || '').toUpperCase())} · ${esc((item.issues || []).slice(0,3).join(' · ') || 'Review required')}</div></div><div class="dashboard-v2-row-actions"><span class="dashboard-v2-score ${stateClass(item.score)}">${Number(item.score || 0)}%</span><button class="dashboard-v2-button" type="button" data-dashboard-go="${esc(sectionFor(item.type))}" data-dashboard-resource="${esc(item.type || '')}" data-dashboard-id="${Number(item.id ?? 0)}">OPEN</button></div></div>`).join('') : '<div class="dashboard-v2-empty">No public records currently require attention.</div>'}</div>
     </section>`;
   }
 
@@ -142,7 +144,7 @@
   function activityPanel(activity, activityError) {
     if (!activity) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(activityError)}</section>`;
     const items = Array.isArray(activity.items) ? activity.items : [];
-    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Latest entries from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list">${items.length ? items.map(item => `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(item.resource_label || `${item.resource || 'content'} #${item.resource_id || ''}`)}</div><div class="dashboard-v2-row-meta">${esc(String(item.action || 'update').replaceAll('_',' ').toUpperCase())} · ${esc(item.admin_name || item.admin_email || 'Unknown admin')} · ${esc(item.created_at || '')}</div></div><button class="dashboard-v2-button" type="button" data-dashboard-go="${esc(sectionFor(item.resource))}">OPEN</button></div>`).join('') : '<div class="dashboard-v2-empty">No recorded activity yet.</div>'}</div></section>`;
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Latest entries from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list">${items.length ? items.map(item => `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(item.resource_label || `${item.resource || 'content'} #${item.resource_id || ''}`)}</div><div class="dashboard-v2-row-meta">${esc(String(item.action || 'update').replaceAll('_',' ').toUpperCase())} · ${esc(item.admin_name || item.admin_email || 'Unknown admin')} · ${esc(item.created_at || '')}</div></div><button class="dashboard-v2-button" type="button" data-dashboard-go="${esc(sectionFor(item.resource))}" data-dashboard-resource="${esc(item.resource || '')}" data-dashboard-id="${Number(item.resource_id ?? 0)}">OPEN</button></div>`).join('') : '<div class="dashboard-v2-empty">No recorded activity yet.</div>'}</div></section>`;
   }
 
   function actionsPanel() {
@@ -150,7 +152,16 @@
   }
 
   function bind(root) {
-    root.querySelectorAll('[data-dashboard-go]').forEach(button => button.addEventListener('click', () => window.go?.(button.dataset.dashboardGo)));
+    root.querySelectorAll('[data-dashboard-go]').forEach(button => button.addEventListener('click', () => {
+      const id = Number(button.dataset.dashboardId ?? 0);
+      const resource = button.dataset.dashboardResource ?? '';
+      if (id > 0 && resource && typeof globalThis.BRVTALAdminRecordNavigation?.open === 'function') {
+        globalThis.BRVTALAdminRecordNavigation.open(resource, id, {section:button.dataset.dashboardGo})
+          .catch(error => globalThis.BRVTALFeedback?.error?.('Unable to open record: ' + (error?.message || error),'dashboard-record-navigation'));
+        return;
+      }
+      globalThis.go?.(button.dataset.dashboardGo);
+    }));
     root.querySelectorAll('[data-dashboard-create]').forEach(button => button.addEventListener('click', () => window.openModal?.(button.dataset.dashboardCreate)));
     root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
   }
@@ -159,11 +170,6 @@
     if (serial !== mountSerial || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
     const main = document.querySelector('.main');
     if (!main) return;
-    clearLegacyDashboard(main);
-
-    const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
-    const summary = overview?.summary || {};
 
     let root = document.getElementById('brvtal-dashboard-v2');
     if (!root) {
@@ -174,6 +180,11 @@
       top?.insertAdjacentElement('afterend', root);
       if (!top) main.prepend(root);
     }
+    clearLegacyDashboard(main);
+
+    const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
+    const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
+    const summary = overview?.summary || {};
 
     root.innerHTML = `
       <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—')}</div></section>
