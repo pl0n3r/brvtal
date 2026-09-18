@@ -112,7 +112,7 @@
     const keyLocation = String(indexnow.key_location || '/indexnow-key.txt').trim();
     const endpoint = String(indexnow.endpoint || INDEXNOW_ENDPOINTS[0][0]).trim();
     const keyValid = /^[A-Za-z0-9-]{8,128}$/.test(indexNowKey);
-    const keyLocationValid = /^\/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$/.test(keyLocation);
+    const keyLocationValid = /^\/indexnow-[A-Za-z0-9][A-Za-z0-9-]{0,90}\.txt$/.test(keyLocation);
     const endpointValid = INDEXNOW_ENDPOINTS.some(([value]) => value === endpoint);
     const indexNowEnabled = Boolean(indexnow.enabled) && keyValid && keyLocationValid && endpointValid;
     const endpointOptions = INDEXNOW_ENDPOINTS.map(([value,label]) => {
@@ -268,7 +268,7 @@
     if (indexNowEnabled && !indexNowKey) {
       throw new Error('IndexNow key is required before enabling the integration.');
     }
-    if (!/^\/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$/.test(keyLocation)) {
+    if (!/^\/indexnow-[A-Za-z0-9][A-Za-z0-9-]{0,90}\.txt$/.test(keyLocation)) {
       throw new Error('Key location must be a root-level indexnow-*.txt path such as /indexnow-key.txt.');
     }
     if (!INDEXNOW_ENDPOINTS.some(([value]) => value === endpoint)) {
