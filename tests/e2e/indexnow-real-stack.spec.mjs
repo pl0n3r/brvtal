@@ -62,7 +62,7 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout:10_000});
   await page.evaluate(() => window.go?.('settings'));
-  await expect(page.locator('[data-settings-v2]')).toBeVisible({timeout:10_000});
+  await expect(page.locator('div[data-settings-v2]')).toBeVisible({timeout:10_000});
   await page.locator('[data-settings-tab="seo"]').click();
   await page.locator('#sv2_indexnow_enabled').selectOption('1');
   await page.locator('#sv2_indexnow_key').fill(key);
