@@ -116,14 +116,25 @@ test('E2E admin relates a curated Memory and the public boundary exposes the exp
     expect(eventHtml).toContain('MEMORIES / 01');
     expect(eventHtml).toContain(memoryTitle);
   } finally {
+    const cleanupErrors = [];
+    const cleanupDelete = async (label, url) => {
+      try {
+        const response = await page.request.delete(url, {headers});
+        if (!response.ok()) cleanupErrors.push(`${label} HTTP ${response.status()}`);
+      } catch (error) {
+        cleanupErrors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
     if (memoryId > 0) {
-      await page.request.delete(`${baseUrl}/api/memories.php?id=${memoryId}`, {headers}).catch(() => {});
+      await cleanupDelete('Memory cleanup', `${baseUrl}/api/memories.php?id=${memoryId}`);
     }
     if (mediaId > 0) {
-      await page.request.delete(`${baseUrl}/api/media-library.php?id=${mediaId}`, {headers}).catch(() => {});
+      await cleanupDelete('Media cleanup', `${baseUrl}/api/media-library.php?id=${mediaId}`);
     }
     if (eventId > 0) {
-      await page.request.delete(`${baseUrl}/api/index.php/events/${eventId}`, {headers}).catch(() => {});
+      await cleanupDelete('Event cleanup', `${baseUrl}/api/index.php/events/${eventId}`);
     }
+    expect(cleanupErrors, `Cleanup failed: ${cleanupErrors.join(' | ')}`).toEqual([]);
   }
 });
