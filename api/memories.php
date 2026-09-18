@@ -111,15 +111,21 @@ function brvtal_memories_list(PDO $pdo): array
          FROM memories m
          JOIN media ON media.id=m.media_id
          ORDER BY m.sort_order ASC,m.id ASC"
-    )->fetchAll(PDO::FETCH_ASSOC);
-    return array_map(static function (array $row) use ($pdo): array {
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $relationsByMemory = brvtal_memory_load_relations_batch(
+        $pdo,
+        array_column($rows, 'id')
+    );
+
+    return array_map(static function (array $row) use ($relationsByMemory): array {
         $row['id'] = (int)$row['id'];
         $row['media_id'] = (int)$row['media_id'];
         $row['sort_order'] = (int)$row['sort_order'];
         $row['file_size'] = (int)$row['file_size'];
-        $row['relations'] = brvtal_memory_load_relations($pdo, $row['id']);
+        $row['relations'] = $relationsByMemory[$row['id']] ?? [];
         return $row;
-    }, $rows ?: []);
+    }, $rows);
 }
 
 function brvtal_memories_available(PDO $pdo): array
