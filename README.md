@@ -56,6 +56,7 @@ flowchart LR
 - `README.md` — snapshot visual exacto del deploy y panorama pendiente.
 - `js/app.js` — separa los bindings dinámicos de cursor, magnetic y artist preview.
 - `tests/e2e/public-runtime-fallback.spec.mjs` — regresión Playwright para las interacciones dinámicas.
+- `tests/e2e/discadmin-content-health-navigation.spec.mjs` — elimina una carrera del harness de navegación Content Health sin cambiar producción.
 
 ## Validación
 
