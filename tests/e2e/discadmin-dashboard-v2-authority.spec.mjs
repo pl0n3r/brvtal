@@ -77,19 +77,24 @@ test('Dashboard V2 releases reserved ownership when render becomes invalid', asy
   await expect(page.locator('#brvtal-admin-activity')).toBeVisible();
 });
 
-test('NEXT EVENT keeps unavailable and empty lifecycle states explicit', async ({page}) => {
+test('NEXT EVENT keeps an unavailable overview source explicit', async ({page}) => {
   await mount(page, {
     overviewStatus:503,
     overviewPayload:{ok:false,error:'OVERVIEW_DOWN'},
   });
 
-  let panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
+  const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
   await expect(panel.locator('.dashboard-v2-state')).toHaveText('UNAVAILABLE');
   await expect(panel).toContainText('SOURCE UNAVAILABLE · OVERVIEW_DOWN');
+});
 
-  await page.reload();
-  panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
-  await expect(panel.locator('.dashboard-v2-state')).toHaveText('UNAVAILABLE');
+test('NEXT EVENT keeps the no-scheduled-event lifecycle state explicit', async ({page}) => {
+  await mount(page);
+
+  const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
+  await expect(panel.locator('.dashboard-v2-state')).toHaveText('NONE');
+  await expect(panel).toContainText('No active future event is currently scheduled.');
+  await expect(panel).toContainText('Create or schedule an Event when the next date is confirmed.');
 });
 
 test('NEXT EVENT exposes readiness warnings without changing canonical Events navigation', async ({page}) => {
