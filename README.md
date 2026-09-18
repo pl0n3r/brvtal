@@ -4,14 +4,10 @@
 
 # BRVTAL — Último deploy
 
-<p align="center">
-  <strong>Theme runtime · bounded complexity refactor</strong>
-</p>
+<p align="center"><strong>Cultural Archive · Home TRANSMISSIONS</strong></p>
 
 <p align="center">
-  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml">
-    <img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg">
-  </a>
+  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml"><img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg"></a>
 </p>
 
 > Este README representa **solo el deploy actual**. Se reemplaza en el siguiente deploy y no funciona como changelog acumulativo.
@@ -20,10 +16,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1167b2560caaad696f56b05438e3b2177e6ada74` · BRVTAL CI #1085 |
-| Alcance | 🧪 **#451** | complejidad cognitiva del Theme runtime público |
-| Browser | 🌐 **Playwright** | desktop/mobile, wordmark, favicon, preloader y fallbacks |
-| Sonar | ✅ **Quality Gate** | 0 issues nuevos / 0 hotspots antes de findings finales |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `824114b4dbe105bc701c75cf2fb998fda5d1aed1` · BRVTAL CI #1096 |
+| Alcance | 🧪 **#506 / #398** | Blog publicado → TRANSMISSIONS en Home |
+| Datos | 🔗 **Estructurados** | reutiliza Blog + relaciones Event/Artist/Set/Release |
+| Browser | 🌐 **Playwright** | render, navegación, vacío/fallo y mobile |
 | Producción | ⚪ **No validada** | CI no equivale a validación de producción |
 
 ## Flujo de entrega
@@ -43,54 +39,57 @@ flowchart LR
 
 ## Qué se hizo
 
-- Divide la lógica de branding de `js/public-theme-runtime.js` en helpers acotados sin cambiar API pública ni modelo de datos.
-- Mantiene una sola fuente de settings mediante `window.BRVTALPublicDataPromise`, sin segunda petición pública cuando el payload ya existe.
-- Conserva header, hero, favicon, preloader y binding responsive.
-- Valida `mobileLogo`, `preloaderLogo` y `logo` de forma independiente antes de aplicar fallback.
-- Un asset preferido inválido ya no bloquea un `logo` principal válido.
-- `wordmark` conserva prioridad en header/preloader, mientras el hero usa el logo visual.
-- Un header logo que falla al cargar se elimina y deja visible el branding textual.
-- Se añadieron regresiones browser para prioridad de assets, fallbacks inválidos y recuperación del hero tras fallos de carga.
+- Añade **TRANSMISSIONS** a Home como capa editorial BRVTAL sobre el Blog publicado existente.
+- Reutiliza `window.BRVTALPublicDataPromise`; no crea endpoint ni segunda petición CMS.
+- Conserva el orden canónico del payload y limita Home a cuatro señales editoriales.
+- Los títulos navegan a `/blog/{slug}` y las relaciones `related_id` se resuelven únicamente contra los pools públicos finales Event/Artist/Set/Release, incluidos Events archivados.
+- Añade estados honestos para colección vacía y fallo del payload compartido.
+- Añade layout mobile-first, targets táctiles y protección contra overflow.
+- No incluye migraciones ni cambios de esquema.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot nuevo y exacto del deploy #451.
-- `js/public-theme-runtime.js` — helpers de branding y fallback seguro por asset.
-- `tests/e2e/public-theme-runtime.spec.mjs` — cobertura ejecutable de responsive, wordmark y fallbacks inválidos.
-- `tests/settings-control-plane-contract.php` — contrato suplementario de prioridad del wordmark.
+- `AGENTS.md` — contrato durable de TRANSMISSIONS, relaciones reales y orden del runtime.
+- `README.md` — snapshot exacto y panorama pendiente.
+- `index.html` — mount y fallback estático de TRANSMISSIONS.
+- `index.php` — entrega/defer versionado de estilos.
+- `js/public-runtime-loader.js` — carga TRANSMISSIONS dentro del core runtime.
+- `js/public-transmissions.js` — render editorial desde el payload público compartido.
+- `css/public-transmissions.css` — lenguaje visual Archive/System y responsive.
+- `tests/public-transmissions-contract.php` — contratos de wiring, datos y rutas.
+- `tests/e2e/public-mobile-performance.spec.mjs` — contrato del orden del runtime público con TRANSMISSIONS.
+- `tests/e2e/public-transmissions.spec.mjs` — render, relaciones, vacío/fallo y mobile.
 
 ## Validación
 
-- Base exacta `1167b2560caaad696f56b05438e3b2177e6ada74` pasó BRVTAL CI #1085.
-- El head previo pasó BRVTAL CI #1091, Chromium y Sonar; este ajuste final de fallback requiere un nuevo ciclo sobre el SHA actualizado.
-- El nuevo head debe volver a pasar BRVTAL CI / Chromium, Sonar y CodeRabbit.
-- Este slice no toca DB, sesión admin ni mutaciones privadas; real-stack/database pueden quedar fuera por scope.
+- La base exacta `824114b4dbe105bc701c75cf2fb998fda5d1aed1` pasó BRVTAL CI #1096.
+- El branch debe pasar ahora tests dirigidos, BRVTAL CI / validate, Sonar y CodeRabbit.
 - Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - No se declara **VALIDATED IN PRODUCTION** desde CI.
 
 ## Qué sigue
 
-1. Cerrar el segundo ciclo de BRVTAL CI / Sonar / CodeRabbit.
-2. Squash merge y exact-main CI.
-3. Marcar Theme runtime como cubierto en #451 si el nuevo ciclo permanece verde.
-4. Continuar con #481 IndexNow, ya diagnosticado, sin mezclarlo con este refactor.
+1. Cerrar tests y gates de #506.
+2. Squash merge + exact-main CI.
+3. Implementar #481 IndexNow como notificación SEO event-driven sobre cambios públicos reales.
+4. Retomar #398 profundizando rutas de archivo cultural con relaciones explícitas.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🧪 **Sonar / calidad** | #451 · cerrar Theme runtime y continuar deuda vigente |
-| 🔎 **SEO / IndexNow** | #481 · próximo slice preparado |
-| 🗃️ **Archivo cultural** | #398 · Archive/Memories conectados por relaciones explícitas |
-| 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
+| 🗃️ **Archivo cultural** | #398 · profundizar navegación relacional tras TRANSMISSIONS |
+| 🔎 **SEO / IndexNow** | #481 · integración preparada |
+| 🧪 **Sonar / calidad** | #451 · continuar burn-down por riesgo |
+| 🎛️ **Apariencia** | #149 · completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
-| 📈 **Analytics** | #427 — completar eventos `brvtal_*` en GTM/GA4 |
+| 📈 **Analytics** | #427 · completar eventos `brvtal_*` en GTM/GA4 |
 | ✍️ **Content / edición** | #224, #252 |
 | 🧾 **Activity / operaciones** | #232, #195 |
-| 📚 **Bulk Actions** | #275 — registros >500 sin falsa exhaustividad |
-| 🌐 **Idioma** | #212 — español canónico + inglés automático por fases |
-| 💾 **Backups** | #389 — scheduling seguro + Drive opcional |
+| 📚 **Bulk Actions** | #275 · registros >500 sin falsa exhaustividad |
+| 🌐 **Idioma** | #212 · español canónico + inglés automático por fases |
+| 💾 **Backups** | #389 · scheduling seguro + Drive opcional |
 
 ---
 
