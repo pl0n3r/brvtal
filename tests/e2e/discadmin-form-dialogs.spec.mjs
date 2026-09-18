@@ -142,3 +142,18 @@ test('Tab stays inside the active dialog', async ({ page }) => {
   await page.keyboard.press('Shift+Tab');
   await expect(save).toBeFocused();
 });
+
+test('Tab stays inside the Content Core dialog', async ({ page }) => {
+  await mount(page);
+  await page.getByRole('button', { name: 'CONTENT CORE EVENT' }).click();
+
+  const close = page.locator('#eventModal .modal-actions .icon');
+  const save = page.locator('#cc-saveBtn');
+
+  await save.focus();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+
+  await page.keyboard.press('Shift+Tab');
+  await expect(save).toBeFocused();
+});
