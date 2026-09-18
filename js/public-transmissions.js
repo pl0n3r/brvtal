@@ -14,18 +14,35 @@
     if (Number.isNaN(date.getTime())) return 'TRANSMISSION';
     return new Intl.DateTimeFormat('en-GB', {day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
   };
-  const relationLabel = relation => {
+  const indexById = items => new Map(
+    (Array.isArray(items) ? items : [])
+      .filter(item => item && item.id != null)
+      .map(item => [String(item.id), item])
+  );
+  const buildRelationIndex = data => ({
+    event: indexById([
+      ...(Array.isArray(data?.events) ? data.events : []),
+      ...(Array.isArray(data?.archive?.events) ? data.archive.events : [])
+    ]),
+    artist: indexById(data?.artists),
+    set: indexById(data?.sets),
+    release: indexById(data?.releases)
+  });
+  const relationLabel = (relation, relationIndex) => {
     const type = String(relation?.related_type || '').toLowerCase();
-    const item = relation?.item || relation?.related || relation;
-    const title = item?.title || item?.name || relation?.title || relation?.name || '';
-    const slug = item?.slug || relation?.slug || '';
-    if (!['events','artists','sets','releases'].includes(type) || !title || !slug) return '';
-    const singular = {events:'EVENT',artists:'ARTIST',sets:'SET',releases:'RELEASE'}[type];
-    return `<a href="${routeUrl(type, slug)}">${singular} / ${escapeHtml(title)}</a>`;
+    const routeType = {event:'events',artist:'artists',set:'sets',release:'releases'}[type];
+    const label = {event:'EVENT',artist:'ARTIST',set:'SET',release:'RELEASE'}[type];
+    const item = relationIndex[type]?.get(String(relation?.related_id ?? ''));
+    const title = item?.title || item?.name || '';
+    const slug = item?.slug || '';
+    if (!routeType || !title || !slug) return '';
+    return `<a href="${routeUrl(routeType, slug)}">${label} / ${escapeHtml(title)}</a>`;
   };
 
   window.BRVTALPublicDataPromise.then(result => {
-    const posts = Array.isArray(result?.payload?.data?.blog) ? result.payload.data.blog.slice(0, 4) : [];
+    const data = result?.payload?.data || {};
+    const posts = Array.isArray(data.blog) ? data.blog.slice(0, 4) : [];
+    const relationIndex = buildRelationIndex(data);
     list.replaceChildren();
     document.documentElement.dataset.publicTransmissions = 'editorial';
     count.textContent = String(posts.length).padStart(2, '0') + ' SIGNALS';
@@ -41,7 +58,7 @@
       const tags = (Array.isArray(post.tags) ? post.tags : []).slice(0, 3)
         .map(tag => `<span>#${escapeHtml(tag?.name || '')}</span>`).join('');
       const relations = (Array.isArray(post.relations) ? post.relations : [])
-        .map(relationLabel).filter(Boolean).slice(0, 4).join('');
+        .map(relation => relationLabel(relation, relationIndex)).filter(Boolean).slice(0, 4).join('');
       article.innerHTML = `
         <div class="transmission-index mono">${String(index + 1).padStart(2, '0')}</div>
         <div class="transmission-copy">
