@@ -66,4 +66,3 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
 - **Idioma:** #212 — español canónico + inglés automático por fases.
 - **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
-- **Completados recientemente:** #207, #260, #365, #388 y #391 ya fueron revalidados/cerrados en código.
