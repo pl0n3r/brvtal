@@ -42,7 +42,7 @@ for (const missing of ['GSAP', 'ScrollTrigger']) {
   });
 }
 
-test('public modules share one CMS request while rendering archive and media', async ({ page }) => {
+test('public modules share one CMS request while rendering archive and curated Memories', async ({ page }) => {
   let requests = 0;
   await page.route('**/api/public.php', route => {
     requests++;
@@ -50,7 +50,8 @@ test('public modules share one CMS request while rendering archive and media', a
       contentType:'application/json',
       body:JSON.stringify({ok:true,data:{
         events:[{id:1,title:'NEXT NIGHT',status:'published'}],artists:[],sets:[],settings:{},
-        media:[{id:3,type:'image',title:'Crowd Memory',file_path:'/memory.jpg'}],
+        media:[{id:3,type:'image',title:'Raw library asset',file_path:'/uploads/raw-library.jpg'}],
+        memories:[{id:8,media_id:3,type:'image',title:'Crowd Memory',context:'Archive floor',file_path:'/uploads/memory.jpg'}],
         archive:{years:[2025],counts:{events:1,sets:0,media:1},events:[{id:2,title:'PAST NIGHT',slug:'past-night',archive_year:2025,status:'archived'}]},
       }}),
     });
@@ -70,5 +71,7 @@ test('public modules share one CMS request while rendering archive and media', a
   await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
   await expect(page.locator('[data-archive-event]')).toHaveCount(1);
   await expect(page.locator('[data-public-media-item]')).toHaveCount(1);
+  await expect(page.locator('[data-public-media-item]')).toContainText('Crowd Memory');
+  await expect(page.locator('[data-public-media-item]')).not.toContainText('Raw library asset');
   expect(requests).toBe(1);
 });
