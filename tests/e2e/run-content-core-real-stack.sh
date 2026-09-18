@@ -15,6 +15,10 @@ BASE_URL="${BRVTAL_REAL_STACK_URL:-http://127.0.0.1:4174}"
 ADMIN_EMAIL="${BRVTAL_REAL_STACK_ADMIN_EMAIL:-ci-admin@brvtal.test}"
 ADMIN_PASSWORD="${BRVTAL_REAL_STACK_ADMIN_PASSWORD:-brvtal-ci-password}"
 PHP_LOG="${RUNNER_TEMP:-/tmp}/brvtal-real-stack-php.log"
+INDEXNOW_STUB_PORT="${BRVTAL_INDEXNOW_STUB_PORT:-4175}"
+INDEXNOW_STUB_ORIGIN="http://127.0.0.1:${INDEXNOW_STUB_PORT}"
+INDEXNOW_STUB_URL="${INDEXNOW_STUB_ORIGIN}/indexnow"
+INDEXNOW_STUB_LOG="${RUNNER_TEMP:-/tmp}/brvtal-indexnow-stub.log"
 
 if [[ ! "$DB_NAME" =~ ^brvtal_test[a-zA-Z0-9_]*$ ]]; then
   echo "Refusing to run real-stack smoke against non-test database: $DB_NAME" >&2
@@ -85,20 +89,48 @@ return [
     'backups' => [
         'media_archive_max_bytes' => 2 * 1024 * 1024 * 1024,
     ],
+    'indexnow' => [
+        'endpoint' => '$INDEXNOW_STUB_URL',
+    ],
 ];
 PHP
 
 cleanup() {
   local status=$?
   if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
+  if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
   rm -f config/config.php
   if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
     echo "--- PHP server log ---" >&2
     cat "$PHP_LOG" >&2 || true
   fi
+  if [[ $status -ne 0 && -f "$INDEXNOW_STUB_LOG" ]]; then
+    echo "--- IndexNow stub log ---" >&2
+    cat "$INDEXNOW_STUB_LOG" >&2 || true
+  fi
   exit "$status"
 }
 trap cleanup EXIT INT TERM
+
+BRVTAL_INDEXNOW_STUB_PORT="$INDEXNOW_STUB_PORT" node tests/e2e/indexnow-receiver.mjs >"$INDEXNOW_STUB_LOG" 2>&1 &
+INDEXNOW_PID=$!
+
+stub_ready=0
+for _ in $(seq 1 40); do
+  if curl -fsS "$INDEXNOW_STUB_ORIGIN/health" >/dev/null 2>&1; then
+    stub_ready=1
+    break
+  fi
+  if ! kill -0 "$INDEXNOW_PID" >/dev/null 2>&1; then
+    echo "IndexNow stub exited before becoming ready." >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+if [[ "$stub_ready" != "1" ]]; then
+  echo "Timed out waiting for IndexNow stub." >&2
+  exit 1
+fi
 
 php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
 PHP_PID=$!
@@ -124,10 +156,12 @@ fi
 export BRVTAL_REAL_STACK_URL="$BASE_URL"
 export BRVTAL_REAL_STACK_ADMIN_EMAIL="$ADMIN_EMAIL"
 export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
 npx playwright test \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/theme-active-reference-real-stack.spec.mjs \
   tests/e2e/event-publication-invariant-real-stack.spec.mjs \
   tests/e2e/blog-relation-integrity-real-stack.spec.mjs \
   tests/e2e/memory-relations-real-stack.spec.mjs \
+  tests/e2e/indexnow-real-stack.spec.mjs \
   --project=chromium
