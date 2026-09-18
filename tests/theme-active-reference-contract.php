@@ -46,6 +46,13 @@ theme_reference_assert(
 );
 $activeDefinitionValid = brvtalThemeDefinitionUpdateError('theme.core', 1, '{"name":"CORE"}', 'core');
 theme_reference_assert($activeDefinitionValid === null, 'valid active theme definition updates must remain allowed');
+$implicitCoreInvalid = brvtalThemeDefinitionUpdateError('theme.core', 0, 'legacy-value', null);
+theme_reference_assert(
+    ($implicitCoreInvalid['error'] ?? '') === 'INVALID_SETTING_JSON',
+    'implicit core definition must remain valid when theme.active is absent'
+);
+$implicitCoreValid = brvtalThemeDefinitionUpdateError('theme.core', 1, '{"name":"CORE"}', null);
+theme_reference_assert($implicitCoreValid === null, 'valid implicit core definition updates must remain allowed');
 $inactiveDefinition = brvtalThemeDefinitionUpdateError('theme.alt', 0, 'legacy-value', 'core');
 theme_reference_assert($inactiveDefinition === null, 'inactive theme definitions remain governed by activation-time validation');
 

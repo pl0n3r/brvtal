@@ -18,12 +18,34 @@ test('Theme settings preserve active reference integrity through the authenticat
   const missingSlug = `ci-missing-${runKey}`;
   const themeKey = `theme.${slug}`;
 
-  const removeSetting = async key => {
-    try {
-      await page.request.delete(`${baseUrl}/api/index.php/settings?key=${encodeURIComponent(key)}`, {headers});
-    } catch (_) {
-      // Cleanup is best-effort inside the isolated CI database.
+  const initialSettingsResponse = await page.request.get(`${baseUrl}/api/index.php/settings`);
+  expect(initialSettingsResponse.ok()).toBeTruthy();
+  const initialSettings = (await initialSettingsResponse.json()).data;
+  const originalActive = initialSettings.find(row => row.setting_key === 'theme.active') || null;
+
+  const deleteSetting = async key => {
+    const response = await page.request.delete(
+      `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(key)}`,
+      {headers},
+    );
+    expect(response.ok(), `Cleanup DELETE ${key} failed with HTTP ${response.status()}`).toBeTruthy();
+  };
+
+  const restoreActiveSetting = async () => {
+    if (originalActive === null) {
+      await deleteSetting('theme.active');
+      return;
     }
+
+    const response = await page.request.post(`${baseUrl}/api/index.php/settings`, {
+      headers,
+      data:{
+        setting_key:'theme.active',
+        setting_value:String(originalActive.setting_value ?? ''),
+        is_json:Number(originalActive.is_json ?? 0),
+      },
+    });
+    expect(response.ok(), `Cleanup restore theme.active failed with HTTP ${response.status()}`).toBeTruthy();
   };
 
   try {
@@ -77,7 +99,7 @@ test('Theme settings preserve active reference integrity through the authenticat
       field:'setting_key',
     });
   } finally {
-    await removeSetting('theme.active');
-    await removeSetting(themeKey);
+    await restoreActiveSetting();
+    await deleteSetting(themeKey);
   }
 });

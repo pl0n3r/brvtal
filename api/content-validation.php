@@ -213,10 +213,11 @@ function brvtalThemeActiveReferenceError(string $key, string $value, callable $t
 /** Keep the concrete active Theme definition valid while it is being updated. */
 function brvtalThemeDefinitionUpdateError(string $key, int $isJson, string $value, ?string $activeSlug): ?array
 {
-    if ($activeSlug === null || $key === 'theme.active' || !str_starts_with($key, 'theme.')) {
+    if ($key === 'theme.active' || !str_starts_with($key, 'theme.')) {
         return null;
     }
 
+    $activeSlug ??= 'core';
     $slug = substr($key, strlen('theme.'));
     if (!hash_equals($activeSlug, $slug)) {
         return null;
