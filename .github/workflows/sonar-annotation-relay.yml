@@ -29,11 +29,11 @@ jobs:
       - name: Publish Sonar annotations to the pull request
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
-          GH_REPOSITORY: \${{ github.repository }}
-          GH_EVENT_NAME: \${{ github.event_name }}
-          MANUAL_CHECK_RUN_ID: \${{ inputs.check_run_id }}
-          MANUAL_PR_NUMBER: \${{ inputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_EVENT_NAME: ${{ github.event_name }}
+          MANUAL_CHECK_RUN_ID: ${{ inputs.check_run_id }}
+          MANUAL_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           python - <<'PY'
           import json
