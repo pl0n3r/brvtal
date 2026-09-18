@@ -111,6 +111,10 @@ test('Media dropzone uses native button semantics and keyboard activation opens 
   await dropzone.focus();
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => window.__mediaFileClicks)).toBe(1);
+
+  await dropzone.focus();
+  await page.keyboard.press('Space');
+  await expect.poll(() => page.evaluate(() => window.__mediaFileClicks)).toBe(2);
 });
 
 test('fast authenticated native deep-link waits for IA and never opens Dashboard first', async ({ page }) => {
