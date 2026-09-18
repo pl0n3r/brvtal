@@ -83,7 +83,7 @@ try {
             brvtal_activity_record($pdo, $action, $resource, $id, $before, $after, $meta, $label);
         }
     );
-    brvtal_indexnow_notify_change($pdo, 'events', $indexNowBefore, $result['event']);
+    brvtalIndexNowNotifyChange($pdo, 'events', $indexNowBefore, $result['event']);
     brvtal_log('ADMIN_EVENT_WORKFLOW', 'Event workflow saved atomically', [
         'event_id'=>(int)$result['event']['id'],
         'ticket_count'=>count($result['ticket_types']),
