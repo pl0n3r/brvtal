@@ -5,7 +5,7 @@
 # BRVTAL — Último deploy
 
 <p align="center">
-  <strong>Snapshot de gobernanza · paralelización + handoff visual</strong>
+  <strong>Quality burn-down · pseudorandom hotspots</strong>
 </p>
 
 <p align="center">
@@ -14,16 +14,16 @@
   </a>
 </p>
 
-> Este README representa **solo el deploy actual**. No es un changelog acumulativo: cada deploy lo reemplaza con un snapshot exacto y un panorama vigente.
+> Este README representa **solo el deploy actual**. Se reemplaza en el siguiente deploy y no funciona como changelog acumulativo.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1a0de40f85d2e4c033fc6a4a838abd0431521a9e` · BRVTAL CI #1010 |
-| Runtime público / DISCADMIN | 🟢 **Sin cambios funcionales** | Este deploy modifica gobernanza, README y su validador CI |
-| Paralelización | ⚡ **Contrato reforzado** | Lecturas/gates independientes deben agruparse; hasta 4 líneas seguras |
-| README visual | 🛡️ **Protegido por CI** | Logo + tabla de estado + Mermaid pasan a ser obligatorios |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `523292aeab86cd2c9c44e51c752767ffd4692fe7` · BRVTAL CI #1017 |
+| Sonar / pseudorandom | 🧪 **En corrección** | Se cubre el conjunto completo actual de `Math.random()` |
+| Hero Slider IDs | 🔐 **Web Crypto** | `crypto.getRandomValues()` + fallback contador |
+| Efectos visuales | 🎛️ **No security-sensitive** | Loader determinista + PRNG decorativo explícito |
 | Producción | ⚪ **No validada por este PR** | CI verde no equivale a validación de producción |
 
 ## Flujo de entrega
@@ -41,46 +41,45 @@ flowchart LR
     G --> H["Deploy automático"]
 ```
 
-> **Principio operativo:** CI, Sonar, CodeRabbit, inspección y preflight se ejecutan en paralelo siempre que no compartan estado mutable. Merge y writes dependientes permanecen serializados.
-
 ## Qué se hizo
 
-- Se reforzó en `AGENTS.md` que la **paralelización es el modo por defecto**, no una optimización opcional.
-- Dos o más lecturas independientes deben agruparse; en orquestación del conector GitHub se prioriza `Promise.all(...)`.
-- El chequeo de gates debe consultar en paralelo PR state, CI/check-runs, statuses, Sonar y CodeRabbit cuando son independientes.
-- Mientras corre un gate externo, se debe adelantar análisis **read-only** del siguiente bloque en vez de quedar inactivo.
-- El README de cada deploy pasa a tener un contrato visual permanente: identidad BRVTAL, badge CI, tabla de estado y diagrama Mermaid.
-- BRVTAL CI ahora falla si un README futuro pierde esos marcadores visuales o alguno de sus headings canónicos.
-- Se mantiene el límite de 8 KB y la lista exacta de archivos modificados por deploy.
+- Se escanearon los **62 archivos JavaScript** del repo en lotes paralelos para confirmar el conjunto actual completo de `Math.random()`.
+- `discadmin/hero-slider.js` deja de usar pseudorandom no criptográfico para IDs editoriales y pasa a `crypto.getRandomValues()`; si Web Crypto no existe, usa timestamp + contador local.
+- El loader público deja de simular progreso con `Math.random()` y usa una secuencia determinista de pasos.
+- El canvas de grano/glitch usa un PRNG decorativo local explícitamente aislado de IDs, tokens y decisiones de seguridad.
+- Se amplía la cobertura de Hero Slider y Public Quick Wins para bloquear la reintroducción de `Math.random()` en estos contextos.
+- No cambia API, persistencia, rutas, permisos ni estructura de datos.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/update-release-metadata.yml` — valida headings, logo, badge CI, tabla de estado y Mermaid del README.
-- `AGENTS.md` — endurece el contrato de paralelización y define el formato visual obligatorio del handoff.
-- `README.md` — adopta el nuevo diseño visual del snapshot de deploy.
+- `README.md` — snapshot visual exacto del deploy.
+- `discadmin/hero-slider.js` — generación de IDs con Web Crypto y fallback contador.
+- `js/app.js` — loader determinista y PRNG decorativo sin `Math.random()`.
+- `tests/e2e/hero-slider-v2.spec.mjs` — contrato de fuente segura para IDs del Hero Slider.
+- `tests/e2e/public-quick-wins.spec.mjs` — regresión que evita `Math.random()` en efectos públicos.
 
 ## Validación
 
-- Base exacta: `main` `1a0de40f85d2e4c033fc6a4a838abd0431521a9e`.
-- La base pasó **BRVTAL CI #1010** y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `523292aeab86cd2c9c44e51c752767ffd4692fe7`.
+- La base pasó **BRVTAL CI #1017** y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto.
-- El propio job `fast` debe validar este README con el nuevo contrato visual y con la lista exacta de 3 archivos.
+- El job `fast` debe confirmar además que este README conserva el contrato visual y la lista exacta de archivos.
 - Tras el squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
-- Ninguna de estas señales implica por sí sola **VALIDATED IN PRODUCTION**.
+- Ningún gate de CI implica por sí solo **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Cerrar este PR de gobernanza y validar el `main` exacto.
-2. Continuar #451 con el bloque Sonar de `Math.random()`, clasificando cada uso antes de modificarlo.
-3. Resolver por separado el warning `sonar.python.version` con una versión/rango Python realmente soportado por el proyecto.
-4. Mantener #479, #480 y #481 separados del burn-down de calidad.
+1. Tachar el bloque pseudorandom de #451 solo después de merge + exact-main CI verde.
+2. Resolver por separado el warning `sonar.python.version` con una versión Python explícita y realmente soportada.
+3. Continuar #451 con los P2 que todavía reproduzcan en el código actual.
+4. Mantener #479, #480 y #481 como frentes separados.
 5. Reconciliar PR #434 / Memories sin ejecutar migraciones de producción automáticamente.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🧪 **Sonar / calidad** | #451 sigue abierto; accesibilidad y `replaceAll()` ya están cubiertos; quedan pseudorandom, Python config y P2 vigentes |
+| 🧪 **Sonar / calidad** | #451 — pseudorandom en este PR; después Python config + P2 vigentes |
 | 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial de media · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
@@ -90,7 +89,7 @@ flowchart LR
 | 📚 **Bulk Actions** | #275 — catálogos >500 sin truncado silencioso |
 | 🧭 **Dashboard / Theme** | #348, #351 |
 | 🗃️ **Archivo cultural** | #398, #403 |
-| 🧠 **Memories** | #415 / PR #434 pendiente de reconciliación; sin migración automática |
+| 🧠 **Memories** | #415 / PR #434 pendiente; sin migración automática |
 | 🌐 **Idioma** | #212 — español canónico + inglés automático por fases |
 | 💾 **Backups** | #389 — scheduling seguro + Drive opcional |
 
