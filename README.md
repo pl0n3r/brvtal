@@ -27,14 +27,15 @@
 
 ```mermaid
 flowchart LR
-    A["Cambio público confirmado"] --> B["Resolver URLs canónicas"]
-    B --> C["Deduplicar"]
-    C --> D["Queue no-fatal"]
-    D --> E["IndexNow bulk endpoint"]
-    A --> F["Sitemap sigue como catch-up"]
-    E --> G["PR + BRVTAL CI + Sonar + CodeRabbit"]
-    G --> H["Squash merge"]
-    H --> I["CI del SHA exacto de main"]
+    A["PR + snapshot exacto"] --> B["BRVTAL CI"]
+    A --> C["Sonar"]
+    A --> D["CodeRabbit"]
+    B --> E{"Gates verdes"}
+    C --> E
+    D --> E
+    E --> F["Squash merge"]
+    F --> G["CI del SHA exacto de main"]
+    G --> H["Deploy automático"]
 ```
 
 ## Qué se hizo
