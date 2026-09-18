@@ -124,6 +124,26 @@ test('Media dependency failure renders the canonical module error with Retry', a
   await expect(page.getByRole('button', {name:'RETRY', exact:true})).toBeVisible();
 });
 
+test('Media Retry reloads a dependency after a transient script failure', async ({ page }) => {
+  await installRoutes(page, {failMediaScript:true});
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.__restorePromise);
+
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  await expect(page.locator('#admin-module-host .error')).toContainText('Unable to load this module');
+
+  await page.unroute('**/discadmin/media-library.js**');
+  await page.route('**/discadmin/media-library.js**', route => route.fulfill({
+    contentType: 'application/javascript',
+    body: mediaLibraryJs
+  }));
+
+  await page.getByRole('button', {name:'RETRY', exact:true}).click();
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
+  await expect(page.locator('#media-grid')).toBeVisible();
+  await expect(page.locator('#admin-module-host .error')).toHaveCount(0);
+});
+
 test('Media dropzone uses native button semantics and keyboard activation opens the file picker', async ({ page }) => {
   await installRoutes(page);
   await page.goto(harnessUrl + '?module=media');

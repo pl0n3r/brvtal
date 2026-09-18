@@ -16,23 +16,44 @@ window.BRVTALAdminModules = (() => {
   }
   function ensureScript(id, src, readyGlobal = '') {
     const globalReady = () => readyGlobal !== '' && window[readyGlobal] !== undefined;
-    const existing = document.getElementById(id);
+    let existing = document.getElementById(id);
+    if (existing?.dataset.failed === '1' && !globalReady()) {
+      existing.remove();
+      existing = null;
+    }
     if (existing) {
       if (existing.dataset.ready === '1' || globalReady()) {
         existing.dataset.ready = '1';
+        delete existing.dataset.failed;
         return Promise.resolve();
       }
       return new Promise((resolve,reject) => {
-        const onLoad = () => { existing.dataset.ready='1'; resolve(); };
+        const onLoad = () => {
+          existing.dataset.ready='1';
+          delete existing.dataset.failed;
+          resolve();
+        };
+        const onError = () => {
+          existing.dataset.failed='1';
+          reject(new Error('SCRIPT_LOAD_FAILED: ' + src));
+        };
         existing.addEventListener('load',onLoad,{once:true});
-        existing.addEventListener('error',reject,{once:true});
+        existing.addEventListener('error',onError,{once:true});
         if (globalReady()) onLoad();
       });
     }
     return new Promise((resolve,reject) => {
       const script = document.createElement('script'); script.id = id; script.src = versioned(src); script.defer = true;
-      script.addEventListener('load',() => { script.dataset.ready='1'; resolve(); },{once:true});
-      script.addEventListener('error',reject,{once:true}); document.head.appendChild(script);
+      script.addEventListener('load',() => {
+        script.dataset.ready='1';
+        delete script.dataset.failed;
+        resolve();
+      },{once:true});
+      script.addEventListener('error',() => {
+        script.dataset.failed='1';
+        reject(new Error('SCRIPT_LOAD_FAILED: ' + src));
+      },{once:true});
+      document.head.appendChild(script);
     });
   }
 
@@ -409,18 +430,50 @@ window.BRVTALAdminModules = (() => {
   ensureStyle('brvtal-media-library-style','/discadmin/media-library.css');
   ensureStyle('brvtal-releases-style','/discadmin/releases.css');
   ensureStyle('brvtal-blog-style','/discadmin/blog.css');
-  const mediaReady = ensureScript('brvtal-media-library-script','/discadmin/media-library.js','BRVTALMediaLibrary');
-  const releasesReady = ensureScript('brvtal-releases-script','/discadmin/releases.js','BRVTALReleases');
-  const blogReady = ensureScript('brvtal-blog-script','/discadmin/blog.js','BRVTALBlog');
-  const sectionReady = new Map([
-    ['media', mediaReady],
-    ['releases', Promise.all([mediaReady,releasesReady])],
-    ['blog', Promise.all([mediaReady,blogReady])]
+  const scriptDefinitions = new Map([
+    ['media', ['brvtal-media-library-script','/discadmin/media-library.js','BRVTALMediaLibrary']],
+    ['releases', ['brvtal-releases-script','/discadmin/releases.js','BRVTALReleases']],
+    ['blog', ['brvtal-blog-script','/discadmin/blog.js','BRVTALBlog']]
   ]);
+  const sectionDependencies = new Map([
+    ['media', ['media']],
+    ['releases', ['media','releases']],
+    ['blog', ['media','blog']]
+  ]);
+  const scriptReady = new Map();
+  const sectionReady = new Map();
+
+  const waitForScript = name => {
+    if (!scriptDefinitions.has(name)) return Promise.resolve();
+    let ready = scriptReady.get(name);
+    if (!ready) {
+      const [id,src,readyGlobal] = scriptDefinitions.get(name);
+      ready = ensureScript(id,src,readyGlobal);
+      scriptReady.set(name,ready);
+      ready.catch(() => {
+        if (scriptReady.get(name) === ready) scriptReady.delete(name);
+      });
+    }
+    return ready;
+  };
+
   const waitForSection = section => {
     const key = String(section || '').toLowerCase();
-    return sectionReady.has(key) ? sectionReady.get(key) : Promise.resolve();
+    if (!sectionDependencies.has(key)) return Promise.resolve();
+    let ready = sectionReady.get(key);
+    if (!ready) {
+      ready = Promise.all(sectionDependencies.get(key).map(waitForScript)).then(() => undefined);
+      sectionReady.set(key,ready);
+      ready.catch(() => {
+        if (sectionReady.get(key) === ready) sectionReady.delete(key);
+      });
+    }
+    return ready;
   };
+
+  for (const section of sectionDependencies.keys()) {
+    waitForSection(section).catch(() => {});
+  }
 
   const modules = {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},

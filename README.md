@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+167** | **−120** | **+47** |
+| **10** | **+243** | **−123** | **+120** |
 
 ## Calidad y entrega
 
@@ -60,7 +60,7 @@ flowchart LR
 
 - Media, Releases y Blog comparten una única frontera de readiness y navegación administrada por `BRVTALAdminModules.navigate()`.
 - La capa de información/navegación ya no instala listeners duplicados ni deja que Media/Releases/Blog caigan al CRUD legado; delega esos destinos al navegador dinámico canónico.
-- Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY.
+- Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY; RETRY invalida promesas rechazadas y vuelve a crear dependencias de script fallidas.
 - Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
 - Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.
 - Se añade cobertura de navegador y real-stack autenticada con el usuario E2E.
@@ -71,7 +71,7 @@ flowchart LR
 - `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
 - `discadmin/media-library.php` — elimina External Registry de la toolbar.
 - `discadmin/media-library.js` — elimina modal/binding de registro externo.
-- `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido.
+- `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido y recuperación real tras un fallo transitorio mediante RETRY.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins usa el owner canónico de readiness.
 - `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
 - `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real.
