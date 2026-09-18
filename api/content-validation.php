@@ -195,3 +195,59 @@ function brvtal_theme_setting_error(string $key, string $value): ?array
         ? null
         : ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_key'];
 }
+
+/** Keep theme.active referentially valid instead of accepting dangling theme slugs. */
+function brvtalThemeActiveReferenceError(string $key, string $value, callable $themeExists): ?array
+{
+    if ($key !== 'theme.active') {
+        return null;
+    }
+    if (!brvtal_theme_slug_is_valid($value)) {
+        return ['error' => 'INVALID_THEME_SLUG', 'field' => 'setting_value'];
+    }
+    return $themeExists($value)
+        ? null
+        : ['error' => 'THEME_NOT_FOUND', 'field' => 'setting_value'];
+}
+
+/** Resolve the effective active Theme slug, including the implicit core fallback. */
+function brvtalThemeActiveSlugEffective(?string $activeSlug): string
+{
+    $slug = trim((string)$activeSlug);
+    return brvtal_theme_slug_is_valid($slug) ? $slug : 'core';
+}
+
+/** Keep the concrete active Theme definition valid while it is being updated. */
+function brvtalThemeDefinitionUpdateError(string $key, int $isJson, string $value, ?string $activeSlug): ?array
+{
+    if ($key === 'theme.active' || !str_starts_with($key, 'theme.')) {
+        return null;
+    }
+
+    $activeSlug = brvtalThemeActiveSlugEffective($activeSlug);
+    $slug = substr($key, strlen('theme.'));
+    if (!hash_equals($activeSlug, $slug)) {
+        return null;
+    }
+
+    if ($isJson !== 1) {
+        return ['error' => 'INVALID_SETTING_JSON', 'field' => 'setting_value'];
+    }
+
+    $decoded = json_decode($value, true);
+    return is_array($decoded)
+        ? null
+        : ['error' => 'INVALID_SETTING_JSON', 'field' => 'setting_value'];
+}
+
+/** Prevent deleting the concrete theme record currently referenced by theme.active. */
+function brvtalThemeDeleteReferenceError(string $key, ?string $activeSlug): ?array
+{
+    if ($key === 'theme.active' || !str_starts_with($key, 'theme.')) {
+        return null;
+    }
+    $slug = substr($key, strlen('theme.'));
+    return hash_equals(brvtalThemeActiveSlugEffective($activeSlug), $slug)
+        ? ['error' => 'ACTIVE_THEME_DELETE_BLOCKED', 'field' => 'setting_key']
+        : null;
+}

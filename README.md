@@ -8,48 +8,56 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Corrige #365 haciendo Dashboard V2 la superficie autoritativa de Content Health y Recent Admin Activity.
-- Los paneles legacy de Health/Activity dejan de montarse cuando Dashboard V2 está realmente presente, evitando información duplicada.
-- Si Dashboard V2 no está disponible, los paneles legacy siguen funcionando como fallback.
-- Las acciones **OPEN** del Dashboard conservan el recurso y el ID exacto del registro y delegan a `BRVTALAdminRecordNavigation`.
-- La regresión comprueba tanto navegación a la sección correcta como apertura del registro exacto para Health y Activity.
-- Dashboard V2 reserva su marcador de ownership antes de esperar fuentes asíncronas; Health/Activity legacy no aparecen mientras V2 todavía carga.
-- Si el render deja de ser válido durante esa espera, V2 libera el marcador reservado y el fallback legacy queda disponible.
-- El markup de Recent Activity se simplifica para eliminar los 2 findings Sonar de template literals anidados sin cambiar comportamiento.
+- Corrige #191 haciendo `theme.active` una referencia válida en lugar de texto libre.
+- El backend rechaza activar slugs inexistentes con `THEME_NOT_FOUND` y conserva la validación sintáctica existente.
+- La referencia solo se considera válida cuando existe `theme.<slug>`, está marcada como JSON y decodifica a un objeto/array de configuración válido.
+- No se puede borrar el registro `theme.<slug>` que está actualmente referenciado por `theme.active`; el servidor responde `ACTIVE_THEME_DELETE_BLOCKED`.
+- Tampoco se puede degradar o corromper la definición `theme.<slug>` que está activa: mientras esté referenciada debe conservar `is_json=1` y un payload JSON de configuración válido.
+- Esa protección también cubre el fallback implícito `core`: si `theme.active` falta, está vacío o es inválido, `theme.core` no puede degradarse ni borrarse.
+- Las mutaciones `theme.*` se serializan entre sesiones con un mutex de MariaDB y transacción; la validación, el bloqueo de filas y la escritura/borrado ya no pueden intercalarse dejando una referencia colgante.
+- `DELETE /settings` usa el mismo normalizador canónico que `POST`, por lo que variantes como `Theme.core` se rechazan antes de tocar la base de datos.
+- El fallback `core` sin `theme.active` sigue intacto: Theme Studio guarda primero `theme.core` antes de persistir `theme.active=core` cuando se activa explícitamente.
+- Settings deja de ofrecer RAW EDIT para `theme.active` y lo dirige a Theme Studio dentro del mismo shell.
+- Se añaden regresiones PHP, Playwright y real-stack autenticadas para activación inexistente, actualización inválida, borrado protegido y navegación desde Settings.
 - Se conserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/dashboard-v2.js` — autoridad del Dashboard y navegación exacta a registros.
-- `discadmin/content-health.js` — fallback legacy solo cuando Dashboard V2 no está montado.
-- `discadmin/admin-activity.js` — fallback legacy solo cuando Dashboard V2 no está montado.
-- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresiones de duplicación, ownership durante carga, fallback y navegación recurso/ID.
+- `api/content-validation.php` — contrato de referencia activa y protección contra borrado del theme activo.
+- `api/index.php` — validación server-side del target, mutex/transacción compartidos y bloqueo seguro de borrado.
+- `discadmin/settings-v2.js` — `theme.active` se administra desde Theme Studio, no desde editor raw.
+- `tests/theme-active-reference-contract.php` — regresión de integridad referencial, serialización y normalización del DELETE.
+- `tests/api-contract.php` — conserva la detección del branch DELETE de Settings tras hacerlo legible.
+- `tests/content-validation-contract.php` — mantiene los marcadores de validación de Settings tras el formateo.
+- `tests/e2e/discadmin-settings-theme-active.spec.mjs` — regresión de navegación desde Settings.
+- `tests/e2e/theme-active-reference-real-stack.spec.mjs` — regresión autenticada sobre MariaDB aislada; conserva y restaura el estado previo de `theme.active` durante cleanup.
+- `tests/e2e/run-content-core-real-stack.sh` — incorpora la regresión de Settings al gate real-stack.
 
 ## Validación
 
-- Base exacta: `main` `4035812295b85d09d4b75899fdb7a55bc2aec2fd`.
-- El head reconstruido del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- El relay de Sonar integrado en #477 debe publicar las annotations detalladas como comentario estable del PR.
+- Base exacta: `main` `84b69d8c011f5391d63be3f225279edeeb7ce7df`.
+- Esa base pasó BRVTAL CI #945 y queda **VALIDATED IN CODE**.
+- El PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
+- El relay de Sonar debe publicar las annotations detalladas del head exacto del PR.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
 - No se ejecutan migraciones ni operaciones destructivas de producción.
 
 ## Qué sigue
 
-- Cerrar gates exactos de #365, corregir findings válidos, squash merge y verificar el nuevo `main`.
-- Continuar con #191: integridad referencial de `theme.active` y acceso desde Theme Studio.
+- Cerrar gates exactos de #191, corregir findings válidos, squash merge y verificar el nuevo `main`.
 - Después atacar #237: assets/overrides del Hero al cambiar breakpoint.
 - Mantener #451 como burn-down continuo con cambios pequeños revalidados contra el código actual.
+- Reconciliar PR #434 / Memories aparte, sin mezclarlo con este cambio.
 
 ## Panorama general pendiente
 
 - **Sonar / calidad:** #451 continúa por riesgo y área, con PRs pequeños.
-- **Settings / Theme:** #191 — integridad referencial de `theme.active`.
 - **Apariencia:** #149 — completar Light en módulos modernos.
 - **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193.
-- **SEO editorial:** #182, #214, #204 y #272 antes de #390.
+- **SEO editorial / entrega pública:** #182, #214, #204 y #272 antes de #390; #479 corrige imágenes públicas sin `alt` reportadas por Bing.
 - **Content / edición:** #224 y #252 — Ticket Types e integridad de media.
 - **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
 - **Bulk Actions:** #275 — resolver catálogos mayores de 500 sin truncado silencioso.
@@ -58,4 +66,3 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
 - **Idioma:** #212 — español canónico + inglés automático por fases.
 - **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
-- **Completados recientemente:** #207, #260, #388 y #391 ya fueron revalidados/cerrados en código.
