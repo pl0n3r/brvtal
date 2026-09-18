@@ -22,7 +22,7 @@ const mediaFragment = `
       <input id="media-file" type="file" hidden>
     </div>
   </div>
-  <div id="media-dropzone" tabindex="0"><strong>DROP FILES HERE</strong></div>
+  <button id="media-dropzone" type="button"><strong>DROP FILES HERE</strong></button>
   <div id="media-status" role="status"></div>
   <div class="media-layout">
     <div><div id="media-summary"></div><div id="media-grid"></div></div>
@@ -90,6 +90,27 @@ test('restored session mounts Media on the first direct navigation', async ({ pa
   await expect(page.locator('#media-grid')).toBeVisible();
   expect(await page.evaluate(() => window.state.section)).toBe('media');
   expect(await page.evaluate(() => window.__legacyRestoreCalled)).toBe(false);
+});
+
+test('Media dropzone uses native button semantics and keyboard activation opens the file picker', async ({ page }) => {
+  await installRoutes(page);
+  await page.goto(harnessUrl + '?module=media');
+  await page.evaluate(() => window.__restorePromise);
+
+  const dropzone = page.getByRole('button', { name: 'DROP FILES HERE' });
+  await expect(dropzone).toBeVisible();
+  await expect(dropzone).toHaveAttribute('type', 'button');
+  await expect(dropzone).not.toHaveAttribute('tabindex');
+
+  await page.evaluate(() => {
+    const input = document.getElementById('media-file');
+    window.__mediaFileClicks = 0;
+    input.click = () => { window.__mediaFileClicks += 1; };
+  });
+
+  await dropzone.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__mediaFileClicks)).toBe(1);
 });
 
 test('fast authenticated native deep-link waits for IA and never opens Dashboard first', async ({ page }) => {
