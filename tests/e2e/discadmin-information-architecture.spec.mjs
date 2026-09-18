@@ -78,7 +78,6 @@ function harness(authed = true) {
         if(section!=='content-core')return;
         window.__moduleLoadOptions.push(options);
         state.section=section;
-        window.__renderShell(section);
         let host=document.getElementById('admin-module-host');
         if(!host){
           host=document.createElement('div');
