@@ -8,7 +8,7 @@
   let availableItems = [];
   let relationCatalog = {};
   let relationsReady = false;
-  const relationTypes = ['event','artist','set','release'];
+  const relationTypes = new Set(['event','artist','set','release']);
 
   const normalizePath = value => {
     const raw = String(value || '').trim();
@@ -160,7 +160,6 @@
     const summary = wrapper.querySelector('[data-memory-relations-summary]');
     if (!summary) return;
     const keys = currentRelationKeys(wrapper, item);
-    const existing = Array.isArray(item?.relations) ? item.relations : [];
     const relations = [...keys].map(key => {
       const [type, rawId] = key.split(':');
       return {related_type:type,related_id:Number(rawId)||0};
@@ -170,6 +169,57 @@
     summary.textContent = relations.length
       ? `${relations.length} SELECTED · ${labels.join(' · ')}${suffix}`
       : '0 SELECTED';
+  }
+
+  function relationTargetNode(type, target, selected, wrapper, item) {
+    const label = create('label', {className:'memory-relation-item'});
+    const checkbox = create('input', {
+      attrs:{type:'checkbox'},
+      dataset:{memoryRelationType:type,memoryRelationId:Number(target.id)||0},
+    });
+    checkbox.checked = selected.has(`${type}:${Number(target.id)||0}`);
+    checkbox.addEventListener('change', () => updateRelationSummary(wrapper, item));
+    label.append(
+      checkbox,
+      create('span', {text:String(target.label || `${type} #${target.id}`)}),
+      create('small', {text:String(target.status || '').toUpperCase()})
+    );
+    return label;
+  }
+
+  function relationGroupNode(type, selected, wrapper, item) {
+    const source = relationCatalog[type] || {state:'error',items:[]};
+    const group = create('fieldset', {className:'memory-relations-group'});
+    group.append(create('legend', {text:`${type.toUpperCase()}S`}));
+
+    if (source.state !== 'ready') {
+      group.dataset.sourceState = 'error';
+      group.append(create('span', {
+        className:'memory-relations-note',
+        text:'Source unavailable · existing links will be preserved.',
+      }));
+      return group;
+    }
+
+    const items = Array.isArray(source.items) ? source.items : [];
+    if (!items.length) {
+      group.append(create('span', {className:'memory-relations-note', text:'No records available.'}));
+      return group;
+    }
+
+    items.forEach(target => {
+      group.append(relationTargetNode(type, target, selected, wrapper, item));
+    });
+    return group;
+  }
+
+  function buildRelationOptions(details, wrapper, item, selected) {
+    if (wrapper.dataset.memoryRelationsBuilt === '1') return;
+    wrapper.dataset.memoryRelationsBuilt = '1';
+    relationTypes.forEach(type => {
+      details.append(relationGroupNode(type, selected, wrapper, item));
+    });
+    updateRelationSummary(wrapper, item);
   }
 
   function relationEditor(item) {
@@ -193,62 +243,12 @@
     wrapper.append(summaryText);
 
     const details = create('details', {className:'memory-relations-details'});
-    const toggle = create('summary', {text:'EDIT RELATIONSHIPS'});
-    details.append(toggle);
+    details.append(create('summary', {text:'EDIT RELATIONSHIPS'}));
     wrapper.append(details);
 
     const selected = new Set((Array.isArray(item.relations) ? item.relations : []).map(relationKey));
-    let built = false;
-    const build = () => {
-      if (built) return;
-      built = true;
-      wrapper.dataset.memoryRelationsBuilt = '1';
-
-      relationTypes.forEach(type => {
-        const source = relationCatalog[type] || {state:'error',items:[]};
-        const group = create('fieldset', {className:'memory-relations-group'});
-        const legend = create('legend', {text:`${type.toUpperCase()}S`});
-        group.append(legend);
-
-        if (source.state !== 'ready') {
-          group.dataset.sourceState = 'error';
-          group.append(create('span', {
-            className:'memory-relations-note',
-            text:'Source unavailable · existing links will be preserved.',
-          }));
-          details.append(group);
-          return;
-        }
-
-        const items = Array.isArray(source.items) ? source.items : [];
-        if (!items.length) {
-          group.append(create('span', {className:'memory-relations-note', text:'No records available.'}));
-          details.append(group);
-          return;
-        }
-
-        items.forEach(target => {
-          const label = create('label', {className:'memory-relation-item'});
-          const checkbox = create('input', {
-            attrs:{type:'checkbox'},
-            dataset:{memoryRelationType:type,memoryRelationId:Number(target.id)||0},
-          });
-          checkbox.checked = selected.has(`${type}:${Number(target.id)||0}`);
-          checkbox.addEventListener('change', () => updateRelationSummary(wrapper, item));
-          label.append(
-            checkbox,
-            create('span', {text:String(target.label || `${type} #${target.id}`)}),
-            create('small', {text:String(target.status || '').toUpperCase()})
-          );
-          group.append(label);
-        });
-        details.append(group);
-      });
-      updateRelationSummary(wrapper, item);
-    };
-
     details.addEventListener('toggle', () => {
-      if (details.open) build();
+      if (details.open) buildRelationOptions(details, wrapper, item, selected);
     });
     updateRelationSummary(wrapper, item);
     return wrapper;
@@ -264,7 +264,7 @@
           related_type:String(relation?.related_type || ''),
           related_id:Number(relation?.related_id) || 0,
         }))
-        .filter(relation => relationTypes.includes(relation.related_type) && relation.related_id > 0);
+        .filter(relation => relationTypes.has(relation.related_type) && relation.related_id > 0);
     }
 
     const relations = [];
