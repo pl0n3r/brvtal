@@ -5,7 +5,7 @@
 # BRVTAL — Último deploy
 
 <p align="center">
-  <strong>Sonar · Python runtime contract</strong>
+  <strong>Sonar quality burn-down · Hero Slider bindings</strong>
 </p>
 
 <p align="center">
@@ -14,17 +14,17 @@
   </a>
 </p>
 
-> Este README representa **solo el deploy actual**. Se reemplaza en el siguiente deploy y no funciona como changelog acumulativo.
+> Este README cubre **solo el deploy actual**. Se reemplaza en el siguiente PR y no es un changelog acumulativo.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1e3ef8bde35c39c218feecf44cd8445fd3ad4ea1` · BRVTAL CI #1029 |
-| Sonar Python | 🧪 **En corrección** | Se declara explícitamente Python 3.12 para análisis automático |
-| CI runtime | 🛡️ **Guardado** | El job `fast` falla si la versión real de Python deja de estar declarada |
-| Alcance | 🎯 **Configuración** | Sin cambios de API, DB, rutas ni comportamiento de producto |
-| Producción | ⚪ **No validada por este PR** | CI verde no equivale a validación de producción |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `ec1a4c0a35a35718245cfdc28150d31d5e101a5d` · BRVTAL CI #1035 |
+| Hero Slider `bind()` | 📉 **Simplificado** | heurística local ~32 → 1 |
+| Bindings extraídos | 🧩 **4 grupos** | slides · layers · editor · global |
+| Regresión | 🧪 **Ampliada** | preview móvil · config · save · delete layer/slide |
+| Producción | ⚪ **No validada por este PR** | CI verde no equivale a producción |
 
 ## Flujo de entrega
 
@@ -43,41 +43,42 @@ flowchart LR
 
 ## Qué se hizo
 
-- La configuración automática de Sonar ahora declara `sonar.python.version=3.12`, en lugar de analizar Python como cualquier versión 3.
-- Se conserva `.sonarcloud.properties` como fuente canónica del análisis automático; no se añade un scanner Sonar duplicado al CI.
-- BRVTAL CI verifica en cada ejecución que la versión `major.minor` del comando `python` del runner esté incluida en `sonar.python.version`.
-- Si GitHub cambia `ubuntu-latest` a un runtime Python distinto, el gate falla de forma explícita para obligar a revisar la compatibilidad de Sonar.
-- No hay cambios de aplicación, datos ni producción.
+- Se reduce el bloque de alta complejidad de `discadmin/hero-slider.js::bind()` sin cambiar rendering, persistencia ni estructura de datos.
+- Las acciones de slides y layers pasan a funciones explícitas: seleccionar, añadir, duplicar y eliminar.
+- Los listeners quedan agrupados en `bindSlideControls`, `bindLayerControls`, `bindEditorControls` y `bindGlobalControls`.
+- Media picker, config, preview y save conservan los mismos selectores y eventos.
+- La prueba real del manager ahora valida preview móvil, publicación/autoplay/intervalo, payload de save y eliminación de layer/slide.
+- Se mantienen los tests de UID con Web Crypto y fallback contador introducidos previamente.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/update-release-metadata.yml` — añade el contrato entre Python del runner y Sonar.
-- `.sonarcloud.properties` — fija Python 3.12 para el análisis automático.
 - `README.md` — snapshot visual exacto del deploy.
+- `discadmin/hero-slider.js` — extrae acciones y grupos de bindings del manager.
+- `tests/e2e/hero-slider-v2.spec.mjs` — amplía regresión del admin sobre los bindings refactorizados.
 
 ## Validación
 
-- Base exacta: `main` `1e3ef8bde35c39c218feecf44cd8445fd3ad4ea1`.
-- La base pasó **BRVTAL CI #1029** y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `ec1a4c0a35a35718245cfdc28150d31d5e101a5d`.
+- Esa base pasó **BRVTAL CI #1035** y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto.
-- El job `fast` debe validar tanto el contrato Python/Sonar como este README y su lista exacta de archivos.
-- Tras el squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
-- Ningún gate de CI implica por sí solo **VALIDATED IN PRODUCTION**.
+- El job `fast` debe validar también este README visual y la lista exacta de archivos.
+- Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Production Performance se interpreta por separado: un deploy marker no observado no equivale a regresión de código.
 
 ## Qué sigue
 
-1. Tachar el warning de configuración Python en #451 solo después de merge + exact-main CI verde.
-2. Repetir Production Performance cuando el marcador del deploy exacto sea visible; #716 fue inconcluso y no ejecutó mediciones.
-3. Continuar #451 con los P2 que todavía reproduzcan en el código actual.
-4. Mantener #479, #480 y #481 como frentes independientes.
-5. Reconciliar PR #434 / Memories contra el `main` actual sin ejecutar migraciones de producción automáticamente.
+1. Tachar el P2 de complejidad del Hero Slider en #451 solo tras merge + exact-main CI verde.
+2. Revalidar los siguientes P2 actuales: Dashboard, Archive, public `app.js` y Theme runtime.
+3. Mantener #479, #480 y #481 como frentes independientes.
+4. Reconciliar PR #434 / Memories contra el `main` actual sin migraciones automáticas de producción.
+5. Continuar verificando Production Performance únicamente cuando el marker del SHA exacto llegue a Hostinger.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🧪 **Sonar / calidad** | #451 — Python config en este PR; luego P2 vigentes |
-| ⚡ **Performance** | #716 fue inconcluso: producción respondió, pero el marcador `1e3ef8b` no apareció en la ventana; no hubo medición |
+| 🧪 **Sonar / calidad** | #451 — Hero Slider en este PR; después Dashboard / Archive / public app / Theme runtime |
+| ⚡ **Performance** | Último run de producción puede quedar inconcluso si Hostinger no expone el marker exacto dentro de la ventana |
 | 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial de media · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |

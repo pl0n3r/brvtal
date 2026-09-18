@@ -35,7 +35,12 @@ async function openAdminUidHarness(page, { disableCrypto = false } = {}) {
     window.state = { section: 'dashboard' };
     window.render = () => {};
     window.go = async () => {};
-    window.req = async path => {
+    window.__heroSavePayloads = [];
+    window.req = async (path, options = {}) => {
+      if (path === '/settings' && options.method === 'POST') {
+        window.__heroSavePayloads.push(JSON.parse(options.body));
+        return { data: [] };
+      }
       if (path === '/settings') return { data: [] };
       if (path === '/media') return { data: [] };
       return { data: [] };
@@ -113,6 +118,10 @@ test('v2 admin and endpoint keep constraints explicit', async () => {
   expect(adminScript).toContain("['text','image','logo','cta']");
   expect(adminScript).toContain('pointerdown');
   expect(adminScript).toContain('data-duplicate-slide');
+  expect(adminScript).toContain('function bindSlideControls(host)');
+  expect(adminScript).toContain('function bindLayerControls(host)');
+  expect(adminScript).toContain('function bindEditorControls(host)');
+  expect(adminScript).toContain('function bindGlobalControls(host)');
   expect(endpoint).toContain(', 0, 12');
   expect(endpoint).not.toContain('SELECT * FROM settings');
 });
@@ -133,4 +142,34 @@ test('v2 admin UID fallback stays unique when Web Crypto is unavailable', async 
   expect(ids).toHaveLength(4);
   expect(ids.every(Boolean)).toBe(true);
   expect(new Set(ids).size).toBe(ids.length);
+});
+
+test('v2 admin bindings preserve preview, config, save and deletion behavior', async ({ page }) => {
+  await openAdminUidHarness(page);
+
+  await page.locator('[data-add-slide]').click();
+  await page.locator('[data-add-layer="text"]').click();
+
+  await page.locator('[data-preview="mobile"]').click();
+  await expect(page.locator('.hero-preview-frame')).toHaveClass(/mobile/);
+
+  await page.locator('[data-config-field="enabled"]').check();
+  await page.locator('[data-config-field="autoplay"]').uncheck();
+  await page.locator('[data-config-field="interval"]').selectOption('9000');
+  await page.locator('[data-save-slider]').click();
+
+  await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);
+  const saved = await page.evaluate(() => window.__heroSavePayloads.at(-1));
+  const payload = JSON.parse(saved.setting_value);
+  expect(payload.enabled).toBe(true);
+  expect(payload.autoplay).toBe(false);
+  expect(payload.interval).toBe(9000);
+  expect(payload.slides).toHaveLength(1);
+  expect(payload.slides[0].layers).toHaveLength(1);
+
+  await page.locator('[data-delete-layer]').click();
+  await expect(page.locator('[data-select-layer]')).toHaveCount(0);
+
+  await page.locator('[data-delete-slide]').click();
+  await expect(page.locator('[data-select-slide]')).toHaveCount(0);
 });

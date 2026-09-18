@@ -300,23 +300,153 @@
     });
   }
 
+  function selectSlide(button, event) {
+    if (event.target.closest('[data-move]')) return;
+    selectedId = button.dataset.selectSlide;
+    selectedLayerId = selectedSlide()?.layers[0]?.id || '';
+    renderManager();
+  }
+
+  function addSlide() {
+    if (config.slides.length >= MAX_SLIDES) return;
+    const slide = normalizeSlide({ name:'New slide ' + (config.slides.length + 1) });
+    config.slides.push(slide);
+    selectedId = slide.id;
+    selectedLayerId = '';
+    renderManager();
+  }
+
+  function duplicateSlide() {
+    const slide = selectedSlide();
+    if (!slide || config.slides.length >= MAX_SLIDES) return;
+    const copy = normalizeSlide(JSON.parse(JSON.stringify(slide)));
+    copy.id = uid('slide');
+    copy.name = slide.name + ' copy';
+    copy.layers = copy.layers.map(layer => ({ ...layer, id:uid('layer') }));
+    config.slides.splice(config.slides.indexOf(slide) + 1, 0, copy);
+    selectedId = copy.id;
+    selectedLayerId = copy.layers[0]?.id || '';
+    renderManager();
+  }
+
+  function deleteSlide() {
+    const index = config.slides.findIndex(slide => slide.id === selectedId);
+    if (index < 0) return;
+    config.slides.splice(index, 1);
+    selectedId = config.slides[Math.min(index, config.slides.length - 1)]?.id || '';
+    selectedLayerId = '';
+    renderManager();
+  }
+
+  function addLayer(type) {
+    const slide = selectedSlide();
+    if (!slide || slide.layers.length >= MAX_LAYERS) return;
+    const text = type === 'cta' ? 'ENTER EXPERIENCE' : type === 'text' ? 'NEW TEXT' : '';
+    const layer = normalizeLayer({ type, text });
+    slide.layers.push(layer);
+    selectedLayerId = layer.id;
+    renderManager();
+  }
+
+  function deleteLayer() {
+    const slide = selectedSlide();
+    if (!slide) return;
+    const index = slide.layers.findIndex(layer => layer.id === selectedLayerId);
+    if (index < 0) return;
+    slide.layers.splice(index, 1);
+    selectedLayerId = slide.layers[Math.min(index, slide.layers.length - 1)]?.id || '';
+    renderManager();
+  }
+
+  function applyPicker(host, select, selector) {
+    if (!select.value) return;
+    const input = host.querySelector(selector);
+    if (input) {
+      input.value = select.value;
+      input.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+    select.value = '';
+  }
+
+  function updateConfig(input) {
+    const field = input.dataset.configField;
+    config[field] = input.type === 'checkbox'
+      ? input.checked
+      : field === 'interval'
+        ? clamp(input.value, 2500, 30000)
+        : input.value;
+  }
+
+  function bindSlideControls(host) {
+    host.querySelectorAll('[data-select-slide]').forEach(button =>
+      button.addEventListener('click', event => selectSlide(button, event))
+    );
+    host.querySelectorAll('[data-move]').forEach(button =>
+      button.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        moveSlide(button.dataset.id, button.dataset.move);
+      })
+    );
+    host.querySelector('[data-add-slide]')?.addEventListener('click', addSlide);
+    host.querySelector('[data-duplicate-slide]')?.addEventListener('click', duplicateSlide);
+    host.querySelector('[data-delete-slide]')?.addEventListener('click', deleteSlide);
+  }
+
+  function bindLayerControls(host) {
+    host.querySelectorAll('[data-add-layer]').forEach(button =>
+      button.addEventListener('click', () => addLayer(button.dataset.addLayer))
+    );
+    host.querySelectorAll('[data-select-layer]').forEach(button =>
+      button.addEventListener('click', () => {
+        selectedLayerId = button.dataset.selectLayer;
+        renderManager();
+      })
+    );
+    host.querySelector('[data-delete-layer]')?.addEventListener('click', deleteLayer);
+  }
+
+  function bindEditorControls(host) {
+    host.querySelectorAll('[data-field]').forEach(input => {
+      input.addEventListener('input', event => updateSlide(event.target));
+      input.addEventListener('change', event => updateSlide(event.target));
+    });
+    host.querySelectorAll('[data-layer-field]').forEach(input => {
+      input.addEventListener('input', event => updateLayer(event.target));
+      input.addEventListener('change', event => updateLayer(event.target));
+    });
+    host.querySelectorAll('[data-media-picker]').forEach(select =>
+      select.addEventListener('change', () =>
+        applyPicker(host, select, `[data-field="${select.dataset.mediaPicker}"]`)
+      )
+    );
+    host.querySelectorAll('[data-layer-media]').forEach(select =>
+      select.addEventListener('change', () =>
+        applyPicker(host, select, `[data-layer-field="${select.dataset.layerMedia}"]`)
+      )
+    );
+  }
+
+  function bindGlobalControls(host) {
+    host.querySelectorAll('[data-config-field]').forEach(input =>
+      input.addEventListener('change', () => updateConfig(input))
+    );
+    host.querySelectorAll('[data-preview]').forEach(button =>
+      button.addEventListener('click', () => {
+        previewMode = button.dataset.preview;
+        renderManager();
+      })
+    );
+    host.querySelector('[data-save-slider]')?.addEventListener('click', save);
+  }
+
   function bind() {
-    const host = root(); if (!host) return;
-    host.querySelectorAll('[data-select-slide]').forEach(button=>button.addEventListener('click',event=>{ if(event.target.closest('[data-move]')) return; selectedId=button.dataset.selectSlide; selectedLayerId=selectedSlide()?.layers[0]?.id||''; renderManager(); }));
-    host.querySelectorAll('[data-move]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();moveSlide(button.dataset.id,button.dataset.move);}));
-    host.querySelector('[data-add-slide]')?.addEventListener('click',()=>{if(config.slides.length>=MAX_SLIDES)return;const slide=normalizeSlide({name:'New slide '+(config.slides.length+1)});config.slides.push(slide);selectedId=slide.id;selectedLayerId='';renderManager();});
-    host.querySelector('[data-duplicate-slide]')?.addEventListener('click',()=>{const slide=selectedSlide();if(!slide||config.slides.length>=MAX_SLIDES)return;const copy=normalizeSlide(JSON.parse(JSON.stringify(slide)));copy.id=uid('slide');copy.name=slide.name+' copy';copy.layers=copy.layers.map(layer=>({...layer,id:uid('layer')}));config.slides.splice(config.slides.indexOf(slide)+1,0,copy);selectedId=copy.id;selectedLayerId=copy.layers[0]?.id||'';renderManager();});
-    host.querySelector('[data-delete-slide]')?.addEventListener('click',()=>{const index=config.slides.findIndex(slide=>slide.id===selectedId);if(index<0)return;config.slides.splice(index,1);selectedId=config.slides[Math.min(index,config.slides.length-1)]?.id||'';selectedLayerId='';renderManager();});
-    host.querySelectorAll('[data-add-layer]').forEach(button=>button.addEventListener('click',()=>{const slide=selectedSlide();if(!slide||slide.layers.length>=MAX_LAYERS)return;const layer=normalizeLayer({type:button.dataset.addLayer,text:button.dataset.addLayer==='cta'?'ENTER EXPERIENCE':button.dataset.addLayer==='text'?'NEW TEXT':''});slide.layers.push(layer);selectedLayerId=layer.id;renderManager();}));
-    host.querySelectorAll('[data-select-layer]').forEach(button=>button.addEventListener('click',()=>{selectedLayerId=button.dataset.selectLayer;renderManager();}));
-    host.querySelector('[data-delete-layer]')?.addEventListener('click',()=>{const slide=selectedSlide();if(!slide)return;const index=slide.layers.findIndex(layer=>layer.id===selectedLayerId);if(index<0)return;slide.layers.splice(index,1);selectedLayerId=slide.layers[Math.min(index,slide.layers.length-1)]?.id||'';renderManager();});
-    host.querySelectorAll('[data-field]').forEach(input=>{input.addEventListener('input',event=>updateSlide(event.target));input.addEventListener('change',event=>updateSlide(event.target));});
-    host.querySelectorAll('[data-layer-field]').forEach(input=>{input.addEventListener('input',event=>updateLayer(event.target));input.addEventListener('change',event=>updateLayer(event.target));});
-    host.querySelectorAll('[data-media-picker]').forEach(select=>select.addEventListener('change',()=>{if(!select.value)return;const input=host.querySelector(`[data-field="${select.dataset.mediaPicker}"]`);if(input){input.value=select.value;input.dispatchEvent(new Event('input',{bubbles:true}));}select.value='';}));
-    host.querySelectorAll('[data-layer-media]').forEach(select=>select.addEventListener('change',()=>{if(!select.value)return;const input=host.querySelector(`[data-layer-field="${select.dataset.layerMedia}"]`);if(input){input.value=select.value;input.dispatchEvent(new Event('input',{bubbles:true}));}select.value='';}));
-    host.querySelectorAll('[data-config-field]').forEach(input=>input.addEventListener('change',()=>{const field=input.dataset.configField;config[field]=input.type==='checkbox'?input.checked:field==='interval'?clamp(input.value,2500,30000):input.value;}));
-    host.querySelectorAll('[data-preview]').forEach(button=>button.addEventListener('click',()=>{previewMode=button.dataset.preview;renderManager();}));
-    host.querySelector('[data-save-slider]')?.addEventListener('click',save);
+    const host = root();
+    if (!host) return;
+    bindSlideControls(host);
+    bindLayerControls(host);
+    bindEditorControls(host);
+    bindGlobalControls(host);
     bindPreviewDrag();
   }
 
