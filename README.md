@@ -1,4 +1,6 @@
-# BRVTAL — Development delivery dashboard
+# BRVTAL — Último deploy
+
+## Development delivery dashboard
 
 <p align="center">
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml"><img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg"></a>
@@ -6,14 +8,14 @@
 
 <img src="assets/brvtal-logo-640.webp" alt="BRVTAL — Rave till Grave" width="72">
 
-> Snapshot del deploy actual. No es un changelog acumulativo.
+> Snapshot profesional de solo el deploy actual. No es un changelog acumulativo.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `1cb65b32ff99f07fce1a5748d380c0c9587e5949` · exact-main BRVTAL CI verde |
-| Git delta | 📐 **9 files · 233 insertions · 93 deletions · net +140** | base `1cb65b32ff99f07fce1a5748d380c0c9587e5949` → head del PR |
+| Git delta | 📐 **9 files · 233 insertions · 91 deletions · net +142** | base `1cb65b32ff99f07fce1a5748d380c0c9587e5949` → head del PR |
 | Alcance | ⚡ **#534 DELIVERY LEAD TIME** | preflight + fan-out + fast scope + deploy observer |
 | Gates | 🔀 **PARALLEL BY DEFAULT** | CI/Sonar + CodeRabbit sobre el mismo head estable |
 | Producción | ⚪ **No validada** | deploy marker ≠ validación funcional en producción |
