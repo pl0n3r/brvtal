@@ -31,8 +31,8 @@ $testing = (string)file_get_contents($testingPath);
 // remain isolated from production and only run when its planner output requires it.
 $expect(str_contains($workflow, "  recovery:\n"), 'BRVTAL CI must contain the recovery job');
 $expect(str_contains($workflow, 'name: recovery-rehearsal'), 'recovery job name must remain explicit');
-$expect(str_contains($workflow, "if: needs.fast.outputs.run_recovery == 'true'"), 'recovery must be path-aware');
-$expect(str_contains($workflow, 'run_recovery'), 'fast planner must expose the recovery decision');
+$expect(str_contains($workflow, "if: needs.preflight.outputs.run_recovery == 'true'"), 'recovery must be path-aware');
+$expect(str_contains($workflow, 'run_recovery'), 'preflight planner must expose the recovery decision');
 $expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'workflow must consume the shared CI scope classifier');
 $expect(str_contains($scope, 'config/backups.php|discadmin/backups.php|tests/backups-contract.php|tests/backup-recovery-rehearsal-contract.php'), 'backup surfaces must trigger recovery');
 $expect(str_contains($workflow, 'mariadb:11.4'), 'recovery must use an isolated MariaDB service');

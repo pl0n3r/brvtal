@@ -105,11 +105,13 @@ brvtal_ci_classify_files() {
         BRVTAL_SCOPE_RUN_PHP=true ;;
       package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
         BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true ;;
+      *) ;;
     esac
 
     case "$file" in
       *.js|*.mjs|package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|.github/workflows/update-release-metadata.yml)
         BRVTAL_SCOPE_RUN_JS=true ;;
+      *) ;;
     esac
 
     case "$file" in
