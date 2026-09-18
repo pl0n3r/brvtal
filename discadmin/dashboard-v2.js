@@ -185,18 +185,6 @@
     root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
   }
 
-  function ensureDashboardRoot(main) {
-    let root = document.getElementById('brvtal-dashboard-v2');
-    if (root) return root;
-    root = document.createElement('div');
-    root.id = 'brvtal-dashboard-v2';
-    root.className = 'dashboard-v2';
-    const top = main.querySelector('.top');
-    top?.insertAdjacentElement('afterend', root);
-    if (!top) main.prepend(root);
-    return root;
-  }
-
   function render(results, serial) {
     if (serial !== mountSerial || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return false;
     const main = document.querySelector('.main');
