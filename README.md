@@ -23,7 +23,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `api/content-validation.php` — contrato de referencia activa y protección contra borrado del theme activo.
 - `api/index.php` — validación server-side del target antes del upsert y bloqueo de borrado.
 - `discadmin/settings-v2.js` — `theme.active` se administra desde Theme Studio, no desde editor raw.
-- `tests/theme-active-reference-contract.php` — regresión de integridad referencial.\n- `tests/api-contract.php` — conserva la detección del branch DELETE de Settings tras hacerlo legible.
+- `tests/theme-active-reference-contract.php` — regresión de integridad referencial.\n- `tests/api-contract.php` — conserva la detección del branch DELETE de Settings tras hacerlo legible.\n- `tests/content-validation-contract.php` — mantiene los marcadores de validación de Settings tras el formateo.
 - `tests/e2e/discadmin-settings-theme-active.spec.mjs` — regresión de navegación desde Settings.
 
 ## Validación
