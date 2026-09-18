@@ -92,7 +92,7 @@ Rules:
 
 - **Dashboard**
 - **CONTENT** — Events, Artists, Releases, Sets, Blog, Pages
-- **MEDIA** — Media Library, Hero Slider
+- **MEDIA** — Media Library, Memories, Hero Slider
 - **SITE** — Theme Studio, Settings
 - **SYSTEM** — Security / 2FA, System Status, Backups, Activity when exposed
 
@@ -138,6 +138,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 - Blog, tags and relations;
 - CMS Pages;
 - Media Library + reusable picker;
+- Memories curation from existing Media Library image/video/audio assets with public title, optional context, ordering and draft/published state; removing curation keeps the source asset;
 - Content Health;
 - SEO fields/defaults;
 - Global Search (`⌘K / Ctrl+K`);
@@ -194,6 +195,7 @@ Implemented:
 - Home Sets is a connected **BRVTAL listening library**: published Sets remain in canonical API order, filter by real public Artist/Event relations, navigate primarily to `/sets/{slug}`, preserve explicit external LISTEN actions, expose honest empty/failure states and never infer genre metadata;
 - Archive discovery by year/search/relationships;
 - Public Media discovery;
+- Home Memories is an explicit curated gallery backed by `memories` records rather than the whole Media Library; only published Memories with published image/video/audio sources are exposed, with editorial ordering, two-column mobile rhythm and an immersive keyboard-accessible viewer;
 - Related Content relationship graph;
 - **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
 - Set graph detail links through public Artist/Event relationships and keeps canonical Set/platform links;
@@ -242,6 +244,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 24. **Public Sets discovery is relationship-driven, not taxonomy-invented.** The listening library uses only published Set records plus public Artist/Event relations already modeled by `sets_media`; the API sanitizes those relations against final public pools before delivery. Set titles lead to canonical `/sets/{slug}` pages, external platforms remain secondary LISTEN actions, no genre is inferred from title/description, and a valid empty API result is distinct from a data/runtime failure.
 25. **Google Tag Manager is the single public tag-delivery layer.** DISCADMIN stores only a validated `GTM-...` container ID; direct GA4 loading and raw executable analytics snippets are not part of the primary model. GTM loads automatically on every public page with analytics storage granted at bootstrap; BRVTAL keeps advertising storage, advertising user data and advertising personalization denied. Legacy Analytics acceptance state is not a runtime gate.
 26. **Every deploy README must preserve situational awareness.** Besides the exact deploy snapshot, it must include an updated project-wide pending-work panorama so a human or new AI session can see what remains without reconstructing the backlog from chat history. The panorama is not a changelog and should be revised as work is completed or reprioritized.
+27. **Memories is curation, not storage and not inferred relationships.** Media Library remains the canonical asset store. DISCADMIN `MEDIA → Memories` selects existing image/video/audio assets into explicit `memories` records with public title, optional context, order and draft/published state. Removing a Memory never deletes its source Media asset. Home Memories renders only this curated published collection; V1 does not infer Event/Artist/Set/Release relationships from filenames, dates or copy.
 
 ---
 
@@ -372,7 +375,7 @@ Unless explicitly reprioritized:
 
 When no open PR or explicit user request exists, continue in this order after verifying code has not already completed the item:
 
-1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; after the Roster and Sets listening library, deepen archive pathways and add Memories/event connections only when backed by explicit structured relations rather than heuristics.
+1. **Public cultural archive / relationship-driven browsing** — continue #398 using real structured relationships; with Roster, Sets and curated Memories established, deepen archive/event pathways and connect Memories to other entities only after adding explicit structured relations rather than heuristics.
 2. **Authenticated production smoke process** — run the existing safe workflows when authorized credentials/environment access are available; never infer production validation from CI.
 3. **DISCADMIN simplification/stabilization** — fix concrete friction or duplication while preserving destination-based navigation and internal Content Core architecture.
 4. **Incremental Hero Slider improvements** — only when they add real editing value while preserving fallback/mobile/performance.
