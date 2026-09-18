@@ -489,7 +489,7 @@
 
     const bindDynamicInteractions = () => {
       const enhancedPointer = (
-        typeof window.gsap !== 'undefined'
+        window.gsap !== undefined
         && !reduce
         && window.matchMedia('(pointer:fine)').matches
       );
