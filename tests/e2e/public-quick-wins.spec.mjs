@@ -6,6 +6,7 @@ const root = process.cwd();
 const runtime = readFileSync(join(root, 'js/public-quick-wins.js'), 'utf8');
 const source = readFileSync(join(root, 'index.html'), 'utf8');
 const heroRuntime = readFileSync(join(root, 'js/hero-slider.js'), 'utf8');
+const appRuntime = readFileSync(join(root, 'js/app.js'), 'utf8');
 const homeCss = [
   'css/style.css',
   'css/archive.css',
@@ -101,6 +102,13 @@ test('Hero counting remains tied to the configured slider total', async () => {
   expect(heroRuntime).toContain('class="brvtal-hero-counter mono"');
   expect(heroRuntime).toContain('data.slides.length');
   expect(heroRuntime).toContain('data-hero-current');
+});
+
+test('public visual effects avoid security-sensitive Math.random usage', async () => {
+  expect(appRuntime).not.toContain('Math.random');
+  expect(appRuntime).toContain('const loaderSteps = [11, 7, 14, 9, 13, 6]');
+  expect(appRuntime).toContain('const nextVisualNoise = () =>');
+  expect(appRuntime).toContain('Decorative-only PRNG');
 });
 
 test('Home controls and meaningful microtext stay readable on mobile', async ({ page }) => {
