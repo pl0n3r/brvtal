@@ -25,6 +25,27 @@ indexnow_assert(
     'enabled valid JSON setting should pass'
 );
 indexnow_assert(
+    brvtalIndexNowSettingError(
+        '{"enabled":true,"key":"Abcd1234","key_location":"/indexnow-custom.txt","endpoint":"https://www.bing.com/indexnow"}',
+        1
+    ) === null,
+    'custom official endpoint and root key location should pass'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError(
+        '{"enabled":true,"key":"Abcd1234","key_location":"/nested/indexnow.txt"}',
+        1
+    )['error'] ?? '') === 'INDEXNOW_KEY_LOCATION_INVALID',
+    'nested key location should fail closed'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError(
+        '{"enabled":true,"key":"Abcd1234","endpoint":"http://127.0.0.1:8080/indexnow"}',
+        1
+    )['error'] ?? '') === 'INDEXNOW_ENDPOINT_INVALID',
+    'admin endpoint must stay on the official allowlist'
+);
+indexnow_assert(
     (brvtalIndexNowSettingError('{"enabled":true,"key":""}', 1)['error'] ?? '') === 'INDEXNOW_KEY_REQUIRED',
     'enabled setting without key should fail'
 );
@@ -87,6 +108,8 @@ $sourceContracts = [
         "jsonValue('indexnow')",
         'sv2_indexnow_enabled',
         "text('indexnow_key'",
+        "text('indexnow_key_location'",
+        'sv2_indexnow_endpoint',
         "persistJson('indexnow'",
     ],
     __DIR__ . '/../api/index.php' => [
@@ -99,7 +122,7 @@ $sourceContracts = [
     __DIR__ . '/../api/event-workflow.php' => ["brvtalIndexNowNotifyChange"],
     __DIR__ . '/../api/seo-metadata.php' => ["brvtalIndexNowNotifyEntityId"],
     __DIR__ . '/../indexnow-key.php' => ["brvtalIndexNowSetting", "text/plain"],
-    __DIR__ . '/../.htaccess' => ["indexnow-key\\.txt"],
+    __DIR__ . '/../.htaccess' => ['indexnow-key.php', 'REQUEST_FILENAME'],
 ];
 
 foreach ($sourceContracts as $path => $needles) {
