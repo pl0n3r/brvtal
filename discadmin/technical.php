@@ -367,9 +367,11 @@ try {
 
     if ($action === 'logs') {
         $file=$root.'/storage/logs/brvtal.log';
-        $lines=is_file($file)?file($file,FILE_IGNORE_NEW_LINES):[];
-        $lines=array_slice($lines,-300);
-        $size=is_file($file)?(int)filesize($file):0;
+        $exists=is_file($file);
+        $rawLines=$exists?file($file,FILE_IGNORE_NEW_LINES):false;
+        $lines=is_array($rawLines)?array_slice($rawLines,-300):[];
+        $measuredSize=$exists?filesize($file):false;
+        $size=$measuredSize===false?0:(int)$measuredSize;
         echo json_encode(['ok'=>true,'file'=>'storage/logs/brvtal.log','bytes'=>$size,'lines'=>count($lines),'content'=>implode("\n",$lines)]);
         exit;
     }
