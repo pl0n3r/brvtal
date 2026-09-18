@@ -62,6 +62,7 @@ test('public archive separates active lifecycle from historical nights and filte
   expect(connectionsHref.searchParams.get('network_id')).toBe('20');
   expect(connectionsHref.hash).toBe('#network');
   await expect(page.locator('[data-archive-id="21"] [data-archive-connections]')).toHaveCount(0);
+  await expect(page.locator('[data-archive-id="21"] .archive-event-relations')).toHaveText('HISTORICAL RECORD');
   await expect(page.locator('.archive-summary')).toHaveText('2 NIGHTS / 1 RELATED SETS / 9 VISUAL RECORDS');
   await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
   await page.locator('[data-archive-search]').fill('final signal');
@@ -100,6 +101,61 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__archiveRefreshed === true)).toBe(true);
+});
+
+test('public archive replaces a failed allowed cover image with the archive placeholder', async ({ page }) => {
+  await page.route('**/api/public*', route => route.fulfill({
+    contentType: 'application/json; charset=utf-8',
+    body: JSON.stringify({
+      ok: true,
+      data: {
+        events: [],
+        archive: {
+          years: [2026],
+          counts: { events: 1, sets: 0, media: 0, releases: 0 },
+          events: [{
+            id: 44,
+            title: 'Broken Cover',
+            slug: 'broken-cover',
+            event_date: '2026-08-01 22:00:00',
+            archive_year: 2026,
+            city: 'Pereira',
+            venue: 'Warehouse',
+            status: 'archived',
+            cover_image: 'https://images.example.invalid/missing.jpg',
+            ticket_url: null,
+            lineup: [],
+            related_sets: [],
+          }],
+        },
+      },
+    }),
+  }));
+
+  await page.route('https://images.example.invalid/missing.jpg', route => route.abort('failed'));
+
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body>
+      <div class="events-track"></div>
+      <div class="event-archive" id="eventArchive">
+        <div class="archive-summary"></div>
+        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div></div>
+        <div class="archive-years"></div>
+        <div data-archive-results></div>
+        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
+        <div class="archive-grid"></div>
+      </div>
+      <script>${archiveJs}</script>
+    </body></html>`,
+  }));
+
+  await page.goto(harnessUrl);
+
+  const record = page.locator('[data-archive-id="44"]');
+  await expect(record).toBeVisible();
+  await expect(record.locator('.archive-event-image img')).toHaveCount(0);
+  await expect(record.locator('.archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVE');
 });
 
 test('public archive renders hostile API strings as text and rejects unsafe URL schemes', async ({ page }) => {
@@ -175,6 +231,7 @@ test('public archive renders hostile API strings as text and rejects unsafe URL 
   await expect(page.locator('[data-archive-id="199"] h3')).toHaveText(archivedTitle);
   await expect(page.locator('[data-archive-id="199"] .archive-event-copy p')).toContainText('<iframe src="javascript:window.__archiveXss=4"></iframe>');
   await expect(page.locator('[data-archive-id="199"] img')).toHaveCount(0);
+  await expect(page.locator('[data-archive-id="199"] .archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVE');
 
   await expect(page.locator('#archive-active-xss')).toHaveCount(0);
   await expect(page.locator('#archive-history-xss')).toHaveCount(0);
