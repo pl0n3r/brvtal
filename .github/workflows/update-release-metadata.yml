@@ -149,6 +149,37 @@ jobs:
           coverage: none
           ini-file: production
 
+      - name: Validate Sonar Python runtime contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          runtime = f"{sys.version_info.major}.{sys.version_info.minor}"
+          matches = []
+          for raw_line in Path(".sonarcloud.properties").read_text(encoding="utf-8").splitlines():
+              line = raw_line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              key, separator, value = line.partition("=")
+              if separator and key.strip() == "sonar.python.version":
+                  matches.append(value.strip())
+
+          if len(matches) != 1:
+              raise SystemExit(
+                  f"Expected exactly one sonar.python.version declaration, found {len(matches)}."
+              )
+
+          declared = {item.strip() for item in matches[0].split(",") if item.strip()}
+          if runtime not in declared:
+              raise SystemExit(
+                  f"Sonar Python runtime mismatch: CI uses {runtime}, declared versions are {sorted(declared)}."
+              )
+
+          print(f"Sonar Python analysis includes CI runtime {runtime}.")
+          PY
+
       - name: Run PHP 8.5 compatibility and contract suite
         run: bash scripts/php85-compatibility.sh
 
