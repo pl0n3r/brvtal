@@ -154,12 +154,27 @@ test('Memories title/order/status edits persist and removing curation keeps the 
   await card.locator('[data-memory-context]').fill('Updated context');
   await card.locator('[data-memory-order]').fill('3');
   await card.locator('[data-memory-status]').selectOption('draft');
-  await expect(card.locator('[data-memory-relation-type="event"][data-memory-relation-id="31"]')).toBeChecked();
-  await card.locator('[data-memory-relation-type="artist"][data-memory-relation-id="41"]').check();
+  await expect(card.locator('[data-memory-relations-summary]')).toContainText('1 SELECTED');
+  await expect(card.locator('[data-memory-relation-type]')).toHaveCount(0);
+
   await card.getByRole('button', {name:'SAVE'}).click();
   await expect(page.locator('[data-memory-id="7"] [data-memory-title]')).toHaveValue('Edited public title');
 
-  const update = state.requests.find(entry => entry.method === 'PUT' && entry.id === 7);
+  let updates = state.requests.filter(entry => entry.method === 'PUT' && entry.id === 7);
+  expect(updates).toHaveLength(1);
+  expect(updates[0].body.relations).toEqual([
+    {related_type:'event',related_id:31},
+  ]);
+
+  const refreshedCard = page.locator('[data-memory-id="7"]');
+  await refreshedCard.locator('.memory-relations-details > summary').click();
+  await expect(refreshedCard.locator('[data-memory-relation-type="event"][data-memory-relation-id="31"]')).toBeChecked();
+  await refreshedCard.locator('[data-memory-relation-type="artist"][data-memory-relation-id="41"]').check();
+  await expect(refreshedCard.locator('[data-memory-relations-summary]')).toContainText('2 SELECTED');
+  await refreshedCard.getByRole('button', {name:'SAVE'}).click();
+
+  updates = state.requests.filter(entry => entry.method === 'PUT' && entry.id === 7);
+  const update = updates.at(-1);
   expect(update).toBeTruthy();
   expect(update.body).toMatchObject({media_id:12,title:'Edited public title',context:'Updated context',sort_order:3,status:'draft'});
   expect(update.body.relations).toEqual([
