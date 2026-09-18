@@ -15,7 +15,7 @@
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `1cb65b32ff99f07fce1a5748d380c0c9587e5949` · exact-main BRVTAL CI verde |
-| Git delta | 📐 **9 files · 233 insertions · 91 deletions · net +142** | base `1cb65b32ff99f07fce1a5748d380c0c9587e5949` → head del PR |
+| Git delta | 📐 **10 files · 235 insertions · 92 deletions · net +143** | base `1cb65b32ff99f07fce1a5748d380c0c9587e5949` → head del PR |
 | Alcance | ⚡ **#534 DELIVERY LEAD TIME** | preflight + fan-out + fast scope + deploy observer |
 | Gates | 🔀 **PARALLEL BY DEFAULT** | CI/Sonar + CodeRabbit sobre el mismo head estable |
 | Producción | ⚪ **No validada** | deploy marker ≠ validación funcional en producción |
@@ -55,6 +55,7 @@ flowchart LR
 - `scripts/php85-compatibility.sh` — lint PHP paralelo y acotado.
 - `tests/ci-scope-contract.php` — contratos del nuevo pipeline.
 - `tests/backup-recovery-rehearsal-contract.php` — alinea el gate de recovery con el planner `preflight`.
+- `tests/project-operations-contract.php` — alinea el agregador final `validate` con `preflight` + gates aplicables.
 - `AGENTS.md` — política durable de commits atómicos y gates concurrentes.
 - `README.md` — snapshot/dashboard de #534.
 

@@ -63,7 +63,7 @@ $assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  b
 $assert(str_contains($workflow, "  realstack:\n") && str_contains($workflow, "  webkit:\n"), 'CI must keep real-stack and targeted WebKit validation independent');
 $assert(str_contains($workflow, "  recovery:\n"), 'CI must keep isolated backup recovery as a path-aware job');
 $assert(str_contains($workflow, "  validate:\n"), 'CI must preserve a final validate check for branch-protection compatibility');
-$assert(str_contains($workflow, 'needs: [fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
+$assert(str_contains($workflow, 'needs: [preflight, fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
 $assert(str_contains($workflow, 'run_recovery'), 'CI must make recovery path-aware');
 $assert(str_contains($workflow, 'Pull requests and exact') && str_contains($workflow, 'pushes use the same diff-aware gates'), 'exact main must use the same diff-aware scope instead of forcing every expensive job');
 $assert(str_contains($workflow, 'actions/cache@v4'), 'browser/npm setup must use reusable Actions caches');
