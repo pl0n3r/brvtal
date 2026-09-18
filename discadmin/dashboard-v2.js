@@ -63,6 +63,18 @@
     });
   }
 
+  function ensureDashboardRoot(main) {
+    let root = document.getElementById('brvtal-dashboard-v2');
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'brvtal-dashboard-v2';
+    root.className = 'dashboard-v2';
+    const top = main.querySelector('.top');
+    top?.insertAdjacentElement('afterend', root);
+    if (!top) main.prepend(root);
+    return root;
+  }
+
   function summaryCard(label, value) {
     return `<div class="dashboard-v2-summary-card"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
   }
