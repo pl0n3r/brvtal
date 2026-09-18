@@ -137,7 +137,7 @@
         <div class="sv2-grid two">
           <label class="sv2-field"><span>IndexNow</span><select id="sv2_indexnow_enabled"><option value="0" ${indexNowEnabled?'':'selected'}>DISABLED</option><option value="1" ${indexNowEnabled?'selected':''}>ENABLED</option></select><small>Enable after saving a valid IndexNow configuration.</small></label>
           ${text('indexnow_key','IndexNow key',indexNowKey,'Allowed: A–Z, a–z, 0–9 and hyphens; 8–128 characters.')}
-          ${text('indexnow_key_location','Key location',keyLocation,'Root-level UTF-8 key file path, for example /indexnow-key.txt.')}
+          ${text('indexnow_key_location','Key location',keyLocation,'Root-level IndexNow key file path, for example /indexnow-key.txt.')}
           <label class="sv2-field"><span>Submission endpoint</span><select id="sv2_indexnow_endpoint">${endpointOptions}</select><small>Official participating endpoint. Global IndexNow is the default.</small></label>
         </div>
         <div class="sv2-context-grid">
@@ -269,7 +269,7 @@
       throw new Error('IndexNow key is required before enabling the integration.');
     }
     if (!/^\/[A-Za-z0-9][A-Za-z0-9-]{0,100}\.txt$/.test(keyLocation)) {
-      throw new Error('Key location must be a root-level .txt path such as /indexnow-key.txt.');
+      throw new Error('Key location must be a root-level indexnow-*.txt path such as /indexnow-key.txt.');
     }
     if (!INDEXNOW_ENDPOINTS.some(([value]) => value === endpoint)) {
       throw new Error('Select an official IndexNow endpoint.');
