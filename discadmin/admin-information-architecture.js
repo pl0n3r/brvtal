@@ -25,6 +25,28 @@
     ['blog', ['brvtal-media-library-script','brvtal-blog-script']]
   ]);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const exactNavLabelKeys = new Map([
+    ['DASHBOARD', 'dashboard'],
+    ['EVENTS', 'events'],
+    ['ARTISTS', 'artists'],
+    ['RELEASES', 'releases'],
+    ['SETS', 'sets'],
+    ['BLOG', 'blog'],
+    ['PAGES', 'pages'],
+    ['MEDIA', 'media'],
+    ['MEDIA LIBRARY', 'media'],
+    ['SETTINGS', 'settings']
+  ]);
+  const partialNavLabelRules = [
+    {key:'hero-slider', tokens:['HERO','SLIDER'], mode:'all'},
+    {key:'theme', tokens:['THEME']},
+    {key:'security', tokens:['SECURITY','2FA']},
+    {key:'system', tokens:['SYSTEM STATUS']},
+    {key:'backups', tokens:['BACKUP']},
+    {key:'activity', tokens:['ACTIVITY']},
+    {key:'content-core', tokens:['CONTENT CORE']},
+    {key:'seo', tokens:['SEO']}
+  ];
 
   function staleNavigationError() {
     const error = new Error(STALE_NAVIGATION);
@@ -141,6 +163,11 @@
     queueMicrotask(() => { applyUrlRoute().catch(() => {}); });
   }
 
+  function matchesPartialNavLabel(label, rule) {
+    if (rule.mode === 'all') return rule.tokens.every(token => label.includes(token));
+    return rule.tokens.some(token => label.includes(token));
+  }
+
   function buttonKey(button) {
     const dataKey = String(button.dataset.adminNav || '').toLowerCase();
     if (dataKey) return dataKey;
@@ -150,24 +177,11 @@
     if (match) return match[1].toLowerCase();
 
     const label = normalize(button.textContent);
-    if (label === 'DASHBOARD') return 'dashboard';
-    if (label === 'EVENTS') return 'events';
-    if (label === 'ARTISTS') return 'artists';
-    if (label === 'RELEASES') return 'releases';
-    if (label === 'SETS') return 'sets';
-    if (label === 'BLOG') return 'blog';
-    if (label === 'PAGES') return 'pages';
-    if (label === 'MEDIA' || label === 'MEDIA LIBRARY') return 'media';
-    if (label.includes('HERO') && label.includes('SLIDER')) return 'hero-slider';
-    if (label.includes('THEME')) return 'theme';
-    if (label === 'SETTINGS') return 'settings';
-    if (label.includes('SECURITY') || label.includes('2FA')) return 'security';
-    if (label.includes('SYSTEM STATUS')) return 'system';
-    if (label.includes('BACKUP')) return 'backups';
-    if (label.includes('ACTIVITY')) return 'activity';
-    if (label.includes('CONTENT CORE')) return 'content-core';
-    if (label.includes('SEO')) return 'seo';
-    return 'other:' + label.toLowerCase();
+    const exactKey = exactNavLabelKeys.get(label);
+    if (exactKey) return exactKey;
+
+    const partialRule = partialNavLabelRules.find(rule => matchesPartialNavLabel(label, rule));
+    return partialRule?.key || 'other:' + label.toLowerCase();
   }
 
   const groups = [
