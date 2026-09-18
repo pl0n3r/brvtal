@@ -41,11 +41,11 @@ test('E2E admin relates a curated Memory and the public boundary exposes the exp
           title:eventTitle,
           slug:eventSlug,
           description:'E2E Memory relation fixture.',
-          event_date:'2026-11-07 21:00:00',
+          event_date:'2026-08-07 21:00:00',
           city:'Pereira',
           venue:'E2E Warehouse',
-          status:'tickets_available',
-          ticket_url:'https://tickets.example/e2e-memory',
+          status:'finished',
+          ticket_url:'',
         },
         ticket_types:[],
         lineup:[],
@@ -116,6 +116,17 @@ test('E2E admin relates a curated Memory and the public boundary exposes the exp
     const eventHtml = await eventPage.text();
     expect(eventHtml).toContain('MEMORIES / 01');
     expect(eventHtml).toContain(memoryTitle);
+
+    await page.goto(`${baseUrl}/#events`, {waitUntil:'domcontentloaded'});
+    const archiveRecord = page.locator(`[data-archive-id="${eventId}"]`);
+    await expect(archiveRecord).toBeVisible({timeout:10_000});
+    await expect(archiveRecord.locator('.archive-event-relations')).toContainText('1 MEMORY');
+    await expect(archiveRecord.locator('[data-archive-connections]')).toBeVisible();
+
+    const memoriesFilter = page.getByRole('button',{name:'WITH MEMORIES'});
+    await expect(memoriesFilter).toBeVisible();
+    await memoriesFilter.click();
+    await expect(archiveRecord).toBeVisible();
   } finally {
     const cleanupErrors = [];
     const cleanupDelete = async (label, url) => {
