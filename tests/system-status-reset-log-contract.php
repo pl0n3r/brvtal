@@ -21,6 +21,7 @@ $assert(str_contains($logs, "'format'] ?? '') === 'json'"), 'Log reset must expo
 $assert(str_contains($technical, "'bytes'=>\$size"), 'Technical log diagnostics must expose current byte size.');
 $assert(str_contains($js, "LOG_RESET = '/discadmin/logs.php?action=clear&format=json'"), 'System Status must reuse the canonical log reset endpoint.');
 $assert(str_contains($js, "new URLSearchParams({csrf:token})"), 'System Status reset must send the CSRF token.');
-$assert(str_contains($js, "globalThis.confirm('Reset the current BRVTAL debug log?"), 'System Status reset must require explicit confirmation.');
+$assert(str_contains($js, "button.dataset.resetArmed = 'true'"), 'System Status reset must arm an explicit first-step confirmation.');
+$assert(str_contains($js, "button.textContent = 'CONFIRM RESET'"), 'System Status reset must require a second explicit activation.');
 
 echo "System Status reset-log contract OK\n";
