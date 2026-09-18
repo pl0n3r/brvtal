@@ -186,7 +186,7 @@ Implemented:
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
 - adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
-- core runtime preserves `app → roster → sets → archive → media` order and survives optional motion-CDN failure;
+- core runtime preserves `app → roster → sets → transmissions → archive → media` order and survives optional motion-CDN failure;
 - non-blocking Google Fonts;
 - keyboard/touch accessibility passes;
 - canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
@@ -194,6 +194,7 @@ Implemented:
 - Home Artists is a connected **BRVTAL Roster**: real `active` and `alumni` membership states come from Collective Status, non-members remain Artists/collaborators, and canonical navigation stays on `/artists/{slug}`;
 - canonical Artist pages expose real membership facts and structured published Events/Sets/Releases/Transmissions without inferring genres or Memories;
 - Home Sets is a connected **BRVTAL listening library**: published Sets remain in canonical API order, filter by real public Artist/Event relations, navigate primarily to `/sets/{slug}`, preserve explicit external LISTEN actions, expose honest empty/failure states and never infer genre metadata;
+- Home **TRANSMISSIONS** is the editorial surface for published Blog records: it reuses the shared public payload, preserves canonical Blog ordering/navigation, and resolves only sanitized explicit Event/Artist/Set/Release relation IDs against the final public entity pools, including archived Events; empty and unavailable states remain distinct;
 - Archive discovery by year/search/relationships;
 - Public Media discovery;
 - Home Memories is an explicit curated gallery backed by `memories` records rather than the whole Media Library; only published Memories with published image/video/audio sources are exposed, with editorial ordering, two-column mobile rhythm and an immersive keyboard-accessible viewer;
@@ -247,6 +248,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 26. **Every deploy README must preserve situational awareness.** Besides the exact deploy snapshot, it must include an updated project-wide pending-work panorama so a human or new AI session can see what remains without reconstructing the backlog from chat history. The panorama is not a changelog and should be revised as work is completed or reprioritized.
 27. **Memories is curation, not storage and not inferred relationships.** Media Library remains the canonical asset store. DISCADMIN `MEDIA → Memories` selects existing image/video/audio assets into explicit `memories` records with public title, optional context, order and draft/published state. Removing a Memory never deletes its source Media asset. Home Memories renders only this curated published collection; V1 does not infer Event/Artist/Set/Release relationships from filenames, dates or copy.
 28. **Memory relationships belong to curated Memories, never raw Media assets.** Explicit Event/Artist/Set/Release links are stored from `memory_id`, sanitized against the final public entity pools, and may feed canonical entity pages/CONNECTED. An asset that has not been curated into Memories must never become cultural context merely because it exists in Media Library.
+29. **TRANSMISSIONS is public framing over Blog, not a second CMS.** Home consumes the existing published `blog` payload through `window.BRVTALPublicDataPromise`; Blog relation rows remain singular `event` / `artist` / `set` / `release` references by `related_id`, are sanitized server-side, and are resolved client-side only against final public entity pools before rendering canonical links.
 
 ---
 
