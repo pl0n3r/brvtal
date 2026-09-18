@@ -149,10 +149,13 @@ $homeStyles = [
     'css/public-transmissions.css',
     'css/public-visual-identity.css',
 ];
-$homeStyleLinks = implode("\n", array_map(
-    static fn(string $href): string => '  <link rel="stylesheet" href="' . $href . '">',
-    $homeStyles
-));
+$homeStyleLinks = implode(
+    "\n",
+    array_map(
+        static fn(string $href): string => '  <link rel="stylesheet" href="' . $href . '">',
+        $homeStyles
+    )
+);
 $html = str_replace('</head>', $homeStyleLinks . "\n</head>", $html);
 $html = str_replace(
     'href="css/hero-slider-v2.css">',
