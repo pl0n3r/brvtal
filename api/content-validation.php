@@ -197,7 +197,7 @@ function brvtal_theme_setting_error(string $key, string $value): ?array
 }
 
 /** Keep theme.active referentially valid instead of accepting dangling theme slugs. */
-function brvtal_theme_active_reference_error(string $key, string $value, callable $themeExists): ?array
+function brvtalThemeActiveReferenceError(string $key, string $value, callable $themeExists): ?array
 {
     if ($key !== 'theme.active') {
         return null;
@@ -211,7 +211,7 @@ function brvtal_theme_active_reference_error(string $key, string $value, callabl
 }
 
 /** Prevent deleting the concrete theme record currently referenced by theme.active. */
-function brvtal_theme_delete_reference_error(string $key, ?string $activeSlug): ?array
+function brvtalThemeDeleteReferenceError(string $key, ?string $activeSlug): ?array
 {
     if ($key === 'theme.active' || !str_starts_with($key, 'theme.')) {
         return null;
