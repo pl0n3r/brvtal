@@ -137,7 +137,7 @@ $html = str_replace(
     'class="set-action magnetic" aria-disabled="true" aria-hidden="true" tabindex="-1"',
     $html
 );
-$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/public-header-alignment.css\">\n  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n  <link rel=\"stylesheet\" href=\"css/public-sets-library.css\">\n  <link rel=\"stylesheet\" href=\"css/public-memories.css\">\n  <link rel=\"stylesheet\" href=\"css/public-visual-identity.css\">\n</head>", $html);
+$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/public-header-alignment.css\">\n  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n  <link rel=\"stylesheet\" href=\"css/public-sets-library.css\">\n  <link rel=\"stylesheet\" href=\"css/public-memories.css\">\n  <link rel=\"stylesheet\" href=\"css/public-transmissions.css\">\n  <link rel=\"stylesheet\" href=\"css/public-visual-identity.css\">\n</head>", $html);
 $html = str_replace('</body>', "  <script src=\"js/public-quick-wins.js\"></script>\n  <script src=\"js/public-home-visual.js\"></script>\n</body>", $html);
 $html = brvtal_public_dedupe_decorative_assets($html);
 $html = brvtal_public_optimize_font_stylesheet($html);
@@ -149,6 +149,7 @@ $html = brvtal_public_defer_stylesheets($html, [
     'css/archive.css',
     'css/public-media.css',
     'css/public-memories.css',
+    'css/public-transmissions.css',
     'css/input-accessibility.css',
     'css/mobile-events.css',
     'css/public-roster.css',
