@@ -118,6 +118,7 @@ $sourceContracts = [
         "brvtalIndexNowNotifySetting",
     ],
     __DIR__ . '/../api/blog.php' => ["brvtalIndexNowNotifyChange"],
+    __DIR__ . '/../api/bulk-actions.php' => ["brvtalIndexNowNotifyChange", "INDEXNOW_BULK_NOTIFY_FAILED"],
     __DIR__ . '/../api/releases.php' => ["brvtalIndexNowNotifyChange"],
     __DIR__ . '/../api/event-workflow.php' => ["brvtalIndexNowNotifyChange"],
     __DIR__ . '/../api/seo-metadata.php' => ["brvtalIndexNowNotifyEntityId"],
