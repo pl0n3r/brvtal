@@ -97,9 +97,12 @@
 
   function seoPane() {
     const seo = jsonValue('seo');
+    const indexnow = jsonValue('indexnow');
     const share = seo.share_image || seo.og_image || '';
+    const indexNowKey = String(indexnow.key || '').trim();
+    const indexNowEnabled = Boolean(indexnow.enabled) && /^[A-Za-z0-9-]{8,128}$/.test(indexNowKey);
     return `<section class="sv2-pane ${V2.tab==='seo'?'active':''}" data-settings-pane="seo">
-      <header class="sv2-section-head"><div><span>03 / SEO</span><h3>Canonical site defaults</h3></div><p>Server-owned defaults for the Home document. Entity-specific SEO fields remain authoritative for Events, Artists, Sets, Releases, Blog and Pages.</p></header>
+      <header class="sv2-section-head"><div><span>03 / SEO</span><h3>Canonical site defaults</h3></div><p>Server-owned defaults for public documents plus event-driven indexing controls. Entity-specific SEO fields remain authoritative for Events, Artists, Sets, Releases, Blog and Pages.</p></header>
       <div class="sv2-grid">${text('seo_title','Default Home title',seo.site_title || 'BRVTAL — Rave till Grave','Server-rendered Home title fallback.')}
         <label class="sv2-field"><span>Default Home description</span><textarea id="sv2_seo_description" maxlength="320">${esc(seo.description || 'BRVTAL — Rave till Grave. Underground electronic music, experiences and events from Colombia.')}</textarea><small>Used server-side for the Home meta/OG description.</small></label>
       </div>
@@ -109,7 +112,19 @@
         <input id="sv2_seo_share" value="${esc(share)}" placeholder="/uploads/... or https://...">
         <div class="sv2-asset-actions"><button type="button" class="btn ghost" data-settings-media-picker>CHOOSE FROM MEDIA</button><button type="button" class="btn ghost" data-settings-clear-asset>CLEAR</button></div>
       </div>
-      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="seo">SAVE SEO</button></div>
+      <div class="sv2-integration">
+        <div class="sv2-section-head"><div><span>INDEXNOW</span><h3>Search-engine change notifications</h3></div><p>Notify participating search engines only when public URLs are created, updated, unpublished or removed. No scheduled full-site resubmission.</p></div>
+        <div class="sv2-grid two">
+          <label class="sv2-field"><span>IndexNow</span><select id="sv2_indexnow_enabled"><option value="0" ${indexNowEnabled?'':'selected'}>DISABLED</option><option value="1" ${indexNowEnabled?'selected':''}>ENABLED</option></select><small>Enable after saving a valid 8–128 character IndexNow key.</small></label>
+          ${text('indexnow_key','IndexNow key',indexNowKey,'Allowed: A–Z, a–z, 0–9 and hyphens; 8–128 characters.')}
+        </div>
+        <div class="sv2-context-grid">
+          <article><span>STATUS</span><strong>${indexNowEnabled?'CONNECTED':'NOT CONFIGURED'}</strong><p>Submissions are queued after successful editorial commits and never make a save fail.</p></article>
+          <article><span>KEY LOCATION</span><strong>/indexnow-key.txt</strong><p>The verification response is generated dynamically from this Settings value; no key is committed to Git.</p></article>
+          <article><span>SUBMISSION POLICY</span><strong>EVENT-DRIVEN</strong><p>Changed canonical URLs are deduplicated per request; sitemap remains the full-site catch-up signal.</p></article>
+        </div>
+      </div>
+      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="seo">SAVE SEO + INDEXNOW</button></div>
     </section>`;
   }
 
@@ -134,7 +149,7 @@
     const cards = safeRows.map(record => {
       const key = String(record.setting_key || '');
       const isTheme = key === 'theme.active' || key.startsWith('theme.');
-      const role = key === 'appearance' ? 'LEGACY' : (isTheme ? 'THEME STUDIO' : (['site','social','seo','analytics'].includes(key) ? 'TYPED + RAW' : 'ADVANCED'));
+      const role = key === 'appearance' ? 'LEGACY' : (isTheme ? 'THEME STUDIO' : (['site','social','seo','analytics','indexnow'].includes(key) ? 'TYPED + RAW' : 'ADVANCED'));
       let preview = String(record.setting_value ?? '');
       if (preview.length > 180) preview = preview.slice(0,177) + '…';
       const action = key === 'theme.active'
@@ -145,7 +160,7 @@
     return `<section class="sv2-pane ${V2.tab==='advanced'?'active':''}" data-settings-pane="advanced">
       <header class="sv2-section-head"><div><span>05 / ADVANCED</span><h3>Compatibility & raw records</h3></div><p>Escape hatch for recovery, unknown keys and legacy values. Primary configuration belongs in the typed screens or Theme Studio.</p></header>
       <div class="sv2-status-map">
-        <article><span>LIVE / TYPED</span><strong>SITE · SOCIAL · SEO · ANALYTICS</strong><p>Normal editing happens through the dedicated controls above.</p></article>
+        <article><span>LIVE / TYPED</span><strong>SITE · SOCIAL · SEO / INDEXNOW · ANALYTICS</strong><p>Normal editing happens through the dedicated controls above.</p></article>
         <article><span>THEME-OWNED</span><strong>THEME.*</strong><p>Use Theme Studio for public visual identity, palette, typography, navigation and effects.</p></article>
         <article><span>LEGACY</span><strong>APPEARANCE</strong><p>Preserved for compatibility. Theme Studio is the primary visual authority.</p></article>
       </div>
@@ -162,11 +177,12 @@
     </div>`;
   }
 
-  async function persistJson(key, patch, removeKeys = []) {
+  async function persistJson(key, patch, removeKeys = [], refresh = true) {
     const current = jsonValue(key);
     const next = { ...current, ...patch };
     removeKeys.forEach(removeKey => delete next[removeKey]);
     await req('/settings', {method:'POST', body:JSON.stringify({setting_key:key, setting_value:JSON.stringify(next), is_json:1})});
+    if (!refresh) return;
     const response = await req('/settings');
     state.rows = response.data || [];
     render();
@@ -197,14 +213,23 @@
 
   async function saveSeo() {
     const share = read('seo_share');
+    const indexNowKey = read('indexnow_key');
+    const indexNowEnabled = read('indexnow_enabled') === '1';
     if (share && !validHttpUrl(share) && !share.startsWith('/')) {
       throw new Error('Share image must be an HTTP/HTTPS URL or an absolute public path.');
+    }
+    if (indexNowKey && !/^[A-Za-z0-9-]{8,128}$/.test(indexNowKey)) {
+      throw new Error('IndexNow key must be 8–128 characters using only letters, numbers and hyphens.');
+    }
+    if (indexNowEnabled && !indexNowKey) {
+      throw new Error('IndexNow key is required before enabling the integration.');
     }
     await persistJson('seo',{
       site_title:read('seo_title'),
       description:read('seo_description').slice(0,320),
       share_image:share
-    });
+    },[],false);
+    await persistJson('indexnow',{enabled:indexNowEnabled,key:indexNowKey});
   }
 
   async function saveAnalytics() {
@@ -299,7 +324,7 @@
 
   window.settingsHome = settingsScreen;
   window.openSettingByKey = key => {
-    const map = {site:'general',social:'social',seo:'seo',analytics:'analytics'};
+    const map = {site:'general',social:'social',seo:'seo',indexnow:'seo',analytics:'analytics'};
     if (map[key]) activate(map[key]);
     else legacyOpenSettingByKey?.(key);
   };
