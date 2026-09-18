@@ -143,7 +143,7 @@
   }
 
   function currentSystemStatusRoot(fallback) {
-    return document.getElementById('system-status-v2') || fallback;
+    return document.getElementById('system-status-v2') ?? fallback;
   }
 
   async function refreshLogsAfterReset(root, operationId) {
