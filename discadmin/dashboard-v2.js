@@ -114,12 +114,18 @@
     return {label:'NO DIRECT TICKET URL', className:''};
   }
 
+  function nextEventTiming(days) {
+    if (days === null) return '';
+    if (days <= 0) return ' · TODAY';
+    const suffix = days === 1 ? '' : 's';
+    return ` · ${days} day${suffix}`;
+  }
+
   function nextEventMeta(event) {
     const date = String(event.event_date || '');
     const days = daysUntil(date);
     const location = [event.venue,event.city].filter(Boolean).join(' · ') || 'Location pending';
-    const timing = days === null ? '' : ` · ${days <= 0 ? 'TODAY' : days + ' day' + (days===1?'':'s')}`;
-    return {date, location, timing};
+    return {date, location, timing:nextEventTiming(days)};
   }
 
   function nextEventPanel(overview, overviewError) {
