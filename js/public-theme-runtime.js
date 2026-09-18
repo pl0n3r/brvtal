@@ -146,20 +146,36 @@
     });
   }
 
+  function clearHeroBrandImage(heroLogo, sources) {
+    heroLogo.hidden = true;
+    heroLogo.removeAttribute('src');
+    heroLogo.removeAttribute('srcset');
+    sources.forEach(source => {
+      source.removeAttribute('srcset');
+      source.removeAttribute('sizes');
+    });
+  }
+
   function syncHeroBranding(branding, selectedVisualLogo, mainLogo) {
     const heroLogo = document.querySelector('.hero-logo');
     if (!heroLogo) return;
-    if (selectedVisualLogo) {
-      heroLogo.src = selectedVisualLogo;
-      heroLogo.removeAttribute('srcset');
-      heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
-      heroLogo.closest('picture')?.querySelectorAll('source').forEach(source => {
-        source.srcset = selectedVisualLogo;
-        source.sizes = '100vw';
-      });
-      return;
-    }
-    if (mainLogo) heroLogo.src = mainLogo;
+
+    const logo = selectedVisualLogo || mainLogo;
+    if (!logo) return;
+
+    const picture = heroLogo.closest('picture');
+    const sources = picture ? [...picture.querySelectorAll('source')] : [];
+    heroLogo.removeAttribute('srcset');
+    heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
+    sources.forEach(source => {
+      source.srcset = logo;
+      source.sizes = '100vw';
+    });
+    loadControlledImage(heroLogo, logo, loaded => {
+      loaded.hidden = false;
+    }, failed => {
+      clearHeroBrandImage(failed, sources);
+    });
   }
 
   function updateBrandLogo() {
