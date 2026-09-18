@@ -14,8 +14,15 @@ function brvtal_memory_relation_targets(): array
 
 function brvtal_memory_relations_ready(PDO $pdo): bool
 {
+    static $ready = [];
+    $key = spl_object_id($pdo);
+    if (($ready[$key] ?? false) === true) {
+        return true;
+    }
+
     try {
         $pdo->query('SELECT 1 FROM memory_relations LIMIT 1');
+        $ready[$key] = true;
         return true;
     } catch (Throwable) {
         return false;
@@ -121,29 +128,50 @@ function brvtal_memory_lock_relation_targets(PDO $pdo, array $relations): void
     }
 }
 
-/** @return array<int,array{related_type:string,related_id:int,sort_order:int}> */
-function brvtal_memory_load_relations(PDO $pdo, int $memoryId): array
+/**
+ * @return array<int,array<int,array{related_type:string,related_id:int,sort_order:int}>>
+ */
+function brvtal_memory_load_relations_batch(PDO $pdo, array $memoryIds): array
 {
-    if ($memoryId < 1 || !brvtal_memory_relations_ready($pdo)) {
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $memoryIds),
+        static fn(int $id): bool => $id > 0
+    )));
+    if ($ids === [] || !brvtal_memory_relations_ready($pdo)) {
         return [];
     }
 
+    $marks = implode(',', array_fill(0, count($ids), '?'));
     $statement = $pdo->prepare(
-        'SELECT related_type,related_id,sort_order
+        "SELECT memory_id,related_type,related_id,sort_order
          FROM memory_relations
-         WHERE memory_id=?
-         ORDER BY sort_order,related_type,related_id'
+         WHERE memory_id IN ({$marks})
+         ORDER BY memory_id,sort_order,related_type,related_id"
     );
-    $statement->execute([$memoryId]);
-    $rows = $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $statement->execute($ids);
 
-    foreach ($rows as &$row) {
-        $row['related_id'] = (int)$row['related_id'];
-        $row['sort_order'] = (int)$row['sort_order'];
+    $grouped = [];
+    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $memoryId = (int)$row['memory_id'];
+        $grouped[$memoryId][] = [
+            'related_type'=>(string)$row['related_type'],
+            'related_id'=>(int)$row['related_id'],
+            'sort_order'=>(int)$row['sort_order'],
+        ];
     }
-    unset($row);
 
-    return $rows;
+    return $grouped;
+}
+
+/** @return array<int,array{related_type:string,related_id:int,sort_order:int}> */
+function brvtal_memory_load_relations(PDO $pdo, int $memoryId): array
+{
+    if ($memoryId < 1) {
+        return [];
+    }
+
+    $grouped = brvtal_memory_load_relations_batch($pdo, [$memoryId]);
+    return $grouped[$memoryId] ?? [];
 }
 
 function brvtal_memory_replace_relations(PDO $pdo, int $memoryId, mixed $relations): void
