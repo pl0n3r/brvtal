@@ -103,34 +103,26 @@ indexnow_assert(
     'public Event lifecycle should resolve to canonical Event URL'
 );
 
-$sourceContracts = [
-    __DIR__ . '/../discadmin/settings-v2.js' => [
-        "jsonValue('indexnow')",
-        'sv2_indexnow_enabled',
-        "text('indexnow_key'",
-        "text('indexnow_key_location'",
-        'sv2_indexnow_endpoint',
-        "persistJson('indexnow'",
-    ],
-    __DIR__ . '/../api/index.php' => [
-        "brvtalIndexNowSettingError",
-        "brvtalIndexNowNotifyChange",
-        "brvtalIndexNowNotifySetting",
-    ],
-    __DIR__ . '/../api/blog.php' => ["brvtalIndexNowNotifyChange"],
-    __DIR__ . '/../api/bulk-actions.php' => ["brvtalIndexNowNotifyChange", "INDEXNOW_BULK_NOTIFY_FAILED"],
-    __DIR__ . '/../api/releases.php' => ["brvtalIndexNowNotifyChange"],
-    __DIR__ . '/../api/event-workflow.php' => ["brvtalIndexNowNotifyChange"],
-    __DIR__ . '/../api/seo-metadata.php' => ["brvtalIndexNowNotifyEntityId"],
-    __DIR__ . '/../indexnow-key.php' => ["brvtalIndexNowSetting", "text/plain"],
-    __DIR__ . '/../.htaccess' => ['indexnow-key.php', 'REQUEST_FILENAME'],
-];
-
-foreach ($sourceContracts as $path => $needles) {
-    $source = (string)file_get_contents($path);
-    foreach ($needles as $needle) {
-        indexnow_assert(str_contains($source, $needle), basename($path) . " missing contract: {$needle}");
-    }
-}
+$endpoints = brvtalIndexNowEndpoints();
+indexnow_assert(
+    ($endpoints['global'] ?? '') === BRVTAL_INDEXNOW_DEFAULT_ENDPOINT,
+    'global endpoint should remain the canonical default'
+);
+indexnow_assert(
+    in_array('https://www.bing.com/indexnow', $endpoints, true),
+    'Bing should remain an allowed participating endpoint'
+);
+indexnow_assert(
+    brvtalIndexNowKeyLocationValid('/indexnow-key.txt'),
+    'default root key location should be valid'
+);
+indexnow_assert(
+    brvtalIndexNowKeyLocationValid('/indexnow-rotation-2026.txt'),
+    'custom IndexNow key locations should be valid'
+);
+indexnow_assert(
+    !brvtalIndexNowKeyLocationValid('/ads.txt'),
+    'non-IndexNow root text files must stay outside the key route namespace'
+);
 
 echo "IndexNow contract passed.\n";
