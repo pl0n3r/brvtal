@@ -150,7 +150,10 @@
     const cards = safeRows.map(record => {
       const key = String(record.setting_key || '');
       const isTheme = key === 'theme.active' || key.startsWith('theme.');
-      const role = key === 'appearance' ? 'LEGACY' : (isTheme ? 'THEME STUDIO' : (['site','social','seo','analytics','indexnow'].includes(key) ? 'TYPED + RAW' : 'ADVANCED'));
+      let role = 'ADVANCED';
+      if (key === 'appearance') role = 'LEGACY';
+      else if (isTheme) role = 'THEME STUDIO';
+      else if (['site','social','seo','analytics','indexnow'].includes(key)) role = 'TYPED + RAW';
       let preview = String(record.setting_value ?? '');
       if (preview.length > 180) preview = preview.slice(0,177) + '…';
       const action = key === 'theme.active'
