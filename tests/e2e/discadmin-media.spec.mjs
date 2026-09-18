@@ -128,11 +128,11 @@ async function loadAdminHarness(page) {
 async function expectMutationFeedback(page, {url, method, working, done}) {
   let releaseResponse;
   const responseGate = new Promise(resolve => { releaseResponse = resolve; });
-  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\  const routePattern = '**' + url;
+  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const routePattern = new RegExp(escapedUrl + '$');
 
   await page.route(routePattern, async route => {
-');
-  const routePattern = new RegExp(escapedUrl + '    await responseGate;
+    await responseGate;
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({ok:true, data:{}})
