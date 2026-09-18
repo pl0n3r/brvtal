@@ -86,7 +86,7 @@ $sourceContracts = [
     __DIR__ . '/../discadmin/settings-v2.js' => [
         "jsonValue('indexnow')",
         'sv2_indexnow_enabled',
-        'sv2_indexnow_key',
+        "text('indexnow_key'",
         "persistJson('indexnow'",
     ],
     __DIR__ . '/../api/index.php' => [
