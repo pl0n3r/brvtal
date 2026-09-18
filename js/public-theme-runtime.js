@@ -160,11 +160,14 @@
     const heroLogo = document.querySelector('.hero-logo');
     if (!heroLogo) return;
 
-    const logo = selectedVisualLogo || mainLogo;
-    if (!logo) return;
-
     const picture = heroLogo.closest('picture');
     const sources = picture ? [...picture.querySelectorAll('source')] : [];
+    const logo = selectedVisualLogo || mainLogo;
+    if (!logo) {
+      clearHeroBrandImage(heroLogo, sources);
+      return;
+    }
+
     heroLogo.removeAttribute('srcset');
     heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
     sources.forEach(source => {
