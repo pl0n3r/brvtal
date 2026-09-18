@@ -38,4 +38,10 @@ return [
         // Database SQL + media inventory remain available even when media ZIP is skipped.
         'media_archive_max_bytes' => 2 * 1024 * 1024 * 1024,
     ],
+    'indexnow' => [
+        // The protocol key is publicly exposed through /indexnow-key.txt.
+        // Prefer BRVTAL_INDEXNOW_KEY at runtime; this untracked config value is the fallback.
+        'enabled' => true,
+        'key' => '',
+    ],
 ];
