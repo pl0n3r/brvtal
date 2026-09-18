@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/admin_log.php';
 brvtal_admin_require();
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -33,39 +34,32 @@ $respondJson = static function (array $payload, int $status = 200): never {
 };
 
 if ($action === 'clear') {
-    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-        header('Allow: POST');
-        if ($wantsJson) {
-            $respondJson(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
-        }
-        http_response_code(405);
-        exit('METHOD NOT ALLOWED');
-    }
+    $result = brvtal_admin_log_clear_result(
+        (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'),
+        (string)($_SESSION['csrf'] ?? ''),
+        (string)($_POST['csrf'] ?? ''),
+        $logFile
+    );
+    $status = (int)$result['status'];
+    $payload = $result['payload'];
 
-    $csrf = (string)($_POST['csrf'] ?? '');
-
-    if (
-        empty($_SESSION['csrf']) ||
-        $csrf === '' ||
-        !hash_equals((string)$_SESSION['csrf'], $csrf)
-    ) {
-        if ($wantsJson) {
-            $respondJson(['ok'=>false,'error'=>'CSRF'], 419);
+    if ($status !== 200) {
+        if ($status === 405) {
+            header('Allow: POST');
         }
-        http_response_code(419);
-        exit('CSRF');
-    }
-
-    if (is_file($logFile) && file_put_contents($logFile, '', LOCK_EX) === false) {
         if ($wantsJson) {
-            $respondJson(['ok'=>false,'error'=>'LOG_CLEAR_FAILED'], 500);
+            $respondJson($payload, $status);
         }
-        http_response_code(500);
-        exit('LOG CLEAR FAILED');
+        http_response_code($status);
+        $error = (string)($payload['error'] ?? 'LOG_CLEAR_FAILED');
+        exit(str_replace('_', ' ', $error));
     }
 
     if ($wantsJson) {
-        $respondJson(['ok'=>true,'file'=>'storage/logs/brvtal.log','bytes'=>0,'lines'=>0]);
+        $respondJson([
+            ...$payload,
+            'file' => 'storage/logs/brvtal.log',
+        ]);
     }
 
     header('Location: logs.php');
