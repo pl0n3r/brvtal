@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/public_page.php';
 
-function contextual_transmissions_it_expect(bool $condition, string $message): void
+function contextualTransmissionsItExpect(bool $condition, string $message): void
 {
     if (!$condition) {
         fwrite(STDERR, "CONTEXTUAL TRANSMISSIONS INTEGRATION FAILED: {$message}\n");
@@ -17,7 +17,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
 }
 
 $dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
-contextual_transmissions_it_expect(
+contextualTransmissionsItExpect(
     (bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/', $dbName),
     'test database name must start with brvtal_test'
 );
@@ -82,37 +82,37 @@ $cases = [
 ];
 
 foreach ($cases as [$routeType, $entityId, $expectedTitle]) {
-    $rows = brvtal_public_transmissions_for_entity($pdo, $routeType, $entityId);
-    contextual_transmissions_it_expect(
+    $rows = brvtalPublicTransmissionsForEntity($pdo, $routeType, $entityId);
+    contextualTransmissionsItExpect(
         count($rows) === 1,
         "{$routeType} must expose exactly one explicitly related published Transmission"
     );
-    contextual_transmissions_it_expect(
+    contextualTransmissionsItExpect(
         ($rows[0]['title'] ?? '') === $expectedTitle,
         "{$routeType} must expose the correct published Transmission"
     );
-    contextual_transmissions_it_expect(
+    contextualTransmissionsItExpect(
         ($rows[0]['route_type'] ?? '') === 'blog',
         "{$routeType} Transmission must preserve canonical Blog route type"
     );
 }
 
-contextual_transmissions_it_expect(
-    brvtal_public_transmissions_for_entity($pdo, 'artists', 999) === [['title' => 'UNRELATED SIGNAL','slug' => 'unrelated-signal','image' => '','meta' => date('d.m.Y'),'route_type' => 'blog']]
-    || count(brvtal_public_transmissions_for_entity($pdo, 'artists', 999)) === 1,
+$unrelatedRows = brvtalPublicTransmissionsForEntity($pdo, 'artists', 999);
+contextualTransmissionsItExpect(
+    count($unrelatedRows) === 1 && ($unrelatedRows[0]['title'] ?? '') === 'UNRELATED SIGNAL',
     'entity-specific relation lookup must not bleed records from other IDs'
 );
-contextual_transmissions_it_expect(
-    brvtal_public_transmissions_for_entity($pdo, 'pages', 101) === [],
+contextualTransmissionsItExpect(
+    brvtalPublicTransmissionsForEntity($pdo, 'pages', 101) === [],
     'unsupported entity types must remain outside contextual Transmissions'
 );
-contextual_transmissions_it_expect(
-    brvtal_public_transmissions_for_entity($pdo, 'artists', 0) === [],
+contextualTransmissionsItExpect(
+    brvtalPublicTransmissionsForEntity($pdo, 'artists', 0) === [],
     'invalid entity IDs must fail closed'
 );
 
-$artistRows = brvtal_public_transmissions_for_entity($pdo, 'artists', 101);
-contextual_transmissions_it_expect(
+$artistRows = brvtalPublicTransmissionsForEntity($pdo, 'artists', 101);
+contextualTransmissionsItExpect(
     !in_array('DRAFT SIGNAL', array_column($artistRows, 'title'), true),
     'draft Blog posts must never surface through inverse relations'
 );
