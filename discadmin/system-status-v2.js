@@ -12,6 +12,7 @@
   let refreshTimer = null;
   let requestId = 0;
   let logOperationId = 0;
+  let logResetInFlight = false;
 
   const esc = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
@@ -174,10 +175,14 @@
   }
 
   async function resetLogs(root, button) {
+    if (logResetInFlight) {
+      return;
+    }
     if (!armLogReset(button)) {
       return;
     }
 
+    logResetInFlight = true;
     const operationId = nextLogOperation();
     const output = root.querySelector('#ssv2-logs');
     setLogActionsDisabled(root, true);
@@ -205,6 +210,7 @@
       setLogMeta(root, `RESET FAILED · ${error.message}`);
       button.textContent = 'RETRY RESET';
     } finally {
+      logResetInFlight = false;
       if (isCurrentLogOperation(operationId)) {
         setLogActionsDisabled(root, false);
       }
@@ -426,6 +432,7 @@
         <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
+    setLogActionsDisabled(root, logResetInFlight);
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
     root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
       void loadLogs(root, event.currentTarget);
