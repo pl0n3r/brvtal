@@ -132,7 +132,7 @@ media_assert(str_contains($publicRuntime, "'js/public-media.js'"), 'adaptive pub
 media_assert(str_contains($publicMedia, 'role="dialog"') && str_contains($publicMedia, "event.key === 'Escape'"), 'public image viewer must be accessible and keyboard-dismissible');
 media_assert(str_contains($publicMedia, "['image','video','audio']"), 'public Media discovery must support image, video and audio types');
 media_assert(str_contains($publicMedia, '/api/public-image-delivery.php'), 'public Media must load the allowlisted image-delivery map');
-media_assert(str_contains($publicMedia, "deliveryCandidate(url, 'card')"), 'public Media grid must prefer card WebP variants');
+media_assert(preg_match("/deliveryCandidate\\(url,\\s*'card'\\)/", $publicMedia) === 1, 'public Media grid must prefer card WebP variants');
 media_assert(str_contains($publicMedia, "image.closest('.related-item-image')") && str_contains($publicMedia, "return 'square'"), 'related thumbnails must prefer square WebP variants');
 media_assert(str_contains($publicMedia, "scope.querySelectorAll('img')"), 'public delivery must inspect every public image node for eligible uploaded media');
 media_assert(str_contains($publicMedia, "image.getAttribute('data-src')"), 'deferred Hero Slider images must be eligible for WebP before activation');
