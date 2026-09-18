@@ -252,6 +252,6 @@
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
-  setTimeout(() => mount(),70);
+  setTimeout(() => mount(),0);
   window.BRVTALDashboardV2 = {mount:() => mount(true)};
 })();
