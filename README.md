@@ -5,7 +5,7 @@
 # BRVTAL — Último deploy
 
 <p align="center">
-  <strong>Archive × Memories · explicit cultural continuity</strong>
+  <strong>Theme runtime · smaller responsibilities, same public behavior</strong>
 </p>
 
 <p align="center">
@@ -20,10 +20,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `7199a067df54f6e05a8bfed4a0e6a3cd341c81be` · BRVTAL CI #1081 |
-| Alcance | 🗃️ **#503** | Archive reconoce Event↔Memory explícitos |
-| Real stack | 🧪 **E2E admin** | Event histórico + Memory + relación + Archive + cleanup |
-| Datos | 🔗 **Sin inferencia** | solo `memories[].relations` sanitizadas por `api/public.php` |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1167b2560caaad696f56b05438e3b2177e6ada74` · BRVTAL CI #1085 |
+| Alcance | 🧪 **#451** | siguiente slice de complejidad en Theme runtime |
+| Riesgo | 🧩 **Refactor** | sin cambio de schema, API ni contrato público |
+| Browser | 🌐 **Playwright** | branding desktop/mobile + favicon/preloader + fallback |
 | Producción | ⚪ **No validada por este PR** | CI verde no equivale a validación de producción |
 
 ## Flujo de entrega
@@ -43,46 +43,42 @@ flowchart LR
 
 ## Qué se hizo
 
-- #503 continúa #398 después de #501: Archive reconoce las Memories curadas que tienen una relación Event explícita.
-- No se añade endpoint, consulta pública adicional, tabla ni inferencia; el módulo reutiliza el mismo `window.BRVTALPublicDataPromise`.
-- Archive agrupa `data.memories[].relations` por Event y muestra `MEMORY / MEMORIES` junto a Artists/Sets.
-- Un Event histórico con **solo Memories** ahora sí expone `EXPLORE CONNECTIONS`.
-- Se añade filtro `WITH MEMORIES` dentro del mismo sistema de filtros por año/relación/búsqueda.
-- Relaciones Memory→Artist/Set/Release no cuentan como Event Memory y no alteran Archive.
-- El comportamiento móvil conserva touch targets ≥44 px y evita overflow horizontal.
-- El real-stack usa el usuario E2E aislado para crear un Event histórico y una Memory descartables, relacionarlos desde DISCADMIN y verificar Archive de punta a punta.
+- Continúa #451 con un slice único sobre `js/public-theme-runtime.js`, sin mezclar bugs funcionales de Theme Studio.
+- La selección de logos, sincronización del header/hero, binding responsive, favicon y preloader quedan en helpers pequeños y explícitos.
+- `updateBrandLogo()` conserva su contrato y ahora orquesta helpers en lugar de concentrar toda la ramificación.
+- `applyBranding()` conserva la misma autoridad pública pero separa copy, logo responsive, favicon y preloader.
+- Se preservan los fallbacks actuales: URLs no seguras no se aplican, un header logo fallido se retira y el branding textual permanece disponible.
+- El runtime sigue reutilizando `window.BRVTALPublicDataPromise`; el test verifica que no aparezca una segunda petición a `/api/public.php`.
+- Playwright valida cambio desktop→mobile, hero/header, favicon, preloader, tokens de color y fallback de imagen.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto de #503.
-- `index.html` — añade el filtro público `WITH MEMORIES`.
-- `js/archive.js` — deriva y renderiza conexiones Event↔Memory explícitas.
-- `tests/e2e/memory-relations-real-stack.spec.mjs` — valida Archive con usuario E2E real-stack.
-- `tests/e2e/public-archive.spec.mjs` — cubre Memory como única relación, filtro, CONNECTED y mobile.
-- `tests/public-archive-contract.php` — protege reutilización del payload y relación explícita-only.
+- `README.md` — snapshot exacto del slice #451.
+- `js/public-theme-runtime.js` — separa responsabilidades del branding runtime sin cambiar su API.
+- `tests/e2e/public-theme-runtime.spec.mjs` — regresión browser para branding responsive y fallback.
 
 ## Validación
 
-- Base exacta `7199a067df54f6e05a8bfed4a0e6a3cd341c81be` pasó BRVTAL CI #1081 completo.
-- El PR debe pasar BRVTAL CI, Sonar y CodeRabbit sobre su SHA exacto.
-- El job `real-stack` debe ejecutar el flujo autenticado con el usuario E2E/CI y limpiar todos los fixtures.
+- Base exacta `1167b2560caaad696f56b05438e3b2177e6ada74` pasó BRVTAL CI #1085 completo.
+- El PR debe volver a pasar BRVTAL CI / Chromium, Sonar y CodeRabbit sobre su SHA exacto.
+- Sonar debe confirmar que el refactor reduce el finding de complejidad objetivo sin introducir issues nuevos.
+- Para este runtime público no hay operación autenticada útil; la regla del usuario E2E aplica donde exista un flujo admin/privado que probar.
 - Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
-- No hay migración de producción en este alcance.
 - Ningún resultado de CI implica por sí solo **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Corregir cualquier finding válido de CI/Sonar/CodeRabbit.
+1. Corregir findings válidos del ciclo BRVTAL CI / Sonar / CodeRabbit.
 2. Squash merge y exact-main CI.
-3. Continuar #398 únicamente donde exista profundidad real respaldada por relaciones estructuradas.
-4. Continuar #451 con el siguiente slice de calidad de mayor riesgo sin mezclarlo con producto.
+3. Revalidar #451 y marcar Theme runtime como resuelto solo si Sonar deja de reportar el grupo objetivo.
+4. Continuar con el siguiente riesgo de mayor valor sin ampliar este PR.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🗃️ **Archivo cultural** | #398 · #503 conecta Archive con Memories explícitas |
-| 🧪 **Sonar / calidad** | #451 · #500/#502 completados; Theme runtime sigue pendiente |
+| 🧪 **Sonar / calidad** | #451 · Theme runtime en este slice; luego siguiente grupo vigente |
+| 🗃️ **Archivo cultural** | #398 · Archive/Memories ya conectados con relaciones explícitas |
 | 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
@@ -91,7 +87,7 @@ flowchart LR
 | ✍️ **Content / edición** | #224, #252 |
 | 🧾 **Activity / operaciones** | #232, #195 |
 | 📚 **Bulk Actions** | #275 — registros >500 sin falsa exhaustividad |
-| 🧭 **DISCADMIN / Theme** | #348, #351 |
+| 🧭 **DISCADMIN / Theme** | #348, #351, #354 |
 | 🌐 **Idioma** | #212 — español canónico + inglés automático por fases |
 | 💾 **Backups** | #389 — scheduling seguro + Drive opcional |
 
