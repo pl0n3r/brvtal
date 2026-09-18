@@ -217,7 +217,7 @@
         currentButton.textContent = 'RETRY RESET';
       }
       if (currentOutput && previousLogState) {
-        currentOutput.hidden = previousLogState.hidden;
+        currentOutput.toggleAttribute('hidden', previousLogState.hidden);
         currentOutput.textContent = previousLogState.textContent;
       }
     } finally {
