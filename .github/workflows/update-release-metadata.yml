@@ -182,16 +182,58 @@ jobs:
           readme = Path('README.md').read_text(encoding='utf-8')
           required = [
               '# BRVTAL — Último deploy',
+              '## Estado del deploy',
+              '## Flujo de entrega',
               '## Qué se hizo',
               '## Archivos modificados en este deploy',
               '## Validación',
               '## Qué sigue',
+              '## Panorama general pendiente',
           ]
-          missing_headings = [heading for heading in required if heading not in readme]
+          readme_lines = readme.splitlines()
+          heading_lines = {line.strip() for line in readme_lines if line.startswith('## ')}
+          missing_headings = [heading for heading in required if heading not in heading_lines and not heading.startswith('# BRVTAL')]
+          if '# BRVTAL — Último deploy' not in {line.strip() for line in readme_lines if line.startswith('# ')}:
+              missing_headings.insert(0, '# BRVTAL — Último deploy')
           if missing_headings:
               print('README missing required deploy-snapshot headings:', file=sys.stderr)
               for heading in missing_headings:
                   print(f'  - {heading}', file=sys.stderr)
+              sys.exit(1)
+
+          def h2_section(heading):
+              start = None
+              collected = []
+              for line in readme_lines:
+                  stripped = line.strip()
+                  if stripped == heading:
+                      start = True
+                      continue
+                  if start and line.startswith('## '):
+                      break
+                  if start:
+                      collected.append(line)
+              return '\n'.join(collected)
+
+          status_section = h2_section('## Estado del deploy')
+          flow_section = h2_section('## Flujo de entrega')
+          visual_requirements = {
+              'BRVTAL logo': 'assets/brvtal-logo-640.webp' in readme,
+              'BRVTAL CI badge': 'actions/workflows/update-release-metadata.yml/badge.svg' in readme,
+              'deploy status table in Estado del deploy': '| Señal | Estado | Evidencia |' in status_section,
+              'Mermaid diagram in Flujo de entrega': '```mermaid' in flow_section,
+              'PR snapshot stage': 'PR + snapshot exacto' in flow_section,
+              'parallel BRVTAL CI gate': 'A["PR + snapshot exacto"] --> B["BRVTAL CI"]' in flow_section,
+              'parallel Sonar gate': 'A --> C["Sonar"]' in flow_section,
+              'parallel CodeRabbit gate': 'A --> D["CodeRabbit"]' in flow_section,
+              'squash merge stage': 'Squash merge' in flow_section,
+              'exact-main validation stage': 'CI del SHA exacto de main' in flow_section,
+          }
+          missing_visuals = [name for name, present in visual_requirements.items() if not present]
+          if missing_visuals:
+              print('README missing required visual deploy markers:', file=sys.stderr)
+              for marker in missing_visuals:
+                  print(f'  - {marker}', file=sys.stderr)
               sys.exit(1)
 
           section = re.search(
