@@ -56,6 +56,36 @@ function brvtal_page_public_event_rows(PDO $pdo, string $sql, array $parameters 
     ));
 }
 
+function brvtal_public_transmission_relation_type(string $routeType): ?string
+{
+    return [
+        'events' => 'event',
+        'artists' => 'artist',
+        'sets' => 'set',
+        'releases' => 'release',
+    ][$routeType] ?? null;
+}
+
+function brvtal_public_transmissions_for_entity(PDO $pdo, string $routeType, int $entityId): array
+{
+    $relationType = brvtal_public_transmission_relation_type($routeType);
+    if ($relationType === null || $entityId < 1) {
+        return [];
+    }
+
+    return brvtal_page_rows(
+        $pdo,
+        "SELECT bp.title,bp.slug,bp.cover_image AS image,"
+            . "DATE_FORMAT(COALESCE(bp.published_at,bp.updated_at),'%d.%m.%Y') AS meta,"
+            . "'blog' AS route_type "
+            . "FROM blog_post_relations rel "
+            . "JOIN blog_posts bp ON bp.id=rel.post_id AND bp.status='published' "
+            . "WHERE rel.related_type=? AND rel.related_id=? "
+            . "ORDER BY rel.sort_order,COALESCE(bp.published_at,bp.updated_at) DESC,bp.id DESC",
+        [$relationType, $entityId]
+    );
+}
+
 function brvtal_public_page_data(PDO $pdo, array $entity): array
 {
     brvtal_page_query_degraded(false);
@@ -90,10 +120,10 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
         $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
-        $data['related']['TRANSMISSIONS'] = brvtal_page_rows(
+        $data['related']['TRANSMISSIONS'] = brvtal_public_transmissions_for_entity(
             $pdo,
-            "SELECT bp.title,bp.slug,bp.cover_image AS image,DATE_FORMAT(COALESCE(bp.published_at,bp.updated_at),'%d.%m.%Y') AS meta,'blog' AS route_type FROM blog_post_relations rel JOIN blog_posts bp ON bp.id=rel.post_id AND bp.status='published' WHERE rel.related_type='event' AND rel.related_id=? ORDER BY rel.sort_order,COALESCE(bp.published_at,bp.updated_at) DESC,bp.id DESC",
-            [$id]
+            $type,
+            $id
         );
         if ($allowsTicketing) {
             $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
@@ -114,12 +144,14 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         );
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE artist_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         $data['related']['RELEASES'] = brvtal_page_rows($pdo, "SELECT r.title,r.slug,r.artwork AS image,CONCAT_WS(' / ',UPPER(r.release_type),r.catalog_number) AS meta,'releases' AS route_type FROM release_artists ra JOIN releases r ON r.id=ra.release_id AND r.status='published' WHERE ra.artist_id=? ORDER BY r.release_date DESC,r.sort_order", [$id]);
+        $data['related']['TRANSMISSIONS'] = brvtal_public_transmissions_for_entity($pdo, $type, $id);
     } elseif ($type === 'releases') {
         $detail = brvtal_page_row($pdo, "SELECT release_type,catalog_number,release_date,spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url FROM releases WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
         $data['facts'] = array_filter(['FORMAT' => strtoupper((string)($detail['release_type'] ?? '')), 'CATALOG' => $detail['catalog_number'] ?? '', 'RELEASE DATE' => $detail['release_date'] ?? '']);
         $data['links'] = array_filter(['SPOTIFY' => $detail['spotify_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'BANDCAMP' => $detail['bandcamp_url'] ?? '', 'YOUTUBE' => $detail['youtube_url'] ?? '', 'BEATPORT' => $detail['beatport_url'] ?? '']);
         $data['related']['ARTISTS'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ra.role AS meta,'artists' AS route_type FROM release_artists ra JOIN artists a ON a.id=ra.artist_id AND a.status='published' WHERE ra.release_id=? ORDER BY ra.sort_order,a.name", [$id]);
+        $data['related']['TRANSMISSIONS'] = brvtal_public_transmissions_for_entity($pdo, $type, $id);
     } elseif ($type === 'blog') {
         $detail = brvtal_page_row($pdo, "SELECT body,published_at FROM blog_posts WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
@@ -158,6 +190,7 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
                 array_merge([(int)$detail['event_id']], $eventStatuses)
             );
         }
+        $data['related']['TRANSMISSIONS'] = brvtal_public_transmissions_for_entity($pdo, $type, $id);
     } elseif ($type === 'pages') {
         $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id], true);
         $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
