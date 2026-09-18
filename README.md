@@ -8,33 +8,34 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque P2 acotado de mantenibilidad en Media Library.
-- `renderInspector()` deja de concentrar la preparación condicional de visual, dimensiones, estado del Media Engine, referencias de uso y contextos de crop.
-- Esas decisiones pasan a helpers pequeños de presentación, preservando el HTML y la precedencia funcional existentes.
-- El inspector sigue diferenciando imágenes de audio/video/documentos; los assets no-imagen no muestran controles de crop.
-- Los assets referenciados siguen mostrando su uso y mantienen DELETE deshabilitado.
-- La regresión Playwright cubre explícitamente un asset de audio referenciado además del flujo de imagen/crop existente.
-- No cambia API, upload, transformación, persistencia, permisos ni rutas.
+- Continúa #451 con un bloque P2 acotado en `discadmin/settings-v2.js`.
+- `save()` deja de concentrar toda la lógica condicional de General, Social, SEO y Analytics.
+- Cada sección tipada tiene ahora un handler pequeño y explícito; `save()` solo orquesta feedback + dispatch.
+- Se preservan validaciones, merge de JSON existente, claves desconocidas, normalización de GTM y limpieza de claves legacy.
+- La cobertura Playwright valida Social, SEO y Analytics además del flujo General ya existente.
+- También verifica que URLs/containers inválidos no persistan cambios.
+- No cambia API, formato almacenado, navegación, permisos ni UI visible.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/media-library.js` — helpers de presentación para reducir el anidamiento del inspector.
-- `tests/e2e/discadmin-media.spec.mjs` — cobertura de inspector no-imagen y protección de media referenciada.
+- `discadmin/settings-v2.js` — handlers tipados para reducir complejidad en guardado.
+- `tests/e2e/discadmin-settings-v2.spec.mjs` — cobertura de persistencia y validación por sección.
 
 ## Validación
 
-- Base exacta: `main` `a957f683b84983ab81173ee3b934e3bea12b865c`.
-- Esa base pasó **BRVTAL CI #994** y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `f3ce5cd3f6d60b02f5985e1018e7639e88ca9642`.
+- Esa base pasó **BRVTAL CI #997** y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
 
 ## Qué sigue
 
-- Tachar Media Library deep nesting en #451 solo después del merge y del CI verde del `main` exacto.
-- Continuar con el siguiente bloque P2 que siga reproduciéndose.
-- Revalidar aparte el bloque Sonar de `Math.random()` reportado por el usuario antes de cambiarlo.
+- Tachar `settings-v2.js` en #451 solo después del merge y del CI verde del `main` exacto.
+- Continuar con el siguiente P2 que siga reproduciéndose.
+- Resolver en un bloque separado el warning de Sonar sobre `sonar.python.version`, usando la versión/rango real del proyecto.
+- Revalidar aparte el bloque Sonar de `Math.random()` reportado por el usuario antes de modificarlo.
 - Reconciliar PR #434 / Memories aparte, sin ejecutar migraciones de producción automáticamente.
 - Mantener #479, #480 y #481 como frentes separados.
 

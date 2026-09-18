@@ -178,31 +178,55 @@
     if (api?.[kind]) api[kind](message,'settings-v2');
   }
 
+  async function saveGeneral() {
+    const name = read('site_name');
+    const tagline = read('site_tagline');
+    if (!name) throw new Error('Public site name is required.');
+    await persistJson('site',{name,tagline});
+  }
+
+  async function saveSocial() {
+    const patch = {};
+    for (const key of ['instagram','soundcloud','youtube','spotify','website']) {
+      const value = read(key);
+      if (!validHttpUrl(value)) throw new Error(`${key.toUpperCase()} must be an HTTP/HTTPS URL.`);
+      patch[key] = value;
+    }
+    await persistJson('social',patch);
+  }
+
+  async function saveSeo() {
+    const share = read('seo_share');
+    if (share && !validHttpUrl(share) && !share.startsWith('/')) {
+      throw new Error('Share image must be an HTTP/HTTPS URL or an absolute public path.');
+    }
+    await persistJson('seo',{
+      site_title:read('seo_title'),
+      description:read('seo_description').slice(0,320),
+      share_image:share
+    });
+  }
+
+  async function saveAnalytics() {
+    const gtm = read('gtm_id').toUpperCase();
+    if (gtm && !/^GTM-[A-Z0-9]{4,20}$/.test(gtm)) {
+      throw new Error('Google Tag Manager ID must use the GTM-XXXXXXX format.');
+    }
+    await persistJson('analytics',{gtm_id:gtm},['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']);
+  }
+
+  const saveHandlers = {
+    general:saveGeneral,
+    social:saveSocial,
+    seo:saveSeo,
+    analytics:saveAnalytics
+  };
+
   async function save(section) {
     try {
       feedback('progress','Saving Settings…');
-      if (section === 'general') {
-        const name = read('site_name');
-        const tagline = read('site_tagline');
-        if (!name) throw new Error('Public site name is required.');
-        await persistJson('site',{name,tagline});
-      } else if (section === 'social') {
-        const patch = {};
-        for (const key of ['instagram','soundcloud','youtube','spotify','website']) {
-          const value = read(key);
-          if (!validHttpUrl(value)) throw new Error(`${key.toUpperCase()} must be an HTTP/HTTPS URL.`);
-          patch[key] = value;
-        }
-        await persistJson('social',patch);
-      } else if (section === 'seo') {
-        const share = read('seo_share');
-        if (share && !validHttpUrl(share) && !share.startsWith('/')) throw new Error('Share image must be an HTTP/HTTPS URL or an absolute public path.');
-        await persistJson('seo',{site_title:read('seo_title'),description:read('seo_description').slice(0,320),share_image:share});
-      } else if (section === 'analytics') {
-        const gtm = read('gtm_id').toUpperCase();
-        if (gtm && !/^GTM-[A-Z0-9]{4,20}$/.test(gtm)) throw new Error('Google Tag Manager ID must use the GTM-XXXXXXX format.');
-        await persistJson('analytics',{gtm_id:gtm},['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']);
-      }
+      const handler = saveHandlers[section];
+      if (handler) await handler();
       feedback('success','Settings saved.');
     } catch (error) {
       feedback('error',error?.message || 'Settings save failed.');

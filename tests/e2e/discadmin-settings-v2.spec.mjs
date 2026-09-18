@@ -9,14 +9,21 @@ const url = 'http://127.0.0.1:4173/settings-v2-e2e.html';
 function harness() {
   const rows = [
     {setting_key:'site',is_json:1,setting_value:JSON.stringify({name:'BRVTAL',tagline:'RAVE TILL GRAVE',default_locale:'es',available_locales:['es','en'],custom_keep:'preserve-me'})},
-    {setting_key:'social',is_json:1,setting_value:JSON.stringify({instagram:'https://instagram.com/brvtal',soundcloud:'',youtube:'',spotify:''})},
+    {setting_key:'social',is_json:1,setting_value:JSON.stringify({instagram:'https://instagram.com/brvtal',soundcloud:'',youtube:'',spotify:'',website:'',custom_keep:'social-preserve'})},
+    {setting_key:'seo',is_json:1,setting_value:JSON.stringify({site_title:'BRVTAL',description:'Default description',share_image:'',custom_keep:'seo-preserve'})},
+    {setting_key:'analytics',is_json:1,setting_value:JSON.stringify({gtm_id:'',ga4_id:'G-OLD',google:'legacy',measurement_id:'legacy',google_tag_manager:'GTM-OLD1',tag_manager:'GTM-OLD2',gtm:'GTM-OLD3',custom_keep:'analytics-preserve'})},
     {setting_key:'appearance',is_json:1,setting_value:JSON.stringify({defaultAccent:'#ff1717'})},
     {setting_key:'theme.active',is_json:0,setting_value:'core'},
     {setting_key:'theme.core',is_json:1,setting_value:JSON.stringify({name:'BRVTAL CORE',branding:{siteName:'BRVTAL'}})},
   ];
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#050505;color:#fff;font-family:Arial}.btn,.iconbtn{border:1px solid #444;background:#111;color:#fff;padding:10px}.btn.red{background:#ff2038}.btn.ghost{background:transparent}</style><style>${css}</style></head><body><div id="app"></div><div id="modal"></div><script>
     window.state={section:'settings',rows:${JSON.stringify(rows)}};
-    window.__posts=[];window.__legacy=[];window.__newRaw=0;
+    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];
+    window.BRVTALFeedback={
+      progress(message){window.__feedback.push(['progress',message])},
+      success(message){window.__feedback.push(['success',message])},
+      error(message){window.__feedback.push(['error',message])}
+    };
     window.openSettingByKey=function(key){window.__legacy.push(key)};
     window.openModal=function(type){if(type==='settings')window.__newRaw+=1};
     window.req=async function(path,options={}){
@@ -62,6 +69,69 @@ test('typed save preserves unknown sibling JSON keys', async ({ page }) => {
   expect(value.default_locale).toBe('es');
   expect(value.available_locales).toEqual(['es','en']);
   expect(value.custom_keep).toBe('preserve-me');
+});
+
+test('typed save handlers preserve sibling data across Social, SEO, and Analytics', async ({ page }) => {
+  await open(page);
+
+  await page.locator('[data-settings-tab="social"]').click();
+  await page.locator('#sv2_website').fill('https://brvtal.com.co');
+  await page.getByRole('button',{name:'SAVE SOCIAL'}).click();
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(1);
+
+  await page.locator('[data-settings-tab="seo"]').click();
+  await page.locator('#sv2_seo_title').fill('BRVTAL Archive');
+  await page.locator('#sv2_seo_share').fill('/uploads/share.webp');
+  await page.getByRole('button',{name:'SAVE SEO'}).click();
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(2);
+
+  await page.locator('[data-settings-tab="analytics"]').click();
+  await page.locator('#sv2_gtm_id').fill('gtm-abcd123');
+  await page.getByRole('button',{name:'SAVE TAG MANAGER'}).click();
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(3);
+
+  const posts = await page.evaluate(() => window.__posts.map(post => ({
+    key:post.setting_key,
+    value:JSON.parse(post.setting_value)
+  })));
+
+  expect(posts[0]).toEqual({
+    key:'social',
+    value:{
+      instagram:'https://instagram.com/brvtal',
+      soundcloud:'',
+      youtube:'',
+      spotify:'',
+      website:'https://brvtal.com.co',
+      custom_keep:'social-preserve'
+    }
+  });
+  expect(posts[1].key).toBe('seo');
+  expect(posts[1].value.site_title).toBe('BRVTAL Archive');
+  expect(posts[1].value.share_image).toBe('/uploads/share.webp');
+  expect(posts[1].value.custom_keep).toBe('seo-preserve');
+  expect(posts[2].key).toBe('analytics');
+  expect(posts[2].value.gtm_id).toBe('GTM-ABCD123');
+  expect(posts[2].value.custom_keep).toBe('analytics-preserve');
+  for (const legacy of ['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']) {
+    expect(posts[2].value).not.toHaveProperty(legacy);
+  }
+});
+
+test('typed save handlers keep validation failures from persisting invalid values', async ({ page }) => {
+  await open(page);
+
+  await page.locator('[data-settings-tab="social"]').click();
+  await page.locator('#sv2_instagram').fill('javascript:alert(1)');
+  await page.getByRole('button',{name:'SAVE SOCIAL'}).click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual(['error','INSTAGRAM must be an HTTP/HTTPS URL.']);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(0);
+
+  await page.locator('[data-settings-tab="analytics"]').click();
+  await page.locator('#sv2_gtm_id').fill('invalid-container');
+  await page.getByRole('button',{name:'SAVE TAG MANAGER'}).click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual(['error','Google Tag Manager ID must use the GTM-XXXXXXX format.']);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(0);
 });
 
 test('SEO and Analytics are first-class typed Settings while raw editing stays Advanced', async ({ page }) => {
