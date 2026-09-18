@@ -99,7 +99,14 @@ test('Theme settings preserve active reference integrity through the authenticat
       field:'setting_key',
     });
   } finally {
-    await restoreActiveSetting();
-    await deleteSetting(themeKey);
+    const cleanupErrors = [];
+    for (const cleanupStep of [restoreActiveSetting, () => deleteSetting(themeKey)]) {
+      try {
+        await cleanupStep();
+      } catch (error) {
+        cleanupErrors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    expect(cleanupErrors, `Cleanup failed: ${cleanupErrors.join(' | ')}`).toEqual([]);
   }
 });

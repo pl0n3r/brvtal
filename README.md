@@ -13,7 +13,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - La referencia solo se considera válida cuando existe `theme.<slug>`, está marcada como JSON y decodifica a un objeto/array de configuración válido.
 - No se puede borrar el registro `theme.<slug>` que está actualmente referenciado por `theme.active`; el servidor responde `ACTIVE_THEME_DELETE_BLOCKED`.
 - Tampoco se puede degradar o corromper la definición `theme.<slug>` que está activa: mientras esté referenciada debe conservar `is_json=1` y un payload JSON de configuración válido.
-- Esa protección también cubre el fallback implícito `core`: aunque no exista `theme.active`, `theme.core` no puede degradarse a un valor no JSON.
+- Esa protección también cubre el fallback implícito `core`: si `theme.active` falta, está vacío o es inválido, `theme.core` no puede degradarse ni borrarse.
 - Las mutaciones `theme.*` se serializan entre sesiones con un mutex de MariaDB y transacción; la validación, el bloqueo de filas y la escritura/borrado ya no pueden intercalarse dejando una referencia colgante.
 - `DELETE /settings` usa el mismo normalizador canónico que `POST`, por lo que variantes como `Theme.core` se rechazan antes de tocar la base de datos.
 - El fallback `core` sin `theme.active` sigue intacto: Theme Studio guarda primero `theme.core` antes de persistir `theme.active=core` cuando se activa explícitamente.

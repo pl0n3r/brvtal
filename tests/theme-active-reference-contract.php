@@ -56,10 +56,42 @@ theme_reference_assert($implicitCoreValid === null, 'valid implicit core definit
 $inactiveDefinition = brvtalThemeDefinitionUpdateError('theme.alt', 0, 'legacy-value', 'core');
 theme_reference_assert($inactiveDefinition === null, 'inactive theme definitions remain governed by activation-time validation');
 
+theme_reference_assert(
+    brvtal_theme_active_slug_effective(null) === 'core',
+    'missing theme.active must resolve to the implicit core theme'
+);
+theme_reference_assert(
+    brvtal_theme_active_slug_effective('   ') === 'core',
+    'blank theme.active must resolve to the implicit core theme'
+);
+theme_reference_assert(
+    brvtal_theme_active_slug_effective('bad slug!') === 'core',
+    'invalid theme.active must resolve to the implicit core theme'
+);
+theme_reference_assert(
+    brvtal_theme_active_slug_effective('  core  ') === 'core',
+    'effective active slug normalization must trim valid values'
+);
+
 $activeDelete = brvtalThemeDeleteReferenceError('theme.core', 'core');
 theme_reference_assert(($activeDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED', 'active theme record deletion must be rejected');
 $inactiveDelete = brvtalThemeDeleteReferenceError('theme.alt', 'core');
 theme_reference_assert($inactiveDelete === null, 'inactive theme record deletion may proceed');
+$implicitCoreDelete = brvtalThemeDeleteReferenceError('theme.core', null);
+theme_reference_assert(
+    ($implicitCoreDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED',
+    'implicit core record deletion must be rejected when theme.active is missing'
+);
+$blankCoreDelete = brvtalThemeDeleteReferenceError('theme.core', '   ');
+theme_reference_assert(
+    ($blankCoreDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED',
+    'implicit core record deletion must be rejected when theme.active is blank'
+);
+$invalidCoreDelete = brvtalThemeDeleteReferenceError('theme.core', 'bad slug!');
+theme_reference_assert(
+    ($invalidCoreDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED',
+    'implicit core record deletion must be rejected when theme.active is invalid'
+);
 $activePointerDelete = brvtalThemeDeleteReferenceError('theme.active', 'core');
 theme_reference_assert($activePointerDelete === null, 'deleting the pointer itself is not a target-record dangling reference');
 
@@ -86,12 +118,12 @@ theme_reference_assert(str_contains($api, 'SELECT RELEASE_LOCK(?)'), 'Theme muta
 theme_reference_assert(str_contains($settingsPostBlock, 'brvtalAcquireThemeReferenceMutex($pdo)'), 'Settings POST must serialize theme writes before reference validation');
 theme_reference_assert(str_contains($settingsPostBlock, 'brvtalThemeDefinitionUpdateError'), 'Settings POST must protect the concrete active theme definition before upsert');
 theme_reference_assert(str_contains($settingsPostBlock, "setting_key='theme.active' LIMIT 1 FOR UPDATE"), 'Settings POST must lock theme.active while protecting active definition updates');
-theme_reference_assert(str_contains($settingsPostBlock, 'LIMIT 1 FOR UPDATE'), 'theme.active activation must lock the target theme row inside its transaction');
+theme_reference_assert(str_contains($settingsPostBlock, "WHERE setting_key=? AND is_json=1 LIMIT 1 FOR UPDATE"), 'theme.active activation must lock the target theme row inside its transaction');
 theme_reference_assert(str_contains($settingsDeleteBlock, "brvtal_setting_key_normalize((string)(\$_GET['key'] ?? ''))"), 'Settings DELETE must apply the canonical setting-key validator before database access');
 theme_reference_assert(str_contains($settingsDeleteBlock, 'brvtalAcquireThemeReferenceMutex($pdo)'), 'Settings DELETE must share the same Theme mutation mutex');
 theme_reference_assert(str_contains($settingsDeleteBlock, "setting_key='theme.active' LIMIT 1 FOR UPDATE"), 'Settings DELETE must lock theme.active before checking the protected target');
 theme_reference_assert(str_contains($settingsDeleteBlock, '$pdo->beginTransaction();'), 'Theme Settings DELETE must check and delete inside one transaction');
-theme_reference_assert(str_contains($api, '409'), 'Settings DELETE must return an HTTP 409 conflict for the protected active theme.');
+theme_reference_assert(str_contains($settingsDeleteBlock, '409'), 'Settings DELETE must return an HTTP 409 conflict for the protected active theme.');
 theme_reference_assert(str_contains($settingsUi, 'data-settings-theme-studio'), 'Settings must route theme.active to Theme Studio');
 theme_reference_assert(str_contains($settingsUi, "globalThis.go?.('theme')"), 'Settings must keep Theme Studio inside the canonical shell');
 

@@ -210,6 +210,13 @@ function brvtalThemeActiveReferenceError(string $key, string $value, callable $t
         : ['error' => 'THEME_NOT_FOUND', 'field' => 'setting_value'];
 }
 
+/** Resolve the effective active Theme slug, including the implicit core fallback. */
+function brvtal_theme_active_slug_effective(?string $activeSlug): string
+{
+    $slug = trim((string)$activeSlug);
+    return preg_match('/^[a-z0-9_-]{1,60}$/i', $slug) === 1 ? $slug : 'core';
+}
+
 /** Keep the concrete active Theme definition valid while it is being updated. */
 function brvtalThemeDefinitionUpdateError(string $key, int $isJson, string $value, ?string $activeSlug): ?array
 {
@@ -217,7 +224,7 @@ function brvtalThemeDefinitionUpdateError(string $key, int $isJson, string $valu
         return null;
     }
 
-    $activeSlug ??= 'core';
+    $activeSlug = brvtal_theme_active_slug_effective($activeSlug);
     $slug = substr($key, strlen('theme.'));
     if (!hash_equals($activeSlug, $slug)) {
         return null;
@@ -240,7 +247,7 @@ function brvtalThemeDeleteReferenceError(string $key, ?string $activeSlug): ?arr
         return null;
     }
     $slug = substr($key, strlen('theme.'));
-    return $activeSlug !== null && hash_equals($activeSlug, $slug)
+    return hash_equals(brvtal_theme_active_slug_effective($activeSlug), $slug)
         ? ['error' => 'ACTIVE_THEME_DELETE_BLOCKED', 'field' => 'setting_key']
         : null;
 }
