@@ -42,13 +42,14 @@ flowchart LR
 - Añade **TRANSMISSIONS** a Home como capa editorial BRVTAL sobre el Blog publicado existente.
 - Reutiliza `window.BRVTALPublicDataPromise`; no crea endpoint ni segunda petición CMS.
 - Conserva el orden canónico del payload y limita Home a cuatro señales editoriales.
-- Los títulos navegan a `/blog/{slug}` y solo se muestran relaciones estructuradas explícitas Event/Artist/Set/Release.
+- Los títulos navegan a `/blog/{slug}` y las relaciones `related_id` se resuelven únicamente contra los pools públicos finales Event/Artist/Set/Release, incluidos Events archivados.
 - Añade estados honestos para colección vacía y fallo del payload compartido.
 - Añade layout mobile-first, targets táctiles y protección contra overflow.
 - No incluye migraciones ni cambios de esquema.
 
 ## Archivos modificados en este deploy
 
+- `AGENTS.md` — contrato durable de TRANSMISSIONS, relaciones reales y orden del runtime.
 - `README.md` — snapshot exacto y panorama pendiente.
 - `index.html` — mount y fallback estático de TRANSMISSIONS.
 - `index.php` — entrega/defer versionado de estilos.
@@ -70,8 +71,8 @@ flowchart LR
 
 1. Cerrar tests y gates de #506.
 2. Squash merge + exact-main CI.
-3. Continuar #398 profundizando rutas de archivo cultural con relaciones explícitas.
-4. Mantener #481 IndexNow como frente SEO independiente preparado.
+3. Implementar #481 IndexNow como notificación SEO event-driven sobre cambios públicos reales.
+4. Retomar #398 profundizando rutas de archivo cultural con relaciones explícitas.
 
 ## Panorama general pendiente
 
