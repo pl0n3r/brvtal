@@ -16,6 +16,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - El buscador del Media Picker recibe un nombre accesible explícito.
 - No cambia payload, validación, persistencia, rutas ni comportamiento editorial.
 - Se añade un contrato dedicado que cubre estos nombres y asociaciones.
+- La regresión Playwright de Releases valida además la estructura renderizada de cada fila de artista, no solo marcadores de código fuente.
 
 ## Archivos modificados en este deploy
 
@@ -25,6 +26,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `discadmin/media-library.js` — nombre accesible del buscador del Media Picker.
 - `discadmin/releases.js` — asociaciones label/control y separación semántica de controles por artista.
 - `tests/discadmin-editor-accessibility-contract.php` — regresión de accesibilidad para los cuatro módulos.
+- `tests/e2e/discadmin-releases.spec.mjs` — verifica en el DOM renderizado la asociación nativa entre nombre visible y checkbox de artista.
 
 ## Validación
 
