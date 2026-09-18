@@ -186,7 +186,7 @@ Implemented:
 - responsive Home and entity delivery;
 - mobile performance fallbacks for expensive effects;
 - adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
-- core runtime preserves `app → roster → sets → archive → media` order and survives optional motion-CDN failure;
+- core runtime preserves `app → roster → sets → archive → media → transmissions` order and survives optional motion-CDN failure;
 - non-blocking Google Fonts;
 - keyboard/touch accessibility passes;
 - canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
@@ -197,6 +197,7 @@ Implemented:
 - Archive discovery by year/search/relationships;
 - Public Media discovery;
 - Home Memories is an explicit curated gallery backed by `memories` records rather than the whole Media Library; only published Memories with published image/video/audio sources are exposed, with editorial ordering, two-column mobile rhythm and an immersive keyboard-accessible viewer;
+- Home **TRANSMISSIONS** is the public editorial surface for published Blog records: it preserves canonical Blog order/routes, reuses the shared public payload and exposes only explicit Event/Artist/Set/Release relation context resolved against public pools;
 - Related Content relationship graph;
 - **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
 - Set graph detail links through public Artist/Event relationships and keeps canonical Set/platform links;
