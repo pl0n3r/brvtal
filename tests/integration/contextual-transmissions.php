@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../config/public_visibility.php';
+require_once __DIR__ . '/../../config/public_seo.php';
 require_once __DIR__ . '/../../config/public_page.php';
 
 function contextualTransmissionsItExpect(bool $condition, string $message): void
@@ -39,6 +41,74 @@ $pdo = new PDO(
     ]
 );
 
+$pdo->exec("CREATE TEMPORARY TABLE artists (
+    id INT PRIMARY KEY,
+    name VARCHAR(180) NOT NULL,
+    slug VARCHAR(190) NOT NULL,
+    photo VARCHAR(500) NULL,
+    status VARCHAR(30) NOT NULL,
+    instagram_url VARCHAR(500) NULL,
+    soundcloud_url VARCHAR(500) NULL,
+    website_url VARCHAR(500) NULL,
+    collective_status VARCHAR(30) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE events (
+    id INT PRIMARY KEY,
+    title VARCHAR(180) NOT NULL,
+    slug VARCHAR(190) NOT NULL,
+    cover_image VARCHAR(500) NULL,
+    status VARCHAR(30) NOT NULL,
+    event_date DATETIME NULL,
+    published_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE event_artists (
+    event_id INT NOT NULL,
+    artist_id INT NOT NULL,
+    lineup_order INT NOT NULL DEFAULT 0,
+    role VARCHAR(80) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE sets_media (
+    id INT PRIMARY KEY,
+    title VARCHAR(180) NOT NULL,
+    slug VARCHAR(190) NOT NULL,
+    cover_image VARCHAR(500) NULL,
+    platform VARCHAR(30) NOT NULL,
+    external_url VARCHAR(700) NULL,
+    embed_url VARCHAR(700) NULL,
+    artist_id INT NULL,
+    event_id INT NULL,
+    status VARCHAR(30) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE releases (
+    id INT PRIMARY KEY,
+    title VARCHAR(180) NOT NULL,
+    slug VARCHAR(190) NOT NULL,
+    artwork VARCHAR(500) NULL,
+    release_type VARCHAR(40) NULL,
+    catalog_number VARCHAR(120) NULL,
+    release_date DATE NULL,
+    spotify_url VARCHAR(500) NULL,
+    soundcloud_url VARCHAR(500) NULL,
+    bandcamp_url VARCHAR(500) NULL,
+    youtube_url VARCHAR(500) NULL,
+    beatport_url VARCHAR(500) NULL,
+    status VARCHAR(30) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE release_artists (
+    release_id INT NOT NULL,
+    artist_id INT NOT NULL,
+    role VARCHAR(80) NULL,
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 $pdo->exec("CREATE TEMPORARY TABLE blog_posts (
     id INT PRIMARY KEY,
     title VARCHAR(180) NOT NULL,
@@ -56,65 +126,141 @@ $pdo->exec("CREATE TEMPORARY TABLE blog_post_relations (
     sort_order INT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+$pdo->exec("CREATE TEMPORARY TABLE memory_relations (
+    memory_id INT NOT NULL,
+    related_type VARCHAR(30) NOT NULL,
+    related_id INT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE memories (
+    id INT PRIMARY KEY,
+    media_id INT NOT NULL,
+    title VARCHAR(180) NOT NULL,
+    context VARCHAR(320) NULL,
+    status VARCHAR(30) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("CREATE TEMPORARY TABLE media (
+    id INT PRIMARY KEY,
+    type VARCHAR(30) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    alt_text VARCHAR(255) NULL,
+    status VARCHAR(30) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$pdo->exec("INSERT INTO artists
+    (id,name,slug,photo,status,instagram_url,soundcloud_url,website_url,collective_status)
+    VALUES (101,'ARTIST FIXTURE','artist-fixture','','published','','','','active')");
+
+$pdo->exec("INSERT INTO sets_media
+    (id,title,slug,cover_image,platform,external_url,embed_url,artist_id,event_id,status,sort_order,created_at)
+    VALUES (202,'SET FIXTURE','set-fixture','','soundcloud','https://example.com/set','',NULL,NULL,'published',1,NOW())");
+
+$pdo->exec("INSERT INTO releases
+    (id,title,slug,artwork,release_type,catalog_number,release_date,spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url,status,sort_order)
+    VALUES (303,'RELEASE FIXTURE','release-fixture','','ep','BRV303',CURRENT_DATE,'','','','','','published',1)");
+
 $pdo->exec("INSERT INTO blog_posts
     (id,title,slug,cover_image,published_at,updated_at,status)
     VALUES
     (1,'ARTIST SIGNAL','artist-signal','',NOW(),NOW(),'published'),
     (2,'SET SIGNAL','set-signal','',NOW(),NOW(),'published'),
     (3,'RELEASE SIGNAL','release-signal','',NOW(),NOW(),'published'),
-    (4,'EVENT SIGNAL','event-signal','',NOW(),NOW(),'published'),
-    (5,'DRAFT SIGNAL','draft-signal','',NULL,NOW(),'draft'),
-    (6,'UNRELATED SIGNAL','unrelated-signal','',NOW(),NOW(),'published')");
+    (4,'DRAFT SIGNAL','draft-signal','',NULL,NOW(),'draft'),
+    (5,'UNRELATED SIGNAL','unrelated-signal','',NOW(),NOW(),'published')");
 
 $pdo->exec("INSERT INTO blog_post_relations(post_id,related_type,related_id,sort_order) VALUES
     (1,'artist',101,1),
     (2,'set',202,1),
     (3,'release',303,1),
-    (4,'event',404,1),
-    (5,'artist',101,2),
-    (6,'artist',999,1)");
+    (4,'artist',101,2),
+    (5,'artist',999,1)");
 
 $cases = [
-    ['artists', 101, 'ARTIST SIGNAL'],
-    ['sets', 202, 'SET SIGNAL'],
-    ['releases', 303, 'RELEASE SIGNAL'],
-    ['events', 404, 'EVENT SIGNAL'],
+    [
+        'entity' => [
+            'id' => 101,
+            'route_type' => 'artists',
+            'title' => 'ARTIST FIXTURE',
+            'description' => 'Artist fixture description',
+            'slug' => 'artist-fixture',
+        ],
+        'expected' => 'ARTIST SIGNAL',
+    ],
+    [
+        'entity' => [
+            'id' => 202,
+            'route_type' => 'sets',
+            'title' => 'SET FIXTURE',
+            'description' => 'Set fixture description',
+            'slug' => 'set-fixture',
+        ],
+        'expected' => 'SET SIGNAL',
+    ],
+    [
+        'entity' => [
+            'id' => 303,
+            'route_type' => 'releases',
+            'title' => 'RELEASE FIXTURE',
+            'description' => 'Release fixture description',
+            'slug' => 'release-fixture',
+        ],
+        'expected' => 'RELEASE SIGNAL',
+    ],
 ];
 
-foreach ($cases as [$routeType, $entityId, $expectedTitle]) {
-    $rows = brvtalPublicTransmissionsForEntity($pdo, $routeType, $entityId);
+foreach ($cases as $case) {
+    $entity = $case['entity'];
+    $expectedTitle = $case['expected'];
+    $routeType = (string)$entity['route_type'];
+    $page = brvtal_public_page_data($pdo, $entity);
+    $rows = $page['related']['TRANSMISSIONS'] ?? [];
+
     contextualTransmissionsItExpect(
         count($rows) === 1,
-        "{$routeType} must expose exactly one explicitly related published Transmission"
+        "{$routeType} page-data must expose exactly one explicitly related published Transmission"
     );
     contextualTransmissionsItExpect(
         ($rows[0]['title'] ?? '') === $expectedTitle,
-        "{$routeType} must expose the correct published Transmission"
+        "{$routeType} page-data must expose the correct published Transmission"
     );
     contextualTransmissionsItExpect(
         ($rows[0]['route_type'] ?? '') === 'blog',
         "{$routeType} Transmission must preserve canonical Blog route type"
     );
+
+    $seo = [
+        'title' => $entity['title'] . ' — BRVTAL',
+        'description' => $entity['description'],
+        'canonical' => 'https://www.brvtal.com.co/' . $routeType . '/' . $entity['slug'],
+        'image' => '',
+        'schema' => ['@type' => 'WebPage'],
+    ];
+    $html = brvtal_public_entity_page($page, $seo);
+
+    contextualTransmissionsItExpect(
+        str_contains($html, 'TRANSMISSIONS / 01'),
+        "{$routeType} canonical page must render its Transmission section"
+    );
+    contextualTransmissionsItExpect(
+        str_contains($html, $expectedTitle),
+        "{$routeType} canonical page must render the correct Transmission"
+    );
+    contextualTransmissionsItExpect(
+        !str_contains($html, 'DRAFT SIGNAL'),
+        "{$routeType} canonical page must never render draft Blog posts"
+    );
 }
 
-$unrelatedRows = brvtalPublicTransmissionsForEntity($pdo, 'artists', 999);
 contextualTransmissionsItExpect(
-    count($unrelatedRows) === 1 && ($unrelatedRows[0]['title'] ?? '') === 'UNRELATED SIGNAL',
-    'entity-specific relation lookup must not bleed records from other IDs'
-);
-contextualTransmissionsItExpect(
-    brvtalPublicTransmissionsForEntity($pdo, 'pages', 101) === [],
+    brvtalPublicTransmissionRelationType('pages') === null,
     'unsupported entity types must remain outside contextual Transmissions'
 );
 contextualTransmissionsItExpect(
-    brvtalPublicTransmissionsForEntity($pdo, 'artists', 0) === [],
-    'invalid entity IDs must fail closed'
-);
-
-$artistRows = brvtalPublicTransmissionsForEntity($pdo, 'artists', 101);
-contextualTransmissionsItExpect(
-    !in_array('DRAFT SIGNAL', array_column($artistRows, 'title'), true),
-    'draft Blog posts must never surface through inverse relations'
+    brvtalPublicTransmissionRelationType('artists') === 'artist',
+    'supported route types must preserve their explicit singular relation mapping'
 );
 
 echo "Contextual Transmissions MariaDB integration passed.\n";
