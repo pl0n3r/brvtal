@@ -65,6 +65,11 @@ archive_expect(str_contains($runtimeLoader, 'window.BRVTAL_PUBLIC_VERSION = vers
 archive_expect(!str_contains($archiveJs, 'ticket_instructions'), 'Archive UI must not render payment instructions');
 archive_expect(str_contains($index, 'data-archive-search'), 'Archive must expose public text search');
 archive_expect(str_contains($index, 'data-archive-relation="sets"'), 'Archive must expose relationship filters');
+archive_expect(str_contains($index, 'data-archive-relation="memories"'), 'Archive must expose an explicit Memories relationship filter');
+archive_expect(str_contains($archiveJs, 'function memoryEventCounts(memories)'), 'Archive must derive Event Memory counts from the existing public payload');
+archive_expect(str_contains($archiveJs, "relation?.related_type !== 'event'"), 'Archive Memory discovery must require an explicit Event relation');
+archive_expect(str_contains($archiveJs, 'article.dataset.archiveMemories'), 'Archive cards must expose Memory presence to the shared relation filter');
+archive_expect(str_contains($archiveJs, 'renderArchive(data.archive || {}, data.memories || [])'), 'Archive must reuse the canonical public payload rather than making a second Memories request');
 archive_expect(str_contains($archiveJs, 'applyArchiveFilters'), 'Archive search, year and relationship filters must share one filtering path');
 archive_expect(str_contains($archiveJs, '/events/${encodeURIComponent(slug)}'), 'Archived records must link to canonical public event pages');
 archive_expect(str_contains($archiveJs, "['/api/public.php', '/api/public'"), 'Archive loader must prefer the production public PHP endpoint');

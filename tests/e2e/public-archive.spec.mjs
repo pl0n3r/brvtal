@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const archiveJs = readFileSync(join(process.cwd(), 'js/archive.js'), 'utf8');
+const archiveCss = readFileSync(join(process.cwd(), 'css/archive.css'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-archive-e2e.html';
 
 test('public archive separates active lifecycle from historical nights and filters by year', async ({ page }) => {
@@ -33,7 +34,7 @@ test('public archive separates active lifecycle from historical nights and filte
       <div class="events-track"><article class="event-card"><div class="event-info"><span class="event-status">ARCHIVE</span></div></article></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
         <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
@@ -103,6 +104,109 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect.poll(() => page.evaluate(() => window.__archiveRefreshed === true)).toBe(true);
 });
 
+test('public archive treats explicit Event Memories as first-class archive connections', async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.route('**/api/public*', route => route.fulfill({
+    contentType: 'application/json; charset=utf-8',
+    body: JSON.stringify({
+      ok: true,
+      data: {
+        events: [],
+        memories: [
+          {
+            id: 501,
+            title: 'Floor Signal',
+            relations: [
+              {related_type:'event',related_id:77,route_type:'events',slug:'memory-only-night',label:'MEMORY ONLY NIGHT'},
+            ],
+          },
+          {
+            id: 502,
+            title: 'Artist Only Memory',
+            relations: [
+              {related_type:'artist',related_id:9,route_type:'artists',slug:'pl0n3r',label:'PL0N3R'},
+            ],
+          },
+        ],
+        archive: {
+          years: [2026],
+          counts: {events:2,sets:0,media:2,releases:0},
+          events: [
+            {
+              id:77,
+              title:'Memory Only Night',
+              slug:'memory-only-night',
+              event_date:'2026-08-01 22:00:00',
+              archive_year:2026,
+              city:'Pereira',
+              venue:'Warehouse',
+              status:'finished',
+              cover_image:'',
+              ticket_url:null,
+              lineup:[],
+              related_sets:[],
+            },
+            {
+              id:78,
+              title:'Unrelated Night',
+              slug:'unrelated-night',
+              event_date:'2026-07-01 22:00:00',
+              archive_year:2026,
+              city:'Pereira',
+              venue:'Bunker',
+              status:'archived',
+              cover_image:'',
+              ticket_url:null,
+              lineup:[],
+              related_sets:[],
+            },
+          ],
+        },
+      },
+    }),
+  }));
+
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:`<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${archiveCss}</style></head><body>
+      <div class="events-track"></div>
+      <div class="event-archive" id="eventArchive">
+        <div class="archive-summary"></div>
+        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
+        <div class="archive-years"></div>
+        <div data-archive-results></div>
+        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
+        <div class="archive-grid"></div>
+      </div>
+      <script>${archiveJs}</script>
+    </body></html>`,
+  }));
+
+  await page.goto(harnessUrl);
+
+  const memoryOnly = page.locator('[data-archive-id="77"]');
+  const unrelated = page.locator('[data-archive-id="78"]');
+  await expect(memoryOnly.locator('.archive-event-relations')).toHaveText('1 MEMORY');
+  await expect(memoryOnly).toHaveAttribute('data-archive-memories','1');
+  await expect(unrelated.locator('.archive-event-relations')).toHaveText('HISTORICAL RECORD');
+  await expect(unrelated).toHaveAttribute('data-archive-memories','0');
+
+  const connections = memoryOnly.locator('[data-archive-connections]');
+  await expect(connections).toBeVisible();
+  const connectionsHref = new URL(await connections.getAttribute('href'), page.url());
+  expect(connectionsHref.searchParams.get('network_type')).toBe('events');
+  expect(connectionsHref.searchParams.get('network_id')).toBe('77');
+  expect(connectionsHref.hash).toBe('#network');
+
+  const memoriesFilter = page.getByRole('button',{name:'WITH MEMORIES'});
+  await memoriesFilter.click();
+  await expect(memoryOnly).toBeVisible();
+  await expect(unrelated).toBeHidden();
+  const filterBox = await memoriesFilter.boundingBox();
+  expect(filterBox.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('public archive replaces a failed allowed cover image with the archive placeholder', async ({ page }) => {
   await page.route('**/api/public*', route => route.fulfill({
     contentType: 'application/json; charset=utf-8',
@@ -140,7 +244,7 @@ test('public archive replaces a failed allowed cover image with the archive plac
       <div class="events-track"></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
         <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
@@ -211,7 +315,7 @@ test('public archive renders hostile API strings as text and rejects unsafe URL 
       <div class="events-track"></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
         <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
