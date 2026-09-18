@@ -21,7 +21,7 @@ $acceptHeader = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
 $wantsJson = (string)($_GET['format'] ?? '') === 'json'
     || stripos($acceptHeader, 'application/json') !== false;
 
-$respondJson = static function (array $payload, int $status = 200): void {
+$respondJson = static function (array $payload, int $status = 200): never {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
