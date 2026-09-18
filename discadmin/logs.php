@@ -24,7 +24,11 @@ $wantsJson = (string)($_GET['format'] ?? '') === 'json'
 $respondJson = static function (array $payload, int $status = 200): never {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $json = json_encode(
+        $payload,
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    echo $json === false ? '{"ok":false,"error":"JSON_ENCODE_ERROR"}' : $json;
     exit;
 };
 
