@@ -68,17 +68,20 @@ flowchart LR
 
 ## Qué sigue
 
-1. Cerrar #511 y actualizar el progreso maestro de #398.
-2. Implementar #513 — Dashboard DISCADMIN modular, drag/drop, redimensionable y persistido por administrador.
-3. Retomar el siguiente slice real de #398 después de #513, sin repetir Event Record/Roster/Sets/Memories/Archive/Transmissions ya integrados.
+1. Cerrar #511 / PR #512 con revisión final del head estable y exact-main CI.
+2. Implementar #527 — transformar README en un dashboard profesional de desarrollo.
+3. Continuar Phase 1 del roadmap #533, de quick wins hacia cambios más complejos.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🧩 **Dashboard configurable** | #513 · siguiente prioridad: módulos, drag/drop, resize responsive grid y previews Analytics reales |
-| 🗃️ **Archivo cultural** | #398 · implementación incremental activa; pausa después de #511 mientras se ejecuta #513 |
-| 🎛️ **Apariencia** | #149 · completar Light en módulos modernos |
+| 📊 **Development dashboard** | #527 · siguiente prioridad después de cerrar este PR |
+| 🗺️ **Roadmap activo** | #533 · ejecución ordenada de fácil/bajo riesgo → arquitectura compleja |
+| ⚡ **Quick wins Admin** | #520, #521, #526, #522, #479, #517, #221 |
+| 🧩 **Dashboard configurable** | #513 · fase posterior: módulos, drag/drop, resize y Analytics reales |
+| 🗃️ **Archivo cultural** | #398 · continuar por fases después de la estabilización priorizada |
+| 🎛️ **Apariencia** | #149 + #514 · Light/Glass completos y Admin premium/legible |
 | 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
 | 📈 **Analytics** | #427 · completar eventos `brvtal_*` en GTM/GA4 |
