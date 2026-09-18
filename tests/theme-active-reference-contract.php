@@ -43,7 +43,7 @@ theme_reference_assert(str_contains($api, "'theme.'.\$slug"), 'API must query th
 theme_reference_assert(str_contains($api, 'json_decode($raw,true)'), 'API must require the target theme JSON to decode before activation.');
 theme_reference_assert(str_contains($api, 'return is_array($decoded)'), 'API must reject non-object theme payloads as dangling references.');
 theme_reference_assert(str_contains($api, 'brvtal_theme_delete_reference_error'), 'Settings DELETE must protect the active theme record.');
-theme_reference_assert(str_contains($api, 'ACTIVE_THEME_DELETE_BLOCKED'), 'API contract must expose an explicit active-theme deletion conflict.');
+theme_reference_assert(str_contains($api, "json_response(['ok'=>false,'error'=>$themeDeleteError['error'],'field'=>$themeDeleteError['field']],409)"), 'Settings DELETE must return the helper conflict with HTTP 409.');
 theme_reference_assert(str_contains($settingsUi, 'data-settings-theme-studio'), 'Settings must route theme.active to Theme Studio');
 theme_reference_assert(str_contains($settingsUi, "globalThis.go?.('theme')"), 'Settings must keep Theme Studio inside the canonical shell');
 
