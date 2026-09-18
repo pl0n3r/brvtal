@@ -13,6 +13,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Se preserva exactamente la prioridad actual por endpoint, acción y método: Media Library, Releases, Blog, TOTP, DELETE genérico, Settings y fallback general.
 - Los textos visibles se mantienen sin cambios.
 - La regresión Playwright verifica los mensajes finales y la precedencia de Media upload, Releases delete, Blog save, Settings save, DELETE genérico y save genérico usando el harness real de `admin-modules.js`.
+- Los helpers tocados quedan documentados con JSDoc para cerrar el warning válido de cobertura de docstrings reportado por CodeRabbit.
 - No cambia API, payloads, persistencia, permisos, rutas ni comportamiento editorial.
 
 ## Archivos modificados en este deploy
