@@ -141,10 +141,17 @@
     </section>`;
   }
 
+  function activityRow(item) {
+    const resource = item.resource || 'content';
+    const resourceLabel = item.resource_label || (resource + ' #' + (item.resource_id || ''));
+    return `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(resourceLabel)}</div><div class="dashboard-v2-row-meta">${esc(String(item.action || 'update').replaceAll('_',' ').toUpperCase())} · ${esc(item.admin_name || item.admin_email || 'Unknown admin')} · ${esc(item.created_at || '')}</div></div><button class="dashboard-v2-button" type="button" data-dashboard-go="${esc(sectionFor(resource))}" data-dashboard-resource="${esc(resource)}" data-dashboard-id="${Number(item.resource_id ?? 0)}">OPEN</button></div>`;
+  }
+
   function activityPanel(activity, activityError) {
     if (!activity) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(activityError)}</section>`;
     const items = Array.isArray(activity.items) ? activity.items : [];
-    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Latest entries from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list">${items.length ? items.map(item => `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(item.resource_label || `${item.resource || 'content'} #${item.resource_id || ''}`)}</div><div class="dashboard-v2-row-meta">${esc(String(item.action || 'update').replaceAll('_',' ').toUpperCase())} · ${esc(item.admin_name || item.admin_email || 'Unknown admin')} · ${esc(item.created_at || '')}</div></div><button class="dashboard-v2-button" type="button" data-dashboard-go="${esc(sectionFor(item.resource))}" data-dashboard-resource="${esc(item.resource || '')}" data-dashboard-id="${Number(item.resource_id ?? 0)}">OPEN</button></div>`).join('') : '<div class="dashboard-v2-empty">No recorded activity yet.</div>'}</div></section>`;
+    const rows = items.length ? items.map(activityRow).join('') : '<div class="dashboard-v2-empty">No recorded activity yet.</div>';
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Latest entries from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list">${rows}</div></section>`;
   }
 
   function actionsPanel() {
@@ -166,20 +173,24 @@
     root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
   }
 
-  function render(results, serial) {
-    if (serial !== mountSerial || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
-    const main = document.querySelector('.main');
-    if (!main) return;
-
+  function ensureDashboardRoot(main) {
     let root = document.getElementById('brvtal-dashboard-v2');
-    if (!root) {
-      root = document.createElement('div');
-      root.id = 'brvtal-dashboard-v2';
-      root.className = 'dashboard-v2';
-      const top = main.querySelector('.top');
-      top?.insertAdjacentElement('afterend', root);
-      if (!top) main.prepend(root);
-    }
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'brvtal-dashboard-v2';
+    root.className = 'dashboard-v2';
+    const top = main.querySelector('.top');
+    top?.insertAdjacentElement('afterend', root);
+    if (!top) main.prepend(root);
+    return root;
+  }
+
+  function render(results, serial) {
+    if (serial !== mountSerial || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return false;
+    const main = document.querySelector('.main');
+    if (!main) return false;
+
+    const root = ensureDashboardRoot(main);
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
@@ -193,13 +204,20 @@
 
     if (!overview || !health || health.database !== 'connected') setShellStatus(!health ? 'offline' : 'degraded', !health ? 'OFFLINE / CHECK' : 'DEGRADED');
     else setShellStatus('ok','ONLINE');
+    return true;
   }
 
   async function mount(force = false) {
     if (mounting || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
-    if (!force && document.getElementById('brvtal-dashboard-v2')) return;
+    const existingRoot = document.getElementById('brvtal-dashboard-v2');
+    if (!force && existingRoot) return;
+    const main = document.querySelector('.main');
+    if (!main) return;
+
+    const reservedRoot = existingRoot || ensureDashboardRoot(main);
     mounting = true;
     const serial = ++mountSerial;
+    let rendered = false;
     try {
       const results = await Promise.allSettled([
         fetchData(ENDPOINTS.overview),
@@ -208,8 +226,9 @@
         fetchData(ENDPOINTS.storage),
         fetchData(ENDPOINTS.activity)
       ]);
-      render(results,serial);
+      rendered = render(results,serial);
     } finally {
+      if (!rendered && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
       if (serial === mountSerial) mounting = false;
     }
   }
