@@ -317,14 +317,15 @@
     root.querySelector('#rosterTab')?.style.setProperty('display','none');
     const modalEyebrow = root.querySelector('#eventModal .ey');
     if (modalEyebrow) modalEyebrow.textContent = 'EVENTS / EDITOR';
+
+    // Events keeps the canonical shell list/search visible. Content Core stays
+    // mounted only to provide the guided editor modal and its workflow state.
     const wrap = root.querySelector('.wrap');
-    if (wrap && !wrap.querySelector('[data-ia-events-intro]')) {
-      const intro = contextBar(
-        'EVENTS',
-        'Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.'
-      );
-      intro.dataset.iaEventsIntro = '1';
-      wrap.prepend(intro);
+    if (wrap) {
+      wrap.hidden = true;
+      wrap.setAttribute('aria-hidden','true');
+      wrap.dataset.iaInternalOnly = '1';
+      wrap.style.setProperty('display','none','important');
     }
   }
 
