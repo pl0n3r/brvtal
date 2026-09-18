@@ -8,34 +8,38 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Corrige un finding válido de CodeRabbit detectado después del merge de #474.
-- Mantiene un lock de RESET LOG fuera del DOM mientras el borrado está en curso.
-- Si System Status se vuelve a renderizar por REFRESH o auto-refresh durante el reset, los controles de log recién creados siguen bloqueados.
-- Un segundo intento de reset se ignora mientras el primero siga activo, evitando dos operaciones destructivas concurrentes.
-- Al finalizar el reset, el lock se libera y los controles vuelven a su estado normal.
-- Añade regresión Playwright que fuerza un rerender con el POST de reset detenido y confirma que no se emite un segundo borrado.
+- Añade un relay permanente para las anotaciones de SonarQube Cloud.
+- Cuando termina el check externo **SonarCloud Code Analysis**, GitHub Actions lee sus anotaciones con `checks: read`.
+- El relay publica o actualiza un comentario estable en el PR con nivel, archivo, línea, título y mensaje.
+- Esto evita depender del endpoint de annotations que el conector de GitHub de ChatGPT no puede abrir directamente.
+- Incluye `workflow_dispatch` para poder relanzar manualmente el relay con un check run ID y PR concretos.
+- Valida que el check manual pertenezca al PR indicado antes de publicar resultados.
+- Pagina tanto annotations como comentarios existentes y serializa el upsert para evitar comentarios duplicados.
+- Usa permisos mínimos (`checks: read`, `pull-requests: write`) y no hace checkout ni ejecuta código del PR.
+- `AGENTS.md` documenta ese comentario como fuente canónica legible por el conector para findings Sonar detallados.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del follow-up de #474.
-- `discadmin/system-status-v2.js` — lock persistente de reset a través de rerenders.
-- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresión de carrera reset/rerender.
+- `.github/workflows/sonar-annotation-relay.yml` — relay de anotaciones Sonar hacia comentarios de PR.
+- `AGENTS.md` — contrato permanente para consumir el relay en revisiones.
+- `README.md` — snapshot exacto de este cambio de tooling.
 
 ## Validación
 
-- Base exacta: `main` `cb15117e86834dbaf4626d1369e5e45ef5592430`.
-- Ese SHA exacto pasó BRVTAL CI #892 y queda **VALIDATED IN CODE**.
-- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit antes del squash merge.
-- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Base exacta: `main` `e652c6fa8f3cbbf75d8ec9682f68c86741cfd552`.
+- Ese SHA exacto pasó BRVTAL CI #917 y queda **VALIDATED IN CODE**.
+- El PR de este tooling debe pasar BRVTAL CI, SonarCloud y CodeRabbit antes del squash merge.
+- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- El relay se considerará funcional cuando un nuevo check Sonar publique su comentario con las anotaciones reales.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
-- No se ejecuta ningún RESET LOG real de producción durante esta validación.
+- No hay cambios de runtime público, base de datos ni operaciones destructivas.
 
 ## Qué sigue
 
-- Cerrar este follow-up de #474 y resolver el review thread de CodeRabbit.
-- Continuar #475 / #365: Dashboard V2 autoritativo para Health/Activity.
-- Continuar #191: integridad referencial de `theme.active`.
-- Después avanzar #237 y mantener #451 como burn-down de calidad revalidado.
+- Cerrar y validar el relay de Sonar.
+- Re-sincronizar #475 / #365 contra el nuevo `main` y verificar que el próximo Sonar check deje detalle legible en el PR.
+- Continuar #191 y #237 como líneas independientes.
+- Mantener #451 como burn-down de calidad con findings concretos, no inferidos desde conteos agregados.
 
 ## Panorama general pendiente
 
@@ -53,4 +57,4 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - **Memories:** #415 / PR #434 requiere reconciliación; ninguna migración de producción automática.
 - **Idioma:** #212 por fases.
 - **Backups:** #389 con autorización externa.
-- **Completados recientemente:** #207, #391, #260 y #388 están integrados en código; este deploy corrige el finding post-merge de #388.
+- **Completados recientemente:** #207, #391, #260 y #388 están integrados en código.
