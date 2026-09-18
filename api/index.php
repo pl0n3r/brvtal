@@ -202,7 +202,7 @@ try {
             $afterSt=$pdo->prepare('SELECT artist_id,lineup_order,role FROM event_artists WHERE event_id=? ORDER BY lineup_order,artist_id');$afterSt->execute([$id]);$afterLineup=$afterSt->fetchAll(PDO::FETCH_ASSOC);
             $before=['event_id'=>$id,'lineup'=>$beforeLineup];$after=['event_id'=>$id,'lineup'=>$afterLineup];
             if(brvtal_activity_changed_fields(brvtal_activity_snapshot('event_lineup',$before),brvtal_activity_snapshot('event_lineup',$after))!==[]){brvtal_activity_record($pdo,'lineup_update','event_lineup',$id,$before,$after,['source'=>'lineup_api'],(string)$eventTitle);}
-            $pdo->commit();brvtal_indexnow_notify_event_id($pdo,$id);json_response(['ok'=>true]);
+            $pdo->commit();brvtalIndexNowNotifyEventId($pdo,$id);json_response(['ok'=>true]);
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if($e instanceof RuntimeException&&$e->getMessage()==='ACTIVITY_SCHEMA_MISSING')throw $e;brvtal_log('DB_ERROR','Lineup save failed',['event_id'=>$id,'message'=>$e->getMessage()]);json_response(['ok'=>false,'error'=>'LINEUP_SAVE_ERROR'],500);}
     }
 
@@ -261,7 +261,7 @@ try {
                 json_response(['ok' => false, 'error' => 'INVALID_SETTING_JSON'], 422);
             }
             if ($key === BRVTAL_INDEXNOW_SETTING_KEY) {
-                $indexNowError = brvtal_indexnow_setting_error($value, $isJson);
+                $indexNowError = brvtalIndexNowSettingError($value, $isJson);
                 if ($indexNowError !== null) {
                     json_response(
                         ['ok' => false, 'error' => $indexNowError['error'], 'field' => $indexNowError['field']],
@@ -365,13 +365,13 @@ try {
                 brvtalReleaseThemeReferenceMutex($pdo);
             }
             if ($settingChanged) {
-                brvtal_indexnow_notify_setting($pdo, $key);
+                brvtalIndexNowNotifySetting($pdo, $key);
             }
             json_response(['ok' => true]);
         }
         $d=sanitize_payload($resource,$d);$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if($resource==='events')$p=brvtal_event_lifecycle_patch([],$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace(['status'=>'draft'],$p));if($eventStateError!==null)json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);} if($resource==='pages'&&!array_key_exists('locale',$p))$p['locale']='en';if($resource==='pages'){if(!array_key_exists('slug',$p)||$p['slug']==='')$p['slug']=slugify((string)($p['title']??''));$pageIdentityError=brvtal_page_identity_error($p);if($pageIdentityError!==null)json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);$pageStateError=brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'],$p)); if($pageStateError!==null)json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422); }if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error($p);if($ticketWindowError!==null)json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}if($resource==='sets'){ $setPublicationError=brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],$p)); if($setPublicationError!==null)json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422); }if($resource==='events'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if($resource==='artists'&&empty($p['name']))json_response(['ok'=>false,'error'=>'NAME_REQUIRED'],422);if($resource==='sets'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if(isset($p['slug'])&&$p['slug']==='')$p['slug']=slugify((string)($p['title']??$p['name']??'item'));if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$fields=array_keys($p);$cols=implode(',',array_map(fn($f)=>"`{$f}`",$fields));$marks=implode(',',array_fill(0,count($fields),'?'));
         $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
-        try{$st=$pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");$st->execute(array_values($p));$newId=(int)$pdo->lastInsertId();if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$newId);brvtal_activity_record($pdo,'create',$resource,$newId,null,$after,['source'=>'core_api']);$pdo->commit();brvtal_indexnow_notify_change($pdo,$resource,null,$after);}json_response(['ok'=>true,'id'=>$newId],201);}catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Insert failed',['resource'=>$resource,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        try{$st=$pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");$st->execute(array_values($p));$newId=(int)$pdo->lastInsertId();if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$newId);brvtal_activity_record($pdo,'create',$resource,$newId,null,$after,['source'=>'core_api']);$pdo->commit();brvtalIndexNowNotifyChange($pdo,$resource,null,$after);}json_response(['ok'=>true,'id'=>$newId],201);}catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Insert failed',['resource'=>$resource,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
     if($method==='PUT'&&$id!==null){
         $d=sanitize_payload($resource,input_json());$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);
@@ -387,7 +387,7 @@ try {
             $set=implode(', ',array_map(fn($f)=>"`{$f}` = ?",array_keys($p)));$vals=array_values($p);$vals[]=$id;$st=$pdo->prepare("UPDATE {$table} SET {$set} WHERE id=?");$st->execute($vals);$changed=(int)$st->rowCount();
             if($audited){$after=brvtal_activity_fetch_resource($pdo,$table,$id);if($after!==null)brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api']);}
             $pdo->commit();
-            if($audited && $changed>0 && $after!==null)brvtal_indexnow_notify_change($pdo,$resource,$before,$after);
+            if($audited && $changed>0 && $after!==null)brvtalIndexNowNotifyChange($pdo,$resource,$before,$after);
             json_response(['ok'=>true,'changed'=>$changed]);
         }catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();brvtal_log('DB_ERROR','Update failed',['resource'=>$resource,'id'=>$id,'code'=>$e->errorInfo[1]??null]);if((int)($e->errorInfo[1]??0)===1062)json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'],409);json_response(['ok'=>false,'error'=>'DATABASE_ERROR'],500);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
@@ -400,7 +400,7 @@ try {
             if($deleted!==1){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
             if($audited)brvtal_activity_record($pdo,'delete',$resource,$id,$before,null,['source'=>'core_api']);
             $pdo->commit();
-            if($audited)brvtal_indexnow_notify_change($pdo,$resource,$before,null);
+            if($audited)brvtalIndexNowNotifyChange($pdo,$resource,$before,null);
             json_response(['ok'=>true,'deleted'=>1]);
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
@@ -468,7 +468,7 @@ try {
             brvtalReleaseThemeReferenceMutex($pdo);
         }
         if ($deleted > 0) {
-            brvtal_indexnow_notify_setting($pdo, $key);
+            brvtalIndexNowNotifySetting($pdo, $key);
         }
         json_response(['ok' => true, 'deleted' => $deleted]);
     }
