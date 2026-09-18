@@ -1,0 +1,9 @@
+[data-admin-color-field] .admin-color-field__controls{display:grid;grid-template-columns:minmax(0,1fr) 50px;gap:8px;align-items:stretch}
+[data-admin-color-field] .admin-color-field__picker{width:50px;min-width:50px;height:42px;padding:4px;border:1px solid rgba(127,127,127,.55);border-radius:4px;background:transparent;cursor:pointer}
+[data-admin-color-field] .admin-color-field__meta{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10px;letter-spacing:.04em}
+[data-admin-color-field] .admin-color-field__swatch{display:inline-block;width:22px;height:22px;border:1px solid rgba(127,127,127,.65);border-radius:3px;background:#ff2038}
+[data-admin-color-field] .admin-color-field__value{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+[data-admin-color-field] .admin-color-field__error{display:block;margin-top:6px;color:#ff6b6b;font-size:10px;line-height:1.4}
+[data-admin-color-field] .admin-color-field__error[hidden]{display:none}
+[data-admin-color-field].is-invalid [data-color-hex]{border-color:#ff6b6b!important;outline-color:#ff6b6b}
+@media(max-width:520px){[data-admin-color-field] .admin-color-field__controls{grid-template-columns:minmax(0,1fr) 46px}[data-admin-color-field] .admin-color-field__picker{width:46px;min-width:46px}}

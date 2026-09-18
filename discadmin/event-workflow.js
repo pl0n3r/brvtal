@@ -22,6 +22,16 @@
     return String(field(root, id)?.value ?? '');
   }
 
+  function normalizedAccent(root) {
+    const raw = value(root, 'e_accent').trim();
+    if (!raw) return '';
+    const shared = window.BRVTALAdminColorField?.normalize?.(raw);
+    if (shared) return shared;
+    const candidate = /^[0-9a-f]{6}$/i.test(raw) ? '#' + raw : raw;
+    if (!/^#[0-9a-f]{6}$/i.test(candidate)) throw new Error('INVALID_ACCENT');
+    return candidate.toLowerCase();
+  }
+
   function errorMessage(code) {
     const messages = {
       TITLE_REQUIRED:'Event name is required.',
@@ -31,6 +41,7 @@
       INVALID_PRICE:'Ticket price must be a valid non-negative number.',
       INVALID_EXTERNAL_URL:'Ticket purchase URL must use http(s).',
       INVALID_TICKET_URL:'Event ticket URL must use http(s).',
+      INVALID_ACCENT:'Event Accent must be a 6-digit HEX color.',
       INVALID_AVAILABILITY_WINDOW:'Ticket availability end must not be before its start.',
       LINEUP_ARTIST_NOT_FOUND:'One selected artist no longer exists. Reload the Event and try again.',
       DUPLICATE_SLUG:'That Event slug is already in use.',
@@ -65,7 +76,7 @@
       slug:value(root, 'e_slug').trim(),
       description:value(root, 'e_description'),
       cover_image:value(root, 'e_cover_image'),
-      accent:value(root, 'e_accent'),
+      accent:normalizedAccent(root),
       featured:Number(value(root, 'e_featured')) || 0,
       event_date:rawDate ? rawDate.replace('T', ' ') : null,
       city:value(root, 'e_city').trim(),

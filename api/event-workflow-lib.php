@@ -78,8 +78,11 @@ function brvtal_event_workflow_event(array $input): array
         if (!in_array($status, $allowedStatuses, true)) throw new InvalidArgumentException('INVALID_STATUS');
         $payload['status'] = $status;
     }
-    if (array_key_exists('accent', $payload) && $payload['accent'] !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $payload['accent'])) {
-        throw new InvalidArgumentException('INVALID_ACCENT');
+    if (array_key_exists('accent', $payload) && $payload['accent'] !== '') {
+        if (!preg_match('/^#[0-9a-fA-F]{6}$/', $payload['accent'])) {
+            throw new InvalidArgumentException('INVALID_ACCENT');
+        }
+        $payload['accent'] = strtolower($payload['accent']);
     }
     if (array_key_exists('featured', $input)) $payload['featured'] = (int)((bool)$input['featured']);
     if (array_key_exists('sort_order', $input)) $payload['sort_order'] = (int)$input['sort_order'];

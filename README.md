@@ -12,11 +12,11 @@
 
 | Señal | Estado actual | Evidencia |
 | --- | --- | --- |
-| Work line | 🛠️ **#539 exact-main stabilization** | Content Health conserva destino aunque `data-health-open` esté vacío |
-| Base exacta | ⚠️ **MAIN REGRESSION DETECTED** | `main` `29df36344f3f3dbdb39665c821e18f2b7efd8df9` · fast + real-stack + Sonar verdes; Chromium/validate rojos por #539 |
-| Fase | ⚡ **Stabilize before #521** | no abrir trabajo dependiente hasta recuperar exact-main verde |
-| Lead time CI | 📉 **123 s → 84 s** | mejora de ~31.7% tras [#535](https://github.com/pl0n3r/brvtal/pull/535) |
-| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker sigue separado en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| Work line | 🎨 **#521 Event Accent** | picker + HEX + swatch + validación |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `b6fc5e7da6c8b73409f7eea1391d1b44b6778414` · exact-main `validate` verde |
+| Fase | ⚡ **Phase 1 / quick wins** | [#533](https://github.com/pl0n3r/brvtal/issues/533) |
+| CI | 📉 **123 s → 84 s** | ~31.7% tras [#535](https://github.com/pl0n3r/brvtal/pull/535) |
+| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
 
@@ -24,7 +24,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+37** | **−46** | **-9** |
+| **11** | **+327** | **−49** | **+278** |
 
 ## Calidad y entrega
 
@@ -32,66 +32,75 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[JS] · chromium** |
-| Regresión dirigida | `discadmin-content-health-navigation.spec.mjs` permanece intacta |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Browser | picker/HEX/preview y estados inválidos |
+| Real-stack | usuario E2E persiste Accent canónico |
 | Sonar | Clean-as-You-Code en paralelo |
-| CodeRabbit | full review del head estable en paralelo con CI/Sonar |
-| Exact-main | obligatorio después del squash merge |
+| CodeRabbit | full review del head estable en paralelo |
+| Exact-main | CI del SHA exacto de main tras squash merge |
 | Producción | deploy marker ≠ validación funcional |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-    A["PR + snapshot exacto"] --> P["preflight"]
-    P --> F["fast"]
-    P --> C["Chromium"]
-    A --> S["Sonar"]
-    A --> R["CodeRabbit"]
-    F --> G["head verde"]
-    C --> G
-    S --> G
-    R --> G
-    G --> M["Squash merge"]
-    M --> X["CI del SHA exacto de main"]
-    X --> N["#521 Event Accent picker"]
+ A["PR + snapshot exacto"] --> P["preflight"]
+ P --> F["fast"]
+ P --> H["gates paralelos"]
+ A --> S["Sonar"]
+ A --> R["CodeRabbit"]
+ F --> G["head listo"]
+ H --> G
+ S --> G
+ R --> G
+ G --> M["Squash merge"]
+ M --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Mantiene el fallback canónico de Content Health cuando `data-health-open` existe pero queda vacío.
-- El destino se deriva de `data-health-type` en vez de llamar `window.go('')`.
-- No se debilita ni modifica la regresión que detectó el fallo.
+- Event Accent ahora usa un componente reutilizable con picker visual, HEX editable y swatch inmediato.
+- Picker y texto se sincronizan; seis dígitos se normalizan a `#rrggbb`.
+- Valores inválidos muestran estado accesible y no se guardan silenciosamente.
+- El workflow atómico y el servidor rechazan HEX inválido; el servidor normaliza el valor válido.
+- Real-stack usa el admin E2E para verificar UI, persistencia y rechazo 422.
 
 ## Archivos modificados en este deploy
 
-**DISCADMIN**
-- `discadmin/content-health.js` — fallback seguro para el destino del botón OPEN.
-
-**Handoff**
-- `README.md` — snapshot exacto del hotfix #539.
+- `api/event-workflow-lib.php` — valida y normaliza Accent.
+- `discadmin/admin-color-field.css` — estilos del campo reutilizable.
+- `discadmin/admin-color-field.js` — sincronización picker/HEX/swatch.
+- `discadmin/content-core.js` — sincroniza y valida el editor.
+- `discadmin/content-core.php` — control visual accesible.
+- `discadmin/event-workflow.js` — normalización antes del save atómico.
+- `discadmin/index.php` — carga el componente compartido.
+- `README.md` — dashboard exacto de #521.
+- `tests/e2e/content-core-real-stack.spec.mjs` — persistencia real-stack.
+- `tests/e2e/discadmin-color-field.spec.mjs` — regresiones picker/HEX.
+- `tests/event-workflow-contract.php` — contrato de normalización/rechazo.
 
 ## Validación
 
-- La regresión existente debe volver a navegar a `events` y abrir el registro 7 cuando el hint explícito está vacío.
-- No cambia la semántica normal cuando `data-health-open` ya contiene un destino.
-- Tras merge, `main` debe recuperar Chromium + `validate` verdes antes de empezar #521.
+- HEX escrito ↔ picker ↔ preview permanecen sincronizados.
+- Entrada `A1B2C3` se normaliza a `#a1b2c3`.
+- `#12` falla en UI y servidor con `INVALID_ACCENT`.
+- El input mantiene ayuda en `aria-describedby` y expone el error mediante `aria-errormessage`, oculto mientras el valor es válido.
+- El Event público conserva su contrato de color/fallback.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | Cerrar [#539](https://github.com/pl0n3r/brvtal/issues/539) y recuperar exact-main verde. |
-| **NEXT** | [#521](https://github.com/pl0n3r/brvtal/issues/521) Event Accent picker → [#526](https://github.com/pl0n3r/brvtal/issues/526) Blog taxonomy → [#522](https://github.com/pl0n3r/brvtal/issues/522) Media navigation/UI. |
-| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · revisar Hostinger auto-deploy/hPanel sin frenar producto. |
-| **LATER** | Continuar [#533](https://github.com/pl0n3r/brvtal/issues/533). |
+| **NOW** | Cerrar [#521](https://github.com/pl0n3r/brvtal/issues/521). |
+| **NEXT** | [#526](https://github.com/pl0n3r/brvtal/issues/526) → [#522](https://github.com/pl0n3r/brvtal/issues/522). |
+| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) Hostinger marker/hPanel. |
+| **LATER** | [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221). |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | Main stability | [#539](https://github.com/pl0n3r/brvtal/issues/539) |
-| **NEXT** | Admin friction | [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
-| **BLOCKED / EXTERNAL** | Deploy Hostinger | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
-| **LATER** | Shell / apariencia | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |
-| **LATER** | Editorial / dashboards | [#518](https://github.com/pl0n3r/brvtal/issues/518), [#519](https://github.com/pl0n3r/brvtal/issues/519), [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515) |
+| **NOW** | Event authoring | [#521](https://github.com/pl0n3r/brvtal/issues/521) |
+| **NEXT** | Admin friction | [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522) |
+| **BLOCKED / EXTERNAL** | Deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| **LATER** | Quick wins | [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |

@@ -38,6 +38,11 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await page.locator('#e_title').fill(title);
     await page.locator('#e_slug').fill(slug);
     await page.locator('#e_description').fill('Atomic Content Core persistence smoke.');
+    await expect(page.locator('[data-admin-color-field]')).toBeVisible();
+    await page.locator('#e_accent').fill('B6FF00');
+    await page.locator('#e_accent').blur();
+    await expect(page.locator('#e_accent')).toHaveValue('#b6ff00');
+    await expect(page.locator('#e_accent_picker')).toHaveValue('#b6ff00');
 
     await expect(page.locator('#e_seo_title')).toBeVisible({timeout:5_000});
     await page.locator('#e_seo_title').fill('CI Atomic Event | BRVTAL');
@@ -86,6 +91,7 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
       status:'tickets_available',
       city:'Pereira',
       venue:'CI Warehouse',
+      accent:'#b6ff00',
       seo_title:'CI Atomic Event | BRVTAL',
     });
     expect(persisted.seo_description).toContain('Atomic Event, Ticket, roster and SEO');
@@ -144,6 +150,17 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     });
     expect(incomplete.status()).toBe(422);
     expect(await incomplete.json()).toMatchObject({ok:false,error:'EVENT_DATE_REQUIRED'});
+
+    const invalidAccent = await page.request.post(`${baseUrl}/api/event-workflow.php`, {
+      headers:{'X-CSRF-Token':auth.csrf},
+      data:{
+        event:{title:`CI INVALID ACCENT ${runKey}`,slug:`ci-invalid-accent-${runKey}`,status:'draft',accent:'#12'},
+        ticket_types:[],
+        lineup:[],
+      },
+    });
+    expect(invalidAccent.status()).toBe(422);
+    expect(await invalidAccent.json()).toMatchObject({ok:false,error:'INVALID_ACCENT'});
 
     const rejectedPage = await page.request.post(`${baseUrl}/api/index.php/pages`, {
       headers:{'X-CSRF-Token':auth.csrf},

@@ -25,6 +25,16 @@ $missingCity = brvtal_event_state_error(['title'=>'Public Event','status'=>'publ
 event_workflow_assert(($missingCity['error'] ?? '') === 'EVENT_CITY_REQUIRED', 'non-draft Event must require city');
 event_workflow_assert(brvtal_event_state_error(['title'=>'Public Event','status'=>'published','event_date'=>'2026-09-16 21:00:00','city'=>'Pereira']) === null, 'complete public Event must pass');
 
+$accent = brvtal_event_workflow_event(['title'=>'Accent Event','status'=>'draft','accent'=>'#A1B2C3']);
+event_workflow_assert(($accent['accent'] ?? '') === '#a1b2c3', 'Event accent must normalize to canonical lowercase HEX');
+$invalidAccent = false;
+try {
+    brvtal_event_workflow_event(['title'=>'Bad Accent','status'=>'draft','accent'=>'#12']);
+} catch (InvalidArgumentException $e) {
+    $invalidAccent = $e->getMessage() === 'INVALID_ACCENT';
+}
+event_workflow_assert($invalidAccent, 'invalid Event accent must be rejected before persistence');
+
 $ticket = brvtal_event_workflow_ticket([
     'id'=>'7','name'=>'Preventa','price'=>'20000','currency'=>'cop','external_url'=>'https://example.com/tickets',
     'available_from'=>'2026-09-01T10:00','available_until'=>'2026-09-15T23:00','status'=>'active',

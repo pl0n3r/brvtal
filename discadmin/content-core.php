@@ -86,7 +86,42 @@ brvtal_admin_require();
         <label for="e_cover_image">Cover image</label>
         <input id="e_cover_image" placeholder="Media path / URL">
       </div>
-      <div class="field"><label for="e_accent">Accent</label><input id="e_accent" placeholder="#ff2038"></div>
+      <div class="field" data-admin-color-field data-color-default="#ff2038">
+        <label for="e_accent">Accent</label>
+        <div class="admin-color-field__controls">
+          <input
+            id="e_accent"
+            data-color-hex
+            placeholder="#ff2038"
+            maxlength="7"
+            pattern="#[0-9A-Fa-f]{6}"
+            inputmode="text"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="e_accent_help"
+            aria-errormessage="e_accent_error"
+          >
+          <input
+            id="e_accent_picker"
+            class="admin-color-field__picker"
+            data-color-picker
+            type="color"
+            value="#ff2038"
+            aria-label="Choose Event Accent visually"
+          >
+        </div>
+        <div class="admin-color-field__meta">
+          <span class="admin-color-field__swatch" data-color-swatch aria-hidden="true"></span>
+          <output class="admin-color-field__value" data-color-value for="e_accent e_accent_picker">No accent</output>
+        </div>
+        <div id="e_accent_help" class="helper">Choose visually or enter an exact HEX value (#RRGGBB).</div>
+        <div
+          id="e_accent_error"
+          class="admin-color-field__error"
+          data-color-error
+          hidden
+        >Use a 6-digit HEX value such as #ff2038.</div>
+      </div>
       <div class="field">
         <label for="e_featured">Featured</label>
         <select id="e_featured"><option value="0">No</option><option value="1">Yes</option></select>
