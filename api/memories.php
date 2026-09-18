@@ -202,7 +202,7 @@ try {
             throw $e;
         }
         if (($data['status'] ?? '') === 'published') {
-            brvtal_indexnow_notify_home($pdo);
+            brvtalIndexNowNotifyHome($pdo);
         }
         brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_fetch($pdo, $createdId)], 201);
     }
@@ -240,7 +240,7 @@ try {
             throw $e;
         }
         if (($existing['status'] ?? '') === 'published' || ($data['status'] ?? '') === 'published') {
-            brvtal_indexnow_notify_home($pdo);
+            brvtalIndexNowNotifyHome($pdo);
         }
         brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_fetch($pdo, $id)]);
     }
@@ -256,7 +256,7 @@ try {
         }
         $pdo->prepare('DELETE FROM memories WHERE id=?')->execute([$id]);
         if (($existing['status'] ?? '') === 'published') {
-            brvtal_indexnow_notify_home($pdo);
+            brvtalIndexNowNotifyHome($pdo);
         }
         brvtal_memories_json(['ok'=>true,'deleted_id'=>$id]);
     }
