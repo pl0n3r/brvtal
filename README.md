@@ -17,7 +17,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto y conciso del deploy.
+- `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
 - `config/admin_log.php` — política testable y aislada para validar/ejecutar el clear del log.
 - `discadmin/logs.php` — frontera autenticada/CSRF del reset y respuesta JSON opcional.
 - `discadmin/system-status-v2.css` — agrupación de acciones, estado destructivo y foco visible.
@@ -34,3 +34,24 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
 - Ningún test ni paso automático limpia el log de producción.
+
+## Qué sigue
+
+- Cerrar #474 con todos los gates del head exacto, squash merge y verificar BRVTAL CI sobre el nuevo `main`.
+- Continuar con #365 para hacer Dashboard V2 autoritativo sobre Health/Activity sin perder navegación al registro exacto.
+- Después continuar #191 y #237 como bloques independientes.
+
+## Panorama general pendiente
+
+- **Calidad continua:** #451 — burn-down Sonar con cambios pequeños y revalidados.
+- **Dashboard / IA / Theme:** #365, #348, #351.
+- **Settings / Theme integrity:** #191.
+- **Hero / media:** #237, #221.
+- **Apariencia:** #149.
+- **Navegación / dirty-state:** #257, #216, #174, #193.
+- **SEO editorial:** #182, #214, #204, #272 y después #390.
+- **Content / operaciones:** #224, #232, #275, #195, #252.
+- **Archivo cultural:** #398 y #403.
+- **Memories:** #415 / PR #434 requiere reconciliación con `main`; sin migraciones automáticas de producción.
+- **Idioma:** #212 por fases.
+- **Backups:** #389 con scheduling seguro y autorización externa para Drive.
