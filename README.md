@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+243** | **−123** | **+120** |
+| **12** | **+251** | **−126** | **+125** |
 
 ## Calidad y entrega
 
@@ -67,6 +67,7 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
+- `discadmin/index.php` — carga Dashboard V2 después del router canónico para eliminar la carrera del primer click.
 - `discadmin/admin-modules.js` — dueño único de readiness de módulos dinámicos.
 - `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
 - `discadmin/media-library.php` — elimina External Registry de la toolbar.
@@ -75,11 +76,13 @@ flowchart LR
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins usa el owner canónico de readiness.
 - `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
 - `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real.
+- `tests/e2e/indexnow-real-stack.spec.mjs` — aislamiento por URL única; evita falsos fallos con workers concurrentes.
 - `AGENTS.md` — persiste la frontera canónica de readiness.
 - `README.md` — dashboard exacto de #522.
 
 ## Validación
 
+- Dashboard V2 no se expone hasta que el router canónico de DISCADMIN está instalado.
 - Dashboard → Media monta el módulo sin depender del orden previo de navegación.
 - Sets → Media vuelve a montar correctamente el mismo workspace.
 - `?module=media` funciona en sesión autenticada.
