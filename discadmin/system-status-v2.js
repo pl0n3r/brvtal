@@ -381,6 +381,7 @@
 
   function render(root, data, health, activity, latency) {
     if (!root.isConnected || !isSystemStatus()) return;
+    const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
     const storage = data.storage || {};
     const deployment = data.deployment || {};
     const runtime = data.runtime || {};
@@ -443,6 +444,10 @@
         <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
+    const advanced = root.querySelector('.ssv2-advanced');
+    if (advanced && (advancedOpen || logResetInFlight)) {
+      advanced.open = true;
+    }
     setLogActionsDisabled(root, logResetInFlight);
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
     root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
