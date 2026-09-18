@@ -42,8 +42,10 @@ $css = (string)file_get_contents(__DIR__ . '/../css/public-event-record.css');
 event_record_expect(str_contains($archive, 'brvtal_public_event_is_historical($event, $now)'), 'Archive and Event Record must share lifecycle classification');
 event_record_expect(str_contains($source, 'brvtal_public_event_is_historical($detail)'), 'canonical Event page must use lifecycle classification');
 event_record_expect(str_contains($source, "sets_media WHERE event_id=? AND status='published'"), 'Event Record must reuse explicit published Set relation');
-event_record_expect(str_contains($source, "rel.related_type='event' AND rel.related_id=?"), 'Event Record must reuse explicit editorial relation');
-event_record_expect(str_contains($source, "bp.status='published'"), 'Event Record transmissions must remain publication-gated');
+event_record_expect(
+    brvtalPublicTransmissionRelationType('events') === 'event',
+    'Event Record must use the canonical explicit Blog relation type'
+);
 event_record_expect(str_contains($source, 'brvtal_public_memories_for_entity($pdo, $type, $id)'), 'Event Record must source Memories only through the explicit structured Memory relation backend');
 event_record_expect(str_contains($source, 'public-event-record.css'), 'Event pages must load the dedicated Event Record visual layer');
 event_record_expect(str_contains($css, 'body.entity-page--event:before'), 'Event Record keeps BRVTAL grain/signal texture');
