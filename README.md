@@ -25,7 +25,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+50** | **−66** | **-16** |
+| **4** | **+57** | **−70** | **-13** |
 
 La huella se calcula con `git diff --numstat` y CI rechaza el README si queda desactualizada.
 
@@ -64,11 +64,13 @@ flowchart LR
 
 - `discadmin/admin-information-architecture.js` — oculta el workspace interno duplicado de Content Core en contexto Events.
 - `tests/e2e/content-core-real-stack.spec.mjs` — valida ruta canónica Events, listado único y editor real.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — protege que el listado interno permanezca oculto en el shell canónico.
 - `README.md` — dashboard exacto del deploy #520.
 
 ## Validación
 
 - El E2E usa el admin descartable y el stack PHP/MariaDB real.
+- El harness Chromium verifica que el Content Core interno no vuelva a exponer una segunda lista.
 - Debe existir exactamente **un** `Search events` visible.
 - Content Core continúa montado y su modal Event continúa disponible.
 - El flujo completo de creación/persistencia del Event sigue cubierto por el mismo E2E.

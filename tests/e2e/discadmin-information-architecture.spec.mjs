@@ -155,12 +155,13 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
 
   await page.evaluate(() => window.go('events'));
   await expect(page.locator('.main .top h1')).toHaveText('EVENTS');
-  await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','events');
-  await expect(page.locator('[data-admin-module="content-core"] .tabs')).toBeHidden();
-  await expect(page.locator('#eventsTab')).toBeVisible();
+  const contentCore = page.locator('[data-admin-module="content-core"]');
+  await expect(contentCore).toHaveAttribute('data-ia-context','events');
+  await expect(contentCore.locator('.wrap')).toBeHidden();
+  await expect(page.locator('#eventsTab')).toBeHidden();
   await expect(page.locator('#rosterTab')).toBeHidden();
   await expect(page.locator('#eventModal .ey')).toHaveText('EVENTS / EDITOR');
-  await expect(page.getByText('Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.')).toBeVisible();
+  await expect(page.getByText('Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('events');
   await expect.poll(() => page.evaluate(() => window.__moduleLoadOptions.at(-1)?.syncUrl)).toBe(false);
   await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('events');
