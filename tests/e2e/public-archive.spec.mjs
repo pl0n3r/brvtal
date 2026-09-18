@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const archiveJs = readFileSync(join(process.cwd(), 'js/archive.js'), 'utf8');
+const archiveCss = readFileSync(join(process.cwd(), 'css/archive.css'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-archive-e2e.html';
 
 test('public archive separates active lifecycle from historical nights and filters by year', async ({ page }) => {
@@ -167,7 +168,7 @@ test('public archive treats explicit Event Memories as first-class archive conne
 
   await page.route(harnessUrl, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
-    body:`<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body>
+    body:`<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${archiveCss}</style></head><body>
       <div class="events-track"></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
