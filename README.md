@@ -4,54 +4,53 @@
 
 Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
 
+> **Regla permanente del proyecto:** cada deploy debe dejar aquí el snapshot exacto de lo que cambió y un panorama general actualizado de lo pendiente.
+
 ## Qué se hizo
 
-- Implementa #388 dentro de System Status → Advanced Diagnostics.
-- Añade **RESET LOG** con confirmación explícita de dos pasos antes de cualquier mutación.
-- El reset reutiliza `discadmin/logs.php?action=clear`, exige sesión admin + POST + CSRF y conserva el comportamiento standalone existente.
-- La política destructiva se extrae a un helper reutilizado por el endpoint y probado sobre un archivo temporal aislado; los tests no tocan el log real.
-- El borrado usa `LOCK_EX`, reporta fallos de escritura y refresca contenido, líneas y bytes tras éxito.
-- Las lecturas/reset comparten una generación de operación para impedir que una respuesta previa al reset sobrescriba el estado ya limpiado.
-- Si el reset falla por CSRF/autenticación, el token cacheado se invalida para que el siguiente intento consulte uno actual.
-- La cobertura Chromium incluye confirmación, éxito, fallo, carrera de respuesta vieja y recuperación tras CSRF obsoleto.
+- Corrige un finding válido de CodeRabbit detectado después del merge de #474.
+- Mantiene un lock de RESET LOG fuera del DOM mientras el borrado está en curso.
+- Si System Status se vuelve a renderizar por REFRESH o auto-refresh durante el reset, los controles de log recién creados siguen bloqueados.
+- Un segundo intento de reset se ignora mientras el primero siga activo, evitando dos operaciones destructivas concurrentes.
+- Al finalizar el reset, el lock se libera y los controles vuelven a su estado normal.
+- Añade regresión Playwright que fuerza un rerender con el POST de reset detenido y confirma que no se emite un segundo borrado.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
-- `config/admin_log.php` — política testable y aislada para validar/ejecutar el clear del log.
-- `discadmin/logs.php` — frontera autenticada/CSRF del reset y respuesta JSON opcional.
-- `discadmin/system-status-v2.css` — agrupación de acciones, estado destructivo y foco visible.
-- `discadmin/system-status-v2.js` — RESET LOG, confirmación, refresh, serialización de operaciones y recuperación de CSRF.
-- `discadmin/technical.php` — metadata de bytes y lectura defensiva del log.
-- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de UI, concurrencia y token CSRF.
-- `tests/system-status-reset-log-contract.php` — contrato ejecutable con archivo temporal auto-limpiable.
+- `README.md` — snapshot exacto del follow-up de #474.
+- `discadmin/system-status-v2.js` — lock persistente de reset a través de rerenders.
+- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresión de carrera reset/rerender.
 
 ## Validación
 
-- Base exacta: `main` `96d39ba580a1f4e0bd33907f38378cbc33a82642`.
-- Esa base pasó BRVTAL CI #865 y queda **VALIDATED IN CODE**.
-- El head final del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit después de los fixes de review.
-- Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Base exacta: `main` `cb15117e86834dbaf4626d1369e5e45ef5592430`.
+- Ese SHA exacto pasó BRVTAL CI #892 y queda **VALIDATED IN CODE**.
+- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit antes del squash merge.
+- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
-- Ningún test ni paso automático limpia el log de producción.
+- No se ejecuta ningún RESET LOG real de producción durante esta validación.
 
 ## Qué sigue
 
-- Cerrar #474 con todos los gates del head exacto, squash merge y verificar BRVTAL CI sobre el nuevo `main`.
-- Continuar con #365 para hacer Dashboard V2 autoritativo sobre Health/Activity sin perder navegación al registro exacto.
-- Después continuar #191 y #237 como bloques independientes.
+- Cerrar este follow-up de #474 y resolver el review thread de CodeRabbit.
+- Continuar #475 / #365: Dashboard V2 autoritativo para Health/Activity.
+- Continuar #191: integridad referencial de `theme.active`.
+- Después avanzar #237 y mantener #451 como burn-down de calidad revalidado.
 
 ## Panorama general pendiente
 
-- **Calidad continua:** #451 — burn-down Sonar con cambios pequeños y revalidados.
-- **Dashboard / IA / Theme:** #365, #348, #351.
-- **Settings / Theme integrity:** #191.
-- **Hero / media:** #237, #221.
+- **Sonar / calidad:** #451 continúa por riesgo y área con cambios pequeños.
+- **Dashboard / DISCADMIN:** #365, #348 y #351.
+- **Settings / Theme:** #191 — integridad referencial de `theme.active`.
 - **Apariencia:** #149.
-- **Navegación / dirty-state:** #257, #216, #174, #193.
-- **SEO editorial:** #182, #214, #204, #272 y después #390.
-- **Content / operaciones:** #224, #232, #275, #195, #252.
-- **Archivo cultural:** #398 y #403.
-- **Memories:** #415 / PR #434 requiere reconciliación con `main`; sin migraciones automáticas de producción.
+- **Hero Slider:** #237 y #221.
+- **Seguridad editorial / navegación:** #257, #216, #174 y #193.
+- **SEO editorial:** #182, #214, #204 y #272 antes de #390.
+- **Content / edición:** #224 y #252.
+- **Activity / operaciones:** #232 y #195.
+- **Bulk Actions:** #275.
+- **Archivo cultural:** #398 / #403.
+- **Memories:** #415 / PR #434 requiere reconciliación; ninguna migración de producción automática.
 - **Idioma:** #212 por fases.
-- **Backups:** #389 con scheduling seguro y autorización externa para Drive.
+- **Backups:** #389 con autorización externa.
+- **Completados recientemente:** #207, #391, #260 y #388 están integrados en código; este deploy corrige el finding post-merge de #388.

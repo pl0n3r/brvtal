@@ -12,6 +12,7 @@
   let refreshTimer = null;
   let requestId = 0;
   let logOperationId = 0;
+  let logResetInFlight = false;
 
   const esc = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
@@ -141,15 +142,19 @@
     });
   }
 
+  function currentSystemStatusRoot(fallback) {
+    return document.getElementById('system-status-v2') ?? fallback;
+  }
+
   async function refreshLogsAfterReset(root, operationId) {
     try {
       const payload = await fetchJson(LOGS);
       if (isCurrentLogOperation(operationId)) {
-        renderLogPayload(root, payload);
+        renderLogPayload(currentSystemStatusRoot(root), payload);
       }
     } catch (error) {
       if (isCurrentLogOperation(operationId)) {
-        setLogMeta(root, `RESET COMPLETE · REFRESH FAILED · ${error.message}`);
+        setLogMeta(currentSystemStatusRoot(root), `RESET COMPLETE · REFRESH FAILED · ${error.message}`);
       }
     }
   }
@@ -173,13 +178,52 @@
     return false;
   }
 
+  function showResetSuccess(root) {
+    const currentRoot = currentSystemStatusRoot(root);
+    setLogMeta(currentRoot, 'RESET COMPLETE');
+    const currentOutput = currentRoot.querySelector('#ssv2-logs');
+    if (currentOutput) {
+      currentOutput.hidden = false;
+      currentOutput.textContent = 'No log entries.';
+    }
+    return currentRoot;
+  }
+
+  function showResetFailure(root, previousLogState, error) {
+    const currentRoot = currentSystemStatusRoot(root);
+    setLogMeta(currentRoot, `RESET FAILED · ${error.message}`);
+    const currentButton = currentRoot.querySelector('#ssv2-reset-logs');
+    const currentOutput = currentRoot.querySelector('#ssv2-logs');
+    if (currentButton) {
+      currentButton.textContent = 'RETRY RESET';
+    }
+    if (currentOutput && previousLogState) {
+      currentOutput.toggleAttribute('hidden', previousLogState.hidden);
+      currentOutput.textContent = previousLogState.textContent;
+    }
+  }
+
+  function setResetButtonText(root, text) {
+    const currentButton = currentSystemStatusRoot(root).querySelector('#ssv2-reset-logs');
+    if (currentButton) {
+      currentButton.textContent = text;
+    }
+  }
+
   async function resetLogs(root, button) {
+    if (logResetInFlight) {
+      return;
+    }
     if (!armLogReset(button)) {
       return;
     }
 
+    logResetInFlight = true;
     const operationId = nextLogOperation();
     const output = root.querySelector('#ssv2-logs');
+    const previousLogState = output
+      ? {hidden:output.hidden, textContent:output.textContent}
+      : null;
     setLogActionsDisabled(root, true);
     button.textContent = 'RESETTING…';
     try {
@@ -188,25 +232,21 @@
       if (!isCurrentLogOperation(operationId)) {
         return;
       }
-      setLogMeta(root, 'RESET COMPLETE');
-      if (output) {
-        output.hidden = false;
-        output.textContent = 'No log entries.';
-      }
-      await refreshLogsAfterReset(root, operationId);
+      const successRoot = showResetSuccess(root);
+      await refreshLogsAfterReset(successRoot, operationId);
       if (isCurrentLogOperation(operationId)) {
-        button.textContent = 'RESET LOG';
+        setResetButtonText(root, 'RESET LOG');
       }
     } catch (error) {
       if (!isCurrentLogOperation(operationId)) {
         return;
       }
       invalidateCachedCsrf(error);
-      setLogMeta(root, `RESET FAILED · ${error.message}`);
-      button.textContent = 'RETRY RESET';
+      showResetFailure(root, previousLogState, error);
     } finally {
+      logResetInFlight = false;
       if (isCurrentLogOperation(operationId)) {
-        setLogActionsDisabled(root, false);
+        setLogActionsDisabled(currentSystemStatusRoot(root), false);
       }
     }
   }
@@ -364,6 +404,7 @@
 
   function render(root, data, health, activity, latency) {
     if (!root.isConnected || !isSystemStatus()) return;
+    const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
     const storage = data.storage || {};
     const deployment = data.deployment || {};
     const runtime = data.runtime || {};
@@ -426,6 +467,11 @@
         <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
+    const advanced = root.querySelector('.ssv2-advanced');
+    if (advanced && (advancedOpen || logResetInFlight)) {
+      advanced.open = true;
+    }
+    setLogActionsDisabled(root, logResetInFlight);
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
     root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
       void loadLogs(root, event.currentTarget);
