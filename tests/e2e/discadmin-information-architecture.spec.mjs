@@ -35,7 +35,11 @@ function harness(authed = true) {
     window.__renderShell=function(section){
       state.section=section;
       window.__nativeRenders.push(section);
-      const artistToolbar=section==='artists'?'<div class="toolbar"><input class="search"><button class="btn red">+ NEW ARTIST</button></div>':'<div class="native-view">NATIVE '+section.toUpperCase()+'</div>';
+      const sectionContent=section==='events'
+        ?'<div data-canonical-events-list="1"><div class="toolbar"><input class="search" placeholder="Search events..."><button class="btn red" onclick="openModal(\'events\')">+ NEW EVENT</button></div><div class="table" data-events-table="canonical">EVENTS TABLE</div></div>'
+        :section==='artists'
+          ?'<div class="toolbar"><input class="search"><button class="btn red">+ NEW ARTIST</button></div>'
+          :'<div class="native-view">NATIVE '+section.toUpperCase()+'</div>';
       document.getElementById('app').innerHTML='<div class="shell"><aside class="side"><div class="nav">'
         +navButton('DASHBOARD',"go('dashboard')")
         +navButton('EVENTS',"go('events')")
@@ -53,7 +57,7 @@ function harness(authed = true) {
         +navButton('HERO SLIDER',"go('hero-slider')",'hero-slider')
         +navButton('BACKUPS',"go('backups')",'backups')
         +navButton('ACTIVITY',"go('activity')",'activity')
-        +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+artistToolbar+'</main></div>';
+        +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+sectionContent+'</main></div>';
     };
     window.go=async function(section){
       window.__nativeGo.push(section);
@@ -156,15 +160,19 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await page.evaluate(() => window.go('events'));
   await expect(page.locator('.main .top h1')).toHaveText('EVENTS');
   await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','events');
-  await expect(page.locator('[data-admin-module="content-core"] .tabs')).toBeHidden();
-  await expect(page.locator('#eventsTab')).toBeVisible();
+  await expect(page.locator('[data-canonical-events-list]')).toBeVisible();
+  await expect(page.locator('.main .toolbar .search:visible')).toHaveCount(1);
+  await expect(page.locator('[data-admin-module="content-core"] .wrap')).toBeHidden();
+  await expect(page.locator('[data-admin-module="content-core"] .wrap')).toHaveAttribute('data-ia-internal-only','1');
+  await expect(page.locator('#eventsTab')).toBeHidden();
   await expect(page.locator('#rosterTab')).toBeHidden();
   await expect(page.locator('#eventModal .ey')).toHaveText('EVENTS / EDITOR');
-  await expect(page.getByText('Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('events');
   await expect.poll(() => page.evaluate(() => window.__moduleLoadOptions.at(-1)?.syncUrl)).toBe(false);
   await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('events');
 
+  await page.getByRole('button',{name:'+ NEW EVENT',exact:true}).click();
+  await expect.poll(() => page.evaluate(() => window.__openedEvent)).toBe('new');
   await page.evaluate(() => window.openModal('events', 42));
   await expect.poll(() => page.evaluate(() => window.__openedEvent)).toBe(42);
   await expect.poll(() => page.evaluate(() => window.__legacyOpen.length)).toBe(0);
