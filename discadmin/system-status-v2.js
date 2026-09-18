@@ -4,10 +4,14 @@
   const TECH = '/discadmin/technical.php?action=overview';
   const HEALTH = '/api/content-health.php';
   const ACTIVITY = '/api/admin-activity.php?limit=5';
+  const LOGS = '/discadmin/technical.php?action=logs';
+  const LOG_RESET = '/discadmin/logs.php?action=clear&format=json';
+  const AUTH = '/api/index.php/auth';
   const GITHUB_ISSUES = 'https://github.com/pl0n3r/brvtal/issues';
   let mountTimer = null;
   let refreshTimer = null;
   let requestId = 0;
+  let logOperationId = 0;
 
   const esc = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
@@ -36,11 +40,175 @@
     return `${Math.floor(hours / 24)}D`;
   }
 
-  async function fetchJson(url) {
-    const response = await fetch(url, {credentials:'same-origin', cache:'no-store'});
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, {
+      credentials:'same-origin',
+      cache:'no-store',
+      ...options,
+    });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP_${response.status}`);
+    if (!response.ok || payload.ok === false) {
+      const requestError = String(payload.error ?? '').trim();
+      throw new Error(requestError === '' ? `HTTP_${response.status}` : requestError);
+    }
     return payload;
+  }
+
+  async function csrfToken() {
+    if (globalThis.csrf) {
+      return globalThis.csrf;
+    }
+    const auth = await fetchJson(AUTH);
+    if (!auth.authenticated || !auth.csrf) {
+      throw new Error('AUTH_REQUIRED');
+    }
+    globalThis.csrf = auth.csrf;
+    return auth.csrf;
+  }
+
+  function invalidateCachedCsrf(error) {
+    const code = String(error?.message ?? '');
+    if (['CSRF','AUTH_REQUIRED','HTTP_419','HTTP_401'].includes(code)) {
+      delete globalThis.csrf;
+    }
+  }
+
+  function renderLogPayload(root, payload) {
+    const output = root.querySelector('#ssv2-logs');
+    const meta = root.querySelector('#ssv2-log-meta');
+    if (!output || !meta) {
+      return;
+    }
+    output.hidden = false;
+    const logContent = String(payload.content ?? '');
+    output.textContent = logContent === '' ? 'No log entries.' : logContent;
+    meta.textContent = `${number(payload.lines)} LINES · ${number(payload.bytes)} B`;
+  }
+
+  function setLogMeta(root, message) {
+    const meta = root.querySelector('#ssv2-log-meta');
+    if (meta) {
+      meta.textContent = message;
+    }
+  }
+
+  function setLogActionsDisabled(root, disabled) {
+    root.querySelectorAll('#ssv2-load-logs,#ssv2-reset-logs')
+      .forEach(action => { action.disabled = disabled; });
+  }
+
+  function nextLogOperation() {
+    logOperationId += 1;
+    return logOperationId;
+  }
+
+  function isCurrentLogOperation(operationId) {
+    return operationId === logOperationId;
+  }
+
+  async function loadLogs(root, button) {
+    const operationId = nextLogOperation();
+    button.disabled = true;
+    button.textContent = 'LOADING…';
+    try {
+      const payload = await fetchJson(LOGS);
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
+      renderLogPayload(root, payload);
+      button.textContent = 'REFRESH LOGS';
+    } catch (error) {
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
+      setLogMeta(root, `LOAD FAILED · ${error.message}`);
+      button.textContent = 'RETRY LOGS';
+    } finally {
+      if (isCurrentLogOperation(operationId)) {
+        button.disabled = false;
+      }
+    }
+  }
+
+  function requestLogReset(token) {
+    return fetchJson(LOG_RESET, {
+      method:'POST',
+      headers:{
+        'Accept':'application/json',
+        'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
+      },
+      body:new URLSearchParams({csrf:token}).toString(),
+    });
+  }
+
+  async function refreshLogsAfterReset(root, operationId) {
+    try {
+      const payload = await fetchJson(LOGS);
+      if (isCurrentLogOperation(operationId)) {
+        renderLogPayload(root, payload);
+      }
+    } catch (error) {
+      if (isCurrentLogOperation(operationId)) {
+        setLogMeta(root, `RESET COMPLETE · REFRESH FAILED · ${error.message}`);
+      }
+    }
+  }
+
+  function armLogReset(button) {
+    if (button.dataset.resetArmed === 'true') {
+      delete button.dataset.resetArmed;
+      return true;
+    }
+    button.dataset.resetArmed = 'true';
+    button.textContent = 'CONFIRM RESET';
+    globalThis.setTimeout(() => {
+      if (button.dataset.resetArmed !== 'true') {
+        return;
+      }
+      delete button.dataset.resetArmed;
+      if (!button.disabled) {
+        button.textContent = 'RESET LOG';
+      }
+    }, 7000);
+    return false;
+  }
+
+  async function resetLogs(root, button) {
+    if (!armLogReset(button)) {
+      return;
+    }
+
+    const operationId = nextLogOperation();
+    const output = root.querySelector('#ssv2-logs');
+    setLogActionsDisabled(root, true);
+    button.textContent = 'RESETTING…';
+    try {
+      const token = await csrfToken();
+      await requestLogReset(token);
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
+      setLogMeta(root, 'RESET COMPLETE');
+      if (output) {
+        output.hidden = false;
+        output.textContent = 'No log entries.';
+      }
+      await refreshLogsAfterReset(root, operationId);
+      if (isCurrentLogOperation(operationId)) {
+        button.textContent = 'RESET LOG';
+      }
+    } catch (error) {
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
+      invalidateCachedCsrf(error);
+      setLogMeta(root, `RESET FAILED · ${error.message}`);
+      button.textContent = 'RETRY RESET';
+    } finally {
+      if (isCurrentLogOperation(operationId)) {
+        setLogActionsDisabled(root, false);
+      }
+    }
   }
 
   function unavailableSource(error) {
@@ -254,23 +422,16 @@
       <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RECENT ADMIN ACTIVITY</span><b>${esc(activityTotal)}</b></div><div class="ssv2-activity">${activityList(activity)}</div></section>
 
       <details class="ssv2-advanced"><summary>ADVANCED DIAGNOSTICS <span>RAW DATA / LOGS</span></summary>
-        <div class="ssv2-advanced-actions"><button type="button" id="ssv2-load-logs">LOAD RECENT LOGS</button><span>Diagnostics are read-only. No automatic repair actions.</span></div>
+        <div class="ssv2-advanced-actions"><div class="ssv2-log-actions"><button type="button" id="ssv2-load-logs">LOAD RECENT LOGS</button><button type="button" id="ssv2-reset-logs" class="ssv2-danger">RESET LOG</button></div><span id="ssv2-log-meta">LOG NOT LOADED</span></div>
         <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
-    root.querySelector('#ssv2-load-logs')?.addEventListener('click', async event => {
-      const button = event.currentTarget;
-      const output = root.querySelector('#ssv2-logs');
-      button.disabled = true; button.textContent = 'LOADING…';
-      try {
-        const logs = await fetchJson('/discadmin/technical.php?action=logs');
-        output.hidden = false; output.textContent = logs.content || 'No log entries.';
-        button.textContent = 'REFRESH LOGS';
-      } catch (error) {
-        output.hidden = false; output.textContent = `LOG ERROR: ${error.message}`;
-        button.textContent = 'RETRY LOGS';
-      } finally { button.disabled = false; }
+    root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
+      void loadLogs(root, event.currentTarget);
+    });
+    root.querySelector('#ssv2-reset-logs')?.addEventListener('click', event => {
+      void resetLogs(root, event.currentTarget);
     });
   }
 

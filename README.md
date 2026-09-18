@@ -4,51 +4,54 @@
 
 Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
 
-> **Regla permanente del proyecto:** cada deploy debe dejar aquí el snapshot exacto de lo que cambió y un panorama general actualizado de lo pendiente.
-
 ## Qué se hizo
 
-- Corrige #260 en Media Library móvil/tablet apilado.
-- Al tocar un asset, el inspector recién renderizado se revela inmediatamente mediante un desplazamiento explícito al panel de detalle.
-- El desplazamiento solo ocurre en selecciones iniciadas por el usuario y hasta 1050 px; desktop conserva su posición.
-- Refresh, upload, regeneración y otras recargas internas de la selección no fuerzan saltos de viewport.
-- La regresión Playwright cubre selección móvil, ausencia de salto en refresh interno y comportamiento desktop.
+- Implementa #388 dentro de System Status → Advanced Diagnostics.
+- Añade **RESET LOG** con confirmación explícita de dos pasos antes de cualquier mutación.
+- El reset reutiliza `discadmin/logs.php?action=clear`, exige sesión admin + POST + CSRF y conserva el comportamiento standalone existente.
+- La política destructiva se extrae a un helper reutilizado por el endpoint y probado sobre un archivo temporal aislado; los tests no tocan el log real.
+- El borrado usa `LOCK_EX`, reporta fallos de escritura y refresca contenido, líneas y bytes tras éxito.
+- Las lecturas/reset comparten una generación de operación para impedir que una respuesta previa al reset sobrescriba el estado ya limpiado.
+- Si el reset falla por CSRF/autenticación, el token cacheado se invalida para que el siguiente intento consulte uno actual.
+- La cobertura Chromium incluye confirmación, éxito, fallo, carrera de respuesta vieja y recuperación tras CSRF obsoleto.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/media-library.js` — revela el inspector tras una selección manual en layout apilado.
-- `tests/e2e/discadmin-media-mobile-inspector.spec.mjs` — regresiones móvil/desktop y protección contra saltos en refresh.
+- `README.md` — snapshot exacto del deploy y panorama pendiente actualizado.
+- `config/admin_log.php` — política testable y aislada para validar/ejecutar el clear del log.
+- `discadmin/logs.php` — frontera autenticada/CSRF del reset y respuesta JSON opcional.
+- `discadmin/system-status-v2.css` — agrupación de acciones, estado destructivo y foco visible.
+- `discadmin/system-status-v2.js` — RESET LOG, confirmación, refresh, serialización de operaciones y recuperación de CSRF.
+- `discadmin/technical.php` — metadata de bytes y lectura defensiva del log.
+- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de UI, concurrencia y token CSRF.
+- `tests/system-status-reset-log-contract.php` — contrato ejecutable con archivo temporal auto-limpiable.
 
 ## Validación
 
-- Base exacta: `main` `58d92fdf5ab75c5995a3d7f1c5edcc8a4a9f797c`.
-- Ese SHA exacto pasó BRVTAL CI #862 y queda **VALIDATED IN CODE**.
-- El head del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit antes del squash merge.
-- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Base exacta: `main` `96d39ba580a1f4e0bd33907f38378cbc33a82642`.
+- Esa base pasó BRVTAL CI #865 y queda **VALIDATED IN CODE**.
+- El head final del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit después de los fixes de review.
+- Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
+- Ningún test ni paso automático limpia el log de producción.
 
 ## Qué sigue
 
-- Cerrar gates exactos de #260, corregir findings válidos, squash merge y verificar el nuevo `main`.
-- Continuar con #388: RESET LOG seguro desde System Status reutilizando el boundary existente.
-- Después atacar #365: Dashboard V2 como superficie autoritativa de Health/Activity con navegación al registro exacto.
-- Mantener #451 como burn-down continuo con cambios pequeños y revalidados.
+- Cerrar #474 con todos los gates del head exacto, squash merge y verificar BRVTAL CI sobre el nuevo `main`.
+- Continuar con #365 para hacer Dashboard V2 autoritativo sobre Health/Activity sin perder navegación al registro exacto.
+- Después continuar #191 y #237 como bloques independientes.
 
 ## Panorama general pendiente
 
-- **Sonar / calidad:** #451 continúa por riesgo y área, con PRs pequeños.
-- **System Status:** #388 — RESET LOG autenticado, con CSRF y confirmación.
-- **Dashboard / DISCADMIN:** #365, #348 y #351 — autoridad del Dashboard, IA y Theme Studio.
-- **Settings / Theme:** #191 — integridad referencial de `theme.active`.
-- **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
-- **Apariencia:** #149 — completar Light en módulos modernos.
-- **Seguridad editorial / navegación:** #257, #216, #174 y #193.
-- **SEO editorial:** #182, #214, #204 y #272 antes de #390.
-- **Content / edición:** #224 y #252 — ticket types e integridad de media.
-- **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
-- **Bulk Actions:** #275 — resolver catálogos mayores de 500 sin truncado silencioso.
-- **Archivo cultural:** #398 / #403 — Event Records y relaciones estructuradas.
-- **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
-- **Idioma:** #212 — ES canónico + EN automático por fases.
-- **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
+- **Calidad continua:** #451 — burn-down Sonar con cambios pequeños y revalidados.
+- **Dashboard / IA / Theme:** #365, #348, #351.
+- **Settings / Theme integrity:** #191.
+- **Hero / media:** #237, #221.
+- **Apariencia:** #149.
+- **Navegación / dirty-state:** #257, #216, #174, #193.
+- **SEO editorial:** #182, #214, #204, #272 y después #390.
+- **Content / operaciones:** #224, #232, #275, #195, #252.
+- **Archivo cultural:** #398 y #403.
+- **Memories:** #415 / PR #434 requiere reconciliación con `main`; sin migraciones automáticas de producción.
+- **Idioma:** #212 por fases.
+- **Backups:** #389 con scheduling seguro y autorización externa para Drive.

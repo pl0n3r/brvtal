@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/admin_log.php';
 brvtal_admin_require();
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -17,27 +18,48 @@ $logDir = $root . '/storage/logs';
 $logFile = $logDir . '/brvtal.log';
 
 $action = (string)($_GET['action'] ?? '');
+$acceptHeader = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+$wantsJson = (string)($_GET['format'] ?? '') === 'json'
+    || stripos($acceptHeader, 'application/json') !== false;
+
+$respondJson = static function (array $payload, int $status = 200): never {
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    $json = json_encode(
+        $payload,
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    echo $json === false ? '{"ok":false,"error":"JSON_ENCODE_ERROR"}' : $json;
+    exit;
+};
 
 if ($action === 'clear') {
-    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-        http_response_code(405);
-        header('Allow: POST');
-        exit('METHOD NOT ALLOWED');
+    $result = brvtal_admin_log_clear_result(
+        (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'),
+        (string)($_SESSION['csrf'] ?? ''),
+        (string)($_POST['csrf'] ?? ''),
+        $logFile
+    );
+    $status = (int)$result['status'];
+    $payload = $result['payload'];
+
+    if ($status !== 200) {
+        if ($status === 405) {
+            header('Allow: POST');
+        }
+        if ($wantsJson) {
+            $respondJson($payload, $status);
+        }
+        http_response_code($status);
+        $error = (string)($payload['error'] ?? 'LOG_CLEAR_FAILED');
+        exit(str_replace('_', ' ', $error));
     }
 
-    $csrf = (string)($_POST['csrf'] ?? '');
-
-    if (
-        empty($_SESSION['csrf']) ||
-        $csrf === '' ||
-        !hash_equals((string)$_SESSION['csrf'], $csrf)
-    ) {
-        http_response_code(419);
-        exit('CSRF');
-    }
-
-    if (is_file($logFile)) {
-        @file_put_contents($logFile, '');
+    if ($wantsJson) {
+        $respondJson([
+            ...$payload,
+            'file' => 'storage/logs/brvtal.log',
+        ]);
     }
 
     header('Location: logs.php');
