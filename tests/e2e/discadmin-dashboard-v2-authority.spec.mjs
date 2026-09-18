@@ -135,6 +135,7 @@ test('NEXT EVENT keeps sold-out events ready without requiring a ticket URL', as
   const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
   await expect(panel.locator('.dashboard-v2-state')).toHaveText('READY');
   await expect(panel).toContainText('SOLD OUT');
+  await expect(panel.locator('.dashboard-next-event-status .dashboard-v2-chip.good')).toHaveText('SOLD OUT');
   await expect(panel).not.toContainText('Check ticket destination');
   await expect(panel.locator('.dashboard-next-event-media')).toHaveAttribute('src','/uploads/sold.jpg');
 });
