@@ -13,6 +13,8 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Si Dashboard V2 no está disponible, los paneles legacy siguen funcionando como fallback.
 - Las acciones **OPEN** del Dashboard conservan el recurso y el ID exacto del registro y delegan a `BRVTALAdminRecordNavigation`.
 - La regresión comprueba tanto navegación a la sección correcta como apertura del registro exacto para Health y Activity.
+- Dashboard V2 reserva su marcador de ownership antes de esperar fuentes asíncronas; Health/Activity legacy no aparecen mientras V2 todavía carga.
+- El markup de Recent Activity se simplifica para eliminar los 2 findings Sonar de template literals anidados sin cambiar comportamiento.
 - Se conserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 
 ## Archivos modificados en este deploy
@@ -21,7 +23,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `discadmin/dashboard-v2.js` — autoridad del Dashboard y navegación exacta a registros.
 - `discadmin/content-health.js` — fallback legacy solo cuando Dashboard V2 no está montado.
 - `discadmin/admin-activity.js` — fallback legacy solo cuando Dashboard V2 no está montado.
-- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresiones de duplicación, fallback y navegación recurso/ID.
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresiones de duplicación, ownership durante carga, fallback y navegación recurso/ID.
 
 ## Validación
 
