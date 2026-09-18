@@ -8,53 +8,54 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Añade un relay permanente para las anotaciones de SonarQube Cloud.
-- Cuando termina el check externo **SonarCloud Code Analysis**, GitHub Actions lee sus anotaciones con `checks: read`.
-- El relay publica o actualiza un comentario estable en el PR con nivel, archivo, línea, título y mensaje.
-- Esto evita depender del endpoint de annotations que el conector de GitHub de ChatGPT no puede abrir directamente.
-- Incluye `workflow_dispatch` para poder relanzar manualmente el relay con un check run ID y PR concretos.
-- Valida que el check manual pertenezca al PR indicado antes de publicar resultados.
-- Pagina tanto annotations como comentarios existentes y serializa el upsert para evitar comentarios duplicados.
-- Usa permisos mínimos (`checks: read`, `pull-requests: write`) y no hace checkout ni ejecuta código del PR.
-- `AGENTS.md` documenta ese comentario como fuente canónica legible por el conector para findings Sonar detallados.
+- Corrige #365 haciendo Dashboard V2 la superficie autoritativa de Content Health y Recent Admin Activity.
+- Los paneles legacy de Health/Activity dejan de montarse cuando Dashboard V2 está realmente presente, evitando información duplicada.
+- Si Dashboard V2 no está disponible, los paneles legacy siguen funcionando como fallback.
+- Las acciones **OPEN** del Dashboard conservan el recurso y el ID exacto del registro y delegan a `BRVTALAdminRecordNavigation`.
+- La regresión comprueba tanto navegación a la sección correcta como apertura del registro exacto para Health y Activity.
+- Dashboard V2 reserva su marcador de ownership antes de esperar fuentes asíncronas; Health/Activity legacy no aparecen mientras V2 todavía carga.
+- Si el render deja de ser válido durante esa espera, V2 libera el marcador reservado y el fallback legacy queda disponible.
+- El markup de Recent Activity se simplifica para eliminar los 2 findings Sonar de template literals anidados sin cambiar comportamiento.
+- Se conserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/sonar-annotation-relay.yml` — relay de anotaciones Sonar hacia comentarios de PR.
-- `AGENTS.md` — contrato permanente para consumir el relay en revisiones.
-- `README.md` — snapshot exacto de este cambio de tooling.
+- `README.md` — snapshot exacto del deploy y panorama pendiente.
+- `discadmin/dashboard-v2.js` — autoridad del Dashboard y navegación exacta a registros.
+- `discadmin/content-health.js` — fallback legacy solo cuando Dashboard V2 no está montado.
+- `discadmin/admin-activity.js` — fallback legacy solo cuando Dashboard V2 no está montado.
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresiones de duplicación, ownership durante carga, fallback y navegación recurso/ID.
 
 ## Validación
 
-- Base exacta: `main` `e652c6fa8f3cbbf75d8ec9682f68c86741cfd552`.
-- Ese SHA exacto pasó BRVTAL CI #917 y queda **VALIDATED IN CODE**.
-- El PR de este tooling debe pasar BRVTAL CI, SonarCloud y CodeRabbit antes del squash merge.
-- Después del merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
-- El relay se considerará funcional cuando un nuevo check Sonar publique su comentario con las anotaciones reales.
+- Base exacta: `main` `4035812295b85d09d4b75899fdb7a55bc2aec2fd`.
+- El head reconstruido del PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
+- El relay de Sonar integrado en #477 debe publicar las annotations detalladas como comentario estable del PR.
+- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
-- No hay cambios de runtime público, base de datos ni operaciones destructivas.
+- No se ejecutan migraciones ni operaciones destructivas de producción.
 
 ## Qué sigue
 
-- Cerrar y validar el relay de Sonar.
-- Re-sincronizar #475 / #365 contra el nuevo `main` y verificar que el próximo Sonar check deje detalle legible en el PR.
-- Continuar #191 y #237 como líneas independientes.
-- Mantener #451 como burn-down de calidad con findings concretos, no inferidos desde conteos agregados.
+- Cerrar gates exactos de #365, corregir findings válidos, squash merge y verificar el nuevo `main`.
+- Continuar con #191: integridad referencial de `theme.active` y acceso desde Theme Studio.
+- Después atacar #237: assets/overrides del Hero al cambiar breakpoint.
+- Mantener #451 como burn-down continuo con cambios pequeños revalidados contra el código actual.
 
 ## Panorama general pendiente
 
-- **Sonar / calidad:** #451 continúa por riesgo y área con cambios pequeños.
-- **Dashboard / DISCADMIN:** #365, #348 y #351.
+- **Sonar / calidad:** #451 continúa por riesgo y área, con PRs pequeños.
 - **Settings / Theme:** #191 — integridad referencial de `theme.active`.
-- **Apariencia:** #149.
-- **Hero Slider:** #237 y #221.
+- **Apariencia:** #149 — completar Light en módulos modernos.
+- **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193.
 - **SEO editorial:** #182, #214, #204 y #272 antes de #390.
-- **Content / edición:** #224 y #252.
-- **Activity / operaciones:** #232 y #195.
-- **Bulk Actions:** #275.
-- **Archivo cultural:** #398 / #403.
-- **Memories:** #415 / PR #434 requiere reconciliación; ninguna migración de producción automática.
-- **Idioma:** #212 por fases.
-- **Backups:** #389 con autorización externa.
-- **Completados recientemente:** #207, #391, #260 y #388 están integrados en código.
+- **Content / edición:** #224 y #252 — Ticket Types e integridad de media.
+- **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
+- **Bulk Actions:** #275 — resolver catálogos mayores de 500 sin truncado silencioso.
+- **Dashboard / DISCADMIN:** #348 y #351 — IA y Theme Studio.
+- **Archivo cultural:** #398 / #403 — Event Records y relaciones estructuradas.
+- **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
+- **Idioma:** #212 — español canónico + inglés automático por fases.
+- **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
+- **Completados recientemente:** #207, #260, #388 y #391 ya fueron revalidados/cerrados en código.

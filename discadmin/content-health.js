@@ -62,7 +62,7 @@
 
   function render(data) {
     const main = document.querySelector('.main');
-    if (!main || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
+    if (!main || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
     document.getElementById('brvtal-content-health')?.remove();
 
     const publicHealth = data.public || data;
@@ -104,11 +104,13 @@
   }
 
   async function mount() {
-    if (loading || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
+    if (loading || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
     loading = true;
     try {
       ensureStyle();
-      render(await fetchHealth());
+      const health = await fetchHealth();
+      if (document.getElementById('brvtal-dashboard-v2')) return;
+      render(health);
     } catch (error) {
       window.BRVTALFeedback?.error?.('Content Health unavailable: ' + (error?.message || error),'content-health');
     } finally {
@@ -126,10 +128,9 @@
   }
 
   const observer = new MutationObserver(() => {
-    if (typeof state !== 'undefined' && state.authed && state.section === 'dashboard' && !document.getElementById('brvtal-content-health')) {
-      clearTimeout(observer._timer);
-      observer._timer = setTimeout(mount, 20);
-    }
+    if (typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2') || document.getElementById('brvtal-content-health')) return;
+    clearTimeout(observer._timer);
+    observer._timer = setTimeout(mount, 20);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 

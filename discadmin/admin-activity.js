@@ -174,7 +174,7 @@
 
   function render(data, selectedResource = '') {
     const main = document.querySelector('.main');
-    if (!main || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
+    if (!main || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
     document.getElementById('brvtal-admin-activity')?.remove();
 
     const items = Array.isArray(data?.items) ? data.items : [];
@@ -198,11 +198,13 @@
   }
 
   async function mount(resource = '') {
-    if (loading || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
+    if (loading || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
     loading = true;
     try {
       ensureStyle();
-      render(await fetchList(resource), resource);
+      const activity = await fetchList(resource);
+      if (document.getElementById('brvtal-dashboard-v2')) return;
+      render(activity, resource);
     } catch (error) {
       if (error?.message === 'ACTIVITY_SCHEMA_MISSING') return;
       window.BRVTALFeedback?.error?.('Admin Activity unavailable: ' + (error?.message || error),'admin-activity');
@@ -221,10 +223,9 @@
   }
 
   const observer = new MutationObserver(() => {
-    if (typeof state !== 'undefined' && state.authed && state.section === 'dashboard' && !document.getElementById('brvtal-admin-activity')) {
-      clearTimeout(observer._activityTimer);
-      observer._activityTimer = setTimeout(() => mount(''), 25);
-    }
+    if (typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2') || document.getElementById('brvtal-admin-activity')) return;
+    clearTimeout(observer._activityTimer);
+    observer._activityTimer = setTimeout(() => mount(''), 25);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
