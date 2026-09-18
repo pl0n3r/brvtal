@@ -8,45 +8,40 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque P1 de accesibilidad de formularios en DISCADMIN.
-- Blog y Releases asocian explícitamente sus labels con inputs, selects y textareas dinámicos.
-- La fila de artistas de Releases deja de envolver dos controles dentro de un único `label`; checkbox y rol reciben nombres accesibles independientes. El nombre visible queda asociado nativamente con su checkbox para ampliar el target de interacción.
-- Content Core da nombres accesibles a Ticket Types dinámicos, al botón de eliminación y a los checkboxes del lineup. Los nombres visibles del lineup también quedan asociados con su checkbox.
-- El editor de lifecycle de Artists asocia cada label con su control.
-- El buscador del Media Picker recibe un nombre accesible explícito.
-- No cambia payload, validación, persistencia, rutas ni comportamiento editorial.
-- Se añade un contrato dedicado que cubre estos nombres y asociaciones.
-- La regresión Playwright de Releases valida además la estructura renderizada de cada fila de artista, no solo marcadores de código fuente.
+- Continúa #451 con un bloque P2 acotado de mantenibilidad en la arquitectura de navegación de DISCADMIN.
+- `buttonKey()` deja de mantener una cadena larga de decisiones por etiqueta y pasa a usar un mapa de labels exactos más reglas parciales declarativas.
+- Se preserva la prioridad canónica: `data-admin-nav` y handlers `go()/tech()` siguen ganando antes que el texto visible.
+- Se preservan los aliases actuales de Media, Hero Slider, Theme, Security / 2FA, System Status, Backups, Activity, Content Core y SEO.
+- Las etiquetas desconocidas conservan el fallback `other:<label>`.
+- No cambia navegación, URL state, shell, permisos, API, base de datos ni comportamiento editorial.
+- La regresión Playwright cubre labels exactos, coincidencias parciales, Content Core oculto y fallback desconocido.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `discadmin/blog.js` — asociaciones label/control del editor Blog.
-- `discadmin/content-core.js` — nombres accesibles de tickets, lineup y lifecycle de Artists.
-- `discadmin/media-library.js` — nombre accesible del buscador del Media Picker.
-- `discadmin/releases.js` — asociaciones label/control y separación semántica de controles por artista.
-- `tests/discadmin-editor-accessibility-contract.php` — regresión de accesibilidad para los cuatro módulos.
-- `tests/e2e/discadmin-releases.spec.mjs` — verifica en el DOM renderizado la asociación nativa entre nombre visible y checkbox de artista.
+- `discadmin/admin-information-architecture.js` — clasificación declarativa de destinos del sidebar con menor complejidad.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión de aliases y fallbacks de navegación.
 
 ## Validación
 
-- Base exacta: `main` `8d48bd81f7b6aaee79632a8eb99057b2abd7d6dc`.
-- Esa base pasó BRVTAL CI #972 y queda **VALIDATED IN CODE**.
-- El PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
+- Base exacta: `main` `a5ac2980912b364161a0be040ee6cb329a5b430f`.
+- Esa base pasó **BRVTAL CI #976** y queda **VALIDATED IN CODE**.
+- El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - CI verde significa **VALIDATED IN CODE**, no validación de producción.
+- Production Performance de la base no midió métricas porque el marcador exacto de Hostinger aún no era visible dentro de su ventana acotada; se solicitó rerun del job fallido.
 
 ## Qué sigue
 
-- Cerrar este bloque de #451 y continuar con deuda que siga reproduciéndose en el código actual.
-- Reconciliar PR #434 / Memories aparte, sin mezclarlo con calidad de formularios.
+- Cerrar este bloque de #451 y continuar con deuda P2 que siga reproduciéndose en el código actual.
+- Reconciliar PR #434 / Memories aparte, sin mezclarlo con este refactor.
 - Mantener #479, #480 y #481 como frentes separados de SEO/experiencia pública.
 
 ## Panorama general pendiente
 
-- **Sonar / calidad:** #451 continúa por riesgo y área; los S2703, S7727 y S8786 del export original ya no se reproducen en `main`.
+- **Sonar / calidad:** #451 continúa por riesgo y área; P1 revalidado ya quedó cubierto o dejó de reproducirse, y el trabajo entra en bloques P2 pequeños.
 - **Apariencia:** #149 — completar Light en módulos modernos.
-- **Hero Slider:** #221 — integridad editorial de media; #480 — regresión visual del Hero en desktop.
+- **Hero Slider:** #221 — integridad editorial de media; #480 — regresión visual del Hero en desktop. #237 ya está cerrado.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193.
 - **SEO editorial / entrega pública:** #182, #214, #204 y #272 antes de #390; #479 corrige imágenes sin `alt`; #481 integra IndexNow.
 - **Content / edición:** #224 y #252 — Ticket Types e integridad de media.
