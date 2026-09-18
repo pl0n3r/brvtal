@@ -10,18 +10,18 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - Implementa #388 dentro de System Status → Advanced Diagnostics.
 - Añade una acción destructiva y claramente diferenciada **RESET LOG** junto a los controles de logs.
-- La acción exige confirmación explícita, usa POST autenticado con CSRF y reutiliza `discadmin/logs.php?action=clear` como única frontera de borrado.
+- La acción exige confirmación explícita de dos pasos en el propio botón, usa POST autenticado con CSRF y reutiliza `discadmin/logs.php?action=clear` como única frontera de borrado.
 - `logs.php` conserva el flujo HTML existente y añade una respuesta JSON opcional para el workspace interno; no se duplica lógica de filesystem en `technical.php`.
 - El borrado usa `LOCK_EX` y devuelve error explícito si el archivo no puede vaciarse.
 - Tras éxito, System Status vuelve a leer el log y actualiza contenido, líneas y bytes; un fallo de reset conserva el estado visible y muestra error.
-- Se añade estilo de peligro/focus visible y cobertura Playwright para confirmar, cancelar, éxito y fallo.
+- Se añade estilo de peligro/focus visible y cobertura Playwright para primer clic sin mutación, confirmación, éxito y fallo.
 - Se añade contrato PHP para mantener POST-only, CSRF, locking y reutilización del endpoint canónico.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
 - `discadmin/logs.php` — respuesta JSON opcional y fallo explícito del reset, preservando la UI standalone.
-- `discadmin/system-status-v2.js` — RESET LOG, confirmación, CSRF, loading/error y refresh del estado visible.
+- `discadmin/system-status-v2.js` — RESET LOG, confirmación de dos pasos, CSRF, loading/error y refresh del estado visible.
 - `discadmin/system-status-v2.css` — agrupación de acciones, estilo destructivo y foco visible.
 - `discadmin/technical.php` — metadata de bytes para el log leído por System Status.
 - `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de éxito/cancelación/fallo.
