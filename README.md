@@ -6,18 +6,18 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot profesional de **solo el deploy actual**. Estado útil primero; branding decorativo después.
+> **Development dashboard** · snapshot profesional de **solo el deploy actual**.
 
 ## Estado del deploy
 
 | Señal | Estado actual | Evidencia |
 | --- | --- | --- |
-| Work line | 🟢 **#527 README dashboard** | dashboard visual + métricas verificadas por CI |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `ff3d34370d39eb7f5cc81ad6b748b0caeff6519e` · exact-main CI verde |
+| Work line | 🟢 **#520 Events workspace** | elimina el listado duplicado sin duplicar lógica editorial |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `37de68940ba466b8c6b1790ae2213240e9ec6299` · exact-main BRVTAL CI verde |
 | Fase | ⚡ **Phase 1 / quick wins** | roadmap maestro [#533](https://github.com/pl0n3r/brvtal/issues/533) |
-| Versión producto | 🧪 **pre-1.0** | versión humana/semver pendiente en [#517](https://github.com/pl0n3r/brvtal/issues/517) |
-| Lead time CI | 📉 **123 s → 84 s** | último full-scope medido: **−31.7%** tras [#535](https://github.com/pl0n3r/brvtal/pull/535) |
-| Producción | ⚠️ **marker pendiente de calibración** | `ff3d343` no apareció en >4 min; seguimiento [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| Versión producto | 🧪 **pre-1.0** | versión humana pendiente en [#517](https://github.com/pl0n3r/brvtal/issues/517) |
+| Lead time CI | 📉 **123 s → 84 s** | mejora medida tras [#535](https://github.com/pl0n3r/brvtal/pull/535) |
+| Producción | 🔎 **observación separada** | latencia/auto-deploy Hostinger se sigue en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
 
@@ -25,9 +25,9 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+358** | **−186** | **+172** |
+| **3** | **+51** | **−67** | **−16** |
 
-La huella se calcula con `git diff --numstat` y CI rechaza el README si estos números o la lista de archivos quedan desactualizados.
+La huella se calcula con `git diff --numstat` y CI rechaza el README si queda desactualizada.
 
 ## Calidad y entrega
 
@@ -35,79 +35,60 @@ La huella se calcula con `git diff --numstat` y CI rechaza el README si estos n�
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| BRVTAL CI | badge vivo arriba · `validate` agrega todas las capas aplicables |
-| Sonar | badge vivo arriba · Clean-as-You-Code, sin inventar resultados |
+| Gates seleccionados | **preflight · fast[JS] · chromium · real-stack** |
+| BRVTAL CI | `validate` agrega todas las capas aplicables |
+| Sonar | Clean-as-You-Code, sin inventar resultados |
 | CodeRabbit | full review sobre el head estable, en paralelo con CI/Sonar |
 | Exact-main | se valida otra vez después del squash merge |
-| Producción | deploy marker y validación funcional son evidencias distintas |
+| Producción | deploy marker y validación funcional siguen siendo evidencias distintas |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-    A["PR + snapshot exacto"] --> P["preflight"]
-    P --> F["fast"]
-    P --> H["gates pesados en paralelo"]
-    A --> S["Sonar"]
-    A --> C["CodeRabbit"]
-    F --> G["head listo"]
-    H --> G
-    S --> G
-    C --> G
-    G --> M["Squash merge"]
-    M --> X["CI del SHA exacto de main"]
-    M --> D["Deploy observer"]
+    A["#520 · una lista Events"] --> T["E2E real-stack"]
+    T --> P["PR"]
+    P --> C["CI + Sonar + CodeRabbit"]
+    C --> M["Squash merge"]
+    M --> X["Exact-main CI"]
 ```
 
 ## Qué se hizo
 
-- Convierte README en un tablero operativo: estado, huella Git, calidad, lead time y prioridades visibles en segundos.
-- Añade `scripts/readme-dashboard.py` para verificar automáticamente archivos, inserciones, eliminaciones, neto y gates seleccionados.
-- Sustituye el validador inline del workflow por el validador reutilizable.
-- Elimina el logo como elemento protagonista del README.
-- Calibra el observador de Hostinger a una ventana acotada más realista y corrige el failure path de shell.
-- Mantiene **CI ≠ deploy ≠ VALIDATED IN PRODUCTION** como estados separados.
+- Conserva el **workspace superior** de Events como única búsqueda/lista visible.
+- Mantiene Content Core montado como motor interno del editor, pero oculta su segundo listado.
+- Preserva New/Edit, tickets, lineup, lifecycle y SEO dentro del mismo editor avanzado.
+- Añade regresión real-stack: una sola búsqueda de Events visible y apertura del editor desde la lista canónica.
 
 ## Archivos modificados en este deploy
 
-**Automation**
-- `.github/workflows/production-deploy-observer.yml` — ventana de observación calibrada y failure path seguro.
-- `.github/workflows/update-release-metadata.yml` — usa el validador reusable del dashboard.
-
-**Policy / handoff**
-- `AGENTS.md` — persiste el contrato visual, métricas exactas y estado del pipeline.
-- `README.md` — nuevo dashboard profesional de desarrollo.
-
-**Tooling / contracts**
-- `scripts/ci-scope.sh` — expone un modo CLI seguro por stdin para reutilizar el mismo clasificador sin `bash -c` dinámico.
-- `scripts/readme-dashboard.py` — calcula y valida huella Git + gate plan.
-- `tests/ci-scope-contract.php` — protege la calibración del observador y el validador.
-- `tests/project-operations-contract.php` — protege el dashboard como contrato operacional.
+- `discadmin/admin-information-architecture.js` — oculta el workspace interno duplicado de Content Core en contexto Events.
+- `tests/e2e/content-core-real-stack.spec.mjs` — valida ruta canónica Events, listado único y editor real.
+- `README.md` — dashboard exacto del deploy #520.
 
 ## Validación
 
-- El propio PR debe pasar el validador contra su **base/head exactos**; no se aceptan métricas manuales desfasadas.
-- La lista de archivos de este bloque debe coincidir exactamente con el diff real.
-- El cambio de workflow selecciona la matriz completa para probar el nuevo contrato de extremo a extremo.
-- Sonar y CodeRabbit se ejecutan en paralelo sobre el head estable.
-- Tras merge, exact-main CI se valida de nuevo; el observador de Hostinger corre en paralelo y no equivale a validación funcional.
+- El E2E usa el admin descartable y el stack PHP/MariaDB real.
+- Debe existir exactamente **un** `Search events` visible.
+- Content Core continúa montado y su modal Event continúa disponible.
+- El flujo completo de creación/persistencia del Event sigue cubierto por el mismo E2E.
+- CI, Sonar y CodeRabbit se evalúan sobre el mismo head estable.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | Cerrar [#527](https://github.com/pl0n3r/brvtal/issues/527) y medir el observador calibrado de [#534](https://github.com/pl0n3r/brvtal/issues/534). |
-| **NEXT** | Quick wins Admin: [#520](https://github.com/pl0n3r/brvtal/issues/520) → [#521](https://github.com/pl0n3r/brvtal/issues/521) → [#526](https://github.com/pl0n3r/brvtal/issues/526) → [#522](https://github.com/pl0n3r/brvtal/issues/522). |
-| **BLOCKED / EXTERNAL** | Si el SHA sigue sin aparecer: verificar en Hostinger hPanel Git auto-deploy, repositorio/branch seleccionado y autorización GitHub; no debilitar CI. |
+| **NOW** | Cerrar [#520](https://github.com/pl0n3r/brvtal/issues/520). |
+| **NEXT** | [#521](https://github.com/pl0n3r/brvtal/issues/521) color picker → [#526](https://github.com/pl0n3r/brvtal/issues/526) Blog taxonomy → [#522](https://github.com/pl0n3r/brvtal/issues/522) Media navigation. |
+| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) si Hostinger no expone el SHA dentro de la ventana calibrada. |
 | **LATER** | Continuar [#533](https://github.com/pl0n3r/brvtal/issues/533) de bajo riesgo → arquitectura más compleja. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | Delivery / deploy observation | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
-| **NEXT** | Admin friction | [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
+| **NOW** | Admin friction | [#520](https://github.com/pl0n3r/brvtal/issues/520) |
+| **NEXT** | Quick wins | [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
 | **LATER** | Shell / apariencia | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |
 | **LATER** | Editorial productivity | [#518](https://github.com/pl0n3r/brvtal/issues/518), [#519](https://github.com/pl0n3r/brvtal/issues/519), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
 | **LATER** | Operational dashboards | [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |

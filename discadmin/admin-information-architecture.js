@@ -313,19 +313,18 @@
     if (!root) return;
     root.classList.add('ia-events-workspace');
     root.dataset.iaContext = 'events';
-    root.querySelector('#eventsTab')?.style.setProperty('display','block');
-    root.querySelector('#rosterTab')?.style.setProperty('display','none');
+
+    // Events already owns the canonical search/list workspace above. Keep
+    // Content Core mounted only as the editor engine so its internal list
+    // remains available to load/open records without rendering a duplicate UI.
+    const wrap = root.querySelector('.wrap');
+    if (wrap) {
+      wrap.hidden = true;
+      wrap.setAttribute('aria-hidden','true');
+    }
+
     const modalEyebrow = root.querySelector('#eventModal .ey');
     if (modalEyebrow) modalEyebrow.textContent = 'EVENTS / EDITOR';
-    const wrap = root.querySelector('.wrap');
-    if (wrap && !wrap.querySelector('[data-ia-events-intro]')) {
-      const intro = contextBar(
-        'EVENTS',
-        'Identity, date and place, lifecycle, tickets and lineup are managed here as one workflow.'
-      );
-      intro.dataset.iaEventsIntro = '1';
-      wrap.prepend(intro);
-    }
   }
 
   function simplifyRoster(root) {

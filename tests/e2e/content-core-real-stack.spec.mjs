@@ -25,12 +25,16 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
   let eventId = 0;
 
   try {
-    await page.goto(`${baseUrl}/discadmin/?module=content-core`, {waitUntil:'domcontentloaded'});
+    await page.goto(`${baseUrl}/discadmin/?module=events`, {waitUntil:'domcontentloaded'});
     const core = page.locator('[data-admin-module="content-core"]');
-    await expect(core).toBeVisible({timeout:10_000});
+    await expect(core).toBeAttached({timeout:10_000});
+    await expect(core.locator('.wrap')).toBeHidden();
+
+    const visibleSearch = page.locator('input.search[placeholder^="Search events"]:visible');
+    await expect(visibleSearch).toHaveCount(1);
 
     const step = number => page.locator(`#eventModal [data-step="${number}"]`);
-    await core.getByRole('button', {name:'+ NEW EVENT'}).click();
+    await page.getByRole('button', {name:'+ NEW EVENT'}).click();
     await expect(page.locator('#eventModal')).toHaveClass(/open/);
     await page.locator('#e_title').fill(title);
     await page.locator('#e_slug').fill(slug);
