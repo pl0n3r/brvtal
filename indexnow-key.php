@@ -15,7 +15,7 @@ if (!$validRoute) {
     exit;
 }
 
-$setting = brvtal_indexnow_setting(db());
+$setting = brvtalIndexNowSetting(db());
 if (!$setting['enabled'] || $setting['key'] === '') {
     http_response_code(404);
     header('Content-Type: text/plain; charset=utf-8');
