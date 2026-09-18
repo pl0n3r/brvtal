@@ -6,6 +6,7 @@ const appJs = readFileSync(join(process.cwd(), 'js/app.js'), 'utf8');
 const archiveJs = readFileSync(join(process.cwd(), 'js/archive.js'), 'utf8');
 const mediaJs = readFileSync(join(process.cwd(), 'js/public-media.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-runtime-fallback-e2e.html';
+const escapedCmsTitle = 'CMS <EVENT> & "RAVE" \'NIGHT\'';
 
 for (const missing of ['GSAP', 'ScrollTrigger']) {
   test(`public navigation and CMS work without ${missing}`, async ({ page }) => {
@@ -13,7 +14,7 @@ for (const missing of ['GSAP', 'ScrollTrigger']) {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/public.php', route => route.fulfill({
       contentType: 'application/json',
-      body: JSON.stringify({ok:true,data:{events:[{id:1,title:'CMS EVENT',status:'published'}],artists:[],sets:[],media:[],settings:{}}}),
+      body: JSON.stringify({ok:true,data:{events:[{id:1,title:escapedCmsTitle,status:'published'}],artists:[],sets:[],media:[],settings:{}}}),
     }));
     await page.route(harnessUrl, route => route.fulfill({
       contentType: 'text/html; charset=utf-8',
@@ -32,7 +33,8 @@ for (const missing of ['GSAP', 'ScrollTrigger']) {
     await expect(page.locator('#loader')).toHaveCount(0);
     await page.getByRole('button', {name:/MENU/}).click();
     await expect(page.locator('#menuPanel')).toHaveAttribute('aria-hidden', 'false');
-    await expect(page.locator('.events-track')).toContainText('CMS EVENT');
+    await expect(page.locator('.events-track h3')).toHaveText(escapedCmsTitle);
+    await expect(page.locator('.events-track event')).toHaveCount(0);
     await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
     expect(errors).toEqual([]);
   });
