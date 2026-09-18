@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/../config/indexnow.php';
 
 brvtal_admin_require();
 
@@ -258,6 +259,7 @@ try {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
+        brvtal_indexnow_notify_change($pdo, 'releases', $before, null);
         brvtal_releases_json(['ok' => true, 'deleted' => $id]);
     }
 
@@ -310,6 +312,7 @@ try {
         throw $e;
     }
 
+    brvtal_indexnow_notify_change($pdo, 'releases', $before, $after);
     brvtal_releases_json(['ok' => true, 'data' => $after], $method === 'POST' ? 201 : 200);
 } catch (InvalidArgumentException $e) {
     brvtal_releases_json(['ok' => false, 'error' => $e->getMessage()], 422);
