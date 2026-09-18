@@ -89,7 +89,7 @@ async function mockApi(page) {
 async function loadHarness(page, body) {
   await mockApi(page);
   await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html',
+    contentType: 'text/html; charset=utf-8',
     body: `<!doctype html><html><head></head><body>${body}</body></html>`
   }));
   await page.goto(harnessUrl);
