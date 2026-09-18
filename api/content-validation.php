@@ -214,7 +214,7 @@ function brvtalThemeActiveReferenceError(string $key, string $value, callable $t
 function brvtalThemeActiveSlugEffective(?string $activeSlug): string
 {
     $slug = trim((string)$activeSlug);
-    return preg_match('/^[a-z0-9_-]{1,60}$/i', $slug) === 1 ? $slug : 'core';
+    return brvtal_theme_slug_is_valid($slug) ? $slug : 'core';
 }
 
 /** Keep the concrete active Theme definition valid while it is being updated. */

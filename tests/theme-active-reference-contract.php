@@ -69,6 +69,18 @@ theme_reference_assert(
     'invalid theme.active must resolve to the implicit core theme'
 );
 theme_reference_assert(
+    brvtalThemeActiveSlugEffective('CORE') === 'core',
+    'uppercase theme.active must fall back to canonical core'
+);
+theme_reference_assert(
+    brvtalThemeActiveSlugEffective('-core') === 'core',
+    'leading-hyphen theme.active must fall back to canonical core'
+);
+theme_reference_assert(
+    brvtalThemeActiveSlugEffective('core-') === 'core',
+    'trailing-hyphen theme.active must fall back to canonical core'
+);
+theme_reference_assert(
     brvtalThemeActiveSlugEffective('  core  ') === 'core',
     'effective active slug normalization must trim valid values'
 );
@@ -92,6 +104,13 @@ theme_reference_assert(
     ($invalidCoreDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED',
     'implicit core record deletion must be rejected when theme.active is invalid'
 );
+foreach (['CORE', '-core', 'core-'] as $nonCanonicalActive) {
+    $nonCanonicalCoreDelete = brvtalThemeDeleteReferenceError('theme.core', $nonCanonicalActive);
+    theme_reference_assert(
+        ($nonCanonicalCoreDelete['error'] ?? '') === 'ACTIVE_THEME_DELETE_BLOCKED',
+        'implicit core deletion must remain blocked for non-canonical active slugs'
+    );
+}
 $activePointerDelete = brvtalThemeDeleteReferenceError('theme.active', 'core');
 theme_reference_assert($activePointerDelete === null, 'deleting the pointer itself is not a target-record dangling reference');
 
