@@ -30,8 +30,8 @@
 
 ```mermaid
 flowchart LR
-    A["PR #434 + snapshot exacto"] --> B["BRVTAL CI"]
-    A --> C["SonarQube Cloud"]
+    A["PR + snapshot exacto"] --> B["BRVTAL CI"]
+    A --> C["Sonar"]
     A --> D["CodeRabbit"]
     B --> E{"Gates verdes"}
     C --> E
