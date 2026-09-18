@@ -17,6 +17,7 @@
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `50b8a6b7253c000565f23d16e9e5355b660b7806` · exact-main BRVTAL CI verde |
+| Git delta | 📐 **7 files · 465 insertions · 64 deletions · net +401** | PR diff vs base `50b8a6b7253c000565f23d16e9e5355b660b7806` |
 | Alcance | 🔎 **#511 / parent #398** | inverse TRANSMISSIONS on canonical entity pages |
 | Relaciones | 🧬 **EXPLICIT ONLY** | `blog_post_relations` |
 | Visibilidad | 🔒 **PUBLISHED ONLY** | drafts/private posts excluded |
@@ -68,28 +69,31 @@ flowchart LR
 
 ## Qué sigue
 
-1. Cerrar #511 / PR #512 con revisión final del head estable y exact-main CI.
-2. Implementar #527 — transformar README en un dashboard profesional de desarrollo.
-3. Continuar Phase 1 del roadmap #533, de quick wins hacia cambios más complejos.
+| Lane | Trabajo |
+| --- | --- |
+| **NOW** | Cerrar [#511](https://github.com/pl0n3r/brvtal/issues/511) / [PR #512](https://github.com/pl0n3r/brvtal/pull/512), luego ejecutar [#534](https://github.com/pl0n3r/brvtal/issues/534) para reducir el lead time de desarrollo a producción. |
+| **NEXT** | [#527](https://github.com/pl0n3r/brvtal/issues/527) — convertir README en dashboard profesional de desarrollo. |
+| **LATER** | Continuar las fases priorizadas en [#533](https://github.com/pl0n3r/brvtal/issues/533), de quick wins hacia cambios estructurales. |
 
 ## Panorama general pendiente
 
-| Frente | Estado / siguiente foco |
-| --- | --- |
-| 📊 **Development dashboard** | #527 · siguiente prioridad después de cerrar este PR |
-| 🗺️ **Roadmap activo** | #533 · ejecución ordenada de fácil/bajo riesgo → arquitectura compleja |
-| ⚡ **Quick wins Admin** | #520, #521, #526, #522, #479, #517, #221 |
-| 🧩 **Dashboard configurable** | #513 · fase posterior: módulos, drag/drop, resize y Analytics reales |
-| 🗃️ **Archivo cultural** | #398 · continuar por fases después de la estabilización priorizada |
-| 🎛️ **Apariencia** | #149 + #514 · Light/Glass completos y Admin premium/legible |
-| 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
-| 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
-| 📈 **Analytics** | #427 · completar eventos `brvtal_*` en GTM/GA4 |
-| ✍️ **Content / edición** | #224, #252 |
-| 🧾 **Activity / operaciones** | #232, #195 |
-| 📚 **Bulk Actions** | #275 · registros >500 sin falsa exhaustividad |
-| 🌐 **Idioma** | #212 · español canónico + inglés automático por fases |
-| 💾 **Backups** | #389 · scheduling seguro + Drive opcional |
+| Lane | Frente | Estado / siguiente foco |
+| --- | --- | --- |
+| **NOW** | ⚡ **Delivery lead time** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · paralelización segura de commits, gates y observación de deploy |
+| **NEXT** | 📊 **Development dashboard** | [#527](https://github.com/pl0n3r/brvtal/issues/527) · README visual con métricas y panorama |
+| **NEXT** | 🗺️ **Roadmap activo** | [#533](https://github.com/pl0n3r/brvtal/issues/533) · ejecución de fácil/bajo riesgo → arquitectura compleja |
+| **NEXT** | ⚡ **Quick wins Admin** | [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
+| **LATER** | 🧩 **Dashboard configurable** | [#513](https://github.com/pl0n3r/brvtal/issues/513) · módulos, drag/drop, resize y Analytics reales |
+| **LATER** | 🗃️ **Archivo cultural** | [#398](https://github.com/pl0n3r/brvtal/issues/398) · continuar después de la estabilización priorizada |
+| **LATER** | 🎛️ **Apariencia** | [#149](https://github.com/pl0n3r/brvtal/issues/149) + [#514](https://github.com/pl0n3r/brvtal/issues/514) · Light/Glass y Admin premium |
+| **LATER** | 🖼️ **Hero / Banners** | [#221](https://github.com/pl0n3r/brvtal/issues/221) integridad editorial · [#480](https://github.com/pl0n3r/brvtal/issues/480) visual desktop |
+| **LATER** | 🔐 **Seguridad editorial** | [#257](https://github.com/pl0n3r/brvtal/issues/257), [#216](https://github.com/pl0n3r/brvtal/issues/216), [#174](https://github.com/pl0n3r/brvtal/issues/174), [#193](https://github.com/pl0n3r/brvtal/issues/193) |
+| **LATER** | 📈 **Analytics** | [#427](https://github.com/pl0n3r/brvtal/issues/427) · completar eventos `brvtal_*` en GTM/GA4 |
+| **LATER** | ✍️ **Content / edición** | [#224](https://github.com/pl0n3r/brvtal/issues/224), [#252](https://github.com/pl0n3r/brvtal/issues/252) |
+| **LATER** | 🧾 **Activity / operaciones** | [#232](https://github.com/pl0n3r/brvtal/issues/232), [#195](https://github.com/pl0n3r/brvtal/issues/195) |
+| **LATER** | 📚 **Bulk Actions** | [#275](https://github.com/pl0n3r/brvtal/issues/275) · registros >500 sin falsa exhaustividad |
+| **LATER** | 🌐 **Idioma** | [#212](https://github.com/pl0n3r/brvtal/issues/212) · español canónico + inglés automático por fases |
+| **LATER** | 💾 **Backups** | [#389](https://github.com/pl0n3r/brvtal/issues/389) · scheduling seguro + Drive opcional |
 
 ---
 
