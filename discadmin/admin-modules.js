@@ -15,7 +15,7 @@ window.BRVTALAdminModules = (() => {
     const link = document.createElement('link'); link.id = id; link.rel = 'stylesheet'; link.href = versioned(href); document.head.appendChild(link);
   }
   function ensureScript(id, src, readyGlobal = '') {
-    const globalReady = () => readyGlobal !== '' && typeof window[readyGlobal] !== 'undefined';
+    const globalReady = () => readyGlobal !== '' && window[readyGlobal] !== undefined;
     const existing = document.getElementById(id);
     if (existing) {
       if (existing.dataset.ready === '1' || globalReady()) {
