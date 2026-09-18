@@ -178,6 +178,38 @@
     return false;
   }
 
+  function showResetSuccess(root) {
+    const currentRoot = currentSystemStatusRoot(root);
+    setLogMeta(currentRoot, 'RESET COMPLETE');
+    const currentOutput = currentRoot.querySelector('#ssv2-logs');
+    if (currentOutput) {
+      currentOutput.hidden = false;
+      currentOutput.textContent = 'No log entries.';
+    }
+    return currentRoot;
+  }
+
+  function showResetFailure(root, previousLogState, error) {
+    const currentRoot = currentSystemStatusRoot(root);
+    setLogMeta(currentRoot, `RESET FAILED · ${error.message}`);
+    const currentButton = currentRoot.querySelector('#ssv2-reset-logs');
+    const currentOutput = currentRoot.querySelector('#ssv2-logs');
+    if (currentButton) {
+      currentButton.textContent = 'RETRY RESET';
+    }
+    if (currentOutput && previousLogState) {
+      currentOutput.toggleAttribute('hidden', previousLogState.hidden);
+      currentOutput.textContent = previousLogState.textContent;
+    }
+  }
+
+  function setResetButtonText(root, text) {
+    const currentButton = currentSystemStatusRoot(root).querySelector('#ssv2-reset-logs');
+    if (currentButton) {
+      currentButton.textContent = text;
+    }
+  }
+
   async function resetLogs(root, button) {
     if (logResetInFlight) {
       return;
@@ -200,36 +232,17 @@
       if (!isCurrentLogOperation(operationId)) {
         return;
       }
-      const successRoot = currentSystemStatusRoot(root);
-      setLogMeta(successRoot, 'RESET COMPLETE');
-      const successOutput = successRoot.querySelector('#ssv2-logs');
-      if (successOutput) {
-        successOutput.hidden = false;
-        successOutput.textContent = 'No log entries.';
-      }
+      const successRoot = showResetSuccess(root);
       await refreshLogsAfterReset(successRoot, operationId);
       if (isCurrentLogOperation(operationId)) {
-        const currentButton = currentSystemStatusRoot(root).querySelector('#ssv2-reset-logs');
-        if (currentButton) {
-          currentButton.textContent = 'RESET LOG';
-        }
+        setResetButtonText(root, 'RESET LOG');
       }
     } catch (error) {
       if (!isCurrentLogOperation(operationId)) {
         return;
       }
       invalidateCachedCsrf(error);
-      const failureRoot = currentSystemStatusRoot(root);
-      setLogMeta(failureRoot, `RESET FAILED · ${error.message}`);
-      const currentButton = failureRoot.querySelector('#ssv2-reset-logs');
-      const currentOutput = failureRoot.querySelector('#ssv2-logs');
-      if (currentButton) {
-        currentButton.textContent = 'RETRY RESET';
-      }
-      if (currentOutput && previousLogState) {
-        currentOutput.toggleAttribute('hidden', previousLogState.hidden);
-        currentOutput.textContent = previousLogState.textContent;
-      }
+      showResetFailure(root, previousLogState, error);
     } finally {
       logResetInFlight = false;
       if (isCurrentLogOperation(operationId)) {
