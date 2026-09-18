@@ -20,11 +20,17 @@ For every new session:
 
 ### Parallel execution rule
 
+Parallelization is the **default operating mode**, not an optional optimization.
+
 - **Parallelize everything that is safely independent** when it reduces lead time: analysis, preflight, source inspection, test preparation, gate review and separate implementation lines may proceed concurrently.
+- Before every tool batch, identify independent operations. If **2 or more read-only operations** are independent, batch them concurrently instead of issuing them one by one. For GitHub connector orchestration, prefer `Promise.all(...)` for independent reads.
+- Gate review should fan out by default: read **PR state + exact-head CI/check-runs + combined statuses + Sonar relay/comments + CodeRabbit comments/reviews/threads** concurrently when those sources are independent.
+- While CI, Sonar, CodeRabbit or another external gate is running, use available time for **read-only preflight or analysis of the next independent block** instead of idling.
 - Use up to **4 concurrent work lines** when they are genuinely independent and unlikely to overlap files, mutable state or review scope.
-- Use time waiting on external gates to advance independent preflight or analysis instead of idling.
+- Treat serial execution of independent reads as an exception: there should be a real dependency, rate-limit/tool constraint or shared-state reason.
 - **Merges to `main` are always serialized.** Before every merge, re-read the exact current `main` SHA, the PR head SHA and all applicable gates; if `main` moved, recontrast the branch against the new base before merging.
 - Same-file write sequences, dependent branches and shared mutable state remain serialized to avoid conflicting or stale edits.
+- Do not open the next dependent implementation branch before the previous merge has passed exact-`main` validation; read-only analysis for that next block may still proceed in parallel.
 - Production migrations, destructive production operations and other protected actions are never parallelized or run automatically.
 
 ### Source-of-truth precedence
@@ -290,7 +296,16 @@ For every deploy-bound PR:
 - keep durable architecture/product history in `AGENTS.md` or the relevant `docs/` file;
 - if a CI fix or late edit changes the PR file set or scope, refresh README before merge.
 
-The README is intentionally transient. It should remain compact and useful during active development; the pending-work panorama is a current operational view, not cumulative history.
+The deploy README must also stay **visually scannable**, not prose-only:
+
+- keep the BRVTAL identity visible near the top using a stable repository-native asset when available; the current preferred mark is `assets/brvtal-logo-640.webp`;
+- keep the BRVTAL CI badge visible;
+- include an exact `## Estado del deploy` section with a compact status table headed `Señal | Estado | Evidencia`;
+- include an exact `## Flujo de entrega` section with a Mermaid diagram that shows PR snapshot, parallel gates, squash merge and exact-`main` validation;
+- preserve the canonical headings `## Qué se hizo`, `## Archivos modificados en este deploy`, `## Validación`, `## Qué sigue` and `## Panorama general pendiente`;
+- prefer compact tables, badges, symbols and diagrams when they improve scanning, but keep the README under the CI size limit and avoid decorative noise.
+
+The README is intentionally transient. It should remain compact and useful during active development; the pending-work panorama is a current operational view, not cumulative history. BRVTAL CI enforces the required deploy headings, exact changed-file list and the minimum visual markers so the format does not silently regress.
 
 ### Mandatory delivery loop
 
