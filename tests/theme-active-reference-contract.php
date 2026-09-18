@@ -57,19 +57,19 @@ $inactiveDefinition = brvtalThemeDefinitionUpdateError('theme.alt', 0, 'legacy-v
 theme_reference_assert($inactiveDefinition === null, 'inactive theme definitions remain governed by activation-time validation');
 
 theme_reference_assert(
-    brvtal_theme_active_slug_effective(null) === 'core',
+    brvtalThemeActiveSlugEffective(null) === 'core',
     'missing theme.active must resolve to the implicit core theme'
 );
 theme_reference_assert(
-    brvtal_theme_active_slug_effective('   ') === 'core',
+    brvtalThemeActiveSlugEffective('   ') === 'core',
     'blank theme.active must resolve to the implicit core theme'
 );
 theme_reference_assert(
-    brvtal_theme_active_slug_effective('bad slug!') === 'core',
+    brvtalThemeActiveSlugEffective('bad slug!') === 'core',
     'invalid theme.active must resolve to the implicit core theme'
 );
 theme_reference_assert(
-    brvtal_theme_active_slug_effective('  core  ') === 'core',
+    brvtalThemeActiveSlugEffective('  core  ') === 'core',
     'effective active slug normalization must trim valid values'
 );
 

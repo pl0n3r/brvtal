@@ -211,7 +211,7 @@ function brvtalThemeActiveReferenceError(string $key, string $value, callable $t
 }
 
 /** Resolve the effective active Theme slug, including the implicit core fallback. */
-function brvtal_theme_active_slug_effective(?string $activeSlug): string
+function brvtalThemeActiveSlugEffective(?string $activeSlug): string
 {
     $slug = trim((string)$activeSlug);
     return preg_match('/^[a-z0-9_-]{1,60}$/i', $slug) === 1 ? $slug : 'core';
@@ -224,7 +224,7 @@ function brvtalThemeDefinitionUpdateError(string $key, int $isJson, string $valu
         return null;
     }
 
-    $activeSlug = brvtal_theme_active_slug_effective($activeSlug);
+    $activeSlug = brvtalThemeActiveSlugEffective($activeSlug);
     $slug = substr($key, strlen('theme.'));
     if (!hash_equals($activeSlug, $slug)) {
         return null;
@@ -247,7 +247,7 @@ function brvtalThemeDeleteReferenceError(string $key, ?string $activeSlug): ?arr
         return null;
     }
     $slug = substr($key, strlen('theme.'));
-    return hash_equals(brvtal_theme_active_slug_effective($activeSlug), $slug)
+    return hash_equals(brvtalThemeActiveSlugEffective($activeSlug), $slug)
         ? ['error' => 'ACTIVE_THEME_DELETE_BLOCKED', 'field' => 'setting_key']
         : null;
 }
