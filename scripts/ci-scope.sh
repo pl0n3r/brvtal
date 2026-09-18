@@ -12,6 +12,8 @@ brvtal_ci_scope_reset() {
   BRVTAL_SCOPE_RUN_REALSTACK=false
   BRVTAL_SCOPE_RUN_WEBKIT=false
   BRVTAL_SCOPE_RUN_RECOVERY=false
+  BRVTAL_SCOPE_RUN_PHP=false
+  BRVTAL_SCOPE_RUN_JS=false
   BRVTAL_SCOPE_AREAS=""
 }
 
@@ -37,6 +39,8 @@ brvtal_ci_classify_files() {
     BRVTAL_SCOPE_RUN_REALSTACK=true
     BRVTAL_SCOPE_RUN_WEBKIT=true
     BRVTAL_SCOPE_RUN_RECOVERY=true
+    BRVTAL_SCOPE_RUN_PHP=true
+    BRVTAL_SCOPE_RUN_JS=true
   fi
 
   while IFS= read -r file; do
@@ -95,6 +99,31 @@ brvtal_ci_classify_files() {
       config/admin_auth.php|config/totp*.php|discadmin/totp*|discadmin/index.php|api/index.php)
         BRVTAL_SCOPE_RUN_WEBKIT=true ;;
     esac
+
+    case "$file" in
+      *.php|database/*)
+        BRVTAL_SCOPE_RUN_PHP=true ;;
+      package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
+        BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true ;;
+      *) ;;
+    esac
+
+    case "$file" in
+      *.js|*.mjs|package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|.github/workflows/update-release-metadata.yml)
+        BRVTAL_SCOPE_RUN_JS=true ;;
+      *) ;;
+    esac
+
+    case "$file" in
+      README.md|AGENTS.md|docs/*|*.md|*.css|*.html|assets/*|uploads/*|.coderabbit.yaml|.sonarcloud.properties|.github/workflows/sonar-annotation-relay.yml|.github/workflows/production-*.yml)
+        ;;
+      *.php|*.js|*.mjs|database/*|package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
+        ;;
+      *)
+        BRVTAL_SCOPE_RUN_PHP=true
+        BRVTAL_SCOPE_RUN_JS=true
+        ;;
+    esac
   done <<< "$changed_file_list"
 
   if [[ -z "$BRVTAL_SCOPE_AREAS" ]]; then
@@ -110,5 +139,7 @@ brvtal_ci_scope_print() {
   printf 'run_realstack=%s\n' "$BRVTAL_SCOPE_RUN_REALSTACK"
   printf 'run_webkit=%s\n' "$BRVTAL_SCOPE_RUN_WEBKIT"
   printf 'run_recovery=%s\n' "$BRVTAL_SCOPE_RUN_RECOVERY"
+  printf 'run_php=%s\n' "$BRVTAL_SCOPE_RUN_PHP"
+  printf 'run_js=%s\n' "$BRVTAL_SCOPE_RUN_JS"
   printf 'areas=%s\n' "$BRVTAL_SCOPE_AREAS"
 }
