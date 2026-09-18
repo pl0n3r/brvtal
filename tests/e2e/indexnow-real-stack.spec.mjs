@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { openDiscadminModule } from './helpers/discadmin.mjs';
 
 const baseUrl = process.env.BRVTAL_REAL_STACK_URL || '';
 const adminEmail = process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL || 'ci-admin@brvtal.test';
@@ -59,16 +60,13 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
   expect(invalid.status()).toBe(422);
   expect((await invalid.json()).error).toBe('INDEXNOW_KEY_INVALID');
 
-  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
-  await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout:10_000});
-  await page.evaluate(() => window.go?.('settings'));
-  await expect(page.locator('div[data-settings-v2]')).toBeVisible({timeout:10_000});
-  await page.locator('[data-settings-tab="seo"]').click();
-  await page.locator('#sv2_indexnow_enabled').selectOption('1');
-  await page.locator('#sv2_indexnow_key').fill(key);
-  await page.locator('#sv2_indexnow_key_location').fill(keyLocation);
-  await page.locator('#sv2_indexnow_endpoint').selectOption(endpoint);
-  await page.locator('[data-settings-save="indexnow"]').click();
+  await openDiscadminModule(page, baseUrl, 'settings', 'settings-v2-root');
+  await page.getByTestId('settings-tab-seo').click();
+  await page.getByTestId('indexnow-enabled').selectOption('1');
+  await page.getByTestId('settings-field-indexnow_key').fill(key);
+  await page.getByTestId('settings-field-indexnow_key_location').fill(keyLocation);
+  await page.getByTestId('indexnow-endpoint').selectOption(endpoint);
+  await page.getByTestId('indexnow-save').click();
 
   await expect.poll(async () => {
     const rows = await settings(page);
@@ -183,8 +181,8 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
     bulkArtistId = 0;
 
     const beforeDisable = (await captured(page)).length;
-    await page.locator('#sv2_indexnow_enabled').selectOption('0');
-    await page.locator('[data-settings-save="indexnow"]').click();
+    await page.getByTestId('indexnow-enabled').selectOption('0');
+    await page.getByTestId('indexnow-save').click();
     await expect.poll(async () => {
       const rows = await settings(page);
       const row = rows.find(item => item.setting_key === 'indexnow');
