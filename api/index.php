@@ -395,7 +395,9 @@ try {
             }
             json_response(['ok' => true, 'id' => $newId], 201);
         } catch (PDOException $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             brvtal_log('DB_ERROR', 'Insert failed', [
                 'resource' => $resource,
                 'code' => $e->errorInfo[1] ?? null,
@@ -405,7 +407,9 @@ try {
             }
             json_response(['ok' => false, 'error' => 'DATABASE_ERROR'], 500);
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
     }
