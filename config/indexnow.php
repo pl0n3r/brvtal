@@ -199,19 +199,24 @@ function brvtal_indexnow_notify_change(PDO $pdo, string $resource, ?array $befor
     brvtal_indexnow_enqueue_urls($pdo, brvtal_indexnow_change_urls($resource, $before, $after));
 }
 
+function brvtal_indexnow_notify_home(PDO $pdo): void
+{
+    brvtal_indexnow_enqueue_urls($pdo, [brvtal_indexnow_base_url() . '/']);
+}
+
 function brvtal_indexnow_notify_setting(PDO $pdo, string $settingKey): void
 {
     if ($settingKey === BRVTAL_INDEXNOW_SETTING_KEY || $settingKey === 'analytics') {
         return;
     }
 
-    $publicSetting = in_array($settingKey, ['site', 'social', 'seo', 'appearance'], true)
+    $publicSetting = in_array($settingKey, ['site', 'social', 'seo', 'appearance', 'home.hero.slider'], true)
         || str_starts_with($settingKey, 'theme.');
     if (!$publicSetting) {
         return;
     }
 
-    brvtal_indexnow_enqueue_urls($pdo, [brvtal_indexnow_base_url() . '/']);
+    brvtal_indexnow_notify_home($pdo);
 }
 
 /** @param list<string> $urls */
