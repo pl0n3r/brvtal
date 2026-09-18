@@ -40,6 +40,38 @@ function brvtal_media_duplicate_usage(PDO $pdo, array $media): array
 }
 
 /**
+ * Return curated Memory references to this Media row when the optional
+ * Memories schema is installed. Older installs remain compatible until the
+ * explicit additive migration is applied.
+ *
+ * @return array<int,array{resource:string,id:int,field:string,title:string}>
+ */
+function brvtal_media_memory_usage(PDO $pdo, array $media): array
+{
+    $id = (int)($media['id'] ?? 0);
+    if ($id < 1) return [];
+
+    try {
+        $st = $pdo->prepare('SELECT id,title FROM memories WHERE media_id=? ORDER BY id ASC LIMIT 100');
+        $st->execute([$id]);
+    } catch (PDOException $e) {
+        if ((int)($e->errorInfo[1] ?? 0) === 1146) return [];
+        throw $e;
+    }
+
+    $refs = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $refs[] = [
+            'resource' => 'MEMORY',
+            'id' => (int)$row['id'],
+            'field' => 'media_id',
+            'title' => (string)($row['title'] ?? ''),
+        ];
+    }
+    return $refs;
+}
+
+/**
  * Merge editorial references with duplicate local Media ownership references.
  *
  * @return array<int,array{resource:string,id:int,field:string,title:string}>
@@ -48,6 +80,7 @@ function brvtal_media_integrity_usage(PDO $pdo, array $media): array
 {
     return array_merge(
         brvtal_media_usage($pdo, $media),
+        brvtal_media_memory_usage($pdo, $media),
         brvtal_media_duplicate_usage($pdo, $media)
     );
 }
