@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+157** | **−117** | **+40** |
+| **10** | **+167** | **−120** | **+47** |
 
 ## Calidad y entrega
 
@@ -58,8 +58,8 @@ flowchart LR
 
 ## Qué se hizo
 
-- Media, Releases y Blog comparten una única frontera de readiness administrada por `BRVTALAdminModules`.
-- La capa de información/navegación ya no instala listeners duplicados que pueden esperar un `load` ya ocurrido.
+- Media, Releases y Blog comparten una única frontera de readiness y navegación administrada por `BRVTALAdminModules.navigate()`.
+- La capa de información/navegación ya no instala listeners duplicados ni deja que Media/Releases/Blog caigan al CRUD legado; delega esos destinos al navegador dinámico canónico.
 - Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY.
 - Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
 - Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.

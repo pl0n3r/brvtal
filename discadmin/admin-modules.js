@@ -521,16 +521,19 @@ window.BRVTALAdminModules = (() => {
   }
 
   const originalGo=window.go;
-  window.go=async function(section) {
+  async function navigate(section) {
     if(section==='media' || section==='releases' || section==='blog') {
       prepareModuleWorkspace(section);
       await load(section);
       ensureDynamicNavigation();
-      return;
+      return true;
     }
     const result = await originalGo(section);
     ensureDynamicNavigation();
     return result;
+  }
+  window.go=async function(section) {
+    return navigate(section);
   };
 
   const originalOpenModal=window.openModal;
@@ -571,5 +574,5 @@ window.BRVTALAdminModules = (() => {
     };
   }
 
-  return {load,cancel,initialSection,waitForSection,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
+  return {load,cancel,initialSection,waitForSection,navigate,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
 })();

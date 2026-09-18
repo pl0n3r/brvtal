@@ -19,6 +19,7 @@
     'dashboard','events','artists','releases','sets','blog','pages','media','hero-slider',
     'theme','settings','security','system','backups','activity'
   ]);
+  const dynamicModuleSections = new Set(['media','releases','blog']);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
   const exactNavLabelKeys = new Map([
     ['DASHBOARD', 'dashboard'],
@@ -71,7 +72,10 @@
     let result;
     navigationRequestToken = token;
     try {
-      result = originalGo.call(window, section);
+      const moduleNavigate = window.BRVTALAdminModules?.navigate;
+      result = dynamicModuleSections.has(section) && typeof moduleNavigate === 'function'
+        ? moduleNavigate(section)
+        : originalGo.call(window, section);
     } finally {
       navigationRequestToken = null;
     }
