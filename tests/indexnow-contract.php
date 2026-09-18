@@ -1,0 +1,128 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/../config/indexnow.php';
+
+$config = [
+    'app' => ['base_url' => 'https://www.brvtal.com.co'],
+];
+
+function indexnow_assert(bool $condition, string $message): void
+{
+    if (!$condition) {
+        fwrite(STDERR, "IndexNow contract failed: {$message}\n");
+        exit(1);
+    }
+}
+
+indexnow_assert(brvtalIndexNowKeyValid('Abcd1234'), '8-character key should be valid');
+indexnow_assert(brvtalIndexNowKeyValid('BRVTAL-indexnow-key-2026'), 'letters, numbers and hyphens should be valid');
+indexnow_assert(!brvtalIndexNowKeyValid('short'), 'short key should be rejected');
+indexnow_assert(!brvtalIndexNowKeyValid('invalid_key'), 'underscore should be rejected');
+
+indexnow_assert(
+    brvtalIndexNowSettingError('{"enabled":true,"key":"Abcd1234"}', 1) === null,
+    'enabled valid JSON setting should pass'
+);
+indexnow_assert(
+    brvtalIndexNowSettingError(
+        '{"enabled":true,"key":"Abcd1234","key_location":"/indexnow-custom.txt","endpoint":"https://www.bing.com/indexnow"}',
+        1
+    ) === null,
+    'custom official endpoint and root key location should pass'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError(
+        '{"enabled":true,"key":"Abcd1234","key_location":"/nested/indexnow.txt"}',
+        1
+    )['error'] ?? '') === 'INDEXNOW_KEY_LOCATION_INVALID',
+    'nested key location should fail closed'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError(
+        '{"enabled":true,"key":"Abcd1234","endpoint":"http://127.0.0.1:8080/indexnow"}',
+        1
+    )['error'] ?? '') === 'INDEXNOW_ENDPOINT_INVALID',
+    'admin endpoint must stay on the official allowlist'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError('{"enabled":true,"key":""}', 1)['error'] ?? '') === 'INDEXNOW_KEY_REQUIRED',
+    'enabled setting without key should fail'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError('{"enabled":false,"key":"bad_key"}', 1)['error'] ?? '') === 'INDEXNOW_KEY_INVALID',
+    'malformed stored key should fail even while disabled'
+);
+indexnow_assert(
+    (brvtalIndexNowSettingError('{"enabled":false,"key":""}', 0)['error'] ?? '') === 'INDEXNOW_JSON_REQUIRED',
+    'IndexNow must remain a typed JSON setting'
+);
+
+$artistBefore = ['slug'=>'old-artist','status'=>'published'];
+$artistAfter = ['slug'=>'new-artist','status'=>'published'];
+$artistUrls = brvtalIndexNowChangeUrls('artists', $artistBefore, $artistAfter);
+sort($artistUrls);
+indexnow_assert($artistUrls === [
+    'https://www.brvtal.com.co/',
+    'https://www.brvtal.com.co/artists/new-artist',
+    'https://www.brvtal.com.co/artists/old-artist',
+], 'published slug change should notify old URL, new URL and Home');
+
+$unpublishUrls = brvtalIndexNowChangeUrls(
+    'blog',
+    ['slug'=>'dispatch','status'=>'published'],
+    ['slug'=>'dispatch','status'=>'draft']
+);
+sort($unpublishUrls);
+indexnow_assert($unpublishUrls === [
+    'https://www.brvtal.com.co/',
+    'https://www.brvtal.com.co/blog/dispatch',
+], 'unpublishing should notify the former public URL and Home');
+
+indexnow_assert(
+    brvtalIndexNowChangeUrls('pages', null, ['slug'=>'private-es','status'=>'published','locale'=>'es']) === [],
+    'non-English CMS Pages must not be submitted'
+);
+indexnow_assert(
+    brvtalIndexNowChangeUrls('artists', null, ['slug'=>'draft-artist','status'=>'draft']) === [],
+    'draft entities must not be submitted'
+);
+indexnow_assert(
+    brvtalIndexNowChangeUrls('admin', null, ['slug'=>'discadmin','status'=>'published']) === [],
+    'admin routes must never be eligible'
+);
+
+$eventUrls = brvtalIndexNowChangeUrls('events', null, [
+    'slug'=>'future-night',
+    'status'=>'tickets_available',
+    'event_date'=>'2026-12-31 21:00:00',
+    'published_at'=>'2026-09-18 12:00:00',
+]);
+indexnow_assert(
+    in_array('https://www.brvtal.com.co/events/future-night', $eventUrls, true),
+    'public Event lifecycle should resolve to canonical Event URL'
+);
+
+$endpoints = brvtalIndexNowEndpoints();
+indexnow_assert(
+    ($endpoints['global'] ?? '') === BRVTAL_INDEXNOW_DEFAULT_ENDPOINT,
+    'global endpoint should remain the canonical default'
+);
+indexnow_assert(
+    in_array('https://www.bing.com/indexnow', $endpoints, true),
+    'Bing should remain an allowed participating endpoint'
+);
+indexnow_assert(
+    brvtalIndexNowKeyLocationValid('/indexnow-key.txt'),
+    'default root key location should be valid'
+);
+indexnow_assert(
+    brvtalIndexNowKeyLocationValid('/indexnow-rotation-2026.txt'),
+    'custom IndexNow key locations should be valid'
+);
+indexnow_assert(
+    !brvtalIndexNowKeyLocationValid('/ads.txt'),
+    'non-IndexNow root text files must stay outside the key route namespace'
+);
+
+echo "IndexNow contract passed.\n";

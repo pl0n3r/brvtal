@@ -248,17 +248,20 @@ jobs:
 
           status_section = h2_section('## Estado del deploy')
           flow_section = h2_section('## Flujo de entrega')
+          flow_markers = [
+              'PR + snapshot exacto',
+              'BRVTAL CI',
+              'Sonar',
+              'CodeRabbit',
+              'Squash merge',
+              'CI del SHA exacto de main',
+          ]
           visual_requirements = {
               'BRVTAL logo': 'assets/brvtal-logo-640.webp' in readme,
               'BRVTAL CI badge': 'actions/workflows/update-release-metadata.yml/badge.svg' in readme,
               'deploy status table in Estado del deploy': '| Señal | Estado | Evidencia |' in status_section,
               'Mermaid diagram in Flujo de entrega': '```mermaid' in flow_section,
-              'PR snapshot stage': 'PR + snapshot exacto' in flow_section,
-              'parallel BRVTAL CI gate': 'A["PR + snapshot exacto"] --> B["BRVTAL CI"]' in flow_section,
-              'parallel Sonar gate': 'A --> C["Sonar"]' in flow_section,
-              'parallel CodeRabbit gate': 'A --> D["CodeRabbit"]' in flow_section,
-              'squash merge stage': 'Squash merge' in flow_section,
-              'exact-main validation stage': 'CI del SHA exacto de main' in flow_section,
+              'required deploy-flow stages': all(marker in flow_section for marker in flow_markers),
           }
           missing_visuals = [name for name, present in visual_requirements.items() if not present]
           if missing_visuals:

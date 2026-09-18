@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/seo_defaults.php';
+require_once __DIR__ . '/../config/indexnow.php';
 
 brvtal_admin_require();
 
@@ -131,6 +132,8 @@ try {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
+
+    brvtalIndexNowNotifyEntityId($pdo, $resource, $id);
 
     brvtal_seo_json([
         'ok'=>true,

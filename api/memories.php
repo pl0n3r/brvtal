@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/memory_relations.php';
+require_once __DIR__ . '/../config/indexnow.php';
 
 brvtal_admin_require();
 header('X-Content-Type-Options: nosniff');
@@ -200,6 +201,9 @@ try {
             }
             throw $e;
         }
+        if (($data['status'] ?? '') === 'published') {
+            brvtalIndexNowNotifyHome($pdo);
+        }
         brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_fetch($pdo, $createdId)], 201);
     }
 
@@ -235,6 +239,9 @@ try {
             }
             throw $e;
         }
+        if (($existing['status'] ?? '') === 'published' || ($data['status'] ?? '') === 'published') {
+            brvtalIndexNowNotifyHome($pdo);
+        }
         brvtal_memories_json(['ok'=>true,'data'=>brvtal_memories_fetch($pdo, $id)]);
     }
 
@@ -248,6 +255,9 @@ try {
             brvtal_memories_json(['ok'=>false,'error'=>'MEMORY_NOT_FOUND'], 404);
         }
         $pdo->prepare('DELETE FROM memories WHERE id=?')->execute([$id]);
+        if (($existing['status'] ?? '') === 'published') {
+            brvtalIndexNowNotifyHome($pdo);
+        }
         brvtal_memories_json(['ok'=>true,'deleted_id'=>$id]);
     }
 
