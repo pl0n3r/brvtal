@@ -24,7 +24,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - `discadmin/system-status-v2.js` — RESET LOG, confirmación de dos pasos, CSRF, loading/error y refresh del estado visible.
 - `discadmin/system-status-v2.css` — agrupación de acciones, estilo destructivo y foco visible.
 - `discadmin/technical.php` — metadata de bytes para el log leído por System Status.
-- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de éxito/cancelación/fallo.
+- `tests/e2e/discadmin-system-status-reset-log.spec.mjs` — regresiones de primer clic sin mutación, confirmación, éxito y fallo.
 - `tests/system-status-reset-log-contract.php` — contrato de seguridad y arquitectura del reset.
 
 ## Validación
