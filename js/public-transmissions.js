@@ -16,7 +16,7 @@
   };
   const indexById = items => new Map(
     (Array.isArray(items) ? items : [])
-      .filter(item => item && item.id != null)
+      .filter(item => item?.id != null)
       .map(item => [String(item.id), item])
   );
   const buildRelationIndex = data => ({
