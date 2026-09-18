@@ -17,16 +17,16 @@
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   let uidSequence = 0;
-const uid = prefix => {
-  const stamp = Date.now().toString(36);
-  if (globalThis.crypto?.getRandomValues) {
-    const entropy = new Uint32Array(1);
-    globalThis.crypto.getRandomValues(entropy);
-    return `${prefix}-${stamp}-${entropy[0].toString(36)}`;
-  }
-  uidSequence += 1;
-  return `${prefix}-${stamp}-${uidSequence.toString(36)}`;
-};
+  const uid = prefix => {
+    const stamp = Date.now().toString(36);
+    if (globalThis.crypto?.getRandomValues) {
+      const entropy = new Uint32Array(1);
+      globalThis.crypto.getRandomValues(entropy);
+      return `${prefix}-${stamp}-${entropy[0].toString(36)}`;
+    }
+    uidSequence += 1;
+    return `${prefix}-${stamp}-${uidSequence.toString(36)}`;
+  };
   const asBool = value => value === true || value === 1 || value === '1' || value === 'true';
   const clamp = (n,min,max) => Math.max(min,Math.min(max,Number(n) || 0));
 
