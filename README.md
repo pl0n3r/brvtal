@@ -5,7 +5,7 @@
 # BRVTAL — Último deploy
 
 <p align="center">
-  <strong>Sonar quality burn-down · Hero Slider bindings</strong>
+  <strong>Quality burn-down · Dashboard NEXT EVENT</strong>
 </p>
 
 <p align="center">
@@ -14,17 +14,17 @@
   </a>
 </p>
 
-> Este README cubre **solo el deploy actual**. Se reemplaza en el siguiente PR y no es un changelog acumulativo.
+> Este README representa **solo el deploy actual**. Se reemplaza en el siguiente deploy y no funciona como changelog acumulativo.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `ec1a4c0a35a35718245cfdc28150d31d5e101a5d` · BRVTAL CI #1035 |
-| Hero Slider `bind()` | 📉 **Simplificado** | heurística local ~32 → 1 |
-| Bindings extraídos | 🧩 **4 grupos** | slides · layers · editor · global |
-| Regresión | 🧪 **Ampliada** | preview móvil · config · save · delete layer/slide |
-| Producción | ⚪ **No validada por este PR** | CI verde no equivale a producción |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `d2e5ccf9422f96514e4b0fa6edf672316d52cbdc` · BRVTAL CI #1040 |
+| Dashboard hotspot | 🧩 **Refactor acotado** | `nextEventPanel()` pasa de ~22 decisiones locales a ~8 |
+| Estados NEXT EVENT | 🧪 **Cubiertos** | UNAVAILABLE · NONE · CHECK · READY / SOLD OUT |
+| Runtime / API | 🟢 **Sin cambios de contrato** | Se preservan endpoints, rutas y payloads |
+| Producción | ⚪ **No validada por este PR** | CI verde no equivale a validación de producción |
 
 ## Flujo de entrega
 
@@ -43,42 +43,40 @@ flowchart LR
 
 ## Qué se hizo
 
-- Se reduce el bloque de alta complejidad de `discadmin/hero-slider.js::bind()` sin cambiar rendering, persistencia ni estructura de datos.
-- Las acciones de slides y layers pasan a funciones explícitas: seleccionar, añadir, duplicar y eliminar.
-- Los listeners quedan agrupados en `bindSlideControls`, `bindLayerControls`, `bindEditorControls` y `bindGlobalControls`.
-- Media picker, config, preview y save conservan los mismos selectores y eventos.
-- La prueba real del manager ahora valida preview móvil, publicación/autoplay/intervalo, payload de save y eliminación de layer/slide.
-- Se mantienen los tests de UID con Web Crypto y fallback contador introducidos previamente.
+- Continúa #451 con un bloque P2 pequeño en `discadmin/dashboard-v2.js`.
+- `nextEventPanel()` deja de concentrar cálculo de warnings, ticket state, fecha/localización y estados vacíos/error.
+- Se extraen helpers explícitos para `UNAVAILABLE`, `NONE`, warnings editoriales, ticket state y metadata temporal.
+- Se preservan los estados visibles `UNAVAILABLE / NONE / CHECK / READY`, los textos existentes, el CTA `OPEN EVENTS` y la navegación canónica.
+- La prueba E2E cubre fuente Overview caída, ausencia de próximo evento, evento con warnings y evento `sold_out` listo sin URL de tickets.
+- No cambia API, base de datos, permisos, rutas, persistencia ni lifecycle público.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot visual exacto del deploy.
-- `discadmin/hero-slider.js` — extrae acciones y grupos de bindings del manager.
-- `tests/e2e/hero-slider-v2.spec.mjs` — amplía regresión del admin sobre los bindings refactorizados.
+- `discadmin/dashboard-v2.js` — composición más simple del panel NEXT EVENT.
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — cobertura de los cuatro estados del panel y navegación a Events.
 
 ## Validación
 
-- Base exacta: `main` `ec1a4c0a35a35718245cfdc28150d31d5e101a5d`.
-- Esa base pasó **BRVTAL CI #1035** y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `d2e5ccf9422f96514e4b0fa6edf672316d52cbdc`.
+- Esa base pasó **BRVTAL CI #1040** y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto.
-- El job `fast` debe validar también este README visual y la lista exacta de archivos.
-- Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
-- Production Performance se interpreta por separado: un deploy marker no observado no equivale a regresión de código.
+- El job `fast` debe confirmar además el contrato visual del README y la lista exacta de 3 archivos.
+- Tras el squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Ningún gate de CI implica por sí solo **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-1. Tachar el P2 de complejidad del Hero Slider en #451 solo tras merge + exact-main CI verde.
-2. Revalidar los siguientes P2 actuales: Dashboard, Archive, public `app.js` y Theme runtime.
-3. Mantener #479, #480 y #481 como frentes independientes.
-4. Reconciliar PR #434 / Memories contra el `main` actual sin migraciones automáticas de producción.
-5. Continuar verificando Production Performance únicamente cuando el marker del SHA exacto llegue a Hostinger.
+1. Tachar Dashboard en #451 solo después de merge + exact-main CI verde.
+2. Continuar con el siguiente P2 que todavía reproduzca en el código actual: public `app.js`, Archive o Theme runtime.
+3. Mantener #479, #480 y #481 como frentes separados del burn-down.
+4. Reconciliar PR #434 / Memories sin ejecutar migraciones de producción automáticamente.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🧪 **Sonar / calidad** | #451 — Hero Slider en este PR; después Dashboard / Archive / public app / Theme runtime |
-| ⚡ **Performance** | Último run de producción puede quedar inconcluso si Hostinger no expone el marker exacto dentro de la ventana |
+| 🧪 **Sonar / calidad** | #451 — Dashboard en este PR; luego public app / Archive / Theme runtime |
 | 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial de media · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
