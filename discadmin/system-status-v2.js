@@ -11,6 +11,7 @@
   let mountTimer = null;
   let refreshTimer = null;
   let requestId = 0;
+  let logOperationId = 0;
 
   const esc = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
@@ -65,6 +66,13 @@
     return auth.csrf;
   }
 
+  function invalidateCachedCsrf(error) {
+    const code = String(error?.message ?? '');
+    if (['CSRF','AUTH_REQUIRED','HTTP_419','HTTP_401'].includes(code)) {
+      delete globalThis.csrf;
+    }
+  }
+
   function renderLogPayload(root, payload) {
     const output = root.querySelector('#ssv2-logs');
     const meta = root.querySelector('#ssv2-log-meta');
@@ -84,17 +92,41 @@
     }
   }
 
+  function setLogActionsDisabled(root, disabled) {
+    root.querySelectorAll('#ssv2-load-logs,#ssv2-reset-logs')
+      .forEach(action => { action.disabled = disabled; });
+  }
+
+  function nextLogOperation() {
+    logOperationId += 1;
+    return logOperationId;
+  }
+
+  function isCurrentLogOperation(operationId) {
+    return operationId === logOperationId;
+  }
+
   async function loadLogs(root, button) {
+    const operationId = nextLogOperation();
     button.disabled = true;
     button.textContent = 'LOADING…';
     try {
-      renderLogPayload(root, await fetchJson(LOGS));
+      const payload = await fetchJson(LOGS);
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
+      renderLogPayload(root, payload);
       button.textContent = 'REFRESH LOGS';
     } catch (error) {
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
       setLogMeta(root, `LOAD FAILED · ${error.message}`);
       button.textContent = 'RETRY LOGS';
     } finally {
-      button.disabled = false;
+      if (isCurrentLogOperation(operationId)) {
+        button.disabled = false;
+      }
     }
   }
 
@@ -109,11 +141,16 @@
     });
   }
 
-  async function refreshLogsAfterReset(root) {
+  async function refreshLogsAfterReset(root, operationId) {
     try {
-      renderLogPayload(root, await fetchJson(LOGS));
+      const payload = await fetchJson(LOGS);
+      if (isCurrentLogOperation(operationId)) {
+        renderLogPayload(root, payload);
+      }
     } catch (error) {
-      setLogMeta(root, `RESET COMPLETE · REFRESH FAILED · ${error.message}`);
+      if (isCurrentLogOperation(operationId)) {
+        setLogMeta(root, `RESET COMPLETE · REFRESH FAILED · ${error.message}`);
+      }
     }
   }
 
@@ -141,24 +178,36 @@
       return;
     }
 
+    const operationId = nextLogOperation();
     const output = root.querySelector('#ssv2-logs');
-    button.disabled = true;
+    setLogActionsDisabled(root, true);
     button.textContent = 'RESETTING…';
     try {
       const token = await csrfToken();
       await requestLogReset(token);
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
       setLogMeta(root, 'RESET COMPLETE');
       if (output) {
         output.hidden = false;
         output.textContent = 'No log entries.';
       }
-      await refreshLogsAfterReset(root);
-      button.textContent = 'RESET LOG';
+      await refreshLogsAfterReset(root, operationId);
+      if (isCurrentLogOperation(operationId)) {
+        button.textContent = 'RESET LOG';
+      }
     } catch (error) {
+      if (!isCurrentLogOperation(operationId)) {
+        return;
+      }
+      invalidateCachedCsrf(error);
       setLogMeta(root, `RESET FAILED · ${error.message}`);
       button.textContent = 'RETRY RESET';
     } finally {
-      button.disabled = false;
+      if (isCurrentLogOperation(operationId)) {
+        setLogActionsDisabled(root, false);
+      }
     }
   }
 
