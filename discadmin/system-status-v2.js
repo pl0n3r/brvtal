@@ -117,9 +117,27 @@
     }
   }
 
+  function armLogReset(button) {
+    if (button.dataset.resetArmed === 'true') {
+      delete button.dataset.resetArmed;
+      return true;
+    }
+    button.dataset.resetArmed = 'true';
+    button.textContent = 'CONFIRM RESET';
+    globalThis.setTimeout(() => {
+      if (button.dataset.resetArmed !== 'true') {
+        return;
+      }
+      delete button.dataset.resetArmed;
+      if (!button.disabled) {
+        button.textContent = 'RESET LOG';
+      }
+    }, 7000);
+    return false;
+  }
+
   async function resetLogs(root, button) {
-    const confirmed = globalThis.confirm('Reset the current BRVTAL debug log? This empties the log file and cannot be undone.');
-    if (!confirmed) {
+    if (!armLogReset(button)) {
       return;
     }
 
