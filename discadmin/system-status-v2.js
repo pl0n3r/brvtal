@@ -185,6 +185,9 @@
     logResetInFlight = true;
     const operationId = nextLogOperation();
     const output = root.querySelector('#ssv2-logs');
+    const previousLogState = output
+      ? {hidden:output.hidden, textContent:output.textContent}
+      : null;
     setLogActionsDisabled(root, true);
     button.textContent = 'RESETTING…';
     try {
@@ -208,7 +211,15 @@
       }
       invalidateCachedCsrf(error);
       setLogMeta(root, `RESET FAILED · ${error.message}`);
-      button.textContent = 'RETRY RESET';
+      const currentButton = root.querySelector('#ssv2-reset-logs');
+      const currentOutput = root.querySelector('#ssv2-logs');
+      if (currentButton) {
+        currentButton.textContent = 'RETRY RESET';
+      }
+      if (currentOutput && previousLogState) {
+        currentOutput.hidden = previousLogState.hidden;
+        currentOutput.textContent = previousLogState.textContent;
+      }
     } finally {
       logResetInFlight = false;
       if (isCurrentLogOperation(operationId)) {
