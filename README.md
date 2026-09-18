@@ -45,7 +45,7 @@ flowchart LR
 - La verificación se expone dinámicamente en el Key Location configurado (por defecto `/indexnow-key.txt`); la key no se hardcodea ni se versiona.
 - Se notifican únicamente URLs canónicas públicas afectadas después de commits editoriales exitosos.
 - Cambios de slug envían la URL anterior y la nueva; despublicaciones y eliminaciones notifican la URL que deja de estar disponible.
-- Events, Artists, Sets, Pages, Ticket Types, Blog, Releases, lineup y SEO metadata quedan conectados al flujo.
+- Events, Artists, Sets, Pages, Ticket Types, Blog, Releases, lineup, Bulk Actions y SEO metadata quedan conectados al flujo.
 - Cambios de Home como Theme/Site/Social/SEO, Hero Slider y Memories notifican `/` en vez de reenviar indiscriminadamente todo el sitio.
 - El endpoint se selecciona desde una allowlist de participantes oficiales (Global, Amazon, Bing, Naver, Seznam.cz, Yandex o Yep); una URL arbitraria no puede guardarse desde Settings.
 - `host` y `urlList` no son editables: se derivan del origen canónico y del cambio público real.
@@ -60,6 +60,7 @@ flowchart LR
 - `AGENTS.md` — política durable event-driven y configuración desde Settings.
 - `README.md` — snapshot exacto del deploy #481.
 - `api/blog.php` — notificaciones para Blog publicado.
+- `api/bulk-actions.php` — notificaciones después de publish/unpublish masivo.
 - `api/event-workflow.php` — notificación tras workflow atómico de Event.
 - `api/index.php` — validación de setting y hooks para CRUD/lineup/Settings.
 - `api/memories.php` — notificación de Home cuando Memories público cambia.
