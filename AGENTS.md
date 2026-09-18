@@ -272,6 +272,8 @@ Visible workflow name: **BRVTAL CI**.
 
 Pull requests and exact `main` pushes use the same diff-aware gate selection. `fast` always runs. `workflow_dispatch` intentionally runs the complete matrix. This keeps exact-main verification intact without rerunning unrelated expensive jobs after every squash merge.
 
+SonarQube Cloud annotations are relayed by `.github/workflows/sonar-annotation-relay.yml` into a stable PR comment after the external `SonarCloud Code Analysis` check completes. Use that relay comment as the canonical connector-readable source for Sonar rule, file, line and message details; do not guess findings from the aggregate count when annotations are unavailable directly.
+
 Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshots, recovery rehearsal and production-smoke source contracts are deliberately retired. Their checks live inside `BRVTAL CI`, avoiding duplicate runner setup and queue contention. The authenticated/read-only production smoke and controlled Page-write smoke remain separate **manual-only** workflows because they interact with real production.
 
 ### README per-deploy contract
