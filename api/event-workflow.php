@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/../config/indexnow.php';
 require_once __DIR__ . '/event-workflow-lib.php';
 
 function brvtal_event_workflow_reject_composite_fields(array $input): void
@@ -59,6 +60,9 @@ try {
     $input = input_json();
     brvtal_event_workflow_reject_composite_fields($input);
     $request = brvtal_event_workflow_request($input);
+    $indexNowBefore = $request['event_id'] !== null
+        ? brvtal_event_workflow_fetch_event($pdo, (int)$request['event_id'])
+        : null;
     $rawEvent = is_array($input['event'] ?? null) ? $input['event'] : [];
     foreach (['seo_title'=>190,'seo_description'=>320] as $field=>$max) {
         if (!array_key_exists($field, $rawEvent)) continue;
@@ -84,6 +88,7 @@ try {
         'ticket_count'=>count($result['ticket_types']),
         'lineup_count'=>count($result['lineup']),
     ]);
+    brvtal_indexnow_notify_transition('events', $indexNowBefore, $result['event']);
     json_response(['ok'=>true,'data'=>$result]);
 } catch (InvalidArgumentException $e) {
     json_response(['ok'=>false,'error'=>$e->getMessage()], 422);
