@@ -87,6 +87,12 @@ test('new release uses Media Library artwork and persists artist relationship', 
   await page.locator('#release-new').click();
   await expect(page.locator('#mtitle')).toHaveText('NEW RELEASE');
 
+  const artistRow = page.locator('.release-artist-item', { hasText: 'PL0N3R' });
+  await expect(artistRow).toHaveCount(1);
+  expect(await artistRow.evaluate(element => element.tagName)).toBe('DIV');
+  await expect(artistRow.locator('#release_artist_7')).toHaveAttribute('type', 'checkbox');
+  await expect(artistRow.locator('label[for="release_artist_7"]')).toContainText('PL0N3R');
+
   await page.locator('#release_title').fill('New Signal');
   await expect(page.locator('#release_slug')).toHaveValue('new-signal');
   await page.locator('#release_catalog').fill('BRVTAL002');

@@ -455,7 +455,7 @@ window.BRVTALMediaLibrary = (() => {
     }
     if (options.imagesOnly !== false) items = items.filter(x => x.type === 'image');
     const overlay = document.createElement('div'); overlay.className = 'brvtal-media-picker';
-    overlay.innerHTML = `<div class="brvtal-media-picker-box"><div class="brvtal-media-picker-head"><div><h3>SELECT MEDIA</h3><div class="meta">Reusable asset library</div></div><button class="btn ghost" type="button" data-close>CLOSE</button></div><input class="search" data-search placeholder="Search media…" style="margin-bottom:12px;width:100%"><div class="brvtal-media-picker-grid"></div></div>`;
+    overlay.innerHTML = `<div class="brvtal-media-picker-box"><div class="brvtal-media-picker-head"><div><h3>SELECT MEDIA</h3><div class="meta">Reusable asset library</div></div><button class="btn ghost" type="button" data-close>CLOSE</button></div><input class="search" data-search aria-label="Search media library" placeholder="Search media…" style="margin-bottom:12px;width:100%"><div class="brvtal-media-picker-grid"></div></div>`;
     document.body.appendChild(overlay);
     const grid = overlay.querySelector('.brvtal-media-picker-grid');
     const draw = q => {
