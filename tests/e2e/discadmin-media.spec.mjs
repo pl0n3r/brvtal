@@ -32,6 +32,19 @@ const mediaItem = {
   quality: { grade: 'good', contexts: { square: { label: 'GRID / AVATAR', width: 800, height: 800, ready: true }, card: { label: 'CONTENT CARD', width: 1200, height: 900, ready: true }, hero: { label: 'EVENT HERO', width: 1920, height: 1080, ready: false } } }
 };
 
+const audioItem = {
+  id: 12,
+  type: 'audio',
+  title: 'Warehouse recording',
+  file_path: 'uploads/media/2026/09/warehouse-recording.mp3',
+  mime_type: 'audio/mpeg',
+  file_size: 64000,
+  alt_text: '',
+  status: 'published',
+  created_at: '2026-09-12 18:00:00',
+  usage: [{ resource: 'events', id: 42, title: 'GENESIS', field: 'soundtrack' }]
+};
+
 async function mockApi(page) {
   await page.route('**/uploads/media/**', route => route.fulfill({ status: 200, contentType: 'image/png', body: onePixelPng }));
   await page.route('**/discadmin/media-library.js**', route => route.fulfill({ contentType: 'application/javascript', body: mediaLibraryJs }));
@@ -52,10 +65,11 @@ async function mockApi(page) {
     const url = new URL(route.request().url());
     const action = url.searchParams.get('action') || 'list';
     if (action === 'list') {
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [mediaItem] }) });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: [mediaItem, audioItem] }) });
     }
     if (action === 'detail') {
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { ...mediaItem, usage: [] } }) });
+      const item = Number(url.searchParams.get('id')) === audioItem.id ? audioItem : { ...mediaItem, usage: [] };
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: item }) });
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: mediaItem }) });
   });
@@ -180,6 +194,18 @@ test('media inspector previews contexts and submits a focal point regeneration',
   await page.getByRole('button', { name: 'SAVE FOCUS + REGENERATE' }).click();
   const request = await transform;
   expect(request.postDataJSON()).toEqual({x:0.75,y:0.25});
+});
+
+test('media inspector keeps non-image assets simple and protects referenced media', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+  await page.getByRole('button', { name: /Warehouse recording/i }).click();
+
+  await expect(page.locator('#media-inspector .media-kind')).toHaveText('AUDIO');
+  await expect(page.getByText('ORIGINAL ASSET', { exact: true })).toBeVisible();
+  await expect(page.getByText('FOCAL POINT / CROP', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('USED BY / 1', { exact: true })).toBeVisible();
+  await expect(page.getByText('GENESIS', { exact: true })).toBeVisible();
+  await expect(page.locator('#media-delete')).toBeDisabled();
 });
 
 test('event save sends selected media path and shows success feedback', async ({ page }) => {
