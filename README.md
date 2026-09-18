@@ -74,6 +74,19 @@ flowchart LR
 - `tests/e2e/run-content-core-real-stack.sh` — arranque/cleanup del receptor y ejecución del spec.
 - `tests/indexnow-contract.php` — contratos de key, visibilidad, URLs y wiring.
 
+## Operación en producción
+
+1. Verificar `https://www.brvtal.com.co` en Bing Webmaster Tools.
+2. Abrir **DISCADMIN → Settings → SEO → IndexNow**.
+3. Definir una Key válida, un `Key Location` raíz con formato `/indexnow-*.txt`, seleccionar un endpoint oficial y activar **Enabled**.
+4. Confirmar que la URL de verificación responde con la misma key configurada.
+5. Publicar o actualizar una URL pública de prueba y revisar **Bing Webmaster Tools → IndexNow** para comprobar que aparece entre las URLs recibidas.
+6. Mantener `/sitemap.xml` activo: IndexNow acelera la notificación de cambios, pero no sustituye la cobertura completa del sitemap ni garantiza indexación.
+
+Referencias operativas oficiales:
+- https://www.bing.com/indexnow/getstarted
+- https://www.bing.com/webmasters/help/indexnow-0z209wby
+
 ## Validación
 
 - La base exacta `99d1266647823697eec344c51b6dfa09d58ea0ce` pasó BRVTAL CI #1108.
