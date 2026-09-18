@@ -170,11 +170,32 @@ test('reset lock survives a System Status rerender while reset is in flight', as
   const resetButton = page.locator('#ssv2-reset-logs');
   await expect(resetButton).toBeDisabled();
 
-  await resetButton.evaluate(button => button.click());
+  await resetButton.dispatchEvent('click');
   expect(state.resetCalls()).toBe(1);
 
   state.releaseReset();
   await expect(resetButton).toBeEnabled();
+  expect(state.resetCalls()).toBe(1);
+});
+
+test('failed reset after rerender updates the current controls and restores visible logs', async ({page}) => {
+  const state = await mount(page,{holdReset:true,resetStatuses:[500]});
+
+  await page.getByRole('button',{name:'LOAD RECENT LOGS'}).click();
+  await expect(page.locator('#ssv2-logs')).toHaveText('before reset');
+  await confirmReset(page);
+  await expect.poll(() => state.resetCalls()).toBe(1);
+
+  await page.getByRole('button',{name:'REFRESH'}).click();
+  await expect(page.locator('#ssv2-reset-logs')).toBeDisabled();
+
+  state.releaseReset();
+
+  await expect(page.locator('#ssv2-reset-logs')).toBeEnabled();
+  await expect(page.locator('#ssv2-reset-logs')).toHaveText('RETRY RESET');
+  await expect(page.locator('#ssv2-log-meta')).toContainText('RESET FAILED · LOG_CLEAR_FAILED');
+  await expect(page.locator('#ssv2-logs')).toBeVisible();
+  await expect(page.locator('#ssv2-logs')).toHaveText('before reset');
   expect(state.resetCalls()).toBe(1);
 });
 
