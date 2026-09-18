@@ -137,7 +137,10 @@
       const role = key === 'appearance' ? 'LEGACY' : (isTheme ? 'THEME STUDIO' : (['site','social','seo','analytics'].includes(key) ? 'TYPED + RAW' : 'ADVANCED'));
       let preview = String(record.setting_value ?? '');
       if (preview.length > 180) preview = preview.slice(0,177) + '…';
-      return `<article class="sv2-raw-row"><div><span>${esc(role)}</span><strong>${esc(key)}</strong><code>${esc(preview || 'EMPTY')}</code></div><button type="button" class="iconbtn" data-settings-raw="${esc(key)}">RAW EDIT</button></article>`;
+      const action = key === 'theme.active'
+        ? '<button type="button" class="iconbtn" data-settings-theme-studio>OPEN THEME STUDIO</button>'
+        : `<button type="button" class="iconbtn" data-settings-raw="${esc(key)}">RAW EDIT</button>`;
+      return `<article class="sv2-raw-row"><div><span>${esc(role)}</span><strong>${esc(key)}</strong><code>${esc(preview || 'EMPTY')}</code></div>${action}</article>`;
     }).join('');
     return `<section class="sv2-pane ${V2.tab==='advanced'?'active':''}" data-settings-pane="advanced">
       <header class="sv2-section-head"><div><span>05 / ADVANCED</span><h3>Compatibility & raw records</h3></div><p>Escape hatch for recovery, unknown keys and legacy values. Primary configuration belongs in the typed screens or Theme Studio.</p></header>
@@ -259,6 +262,8 @@
       if (tab) { activate(tab.dataset.settingsTab); return; }
       const saveButton = event.target.closest('[data-settings-save]');
       if (saveButton) { save(saveButton.dataset.settingsSave); return; }
+      const themeStudio = event.target.closest('[data-settings-theme-studio]');
+      if (themeStudio) { globalThis.go?.('theme'); return; }
       const raw = event.target.closest('[data-settings-raw]');
       if (raw) { legacyOpenSettingByKey?.(raw.dataset.settingsRaw); return; }
       if (event.target.closest('[data-settings-new-raw]')) { window.openModal?.('settings'); return; }
