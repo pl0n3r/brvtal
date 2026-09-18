@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_routes.php';
 require_once __DIR__ . '/../config/public_sitemap.php';
+require_once __DIR__ . '/../config/public_robots.php';
 
 /** Fail when the canonical public sitemap contract drifts. */
 function public_sitemap_expect(bool $condition, string $message): void
@@ -87,7 +88,7 @@ public_sitemap_expect(
     'The web-server public route list must stay synchronized with the canonical content registry.'
 );
 
-$robots = (string) file_get_contents(__DIR__ . '/../robots.txt');
+$robots = brvtal_public_robots_body(BRVTAL_ROBOTS_CANONICAL_HOST);
 $robotsUsesXml = str_contains(
     $robots,
     'Sitemap: https://www.brvtal.com.co/sitemap.xml'
@@ -97,7 +98,7 @@ $robotsUsesXml = str_contains(
 );
 public_sitemap_expect(
     $robotsUsesXml,
-    'robots.txt must advertise only the canonical XML sitemap URL.'
+    'The dynamic robots endpoint must advertise only the canonical XML sitemap URL.'
 );
 
 echo "Public sitemap contract passed.\n";
