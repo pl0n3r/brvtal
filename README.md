@@ -55,6 +55,7 @@ flowchart LR
 
 - `README.md` — snapshot exacto del slice #451.
 - `js/public-theme-runtime.js` — separa responsabilidades del branding runtime sin cambiar su API.
+- `tests/settings-control-plane-contract.php` — protege consumo y prioridad del wordmark sin acoplarse al helper anterior.
 - `tests/e2e/public-theme-runtime.spec.mjs` — regresión browser para branding responsive y fallback.
 
 ## Validación
