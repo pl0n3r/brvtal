@@ -378,8 +378,12 @@
       </details>`;
 
     root.querySelector('#ssv2-refresh')?.addEventListener('click', () => load(root, true));
-    root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => loadLogs(root, event.currentTarget));
-    root.querySelector('#ssv2-reset-logs')?.addEventListener('click', event => resetLogs(root, event.currentTarget));
+    root.querySelector('#ssv2-load-logs')?.addEventListener('click', event => {
+      void loadLogs(root, event.currentTarget);
+    });
+    root.querySelector('#ssv2-reset-logs')?.addEventListener('click', event => {
+      void resetLogs(root, event.currentTarget);
+    });
   }
 
   async function load(root, manual=false) {
