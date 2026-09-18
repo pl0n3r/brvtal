@@ -12,6 +12,8 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - El backend rechaza activar slugs inexistentes con `THEME_NOT_FOUND` y conserva la validación sintáctica existente.
 - La referencia solo se considera válida cuando existe `theme.<slug>`, está marcada como JSON y decodifica a un objeto/array de configuración válido.
 - No se puede borrar el registro `theme.<slug>` que está actualmente referenciado por `theme.active`; el servidor responde `ACTIVE_THEME_DELETE_BLOCKED`.
+- Las mutaciones `theme.*` se serializan entre sesiones con un mutex de MariaDB y transacción; la validación, el bloqueo de filas y la escritura/borrado ya no pueden intercalarse dejando una referencia colgante.
+- `DELETE /settings` usa el mismo normalizador canónico que `POST`, por lo que variantes como `Theme.core` se rechazan antes de tocar la base de datos.
 - El fallback `core` sin `theme.active` sigue intacto: Theme Studio guarda primero `theme.core` antes de persistir `theme.active=core` cuando se activa explícitamente.
 - Settings deja de ofrecer RAW EDIT para `theme.active` y lo dirige a Theme Studio dentro del mismo shell.
 - Se añaden regresiones PHP y Playwright para integridad referencial y navegación desde Settings.
@@ -21,9 +23,9 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
 - `api/content-validation.php` — contrato de referencia activa y protección contra borrado del theme activo.
-- `api/index.php` — validación server-side del target antes del upsert y bloqueo de borrado.
+- `api/index.php` — validación server-side del target, mutex/transacción compartidos y bloqueo seguro de borrado.
 - `discadmin/settings-v2.js` — `theme.active` se administra desde Theme Studio, no desde editor raw.
-- `tests/theme-active-reference-contract.php` — regresión de integridad referencial.
+- `tests/theme-active-reference-contract.php` — regresión de integridad referencial, serialización y normalización del DELETE.
 - `tests/api-contract.php` — conserva la detección del branch DELETE de Settings tras hacerlo legible.
 - `tests/content-validation-contract.php` — mantiene los marcadores de validación de Settings tras el formateo.
 - `tests/e2e/discadmin-settings-theme-active.spec.mjs` — regresión de navegación desde Settings.

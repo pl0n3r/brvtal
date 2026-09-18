@@ -43,6 +43,24 @@ theme_reference_assert(str_contains($api, "'theme.' . \$slug"), 'API must query 
 theme_reference_assert(str_contains($api, 'json_decode($raw, true)'), 'API must require the target theme JSON to decode before activation.');
 theme_reference_assert(str_contains($api, 'return is_array($decoded)'), 'API must reject non-object theme payloads as dangling references.');
 theme_reference_assert(str_contains($api, 'brvtalThemeDeleteReferenceError'), 'Settings DELETE must protect the active theme record.');
+$settingsPostStart = strpos($api, "if ($resource === 'settings') {");
+$settingsPostEnd = strpos($api, '$d=sanitize_payload', $settingsPostStart);
+$settingsPostBlock = $settingsPostStart !== false && $settingsPostEnd !== false
+    ? substr($api, $settingsPostStart, $settingsPostEnd - $settingsPostStart)
+    : '';
+$settingsDeleteStart = strpos($api, "if ($method === 'DELETE' && $resource === 'settings' && $id === null)");
+$settingsDeleteEnd = strpos($api, 'method_not_allowed();', $settingsDeleteStart);
+$settingsDeleteBlock = $settingsDeleteStart !== false && $settingsDeleteEnd !== false
+    ? substr($api, $settingsDeleteStart, $settingsDeleteEnd - $settingsDeleteStart)
+    : '';
+theme_reference_assert(str_contains($api, 'SELECT GET_LOCK(?, 5)'), 'Theme mutations must acquire a cross-session Theme mutex');
+theme_reference_assert(str_contains($api, 'SELECT RELEASE_LOCK(?)'), 'Theme mutations must release the cross-session Theme mutex');
+theme_reference_assert(str_contains($settingsPostBlock, 'brvtalAcquireThemeReferenceMutex($pdo)'), 'Settings POST must serialize theme writes before reference validation');
+theme_reference_assert(str_contains($settingsPostBlock, 'LIMIT 1 FOR UPDATE'), 'theme.active activation must lock the target theme row inside its transaction');
+theme_reference_assert(str_contains($settingsDeleteBlock, "brvtal_setting_key_normalize((string)(\$_GET['key'] ?? ''))"), 'Settings DELETE must apply the canonical setting-key validator before database access');
+theme_reference_assert(str_contains($settingsDeleteBlock, 'brvtalAcquireThemeReferenceMutex($pdo)'), 'Settings DELETE must share the same Theme mutation mutex');
+theme_reference_assert(str_contains($settingsDeleteBlock, "setting_key='theme.active' LIMIT 1 FOR UPDATE"), 'Settings DELETE must lock theme.active before checking the protected target');
+theme_reference_assert(str_contains($settingsDeleteBlock, '$pdo->beginTransaction();'), 'Theme Settings DELETE must check and delete inside one transaction');
 theme_reference_assert(str_contains($api, '409'), 'Settings DELETE must return an HTTP 409 conflict for the protected active theme.');
 theme_reference_assert(str_contains($settingsUi, 'data-settings-theme-studio'), 'Settings must route theme.active to Theme Studio');
 theme_reference_assert(str_contains($settingsUi, "globalThis.go?.('theme')"), 'Settings must keep Theme Studio inside the canonical shell');

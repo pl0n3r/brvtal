@@ -61,6 +61,28 @@ function brvtal_activity_fetch_resource(PDO $pdo, string $table, int $id, bool $
     $sql="SELECT * FROM {$table} WHERE id=? LIMIT 1" . ($lock ? ' FOR UPDATE' : '');
     $st=$pdo->prepare($sql);$st->execute([$id]);$row=$st->fetch(PDO::FETCH_ASSOC);return $row?:null;
 }
+/** Acquire the cross-session database mutex that serializes Theme setting references. */
+function brvtalAcquireThemeReferenceMutex(PDO $pdo): void {
+    $st = $pdo->prepare('SELECT GET_LOCK(?, 5)');
+    $st->execute(['brvtal.theme_reference']);
+    if ((int)$st->fetchColumn() !== 1) {
+        json_response(['ok' => false, 'error' => 'THEME_SETTINGS_BUSY'], 503);
+    }
+}
+
+/** Release the Theme reference mutex without masking the request result. */
+function brvtalReleaseThemeReferenceMutex(PDO $pdo): void {
+    try {
+        $st = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+        $st->execute(['brvtal.theme_reference']);
+        $st->fetchColumn();
+    } catch (Throwable $e) {
+        brvtal_log('THEME_SETTINGS_LOCK_RELEASE_FAILED', 'Could not release Theme settings mutex', [
+            'class' => get_class($e),
+        ]);
+    }
+}
+
 function handle_exception(Throwable $e): never {
     if($e instanceof RuntimeException && $e->getMessage()==='ACTIVITY_SCHEMA_MISSING') json_response(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'],503);
     brvtal_log('API_ERROR','Unhandled API exception',['class'=>get_class($e),'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
@@ -225,27 +247,6 @@ try {
                 );
             }
 
-            $themeReferenceError = brvtalThemeActiveReferenceError(
-                $key,
-                $value,
-                static function (string $slug) use ($pdo): bool {
-                    $st = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key=? AND is_json=1 LIMIT 1');
-                    $st->execute(['theme.' . $slug]);
-                    $raw = $st->fetchColumn();
-                    if (!is_string($raw)) {
-                        return false;
-                    }
-                    $decoded = json_decode($raw, true);
-                    return is_array($decoded);
-                }
-            );
-            if ($themeReferenceError !== null) {
-                json_response(
-                    ['ok' => false, 'error' => $themeReferenceError['error'], 'field' => $themeReferenceError['field']],
-                    422
-                );
-            }
-
             if (strlen($value) > 2 * 1024 * 1024) {
                 json_response(['ok' => false, 'error' => 'VALUE_TOO_LARGE'], 422);
             }
@@ -256,11 +257,67 @@ try {
                 json_response(['ok' => false, 'error' => 'INVALID_SETTING_JSON'], 422);
             }
 
-            $st = $pdo->prepare(
-                'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
-                . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'
-            );
-            $st->execute([$key, $value, (int)($d['is_json'] ?? 0)]);
+            $themeMutation = str_starts_with($key, 'theme.');
+            if ($themeMutation) {
+                brvtalAcquireThemeReferenceMutex($pdo);
+            }
+
+            try {
+                if ($themeMutation) {
+                    $pdo->beginTransaction();
+                }
+
+                $themeReferenceError = brvtalThemeActiveReferenceError(
+                    $key,
+                    $value,
+                    static function (string $slug) use ($pdo): bool {
+                        $st = $pdo->prepare(
+                            'SELECT setting_value FROM settings WHERE setting_key=? AND is_json=1 LIMIT 1 FOR UPDATE'
+                        );
+                        $st->execute(['theme.' . $slug]);
+                        $raw = $st->fetchColumn();
+                        if (!is_string($raw)) {
+                            return false;
+                        }
+                        $decoded = json_decode($raw, true);
+                        return is_array($decoded);
+                    }
+                );
+                if ($themeReferenceError !== null) {
+                    if ($themeMutation && $pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    if ($themeMutation) {
+                        brvtalReleaseThemeReferenceMutex($pdo);
+                    }
+                    json_response(
+                        ['ok' => false, 'error' => $themeReferenceError['error'], 'field' => $themeReferenceError['field']],
+                        422
+                    );
+                }
+
+                $st = $pdo->prepare(
+                    'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
+                    . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'
+                );
+                $st->execute([$key, $value, (int)($d['is_json'] ?? 0)]);
+
+                if ($themeMutation) {
+                    $pdo->commit();
+                }
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                if ($themeMutation) {
+                    brvtalReleaseThemeReferenceMutex($pdo);
+                }
+                throw $e;
+            }
+
+            if ($themeMutation) {
+                brvtalReleaseThemeReferenceMutex($pdo);
+            }
             json_response(['ok' => true]);
         }
         $d=sanitize_payload($resource,$d);$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if($resource==='events')$p=brvtal_event_lifecycle_patch([],$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace(['status'=>'draft'],$p));if($eventStateError!==null)json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);} if($resource==='pages'&&!array_key_exists('locale',$p))$p['locale']='en';if($resource==='pages'){if(!array_key_exists('slug',$p)||$p['slug']==='')$p['slug']=slugify((string)($p['title']??''));$pageIdentityError=brvtal_page_identity_error($p);if($pageIdentityError!==null)json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);$pageStateError=brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'],$p)); if($pageStateError!==null)json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422); }if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error($p);if($ticketWindowError!==null)json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}if($resource==='sets'){ $setPublicationError=brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],$p)); if($setPublicationError!==null)json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422); }if($resource==='events'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if($resource==='artists'&&empty($p['name']))json_response(['ok'=>false,'error'=>'NAME_REQUIRED'],422);if($resource==='sets'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if(isset($p['slug'])&&$p['slug']==='')$p['slug']=slugify((string)($p['title']??$p['name']??'item'));if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$fields=array_keys($p);$cols=implode(',',array_map(fn($f)=>"`{$f}`",$fields));$marks=implode(',',array_fill(0,count($fields),'?'));
@@ -295,7 +352,15 @@ try {
         }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
     }
     if ($method === 'DELETE' && $resource === 'settings' && $id === null) {
-        $key = preg_replace('/[^a-zA-Z0-9_.-]/', '', (string)($_GET['key'] ?? '')) ?? '';
+        $keyState = brvtal_setting_key_normalize((string)($_GET['key'] ?? ''));
+        if ($keyState['error'] !== null) {
+            json_response(
+                ['ok' => false, 'error' => $keyState['error']['error'], 'field' => $keyState['error']['field']],
+                422
+            );
+        }
+
+        $key = (string)$keyState['key'];
         if ($key === '') {
             json_response(['ok' => false, 'error' => 'KEY_REQUIRED'], 422);
         }
@@ -303,23 +368,53 @@ try {
             json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
         }
 
-        $activeTheme = $pdo->query(
-            "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1"
-        )->fetchColumn();
-        $themeDeleteError = brvtalThemeDeleteReferenceError(
-            $key,
-            is_string($activeTheme) ? trim($activeTheme) : null
-        );
-        if ($themeDeleteError !== null) {
-            json_response(
-                ['ok' => false, 'error' => $themeDeleteError['error'], 'field' => $themeDeleteError['field']],
-                409
-            );
+        $themeMutation = str_starts_with($key, 'theme.');
+        if ($themeMutation) {
+            brvtalAcquireThemeReferenceMutex($pdo);
         }
 
-        $st = $pdo->prepare('DELETE FROM settings WHERE setting_key=?');
-        $st->execute([$key]);
-        json_response(['ok' => true, 'deleted' => (int)$st->rowCount()]);
+        try {
+            if ($themeMutation) {
+                $pdo->beginTransaction();
+
+                $activeTheme = $pdo->query(
+                    "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
+                )->fetchColumn();
+                $themeDeleteError = brvtalThemeDeleteReferenceError(
+                    $key,
+                    is_string($activeTheme) ? trim($activeTheme) : null
+                );
+                if ($themeDeleteError !== null) {
+                    $pdo->rollBack();
+                    brvtalReleaseThemeReferenceMutex($pdo);
+                    json_response(
+                        ['ok' => false, 'error' => $themeDeleteError['error'], 'field' => $themeDeleteError['field']],
+                        409
+                    );
+                }
+            }
+
+            $st = $pdo->prepare('DELETE FROM settings WHERE setting_key=?');
+            $st->execute([$key]);
+            $deleted = (int)$st->rowCount();
+
+            if ($themeMutation) {
+                $pdo->commit();
+            }
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($themeMutation) {
+                brvtalReleaseThemeReferenceMutex($pdo);
+            }
+            throw $e;
+        }
+
+        if ($themeMutation) {
+            brvtalReleaseThemeReferenceMutex($pdo);
+        }
+        json_response(['ok' => true, 'deleted' => $deleted]);
     }
     method_not_allowed();
 } catch(Throwable $e) { handle_exception($e); }
