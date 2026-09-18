@@ -143,7 +143,7 @@ test('dynamic CMS nodes keep cursor, magnetic and artist-preview behavior after 
   await expect(magnetic).toHaveAttribute('data-dynamic-magnetic', '1');
   await magnetic.dispatchEvent('pointermove', {clientX:24,clientY:18});
   expect(await page.evaluate(() => window.__gsapCalls.some(call => (
-    call.target.includes('set-action')
+    String(call.target || '').includes('set-action')
     && typeof call.vars.x === 'number'
     && typeof call.vars.y === 'number'
   )))).toBe(true);
