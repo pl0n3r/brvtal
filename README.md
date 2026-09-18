@@ -1,57 +1,99 @@
+<p align="center">
+  <img src="assets/brvtal-logo-640.webp" alt="BRVTAL — Rave till Grave" width="190">
+</p>
+
 # BRVTAL — Último deploy
 
-[![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
+<p align="center">
+  <strong>Snapshot de gobernanza · paralelización + handoff visual</strong>
+</p>
 
-Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deploy.
+<p align="center">
+  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml">
+    <img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg">
+  </a>
+</p>
 
-> **Regla permanente del proyecto:** cada deploy debe dejar aquí el snapshot exacto de lo que cambió y un panorama general actualizado de lo pendiente.
+> Este README representa **solo el deploy actual**. No es un changelog acumulativo: cada deploy lo reemplaza con un snapshot exacto y un panorama vigente.
+
+## Estado del deploy
+
+| Señal | Estado | Evidencia |
+| --- | --- | --- |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1a0de40f85d2e4c033fc6a4a838abd0431521a9e` · BRVTAL CI #1010 |
+| Runtime público / DISCADMIN | 🟢 **Sin cambios funcionales** | Este deploy modifica gobernanza, README y su validador CI |
+| Paralelización | ⚡ **Contrato reforzado** | Lecturas/gates independientes deben agruparse; hasta 4 líneas seguras |
+| README visual | 🛡️ **Protegido por CI** | Logo + tabla de estado + Mermaid pasan a ser obligatorios |
+| Producción | ⚪ **No validada por este PR** | CI verde no equivale a validación de producción |
+
+## Flujo de entrega
+
+```mermaid
+flowchart LR
+    A["PR + snapshot exacto"] --> B["BRVTAL CI"]
+    A --> C["Sonar"]
+    A --> D["CodeRabbit"]
+    B --> E{"Gates verdes"}
+    C --> E
+    D --> E
+    E --> F["Squash merge"]
+    F --> G["CI del SHA exacto de main"]
+    G --> H["Deploy automático"]
+```
+
+> **Principio operativo:** CI, Sonar, CodeRabbit, inspección y preflight se ejecutan en paralelo siempre que no compartan estado mutable. Merge y writes dependientes permanecen serializados.
 
 ## Qué se hizo
 
-- Continúa #451 con un bloque P3 mecánico reportado por Sonar.
-- Los helpers de escape HTML de `js/app.js` y `js/public-roster.js` dejan de usar cinco regex globales con `.replace(.../g,...)` y pasan a `String.prototype.replaceAll()`.
-- Se conservan exactamente las entidades usadas para `&`, `<`, `>`, comillas dobles y comillas simples.
-- No se cambian otros `.replace()` de una sola ocurrencia: normalización de rutas, fechas y otras transformaciones permanecen intactas.
-- La cobertura Playwright verifica que Home y Roster rendericen caracteres especiales literalmente, escapen atributos sensibles (`src`/`data-image`) y no creen elementos HTML a partir de contenido CMS.
-- No cambia API, payload, rutas, orden editorial, estilos ni persistencia.
+- Se reforzó en `AGENTS.md` que la **paralelización es el modo por defecto**, no una optimización opcional.
+- Dos o más lecturas independientes deben agruparse; en orquestación del conector GitHub se prioriza `Promise.all(...)`.
+- El chequeo de gates debe consultar en paralelo PR state, CI/check-runs, statuses, Sonar y CodeRabbit cuando son independientes.
+- Mientras corre un gate externo, se debe adelantar análisis **read-only** del siguiente bloque en vez de quedar inactivo.
+- El README de cada deploy pasa a tener un contrato visual permanente: identidad BRVTAL, badge CI, tabla de estado y diagrama Mermaid.
+- BRVTAL CI ahora falla si un README futuro pierde esos marcadores visuales o alguno de sus headings canónicos.
+- Se mantiene el límite de 8 KB y la lista exacta de archivos modificados por deploy.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `js/app.js` — `replaceAll()` en el helper de escape HTML del frontend dinámico.
-- `js/public-roster.js` — `replaceAll()` en el helper de escape HTML del roster.
-- `tests/e2e/public-runtime-fallback.spec.mjs` — regresión de escaping del Home dinámico.
-- `tests/e2e/public-roster-phase-c.spec.mjs` — regresión de escaping del roster público.
+- `.github/workflows/update-release-metadata.yml` — valida headings, logo, badge CI, tabla de estado y Mermaid del README.
+- `AGENTS.md` — endurece el contrato de paralelización y define el formato visual obligatorio del handoff.
+- `README.md` — adopta el nuevo diseño visual del snapshot de deploy.
 
 ## Validación
 
-- Base exacta: `main` `599e07893e2172ead205eb4ec36115609150982c`.
-- Esa base pasó **BRVTAL CI #1003** y queda **VALIDATED IN CODE**.
-- El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto antes del squash merge.
-- Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
-- CI verde significa **VALIDATED IN CODE**, no validación de producción.
+- Base exacta: `main` `1a0de40f85d2e4c033fc6a4a838abd0431521a9e`.
+- La base pasó **BRVTAL CI #1010** y queda **VALIDATED IN CODE**.
+- El PR debe pasar BRVTAL CI, SonarQube Cloud y CodeRabbit sobre su SHA exacto.
+- El propio job `fast` debe validar este README con el nuevo contrato visual y con la lista exacta de 3 archivos.
+- Tras el squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
+- Ninguna de estas señales implica por sí sola **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
-- Tachar el bloque `replaceAll()` en #451 solo después del merge y del CI verde del `main` exacto.
-- Revalidar el conjunto completo de warnings de `Math.random()` antes de modificar comportamiento.
-- Resolver aparte el warning de configuración `sonar.python.version` usando la versión/rango real del proyecto.
-- Continuar los P2 de #451 que todavía reproduzcan en código actual.
-- Reconciliar PR #434 / Memories aparte, sin ejecutar migraciones de producción automáticamente.
-- Mantener #479, #480 y #481 como frentes separados.
+1. Cerrar este PR de gobernanza y validar el `main` exacto.
+2. Continuar #451 con el bloque Sonar de `Math.random()`, clasificando cada uso antes de modificarlo.
+3. Resolver por separado el warning `sonar.python.version` con una versión/rango Python realmente soportado por el proyecto.
+4. Mantener #479, #480 y #481 separados del burn-down de calidad.
+5. Reconciliar PR #434 / Memories sin ejecutar migraciones de producción automáticamente.
 
 ## Panorama general pendiente
 
-- **Sonar / calidad:** #451 continúa por riesgo y área; los bloques completados se tachan únicamente tras merge + exact-main CI.
-- **Apariencia:** #149 — completar Light en módulos modernos.
-- **Hero Slider:** #221 — integridad editorial de media; #480 — regresión visual del Hero en desktop. #237 ya está cerrado.
-- **Seguridad editorial / navegación:** #257, #216, #174 y #193.
-- **SEO editorial / entrega pública:** #182, #214, #204 y #272 antes de #390; #479 corrige imágenes sin `alt`; #481 integra IndexNow.
-- **Content / edición:** #224 y #252 — Ticket Types e integridad de media.
-- **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
-- **Bulk Actions:** #275 — catálogos mayores de 500 sin truncado silencioso.
-- **Dashboard / DISCADMIN:** #348 y #351 — IA y Theme Studio.
-- **Archivo cultural:** #398 / #403 — Event Records y relaciones estructuradas.
-- **Memories:** #415 / PR #434 requiere reconciliación con `main`; ninguna migración de producción automática.
-- **Idioma:** #212 — español canónico + inglés automático por fases.
-- **Backups:** #389 — scheduling seguro y Drive opcional con autorización externa.
+| Frente | Estado / siguiente foco |
+| --- | --- |
+| 🧪 **Sonar / calidad** | #451 sigue abierto; accesibilidad y `replaceAll()` ya están cubiertos; quedan pseudorandom, Python config y P2 vigentes |
+| 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
+| 🖼️ **Hero Slider** | #221 integridad editorial de media · #480 regresión visual desktop |
+| 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
+| 🔎 **SEO / entrega pública** | #182, #214, #204, #272 → #390 · #479 alt · #481 IndexNow |
+| ✍️ **Content / edición** | #224, #252 |
+| 🧾 **Activity / operaciones** | #232, #195 |
+| 📚 **Bulk Actions** | #275 — catálogos >500 sin truncado silencioso |
+| 🧭 **Dashboard / Theme** | #348, #351 |
+| 🗃️ **Archivo cultural** | #398, #403 |
+| 🧠 **Memories** | #415 / PR #434 pendiente de reconciliación; sin migración automática |
+| 🌐 **Idioma** | #212 — español canónico + inglés automático por fases |
+| 💾 **Backups** | #389 — scheduling seguro + Drive opcional |
+
+---
+
+<p align="center"><sub>BRVTAL · Rave till Grave · snapshot operativo, no historial acumulativo</sub></p>
