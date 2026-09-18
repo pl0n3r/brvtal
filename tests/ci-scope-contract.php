@@ -65,6 +65,7 @@ ci_scope_expect(!str_contains($workflow, "    needs: fast\n"), 'heavy gates must
 ci_scope_expect(str_contains($workflow, 'needs: [preflight, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate preflight plus every canonical gate');
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_php == 'true'"), 'PHP fast suite must be scope-aware');
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_js == 'true'"), 'JavaScript syntax validation must be scope-aware');
+ci_scope_expect(str_contains($workflow, 'python scripts/readme-dashboard.py --check'), 'README deploy facts must be checked by the reusable dashboard validator');
 ci_scope_expect(str_contains($workflow, 'brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"'), 'workflow must pass its actual changed-file list and event to the shared classifier');
 ci_scope_expect(str_contains($workflow, 'run: npm run test:integration'), 'CI database gate must call the canonical integration script');
 ci_scope_expect(!str_contains($workflow, "php tests/integration/global-search.php\n          php tests/integration/bulk-actions.php"), 'CI must not maintain a second manual integration list');
@@ -126,6 +127,11 @@ ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployOb
 ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');
 ci_scope_expect(str_contains($deployObserver, 'DEPLOYED marker observed'), 'deploy observer must report exact marker observation');
 ci_scope_expect(!str_contains($deployObserver, 'VALIDATED IN PRODUCTION'), 'deploy marker observation must not be mislabeled as production validation');
+ci_scope_expect(str_contains($deployObserver, 'timeout-minutes: 12'), 'deploy observer must allow Hostinger propagation beyond the original short window');
+ci_scope_expect(str_contains($deployObserver, 'max_attempts=60'), 'deploy observer must use the calibrated bounded attempt count');
+ci_scope_expect(str_contains($deployObserver, 'sleep_seconds=10'), 'deploy observer must use bounded polling instead of tight loops');
+ci_scope_expect(str_contains($deployObserver, 'Hostinger hPanel Git auto-deployment'), 'deploy observer failure evidence must point to the external configuration boundary');
+ci_scope_expect(!str_contains($deployObserver, 'echo "- Exact source SHA: `$EXPECTED_SHA`"'), 'deploy observer summary must not execute Markdown backticks as shell substitutions');
 
 ci_scope_expect(str_contains($sonarRelay, 'body = "\\n".join(lines).strip() + "\\n"'), 'Sonar relay must build Markdown with newline escape sequences interpreted by Python');
 ci_scope_expect(!str_contains($sonarRelay, 'body = "\\\\n".join(lines).strip() + "\\\\n"'), 'Sonar relay must never publish literal escaped newline markers');

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 $readme = (string) file_get_contents($root . '/README.md');
+$readmeDashboardValidator = $root . '/scripts/readme-dashboard.py';
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
 $performanceWorkflow = (string) file_get_contents($root . '/.github/workflows/production-performance.yml');
 $performanceProbe = (string) file_get_contents($root . '/tests/e2e/production-performance-probe.mjs');
@@ -19,12 +20,28 @@ $assert = static function (bool $condition, string $message): void {
     }
 };
 
-// README is intentionally a compact, replace-on-deploy handoff rather than a cumulative manual.
+// README is a compact visual development dashboard for the current deploy, not a cumulative manual.
 $assert(str_contains($readme, '# BRVTAL — Último deploy'), 'README must identify itself as the latest deploy snapshot');
-$assert(str_contains($readme, '## Qué se hizo'), 'README must summarize what changed in the current deploy');
-$assert(str_contains($readme, '## Archivos modificados en este deploy'), 'README must list files changed in the current deploy');
-$assert(str_contains($readme, '## Validación'), 'README must state current validation status');
-$assert(str_contains($readme, '## Qué sigue'), 'README must state the next actionable work');
+foreach ([
+    '## Estado del deploy',
+    '## Huella del cambio',
+    '## Calidad y entrega',
+    '## Flujo de entrega',
+    '## Qué se hizo',
+    '## Archivos modificados en este deploy',
+    '## Validación',
+    '## Qué sigue',
+    '## Panorama general pendiente',
+] as $heading) {
+    $assert(str_contains($readme, $heading), "README dashboard must contain {$heading}");
+}
+$assert(str_contains($readme, '<!-- brvtal:git-delta -->'), 'README must expose the machine-validated Git delta block');
+$assert(str_contains($readme, '<!-- brvtal:gate-plan -->'), 'README must expose the machine-validated gate-plan block');
+$assert(str_contains($readme, 'actions/workflows/update-release-metadata.yml/badge.svg'), 'README must expose live BRVTAL CI status');
+$assert(str_contains($readme, 'sonarcloud.io/api/project_badges/measure'), 'README must expose live Sonar quality status');
+$assert(str_contains($readme, 'actions/workflows/production-deploy-observer.yml/badge.svg'), 'README must expose deploy-observer status');
+$assert(str_contains($readme, '**NOW**') && str_contains($readme, '**NEXT**') && str_contains($readme, '**LATER**'), 'README must expose scannable priority lanes');
+$assert(str_contains($readme, '**BLOCKED / EXTERNAL**'), 'README must make external blockers explicit');
 $assert(str_contains($readme, 'solo el deploy actual'), 'README must explicitly remain deploy-scoped');
 $assert(strlen($readme) < 8000, 'README must stay compact instead of becoming a cumulative technical manual');
 $assert(!str_contains($readme, '## 3. Arquitectura general'), 'README must not regress to the old cumulative architecture manual');
@@ -55,10 +72,13 @@ $assert(!str_contains($agents, 'Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/D
 $assert(str_contains($workflow, 'GITHUB_STEP_SUMMARY'), 'BRVTAL CI must publish GitHub Actions job summaries');
 $assert(str_contains($workflow, 'Deploy eligibility'), 'CI summary must state whether a run is deploy-eligible');
 $assert(str_contains($workflow, 'Changed files'), 'CI summary must expose changed-file context');
-$assert(str_contains($workflow, "  fast:\n"), 'CI must expose one always-on fast planning/syntax/contract gate');
-$assert(!str_contains($workflow, "  plan:\n"), 'CI must not reintroduce a separate planning runner before fast validation');
+$assert(str_contains($workflow, "  preflight:\n"), 'CI must expose one short always-on preflight planner');
+$assert(str_contains($workflow, "  fast:\n"), 'CI must expose the fast syntax/contract gate after preflight');
+$assert(!str_contains($workflow, "  plan:\n"), 'CI must not reintroduce a second planning runner');
 $assert(str_contains($workflow, 'Run PHP 8.5 compatibility and contract suite'), 'fast must absorb the production PHP compatibility suite');
 $assert(str_contains($workflow, 'Verify README matches this deploy exactly'), 'README deploy-snapshot validation must remain in the main CI');
+$assert(is_file($readmeDashboardValidator), 'README dashboard validator must exist as a reusable script');
+$assert(str_contains($workflow, 'python scripts/readme-dashboard.py --check'), 'CI must validate README dashboard facts through the reusable script');
 $assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  browser:\n"), 'CI must split database and Chromium validation into independent path-aware jobs');
 $assert(str_contains($workflow, "  realstack:\n") && str_contains($workflow, "  webkit:\n"), 'CI must keep real-stack and targeted WebKit validation independent');
 $assert(str_contains($workflow, "  recovery:\n"), 'CI must keep isolated backup recovery as a path-aware job');
