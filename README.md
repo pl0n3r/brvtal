@@ -50,7 +50,7 @@ flowchart LR
 - Un asset preferido inválido ya no bloquea un `logo` principal válido.
 - `wordmark` conserva prioridad en header/preloader, mientras el hero usa el logo visual.
 - Un header logo que falla al cargar se elimina y deja visible el branding textual.
-- Se añadieron regresiones browser específicas para los findings funcionales de CodeRabbit.
+- Se añadieron regresiones browser para prioridad de assets, fallbacks inválidos y recuperación del hero tras fallos de carga.
 
 ## Archivos modificados en este deploy
 
@@ -62,7 +62,7 @@ flowchart LR
 ## Validación
 
 - Base exacta `1167b2560caaad696f56b05438e3b2177e6ada74` pasó BRVTAL CI #1085.
-- El primer ciclo de #505 pasó BRVTAL CI #1088, Chromium y Sonar; CodeRabbit detectó tres findings válidos que se corrigen en este head.
+- El head previo pasó BRVTAL CI #1091, Chromium y Sonar; este ajuste final de fallback requiere un nuevo ciclo sobre el SHA actualizado.
 - El nuevo head debe volver a pasar BRVTAL CI / Chromium, Sonar y CodeRabbit.
 - Este slice no toca DB, sesión admin ni mutaciones privadas; real-stack/database pueden quedar fuera por scope.
 - Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
