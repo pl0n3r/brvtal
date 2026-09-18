@@ -105,8 +105,8 @@
 
   function brandingLogos(branding) {
     const query = ensureMobileQuery();
-    const selectedVisualLogo = safeAsset((query.matches ? branding.mobileLogo : '') || branding.logo);
     const mainLogo = safeAsset(branding.logo);
+    const selectedVisualLogo = (query.matches ? safeAsset(branding.mobileLogo) : '') || mainLogo;
     const wordmark = safeAsset(branding.wordmark);
     return {
       selectedVisualLogo,
@@ -221,9 +221,11 @@
 
   function preloaderLogo(branding) {
     const wordmark = safeAsset(branding.wordmark);
+    const preloader = safeAsset(branding.preloaderLogo);
+    const mainLogo = safeAsset(branding.logo);
     return {
       wordmark,
-      logo: wordmark || safeAsset(branding.preloaderLogo || branding.logo),
+      logo: wordmark || preloader || mainLogo,
     };
   }
 
