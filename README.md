@@ -47,7 +47,7 @@ flowchart LR
 - `discadmin/hero-slider.js` deja de usar pseudorandom no criptográfico para IDs editoriales y pasa a `crypto.getRandomValues()`; si Web Crypto no existe, usa timestamp + contador local.
 - El loader público deja de simular progreso con `Math.random()` y usa una secuencia determinista de pasos.
 - El canvas de grano/glitch usa un PRNG decorativo local explícitamente aislado de IDs, tokens y decisiones de seguridad.
-- La cobertura de Hero Slider y Public Quick Wins ahora ejecuta los flujos reales: crea/duplica slides y layers para verificar IDs únicos, completa el loader y compara el primer frame del canvas en dos páginas frescas.
+- La cobertura de Hero Slider y Public Quick Wins ahora ejecuta los flujos reales: valida IDs únicos con Web Crypto y también con el fallback contador, completa el loader y compara el primer frame del canvas en dos páginas frescas.
 - No cambia API, persistencia, rutas, permisos ni estructura de datos.
 
 ## Archivos modificados en este deploy
@@ -55,7 +55,7 @@ flowchart LR
 - `README.md` — snapshot visual exacto del deploy.
 - `discadmin/hero-slider.js` — generación de IDs con Web Crypto y fallback contador.
 - `js/app.js` — loader determinista y PRNG decorativo sin `Math.random()`.
-- `tests/e2e/hero-slider-v2.spec.mjs` — regresión ejecutable de creación/duplicación con IDs no vacíos y únicos.
+- `tests/e2e/hero-slider-v2.spec.mjs` — regresión ejecutable de creación/duplicación con IDs no vacíos y únicos en las rutas Web Crypto y fallback.
 - `tests/e2e/public-quick-wins.spec.mjs` — regresión ejecutable del loader y secuencia determinista del canvas.
 
 ## Validación
