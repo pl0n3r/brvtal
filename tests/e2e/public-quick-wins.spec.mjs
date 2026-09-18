@@ -104,6 +104,9 @@ test('Hero counting remains tied to the configured slider total', async () => {
   expect(heroRuntime).toContain('data-hero-current');
 });
 
+/**
+ * Executes the public loader/canvas runtime and returns first-frame draw calls.
+ */
 async function runAppVisualHarness(page) {
   await page.setViewportSize({ width: 800, height: 600 });
   await page.setContent(`<!doctype html><html><body>
