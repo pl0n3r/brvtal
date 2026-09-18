@@ -12,7 +12,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Los helpers de escape HTML de `js/app.js` y `js/public-roster.js` dejan de usar cinco regex globales con `.replace(.../g,...)` y pasan a `String.prototype.replaceAll()`.
 - Se conservan exactamente las entidades usadas para `&`, `<`, `>`, comillas dobles y comillas simples.
 - No se cambian otros `.replace()` de una sola ocurrencia: normalización de rutas, fechas y otras transformaciones permanecen intactas.
-- La cobertura Playwright verifica que Home y Roster rendericen caracteres especiales literalmente y no creen elementos HTML a partir de contenido CMS.
+- La cobertura Playwright verifica que Home y Roster rendericen caracteres especiales literalmente, escapen atributos sensibles (`src`/`data-image`) y no creen elementos HTML a partir de contenido CMS.
 - No cambia API, payload, rutas, orden editorial, estilos ni persistencia.
 
 ## Archivos modificados en este deploy
