@@ -41,7 +41,9 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
   const oldSlug = `indexnow-artist-${runKey}`;
   const newSlug = `${oldSlug}-renamed`;
   const disabledSlug = `indexnow-disabled-${runKey}`;
+  const bulkSlug = `indexnow-bulk-${runKey}`;
   let firstArtistId = 0;
+  let bulkArtistId = 0;
   let disabledArtistId = 0;
 
   await page.request.delete(`${receiverUrl}/captured`);
@@ -134,6 +136,52 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
       ).length;
     }, {timeout:10_000}).toBeGreaterThanOrEqual(2);
 
+    const bulkCreate = await page.request.post(`${baseUrl}/api/index.php/artists`, {
+      headers: {'X-CSRF-Token':auth.csrf},
+      data: {name:`INDEXNOW BULK ${runKey}`,slug:bulkSlug,status:'published',sort_order:101},
+    });
+    expect(bulkCreate.status()).toBe(201);
+    bulkArtistId = Number((await bulkCreate.json()).id || 0);
+    expect(bulkArtistId).toBeGreaterThan(0);
+
+    await expect.poll(async () => {
+      const payloads = await captured(page);
+      return payloads.filter(payload =>
+        Array.isArray(payload.urlList)
+        && payload.urlList.includes(`${baseUrl}/artists/${bulkSlug}`)
+      ).length;
+    }, {timeout:10_000}).toBeGreaterThanOrEqual(1);
+
+    const beforeBulkUnpublish = (await captured(page)).filter(payload =>
+      Array.isArray(payload.urlList)
+      && payload.urlList.includes(`${baseUrl}/artists/${bulkSlug}`)
+    ).length;
+
+    const bulkUnpublish = await page.request.post(`${baseUrl}/api/bulk-actions.php`, {
+      headers: {'X-CSRF-Token':auth.csrf},
+      data: {
+        action:'set_status',
+        resource:'artists',
+        status:'draft',
+        ids:[bulkArtistId],
+      },
+    });
+    expect(bulkUnpublish.ok()).toBeTruthy();
+
+    await expect.poll(async () => {
+      const payloads = await captured(page);
+      return payloads.filter(payload =>
+        Array.isArray(payload.urlList)
+        && payload.urlList.includes(`${baseUrl}/artists/${bulkSlug}`)
+      ).length;
+    }, {timeout:10_000}).toBeGreaterThan(beforeBulkUnpublish);
+
+    const bulkCleanup = await page.request.delete(`${baseUrl}/api/index.php/artists/${bulkArtistId}`, {
+      headers: {'X-CSRF-Token':auth.csrf},
+    });
+    expect(bulkCleanup.ok()).toBeTruthy();
+    bulkArtistId = 0;
+
     const beforeDisable = (await captured(page)).length;
     await page.locator('#sv2_indexnow_enabled').selectOption('0');
     await page.locator('[data-settings-save="indexnow"]').click();
@@ -159,6 +207,11 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
   } finally {
     if (firstArtistId > 0) {
       await page.request.delete(`${baseUrl}/api/index.php/artists/${firstArtistId}`, {
+        headers: {'X-CSRF-Token':auth.csrf},
+      });
+    }
+    if (bulkArtistId > 0) {
+      await page.request.delete(`${baseUrl}/api/index.php/artists/${bulkArtistId}`, {
         headers: {'X-CSRF-Token':auth.csrf},
       });
     }
