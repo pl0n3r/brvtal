@@ -25,7 +25,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **4** | **+55** | **−48** | **+7** |
+| **4** | **+57** | **−48** | **+9** |
 
 La huella se calcula con `git diff --numstat` y CI rechaza el README si estos números o la lista de archivos quedan desactualizados.
 

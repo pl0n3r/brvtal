@@ -35,11 +35,12 @@ function harness(authed = true) {
     window.__renderShell=function(section){
       state.section=section;
       window.__nativeRenders.push(section);
-      const sectionContent=section==='events'
-        ?'<div data-canonical-events-list="1"><div class="toolbar"><input class="search" placeholder="Search events..."><button class="btn red" onclick="openModal(\'events\')">+ NEW EVENT</button></div><div class="table" data-events-table="canonical">EVENTS TABLE</div></div>'
-        :section==='artists'
-          ?'<div class="toolbar"><input class="search"><button class="btn red">+ NEW ARTIST</button></div>'
-          :'<div class="native-view">NATIVE '+section.toUpperCase()+'</div>';
+      let sectionContent='<div class="native-view">NATIVE '+section.toUpperCase()+'</div>';
+      if(section==='events'){
+        sectionContent='<div data-canonical-events-list="1"><div class="toolbar"><input class="search" placeholder="Search events..."><button class="btn red" data-new-event>+ NEW EVENT</button></div><div class="table" data-events-table="canonical">EVENTS TABLE</div></div>';
+      }else if(section==='artists'){
+        sectionContent='<div class="toolbar"><input class="search"><button class="btn red">+ NEW ARTIST</button></div>';
+      }
       document.getElementById('app').innerHTML='<div class="shell"><aside class="side"><div class="nav">'
         +navButton('DASHBOARD',"go('dashboard')")
         +navButton('EVENTS',"go('events')")
@@ -58,6 +59,7 @@ function harness(authed = true) {
         +navButton('BACKUPS',"go('backups')",'backups')
         +navButton('ACTIVITY',"go('activity')",'activity')
         +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+sectionContent+'</main></div>';
+      document.querySelector('[data-new-event]')?.addEventListener('click',()=>window.openModal('events'));
     };
     window.go=async function(section){
       window.__nativeGo.push(section);
