@@ -104,11 +104,80 @@ test('Hero counting remains tied to the configured slider total', async () => {
   expect(heroRuntime).toContain('data-hero-current');
 });
 
-test('public visual effects avoid security-sensitive Math.random usage', async () => {
-  expect(appRuntime).not.toContain('Math.random');
-  expect(appRuntime).toContain('const loaderSteps = [11, 7, 14, 9, 13, 6]');
-  expect(appRuntime).toContain('const nextVisualNoise = () =>');
-  expect(appRuntime).toContain('Decorative-only PRNG');
+async function runAppVisualHarness(page) {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.setContent(`<!doctype html><html><body>
+    <div id="loader"><span id="loadPct">00%</span><div class="loader-progress"><i></i></div></div>
+    <button id="menuToggle" type="button"><strong>+</strong></button>
+    <div id="menuPanel" class="menu-panel" aria-hidden="true"></div>
+    <button id="soundToggle" type="button"><b>OFF</b></button>
+    <canvas id="fxCanvas"></canvas>
+  </body></html>`);
+
+  await page.evaluate(() => {
+    window.matchMedia = query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() { return false; },
+    });
+    window.ScrollTrigger = {
+      create() {},
+      refresh() {},
+      update() {},
+    };
+    window.gsap = {
+      registerPlugin() {},
+      from() {},
+      fromTo() {},
+      to(target, options = {}) {
+        if (typeof options.onComplete === 'function') {
+          setTimeout(options.onComplete, 0);
+        }
+        return target;
+      },
+      ticker: {
+        add() {},
+        lagSmoothing() {},
+      },
+    };
+    window.requestAnimationFrame = () => 0;
+    window.__visualDraws = [];
+    HTMLCanvasElement.prototype.getContext = function () {
+      return {
+        fillStyle: '',
+        globalAlpha: 1,
+        clearRect() {},
+        fillRect(x, y, width, height) {
+          window.__visualDraws.push([this.fillStyle, x, y, width, height]);
+        },
+      };
+    };
+  });
+
+  await page.addScriptTag({ content: appRuntime });
+  await expect(page.locator('#loader')).toHaveCount(0, { timeout: 2000 });
+  return page.evaluate(() => window.__visualDraws);
+}
+
+test('public loader completes and decorative canvas first frame is reproducible', async ({ browser }) => {
+  const firstPage = await browser.newPage();
+  const secondPage = await browser.newPage();
+  try {
+    const firstDraws = await runAppVisualHarness(firstPage);
+    const secondDraws = await runAppVisualHarness(secondPage);
+
+    expect(firstDraws).toHaveLength(111);
+    expect(secondDraws).toEqual(firstDraws);
+    expect(firstDraws[0][0]).toMatch(/^#(?:fff|000)$/);
+    expect(firstDraws.at(-1)?.slice(1)).toEqual([0, 2, 800, 1]);
+  } finally {
+    await Promise.all([firstPage.close(), secondPage.close()]);
+  }
 });
 
 test('Home controls and meaningful microtext stay readable on mobile', async ({ page }) => {
