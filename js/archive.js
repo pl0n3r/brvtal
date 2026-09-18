@@ -154,6 +154,9 @@
     img.src = image;
     img.alt = title;
     img.loading = 'lazy';
+    img.addEventListener('error', () => {
+      host.replaceChildren(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVE'));
+    });
     host.appendChild(img);
     return host;
   }
