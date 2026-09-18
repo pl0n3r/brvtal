@@ -438,44 +438,66 @@
       return true;
     };
 
-    const bindDynamicInteractions = () => {
-      // Re-bind cursor labels / artist preview / magnetic behavior for newly-rendered nodes.
-      if (typeof window.gsap !== 'undefined' && !reduce && window.matchMedia('(pointer:fine)').matches) {
-        qsa('[data-cursor]').forEach(el => {
-          if (el.dataset.dynamicBound) return;
-          el.dataset.dynamicBound = '1';
-          el.addEventListener('mouseenter', () => {
-            if (label) {
-              label.textContent = el.dataset.cursor || '';
-              gsap.to(label,{opacity:1,duration:.18});
-            }
-            if (cursor) gsap.to(cursor,{scale:2.1,duration:.25,ease:'power3.out'});
-          });
-          el.addEventListener('mouseleave', () => {
-            if (label) gsap.to(label,{opacity:0,duration:.18});
-            if (cursor) gsap.to(cursor,{scale:1,duration:.25});
-          });
-        });
+    const bindCursorInteraction = (el) => {
+      if (el.dataset.dynamicBound) return;
+      el.dataset.dynamicBound = '1';
+      el.addEventListener('mouseenter', () => {
+        if (label) {
+          label.textContent = el.dataset.cursor || '';
+          gsap.to(label,{opacity:1,duration:.18});
+        }
+        if (cursor) {
+          gsap.to(cursor,{scale:2.1,duration:.25,ease:'power3.out'});
+        }
+      });
+      el.addEventListener('mouseleave', () => {
+        if (label) {
+          gsap.to(label,{opacity:0,duration:.18});
+        }
+        if (cursor) {
+          gsap.to(cursor,{scale:1,duration:.25});
+        }
+      });
+    };
 
-        qsa('.magnetic').forEach(el => {
-          if (el.dataset.dynamicMagnetic) return;
-          el.dataset.dynamicMagnetic = '1';
-          el.addEventListener('pointermove', e => {
-            const r = el.getBoundingClientRect();
-            gsap.to(el,{x:(e.clientX-r.left-r.width/2)*.18,y:(e.clientY-r.top-r.height/2)*.18,duration:.35});
-          });
-          el.addEventListener('pointerleave', () => gsap.to(el,{x:0,y:0,duration:.55,ease:'elastic.out(1,.4)'}));
-        });
-      }
-
-      qsa('.artist').forEach(a => {
-        if (a.dataset.dynamicArtistBound) return;
-        a.dataset.dynamicArtistBound = '1';
-        a.addEventListener('mouseenter', () => {
-          const image = qs('.artist-preview img');
-          if (image && a.dataset.image) image.src = a.dataset.image;
+    const bindMagneticInteraction = (el) => {
+      if (el.dataset.dynamicMagnetic) return;
+      el.dataset.dynamicMagnetic = '1';
+      el.addEventListener('pointermove', e => {
+        const r = el.getBoundingClientRect();
+        gsap.to(el,{
+          x:(e.clientX-r.left-r.width/2)*.18,
+          y:(e.clientY-r.top-r.height/2)*.18,
+          duration:.35
         });
       });
+      el.addEventListener('pointerleave', () => {
+        gsap.to(el,{x:0,y:0,duration:.55,ease:'elastic.out(1,.4)'});
+      });
+    };
+
+    const bindArtistPreviewInteraction = (artist) => {
+      if (artist.dataset.dynamicArtistBound) return;
+      artist.dataset.dynamicArtistBound = '1';
+      artist.addEventListener('mouseenter', () => {
+        const image = qs('.artist-preview img');
+        if (image && artist.dataset.image) {
+          image.src = artist.dataset.image;
+        }
+      });
+    };
+
+    const bindDynamicInteractions = () => {
+      const enhancedPointer = (
+        typeof window.gsap !== 'undefined'
+        && !reduce
+        && window.matchMedia('(pointer:fine)').matches
+      );
+      if (enhancedPointer) {
+        qsa('[data-cursor]').forEach(bindCursorInteraction);
+        qsa('.magnetic').forEach(bindMagneticInteraction);
+      }
+      qsa('.artist').forEach(bindArtistPreviewInteraction);
     };
 
     const refreshSceneAnimations = () => {
