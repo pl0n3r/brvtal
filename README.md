@@ -4,9 +4,7 @@
 
 # BRVTAL — Último deploy
 
-<p align="center">
-  <strong>Theme runtime · bounded complexity refactor</strong>
-</p>
+<p align="center"><strong>TRANSMISSIONS · editorial culture on Home</strong></p>
 
 <p align="center">
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml">
@@ -20,10 +18,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1167b2560caaad696f56b05438e3b2177e6ada74` · BRVTAL CI #1085 |
-| Alcance | 🧪 **#451** | complejidad cognitiva del Theme runtime público |
-| Browser | 🌐 **Playwright** | desktop/mobile, wordmark, favicon, preloader y fallbacks |
-| Sonar | ✅ **Quality Gate** | 0 issues nuevos / 0 hotspots antes de findings finales |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `824114b4dbe105bc701c75cf2fb998fda5d1aed1` · BRVTAL CI #1096 |
+| Alcance | 📡 **#506 / #398** | Blog público → TRANSMISSIONS |
+| Datos | 🔗 **Relaciones explícitas** | Event / Artist / Set / Release desde `blog[].relations` |
+| Runtime | ⚡ **Shared payload** | sin segunda petición a `api/public.php` |
 | Producción | ⚪ **No validada** | CI no equivale a validación de producción |
 
 ## Flujo de entrega
@@ -43,45 +41,47 @@ flowchart LR
 
 ## Qué se hizo
 
-- Divide la lógica de branding de `js/public-theme-runtime.js` en helpers acotados sin cambiar API pública ni modelo de datos.
-- Mantiene una sola fuente de settings mediante `window.BRVTALPublicDataPromise`, sin segunda petición pública cuando el payload ya existe.
-- Conserva header, hero, favicon, preloader y binding responsive.
-- Valida `mobileLogo`, `preloaderLogo` y `logo` de forma independiente antes de aplicar fallback.
-- Un asset preferido inválido ya no bloquea un `logo` principal válido.
-- `wordmark` conserva prioridad en header/preloader, mientras el hero usa el logo visual.
-- Un header logo que falla al cargar se elimina y deja visible el branding textual.
-- Se añadieron regresiones browser para prioridad de assets, fallbacks inválidos y recuperación del hero tras fallos de carga.
+- Añade **TRANSMISSIONS** al recorrido y navegación pública como framing editorial del Blog existente.
+- Reutiliza el orden canónico del payload `blog` y muestra hasta 6 señales con fecha, excerpt, tags y ruta `/blog/{slug}`.
+- Resuelve contexto Event/Artist/Set/Release únicamente desde relaciones explícitas y pools públicos.
+- No introduce endpoint, tabla, inferencia ni dependencia frontend nueva.
+- Blog vacío muestra estado real; fallo del payload conserva el fallback estático.
+- Integra el módulo en el runtime versionado después de Media y cubre XSS, mobile/touch y fallback.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot nuevo y exacto del deploy #451.
-- `js/public-theme-runtime.js` — helpers de branding y fallback seguro por asset.
-- `tests/e2e/public-theme-runtime.spec.mjs` — cobertura ejecutable de responsive, wordmark y fallbacks inválidos.
-- `tests/settings-control-plane-contract.php` — contrato suplementario de prioridad del wordmark.
+- `AGENTS.md` — registra TRANSMISSIONS como estado durable.
+- `README.md` — snapshot exacto del deploy #506.
+- `css/public-transmissions.css` — visual Archive/System responsive.
+- `index.html` — sección y navegación TRANSMISSIONS.
+- `index.php` — entrega/defer del stylesheet.
+- `js/public-runtime-loader.js` — incorpora el módulo al core.
+- `js/public-transmissions.js` — render desde payload compartido y relaciones explícitas.
+- `tests/e2e/public-mobile-performance.spec.mjs` — protege el orden adaptativo.
+- `tests/e2e/public-transmissions.spec.mjs` — comportamiento, seguridad, touch y fallback.
+- `tests/public-transmissions-contract.php` — contrato de wiring, rutas y single-request.
 
 ## Validación
 
-- Base exacta `1167b2560caaad696f56b05438e3b2177e6ada74` pasó BRVTAL CI #1085.
-- El head previo pasó BRVTAL CI #1091, Chromium y Sonar; este ajuste final de fallback requiere un nuevo ciclo sobre el SHA actualizado.
-- El nuevo head debe volver a pasar BRVTAL CI / Chromium, Sonar y CodeRabbit.
-- Este slice no toca DB, sesión admin ni mutaciones privadas; real-stack/database pueden quedar fuera por scope.
+- Base exacta `824114b4dbe105bc701c75cf2fb998fda5d1aed1` pasó BRVTAL CI #1096.
+- El PR debe pasar BRVTAL CI / Chromium, Sonar y CodeRabbit sobre su SHA exacto.
+- No modifica DB, autenticación ni administración; database/real-stack pueden quedar fuera por scope.
 - Tras squash merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
 - No se declara **VALIDATED IN PRODUCTION** desde CI.
 
 ## Qué sigue
 
-1. Cerrar el segundo ciclo de BRVTAL CI / Sonar / CodeRabbit.
-2. Squash merge y exact-main CI.
-3. Marcar Theme runtime como cubierto en #451 si el nuevo ciclo permanece verde.
-4. Continuar con #481 IndexNow, ya diagnosticado, sin mezclarlo con este refactor.
+1. Resolver findings válidos, squash merge y exact-main CI.
+2. Actualizar #398 con TRANSMISSIONS integrado.
+3. Continuar #481 **IndexNow**, ya solicitado y documentado.
 
 ## Panorama general pendiente
 
 | Frente | Estado / siguiente foco |
 | --- | --- |
-| 🧪 **Sonar / calidad** | #451 · cerrar Theme runtime y continuar deuda vigente |
-| 🔎 **SEO / IndexNow** | #481 · próximo slice preparado |
-| 🗃️ **Archivo cultural** | #398 · Archive/Memories conectados por relaciones explícitas |
+| 🗃️ **Archivo cultural** | #398 · cerrar TRANSMISSIONS y continuar solo relaciones reales |
+| 🔎 **SEO / IndexNow** | #481 · siguiente slice preparado |
+| 🧪 **Sonar / calidad** | #451 · continuar deuda vigente por riesgo |
 | 🎛️ **Apariencia** | #149 — completar Light en módulos modernos |
 | 🖼️ **Hero Slider** | #221 integridad editorial · #480 regresión visual desktop |
 | 🔐 **Seguridad editorial** | #257, #216, #174, #193 |
