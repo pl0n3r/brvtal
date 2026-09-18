@@ -137,7 +137,28 @@ $html = str_replace(
     'class="set-action magnetic" aria-disabled="true" aria-hidden="true" tabindex="-1"',
     $html
 );
-$html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"css/public-header-alignment.css\">\n  <link rel=\"stylesheet\" href=\"css/input-accessibility.css\">\n  <link rel=\"stylesheet\" href=\"css/mobile-events.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider.css\">\n  <link rel=\"stylesheet\" href=\"css/hero-slider-v2.css\" data-hero-v2-public=\"1\">\n  <link rel=\"stylesheet\" href=\"css/public-roster.css\">\n  <link rel=\"stylesheet\" href=\"css/public-sets-library.css\">\n  <link rel=\"stylesheet\" href=\"css/public-memories.css\">\n  <link rel=\"stylesheet\" href=\"css/public-transmissions.css\">\n  <link rel=\"stylesheet\" href=\"css/public-visual-identity.css\">\n</head>", $html);
+$homeStyles = [
+    'css/public-header-alignment.css',
+    'css/input-accessibility.css',
+    'css/mobile-events.css',
+    'css/hero-slider.css',
+    'css/hero-slider-v2.css',
+    'css/public-roster.css',
+    'css/public-sets-library.css',
+    'css/public-memories.css',
+    'css/public-transmissions.css',
+    'css/public-visual-identity.css',
+];
+$homeStyleLinks = implode("\n", array_map(
+    static fn(string $href): string => '  <link rel="stylesheet" href="' . $href . '">',
+    $homeStyles
+));
+$html = str_replace('</head>', $homeStyleLinks . "\n</head>", $html);
+$html = str_replace(
+    'href="css/hero-slider-v2.css">',
+    'href="css/hero-slider-v2.css" data-hero-v2-public="1">',
+    $html
+);
 $html = str_replace('</body>', "  <script src=\"js/public-quick-wins.js\"></script>\n  <script src=\"js/public-home-visual.js\"></script>\n</body>", $html);
 $html = brvtal_public_dedupe_decorative_assets($html);
 $html = brvtal_public_optimize_font_stylesheet($html);
