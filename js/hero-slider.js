@@ -7,10 +7,11 @@
   let timer = null;
   let mounted = false;
   let paused = false;
+  const mobileBreakpoint = globalThis.matchMedia('(max-width: 700px)');
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isMobile = () => window.matchMedia('(max-width: 700px)').matches;
+  const isMobile = () => mobileBreakpoint.matches;
 
   function injectStyles() {
     if (document.querySelector('link[data-hero-v2-public]')) return;
@@ -25,16 +26,16 @@
     return isMobile() && slide.mobileSrc ? slide.mobileSrc : slide.desktopSrc;
   }
 
-  function mediaMarkup(slide, position) {
+  function mediaMarkup(slide, position, activePosition = 0) {
     const src = sourceFor(slide);
     if (!src) return '';
     if (slide.mediaType === 'video') {
       return `<video class="brvtal-hero-media" muted loop playsinline preload="metadata" ${slide.poster ? `poster="${esc(slide.poster)}"` : ''}><source src="${esc(src)}"></video>`;
     }
-    return `<img class="brvtal-hero-media" ${position === 0 ? `src="${esc(src)}" loading="eager" fetchpriority="high"` : `data-src="${esc(src)}"`} alt="" decoding="async">`;
+    return `<img class="brvtal-hero-media" ${position === activePosition ? `src="${esc(src)}" loading="eager" fetchpriority="high"` : `data-src="${esc(src)}"`} alt="" decoding="async">`;
   }
 
-  function layerMarkup(layer, position) {
+  function layerMarkup(layer, position, activePosition = 0) {
     if (isMobile() && layer.hiddenMobile) return '';
     const mobile = isMobile();
     const x = mobile && layer.mobileX != null ? layer.mobileX : layer.x;
@@ -44,7 +45,7 @@
     const style = `left:${Number(x)}%;top:${Number(y)}%;width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
     if (layer.type === 'image' || layer.type === 'logo') {
       if (!src) return '';
-      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${position === 0 ? `src="${esc(src)}"` : `data-src="${esc(src)}"`} alt="" decoding="async"></div>`;
+      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${position === activePosition ? `src="${esc(src)}"` : `data-src="${esc(src)}"`} alt="" decoding="async"></div>`;
     }
     if (layer.type === 'cta') {
       const text = esc(layer.text || 'ENTER EXPERIENCE');
@@ -59,9 +60,10 @@
     return `<div class="brvtal-hero-content">${slide.kicker ? `<div class="brvtal-hero-kicker mono">${esc(slide.kicker)}</div>` : ''}${slide.title ? `<h1>${esc(slide.title)}</h1>` : ''}${slide.body ? `<p>${esc(slide.body)}</p>` : ''}${hasCta ? `<a class="brvtal-hero-cta magnetic" href="${esc(slide.ctaUrl)}">${esc(slide.ctaLabel)} <span>↗</span></a>` : ''}</div>`;
   }
 
-  function slideMarkup(slide, position) {
+  function slideMarkup(slide, position, activePosition = 0) {
     const transition = ['fade','slide','zoom'].includes(slide.transition) ? slide.transition : 'fade';
-    return `<article class="brvtal-hero-slide ${position === 0 ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${position === 0 ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay ?? 35) / 100}">${mediaMarkup(slide, position)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layer => layerMarkup(layer, position)).join('') : ''}</article>`;
+    const active = position === activePosition;
+    return `<article class="brvtal-hero-slide ${active ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${active ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay ?? 35) / 100}">${mediaMarkup(slide, position, activePosition)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layer => layerMarkup(layer, position, activePosition)).join('') : ''}</article>`;
   }
 
   function controlsMarkup(total) {
@@ -79,7 +81,7 @@
     root.className = 'brvtal-hero-slider';
     root.setAttribute('aria-roledescription','carousel');
     root.setAttribute('aria-label','BRVTAL featured content');
-    root.innerHTML = `<div class="brvtal-hero-track">${data.slides.map(slideMarkup).join('')}</div>${controlsMarkup(data.slides.length)}<div class="brvtal-hero-counter mono"><span data-hero-current>01</span> / ${String(data.slides.length).padStart(2,'0')}</div>`;
+    root.innerHTML = `<div class="brvtal-hero-track">${data.slides.map((slide, position) => slideMarkup(slide, position, index)).join('')}</div>${controlsMarkup(data.slides.length)}<div class="brvtal-hero-counter mono"><span data-hero-current>01</span> / ${String(data.slides.length).padStart(2,'0')}</div>`;
     hero.prepend(root);
     hero.classList.add('hero-slider-active');
     mounted = true;
@@ -126,6 +128,13 @@
     timer = setTimeout(() => go(index + 1), Math.max(2500, Math.min(30000, Number(config.interval) || 7000)));
   }
 
+  function syncResponsive(root) {
+    const track = root.querySelector('.brvtal-hero-track');
+    if (!track || !Array.isArray(config?.slides) || !config.slides.length) return;
+    track.innerHTML = config.slides.map((slide, position) => slideMarkup(slide, position, index)).join('');
+    go(index);
+  }
+
   function bind(root) {
     root.querySelector('[data-hero-prev]')?.addEventListener('click', () => go(index - 1));
     root.querySelector('[data-hero-next]')?.addEventListener('click', () => go(index + 1));
@@ -146,6 +155,7 @@
     root.addEventListener('focusin', () => clearTimeout(timer));
     root.addEventListener('focusout', event => { if (!root.contains(event.relatedTarget)) schedule(); });
     document.addEventListener('visibilitychange', schedule);
+    mobileBreakpoint.addEventListener('change', () => syncResponsive(root));
   }
 
   async function init() {

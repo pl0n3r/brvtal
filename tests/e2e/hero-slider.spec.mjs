@@ -81,3 +81,44 @@ test('inactive banner images wait for selection and autoplay can be paused', asy
   await page.locator('[data-hero-next]').click();
   await expect(secondImage).toHaveAttribute('src', '/two.jpg');
 });
+
+
+test('published slider resyncs responsive media and layer overrides without losing the active slide', async ({ page }) => {
+  await page.setViewportSize({ width:900, height:844 });
+  await openHarness(page, {
+    ok:true,
+    data:{
+      enabled:true,
+      autoplay:false,
+      interval:7000,
+      slides:[
+        {id:'one',mediaType:'image',desktopSrc:'/one-desktop.jpg',mobileSrc:'/one-mobile.jpg',title:'FIRST',contentAlign:'left',overlay:20,layers:[]},
+        {id:'two',mediaType:'image',desktopSrc:'/two-desktop.jpg',mobileSrc:'/two-mobile.jpg',title:'SECOND',contentAlign:'left',overlay:20,layers:[
+          {type:'image',src:'/layer-desktop.png',mobileSrc:'/layer-mobile.png',x:10,y:20,width:30,mobileX:15,mobileY:25,mobileWidth:40,align:'left',delay:0,duration:650,animation:'fade'},
+          {type:'text',text:'DESKTOP ONLY',x:50,y:50,width:20,align:'center',delay:0,duration:650,animation:'fade',hiddenMobile:true}
+        ]}
+      ]
+    }
+  });
+
+  await page.locator('[data-hero-next]').click();
+  const active = page.locator('[data-hero-slide="1"]');
+  await expect(active).toHaveClass(/active/);
+  await expect(active.locator('.brvtal-hero-media')).toHaveAttribute('src','/two-desktop.jpg');
+  await expect(active.locator('.brvtal-hero-layer.type-image img')).toHaveAttribute('src','/layer-desktop.png');
+  await expect(active.locator('.brvtal-hero-layer.type-image')).toHaveAttribute('style', /left:10%;top:20%;width:30%/);
+  await expect(active.getByText('DESKTOP ONLY')).toBeVisible();
+
+  await page.setViewportSize({ width:390, height:844 });
+  await expect(page.locator('[data-hero-slide="1"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-hero-slide="1"] .brvtal-hero-media')).toHaveAttribute('src','/two-mobile.jpg');
+  await expect(page.locator('[data-hero-slide="1"] .brvtal-hero-layer.type-image img')).toHaveAttribute('src','/layer-mobile.png');
+  await expect(page.locator('[data-hero-slide="1"] .brvtal-hero-layer.type-image')).toHaveAttribute('style', /left:15%;top:25%;width:40%/);
+  await expect(page.locator('[data-hero-slide="1"]')).not.toContainText('DESKTOP ONLY');
+
+  await page.setViewportSize({ width:900, height:844 });
+  await expect(page.locator('[data-hero-slide="1"]')).toHaveClass(/active/);
+  await expect(page.locator('[data-hero-slide="1"] .brvtal-hero-media')).toHaveAttribute('src','/two-desktop.jpg');
+  await expect(page.locator('[data-hero-slide="1"] .brvtal-hero-layer.type-image img')).toHaveAttribute('src','/layer-desktop.png');
+  await expect(page.locator('[data-hero-slide="1"]')).toContainText('DESKTOP ONLY');
+});
