@@ -270,6 +270,13 @@ try {
                 }
             }
 
+            $previousSettingSt = $pdo->prepare('SELECT setting_value,is_json FROM settings WHERE setting_key=? LIMIT 1');
+            $previousSettingSt->execute([$key]);
+            $previousSetting = $previousSettingSt->fetch(PDO::FETCH_ASSOC);
+            $settingChanged = !is_array($previousSetting)
+                || (string)($previousSetting['setting_value'] ?? '') !== $value
+                || (int)($previousSetting['is_json'] ?? 0) !== $isJson;
+
             $themeMutation = str_starts_with($key, 'theme.');
             if ($themeMutation) {
                 brvtalAcquireThemeReferenceMutex($pdo);
@@ -357,7 +364,9 @@ try {
             if ($themeMutation) {
                 brvtalReleaseThemeReferenceMutex($pdo);
             }
-            brvtal_indexnow_notify_setting($pdo, $key);
+            if ($settingChanged) {
+                brvtal_indexnow_notify_setting($pdo, $key);
+            }
             json_response(['ok' => true]);
         }
         $d=sanitize_payload($resource,$d);$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if($resource==='events')$p=brvtal_event_lifecycle_patch([],$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace(['status'=>'draft'],$p));if($eventStateError!==null)json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);} if($resource==='pages'&&!array_key_exists('locale',$p))$p['locale']='en';if($resource==='pages'){if(!array_key_exists('slug',$p)||$p['slug']==='')$p['slug']=slugify((string)($p['title']??''));$pageIdentityError=brvtal_page_identity_error($p);if($pageIdentityError!==null)json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);$pageStateError=brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'],$p)); if($pageStateError!==null)json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422); }if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error($p);if($ticketWindowError!==null)json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}if($resource==='sets'){ $setPublicationError=brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],$p)); if($setPublicationError!==null)json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422); }if($resource==='events'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if($resource==='artists'&&empty($p['name']))json_response(['ok'=>false,'error'=>'NAME_REQUIRED'],422);if($resource==='sets'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if(isset($p['slug'])&&$p['slug']==='')$p['slug']=slugify((string)($p['title']??$p['name']??'item'));if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$fields=array_keys($p);$cols=implode(',',array_map(fn($f)=>"`{$f}`",$fields));$marks=implode(',',array_fill(0,count($fields),'?'));
