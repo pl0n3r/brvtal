@@ -58,6 +58,24 @@ test('Dashboard V2 reserves ownership while slow data is still loading', async (
   await expect(page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')).toBeVisible();
 });
 
+test('Dashboard V2 releases reserved ownership when render becomes invalid', async ({page}) => {
+  await mount(page, {overviewDelay:200, waitForRender:false});
+
+  await expect(page.locator('#brvtal-dashboard-v2')).toHaveCount(1);
+  await page.evaluate(() => { state.section = 'events'; });
+  await expect(page.locator('#brvtal-dashboard-v2')).toHaveCount(0);
+
+  await page.evaluate(async () => {
+    state.section = 'dashboard';
+    await Promise.all([
+      window.BRVTALContentHealth.mount(),
+      window.BRVTALAdminActivity.mount(),
+    ]);
+  });
+  await expect(page.locator('#brvtal-content-health')).toBeVisible();
+  await expect(page.locator('#brvtal-admin-activity')).toBeVisible();
+});
+
 test('Dashboard V2 owns Health/Activity surfaces and keeps exact-record OPEN navigation', async ({page}) => {
   await mount(page);
 
