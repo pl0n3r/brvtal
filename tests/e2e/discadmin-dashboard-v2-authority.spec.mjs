@@ -17,7 +17,7 @@ const activity = {
   items:[{id:11,resource:'events',resource_id:9,resource_label:'EVENT #9',action:'update',admin_name:'Admin',created_at:'2026-09-17 18:00:00'}],
 };
 
-async function mount(page, {overviewDelay = 0, waitForRender = true} = {}) {
+async function mount(page, {overviewDelay = 0, waitForRender = true, overviewStatus = 200, overviewPayload = null} = {}) {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html><body>
@@ -36,7 +36,8 @@ async function mount(page, {overviewDelay = 0, waitForRender = true} = {}) {
   }));
   await page.route('**/api/dashboard-overview.php', async route => {
     if (overviewDelay) await new Promise(resolve => setTimeout(resolve, overviewDelay));
-    await route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{summary:{public_records:1,draft_records:1,active_events:0,media_assets:2},next_event:null}})});
+    const payload = overviewPayload ?? {ok:true,data:{summary:{public_records:1,draft_records:1,active_events:0,media_assets:2},next_event:null}};
+    await route.fulfill({status:overviewStatus,contentType:'application/json',body:JSON.stringify(payload)});
   });
   await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:content})}));
   await page.route('**/api/index.php/health', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,database:'connected',php:'8.5',driver:'mysql'})}));
@@ -74,6 +75,69 @@ test('Dashboard V2 releases reserved ownership when render becomes invalid', asy
   });
   await expect(page.locator('#brvtal-content-health')).toBeVisible();
   await expect(page.locator('#brvtal-admin-activity')).toBeVisible();
+});
+
+test('NEXT EVENT keeps an unavailable overview source explicit', async ({page}) => {
+  await mount(page, {
+    overviewStatus:503,
+    overviewPayload:{ok:false,error:'OVERVIEW_DOWN'},
+  });
+
+  const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
+  await expect(panel.locator('.dashboard-v2-state')).toHaveText('UNAVAILABLE');
+  await expect(panel).toContainText('SOURCE UNAVAILABLE · OVERVIEW_DOWN');
+});
+
+test('NEXT EVENT keeps the no-scheduled-event lifecycle state explicit', async ({page}) => {
+  await mount(page);
+
+  const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
+  await expect(panel.locator('.dashboard-v2-state')).toHaveText('NONE');
+  await expect(panel).toContainText('No active future event is currently scheduled.');
+  await expect(panel).toContainText('Create or schedule an Event when the next date is confirmed.');
+});
+
+test('NEXT EVENT exposes readiness warnings without changing canonical Events navigation', async ({page}) => {
+  await mount(page, {
+    overviewPayload:{
+      ok:true,
+      data:{
+        summary:{public_records:1,draft_records:1,active_events:1,media_assets:2},
+        next_event:{id:42,title:'GENESIS',status:'published',event_date:'2099-01-01',cover_image:'',city:'',venue:'',ticket_url:''},
+      },
+    },
+  });
+
+  const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
+  await expect(panel.locator('.dashboard-v2-state')).toHaveText('CHECK');
+  await expect(panel).toContainText('GENESIS');
+  await expect(panel).toContainText('NO COVER');
+  await expect(panel).toContainText('NO DIRECT TICKET URL');
+  await expect(panel).toContainText('Missing cover');
+  await expect(panel).toContainText('Missing location');
+  await expect(panel).toContainText('Check ticket destination');
+
+  await panel.getByRole('button', {name:'OPEN EVENTS'}).click();
+  await expect.poll(() => page.evaluate(() => window.__went)).toBe('events');
+});
+
+test('NEXT EVENT keeps sold-out events ready without requiring a ticket URL', async ({page}) => {
+  await mount(page, {
+    overviewPayload:{
+      ok:true,
+      data:{
+        summary:{public_records:1,draft_records:1,active_events:1,media_assets:2},
+        next_event:{id:43,title:'SOLD NIGHT',status:'sold_out',event_date:'2099-02-01',cover_image:'/uploads/sold.jpg',city:'Pereira',venue:'Warehouse',ticket_url:''},
+      },
+    },
+  });
+
+  const panel = page.locator('.dashboard-v2-panel', {hasText:'NEXT EVENT'});
+  await expect(panel.locator('.dashboard-v2-state')).toHaveText('READY');
+  await expect(panel).toContainText('SOLD OUT');
+  await expect(panel.locator('.dashboard-next-event-status .dashboard-v2-chip.good')).toHaveText('SOLD OUT');
+  await expect(panel).not.toContainText('Check ticket destination');
+  await expect(panel.locator('.dashboard-next-event-media')).toHaveAttribute('src','/uploads/sold.jpg');
 });
 
 test('Dashboard V2 owns Health/Activity surfaces and keeps exact-record OPEN navigation', async ({page}) => {

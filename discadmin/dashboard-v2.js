@@ -92,27 +92,59 @@
     return diff;
   }
 
-  function nextEventPanel(overview, overviewError) {
-    if (!overview) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">LIVE LIFECYCLE</div><h2>NEXT EVENT</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(overviewError)}</section>`;
-    const event = overview.next_event;
-    if (!event) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">LIVE LIFECYCLE</div><h2>NEXT EVENT</h2><p>No active future event is currently scheduled.</p></div><span class="dashboard-v2-state muted">NONE</span></div><div class="dashboard-v2-empty">Create or schedule an Event when the next date is confirmed.</div></section>`;
+  function nextEventUnavailablePanel(overviewError) {
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">LIVE LIFECYCLE</div><h2>NEXT EVENT</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(overviewError)}</section>`;
+  }
 
-    const image = normalizePath(event.cover_image);
-    const date = String(event.event_date || '');
-    const days = daysUntil(date);
-    const location = [event.venue,event.city].filter(Boolean).join(' · ') || 'Location pending';
-    const ticketLabel = event.status === 'sold_out' ? 'SOLD OUT' : event.ticket_url ? 'TICKETS LINKED' : 'NO DIRECT TICKET URL';
-    const ticketClass = event.status === 'sold_out' || event.ticket_url ? 'good' : '';
+  function nextEventEmptyPanel() {
+    return '<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">LIVE LIFECYCLE</div><h2>NEXT EVENT</h2><p>No active future event is currently scheduled.</p></div><span class="dashboard-v2-state muted">NONE</span></div><div class="dashboard-v2-empty">Create or schedule an Event when the next date is confirmed.</div></section>';
+  }
+
+  function nextEventWarnings(event) {
     const warnings = [];
     if (!event.cover_image) warnings.push('Missing cover');
     if (!event.city && !event.venue) warnings.push('Missing location');
-    if (!event.ticket_url && !['sold_out'].includes(String(event.status || ''))) warnings.push('Check ticket destination');
+    if (!event.ticket_url && String(event.status || '') !== 'sold_out') warnings.push('Check ticket destination');
+    return warnings;
+  }
+
+  function nextEventTicketState(event) {
+    if (event.status === 'sold_out') return {label:'SOLD OUT', className:'good'};
+    if (event.ticket_url) return {label:'TICKETS LINKED', className:'good'};
+    return {label:'NO DIRECT TICKET URL', className:''};
+  }
+
+  function nextEventTiming(days) {
+    if (days === null) return '';
+    if (days <= 0) return ' · TODAY';
+    const suffix = days === 1 ? '' : 's';
+    return ` · ${days} day${suffix}`;
+  }
+
+  function nextEventMeta(event) {
+    const date = String(event.event_date || '');
+    const days = daysUntil(date);
+    const location = [event.venue,event.city].filter(Boolean).join(' · ') || 'Location pending';
+    return {date, location, timing:nextEventTiming(days)};
+  }
+
+  function nextEventPanel(overview, overviewError) {
+    if (!overview) return nextEventUnavailablePanel(overviewError);
+    const event = overview.next_event;
+    if (!event) return nextEventEmptyPanel();
+
+    const image = normalizePath(event.cover_image);
+    const warnings = nextEventWarnings(event);
+    const ticket = nextEventTicketState(event);
+    const meta = nextEventMeta(event);
+    const readinessClass = warnings.length ? 'warn' : 'ok';
+    const readinessLabel = warnings.length ? 'CHECK' : 'READY';
 
     return `<section class="dashboard-v2-panel">
-      <div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">LIVE LIFECYCLE</div><h2>NEXT EVENT</h2><p>The next active public Event, using the canonical lifecycle policy.</p></div><span class="dashboard-v2-state ${warnings.length?'warn':'ok'}">${warnings.length?'CHECK':'READY'}</span></div>
+      <div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">LIVE LIFECYCLE</div><h2>NEXT EVENT</h2><p>The next active public Event, using the canonical lifecycle policy.</p></div><span class="dashboard-v2-state ${readinessClass}">${readinessLabel}</span></div>
       <div class="dashboard-next-event">
         ${image ? `<img class="dashboard-next-event-media" src="${esc(image)}" alt="" loading="lazy">` : '<div class="dashboard-next-event-placeholder">NO COVER</div>'}
-        <div><h3>${esc(event.title || 'Untitled event')}</h3><div class="dashboard-next-event-meta">${esc(date || 'Date pending')} · ${esc(location)}${days !== null ? ` · ${days <= 0 ? 'TODAY' : days + ' day' + (days===1?'':'s')}` : ''}</div><div class="dashboard-next-event-status"><span class="dashboard-v2-chip accent">${esc(String(event.status || '').replaceAll('_',' '))}</span><span class="dashboard-v2-chip ${ticketClass}">${esc(ticketLabel)}</span>${warnings.map(item=>`<span class="dashboard-v2-chip">${esc(item)}</span>`).join('')}</div></div>
+        <div><h3>${esc(event.title || 'Untitled event')}</h3><div class="dashboard-next-event-meta">${esc(meta.date || 'Date pending')} · ${esc(meta.location)}${meta.timing}</div><div class="dashboard-next-event-status"><span class="dashboard-v2-chip accent">${esc(String(event.status || '').replaceAll('_',' '))}</span><span class="dashboard-v2-chip ${ticket.className}">${esc(ticket.label)}</span>${warnings.map(item=>`<span class="dashboard-v2-chip">${esc(item)}</span>`).join('')}</div></div>
       </div>
       <div class="dashboard-v2-actions" style="margin-top:14px"><button class="dashboard-v2-button" type="button" data-dashboard-go="events">OPEN EVENTS</button></div>
     </section>`;
