@@ -98,45 +98,94 @@
     if (image.complete && image.naturalWidth > 0) onReady?.(image);
   }
 
+  function ensureMobileQuery() {
+    if (!mobileQuery) mobileQuery = window.matchMedia('(max-width: 900px)');
+    return mobileQuery;
+  }
+
+  function brandingLogos(branding) {
+    const query = ensureMobileQuery();
+    const mainLogo = safeAsset(branding.logo);
+    const selectedVisualLogo = (query.matches ? safeAsset(branding.mobileLogo) : '') || mainLogo;
+    const wordmark = safeAsset(branding.wordmark);
+    return {
+      selectedVisualLogo,
+      mainLogo,
+      headerLogo: wordmark || selectedVisualLogo,
+    };
+  }
+
+  function ensureHeaderBrandImage(brand, branding) {
+    let image = brand.querySelector('.theme-brand-image');
+    if (image) return image;
+    image = document.createElement('img');
+    image.className = 'theme-brand-image';
+    image.alt = String(branding.siteName || 'BRVTAL');
+    brand.prepend(image);
+    return image;
+  }
+
+  function syncHeaderBranding(branding, headerLogo) {
+    const brand = document.querySelector('.brand');
+    if (!brand) return;
+
+    const currentImage = brand.querySelector('.theme-brand-image');
+    delete brand.dataset.themeLogo;
+    if (!headerLogo) {
+      currentImage?.remove();
+      return;
+    }
+
+    const image = currentImage || ensureHeaderBrandImage(brand, branding);
+    image.alt = String(branding.siteName || 'BRVTAL');
+    loadControlledImage(image, headerLogo, () => {
+      brand.dataset.themeLogo = '1';
+    }, failed => {
+      delete brand.dataset.themeLogo;
+      failed.remove();
+    });
+  }
+
+  function clearHeroBrandImage(heroLogo, sources) {
+    heroLogo.hidden = true;
+    heroLogo.removeAttribute('src');
+    heroLogo.removeAttribute('srcset');
+    sources.forEach(source => {
+      source.removeAttribute('srcset');
+      source.removeAttribute('sizes');
+    });
+  }
+
+  function syncHeroBranding(branding, selectedVisualLogo, mainLogo) {
+    const heroLogo = document.querySelector('.hero-logo');
+    if (!heroLogo) return;
+
+    const picture = heroLogo.closest('picture');
+    const sources = picture ? [...picture.querySelectorAll('source')] : [];
+    const logo = selectedVisualLogo || mainLogo;
+    if (!logo) {
+      clearHeroBrandImage(heroLogo, sources);
+      return;
+    }
+
+    heroLogo.removeAttribute('srcset');
+    heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
+    sources.forEach(source => {
+      source.srcset = logo;
+      source.sizes = '100vw';
+    });
+    loadControlledImage(heroLogo, logo, loaded => {
+      loaded.hidden = false;
+    }, failed => {
+      clearHeroBrandImage(failed, sources);
+    });
+  }
+
   function updateBrandLogo() {
     const branding = currentBranding || {};
-    if (!mobileQuery) mobileQuery = window.matchMedia('(max-width: 900px)');
-    const selectedVisualLogo = safeAsset((mobileQuery.matches ? branding.mobileLogo : '') || branding.logo);
-    const mainLogo = safeAsset(branding.logo);
-    const wordmark = safeAsset(branding.wordmark);
-    const headerLogo = wordmark || selectedVisualLogo;
-
-    const brand = document.querySelector('.brand');
-    if (brand) {
-      let image = brand.querySelector('.theme-brand-image');
-      delete brand.dataset.themeLogo;
-      if (headerLogo) {
-        if (!image) {
-          image = document.createElement('img');
-          image.className = 'theme-brand-image';
-          image.alt = String(branding.siteName || 'BRVTAL');
-          brand.prepend(image);
-        }
-        loadControlledImage(image, headerLogo, () => {
-          brand.dataset.themeLogo = '1';
-        }, failed => {
-          delete brand.dataset.themeLogo;
-          failed.remove();
-        });
-      } else {
-        image?.remove();
-      }
-    }
-
-    const heroLogo = document.querySelector('.hero-logo');
-    if (heroLogo && selectedVisualLogo) {
-      heroLogo.src = selectedVisualLogo;
-      heroLogo.removeAttribute('srcset');
-      heroLogo.alt = String(branding.siteName || 'BRVTAL') + ' logo';
-      heroLogo.closest('picture')?.querySelectorAll('source').forEach(source => { source.srcset = selectedVisualLogo; source.sizes = '100vw'; });
-    } else if (heroLogo && mainLogo) {
-      heroLogo.src = mainLogo;
-    }
+    const { selectedVisualLogo, mainLogo, headerLogo } = brandingLogos(branding);
+    syncHeaderBranding(branding, headerLogo);
+    syncHeroBranding(branding, selectedVisualLogo, mainLogo);
   }
 
   function wireMenuObserver(style) {
@@ -150,58 +199,94 @@
     sync();
   }
 
-  function applyBranding(branding) {
-    currentBranding = branding || {};
-    const siteName = String(currentBranding.siteName || '').trim();
-    const tagline = String(currentBranding.tagline || '').trim();
+  function applyBrandCopy(branding) {
+    const siteName = String(branding.siteName || '').trim();
+    const tagline = String(branding.tagline || '').trim();
     if (siteName) {
       queryAll('[data-site-name]').forEach(node => { node.textContent = siteName; });
       const heroTitle = document.querySelector('.hero-title');
-      if (heroTitle) { heroTitle.textContent = siteName; heroTitle.dataset.text = siteName; }
+      if (heroTitle) {
+        heroTitle.textContent = siteName;
+        heroTitle.dataset.text = siteName;
+      }
       const loaderMark = document.querySelector('.loader-mark');
-      if (loaderMark) { loaderMark.textContent = siteName; loaderMark.dataset.text = siteName; }
-    }
-    if (tagline) queryAll('[data-site-tagline]').forEach(node => { node.textContent = tagline; });
-
-    updateBrandLogo();
-    if (!mobileQuery) mobileQuery = window.matchMedia('(max-width: 900px)');
-    if (!mobileQuery.__brvtalThemeBound) {
-      mobileQuery.addEventListener?.('change', updateBrandLogo);
-      mobileQuery.__brvtalThemeBound = true;
-    }
-
-    const favicon = safeAsset(currentBranding.favicon);
-    if (favicon) {
-      let link = document.querySelector('link[rel~="icon"][data-theme-favicon]') || document.querySelector('link[rel~="icon"]');
-      if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
-      link.dataset.themeFavicon = '1';
-      link.href = favicon;
-    }
-
-    const wordmark = safeAsset(currentBranding.wordmark);
-    const preloadLogo = wordmark || safeAsset(currentBranding.preloaderLogo || currentBranding.logo);
-    const loaderInner = document.querySelector('.loader-inner');
-    if (loaderInner) {
-      let image = loaderInner.querySelector('.theme-preloader-logo');
-      delete loaderInner.dataset.themeWordmark;
-      if (preloadLogo) {
-        if (!image) {
-          image = document.createElement('img');
-          image.className = 'theme-preloader-logo';
-          image.alt = '';
-          image.setAttribute('aria-hidden', 'true');
-          loaderInner.querySelector('.loader-mark')?.after(image);
-        }
-        loadControlledImage(image, preloadLogo, () => {
-          if (wordmark) loaderInner.dataset.themeWordmark = '1';
-        }, failed => {
-          delete loaderInner.dataset.themeWordmark;
-          failed.remove();
-        });
-      } else {
-        image?.remove();
+      if (loaderMark) {
+        loaderMark.textContent = siteName;
+        loaderMark.dataset.text = siteName;
       }
     }
+    if (tagline) queryAll('[data-site-tagline]').forEach(node => { node.textContent = tagline; });
+  }
+
+  function bindResponsiveBranding() {
+    const query = ensureMobileQuery();
+    if (query.__brvtalThemeBound) return;
+    query.addEventListener?.('change', updateBrandLogo);
+    query.__brvtalThemeBound = true;
+  }
+
+  function syncThemeFavicon(branding) {
+    const favicon = safeAsset(branding.favicon);
+    if (!favicon) return;
+    let link = document.querySelector('link[rel~="icon"][data-theme-favicon]') || document.querySelector('link[rel~="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.dataset.themeFavicon = '1';
+    link.href = favicon;
+  }
+
+  function preloaderLogo(branding) {
+    const wordmark = safeAsset(branding.wordmark);
+    const preloader = safeAsset(branding.preloaderLogo);
+    const mainLogo = safeAsset(branding.logo);
+    return {
+      wordmark,
+      logo: wordmark || preloader || mainLogo,
+    };
+  }
+
+  function ensurePreloaderImage(loaderInner) {
+    let image = loaderInner.querySelector('.theme-preloader-logo');
+    if (image) return image;
+    image = document.createElement('img');
+    image.className = 'theme-preloader-logo';
+    image.alt = '';
+    image.setAttribute('aria-hidden', 'true');
+    loaderInner.querySelector('.loader-mark')?.after(image);
+    return image;
+  }
+
+  function syncPreloaderBranding(branding) {
+    const loaderInner = document.querySelector('.loader-inner');
+    if (!loaderInner) return;
+
+    const { wordmark, logo } = preloaderLogo(branding);
+    const currentImage = loaderInner.querySelector('.theme-preloader-logo');
+    delete loaderInner.dataset.themeWordmark;
+    if (!logo) {
+      currentImage?.remove();
+      return;
+    }
+
+    const image = currentImage || ensurePreloaderImage(loaderInner);
+    loadControlledImage(image, logo, () => {
+      if (wordmark) loaderInner.dataset.themeWordmark = '1';
+    }, failed => {
+      delete loaderInner.dataset.themeWordmark;
+      failed.remove();
+    });
+  }
+
+  function applyBranding(branding) {
+    currentBranding = branding || {};
+    applyBrandCopy(currentBranding);
+    updateBrandLogo();
+    bindResponsiveBranding();
+    syncThemeFavicon(currentBranding);
+    syncPreloaderBranding(currentBranding);
   }
 
   function applyColors(colors) {
