@@ -182,16 +182,401 @@ jobs:
           readme = Path('README.md').read_text(encoding='utf-8')
           required = [
               '# BRVTAL — Último deploy',
+              '## Estado del deploy',
+              '## Flujo de entrega',
               '## Qué se hizo',
               '## Archivos modificados en este deploy',
               '## Validación',
               '## Qué sigue',
+              '## Panorama general pendiente',
           ]
           missing_headings = [heading for heading in required if heading not in readme]
           if missing_headings:
               print('README missing required deploy-snapshot headings:', file=sys.stderr)
               for heading in missing_headings:
                   print(f'  - {heading}', file=sys.stderr)
+              sys.exit(1)
+
+          visual_requirements = {
+              'BRVTAL logo': 'assets/brvtal-logo-640.webp' in readme,
+              'BRVTAL CI badge': 'actions/workflows/update-release-metadata.yml/badge.svg' in readme,
+              'Mermaid delivery flow': '```mermaid' in readme,
+              'deploy status table': bool(re.search(
+                  r'^\|\s*Señal\s*\|\s*Estado\s*\|\s*Evidencia\s*\|\s*              r'## Archivos modificados en este deploy\s*\n(.*?)(?=\n## |\Z)',
+              readme,
+              flags=re.S,
+          )
+          if not section:
+              print('README changed-files section could not be parsed.', file=sys.stderr)
+              sys.exit(1)
+
+          listed = sorted(re.findall(r'^- `([^`]+)`(?:\s+—.*)?$', section.group(1), flags=re.M))
+          if changed != listed:
+              print('README deploy file list does not match the PR diff.', file=sys.stderr)
+              print('\nChanged in PR:', file=sys.stderr)
+              for path in changed:
+                  print(f'  {path}', file=sys.stderr)
+              print('\nListed in README:', file=sys.stderr)
+              for path in listed:
+                  print(f'  {path}', file=sys.stderr)
+              print('\nRefresh README.md before merge.', file=sys.stderr)
+              sys.exit(1)
+
+          if len(readme.encode('utf-8')) >= 8000:
+              print('README is too large for a deploy snapshot (must stay under 8 KB).', file=sys.stderr)
+              sys.exit(1)
+
+          print(f'README deploy snapshot matches {len(changed)} changed files.')
+          PY
+
+  database:
+    name: database
+    needs: fast
+    if: needs.fast.outputs.run_db == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP 8.5 with database extension
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+          ini-file: production
+
+      - name: Validate Blog migration is idempotent
+        run: |
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_blog_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations');")
+          test "$count" = "4"
+
+      - name: Run canonical MariaDB integration suite
+        run: npm run test:integration
+
+      - name: Validate SEO migration is idempotent
+        run: |
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "CREATE TABLE IF NOT EXISTS events (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS artists (id INT PRIMARY KEY, bio TEXT); CREATE TABLE IF NOT EXISTS sets_media (id INT PRIMARY KEY, description TEXT); CREATE TABLE IF NOT EXISTS releases (id INT PRIMARY KEY, description TEXT);"
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          mysql -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci < database/migration_seo_01.sql
+          count=$(mysql -N -B -h127.0.0.1 -P3306 -uroot -pbrvtal_root brvtal_test_ci -e "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='brvtal_test_ci' AND TABLE_NAME IN ('events','artists','sets_media','releases') AND COLUMN_NAME IN ('seo_title','seo_description');")
+          test "$count" = "8"
+
+  browser:
+    name: chromium
+    needs: fast
+    if: needs.fast.outputs.run_browser == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run Chromium browser tests
+        run: npx playwright test --project=chromium
+
+  realstack:
+    name: real-stack
+    needs: fast
+    if: needs.fast.outputs.run_realstack == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_ci
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+      BRVTAL_REAL_STACK_FORCE: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP 8.5 with database extension
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql
+          coverage: none
+          ini-file: production
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
+
+      - name: Install Chromium system dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Chromium browser
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Run authenticated PHP/MariaDB browser smoke
+        run: bash tests/e2e/run-content-core-real-stack.sh
+
+  webkit:
+    name: webkit-totp
+    needs: fast
+    if: needs.fast.outputs.run_webkit == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install Node test dependencies
+        run: npm install --prefer-offline --no-audit --no-fund
+
+      - name: Cache WebKit
+        id: webkit-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-webkit-${{ hashFiles('package.json') }}
+
+      - name: Install WebKit system dependencies
+        run: npx playwright install-deps webkit
+
+      - name: Install WebKit browser
+        if: steps.webkit-cache.outputs.cache-hit != 'true'
+        run: npx playwright install webkit
+
+      - name: Run targeted WebKit TOTP regression
+        run: npx playwright test tests/e2e/discadmin-totp-login.spec.mjs --project=webkit-totp
+
+  recovery:
+    name: recovery-rehearsal
+    needs: fast
+    if: needs.fast.outputs.run_recovery == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: brvtal_root
+          MARIADB_DATABASE: brvtal_test_backup_source
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=15
+    env:
+      BRVTAL_INTEGRATION_TESTS: '1'
+      BRVTAL_BACKUP_RECOVERY_REHEARSAL: '1'
+      BRVTAL_TEST_DB_HOST: 127.0.0.1
+      BRVTAL_TEST_DB_PORT: '3306'
+      BRVTAL_TEST_DB_NAME: brvtal_test_backup_source
+      BRVTAL_TEST_DB_USER: root
+      BRVTAL_TEST_DB_PASS: brvtal_root
+      BRVTAL_BACKUP_RECOVERY_OUTPUT: artifacts/backup-recovery-rehearsal.json
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP 8.5 with recovery extensions
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, zip
+          coverage: none
+          ini-file: production
+
+      - name: Run isolated backup recovery rehearsal
+        run: php tests/integration/backup-recovery-rehearsal.php
+
+      - name: Publish rehearsal summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Backup recovery rehearsal"
+            echo
+            echo "- Source: disposable MariaDB database \`brvtal_test_backup_source\`"
+            echo "- Recovery: unique \`brvtal_test_recovery_*\` database created and dropped inside this job"
+            echo "- Scope: database dump + foreign keys + view + media ZIP snapshot"
+            echo "- Production restore: **DISABLED / NOT TOUCHED**"
+            echo "- Evidence: \`backup-recovery-rehearsal.json\` artifact"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-recovery-rehearsal-${{ github.run_id }}
+          path: artifacts/backup-recovery-rehearsal.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  validate:
+    name: validate
+    if: always()
+    needs: [fast, database, browser, realstack, webkit, recovery]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce validation gates
+        shell: bash
+        env:
+          FAST_RESULT: ${{ needs.fast.result }}
+          DB_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          REALSTACK_RESULT: ${{ needs.realstack.result }}
+          WEBKIT_RESULT: ${{ needs.webkit.result }}
+          RECOVERY_RESULT: ${{ needs.recovery.result }}
+          RUN_DB: ${{ needs.fast.outputs.run_db }}
+          RUN_BROWSER: ${{ needs.fast.outputs.run_browser }}
+          RUN_REALSTACK: ${{ needs.fast.outputs.run_realstack }}
+          RUN_WEBKIT: ${{ needs.fast.outputs.run_webkit }}
+          RUN_RECOVERY: ${{ needs.fast.outputs.run_recovery }}
+        run: |
+          set -euo pipefail
+          failures=0
+
+          require_success() {
+            local name="$1" result="$2"
+            if [[ "$result" != "success" ]]; then
+              echo "Required gate $name ended as $result" >&2
+              failures=1
+            fi
+          }
+          require_optional() {
+            local name="$1" expected="$2" result="$3"
+            if [[ "$expected" == "true" ]]; then
+              require_success "$name" "$result"
+            elif [[ "$result" != "skipped" && "$result" != "success" ]]; then
+              echo "Skipped gate $name ended unexpectedly as $result" >&2
+              failures=1
+            fi
+          }
+
+          require_success fast "$FAST_RESULT"
+          require_optional database "$RUN_DB" "$DB_RESULT"
+          require_optional chromium "$RUN_BROWSER" "$BROWSER_RESULT"
+          require_optional real-stack "$RUN_REALSTACK" "$REALSTACK_RESULT"
+          require_optional webkit "$RUN_WEBKIT" "$WEBKIT_RESULT"
+          require_optional recovery "$RUN_RECOVERY" "$RECOVERY_RESULT"
+
+          exit "$failures"
+
+      - name: Publish validation result
+        if: always()
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_REF: ${{ github.ref_name }}
+          FAST_RESULT: ${{ needs.fast.result }}
+          DB_RESULT: ${{ needs.database.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          REALSTACK_RESULT: ${{ needs.realstack.result }}
+          WEBKIT_RESULT: ${{ needs.webkit.result }}
+          RECOVERY_RESULT: ${{ needs.recovery.result }}
+        run: |
+          set +e
+          deploy_note="Validation only."
+          if [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_REF" == "main" ]]; then
+            deploy_note="Source is eligible for Hostinger auto-deploy from main."
+          fi
+          {
+            echo "# BRVTAL validation result"
+            echo
+            echo "| Gate | Result |"
+            echo "|---|---|"
+            echo "| Fast PHP 8.5 + contracts | **$FAST_RESULT** |"
+            echo "| MariaDB | **$DB_RESULT** |"
+            echo "| Chromium | **$BROWSER_RESULT** |"
+            echo "| Real-stack smoke | **$REALSTACK_RESULT** |"
+            echo "| WebKit TOTP | **$WEBKIT_RESULT** |"
+            echo "| Backup recovery | **$RECOVERY_RESULT** |"
+            echo "| Deploy note | $deploy_note |"
+            echo
+            echo "> Pull requests and exact \`main\` pushes use the same diff-aware gates; manual dispatch runs the full matrix. CI success does **not** prove Hostinger deployment completion or production behavior."
+          } >> "$GITHUB_STEP_SUMMARY"
+,
+                  readme,
+                  flags=re.M,
+              )),
+          }
+          missing_visuals = [name for name, present in visual_requirements.items() if not present]
+          if missing_visuals:
+              print('README missing required visual deploy markers:', file=sys.stderr)
+              for marker in missing_visuals:
+                  print(f'  - {marker}', file=sys.stderr)
               sys.exit(1)
 
           section = re.search(
