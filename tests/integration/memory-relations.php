@@ -63,6 +63,43 @@ SQL
 $memoriesMigration = (string)file_get_contents(dirname(__DIR__, 2) . '/database/migration_memories_01.sql');
 $relationsMigration = (string)file_get_contents(dirname(__DIR__, 2) . '/database/migration_memory_relations_01.sql');
 $pdo->exec($memoriesMigration); // NOSONAR fixed repository migration under test
+
+memory_rel_it_expect(
+    !brvtal_memory_relations_ready($pdo),
+    'readiness must be false before the additive migration'
+);
+memory_rel_it_expect(
+    brvtal_memory_load_relations($pdo, 1) === [],
+    'relation loading must degrade to empty before the migration'
+);
+$degradedPublic = brvtal_public_attach_memory_relations(
+    $pdo,
+    [['id'=>1]],
+    [],
+    [],
+    [],
+    [],
+    []
+);
+memory_rel_it_expect(
+    ($degradedPublic[0]['relations'] ?? null) === [],
+    'public relation attachment must degrade to empty before the migration'
+);
+memory_rel_it_expect(
+    brvtal_public_memories_for_entity($pdo, 'events', 1) === [],
+    'entity Memories must degrade to empty before the migration'
+);
+$schemaMissing = false;
+try {
+    brvtal_memory_replace_relations($pdo, 1, []);
+} catch (RuntimeException $e) {
+    $schemaMissing = $e->getMessage() === 'MEMORY_RELATIONS_SCHEMA_MISSING';
+}
+memory_rel_it_expect(
+    $schemaMissing,
+    'relation writes must fail closed before the migration'
+);
+
 $pdo->exec($relationsMigration); // NOSONAR fixed repository migration under test
 $pdo->exec($relationsMigration); // NOSONAR verifies idempotency
 memory_rel_it_expect(brvtal_memory_relations_ready($pdo), 'memory_relations must be ready after migration');
