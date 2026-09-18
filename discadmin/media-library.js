@@ -539,7 +539,7 @@ window.BRVTALMediaLibrary = (() => {
     ['dragenter','dragover'].forEach(name => dz?.addEventListener(name,e => { e.preventDefault(); dz.classList.add('drag'); }));
     ['dragleave','drop'].forEach(name => dz?.addEventListener(name,e => { e.preventDefault(); dz.classList.remove('drag'); }));
     dz?.addEventListener('drop',e => uploadFiles(e.dataTransfer?.files));
-    dz?.addEventListener('keydown',e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input?.click(); } });
+    dz?.addEventListener('click',() => input?.click());
     startPickerObserver(); refresh();
   }
 

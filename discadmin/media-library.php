@@ -33,10 +33,10 @@ brvtal_admin_require();
     </div>
   </div>
 
-  <div id="media-dropzone" class="media-dropzone" tabindex="0">
+  <button id="media-dropzone" class="media-dropzone" type="button">
     <strong>DROP FILES HERE</strong>
     <span>Originals are preserved. Image variants are generated when GD/WebP is available.</span>
-  </div>
+  </button>
 
   <output id="media-status" class="media-status" aria-live="polite"></output>
 

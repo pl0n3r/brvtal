@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 const accessibilitySource = readFileSync(join(process.cwd(), 'discadmin/admin-modal-accessibility.js'), 'utf8');
 const indexSource = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
+const indexCoreSource = readFileSync(join(process.cwd(), 'discadmin/index-core.php'), 'utf8');
+const mediaLibraryPhpSource = readFileSync(join(process.cwd(), 'discadmin/media-library.php'), 'utf8');
 const mediaLibrarySource = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
 const totpStatusSource = readFileSync(join(process.cwd(), 'discadmin/totp-status.php'), 'utf8');
 
@@ -13,6 +15,16 @@ test('shared keyboard accessibility loads after the admin shell', async () => {
   expect(indexSource.indexOf('global-search.js')).toBeLessThan(indexSource.indexOf('admin-modal-accessibility.js'));
   expect(indexSource.indexOf('bulk-actions.js')).toBeLessThan(indexSource.indexOf('admin-modal-accessibility.js'));
   expect(indexSource.indexOf('admin-activity.js')).toBeLessThan(indexSource.indexOf('admin-modal-accessibility.js'));
+});
+
+test('legacy modal heading and Media dropzone expose valid native accessibility semantics', async () => {
+  expect(indexCoreSource).toMatch(/<h2 id="mtitle">[^<]+<\/h2>/);
+  expect(indexCoreSource).toContain('<h2 id="mtitle">DISCADMIN EDITOR</h2>');
+
+  expect(mediaLibraryPhpSource).toContain('<button id="media-dropzone" class="media-dropzone" type="button">');
+  expect(mediaLibraryPhpSource).not.toMatch(/id="media-dropzone"[^>]*tabindex=/);
+  expect(mediaLibrarySource).toContain("dz?.addEventListener('click',() => input?.click());");
+  expect(mediaLibrarySource).not.toContain("dz?.addEventListener('keydown'");
 });
 
 test('mobile sidebar traps focus, closes with Escape and restores MENU focus', async ({ page }) => {
