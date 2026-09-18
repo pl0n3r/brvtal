@@ -151,12 +151,18 @@ window.BRVTALAdminModules = (() => {
     {path:'/settings', labels:['Saving settings…','Settings saved.']}
   ];
 
+  /**
+   * Return whether an ordered mutation-feedback rule matches the request context.
+   */
   function mutationFeedbackRuleMatches(rule, context) {
     return (!rule.path || context.path.includes(rule.path))
       && (!rule.action || context.action === rule.action)
       && (!rule.method || context.method === rule.method);
   }
 
+  /**
+   * Resolve the progress and success labels for an admin mutation request.
+   */
   function mutationLabels(url, method) {
     const context = {
       action:(url.searchParams.get('action') || '').toLowerCase(),
