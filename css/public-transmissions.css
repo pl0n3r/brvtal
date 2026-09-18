@@ -1,0 +1,19 @@
+#transmissions{min-height:auto;padding:clamp(70px,9vw,130px) 5vw;background:#080808;color:#eee;border-top:1px solid rgba(255,255,255,.12);overflow:hidden}
+#transmissions .transmissions-intro{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.55fr);gap:8vw;align-items:end;margin:42px 0 26px}
+#transmissions .transmissions-intro h3{font-size:clamp(42px,7vw,110px);line-height:.82;margin:0;letter-spacing:-.045em}
+#transmissions .transmissions-intro p{margin:0;color:#9d9d9d;line-height:1.6;max-width:44ch}
+#transmissions .transmissions-list{border-top:1px solid rgba(255,255,255,.16)}
+#transmissions .transmission-card{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:24px;padding:30px 0;border-bottom:1px solid rgba(255,255,255,.13);align-items:start}
+#transmissions .transmission-index{color:#666;padding-top:8px}
+#transmissions .transmission-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;letter-spacing:.08em;color:#888}
+#transmissions .transmission-link{color:inherit;text-decoration:none;display:inline-block}
+#transmissions .transmission-link h3{font-size:clamp(27px,4vw,58px);line-height:.96;margin:10px 0 12px;letter-spacing:-.025em}
+#transmissions .transmission-copy>p{max-width:68ch;color:#aaa;margin:0 0 14px;line-height:1.55}
+#transmissions .transmission-relations{display:flex;gap:8px;flex-wrap:wrap}
+#transmissions .transmission-relations a{color:#aaa;text-decoration:none;border:1px solid rgba(255,255,255,.18);padding:8px 10px;min-height:36px}
+#transmissions .transmission-open{color:#eee;text-decoration:none;min-height:44px;display:flex;align-items:center;padding:0 4px}
+#transmissions .transmissions-empty{padding:42px 0;display:flex;flex-direction:column;gap:8px;color:#777}
+#transmissions .transmissions-empty strong{font:12px "Space Mono",monospace;color:#bbb;letter-spacing:.08em}
+#transmissions[data-state="unavailable"] .transmissions-list{opacity:.45}
+@media(max-width:760px){#transmissions .transmissions-intro{grid-template-columns:1fr;gap:18px}#transmissions .transmission-card{grid-template-columns:38px minmax(0,1fr);gap:10px;padding:24px 0}#transmissions .transmission-open{grid-column:2;justify-self:start}#transmissions .transmission-relations a{min-height:44px;display:flex;align-items:center}#transmissions .transmission-link h3{overflow-wrap:anywhere}}
+@media(prefers-reduced-motion:reduce){#transmissions *{scroll-behavior:auto}}
