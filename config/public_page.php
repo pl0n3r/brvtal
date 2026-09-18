@@ -145,7 +145,6 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $data['facts'] = array_filter(['FORMAT' => strtoupper((string)($detail['release_type'] ?? '')), 'CATALOG' => $detail['catalog_number'] ?? '', 'RELEASE DATE' => $detail['release_date'] ?? '']);
         $data['links'] = array_filter(['SPOTIFY' => $detail['spotify_url'] ?? '', 'SOUNDCLOUD' => $detail['soundcloud_url'] ?? '', 'BANDCAMP' => $detail['bandcamp_url'] ?? '', 'YOUTUBE' => $detail['youtube_url'] ?? '', 'BEATPORT' => $detail['beatport_url'] ?? '']);
         $data['related']['ARTISTS'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ra.role AS meta,'artists' AS route_type FROM release_artists ra JOIN artists a ON a.id=ra.artist_id AND a.status='published' WHERE ra.release_id=? ORDER BY ra.sort_order,a.name", [$id]);
-        $data['related']['TRANSMISSIONS'] = brvtalPublicTransmissionsForEntity($pdo, $type, $id);
     } elseif ($type === 'blog') {
         $detail = brvtal_page_row($pdo, "SELECT body,published_at FROM blog_posts WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
@@ -184,7 +183,6 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
                 array_merge([(int)$detail['event_id']], $eventStatuses)
             );
         }
-        $data['related']['TRANSMISSIONS'] = brvtalPublicTransmissionsForEntity($pdo, $type, $id);
     } elseif ($type === 'pages') {
         $detail = brvtal_page_row($pdo, "SELECT content_json FROM pages WHERE id=? LIMIT 1", [$id], true);
         $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
