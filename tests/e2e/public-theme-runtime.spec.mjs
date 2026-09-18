@@ -93,6 +93,68 @@ test('public theme runtime applies branding and switches to the mobile logo with
   await expect(page.locator('picture source')).toHaveAttribute('srcset',/\/brand-mobile\.png$/);
 });
 
+test('public theme runtime keeps wordmark priority while the hero uses the visual logo', async ({ page }) => {
+  await page.route('**/*.png', route => route.fulfill({contentType:'image/png',body:pixel}));
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:harness({
+      slug:'wordmark-priority',
+      branding:{
+        siteName:'BRVTAL',
+        wordmark:'/brand-wordmark.png',
+        logo:'/brand-visual.png',
+        preloaderLogo:'/brand-preloader.png',
+      },
+      colors:{},
+      typography:{},
+      navigation:{},
+      effects:{},
+      sound:{},
+    }),
+  }));
+
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.BRVTALThemeReady);
+
+  await expect(page.locator('.theme-brand-image')).toHaveAttribute('src',/\/brand-wordmark\.png$/);
+  await expect(page.locator('.theme-preloader-logo')).toHaveAttribute('src',/\/brand-wordmark\.png$/);
+  await expect(page.locator('.loader-inner')).toHaveAttribute('data-theme-wordmark','1');
+  await expect(page.locator('.hero-logo')).toHaveAttribute('src',/\/brand-visual\.png$/);
+});
+
+test('public theme runtime falls back to the valid main logo when preferred assets are unsafe', async ({ page }) => {
+  await page.route('**/*.png', route => route.fulfill({contentType:'image/png',body:pixel}));
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:harness({
+      slug:'safe-branding-fallback',
+      branding:{
+        siteName:'SAFE FALLBACK',
+        logo:'/brand-main.png',
+        mobileLogo:'javascript:alert(1)',
+        preloaderLogo:'data:image/png;base64,AAAA',
+      },
+      colors:{},
+      typography:{},
+      navigation:{},
+      effects:{},
+      sound:{},
+    }),
+  }));
+
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.BRVTALThemeReady);
+
+  await expect(page.locator('.theme-preloader-logo')).toHaveAttribute('src',/\/brand-main\.png$/);
+  await expect(page.locator('.theme-brand-image')).toHaveAttribute('src',/\/brand-main\.png$/);
+  await expect(page.locator('.hero-logo')).toHaveAttribute('src',/\/brand-main\.png$/);
+
+  await page.evaluate(() => window.__setThemeMobile(true));
+  await expect(page.locator('.theme-brand-image')).toHaveAttribute('src',/\/brand-main\.png$/);
+  await expect(page.locator('.hero-logo')).toHaveAttribute('src',/\/brand-main\.png$/);
+  await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
+});
+
 test('public theme runtime removes a failed header logo so text branding remains available', async ({ page }) => {
   await page.route('**/broken.png', route => route.abort('failed'));
   await page.route(harnessUrl, route => route.fulfill({
