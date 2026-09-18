@@ -10,7 +10,7 @@ const pixel = Buffer.from(
 );
 
 function harness(theme) {
-  return \`<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="theme-color" content="#050505"></head>
 <body>
@@ -35,13 +35,13 @@ function harness(theme) {
         listeners.forEach(listener => listener({matches:query.matches,media:query.media}));
       };
       window.BRVTALPublicDataPromise = Promise.resolve({
-        payload:{data:{settings:{theme:\${JSON.stringify(theme)}}}}
+        payload:{data:{settings:{theme:${JSON.stringify(theme)}}}}
       });
     })();
   </script>
-  <script>\${runtimeJs}</script>
+  <script>${runtimeJs}</script>
 </body>
-</html>\`;
+</html>`;
 }
 
 test('public theme runtime applies branding and switches to the mobile logo without a second API request', async ({ page }) => {
