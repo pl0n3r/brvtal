@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+85** | **−43** | **+42** |
+| **8** | **+86** | **−44** | **+42** |
 
 ## Calidad y entrega
 
@@ -69,6 +69,7 @@ flowchart LR
 - `api/blog.php` — distingue tags omitidos de reemplazo explícito.
 - `discadmin/blog.js` — elimina taxonomía manual del editor y deja de enviar tags en saves normales.
 - `tests/blog-contract.php` — actualiza el contrato del editor sin taxonomía manual.
+- `tests/discadmin-editor-accessibility-contract.php` — elimina el control retirado de la lista de labels obligatorios.
 - `tests/e2e/discadmin-blog.spec.mjs` — verifica UI/payload sin tags manuales.
 - `tests/e2e/blog-relation-integrity-real-stack.spec.mjs` — verifica preservación y limpieza explícita de tags.
 - `AGENTS.md` — persiste la regla de taxonomía Blog opcional.
