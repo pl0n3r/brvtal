@@ -35,5 +35,8 @@ test('theme.active routes to Theme Studio instead of raw text editing', async ({
   expect(await page.evaluate(() => window.__raw || '')).toBe('');
 
   const customRow = page.locator('.sv2-raw-row', {hasText:'custom.flag'});
-  await expect(customRow.getByRole('button', {name:'RAW EDIT'})).toBeVisible();
+  const rawEdit = customRow.getByRole('button', {name:'RAW EDIT'});
+  await expect(rawEdit).toBeVisible();
+  await rawEdit.click();
+  await expect.poll(() => page.evaluate(() => window.__raw || '')).toBe('custom.flag');
 });
