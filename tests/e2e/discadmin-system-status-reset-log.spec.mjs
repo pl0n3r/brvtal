@@ -26,6 +26,7 @@ async function mount(page, options = {}) {
     initialCsrf = 'csrf-token',
     authCsrf = 'fresh-token',
     holdFirstLog = false,
+    holdReset = false,
   } = options;
 
   let resetCalls = 0;
@@ -35,10 +36,17 @@ async function mount(page, options = {}) {
   const resetPosts = [];
   let releaseFirstLog = () => {};
   let firstLogGate = null;
+  let releaseReset = () => {};
+  let resetGate = null;
 
   if (holdFirstLog) {
     firstLogGate = new Promise(resolve => {
       releaseFirstLog = resolve;
+    });
+  }
+  if (holdReset) {
+    resetGate = new Promise(resolve => {
+      releaseReset = resolve;
     });
   }
 
@@ -69,11 +77,14 @@ async function mount(page, options = {}) {
         : {ok:true,file:'storage/logs/brvtal.log',bytes:16,lines:1,content:'before reset'})
     });
   });
-  await page.route('**/discadmin/logs.php?action=clear&format=json', route => {
+  await page.route('**/discadmin/logs.php?action=clear&format=json', async route => {
     resetCalls++;
     const postData = route.request().postData() || '';
     resetPosts.push(postData);
     expect(route.request().method()).toBe('POST');
+    if (holdReset && resetCalls === 1) {
+      await resetGate;
+    }
     const status = resetStatuses[Math.min(resetCalls - 1, resetStatuses.length - 1)];
     if (status !== 200) {
       const error = status === 419 ? 'CSRF' : 'LOG_CLEAR_FAILED';
@@ -92,6 +103,7 @@ async function mount(page, options = {}) {
     authCalls:() => authCalls,
     resetPosts:() => [...resetPosts],
     releaseFirstLog,
+    releaseReset,
   };
 }
 
@@ -145,6 +157,25 @@ test('stale pre-reset log response cannot overwrite cleared state', async ({page
   await page.waitForTimeout(80);
   await expect(page.locator('#ssv2-log-meta')).toHaveText('0 LINES · 0 B');
   await expect(page.locator('#ssv2-logs')).toHaveText('No log entries.');
+});
+
+test('reset lock survives a System Status rerender while reset is in flight', async ({page}) => {
+  const state = await mount(page,{holdReset:true});
+
+  await page.getByRole('button',{name:'RESET LOG'}).click();
+  await page.getByRole('button',{name:'CONFIRM RESET'}).click();
+  await expect.poll(() => state.resetCalls()).toBe(1);
+
+  await page.getByRole('button',{name:'REFRESH'}).click();
+  const resetButton = page.locator('#ssv2-reset-logs');
+  await expect(resetButton).toBeDisabled();
+
+  await resetButton.evaluate(button => button.click());
+  expect(state.resetCalls()).toBe(1);
+
+  state.releaseReset();
+  await expect(resetButton).toBeEnabled();
+  expect(state.resetCalls()).toBe(1);
 });
 
 test('CSRF failure clears cached token so retry fetches a fresh token', async ({page}) => {
