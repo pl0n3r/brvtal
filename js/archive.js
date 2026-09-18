@@ -136,10 +136,25 @@
     return `${count} ${singular}${count === 1 ? '' : 'S'}`;
   }
 
-  function archiveRelationSummary(lineup, sets) {
+  function memoryEventCounts(memories) {
+    const counts = new Map();
+    (Array.isArray(memories) ? memories : []).forEach(memory => {
+      const eventIds = new Set();
+      (Array.isArray(memory?.relations) ? memory.relations : []).forEach(relation => {
+        if (relation?.related_type !== 'event') return;
+        const eventId = Number(relation.related_id) || 0;
+        if (eventId > 0) eventIds.add(eventId);
+      });
+      eventIds.forEach(eventId => counts.set(eventId, (counts.get(eventId) || 0) + 1));
+    });
+    return counts;
+  }
+
+  function archiveRelationSummary(lineup, sets, memoryCount) {
     return [
       relationCountLabel(lineup.length, 'ARTIST'),
       relationCountLabel(sets.length, 'SET'),
+      relationCountLabel(memoryCount, 'MEMORY'),
     ].filter(Boolean);
   }
 
@@ -170,7 +185,7 @@
     return link;
   }
 
-  function archiveCard(event) {
+  function archiveCard(event, memoryCount = 0) {
     const title = String(event.title || 'UNTITLED EVENT');
     const date = formatDate(event.event_date);
     const city = String(event.city || '');
@@ -178,7 +193,7 @@
     const lineup = Array.isArray(event.lineup) ? event.lineup : [];
     const sets = Array.isArray(event.related_sets) ? event.related_sets : [];
     const names = lineup.map(item => String(item?.name || '')).filter(Boolean);
-    const relationParts = archiveRelationSummary(lineup, sets);
+    const relationParts = archiveRelationSummary(lineup, sets, memoryCount);
     const slug = String(event.slug || '').trim();
     const href = slug ? `/events/${encodeURIComponent(slug)}` : '';
     const connectionsHref = relationParts.length ? connectedEventUrl(event.id) : '';
@@ -188,6 +203,7 @@
     article.dataset.archiveYear = String(archiveYear(event) || '');
     article.dataset.archiveArtists = lineup.length ? '1' : '0';
     article.dataset.archiveSets = sets.length ? '1' : '0';
+    article.dataset.archiveMemories = memoryCount > 0 ? '1' : '0';
     article.dataset.archiveSearchValue = searchText([title,city,venue,...names].join(' '));
     article.dataset.archiveId = String(Number(event.id) || 0);
 
@@ -255,12 +271,13 @@
     applyArchiveFilters();
   }
 
-  function renderArchive(archive) {
+  function renderArchive(archive, memories = state.data?.memories || []) {
     const root = qs('#eventArchive');
     if (!root) return;
     const events = Array.isArray(archive?.events) ? archive.events : [];
     const years = Array.isArray(archive?.years) ? archive.years.map(Number).filter(Boolean) : [];
     const counts = archive?.counts && typeof archive.counts === 'object' ? archive.counts : {};
+    const memoryCounts = memoryEventCounts(memories);
     const yearHost = qs('.archive-years', root);
     const grid = qs('.archive-grid', root);
     const summary = qs('.archive-summary', root);
@@ -284,7 +301,12 @@
       yearHost.replaceChildren(allYears, ...yearButtons);
       yearHost.querySelectorAll('[data-archive-filter]').forEach(button => button.addEventListener('click', () => applyYearFilter(button.dataset.archiveFilter || 'all')));
     }
-    if (grid) grid.replaceChildren(...events.map(event => archiveCard(event)));
+    if (grid) {
+      grid.replaceChildren(...events.map(event => {
+        const eventId = Number(event?.id) || 0;
+        return archiveCard(event, memoryCounts.get(eventId) || 0);
+      }));
+    }
     root.querySelectorAll('[data-archive-relation]').forEach(button => button.addEventListener('click', () => {
       state.archiveRelation = button.dataset.archiveRelation || 'all';
       applyArchiveFilters();
@@ -343,7 +365,7 @@
       state.data = data;
       window.dispatchEvent(new CustomEvent('brvtal:public-data', { detail:data }));
       renderActive(data.events);
-      renderArchive(data.archive || {});
+      renderArchive(data.archive || {}, data.memories || []);
       observeActiveTrack();
       if (window.ScrollTrigger) window.ScrollTrigger.refresh();
       document.documentElement.dataset.archive = 'live';
