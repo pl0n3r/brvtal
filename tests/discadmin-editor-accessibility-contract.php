@@ -22,7 +22,6 @@ foreach ([
     'blog_cover_image',
     'blog_status_field',
     'blog_sort_order',
-    'blog_tags',
     'blog_seo_title',
     'blog_seo_description',
 ] as $controlId) {

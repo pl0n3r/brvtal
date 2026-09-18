@@ -73,6 +73,7 @@ function brvtal_blog_payload(array $input): array
     $status = strtolower(trim((string)($input['status'] ?? 'draft')));
     if (!in_array($status, ['draft','published','archived'], true)) throw new InvalidArgumentException('INVALID_STATUS');
 
+    $tagsProvided = array_key_exists('tags', $input);
     $tags = [];
     foreach ((array)($input['tags'] ?? []) as $tag) {
         $name = trim(is_array($tag) ? (string)($tag['name'] ?? '') : (string)$tag);
@@ -108,6 +109,7 @@ function brvtal_blog_payload(array $input): array
         'featured' => !empty($input['featured']) ? 1 : 0,
         'sort_order' => (int)($input['sort_order'] ?? 0),
         'tags' => array_values($tags),
+        'tags_provided' => $tagsProvided,
         'relations' => array_values($relations),
     ];
 }
@@ -234,7 +236,9 @@ try {
                 $data['seo_title'] ?: null,$data['seo_description'] ?: null,$data['status'],$data['featured'],$data['status'],$data['sort_order'],$id,
             ]);
         }
-        brvtal_blog_sync_tags($pdo,$id,$data['tags']);
+        if ($method === 'POST' || $data['tags_provided']) {
+            brvtal_blog_sync_tags($pdo,$id,$data['tags']);
+        }
         brvtal_blog_sync_relations($pdo,$id,$data['relations']);
         $after = brvtal_blog_fetch($pdo,$id);
         if (!$after) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);

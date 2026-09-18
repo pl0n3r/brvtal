@@ -39,6 +39,7 @@ test('Blog rejects dangling related content without partially updating the post'
         slug: originalSlug,
         body: 'Blog relation integrity fixture.',
         status: 'draft',
+        tags: ['Hard Techno'],
         relations: [{ related_type: 'artist', related_id: Number(artist.id), sort_order: 0 }],
       },
     });
@@ -46,6 +47,9 @@ test('Blog rejects dangling related content without partially updating the post'
     const created = await create.json();
     postId = Number(created?.data?.id || 0);
     expect(postId).toBeGreaterThan(0);
+    expect(created.data.tags).toEqual([
+      expect.objectContaining({ name: 'Hard Techno', slug: 'hard-techno' }),
+    ]);
     expect(created.data.relations).toEqual([
       expect.objectContaining({ related_type: 'artist', related_id: Number(artist.id) }),
     ]);
@@ -67,9 +71,44 @@ test('Blog rejects dangling related content without partially updating the post'
     expect(afterRejectedUpdate.title).toBe(originalTitle);
     expect(afterRejectedUpdate.status).toBe('draft');
     expect(afterRejectedUpdate.body).toBe('Blog relation integrity fixture.');
+    expect(afterRejectedUpdate.tags).toEqual([
+      expect.objectContaining({ name: 'Hard Techno', slug: 'hard-techno' }),
+    ]);
     expect(afterRejectedUpdate.relations).toEqual([
       expect.objectContaining({ related_type: 'artist', related_id: Number(artist.id) }),
     ]);
+
+    const taxonomyNeutralUpdate = await page.request.put(`${baseUrl}/api/blog.php?id=${postId}`, {
+      headers,
+      data: {
+        title: originalTitle,
+        slug: originalSlug,
+        body: 'Ordinary edit without taxonomy payload.',
+        status: 'draft',
+        relations: [{ related_type: 'artist', related_id: Number(artist.id), sort_order: 0 }],
+      },
+    });
+    expect(taxonomyNeutralUpdate.ok()).toBeTruthy();
+    const afterNeutralUpdate = await readPost(postId);
+    expect(afterNeutralUpdate.body).toBe('Ordinary edit without taxonomy payload.');
+    expect(afterNeutralUpdate.tags).toEqual([
+      expect.objectContaining({ name: 'Hard Techno', slug: 'hard-techno' }),
+    ]);
+
+    const explicitTaxonomyClear = await page.request.put(`${baseUrl}/api/blog.php?id=${postId}`, {
+      headers,
+      data: {
+        title: originalTitle,
+        slug: originalSlug,
+        body: 'Explicit taxonomy clear.',
+        status: 'draft',
+        tags: [],
+        relations: [{ related_type: 'artist', related_id: Number(artist.id), sort_order: 0 }],
+      },
+    });
+    expect(explicitTaxonomyClear.ok()).toBeTruthy();
+    const afterExplicitClear = await readPost(postId);
+    expect(afterExplicitClear.tags).toEqual([]);
 
     const danglingSlug = `ci-dangling-blog-${runKey}`;
     const invalidCreate = await page.request.post(`${baseUrl}/api/blog.php`, {
