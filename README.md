@@ -17,7 +17,7 @@
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `50b8a6b7253c000565f23d16e9e5355b660b7806` · exact-main BRVTAL CI verde |
-| Git delta | 📐 **7 files · 465 insertions · 64 deletions · net +401** | PR diff vs base `50b8a6b7253c000565f23d16e9e5355b660b7806` |
+| Git delta | 📐 **7 files · 456 insertions · 55 deletions · net +401** | PR diff vs base `50b8a6b7253c000565f23d16e9e5355b660b7806` |
 | Alcance | 🔎 **#511 / parent #398** | inverse TRANSMISSIONS on canonical entity pages |
 | Relaciones | 🧬 **EXPLICIT ONLY** | `blog_post_relations` |
 | Visibilidad | 🔒 **PUBLISHED ONLY** | drafts/private posts excluded |
