@@ -202,7 +202,10 @@ try {
         if ($resource === 'settings') {
             $keyState = brvtal_setting_key_normalize((string)($d['setting_key'] ?? ''));
             if ($keyState['error'] !== null) {
-                json_response(['ok' => false, 'error' => $keyState['error']['error'], 'field' => $keyState['error']['field']], 422);
+                json_response(
+                    ['ok' => false, 'error' => $keyState['error']['error'], 'field' => $keyState['error']['field']],
+                    422
+                );
             }
 
             $key = (string)$keyState['key'];
@@ -216,7 +219,10 @@ try {
             $value = (string)($d['setting_value'] ?? '');
             $themeSettingError = brvtal_theme_setting_error($key, $value);
             if ($themeSettingError !== null) {
-                json_response(['ok' => false, 'error' => $themeSettingError['error'], 'field' => $themeSettingError['field']], 422);
+                json_response(
+                    ['ok' => false, 'error' => $themeSettingError['error'], 'field' => $themeSettingError['field']],
+                    422
+                );
             }
 
             $themeReferenceError = brvtalThemeActiveReferenceError(
@@ -234,17 +240,26 @@ try {
                 }
             );
             if ($themeReferenceError !== null) {
-                json_response(['ok' => false, 'error' => $themeReferenceError['error'], 'field' => $themeReferenceError['field']], 422);
+                json_response(
+                    ['ok' => false, 'error' => $themeReferenceError['error'], 'field' => $themeReferenceError['field']],
+                    422
+                );
             }
 
             if (strlen($value) > 2 * 1024 * 1024) {
                 json_response(['ok' => false, 'error' => 'VALUE_TOO_LARGE'], 422);
             }
-            if ((int)($d['is_json'] ?? 0) === 1 && json_decode($value, true) === null && strtolower(trim($value)) !== 'null') {
+            $invalidJson = (int)($d['is_json'] ?? 0) === 1
+                && json_decode($value, true) === null
+                && strtolower(trim($value)) !== 'null';
+            if ($invalidJson) {
                 json_response(['ok' => false, 'error' => 'INVALID_SETTING_JSON'], 422);
             }
 
-            $st = $pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)');
+            $st = $pdo->prepare(
+                'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
+                . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'
+            );
             $st->execute([$key, $value, (int)($d['is_json'] ?? 0)]);
             json_response(['ok' => true]);
         }
@@ -288,7 +303,9 @@ try {
             json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
         }
 
-        $activeTheme = $pdo->query("SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1")->fetchColumn();
+        $activeTheme = $pdo->query(
+            "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1"
+        )->fetchColumn();
         $themeDeleteError = brvtalThemeDeleteReferenceError(
             $key,
             is_string($activeTheme) ? trim($activeTheme) : null
