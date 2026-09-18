@@ -21,6 +21,57 @@ async function openHarness(page, data) {
   await page.goto(harness);
 }
 
+
+/**
+ * Mounts the real Hero Slider admin runtime with optional Web Crypto removal.
+ */
+async function openAdminUidHarness(page, { disableCrypto = false } = {}) {
+  await page.setContent(`<!doctype html><html><head></head><body>
+    <nav class="nav"><button type="button">EVENTS</button></nav>
+    <main class="main"><div class="top"><span class="eyebrow"></span><h1></h1></div></main>
+  </body></html>`);
+
+  await page.evaluate(({ disableCrypto }) => {
+    window.state = { section: 'dashboard' };
+    window.render = () => {};
+    window.go = async () => {};
+    window.req = async path => {
+      if (path === '/settings') return { data: [] };
+      if (path === '/media') return { data: [] };
+      return { data: [] };
+    };
+    if (disableCrypto) {
+      Object.defineProperty(globalThis.crypto, 'getRandomValues', {
+        configurable: true,
+        value: undefined,
+      });
+    }
+  }, { disableCrypto });
+
+  await page.addScriptTag({ content: adminScript });
+  await page.evaluate(() => window.go('hero-slider'));
+}
+
+/**
+ * Exercises UID creation and duplication and returns every generated ID.
+ */
+async function exerciseAdminUidFlow(page) {
+  await page.locator('[data-add-slide]').click();
+  await page.locator('[data-add-layer="text"]').click();
+
+  const originalSlideId = await page.locator('[data-select-slide].active').getAttribute('data-select-slide');
+  const originalLayerId = await page.locator('[data-select-layer].active').getAttribute('data-select-layer');
+
+  await page.locator('[data-duplicate-slide]').click();
+
+  const slideIds = await page.locator('[data-select-slide]').evaluateAll(nodes =>
+    nodes.map(node => node.getAttribute('data-select-slide'))
+  );
+  const duplicateLayerId = await page.locator('[data-select-layer].active').getAttribute('data-select-layer');
+
+  return [...slideIds, originalLayerId, duplicateLayerId];
+}
+
 const baseSlide = {
   id:'v2', mediaType:'image', desktopSrc:'/hero.jpg', mobileSrc:'', poster:'', kicker:'', title:'', body:'', ctaLabel:'', ctaUrl:'', contentAlign:'left', overlay:30, transition:'fade'
 };
@@ -67,42 +118,19 @@ test('v2 admin and endpoint keep constraints explicit', async () => {
 });
 
 test('v2 admin creates and duplicates nonempty unique slide and layer IDs', async ({ page }) => {
-  await page.setContent(`<!doctype html><html><head></head><body>
-    <nav class="nav"><button type="button">EVENTS</button></nav>
-    <main class="main"><div class="top"><span class="eyebrow"></span><h1></h1></div></main>
-  </body></html>`);
+  await openAdminUidHarness(page);
+  const ids = await exerciseAdminUidFlow(page);
 
-  await page.evaluate(() => {
-    window.state = { section: 'dashboard' };
-    window.render = () => {};
-    window.go = async () => {};
-    window.req = async path => {
-      if (path === '/settings') return { data: [] };
-      if (path === '/media') return { data: [] };
-      return { data: [] };
-    };
-  });
-  await page.addScriptTag({ content: adminScript });
-  await page.evaluate(() => window.go('hero-slider'));
+  expect(ids).toHaveLength(4);
+  expect(ids.every(Boolean)).toBe(true);
+  expect(new Set(ids).size).toBe(ids.length);
+});
 
-  await page.locator('[data-add-slide]').click();
-  await page.locator('[data-add-layer="text"]').click();
+test('v2 admin UID fallback stays unique when Web Crypto is unavailable', async ({ page }) => {
+  await openAdminUidHarness(page, { disableCrypto: true });
+  const ids = await exerciseAdminUidFlow(page);
 
-  const originalSlideId = await page.locator('[data-select-slide].active').getAttribute('data-select-slide');
-  const originalLayerId = await page.locator('[data-select-layer].active').getAttribute('data-select-layer');
-  expect(originalSlideId).toBeTruthy();
-  expect(originalLayerId).toBeTruthy();
-
-  await page.locator('[data-duplicate-slide]').click();
-
-  const slideIds = await page.locator('[data-select-slide]').evaluateAll(nodes =>
-    nodes.map(node => node.getAttribute('data-select-slide'))
-  );
-  const duplicateLayerId = await page.locator('[data-select-layer].active').getAttribute('data-select-layer');
-
-  expect(slideIds).toHaveLength(2);
-  expect(slideIds.every(Boolean)).toBe(true);
-  expect(new Set(slideIds).size).toBe(2);
-  expect(duplicateLayerId).toBeTruthy();
-  expect(duplicateLayerId).not.toBe(originalLayerId);
+  expect(ids).toHaveLength(4);
+  expect(ids.every(Boolean)).toBe(true);
+  expect(new Set(ids).size).toBe(ids.length);
 });
