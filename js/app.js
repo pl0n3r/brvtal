@@ -210,9 +210,9 @@
     const fallbackEl = qs('#apiFallback');
 
     const esc = (value) => String(value ?? '')
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-      .replace(/'/g,'&#039;');
+      .replaceAll('&','&amp;').replaceAll('<','&lt;')
+      .replaceAll('>','&gt;').replaceAll('"','&quot;')
+      .replaceAll("'",'&#039;');
 
     const cleanUrl = (value) => {
       const raw = String(value ?? '').trim();
