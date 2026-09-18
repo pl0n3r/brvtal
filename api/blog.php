@@ -207,7 +207,7 @@ try {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
-        brvtal_indexnow_notify_change($pdo, 'blog', $before, null);
+        brvtalIndexNowNotifyChange($pdo, 'blog', $before, null);
         brvtal_blog_json(['ok'=>true,'deleted'=>$id]);
     }
 
@@ -254,7 +254,7 @@ try {
         throw $e;
     }
 
-    brvtal_indexnow_notify_change($pdo, 'blog', $before, $after);
+    brvtalIndexNowNotifyChange($pdo, 'blog', $before, $after);
     brvtal_blog_json(['ok'=>true,'data'=>$after], $method==='POST' ? 201 : 200);
 } catch (InvalidArgumentException $e) {
     brvtal_blog_json(['ok'=>false,'error'=>$e->getMessage()],422);
