@@ -143,3 +143,18 @@ brvtal_ci_scope_print() {
   printf 'run_js=%s\n' "$BRVTAL_SCOPE_RUN_JS"
   printf 'areas=%s\n' "$BRVTAL_SCOPE_AREAS"
 }
+
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  event_name="${1:-pull_request}"
+  case "$event_name" in
+    pull_request|push|workflow_dispatch) ;;
+    *)
+      printf 'Unsupported CI scope event: %s\n' "$event_name" >&2
+      exit 2
+      ;;
+  esac
+
+  brvtal_ci_classify_files "$(cat)" "$event_name"
+  brvtal_ci_scope_print
+fi

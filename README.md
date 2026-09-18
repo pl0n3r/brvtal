@@ -25,7 +25,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+350** | **−186** | **+164** |
+| **8** | **+358** | **−186** | **+172** |
 
 La huella se calcula con `git diff --numstat` y CI rechaza el README si estos números o la lista de archivos quedan desactualizados.
 
@@ -80,6 +80,7 @@ flowchart LR
 - `README.md` — nuevo dashboard profesional de desarrollo.
 
 **Tooling / contracts**
+- `scripts/ci-scope.sh` — expone un modo CLI seguro por stdin para reutilizar el mismo clasificador sin `bash -c` dinámico.
 - `scripts/readme-dashboard.py` — calcula y valida huella Git + gate plan.
 - `tests/ci-scope-contract.php` — protege la calibración del observador y el validador.
 - `tests/project-operations-contract.php` — protege el dashboard como contrato operacional.
