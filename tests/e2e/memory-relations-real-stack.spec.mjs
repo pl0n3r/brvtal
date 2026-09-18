@@ -86,6 +86,7 @@ test('E2E admin relates a curated Memory and the public boundary exposes the exp
     await expect(page.getByRole('heading',{name:'MEMORIES',level:2})).toBeVisible({timeout:10_000});
     const card = page.locator(`[data-memory-id="${memoryId}"]`);
     await expect(card).toBeVisible();
+    await card.locator('.memory-relations-details > summary').click();
     const eventCheckbox = card.locator(`[data-memory-relation-type="event"][data-memory-relation-id="${eventId}"]`);
     await expect(eventCheckbox).toBeVisible();
     await eventCheckbox.check();
