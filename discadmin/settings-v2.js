@@ -123,8 +123,9 @@
           <article><span>KEY LOCATION</span><strong>/indexnow-key.txt</strong><p>The verification response is generated dynamically from this Settings value; no key is committed to Git.</p></article>
           <article><span>SUBMISSION POLICY</span><strong>EVENT-DRIVEN</strong><p>Changed canonical URLs are deduplicated per request; sitemap remains the full-site catch-up signal.</p></article>
         </div>
+        <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="indexnow">SAVE INDEXNOW</button></div>
       </div>
-      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="seo">SAVE SEO + INDEXNOW</button></div>
+      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="seo">SAVE SEO</button></div>
     </section>`;
   }
 
@@ -215,22 +216,25 @@
 
   async function saveSeo() {
     const share = read('seo_share');
-    const indexNowKey = read('indexnow_key');
-    const indexNowEnabled = read('indexnow_enabled') === '1';
     if (share && !validHttpUrl(share) && !share.startsWith('/')) {
       throw new Error('Share image must be an HTTP/HTTPS URL or an absolute public path.');
     }
+    await persistJson('seo',{
+      site_title:read('seo_title'),
+      description:read('seo_description').slice(0,320),
+      share_image:share
+    });
+  }
+
+  async function saveIndexNow() {
+    const indexNowKey = read('indexnow_key');
+    const indexNowEnabled = read('indexnow_enabled') === '1';
     if (indexNowKey && !/^[A-Za-z0-9-]{8,128}$/.test(indexNowKey)) {
       throw new Error('IndexNow key must be 8–128 characters using only letters, numbers and hyphens.');
     }
     if (indexNowEnabled && !indexNowKey) {
       throw new Error('IndexNow key is required before enabling the integration.');
     }
-    await persistJson('seo',{
-      site_title:read('seo_title'),
-      description:read('seo_description').slice(0,320),
-      share_image:share
-    },[],false);
     await persistJson('indexnow',{enabled:indexNowEnabled,key:indexNowKey});
   }
 
@@ -246,6 +250,7 @@
     general:saveGeneral,
     social:saveSocial,
     seo:saveSeo,
+    indexnow:saveIndexNow,
     analytics:saveAnalytics
   };
 
