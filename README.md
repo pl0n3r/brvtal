@@ -14,6 +14,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - Las acciones **OPEN** del Dashboard conservan el recurso y el ID exacto del registro y delegan a `BRVTALAdminRecordNavigation`.
 - La regresión comprueba tanto navegación a la sección correcta como apertura del registro exacto para Health y Activity.
 - Dashboard V2 reserva su marcador de ownership antes de esperar fuentes asíncronas; Health/Activity legacy no aparecen mientras V2 todavía carga.
+- Si el render deja de ser válido durante esa espera, V2 libera el marcador reservado y el fallback legacy queda disponible.
 - El markup de Recent Activity se simplifica para eliminar los 2 findings Sonar de template literals anidados sin cambiar comportamiento.
 - Se conserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
 
