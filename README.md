@@ -12,7 +12,7 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - La selección de mensajes de progreso/éxito de mutaciones deja de depender de una cadena larga de decisiones y pasa a reglas declarativas ordenadas.
 - Se preserva exactamente la prioridad actual por endpoint, acción y método: Media Library, Releases, Blog, TOTP, DELETE genérico, Settings y fallback general.
 - Los textos visibles se mantienen sin cambios.
-- La regresión Playwright usa un `fetch` nativo controlado para verificar de forma determinista tanto el estado pendiente como el resultado exitoso de cada familia de mensajes.
+- La regresión Playwright verifica los mensajes finales y la precedencia de Media upload, Releases delete, Blog save, Settings save, DELETE genérico y save genérico usando el harness real de `admin-modules.js`.
 - No cambia API, payloads, persistencia, permisos, rutas ni comportamiento editorial.
 
 ## Archivos modificados en este deploy
