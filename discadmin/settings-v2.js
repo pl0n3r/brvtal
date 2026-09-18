@@ -35,7 +35,9 @@
   }
 
   function text(id,label,value,help='',type='text') {
-    return `<label class="sv2-field"><span>${esc(label)}</span><input id="sv2_${esc(id)}" data-testid="settings-field-${esc(id)}" type="${esc(type)}" value="${esc(value || '')}" autocomplete="off">${help ? `<small>${esc(help)}</small>` : ''}</label>`;
+    const safeId = esc(id);
+    const helpMarkup = help ? '<small>' + esc(help) + '</small>' : '';
+    return `<label class="sv2-field"><span>${esc(label)}</span><input id="sv2_${safeId}" data-testid="settings-field-${safeId}" type="${esc(type)}" value="${esc(value || '')}" autocomplete="off">${helpMarkup}</label>`;
   }
 
   function read(id) {
