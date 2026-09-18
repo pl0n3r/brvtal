@@ -62,7 +62,7 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
   await page.locator('[data-settings-tab="seo"]').click();
   await page.locator('#sv2_indexnow_enabled').selectOption('1');
   await page.locator('#sv2_indexnow_key').fill(key);
-  await page.locator('[data-settings-save="seo"]').click();
+  await page.locator('[data-settings-save="indexnow"]').click();
 
   await expect.poll(async () => {
     const rows = await settings(page);
@@ -127,7 +127,7 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
 
     const beforeDisable = (await captured(page)).length;
     await page.locator('#sv2_indexnow_enabled').selectOption('0');
-    await page.locator('[data-settings-save="seo"]').click();
+    await page.locator('[data-settings-save="indexnow"]').click();
     await expect.poll(async () => {
       const rows = await settings(page);
       const row = rows.find(item => item.setting_key === 'indexnow');
