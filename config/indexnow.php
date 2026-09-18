@@ -8,13 +8,13 @@ const BRVTAL_INDEXNOW_SETTING_KEY = 'indexnow';
 const BRVTAL_INDEXNOW_KEY_LOCATION = '/indexnow-key.txt';
 const BRVTAL_INDEXNOW_DEFAULT_ENDPOINT = 'https://api.indexnow.org/indexnow';
 
-function brvtal_indexnow_key_valid(string $key): bool
+function brvtalIndexNowKeyValid(string $key): bool
 {
     return preg_match('/^[A-Za-z0-9-]{8,128}$/', $key) === 1;
 }
 
 /** @return array{error:string,field:string}|null */
-function brvtal_indexnow_setting_error(string $rawValue, int $isJson): ?array
+function brvtalIndexNowSettingError(string $rawValue, int $isJson): ?array
 {
     if ($isJson !== 1) {
         return ['error' => 'INDEXNOW_JSON_REQUIRED', 'field' => 'is_json'];
@@ -32,7 +32,7 @@ function brvtal_indexnow_setting_error(string $rawValue, int $isJson): ?array
 
     $enabled = filter_var($enabledRaw, FILTER_VALIDATE_BOOL);
     $key = trim((string)($decoded['key'] ?? ''));
-    if ($key !== '' && !brvtal_indexnow_key_valid($key)) {
+    if ($key !== '' && !brvtalIndexNowKeyValid($key)) {
         return ['error' => 'INDEXNOW_KEY_INVALID', 'field' => 'setting_value'];
     }
     if ($enabled && $key === '') {
@@ -43,20 +43,20 @@ function brvtal_indexnow_setting_error(string $rawValue, int $isJson): ?array
 }
 
 /** @return array{enabled:bool,key:string} */
-function brvtal_indexnow_setting(PDO $pdo): array
+function brvtalIndexNowSetting(PDO $pdo): array
 {
     $setting = brvtal_config_setting_json($pdo, BRVTAL_INDEXNOW_SETTING_KEY);
     $key = trim((string)($setting['key'] ?? ''));
     $enabled = filter_var($setting['enabled'] ?? false, FILTER_VALIDATE_BOOL);
 
-    if (!brvtal_indexnow_key_valid($key)) {
+    if (!brvtalIndexNowKeyValid($key)) {
         return ['enabled' => false, 'key' => ''];
     }
 
     return ['enabled' => $enabled, 'key' => $key];
 }
 
-function brvtal_indexnow_base_url(): string
+function brvtalIndexNowBaseUrl(): string
 {
     global $config;
 
@@ -74,7 +74,7 @@ function brvtal_indexnow_base_url(): string
     return $base;
 }
 
-function brvtal_indexnow_endpoint(): string
+function brvtalIndexNowEndpoint(): string
 {
     global $config;
 
@@ -88,7 +88,7 @@ function brvtal_indexnow_endpoint(): string
     return BRVTAL_INDEXNOW_DEFAULT_ENDPOINT;
 }
 
-function brvtal_indexnow_row_is_public(string $resource, array $row): bool
+function brvtalIndexNowRowIsPublic(string $resource, array $row): bool
 {
     if ($resource === 'events') {
         return brvtal_public_event_is_visible($row);
@@ -101,7 +101,7 @@ function brvtal_indexnow_row_is_public(string $resource, array $row): bool
         && strtolower(trim((string)($row['status'] ?? ''))) === 'published';
 }
 
-function brvtal_indexnow_row_path(string $resource, array $row): ?string
+function brvtalIndexNowRowPath(string $resource, array $row): ?string
 {
     $routes = [
         'events' => 'events',
@@ -124,18 +124,18 @@ function brvtal_indexnow_row_path(string $resource, array $row): ?string
 }
 
 /** @return list<string> */
-function brvtal_indexnow_change_urls(string $resource, ?array $before, ?array $after): array
+function brvtalIndexNowChangeUrls(string $resource, ?array $before, ?array $after): array
 {
-    $base = brvtal_indexnow_base_url();
+    $base = brvtalIndexNowBaseUrl();
     $urls = [];
     $touchedPublic = false;
 
     foreach ([$before, $after] as $row) {
-        if (!is_array($row) || !brvtal_indexnow_row_is_public($resource, $row)) {
+        if (!is_array($row) || !brvtalIndexNowRowIsPublic($resource, $row)) {
             continue;
         }
 
-        $path = brvtal_indexnow_row_path($resource, $row);
+        $path = brvtalIndexNowRowPath($resource, $row);
         if ($path === null) {
             continue;
         }
@@ -151,7 +151,7 @@ function brvtal_indexnow_change_urls(string $resource, ?array $before, ?array $a
     return array_keys($urls);
 }
 
-function brvtal_indexnow_fetch_entity(PDO $pdo, string $resource, int $id): ?array
+function brvtalIndexNowFetchEntity(PDO $pdo, string $resource, int $id): ?array
 {
     $tables = [
         'events' => 'events',
@@ -173,38 +173,38 @@ function brvtal_indexnow_fetch_entity(PDO $pdo, string $resource, int $id): ?arr
     return is_array($row) ? $row : null;
 }
 
-function brvtal_indexnow_notify_entity_id(PDO $pdo, string $resource, int $id): void
+function brvtalIndexNowNotifyEntityId(PDO $pdo, string $resource, int $id): void
 {
-    $row = brvtal_indexnow_fetch_entity($pdo, $resource, $id);
+    $row = brvtalIndexNowFetchEntity($pdo, $resource, $id);
     if ($row !== null) {
-        brvtal_indexnow_notify_change($pdo, $resource, null, $row);
+        brvtalIndexNowNotifyChange($pdo, $resource, null, $row);
     }
 }
 
-function brvtal_indexnow_notify_event_id(PDO $pdo, int $eventId): void
+function brvtalIndexNowNotifyEventId(PDO $pdo, int $eventId): void
 {
-    brvtal_indexnow_notify_entity_id($pdo, 'events', $eventId);
+    brvtalIndexNowNotifyEntityId($pdo, 'events', $eventId);
 }
 
-function brvtal_indexnow_notify_change(PDO $pdo, string $resource, ?array $before, ?array $after): void
+function brvtalIndexNowNotifyChange(PDO $pdo, string $resource, ?array $before, ?array $after): void
 {
     if ($resource === 'ticket_types') {
         $eventId = (int)(($after['event_id'] ?? null) ?: ($before['event_id'] ?? 0));
         if ($eventId > 0) {
-            brvtal_indexnow_notify_event_id($pdo, $eventId);
+            brvtalIndexNowNotifyEventId($pdo, $eventId);
         }
         return;
     }
 
-    brvtal_indexnow_enqueue_urls($pdo, brvtal_indexnow_change_urls($resource, $before, $after));
+    brvtalIndexNowEnqueueUrls($pdo, brvtalIndexNowChangeUrls($resource, $before, $after));
 }
 
-function brvtal_indexnow_notify_home(PDO $pdo): void
+function brvtalIndexNowNotifyHome(PDO $pdo): void
 {
-    brvtal_indexnow_enqueue_urls($pdo, [brvtal_indexnow_base_url() . '/']);
+    brvtalIndexNowEnqueueUrls($pdo, [brvtalIndexNowBaseUrl() . '/']);
 }
 
-function brvtal_indexnow_notify_setting(PDO $pdo, string $settingKey): void
+function brvtalIndexNowNotifySetting(PDO $pdo, string $settingKey): void
 {
     if ($settingKey === BRVTAL_INDEXNOW_SETTING_KEY || $settingKey === 'analytics') {
         return;
@@ -216,22 +216,22 @@ function brvtal_indexnow_notify_setting(PDO $pdo, string $settingKey): void
         return;
     }
 
-    brvtal_indexnow_notify_home($pdo);
+    brvtalIndexNowNotifyHome($pdo);
 }
 
 /** @param list<string> $urls */
-function brvtal_indexnow_enqueue_urls(PDO $pdo, array $urls): void
+function brvtalIndexNowEnqueueUrls(PDO $pdo, array $urls): void
 {
     if ($urls === []) {
         return;
     }
 
-    $setting = brvtal_indexnow_setting($pdo);
+    $setting = brvtalIndexNowSetting($pdo);
     if (!$setting['enabled'] || $setting['key'] === '') {
         return;
     }
 
-    $base = brvtal_indexnow_base_url();
+    $base = brvtalIndexNowBaseUrl();
     $host = (string)(parse_url($base, PHP_URL_HOST) ?? '');
     if ($host === '') {
         return;
@@ -258,7 +258,7 @@ function brvtal_indexnow_enqueue_urls(PDO $pdo, array $urls): void
 
     if (!isset($GLOBALS['brvtal_indexnow_pending']) || !is_array($GLOBALS['brvtal_indexnow_pending'])) {
         $GLOBALS['brvtal_indexnow_pending'] = [
-            'endpoint' => brvtal_indexnow_endpoint(),
+            'endpoint' => brvtalIndexNowEndpoint(),
             'host' => $host,
             'key' => $setting['key'],
             'keyLocation' => $base . BRVTAL_INDEXNOW_KEY_LOCATION,
@@ -285,7 +285,7 @@ function brvtal_indexnow_enqueue_urls(PDO $pdo, array $urls): void
             @fastcgi_finish_request();
         }
 
-        brvtal_indexnow_submit([
+        brvtalIndexNowSubmit([
             'endpoint' => (string)($pending['endpoint'] ?? BRVTAL_INDEXNOW_DEFAULT_ENDPOINT),
             'host' => (string)($pending['host'] ?? ''),
             'key' => (string)($pending['key'] ?? ''),
@@ -296,9 +296,9 @@ function brvtal_indexnow_enqueue_urls(PDO $pdo, array $urls): void
 }
 
 /** @param array{endpoint:string,host:string,key:string,keyLocation:string,urls:list<string>} $payload */
-function brvtal_indexnow_submit(array $payload): void
+function brvtalIndexNowSubmit(array $payload): void
 {
-    if ($payload['host'] === '' || !brvtal_indexnow_key_valid($payload['key']) || $payload['urls'] === []) {
+    if ($payload['host'] === '' || !brvtalIndexNowKeyValid($payload['key']) || $payload['urls'] === []) {
         return;
     }
 
