@@ -14,6 +14,12 @@ RewriteRule ^api/public/?$ api/public.php [L,QSA,NC]
 RewriteCond %{QUERY_STRING} (?:^|&)(?:route|action)=public(?:&|$) [NC]
 RewriteRule ^api/index\.php$ api/public.php [L,QSA,NC]
 
+# Expose one canonical robots URL while keeping PHP as the internal renderer.
+# robots.php automatically blocks non-canonical preview/staging hosts.
+RewriteCond %{THE_REQUEST} \s/+robots\.php(?:[?\s]) [NC]
+RewriteRule ^robots\.php$ /robots.txt [R=301,L,NE]
+RewriteRule ^robots\.txt$ robots.php [L,QSA]
+
 # Expose one canonical public sitemap URL while keeping PHP as the internal renderer.
 RewriteCond %{THE_REQUEST} \s/+sitemap\.php(?:[?\s]) [NC]
 RewriteRule ^sitemap\.php$ /sitemap.xml [R=301,L,NE]
