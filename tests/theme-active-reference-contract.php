@@ -43,12 +43,12 @@ theme_reference_assert(str_contains($api, "'theme.' . \$slug"), 'API must query 
 theme_reference_assert(str_contains($api, 'json_decode($raw, true)'), 'API must require the target theme JSON to decode before activation.');
 theme_reference_assert(str_contains($api, 'return is_array($decoded)'), 'API must reject non-object theme payloads as dangling references.');
 theme_reference_assert(str_contains($api, 'brvtalThemeDeleteReferenceError'), 'Settings DELETE must protect the active theme record.');
-$settingsPostStart = strpos($api, "if ($resource === 'settings') {");
+$settingsPostStart = strpos($api, 'if ($resource === \'settings\') {');
 $settingsPostEnd = strpos($api, '$d=sanitize_payload', $settingsPostStart);
 $settingsPostBlock = $settingsPostStart !== false && $settingsPostEnd !== false
     ? substr($api, $settingsPostStart, $settingsPostEnd - $settingsPostStart)
     : '';
-$settingsDeleteStart = strpos($api, "if ($method === 'DELETE' && $resource === 'settings' && $id === null)");
+$settingsDeleteStart = strpos($api, 'if ($method === \'DELETE\' && $resource === \'settings\' && $id === null)');
 $settingsDeleteEnd = strpos($api, 'method_not_allowed();', $settingsDeleteStart);
 $settingsDeleteBlock = $settingsDeleteStart !== false && $settingsDeleteEnd !== false
     ? substr($api, $settingsDeleteStart, $settingsDeleteEnd - $settingsDeleteStart)
