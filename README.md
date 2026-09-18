@@ -13,7 +13,9 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 - El relay publica o actualiza un comentario estable en el PR con nivel, archivo, línea, título y mensaje.
 - Esto evita depender del endpoint de annotations que el conector de GitHub de ChatGPT no puede abrir directamente.
 - Incluye `workflow_dispatch` para poder relanzar manualmente el relay con un check run ID y PR concretos.
-- El workflow no hace checkout ni ejecuta código del PR; solo consume metadata de GitHub y escribe el comentario.
+- Valida que el check manual pertenezca al PR indicado antes de publicar resultados.
+- Pagina tanto annotations como comentarios existentes y serializa el upsert para evitar comentarios duplicados.
+- Usa permisos mínimos (`checks: read`, `pull-requests: write`) y no hace checkout ni ejecuta código del PR.
 - `AGENTS.md` documenta ese comentario como fuente canónica legible por el conector para findings Sonar detallados.
 
 ## Archivos modificados en este deploy
