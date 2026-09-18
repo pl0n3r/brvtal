@@ -83,6 +83,7 @@ const BRVTALRelatedContent = (() => {
       artists: byId(data.artists),
       sets: byId(data.sets),
       releases: byId(data.releases),
+      memories: byId(data.memories),
     };
   }
 
@@ -97,10 +98,10 @@ const BRVTALRelatedContent = (() => {
 
   function degree(type, id) {
     const rel = relation(type, id) || {};
-    if (type === 'artists') return (rel.events?.length || 0) + (rel.sets?.length || 0) + (rel.releases?.length || 0);
-    if (type === 'events') return (rel.artists?.length || 0) + (rel.sets?.length || 0);
-    if (type === 'sets') return (Number(rel.artist) > 0 ? 1 : 0) + (Number(rel.event) > 0 ? 1 : 0);
-    if (type === 'releases') return rel.artists?.length || 0;
+    if (type === 'artists') return (rel.events?.length || 0) + (rel.sets?.length || 0) + (rel.releases?.length || 0) + (rel.memories?.length || 0);
+    if (type === 'events') return (rel.artists?.length || 0) + (rel.sets?.length || 0) + (rel.memories?.length || 0);
+    if (type === 'sets') return (Number(rel.artist) > 0 ? 1 : 0) + (Number(rel.event) > 0 ? 1 : 0) + (rel.memories?.length || 0);
+    if (type === 'releases') return (rel.artists?.length || 0) + (rel.memories?.length || 0);
     return 0;
   }
 
@@ -190,20 +191,20 @@ const BRVTALRelatedContent = (() => {
   function entityMeta(type, entity, id) {
     const rel = relation(type, id) || {};
     if (type === 'artists') {
-      return `${rel.events?.length || 0} EVENTS / ${rel.sets?.length || 0} SETS / ${rel.releases?.length || 0} RELEASES`;
+      return `${rel.events?.length || 0} EVENTS / ${rel.sets?.length || 0} SETS / ${rel.releases?.length || 0} RELEASES / ${rel.memories?.length || 0} MEMORIES`;
     }
     if (type === 'events') {
       const status = String(entity?.status || 'published').toUpperCase().replaceAll('_', ' ');
-      return `${status} / ${rel.artists?.length || 0} ARTISTS / ${rel.sets?.length || 0} SETS`;
+      return `${status} / ${rel.artists?.length || 0} ARTISTS / ${rel.sets?.length || 0} SETS / ${rel.memories?.length || 0} MEMORIES`;
     }
     if (type === 'sets') {
       const platform = String(entity?.platform || 'SET').toUpperCase();
-      return `${platform} / ${Number(rel.artist) > 0 ? '1 ARTIST' : 'NO ARTIST'} / ${Number(rel.event) > 0 ? '1 EVENT' : 'NO EVENT'}`;
+      return `${platform} / ${Number(rel.artist) > 0 ? '1 ARTIST' : 'NO ARTIST'} / ${Number(rel.event) > 0 ? '1 EVENT' : 'NO EVENT'} / ${rel.memories?.length || 0} MEMORIES`;
     }
     if (type === 'releases') {
       const releaseType = String(entity?.release_type || 'RELEASE').toUpperCase();
       const date = formatDate(entity?.release_date);
-      return [releaseType, `${rel.artists?.length || 0} ARTISTS`, date].filter(Boolean).join(' / ');
+      return [releaseType, `${rel.artists?.length || 0} ARTISTS`, `${rel.memories?.length || 0} MEMORIES`, date].filter(Boolean).join(' / ');
     }
     return '';
   }
@@ -264,6 +265,18 @@ const BRVTALRelatedContent = (() => {
     return `<div class="related-item">${inner}</div>`;
   }
 
+  function memoryItem(memory) {
+    const type = String(memory?.type || 'media').toUpperCase();
+    const image = String(memory?.type || '').toLowerCase() === 'image' ? imgUrl(memory?.file_path) : '';
+    const title = String(memory?.title || memory?.alt_text || 'BRVTAL MEMORY');
+    const imageMarkup = image
+      ? '<span class="related-item-image"><img src="' + esc(image) + '" alt="" loading="lazy" decoding="async"></span>'
+      : '<span class="related-item-image related-item-placeholder"></span>';
+    const inner = `${imageMarkup}
+      <span class="related-item-copy"><strong>${esc(title)}</strong><small class="mono">MEMORY / ${esc(type)}</small></span><span class="related-item-arrow">↗</span>`;
+    return `<a class="related-item" href="/#media">${inner}</a>`;
+  }
+
   function group(title, items, renderItem) {
     const list = Array.isArray(items) ? items.filter(Boolean) : [];
     return `<section class="related-group"><div class="related-group-head"><h4>${esc(title)}</h4><span class="mono">${list.length}</span></div><div class="related-group-list">${list.length ? list.map(item => renderItem(item)).join('') : '<div class="related-group-empty mono">NO PUBLIC RELATIONS</div>'}</div></section>`;
@@ -283,6 +296,7 @@ const BRVTALRelatedContent = (() => {
     const eventItems = (rel.events || []).map(id => maps.events.get(Number(id))).filter(Boolean);
     const setItems = (rel.sets || []).map(id => maps.sets.get(Number(id))).filter(Boolean);
     const releaseItems = (rel.releases || []).map(id => maps.releases.get(Number(id))).filter(Boolean);
+    const memoryItems = (rel.memories || []).map(id => maps.memories.get(Number(id))).filter(Boolean);
     const photo = imgUrl(artist.photo);
     const canonical = entityUrl('artists', artist.slug);
     return `<div class="related-detail-hero">
@@ -293,12 +307,14 @@ const BRVTALRelatedContent = (() => {
       ${group('EVENTS', eventItems, event => relationItem('event', event, { meta: [formatDate(event.event_date), event.city].filter(Boolean).join(' / ') }))}
       ${group('SETS', setItems, set => relationItem('set', set, { meta: [String(set.platform || '').toUpperCase(), set.event_title].filter(Boolean).join(' / '), href: set.external_url }))}
       ${group('RELEASES', releaseItems, release => relationItem('release', release, { meta: [String(release.release_type || '').toUpperCase(), formatDate(release.release_date)].filter(Boolean).join(' / '), href: releaseHref(release) }))}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
   function renderEventDetail(event, rel, maps) {
     const artistItems = (rel.artists || []).map(id => maps.artists.get(Number(id))).filter(Boolean);
     const setItems = (rel.sets || []).map(id => maps.sets.get(Number(id))).filter(Boolean);
+    const memoryItems = (rel.memories || []).map(id => maps.memories.get(Number(id))).filter(Boolean);
     const image = imgUrl(event.cover_image);
     const status = String(event.status || 'published').toUpperCase().replaceAll('_', ' ');
     const canonical = entityUrl('events', event.slug);
@@ -310,12 +326,14 @@ const BRVTALRelatedContent = (() => {
     <div class="related-groups">
       ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
       ${group('SETS', setItems, set => relationItem('set', set, { meta: [String(set.platform || '').toUpperCase(), set.artist_name].filter(Boolean).join(' / '), href: set.external_url }))}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
   function renderSetDetail(set, rel, maps) {
     const artist = Number(rel.artist) > 0 ? maps.artists.get(Number(rel.artist)) : null;
     const event = Number(rel.event) > 0 ? maps.events.get(Number(rel.event)) : null;
+    const memoryItems = (rel.memories || []).map(id => maps.memories.get(Number(id))).filter(Boolean);
     const image = imgUrl(set.cover_image);
     const platform = String(set.platform || 'SET').toUpperCase();
     const canonical = entityUrl('sets', set.slug);
@@ -328,11 +346,13 @@ const BRVTALRelatedContent = (() => {
     <div class="related-groups">
       ${group('ARTIST', artist ? [artist] : [], item => relationItem('artist', item, { meta: item.bio || 'BRVTAL ARTIST' }))}
       ${group('EVENT', event ? [event] : [], item => relationItem('event', item, { meta: [formatDate(item.event_date), item.city].filter(Boolean).join(' / ') }))}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
   function renderReleaseDetail(release, rel, maps) {
     const artistItems = (rel.artists || []).map(id => maps.artists.get(Number(id))).filter(Boolean);
+    const memoryItems = (rel.memories || []).map(id => maps.memories.get(Number(id))).filter(Boolean);
     const image = imgUrl(release.artwork);
     const releaseType = String(release.release_type || 'RELEASE').toUpperCase();
     const canonical = entityUrl('releases', release.slug);
@@ -344,6 +364,7 @@ const BRVTALRelatedContent = (() => {
     </div>
     <div class="related-groups">
       ${group('ARTISTS', artistItems, artist => relationItem('artist', artist, { meta: artist.bio || 'BRVTAL ARTIST' }))}
+      ${group('MEMORIES', memoryItems, memoryItem)}
     </div>`;
   }
 
@@ -360,10 +381,10 @@ const BRVTALRelatedContent = (() => {
 
     const detail = qs('[data-related-detail]', mount());
     const defaults = {
-      artists: {events:[],sets:[],releases:[]},
-      events: {artists:[],sets:[]},
-      sets: {artist:null,event:null},
-      releases: {artists:[]},
+      artists: {events:[],sets:[],releases:[],memories:[]},
+      events: {artists:[],sets:[],memories:[]},
+      sets: {artist:null,event:null,memories:[]},
+      releases: {artists:[],memories:[]},
     };
     const rel = relation(type, id) || defaults[type] || {};
     const renderers = {
@@ -381,7 +402,8 @@ const BRVTALRelatedContent = (() => {
     const summary = qs('[data-related-summary]', mount());
     const counts = state.data?.relations?.counts || {};
     const total = Object.values(counts).reduce((sum, value) => sum + (Number(value) || 0), 0);
-    summary.textContent = `${total} PUBLIC LINKS / ${Number(counts.event_artist || 0)} EVENT↔ARTIST / ${Number(counts.event_set || 0)} EVENT↔SET / ${Number(counts.artist_set || 0)} ARTIST↔SET / ${Number(counts.artist_release || 0)} ARTIST↔RELEASE`;
+    const memoryLinks = Number(counts.event_memory || 0) + Number(counts.artist_memory || 0) + Number(counts.set_memory || 0) + Number(counts.release_memory || 0);
+    summary.textContent = `${total} PUBLIC LINKS / ${Number(counts.event_artist || 0)} EVENT↔ARTIST / ${Number(counts.event_set || 0)} EVENT↔SET / ${Number(counts.artist_set || 0)} ARTIST↔SET / ${Number(counts.artist_release || 0)} ARTIST↔RELEASE / ${memoryLinks} MEMORY LINKS`;
   }
 
   function render() {

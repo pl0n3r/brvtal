@@ -44,7 +44,7 @@ event_record_expect(str_contains($source, 'brvtal_public_event_is_historical($de
 event_record_expect(str_contains($source, "sets_media WHERE event_id=? AND status='published'"), 'Event Record must reuse explicit published Set relation');
 event_record_expect(str_contains($source, "rel.related_type='event' AND rel.related_id=?"), 'Event Record must reuse explicit editorial relation');
 event_record_expect(str_contains($source, "bp.status='published'"), 'Event Record transmissions must remain publication-gated');
-event_record_expect(!str_contains($source, "['MEMORIES']"), 'Event Record must not invent a Memories relation that the backend does not own yet');
+event_record_expect(str_contains($source, 'brvtal_public_memories_for_entity($pdo, $type, $id)'), 'Event Record must source Memories only through the explicit structured Memory relation backend');
 event_record_expect(str_contains($source, 'public-event-record.css'), 'Event pages must load the dedicated Event Record visual layer');
 event_record_expect(str_contains($css, 'body.entity-page--event:before'), 'Event Record keeps BRVTAL grain/signal texture');
 event_record_expect(str_contains($css, '--event-signal:#b6ff00'), 'Event Record keeps acid green as signal fallback rather than page background');
@@ -74,6 +74,7 @@ $historicalPage = [
         'LINEUP' => [['title'=>'PL0N3R','slug'=>'pl0n3r','route_type'=>'artists','image'=>'','meta'=>'DJ']],
         'SETS' => [['title'=>'GENESIS LIVE SET','slug'=>'genesis-live','route_type'=>'sets','image'=>'','meta'=>'SOUNDCLOUD']],
         'TRANSMISSIONS' => [['title'=>'GENESIS RECAP','slug'=>'genesis-recap','route_type'=>'blog','image'=>'','meta'=>'16.08.2026']],
+        'MEMORIES' => [['title'=>'GENESIS FLOOR','image'=>'','url'=>'/#media','meta'=>'MEMORY / IMAGE']],
     ],
     'degraded' => false,
 ];
@@ -84,6 +85,8 @@ event_record_expect(str_contains($historicalHtml, 'EVENT RECORD / FINISHED'), 'h
 event_record_expect(str_contains($historicalHtml, 'LINEUP / RECORD / 01'), 'historical lineup must be framed as archived record');
 event_record_expect(str_contains($historicalHtml, 'RECORDED SETS / 01'), 'historical Sets must be framed as recorded material');
 event_record_expect(str_contains($historicalHtml, 'TRANSMISSIONS / 01'), 'explicit editorial relation must surface in Event Record');
+event_record_expect(str_contains($historicalHtml, 'MEMORIES / 01'), 'explicit Memory relation must surface in Event Record');
+event_record_expect(str_contains($historicalHtml, 'href="/#media"'), 'Event Record Memory must link back to the public Memories archive');
 event_record_expect(!str_contains($historicalHtml, '>TICKETS ↗<'), 'historical Event must not regain stale commercial CTA');
 
 $activePage = $historicalPage;

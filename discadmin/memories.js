@@ -6,6 +6,9 @@
   let picker = null;
   let currentItems = [];
   let availableItems = [];
+  let relationCatalog = {};
+  let relationsReady = false;
+  const relationTypes = new Set(['event','artist','set','release']);
 
   const normalizePath = value => {
     const raw = String(value || '').trim();
@@ -115,6 +118,172 @@
     return label;
   }
 
+  function relationKey(relation) {
+    return `${String(relation?.related_type || '')}:${Number(relation?.related_id) || 0}`;
+  }
+
+  function relationLabel(relation) {
+    const type = String(relation?.related_type || '');
+    const id = Number(relation?.related_id) || 0;
+    const source = relationCatalog[type];
+    const target = Array.isArray(source?.items)
+      ? source.items.find(candidate => Number(candidate.id) === id)
+      : null;
+    return target?.label ? `${type.toUpperCase()} / ${target.label}` : `${type.toUpperCase()} #${id}`;
+  }
+
+  function currentRelationKeys(wrapper, item) {
+    const existing = Array.isArray(item?.relations) ? item.relations : [];
+    if (wrapper.dataset.memoryRelationsBuilt !== '1') {
+      return new Set(existing.map(relationKey));
+    }
+
+    const keys = new Set();
+    relationTypes.forEach(type => {
+      const source = relationCatalog[type] || {state:'error'};
+      if (source.state !== 'ready') {
+        existing
+          .filter(relation => relation?.related_type === type)
+          .forEach(relation => keys.add(relationKey(relation)));
+        return;
+      }
+
+      wrapper.querySelectorAll(`[data-memory-relation-type="${type}"]:checked`).forEach(input => {
+        const id = Number(input.dataset.memoryRelationId) || 0;
+        if (id > 0) keys.add(`${type}:${id}`);
+      });
+    });
+    return keys;
+  }
+
+  function updateRelationSummary(wrapper, item) {
+    const summary = wrapper.querySelector('[data-memory-relations-summary]');
+    if (!summary) return;
+    const keys = currentRelationKeys(wrapper, item);
+    const relations = [...keys].map(key => {
+      const [type, rawId] = key.split(':');
+      return {related_type:type,related_id:Number(rawId)||0};
+    }).filter(relation => relation.related_id > 0);
+    const labels = relations.map(relationLabel).slice(0, 2);
+    const suffix = relations.length > labels.length ? ` +${relations.length - labels.length}` : '';
+    summary.textContent = relations.length
+      ? `${relations.length} SELECTED · ${labels.join(' · ')}${suffix}`
+      : '0 SELECTED';
+  }
+
+  function relationTargetNode(type, target, selected, wrapper, item) {
+    const label = create('label', {className:'memory-relation-item'});
+    const checkbox = create('input', {
+      attrs:{type:'checkbox'},
+      dataset:{memoryRelationType:type,memoryRelationId:Number(target.id)||0},
+    });
+    checkbox.checked = selected.has(`${type}:${Number(target.id)||0}`);
+    checkbox.addEventListener('change', () => updateRelationSummary(wrapper, item));
+    label.append(
+      checkbox,
+      create('span', {text:String(target.label || `${type} #${target.id}`)}),
+      create('small', {text:String(target.status || '').toUpperCase()})
+    );
+    return label;
+  }
+
+  function relationGroupNode(type, selected, wrapper, item) {
+    const source = relationCatalog[type] || {state:'error',items:[]};
+    const group = create('fieldset', {className:'memory-relations-group'});
+    group.append(create('legend', {text:`${type.toUpperCase()}S`}));
+
+    if (source.state !== 'ready') {
+      group.dataset.sourceState = 'error';
+      group.append(create('span', {
+        className:'memory-relations-note',
+        text:'Source unavailable · existing links will be preserved.',
+      }));
+      return group;
+    }
+
+    const items = Array.isArray(source.items) ? source.items : [];
+    if (!items.length) {
+      group.append(create('span', {className:'memory-relations-note', text:'No records available.'}));
+      return group;
+    }
+
+    items.forEach(target => {
+      group.append(relationTargetNode(type, target, selected, wrapper, item));
+    });
+    return group;
+  }
+
+  function buildRelationOptions(details, wrapper, item, selected) {
+    if (wrapper.dataset.memoryRelationsBuilt === '1') return;
+    wrapper.dataset.memoryRelationsBuilt = '1';
+    relationTypes.forEach(type => {
+      details.append(relationGroupNode(type, selected, wrapper, item));
+    });
+    updateRelationSummary(wrapper, item);
+  }
+
+  function relationEditor(item) {
+    const wrapper = create('div', {
+      className:'memory-relations',
+      dataset:{memoryRelationsBuilt:'0'},
+    });
+    wrapper.append(create('div', {className:'memory-relations-head', text:'CULTURAL RELATIONSHIPS'}));
+    if (!relationsReady) {
+      wrapper.append(create('p', {
+        className:'memory-relations-note',
+        text:'Relationships are unavailable until the additive memory_relations migration is applied. Memory editing remains available.',
+      }));
+      return wrapper;
+    }
+
+    const summaryText = create('p', {
+      className:'memory-relations-selection',
+      dataset:{memoryRelationsSummary:'1'},
+    });
+    wrapper.append(summaryText);
+
+    const details = create('details', {className:'memory-relations-details'});
+    details.append(create('summary', {text:'EDIT RELATIONSHIPS'}));
+    wrapper.append(details);
+
+    const selected = new Set((Array.isArray(item.relations) ? item.relations : []).map(relationKey));
+    details.addEventListener('toggle', () => {
+      if (details.open) buildRelationOptions(details, wrapper, item, selected);
+    });
+    updateRelationSummary(wrapper, item);
+    return wrapper;
+  }
+
+  function collectRelations(card, item) {
+    if (!relationsReady) return null;
+    const existing = Array.isArray(item?.relations) ? item.relations : [];
+    const editor = card.querySelector('.memory-relations');
+    if (editor && editor.dataset.memoryRelationsBuilt !== '1') {
+      return existing
+        .map(relation => ({
+          related_type:String(relation?.related_type || ''),
+          related_id:Number(relation?.related_id) || 0,
+        }))
+        .filter(relation => relationTypes.has(relation.related_type) && relation.related_id > 0);
+    }
+
+    const relations = [];
+    relationTypes.forEach(type => {
+      const source = relationCatalog[type] || {state:'error'};
+      if (source.state !== 'ready') {
+        existing.filter(relation => relation?.related_type === type).forEach(relation => {
+          relations.push({related_type:type,related_id:Number(relation.related_id)||0});
+        });
+        return;
+      }
+      card.querySelectorAll(`[data-memory-relation-type="${type}"]:checked`).forEach(input => {
+        const id = Number(input.dataset.memoryRelationId) || 0;
+        if (id > 0) relations.push({related_type:type,related_id:id});
+      });
+    });
+    return relations.filter(relation => relation.related_id > 0);
+  }
+
   function cardNode(item) {
     const id = Number(item.id) || 0;
     const article = create('article', {className:'memory-admin-card', dataset:{memoryId:id}});
@@ -136,7 +305,7 @@
     const remove = create('button', {className:'iconbtn', text:'REMOVE', attrs:{type:'button'}}); remove.dataset.memoryRemove = '';
     save.addEventListener('click', () => saveMemory(id, article)); remove.addEventListener('click', () => removeMemory(id));
     saveGroup.append(save); removeGroup.append(remove); actions.append(saveGroup, removeGroup);
-    form.append(meta, labeledControl('PUBLIC TITLE', title), labeledControl('CONTEXT', context), grid2, actions);
+    form.append(meta, labeledControl('PUBLIC TITLE', title), labeledControl('CONTEXT', context), grid2, relationEditor(item), actions);
     article.append(preview, form); return article;
   }
 
@@ -148,14 +317,25 @@
 
   async function refresh() {
     status('LOADING MEMORIES…');
-    const [list, available] = await Promise.all([api('list'), api('available')]);
-    currentItems = Array.isArray(list.data) ? list.data : []; availableItems = Array.isArray(available.data) ? available.data : [];
-    render(); status(`${currentItems.length} ${currentItems.length === 1 ? 'MEMORY' : 'MEMORIES'} CURATED`);
+    const [list, available, catalog] = await Promise.all([
+      api('list'),
+      api('available'),
+      api('catalog').catch(() => ({ok:false,data:{},relations_ready:false})),
+    ]);
+    currentItems = Array.isArray(list.data) ? list.data : [];
+    availableItems = Array.isArray(available.data) ? available.data : [];
+    relationCatalog = catalog?.data && typeof catalog.data === 'object' ? catalog.data : {};
+    relationsReady = catalog?.relations_ready === true && list?.relations_ready === true;
+    render();
+    const suffix = relationsReady ? ' · RELATIONSHIPS READY' : ' · RELATIONSHIPS WAITING FOR MIGRATION';
+    status(`${currentItems.length} ${currentItems.length === 1 ? 'MEMORY' : 'MEMORIES'} CURATED${suffix}`);
   }
 
   async function saveMemory(id, card) {
     const item = currentItems.find(entry => Number(entry.id) === Number(id)); if (!item || !card) return;
     const body = {media_id:Number(item.media_id),title:card.querySelector('[data-memory-title]')?.value || '',context:card.querySelector('[data-memory-context]')?.value || '',sort_order:Number(card.querySelector('[data-memory-order]')?.value || 0),status:card.querySelector('[data-memory-status]')?.value || 'draft'};
+    const relations = collectRelations(card, item);
+    if (relations !== null) body.relations = relations;
     status('SAVING MEMORY…');
     try { await api('update', {method:'PUT', id, body}); await refresh(); window.BRVTALFeedback?.success?.('Memory saved.','memories'); }
     catch (error) { status(String(error.message || error), 'error'); window.BRVTALFeedback?.error?.(String(error.message || error).replaceAll('_',' '),'memories'); }

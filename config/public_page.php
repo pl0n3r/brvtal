@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/media.php';
+require_once __DIR__ . '/memory_relations.php';
 require_once __DIR__ . '/public_visibility.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
@@ -162,9 +163,19 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         $decoded = json_decode((string)($detail['content_json'] ?? ''), true);
         if (is_array($decoded)) {
             $text = $decoded['body'] ?? $decoded['content'] ?? $decoded['text'] ?? '';
-            if (is_string($text)) $data['entity']['description'] = $text;
+            if (is_string($text)) {
+                $data['entity']['description'] = $text;
+            }
         }
     }
+
+    if (in_array($type, ['events','artists','sets','releases'], true)) {
+        $memoryItems = brvtal_public_memories_for_entity($pdo, $type, $id);
+        if ($memoryItems) {
+            $data['related']['MEMORIES'] = $memoryItems;
+        }
+    }
+
     $data['degraded'] = brvtal_page_query_degraded();
     return $data;
 }
@@ -188,6 +199,11 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $safeUrl = static function (mixed $value) use ($escape): string {
         $url = trim((string)$value);
         return preg_match('#^https?://#i', $url) ? $escape($url) : '';
+    };
+    $safeInternalUrl = static function (mixed $value) use ($escape): string {
+        $url = trim((string)$value);
+        if ($url === '' || str_starts_with($url, '//')) return '';
+        return preg_match('@^/[A-Za-z0-9_./?%=&~#-]*(?:#[A-Za-z0-9_-]*)?$@', $url) ? $escape($url) : '';
     };
     $routeTypeRaw = (string)$entity['route_type'];
     $isEvent = $routeTypeRaw === 'events';
@@ -221,7 +237,9 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         if (!$items) continue;
         $cards = '';
         foreach ($items as $item) {
-            $href = !empty($item['route_type']) && !empty($item['slug']) ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug']) : $safeUrl($item['url'] ?? '');
+            $href = !empty($item['route_type']) && !empty($item['slug'])
+                ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug'])
+                : ($safeInternalUrl($item['url'] ?? '') ?: $safeUrl($item['url'] ?? ''));
             $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
             $price = isset($item['price']) && $item['price'] !== null ? number_format((float)$item['price'], 0) . ' ' . $escape($item['currency'] ?? '') : '';
             $content = $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span>';

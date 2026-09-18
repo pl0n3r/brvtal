@@ -47,6 +47,13 @@ const data = {
     description: 'LIVE RECORDING',
     cover_image: ''
   }],
+  memories: [{
+    id: 50,
+    media_id: 150,
+    type: 'image',
+    title: 'GENESIS FLOOR',
+    file_path: '/uploads/genesis-floor.jpg'
+  }],
   releases: [{
     id: 30,
     title: 'SIGNAL 001',
@@ -58,14 +65,15 @@ const data = {
     spotify_url: 'https://open.spotify.com/track/example'
   }],
   relations: {
-    artists: { '1': { events: [10, 11], sets: [20], releases: [30] } },
+    artists: { '1': { events: [10, 11], sets: [20], releases: [30], memories: [50] } },
     events: {
-      '10': { artists: [1], sets: [20] },
-      '11': { artists: [1], sets: [] }
+      '10': { artists: [1], sets: [20], memories: [50] },
+      '11': { artists: [1], sets: [], memories: [] }
     },
-    sets: { '20': { artist: 1, event: 10 } },
-    releases: { '30': { artists: [1] } },
-    counts: { event_artist: 2, event_set: 1, artist_set: 1, artist_release: 1 }
+    sets: { '20': { artist: 1, event: 10, memories: [] } },
+    releases: { '30': { artists: [1], memories: [] } },
+    memories: { '50': { events: [10], artists: [1], sets: [], releases: [] } },
+    counts: { event_artist: 2, event_set: 1, artist_set: 1, artist_release: 1, event_memory: 1, artist_memory: 1, set_memory: 0, release_memory: 0 }
   }
 };
 
@@ -83,6 +91,9 @@ test('Connected exposes Artists, Events, Sets and Releases as first-class layers
   await expect(page.getByRole('tab')).toHaveText(['ARTISTS', 'EVENTS', 'SETS', 'RELEASES']);
   await expect(page.getByRole('tab', { name: 'ARTISTS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('PL0N3R');
+  await expect(page.locator('[data-related-detail]')).toContainText('GENESIS FLOOR');
+  await expect(page.getByRole('tab')).toHaveCount(4);
+  await expect(page.getByRole('tab', {name:'MEMORIES'})).toHaveCount(0);
 
   await page.locator('[data-related-detail] [data-related-select][data-related-type="sets"][data-related-id="20"]').click();
   await expect(page.getByRole('tab', { name: 'SETS' })).toHaveAttribute('aria-selected', 'true');
@@ -93,6 +104,8 @@ test('Connected exposes Artists, Events, Sets and Releases as first-class layers
   await page.locator('[data-related-detail] [data-related-select][data-related-type="events"][data-related-id="10"]').click();
   await expect(page.getByRole('tab', { name: 'EVENTS' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('[data-related-detail] h3')).toHaveText('NEXT NIGHT');
+  await expect(page.locator('[data-related-detail]')).toContainText('GENESIS FLOOR');
+  await expect(page.locator('[data-related-summary]')).toContainText('2 MEMORY LINKS');
 });
 
 test('CONNECTED tabs use roving focus and the expected keyboard navigation pattern', async ({ page }) => {

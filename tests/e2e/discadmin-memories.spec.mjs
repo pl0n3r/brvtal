@@ -21,6 +21,7 @@ const initialMemory = {
   file_size: 1200,
   alt_text: 'Existing memory image',
   media_status: 'published',
+  relations: [{related_type:'event',related_id:31,sort_order:0}],
 };
 
 async function mount(page) {
@@ -31,6 +32,12 @@ async function mount(page) {
     {id:13,type:'audio',title:'Draft source',file_path:'/uploads/media/draft.mp3',mime_type:'audio/mpeg',file_size:800,alt_text:'',status:'draft',memory_id:null},
   ];
   const requests = [];
+  const relationCatalog = {
+    event:{state:'ready',items:[{id:31,label:'GENESIS',status:'published'},{id:32,label:'NEXT SIGNAL',status:'draft'}]},
+    artist:{state:'ready',items:[{id:41,label:'PL0N3R',status:'published'}]},
+    set:{state:'ready',items:[]},
+    release:{state:'ready',items:[]},
+  };
 
   await page.route('**/uploads/media/**', route => route.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64')}));
   await page.route('**/api/memories.php**', async route => {
@@ -43,14 +50,15 @@ async function mount(page) {
     try { body = request.postDataJSON(); } catch (_) {}
     requests.push({action,id,method,body,csrf:request.headers()['x-csrf-token'] || ''});
 
-    if (method === 'GET' && action === 'list') return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:memories})});
+    if (method === 'GET' && action === 'list') return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:memories,relations_ready:true})});
     if (method === 'GET' && action === 'available') return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:available})});
+    if (method === 'GET' && action === 'catalog') return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:relationCatalog,relations_ready:true})});
     if (method === 'POST' && action === 'create') {
       const source = available.find(item => item.id === Number(body.media_id));
       const next = {
         id:21,media_id:source.id,title:body.title,context:body.context,status:body.status,sort_order:body.sort_order,
         media_type:source.type,media_title:source.title,file_path:source.file_path,mime_type:source.mime_type,file_size:source.file_size,
-        alt_text:source.alt_text,media_status:source.status,
+        alt_text:source.alt_text,media_status:source.status,relations:[],
       };
       memories.push(next);
       available = available.map(item => item.id === source.id ? {...item,memory_id:next.id} : item);
@@ -146,12 +154,33 @@ test('Memories title/order/status edits persist and removing curation keeps the 
   await card.locator('[data-memory-context]').fill('Updated context');
   await card.locator('[data-memory-order]').fill('3');
   await card.locator('[data-memory-status]').selectOption('draft');
+  await expect(card.locator('[data-memory-relations-summary]')).toContainText('1 SELECTED');
+  await expect(card.locator('[data-memory-relation-type]')).toHaveCount(0);
+
   await card.getByRole('button', {name:'SAVE'}).click();
   await expect(page.locator('[data-memory-id="7"] [data-memory-title]')).toHaveValue('Edited public title');
 
-  const update = state.requests.find(entry => entry.method === 'PUT' && entry.id === 7);
+  let updates = state.requests.filter(entry => entry.method === 'PUT' && entry.id === 7);
+  expect(updates).toHaveLength(1);
+  expect(updates[0].body.relations).toEqual([
+    {related_type:'event',related_id:31},
+  ]);
+
+  const refreshedCard = page.locator('[data-memory-id="7"]');
+  await refreshedCard.locator('.memory-relations-details > summary').click();
+  await expect(refreshedCard.locator('[data-memory-relation-type="event"][data-memory-relation-id="31"]')).toBeChecked();
+  await refreshedCard.locator('[data-memory-relation-type="artist"][data-memory-relation-id="41"]').check();
+  await expect(refreshedCard.locator('[data-memory-relations-summary]')).toContainText('2 SELECTED');
+  await refreshedCard.getByRole('button', {name:'SAVE'}).click();
+
+  updates = state.requests.filter(entry => entry.method === 'PUT' && entry.id === 7);
+  const update = updates.at(-1);
   expect(update).toBeTruthy();
   expect(update.body).toMatchObject({media_id:12,title:'Edited public title',context:'Updated context',sort_order:3,status:'draft'});
+  expect(update.body.relations).toEqual([
+    {related_type:'event',related_id:31},
+    {related_type:'artist',related_id:41},
+  ]);
   expect(update.csrf).toBe('csrf-memory');
 
   page.once('dialog', dialog => dialog.accept());
