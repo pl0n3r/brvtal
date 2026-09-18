@@ -35,7 +35,7 @@
   }
 
   function text(id,label,value,help='',type='text') {
-    return `<label class="sv2-field"><span>${esc(label)}</span><input id="sv2_${esc(id)}" type="${esc(type)}" value="${esc(value || '')}" autocomplete="off">${help ? `<small>${esc(help)}</small>` : ''}</label>`;
+    return `<label class="sv2-field"><span>${esc(label)}</span><input id="sv2_${esc(id)}" data-testid="settings-field-${esc(id)}" type="${esc(type)}" value="${esc(value || '')}" autocomplete="off">${help ? `<small>${esc(help)}</small>` : ''}</label>`;
   }
 
   function read(id) {
@@ -70,7 +70,7 @@
       ['analytics','ANALYTICS & PRIVACY'],
       ['advanced','ADVANCED'],
     ];
-    return defs.map(([id,label],index) => `<button type="button" class="${V2.tab===id?'active':''}" data-settings-tab="${id}"><span>0${index+1}</span>${label}</button>`).join('');
+    return defs.map(([id,label],index) => `<button type="button" class="${V2.tab===id?'active':''}" data-settings-tab="${id}" data-testid="settings-tab-${id}"><span>0${index+1}</span>${label}</button>`).join('');
   }
 
   function generalPane() {
@@ -135,10 +135,10 @@
       <div class="sv2-integration">
         <div class="sv2-section-head"><div><span>INDEXNOW</span><h3>Search-engine change notifications</h3></div><p>Notify participating search engines only when public URLs are created, updated, unpublished or removed. No scheduled full-site resubmission.</p></div>
         <div class="sv2-grid two">
-          <label class="sv2-field"><span>IndexNow</span><select id="sv2_indexnow_enabled"><option value="0" ${indexNowEnabled?'':'selected'}>DISABLED</option><option value="1" ${indexNowEnabled?'selected':''}>ENABLED</option></select><small>Enable after saving a valid IndexNow configuration.</small></label>
+          <label class="sv2-field"><span>IndexNow</span><select id="sv2_indexnow_enabled" data-testid="indexnow-enabled"><option value="0" ${indexNowEnabled?'':'selected'}>DISABLED</option><option value="1" ${indexNowEnabled?'selected':''}>ENABLED</option></select><small>Enable after saving a valid IndexNow configuration.</small></label>
           ${text('indexnow_key','IndexNow key',indexNowKey,'Allowed: A–Z, a–z, 0–9 and hyphens; 8–128 characters.')}
           ${text('indexnow_key_location','Key location',keyLocation,'Root-level IndexNow key file path, for example /indexnow-key.txt.')}
-          <label class="sv2-field"><span>Submission endpoint</span><select id="sv2_indexnow_endpoint">${endpointOptions}</select><small>Official participating endpoint. Global IndexNow is the default.</small></label>
+          <label class="sv2-field"><span>Submission endpoint</span><select id="sv2_indexnow_endpoint" data-testid="indexnow-endpoint">${endpointOptions}</select><small>Official participating endpoint. Global IndexNow is the default.</small></label>
         </div>
         <div class="sv2-context-grid">
           <article><span>STATUS</span><strong>${indexNowEnabled?'CONNECTED':'NOT CONFIGURED'}</strong><p>Submissions are queued after successful editorial commits and never make a save fail.</p></article>
@@ -150,7 +150,7 @@
           <article><span>URL LIST</span><strong>AUTOMATIC</strong><p>Only URLs affected by the successful public mutation are submitted.</p></article>
           <article><span>BATCH LIMIT</span><strong>10,000 URLS</strong><p>Protocol maximum; BRVTAL normally sends much smaller change sets.</p></article>
         </div>
-        <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="indexnow">SAVE INDEXNOW</button></div>
+        <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="indexnow" data-testid="indexnow-save">SAVE INDEXNOW</button></div>
       </div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="seo">SAVE SEO</button></div>
     </section>`;
@@ -202,7 +202,7 @@
 
   function settingsScreen(rows) {
     const allRows = rows || [];
-    return `<div class="settings-v2" data-settings-v2>
+    return `<div class="settings-v2" data-settings-v2 data-testid="settings-v2-root">
       <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior and integrations. Visual theme controls live in Theme Studio; raw JSON is an advanced escape hatch, not the normal workflow.</p></div><div class="sv2-hero-status"><span>CONTROL PLANE</span><strong>${allRows.length}</strong><small>CONFIG RECORDS</small></div></header>
       <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${advancedPane(allRows)}</div></div>
     </div>`;
