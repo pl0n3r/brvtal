@@ -124,7 +124,7 @@ expect($authGatePos !== false && $delegatePos < $authGatePos, 'Public compatibil
 
 $putStart = strpos($index, "if(\$method==='PUT'&&\$id!==null)");
 $deleteStart = strpos($index, "if(\$method==='DELETE'&&\$id!==null)");
-$settingsDeleteStart = strpos($index, "if(\$method==='DELETE'&&\$resource==='settings'&&\$id===null)");
+$settingsDeleteStart = strpos($index, "if (\$method === 'DELETE' && \$resource === 'settings' && \$id === null)");
 expect($putStart !== false && $deleteStart !== false && $settingsDeleteStart !== false, 'Core API item mutation branches must remain explicit');
 $putBlock = substr($index, $putStart, $deleteStart - $putStart);
 $deleteBlock = substr($index, $deleteStart, $settingsDeleteStart - $deleteStart);
