@@ -204,7 +204,7 @@ test('media inspector keeps non-image assets simple and protects referenced medi
   await expect(page.getByText('ORIGINAL ASSET', { exact: true })).toBeVisible();
   await expect(page.getByText('FOCAL POINT / CROP', { exact: true })).toHaveCount(0);
   await expect(page.getByText('USED BY / 1', { exact: true })).toBeVisible();
-  await expect(page.getByText('GENESIS', { exact: true })).toBeVisible();
+  await expect(page.locator('#media-inspector .media-usage-item')).toContainText('GENESIS');
   await expect(page.locator('#media-delete')).toBeDisabled();
 });
 
