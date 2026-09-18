@@ -75,3 +75,78 @@ test('public modules share one CMS request while rendering archive and curated M
   await expect(page.locator('[data-public-media-item]')).not.toContainText('Raw library asset');
   expect(requests).toBe(1);
 });
+
+
+test('dynamic CMS nodes keep cursor, magnetic and artist-preview behavior after interaction refactor', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+
+  await page.route('**/api/public.php', route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({ok:true,data:{
+      events:[],
+      artists:[{
+        id:7,
+        name:'PL0N3R',
+        photo:'/uploads/pl0n3r.jpg',
+        website_url:'https://example.com/pl0n3r',
+      }],
+      sets:[{
+        id:9,
+        title:'BRVTAL SET 09',
+        artist_name:'PL0N3R',
+        external_url:'https://example.com/set-09',
+        platform:'soundcloud',
+      }],
+      media:[],
+      settings:{},
+    }}),
+  }));
+
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:`<!doctype html><html lang="en"><body>
+      <button id="menuToggle">MENU <strong>+</strong></button>
+      <aside id="menuPanel" aria-hidden="true"></aside>
+      <button id="soundToggle">SOUND <b>OFF</b></button>
+      <div class="cursor"></div><div class="cursor-label"></div>
+      <span id="dynamicStatus"></span><div id="apiFallback"></div>
+      <div class="events-track"></div>
+      <div class="artist-list"></div><div class="artist-preview"><img alt=""></div>
+      <div class="set-list"></div><div class="media-grid"></div>
+      <script>
+        window.__gsapCalls=[];
+        window.ScrollTrigger={update(){},refresh(){},create(){}};
+        window.gsap={
+          registerPlugin(){},
+          ticker:{add(){},lagSmoothing(){}},
+          from(){},
+          fromTo(){},
+          to(target,vars){window.__gsapCalls.push({target:target.className||target.tagName,vars});}
+        };
+      </script>
+      <script>${appJs}</script>
+    </body></html>`,
+  }));
+
+  await page.goto(harnessUrl);
+  await expect(page.locator('#dynamicStatus')).toHaveText('LIVE / CMS CONNECTED');
+
+  const artist = page.locator('.artist');
+  await expect(artist).toHaveAttribute('data-dynamic-bound', '1');
+  await expect(artist).toHaveAttribute('data-dynamic-artist-bound', '1');
+  await artist.hover();
+  await expect(page.locator('.cursor-label')).toHaveText('PROFILE');
+  await expect(page.locator('.artist-preview img')).toHaveAttribute('src', '/uploads/pl0n3r.jpg');
+
+  const magnetic = page.locator('.set-action');
+  await expect(magnetic).toHaveAttribute('data-dynamic-magnetic', '1');
+  await magnetic.dispatchEvent('pointermove', {clientX:24,clientY:18});
+  expect(await page.evaluate(() => window.__gsapCalls.some(call => (
+    String(call.target || '').includes('set-action')
+    && typeof call.vars.x === 'number'
+    && typeof call.vars.y === 'number'
+  )))).toBe(true);
+
+  expect(errors).toEqual([]);
+});

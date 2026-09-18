@@ -17,6 +17,7 @@ For every new session:
 7. Follow branch → implementation → tests → PR → CI → fixes → squash merge → exact-main-CI without asking routine questions.
 8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state, what comes next, and an updated **general panorama of meaningful work still pending across BRVTAL**. The panorama is mandatory and must not be limited to the immediate next task. Do not append deploy history. If the PR scope changes before merge, refresh README again.
 9. If a PR materially changes durable product state or architecture, update the relevant sections in this file as well.
+10. **Prefer the real E2E test user for authenticated validation.** When a DISCADMIN flow can be exercised through the isolated real-stack Playwright environment, validate it with the disposable E2E admin user and real PHP/MariaDB stack rather than relying only on mocked browser harnesses. Keep focused mocks when they provide useful isolation, but use the E2E user for as much realistic authenticated coverage as reasonably possible. Never use production credentials, production data, destructive production operations or production migrations for E2E validation.
 
 ### Parallel execution rule
 
