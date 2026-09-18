@@ -52,6 +52,50 @@ test('published slider uses mobile media override and touch-sized controls', asy
   expect(box?.height).toBeGreaterThanOrEqual(44);
 });
 
+test('public hero reapplies responsive media and layer overrides after crossing breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width:900, height:800 });
+  await openHarness(page, {
+    ok:true,
+    data:{
+      enabled:true,
+      autoplay:false,
+      interval:7000,
+      slides:[
+        {id:'one',mediaType:'image',desktopSrc:'/one.jpg',mobileSrc:'/one-mobile.jpg',title:'FIRST',contentAlign:'left',overlay:20,layers:[]},
+        {id:'two',mediaType:'image',desktopSrc:'/two-desktop.jpg',mobileSrc:'/two-mobile.jpg',title:'SECOND',contentAlign:'left',overlay:20,layers:[
+          {id:'art',type:'image',src:'/layer-desktop.png',mobileSrc:'/layer-mobile.png',x:10,y:20,width:30,mobileX:35,mobileY:45,mobileWidth:55,hiddenMobile:false,animation:'fade',delay:0,duration:650,align:'left'},
+          {id:'mobile-hide',type:'text',text:'HIDE ME',x:15,y:25,width:40,hiddenMobile:true,animation:'fade',delay:0,duration:650,align:'left'}
+        ]}
+      ]
+    }
+  });
+
+  await page.locator('[data-hero-next]').click();
+  const second = page.locator('[data-hero-slide="1"]');
+  const media = second.locator('.brvtal-hero-media');
+  const art = second.locator('.brvtal-hero-layer.type-image');
+  await expect(second).toHaveClass(/active/);
+  await expect(media).toHaveAttribute('src','/two-desktop.jpg');
+  await expect(art.locator('img')).toHaveAttribute('src','/layer-desktop.png');
+  expect(await art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
+  await expect(second.getByText('HIDE ME')).toHaveCount(1);
+
+  await page.setViewportSize({ width:390, height:844 });
+  await expect(second).toHaveClass(/active/);
+  await expect(media).toHaveAttribute('src','/two-mobile.jpg');
+  await expect(art.locator('img')).toHaveAttribute('src','/layer-mobile.png');
+  expect(await art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['35%','45%','55%']);
+  await expect(second.getByText('HIDE ME')).toHaveCount(0);
+  await expect(page.locator('[data-hero-current]')).toHaveText('02');
+
+  await page.setViewportSize({ width:900, height:800 });
+  await expect(second).toHaveClass(/active/);
+  await expect(media).toHaveAttribute('src','/two-desktop.jpg');
+  await expect(art.locator('img')).toHaveAttribute('src','/layer-desktop.png');
+  expect(await art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
+  await expect(second.getByText('HIDE ME')).toHaveCount(1);
+});
+
 test('admin manager contract remains mobile-first and public endpoint is allowlisted', async () => {
   expect(adminScript).toContain("const KEY = 'home.hero.slider'");
   expect(adminScript).toContain("previewMode = 'desktop'");
