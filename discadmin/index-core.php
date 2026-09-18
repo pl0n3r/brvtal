@@ -125,7 +125,26 @@ require_once __DIR__ . '/../config/deployment.php';
 @media(max-width:650px){.settings-grid{grid-template-columns:1fr}.settings-hero{display:block}.settings-search{width:100%;margin-top:15px}.settings-raw-head{display:none}.settings-raw-row{grid-template-columns:1fr auto}.settings-raw-row .value{grid-column:1/-1}}
 
 </style><link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"><link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"><link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></head><body><div id="app"></div>
-<div class="modal" id="modal"><div class="modalbox"><div class="modalhead"><div><h2 id="mtitle">DISCADMIN EDITOR</h2><div class="micro">BRVTAL / DISCADMIN</div></div><button class="iconbtn" onclick="closeModal()">ESC</button></div><div id="notice" class="notice"></div><div id="mcontent"></div><div class="modalfoot"><span class="helper">Cambios guardados directamente en MySQL.</span><div class="footactions"><button class="btn ghost" onclick="closeModal()">CANCELAR</button><button class="btn red" id="saveBtn">GUARDAR</button></div></div></div></div>
+<div class="modal" id="modal">
+  <div class="modalbox">
+    <div class="modalhead">
+      <div>
+        <h2 id="mtitle">DISCADMIN EDITOR</h2>
+        <div class="micro">BRVTAL / DISCADMIN</div>
+      </div>
+      <button class="iconbtn" onclick="closeModal()">ESC</button>
+    </div>
+    <div id="notice" class="notice"></div>
+    <div id="mcontent"></div>
+    <div class="modalfoot">
+      <span class="helper">Cambios guardados directamente en MySQL.</span>
+      <div class="footactions">
+        <button class="btn ghost" onclick="closeModal()">CANCELAR</button>
+        <button class="btn red" id="saveBtn">GUARDAR</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
 const API='../api/index.php';let csrf='';let state={authed:false,section:'dashboard',rows:[],editing:null,events:[],artists:[],dashboard:{},recent:{events:[],artists:[],sets:[],media:[]},themeSettings:[],themeMedia:[],theme:{}};
 async function req(u='',o={}){const h={'Content-Type':'application/json',...(o.headers||{})};if(csrf)h['X-CSRF-Token']=csrf;const r=await fetch(API+u,{...o,headers:h});let d={};try{d=await r.json()}catch(e){}if(r.status===401){state.authed=false;render();throw Error('AUTH_REQUIRED')}if(!r.ok)throw Error(d.error||'ERROR');return d}
