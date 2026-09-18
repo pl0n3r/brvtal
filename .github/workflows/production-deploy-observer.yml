@@ -1,0 +1,74 @@
+name: Production Deploy Observer
+run-name: Production Deploy Observer #${{ github.run_number }} · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-production-deploy-observer
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: exact-deploy-marker
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      BRVTAL_PROD_URL: https://www.brvtal.com.co/
+      EXPECTED_SHA: ${{ github.sha }}
+    steps:
+      - name: Observe exact Hostinger deploy marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${EXPECTED_SHA:0:7}"
+          observed=false
+          started_at=$(date +%s)
+
+          for attempt in $(seq 1 12); do
+            probe_url="${BRVTAL_PROD_URL}?__deploy_observer=${short_sha}-${attempt}-${GITHUB_RUN_ID}"
+            html=$(curl -fsSL \
+              --connect-timeout 3 \
+              --max-time 5 \
+              -H 'Cache-Control: no-cache' \
+              "$probe_url" || true)
+
+            if [[ "$html" == *"?v=$short_sha"* ]]; then
+              observed=true
+              elapsed=$(( $(date +%s) - started_at ))
+              {
+                echo "# Production deploy observation"
+                echo
+                echo "- Exact source SHA: `$EXPECTED_SHA`"
+                echo "- Marker: `?v=$short_sha`"
+                echo "- Status: **DEPLOYED marker observed**"
+                echo "- Observation latency: **${elapsed}s** from workflow execution"
+                echo
+                echo "> This confirms source identity only. It is not production behavior validation."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "Observed production marker ?v=$short_sha after ${elapsed}s."
+              break
+            fi
+
+            echo "Marker ?v=$short_sha not visible yet (attempt $attempt/12)."
+            if [[ "$attempt" -lt 12 ]]; then
+              sleep 4
+            fi
+          done
+
+          if [[ "$observed" != "true" ]]; then
+            {
+              echo "# Production deploy observation"
+              echo
+              echo "- Exact source SHA: `$EXPECTED_SHA`"
+              echo "- Expected marker: `?v=$short_sha`"
+              echo "- Status: **NOT OBSERVED within bounded window**"
+              echo
+              echo "> This is a deploy-observation failure, not a production-behavior verdict."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

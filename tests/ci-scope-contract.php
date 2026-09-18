@@ -55,20 +55,33 @@ $package = (string)file_get_contents(__DIR__ . '/../package.json');
 $codeRabbit = (string)file_get_contents(__DIR__ . '/../.coderabbit.yaml');
 $sonar = (string)file_get_contents(__DIR__ . '/../.sonarcloud.properties');
 $performance = (string)file_get_contents(__DIR__ . '/../.github/workflows/production-performance.yml');
+$deployObserver = (string)file_get_contents(__DIR__ . '/../.github/workflows/production-deploy-observer.yml');
 
+ci_scope_expect(str_contains($workflow, 'preflight:'), 'BRVTAL CI must expose a dedicated preflight job');
 ci_scope_expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'BRVTAL CI must execute the shared changed-file classifier');
+ci_scope_expect(str_contains($workflow, 'needs: preflight'), 'selected heavy gates must fan out from preflight instead of waiting for fast');
+ci_scope_expect(!str_contains($workflow, "    needs: fast\n"), 'heavy gates must not serialize behind the fast job');
+ci_scope_expect(str_contains($workflow, 'needs: [preflight, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate preflight plus every canonical gate');
+ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_php == 'true'"), 'PHP fast suite must be scope-aware');
+ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_js == 'true'"), 'JavaScript syntax validation must be scope-aware');
 ci_scope_expect(str_contains($workflow, 'brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"'), 'workflow must pass its actual changed-file list and event to the shared classifier');
 ci_scope_expect(str_contains($workflow, 'run: npm run test:integration'), 'CI database gate must call the canonical integration script');
 ci_scope_expect(!str_contains($workflow, "php tests/integration/global-search.php\n          php tests/integration/bulk-actions.php"), 'CI must not maintain a second manual integration list');
 
 ci_scope_expect_flags(ci_scope_run(['api/hero-slider.php']), [
     'full' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'false',
 ], 'public hero API');
+ci_scope_expect_flags(ci_scope_run(['README.md', 'AGENTS.md']), [
+    'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_php' => 'false', 'run_js' => 'false',
+], 'docs only');
 ci_scope_expect_flags(ci_scope_run(['config/public_home.php']), [
     'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
 ], 'public runtime config');
 ci_scope_expect_flags(ci_scope_run(['package.json']), [
     'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'true',
 ], 'test tooling');
 ci_scope_expect_flags(ci_scope_run(['config/totp_auth.php']), [
     'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
@@ -81,6 +94,7 @@ ci_scope_expect_flags(ci_scope_run(['README.md', 'api/hero-slider.php', 'config/
 ], 'combined changed-file union');
 ci_scope_expect_flags(ci_scope_run([], 'workflow_dispatch'), [
     'full' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'true',
+    'run_php' => 'true', 'run_js' => 'true',
 ], 'manual full matrix');
 
 $packageData = json_decode($package, true);
@@ -106,5 +120,10 @@ ci_scope_expect(!str_contains($workflow, 'sonarqube-scan-action') && !str_contai
 ci_scope_expect(str_contains($performance, 'INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER'), 'unreachable production performance probes must be labeled inconclusive');
 ci_scope_expect(!str_contains($performance, 'failing fast before browser setup'), 'connectivity failures must not be mislabeled as performance failures');
 ci_scope_expect(str_contains($performance, "if: steps.connectivity.outputs.reachable == 'true'"), 'performance setup and measurements must be skipped when production is unreachable');
+
+ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployObserver, 'branches: [main]'), 'deploy observer must start directly from main pushes');
+ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');
+ci_scope_expect(str_contains($deployObserver, 'DEPLOYED marker observed'), 'deploy observer must report exact marker observation');
+ci_scope_expect(!str_contains($deployObserver, 'VALIDATED IN PRODUCTION'), 'deploy marker observation must not be mislabeled as production validation');
 
 echo "CI scope contract passed.\n";

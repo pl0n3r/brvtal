@@ -7,8 +7,9 @@ if ! php -r 'exit(PHP_VERSION_ID >= 80500 && PHP_VERSION_ID < 80600 ? 0 : 1);'; 
 fi
 
 echo "Linting PHP sources under PHP $(php -r 'echo PHP_VERSION;')..."
-find config discadmin api tests -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
-find . -maxdepth 1 -type f -name '*.php' -print0 | xargs -0 -r -n1 php -l >/dev/null
+lint_jobs="${BRVTAL_LINT_JOBS:-4}"
+find config discadmin api tests -name '*.php' -print0 | xargs -0 -r -n1 -P "$lint_jobs" php -l >/dev/null
+find . -maxdepth 1 -type f -name '*.php' -print0 | xargs -0 -r -n1 -P "$lint_jobs" php -l >/dev/null
 
 mapfile -t contracts < <(find tests -maxdepth 1 -type f -name '*-contract.php' -print | LC_ALL=C sort)
 if [[ ${#contracts[@]} -eq 0 ]]; then

@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fast:
-    name: fast
+  preflight:
+    name: preflight
     runs-on: ubuntu-latest
     outputs:
       run_db: ${{ steps.scope.outputs.run_db }}
@@ -25,6 +25,8 @@ jobs:
       run_realstack: ${{ steps.scope.outputs.run_realstack }}
       run_webkit: ${{ steps.scope.outputs.run_webkit }}
       run_recovery: ${{ steps.scope.outputs.run_recovery }}
+      run_php: ${{ steps.scope.outputs.run_php }}
+      run_js: ${{ steps.scope.outputs.run_js }}
       full: ${{ steps.scope.outputs.full }}
     steps:
       - uses: actions/checkout@v5
@@ -82,6 +84,8 @@ jobs:
           run_realstack="$BRVTAL_SCOPE_RUN_REALSTACK"
           run_webkit="$BRVTAL_SCOPE_RUN_WEBKIT"
           run_recovery="$BRVTAL_SCOPE_RUN_RECOVERY"
+          run_php="$BRVTAL_SCOPE_RUN_PHP"
+          run_js="$BRVTAL_SCOPE_RUN_JS"
           areas="$BRVTAL_SCOPE_AREAS"
 
           echo "full=$full" >> "$GITHUB_OUTPUT"
@@ -90,6 +94,8 @@ jobs:
           echo "run_realstack=$run_realstack" >> "$GITHUB_OUTPUT"
           echo "run_webkit=$run_webkit" >> "$GITHUB_OUTPUT"
           echo "run_recovery=$run_recovery" >> "$GITHUB_OUTPUT"
+          echo "run_php=$run_php" >> "$GITHUB_OUTPUT"
+          echo "run_js=$run_js" >> "$GITHUB_OUTPUT"
 
           commit_subject=$(git log -1 --pretty=%s "$source_sha" 2>/dev/null || git log -1 --pretty=%s HEAD 2>/dev/null || echo "unknown")
           commit_time=$(git log -1 --pretty=%cI "$source_sha" 2>/dev/null || git log -1 --pretty=%cI HEAD 2>/dev/null || echo "unknown")
@@ -126,7 +132,7 @@ jobs:
             echo "| Deploy eligibility | **$deploy_eligibility** |"
             echo "| Changed files | **$changed_count** |"
             echo "| Change surface | $areas |"
-            echo "| Validation scope | fast=YES · db=$run_db · chromium=$run_browser · real-stack=$run_realstack · webkit=$run_webkit · recovery=$run_recovery · full=$full |"
+            echo "| Validation scope | preflight=YES · fast=YES (php=$run_php · js=$run_js) · db=$run_db · chromium=$run_browser · real-stack=$run_realstack · webkit=$run_webkit · recovery=$run_recovery · full=$full |"
             echo
             echo "## Changed files"
             if [[ -n "$changed_file_list" ]]; then
@@ -142,7 +148,18 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  fast:
+    name: fast
+    needs: preflight
+    if: needs.preflight.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - name: Set up PHP 8.5
+        if: needs.preflight.outputs.run_php == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
@@ -181,10 +198,12 @@ jobs:
           PY
 
       - name: Run PHP 8.5 compatibility and contract suite
+        if: needs.preflight.outputs.run_php == 'true'
         run: bash scripts/php85-compatibility.sh
 
       - name: Validate JavaScript syntax
-        run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
+        if: needs.preflight.outputs.run_js == 'true'
+        run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 -P 4 node --check
 
       - name: Verify README matches this deploy exactly
         if: github.event_name == 'pull_request'
@@ -300,8 +319,8 @@ jobs:
 
   database:
     name: database
-    needs: fast
-    if: needs.fast.outputs.run_db == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_db == 'true'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -354,8 +373,8 @@ jobs:
 
   browser:
     name: chromium
-    needs: fast
-    if: needs.fast.outputs.run_browser == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_browser == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -390,8 +409,8 @@ jobs:
 
   realstack:
     name: real-stack
-    needs: fast
-    if: needs.fast.outputs.run_realstack == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_realstack == 'true'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -454,8 +473,8 @@ jobs:
 
   webkit:
     name: webkit-totp
-    needs: fast
-    if: needs.fast.outputs.run_webkit == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_webkit == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -490,8 +509,8 @@ jobs:
 
   recovery:
     name: recovery-rehearsal
-    needs: fast
-    if: needs.fast.outputs.run_recovery == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_recovery == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     services:
@@ -556,23 +575,24 @@ jobs:
   validate:
     name: validate
     if: always()
-    needs: [fast, database, browser, realstack, webkit, recovery]
+    needs: [preflight, fast, database, browser, realstack, webkit, recovery]
     runs-on: ubuntu-latest
     steps:
       - name: Enforce validation gates
         shell: bash
         env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           FAST_RESULT: ${{ needs.fast.result }}
           DB_RESULT: ${{ needs.database.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           REALSTACK_RESULT: ${{ needs.realstack.result }}
           WEBKIT_RESULT: ${{ needs.webkit.result }}
           RECOVERY_RESULT: ${{ needs.recovery.result }}
-          RUN_DB: ${{ needs.fast.outputs.run_db }}
-          RUN_BROWSER: ${{ needs.fast.outputs.run_browser }}
-          RUN_REALSTACK: ${{ needs.fast.outputs.run_realstack }}
-          RUN_WEBKIT: ${{ needs.fast.outputs.run_webkit }}
-          RUN_RECOVERY: ${{ needs.fast.outputs.run_recovery }}
+          RUN_DB: ${{ needs.preflight.outputs.run_db }}
+          RUN_BROWSER: ${{ needs.preflight.outputs.run_browser }}
+          RUN_REALSTACK: ${{ needs.preflight.outputs.run_realstack }}
+          RUN_WEBKIT: ${{ needs.preflight.outputs.run_webkit }}
+          RUN_RECOVERY: ${{ needs.preflight.outputs.run_recovery }}
         run: |
           set -euo pipefail
           failures=0
@@ -594,6 +614,7 @@ jobs:
             fi
           }
 
+          require_success preflight "$PREFLIGHT_RESULT"
           require_success fast "$FAST_RESULT"
           require_optional database "$RUN_DB" "$DB_RESULT"
           require_optional chromium "$RUN_BROWSER" "$BROWSER_RESULT"
@@ -609,6 +630,7 @@ jobs:
         env:
           BRVTAL_EVENT: ${{ github.event_name }}
           BRVTAL_REF: ${{ github.ref_name }}
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           FAST_RESULT: ${{ needs.fast.result }}
           DB_RESULT: ${{ needs.database.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
@@ -626,7 +648,8 @@ jobs:
             echo
             echo "| Gate | Result |"
             echo "|---|---|"
-            echo "| Fast PHP 8.5 + contracts | **$FAST_RESULT** |"
+            echo "| Preflight / scope | **$PREFLIGHT_RESULT** |"
+            echo "| Fast contracts / syntax | **$FAST_RESULT** |"
             echo "| MariaDB | **$DB_RESULT** |"
             echo "| Chromium | **$BROWSER_RESULT** |"
             echo "| Real-stack smoke | **$REALSTACK_RESULT** |"
