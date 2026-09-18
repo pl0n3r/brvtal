@@ -62,8 +62,47 @@ test('v2 admin and endpoint keep constraints explicit', async () => {
   expect(adminScript).toContain("['text','image','logo','cta']");
   expect(adminScript).toContain('pointerdown');
   expect(adminScript).toContain('data-duplicate-slide');
-  expect(adminScript).toContain('getRandomValues');
-  expect(adminScript).not.toContain('Math.random');
   expect(endpoint).toContain(', 0, 12');
   expect(endpoint).not.toContain('SELECT * FROM settings');
+});
+
+test('v2 admin creates and duplicates nonempty unique slide and layer IDs', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><head></head><body>
+    <nav class="nav"><button type="button">EVENTS</button></nav>
+    <main class="main"><div class="top"><span class="eyebrow"></span><h1></h1></div></main>
+  </body></html>`);
+
+  await page.evaluate(() => {
+    window.state = { section: 'dashboard' };
+    window.render = () => {};
+    window.go = async () => {};
+    window.req = async path => {
+      if (path === '/settings') return { data: [] };
+      if (path === '/media') return { data: [] };
+      return { data: [] };
+    };
+  });
+  await page.addScriptTag({ content: adminScript });
+  await page.evaluate(() => window.go('hero-slider'));
+
+  await page.locator('[data-add-slide]').click();
+  await page.locator('[data-add-layer="text"]').click();
+
+  const originalSlideId = await page.locator('[data-select-slide].active').getAttribute('data-select-slide');
+  const originalLayerId = await page.locator('[data-select-layer].active').getAttribute('data-select-layer');
+  expect(originalSlideId).toBeTruthy();
+  expect(originalLayerId).toBeTruthy();
+
+  await page.locator('[data-duplicate-slide]').click();
+
+  const slideIds = await page.locator('[data-select-slide]').evaluateAll(nodes =>
+    nodes.map(node => node.getAttribute('data-select-slide'))
+  );
+  const duplicateLayerId = await page.locator('[data-select-layer].active').getAttribute('data-select-layer');
+
+  expect(slideIds).toHaveLength(2);
+  expect(slideIds.every(Boolean)).toBe(true);
+  expect(new Set(slideIds).size).toBe(2);
+  expect(duplicateLayerId).toBeTruthy();
+  expect(duplicateLayerId).not.toBe(originalLayerId);
 });
