@@ -98,7 +98,8 @@ brvtal_admin_require();
             inputmode="text"
             autocomplete="off"
             spellcheck="false"
-            aria-describedby="e_accent_help e_accent_error"
+            aria-describedby="e_accent_help"
+            aria-errormessage="e_accent_error"
           >
           <input
             id="e_accent_picker"

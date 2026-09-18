@@ -10,7 +10,7 @@ async function mount(page) {
     <div class="field" data-admin-color-field data-color-default="#ff2038">
       <label for="event-accent">Accent</label>
       <div class="admin-color-field__controls">
-        <input id="event-accent" data-color-hex maxlength="7" pattern="#[0-9A-Fa-f]{6}" aria-describedby="event-accent-help event-accent-error">
+        <input id="event-accent" data-color-hex maxlength="7" pattern="#[0-9A-Fa-f]{6}" aria-describedby="event-accent-help" aria-errormessage="event-accent-error">
         <input id="event-accent-picker" data-color-picker type="color" value="#ff2038" aria-label="Choose accent visually">
       </div>
       <div class="admin-color-field__meta">
@@ -34,6 +34,8 @@ test('HEX entry normalizes and stays synchronized with picker and preview', asyn
 
   await expect(text).toHaveValue('#a1b2c3');
   await expect(text).toHaveAttribute('aria-invalid', 'false');
+  await expect(text).toHaveAttribute('aria-describedby', 'event-accent-help');
+  await expect(text).toHaveAttribute('aria-errormessage', 'event-accent-error');
   await expect(picker).toHaveValue('#a1b2c3');
   await expect(page.locator('[data-color-value]')).toHaveText('#A1B2C3');
   await expect(page.locator('[data-color-error]')).toBeHidden();
@@ -56,6 +58,8 @@ test('invalid HEX is visible and reusable normalization fails closed', async ({ 
   await text.fill('#12');
 
   await expect(text).toHaveAttribute('aria-invalid', 'true');
+  await expect(text).toHaveAttribute('aria-describedby', 'event-accent-help');
+  await expect(text).toHaveAttribute('aria-errormessage', 'event-accent-error');
   await expect(page.locator('[data-color-error]')).toBeVisible();
   expect(await page.evaluate(() => window.BRVTALAdminColorField.normalize('#12'))).toBeNull();
   expect(await page.evaluate(() => window.BRVTALAdminColorField.normalize('ABCDEF'))).toBe('#abcdef');

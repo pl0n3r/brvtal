@@ -24,7 +24,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+321** | **−49** | **+272** |
+| **11** | **+327** | **−49** | **+278** |
 
 ## Calidad y entrega
 
@@ -84,6 +84,7 @@ flowchart LR
 - HEX escrito ↔ picker ↔ preview permanecen sincronizados.
 - Entrada `A1B2C3` se normaliza a `#a1b2c3`.
 - `#12` falla en UI y servidor con `INVALID_ACCENT`.
+- El input mantiene ayuda en `aria-describedby` y expone el error mediante `aria-errormessage`, oculto mientras el valor es válido.
 - El Event público conserva su contrato de color/fallback.
 
 ## Qué sigue
