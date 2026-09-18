@@ -56,6 +56,7 @@ $codeRabbit = (string)file_get_contents(__DIR__ . '/../.coderabbit.yaml');
 $sonar = (string)file_get_contents(__DIR__ . '/../.sonarcloud.properties');
 $performance = (string)file_get_contents(__DIR__ . '/../.github/workflows/production-performance.yml');
 $deployObserver = (string)file_get_contents(__DIR__ . '/../.github/workflows/production-deploy-observer.yml');
+$sonarRelay = (string)file_get_contents(__DIR__ . '/../.github/workflows/sonar-annotation-relay.yml');
 
 ci_scope_expect(str_contains($workflow, 'preflight:'), 'BRVTAL CI must expose a dedicated preflight job');
 ci_scope_expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'BRVTAL CI must execute the shared changed-file classifier');
@@ -125,5 +126,8 @@ ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployOb
 ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');
 ci_scope_expect(str_contains($deployObserver, 'DEPLOYED marker observed'), 'deploy observer must report exact marker observation');
 ci_scope_expect(!str_contains($deployObserver, 'VALIDATED IN PRODUCTION'), 'deploy marker observation must not be mislabeled as production validation');
+
+ci_scope_expect(str_contains($sonarRelay, 'body = "\\n".join(lines).strip() + "\\n"'), 'Sonar relay must build Markdown with newline escape sequences interpreted by Python');
+ci_scope_expect(!str_contains($sonarRelay, 'body = "\\\\n".join(lines).strip() + "\\\\n"'), 'Sonar relay must never publish literal escaped newline markers');
 
 echo "CI scope contract passed.\n";

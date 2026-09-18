@@ -168,7 +168,7 @@ jobs:
               if len(annotations) > len(visible):
                   lines.append(f"_Showing first {len(visible)} of {len(annotations)} annotations._")
 
-          body = "\\n".join(lines).strip() + "\\n"
+          body = "\n".join(lines).strip() + "\n"
 
           comments = []
           comments_page = 1
