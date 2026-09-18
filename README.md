@@ -14,7 +14,7 @@
   </a>
 </p>
 
-> Snapshot transitorio de este deploy. Se reemplaza en el siguiente; no es changelog acumulativo.
+> Este README representa **solo el deploy actual**. Se reemplaza en el siguiente deploy y no funciona como changelog acumulativo.
 
 ## Estado del deploy
 
