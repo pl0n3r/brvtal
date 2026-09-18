@@ -10,7 +10,8 @@
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const isMobile = () => window.matchMedia('(max-width: 700px)').matches;
+  const mobileQuery = window.matchMedia('(max-width: 700px)');
+  const isMobile = () => mobileQuery.matches;
 
   function injectStyles() {
     if (document.querySelector('link[data-hero-v2-public]')) return;
@@ -31,7 +32,7 @@
     if (slide.mediaType === 'video') {
       return `<video class="brvtal-hero-media" muted loop playsinline preload="metadata" ${slide.poster ? `poster="${esc(slide.poster)}"` : ''}><source src="${esc(src)}"></video>`;
     }
-    return `<img class="brvtal-hero-media" ${position === 0 ? `src="${esc(src)}" loading="eager" fetchpriority="high"` : `data-src="${esc(src)}"`} alt="" decoding="async">`;
+    return `<img class="brvtal-hero-media" ${position === index ? `src="${esc(src)}" loading="eager" fetchpriority="high"` : `data-src="${esc(src)}"`} alt="" decoding="async">`;
   }
 
   function layerMarkup(layer, position) {
@@ -44,7 +45,7 @@
     const style = `left:${Number(x)}%;top:${Number(y)}%;width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
     if (layer.type === 'image' || layer.type === 'logo') {
       if (!src) return '';
-      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${position === 0 ? `src="${esc(src)}"` : `data-src="${esc(src)}"`} alt="" decoding="async"></div>`;
+      return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${position === index ? `src="${esc(src)}"` : `data-src="${esc(src)}"`} alt="" decoding="async"></div>`;
     }
     if (layer.type === 'cta') {
       const text = esc(layer.text || 'ENTER EXPERIENCE');
@@ -61,7 +62,8 @@
 
   function slideMarkup(slide, position) {
     const transition = ['fade','slide','zoom'].includes(slide.transition) ? slide.transition : 'fade';
-    return `<article class="brvtal-hero-slide ${position === 0 ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${position === 0 ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay ?? 35) / 100}">${mediaMarkup(slide, position)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layer => layerMarkup(layer, position)).join('') : ''}</article>`;
+    const active = position === index;
+    return `<article class="brvtal-hero-slide ${active ? 'active' : ''} align-${esc(slide.contentAlign)} transition-${transition}" data-hero-slide="${position}" aria-hidden="${active ? 'false' : 'true'}" style="--hero-overlay:${Number(slide.overlay ?? 35) / 100}">${mediaMarkup(slide, position)}<div class="brvtal-hero-overlay"></div>${legacyCopy(slide)}${Array.isArray(slide.layers) ? slide.layers.map(layer => layerMarkup(layer, position)).join('') : ''}</article>`;
   }
 
   function controlsMarkup(total) {
@@ -120,6 +122,14 @@
     });
   }
 
+  function syncBreakpoint() {
+    if (!mounted || !config?.slides?.length) return;
+    const track = document.querySelector('.brvtal-hero-track');
+    if (!track) return;
+    track.innerHTML = config.slides.map(slideMarkup).join('');
+    activateVideos();
+  }
+
   function schedule() {
     clearTimeout(timer);
     if (!mounted || !config?.autoplay || config.slides.length <= 1 || reducedMotion() || paused || document.hidden) return;
@@ -146,6 +156,7 @@
     root.addEventListener('focusin', () => clearTimeout(timer));
     root.addEventListener('focusout', event => { if (!root.contains(event.relatedTarget)) schedule(); });
     document.addEventListener('visibilitychange', schedule);
+    mobileQuery.addEventListener('change', syncBreakpoint);
   }
 
   async function init() {

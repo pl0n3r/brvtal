@@ -8,36 +8,28 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué se hizo
 
-- Corrige #191 haciendo `theme.active` una referencia válida en lugar de texto libre.
-- El backend rechaza activar slugs inexistentes con `THEME_NOT_FOUND` y conserva la validación sintáctica existente.
-- La referencia solo se considera válida cuando existe `theme.<slug>`, está marcada como JSON y decodifica a un objeto/array de configuración válido.
-- No se puede borrar el registro `theme.<slug>` que está actualmente referenciado por `theme.active`; el servidor responde `ACTIVE_THEME_DELETE_BLOCKED`.
-- Tampoco se puede degradar o corromper la definición `theme.<slug>` que está activa: mientras esté referenciada debe conservar `is_json=1` y un payload JSON de configuración válido.
-- Esa protección también cubre el fallback implícito `core`: si `theme.active` falta, está vacío o es inválido, `theme.core` no puede degradarse ni borrarse.
-- Las mutaciones `theme.*` se serializan entre sesiones con un mutex de MariaDB y transacción; la validación, el bloqueo de filas y la escritura/borrado ya no pueden intercalarse dejando una referencia colgante.
-- `DELETE /settings` usa el mismo normalizador canónico que `POST`, por lo que variantes como `Theme.core` se rechazan antes de tocar la base de datos.
-- El fallback `core` sin `theme.active` sigue intacto: Theme Studio guarda primero `theme.core` antes de persistir `theme.active=core` cuando se activa explícitamente.
-- Settings deja de ofrecer RAW EDIT para `theme.active` y lo dirige a Theme Studio dentro del mismo shell.
-- Se añaden regresiones PHP, Playwright y real-stack autenticadas para activación inexistente, actualización inválida, borrado protegido y navegación desde Settings.
-- Se conserva ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE.
+- Corrige #237 para que el Hero Slider reevalúe assets y overrides al cruzar el breakpoint de 700 px.
+- El runtime reutiliza un único `MediaQueryList` y escucha su evento `change`.
+- Al cruzar desktop ↔ mobile se vuelve a generar solo el track del Hero, preservando el índice de la slide activa.
+- `mobileSrc` / desktop media se reaplican correctamente al cambiar de breakpoint.
+- Las capas reaplican `mobileSrc`, `mobileX`, `mobileY`, `mobileWidth` y `hiddenMobile`.
+- La slide activa ya no depende de que sea la primera: media e imágenes activas usan `position === index`, por lo que un re-render responsive conserva la slide actual.
+- Controles, dots, contador y estado de pausa quedan fuera del track reemplazado y conservan su estado.
+- No se modifica CSS: los estilos existentes ya usan el mismo corte responsive de 700 px.
+- Se añade una regresión Playwright desktop → mobile → desktop sobre la segunda slide.
+- #221 queda fuera de alcance: este cambio no altera reglas editoriales ni validación de assets inexistentes.
+- #480 queda fuera de alcance: el problema visual de tipografía gigante/superpuesta en producción se investiga por separado.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y panorama pendiente.
-- `api/content-validation.php` — contrato de referencia activa y protección contra borrado del theme activo.
-- `api/index.php` — validación server-side del target, mutex/transacción compartidos y bloqueo seguro de borrado.
-- `discadmin/settings-v2.js` — `theme.active` se administra desde Theme Studio, no desde editor raw.
-- `tests/theme-active-reference-contract.php` — regresión de integridad referencial, serialización y normalización del DELETE.
-- `tests/api-contract.php` — conserva la detección del branch DELETE de Settings tras hacerlo legible.
-- `tests/content-validation-contract.php` — mantiene los marcadores de validación de Settings tras el formateo.
-- `tests/e2e/discadmin-settings-theme-active.spec.mjs` — regresión de navegación desde Settings.
-- `tests/e2e/theme-active-reference-real-stack.spec.mjs` — regresión autenticada sobre MariaDB aislada; conserva y restaura el estado previo de `theme.active` durante cleanup.
-- `tests/e2e/run-content-core-real-stack.sh` — incorpora la regresión de Settings al gate real-stack.
+- `js/hero-slider.js` — sincronización runtime al cruzar el breakpoint sin perder la slide activa.
+- `tests/e2e/hero-slider.spec.mjs` — regresión responsive de media, capas, `hiddenMobile` y slide activa.
 
 ## Validación
 
-- Base exacta: `main` `84b69d8c011f5391d63be3f225279edeeb7ce7df`.
-- Esa base pasó BRVTAL CI #945 y queda **VALIDATED IN CODE**.
+- Base exacta: `main` `db4e7072bd1e4f97cffe5fa4970f63b6bf66caf5`.
+- Esa base pasó BRVTAL CI #967 y queda **VALIDATED IN CODE**.
 - El PR debe pasar BRVTAL CI, SonarCloud y CodeRabbit sobre su SHA exacto antes del squash merge.
 - El relay de Sonar debe publicar las annotations detalladas del head exacto del PR.
 - Tras el merge se verificará BRVTAL CI sobre el SHA exacto resultante de `main`.
@@ -46,18 +38,18 @@ Este README cubre **solo el deploy actual** y se reemplaza en el siguiente deplo
 
 ## Qué sigue
 
-- Cerrar gates exactos de #191, corregir findings válidos, squash merge y verificar el nuevo `main`.
-- Después atacar #237: assets/overrides del Hero al cambiar breakpoint.
-- Mantener #451 como burn-down continuo con cambios pequeños revalidados contra el código actual.
+- Cerrar gates exactos de #237, corregir findings válidos, squash merge y verificar el nuevo `main`.
+- Continuar #451 como burn-down de Sonar con cambios pequeños y revalidados.
 - Reconciliar PR #434 / Memories aparte, sin mezclarlo con este cambio.
+- Atacar por separado #479, #480 y #481 dentro del frente SEO/experiencia pública.
 
 ## Panorama general pendiente
 
 - **Sonar / calidad:** #451 continúa por riesgo y área, con PRs pequeños.
 - **Apariencia:** #149 — completar Light en módulos modernos.
-- **Hero Slider:** #237 y #221 — breakpoint responsive e integridad de media.
+- **Hero Slider:** #221 — integridad editorial de media; #480 — regresión visual del Hero en desktop.
 - **Seguridad editorial / navegación:** #257, #216, #174 y #193.
-- **SEO editorial / entrega pública:** #182, #214, #204 y #272 antes de #390; #479 corrige imágenes públicas sin `alt` reportadas por Bing.
+- **SEO editorial / entrega pública:** #182, #214, #204 y #272 antes de #390; #479 corrige imágenes públicas sin `alt`; #481 integra IndexNow.
 - **Content / edición:** #224 y #252 — Ticket Types e integridad de media.
 - **Activity / operaciones:** #232 y #195 — historial navegable y cobertura de audit log.
 - **Bulk Actions:** #275 — resolver catálogos mayores de 500 sin truncado silencioso.
