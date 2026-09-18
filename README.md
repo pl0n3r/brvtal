@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `99d1266647823697eec344c51b6dfa09d58ea0ce` · BRVTAL CI #1108 |
 | Alcance | 🔎 **#481** | IndexNow para cambios públicos reales |
-| Configuración | 🎛️ **DISCADMIN → Settings → SEO** | enable/disable + key validada |
+| Configuración | 🎛️ **DISCADMIN → Settings → SEO** | Enabled + Key + Key Location + endpoint oficial |
 | Publicación | ⚡ **EVENT-DRIVEN** | create/update/unpublish/delete/slug/SEO + Home cuando aplica |
 | Seguridad | 🔐 **Sin key en Git** | verificación dinámica en `/indexnow-key.txt` |
 | Producción | ⚪ **No validada** | CI no equivale a validación de producción |
@@ -40,13 +40,15 @@ flowchart LR
 ## Qué se hizo
 
 - Añade una integración central de **IndexNow** para BRVTAL sin introducir un segundo sistema SEO.
-- La configuración vive en **DISCADMIN → Settings → SEO** con controles independientes para habilitar/deshabilitar y definir la key.
+- La configuración vive en **DISCADMIN → Settings → SEO** con controles independientes para Enabled, Key, Key Location y endpoint oficial.
 - La key se valida tanto en frontend como en backend: 8–128 caracteres, únicamente letras, números y guiones.
-- La verificación se expone dinámicamente en `/indexnow-key.txt`; la key no se hardcodea ni se versiona.
+- La verificación se expone dinámicamente en el Key Location configurado (por defecto `/indexnow-key.txt`); la key no se hardcodea ni se versiona.
 - Se notifican únicamente URLs canónicas públicas afectadas después de commits editoriales exitosos.
 - Cambios de slug envían la URL anterior y la nueva; despublicaciones y eliminaciones notifican la URL que deja de estar disponible.
 - Events, Artists, Sets, Pages, Ticket Types, Blog, Releases, lineup y SEO metadata quedan conectados al flujo.
 - Cambios de Home como Theme/Site/Social/SEO, Hero Slider y Memories notifican `/` en vez de reenviar indiscriminadamente todo el sitio.
+- El endpoint se selecciona desde una allowlist de participantes oficiales (Global, Amazon, Bing, Naver, Seznam.cz, Yandex o Yep); una URL arbitraria no puede guardarse desde Settings.
+- `host` y `urlList` no son editables: se derivan del origen canónico y del cambio público real.
 - Las URLs se deduplican por request; el sitemap sigue siendo la señal de cobertura completa.
 - Los fallos de IndexNow son no-fatales para el guardado editorial y usan timeouts estrictos.
 - No se programa un envío periódico masivo de todas las URLs.
