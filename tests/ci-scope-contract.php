@@ -56,32 +56,51 @@ $codeRabbit = (string)file_get_contents(__DIR__ . '/../.coderabbit.yaml');
 $sonar = (string)file_get_contents(__DIR__ . '/../.sonarcloud.properties');
 $performance = (string)file_get_contents(__DIR__ . '/../.github/workflows/production-performance.yml');
 
+ci_scope_expect(str_contains($workflow, 'preflight:'), 'BRVTAL CI must have a dedicated preflight job');
 ci_scope_expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'BRVTAL CI must execute the shared changed-file classifier');
+ci_scope_expect(str_contains($workflow, 'needs: preflight'), 'applicable validation jobs must fan out from preflight instead of waiting for the full fast suite');
+ci_scope_expect(str_contains($workflow, 'needs: [preflight, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate preflight plus every selected gate');
+ci_scope_expect(str_contains($workflow, "needs.preflight.outputs.run_php == 'true'"), 'PHP runtime setup must be changed-file-aware');
+ci_scope_expect(str_contains($workflow, "needs.preflight.outputs.run_js == 'true'"), 'JavaScript syntax validation must be changed-file-aware');
+ci_scope_expect(str_contains($workflow, 'xargs -0 -r -n1 -P 4 node --check'), 'JavaScript syntax checks must use bounded parallelism');
 ci_scope_expect(str_contains($workflow, 'brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"'), 'workflow must pass its actual changed-file list and event to the shared classifier');
 ci_scope_expect(str_contains($workflow, 'run: npm run test:integration'), 'CI database gate must call the canonical integration script');
 ci_scope_expect(!str_contains($workflow, "php tests/integration/global-search.php\n          php tests/integration/bulk-actions.php"), 'CI must not maintain a second manual integration list');
 
 ci_scope_expect_flags(ci_scope_run(['api/hero-slider.php']), [
-    'full' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'full' => 'false', 'run_php' => 'true', 'run_js' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
 ], 'public hero API');
 ci_scope_expect_flags(ci_scope_run(['config/public_home.php']), [
-    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
 ], 'public runtime config');
 ci_scope_expect_flags(ci_scope_run(['package.json']), [
-    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
 ], 'test tooling');
 ci_scope_expect_flags(ci_scope_run(['config/totp_auth.php']), [
-    'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'false', 'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
 ], 'auth-sensitive runtime config');
 ci_scope_expect_flags(ci_scope_run(['config/backups.php']), [
-    'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'true',
+    'run_php' => 'true', 'run_js' => 'false', 'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'true',
 ], 'backup runtime config');
 ci_scope_expect_flags(ci_scope_run(['README.md', 'api/hero-slider.php', 'config/totp_auth.php']), [
-    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
 ], 'combined changed-file union');
 ci_scope_expect_flags(ci_scope_run([], 'workflow_dispatch'), [
-    'full' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'true',
+    'full' => 'true', 'run_php' => 'true', 'run_js' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'true',
 ], 'manual full matrix');
+
+ci_scope_expect_flags(ci_scope_run(['README.md', 'AGENTS.md']), [
+    'run_php' => 'false', 'run_js' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
+], 'docs-only change');
+ci_scope_expect_flags(ci_scope_run(['discadmin/dashboard-v2.js']), [
+    'run_php' => 'false', 'run_js' => 'true', 'run_browser' => 'true',
+], 'admin JavaScript change');
+ci_scope_expect_flags(ci_scope_run(['discadmin/dashboard-v2.css']), [
+    'run_php' => 'false', 'run_js' => 'false', 'run_browser' => 'true',
+], 'admin CSS change');
+ci_scope_expect_flags(ci_scope_run(['unexpected/new-surface.txt']), [
+    'run_php' => 'true', 'run_js' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true',
+], 'unknown-path conservative fallback');
 
 $packageData = json_decode($package, true);
 ci_scope_expect(is_array($packageData), 'package.json must stay valid JSON');

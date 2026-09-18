@@ -7,6 +7,8 @@
 
 brvtal_ci_scope_reset() {
   BRVTAL_SCOPE_FULL=false
+  BRVTAL_SCOPE_RUN_PHP=false
+  BRVTAL_SCOPE_RUN_JS=false
   BRVTAL_SCOPE_RUN_DB=false
   BRVTAL_SCOPE_RUN_BROWSER=false
   BRVTAL_SCOPE_RUN_REALSTACK=false
@@ -32,6 +34,8 @@ brvtal_ci_classify_files() {
 
   if [[ "$event_name" == "workflow_dispatch" ]]; then
     BRVTAL_SCOPE_FULL=true
+    BRVTAL_SCOPE_RUN_PHP=true
+    BRVTAL_SCOPE_RUN_JS=true
     BRVTAL_SCOPE_RUN_DB=true
     BRVTAL_SCOPE_RUN_BROWSER=true
     BRVTAL_SCOPE_RUN_REALSTACK=true
@@ -71,19 +75,26 @@ brvtal_ci_classify_files() {
       tests/e2e/*)
         brvtal_ci_scope_add_area "Browser tests"; BRVTAL_SCOPE_RUN_BROWSER=true ;;
       playwright.config.mjs|package.json|package-lock.json)
-        brvtal_ci_scope_add_area "Test tooling"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true; BRVTAL_SCOPE_RUN_WEBKIT=true ;;
+        brvtal_ci_scope_add_area "Test tooling"; BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true; BRVTAL_SCOPE_RUN_WEBKIT=true ;;
       .github/workflows/update-release-metadata.yml|scripts/ci-scope.sh)
-        brvtal_ci_scope_add_area "CI/CD core"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true; BRVTAL_SCOPE_RUN_WEBKIT=true; BRVTAL_SCOPE_RUN_RECOVERY=true ;;
+        brvtal_ci_scope_add_area "CI/CD core"; BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true; BRVTAL_SCOPE_RUN_WEBKIT=true; BRVTAL_SCOPE_RUN_RECOVERY=true ;;
       .github/*)
         brvtal_ci_scope_add_area "CI/CD" ;;
       .coderabbit.yaml|.sonarcloud.properties)
         brvtal_ci_scope_add_area "Review/static analysis policy" ;;
-      scripts/*|tests/*.php)
-        brvtal_ci_scope_add_area "Fast tests/tooling" ;;
+      scripts/*)
+        brvtal_ci_scope_add_area "Fast tests/tooling"; BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true ;;
+      tests/*.php)
+        brvtal_ci_scope_add_area "Fast tests/tooling"; BRVTAL_SCOPE_RUN_PHP=true ;;
       docs/*|README.md|AGENTS.md)
         brvtal_ci_scope_add_area "Docs/operations" ;;
       *)
-        brvtal_ci_scope_add_area "Other"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
+        brvtal_ci_scope_add_area "Other"; BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
+    esac
+
+    case "$file" in
+      *.php) BRVTAL_SCOPE_RUN_PHP=true ;;
+      *.js|*.mjs) BRVTAL_SCOPE_RUN_JS=true ;;
     esac
 
     case "$file" in
@@ -105,6 +116,8 @@ brvtal_ci_classify_files() {
 
 brvtal_ci_scope_print() {
   printf 'full=%s\n' "$BRVTAL_SCOPE_FULL"
+  printf 'run_php=%s\n' "$BRVTAL_SCOPE_RUN_PHP"
+  printf 'run_js=%s\n' "$BRVTAL_SCOPE_RUN_JS"
   printf 'run_db=%s\n' "$BRVTAL_SCOPE_RUN_DB"
   printf 'run_browser=%s\n' "$BRVTAL_SCOPE_RUN_BROWSER"
   printf 'run_realstack=%s\n' "$BRVTAL_SCOPE_RUN_REALSTACK"

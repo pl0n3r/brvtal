@@ -16,10 +16,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fast:
-    name: fast
+  preflight:
+    name: preflight
     runs-on: ubuntu-latest
     outputs:
+      run_php: ${{ steps.scope.outputs.run_php }}
+      run_js: ${{ steps.scope.outputs.run_js }}
       run_db: ${{ steps.scope.outputs.run_db }}
       run_browser: ${{ steps.scope.outputs.run_browser }}
       run_realstack: ${{ steps.scope.outputs.run_realstack }}
@@ -77,6 +79,8 @@ jobs:
           source scripts/ci-scope.sh
           brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"
           full="$BRVTAL_SCOPE_FULL"
+          run_php="$BRVTAL_SCOPE_RUN_PHP"
+          run_js="$BRVTAL_SCOPE_RUN_JS"
           run_db="$BRVTAL_SCOPE_RUN_DB"
           run_browser="$BRVTAL_SCOPE_RUN_BROWSER"
           run_realstack="$BRVTAL_SCOPE_RUN_REALSTACK"
@@ -85,6 +89,8 @@ jobs:
           areas="$BRVTAL_SCOPE_AREAS"
 
           echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "run_php=$run_php" >> "$GITHUB_OUTPUT"
+          echo "run_js=$run_js" >> "$GITHUB_OUTPUT"
           echo "run_db=$run_db" >> "$GITHUB_OUTPUT"
           echo "run_browser=$run_browser" >> "$GITHUB_OUTPUT"
           echo "run_realstack=$run_realstack" >> "$GITHUB_OUTPUT"
@@ -126,7 +132,7 @@ jobs:
             echo "| Deploy eligibility | **$deploy_eligibility** |"
             echo "| Changed files | **$changed_count** |"
             echo "| Change surface | $areas |"
-            echo "| Validation scope | fast=YES · db=$run_db · chromium=$run_browser · real-stack=$run_realstack · webkit=$run_webkit · recovery=$run_recovery · full=$full |"
+            echo "| Validation scope | fast=YES · php=$run_php · js=$run_js · db=$run_db · chromium=$run_browser · real-stack=$run_realstack · webkit=$run_webkit · recovery=$run_recovery · full=$full |"
             echo
             echo "## Changed files"
             if [[ -n "$changed_file_list" ]]; then
@@ -141,50 +147,6 @@ jobs:
               echo "No changed files detected."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Set up PHP 8.5
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.5'
-          coverage: none
-          ini-file: production
-
-      - name: Validate Sonar Python runtime contract
-        shell: bash
-        run: |
-          python - <<'PY'
-          import sys
-          from pathlib import Path
-
-          runtime = f"{sys.version_info.major}.{sys.version_info.minor}"
-          matches = []
-          for raw_line in Path(".sonarcloud.properties").read_text(encoding="utf-8").splitlines():
-              line = raw_line.strip()
-              if not line or line.startswith("#"):
-                  continue
-              key, separator, value = line.partition("=")
-              if separator and key.strip() == "sonar.python.version":
-                  matches.append(value.strip())
-
-          if len(matches) != 1:
-              raise SystemExit(
-                  f"Expected exactly one sonar.python.version declaration, found {len(matches)}."
-              )
-
-          declared = {item.strip() for item in matches[0].split(",") if item.strip()}
-          if runtime not in declared:
-              raise SystemExit(
-                  f"Sonar Python runtime mismatch: CI uses {runtime}, declared versions are {sorted(declared)}."
-              )
-
-          print(f"Sonar Python analysis includes CI runtime {runtime}.")
-          PY
-
-      - name: Run PHP 8.5 compatibility and contract suite
-        run: bash scripts/php85-compatibility.sh
-
-      - name: Validate JavaScript syntax
-        run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 node --check
 
       - name: Verify README matches this deploy exactly
         if: github.event_name == 'pull_request'
@@ -257,7 +219,6 @@ jobs:
               'CI del SHA exacto de main',
           ]
           visual_requirements = {
-              'BRVTAL logo': 'assets/brvtal-logo-640.webp' in readme,
               'BRVTAL CI badge': 'actions/workflows/update-release-metadata.yml/badge.svg' in readme,
               'deploy status table in Estado del deploy': '| Señal | Estado | Evidencia |' in status_section,
               'Mermaid diagram in Flujo de entrega': '```mermaid' in flow_section,
@@ -298,10 +259,63 @@ jobs:
           print(f'README deploy snapshot matches {len(changed)} changed files.')
           PY
 
+  fast:
+    name: fast
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP 8.5
+        if: needs.preflight.outputs.run_php == 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          ini-file: production
+
+      - name: Validate Sonar Python runtime contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          runtime = f"{sys.version_info.major}.{sys.version_info.minor}"
+          matches = []
+          for raw_line in Path(".sonarcloud.properties").read_text(encoding="utf-8").splitlines():
+              line = raw_line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              key, separator, value = line.partition("=")
+              if separator and key.strip() == "sonar.python.version":
+                  matches.append(value.strip())
+
+          if len(matches) != 1:
+              raise SystemExit(
+                  f"Expected exactly one sonar.python.version declaration, found {len(matches)}."
+              )
+
+          declared = {item.strip() for item in matches[0].split(",") if item.strip()}
+          if runtime not in declared:
+              raise SystemExit(
+                  f"Sonar Python runtime mismatch: CI uses {runtime}, declared versions are {sorted(declared)}."
+              )
+
+          print(f"Sonar Python analysis includes CI runtime {runtime}.")
+          PY
+
+      - name: Run PHP 8.5 compatibility and contract suite
+        if: needs.preflight.outputs.run_php == 'true'
+        run: bash scripts/php85-compatibility.sh
+
+      - name: Validate JavaScript syntax
+        if: needs.preflight.outputs.run_js == 'true'
+        run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 -P 4 node --check
   database:
     name: database
-    needs: fast
-    if: needs.fast.outputs.run_db == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_db == 'true'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -354,8 +368,8 @@ jobs:
 
   browser:
     name: chromium
-    needs: fast
-    if: needs.fast.outputs.run_browser == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_browser == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -390,8 +404,8 @@ jobs:
 
   realstack:
     name: real-stack
-    needs: fast
-    if: needs.fast.outputs.run_realstack == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_realstack == 'true'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -454,8 +468,8 @@ jobs:
 
   webkit:
     name: webkit-totp
-    needs: fast
-    if: needs.fast.outputs.run_webkit == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_webkit == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -490,8 +504,8 @@ jobs:
 
   recovery:
     name: recovery-rehearsal
-    needs: fast
-    if: needs.fast.outputs.run_recovery == 'true'
+    needs: preflight
+    if: needs.preflight.outputs.run_recovery == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     services:
@@ -556,23 +570,24 @@ jobs:
   validate:
     name: validate
     if: always()
-    needs: [fast, database, browser, realstack, webkit, recovery]
+    needs: [preflight, fast, database, browser, realstack, webkit, recovery]
     runs-on: ubuntu-latest
     steps:
       - name: Enforce validation gates
         shell: bash
         env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           FAST_RESULT: ${{ needs.fast.result }}
           DB_RESULT: ${{ needs.database.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           REALSTACK_RESULT: ${{ needs.realstack.result }}
           WEBKIT_RESULT: ${{ needs.webkit.result }}
           RECOVERY_RESULT: ${{ needs.recovery.result }}
-          RUN_DB: ${{ needs.fast.outputs.run_db }}
-          RUN_BROWSER: ${{ needs.fast.outputs.run_browser }}
-          RUN_REALSTACK: ${{ needs.fast.outputs.run_realstack }}
-          RUN_WEBKIT: ${{ needs.fast.outputs.run_webkit }}
-          RUN_RECOVERY: ${{ needs.fast.outputs.run_recovery }}
+          RUN_DB: ${{ needs.preflight.outputs.run_db }}
+          RUN_BROWSER: ${{ needs.preflight.outputs.run_browser }}
+          RUN_REALSTACK: ${{ needs.preflight.outputs.run_realstack }}
+          RUN_WEBKIT: ${{ needs.preflight.outputs.run_webkit }}
+          RUN_RECOVERY: ${{ needs.preflight.outputs.run_recovery }}
         run: |
           set -euo pipefail
           failures=0
@@ -594,6 +609,7 @@ jobs:
             fi
           }
 
+          require_success preflight "$PREFLIGHT_RESULT"
           require_success fast "$FAST_RESULT"
           require_optional database "$RUN_DB" "$DB_RESULT"
           require_optional chromium "$RUN_BROWSER" "$BROWSER_RESULT"
@@ -626,7 +642,8 @@ jobs:
             echo
             echo "| Gate | Result |"
             echo "|---|---|"
-            echo "| Fast PHP 8.5 + contracts | **$FAST_RESULT** |"
+            echo "| Preflight / scope | **${{ needs.preflight.result }}** |"
+            echo "| Fast source contracts | **$FAST_RESULT** |"
             echo "| MariaDB | **$DB_RESULT** |"
             echo "| Chromium | **$BROWSER_RESULT** |"
             echo "| Real-stack smoke | **$REALSTACK_RESULT** |"

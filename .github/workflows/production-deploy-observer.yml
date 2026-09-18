@@ -1,0 +1,82 @@
+name: Production Deploy Observer
+run-name: Production Deploy Observer #${{ github.run_number }} · ${{ github.event_name }}
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-production-deploy-observer
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: observe
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      BRVTAL_ORIGIN: https://www.brvtal.com.co/
+      EXPECTED_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Observe exact Hostinger deploy marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${EXPECTED_SHA:0:7}"
+          started_at=$(date +%s)
+          observed=false
+          attempts=30
+
+          for attempt in $(seq 1 "$attempts"); do
+            probe_url="${BRVTAL_ORIGIN}?__deploy_observer=${short_sha}-${attempt}-${GITHUB_RUN_ID}"
+            html=$(curl -fsSL \
+              --connect-timeout 3 \
+              --max-time 8 \
+              -H 'Cache-Control: no-cache' \
+              "$probe_url" || true)
+
+            if [[ "$html" == *"?v=$short_sha"* ]]; then
+              observed=true
+              elapsed=$(( $(date +%s) - started_at ))
+              echo "Observed exact deploy marker ?v=$short_sha after ${elapsed}s (attempt $attempt/$attempts)."
+              {
+                echo "# Production deploy observation"
+                echo
+                echo "| Field | Value |"
+                echo "|---|---|"
+                echo "| Expected SHA | \`$EXPECTED_SHA\` |"
+                echo "| Marker | \`?v=$short_sha\` |"
+                echo "| Elapsed | **${elapsed}s** |"
+                echo "| Status | **DEPLOYED marker observed** |"
+                echo
+                echo "> This confirms source propagation only. It is not VALIDATED IN PRODUCTION."
+              } >> "$GITHUB_STEP_SUMMARY"
+              break
+            fi
+
+            if [[ "$attempt" -lt "$attempts" ]]; then
+              sleep 5
+            fi
+          done
+
+          if [[ "$observed" != "true" ]]; then
+            elapsed=$(( $(date +%s) - started_at ))
+            echo "::warning::Exact deploy marker ?v=$short_sha was not observed within the bounded window."
+            {
+              echo "# Production deploy observation"
+              echo
+              echo "| Field | Value |"
+              echo "|---|---|"
+              echo "| Expected SHA | \`$EXPECTED_SHA\` |"
+              echo "| Expected marker | \`?v=$short_sha\` |"
+              echo "| Waited | **${elapsed}s** |"
+              echo "| Status | **NOT OBSERVED IN BOUNDED WINDOW** |"
+              echo
+              echo "> This is inconclusive, not proof of a failed deploy. BRVTAL CI and production validation remain separate."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

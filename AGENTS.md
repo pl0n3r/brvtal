@@ -252,12 +252,14 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 30. **Sonar baseline management is risk-first and Clean-as-You-Code.** Umbrella #451 completed the documented P0/P1/P2 security, reliability and high-maintainability burn-down. Residual MEDIUM/LOW mechanical findings (line length, naming/style, multiple statements and similar debt) are not a reason for a repo-wide churn PR: keep PR Sonar at zero new actionable issues, fix residual debt opportunistically or in bounded behavior-preserving slices, and open/reopen a focused risk issue if Sonar surfaces a new security/reliability or materially high-impact finding.
 31. **IndexNow is event-driven and controlled from DISCADMIN Settings.** Store the integration as typed `settings.indexnow` JSON with `enabled`, validated 8–128 character `key`, root-level `key_location`, and an `endpoint` selected from the official participating IndexNow endpoints; never commit a live key to Git and never allow an arbitrary production endpoint. Derive the canonical host and affected `urlList` automatically, expose key verification dynamically at the configured location, submit only canonical public URLs affected by successful create/update/unpublish/delete/slug/SEO mutations plus Home when a Home-owned surface changes, deduplicate within each request, keep submission failure non-fatal to editorial saves, and retain the sitemap as full-site catch-up. Do not schedule indiscriminate periodic resubmission of every URL.
 32. **Tests are behavior-first and use stable public/testing contracts.** Prefer executable invariants over source-text assertions: PHP contract tests should exercise pure functions, validation rules, schemas or other stable boundaries instead of searching implementation files for function names/strings. Cross-layer wiring belongs in real-stack/integration tests. Browser tests must prefer explicit `data-testid` hooks or shared helpers over incidental CSS/DOM selectors. CI metadata/README validators should verify required semantics, not exact formatting/topology. When a feature changes a tested boundary, update implementation and its behavior contract in the same work line so tests do not lag behind the code.
-33. **CodeRabbit reviews the stable PR head, not every intermediate push.** Keep `.coderabbit.yaml` `auto_review.enabled=true` but `auto_incremental_review=false` so iterative implementation/CI/Sonar fixes do not spawn overlapping AI reviews. Normal order is implementation → directed tests → BRVTAL CI/Sonar → fix deterministic findings → stabilize the PR head → request one explicit `@coderabbitai full review` against that exact SHA → fix actionable findings → revalidate affected gates → merge. Never claim CodeRabbit passed when it is merely processing. If CodeRabbit remains indefinitely on an older/current head after explicit final-review requests, and it has produced no actionable review, review thread or finding while all canonical required CI/Sonar gates are green and branch protection permits the merge, document that it remained processing and do not let the stalled external reviewer block autonomous delivery indefinitely.
+33. **CodeRabbit reviews the stable intended PR head concurrently with CI/Sonar.** Keep `.coderabbit.yaml` `auto_review.enabled=true` but `auto_incremental_review=false` so iterative implementation does not spawn overlapping reviews. Normal order is implementation → directed tests → finalize the intended PR file set/README → push one logical batch → let BRVTAL CI/Sonar start and immediately request one explicit `@coderabbitai full review` for that exact SHA → inspect all gates in parallel → if any gate requires source changes, push one new logical batch and request review for the new stable head → merge only when the current head satisfies the required gates. Never claim CodeRabbit passed when merely processing. If CodeRabbit remains indefinitely on the current head after an explicit final-review request, with no new actionable finding/thread while canonical CI/Sonar are green and merge protection permits delivery, document the stall and do not block indefinitely.
 34. **TRANSMISSIONS relationships are bidirectional only when explicitly modeled.** Published Blog posts related through `blog_post_relations` may surface contextually on canonical Event, Artist, Set and Release pages using the existing singular relation types (`event` / `artist` / `set` / `release`). Keep this inverse navigation centralized, publication-gated and canonical to `/blog/{slug}`; never infer editorial relationships from titles, tags, chronology or shared media.
 35. **Dashboard customization is a constrained per-admin module grid, not a free-form page builder.** Preserve the existing `WHAT NEEDS ATTENTION NOW` framing while allowing each administrator to choose visible modules, reorder them by drag/drop, resize them using validated grid spans, and reset to defaults. Persist order/visibility/size server-side per admin; support pointer, touch and keyboard alternatives; cap desktop composition to a responsive grid (up to four columns where space permits) and reflow safely on smaller breakpoints without horizontal overflow. Widgets may preview Analytics only when backed by a real admin-safe data source; never fabricate GA4/traffic metrics or render arbitrary user HTML/code.
 36. **The active execution roadmap is GitHub Issue #533 and is intentionally ordered from easier/lower-risk work toward more complex architecture.** Finish any already-active near-complete PR first, then follow the roadmap phases unless the user explicitly reprioritizes. Individual Issues remain the source of acceptance criteria; #533 is the cross-project ordering/handoff surface.
 37. **DISCADMIN product direction is premium, clean and low-fatigue.** The private Admin does not need to mimic the aggressive public BRVTAL aesthetic. Favor readable typography, calm professional surfaces, consistent shared components and clear editorial-vs-technical information architecture. Detailed current requirements live in #348, #149 and #514.
 38. **Editorial productivity should progressively favor direct manipulation and recovery.** Shared tables should converge on sortable/configurable/bulk-actionable data grids (#518); ordering should use visual drag/drop instead of raw integers where practical (#519); authoring should gain safe rich editing, preview, autosave/recovery and restore through #525/#528/#529/#530 without weakening publication, security or audit boundaries.
+39. **Delivery lead time is optimized through safe fan-out and atomic logical writes.** GitHub multi-file changes should normally be written as one logical commit/tree/ref update rather than one commit per file. BRVTAL CI uses a short changed-file preflight and fans applicable fast/database/browser/real-stack/WebKit/recovery gates out concurrently; docs-only work must not pay PHP/JS runtime setup when those checks are irrelevant, while unknown paths fail conservatively into broader validation. External gates may run concurrently, but merges and dependent branches remain serialized behind the current-head gates and exact-`main` validation.
+40. **Production deploy observation is separate from production validation.** A lightweight main-push observer may watch for the exact deploy SHA marker in parallel with exact-`main` CI so deployment propagation is visible sooner. Observing the marker means **DEPLOYED marker observed**, never **VALIDATED IN PRODUCTION**; behavioral production smokes remain explicit separate workflows.
 
 ---
 
@@ -284,16 +286,13 @@ Visible workflow name: **BRVTAL CI**.
 
 ### Fast-feedback topology
 
-- `fast` is the only always-on runner: it computes changed-file scope, publishes build/deploy context, enforces PHP 8.5 compatibility, runs all top-level PHP contracts, checks JavaScript syntax and validates the README deploy snapshot on PRs;
-- `database` runs disposable MariaDB validation only when relevant;
-- `browser` runs Chromium only when relevant;
-- `realstack` runs authenticated PHP + MariaDB + Chromium smoke only for server/runtime surfaces that need it;
-- `webkit` is the targeted Safari/WebKit TOTP regression and is selected only by auth/TOTP-sensitive changes;
-- `recovery` runs the isolated backup recovery rehearsal only for backup/recovery surfaces or a full manual dispatch;
-- `validate` aggregates every required or intentionally skipped BRVTAL CI gate into one stable final check.
+- `preflight` is the short always-on fan-out gate: it computes the changed-file scope, publishes build/deploy context, validates the PR README snapshot, and emits whether PHP, JavaScript, database, Chromium, real-stack, WebKit and recovery work is required;
+- `fast` starts immediately after `preflight` in parallel with every other selected gate. PHP 8.5 setup/contracts run only when `run_php=true`; JavaScript syntax runs only when `run_js=true`; unknown paths are classified conservatively;
+- `database`, `browser`, `realstack`, `webkit` and `recovery` depend only on `preflight`, not on completion of the full fast suite, so independent validation runs concurrently;
+- `validate` aggregates `preflight`, `fast` and every required or intentionally skipped BRVTAL CI gate into one stable final check;
+- PHP/JavaScript linting may use bounded local parallelism; behavior contracts remain sequential until their shared-state independence is explicitly proven.
 
-Pull requests and exact `main` pushes use the same diff-aware gate selection. `fast` always runs. `workflow_dispatch` intentionally runs the complete matrix. This keeps exact-main verification intact without rerunning unrelated expensive jobs after every squash merge.
-
+Pull requests and exact `main` pushes use the same diff-aware gate selection. `workflow_dispatch` intentionally runs the complete matrix. This preserves exact-main verification while removing avoidable serial barriers.
 SonarQube Cloud annotations are relayed by `.github/workflows/sonar-annotation-relay.yml` into a stable PR comment after the external `SonarCloud Code Analysis` check completes. Use that relay comment as the canonical connector-readable source for Sonar rule, file, line and message details; do not guess findings from the aggregate count when annotations are unavailable directly.
 
 Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshots, recovery rehearsal and production-smoke source contracts are deliberately retired. Their checks live inside `BRVTAL CI`, avoiding duplicate runner setup and queue contention. The authenticated/read-only production smoke and controlled Page-write smoke remain separate **manual-only** workflows because they interact with real production.
@@ -328,15 +327,16 @@ The README is intentionally transient. It should remain compact and useful durin
 ### Mandatory delivery loop
 
 1. Start a focused branch from current green `main`.
-2. Implement the logical change + applicable tests.
-3. Refresh `README.md` with the exact deploy snapshot and updated pending-work panorama.
-4. Open PR to `main`.
-5. Wait for **BRVTAL CI / validate**.
-6. Fix failures on the same branch; refresh README again if scope/file set changed.
-7. When green, squash merge.
+2. Implement the logical change + applicable directed tests.
+3. Finalize the intended file set and refresh `README.md` before entering final gates.
+4. Publish multi-file work as one logical Git commit/tree/ref update where practical, then open/update the PR.
+5. Let BRVTAL CI and Sonar start and immediately request one explicit CodeRabbit full review for that exact intended head.
+6. Inspect BRVTAL CI/Sonar/CodeRabbit in parallel. Fix valid findings on the same branch as one logical batch; if the head changes, refresh README and request CodeRabbit again for the new head.
+7. When the current head is green/reviewed (or a stalled external CodeRabbit review meets rule 33), squash merge.
 8. Get the exact merged `main` SHA.
 9. Verify **BRVTAL CI / validate** succeeds on that exact SHA with the path-aware gates selected for that merge.
-10. Only then begin the next branch.
+10. Observe deployment separately; an exact production SHA marker proves deployment propagation only, not behavioral production validation.
+11. Only then begin the next dependent branch.
 
 Routine development operations do not require asking again.
 
@@ -388,17 +388,17 @@ Unless explicitly reprioritized:
 
 ## 9. Current priorities
 
-GitHub Issue **#533** is the active cross-project execution roadmap. It is deliberately ordered from easier/lower-risk work toward more complex changes.
+GitHub Issue **#533** is the cross-project roadmap. Issue **#534** temporarily precedes normal feature work because every later task benefits from a shorter delivery path.
 
 When no newer explicit user instruction exists:
 
-1. **Finish active work first** — close #511 / PR #512, including final stable-head review and exact-main CI.
-2. **README development dashboard — #527** — replace the prose/decorative presentation with a professional visual development dashboard: current state, Git delta, gates, NOW/NEXT/LATER and full pending panorama.
-3. **Phase 1 quick wins from #533** — #520 duplicate Events workspace, #521 Event Accent color picker, #526 optional/automatic Blog taxonomy, #522 Media navigation + UI cleanup, #479 alt cleanup, #517 human-readable version and #221 Hero/Banners media integrity.
-4. **Then continue the phases in #533** — Admin shell/theme/premium UX → editorial productivity primitives → configurable Dashboard/System Status → Theme Studio/SEO/data integrity → larger safety/resilience/product expansions.
-5. **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+1. **Delivery lead-time infrastructure — #534** — atomic logical Git writes, short CI preflight, maximum safe gate fan-out, changed-file-aware PHP/JS checks, concurrent CI/Sonar/CodeRabbit, and parallel exact-deploy observation.
+2. **README development dashboard — #527** — professional visual development status with trustworthy Git delta, quality gates and NOW/NEXT/LATER.
+3. **Phase 1 quick wins from #533** — #520, #521, #526, #522, #479, #517 and #221.
+4. **Then continue #533** from shell/theme/premium UX through editorial productivity, configurable operational workspaces, Theme Studio/SEO/data integrity, and larger resilience/product expansions.
+5. **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI or a deploy marker.
 
-Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
+Before starting each item, verify current code/issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 
 ---
 

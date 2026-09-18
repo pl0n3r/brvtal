@@ -1,100 +1,90 @@
-<p align="center">
-  <img src="assets/brvtal-logo-640.webp" alt="BRVTAL — Rave till Grave" width="190">
-</p>
+# BRVTAL · Development Dashboard
 
-# BRVTAL — Último deploy
+[![BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
 
-<p align="center"><strong>Cultural archive · contextual TRANSMISSIONS</strong></p>
-
-<p align="center">
-  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml"><img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg"></a>
-</p>
-
-> Este README representa **solo el deploy actual**. Se reemplaza en el siguiente deploy y no funciona como changelog acumulativo.
+> Deploy snapshot for [#534](https://github.com/pl0n3r/brvtal/issues/534). This is operational state, not a cumulative changelog.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `50b8a6b7253c000565f23d16e9e5355b660b7806` · exact-main BRVTAL CI verde |
-| Git delta | 📐 **7 files · 456 insertions · 55 deletions · net +401** | PR diff vs base `50b8a6b7253c000565f23d16e9e5355b660b7806` |
-| Alcance | 🔎 **#511 / parent #398** | inverse TRANSMISSIONS on canonical entity pages |
-| Relaciones | 🧬 **EXPLICIT ONLY** | `blog_post_relations` |
-| Visibilidad | 🔒 **PUBLISHED ONLY** | drafts/private posts excluded |
-| Producción | ⚪ **No validada** | CI no equivale a validación de producción |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1cb65b32ff99f07fce1a5748d380c0c9587e5949` · exact-main BRVTAL CI green |
+| Scope | ⚡ **DELIVERY PIPELINE** | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| Git delta | 📐 **7 files · 300 insertions · 173 deletions · net +127** | base `1cb65b32…` → current PR head |
+| CI topology | 🧵 **PARALLEL FAN-OUT** | short preflight → applicable gates concurrently |
+| Review | 🔎 **CONCURRENT** | CI/Sonar + final-head CodeRabbit overlap |
+| Production | ⚪ **Not behavior-validated** | deploy marker ≠ production smoke |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-    A["PR + snapshot exacto"] --> B["BRVTAL CI"]
-    A --> C["Sonar"]
-    B --> D["Head estable"]
-    C --> D
-    D --> E["CodeRabbit full review"]
-    E --> F["Squash merge"]
-    F --> G["CI del SHA exacto de main"]
+  A["PR + snapshot exacto"] --> P["BRVTAL CI · preflight"]
+  P --> F["fast"]
+  P --> D["database"]
+  P --> B["browser"]
+  P --> R["real-stack"]
+  P --> W["WebKit"]
+  P --> K["recovery"]
+  A --> S["Sonar"]
+  A --> C["CodeRabbit"]
+  F --> V["validate"]
+  D --> V
+  B --> V
+  R --> V
+  W --> V
+  K --> V
+  S --> M["Squash merge"]
+  C --> M
+  V --> M
+  M --> X["CI del SHA exacto de main"]
+  M --> O["deploy observer"]
 ```
 
 ## Qué se hizo
 
-- Centraliza la resolución inversa de Blog/TRANSMISSIONS para Event, Artist, Set y Release.
-- Solo usa relaciones explícitas `blog_post_relations`; no infiere conexiones.
-- Mantiene Event Record y extiende el mismo comportamiento a Artist, Set y Release.
-- Las tarjetas navegan a la URL canónica `/blog/{slug}`.
-- Los Blog drafts quedan excluidos por el query de publicación.
-- TRANSMISSIONS y Memories se ensamblan en un único bloque cultural compartido para evitar divergencias entre entidades.
-- La cobertura nueva es behavior-first: mapping/render ejecutable + integración MariaDB.
-- Se elimina del Event Record una comprobación frágil que dependía del SQL literal anterior.
+- Separa detección de scope en un **preflight** corto y hace fan-out inmediato de gates independientes.
+- Evita PHP/JS setup cuando el diff no lo necesita; paths desconocidos siguen validación conservadora.
+- Paraleliza lint PHP y JavaScript con un límite de 4 workers; los contratos PHP siguen secuenciales por seguridad.
+- Cambia la política de CodeRabbit: review final corre junto a CI/Sonar sobre el mismo head estable.
+- Añade observación del SHA exacto desplegado en Hostinger desde el push a `main`, en paralelo con exact-main CI.
+- Adopta escrituras Git multiarchivo atómicas: este cambio se publica como un solo commit lógico.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — contrato durable de relaciones inversas TRANSMISSIONS.
-- `README.md` — snapshot exacto del deploy #511.
-- `config/public_page.php` — helper central y entrega contextual a entidades canónicas.
-- `package.json` — incorpora la integración MariaDB al suite canónico.
-- `tests/contextual-transmissions-contract.php` — contrato ejecutable de mapping/render.
-- `tests/event-record-contract.php` — elimina aserciones frágiles sobre SQL literal.
-- `tests/integration/contextual-transmissions.php` — publicación/relaciones reales en MariaDB.
+- `.github/workflows/production-deploy-observer.yml` — observación temprana del marcador exacto de deploy.
+- `.github/workflows/update-release-metadata.yml` — preflight + fan-out + PHP/JS scope.
+- `AGENTS.md` — contrato durable de paralelización, review y deploy observation.
+- `README.md` — snapshot visual de #534.
+- `scripts/ci-scope.sh` — flags `run_php` / `run_js` y fallback conservador.
+- `scripts/php85-compatibility.sh` — lint PHP con paralelismo acotado.
+- `tests/ci-scope-contract.php` — contratos ejecutables de la nueva topología/scope.
 
 ## Validación
 
-- Base exacta `50b8a6b7253c000565f23d16e9e5355b660b7806`: exact-main BRVTAL CI verde tras #510.
-- PHP 8.5 debe ejecutar el contrato behavior-first.
-- MariaDB debe probar Event/Artist/Set/Release, draft exclusion y aislamiento por entity ID.
-- Sonar debe mantenerse en cero issues nuevos accionables.
-- La revisión CodeRabbit profunda se solicita únicamente sobre el head estable.
-- Tras squash merge se verificará BRVTAL CI sobre el SHA exacto de `main`.
-- No se declara **VALIDATED IN PRODUCTION** desde CI.
+- El contrato CI debe demostrar docs-only sin PHP/JS, JS/CSS selectivo y fallback desconocido conservador.
+- BRVTAL CI debe mostrar `preflight` primero y los gates seleccionados arrancando sin esperar al suite PHP completo.
+- Sonar debe mantener 0 nuevos issues accionables / hotspots.
+- CodeRabbit se solicita sobre el head estable al mismo tiempo que CI/Sonar.
+- Tras squash merge se valida el SHA exacto de `main`.
+- El observer solo puede declarar **DEPLOYED marker observed**, nunca **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | Cerrar [#511](https://github.com/pl0n3r/brvtal/issues/511) / [PR #512](https://github.com/pl0n3r/brvtal/pull/512), luego ejecutar [#534](https://github.com/pl0n3r/brvtal/issues/534) para reducir el lead time de desarrollo a producción. |
-| **NEXT** | [#527](https://github.com/pl0n3r/brvtal/issues/527) — convertir README en dashboard profesional de desarrollo. |
-| **LATER** | Continuar las fases priorizadas en [#533](https://github.com/pl0n3r/brvtal/issues/533), de quick wins hacia cambios estructurales. |
+| **NOW** | Terminar [#534](https://github.com/pl0n3r/brvtal/issues/534) y comparar wall time contra la línea base ~106–123s. |
+| **NEXT** | [#527](https://github.com/pl0n3r/brvtal/issues/527) · convertir README en dashboard de desarrollo todavía más visual/automatizado. |
+| **LATER** | [#533](https://github.com/pl0n3r/brvtal/issues/533) · ejecutar quick wins y luego cambios estructurales. |
 
 ## Panorama general pendiente
 
-| Lane | Frente | Estado / siguiente foco |
+| Lane | Frente | Siguiente foco |
 | --- | --- | --- |
-| **NOW** | ⚡ **Delivery lead time** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · paralelización segura de commits, gates y observación de deploy |
-| **NEXT** | 📊 **Development dashboard** | [#527](https://github.com/pl0n3r/brvtal/issues/527) · README visual con métricas y panorama |
-| **NEXT** | 🗺️ **Roadmap activo** | [#533](https://github.com/pl0n3r/brvtal/issues/533) · ejecución de fácil/bajo riesgo → arquitectura compleja |
-| **NEXT** | ⚡ **Quick wins Admin** | [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
-| **LATER** | 🧩 **Dashboard configurable** | [#513](https://github.com/pl0n3r/brvtal/issues/513) · módulos, drag/drop, resize y Analytics reales |
-| **LATER** | 🗃️ **Archivo cultural** | [#398](https://github.com/pl0n3r/brvtal/issues/398) · continuar después de la estabilización priorizada |
-| **LATER** | 🎛️ **Apariencia** | [#149](https://github.com/pl0n3r/brvtal/issues/149) + [#514](https://github.com/pl0n3r/brvtal/issues/514) · Light/Glass y Admin premium |
-| **LATER** | 🖼️ **Hero / Banners** | [#221](https://github.com/pl0n3r/brvtal/issues/221) integridad editorial · [#480](https://github.com/pl0n3r/brvtal/issues/480) visual desktop |
-| **LATER** | 🔐 **Seguridad editorial** | [#257](https://github.com/pl0n3r/brvtal/issues/257), [#216](https://github.com/pl0n3r/brvtal/issues/216), [#174](https://github.com/pl0n3r/brvtal/issues/174), [#193](https://github.com/pl0n3r/brvtal/issues/193) |
-| **LATER** | 📈 **Analytics** | [#427](https://github.com/pl0n3r/brvtal/issues/427) · completar eventos `brvtal_*` en GTM/GA4 |
-| **LATER** | ✍️ **Content / edición** | [#224](https://github.com/pl0n3r/brvtal/issues/224), [#252](https://github.com/pl0n3r/brvtal/issues/252) |
-| **LATER** | 🧾 **Activity / operaciones** | [#232](https://github.com/pl0n3r/brvtal/issues/232), [#195](https://github.com/pl0n3r/brvtal/issues/195) |
-| **LATER** | 📚 **Bulk Actions** | [#275](https://github.com/pl0n3r/brvtal/issues/275) · registros >500 sin falsa exhaustividad |
-| **LATER** | 🌐 **Idioma** | [#212](https://github.com/pl0n3r/brvtal/issues/212) · español canónico + inglés automático por fases |
-| **LATER** | 💾 **Backups** | [#389](https://github.com/pl0n3r/brvtal/issues/389) · scheduling seguro + Drive opcional |
-
----
-
-<p align="center"><sub>BRVTAL · Rave till Grave · deploy snapshot</sub></p>
+| **NOW** | ⚡ Delivery | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| **NEXT** | 📊 Repo dashboard | [#527](https://github.com/pl0n3r/brvtal/issues/527) |
+| **NEXT** | 🛠️ Admin quick wins | [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522) |
+| **LATER** | 🎛️ Premium Admin | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |
+| **LATER** | 🧩 Configurable workspaces | [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515) |
+| **LATER** | ✍️ Editorial productivity | [#518](https://github.com/pl0n3r/brvtal/issues/518), [#519](https://github.com/pl0n3r/brvtal/issues/519), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
+| **LATER** | 🗺️ Master roadmap | [#533](https://github.com/pl0n3r/brvtal/issues/533) |
