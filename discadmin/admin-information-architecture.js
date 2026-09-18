@@ -19,11 +19,6 @@
     'dashboard','events','artists','releases','sets','blog','pages','media','hero-slider',
     'theme','settings','security','system','backups','activity'
   ]);
-  const dynamicSectionScripts = new Map([
-    ['media', ['brvtal-media-library-script']],
-    ['releases', ['brvtal-media-library-script','brvtal-releases-script']],
-    ['blog', ['brvtal-media-library-script','brvtal-blog-script']]
-  ]);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
   const exactNavLabelKeys = new Map([
     ['DASHBOARD', 'dashboard'],
@@ -113,26 +108,9 @@
     history[mode === 'replace' ? 'replaceState' : 'pushState']({brvtalAdminRoute: canonical}, '', next);
   }
 
-  function waitForScriptReady(id) {
-    const script = document.getElementById(id);
-    if (!script || script.dataset.ready === '1') return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const cleanup = () => {
-        script.removeEventListener('load', onLoad);
-        script.removeEventListener('error', onError);
-      };
-      const onLoad = () => { cleanup(); resolve(); };
-      const onError = () => { cleanup(); reject(new Error(`Unable to load ${id}`)); };
-      script.addEventListener('load', onLoad, {once:true});
-      script.addEventListener('error', onError, {once:true});
-      if (script.dataset.ready === '1') onLoad();
-    });
-  }
-
   async function waitForDynamicSection(section) {
-    const ids = dynamicSectionScripts.get(String(section || '').toLowerCase());
-    if (!ids) return;
-    await Promise.all(ids.map(waitForScriptReady));
+    const waitForSection = window.BRVTALAdminModules?.waitForSection;
+    if (typeof waitForSection === 'function') await waitForSection(section);
   }
 
   async function navigateRoute(section) {

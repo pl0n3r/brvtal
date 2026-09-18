@@ -177,6 +177,28 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
   }
 });
 
+test('Media mounts consistently from Dashboard, another module and a direct route', async ({ page }) => {
+  await login(page);
+
+  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
+  await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
+
+  await page.getByRole('button', {name:'MEDIA LIBRARY', exact:true}).click();
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
+  await expect(page.locator('#media-grid')).toBeVisible();
+  await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
+
+  await page.getByRole('button', {name:'SETS', exact:true}).click();
+  await expect(page.locator('.main .top h1')).toHaveText('SETS');
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
+
+  await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
+});
+
 test('Media writes stay behind the canonical integrity boundary in the real stack', async ({ page }) => {
   const auth = await login(page);
   const headers = {'X-CSRF-Token':auth.csrf};

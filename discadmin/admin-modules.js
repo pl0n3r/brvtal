@@ -400,22 +400,28 @@ window.BRVTALAdminModules = (() => {
   const mediaReady = ensureScript('brvtal-media-library-script','/discadmin/media-library.js');
   const releasesReady = ensureScript('brvtal-releases-script','/discadmin/releases.js');
   const blogReady = ensureScript('brvtal-blog-script','/discadmin/blog.js');
+  const sectionReady = new Map([
+    ['media', mediaReady],
+    ['releases', Promise.all([mediaReady,releasesReady])],
+    ['blog', Promise.all([mediaReady,blogReady])]
+  ]);
+  const waitForSection = section => sectionReady.get(String(section || '').toLowerCase()) || Promise.resolve();
 
   const modules = {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},
     security: {url:'/discadmin/totp-status.php', mount:root=>BRVTALSecurity.mount(root)},
     media: {url:'/discadmin/media-library.php', mount:async root=>{
-      await mediaReady;
+      await waitForSection('media');
       try { await mediaPermissions.repair(); }
       catch (e) { Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
       BRVTALMediaLibrary.mount(root);
     }},
     releases: {url:'/discadmin/releases.php', mount:async root=>{
-      await Promise.all([mediaReady,releasesReady]);
+      await waitForSection('releases');
       BRVTALReleases.mount(root);
     }},
     blog: {url:'/discadmin/blog.php', mount:async root=>{
-      await Promise.all([mediaReady,blogReady]);
+      await waitForSection('blog');
       BRVTALBlog.mount(root);
     }}
   };
@@ -504,9 +510,7 @@ window.BRVTALAdminModules = (() => {
   window.go=async function(section) {
     if(section==='media' || section==='releases' || section==='blog') {
       prepareModuleWorkspace(section);
-      if (section === 'media') await mediaReady;
-      if (section === 'releases') await Promise.all([mediaReady,releasesReady]);
-      if (section === 'blog') await Promise.all([mediaReady,blogReady]);
+      await waitForSection(section);
       await load(section);
       ensureDynamicNavigation();
       return;
@@ -554,5 +558,5 @@ window.BRVTALAdminModules = (() => {
     };
   }
 
-  return {load,cancel,initialSection,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
+  return {load,cancel,initialSection,waitForSection,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
 })();

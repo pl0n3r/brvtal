@@ -10,10 +10,10 @@
 
 ## Estado del deploy
 
-| Señal | Estado actual | Evidencia |
+| Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | ✍️ **#526 Blog taxonomy** | authoring sin taxonomía manual; tags existentes protegidos |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `33e6145c420031141cfd68c3f9506fc0842a5da3` · exact-main `validate` verde |
+| Work line | 🖼️ **#522 Media navigation/UI** | una ruta canónica de readiness + retiro de External Registry |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `33f8b2f35ceb9904f13515629c7778071e618f17` · exact-main `validate` verde |
 | Fase | ⚡ **Phase 1 / quick wins** | [#533](https://github.com/pl0n3r/brvtal/issues/533) |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+86** | **−44** | **+42** |
+| **8** | **+94** | **−88** | **+6** |
 
 ## Calidad y entrega
 
@@ -31,13 +31,13 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack** |
-| Browser | editor sin TAXONOMY; payload normal omite `tags` |
-| Real-stack | PUT sin `tags` preserva; `tags: []` explícito limpia |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
+| Browser | Dashboard → Media no depende de un evento `load` tardío |
+| Real-stack | Dashboard → Media · Sets → Media · deep-link Media |
+| UI | `REGISTER EXTERNAL` no se renderiza |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
 | Exact-main | obligatorio después del squash merge |
-| Producción | deploy marker ≠ validación funcional |
 
 ## Flujo de entrega
 
@@ -45,11 +45,11 @@
 flowchart LR
  A["PR + snapshot exacto"] --> P["preflight"]
  P --> F["fast"]
- P --> H["gates paralelos"]
+ P --> B["Chromium + real-stack"]
  A --> S["Sonar"]
  A --> R["CodeRabbit"]
  F --> G["head listo"]
- H --> G
+ B --> G
  S --> G
  R --> G
  G --> M["Squash merge"]
@@ -58,45 +58,46 @@ flowchart LR
 
 ## Qué se hizo
 
-- El editor normal de Blog deja de mostrar TAXONOMY / Tags.
-- Crear o publicar un Blog sin tags es un flujo válido.
-- En PUT, omitir `tags` conserva la taxonomía histórica; un array explícito sigue permitiendo reemplazarla o limpiarla.
-- No se inventan categorías/tags automáticamente y la taxonomía pública existente sigue compatible.
-- E2E y real-stack cubren que una edición editorial normal no borra tags existentes.
+- Media, Releases y Blog comparten una única frontera de readiness administrada por `BRVTALAdminModules`.
+- La capa de información/navegación ya no instala listeners duplicados que pueden esperar un `load` ya ocurrido.
+- Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
+- Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.
+- Se añade cobertura de navegador y real-stack autenticada con el usuario E2E.
 
 ## Archivos modificados en este deploy
 
-- `api/blog.php` — distingue tags omitidos de reemplazo explícito.
-- `discadmin/blog.js` — elimina taxonomía manual del editor y deja de enviar tags en saves normales.
-- `tests/blog-contract.php` — actualiza el contrato del editor sin taxonomía manual.
-- `tests/discadmin-editor-accessibility-contract.php` — elimina el control retirado de la lista de labels obligatorios.
-- `tests/e2e/discadmin-blog.spec.mjs` — verifica UI/payload sin tags manuales.
-- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs` — verifica preservación y limpieza explícita de tags.
-- `AGENTS.md` — persiste la regla de taxonomía Blog opcional.
-- `README.md` — dashboard exacto de #526.
+- `discadmin/admin-modules.js` — dueño único de readiness de módulos dinámicos.
+- `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
+- `discadmin/media-library.php` — elimina External Registry de la toolbar.
+- `discadmin/media-library.js` — elimina modal/binding de registro externo.
+- `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido.
+- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real.
+- `AGENTS.md` — persiste la frontera canónica de readiness.
+- `README.md` — dashboard exacto de #522.
 
 ## Validación
 
-- New/Edit Blog no muestra control TAXONOMY/Tags.
-- Un post nuevo se guarda sin propiedad `tags`.
-- Un update sin `tags` preserva tags existentes en MariaDB.
-- Un update con `tags: []` sigue siendo una limpieza explícita válida.
-- Relaciones editoriales, SEO y publicación conservan su comportamiento previo.
+- Dashboard → Media monta el módulo sin depender del orden previo de navegación.
+- Sets → Media vuelve a montar correctamente el mismo workspace.
+- `?module=media` funciona en sesión autenticada.
+- External Registry no aparece en la UI normal.
+- La protección de referencias, upload, picker y Media Engine permanecen sin cambios funcionales.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | Cerrar [#526](https://github.com/pl0n3r/brvtal/issues/526). |
-| **NEXT** | [#522](https://github.com/pl0n3r/brvtal/issues/522) Media navigation/UI. |
-| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) Hostinger marker/hPanel. |
-| **LATER** | [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221). |
+| **NOW** | Cerrar [#522](https://github.com/pl0n3r/brvtal/issues/522). |
+| **NEXT** | [#479](https://github.com/pl0n3r/brvtal/issues/479) · alt attributes públicos. |
+| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy/hPanel. |
+| **LATER** | [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), luego Phase 2. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | Blog authoring | [#526](https://github.com/pl0n3r/brvtal/issues/526) |
-| **NEXT** | Media friction | [#522](https://github.com/pl0n3r/brvtal/issues/522) |
+| **NOW** | Media friction | [#522](https://github.com/pl0n3r/brvtal/issues/522) |
+| **NEXT** | Accessibility / SEO | [#479](https://github.com/pl0n3r/brvtal/issues/479) |
 | **BLOCKED / EXTERNAL** | Deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
-| **LATER** | Quick wins | [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
+| **LATER** | Quick wins | [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
+| **LATER** | Admin foundation | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |
