@@ -30,12 +30,15 @@
 
 ```mermaid
 flowchart LR
-    A["Curated Memory"] --> B["Explicit Event relation"]
-    B --> C["Public sanitized payload"]
-    C --> D["Archive relation count"]
-    D --> E["WITH MEMORIES"]
-    D --> F["EXPLORE CONNECTIONS"]
-    F --> G["CONNECTED"]
+    A["PR + snapshot exacto"] --> B["BRVTAL CI"]
+    A --> C["Sonar"]
+    A --> D["CodeRabbit"]
+    B --> E{"Gates verdes"}
+    C --> E
+    D --> E
+    E --> F["Squash merge"]
+    F --> G["CI del SHA exacto de main"]
+    G --> H["Deploy automático"]
 ```
 
 ## Qué se hizo
