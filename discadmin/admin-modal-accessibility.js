@@ -25,6 +25,9 @@
 
   function activeDescriptors() {
     const items = [];
+    const memoriesPickers = [...document.querySelectorAll('.memories-picker')].filter(visible);
+    const memories = memoriesPickers.at(-1);
+    if (memories) items.push(descriptor(memories, memories.querySelector('.memories-picker-card'), 'memories', '[data-memories-picker-close]'));
     const mediaPickers = [...document.querySelectorAll('.brvtal-media-picker')].filter(visible);
     const media = mediaPickers.at(-1);
     if (media) items.push(descriptor(media, media.querySelector('.brvtal-media-picker-box'), 'media', '[data-close]'));

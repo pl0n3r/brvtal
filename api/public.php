@@ -87,6 +87,33 @@ function brvtal_public_table_exists(PDO $pdo, string $table): bool
     return (int)$st->fetchColumn() > 0;
 }
 
+function brvtal_public_memories(PDO $pdo): array
+{
+    if (!brvtal_public_table_exists($pdo, 'memories')) {
+        return [];
+    }
+
+    $rows = $pdo->query(
+        "SELECT m.id,m.media_id,m.title,m.context,m.sort_order,
+                media.type,media.file_path,media.mime_type,media.file_size,media.alt_text,media.created_at
+         FROM memories m
+         JOIN media ON media.id=m.media_id
+         WHERE m.status='published'
+           AND media.status='published'
+           AND media.type IN ('image','video','audio')
+         ORDER BY m.sort_order ASC,m.id ASC"
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($rows as &$row) {
+        $row['id'] = (int)$row['id'];
+        $row['media_id'] = (int)$row['media_id'];
+        $row['sort_order'] = (int)$row['sort_order'];
+        $row['file_size'] = (int)$row['file_size'];
+    }
+    unset($row);
+    return $rows ?: [];
+}
+
 function brvtal_public_releases(PDO $pdo): array
 {
     if (!brvtal_public_table_exists($pdo, 'releases') || !brvtal_public_table_exists($pdo, 'release_artists')) {
@@ -258,6 +285,7 @@ try {
          WHERE status='published'
          ORDER BY id DESC"
     )->fetchAll();
+    $memories = brvtal_public_memories($pdo);
 
     $ticketTypes = $pdo->query(
         "SELECT id,event_id,name,description,price,currency,external_url,
@@ -347,6 +375,7 @@ try {
             'sets' => count($archiveSets),
             'releases' => count($releases),
             'media' => count($media),
+            'memories' => count($memories),
         ],
     ];
 
@@ -359,6 +388,7 @@ try {
         'relations' => $relations,
         'blog' => $blog,
         'media' => $media,
+        'memories' => $memories,
         'pages' => $pages,
         'settings' => $settings,
     ];
