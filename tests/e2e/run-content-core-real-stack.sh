@@ -160,6 +160,7 @@ export BRVTAL_REAL_STACK_ADMIN_EMAIL="$ADMIN_EMAIL"
 export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
 export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
 npx playwright test \
+  tests/e2e/discadmin-premium-real-stack.spec.mjs \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/theme-active-reference-real-stack.spec.mjs \
   tests/e2e/event-publication-invariant-real-stack.spec.mjs \

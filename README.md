@@ -18,9 +18,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#149 ADMIN APPEARANCE** | Dark / Light / Glass coherentes + login |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `b7ece8293ad6695b3fbaf86f3a14c018fc08b77b` · exact-main `validate` verde |
-| Version | 🚧 **0.1.4 → 0.1.5** | patch deploy bump · pre-1.0 |
+| Work line | 🚧 **#514 PREMIUM ADMIN** | legibilidad + spacing + componentes de baja fatiga |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `41fc040fb94a9988a6bad7c0933408f9f0349dcd` · exact-main `validate` verde |
+| Version | 🚧 **0.1.5 → 0.1.6** | patch deploy bump · pre-1.0 |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+619** | **−96** | **+523** |
+| **8** | **+380** | **−30** | **+350** |
 
 ## Calidad y entrega
 
@@ -37,8 +37,9 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[JS] · chromium** |
-| Browser | selector, persistencia, login, Light moderno y Glass |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack · webkit** |
+| Browser | escala tipográfica, superficies, responsive y carga final del design system |
+| Real stack | E2E admin autenticado valida Dashboard + Settings reales |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
 | Exact-main | **CI del SHA exacto de main** obligatorio tras squash merge |
@@ -50,10 +51,14 @@ flowchart LR
  A["PR + snapshot exacto"] --> P["preflight"]
  P --> F["fast"]
  P --> B["Chromium"]
+ P --> R["real-stack"]
+ P --> W["WebKit"]
  A --> S["Sonar"]
  A --> C["CodeRabbit parallel review"]
  F --> M["Squash merge"]
  B --> M
+ R --> M
+ W --> M
  S --> M
  C --> M
  M --> X["CI del SHA exacto de main"]
@@ -61,47 +66,49 @@ flowchart LR
 
 ## Qué se hizo
 
-- Centraliza superficies, texto, bordes, inputs, hover, overlays y sombras en tokens semánticos de apariencia.
-- Completa Light para Settings, System Status, Content Health, Admin Activity, SEO y Global Search.
-- Refuerza Glass con material translúcido, blur, highlights/bordes y fondo multicapa.
-- Lleva el selector Dark / Light / Glass al login y conserva la preferencia al hacer Logout/volver a entrar.
-- Corrige el selector para que solo trate botones como controles y no marque accidentalmente el elemento `html`.
-- Mantiene el bootstrap temprano existente para minimizar el flash a Dark.
-- Incrementa BRVTAL a **0.1.5**.
+- Añade una capa única `admin-design-system.css` cargada después de los estilos de cada módulo.
+- Establece tipografía de sistema profesional, body/table/input alrededor de 14 px y metadatos persistentes de 11–13 px.
+- Corrige la dependencia visual de texto de 7–10 px en Dashboard, Settings, System Status, Content Core, Media, Blog y Releases.
+- Unifica spacing, radios, elevación y microinteracciones sin convertir DISCADMIN en una copia visual de Apple.
+- Mantiene Dark / Light / Glass como apariencias del mismo sistema semántico.
+- Mantiene formularios móviles en 16 px para evitar zoom involuntario y conserva reduced-motion.
+- Añade E2E de comportamiento y un smoke real-stack autenticado para legibilidad computada.
+- Incrementa BRVTAL a **0.1.6**.
 
 ## Archivos modificados en este deploy
 
 - `AGENTS.md`
 - `README.md`
 - `config/version.php`
-- `discadmin/admin-appearance.css`
-- `discadmin/admin-appearance.js`
-- `tests/e2e/admin-appearance.spec.mjs`
+- `discadmin/index.php`
+- `discadmin/admin-design-system.css`
+- `tests/e2e/discadmin-premium-ui.spec.mjs`
+- `tests/e2e/discadmin-premium-real-stack.spec.mjs`
+- `tests/e2e/run-content-core-real-stack.sh`
 
 ## Validación
 
-- Playwright valida selector lateral, persistencia, teclado/touch y cambio de modo.
-- Playwright valida que Light alcance Dashboard, Settings, System Status, Content Health, Admin Activity, SEO y Global Search.
-- Playwright valida material Glass translúcido con blur.
-- Playwright valida selector pre-auth y persistencia al reemplazar el shell por login.
+- Chromium verifica tamaños computados mínimos en shell y módulos representativos.
+- Chromium verifica que móvil mantenga lectura cómoda y controles de formulario de 16 px.
+- Real-stack usa el administrador E2E aislado y valida Dashboard + Settings dentro de PHP/MariaDB reales.
+- El design system se carga al final para que los módulos nuevos hereden la capa semántica sin hard-codes por tema.
 - No hay migración ni operación destructiva de producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#149](https://github.com/pl0n3r/brvtal/issues/149) · cerrar gates y exact-main. |
-| **NEXT** | 🚧 [#514](https://github.com/pl0n3r/brvtal/issues/514) · tipografía/espaciado y sistema visual premium de baja fatiga. |
+| **NOW** | 🚧 [#514](https://github.com/pl0n3r/brvtal/issues/514) · cerrar gates y exact-main. |
 | **NEXT** | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516) · Settings Advanced + consolidación 2FA. |
+| **NEXT** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · medir/corregir primer load de Banners. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348)~~ |
-| **NOW** | 🚧 Appearance | 🚧 [#149](https://github.com/pl0n3r/brvtal/issues/149) |
-| **NEXT** | 🚧 Premium Admin / Settings | 🚧 [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516) |
-| **NEXT** | 🚧 Shell reliability / perf | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
+| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149)~~ |
+| **NOW** | 🚧 Premium Admin | 🚧 [#514](https://github.com/pl0n3r/brvtal/issues/514) |
+| **NEXT** | 🚧 Settings / Shell reliability | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516), [#523](https://github.com/pl0n3r/brvtal/issues/523), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
 | **BLOCKED / EXTERNAL** | 🚧 Deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

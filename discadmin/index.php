@@ -47,6 +47,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<link rel="stylesheet" href="/discadmin/theme-studio-configuration.css' . $suffix . '" data-theme-config="1">'
     . '<link rel="stylesheet" href="/discadmin/theme-studio-reliability.css' . $suffix . '" data-theme-studio-reliability="1">'
     . '<link rel="stylesheet" href="/discadmin/memories.css' . $suffix . '" data-memories-admin="1">'
+    . '<link rel="stylesheet" href="/discadmin/admin-design-system.css' . $suffix . '" data-admin-design-system="1">'
     . '<script src="/discadmin/admin-auth-boundary.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-core-nav.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-color-field.js' . $suffix . '"></script>'

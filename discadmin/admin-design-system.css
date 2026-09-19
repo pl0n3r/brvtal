@@ -1,0 +1,183 @@
+/* BRVTAL DISCADMIN premium design system.
+   Loaded after module styles so one semantic layer owns readability and rhythm. */
+:root{
+  --admin-font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,Arial,sans-serif;
+  --admin-font-mono:ui-monospace,"SFMono-Regular",SFMono-Regular,Menlo,Consolas,monospace;
+  --admin-font-xs:11px;
+  --admin-font-sm:12px;
+  --admin-font-base:14px;
+  --admin-font-md:15px;
+  --admin-font-lg:18px;
+  --admin-font-xl:24px;
+  --admin-line-tight:1.22;
+  --admin-line-body:1.5;
+  --admin-space-1:4px;
+  --admin-space-2:8px;
+  --admin-space-3:12px;
+  --admin-space-4:16px;
+  --admin-space-5:20px;
+  --admin-space-6:24px;
+  --admin-radius-control:10px;
+  --admin-radius-card:12px;
+  --admin-radius-panel:14px;
+  --admin-elevation-card:0 1px 0 rgba(255,255,255,.025),0 10px 30px rgba(0,0,0,.08);
+  --admin-motion-fast:160ms ease;
+}
+
+html[data-discadmin-appearance] body{
+  font-family:var(--admin-font-ui);
+  font-size:var(--admin-font-base);
+  line-height:var(--admin-line-body);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+html[data-discadmin-appearance] :where(button,input,select,textarea){font-family:var(--admin-font-ui)}
+html[data-discadmin-appearance] :where(.section,.dashsection,.stat,.table,.techcard,.dashboard-v2-hero,.dashboard-v2-panel,.dashboard-v2-summary-card,.dashboard-v2-health-card,.dashboard-v2-draft,.sv2-hero,.sv2-tabs,.sv2-pane,.sv2-context-grid article,.sv2-status-map article,.sv2-readonly,.sv2-asset,.ssv2-panel,.ssv2-hero,.ssv2-service,.ssv2-runtime-grid>div,.ssv2-backlog-item,.media-inspector,.media-fact,.media-usage-item,.blog-metrics>div,.blog-row,.blog-related-box,.releases-metrics>div,.release-row,.release-artist-item,[data-admin-module="content-core"] .box){border-radius:var(--admin-radius-card)}
+html[data-discadmin-appearance] :where(.dashboard-v2-hero,.dashboard-v2-panel,.sv2-hero,.sv2-pane,.ssv2-panel,.media-inspector){box-shadow:var(--admin-elevation-card)}
+html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.ssv2-fatal button,.ssv2-hero-actions button,.ssv2-advanced-actions button,.sv2-tabs button,.media-picker-btn,.brvtal-global-search-trigger,.content-health-open,input,select,textarea){border-radius:var(--admin-radius-control)}
+html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.ssv2-fatal button,.ssv2-hero-actions button,.ssv2-advanced-actions button,.sv2-tabs button,.media-picker-btn,.brvtal-global-search-trigger,.content-health-open){transition:background var(--admin-motion-fast),border-color var(--admin-motion-fast),color var(--admin-motion-fast),transform var(--admin-motion-fast)}
+
+/* Shared shell / controls. */
+html[data-discadmin-appearance] .nav button{font-size:13px;line-height:1.4;letter-spacing:.04em}
+html[data-discadmin-appearance] .navgroup{font-size:var(--admin-font-xs);letter-spacing:.12em}
+html[data-discadmin-appearance] :where(.eyebrow,.sectionhead strong,.field label){font-size:var(--admin-font-sm);line-height:1.35}
+html[data-discadmin-appearance] :where(.helper,.meta,.notice){font-size:13px;line-height:1.55}
+html[data-discadmin-appearance] .thead{font-size:var(--admin-font-xs);line-height:1.35}
+html[data-discadmin-appearance] .tr{font-size:var(--admin-font-base);line-height:1.48}
+html[data-discadmin-appearance] .pill{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.btn,.iconbtn){font-size:var(--admin-font-sm);line-height:1.25}
+html[data-discadmin-appearance] :where(.search,.field input,.field textarea,.field select,input,select,textarea){font-size:var(--admin-font-base);line-height:1.4}
+html[data-discadmin-appearance] :where(input,select,textarea)::placeholder{font-size:13px}
+html[data-discadmin-appearance] .main :where(small){font-size:var(--admin-font-xs);line-height:1.45}
+html[data-discadmin-appearance] .admin-required{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .admin-publication-state strong{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .admin-publication-state span{font-size:13px}
+
+/* Dashboard. */
+html[data-discadmin-appearance] .dashboard-v2-kicker{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .dashboard-v2-sub{font-size:13px;line-height:1.6}
+html[data-discadmin-appearance] .dashboard-v2-summary-card span{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .dashboard-v2-panel-head p{font-size:var(--admin-font-sm);line-height:1.5}
+html[data-discadmin-appearance] .dashboard-v2-state{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .dashboard-next-event-meta{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .dashboard-v2-chip{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .dashboard-v2-row-title{font-size:13px}
+html[data-discadmin-appearance] .dashboard-v2-row-meta{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .dashboard-v2-button{font-size:var(--admin-font-xs);min-height:36px;padding:9px 11px}
+html[data-discadmin-appearance] .dashboard-v2-health-card span{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .dashboard-v2-health-card small{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .dashboard-v2-empty{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .dashboard-v2-source-error{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .dashboard-v2-draft span{font-size:var(--admin-font-xs)}
+
+/* Settings. */
+html[data-discadmin-appearance] :where(.sv2-hero>div:first-child>span,.sv2-section-head span,.sv2-context-grid span,.sv2-status-map span,.sv2-readonly>span,.sv2-asset>div:first-child>span,.sv2-picker header span){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.sv2-hero p,.sv2-section-head p,.sv2-context-grid p,.sv2-status-map p,.sv2-readonly p){font-size:13px;line-height:1.55}
+html[data-discadmin-appearance] .sv2-hero-status small{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .sv2-tabs button{font-size:var(--admin-font-sm);letter-spacing:.08em}
+html[data-discadmin-appearance] .sv2-field>span{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.sv2-field small,.sv2-asset small){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.sv2-context-grid strong,.sv2-status-map strong,.sv2-readonly strong){font-size:var(--admin-font-base)}
+html[data-discadmin-appearance] .sv2-asset code{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .sv2-asset-preview{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .sv2-asset-actions .btn{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .sv2-advanced-head strong{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .sv2-advanced-head span{font-size:var(--admin-font-xs)}
+
+/* System Status. */
+html[data-discadmin-appearance] :where(.ssv2-loading,.ssv2-fatal){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.ssv2-fatal button,.ssv2-hero-actions button,.ssv2-advanced-actions button){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.ssv2-hero-copy>span,.ssv2-panel-head>span){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-hero p{font-size:13px}
+html[data-discadmin-appearance] .ssv2-hero-actions>span{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.ssv2-ring-inner span,.ssv2-ring-inner small){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-service-label{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-service small{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-panel-head b{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.ssv2-storage-copy span,.ssv2-storage-copy small){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.ssv2-bar-row>span,.ssv2-bar-row>b){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.ssv2-repo-metrics span,.ssv2-repo-metrics small,.ssv2-lang-row span,.ssv2-lang-row b,.ssv2-mini-grid span,.ssv2-runtime-grid span,.ssv2-runtime-grid small,.ssv2-attention-label,.ssv2-backlog-item>span,.ssv2-backlog-item>small,.ssv2-backlog-state,.ssv2-activity-meta b,.ssv2-activity-meta span){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-repo-foot{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.ssv2-no-issues strong,.ssv2-issue strong,.ssv2-backlog-unavailable strong,.ssv2-backlog-empty strong,.ssv2-activity-main strong){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.ssv2-no-issues span,.ssv2-issue span,.ssv2-backlog-unavailable span,.ssv2-backlog-empty span,.ssv2-activity-main span){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .ssv2-backlog-item>strong{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .ssv2-view-all{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-empty{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .ssv2-advanced summary{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-advanced-actions span{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .ssv2-advanced pre{font-size:var(--admin-font-xs);line-height:1.55}
+
+/* Content Core / Events editor. */
+html[data-discadmin-appearance] [data-admin-module="content-core"]{font-size:var(--admin-font-base);line-height:var(--admin-line-body)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .ey{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .tab{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .th{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .tr{font-size:var(--admin-font-base)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .meta{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .pill{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .icon{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .field label{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .box h3{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .notice{font-size:13px}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .step{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .sectionhead strong{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .helper{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .ph{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .artist b{font-size:13px}
+html[data-discadmin-appearance] [data-admin-module="content-core"] .btn{font-size:var(--admin-font-sm)}
+
+/* Media. */
+html[data-discadmin-appearance] .media-select{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.media-dropzone strong,.media-dropzone span,.media-status){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .media-summary{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-month-heading{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-kind{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-card-title{font-size:13px}
+html[data-discadmin-appearance] .media-card-meta{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-warning{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-inspector-empty{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-inspector-path{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-fact span{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-fact b{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .media-inspector label{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-usage h4{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-usage-item{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .media-usage-safe{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-engine{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-picker-btn{font-size:var(--admin-font-xs)!important}
+html[data-discadmin-appearance] .media-register-form label{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .brvtal-toast{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] .brvtal-toast strong{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-crop-head{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.media-context b,.media-context span){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .media-crop p{font-size:var(--admin-font-xs)}
+
+/* Releases + Blog. */
+html[data-discadmin-appearance] :where(.blog-hero p,.releases-hero p){font-size:13px;line-height:1.55}
+html[data-discadmin-appearance] :where(.blog-metrics span,.releases-metrics span){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] :where(.blog-status,.releases-status){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.blog-title,.release-title){font-size:var(--admin-font-md)}
+html[data-discadmin-appearance] :where(.blog-meta,.release-meta){font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.blog-excerpt,.release-artists){font-size:13px}
+html[data-discadmin-appearance] :where(.blog-status-pill,.release-status-pill){font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .blog-related-box strong{font-size:var(--admin-font-xs)}
+html[data-discadmin-appearance] .blog-related-item{font-size:var(--admin-font-sm)}
+html[data-discadmin-appearance] :where(.blog-schema-note,.release-schema-note){font-size:var(--admin-font-sm);line-height:1.55}
+
+/* Long-session spacing. */
+html[data-discadmin-appearance] :where(.section,.dashsection,.dashboard-v2-panel,.sv2-pane,.ssv2-panel){padding:clamp(16px,1.6vw,22px)}
+html[data-discadmin-appearance] :where(.field,.sv2-field){line-height:var(--admin-line-body)}
+html[data-discadmin-appearance] :where(.field input,.field select,.sv2-field input,.sv2-field select){min-height:44px}
+html[data-discadmin-appearance] :where(.field textarea,.sv2-field textarea){padding:12px 13px}
+
+@media(max-width:850px){
+  html[data-discadmin-appearance] body{font-size:var(--admin-font-base)}
+  html[data-discadmin-appearance] .nav button{font-size:13px}
+  html[data-discadmin-appearance] :where(.helper,.meta,.notice){font-size:13px}
+  html[data-discadmin-appearance] :where(.tr,[data-admin-module="content-core"] .tr){font-size:var(--admin-font-base)}
+  html[data-discadmin-appearance] :where(input,select,textarea){font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){
+  html[data-discadmin-appearance] *{scroll-behavior:auto!important}
+  html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.sv2-tabs button){transition:none!important}
+}
