@@ -190,28 +190,50 @@
 
     const token = ++V2.securityLoadToken;
     delete host.dataset.securityLoaded;
-    host.innerHTML = '<p class="sv2-security-state">Loading account security…</p>';
+    const loading = document.createElement('p');
+    loading.className = 'sv2-security-state';
+    loading.textContent = 'Loading account security…';
+    host.replaceChildren(loading);
 
     try {
-      const response = await fetch('/discadmin/totp-status.php', {
+      const response = await fetch('/discadmin/totp-api.php?action=status', {
+        method:'POST',
         credentials:'same-origin',
         cache:'no-store',
-        headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
+        headers:{
+          'Content-Type':'application/json',
+          'X-CSRF-Token':String(window.csrf || '')
+        },
+        body:'{}'
       });
-      if (!response.ok || response.redirected) throw new Error(response.status === 401 ? 'AUTH_REQUIRED' : 'SECURITY_LOAD_FAILED');
-      const doc = new DOMParser().parseFromString(await response.text(),'text/html');
-      const fragment = doc.querySelector('[data-admin-module="security"]');
-      if (!fragment) throw new Error('SECURITY_FRAGMENT_INVALID');
+      const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
+      if (!response.ok || !payload.ok) {
+        throw new Error(response.status === 401 ? 'AUTH_REQUIRED' : (payload.error || 'SECURITY_LOAD_FAILED'));
+      }
       if (token !== V2.securityLoadToken || !host.isConnected) return;
 
-      const imported = document.importNode(fragment,true);
-      imported.dataset.settingsEmbeddedSecurity = '1';
-      host.replaceChildren(imported);
-      window.BRVTALSecurity?.mount?.(imported);
+      const rendered = window.BRVTALSecurity?.render?.(host, {
+        enabled:payload.enabled === true,
+        confirmed:payload.confirmed === true,
+        email:String(payload.email || '')
+      }, String(window.csrf || ''));
+      if (!rendered) throw new Error('SECURITY_RENDER_UNAVAILABLE');
       host.dataset.securityLoaded = '1';
     } catch (error) {
       if (token !== V2.securityLoadToken || !host.isConnected) return;
-      host.innerHTML = '<div class="sv2-security-error"><strong>Security controls unavailable.</strong><span>Retry without leaving Settings.</span><button type="button" class="btn ghost" data-settings-security-retry>RETRY</button></div>';
+      const box = document.createElement('div');
+      box.className = 'sv2-security-error';
+      const title = document.createElement('strong');
+      title.textContent = 'Security controls unavailable.';
+      const detail = document.createElement('span');
+      detail.textContent = 'Retry without leaving Settings.';
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'btn ghost';
+      retry.dataset.settingsSecurityRetry = '1';
+      retry.textContent = 'RETRY';
+      box.append(title, detail, retry);
+      host.replaceChildren(box);
       feedback('error',error?.message === 'AUTH_REQUIRED' ? 'Your admin session needs to be refreshed.' : 'Security / 2FA could not be loaded.');
     }
   }

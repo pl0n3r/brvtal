@@ -268,6 +268,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 43. **Hero/Banners media integrity is authoritative at save time.** Enabled Hero slides require a valid primary asset. Local references must resolve to an exact published Media Library record whose source file still exists under `/uploads/`; optional mobile/poster/image-layer references are validated when present. Explicit external media is HTTPS-only and identified as external. Client-side checks improve feedback, but the authenticated Settings API is the final authority and must reject invalid publicable configurations with a field-specific 422. Disabled slides may retain incomplete draft media.
 44. **Project-wide progress status uses one visual language.** `✅ ~~Struck through~~` means completed only after the required delivery gates; `🚧 Normal text` means pending or currently in progress. Keep completed tracker items visible and crossed out rather than deleting them. Future roadmap/Issue/README/handoff maintenance must preserve this convention.
 45. **DISCADMIN uses one premium low-fatigue design layer.** `discadmin/admin-design-system.css` is loaded after module CSS and owns the shared Admin type scale, spacing, geometry and long-session readability floor. Ordinary body/table/input text should be about 14 px or larger, persistent metadata/labels must not rely on 7–10 px type, and mobile form controls stay at 16 px where useful to avoid browser zoom. Dark / Light / Glass remain appearance variants of this same component system rather than separate designs.
+46. **Embedded Admin security UI never imports response-derived HTML.** Security / 2FA state used inside Settings must come from an authenticated JSON boundary and be rendered from trusted DOM structure; administrator/status data is assigned with `textContent`. State-changing TOTP operations retain the existing authenticated CSRF-protected POST boundary. Legacy standalone HTML may remain only as a compatibility surface, not as the Settings embedding transport.
 
 ---
 
@@ -417,8 +418,9 @@ When no newer explicit user instruction exists:
 4. ✅ ~~**Phase 2 appearance — #149**~~ — coherent Dark / Light / Glass is merged and exact-main validated.
 5. ✅ ~~**Phase 2 premium Admin — #514** — shared readable typography, spacing, geometry and low-fatigue component layer is merged and exact-main validated.~~
 6. ✅ ~~**Phase 2 Settings Advanced — #516** — raw/dead configuration UI removed; inline 2FA plus Theme Studio/System Status ownership consolidated under Settings.~~
-7. 🚧 **Continue later Phase 2 / #533** — #523, #480, #193 and #216 before moving into editorial productivity.
-8. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+7. 🚧 **Security hotfix — #553** — restore Sonar Security Rating A after #552 by replacing response-derived HTML embedding with authenticated JSON + safe DOM rendering.
+8. 🚧 **Continue later Phase 2 / #533** — #523, #480, #193 and #216 before moving into editorial productivity.
+9. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 
