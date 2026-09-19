@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **15** | **+230** | **−46** | **+184** |
+| **17** | **+281** | **−55** | **+226** |
 
 ## Calidad y entrega
 
@@ -68,6 +68,7 @@ flowchart LR
 
 - La versión humana avanza de **0.1.0** a **0.1.1**.
 - DISCADMIN prioriza **BRVTAL v0.1.1** y **Production**; el SHA queda como detalle técnico secundario.
+- Dashboard y System Status muestran la misma versión humana como señal primaria y la identidad técnica debajo.
 - Si solo existe metadata fallback, la UI muestra **SOURCE UNAVAILABLE** en lugar de fingir un SHA exacto.
 - System Status usa la misma versión humana y conserva source SHA para diagnóstico cuando es exacto.
 - `preflight` valida cada transición de versión sin crear commits automáticos.
@@ -84,18 +85,20 @@ flowchart LR
 - `config/deployment.php` — diferencia source exacto vs fallback.
 - `config/version.php` — versión canónica 0.1.1.
 - `discadmin/index-core.php` — versión humana primaria en footer.
+- `discadmin/dashboard-v2.js` — versión humana primaria en Operations; source SHA secundario.
 - `discadmin/system-status-v2.js` — producto primario / SHA secundario.
 - `discadmin/technical.php` — exactness en payload operacional.
 - `scripts/ci-scope.sh` — bump aislado no activa runtime gates.
 - `scripts/release-version.py` — validación Git de transición semántica.
 - `tests/deployment-traceability-contract.php` — contrato de producto vs deploy.
 - `tests/e2e/discadmin-admin-shell.spec.mjs` — regresión del footer.
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresión de versión humana en Dashboard.
 - `tests/e2e/discadmin-system-status-v2.spec.mjs` — regresión de System Status.
 
 ## Validación
 
 - transición `0.1.0 → 0.1.1` verificada contra base/head Git;
-- versión consistente en footer, API y System Status;
+- versión consistente en footer, Dashboard, API y System Status;
 - exact SHA sigue disponible cuando proviene de entorno/Git checkout;
 - release fallback no se muestra como exact deployed source;
 - CI valida la transición pero nunca escribe ni commitea `config/version.php`.

@@ -173,7 +173,11 @@
     const php = health?.php || '—';
     const storageValue = storage ? `${storage.used || '0 B'} / ${storage.quota || '—'}` : 'UNAVAILABLE';
     const storageMeta = storage ? `${Number(storage.used_percent || 0)}% · ${Number(storage.managed_files || 0)} files · managed data` : storageError;
-    const build = document.querySelector('.brvtal-admin-release .build')?.textContent?.trim() || 'DEPLOY —';
+    const release = document.querySelector('.brvtal-admin-release');
+    const productVersion = release?.querySelector('[data-testid="admin-product-version"]')?.textContent?.trim()
+      || 'BRVTAL version unavailable';
+    const environment = release?.querySelector('[data-testid="admin-product-environment"]')?.textContent?.trim() || '';
+    const deploySource = release?.querySelector('[data-testid="admin-deploy-source"]')?.textContent?.trim() || 'SOURCE UNAVAILABLE';
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">SITE HEALTH</div><h2>OPERATIONS</h2><p>Compact runtime signals. Detailed diagnostics remain in System Status.</p></div><button class="dashboard-v2-button" type="button" data-dashboard-system>SYSTEM STATUS</button></div>
       ${!health ? sourceError(healthError) : ''}
       <div class="dashboard-v2-health">
@@ -181,7 +185,7 @@
         <div class="dashboard-v2-health-card"><span>DATABASE</span><b>${dbOk?'CONNECTED':'CHECK'}</b><small>${esc(health?.driver || 'Runtime source')}</small></div>
         <div class="dashboard-v2-health-card"><span>PHP</span><b>${esc(php)}</b><small>Runtime-reported version</small></div>
         <div class="dashboard-v2-health-card"><span>STORAGE</span><b>${esc(storageValue)}</b><small>${esc(storageMeta || 'Managed quota')}</small></div>
-      </div><div class="dashboard-v2-row" style="margin-top:12px"><div><div class="dashboard-v2-row-title">CURRENT BUILD</div><div class="dashboard-v2-row-meta">${esc(build)}</div></div><span class="dashboard-v2-state ${apiOk&&dbOk?'ok':'warn'}">${apiOk&&dbOk?'HEALTHY':'CHECK'}</span></div>
+      </div><div class="dashboard-v2-row" style="margin-top:12px" data-testid="dashboard-product-version"><div><div class="dashboard-v2-row-title">${esc(productVersion)}</div><div class="dashboard-v2-row-meta">${esc([environment,deploySource].filter(Boolean).join(' · '))}</div></div><span class="dashboard-v2-state ${apiOk&&dbOk?'ok':'warn'}">${apiOk&&dbOk?'HEALTHY':'CHECK'}</span></div>
     </section>`;
   }
 

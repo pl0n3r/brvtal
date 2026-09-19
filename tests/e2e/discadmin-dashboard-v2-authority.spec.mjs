@@ -21,6 +21,7 @@ async function mount(page, {overviewDelay = 0, waitForRender = true, overviewSta
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html><body>
+      <aside class="brvtal-admin-release"><span data-testid="admin-product-version">BRVTAL v0.1.1</span><span data-testid="admin-product-environment">Production</span><span data-testid="admin-deploy-source">SOURCE 18e544f</span></aside>
       <main class="main"><div class="top"><h1>DASHBOARD</h1><span class="status"></span></div></main>
       <script>
         var state={authed:true,section:'dashboard'};
@@ -145,6 +146,10 @@ test('Dashboard V2 owns Health/Activity surfaces and keeps exact-record OPEN nav
 
   await expect(page.locator('#brvtal-content-health')).toHaveCount(0);
   await expect(page.locator('#brvtal-admin-activity')).toHaveCount(0);
+
+  const productVersion = page.getByTestId('dashboard-product-version');
+  await expect(productVersion).toContainText('BRVTAL v0.1.1');
+  await expect(productVersion).toContainText('Production · SOURCE 18e544f');
 
   const attention = page.locator('.dashboard-v2-panel', {hasText:'NEEDS ATTENTION'});
   const healthOpen = attention.getByRole('button', {name:'OPEN'});

@@ -15,4 +15,4 @@ declare(strict_types=1);
 const BRVTAL_APP_VERSION = '0.1.1';
 const BRVTAL_APP_BUILD = '89c59d4';
 const BRVTAL_APP_ENV = 'PRODUCTION';
-const BRVTAL_RELEASE_DATE = '2026-09-19';
+const BRVTAL_RELEASE_DATE = '2026-09-18';

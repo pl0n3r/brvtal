@@ -158,10 +158,25 @@ jobs:
           BRVTAL_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+
+          compare_release_refs() {
+            local base_sha="$1"
+            local head_sha="$2"
+            if [[ ! "$base_sha" =~ ^[0-9a-fA-F]{40}$ || ! "$head_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "Product-version validation requires exact 40-character Git SHAs." >&2
+              exit 1
+            fi
+            export BRVTAL_BASE_RELEASE
+            export BRVTAL_HEAD_RELEASE
+            BRVTAL_BASE_RELEASE="$(git show "${base_sha}:config/version.php")"
+            BRVTAL_HEAD_RELEASE="$(git show "${head_sha}:config/version.php")"
+            python scripts/release-version.py --compare-env
+          }
+
           if [[ "$BRVTAL_EVENT" == "pull_request" ]]; then
-            python scripts/release-version.py --base "$BRVTAL_PR_BASE_SHA" --head "$BRVTAL_PR_HEAD_SHA"
+            compare_release_refs "$BRVTAL_PR_BASE_SHA" "$BRVTAL_PR_HEAD_SHA"
           elif [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_BEFORE" =~ ^[0-9a-fA-F]{40}$ && ! "$BRVTAL_BEFORE" =~ ^0+$ ]]; then
-            python scripts/release-version.py --base "$BRVTAL_BEFORE" --head "$BRVTAL_SHA"
+            compare_release_refs "$BRVTAL_BEFORE" "$BRVTAL_SHA"
           else
             python scripts/release-version.py --check-current
           fi

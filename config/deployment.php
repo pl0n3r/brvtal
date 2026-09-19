@@ -43,7 +43,7 @@ function brvtal_deployment_short_sha(): string
     return substr(brvtal_deployment_sha(), 0, 7);
 }
 
-function brvtal_deployment_is_exact(): bool
+function brvtalDeploymentIsExact(): bool
 {
     return brvtal_deployment_source() !== 'release_fallback';
 }
