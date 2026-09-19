@@ -37,7 +37,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit-totp** |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | API | Settings devuelve solo la key pedida; Media hero-picker devuelve solo `id/type/title/file_path/status` para image/video |
 | Browser | el manager aparece desde Settings sin esperar Media; pickers/Save permanecen seguros hasta hidratación |
 | Real stack | usuario E2E autenticado comprueba endpoints acotados + montaje real de Banners |
@@ -54,10 +54,10 @@ flowchart LR
  M --> H["Hydrate pickers"]
  R --> I["Editor interactivo"]
  H --> V["Save habilitado"]
- I --> G["CI / Sonar / CodeRabbit"]
+ I --> G["PR + snapshot exacto · CI / Sonar / CodeRabbit"]
  V --> G
  G --> Q["Squash merge"]
- Q --> X["Exact-main validation"]
+ Q --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
