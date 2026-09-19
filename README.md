@@ -17,7 +17,7 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#564 CI throughput telemetry (v0.1.17), PR #565** | un solo owner abre el registro tras navegación |
+| Work line | 🚧 **#564 CI throughput telemetry (v0.1.17), PR #566** | observador post-CI sin añadir dependencias al DAG principal |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `2a57147e3c7b0ba9b1176e0293d501144a510b8f` |
 | Version | 🚧 **0.1.16 → 0.1.17** | patch deploy |
 | Producción | 🚧 **PENDING MERGE / OBSERVATION** | no se infiere validación de producción desde CI |
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+100** | **−5** | **+95** |
+| **6** | **+122** | **−23** | **+99** |
 
 ## Calidad y entrega
 
@@ -36,8 +36,8 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Navegación Content Health | `content-core-nav.js` es el único owner del click OPEN |
-| Sincronización | Playwright espera el resultado compuesto de sección + registro + feedback |
+| Throughput observer | `workflow_run` post-completion; no serializa ni extiende BRVTAL CI |
+| Job pagination | todas las páginas se aplanan antes de calcular jobs y critical path |
 | Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
@@ -55,14 +55,15 @@ flowchart LR
 
 ## Qué se hizo
 
-- Se añade telemetría de wall time al DAG de BRVTAL CI sin serializar gates.
-- El preflight expone el epoch inicial y validate publica la duración agregada.
-- Se mantiene intacto el fan-out paralelo de database, Chromium, real-stack, WebKit y recovery.
+- Se añade `CI Throughput Telemetry` como observador aislado después de BRVTAL CI, sin añadir latencia al DAG de validación.
+- La telemetría persiste wall time, duración por job y critical path, incluyendo todas las páginas devueltas por GitHub Actions.
+- `actions/upload-artifact` queda fijado al commit revisado de v4.6.2; el fan-out paralelo de los gates permanece intacto.
 - La regresión Content Health ahora muta y acciona el botón atómicamente para probar el fallback real sin competir con el rerender del dashboard.
 - Versión **0.1.17**.
 
 ## Archivos modificados en este deploy
 
+- `.github/workflows/ci-throughput-telemetry.yml`
 - `.github/workflows/update-release-metadata.yml`
 - `README.md`
 - `config/version.php`
@@ -71,8 +72,8 @@ flowchart LR
 
 ## Validación
 
-- Preflight, MariaDB, real-stack, WebKit y recovery ya pasaron sobre la implementación de telemetría.
-- Chromium expuso la carrera del harness Content Health; se corrige sin aumentar timeouts ni relajar expectativas funcionales.
+- En el head anterior, preflight, MariaDB, Chromium, real-stack, WebKit y recovery pasaron; `fast` falló únicamente por el snapshot README desactualizado.
+- Los findings válidos de CodeRabbit sobre paginación multi-page y pinning del action quedan corregidos en este cierre.
 - BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI.
 
