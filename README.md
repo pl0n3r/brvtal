@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+278** | **−126** | **+152** |
+| **12** | **+318** | **−128** | **+190** |
 
 ## Calidad y entrega
 
@@ -61,7 +61,7 @@ flowchart LR
 - Media, Releases y Blog comparten una única frontera de readiness y navegación administrada por `BRVTALAdminModules.navigate()`.
 - La capa de información/navegación ya no instala listeners duplicados ni deja que Media/Releases/Blog caigan al CRUD legado; delega esos destinos al navegador dinámico canónico.
 - Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY; RETRY invalida promesas rechazadas y vuelve a crear dependencias de script fallidas.
-- Las rutas dinámicas sincronizan `?module=` al iniciar la navegación, antes de esperar readiness, para que cualquier reconciliación concurrente converja al destino solicitado.
+- Las rutas dinámicas sincronizan `?module=` al iniciar la navegación, incluso si una reconciliación inicial sigue en curso, para que el click explícito del usuario sea la fuente de verdad.
 - Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
 - Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.
 - Se añade cobertura de navegador y real-stack autenticada con el usuario E2E.
@@ -84,6 +84,7 @@ flowchart LR
 ## Validación
 
 - Dashboard V2 no se expone hasta que el router canónico de DISCADMIN está instalado.
+- Una ruta inicial lenta no puede devolver el workspace a otro destino después de que el usuario abre Media.
 - Dashboard → Media monta el módulo sin depender del orden previo de navegación.
 - Sets → Media vuelve a montar correctamente el mismo workspace.
 - `?module=media` funciona en sesión autenticada.

@@ -204,6 +204,43 @@ test('dynamic routes update the URL before readiness settles', async ({ page }) 
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 });
 
+test('explicit Media navigation wins while initial route reconciliation is still pending', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    history.replaceState({}, '', '?module=pages');
+    window.state.section = 'dashboard';
+    window.__deferredRequests['/pages'] = true;
+    window.__initialRoutePromise = window.BRVTALAdminIA.applyRoute();
+  });
+  await expect.poll(() => page.evaluate(() => window.__requestLog.includes('/pages'))).toBe(true);
+
+  await page.evaluate(() => {
+    const media = document.createElement('script');
+    media.id = 'brvtal-media-library-script';
+    document.head.appendChild(media);
+    window.__pendingMediaNavigation = window.go('media');
+  });
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('media');
+
+  await page.evaluate(() => {
+    const media = document.getElementById('brvtal-media-library-script');
+    media.dataset.ready = '1';
+    media.dispatchEvent(new Event('load'));
+  });
+  await page.evaluate(() => window.__pendingMediaNavigation);
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('media');
+
+  await page.evaluate(() => window.__resolveRequest('/pages'));
+  await page.evaluate(() => window.__initialRoutePromise);
+
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  expect(await page.evaluate(() => window.state.section)).toBe('media');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('media');
+});
+
 test('Events is the single entry to the guided event editor', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);

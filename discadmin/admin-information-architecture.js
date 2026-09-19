@@ -100,8 +100,8 @@
     return canonicalRouteSection(raw);
   }
 
-  function syncRouteUrl(section, mode = 'push') {
-    if (applyingRoute) return;
+  function syncRouteUrl(section, mode = 'push', force = false) {
+    if (applyingRoute && !force) return;
     const canonical = canonicalRouteSection(section);
     const url = new URL(location.href);
     if (canonical === 'dashboard') url.searchParams.delete(ROUTE_PARAM);
@@ -388,7 +388,7 @@
     } else {
       const token = ++routeToken;
       window.BRVTALAdminModules?.cancel?.();
-      if (dynamicModuleSections.has(section)) syncRouteUrl(section);
+      if (dynamicModuleSections.has(section)) syncRouteUrl(section, 'push', true);
       const applied = await invokeOriginalGo(section, token);
       if (!applied || token !== routeToken) return;
       result = true;
