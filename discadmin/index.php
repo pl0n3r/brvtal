@@ -67,13 +67,13 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/hero-slider-accessibility.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-appearance.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-information-architecture.js' . $suffix . '"></script>'
-    . '<script src="/discadmin/dashboard-v2.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-route-aliases.js' . $suffix . '"></script>'
     . '<script src="/discadmin/settings-v2.js' . $suffix . '"></script>'
     . '<script src="/discadmin/theme-studio-v2.js' . $suffix . '"></script>'
     . '<script src="/discadmin/theme-studio-configuration.js' . $suffix . '"></script>'
     . '<script src="/discadmin/theme-studio-reliability.js' . $suffix . '"></script>'
-    . '<script src="/discadmin/memories.js' . $suffix . '" data-memories-admin="1"></script>';
+    . '<script src="/discadmin/memories.js' . $suffix . '" data-memories-admin="1"></script>'
+    . '<script src="/discadmin/dashboard-v2.js' . $suffix . '"></script>';
 
 if (str_contains($html, '</head>')) {
     $html = str_replace('</head>', $appearanceBoot . '</head>', $html);

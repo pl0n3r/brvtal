@@ -413,4 +413,9 @@ test('DISCADMIN wrapper loads the IA layer after existing enhancements', async (
   expect(wrapper).toContain('/discadmin/admin-information-architecture.css');
   expect(wrapper).toContain('/discadmin/admin-information-architecture.js');
   expect(wrapper.indexOf('admin-appearance.js')).toBeLessThan(wrapper.indexOf('admin-information-architecture.js'));
+  expect(wrapper.indexOf('admin-information-architecture.js')).toBeLessThan(wrapper.indexOf('admin-route-aliases.js'));
+  expect(wrapper.indexOf('admin-route-aliases.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('settings-v2.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('theme-studio-v2.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('memories.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
 });

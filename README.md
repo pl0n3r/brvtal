@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+318** | **−128** | **+190** |
+| **12** | **+324** | **−129** | **+195** |
 
 ## Calidad y entrega
 
@@ -68,7 +68,7 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `discadmin/index.php` — carga Dashboard V2 después del router canónico para eliminar la carrera del primer click.
+- `discadmin/index.php` — carga Dashboard V2 al final del bootstrap de mejoras, después de router/aliases/settings/theme/memories, para que sus quick actions no sean interactivos sobre un shell incompleto.
 - `discadmin/admin-modules.js` — dueño único de readiness de módulos dinámicos.
 - `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
 - `discadmin/media-library.php` — elimina External Registry de la toolbar.
@@ -83,7 +83,7 @@ flowchart LR
 
 ## Validación
 
-- Dashboard V2 no se expone hasta que el router canónico de DISCADMIN está instalado.
+- Dashboard V2 no se expone hasta que el bootstrap canónico de mejoras de DISCADMIN está completo.
 - Una ruta inicial lenta no puede devolver el workspace a otro destino después de que el usuario abre Media.
 - Dashboard → Media monta el módulo sin depender del orden previo de navegación.
 - Sets → Media vuelve a montar correctamente el mismo workspace.
