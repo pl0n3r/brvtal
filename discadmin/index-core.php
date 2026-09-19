@@ -124,7 +124,13 @@ require_once __DIR__ . '/../config/deployment.php';
 @media(max-width:1000px){.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-hero{align-items:flex-start}.settings-search{width:220px}}
 @media(max-width:650px){.settings-grid{grid-template-columns:1fr}.settings-hero{display:block}.settings-search{width:100%;margin-top:15px}.settings-raw-head{display:none}.settings-raw-row{grid-template-columns:1fr auto}.settings-raw-row .value{grid-column:1/-1}}
 
-</style><link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"><link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"><link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></head><body><div id="app"></div>
+</style>
+<link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
+<link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
+<link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>">
+</head>
+<body>
+<div id="app"></div>
 <div class="modal" id="modal">
   <div class="modalbox">
     <div class="modalhead">
@@ -670,4 +676,13 @@ function render(){
 }
 document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(typeof state!=='undefined'&&state.authed)go('theme')}});
 scheduleTechRefresh();
-</script><script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script><script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script><script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script><script src="/discadmin/security.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script><script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script><script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script><script>restoreSession();</script></body></html>
+</script>
+<script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/security.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
+<script>restoreSession();</script>
+</body>
+</html>
