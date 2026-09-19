@@ -330,7 +330,9 @@ A green CI/contract run does **not** validate #122 in production. Only a green m
 
 ### 6. Production performance evidence
 
-`.github/workflows/production-performance.yml` listens to both **BRVTAL CI** and **Production Deploy Observer** completions for `main`. Automatic measurement starts only when the triggering workflow succeeded **and** the counterpart workflow has already succeeded for the same exact SHA. The first prerequisite to finish may therefore produce a short coordination-only run; whichever prerequisite finishes second unlocks the actual measurement. Manual dispatch remains available for intentionally re-measuring the production state.
+`.github/workflows/production-performance.yml` listens to both **BRVTAL CI** and **Production Deploy Observer** completions for `main`. Automatic measurement starts only when the triggering workflow succeeded **and** the counterpart workflow has already succeeded for the same exact SHA. Ownership is deterministic: only the prerequisite completion with the later `updated_at` may measure; equal timestamps use the larger GitHub run id as the tie-breaker. This guarantees at most one automatic measurement artifact per SHA even if workflow-run events are delivered out of order. Manual dispatch remains available for intentionally re-measuring the production state.
+
+The decision is implemented by `scripts/production-performance-prerequisite.py` and covered with local fixtures for missing, pending, failed, successful same-SHA, successful different-SHA and duplicate-owner cases. The workflow concurrency group is SHA-scoped and does not cancel in-progress coordination/measurement runs.
 
 This keeps the source and deployment semantics independent without serializing either workflow: BRVTAL CI and the Deploy Observer still start from the `main` push in parallel, while Production Performance consumes their successful same-SHA evidence afterward. It must not run its own short `?v=<sha>` Hostinger polling loop or create a second deployment truth.
 

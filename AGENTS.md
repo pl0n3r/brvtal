@@ -336,7 +336,7 @@ SonarQube Cloud annotations are relayed by `.github/workflows/sonar-annotation-r
 
 Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshots, recovery rehearsal and production-smoke source contracts are deliberately retired. Their checks live inside `BRVTAL CI`, avoiding duplicate runner setup and queue contention. The authenticated/read-only production smoke and controlled Page-write smoke remain separate **manual-only** workflows because they interact with real production.
 
-**Production Performance consumes existing delivery evidence instead of inventing a second deployment observer.** On automatic runs it listens to both BRVTAL CI and Production Deploy Observer and measures only when both have succeeded for the same exact `main` SHA. The first one to finish may generate a coordination-only run; the second unlocks measurement. Do not reintroduce a private short `?v=<sha>` polling loop inside the performance workflow.
+**Production Performance consumes existing delivery evidence instead of inventing a second deployment observer.** On automatic runs it listens to both BRVTAL CI and Production Deploy Observer and measures only when both have succeeded for the same exact `main` SHA. Measurement ownership is deterministic and unique per SHA: the later prerequisite completion owns it, with GitHub run id as the timestamp tie-breaker; `scripts/production-performance-prerequisite.py` is the tested decision source. Do not reintroduce a private short `?v=<sha>` polling loop or duplicate automatic measurement artifacts.
 
 ### README per-deploy contract
 

@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+110** | **−94** | **+16** |
+| **9** | **+000** | **−000** | **+000** |
 
 ## Calidad y entrega
 
@@ -58,27 +58,29 @@ flowchart LR
 ## Qué se hizo
 
 - Production Performance escucha BRVTAL CI y Production Deploy Observer, pero solo mide cuando ambos están verdes para el mismo SHA de `main`.
-- El primer prerequisite que termine puede cerrar como coordinación sin medir; el segundo habilita la medición real, sin serializar CI ni el observer.
+- Un helper determinista asigna un único owner automático por SHA al prerequisite que terminó más tarde; el `run_id` desempata timestamps iguales, evitando mediciones/artefactos duplicados.
 - Se elimina el detector privado de ocho intentos sobre `?v=<sha>`, evitando falsos rojos cuando Hostinger tarda más que esa ventana.
 - Los contratos y la guía de testing fijan la separación entre **MAIN VALIDATED**, **DEPLOY OBSERVED** y **PRODUCTION PERFORMANCE MEASURED**.
 - Versión **0.1.18**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-performance.yml` — coordina CI + Deploy Observer por SHA y elimina el segundo polling de Hostinger.
+- `.github/workflows/production-performance.yml` — coordina CI + Deploy Observer por SHA, asigna ownership único y elimina el segundo polling de Hostinger.
 - `AGENTS.md` — conserva el nuevo contrato operativo y actualiza prioridades ya completadas.
 - `README.md` — snapshot visual del deploy actual.
 - `config/version.php` — declara la release runtime `0.1.18`.
 - `docs/TESTING.md` — documenta la compuerta automática de dos señales y sus semánticas.
 - `package.json` — alinea la versión del proyecto con `0.1.18`.
-- `tests/ci-scope-contract.php` — impide reintroducir el detector corto de deploy.
+- `scripts/production-performance-prerequisite.py` — decide de forma testeable el único owner automático por SHA.
+- `tests/ci-scope-contract.php` — prueba missing/pending/failed/same-SHA/different-SHA y ownership único, además de impedir el detector corto de deploy.
 - `tests/project-operations-contract.php` — protege la coordinación same-SHA entre CI, observer y performance.
 
 ## Validación
 
 - La reproducción real en `e29970c` confirmó el defecto: BRVTAL CI terminó verde mientras Production Performance falló antes de que el Deploy Observer terminara.
 - La telemetría real identificó el critical path actual en browser: WebKit 84s, real-stack 80s y Chromium 79s; no se añadirá sharding sin medir setup vs test.
-- BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
+- El primer review de CodeRabbit detectó dos findings válidos — ownership duplicable y cobertura demasiado textual — corregidos con helper determinista + fixtures locales.
+- BRVTAL CI, Sonar y CodeRabbit deben volver a cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI ni desde el marcador de despliegue.
 
 ## Qué sigue

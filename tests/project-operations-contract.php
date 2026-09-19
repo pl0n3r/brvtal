@@ -6,6 +6,7 @@ $readme = (string) file_get_contents($root . '/README.md');
 $readmeDashboardValidator = $root . '/scripts/readme-dashboard.py';
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
 $performanceWorkflow = (string) file_get_contents($root . '/.github/workflows/production-performance.yml');
+$performancePrerequisite = (string) file_get_contents($root . '/scripts/production-performance-prerequisite.py');
 $performanceProbe = (string) file_get_contents($root . '/tests/e2e/production-performance-probe.mjs');
 $agents = (string) file_get_contents($root . '/AGENTS.md');
 $publicHtaccess = (string) file_get_contents($root . '/.htaccess');
@@ -110,6 +111,10 @@ $assert(str_contains($performanceWorkflow, 'workflow_dispatch:'), 'production pe
 $assert(str_contains($performanceWorkflow, 'workflows: ["BRVTAL CI", "Production Deploy Observer"]'), 'production performance must coordinate exact-main CI with canonical deploy observation');
 $assert(str_contains($performanceWorkflow, 'actions: read'), 'production performance coordination must have read-only Actions visibility');
 $assert(str_contains($performanceWorkflow, 'production-deploy-observer.yml') && str_contains($performanceWorkflow, 'update-release-metadata.yml'), 'automatic performance must verify the same-SHA counterpart workflow');
+$assert(str_contains($performanceWorkflow, 'python scripts/production-performance-prerequisite.py'), 'automatic performance must delegate prerequisite ownership to the tested helper');
+$assert(str_contains($performancePrerequisite, 'source_not_later_completion'), 'performance prerequisite helper must prevent duplicate automatic measurement ownership');
+$assert(str_contains($performanceWorkflow, 'group: brvtal-production-performance-${{ github.event.workflow_run.head_sha || github.sha }}'), 'performance concurrency must be source-SHA scoped');
+$assert(str_contains($performanceWorkflow, 'cancel-in-progress: false'), 'coordination-only runs must not cancel the unique measurement owner');
 $assert(str_contains($performanceWorkflow, 'steps.prerequisites.outputs.ready'), 'automatic performance must measure only after both prerequisites are green');
 $assert(str_contains($performanceWorkflow, 'https://www.brvtal.com.co/'), 'production performance workflow must target the canonical www origin');
 $assert(str_contains($performanceWorkflow, 'github.event.workflow_run.head_sha'), 'production performance workflow must preserve exact-main SHA traceability');
