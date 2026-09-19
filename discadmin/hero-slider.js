@@ -188,10 +188,10 @@
       button = document.createElement('button');
       button.type = 'button';
       button.dataset.adminNav = 'hero-slider';
-      button.textContent = 'HERO SLIDER';
+      button.textContent = 'BANNERS';
       button.addEventListener('click', () => window.go('hero-slider'));
-      const events = [...nav.querySelectorAll('button')].find(node => node.textContent.trim().toUpperCase() === 'EVENTS');
-      if (events?.nextSibling) nav.insertBefore(button,events.nextSibling); else nav.appendChild(button);
+      const dashboard = [...nav.querySelectorAll('button')].find(node => node.textContent.trim().toUpperCase() === 'DASHBOARD');
+      if (dashboard?.nextSibling) nav.insertBefore(button,dashboard.nextSibling); else nav.prepend(button);
     }
     button.classList.toggle('active',window.state?.section === 'hero-slider');
   }
@@ -205,7 +205,7 @@
     const top = main.querySelector('.top');
     if (top) {
       top.querySelector('.eyebrow') && (top.querySelector('.eyebrow').textContent = 'HOME / EXPERIENCE');
-      top.querySelector('h1') && (top.querySelector('h1').textContent = 'HERO SLIDER');
+      top.querySelector('h1') && (top.querySelector('h1').textContent = 'BANNERS');
     }
     [...main.children].forEach(child => { if (child !== top) child.remove(); });
     const host = document.createElement('div');

@@ -18,7 +18,7 @@ function harness() {
   ];
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#050505;color:#fff;font-family:Arial}.btn,.iconbtn{border:1px solid #444;background:#111;color:#fff;padding:10px}.btn.red{background:#ff2038}.btn.ghost{background:transparent}</style><style>${css}</style></head><body><div id="app"></div><div id="modal"></div><script>
     window.state={section:'settings',rows:${JSON.stringify(rows)}};
-    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];
+    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];window.__settingsRoutes=[];
     window.BRVTALFeedback={
       progress(message){window.__feedback.push(['progress',message])},
       success(message){window.__feedback.push(['success',message])},
@@ -26,6 +26,8 @@ function harness() {
     };
     window.openSettingByKey=function(key){window.__legacy.push(key)};
     window.openModal=function(type){if(type==='settings')window.__newRaw+=1};
+    window.go=async function(section){window.__settingsRoutes.push(['go',section]);};
+    window.tech=async function(section){window.__settingsRoutes.push(['tech',section]);};
     window.req=async function(path,options={}){
       if(path==='/settings'&&options.method==='POST'){
         const payload=JSON.parse(options.body);window.__posts.push(payload);
@@ -55,6 +57,28 @@ test('Settings uses typed logical sections instead of raw JSON as the primary UI
   await expect(page.locator('#sv2_site_name')).toHaveValue('BRVTAL');
   await expect(page.getByText(/reserved for #212/i)).toBeVisible();
   await expect(page.locator('[data-settings-pane="general"] textarea')).toHaveCount(0);
+});
+
+test('Settings owns specialized Theme, Security and System destinations without Control Plane noise', async ({ page }) => {
+  await open(page);
+
+  await expect(page.getByText('CONTROL PLANE',{exact:true})).toHaveCount(0);
+  const theme = page.getByRole('button',{name:'OPEN THEME STUDIO'});
+  const security = page.getByRole('button',{name:'OPEN SECURITY / 2FA'});
+  const system = page.getByRole('button',{name:'OPEN SYSTEM STATUS'});
+  await expect(theme).toBeVisible();
+  await expect(security).toBeVisible();
+  await expect(system).toBeVisible();
+
+  await theme.click();
+  await security.click();
+  await system.click();
+
+  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([
+    ['go','theme'],
+    ['go','security'],
+    ['tech','system']
+  ]);
 });
 
 test('typed save preserves unknown sibling JSON keys', async ({ page }) => {

@@ -413,9 +413,9 @@
   function ensureNav() {
     const nav = document.querySelector('.side .nav'); if (!nav || nav.querySelector('[data-memories-nav]')) return;
     const button = create('button', {text:'MEMORIES', attrs:{type:'button'}, dataset:{adminNav:'media',memoriesNav:'1'}}); button.addEventListener('click', () => open({mode:'push'}));
-    const heroSlider = [...nav.querySelectorAll(':scope > button')].find(item => String(item.textContent || '').trim().toUpperCase() === 'HERO SLIDER');
-    if (heroSlider) {
-      heroSlider.before(button);
+    const banners = [...nav.querySelectorAll(':scope > button')].find(item => ['BANNERS','HERO SLIDER'].includes(String(item.textContent || '').trim().toUpperCase()));
+    if (banners) {
+      banners.before(button);
     } else {
       nav.appendChild(button);
     }

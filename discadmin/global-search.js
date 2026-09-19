@@ -14,6 +14,7 @@
       .brvtal-global-search-trigger{margin-left:auto;border:1px solid #34393e;background:#0b0d0e;color:#dfe3e6;padding:8px 11px;font:800 9px/1 monospace;letter-spacing:1.2px;white-space:nowrap}
       .brvtal-global-search-trigger:hover,.brvtal-global-search-trigger:focus-visible{border-color:#fff;outline:none}
       .brvtal-global-search-trigger kbd{margin-left:8px;color:#737b82;font:700 8px/1 monospace}
+      .brvtal-global-search-trigger.is-sidebar{width:100%;min-height:44px;margin:12px 0 10px;display:flex;align-items:center;justify-content:space-between;text-align:left}
       .brvtal-global-search-overlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);display:none;align-items:flex-start;justify-content:center;padding:9vh 18px 18px}
       .brvtal-global-search-overlay.open{display:flex}
       .brvtal-global-search-dialog{width:min(860px,100%);max-height:82vh;overflow:hidden;border:1px solid #34393e;background:#080909;box-shadow:0 28px 90px rgba(0,0,0,.55)}
@@ -62,18 +63,31 @@
     return overlay;
   }
 
-  /** Keep the global-search trigger immediately before the status indicator when present. */
-  function ensureTrigger() {
-    const top = document.querySelector('.main .top');
-    if (!top || top.querySelector('.brvtal-global-search-trigger')) return;
+  function searchTrigger(locationName, label) {
     const trigger = document.createElement('button');
     trigger.type = 'button';
-    trigger.className = 'brvtal-global-search-trigger';
-    trigger.setAttribute('aria-label','Open global DISCADMIN search');
-    trigger.innerHTML = 'SEARCH <kbd>⌘K / CTRL K</kbd>';
+    trigger.className = 'brvtal-global-search-trigger' + (locationName === 'sidebar' ? ' is-sidebar' : '');
+    trigger.dataset.globalSearchLocation = locationName;
+    trigger.setAttribute('aria-label', 'Open global DISCADMIN search');
+    trigger.innerHTML = label + ' <kbd>⌘K / CTRL K</kbd>';
     trigger.addEventListener('click', open);
-    const status = top.querySelector('.status');
-    if (status) status.before(trigger); else top.appendChild(trigger);
+    return trigger;
+  }
+
+  /** Keep one canonical search action in the page header and another immediately above Logout. */
+  function ensureTriggers() {
+    const top = document.querySelector('.main .top');
+    if (top && !top.querySelector('[data-global-search-location="top"]')) {
+      top.appendChild(searchTrigger('top', 'SEARCH'));
+    }
+
+    const sidefoot = document.querySelector('.side .sidefoot');
+    if (sidefoot && !sidefoot.querySelector('[data-global-search-location="sidebar"]')) {
+      const trigger = searchTrigger('sidebar', 'GLOBAL SEARCH');
+      const logout = sidefoot.querySelector('[data-admin-logout], button[onclick="logout()"]');
+      if (logout) logout.before(trigger);
+      else sidefoot.appendChild(trigger);
+    }
   }
 
   function open() {
@@ -244,10 +258,10 @@
     }
   });
 
-  const observer = new MutationObserver(() => ensureTrigger());
+  const observer = new MutationObserver(() => ensureTriggers());
   observer.observe(document.documentElement,{childList:true,subtree:true});
   ensureStyle();
   ensureOverlay();
-  ensureTrigger();
+  ensureTriggers();
   window.BRVTALGlobalSearch = {open,close,search};
 })();
