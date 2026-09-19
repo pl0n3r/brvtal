@@ -308,9 +308,8 @@
 
   async function load() {
     const host = root();
-    if (!host) return;
+    if (!host) return false;
     const revision = ++loadRevision;
-    cleanConfigSnapshot = null;
     host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
     media = [];
     mediaReady = false;

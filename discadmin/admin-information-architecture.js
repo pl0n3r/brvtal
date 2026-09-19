@@ -484,7 +484,7 @@
   window.BRVTALAdminIA = {
     guardsUnsavedChanges:true,
     rebuildNavigation,
-    openEvents:() => loadContentCoreContext('events'),
+    openEvents:() => window.go('events'),
     openCollectiveStatus:() => loadContentCoreContext('roster'),
     readRoute: routeFromUrl,
     applyRoute: applyUrlRoute
