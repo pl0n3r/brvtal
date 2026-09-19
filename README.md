@@ -77,7 +77,7 @@ flowchart LR
 - Base exacta `5fba8a5`: BRVTAL CI / validate success.
 - El nuevo Production Performance ya demostró coordinación-only success cuando CI terminó antes del Deploy Observer, sin setup ni medición duplicada.
 - El contrato ejecutable de throughput ya pasó en fast; el artifact post-CI debe confirmar el schema en una corrida real.
-- Sonar detectó rutas de archivo controlables por CLI en el primer head; el procesador se endurece a stdin/stdout y ya no acepta paths externos.
+- Sonar detectó rutas de archivo controlables por CLI en el primer head; el procesador se endurece a stdin/stdout, ya no acepta paths externos y elimina el return redundante reportado después.
 - BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI, telemetría ni deployment marker.
 

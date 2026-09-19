@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from typing import Any
 
@@ -192,7 +193,7 @@ def markdown_summary(report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def main() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -209,7 +210,7 @@ def main() -> int:
     payload = json.load(sys.stdin)
     if args.command == "summary":
         print(markdown_summary(payload), end="")
-        return 0
+        return
 
     report = build_report(payload, {
         "run_id": args.run_id,
@@ -220,8 +221,7 @@ def main() -> int:
         "updated_at": args.updated_at,
     })
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
