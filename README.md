@@ -12,7 +12,6 @@
 
 - ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
 - 🚧 Normal text = pending or currently in progress.
-- Completed roadmap items remain visible and crossed out.
 
 ## Estado del deploy
 
@@ -29,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+472** | **−59** | **+413** |
+| **10** | **+463** | **−60** | **+403** |
 
 ## Calidad y entrega
 
@@ -38,11 +37,10 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| API | Settings devuelve solo la key pedida; Media hero-picker devuelve solo `id/type/title/file_path/status` para image/video |
-| Browser | el manager aparece desde Settings sin esperar Media; pickers/Save permanecen seguros hasta hidratación |
-| Real stack | usuario E2E autenticado comprueba endpoints acotados + montaje real de Banners |
-| Sonar + CodeRabbit | se ejecutan en paralelo sobre el head estable |
-| Exact-main | BRVTAL CI + Sonar del SHA exacto tras squash merge |
+| API | Settings allowlist + Media `hero-picker` acotados |
+| Browser / real stack | render progresivo + usuario E2E autenticado |
+| Sonar + CodeRabbit | paralelo sobre head estable |
+| Exact-main | CI + Sonar tras squash merge |
 
 ## Flujo de entrega
 
@@ -62,39 +60,31 @@ flowchart LR
 
 ## Qué se hizo
 
-- Reemplaza la carga completa de Settings por una lectura preparada de `home.hero.slider`.
-- Añade una vista autenticada ligera de Media para Banners con solo imágenes/videos y cinco campos necesarios.
-- Mantiene ambas lecturas independientes, pero el editor ya no espera Media para mostrarse.
-- Mientras Media sigue cargando, los pickers y Save permanecen deshabilitados; no se valida contra un registro parcial.
-- Las respuestas tardías de una navegación anterior se descartan para que no hidraten una vista Banners más nueva.
-- Conserva la hidratación segura con DOM APIs introducida por #553/#555.
-- Deja explícito el control de flujo del wrapper de navegación de Banners para eliminar la ambigüedad señalada por Sonar.
-- Añade contrato puro del plan de lectura, regresión browser de carga progresiva y verificación real-stack con el admin E2E aislado.
-- Formaliza al agente como **principal software engineer + technical executor**, con roles complementarios de arquitectura/producto, UX/UI, dirección visual, QA, AppSec, performance/reliability y DevOps/release.
-- Sube la versión humana a **0.1.10**.
+- Banners usa lecturas scoped paralelas: `home.hero.slider` + Media `hero-picker`; renderiza Settings antes de Media y mantiene picker/Save bloqueados hasta hidratación.
+- Las respuestas tardías se descartan y Media remoto sigue hidratándose con DOM seguro.
+- Se añadieron contratos, browser y real-stack con usuario E2E; el harness v2 usa los endpoints scoped reales.
+- `AGENTS.md` fija el rol **principal engineer + technical executor** y ownership de arquitectura, UX/UI, dirección visual, QA, AppSec, performance y release.
+- Versión **0.1.10**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — reglas durables de carga Banners + rol operativo principal/cross-functional (arquitectura, UX/UI, dirección visual, QA, AppSec, performance y delivery).
-- `README.md` — dashboard exacto de #523.
-- `api/admin-read-plan.php` — planes autenticados de lectura reducida con allowlist estricta para Settings/Media.
-- `api/index.php` — aplica los planes antes de las colecciones legacy.
-- `config/version.php` — versión humana 0.1.10.
-- `discadmin/hero-slider.js` — bootstrap acotado, render temprano e hidratación Media asíncrona segura.
-- `tests/admin-read-plan-contract.php` — invariantes del payload reducido, allowlist y variantes case-insensitive.
-- `tests/e2e/discadmin-hero-slider-security.spec.mjs` — carga progresiva + seguridad del picker.
-- `tests/e2e/hero-slider-v2.spec.mjs` — harness v2 actualizado a los endpoints scoped de Settings/Media.
-- `tests/e2e/hero-slider-integrity-real-stack.spec.mjs` — usuario E2E real-stack valida endpoints acotados y montaje.
+- `AGENTS.md` — Banners + rol operativo cross-functional.
+- `README.md` — snapshot #523.
+- `api/admin-read-plan.php` — planes scoped + allowlist.
+- `api/index.php` — aplica planes scoped.
+- `config/version.php` — versión 0.1.10.
+- `discadmin/hero-slider.js` — bootstrap/render progresivo.
+- `tests/admin-read-plan-contract.php` — contrato scoped/allowlist.
+- `tests/e2e/discadmin-hero-slider-security.spec.mjs` — progresivo + picker seguro.
+- `tests/e2e/hero-slider-v2.spec.mjs` — harness scoped.
+- `tests/e2e/hero-slider-integrity-real-stack.spec.mjs` — E2E real-stack.
 
 ## Validación
 
-- El contrato browser simula Settings rápido y Media lento: Banners debe quedar visible con Media aún pendiente y habilitar Save solo después.
-- El plan scoped de Settings mantiene bloqueada `security.totp_encryption_key`.
-- El read scoped queda allowlisted a `home.hero.slider`; keys desconocidas, variantes de mayúsculas/minúsculas y variantes del secreto fallan antes de ejecutar SQL.
-- El view `hero-picker` excluye audio/documentos y no usa `SELECT *`.
-- El harness v2 usa exactamente los endpoints scoped nuevos, evitando falsos negativos con Media Library publicada.
-- Las colecciones legacy siguen disponibles cuando no se pide un view/key optimizado.
-- No hay migración, SQL destructivo ni cambio de datos de producción.
+- Browser: Banners aparece antes de Media; Save se habilita solo tras hidratación.
+- Settings scoped acepta solo `home.hero.slider`; variantes/otras keys fallan antes de SQL.
+- `hero-picker` excluye audio/documentos; legacy reads siguen compatibles.
+- Real-stack/harness usan endpoints scoped reales. Sin migración ni SQL destructivo.
 
 ## Qué sigue
 
@@ -109,7 +99,7 @@ flowchart LR
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance + Premium Admin + Settings + Security hotfix~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#553](https://github.com/pl0n3r/brvtal/issues/553)~~ |
+| **DONE** | ✅ ~~Phase 1 + Admin IA/Appearance/Settings/Security~~ | ✅ ~~[#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#553](https://github.com/pl0n3r/brvtal/issues/553)~~ |
 | **NOW** | 🚧 Phase 2 closeout | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
 | **LATER** | 🚧 Operational dashboards | 🚧 [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |
