@@ -92,13 +92,14 @@ Rules:
 
 ### Canonical navigation
 
-- **Dashboard**
-- **CONTENT** — Events, Artists, Releases, Sets, Blog, Pages
-- **MEDIA** — Media Library, Memories, Hero Slider
-- **SITE** — Theme Studio, Settings
-- **SYSTEM** — Security / 2FA, System Status, Backups, Activity when exposed
+DISCADMIN uses two visible high-level groups:
 
-Cross-cutting functions such as Global Search, Content Health, Bulk Actions, feedback and appearance enhance the shell or relevant screens instead of becoming competing top-level mental models.
+- **SITE / EDITORIAL** — Dashboard, Banners, Events, Artists, Releases, Sets, Media, Pages, Blog. **Banners** is the user-facing name for the Home Hero Slider and sits immediately after Dashboard. Memories remains a contextual Media sub-workflow rather than a competing high-level group.
+- **CONFIGURATION / TECHNICAL** — Settings, System Status and only other real technical destinations when they provide a useful canonical workspace.
+
+Theme Studio and Security / 2FA remain valid internal/configuration routes but are entered from **Settings**, not exposed as peer top-level sidebar destinations. Legacy/deep links must keep resolving safely.
+
+Global Search remains available in the page header and as the same canonical search action in the persistent sidebar immediately above Logout. Content Health, Bulk Actions, feedback and appearance enhance the shell or relevant screens instead of becoming competing top-level mental models.
 
 ### Content Core decision
 
@@ -129,7 +130,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 ### DISCADMIN / editorial
 
 - canonical one-shell administration;
-- destination-based sidebar grouped as Content / Media / Site / System;
+- destination-based sidebar grouped as SITE / EDITORIAL and CONFIGURATION / TECHNICAL;
 - responsive/mobile sidebar and record lists;
 - unified forms/dialogs, validation and double-save protection;
 - Events uses the guided Content Core event workflow internally;
@@ -221,7 +222,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 
 ## 4. Recent product decisions that must not be lost
 
-1. **DISCADMIN must feel simple to operate.** Navigation exposes destinations, not internal architecture jargon.
+1. **DISCADMIN must feel simple to operate.** Navigation exposes destinations, not internal architecture jargon; the visible sidebar is organized as SITE / EDITORIAL and CONFIGURATION / TECHNICAL.
 2. **Content Core is internal.** Events is the one visible event-management destination; Artists owns Collective Status.
 3. **Dark / Light / Glass** are the three admin appearance modes.
 4. **Admin sessions stay long-lived** enough for daily work while keeping CSRF, Strict cookies and absolute re-login boundaries.

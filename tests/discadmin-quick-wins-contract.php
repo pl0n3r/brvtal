@@ -67,6 +67,22 @@ quick_win_assert(
     'legacy Activity deep links must resolve to Dashboard'
 );
 
+$indexCore = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
+quick_win_assert(
+    str_contains($indexCore, 'SITE / EDITORIAL')
+        && str_contains($indexCore, 'CONFIGURATION / TECHNICAL')
+        && str_contains($indexCore, "['hero-slider','BANNERS']"),
+    'canonical shell must render the task-based navigation hierarchy before enhancements boot'
+);
+quick_win_assert(
+    !str_contains($indexCore, '<span class="status"><i></i>ONLINE</span>'),
+    'canonical header must not expose an ambiguous decorative ONLINE badge'
+);
+quick_win_assert(
+    str_contains($indexCore, 'data-admin-logout'),
+    'canonical sidebar must expose a stable Logout anchor for persistent search placement'
+);
+
 $entry = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
 $iaPosition = strpos($entry, '/discadmin/admin-information-architecture.js');
 $aliasPosition = strpos($entry, '/discadmin/admin-route-aliases.js');

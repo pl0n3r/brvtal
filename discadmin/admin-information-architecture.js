@@ -31,10 +31,11 @@
     ['PAGES', 'pages'],
     ['MEDIA', 'media'],
     ['MEDIA LIBRARY', 'media'],
+    ['BANNERS', 'hero-slider'],
     ['SETTINGS', 'settings']
   ]);
   const partialNavLabelRules = [
-    {key:'hero-slider', tokens:['HERO','SLIDER'], mode:'all'},
+    {key:'hero-slider', tokens:['BANNER','HERO SLIDER']},
     {key:'theme', tokens:['THEME']},
     {key:'security', tokens:['SECURITY','2FA']},
     {key:'system', tokens:['SYSTEM STATUS']},
@@ -162,11 +163,10 @@
   }
 
   const groups = [
-    {label:'CONTENT', keys:['events','artists','releases','sets','blog','pages']},
-    {label:'MEDIA', keys:['media','hero-slider']},
-    {label:'SITE', keys:['theme','settings','seo']},
-    {label:'SYSTEM', keys:['security','system','backups','activity']},
+    {label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','pages','blog']},
+    {label:'CONFIGURATION / TECHNICAL', keys:['settings','system']},
   ];
+  const hiddenNavigationKeys = new Set(['content-core','theme','security','seo','backups','activity']);
 
   function observeNavigation() {
     navObserver?.observe(document.documentElement,{childList:true,subtree:true});
@@ -187,7 +187,7 @@
       buttons.forEach(button => {
         const key = buttonKey(button);
         button.dataset.iaKey = key;
-        if (key === 'content-core') {
+        if (hiddenNavigationKeys.has(key)) {
           button.dataset.iaHidden = '1';
           button.setAttribute('aria-hidden','true');
           button.tabIndex = -1;
@@ -196,13 +196,11 @@
         delete button.dataset.iaHidden;
         button.removeAttribute('aria-hidden');
         button.removeAttribute('tabindex');
+        if (button.dataset.memoriesNav === '1') button.dataset.iaSubnav = '1';
+        else delete button.dataset.iaSubnav;
         if (!keyed.has(key)) keyed.set(key, []);
         keyed.get(key).push(button);
       });
-
-      const dashboard = keyed.get('dashboard') || [];
-      dashboard.forEach(button => nav.appendChild(button));
-      keyed.delete('dashboard');
 
       groups.forEach(group => {
         const groupButtons = [];
@@ -219,13 +217,22 @@
       });
 
       keyed.forEach(list => list.forEach(button => unknown.push(button)));
-      if (unknown.length) {
-        const heading = document.createElement('div');
-        heading.className = 'ia-navgroup';
-        heading.textContent = 'MORE';
-        nav.appendChild(heading);
-        unknown.forEach(button => nav.appendChild(button));
-      }
+      unknown.forEach(button => nav.appendChild(button));
+
+      const visibleSection = ['theme','security'].includes(String(window.state?.section || ''))
+        ? 'settings'
+        : String(window.state?.section || '');
+      const memoriesActive = visibleSection === 'media'
+        && new URL(location.href).searchParams.get('view') === 'memories';
+      nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"])').forEach(button => {
+        const key = buttonKey(button);
+        if (key === 'media') {
+          const isMemories = button.dataset.memoriesNav === '1';
+          button.classList.toggle('active', visibleSection === 'media' && (isMemories === memoriesActive));
+          return;
+        }
+        button.classList.toggle('active', key === visibleSection);
+      });
     } finally {
       applyingNav = false;
       observeNavigation();

@@ -567,27 +567,37 @@ function render(){
  }
  const previousSide=root.querySelector('.side');
  document.body.classList.remove('admin-nav-open');
- const navSections=[
-  'dashboard','events','artists','sets','media','pages',
-  'content-core','theme','settings','security'
+ const visibleSection=['theme','security'].includes(state.section)?'settings':state.section;
+ const editorialSections=[
+  ['dashboard','DASHBOARD'],
+  ['hero-slider','BANNERS'],
+  ['events','EVENTS'],
+  ['artists','ARTISTS'],
+  ['releases','RELEASES'],
+  ['sets','SETS'],
+  ['media','MEDIA'],
+  ['pages','PAGES'],
+  ['blog','BLOG']
  ];
- const navHtml=navSections.map(x=>{
-  const label=x==='theme'
-   ?'THEME STUDIO'
-   :x==='content-core'
-    ?'CONTENT CORE'
-    :x==='security'
-     ?'SECURITY / 2FA'
-     :x.toUpperCase();
-  const active=state.section===x?'active':'';
-  return `<button class="${active}" onclick="go('${x}')">${label}</button>`;
+ const editorialNav=editorialSections.map(([key,label])=>{
+  const active=visibleSection===key?'active':'';
+  return `<button class="${active}" data-admin-nav="${key}" onclick="go('${key}')">${label}</button>`;
  }).join('');
+ const settingsActive=visibleSection==='settings'?'active':'';
  const systemActive=state.section==='system'?'active':'';
+ const navHtml=[
+  '<div class="navgroup">SITE / EDITORIAL</div>',
+  editorialNav,
+  '<div class="navgroup">CONFIGURATION / TECHNICAL</div>',
+  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`
+ ].join('');
  const moduleTitle=state.section==='content-core'
   ?'CONTENT CORE'
   :state.section==='security'
    ?'SECURITY / 2FA'
-   :state.section.toUpperCase();
+   :state.section==='hero-slider'
+    ?'BANNERS'
+    :state.section.toUpperCase();
  const moduleBody=state.section==='content-core'||state.section==='security'
   ?'<div id="admin-module-host" aria-live="polite">LOADING…</div>'
   :content();
@@ -604,8 +614,7 @@ function render(){
   <div class="sub">DISCADMIN / CONTROL</div>
   <div class="nav">
    ${navHtml}
-   <div class="navgroup">TECHNICAL</div>
-   <button class="${systemActive}" onclick="tech('system')">SYSTEM STATUS</button>
+   <button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">SYSTEM STATUS</button>
   </div>
   <div class="sidefoot">
    <div class="brvtal-admin-release">
@@ -627,7 +636,7 @@ function render(){
       : 'SOURCE UNAVAILABLE' ?>
     </span>
    </div>
-   <button class="btn ghost" style="width:100%" onclick="logout()">LOG OUT</button>
+   <button class="btn ghost" data-admin-logout style="width:100%" onclick="logout()">LOG OUT</button>
   </div>
  </aside>
  <main class="main">
@@ -645,7 +654,6 @@ function render(){
     <div class="eyebrow">BRVTAL CMS</div>
     <h1>${moduleTitle}</h1>
    </div>
-   <span class="status"><i></i>ONLINE</span>
   </div>
   ${moduleBody}
  </main>
@@ -654,7 +662,8 @@ function render(){
   root.querySelector('.side').replaceWith(previousSide);
   previousSide.querySelectorAll('.nav button').forEach(button=>{
    const handler=button.getAttribute('onclick')||'';
-   const active=handler===`go('${state.section}')`||handler===`tech('${state.section}')`;
+   const activeSection=['theme','security'].includes(state.section)?'settings':state.section;
+   const active=handler===`go('${activeSection}')`||handler===`tech('${activeSection}')`;
    button.classList.toggle('active',active);
   });
  }

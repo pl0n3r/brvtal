@@ -87,6 +87,14 @@
         <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Stored values are visible for context, but public ES/EN behavior remains reserved for #212 and is not presented as a live control yet.</p></article>
         <article><span>STATUS</span><strong>LIVE</strong><p><code>settings.site</code> is consumed by the public runtime.</p></article>
       </div>
+      <div class="sv2-tool-section">
+        <header class="sv2-section-head"><div><span>CONFIGURATION TOOLS</span><h3>Specialized settings</h3></div><p>Open deeper configuration without adding separate top-level sidebar destinations.</p></header>
+        <div class="sv2-context-grid">
+          <article class="sv2-tool-card"><span>VISUAL SYSTEM</span><strong>THEME STUDIO</strong><p>Public palette, typography, navigation and effects.</p><button type="button" class="btn ghost" data-settings-open="theme">OPEN THEME STUDIO</button></article>
+          <article class="sv2-tool-card"><span>ACCOUNT SECURITY</span><strong>SECURITY / 2FA</strong><p>Two-factor authentication and account security controls.</p><button type="button" class="btn ghost" data-settings-open="security">OPEN SECURITY / 2FA</button></article>
+          <article class="sv2-tool-card"><span>DIAGNOSTICS</span><strong>SYSTEM STATUS</strong><p>Runtime, database, storage and operational diagnostics.</p><button type="button" class="btn ghost" data-settings-open="system">OPEN SYSTEM STATUS</button></article>
+        </div>
+      </div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="general">SAVE GENERAL</button></div>
     </section>`;
   }
@@ -205,7 +213,7 @@
   function settingsScreen(rows) {
     const allRows = rows || [];
     return `<div class="settings-v2" data-settings-v2 data-testid="settings-v2-root">
-      <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior and integrations. Visual theme controls live in Theme Studio; raw JSON is an advanced escape hatch, not the normal workflow.</p></div><div class="sv2-hero-status"><span>CONTROL PLANE</span><strong>${allRows.length}</strong><small>CONFIG RECORDS</small></div></header>
+      <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior, integrations and access to specialized configuration tools.</p></div></header>
       <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${advancedPane(allRows)}</div></div>
     </div>`;
   }
@@ -365,6 +373,15 @@
       if (tab) { activate(tab.dataset.settingsTab); return; }
       const saveButton = event.target.closest('[data-settings-save]');
       if (saveButton) { save(saveButton.dataset.settingsSave); return; }
+      const destination = event.target.closest('[data-settings-open]');
+      if (destination) {
+        const section = destination.dataset.settingsOpen || '';
+        if (section === 'system') {
+          if (typeof globalThis.tech === 'function') globalThis.tech('system');
+          else globalThis.go?.('system');
+        } else if (section) globalThis.go?.(section);
+        return;
+      }
       const themeStudio = event.target.closest('[data-settings-theme-studio]');
       if (themeStudio) { globalThis.go?.('theme'); return; }
       const raw = event.target.closest('[data-settings-raw]');

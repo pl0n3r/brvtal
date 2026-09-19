@@ -8,7 +8,8 @@ const harnessUrl = 'http://127.0.0.1:4173/discadmin/global-search-e2e.html';
 
 function harnessHtml() {
   return `<!doctype html><html><head><meta charset="utf-8"></head><body>
-    <div class="main"><div class="top"><div><div class="eyebrow">BRVTAL / DISCADMIN</div><h1>DASHBOARD</h1></div><div class="status"><i></i>ONLINE</div></div></div>
+    <aside class="side"><div class="sidefoot"><div class="brvtal-admin-release">vTEST</div><button type="button" data-admin-logout>LOG OUT</button></div></aside>
+    <div class="main"><div class="top"><div><div class="eyebrow">BRVTAL / DISCADMIN</div><h1>DASHBOARD</h1></div></div></div>
     <script>
       window.go = async section => { window.__globalSearchRoute = section; };
       window.BRVTALContentCore = { openEvent: async id => { window.__globalSearchRecordId = Number(id); } };
@@ -60,10 +61,20 @@ test('global search opens with Ctrl+K, groups results and opens the selected rec
   }));
 
   await page.goto(harnessUrl);
-  await expect(page.getByRole('button', { name: 'Open global DISCADMIN search' })).toBeVisible();
+  const topTrigger = page.locator('[data-global-search-location="top"]');
+  const sidebarTrigger = page.locator('[data-global-search-location="sidebar"]');
+  await expect(topTrigger).toBeVisible();
+  await expect(sidebarTrigger).toBeVisible();
+  await expect(sidebarTrigger).toHaveText(/GLOBAL SEARCH/);
+  expect(await sidebarTrigger.evaluate(node => node.nextElementSibling?.hasAttribute('data-admin-logout'))).toBe(true);
+
+  await sidebarTrigger.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await page.getByRole('button',{name:'ESC / CLOSE'}).click();
+  await expect(dialog).toBeHidden();
 
   await page.keyboard.press('Control+K');
-  const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
 
   const input = page.getByRole('searchbox', { name: 'Search all DISCADMIN content' });

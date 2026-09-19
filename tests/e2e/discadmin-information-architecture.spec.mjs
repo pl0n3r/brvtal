@@ -56,7 +56,7 @@ function harness(authed = true) {
         +navButton('SYSTEM STATUS',"tech('system')")
         +navButton('RELEASES',"go('releases')",'releases')
         +navButton('BLOG',"go('blog')",'blog')
-        +navButton('HERO SLIDER',"go('hero-slider')",'hero-slider')
+        +navButton('BANNERS',"go('hero-slider')",'hero-slider')
         +navButton('BACKUPS',"go('backups')",'backups')
         +navButton('ACTIVITY',"go('activity')",'activity')
         +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+sectionContent+'</main></div>';
@@ -123,17 +123,29 @@ async function serveHarness(page, {authed = true} = {}) {
   await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
-test('sidebar exposes destinations while Content Core stays internal', async ({ page }) => {
+test('sidebar exposes the canonical editorial and configuration hierarchy', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
 
-  await expect(page.locator('.ia-navgroup')).toHaveText(['CONTENT','MEDIA','SITE','SYSTEM']);
+  await expect(page.locator('.ia-navgroup')).toHaveText(['SITE / EDITORIAL','CONFIGURATION / TECHNICAL']);
   await expect(page.getByRole('button',{name:'CONTENT CORE'})).toBeHidden();
+  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toBeHidden();
+  await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toBeHidden();
 
   const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"])').allTextContents();
-  expect(visibleLabels.indexOf('EVENTS')).toBeLessThan(visibleLabels.indexOf('MEDIA'));
-  expect(visibleLabels.indexOf('MEDIA')).toBeLessThan(visibleLabels.indexOf('THEME STUDIO'));
-  expect(visibleLabels.indexOf('THEME STUDIO')).toBeLessThan(visibleLabels.indexOf('SYSTEM STATUS'));
+  expect(visibleLabels).toEqual([
+    'DASHBOARD',
+    'BANNERS',
+    'EVENTS',
+    'ARTISTS',
+    'RELEASES',
+    'SETS',
+    'MEDIA',
+    'PAGES',
+    'BLOG',
+    'SETTINGS',
+    'SYSTEM STATUS'
+  ]);
 });
 
 test('navigation label fallbacks preserve canonical and fuzzy destination keys', async ({ page }) => {
@@ -145,6 +157,7 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
     const labels = [
       'MEDIA LIBRARY',
       'PRIMARY HERO SLIDER',
+      'BANNERS',
       'VISUAL THEME TOOLS',
       'ACCOUNT 2FA',
       'SYSTEM STATUS / HOST',
@@ -167,6 +180,7 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
   expect(keys).toEqual({
     'MEDIA LIBRARY':'media',
     'PRIMARY HERO SLIDER':'hero-slider',
+    'BANNERS':'hero-slider',
     'VISUAL THEME TOOLS':'theme',
     'ACCOUNT 2FA':'security',
     'SYSTEM STATUS / HOST':'system',
@@ -177,6 +191,40 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
     'CUSTOM TOOL':'other:custom tool'
   });
   await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
+});
+
+test('Memories stays directly after Media and owns the active state only in its view', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    const nav = document.querySelector('.side .nav');
+    const media = [...nav.querySelectorAll(':scope > button')].find(button => button.textContent.trim() === 'MEDIA');
+    const memories = document.createElement('button');
+    memories.type = 'button';
+    memories.textContent = 'MEMORIES';
+    memories.dataset.adminNav = 'media';
+    memories.dataset.memoriesNav = '1';
+    media.after(memories);
+
+    window.state.section = 'media';
+    history.replaceState({}, '', '?module=media&view=memories');
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+
+  const media = page.getByRole('button',{name:'MEDIA',exact:true});
+  const memories = page.locator('[data-memories-nav="1"]');
+  await expect(memories).toHaveCount(1);
+  expect(await media.evaluate((node) => node.nextElementSibling?.dataset.memoriesNav)).toBe('1');
+  await expect(memories).toHaveClass(/active/);
+  await expect(media).not.toHaveClass(/active/);
+
+  await page.evaluate(() => {
+    history.replaceState({}, '', '?module=media');
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+  await expect(media).toHaveClass(/active/);
+  await expect(memories).not.toHaveClass(/active/);
 });
 
 test('dynamic routes update the URL before readiness settles', async ({ page }) => {

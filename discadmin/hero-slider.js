@@ -188,10 +188,10 @@
       button = document.createElement('button');
       button.type = 'button';
       button.dataset.adminNav = 'hero-slider';
-      button.textContent = 'HERO SLIDER';
+      button.textContent = 'BANNERS';
       button.addEventListener('click', () => window.go('hero-slider'));
-      const events = [...nav.querySelectorAll('button')].find(node => node.textContent.trim().toUpperCase() === 'EVENTS');
-      if (events?.nextSibling) nav.insertBefore(button,events.nextSibling); else nav.appendChild(button);
+      const dashboard = [...nav.querySelectorAll('button')].find(node => node.textContent.trim().toUpperCase() === 'DASHBOARD');
+      if (dashboard?.nextSibling) nav.insertBefore(button,dashboard.nextSibling); else nav.prepend(button);
     }
     button.classList.toggle('active',window.state?.section === 'hero-slider');
   }
@@ -205,7 +205,7 @@
     const top = main.querySelector('.top');
     if (top) {
       top.querySelector('.eyebrow') && (top.querySelector('.eyebrow').textContent = 'HOME / EXPERIENCE');
-      top.querySelector('h1') && (top.querySelector('h1').textContent = 'HERO SLIDER');
+      top.querySelector('h1') && (top.querySelector('h1').textContent = 'BANNERS');
     }
     [...main.children].forEach(child => { if (child !== top) child.remove(); });
     const host = document.createElement('div');
@@ -236,7 +236,11 @@
       if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
       renderManager();
     } catch (error) {
-      host.innerHTML = `<div class="hero-slider-error">Unable to load Hero Slider: ${esc(error.message)}</div>`;
+      host.replaceChildren();
+      const errorNode = document.createElement('div');
+      errorNode.className = 'hero-slider-error';
+      errorNode.textContent = `Unable to load Banners: ${String(error?.message || 'Unknown error')}`;
+      host.appendChild(errorNode);
     }
   }
 
@@ -288,41 +292,138 @@
     </div></div>`;
   }
 
-  function layerMarkup(layer) {
-    const mobile = previewMode === 'mobile';
-    if (mobile && layer.hiddenMobile) return '';
-    const x = mobile && layer.mobileX != null ? layer.mobileX : layer.x;
-    const y = mobile && layer.mobileY != null ? layer.mobileY : layer.y;
-    const width = mobile && layer.mobileWidth != null ? layer.mobileWidth : layer.width;
-    const src = mobile && layer.mobileSrc ? layer.mobileSrc : layer.src;
-    let content = '';
-    if (layer.type === 'image' || layer.type === 'logo') content = src ? `<img src="${esc(src)}" alt="">` : `<span>${esc(layer.name)}</span>`;
-    else if (layer.type === 'cta') content = `<b>${esc(layer.text || 'CTA')} ↗</b>`;
-    else content = `<span>${esc(layer.text || layer.name)}</span>`;
-    return `<div class="hero-preview-layer type-${layer.type} ${layer.id===selectedLayerId?'selected':''}" data-preview-layer="${esc(layer.id)}" style="left:${x}%;top:${y}%;width:${width}%;text-align:${layer.align};--delay:${layer.delay}ms;--duration:${layer.duration}ms" data-animation="${esc(layer.animation)}">${content}</div>`;
+  function appendPreviewText(parent, tagName, value) {
+    if (!value) return;
+    const node = document.createElement(tagName);
+    node.textContent = String(value);
+    parent.appendChild(node);
   }
 
-  function previewMarkup(slide) {
-    if (!slide) return '<div class="hero-preview-placeholder">CURRENT BRVTAL HERO REMAINS ACTIVE UNTIL A SLIDE IS PUBLISHED</div>';
+  function appendPreviewMedia(stage, slide) {
     const src = previewMode === 'mobile' && slide.mobileSrc ? slide.mobileSrc : slide.desktopSrc;
-    const mediaMarkup = src ? (slide.mediaType === 'video' ? `<video muted loop playsinline autoplay ${slide.poster?`poster="${esc(slide.poster)}"`:''}><source src="${esc(src)}"></video>` : `<img src="${esc(src)}" alt="">`) : '<div class="hero-preview-media-empty">SELECT MEDIA</div>';
-    const legacy = slide.layers.length ? '' : `<div class="hero-preview-copy">${slide.kicker?`<span>${esc(slide.kicker)}</span>`:''}${slide.title?`<h2>${esc(slide.title)}</h2>`:''}${slide.body?`<p>${esc(slide.body)}</p>`:''}${slide.ctaLabel?`<b>${esc(slide.ctaLabel)} ↗</b>`:''}</div>`;
-    return `<div class="hero-preview-stage align-${esc(slide.contentAlign)}" style="--hero-overlay:${slide.overlay/100}">${mediaMarkup}<div class="hero-preview-overlay"></div>${legacy}${slide.layers.map(layerMarkup).join('')}</div>`;
+    if (!src) {
+      const empty = document.createElement('div');
+      empty.className = 'hero-preview-media-empty';
+      empty.textContent = 'SELECT MEDIA';
+      stage.appendChild(empty);
+      return;
+    }
+    if (slide.mediaType === 'video') {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.autoplay = true;
+      if (slide.poster) video.poster = slide.poster;
+      const source = document.createElement('source');
+      source.src = src;
+      video.appendChild(source);
+      stage.appendChild(video);
+      return;
+    }
+    const image = document.createElement('img');
+    image.src = src;
+    image.alt = '';
+    stage.appendChild(image);
+  }
+
+  function responsiveLayerValue(layer, mobile, desktopKey, mobileKey) {
+    return mobile && layer[mobileKey] != null ? layer[mobileKey] : layer[desktopKey];
+  }
+
+  function appendPreviewLayerContent(node, layer, src) {
+    if (layer.type === 'image' || layer.type === 'logo') {
+      if (!src) {
+        appendPreviewText(node, 'span', layer.name);
+        return;
+      }
+      const image = document.createElement('img');
+      image.src = src;
+      image.alt = '';
+      node.appendChild(image);
+      return;
+    }
+    const tagName = layer.type === 'cta' ? 'b' : 'span';
+    const value = layer.type === 'cta' ? `${layer.text || 'CTA'} ↗` : layer.text || layer.name;
+    appendPreviewText(node, tagName, value);
+  }
+
+  function appendPreviewLayer(stage, layer) {
+    const mobile = previewMode === 'mobile';
+    if (mobile && layer.hiddenMobile) return;
+    const x = responsiveLayerValue(layer, mobile, 'x', 'mobileX');
+    const y = responsiveLayerValue(layer, mobile, 'y', 'mobileY');
+    const width = responsiveLayerValue(layer, mobile, 'width', 'mobileWidth');
+    const src = mobile && layer.mobileSrc ? layer.mobileSrc : layer.src;
+    const node = document.createElement('div');
+    node.className = `hero-preview-layer type-${layer.type}${layer.id === selectedLayerId ? ' selected' : ''}`;
+    node.dataset.previewLayer = layer.id;
+    node.dataset.animation = layer.animation;
+    node.style.left = `${x}%`;
+    node.style.top = `${y}%`;
+    node.style.width = `${width}%`;
+    node.style.textAlign = layer.align;
+    node.style.setProperty('--delay', `${layer.delay}ms`);
+    node.style.setProperty('--duration', `${layer.duration}ms`);
+    appendPreviewLayerContent(node, layer, src);
+    stage.appendChild(node);
+  }
+
+  function renderPreview(frame, slide) {
+    if (!frame) return;
+    frame.replaceChildren();
+    frame.className = `hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}`;
+    if (!slide) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'hero-preview-placeholder';
+      placeholder.textContent = 'CURRENT BRVTAL HERO REMAINS ACTIVE UNTIL A SLIDE IS PUBLISHED';
+      frame.appendChild(placeholder);
+      return;
+    }
+
+    const stage = document.createElement('div');
+    stage.className = `hero-preview-stage align-${slide.contentAlign}`;
+    stage.style.setProperty('--hero-overlay', String(slide.overlay / 100));
+    appendPreviewMedia(stage, slide);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'hero-preview-overlay';
+    stage.appendChild(overlay);
+
+    if (slide.layers.length) {
+      slide.layers.forEach(layer => appendPreviewLayer(stage, layer));
+    } else {
+      const copy = document.createElement('div');
+      copy.className = 'hero-preview-copy';
+      appendPreviewText(copy, 'span', slide.kicker);
+      appendPreviewText(copy, 'h2', slide.title);
+      appendPreviewText(copy, 'p', slide.body);
+      appendPreviewText(copy, 'b', slide.ctaLabel ? `${slide.ctaLabel} ↗` : '');
+      stage.appendChild(copy);
+    }
+    frame.appendChild(stage);
+  }
+
+  function intervalOptions() {
+    return [4000,5000,7000,9000,12000].map(ms => {
+      const selected = config.interval === ms ? ' selected' : '';
+      return `<option value="${ms}"${selected}>${ms / 1000}s</option>`;
+    }).join('');
   }
 
   function renderManager() {
     const host = root();
     if (!host) return;
     const slide = selectedSlide();
-    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider>SAVE</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${[4000,5000,7000,9000,12000].map(ms=>`<option value="${ms}" ${config.interval===ms?'selected':''}>${ms/1000}s</option>`).join('')}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode}">${previewMarkup(slide)}</div></section></div></section>`;
+    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider>SAVE</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
+    renderPreview(host.querySelector('.hero-preview-frame'), slide);
     bind();
   }
 
   function refreshPreview() {
     const frame = document.querySelector('.hero-preview-frame');
     if (!frame) return;
-    frame.className = 'hero-preview-frame ' + previewMode;
-    frame.innerHTML = previewMarkup(selectedSlide());
+    renderPreview(frame, selectedSlide());
     bindPreviewDrag();
   }
 

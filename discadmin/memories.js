@@ -413,12 +413,12 @@
   function ensureNav() {
     const nav = document.querySelector('.side .nav'); if (!nav || nav.querySelector('[data-memories-nav]')) return;
     const button = create('button', {text:'MEMORIES', attrs:{type:'button'}, dataset:{adminNav:'media',memoriesNav:'1'}}); button.addEventListener('click', () => open({mode:'push'}));
-    const heroSlider = [...nav.querySelectorAll(':scope > button')].find(item => String(item.textContent || '').trim().toUpperCase() === 'HERO SLIDER');
-    if (heroSlider) {
-      heroSlider.before(button);
-    } else {
-      nav.appendChild(button);
-    }
+    const media = [...nav.querySelectorAll(':scope > button')].find(item => {
+      const label = String(item.textContent || '').trim().toUpperCase();
+      return item.dataset.adminNav === 'media' || label === 'MEDIA' || label === 'MEDIA LIBRARY';
+    });
+    if (media) media.after(button);
+    else nav.appendChild(button);
   }
   function buildWorkspace() {
     const section = create('section', {className:'memories-admin'}); section.dataset.adminModule = 'memories';
