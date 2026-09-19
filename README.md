@@ -12,9 +12,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🏷️ **#517 HUMAN PRODUCT VERSION** | **BRVTAL v0.1.1** primary · SHA secondary |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `18e544f02f25c99ef7f25fe9859a962b6b57aa6e` · exact-main `validate` verde |
-| Version | 🚀 **0.1.0 → 0.1.1** | patch deploy bump · pre-1.0 |
+| Work line | 🖼️ **#221 HERO MEDIA INTEGRITY** | save seguro · Media Library autoritativa |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `30a00293d7b0204cc3ffb3bc050fa95e097789cd` · exact-main `validate` verde |
+| Version | 🚀 **0.1.1 → 0.1.2** | patch deploy bump · pre-1.0 |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+408** | **−56** | **+352** |
+| **12** | **+571** | **−77** | **+494** |
 
 ## Calidad y entrega
 
@@ -31,94 +31,80 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| Version gate | cada deploy-bound PR incrementa patch exactamente una vez |
-| Product identity | **BRVTAL v0.1.1 · Production** |
-| Technical identity | SHA secundario; fallback nunca se presenta como SHA exacto |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Save authority | Settings API devuelve 422 con field exacto si media pública no es válida |
+| Local media | published Media Library + archivo real bajo `/uploads/` |
+| External media | HTTPS explícito; sin fetch server-side durante save |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
-| Exact-main | obligatorio después del squash merge |
+| Exact-main | **CI del SHA exacto de main** obligatorio tras squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- A["PR + snapshot exacto + bump"] --> P["preflight / version gate"]
- P --> F["fast"]
- P --> D["database"]
- P --> B["Chromium"]
- P --> R["real-stack"]
- P --> W["WebKit"]
- P --> K["recovery"]
+ A["PR + snapshot exacto"] --> P["preflight"]
+ P --> F["CI fan-out"]
  A --> S["Sonar"]
  A --> C["CodeRabbit"]
- F --> G["head listo"]
- D --> G
- B --> G
- R --> G
- W --> G
- K --> G
- S --> G
- C --> G
- G --> M["Squash merge"]
+ F --> M["Squash merge"]
+ S --> M
+ C --> M
  M --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- La versión humana avanza de **0.1.0** a **0.1.1**.
-- DISCADMIN prioriza **BRVTAL v0.1.1** y **Production**; el SHA queda como detalle técnico secundario.
-- Dashboard y System Status muestran la misma versión humana como señal primaria y la identidad técnica debajo.
-- Si solo existe metadata fallback, la UI muestra **SOURCE UNAVAILABLE** en lugar de fingir un SHA exacto.
-- System Status usa la misma versión humana y conserva source SHA para diagnóstico cuando es exacto.
-- `preflight` valida cada transición de versión sin crear commits automáticos.
-- Patch es el incremento normal; minor requiere milestone deliberado; **1.0.0** queda reservado a decisión explícita del administrador.
-- `config/version.php` se clasifica como metadata liviana para que el bump obligatorio no expanda por sí solo los gates futuros.
+- Un slide habilitado ya no puede guardarse sin Desktop media válida.
+- Paths locales deben existir como Media Library publicada y conservar su archivo fuente.
+- Tipo image/video y poster image se validan antes de persistir.
+- Mobile overrides y assets de layers image/logo se validan cuando están presentes.
+- HTTPS externo sigue permitido y queda explícito como alternativa al Media Library.
+- DISCADMIN bloquea errores obvios antes del request; el servidor sigue siendo la autoridad.
+- Se añadió cobertura real-stack autenticada para persistencia y rechazo 422.
+- El validador del README dejó de exigir el issue histórico #517.
+- Los helpers nuevos se refactorizaron para mantener complejidad y naming dentro de Clean-as-You-Code.
+- BRVTAL avanza a **v0.1.2**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/update-release-metadata.yml` — gate de transición en preflight.
-- `AGENTS.md` — contrato durable de versionado.
-- `README.md` — dashboard exacto de #517.
-- `api/deployment.php` — exactness + versión pública.
-- `api/health.php` — identidad de versión/deploy consistente.
-- `config/deployment.php` — diferencia source exacto vs fallback.
-- `config/version.php` — versión canónica 0.1.1.
-- `discadmin/index-core.php` — versión humana primaria en footer.
-- `discadmin/dashboard-v2.js` — versión humana primaria en Operations; source SHA secundario.
-- `discadmin/system-status-v2.js` — producto primario / SHA secundario.
-- `discadmin/technical.php` — exactness en payload operacional.
-- `scripts/ci-scope.sh` — bump aislado no activa runtime gates.
-- `scripts/release-version.py` — validación Git de transición semántica.
-- `tests/deployment-traceability-contract.php` — contrato de producto vs deploy.
-- `tests/e2e/discadmin-admin-shell.spec.mjs` — regresión del footer.
-- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresión de versión humana en Dashboard.
-- `tests/e2e/discadmin-system-status-v2.spec.mjs` — regresión de System Status.
+- `AGENTS.md`
+- `README.md`
+- `api/index.php`
+- `config/hero_slider_integrity.php`
+- `config/version.php`
+- `discadmin/hero-slider.js`
+- `docs/HERO-SLIDER.md`
+- `scripts/readme-dashboard.py`
+- `tests/e2e/hero-slider-integrity-real-stack.spec.mjs`
+- `tests/e2e/hero-slider-v2.spec.mjs`
+- `tests/e2e/run-content-core-real-stack.sh`
+- `tests/hero-slider-integrity-contract.php`
 
 ## Validación
 
-- transición `0.1.0 → 0.1.1` verificada contra base/head Git;
-- versión consistente en footer, Dashboard, API y System Status;
-- exact SHA sigue disponible cuando proviene de entorno/Git checkout;
-- release fallback no se muestra como exact deployed source;
-- CI valida la transición pero nunca escribe ni commitea `config/version.php`.
-- `render()` del shell queda formateado en líneas mantenibles, sin la línea de 3745 caracteres reportada por Sonar.
+- contrato puro de integridad: required / registry / published / file / type / HTTPS / traversal;
+- browser: save inválido no emite POST y Media Library publicada sí permite save;
+- real-stack: path no registrado, archivo faltante y tipo incorrecto responden 422;
+- real-stack: asset local válido y HTTPS externo persisten correctamente;
+- slides deshabilitados conservan drafts incompletos;
+- sin migración de producción ni operación destructiva.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | Cerrar [#517](https://github.com/pl0n3r/brvtal/issues/517). |
-| **NEXT** | [#221](https://github.com/pl0n3r/brvtal/issues/221) · impedir Banners/Hero activos sin media válida. |
-| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy/hPanel. |
-| **LATER** | Phase 2: [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514). |
+| **NOW** | Cerrar [#221](https://github.com/pl0n3r/brvtal/issues/221) con CI/Sonar/CodeRabbit y exact-main. |
+| **NEXT** | Phase 2 Admin: [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514). |
+| **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
+| **LATER** | [#518](https://github.com/pl0n3r/brvtal/issues/518), [#519](https://github.com/pl0n3r/brvtal/issues/519), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#513](https://github.com/pl0n3r/brvtal/issues/513). |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | Release identity | [#517](https://github.com/pl0n3r/brvtal/issues/517) |
-| **NEXT** | Banner integrity | [#221](https://github.com/pl0n3r/brvtal/issues/221) |
-| **BLOCKED / EXTERNAL** | Deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
-| **LATER** | Admin IA / appearance | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |
+| **NOW** | Banner integrity | [#221](https://github.com/pl0n3r/brvtal/issues/221) |
+| **NEXT** | Admin IA / appearance | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |
 | **LATER** | Editorial productivity | [#518](https://github.com/pl0n3r/brvtal/issues/518), [#519](https://github.com/pl0n3r/brvtal/issues/519), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
+| **LATER** | Configurable operations | [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |
+| **BLOCKED / EXTERNAL** | Deploy observation | [#534](https://github.com/pl0n3r/brvtal/issues/534) |

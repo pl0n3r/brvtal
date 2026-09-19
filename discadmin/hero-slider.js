@@ -94,13 +94,85 @@
     };
   }
 
+  function mediaRecordForPath(path) {
+    const reference = String(path || '').trim();
+    return media.find(item => String(item.file_path || '') === reference) || null;
+  }
+
+  function mediaReferenceError(value, expectedType, required, label) {
+    const reference = String(value || '').trim();
+    if (!reference) return required ? `${label} is required for an enabled slide.` : '';
+    if (/^https:\/\//i.test(reference)) return '';
+    if (!reference.startsWith('/uploads/') || reference.includes('..')) {
+      return `${label} must use a Media Library asset or an external HTTPS URL.`;
+    }
+    const item = mediaRecordForPath(reference);
+    if (!item) return `${label} is not registered in the Media Library.`;
+    if (String(item.status || 'published') !== 'published') {
+      return `${label} must use a published Media Library asset.`;
+    }
+    if (String(item.type || '') !== expectedType) {
+      return `${label} must use a ${expectedType} asset.`;
+    }
+    return '';
+  }
+
+  function firstMediaError(checks) {
+    for (const [value, type, required, fieldLabel] of checks) {
+      const error = mediaReferenceError(value, type, required, fieldLabel);
+      if (error) return error;
+    }
+    return '';
+  }
+
+  function layerMediaError(slide, label) {
+    const layers = Array.isArray(slide.layers) ? slide.layers : [];
+    for (let layerIndex = 0; layerIndex < layers.length; layerIndex += 1) {
+      const layer = layers[layerIndex];
+      if (!['image','logo'].includes(layer.type)) continue;
+      const layerName = layer.name || `Layer ${layerIndex + 1}`;
+      const layerLabel = `${label} · ${layerName}`;
+      const error = firstMediaError([
+        [layer.src, 'image', false, `${layerLabel}: Desktop asset`],
+        [layer.mobileSrc, 'image', false, `${layerLabel}: Mobile asset`],
+      ]);
+      if (error) return error;
+    }
+    return '';
+  }
+
+  function slideMediaError(slide, slideIndex) {
+    if (slide.enabled === false) return '';
+    const label = slide.name || `Slide ${slideIndex + 1}`;
+    const expectedType = slide.mediaType === 'video' ? 'video' : 'image';
+    const checks = [
+      [slide.desktopSrc, expectedType, true, `${label}: Desktop media`],
+      [slide.mobileSrc, expectedType, false, `${label}: Mobile media`],
+    ];
+    if (expectedType === 'video') {
+      checks.push([slide.poster, 'image', false, `${label}: Video poster`]);
+    }
+    return firstMediaError(checks) || layerMediaError(slide, label);
+  }
+
+  function configMediaError(payload) {
+    for (let slideIndex = 0; slideIndex < payload.slides.length; slideIndex += 1) {
+      const error = slideMediaError(payload.slides[slideIndex], slideIndex);
+      if (error) return error;
+    }
+    return '';
+  }
+
   async function request(path, options = {}) {
     if (typeof window.req === 'function') return window.req(path, options);
     const headers = {'Content-Type':'application/json', ...(options.headers || {})};
     if (window.csrf) headers['X-CSRF-Token'] = window.csrf;
     const response = await fetch(API + path,{...options,headers,credentials:'same-origin'});
     const json = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(json.error || 'REQUEST_FAILED');
+    if (!response.ok) {
+      const field = json.field ? ` · ${json.field}` : '';
+      throw new Error((json.error || 'REQUEST_FAILED') + field);
+    }
     return json;
   }
 
@@ -187,8 +259,8 @@
         <label class="hero-switch"><input type="checkbox" data-field="enabled" ${slide.enabled ? 'checked' : ''}><span>Slide enabled</span></label>
         <label><span>Media type</span><select data-field="mediaType"><option value="image" ${slide.mediaType==='image'?'selected':''}>Image</option><option value="video" ${slide.mediaType==='video'?'selected':''}>Video</option></select></label>
         <label><span>Transition</span><select data-field="transition">${['fade','slide','zoom'].map(v => `<option value="${v}" ${slide.transition===v?'selected':''}>${v}</option>`).join('')}</select></label>
-        <label class="full"><span>Desktop media</span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><select data-media-picker="desktopSrc">${mediaOptions(slide.mediaType)}</select></div></label>
-        <label class="full"><span>Mobile override <em>optional</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><select data-media-picker="mobileSrc">${mediaOptions(slide.mediaType)}</select></div></label>
+        <label class="full"><span>Desktop media <em>Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><select data-media-picker="desktopSrc">${mediaOptions(slide.mediaType)}</select></div></label>
+        <label class="full"><span>Mobile override <em>optional · Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><select data-media-picker="mobileSrc">${mediaOptions(slide.mediaType)}</select></div></label>
         ${slide.mediaType==='video'?`<label class="full"><span>Video poster</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><select data-media-picker="poster">${mediaOptions('image')}</select></div></label>`:''}
         <label class="full"><span>Legacy kicker</span><input data-field="kicker" value="${esc(slide.kicker)}"></label>
         <label class="full"><span>Legacy title</span><input data-field="title" value="${esc(slide.title)}"></label>
@@ -454,6 +526,8 @@
     const button=root()?.querySelector('[data-save-slider]');if(button){button.disabled=true;button.textContent='SAVING…';}
     try {
       const payload=normalizeConfig(config);
+      const integrityError=configMediaError(payload);
+      if(integrityError) throw new Error(integrityError);
       await request('/settings',{method:'POST',body:JSON.stringify({setting_key:KEY,setting_value:JSON.stringify(payload),is_json:1})});
       config=payload;
       window.BRVTALFeedback?.success?.('Hero Slider saved. Public fallback remains protected.','hero-slider-save');

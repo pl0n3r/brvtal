@@ -25,13 +25,13 @@ async function openHarness(page, data) {
 /**
  * Mounts the real Hero Slider admin runtime with optional Web Crypto removal.
  */
-async function openAdminUidHarness(page, { disableCrypto = false } = {}) {
+async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [] } = {}) {
   await page.setContent(`<!doctype html><html><head></head><body>
     <nav class="nav"><button type="button">EVENTS</button></nav>
     <main class="main"><div class="top"><span class="eyebrow"></span><h1></h1></div></main>
   </body></html>`);
 
-  await page.evaluate(({ disableCrypto }) => {
+  await page.evaluate(({ disableCrypto, mediaItems }) => {
     window.state = { section: 'dashboard' };
     window.render = () => {};
     window.go = async () => {};
@@ -42,7 +42,7 @@ async function openAdminUidHarness(page, { disableCrypto = false } = {}) {
         return { data: [] };
       }
       if (path === '/settings') return { data: [] };
-      if (path === '/media') return { data: [] };
+      if (path === '/media') return { data: mediaItems };
       return { data: [] };
     };
     if (disableCrypto) {
@@ -51,7 +51,7 @@ async function openAdminUidHarness(page, { disableCrypto = false } = {}) {
         value: undefined,
       });
     }
-  }, { disableCrypto });
+  }, { disableCrypto, mediaItems });
 
   await page.addScriptTag({ content: adminScript });
   await page.evaluate(() => window.go('hero-slider'));
@@ -144,6 +144,35 @@ test('v2 admin UID fallback stays unique when Web Crypto is unavailable', async 
   expect(new Set(ids).size).toBe(ids.length);
 });
 
+test('v2 admin blocks enabled slides without valid primary media before save', async ({ page }) => {
+  await openAdminUidHarness(page);
+  await page.locator('[data-add-slide]').click();
+  await page.locator('[data-config-field="enabled"]').check();
+  await page.locator('[data-save-slider]').click();
+
+  await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(0);
+  await expect(page.locator('[data-save-slider]')).toBeEnabled();
+  await expect(page.locator('[data-save-slider]')).toHaveText('SAVE');
+});
+
+test('v2 admin accepts a published Media Library asset as primary media', async ({ page }) => {
+  await openAdminUidHarness(page, {
+    mediaItems:[{
+      id:1,
+      type:'image',
+      status:'published',
+      title:'CI HERO',
+      file_path:'/uploads/ci/hero-integrity.jpg',
+    }],
+  });
+  await page.locator('[data-add-slide]').click();
+  await page.locator('[data-config-field="enabled"]').check();
+  await page.locator('[data-field="desktopSrc"]').fill('/uploads/ci/hero-integrity.jpg');
+  await page.locator('[data-save-slider]').click();
+
+  await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);
+});
+
 test('v2 admin bindings preserve preview, config, save and deletion behavior', async ({ page }) => {
   await openAdminUidHarness(page);
 
@@ -156,6 +185,7 @@ test('v2 admin bindings preserve preview, config, save and deletion behavior', a
   await page.locator('[data-config-field="enabled"]').check();
   await page.locator('[data-config-field="autoplay"]').uncheck();
   await page.locator('[data-config-field="interval"]').selectOption('9000');
+  await page.locator('[data-field="desktopSrc"]').fill('https://cdn.example.test/hero.jpg');
   await page.locator('[data-save-slider]').click();
 
   await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);

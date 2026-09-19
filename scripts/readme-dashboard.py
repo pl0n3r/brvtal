@@ -124,7 +124,6 @@ def require_markers(readme: str) -> None:
         "PR + snapshot exacto",
         "CodeRabbit",
         "CI del SHA exacto de main",
-        "#517",
         "solo el deploy actual",
     ]
     missing = [marker for marker in markers if marker not in readme]
@@ -161,6 +160,9 @@ def validate_roadmap(readme: str) -> None:
     missing = [lane for lane in lanes if lane not in readme]
     if missing:
         fail("missing roadmap lane(s): " + ", ".join(missing))
+    roadmap = section(readme, "## Qué sigue") + section(readme, "## Panorama general pendiente")
+    if re.search(r"https://github\.com/pl0n3r/brvtal/issues/\d+", roadmap) is None:
+        fail("roadmap must link to at least one canonical GitHub issue")
 
 
 def validate(base: str, head: str) -> None:

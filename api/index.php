@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/set_publication.php';
 require_once __DIR__ . '/../config/totp_auth.php';
 require_once __DIR__ . '/../config/password_rate_limit.php';
 require_once __DIR__ . '/../config/indexnow.php';
+require_once __DIR__ . '/../config/hero_slider_integrity.php';
 require_once __DIR__ . '/route.php';
 require_once __DIR__ . '/pages-contract.php';
 require_once __DIR__ . '/content-validation.php';
@@ -262,6 +263,20 @@ try {
             if ($invalidJson) {
                 json_response(['ok' => false, 'error' => 'INVALID_SETTING_JSON'], 422);
             }
+            if ($key === BRVTAL_HERO_SLIDER_SETTING_KEY) {
+                $heroSliderError = brvtalHeroSliderSettingError($pdo, $value, $isJson);
+                if ($heroSliderError !== null) {
+                    json_response(
+                        [
+                            'ok' => false,
+                            'error' => $heroSliderError['error'],
+                            'field' => $heroSliderError['field'],
+                        ],
+                        422
+                    );
+                }
+            }
+
             if ($key === BRVTAL_INDEXNOW_SETTING_KEY) {
                 $indexNowError = brvtalIndexNowSettingError($value, $isJson);
                 if ($indexNowError !== null) {
