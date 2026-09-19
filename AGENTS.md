@@ -224,7 +224,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 
 1. **DISCADMIN must feel simple to operate.** Navigation exposes destinations, not internal architecture jargon; the visible sidebar is organized as SITE / EDITORIAL and CONFIGURATION / TECHNICAL.
 2. **Content Core is internal.** Events is the one visible event-management destination; Artists owns Collective Status.
-3. **Dark / Light / Glass** are the three admin appearance modes.
+3. **Dark / Light / Glass** are the three admin appearance modes. They share semantic surface/text/border/input tokens, apply across the complete shell and modern module surfaces, and the same selector is available before authentication. The local pre-auth preference survives Logout/login and the early bootstrap applies it before paint where practical.
 4. **Admin sessions stay long-lived** enough for daily work while keeping CSRF, Strict cookies and absolute re-login boundaries.
 5. Hero Slider should feel easy/reliable like LayerSlider, especially on mobile, but remain BRVTAL-specific.
 6. Hero mobile editing supports optional mobile assets/overrides.
@@ -411,7 +411,7 @@ When no newer explicit user instruction exists:
 
 1. 🚧 **Delivery lead-time closeout — #534** — engineering-side CI optimization is complete; Hostinger Git auto-deployment/repository/branch verification remains an external blocker. Do not block independent product work on unavailable hPanel access.
 2. ✅ ~~**Phase 1 quick wins from #533**~~ — #520, #521, #526, #522, #479, #517 and #221 are completed and verified through their required delivery gates.
-3. 🚧 **Continue Phase 2 from #533** — Admin shell/theme/premium UX (#348, #149, #514), then later editorial productivity, configurable operations, Theme Studio/SEO/data integrity and resilience.
+3. ✅ ~~**Phase 2 navigation — #348**~~ — task-based Admin IA is merged and exact-main validated.\n4. 🚧 **Phase 2 appearance — #149** — complete coherent Dark / Light / Glass across shell, login and modern modules; then continue premium/legibility work in #514.\n5. 🚧 **Continue later Phase 2 / #533** — #516, #523, #480, #193 and #216 before moving into editorial productivity.
 4. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.

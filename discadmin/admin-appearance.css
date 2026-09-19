@@ -1,6 +1,435 @@
-html[data-discadmin-appearance]{transition:background-color .18s ease;color-scheme:dark}html[data-discadmin-appearance="light"]{color-scheme:light}body,.side,.main,.table,.thead,.tr,.stat,.section,.linebox,.artistpick,.lineitem,.loginbox,.syscheck,.dashitem,.metric,.dashsection,.techcard,.system-pulse,.system-pulse-card,.system-status-shell,.system-status-card,.system-detail,.hero-manager-toolbar,.hero-manager-global,.hero-slide-list,.hero-slide-editor,.hero-preview-panel,.theme-panel,.theme-preview,.modalbox{transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,backdrop-filter .18s ease}
-.discadmin-appearance{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #202326}.discadmin-appearance-label{font-size:8px;letter-spacing:2px;color:#596068;margin-bottom:8px}.discadmin-appearance-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.discadmin-appearance-options button{min-width:0;min-height:44px;border:1px solid #2c3135;background:#0b0c0d;color:#777;display:grid;place-items:center;gap:2px;padding:5px 2px}.discadmin-appearance-options button span{font-size:13px;line-height:1}.discadmin-appearance-options button b{font-size:7px;letter-spacing:.7px;white-space:nowrap}.discadmin-appearance-options button.active{color:#fff;border-color:#60676d;background:#151719}.discadmin-appearance-options button.active:after{content:"";width:12px;height:2px;background:var(--red);display:block}.discadmin-appearance-options button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
-html[data-discadmin-appearance="light"] body{background:#f3f3f5;color:#121315}html[data-discadmin-appearance="light"] .side{background:#fff;border-color:#d9dadd;box-shadow:7px 0 24px rgba(0,0,0,.04)}html[data-discadmin-appearance="light"] .logo,html[data-discadmin-appearance="light"] .top h1,html[data-discadmin-appearance="light"] .title,html[data-discadmin-appearance="light"] .modalhead h2,html[data-discadmin-appearance="light"] .sectionhead strong,html[data-discadmin-appearance="light"] .system-pulse-title,html[data-discadmin-appearance="light"] .system-pulse-value,html[data-discadmin-appearance="light"] .techvalue,html[data-discadmin-appearance="light"] .stat .n{color:#101113}html[data-discadmin-appearance="light"] .nav button{color:#73777c}html[data-discadmin-appearance="light"] .nav button:hover,html[data-discadmin-appearance="light"] .nav button.active{color:#111}html[data-discadmin-appearance="light"] .top,html[data-discadmin-appearance="light"] .discadmin-appearance{border-color:#d8dade}html[data-discadmin-appearance="light"] .status,html[data-discadmin-appearance="light"] .pill,html[data-discadmin-appearance="light"] .iconbtn,html[data-discadmin-appearance="light"] .btn.ghost{border-color:#c7c9cd;color:#17191b}html[data-discadmin-appearance="light"] .search,html[data-discadmin-appearance="light"] .field input,html[data-discadmin-appearance="light"] .field textarea,html[data-discadmin-appearance="light"] .field select,html[data-discadmin-appearance="light"] .hero-form-grid input,html[data-discadmin-appearance="light"] .hero-form-grid textarea,html[data-discadmin-appearance="light"] .hero-form-grid select{background:#fff;border-color:#cfd1d4;color:#111}html[data-discadmin-appearance="light"] .table,html[data-discadmin-appearance="light"] .stat,html[data-discadmin-appearance="light"] .section,html[data-discadmin-appearance="light"] .linebox,html[data-discadmin-appearance="light"] .artistpick,html[data-discadmin-appearance="light"] .lineitem,html[data-discadmin-appearance="light"] .dashitem,html[data-discadmin-appearance="light"] .metric,html[data-discadmin-appearance="light"] .dashsection,html[data-discadmin-appearance="light"] .techcard,html[data-discadmin-appearance="light"] .system-pulse,html[data-discadmin-appearance="light"] .system-pulse-card,html[data-discadmin-appearance="light"] .system-status-shell,html[data-discadmin-appearance="light"] .system-status-card,html[data-discadmin-appearance="light"] .system-detail,html[data-discadmin-appearance="light"] .hero-manager-toolbar,html[data-discadmin-appearance="light"] .hero-manager-global,html[data-discadmin-appearance="light"] .hero-slide-list,html[data-discadmin-appearance="light"] .hero-slide-editor,html[data-discadmin-appearance="light"] .hero-preview-panel,html[data-discadmin-appearance="light"] .theme-panel,html[data-discadmin-appearance="light"] .theme-preview,html[data-discadmin-appearance="light"] .modalbox{background:#fff;border-color:#d7d9dc;color:#141517}html[data-discadmin-appearance="light"] .thead{background:#eceef0;color:#666b70}html[data-discadmin-appearance="light"] .tr{border-color:#e1e2e4}html[data-discadmin-appearance="light"] .tr:hover,html[data-discadmin-appearance="light"] .hero-slide-row:hover,html[data-discadmin-appearance="light"] .hero-slide-row.active{background:#f2f3f4}html[data-discadmin-appearance="light"] .iconbtn{background:#f6f6f7;color:#151719}html[data-discadmin-appearance="light"] .btn{background:#111;color:#fff}html[data-discadmin-appearance="light"] .btn.red{background:var(--red);color:#fff}html[data-discadmin-appearance="light"] .btn.ghost{background:transparent;color:#111}html[data-discadmin-appearance="light"] .modal{background:rgba(235,236,239,.86)}html[data-discadmin-appearance="light"] .discadmin-appearance-options button{background:#f4f5f6;border-color:#d5d7da;color:#6f7479}html[data-discadmin-appearance="light"] .discadmin-appearance-options button.active{background:#fff;color:#111;border-color:#aeb2b6;box-shadow:0 3px 12px rgba(0,0,0,.08)}html[data-discadmin-appearance="light"] .hero-slide-row{background:#fff;color:#111;border-color:#e2e3e5}html[data-discadmin-appearance="light"] .hero-slide-row-copy strong{color:#111}
-html[data-discadmin-appearance="glass"] body{background:radial-gradient(circle at 15% 15%,rgba(255,32,56,.16),transparent 32%),radial-gradient(circle at 82% 18%,rgba(90,125,255,.16),transparent 34%),linear-gradient(135deg,#090a0d 0%,#10131a 48%,#090a0e 100%);background-attachment:fixed;color:#f6f7f9}html[data-discadmin-appearance="glass"] .side{background:rgba(12,13,17,.62);border-color:rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);box-shadow:12px 0 40px rgba(0,0,0,.25)}html[data-discadmin-appearance="glass"] .top{border-color:rgba(255,255,255,.12)}html[data-discadmin-appearance="glass"] .table,html[data-discadmin-appearance="glass"] .stat,html[data-discadmin-appearance="glass"] .section,html[data-discadmin-appearance="glass"] .linebox,html[data-discadmin-appearance="glass"] .artistpick,html[data-discadmin-appearance="glass"] .lineitem,html[data-discadmin-appearance="glass"] .dashitem,html[data-discadmin-appearance="glass"] .metric,html[data-discadmin-appearance="glass"] .dashsection,html[data-discadmin-appearance="glass"] .techcard,html[data-discadmin-appearance="glass"] .system-pulse,html[data-discadmin-appearance="glass"] .system-pulse-card,html[data-discadmin-appearance="glass"] .system-status-shell,html[data-discadmin-appearance="glass"] .system-status-card,html[data-discadmin-appearance="glass"] .system-detail,html[data-discadmin-appearance="glass"] .hero-manager-toolbar,html[data-discadmin-appearance="glass"] .hero-manager-global,html[data-discadmin-appearance="glass"] .hero-slide-list,html[data-discadmin-appearance="glass"] .hero-slide-editor,html[data-discadmin-appearance="glass"] .hero-preview-panel,html[data-discadmin-appearance="glass"] .theme-panel,html[data-discadmin-appearance="glass"] .theme-preview,html[data-discadmin-appearance="glass"] .modalbox{background:rgba(13,15,20,.56);border-color:rgba(255,255,255,.12);backdrop-filter:blur(24px) saturate(145%);-webkit-backdrop-filter:blur(24px) saturate(145%);box-shadow:0 18px 50px rgba(0,0,0,.18)}html[data-discadmin-appearance="glass"] .table,html[data-discadmin-appearance="glass"] .dashsection,html[data-discadmin-appearance="glass"] .system-pulse,html[data-discadmin-appearance="glass"] .system-status-shell,html[data-discadmin-appearance="glass"] .hero-manager-toolbar,html[data-discadmin-appearance="glass"] .hero-manager-global,html[data-discadmin-appearance="glass"] .hero-slide-list,html[data-discadmin-appearance="glass"] .hero-slide-editor,html[data-discadmin-appearance="glass"] .hero-preview-panel,html[data-discadmin-appearance="glass"] .theme-panel,html[data-discadmin-appearance="glass"] .theme-preview,html[data-discadmin-appearance="glass"] .modalbox{border-radius:16px;overflow:hidden}html[data-discadmin-appearance="glass"] .stat,html[data-discadmin-appearance="glass"] .metric,html[data-discadmin-appearance="glass"] .dashitem,html[data-discadmin-appearance="glass"] .techcard,html[data-discadmin-appearance="glass"] .system-pulse-card,html[data-discadmin-appearance="glass"] .system-status-card{border-radius:13px}html[data-discadmin-appearance="glass"] .thead{background:rgba(255,255,255,.055)}html[data-discadmin-appearance="glass"] .tr{border-color:rgba(255,255,255,.08)}html[data-discadmin-appearance="glass"] .tr:hover,html[data-discadmin-appearance="glass"] .hero-slide-row:hover,html[data-discadmin-appearance="glass"] .hero-slide-row.active{background:rgba(255,255,255,.06)}html[data-discadmin-appearance="glass"] .search,html[data-discadmin-appearance="glass"] .field input,html[data-discadmin-appearance="glass"] .field textarea,html[data-discadmin-appearance="glass"] .field select,html[data-discadmin-appearance="glass"] .hero-form-grid input,html[data-discadmin-appearance="glass"] .hero-form-grid textarea,html[data-discadmin-appearance="glass"] .hero-form-grid select{background:rgba(0,0,0,.22);border-color:rgba(255,255,255,.16);color:#fff;border-radius:10px}html[data-discadmin-appearance="glass"] .iconbtn,html[data-discadmin-appearance="glass"] .btn.ghost{background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.15);color:#fff;border-radius:10px}html[data-discadmin-appearance="glass"] .btn{border-radius:10px}html[data-discadmin-appearance="glass"] .modal{background:rgba(4,5,8,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}html[data-discadmin-appearance="glass"] .discadmin-appearance{border-color:rgba(255,255,255,.1)}html[data-discadmin-appearance="glass"] .discadmin-appearance-options{padding:4px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:13px}html[data-discadmin-appearance="glass"] .discadmin-appearance-options button{background:transparent;border-color:transparent;color:#7f8790;border-radius:9px}html[data-discadmin-appearance="glass"] .discadmin-appearance-options button.active{background:rgba(255,255,255,.13);color:#fff;border-color:rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 5px 15px rgba(0,0,0,.15)}html[data-discadmin-appearance="glass"] .hero-slide-row{background:rgba(0,0,0,.12);border-color:rgba(255,255,255,.08)}
-@media(max-width:850px){.discadmin-appearance{margin-top:10px}.discadmin-appearance-options button{min-height:48px}html[data-discadmin-appearance="glass"] .side{border-bottom:1px solid rgba(255,255,255,.12);box-shadow:0 10px 35px rgba(0,0,0,.18)}}
-@media(prefers-reduced-motion:reduce){body,.side,.main,.table,.thead,.tr,.stat,.section,.modalbox{transition:none!important}}
+html[data-discadmin-appearance]{
+  color-scheme:dark;
+  --admin-bg:#050506;
+  --admin-surface:#090a0b;
+  --admin-surface-raised:#0d0f11;
+  --admin-surface-soft:#111417;
+  --admin-input:#050607;
+  --admin-hover:#111418;
+  --admin-active:#15191d;
+  --admin-border:#2d3237;
+  --admin-border-subtle:#20252a;
+  --admin-text:#f4f6f8;
+  --admin-muted:#7d858d;
+  --admin-muted-strong:#aab1b7;
+  --admin-overlay:rgba(0,0,0,.86);
+  --admin-shadow:0 18px 52px rgba(0,0,0,.28);
+  --admin-primary-bg:#f4f6f8;
+  --admin-primary-text:#070809;
+  --admin-focus:#fff;
+  --admin-glass-blur:0px;
+}
+html[data-discadmin-appearance="light"]{
+  color-scheme:light;
+  --admin-bg:#f3f4f6;
+  --admin-surface:#fff;
+  --admin-surface-raised:#f9fafb;
+  --admin-surface-soft:#eef0f3;
+  --admin-input:#fff;
+  --admin-hover:#f0f2f4;
+  --admin-active:#e9ecef;
+  --admin-border:#d5d9de;
+  --admin-border-subtle:#e3e6e9;
+  --admin-text:#111418;
+  --admin-muted:#626b74;
+  --admin-muted-strong:#454d55;
+  --admin-overlay:rgba(238,240,244,.9);
+  --admin-shadow:0 16px 42px rgba(24,30,36,.09);
+  --admin-primary-bg:#111418;
+  --admin-primary-text:#fff;
+  --admin-focus:#111418;
+}
+html[data-discadmin-appearance="glass"]{
+  color-scheme:dark;
+  --admin-bg:#080a0f;
+  --admin-surface:rgba(16,19,26,.58);
+  --admin-surface-raised:rgba(25,29,38,.64);
+  --admin-surface-soft:rgba(255,255,255,.06);
+  --admin-input:rgba(4,6,10,.32);
+  --admin-hover:rgba(255,255,255,.075);
+  --admin-active:rgba(255,255,255,.11);
+  --admin-border:rgba(255,255,255,.15);
+  --admin-border-subtle:rgba(255,255,255,.09);
+  --admin-text:#f7f8fa;
+  --admin-muted:#9aa3ad;
+  --admin-muted-strong:#c1c7ce;
+  --admin-overlay:rgba(4,6,11,.62);
+  --admin-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 22px 60px rgba(0,0,0,.28);
+  --admin-primary-bg:rgba(255,255,255,.94);
+  --admin-primary-text:#0b0d10;
+  --admin-focus:#fff;
+  --admin-glass-blur:24px;
+}
+
+html[data-discadmin-appearance] body,
+html[data-discadmin-appearance] .side,
+html[data-discadmin-appearance] .main,
+html[data-discadmin-appearance] .table,
+html[data-discadmin-appearance] .thead,
+html[data-discadmin-appearance] .tr,
+html[data-discadmin-appearance] .stat,
+html[data-discadmin-appearance] .section,
+html[data-discadmin-appearance] .linebox,
+html[data-discadmin-appearance] .artistpick,
+html[data-discadmin-appearance] .lineitem,
+html[data-discadmin-appearance] .loginbox,
+html[data-discadmin-appearance] .syscheck,
+html[data-discadmin-appearance] .dashitem,
+html[data-discadmin-appearance] .metric,
+html[data-discadmin-appearance] .dashsection,
+html[data-discadmin-appearance] .techcard,
+html[data-discadmin-appearance] .system-pulse,
+html[data-discadmin-appearance] .system-pulse-card,
+html[data-discadmin-appearance] .system-status-shell,
+html[data-discadmin-appearance] .system-status-card,
+html[data-discadmin-appearance] .system-detail,
+html[data-discadmin-appearance] .hero-manager-toolbar,
+html[data-discadmin-appearance] .hero-manager-global,
+html[data-discadmin-appearance] .hero-slide-list,
+html[data-discadmin-appearance] .hero-slide-editor,
+html[data-discadmin-appearance] .hero-preview-panel,
+html[data-discadmin-appearance] .theme-panel,
+html[data-discadmin-appearance] .theme-preview,
+html[data-discadmin-appearance] .modalbox{
+  transition:background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,backdrop-filter .18s ease;
+}
+
+html[data-discadmin-appearance] body{background:var(--admin-bg);color:var(--admin-text)}
+html[data-discadmin-appearance] .side{background:var(--admin-surface);border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .top,
+html[data-discadmin-appearance] .modalhead,
+html[data-discadmin-appearance] .modalfoot,
+html[data-discadmin-appearance] .sectionhead{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .logo,
+html[data-discadmin-appearance] .top h1,
+html[data-discadmin-appearance] .title,
+html[data-discadmin-appearance] .modalhead h2,
+html[data-discadmin-appearance] .sectionhead strong,
+html[data-discadmin-appearance] .techvalue,
+html[data-discadmin-appearance] .stat .n{color:var(--admin-text)}
+html[data-discadmin-appearance] .sub,
+html[data-discadmin-appearance] .eyebrow,
+html[data-discadmin-appearance] .meta,
+html[data-discadmin-appearance] .micro,
+html[data-discadmin-appearance] .helper,
+html[data-discadmin-appearance] .navgroup{color:var(--admin-muted)}
+html[data-discadmin-appearance] .nav button{color:var(--admin-muted);border-radius:7px;padding-left:8px;padding-right:8px}
+html[data-discadmin-appearance] .nav button:hover,
+html[data-discadmin-appearance] .nav button.active{background:var(--admin-active);color:var(--admin-text)}
+html[data-discadmin-appearance] .search,
+html[data-discadmin-appearance] .field input,
+html[data-discadmin-appearance] .field textarea,
+html[data-discadmin-appearance] .field select,
+html[data-discadmin-appearance] .hero-form-grid input,
+html[data-discadmin-appearance] .hero-form-grid textarea,
+html[data-discadmin-appearance] .hero-form-grid select,
+html[data-discadmin-appearance] .loginbox input{
+  background:var(--admin-input);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] input::placeholder,
+html[data-discadmin-appearance] textarea::placeholder{color:var(--admin-muted)}
+html[data-discadmin-appearance] .table,
+html[data-discadmin-appearance] .stat,
+html[data-discadmin-appearance] .section,
+html[data-discadmin-appearance] .linebox,
+html[data-discadmin-appearance] .artistpick,
+html[data-discadmin-appearance] .lineitem,
+html[data-discadmin-appearance] .loginbox,
+html[data-discadmin-appearance] .syscheck,
+html[data-discadmin-appearance] .dashitem,
+html[data-discadmin-appearance] .metric,
+html[data-discadmin-appearance] .dashsection,
+html[data-discadmin-appearance] .techcard,
+html[data-discadmin-appearance] .system-pulse,
+html[data-discadmin-appearance] .system-pulse-card,
+html[data-discadmin-appearance] .system-status-shell,
+html[data-discadmin-appearance] .system-status-card,
+html[data-discadmin-appearance] .system-detail,
+html[data-discadmin-appearance] .hero-manager-toolbar,
+html[data-discadmin-appearance] .hero-manager-global,
+html[data-discadmin-appearance] .hero-slide-list,
+html[data-discadmin-appearance] .hero-slide-editor,
+html[data-discadmin-appearance] .hero-preview-panel,
+html[data-discadmin-appearance] .theme-panel,
+html[data-discadmin-appearance] .theme-preview,
+html[data-discadmin-appearance] .modalbox{
+  background:var(--admin-surface);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .thead{background:var(--admin-surface-soft);color:var(--admin-muted)}
+html[data-discadmin-appearance] .tr{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .tr:hover,
+html[data-discadmin-appearance] .hero-slide-row:hover,
+html[data-discadmin-appearance] .hero-slide-row.active{background:var(--admin-hover)}
+html[data-discadmin-appearance] .status,
+html[data-discadmin-appearance] .pill,
+html[data-discadmin-appearance] .iconbtn,
+html[data-discadmin-appearance] .btn.ghost{border-color:var(--admin-border);color:var(--admin-text)}
+html[data-discadmin-appearance] .iconbtn,
+html[data-discadmin-appearance] .btn.ghost{background:var(--admin-surface-soft)}
+html[data-discadmin-appearance] .btn:not(.red):not(.ghost){background:var(--admin-primary-bg);color:var(--admin-primary-text)}
+html[data-discadmin-appearance] .btn.red{background:var(--red);color:#fff}
+html[data-discadmin-appearance] .modal{background:var(--admin-overlay)}
+html[data-discadmin-appearance] :focus-visible{outline-color:var(--admin-focus)}
+
+/* Shared appearance selector — sidebar and pre-auth login. */
+.discadmin-appearance{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--admin-border-subtle)}
+.discadmin-appearance-label{font-size:8px;letter-spacing:2px;color:var(--admin-muted);margin-bottom:8px}
+.discadmin-appearance-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.discadmin-appearance-options button{min-width:0;min-height:44px;border:1px solid var(--admin-border);background:var(--admin-surface-soft);color:var(--admin-muted);display:grid;place-items:center;gap:2px;padding:5px 2px;border-radius:8px}
+.discadmin-appearance-options button span{font-size:13px;line-height:1}
+.discadmin-appearance-options button b{font-size:7px;letter-spacing:.7px;white-space:nowrap}
+.discadmin-appearance-options button.active{color:var(--admin-text);border-color:var(--admin-muted-strong);background:var(--admin-active);box-shadow:var(--admin-shadow)}
+.discadmin-appearance-options button.active:after{content:"";width:12px;height:2px;background:var(--red);display:block}
+.discadmin-appearance-options button:focus-visible{outline:2px solid var(--admin-focus);outline-offset:2px}
+.discadmin-appearance-login{margin:18px 0;padding:14px;border:1px solid var(--admin-border);background:var(--admin-surface-raised);border-radius:10px}
+.discadmin-appearance-login .discadmin-appearance-label{margin-bottom:9px}
+
+/* Global Search must inherit the chosen appearance even though its CSS is injected later. */
+html[data-discadmin-appearance] .brvtal-global-search-trigger,
+html[data-discadmin-appearance] .brvtal-global-search-close,
+html[data-discadmin-appearance] .brvtal-global-search-more{
+  background:var(--admin-surface-soft);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .brvtal-global-search-trigger kbd,
+html[data-discadmin-appearance] .brvtal-global-search-meta,
+html[data-discadmin-appearance] .brvtal-global-search-group-title,
+html[data-discadmin-appearance] .brvtal-global-search-sub,
+html[data-discadmin-appearance] .brvtal-global-search-empty,
+html[data-discadmin-appearance] .brvtal-global-search-loading{color:var(--admin-muted)}
+html[data-discadmin-appearance] .brvtal-global-search-overlay{background:var(--admin-overlay)}
+html[data-discadmin-appearance] .brvtal-global-search-dialog{background:var(--admin-surface);border-color:var(--admin-border);box-shadow:var(--admin-shadow)}
+html[data-discadmin-appearance] .brvtal-global-search-head,
+html[data-discadmin-appearance] .brvtal-global-search-meta,
+html[data-discadmin-appearance] .brvtal-global-search-item{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .brvtal-global-search-input,
+html[data-discadmin-appearance] .brvtal-global-search-item{color:var(--admin-text)}
+html[data-discadmin-appearance] .brvtal-global-search-input::placeholder{color:var(--admin-muted)}
+html[data-discadmin-appearance] .brvtal-global-search-item:hover,
+html[data-discadmin-appearance] .brvtal-global-search-item:focus-visible{background:var(--admin-hover)}
+html[data-discadmin-appearance] .brvtal-global-search-status{border-color:var(--admin-border);color:var(--admin-muted-strong)}
+
+/* Settings v2. */
+html[data-discadmin-appearance] .sv2-hero,
+html[data-discadmin-appearance] .sv2-tabs,
+html[data-discadmin-appearance] .sv2-pane,
+html[data-discadmin-appearance] .sv2-context-grid article,
+html[data-discadmin-appearance] .sv2-status-map article,
+html[data-discadmin-appearance] .sv2-readonly,
+html[data-discadmin-appearance] .sv2-asset,
+html[data-discadmin-appearance] .sv2-picker,
+html[data-discadmin-appearance] .sv2-raw-list,
+html[data-discadmin-appearance] .sv2-tool-card{
+  background:var(--admin-surface);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .sv2-tabs button{border-color:var(--admin-border-subtle);color:var(--admin-muted)}
+html[data-discadmin-appearance] .sv2-tabs button.active,
+html[data-discadmin-appearance] .sv2-tabs button:hover{background:var(--admin-active);color:var(--admin-text)}
+html[data-discadmin-appearance] .sv2-section-head,
+html[data-discadmin-appearance] .sv2-integration,
+html[data-discadmin-appearance] .sv2-actions,
+html[data-discadmin-appearance] .sv2-picker header,
+html[data-discadmin-appearance] .sv2-raw-row{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .sv2-raw-row{background:var(--admin-surface)}
+html[data-discadmin-appearance] .sv2-field input,
+html[data-discadmin-appearance] .sv2-field textarea,
+html[data-discadmin-appearance] .sv2-field select,
+html[data-discadmin-appearance] .sv2-asset>input,
+html[data-discadmin-appearance] .sv2-picker>label input{
+  background:var(--admin-input);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .sv2-asset-preview{background:var(--admin-surface-soft);border-color:var(--admin-border);color:var(--admin-muted)}
+html[data-discadmin-appearance] .sv2-picker-overlay{background:var(--admin-overlay)}
+html[data-discadmin-appearance] .sv2-picker header button,
+html[data-discadmin-appearance] .sv2-picker-grid button{background:var(--admin-surface-soft);border-color:var(--admin-border);color:var(--admin-text)}
+html[data-discadmin-appearance] .sv2-hero p,
+html[data-discadmin-appearance] .sv2-section-head p,
+html[data-discadmin-appearance] .sv2-context-grid p,
+html[data-discadmin-appearance] .sv2-status-map p,
+html[data-discadmin-appearance] .sv2-readonly p,
+html[data-discadmin-appearance] .sv2-field small,
+html[data-discadmin-appearance] .sv2-asset small,
+html[data-discadmin-appearance] .sv2-field>span{color:var(--admin-muted)}
+
+/* System Status v2. */
+html[data-discadmin-appearance] #system-status-v2{
+  color:var(--admin-text);
+  --ss-line:var(--admin-border);
+  --ss-panel:var(--admin-surface);
+  --ss-panel2:var(--admin-surface-raised);
+  --ss-muted:var(--admin-muted)
+}
+html[data-discadmin-appearance] .ssv2-loading,
+html[data-discadmin-appearance] .ssv2-fatal,
+html[data-discadmin-appearance] .ssv2-hero,
+html[data-discadmin-appearance] .ssv2-service,
+html[data-discadmin-appearance] .ssv2-panel,
+html[data-discadmin-appearance] .ssv2-repo-metrics>a,
+html[data-discadmin-appearance] .ssv2-repo-metrics>div,
+html[data-discadmin-appearance] .ssv2-mini-grid>div,
+html[data-discadmin-appearance] .ssv2-runtime-grid>div,
+html[data-discadmin-appearance] .ssv2-no-issues,
+html[data-discadmin-appearance] .ssv2-issue,
+html[data-discadmin-appearance] .ssv2-backlog-item,
+html[data-discadmin-appearance] .ssv2-backlog-unavailable,
+html[data-discadmin-appearance] .ssv2-backlog-empty,
+html[data-discadmin-appearance] .ssv2-advanced{
+  background:var(--admin-surface);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .ssv2-hero{background:var(--admin-surface)}
+html[data-discadmin-appearance] .ssv2-ring:before,
+html[data-discadmin-appearance] .ssv2-storage-ring:before{background:var(--admin-surface);border-color:var(--admin-border)}
+html[data-discadmin-appearance] .ssv2-bar-track,
+html[data-discadmin-appearance] .ssv2-lang-track{background:var(--admin-surface-soft)}
+html[data-discadmin-appearance] .ssv2-panel-head,
+html[data-discadmin-appearance] .ssv2-activity-row,
+html[data-discadmin-appearance] .ssv2-advanced-actions,
+html[data-discadmin-appearance] .ssv2-advanced pre{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .ssv2-advanced pre{background:var(--admin-input);color:var(--admin-muted-strong)}
+html[data-discadmin-appearance] .ssv2-repo-metrics>a,
+html[data-discadmin-appearance] .ssv2-repo-foot a,
+html[data-discadmin-appearance] .ssv2-backlog-item,
+html[data-discadmin-appearance] .ssv2-view-all{color:var(--admin-text)}
+html[data-discadmin-appearance] .ssv2-view-all{border-color:var(--admin-border)}
+
+/* Dashboard adjuncts: Content Health + Admin Activity. */
+html[data-discadmin-appearance] .content-health-panel,
+html[data-discadmin-appearance] .content-health-stat,
+html[data-discadmin-appearance] .content-health-drafts{
+  background:var(--admin-surface);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .content-health-row,
+html[data-discadmin-appearance] .content-health-draft-metric{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .content-health-head h2,
+html[data-discadmin-appearance] .content-health-title,
+html[data-discadmin-appearance] .content-health-score,
+html[data-discadmin-appearance] .content-health-draft-copy strong{color:var(--admin-text)}
+html[data-discadmin-appearance] .content-health-open{background:var(--admin-surface-soft);border-color:var(--admin-border);color:var(--admin-text)}
+html[data-discadmin-appearance] .content-health-draft-copy,
+html[data-discadmin-appearance] .content-health-issues,
+html[data-discadmin-appearance] .content-health-note{color:var(--admin-muted)}
+
+html[data-discadmin-appearance] .activity-panel,
+html[data-discadmin-appearance] .activity-modal-card,
+html[data-discadmin-appearance] .history-timeline,
+html[data-discadmin-appearance] .history-field{
+  background:var(--admin-surface);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .activity-filter,
+html[data-discadmin-appearance] .activity-btn,
+html[data-discadmin-appearance] .activity-diff pre{
+  background:var(--admin-input);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .activity-list,
+html[data-discadmin-appearance] .activity-row,
+html[data-discadmin-appearance] .activity-modal-head,
+html[data-discadmin-appearance] .history-version,
+html[data-discadmin-appearance] .history-value+ .history-value{border-color:var(--admin-border-subtle)}
+html[data-discadmin-appearance] .activity-modal{background:var(--admin-overlay)}
+html[data-discadmin-appearance] .history-version{background:var(--admin-surface);color:var(--admin-text)}
+html[data-discadmin-appearance] .history-version:hover,
+html[data-discadmin-appearance] .history-version.is-active{background:var(--admin-hover)}
+html[data-discadmin-appearance] .history-field h4{background:var(--admin-surface-soft);color:var(--admin-text)}
+html[data-discadmin-appearance] .history-value{color:var(--admin-muted-strong)}
+html[data-discadmin-appearance] .activity-meta,
+html[data-discadmin-appearance] .activity-time,
+html[data-discadmin-appearance] .activity-note,
+html[data-discadmin-appearance] .history-version span,
+html[data-discadmin-appearance] .history-value small{color:var(--admin-muted)}
+
+/* SEO / content quality surfaces injected by editor enhancements. */
+html[data-discadmin-appearance] .brvtal-seo-section,
+html[data-discadmin-appearance] .brvtal-search-preview{
+  background:var(--admin-surface);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .brvtal-seo-grid input,
+html[data-discadmin-appearance] .brvtal-seo-grid textarea{
+  background:var(--admin-input);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] .brvtal-seo-section .seo-help,
+html[data-discadmin-appearance] .brvtal-seo-section .seo-kicker,
+html[data-discadmin-appearance] .brvtal-seo-counter{color:var(--admin-muted)}
+html[data-discadmin-appearance="light"] .brvtal-search-preview .title{color:#315ea8}
+html[data-discadmin-appearance="light"] .brvtal-search-preview .description{color:#4f5861}
+
+/* Feedback surfaces should not punch a dark rectangle through Light. */
+html[data-discadmin-appearance] .brvtal-feedback{background:var(--admin-surface-raised);border-color:var(--admin-border);box-shadow:var(--admin-shadow)}
+html[data-discadmin-appearance] .brvtal-feedback-copy span{color:var(--admin-text)}
+html[data-discadmin-appearance] .brvtal-feedback-copy strong,
+html[data-discadmin-appearance] .brvtal-feedback button{color:var(--admin-muted)}
+
+/* Glass is a distinct material treatment, not merely transparent Dark. */
+html[data-discadmin-appearance="glass"] body{
+  background:
+    radial-gradient(circle at 12% 8%,rgba(255,32,56,.17),transparent 30%),
+    radial-gradient(circle at 82% 14%,rgba(74,115,255,.18),transparent 34%),
+    radial-gradient(circle at 52% 92%,rgba(74,220,181,.08),transparent 33%),
+    linear-gradient(135deg,#07090d 0%,#111521 48%,#090b11 100%);
+  background-attachment:fixed
+}
+html[data-discadmin-appearance="glass"] .side,
+html[data-discadmin-appearance="glass"] .table,
+html[data-discadmin-appearance="glass"] .stat,
+html[data-discadmin-appearance="glass"] .section,
+html[data-discadmin-appearance="glass"] .loginbox,
+html[data-discadmin-appearance="glass"] .dashsection,
+html[data-discadmin-appearance="glass"] .techcard,
+html[data-discadmin-appearance="glass"] .hero-manager-toolbar,
+html[data-discadmin-appearance="glass"] .hero-manager-global,
+html[data-discadmin-appearance="glass"] .hero-slide-list,
+html[data-discadmin-appearance="glass"] .hero-slide-editor,
+html[data-discadmin-appearance="glass"] .hero-preview-panel,
+html[data-discadmin-appearance="glass"] .theme-panel,
+html[data-discadmin-appearance="glass"] .theme-preview,
+html[data-discadmin-appearance="glass"] .modalbox,
+html[data-discadmin-appearance="glass"] .sv2-hero,
+html[data-discadmin-appearance="glass"] .sv2-tabs,
+html[data-discadmin-appearance="glass"] .sv2-pane,
+html[data-discadmin-appearance="glass"] .sv2-picker,
+html[data-discadmin-appearance="glass"] .ssv2-hero,
+html[data-discadmin-appearance="glass"] .ssv2-panel,
+html[data-discadmin-appearance="glass"] .content-health-panel,
+html[data-discadmin-appearance="glass"] .activity-panel,
+html[data-discadmin-appearance="glass"] .activity-modal-card,
+html[data-discadmin-appearance="glass"] .brvtal-global-search-dialog,
+html[data-discadmin-appearance="glass"] .brvtal-seo-section{
+  backdrop-filter:blur(var(--admin-glass-blur)) saturate(150%);
+  -webkit-backdrop-filter:blur(var(--admin-glass-blur)) saturate(150%);
+  box-shadow:var(--admin-shadow)
+}
+html[data-discadmin-appearance="glass"] .table,
+html[data-discadmin-appearance="glass"] .dashsection,
+html[data-discadmin-appearance="glass"] .hero-manager-toolbar,
+html[data-discadmin-appearance="glass"] .hero-manager-global,
+html[data-discadmin-appearance="glass"] .hero-slide-list,
+html[data-discadmin-appearance="glass"] .hero-slide-editor,
+html[data-discadmin-appearance="glass"] .hero-preview-panel,
+html[data-discadmin-appearance="glass"] .theme-panel,
+html[data-discadmin-appearance="glass"] .theme-preview,
+html[data-discadmin-appearance="glass"] .modalbox,
+html[data-discadmin-appearance="glass"] .sv2-hero,
+html[data-discadmin-appearance="glass"] .sv2-tabs,
+html[data-discadmin-appearance="glass"] .sv2-pane,
+html[data-discadmin-appearance="glass"] .sv2-picker,
+html[data-discadmin-appearance="glass"] .ssv2-hero,
+html[data-discadmin-appearance="glass"] .ssv2-panel,
+html[data-discadmin-appearance="glass"] .content-health-panel,
+html[data-discadmin-appearance="glass"] .activity-panel,
+html[data-discadmin-appearance="glass"] .brvtal-global-search-dialog{border-radius:14px;overflow:hidden}
+html[data-discadmin-appearance="glass"] .discadmin-appearance-options{padding:4px;background:var(--admin-surface-soft);border:1px solid var(--admin-border);border-radius:13px}
+html[data-discadmin-appearance="glass"] .discadmin-appearance-options button{background:transparent;border-color:transparent}
+html[data-discadmin-appearance="glass"] .discadmin-appearance-options button.active{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.14)}
+html[data-discadmin-appearance="glass"] .modal,
+html[data-discadmin-appearance="glass"] .brvtal-global-search-overlay,
+html[data-discadmin-appearance="glass"] .sv2-picker-overlay,
+html[data-discadmin-appearance="glass"] .activity-modal{
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)
+}
+
+@media(max-width:850px){
+  .discadmin-appearance{margin-top:10px}
+  .discadmin-appearance-options button{min-height:48px}
+  .discadmin-appearance-login{margin-top:18px}
+}
+@media(prefers-reduced-motion:reduce){
+  body,.side,.main,.table,.thead,.tr,.stat,.section,.modalbox{transition:none!important}
+}
