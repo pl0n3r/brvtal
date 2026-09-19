@@ -564,6 +564,10 @@ window.BRVTALAdminModules = (() => {
 
   function prepareModuleWorkspace(section) {
     state.section=section;
+    // Dashboard stores summary metrics in state.rows as an object. Dynamic
+    // modules own their records outside the legacy table, so normalize this
+    // shell input before render() can enter a list branch and call .map().
+    state.rows=[];
     render();
     ensureDynamicNavigation();
     const main=document.querySelector('.main');

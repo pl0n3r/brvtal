@@ -100,6 +100,12 @@ test('Dashboard to Media uses canonical readiness even after the dependency load
   await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD');
   await expect.poll(() => page.evaluate(() => Boolean(window.BRVTALMediaLibrary))).toBe(true);
 
+  // Match the real Dashboard contract: its summary is an object, not a list.
+  // Dynamic Media navigation must not feed that object into legacy rows.map().
+  await page.evaluate(() => {
+    window.state.rows = {events: 4, media: 12, published_events: 3};
+  });
+
   await page.evaluate(() => {
     const script = document.getElementById('brvtal-media-library-script');
     if (script) delete script.dataset.ready;

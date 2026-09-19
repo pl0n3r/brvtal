@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+411** | **−130** | **+281** |
+| **13** | **+423** | **−130** | **+293** |
 
 ## Calidad y entrega
 
@@ -59,6 +59,7 @@ flowchart LR
 ## Qué se hizo
 
 - Media, Releases y Blog comparten una única frontera de readiness y navegación administrada por `BRVTALAdminModules.navigate()`.
+- El workspace dinámico normaliza `state.rows` a `[]` antes del render del shell; así el objeto-resumen que deja Dashboard no puede romper Media con `rows.map is not a function`.
 - La capa de información/navegación ya no instala listeners duplicados ni deja que Media/Releases/Blog caigan al CRUD legado; delega esos destinos al navegador dinámico canónico.
 - Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY; RETRY invalida promesas rechazadas y vuelve a crear dependencias de script fallidas.
 - Las rutas dinámicas sincronizan `?module=` al iniciar la navegación, incluso si una reconciliación inicial sigue en curso, para que el click explícito del usuario sea la fuente de verdad.
@@ -89,6 +90,7 @@ flowchart LR
 - Una ruta inicial lenta no puede devolver el workspace a otro destino después de que el usuario abre Media.
 - Una respuesta vieja de Dashboard tampoco puede ejecutar un `render()` tardío que destruya Media ya montado.
 - Dashboard → Media monta el módulo sin depender del orden previo de navegación.
+- La regresión de Dashboard usa explícitamente un `state.rows` con forma de objeto de métricas y verifica que Media monta igual.
 - Sets → Media vuelve a montar correctamente el mismo workspace.
 - `?module=media` funciona en sesión autenticada.
 - External Registry no aparece en la UI normal.
