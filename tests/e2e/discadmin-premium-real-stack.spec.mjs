@@ -42,8 +42,10 @@ test('real DISCADMIN shows the canonical product version across navigation and r
   await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
 
   await page.evaluate(async () => {
-    await window.go?.('settings');
+    if (typeof window.go !== 'function') throw new Error('DISCADMIN navigation is unavailable');
+    await window.go('settings');
   });
+  await expect(page.getByTestId('settings-v2-root')).toBeVisible({timeout:10_000});
   await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
 
   await page.reload({waitUntil:'domcontentloaded'});

@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+140** | **−66** | **+74** |
+| **9** | **+142** | **−66** | **+76** |
 
 ## Calidad y entrega
 
@@ -79,7 +79,7 @@ flowchart LR
 ## Validación
 
 - El contrato fast falla si package y release canónica divergen y protege el trigger owner-only de producción.
-- Real-stack debe autenticar el admin E2E y leer `BRVTAL v0.1.12`.
+- Real-stack autentica el admin E2E, confirma Settings cargado y lee `BRVTAL v0.1.12` antes/después de navegación y reload.
 - Producción queda separada: el smoke reporta exactamente qué versión sirve Hostinger y no convierte CI en VALIDATED IN PRODUCTION.
 - Sin migración ni SQL destructivo.
 
