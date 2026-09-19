@@ -27,7 +27,8 @@ deployment_expect(str_contains($resolver, 'function brvtalDeploymentIsExact()'),
 deployment_expect(str_contains($endpoint, "'short_commit'"), 'public deployment endpoint must expose the deployed short SHA only when exact');
 deployment_expect(str_contains($endpoint, "'release_identity' => brvtal_release_identity()"), 'public deployment endpoint must expose canonical release identity');
 deployment_expect(str_contains($endpoint, "'cache_key' => brvtal_deployment_cache_key()"), 'public deployment endpoint must expose the runtime cache key');
-deployment_expect(str_contains($endpoint, "'exact' => brvtalDeploymentIsExact()"), 'deployment endpoint must identify whether SHA is exact');
+deployment_expect(str_contains($endpoint, '$exact = brvtalDeploymentIsExact();'), 'deployment endpoint must resolve exact-source state once');
+deployment_expect(str_contains($endpoint, "'exact' => $exact"), 'deployment endpoint must expose whether the source SHA is exact');
 deployment_expect(
     preg_match("/'deployment'\\s*=>\\s*\\[/", $health) === 1,
     'health response must identify its deployed source'
