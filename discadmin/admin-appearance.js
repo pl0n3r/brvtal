@@ -62,7 +62,7 @@
       if (!button || !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
       event.preventDefault();
       const current = MODES.indexOf(button.dataset.discadminAppearance);
-      let index = current < 0 ? 0 : current;
+      let index = Math.max(0, current);
       if (event.key === 'ArrowLeft') index = (index - 1 + MODES.length) % MODES.length;
       if (event.key === 'ArrowRight') index = (index + 1) % MODES.length;
       if (event.key === 'Home') index = 0;
