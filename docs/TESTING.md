@@ -330,11 +330,16 @@ A green CI/contract run does **not** validate #122 in production. Only a green m
 
 ### 6. Production performance evidence
 
-`.github/workflows/production-performance.yml` runs only after a successful `main` BRVTAL CI push or by manual dispatch. It first checks whether the canonical production origin is reachable from that GitHub runner.
+`.github/workflows/production-performance.yml` listens to both **BRVTAL CI** and **Production Deploy Observer** completions for `main`. Automatic measurement starts only when the triggering workflow succeeded **and** the counterpart workflow has already succeeded for the same exact SHA. Ownership is deterministic: only the prerequisite completion with the later `updated_at` may measure; equal timestamps use the larger GitHub run id as the tie-breaker. This guarantees at most one automatic measurement artifact per SHA even if workflow-run events are delivered out of order. Manual dispatch remains available for intentionally re-measuring the production state.
+
+The decision is implemented by `scripts/production-performance-prerequisite.py` and covered with local fixtures for missing, pending, failed, successful same-SHA, successful different-SHA and duplicate-owner cases. The workflow concurrency group is SHA-scoped and does not cancel in-progress coordination/measurement runs.
+
+This keeps the source and deployment semantics independent without serializing either workflow: BRVTAL CI and the Deploy Observer still start from the `main` push in parallel, while Production Performance consumes their successful same-SHA evidence afterward. It must not run its own short `?v=<sha>` Hostinger polling loop or create a second deployment truth.
 
 The result semantics are deliberate:
 
-- **measured failure**: production was reachable, the expected deploy was observable when required, measurement ran, and a performance assertion failed;
+- **measured failure**: exact-main CI and canonical deployment observation were both green for the same SHA, production was reachable, measurement ran, and a performance assertion failed;
+- **coordination-only success**: one automatic prerequisite finished first and the same-SHA counterpart was not green yet, so no performance measurement was attempted;
 - **inconclusive**: the runner could not reach production, so no performance measurement was executed;
 - **success**: the requested measurements completed successfully.
 

@@ -49,6 +49,40 @@ function ci_scope_expect_flags(array $actual, array $expected, string $label): v
         ci_scope_expect(($actual[$key] ?? null) === $value, "{$label}: expected {$key}={$value}, got " . ($actual[$key] ?? '<missing>'));
     }
 }
+/** @return array<string,mixed> */
+function ci_scope_performance_prerequisite(array $payload, string $sha, int $sourceRunId, string $sourceUpdatedAt): array
+{
+    $script = realpath(__DIR__ . '/../scripts/production-performance-prerequisite.py');
+    ci_scope_expect(is_string($script) && $script !== '', 'production performance prerequisite helper must exist');
+    $command = [
+        'python3',
+        $script,
+        '--expected-sha',
+        $sha,
+        '--source-run-id',
+        (string)$sourceRunId,
+        '--source-updated-at',
+        $sourceUpdatedAt,
+    ];
+    $pipes = [];
+    $process = proc_open(
+        $command,
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes
+    );
+    ci_scope_expect(is_resource($process), 'production performance prerequisite helper must be executable');
+    fwrite($pipes[0], json_encode($payload, JSON_THROW_ON_ERROR));
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $status = proc_close($process);
+    ci_scope_expect($status === 0, 'production performance prerequisite helper failed: ' . trim((string)$stderr));
+    $decoded = json_decode((string)$stdout, true);
+    ci_scope_expect(is_array($decoded), 'production performance prerequisite helper must return JSON');
+    return $decoded;
+}
 
 $workflow = (string)file_get_contents(__DIR__ . '/../.github/workflows/update-release-metadata.yml');
 $package = (string)file_get_contents(__DIR__ . '/../package.json');
@@ -122,6 +156,48 @@ ci_scope_expect(!str_contains($workflow, 'sonarqube-scan-action') && !str_contai
 ci_scope_expect(str_contains($performance, 'INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER'), 'unreachable production performance probes must be labeled inconclusive');
 ci_scope_expect(!str_contains($performance, 'failing fast before browser setup'), 'connectivity failures must not be mislabeled as performance failures');
 ci_scope_expect(str_contains($performance, "if: steps.connectivity.outputs.reachable == 'true'"), 'performance setup and measurements must be skipped when production is unreachable');
+ci_scope_expect(str_contains($performance, 'workflows: ["BRVTAL CI", "Production Deploy Observer"]'), 'automatic performance must wait for both source validation and canonical deployment observation');
+ci_scope_expect(str_contains($performance, 'python scripts/production-performance-prerequisite.py'), 'automatic performance must use the deterministic prerequisite helper');
+ci_scope_expect(str_contains($performance, 'steps.prerequisites.outputs.ready'), 'automatic performance must gate measurement on the same-SHA counterpart workflow');
+ci_scope_expect(str_contains($performance, 'group: brvtal-production-performance-${{ github.event.workflow_run.head_sha || github.sha }}'), 'automatic performance concurrency must be scoped to the source SHA');
+ci_scope_expect(str_contains($performance, 'cancel-in-progress: false'), 'coordination-only runs must not cancel the unique measurement owner');
+ci_scope_expect(!str_contains($performance, '?v=$short_sha') && !str_contains($performance, 'Wait for exact Hostinger deploy'), 'performance must not maintain a competing short Hostinger deploy detector');
+
+$perfSha = str_repeat('a', 40);
+$perfSourceId = 200;
+$perfSourceUpdatedAt = '2026-09-19T16:00:10Z';
+$perfSuccess = [
+    'workflow_runs' => [[
+        'id' => 100,
+        'head_sha' => $perfSha,
+        'event' => 'push',
+        'status' => 'completed',
+        'conclusion' => 'success',
+        'updated_at' => '2026-09-19T16:00:00Z',
+    ]],
+];
+$perfMissing = ci_scope_performance_prerequisite(['workflow_runs' => []], $perfSha, $perfSourceId, $perfSourceUpdatedAt);
+ci_scope_expect(($perfMissing['ready'] ?? null) === false && ($perfMissing['reason'] ?? '') === 'counterpart_missing_for_sha', 'performance prerequisite must reject a missing counterpart');
+$perfPendingPayload = $perfSuccess;
+$perfPendingPayload['workflow_runs'][0]['status'] = 'in_progress';
+$perfPendingPayload['workflow_runs'][0]['conclusion'] = null;
+$perfPending = ci_scope_performance_prerequisite($perfPendingPayload, $perfSha, $perfSourceId, $perfSourceUpdatedAt);
+ci_scope_expect(($perfPending['ready'] ?? null) === false && ($perfPending['reason'] ?? '') === 'counterpart_not_completed', 'performance prerequisite must reject a pending counterpart');
+$perfFailedPayload = $perfSuccess;
+$perfFailedPayload['workflow_runs'][0]['conclusion'] = 'failure';
+$perfFailed = ci_scope_performance_prerequisite($perfFailedPayload, $perfSha, $perfSourceId, $perfSourceUpdatedAt);
+ci_scope_expect(($perfFailed['ready'] ?? null) === false && ($perfFailed['reason'] ?? '') === 'counterpart_not_successful', 'performance prerequisite must reject a failed counterpart');
+$perfReady = ci_scope_performance_prerequisite($perfSuccess, $perfSha, $perfSourceId, $perfSourceUpdatedAt);
+ci_scope_expect(($perfReady['ready'] ?? null) === true && ($perfReady['reason'] ?? '') === 'ready', 'performance prerequisite must accept a successful earlier same-SHA counterpart');
+$perfOtherShaPayload = $perfSuccess;
+$perfOtherShaPayload['workflow_runs'][0]['head_sha'] = str_repeat('b', 40);
+$perfOtherSha = ci_scope_performance_prerequisite($perfOtherShaPayload, $perfSha, $perfSourceId, $perfSourceUpdatedAt);
+ci_scope_expect(($perfOtherSha['ready'] ?? null) === false && ($perfOtherSha['reason'] ?? '') === 'counterpart_missing_for_sha', 'performance prerequisite must reject a successful different-SHA counterpart');
+$perfLaterCounterpart = $perfSuccess;
+$perfLaterCounterpart['workflow_runs'][0]['id'] = 300;
+$perfLaterCounterpart['workflow_runs'][0]['updated_at'] = '2026-09-19T16:00:20Z';
+$perfNotOwner = ci_scope_performance_prerequisite($perfLaterCounterpart, $perfSha, $perfSourceId, $perfSourceUpdatedAt);
+ci_scope_expect(($perfNotOwner['ready'] ?? null) === false && ($perfNotOwner['reason'] ?? '') === 'source_not_later_completion', 'only the later prerequisite completion may own automatic performance measurement');
 
 ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployObserver, 'branches: [main]'), 'deploy observer must start directly from main pushes');
 ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');

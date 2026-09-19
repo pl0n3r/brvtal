@@ -336,6 +336,8 @@ SonarQube Cloud annotations are relayed by `.github/workflows/sonar-annotation-r
 
 Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshots, recovery rehearsal and production-smoke source contracts are deliberately retired. Their checks live inside `BRVTAL CI`, avoiding duplicate runner setup and queue contention. The authenticated/read-only production smoke and controlled Page-write smoke remain separate **manual-only** workflows because they interact with real production.
 
+**Production Performance consumes existing delivery evidence instead of inventing a second deployment observer.** On automatic runs it listens to both BRVTAL CI and Production Deploy Observer and measures only when both have succeeded for the same exact `main` SHA. Measurement ownership is deterministic and unique per SHA: the later prerequisite completion owns it, with GitHub run id as the timestamp tie-breaker; `scripts/production-performance-prerequisite.py` is the tested decision source. Do not reintroduce a private short `?v=<sha>` polling loop or duplicate automatic measurement artifacts.
+
 ### README per-deploy contract
 
 For every deploy-bound PR:
@@ -448,9 +450,11 @@ When no newer explicit user instruction exists:
 8. ✅ ~~**Banners first-load performance — #523** — bounded fresh Settings/Media reads, progressive render and published Media cap are merged and exact-main validated on `1526bbb`.~~
 9. ✅ ~~**Public Home hero desktop regression — #480** — merged and exact-main validated.~~
 10. ✅ ~~**Native navigation transaction — #193 / PR #561** — failed reads no longer leave state/workspace mismatched; merged and exact-main validated.~~
-11. 🚧 **Editor/modal navigation lifecycle — #216** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it.
-12. 🚧 **Browser/navigation closeout — #558 then #174** — deflake record navigation, then protect Banners unsaved edits before larger editorial productivity work.
-13. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+11. ✅ ~~**Editor/modal navigation lifecycle — #216 / PR #562** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it; merged and exact-main validated.~~
+12. ✅ ~~**Content Health navigation deflake — #558 / PR #563** — record navigation regression is stabilized and exact-main validated.~~
+13. 🚧 **CI throughput audit v2 — #564** — telemetry is merged; unify performance/deploy evidence, then measure browser setup vs test time before any sharding.
+14. 🚧 **Unsaved Banners protection — #174** — next product/reliability block after the current #564 delivery optimization.
+15. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 
