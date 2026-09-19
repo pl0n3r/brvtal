@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+136** | **−29** | **+107** |
+| **6** | **+141** | **−29** | **+112** |
 
 ## Calidad y entrega
 
@@ -56,7 +56,7 @@ flowchart LR
 ## Qué se hizo
 
 - Se añade `CI Throughput Telemetry` como observador aislado después de BRVTAL CI, sin añadir latencia al DAG de validación.
-- La telemetría persiste wall time, duración por job y la ruta crítica `preflight → gate más lento → validate`, incluyendo todas las páginas devueltas por GitHub Actions.
+- La telemetría persiste wall time, duración por job y la ruta crítica `preflight → gate más lento → validate` solo para runs exitosos, incluyendo todas las páginas devueltas por GitHub Actions.
 - `actions/upload-artifact` queda fijado al commit revisado de v4.6.2; el fan-out paralelo de los gates permanece intacto.
 - La regresión Content Health ahora muta y acciona el botón atómicamente para probar el fallback real sin competir con el rerender del dashboard.
 - Versión **0.1.17**.
