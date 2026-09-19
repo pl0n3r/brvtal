@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **19** | **+337** | **−145** | **+192** |
+| **20** | **+546** | **−162** | **+384** |
 
 ## Calidad y entrega
 
@@ -91,6 +91,7 @@ flowchart LR
 - `discadmin/settings-v2.js`
 - `tests/discadmin-quick-wins-contract.php`
 - `tests/e2e/discadmin-global-search.spec.mjs`
+- `tests/e2e/discadmin-hero-slider-security.spec.mjs`
 - `tests/e2e/discadmin-information-architecture.spec.mjs`
 - `tests/e2e/discadmin-settings-v2.spec.mjs`
 - `tests/e2e/discadmin-trigger-order.spec.mjs`
@@ -104,6 +105,7 @@ flowchart LR
 - Global Search valida entrada superior + lateral antes de Logout.
 - Settings valida accesos Theme Studio / Security / System Status, fallback de System Status y ausencia de Control Plane.
 - Memories queda inmediatamente después de Media y conserva un único estado activo entre Media/Memories.
+- Banners renderiza preview y errores con DOM seguro; contenido editorial con apariencia HTML permanece texto y no ejecuta nodos.
 - Contratos PHP validan shell, buscador y Settings.
 - Los gates finales del PR deben quedar verdes antes de merge.
 - No hay migración ni operación destructiva de producción.

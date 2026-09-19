@@ -585,7 +585,12 @@ function render(){
  }).join('');
  const settingsActive=visibleSection==='settings'?'active':'';
  const systemActive=state.section==='system'?'active':'';
- const navHtml=`<div class="navgroup">SITE / EDITORIAL</div>${editorialNav}<div class="navgroup">CONFIGURATION / TECHNICAL</div><button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`;
+ const navHtml=[
+  '<div class="navgroup">SITE / EDITORIAL</div>',
+  editorialNav,
+  '<div class="navgroup">CONFIGURATION / TECHNICAL</div>',
+  `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`
+ ].join('');
  const moduleTitle=state.section==='content-core'
   ?'CONTENT CORE'
   :state.section==='security'

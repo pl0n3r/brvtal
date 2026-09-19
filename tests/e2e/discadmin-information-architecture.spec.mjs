@@ -213,9 +213,9 @@ test('Memories stays directly after Media and owns the active state only in its 
   });
 
   const media = page.getByRole('button',{name:'MEDIA',exact:true});
-  const memories = page.getByRole('button',{name:'MEMORIES',exact:true});
-  await expect(memories).toBeVisible();
-  expect(await media.evaluate((node) => node.nextElementSibling?.textContent.trim())).toBe('MEMORIES');
+  const memories = page.locator('[data-memories-nav="1"]');
+  await expect(memories).toHaveCount(1);
+  expect(await media.evaluate((node) => node.nextElementSibling?.dataset.memoriesNav)).toBe('1');
   await expect(memories).toHaveClass(/active/);
   await expect(media).not.toHaveClass(/active/);
 
