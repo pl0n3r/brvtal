@@ -53,11 +53,15 @@ jobs:
                 duration_seconds: seconds(.started_at; .completed_at)
               }] as $timings |
               ($timings | map(select(.duration_seconds != null))) as $completed |
-              ($completed | map(select(.name != "preflight" and .name != "validate"))) as $parallel_gates |
+              ($conclusion == "success") as $critical_path_eligible |
+              ($completed | map(select(.conclusion == "success" and .name != "preflight" and .name != "validate"))) as $parallel_gates |
               ($parallel_gates | if length > 0 then max_by(.duration_seconds) else null end) as $critical_gate |
               ($completed | map(select(.name == "preflight")) | .[0] // null) as $preflight |
               ($completed | map(select(.name == "validate")) | .[0] // null) as $validate |
-              ([$preflight, $critical_gate, $validate] | map(select(. != null))) as $critical_jobs |
+              (if $critical_path_eligible
+               then ([$preflight, $critical_gate, $validate] | map(select(. != null)))
+               else []
+               end) as $critical_jobs |
               {
                 run_id: ($run_id | tonumber),
                 source_sha: $sha,
@@ -67,6 +71,7 @@ jobs:
                 workflow_updated_at: $updated,
                 workflow_wall_seconds: seconds($started; $updated),
                 critical_path: {
+                  eligible: $critical_path_eligible,
                   jobs: ($critical_jobs | map(.name)),
                   duration_seconds: ($critical_jobs | map(.duration_seconds) | add)
                 },
