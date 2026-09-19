@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **19** | **+562** | **−161** | **+401** |
+| **19** | **+575** | **−161** | **+414** |
 
 ## Calidad y entrega
 
@@ -88,7 +88,7 @@ flowchart LR
 
 ## Validación
 
-- Contratos ejecutables protegen la separación release/SHA, el cache key y el orden observer → autenticación.
+- Contratos ejecutables protegen env SHA, Git checkout, fallback de release, cache key y el orden observer → autenticación.
 - El polling tolera fallos transitorios; si Hostinger expone SHA exacto, una discrepancia se reporta separada de una release ausente.
 - La UI E2E sigue validando la versión visible una vez observada la release.
 - No hay migraciones, SQL de producción ni despliegue manual.

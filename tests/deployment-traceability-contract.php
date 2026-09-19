@@ -85,6 +85,19 @@ try {
     deployment_expect($exact['public']['commit'] === $exactSha, 'public data must expose exact commit');
     deployment_expect($exact['public']['cache_key'] === '0123456', 'public data must expose exact cache key');
 
+    $gitSha = '89abcdef0123456789abcdef0123456789abcdef';
+    deployment_expect(mkdir($sandbox . '/.git', 0700, true), 'temporary Git metadata directory must be created');
+    file_put_contents($sandbox . '/.git/HEAD', $gitSha . "\n");
+    $git = deployment_run_scenario($runnerPath, null);
+    deployment_expect($git['sha'] === $gitSha, 'Git HEAD exact SHA must be preserved');
+    deployment_expect($git['short'] === substr($gitSha, 0, 7), 'Git HEAD short SHA must derive from exact source');
+    deployment_expect($git['source'] === 'git_checkout', 'Git metadata fallback must report git_checkout source');
+    deployment_expect($git['exact'] === true, 'Git metadata fallback must remain exact');
+    deployment_expect($git['cache'] === substr($gitSha, 0, 7), 'Git metadata fallback must use short SHA cache key');
+    deployment_expect($git['public']['commit'] === $gitSha, 'public Git metadata data must expose exact commit');
+    @unlink($sandbox . '/.git/HEAD');
+    @rmdir($sandbox . '/.git');
+
     $fallback = deployment_run_scenario($runnerPath, null);
     deployment_expect($fallback['source'] === 'release_fallback', 'missing env/git metadata must use release fallback');
     deployment_expect($fallback['exact'] === false, 'release fallback must not be exact');
