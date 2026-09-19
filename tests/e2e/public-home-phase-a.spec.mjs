@@ -8,6 +8,7 @@ const css = [
 ].map(path => readFileSync(join(process.cwd(), path), 'utf8')).join('\n');
 
 const markup = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
+  <header class="nav"><a class="brand"><span>BRVTAL</span></a></header>
   <section class="hero scene home-phase-a-hero">
     <div class="hero-grid"></div><div class="hero-scan"></div><div class="hero-glitch-lines"></div>
     <div class="hero-copy"><div class="eyebrow mono">UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA</div><h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1><div class="hero-sub"><span>RAVE TILL GRAVE</span><span>EST. 2026</span></div><div class="hero-declaration"><span class="mono">BRVTAL / CULTURAL SIGNAL</span><strong>EVENTS / SOUND / ARTISTS / ARCHIVE</strong><p>BUILT IN PEREIRA. CONNECTED THROUGH UNDERGROUND ELECTRONIC CULTURE.</p></div></div>
@@ -29,6 +30,36 @@ test('Phase A keeps the cultural statement visible on desktop', async ({ page })
 
   const accent = await page.locator('.hero-declaration').evaluate(el => getComputedStyle(el).borderLeftColor);
   expect(accent).not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('Phase A desktop hero stays below the fixed nav without title/declaration overlap', async ({ page }) => {
+  for (const viewport of [{width:1440,height:800},{width:1920,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.setContent(markup);
+
+    const geometry = await page.evaluate(() => {
+      const rect = selector => document.querySelector(selector).getBoundingClientRect();
+      const nav = rect('.nav');
+      const hero = rect('.home-phase-a-hero');
+      const copy = rect('.hero-copy');
+      const title = rect('.hero-title');
+      const declaration = rect('.hero-declaration');
+      return {
+        navBottom:nav.bottom,
+        heroBottom:hero.bottom,
+        copyTop:copy.top,
+        titleBottom:title.bottom,
+        declarationTop:declaration.top,
+        declarationBottom:declaration.bottom,
+        titleFontSize:parseFloat(getComputedStyle(document.querySelector('.hero-title')).fontSize),
+      };
+    });
+
+    expect(geometry.copyTop).toBeGreaterThanOrEqual(geometry.navBottom + 24);
+    expect(geometry.titleBottom).toBeLessThanOrEqual(geometry.declarationTop);
+    expect(geometry.declarationBottom).toBeLessThan(geometry.heroBottom - 40);
+    expect(geometry.titleFontSize).toBeLessThanOrEqual(220);
+  }
 });
 
 test('Phase A prioritizes event info and actions without mobile overflow', async ({ page }) => {

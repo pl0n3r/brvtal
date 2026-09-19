@@ -169,6 +169,26 @@
     background:rgba(184,255,0,.08);
   }
 }
+@media(min-width:901px){
+  .home-phase-a-hero .hero-copy{
+    top:clamp(108px,14vh,150px);
+    width:min(58vw,880px);
+  }
+  .home-phase-a-hero .hero-title{
+    font-size:clamp(92px,14vw,220px);
+    line-height:.76;
+  }
+  .home-phase-a-hero .hero-sub{
+    width:min(560px,100%);
+  }
+  .home-phase-a-hero .hero-declaration{
+    position:relative;
+    left:auto;
+    top:auto;
+    width:min(560px,100%);
+    margin-top:30px;
+  }
+}
 @media(max-width:900px){
   .home-phase-a-hero .hero-copy{
     top:17vh;

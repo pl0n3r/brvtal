@@ -98,6 +98,38 @@ test('public hero reapplies responsive media and layer overrides after crossing 
   await expect(second.getByText('HIDE ME')).toHaveCount(1);
 });
 
+test('published desktop text layers stay inside the fixed-header safe area', async ({ page }) => {
+  await page.setViewportSize({width:1440,height:800});
+  await openHarness(page, {
+    ok:true,
+    data:{
+      enabled:true,
+      autoplay:false,
+      interval:7000,
+      slides:[{
+        id:'safe',
+        mediaType:'image',
+        desktopSrc:'/safe.jpg',
+        title:'',
+        contentAlign:'left',
+        overlay:20,
+        layers:[
+          {id:'top',type:'text',text:'TOP SIGNAL',x:30,y:0,width:45,hiddenMobile:false,animation:'none',delay:0,duration:650,align:'left'},
+          {id:'bottom',type:'text',text:'BOTTOM SIGNAL',x:30,y:100,width:45,hiddenMobile:false,animation:'none',delay:0,duration:650,align:'left'}
+        ]
+      }]
+    }
+  });
+
+  const geometry = await page.locator('.brvtal-hero-slide.active').evaluate(slide => {
+    const hero = slide.getBoundingClientRect();
+    const layers = [...slide.querySelectorAll('.brvtal-hero-layer.type-text')].map(node => node.getBoundingClientRect());
+    return {heroTop:hero.top,heroBottom:hero.bottom,top:layers[0].top,bottom:layers[1].bottom};
+  });
+  expect(geometry.top).toBeGreaterThanOrEqual(geometry.heroTop + 78);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.heroBottom - 40);
+});
+
 test('admin manager contract remains mobile-first and public endpoint is allowlisted', async () => {
   expect(adminScript).toContain("const KEY = 'home.hero.slider'");
   expect(adminScript).toContain("previewMode = 'desktop'");
