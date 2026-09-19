@@ -47,7 +47,7 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.14"] --> P["PR #561 + snapshot exacto"]
+ A["Release v0.1.14"] --> P["PR + snapshot exacto · #561"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
