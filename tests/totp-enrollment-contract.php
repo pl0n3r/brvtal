@@ -26,7 +26,7 @@ totp_enrollment_expect(str_contains($api, 'totp_assert_ready($pdo)'), 'enrollmen
 totp_enrollment_expect(str_contains($api, "TABLE_NAME='admin_recovery_codes'"), 'enrollment readiness must validate the recovery-code table');
 totp_enrollment_expect(str_contains($api, "unset(\$_SESSION['totp_enrollment_secret']"), 'failed enrollment secrets must be invalidated');
 totp_enrollment_expect(str_contains($api, "'restart_required'=>true"), 'unexpected failures must tell the client to restart enrollment');
-totp_enrollment_expect(str_contains($api, "'email'=>(string)$admin['email']"), 'authenticated TOTP status must provide the administrator email as JSON data');
+totp_enrollment_expect(str_contains($api, "'email'=>(string)\$admin['email']"), 'authenticated TOTP status must provide the administrator email as JSON data');
 totp_enrollment_expect(str_contains($settingsUi, "'X-CSRF-Token':String(window.csrf || '')"), 'embedded Security status must keep the authenticated CSRF boundary');
 totp_enrollment_expect(!str_contains($settingsUi, 'new DOMParser'), 'embedded Security must never parse its status response as HTML');
 totp_enrollment_expect(str_contains($login, 'brvtal_totp_encryption_key()'), 'login and enrollment must derive the same encryption key');
