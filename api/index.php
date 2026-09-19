@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/totp_auth.php';
 require_once __DIR__ . '/../config/password_rate_limit.php';
 require_once __DIR__ . '/../config/indexnow.php';
 require_once __DIR__ . '/../config/hero_slider_integrity.php';
+require_once __DIR__ . '/admin-read-plan.php';
 require_once __DIR__ . '/route.php';
 require_once __DIR__ . '/pages-contract.php';
 require_once __DIR__ . '/content-validation.php';
@@ -224,7 +225,30 @@ try {
     }
 
     $resources=['events','artists','sets','media','pages','ticket_types','settings']; if(!in_array($resource,$resources,true))json_response(['ok'=>false,'error'=>'NOT_FOUND'],404); $table=table_for($resource); if($method!=='GET')brvtal_admin_require_csrf(); $pdo=db();
-    if($method==='GET') { if($resource==='settings')$rows=$pdo->query("SELECT * FROM settings WHERE setting_key<>'security.totp_encryption_key' ORDER BY setting_key")->fetchAll(); else if($id!==null){$st=$pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");$st->execute([$id]);$rows=$st->fetch();if(!$rows)json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);} else $rows=$pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();json_response(['ok'=>true,'data'=>$rows]); }
+    if($method==='GET') {
+        $readPlan = brvtalAdminCollectionReadPlan($resource, $_GET);
+        if ($readPlan !== null) {
+            if ($readPlan['error'] !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $readPlan['error']],
+                    $readPlan['status']
+                );
+            }
+            $st = $pdo->prepare((string)$readPlan['sql']);
+            $st->execute($readPlan['params']);
+            $rows = $st->fetchAll();
+        } elseif($resource==='settings') {
+            $rows=$pdo->query("SELECT * FROM settings WHERE setting_key<>'security.totp_encryption_key' ORDER BY setting_key")->fetchAll();
+        } elseif($id!==null) {
+            $st=$pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");
+            $st->execute([$id]);
+            $rows=$st->fetch();
+            if(!$rows)json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);
+        } else {
+            $rows=$pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();
+        }
+        json_response(['ok'=>true,'data'=>$rows]);
+    }
     if($method==='POST') {
         $d=input_json();
         if ($resource === 'settings') {
