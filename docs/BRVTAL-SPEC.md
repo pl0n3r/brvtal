@@ -646,54 +646,33 @@ Always distinguish:
 
 Never report one status as another.
 
-## 51. Current execution roadmap — September 2026
+## 51. Roadmap responsibility and separation
 
-The previous initial-stabilization list is superseded by this roadmap.
+GitHub Issue **#533** is the canonical BRVTAL execution roadmap.
 
-### Completed platform foundations
+The roadmap contains only execution/progress information:
+- phases;
+- tasks and milestones;
+- ✅ completed / 🚧 pending or in progress / ⛔ blocked state;
+- assigned versions;
+- linked Issues and PRs;
+- merge SHA and validation/deployment evidence when relevant;
+- blockers and their resolution;
+- concise progress notes tied to actual state changes.
 
-The following are implemented foundations and should not be proposed as greenfield work:
+The roadmap does **not** store permanent reference text such as policies, conventions, manuals, agent instructions, architectural rules, durable design decisions, security/delivery doctrine or explanations of how the roadmap operates.
 
-- canonical single-shell DISCADMIN architecture;
-- unified/allowlisted public API and public settings rules;
-- automated PHP/JavaScript/contracts/MariaDB/Playwright CI;
-- Media Library + Media Engine foundation;
-- Releases and Blog modules;
-- SEO metadata foundation + server-rendered public SEO/entity routes/sitemap/robots;
-- automatic editorial SEO fallbacks with manual override priority;
-- Content Health;
-- Global Admin Search;
-- safe Bulk Status Actions v1;
-- Public Archive v1;
-- Related Content v1;
-- Admin Activity / History v1;
-- TOTP / recovery foundation and production-validated 2FA login including Safari/WebKit regression coverage;
-- deployment traceability and deployment-SHA asset cache busting;
-- visual System Status v2 / Platform Control Room.
+Responsibility is separated as follows:
+- **`AGENTS.md`** — how agents/sessions work and deliver changes;
+- **`docs/BRVTAL-SPEC.md`** — durable product, architecture, functional and technical decisions;
+- **Issue #533** — what is planned, active, blocked or completed and in what order;
+- **specific Issues** — executable scope and acceptance criteria;
+- **PRs** — concrete implementation and validation evidence;
+- **`README.md`** — current deploy snapshot, not cumulative roadmap.
 
-### Known stabilization debt
+Completed roadmap work remains visible and struck through as historical execution evidence. Fixed normative prose may be removed from the roadmap and relocated here or to `AGENTS.md` without being treated as deleted delivery history.
 
-Content Core production smoke testing exposed UX/persistence/route issues. PRs #68–#70 added and stabilized automated real-stack create/update coverage. This does not establish that every authenticated flow was rechecked on Hostinger. Fix newly reproduced defects in focused PRs without replacing the shell or duplicating APIs.
-
-### Active next priorities
-
-1. **Backups Foundation v1 — implemented** — safe manual DB/private-file backup, manifests/history/download, no restore.
-2. **Media Engine v2 UX — implemented** — focal point/crop previews, context-aware variants and clearer quality guidance on top of the existing variant engine.
-3. **Editorial Version History v1 — implemented** — per-content timelines and readable field-level before/after diffs derived from the audit foundation, read-only initially.
-4. **Public discovery/polish — active next priority** — PRs #71–#81 improved mobile readability, accessibility, image/font loading, touch scrolling, and touch animation cost. Next measure actual mobile load/Core Web Vitals and fix evidenced bottlenecks, while continuing Archive/Media and public entity refinement. Check open PRs to avoid duplicate work.
-5. **Analytics/privacy foundation** — Google Analytics where appropriate, minimal consent/cookie behavior and useful reporting without creating a custom analytics product prematurely.
-
-### Explicitly deferred
-
-Do not prioritize unless a newer decision explicitly changes this:
-
-- complex RBAC;
-- Bulk Delete;
-- one-click restore;
-- generic drag-and-drop page builders;
-- arbitrary event skin/site builders;
-- large custom analytics infrastructure;
-- unnecessary multilingual UI.
+An explicit user reprioritization updates Issue #533. Progress must not be duplicated as a second priority list in this specification.
 
 ## 52. Final product vision
 

@@ -12,7 +12,7 @@ For every new session:
 2. Inspect current `main`, open PRs and latest **BRVTAL CI** runs.
 3. If an open PR covers the next task, continue/fix it instead of duplicating work.
 4. If exact `main` CI is not green, finish that gate before opening a new feature branch.
-5. If no PR is active, use **Current priorities** unless the user explicitly reprioritizes.
+5. If no PR is active, read the canonical execution roadmap in GitHub Issue **#533** and take the next valid item unless the user explicitly reprioritizes.
 6. Inspect implementation files and only the area-specific docs needed for the task.
 7. Follow branch → implementation → tests → PR → CI → fixes → squash merge → exact-main-CI without asking routine questions.
 8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state, what comes next, and an updated **general panorama of meaningful work still pending across BRVTAL**. The panorama is mandatory and must not be limited to the immediate next task. Do not append deploy history. If the PR scope changes before merge, refresh README again.
@@ -440,30 +440,32 @@ Unless explicitly reprioritized:
 
 ---
 
-## 9. Current priorities
+## 9. Canonical execution roadmap
 
-GitHub Issue **#533** is the active cross-project execution roadmap. It is deliberately ordered from easier/lower-risk work toward more complex changes.
+GitHub Issue **#533** is BRVTAL's canonical execution roadmap and contains **only work and progress**.
 
-When no newer explicit user instruction exists:
+It may contain:
+- phases, tasks and milestones;
+- status using ✅ / 🚧 / ⛔;
+- assigned product versions;
+- related Issues and PRs;
+- merge SHAs and validation/deploy evidence;
+- blockers and their resolution;
+- concise progress notes that change with actual execution state.
 
-1. 🚧 **Delivery lead-time closeout — #534** — engineering-side CI optimization is complete; Hostinger Git auto-deployment/repository/branch verification remains an external blocker. Do not block independent product work on unavailable hPanel access.
-2. ✅ ~~**Phase 1 quick wins from #533**~~ — #520, #521, #526, #522, #479, #517 and #221 are completed and verified through their required delivery gates.
-3. ✅ ~~**Phase 2 navigation — #348**~~ — task-based Admin IA is merged and exact-main validated.
-4. ✅ ~~**Phase 2 appearance — #149**~~ — coherent Dark / Light / Glass is merged and exact-main validated.
-5. ✅ ~~**Phase 2 premium Admin — #514** — shared readable typography, spacing, geometry and low-fatigue component layer is merged and exact-main validated.~~
-6. ✅ ~~**Phase 2 Settings Advanced — #516** — raw/dead configuration UI removed; inline 2FA plus Theme Studio/System Status ownership consolidated under Settings.~~
-7. ✅ ~~**Security hotfix — #553** — Banners remote Media values now hydrate through safe DOM APIs; PR #555 is merged and exact-main BRVTAL CI + Sonar Quality Gate are green on `1480380`.~~
-8. ✅ ~~**Banners first-load performance — #523** — bounded fresh Settings/Media reads, progressive render and published Media cap are merged and exact-main validated on `1526bbb`.~~
-9. ✅ ~~**Public Home hero desktop regression — #480** — merged and exact-main validated.~~
-10. ✅ ~~**Native navigation transaction — #193 / PR #561** — failed reads no longer leave state/workspace mismatched; merged and exact-main validated.~~
-11. ✅ ~~**Editor/modal navigation lifecycle — #216 / PR #562** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it; merged and exact-main validated.~~
-12. ✅ ~~**Content Health navigation deflake — #558 / PR #563** — record navigation regression is stabilized and exact-main validated.~~
-13. 🚧 **CI throughput audit v2 — #564** — Phases A/B/C are merged and exact-main validated through PRs #566–#568; collect multiple real samples before any Phase D sharding/topology change.
-14. ✅ ~~**Unsaved Banners protection — #174 / PR #569 (v0.1.20)** — transactional dirty-state guard is merged and exact-main validated on `c4f9620`.~~
-15. 🚧 **Visual content ordering — #519 (v0.1.21)** — active product block: shared pointer/touch/keyboard reorder for Artists, Releases, Sets and Blog with exact-set transactional persistence.
-16. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+It must not contain permanent reference text such as:
+- operating policies or agent instructions;
+- architecture/product rules;
+- delivery/security conventions;
+- explanations of how the roadmap itself works;
+- durable design decisions;
+- manuals or duplicated specifications.
 
-Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
+Permanent operating rules belong in **`AGENTS.md`**. Durable product, architecture and functional decisions belong in **`docs/BRVTAL-SPEC.md`**. Executable acceptance criteria belong in the specific Issue. `README.md` remains the current deploy snapshot.
+
+Completed roadmap work stays visible and struck through as delivery history. Removing or relocating fixed normative text is not loss of roadmap history because that text is not execution progress.
+
+When the user reprioritizes work, update Issue #533 rather than duplicating a priority list in this file or the specification.
 
 ---
 
@@ -514,7 +516,7 @@ Whenever a deploy-bound PR is prepared:
 - make its file list match the actual PR scope;
 - summarize what changed and what follows next;
 - refresh the **Panorama general pendiente** so it still reflects meaningful open work across BRVTAL;
-- update durable current-state, decision, priority or deferred sections here only when product state actually changes;
+- update durable operating/product/architecture decisions here only when they belong to agent operating context; keep execution order and progress exclusively in Issue #533;
 - do not write transient SHA/run numbers here as permanent state;
 - keep current SHA/CI identity dynamic in Actions/System Status;
 - record architectural decisions here, not only in chat;
