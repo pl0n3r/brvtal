@@ -24,7 +24,7 @@ jobs:
        github.event.comment.author_association == 'OWNER' &&
        github.event.comment.body == '/production-smoke')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     environment: production-smoke
     env:
       BRVTAL_PROD_URL: https://www.brvtal.com.co
@@ -99,10 +99,10 @@ jobs:
             echo "- Canonical origin: \`${BRVTAL_PROD_URL}\`"
             echo "- Source SHA: \`${BRVTAL_EXPECTED_SHA}\`"
             echo "- Mode: **manual or owner command / authenticated / content-read-only**"
-            echo "- Checks: visible Admin product version, Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
+            echo "- Checks: deployed release identity, visible Admin product version, Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
             echo "- Evidence: \`production-authenticated-smoke.json\` artifact"
             echo
-            echo "The browser guard stubs the DISCADMIN media-permission repair locally and blocks any other post-login POST/PUT/PATCH/DELETE request."
+            echo "The smoke waits for the expected release before authentication; exact SHA is required only when the Hostinger runtime exposes an exact source. The browser guard stubs the DISCADMIN media-permission repair locally and blocks any other post-login POST/PUT/PATCH/DELETE request."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload smoke evidence

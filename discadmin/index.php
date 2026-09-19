@@ -27,7 +27,7 @@ $html = preg_replace(
 ) ?? $html;
 
 $assetVersion = function_exists('brvtal_deployment_short_sha')
-    ? rawurlencode(brvtal_deployment_short_sha())
+    ? rawurlencode(brvtalDeploymentCacheKey())
     : (defined('BRVTAL_APP_BUILD') ? rawurlencode((string)BRVTAL_APP_BUILD) : '');
 $suffix = $assetVersion !== '' ? '?v=' . $assetVersion : '';
 $appearanceBoot = '<script>(function(){try{var k="brvtal.discadmin.appearance",m=localStorage.getItem(k);if(!/^(dark|light|glass)$/.test(m||""))m="dark";document.documentElement.dataset.discadminAppearance=m;document.documentElement.style.colorScheme=m==="light"?"light":"dark"}catch(e){document.documentElement.dataset.discadminAppearance="dark"}})();</script>'

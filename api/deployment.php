@@ -12,13 +12,5 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 json_response([
     'ok' => true,
-    'data' => [
-        'commit' => brvtal_deployment_sha(),
-        'short_commit' => brvtal_deployment_short_sha(),
-        'source' => brvtal_deployment_source(),
-        'exact' => brvtalDeploymentIsExact(),
-        'version' => BRVTAL_APP_VERSION,
-        'environment' => BRVTAL_APP_ENV,
-        'release_date' => BRVTAL_RELEASE_DATE,
-    ],
+    'data' => brvtalDeploymentPublicData(),
 ]);

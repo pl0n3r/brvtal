@@ -8,6 +8,7 @@ $started = microtime(true);
 try {
     $pdo = db();
     $pdo->query('SELECT 1');
+    $exact = brvtalDeploymentIsExact();
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     json_response([
         'ok' => true,
@@ -15,11 +16,13 @@ try {
         'status' => 'healthy',
         'database' => 'connected',
         'deployment' => [
-            'commit' => brvtal_deployment_sha(),
-            'short_commit' => brvtal_deployment_short_sha(),
+            'commit' => $exact ? brvtal_deployment_sha() : null,
+            'short_commit' => $exact ? brvtal_deployment_short_sha() : null,
             'source' => brvtal_deployment_source(),
-            'exact' => brvtalDeploymentIsExact(),
+            'exact' => $exact,
             'version' => BRVTAL_APP_VERSION,
+            'release_identity' => brvtalReleaseIdentity(),
+            'cache_key' => brvtalDeploymentCacheKey(),
             'environment' => BRVTAL_APP_ENV,
         ],
         'time' => date(DATE_ATOM),

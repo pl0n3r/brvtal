@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+import { observeBeforeAuthenticate, observeRelease } from './production-release-observer.mjs';
 import { createHmac } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -27,7 +28,10 @@ const evidence = {
   baseUrl,
   expectedSha: expectedSha || null,
   expectedVersion,
-  deploymentObserved: false,
+  releaseObserved: false,
+  deploymentExact: null,
+  observedDeployment: null,
+  deploymentProbeErrors: [],
   authentication: { totp: false },
   checks: {
     adminVersion: null,
@@ -89,27 +93,32 @@ async function jsonOrThrow(response, label) {
   return payload;
 }
 
-async function observeExactDeploy(request) {
-  if (!expectedSha) {
-    evidence.deploymentObserved = true;
-    return;
-  }
-  const shortSha = expectedSha.slice(0, 7);
-  for (let attempt = 1; attempt <= 8; attempt += 1) {
-    const response = await request.get(`${baseUrl}/?__deploy_check=${encodeURIComponent(`${shortSha}-${attempt}-${Date.now()}`)}`, {
-      headers: { 'Cache-Control': 'no-cache' },
-      timeout: 10_000
-    });
-    const html = await response.text();
-    if (response.ok() && html.includes(`?v=${shortSha}`)) {
-      evidence.deploymentObserved = true;
-      return;
+async function observeProductionRelease(request) {
+  const result = await observeRelease({
+    request,
+    baseUrl,
+    expectedVersion,
+    expectedSha,
+    attempts: 36,
+    requestTimeoutMs: 5_000,
+    sleepMs: 10_000,
+    onObservation: ({ attempt, deployment, error }) => {
+      if (deployment) {
+        evidence.observedDeployment = deployment;
+        evidence.deploymentExact = deployment.exact;
+      }
+      if (error) {
+        evidence.deploymentProbeErrors.push({ attempt, error });
+      }
+      writeEvidence();
     }
-    if (attempt < 8) await new Promise(resolve => setTimeout(resolve, 5_000));
-  }
-  throw new Error(`Hostinger deploy marker ?v=${shortSha} was not observed.`);
-}
+  });
 
+  evidence.releaseObserved = result.releaseObserved;
+  evidence.observedDeployment = result.deployment;
+  evidence.deploymentExact = result.deployment.exact;
+  writeEvidence();
+}
 async function authenticate(context) {
   const loginResponse = await context.request.post(`${baseUrl}/api/index.php/auth`, {
     headers: { 'Content-Type': 'application/json' },
@@ -162,7 +171,10 @@ const context = await browser.newContext({
 });
 
 try {
-  await authenticate(context);
+  await observeBeforeAuthenticate(
+    () => observeProductionRelease(context.request),
+    () => authenticate(context)
+  );
 
   // From this point forward the browser is content-read-only. DISCADMIN performs
   // a media-permission repair POST during session bootstrap; fulfill that request
@@ -205,7 +217,6 @@ try {
     throw new Error(`Admin product version mismatch: expected ${expectedVersionText}, rendered ${renderedVersion || '(empty)'}.`);
   }
 
-  await observeExactDeploy(context.request);
 
   const [events, artists] = await Promise.all([
     getAdminCollection(context, 'events'),

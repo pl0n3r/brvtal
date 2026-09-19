@@ -14,50 +14,92 @@ concurrency:
 
 jobs:
   observe:
-    name: exact-deploy-marker
+    name: release-deploy-marker
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      BRVTAL_PROD_URL: https://www.brvtal.com.co/
+      BRVTAL_PROD_URL: https://www.brvtal.com.co
       EXPECTED_SHA: ${{ github.sha }}
     steps:
-      - name: Observe exact Hostinger deploy marker
+      - name: Check out exact main source
+        uses: actions/checkout@v5
+
+      - name: Resolve expected release
         shell: bash
         run: |
           set -euo pipefail
-          short_sha="${EXPECTED_SHA:0:7}"
-          observed=false
-          started_at=$(date +%s)
+          expected_version=$(php -r "require 'config/version.php'; echo BRVTAL_APP_VERSION;")
+          echo "EXPECTED_VERSION=$expected_version" >> "$GITHUB_ENV"
 
-          max_attempts=60
-          sleep_seconds=10
+      - name: Observe Hostinger release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed=false
+          release_matched=false
+          exact_mismatch=false
+          mismatched_commit=""
+          mismatched_source=""
+          started_at=$(date +%s)
+          max_attempts=50
+          sleep_seconds=8
 
           for attempt in $(seq 1 "$max_attempts"); do
-            probe_url="${BRVTAL_PROD_URL}?__deploy_observer=${short_sha}-${attempt}-${GITHUB_RUN_ID}"
-            html=$(curl -fsSL \
-              --connect-timeout 3 \
-              --max-time 5 \
+            probe_url="${BRVTAL_PROD_URL}/api/deployment.php?__deploy_observer=${EXPECTED_VERSION}-${attempt}-${GITHUB_RUN_ID}"
+            payload=$(curl -fsSL \
+              --connect-timeout 2 \
+              --max-time 4 \
               -H 'Cache-Control: no-cache' \
               "$probe_url" || true)
 
-            if [[ "$html" == *"?v=$short_sha"* ]]; then
-              observed=true
+            version=$(jq -r '.data.version // empty' <<<"$payload" 2>/dev/null || true)
+            exact=$(jq -r '.data.exact // false' <<<"$payload" 2>/dev/null || true)
+            commit=$(jq -r '.data.commit // empty' <<<"$payload" 2>/dev/null || true)
+            source=$(jq -r '.data.source // empty' <<<"$payload" 2>/dev/null || true)
+
+            if [[ "$version" == "$EXPECTED_VERSION" ]]; then
+              release_matched=true
+              if [[ "$exact" == "true" ]]; then
+                if [[ "$commit" != "$EXPECTED_SHA" ]]; then
+                  exact_mismatch=true
+                  mismatched_commit="$commit"
+                  mismatched_source="${source:-unknown}"
+                  echo "Release $version is visible but exact source $commit does not match $EXPECTED_SHA yet."
+                else
+                  exact_mismatch=false
+                  observed=true
+                fi
+              else
+                exact_mismatch=false
+                observed=true
+              fi
+            fi
+
+            if [[ "$observed" == "true" ]]; then
               elapsed=$(( $(date +%s) - started_at ))
               {
                 echo "# Production deploy observation"
                 echo
-                echo "- Exact source SHA: $EXPECTED_SHA"
-                echo "- Marker: ?v=$short_sha"
-                echo "- Status: **DEPLOYED marker observed**"
+                echo "- Expected release: \`v$EXPECTED_VERSION\`"
+                echo "- Expected main SHA: \`$EXPECTED_SHA\`"
+                echo "- Runtime source: \`${source:-release_fallback}\`"
+                if [[ "$exact" == "true" ]]; then
+                  echo "- Exact deployed SHA: \`$commit\`"
+                  echo "- Status: **DEPLOYED release + exact source observed**"
+                else
+                  echo "- Exact deployed SHA: **unavailable on Hostinger runtime**"
+                  echo "- Status: **DEPLOYED release observed**"
+                fi
                 echo "- Observation latency: **${elapsed}s** from workflow execution"
                 echo
-                echo "> This confirms source identity only. It is not production behavior validation."
+                echo "> Product release identity is authoritative when Hostinger does not expose .git or BRVTAL_DEPLOY_COMMIT."
+                echo "> This confirms deployment identity only. It is not production behavior validation."
               } >> "$GITHUB_STEP_SUMMARY"
-              echo "Observed production marker ?v=$short_sha after ${elapsed}s."
+              echo "Observed production release v$EXPECTED_VERSION after ${elapsed}s."
               break
             fi
 
-            echo "Marker ?v=$short_sha not visible yet (attempt $attempt/$max_attempts)."
+            echo "Release v$EXPECTED_VERSION not visible yet (attempt $attempt/$max_attempts; observed version=${version:-none}, source=${source:-none})."
             if [[ "$attempt" -lt "$max_attempts" ]]; then
               sleep "$sleep_seconds"
             fi
@@ -67,12 +109,21 @@ jobs:
             {
               echo "# Production deploy observation"
               echo
-              echo "- Exact source SHA: $EXPECTED_SHA"
-              echo "- Expected marker: ?v=$short_sha"
-              echo "- Status: **NOT OBSERVED within bounded window**"
-              echo
-              echo "> This is a deploy-observation failure, not a production-behavior verdict."
-              echo "> Verify Hostinger hPanel Git auto-deployment, selected repository/branch and GitHub authorization if this persists."
+              echo "- Expected release: \`v$EXPECTED_VERSION\`"
+              echo "- Expected main SHA: \`$EXPECTED_SHA\`"
+              if [[ "$release_matched" == "true" && "$exact_mismatch" == "true" ]]; then
+                echo "- Runtime source: \`${mismatched_source:-unknown}\`"
+                echo "- Exact deployed SHA: \`${mismatched_commit:-unavailable}\`"
+                echo "- Status: **RELEASE OBSERVED; EXACT SOURCE MISMATCH**"
+                echo
+                echo "> Production exposed the expected release, but the exact runtime source did not match the expected main SHA within the bounded window."
+                echo "> Treat this as a source-identity mismatch, not as a missing-release failure."
+              else
+                echo "- Status: **RELEASE NOT OBSERVED within bounded window**"
+                echo
+                echo "> Production did not expose the expected release version within the bounded window."
+                echo "> Verify Hostinger hPanel Git auto-deployment/repository/branch authorization if this persists."
+              fi
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
