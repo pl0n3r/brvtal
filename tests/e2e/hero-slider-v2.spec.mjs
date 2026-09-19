@@ -45,12 +45,16 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
       return true;
     };
     window.__heroSavePayloads = [];
+    window.__heroSettingsReadFailure = '';
     window.req = async (path, options = {}) => {
       if (path === '/settings' && options.method === 'POST') {
         window.__heroSavePayloads.push(JSON.parse(options.body));
         return { data: [] };
       }
-      if (path === '/settings?key=home.hero.slider') return { data: [] };
+      if (path === '/settings?key=home.hero.slider') {
+        if (window.__heroSettingsReadFailure) throw new Error(window.__heroSettingsReadFailure);
+        return { data: [] };
+      }
       if (path === '/media?view=hero-picker') return { data: mediaItems };
       return { data: [] };
     };
@@ -181,6 +185,19 @@ test('v2 admin keeps dirty state when confirmed navigation fails', async ({ page
   expect(message).toBe('EVENTS_UNAVAILABLE');
   expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
   expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+});
+
+test('v2 admin preserves dirty state when confirmed Banners reload fails', async ({ page }) => {
+  await openAdminUidHarness(page);
+  await page.locator('[data-add-slide]').click();
+  await page.evaluate(() => { window.__heroSettingsReadFailure = 'SETTINGS_UNAVAILABLE'; });
+
+  page.once('dialog', dialog => dialog.accept());
+  const result = await page.evaluate(() => window.go('hero-slider'));
+
+  expect(result).toBe(false);
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+  await expect(page.locator('.hero-slider-error')).toContainText('SETTINGS_UNAVAILABLE');
 });
 
 test('v2 admin registers a beforeunload guard only while Banners is dirty', async ({ page }) => {
