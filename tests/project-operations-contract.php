@@ -42,6 +42,9 @@ $assert(str_contains($readme, 'sonarcloud.io/api/project_badges/measure'), 'READ
 $assert(str_contains($readme, 'actions/workflows/production-deploy-observer.yml/badge.svg'), 'README must expose deploy-observer status');
 $assert(str_contains($readme, '**NOW**') && str_contains($readme, '**NEXT**') && str_contains($readme, '**LATER**'), 'README must expose scannable priority lanes');
 $assert(str_contains($readme, '**BLOCKED / EXTERNAL**'), 'README must make external blockers explicit');
+$assert(str_contains($readme, '## Progress convention'), 'README must expose the canonical progress convention');
+$assert(str_contains($readme, '✅ ~~Struck through~~'), 'README must explain completed/verified progress state');
+$assert(str_contains($readme, '🚧 Normal text'), 'README must explain pending/in-progress state');
 $assert(str_contains($readme, 'solo el deploy actual'), 'README must explicitly remain deploy-scoped');
 $assert(strlen($readme) < 8000, 'README must stay compact instead of becoming a cumulative technical manual');
 $assert(!str_contains($readme, '## 3. Arquitectura general'), 'README must not regress to the old cumulative architecture manual');
@@ -60,6 +63,9 @@ $assert(str_contains($agents, '7 days') && str_contains($agents, '30 days'), 'AG
 $assert(str_contains($agents, 'Hero / Slider Manager'), 'AGENTS must retain Hero Slider context');
 $assert(str_contains($agents, 'shareable URL query parameters'), 'AGENTS must retain public discovery URL-state context');
 $assert(str_contains($agents, '## 9. Current priorities'), 'AGENTS must expose the next autonomous work priorities');
+$assert(str_contains($agents, '### Progress convention'), 'AGENTS must define the canonical project progress convention');
+$assert(str_contains($agents, '✅ ~~Struck through~~') && str_contains($agents, '🚧 Normal text'), 'AGENTS must preserve canonical completed vs pending progress markers');
+$assert(str_contains($agents, 'Keep completed items visible and crossed out instead of deleting them'), 'AGENTS must preserve completed roadmap history');
 $assert(str_contains($agents, '## 12. State-maintenance contract for future AI work'), 'AGENTS must require future sessions to maintain durable state');
 $assert(str_contains($agents, 'Read AGENTS.md and continue the project autonomously'), 'AGENTS must define a minimal future-session prompt');
 $assert(str_contains($agents, 'AI sessions should not require reading README before they can begin'), 'README must remain optional for AI startup');

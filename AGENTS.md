@@ -264,6 +264,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 41. **Every deploy-bound PR carries one explicit human product-version bump before final stable-head gates.** `config/version.php` is the source of truth. Patch is the default (`0.x.n → 0.x.n+1`); a pre-1.0 minor bump is a deliberate milestone and resets patch to zero; **1.0.0 requires the administrator's explicit decision**. CI validates the transition but never creates metadata commits. If `main` moves before merge, refresh the version against current `main` before final gates. Git SHA remains separate secondary technical deployment identity, never the primary product version.
 42. **Dynamic DISCADMIN module readiness and navigation have one owner.** `BRVTALAdminModules` owns the readiness promises and exported `navigate()` path for Media, Releases and Blog; navigation/IA layers must delegate those dynamic destinations to that canonical boundary instead of attaching duplicate late `load` listeners or falling through to legacy `go('/media')` CRUD. Media must mount consistently from Dashboard, another module and direct `?module=media` navigation. Genuine dependency failures must surface the canonical ERROR / RETRY state, and RETRY must discard rejected readiness state plus recreate a failed script dependency instead of replaying the same rejected promise. The normal Media Library workflow does not expose manual External Registry controls; uploaded/reusable canonical assets remain the primary path.
 43. **Hero/Banners media integrity is authoritative at save time.** Enabled Hero slides require a valid primary asset. Local references must resolve to an exact published Media Library record whose source file still exists under `/uploads/`; optional mobile/poster/image-layer references are validated when present. Explicit external media is HTTPS-only and identified as external. Client-side checks improve feedback, but the authenticated Settings API is the final authority and must reject invalid publicable configurations with a field-specific 422. Disabled slides may retain incomplete draft media.
+44. **Project-wide progress status uses one visual language.** `✅ ~~Struck through~~` means completed only after the required delivery gates; `🚧 Normal text` means pending or currently in progress. Keep completed tracker items visible and crossed out rather than deleting them. Future roadmap/Issue/README/handoff maintenance must preserve this convention.
 
 ---
 
@@ -356,6 +357,14 @@ Routine development operations do not require asking again.
 
 Never claim production verification from CI alone.
 
+### Progress convention
+
+- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
+- 🚧 Normal text = pending or currently in progress.
+- Keep completed items visible and crossed out instead of deleting them, so the roadmap preserves delivery history.
+
+Apply this convention consistently to project roadmaps, progress/checklist sections in GitHub Issues, README dashboard progress tables and AI/human handoffs. Never mark an item ✅ until its required delivery gates have actually passed. The transient README remains deploy-scoped; durable delivery history belongs in the canonical roadmap/tracker.
+
 ### Release metadata rule
 
 Every deploy-bound PR deliberately updates the human version in `config/version.php` before final stable-head gates. CI validates that transition but must **never rewrite or commit** release metadata. Patch +1 is normal; a pre-1.0 minor milestone resets patch to 0 and remains deliberate. Exact deployment identity is still resolved at runtime through `config/deployment.php` / environment / Git checkout and remains separate from product version.
@@ -399,10 +408,10 @@ GitHub Issue **#533** is the active cross-project execution roadmap. It is delib
 
 When no newer explicit user instruction exists:
 
-1. **Delivery lead-time closeout — #534** — CI fan-out is implemented and measured ~31.7% faster on the full-scope exact-main sample. Keep the calibrated deploy observer active; if the exact marker still does not appear, the remaining check is external Hostinger hPanel Git auto-deployment/repository/branch authorization. Do not block independent product work on unavailable hPanel access.
-2. **Phase 1 quick wins from #533** — #520, #521, #526, #522, #479 and #517 are closed. Current: #221 Hero/Banners media integrity. Next: Phase 2 Admin shell/theme/premium UX (#348, #149, #514).
-3. **Then continue the phases in #533** — Admin shell/theme/premium UX → editorial productivity primitives → configurable Dashboard/System Status → Theme Studio/SEO/data integrity → larger safety/resilience/product expansions.
-4. **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+1. 🚧 **Delivery lead-time closeout — #534** — engineering-side CI optimization is complete; Hostinger Git auto-deployment/repository/branch verification remains an external blocker. Do not block independent product work on unavailable hPanel access.
+2. ✅ ~~**Phase 1 quick wins from #533**~~ — #520, #521, #526, #522, #479, #517 and #221 are completed and verified through their required delivery gates.
+3. 🚧 **Continue Phase 2 from #533** — Admin shell/theme/premium UX (#348, #149, #514), then later editorial productivity, configurable operations, Theme Studio/SEO/data integrity and resilience.
+4. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 
