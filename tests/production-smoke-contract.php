@@ -59,6 +59,10 @@ $assert(str_contains($probe, "url.pathname === '/api/media-permissions.php'"), '
 $assert(str_contains($probe, 'smoke_stub: true'), 'media-permission repair must be fulfilled locally');
 $assert(str_contains($probe, "route.abort('blockedbyclient')"), 'unexpected browser mutations must be blocked');
 $assert(str_contains($probe, 'blockedMutations'), 'blocked mutations must be captured in evidence');
+$assert(str_contains($probe, 'releaseObserved'), 'smoke must capture whether the expected production release was observed');
+$assert(str_contains($probe, 'observedDeployment'), 'smoke must capture runtime deployment identity evidence');
+$assert(str_contains($probe, '/api/deployment.php?__deploy_check='), 'smoke must wait on the canonical deployment endpoint before loading DISCADMIN');
+$assert(str_contains($probe, 'await observeRelease(context.request);'), 'smoke must wait for deployment before authenticating into the Admin UI');
 $assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
 $assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');
 $assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');

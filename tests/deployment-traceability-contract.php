@@ -20,10 +20,13 @@ require_once __DIR__ . '/../config/version.php';
 require_once __DIR__ . '/../config/public_assets.php';
 
 deployment_expect(str_contains($resolver, "getenv('BRVTAL_DEPLOY_COMMIT')"), 'resolver must support an explicit deployment SHA');
+deployment_expect(substr_count($resolver, "{40}") >= 2, 'explicit/runtime deployment identity must require a full exact SHA');
 deployment_expect(str_contains($resolver, "'/HEAD'"), 'resolver must inspect the deployed Git checkout');
 deployment_expect(str_contains($resolver, 'BRVTAL_APP_BUILD'), 'resolver may retain compatibility release metadata as fallback');
 deployment_expect(str_contains($resolver, 'function brvtalDeploymentIsExact()'), 'resolver must distinguish exact environment/git source from release fallback');
-deployment_expect(str_contains($endpoint, "'short_commit'"), 'public deployment endpoint must expose the deployed short SHA');
+deployment_expect(str_contains($endpoint, "'short_commit'"), 'public deployment endpoint must expose the deployed short SHA only when exact');
+deployment_expect(str_contains($endpoint, "'release_identity' => brvtal_release_identity()"), 'public deployment endpoint must expose canonical release identity');
+deployment_expect(str_contains($endpoint, "'cache_key' => brvtal_deployment_cache_key()"), 'public deployment endpoint must expose the runtime cache key');
 deployment_expect(str_contains($endpoint, "'exact' => brvtalDeploymentIsExact()"), 'deployment endpoint must identify whether SHA is exact');
 deployment_expect(
     preg_match("/'deployment'\\s*=>\\s*\\[/", $health) === 1,
@@ -35,11 +38,13 @@ deployment_expect(str_contains($admin, 'data-testid="admin-product-version"'), '
 deployment_expect(str_contains($admin, 'BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION'), 'DISCADMIN product version must come from canonical release metadata');
 deployment_expect(str_contains($admin, 'data-testid="admin-deploy-source"'), 'DISCADMIN must retain deployed source as secondary technical detail');
 deployment_expect(str_contains($admin, 'SOURCE UNAVAILABLE'), 'DISCADMIN must not present fallback build metadata as an exact deployed SHA');
-deployment_expect(str_contains($adminShell, 'brvtal_deployment_short_sha()'), 'DISCADMIN enhancement assets must be versioned by the deployed SHA');
+deployment_expect(str_contains($resolver, 'function brvtal_deployment_cache_key()'), 'resolver must provide a cache key that survives Hostinger deployments without Git metadata');
+deployment_expect(str_contains($resolver, "return 'release-'"), 'release fallback cache key must use product version rather than stale build SHA');
+deployment_expect(str_contains($adminShell, 'brvtal_deployment_cache_key()'), 'DISCADMIN enhancement assets must use the resilient deployment cache key');
 deployment_expect(str_contains($adminShell, "seo-editorial-defaults.js' . \$suffix"), 'SEO defaults enhancement must receive the deployment cache key');
 deployment_expect(str_contains($adminShell, "content-core-nav.js' . \$suffix"), 'Content Core direct navigation must load as a deployment-versioned enhancement');
 deployment_expect(str_contains($publicEntry, "require_once __DIR__ . '/config/deployment.php';"), 'public entrypoint must resolve the deployed commit');
-deployment_expect(str_contains($publicEntry, 'brvtal_public_version_assets($html, brvtal_deployment_short_sha())'), 'public entrypoint must version its local assets');
+deployment_expect(str_contains($publicEntry, 'brvtal_public_version_assets($html, brvtal_deployment_cache_key())'), 'public entrypoint must version its local assets with the resilient release cache key');
 $versioned = brvtal_public_version_assets('<link href="css/style.css"><script src="js/app.js"></script><script src="js/archive.js?v=old"></script><img src="assets/logo.jpg"><img src="/uploads/media/example.png"><img src="https://cdn.example.com/external.jpg">', 'abc1234');
 deployment_expect(str_contains($versioned, 'href="css/style.css?v=abc1234"'), 'public CSS must receive the deployed commit');
 deployment_expect(str_contains($versioned, 'src="js/app.js?v=abc1234"'), 'public JavaScript must receive the deployed commit');
