@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **21** | **+1457** | **−146** | **+1311** |
+| **21** | **+1461** | **−140** | **+1321** |
 
 ## Calidad y entrega
 
@@ -103,7 +103,17 @@ flowchart LR
 | Lane | Trabajo |
 | --- | --- |
 | **NOW** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519) · completar y validar visual ordering. |
-| **NEXT** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) · canonical professional Admin data grid. |
-| **LATER** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) · general editor protection + rich Blog editor. |
+| **NEXT** | 🚧 [#571](https://github.com/pl0n3r/brvtal/issues/571) · multi-agent coordination and PR collision prevention. |
+| **LATER** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) · data grid + editor protection + rich Blog editor. |
 | **EVIDENCE** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · gather more samples before Phase D. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger production freshness. |
+
+## Panorama general pendiente
+
+| Lane | Frente | Issues |
+| --- | --- | --- |
+| **NOW** | 🚧 Visual content ordering closeout | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519) |
+| **NEXT** | 🚧 Multi-agent coordination / collision prevention | 🚧 [#571](https://github.com/pl0n3r/brvtal/issues/571) |
+| **LATER** | 🚧 Admin editorial productivity | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
+| **EVIDENCE** | 🚧 CI throughput Phase D decision | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
+| **BLOCKED / EXTERNAL** | 🚧 Hostinger production freshness | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
