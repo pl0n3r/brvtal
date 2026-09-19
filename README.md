@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+224** | **−138** | **+86** |
+| **12** | **+227** | **−140** | **+87** |
 
 ## Calidad y entrega
 
@@ -80,6 +80,7 @@ flowchart LR
 - `discadmin/admin-route-aliases.js`
 - `discadmin/admin-appearance.css`
 - `tests/settings-control-plane-contract.php`
+- `tests/theme-active-reference-contract.php`
 - `tests/e2e/discadmin-settings-v2.spec.mjs`
 - `tests/e2e/discadmin-settings-theme-active.spec.mjs`
 - `tests/e2e/discadmin-premium-real-stack.spec.mjs`
