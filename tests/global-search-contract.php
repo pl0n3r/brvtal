@@ -38,10 +38,8 @@ gs_assert(str_contains($api, "'has_more' => \$visibleThrough < \$matchTotal"), '
 gs_assert(str_contains($api, '$total += $matchTotal;'), 'top-level total must sum exact group totals rather than the truncated page size');
 gs_assert(str_contains($api, "'OFFSET_REQUIRES_TYPE'"), 'global pagination offsets must be scoped to one content type');
 
-gs_assert(str_contains($js, '⌘K / CTRL K'), 'search UI must advertise keyboard shortcut');
-gs_assert(str_contains($js, "dataset.globalSearchLocation = locationName"), 'global search must expose stable top/sidebar trigger locations');
-gs_assert(str_contains($js, "document.querySelector('.side .sidefoot')"), 'global search must mount a persistent sidebar affordance');
-gs_assert(str_contains($js, "logout.before(trigger)"), 'sidebar global search must sit immediately above Logout');
+// Trigger placement, visibility and Ctrl/Cmd+K interaction are exercised by
+// tests/e2e/discadmin-global-search.spec.mjs against the real browser DOM.
 gs_assert(str_contains($js, "event.ctrlKey") && str_contains($js, "event.metaKey"), 'search UI must support Ctrl/Cmd+K');
 gs_assert(str_contains($js, "window.go(target.module)"), 'search results must use the canonical shell router');
 gs_assert(str_contains($js, "role=\"dialog\"") || str_contains($js, "role=\\\"dialog\\\""), 'search overlay must expose dialog semantics');

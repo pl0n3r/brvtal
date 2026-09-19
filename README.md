@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **19** | **+334** | **−142** | **+192** |
+| **19** | **+337** | **−145** | **+192** |
 
 ## Calidad y entrega
 
@@ -41,7 +41,7 @@
 | Browser | IA, Settings y Global Search con Playwright |
 | Real-stack | seleccionado por cambio en shell PHP |
 | Sonar | Clean-as-You-Code en paralelo |
-| CodeRabbit | full review del head estable en paralelo |
+| CodeRabbit | full review del head estable en paralelo · findings accionables se corrigen; un reviewer externo estancado no bloquea indefinidamente según AGENTS |
 | Exact-main | **CI del SHA exacto de main** obligatorio tras squash merge |
 
 ## Flujo de entrega
@@ -53,12 +53,13 @@ flowchart LR
  P --> B["Chromium"]
  P --> R["real-stack"]
  A --> S["Sonar"]
- A --> C["CodeRabbit"]
+ A --> C["CodeRabbit parallel review"]
+ C --> K["Actionable findings"]
+ K --> A
  F --> M["Squash merge"]
  B --> M
  R --> M
  S --> M
- C --> M
  M --> X["CI del SHA exacto de main"]
 ```
 
@@ -72,7 +73,8 @@ flowchart LR
 - Añade **Global Search** persistente en el sidebar inmediatamente arriba de Logout reutilizando el mismo buscador.
 - Elimina el badge ambiguo **ONLINE** del header y el bloque **CONTROL PLANE** de Settings.
 - Conserva rutas profundas/Back/Forward y marca Settings activo en Theme Studio o Security.
-- Actualiza contexto canónico y versión a **0.1.4**.
+- Actualiza contexto canónico, elimina la taxonomía antigua del sidebar y mantiene CodeRabbit como revisión paralela no bloqueante cuando queda estancado sin findings accionables.
+- Actualiza versión a **0.1.4**.
 
 ## Archivos modificados en este deploy
 

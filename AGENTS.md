@@ -130,7 +130,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 ### DISCADMIN / editorial
 
 - canonical one-shell administration;
-- destination-based sidebar grouped as Content / Media / Site / System;
+- destination-based sidebar grouped as SITE / EDITORIAL and CONFIGURATION / TECHNICAL;
 - responsive/mobile sidebar and record lists;
 - unified forms/dialogs, validation and double-save protection;
 - Events uses the guided Content Core event workflow internally;
