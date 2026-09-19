@@ -298,6 +298,8 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 
 55. **Banners protects unsaved editor state before every workspace replacement.** `hero-slider.js` owns the clean snapshot and dirty comparison; `admin-information-architecture.js` owns transactional navigation. Leaving or reopening Banners while dirty must require confirmation before URL/module side effects, and browser Back/Forward cancellation must restore the Banners route. `beforeunload` protects refresh/tab close. A confirmed discard becomes clean only after the destination succeeds; failed/stale navigation keeps the editor dirty so work is not silently lost.
 
+56. **Editorial ordering is visual, shared and transactionally canonical.** Artists, Sets, Releases and Blog use one `content-ordering` client primitive and one exact-set reorder API. Drag handles support Pointer Events plus Arrow Up/Down; filtered/partial views must disable reorder rather than submit a subset. The API locks the complete whitelisted collection, rejects stale/duplicate/foreign IDs, normalizes `sort_order` to contiguous positions, and rolls back on failure. Numeric Sort Order fields are implementation details and must not return as the primary editor UX.
+
 ---
 
 ## 5. Data / API architecture rules
@@ -457,8 +459,9 @@ When no newer explicit user instruction exists:
 11. ✅ ~~**Editor/modal navigation lifecycle — #216 / PR #562** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it; merged and exact-main validated.~~
 12. ✅ ~~**Content Health navigation deflake — #558 / PR #563** — record navigation regression is stabilized and exact-main validated.~~
 13. 🚧 **CI throughput audit v2 — #564** — Phases A/B/C are merged and exact-main validated through PRs #566–#568; collect multiple real samples before any Phase D sharding/topology change.
-14. 🚧 **Unsaved Banners protection — #174 (v0.1.20)** — active product/reliability block: transactional dirty-state guard for module navigation, Back/Forward and refresh/tab close.
-15. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+14. ✅ ~~**Unsaved Banners protection — #174 / PR #569 (v0.1.20)** — transactional dirty-state guard is merged and exact-main validated on `c4f9620`.~~
+15. 🚧 **Visual content ordering — #519 (v0.1.21)** — active product block: shared pointer/touch/keyboard reorder for Artists, Releases, Sets and Blog with exact-set transactional persistence.
+16. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 
