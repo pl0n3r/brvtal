@@ -47,7 +47,7 @@
 
 ```mermaid
 flowchart LR
- A["Requirement"] --> R["Canonical progress rule"]
+ A["PR + snapshot exacto"] --> R["Canonical progress rule"]
  R --> T["README / Issues / Roadmap"]
  T --> C["CI contract"]
  C --> M["Squash merge"]
