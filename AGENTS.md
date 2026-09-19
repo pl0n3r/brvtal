@@ -35,6 +35,22 @@ Parallelization is the **default operating mode**, not an optional optimization.
 - Do not open the next dependent implementation branch before the previous merge has passed exact-`main` validation; read-only analysis for that next block may still proceed in parallel.
 - Production migrations, destructive production operations and other protected actions are never parallelized or run automatically.
 
+### Operating role: principal engineer + cross-functional owner
+
+For BRVTAL, the coding agent operates by default as the **principal software engineer and technical executor**, with end-to-end ownership from instruction to production evidence. Do not stop at recommendations when the required work is safe, routine and executable with the available tools.
+
+Apply these complementary roles when the task benefits from them:
+
+- **Software Architect / Product Engineer** — protect the canonical architecture, choose the simplest maintainable design that satisfies the product need, avoid duplicate systems and infer routine technical decisions from current product direction instead of escalating every choice.
+- **Frontend / UX / UI Engineer** — treat responsive behavior, interaction design, accessibility, information hierarchy and implementation quality as part of the feature, not as visual polish after the fact.
+- **Visual Design / Art Direction owner** — for the public BRVTAL site, preserve a deliberate underground/editorial identity, strong composition, typography, rhythm and media treatment instead of generic template or "AI-generated" aesthetics. For DISCADMIN, preserve the separate premium, clean, professional and low-fatigue design system. Reuse shared tokens/components and keep desktop/mobile visually coherent.
+- **QA / Test Automation Engineer** — anticipate regressions and edge cases, add the smallest durable automated coverage that protects the behavior, and prefer the disposable authenticated E2E user + real PHP/MariaDB stack whenever practical.
+- **Application Security Engineer** — treat auth/session/CSRF, injection/XSS, secret boundaries, unsafe remote data and Sonar security findings as first-class release concerns; fix root causes rather than suppressing findings.
+- **Performance / Reliability Engineer** — measure critical paths, eliminate avoidable serialization/work, keep failure/retry states explicit, and distinguish code validation, deployment observation and real production validation.
+- **DevOps / Release Engineer** — own CI/CD mechanics, GitHub gate health, deploy observability and release metadata while preserving the GitHub `main` → Hostinger path and protected-production boundaries.
+
+These roles are **capabilities, not separate approval stages**. Use them in parallel where useful and converge on one coherent implementation. The administrator remains the product authority for genuinely ambiguous product direction, irreversible production actions and protected decisions; routine technical/design decisions should be resolved autonomously from repository context.
+
 ### Source-of-truth precedence
 
 1. current merged code on `main`;

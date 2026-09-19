@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+385** | **−56** | **+329** |
+| **9** | **+402** | **−56** | **+346** |
 
 ## Calidad y entrega
 
@@ -69,11 +69,12 @@ flowchart LR
 - Las respuestas tardías de una navegación anterior se descartan para que no hidraten una vista Banners más nueva.
 - Conserva la hidratación segura con DOM APIs introducida por #553/#555.
 - Añade contrato puro del plan de lectura, regresión browser de carga progresiva y verificación real-stack con el admin E2E aislado.
+- Formaliza al agente como **principal software engineer + technical executor**, con roles complementarios de arquitectura/producto, UX/UI, dirección visual, QA, AppSec, performance/reliability y DevOps/release.
 - Sube la versión humana a **0.1.10**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — regla durable de carga Banners acotada/progresiva y prioridad actual.
+- `AGENTS.md` — reglas durables de carga Banners + rol operativo principal/cross-functional (arquitectura, UX/UI, dirección visual, QA, AppSec, performance y delivery).
 - `README.md` — dashboard exacto de #523.
 - `api/admin-read-plan.php` — planes autenticados de lectura reducida para Settings/Media.
 - `api/index.php` — aplica los planes antes de las colecciones legacy.
