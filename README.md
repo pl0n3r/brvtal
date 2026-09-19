@@ -3,9 +3,16 @@
 <p align="center">
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml"><img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg?branch=main"></a>
   <a href="https://sonarcloud.io/dashboard?id=pl0n3r_brvtal"><img alt="Sonar Quality Gate" src="https://sonarcloud.io/api/project_badges/measure?project=pl0n3r_brvtal&metric=alert_status"></a>
+  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
 > **Development dashboard** · snapshot profesional de **solo el deploy actual**.
+
+## Progress convention
+
+- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
+- 🚧 Normal text = pending or currently in progress.
+- Completed roadmap items remain visible and crossed out.
 
 ## Estado del deploy
 
@@ -22,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+616** | **−103** | **+513** |
+| **6** | **+616** | **−96** | **+520** |
 
 ## Calidad y entrega
 
@@ -30,7 +37,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium** |
+| Gates seleccionados | **preflight · fast[JS] · chromium** |
 | Browser | selector, persistencia, login, Light moderno y Glass |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
