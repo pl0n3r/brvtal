@@ -65,9 +65,9 @@ jobs:
             echo
             echo "- Trigger completed: **$SOURCE_WORKFLOW**"
             echo "- Same-SHA counterpart: **$counterpart_name**"
-            echo "- Main SHA: `$EXPECTED_SHA`"
+            echo "- Main SHA: \\`$EXPECTED_SHA\\`"
             if [[ -n "$counterpart_run_id" ]]; then
-              echo "- Counterpart run: `$counterpart_run_id` · **$counterpart_status / $counterpart_conclusion**"
+              echo "- Counterpart run: \\`$counterpart_run_id\\` · **$counterpart_status / $counterpart_conclusion**"
             else
               echo "- Counterpart run: **not available yet**"
             fi
@@ -111,7 +111,7 @@ jobs:
             {
               echo "## Production connectivity"
               echo
-              echo "- Canonical URL: `$BRVTAL_PERF_URL`"
+              echo "- Canonical URL: \\`$BRVTAL_PERF_URL\\`"
               echo "- Status: **INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER**"
               echo "- No performance measurement was executed, so this run is not a measured performance regression."
               echo "- Re-run manually when production is reachable from a GitHub runner."
