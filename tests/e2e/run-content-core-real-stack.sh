@@ -60,7 +60,9 @@ ADMIN_HASH="$(php -r 'echo password_hash(getenv("BRVTAL_REAL_STACK_ADMIN_PASSWOR
 "${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0);"
 "${mysql_db[@]}" -e "INSERT INTO artists(name,slug,bio,status,collective_status,collective_order) VALUES ('PL0N3R SMOKE','pl0n3r-smoke','Real-stack smoke artist','published','active',1),('DNL5 SMOKE','dnl5-smoke','Secondary smoke artist','published','active',2);"
 
-mkdir -p storage/logs storage/rate_limits uploads
+mkdir -p storage/logs storage/rate_limits uploads/ci
+printf 'BRVTAL CI hero fixture\n' > uploads/ci/hero-integrity.jpg
+"${mysql_db[@]}" -e "INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES ('image','CI Hero','/uploads/ci/hero-integrity.jpg','image/jpeg',22,'CI Hero','published'),('image','CI Missing Hero','/uploads/ci/hero-missing.jpg','image/jpeg',22,'CI Missing Hero','published');"
 cat > config/config.php <<PHP
 <?php
 return [
@@ -99,7 +101,7 @@ cleanup() {
   local status=$?
   if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
-  rm -f config/config.php
+  rm -f config/config.php uploads/ci/hero-integrity.jpg
   if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
     echo "--- PHP server log ---" >&2
     cat "$PHP_LOG" >&2 || true
@@ -163,5 +165,6 @@ npx playwright test \
   tests/e2e/event-publication-invariant-real-stack.spec.mjs \
   tests/e2e/blog-relation-integrity-real-stack.spec.mjs \
   tests/e2e/memory-relations-real-stack.spec.mjs \
+  tests/e2e/hero-slider-integrity-real-stack.spec.mjs \
   tests/e2e/indexnow-real-stack.spec.mjs \
   --project=chromium

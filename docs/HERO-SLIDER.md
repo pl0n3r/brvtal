@@ -74,6 +74,20 @@ Mobile is a first-class editing and delivery target.
 - Public video uses muted `playsinline` playback; autoplay never requires sound permission.
 - `prefers-reduced-motion` disables automatic slide advancement and layer entrance animation.
 
+## Media integrity
+
+Saving is stricter than public fallback rendering.
+
+- Every **enabled slide** requires a desktop asset.
+- A local asset must be an exact **published Media Library** record under `/uploads/` and its source file must still exist.
+- Image slides accept image assets; video slides accept video assets; video posters accept images.
+- Optional mobile overrides and image/logo layer assets are validated when present.
+- External assets are allowed only as explicit **HTTPS** URLs. The server does not fetch external media during save.
+- Disabled slides may retain incomplete draft media until they are enabled.
+- DISCADMIN performs immediate validation for fast feedback, but the authenticated Settings API is authoritative and returns a 422 error with the exact failing field.
+
+This prevents a successful Admin save from silently producing a missing public slide.
+
 ## Safe fallback
 
 The current art-directed BRVTAL hero is the permanent fallback.
