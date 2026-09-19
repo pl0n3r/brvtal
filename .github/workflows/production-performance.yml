@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: brvtal-production-performance
-  cancel-in-progress: true
+  group: brvtal-production-performance-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
 
 jobs:
   measure:
@@ -29,6 +29,11 @@ jobs:
       BRVTAL_PERF_URL: https://www.brvtal.com.co/
 
     steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
       - name: Confirm automatic measurement prerequisites
         if: github.event_name == 'workflow_run'
         id: prerequisites
@@ -37,6 +42,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
           SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
         shell: bash
         run: |
           set -euo pipefail
@@ -49,15 +56,19 @@ jobs:
             counterpart_name="BRVTAL CI"
           fi
 
-          payload=$(gh api "repos/$GH_REPO/actions/workflows/$counterpart_file/runs?head_sha=$EXPECTED_SHA&event=push&per_page=20")
-          counterpart_status=$(jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].status // "missing"' <<<"$payload")
-          counterpart_conclusion=$(jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].conclusion // "pending"' <<<"$payload")
-          counterpart_run_id=$(jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$payload")
-
-          ready=false
-          if [[ "$counterpart_status" == "completed" && "$counterpart_conclusion" == "success" ]]; then
-            ready=true
-          fi
+          decision=$(
+            gh api "repos/$GH_REPO/actions/workflows/$counterpart_file/runs?head_sha=$EXPECTED_SHA&event=push&per_page=20" |
+              python scripts/production-performance-prerequisite.py \\
+                --expected-sha "$EXPECTED_SHA" \\
+                --source-run-id "$SOURCE_RUN_ID" \\
+                --source-updated-at "$SOURCE_UPDATED_AT"
+          )
+          ready=$(jq -r '.ready' <<<"$decision")
+          reason=$(jq -r '.reason' <<<"$decision")
+          counterpart_status=$(jq -r '.counterpart_status' <<<"$decision")
+          counterpart_conclusion=$(jq -r '.counterpart_conclusion' <<<"$decision")
+          counterpart_run_id=$(jq -r '.counterpart_run_id // empty' <<<"$decision")
+          counterpart_updated_at=$(jq -r '.counterpart_updated_at // empty' <<<"$decision")
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
 
           {
@@ -66,16 +77,17 @@ jobs:
             echo "- Trigger completed: **$SOURCE_WORKFLOW**"
             echo "- Same-SHA counterpart: **$counterpart_name**"
             echo "- Main SHA: \`$EXPECTED_SHA\`"
+            echo "- Decision: \`$reason\`"
             if [[ -n "$counterpart_run_id" ]]; then
-              echo "- Counterpart run: \`$counterpart_run_id\` · **$counterpart_status / $counterpart_conclusion**"
+              echo "- Counterpart run: \`$counterpart_run_id\` · **$counterpart_status / $counterpart_conclusion** · $counterpart_updated_at"
             else
-              echo "- Counterpart run: **not available yet**"
+              echo "- Counterpart run: **not available for this SHA yet**"
             fi
             if [[ "$ready" == "true" ]]; then
-              echo "- Status: **READY — exact-main CI + deploy observation are both green**"
+              echo "- Status: **READY — this is the single automatic measurement owner for the SHA**"
             else
               echo "- Status: **NOT READY — this coordination run will not measure production**"
-              echo "- The second upstream workflow to complete will trigger a new evaluation for the same SHA."
+              echo "- Ownership belongs to the later successful prerequisite completion; ties use the larger run id."
             fi
             echo
           } >> "$GITHUB_STEP_SUMMARY"
@@ -120,11 +132,6 @@ jobs:
             echo "Production is unreachable from this GitHub runner; performance measurement is inconclusive."
           fi
 
-      - name: Check out source
-        if: steps.connectivity.outputs.reachable == 'true'
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Node 24
         if: steps.connectivity.outputs.reachable == 'true'
