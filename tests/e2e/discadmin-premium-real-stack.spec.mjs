@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 const baseUrl = process.env.BRVTAL_REAL_STACK_URL || '';
 const adminEmail = process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL || 'ci-admin@brvtal.test';
 const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || '';
+const versionSource = readFileSync(new URL('../../config/version.php', import.meta.url), 'utf8');
+const versionMatch = versionSource.match(/BRVTAL_APP_VERSION\s*=\s*'([^']+)'/);
+if (!versionMatch) throw new Error('Canonical BRVTAL_APP_VERSION could not be parsed.');
+const expectedProductVersion = versionMatch[1];
 
 test.skip(!baseUrl || !adminPassword, 'BRVTAL real-stack admin credentials are required');
 
@@ -27,6 +32,26 @@ async function openModule(page, moduleName, rootSelector) {
 async function computedFont(page, selector) {
   return page.locator(selector).first().evaluate(el => parseFloat(getComputedStyle(el).fontSize));
 }
+
+test('real DISCADMIN shows the canonical product version across navigation and reload', async ({ page }) => {
+  await login(page);
+  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout:10_000});
+
+  const expected = `BRVTAL v${expectedProductVersion}`;
+  await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
+
+  await page.evaluate(async () => {
+    if (typeof window.go !== 'function') throw new Error('DISCADMIN navigation is unavailable');
+    await window.go('settings');
+  });
+  await expect(page.getByTestId('settings-v2-root')).toBeVisible({timeout:10_000});
+  await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
+
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => Boolean(window.state?.authed), null, {timeout:10_000});
+  await expect(page.getByTestId('admin-product-version')).toHaveText(expected);
+});
 
 test('real DISCADMIN uses the readable premium type scale on desktop and mobile', async ({ page }) => {
   await login(page);
