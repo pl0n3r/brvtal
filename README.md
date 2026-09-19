@@ -48,11 +48,11 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.21"] --> U["Shared ordering primitive"]
+ A["PR + snapshot exacto"] --> U["Shared ordering primitive"]
  U --> API["Transactional reorder API"]
  API --> M["4 Admin modules"]
  M --> Q["CI / Sonar / CodeRabbit"]
- Q --> X["Squash + exact-main"]
+ Q --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
