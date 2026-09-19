@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **18** | **+560** | **−160** | **+400** |
+| **19** | **+562** | **−161** | **+401** |
 
 ## Calidad y entrega
 
@@ -84,6 +84,7 @@ flowchart LR
 - `tests/e2e/production-release-observer-contract.mjs`
 - `tests/e2e/production-release-observer.mjs`
 - `tests/production-smoke-contract.php`
+- `tests/public-quick-wins-contract.php`
 
 ## Validación
 

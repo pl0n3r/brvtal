@@ -26,7 +26,7 @@ public_quick_win_assert(
 
 $index = (string)file_get_contents(__DIR__ . '/../index.php');
 public_quick_win_assert(
-    str_contains($index, '$entityHtml = brvtal_public_version_assets($entityHtml, brvtal_deployment_short_sha());'),
+    str_contains($index, '$entityHtml = brvtal_public_version_assets($entityHtml, brvtalDeploymentCacheKey());'),
     'canonical entity HTML must pass through the deploy asset versioner'
 );
 public_quick_win_assert(
