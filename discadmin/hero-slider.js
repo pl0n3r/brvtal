@@ -327,12 +327,33 @@
     stage.appendChild(image);
   }
 
+  function responsiveLayerValue(layer, mobile, desktopKey, mobileKey) {
+    return mobile && layer[mobileKey] != null ? layer[mobileKey] : layer[desktopKey];
+  }
+
+  function appendPreviewLayerContent(node, layer, src) {
+    if (layer.type === 'image' || layer.type === 'logo') {
+      if (!src) {
+        appendPreviewText(node, 'span', layer.name);
+        return;
+      }
+      const image = document.createElement('img');
+      image.src = src;
+      image.alt = '';
+      node.appendChild(image);
+      return;
+    }
+    const tagName = layer.type === 'cta' ? 'b' : 'span';
+    const value = layer.type === 'cta' ? `${layer.text || 'CTA'} ↗` : layer.text || layer.name;
+    appendPreviewText(node, tagName, value);
+  }
+
   function appendPreviewLayer(stage, layer) {
     const mobile = previewMode === 'mobile';
     if (mobile && layer.hiddenMobile) return;
-    const x = mobile && layer.mobileX != null ? layer.mobileX : layer.x;
-    const y = mobile && layer.mobileY != null ? layer.mobileY : layer.y;
-    const width = mobile && layer.mobileWidth != null ? layer.mobileWidth : layer.width;
+    const x = responsiveLayerValue(layer, mobile, 'x', 'mobileX');
+    const y = responsiveLayerValue(layer, mobile, 'y', 'mobileY');
+    const width = responsiveLayerValue(layer, mobile, 'width', 'mobileWidth');
     const src = mobile && layer.mobileSrc ? layer.mobileSrc : layer.src;
     const node = document.createElement('div');
     node.className = `hero-preview-layer type-${layer.type}${layer.id === selectedLayerId ? ' selected' : ''}`;
@@ -344,21 +365,7 @@
     node.style.textAlign = layer.align;
     node.style.setProperty('--delay', `${layer.delay}ms`);
     node.style.setProperty('--duration', `${layer.duration}ms`);
-
-    if (layer.type === 'image' || layer.type === 'logo') {
-      if (src) {
-        const image = document.createElement('img');
-        image.src = src;
-        image.alt = '';
-        node.appendChild(image);
-      } else {
-        appendPreviewText(node, 'span', layer.name);
-      }
-    } else if (layer.type === 'cta') {
-      appendPreviewText(node, 'b', `${layer.text || 'CTA'} ↗`);
-    } else {
-      appendPreviewText(node, 'span', layer.text || layer.name);
-    }
+    appendPreviewLayerContent(node, layer, src);
     stage.appendChild(node);
   }
 
@@ -397,11 +404,18 @@
     frame.appendChild(stage);
   }
 
+  function intervalOptions() {
+    return [4000,5000,7000,9000,12000].map(ms => {
+      const selected = config.interval === ms ? ' selected' : '';
+      return `<option value="${ms}"${selected}>${ms / 1000}s</option>`;
+    }).join('');
+  }
+
   function renderManager() {
     const host = root();
     if (!host) return;
     const slide = selectedSlide();
-    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider>SAVE</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${[4000,5000,7000,9000,12000].map(ms=>`<option value="${ms}" ${config.interval===ms?'selected':''}>${ms/1000}s</option>`).join('')}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
+    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider>SAVE</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
     renderPreview(host.querySelector('.hero-preview-frame'), slide);
     bind();
   }

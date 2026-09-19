@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **20** | **+546** | **−162** | **+384** |
+| **20** | **+564** | **−165** | **+399** |
 
 ## Calidad y entrega
 
@@ -106,6 +106,7 @@ flowchart LR
 - Settings valida accesos Theme Studio / Security / System Status, fallback de System Status y ausencia de Control Plane.
 - Memories queda inmediatamente después de Media y conserva un único estado activo entre Media/Memories.
 - Banners renderiza preview y errores con DOM seguro; contenido editorial con apariencia HTML permanece texto y no ejecuta nodos.
+- El renderer de Banners queda dividido en helpers simples y sin templates anidados para cerrar los findings nuevos de Sonar.
 - Contratos PHP validan shell, buscador y Settings.
 - Los gates finales del PR deben quedar verdes antes de merge.
 - No hay migración ni operación destructiva de producción.
