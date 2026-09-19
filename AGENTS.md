@@ -266,6 +266,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 42. **Dynamic DISCADMIN module readiness and navigation have one owner.** `BRVTALAdminModules` owns the readiness promises and exported `navigate()` path for Media, Releases and Blog; navigation/IA layers must delegate those dynamic destinations to that canonical boundary instead of attaching duplicate late `load` listeners or falling through to legacy `go('/media')` CRUD. Media must mount consistently from Dashboard, another module and direct `?module=media` navigation. Genuine dependency failures must surface the canonical ERROR / RETRY state, and RETRY must discard rejected readiness state plus recreate a failed script dependency instead of replaying the same rejected promise. The normal Media Library workflow does not expose manual External Registry controls; uploaded/reusable canonical assets remain the primary path.
 43. **Hero/Banners media integrity is authoritative at save time.** Enabled Hero slides require a valid primary asset. Local references must resolve to an exact published Media Library record whose source file still exists under `/uploads/`; optional mobile/poster/image-layer references are validated when present. Explicit external media is HTTPS-only and identified as external. Client-side checks improve feedback, but the authenticated Settings API is the final authority and must reject invalid publicable configurations with a field-specific 422. Disabled slides may retain incomplete draft media.
 44. **Project-wide progress status uses one visual language.** `✅ ~~Struck through~~` means completed only after the required delivery gates; `🚧 Normal text` means pending or currently in progress. Keep completed tracker items visible and crossed out rather than deleting them. Future roadmap/Issue/README/handoff maintenance must preserve this convention.
+45. **DISCADMIN uses one premium low-fatigue design layer.** `discadmin/admin-design-system.css` is loaded after module CSS and owns the shared Admin type scale, spacing, geometry and long-session readability floor. Ordinary body/table/input text should be about 14 px or larger, persistent metadata/labels must not rely on 7–10 px type, and mobile form controls stay at 16 px where useful to avoid browser zoom. Dark / Light / Glass remain appearance variants of this same component system rather than separate designs.
 
 ---
 
@@ -411,8 +412,11 @@ When no newer explicit user instruction exists:
 
 1. 🚧 **Delivery lead-time closeout — #534** — engineering-side CI optimization is complete; Hostinger Git auto-deployment/repository/branch verification remains an external blocker. Do not block independent product work on unavailable hPanel access.
 2. ✅ ~~**Phase 1 quick wins from #533**~~ — #520, #521, #526, #522, #479, #517 and #221 are completed and verified through their required delivery gates.
-3. ✅ ~~**Phase 2 navigation — #348**~~ — task-based Admin IA is merged and exact-main validated.\n4. 🚧 **Phase 2 appearance — #149** — complete coherent Dark / Light / Glass across shell, login and modern modules; then continue premium/legibility work in #514.\n5. 🚧 **Continue later Phase 2 / #533** — #516, #523, #480, #193 and #216 before moving into editorial productivity.
-4. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+3. ✅ ~~**Phase 2 navigation — #348**~~ — task-based Admin IA is merged and exact-main validated.
+4. ✅ ~~**Phase 2 appearance — #149**~~ — coherent Dark / Light / Glass is merged and exact-main validated.
+5. 🚧 **Phase 2 premium Admin — #514** — shared readable typography, spacing, geometry and low-fatigue component layer.
+6. 🚧 **Continue later Phase 2 / #533** — #516, #523, #480, #193 and #216 before moving into editorial productivity.
+7. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 
