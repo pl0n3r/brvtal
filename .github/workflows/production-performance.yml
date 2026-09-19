@@ -4,10 +4,11 @@ run-name: Production Performance #${{ github.run_number }} · ${{ github.event_n
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ["BRVTAL CI"]
+    workflows: ["BRVTAL CI", "Production Deploy Observer"]
     types: [completed]
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -28,7 +29,59 @@ jobs:
       BRVTAL_PERF_URL: https://www.brvtal.com.co/
 
     steps:
+      - name: Confirm automatic measurement prerequisites
+        if: github.event_name == 'workflow_run'
+        id: prerequisites
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$SOURCE_WORKFLOW" == "BRVTAL CI" ]]; then
+            counterpart_file="production-deploy-observer.yml"
+            counterpart_name="Production Deploy Observer"
+          else
+            counterpart_file="update-release-metadata.yml"
+            counterpart_name="BRVTAL CI"
+          fi
+
+          payload=$(gh api "repos/$GH_REPO/actions/workflows/$counterpart_file/runs?head_sha=$EXPECTED_SHA&event=push&per_page=20")
+          counterpart_status=$(jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].status // "missing"' <<<"$payload")
+          counterpart_conclusion=$(jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].conclusion // "pending"' <<<"$payload")
+          counterpart_run_id=$(jq -r '.workflow_runs | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$payload")
+
+          ready=false
+          if [[ "$counterpart_status" == "completed" && "$counterpart_conclusion" == "success" ]]; then
+            ready=true
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Automatic production-performance prerequisites"
+            echo
+            echo "- Trigger completed: **$SOURCE_WORKFLOW**"
+            echo "- Same-SHA counterpart: **$counterpart_name**"
+            echo "- Main SHA: `$EXPECTED_SHA`"
+            if [[ -n "$counterpart_run_id" ]]; then
+              echo "- Counterpart run: `$counterpart_run_id` · **$counterpart_status / $counterpart_conclusion**"
+            else
+              echo "- Counterpart run: **not available yet**"
+            fi
+            if [[ "$ready" == "true" ]]; then
+              echo "- Status: **READY — exact-main CI + deploy observation are both green**"
+            else
+              echo "- Status: **NOT READY — this coordination run will not measure production**"
+              echo "- The second upstream workflow to complete will trigger a new evaluation for the same SHA."
+            fi
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Verify production connectivity
+        if: github.event_name == 'workflow_dispatch' || steps.prerequisites.outputs.ready == 'true'
         id: connectivity
         shell: bash
         run: |
@@ -58,67 +111,13 @@ jobs:
             {
               echo "## Production connectivity"
               echo
-              echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
+              echo "- Canonical URL: `$BRVTAL_PERF_URL`"
               echo "- Status: **INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER**"
               echo "- No performance measurement was executed, so this run is not a measured performance regression."
               echo "- Re-run manually when production is reachable from a GitHub runner."
               echo
             } >> "$GITHUB_STEP_SUMMARY"
             echo "Production is unreachable from this GitHub runner; performance measurement is inconclusive."
-          fi
-
-      - name: Wait for exact Hostinger deploy
-        if: steps.connectivity.outputs.reachable == 'true' && github.event_name == 'workflow_run'
-        shell: bash
-        env:
-          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -euo pipefail
-          short_sha="${EXPECTED_SHA:0:7}"
-          observed=false
-
-          for attempt in $(seq 1 8); do
-            probe_url="${BRVTAL_PERF_URL}?__deploy_check=${short_sha}-${attempt}-${GITHUB_RUN_ID}"
-            html=$(curl -fsSL \
-              --connect-timeout 3 \
-              --max-time 8 \
-              -H 'Cache-Control: no-cache' \
-              "$probe_url" || true)
-
-            if [[ "$html" == *"?v=$short_sha"* ]]; then
-              observed=true
-              echo "Observed production deploy marker ?v=$short_sha on attempt $attempt."
-              {
-                echo "## Production deploy observation"
-                echo
-                echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
-                echo "- Exact source SHA: \`$EXPECTED_SHA\`"
-                echo "- Production marker: \`?v=$short_sha\`"
-                echo "- Status: **DEPLOYED marker observed**"
-                echo
-              } >> "$GITHUB_STEP_SUMMARY"
-              break
-            fi
-
-            echo "Deploy marker ?v=$short_sha not visible yet (attempt $attempt/8)."
-            if [[ "$attempt" -lt 8 ]]; then
-              sleep 5
-            fi
-          done
-
-          if [[ "$observed" != "true" ]]; then
-            {
-              echo "## Production deploy observation"
-              echo
-              echo "- Canonical URL: \`$BRVTAL_PERF_URL\`"
-              echo "- Exact source SHA: \`$EXPECTED_SHA\`"
-              echo "- Expected marker: \`?v=$short_sha\`"
-              echo "- Status: **NOT OBSERVED**"
-              echo "- Wait window is intentionally bounded; rerun manually if Hostinger deployment is still propagating."
-              echo
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "Exact deploy marker was not observed within the bounded wait window." >&2
-            exit 1
           fi
 
       - name: Check out source

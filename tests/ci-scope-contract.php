@@ -122,6 +122,9 @@ ci_scope_expect(!str_contains($workflow, 'sonarqube-scan-action') && !str_contai
 ci_scope_expect(str_contains($performance, 'INCONCLUSIVE — UNREACHABLE FROM THIS RUNNER'), 'unreachable production performance probes must be labeled inconclusive');
 ci_scope_expect(!str_contains($performance, 'failing fast before browser setup'), 'connectivity failures must not be mislabeled as performance failures');
 ci_scope_expect(str_contains($performance, "if: steps.connectivity.outputs.reachable == 'true'"), 'performance setup and measurements must be skipped when production is unreachable');
+ci_scope_expect(str_contains($performance, 'workflows: ["BRVTAL CI", "Production Deploy Observer"]'), 'automatic performance must wait for both source validation and canonical deployment observation');
+ci_scope_expect(str_contains($performance, 'steps.prerequisites.outputs.ready'), 'automatic performance must gate measurement on the same-SHA counterpart workflow');
+ci_scope_expect(!str_contains($performance, '?v=$short_sha') && !str_contains($performance, 'Wait for exact Hostinger deploy'), 'performance must not maintain a competing short Hostinger deploy detector');
 
 ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployObserver, 'branches: [main]'), 'deploy observer must start directly from main pushes');
 ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');

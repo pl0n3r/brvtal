@@ -330,11 +330,14 @@ A green CI/contract run does **not** validate #122 in production. Only a green m
 
 ### 6. Production performance evidence
 
-`.github/workflows/production-performance.yml` runs only after a successful `main` BRVTAL CI push or by manual dispatch. It first checks whether the canonical production origin is reachable from that GitHub runner.
+`.github/workflows/production-performance.yml` listens to both **BRVTAL CI** and **Production Deploy Observer** completions for `main`. Automatic measurement starts only when the triggering workflow succeeded **and** the counterpart workflow has already succeeded for the same exact SHA. The first prerequisite to finish may therefore produce a short coordination-only run; whichever prerequisite finishes second unlocks the actual measurement. Manual dispatch remains available for intentionally re-measuring the production state.
+
+This keeps the source and deployment semantics independent without serializing either workflow: BRVTAL CI and the Deploy Observer still start from the `main` push in parallel, while Production Performance consumes their successful same-SHA evidence afterward. It must not run its own short `?v=<sha>` Hostinger polling loop or create a second deployment truth.
 
 The result semantics are deliberate:
 
-- **measured failure**: production was reachable, the expected deploy was observable when required, measurement ran, and a performance assertion failed;
+- **measured failure**: exact-main CI and canonical deployment observation were both green for the same SHA, production was reachable, measurement ran, and a performance assertion failed;
+- **coordination-only success**: one automatic prerequisite finished first and the same-SHA counterpart was not green yet, so no performance measurement was attempted;
 - **inconclusive**: the runner could not reach production, so no performance measurement was executed;
 - **success**: the requested measurements completed successfully.
 

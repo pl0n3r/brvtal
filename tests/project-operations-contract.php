@@ -104,13 +104,16 @@ $assert(!is_file($root . '/.github/workflows/readme-deploy-snapshot.yml'), 'stan
 $assert(!is_file($root . '/.github/workflows/backup-recovery-rehearsal.yml'), 'standalone recovery workflow must stay retired');
 $assert(!is_file($root . '/.github/workflows/production-smoke-contract.yml'), 'standalone production-smoke contract workflow must stay retired');
 
-// Production performance must be measured after a green main CI run and tied to the exact deploy SHA.
+// Automatic production performance requires both exact-main CI and the canonical deploy observer for the same SHA.
 $assert(str_contains($performanceWorkflow, 'name: Production Performance'), 'production performance workflow must remain explicit');
 $assert(str_contains($performanceWorkflow, 'workflow_dispatch:'), 'production performance measurement must be manually repeatable');
-$assert(str_contains($performanceWorkflow, 'workflows: ["BRVTAL CI"]'), 'production performance measurement must follow BRVTAL CI');
+$assert(str_contains($performanceWorkflow, 'workflows: ["BRVTAL CI", "Production Deploy Observer"]'), 'production performance must coordinate exact-main CI with canonical deploy observation');
+$assert(str_contains($performanceWorkflow, 'actions: read'), 'production performance coordination must have read-only Actions visibility');
+$assert(str_contains($performanceWorkflow, 'production-deploy-observer.yml') && str_contains($performanceWorkflow, 'update-release-metadata.yml'), 'automatic performance must verify the same-SHA counterpart workflow');
+$assert(str_contains($performanceWorkflow, 'steps.prerequisites.outputs.ready'), 'automatic performance must measure only after both prerequisites are green');
 $assert(str_contains($performanceWorkflow, 'https://www.brvtal.com.co/'), 'production performance workflow must target the canonical www origin');
 $assert(str_contains($performanceWorkflow, 'github.event.workflow_run.head_sha'), 'production performance workflow must preserve exact-main SHA traceability');
-$assert(str_contains($performanceWorkflow, '?v=$short_sha'), 'production performance workflow must wait for the exact Hostinger deploy marker');
+$assert(!str_contains($performanceWorkflow, '?v=$short_sha') && !str_contains($performanceWorkflow, 'Wait for exact Hostinger deploy'), 'production performance must not duplicate Hostinger deploy polling');
 $assert(str_contains($performanceWorkflow, 'production-performance-mobile.json') && str_contains($performanceWorkflow, 'production-performance-desktop.json'), 'production performance workflow must retain mobile and desktop evidence');
 $assert(str_contains($performanceWorkflow, 'actions/upload-artifact@v4'), 'production performance evidence must be downloadable from the run');
 $assert(str_contains($performanceProbe, 'largest-contentful-paint'), 'production performance probe must observe LCP directly in Chromium');
