@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+86** | **−51** | **+35** |
+| **6** | **+85** | **−50** | **+35** |
 
 ## Calidad y entrega
 
@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack** |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Navegación | estado/rows se comprometen solo tras lectura autoritativa exitosa |
 | Latest-wins | respuestas stale no pueden restaurar ni sobrescribir el destino vigente |
 | Browser regression | fallo vigente conserva workspace, rows y URL previos |
