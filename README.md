@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#523 BANNERS FIRST LOAD** | payloads acotados + render progresivo |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1480380280a10cd9252a978b78b78cf44c1f2873` · #555 exact-main BRVTAL CI + Sonar verdes |
-| Version | 🚧 **0.1.9 → 0.1.10** | patch deploy · pre-1.0 |
-| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked separately in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| Work line | 🚧 **#480 HOME HERO DESKTOP** | safe-area + composición responsive |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1526bbb1180b5b9bc97968b6f41e77b4e05751c3` |
+| Version | 🚧 **0.1.10 → 0.1.11** | patch deploy |
+| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger observado en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+486** | **−63** | **+423** |
+| **8** | **+138** | **−56** | **+82** |
 
 ## Calidad y entrega
 
@@ -36,73 +36,62 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| API | Settings allowlist + Media `hero-picker` ≤200 publicados · `no-store` |
-| Browser / real stack | render progresivo + usuario E2E autenticado |
+| Gates seleccionados | **preflight · fast[JS] · chromium** |
+| Browser | geometría real desktop + safe-area de layers |
 | Sonar + CodeRabbit | paralelo sobre head estable |
-| Exact-main | CI + Sonar tras squash merge |
+| Exact-main | CI del SHA exacto de main tras squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- A["Abrir Banners"] --> S["Settings scoped"]
- A --> M["Media picker scoped"]
- S --> R["Render manager"]
- M --> H["Hydrate pickers"]
- R --> I["Editor interactivo"]
- H --> V["Save habilitado"]
- I --> G["PR + snapshot exacto · CI / Sonar / CodeRabbit"]
- V --> G
- G --> Q["Squash merge"]
- Q --> X["CI del SHA exacto de main"]
+ A["Hero desktop"] --> G["Safe area + flow"]
+ G --> T["Playwright geometry"]
+ T --> P["PR + snapshot exacto"]
+ P --> Q["CI / Sonar / CodeRabbit"]
+ Q --> M["Squash merge"]
+ M --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Banners usa lecturas scoped paralelas: `home.hero.slider` + Media `hero-picker`; renderiza Settings antes de Media y mantiene picker/Save bloqueados hasta hidratación.
-- El bootstrap fuerza `no-store` y el picker queda acotado a **200 assets publicados**; referencias fuera de ese lote siguen validándose autoritativamente al guardar.
-- Las respuestas tardías se descartan y Media remoto sigue hidratándose con DOM seguro.
-- Se añadieron contratos, browser y real-stack con usuario E2E; el harness v2 usa los endpoints scoped reales.
-- `AGENTS.md` fija el rol **principal engineer + technical executor** y ownership de arquitectura, UX/UI, dirección visual, QA, AppSec, performance y release.
-- Versión **0.1.10**.
+- El Hero fallback conserva escala editorial grande, pero limita el título desktop a 220 px y coloca la declaración cultural dentro del flujo.
+- La copia principal queda separada del header fijo con un safe top explícito.
+- Las capas publicadas desde Banners conservan sus posiciones, pero su centro vertical se clampa fuera del header y de los controles inferiores.
+- Playwright valida bounding boxes en 1440×800 y 1920×900, además de capas extremas Y=0/Y=100.
+- Versión **0.1.11**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — Banners + rol operativo cross-functional.
-- `README.md` — snapshot #523.
-- `api/admin-read-plan.php` — planes scoped + allowlist.
-- `api/index.php` — aplica planes scoped.
-- `config/version.php` — versión 0.1.10.
-- `discadmin/hero-slider.js` — bootstrap/render progresivo.
-- `tests/admin-read-plan-contract.php` — contrato scoped/allowlist.
-- `tests/e2e/discadmin-hero-slider-security.spec.mjs` — progresivo + picker seguro.
-- `tests/e2e/hero-slider-v2.spec.mjs` — harness scoped.
-- `tests/e2e/hero-slider-integrity-real-stack.spec.mjs` — E2E real-stack.
+- `AGENTS.md` — contrato durable del safe-area y prioridades.
+- `README.md` — snapshot #480.
+- `config/version.php` — versión 0.1.11.
+- `css/hero-slider.css` — escala desktop segura del slider.
+- `css/public-home-phase-a.css` — composición desktop del fallback.
+- `js/hero-slider.js` — límites verticales de layers.
+- `tests/e2e/hero-slider.spec.mjs` — regresión de layers.
+- `tests/e2e/public-home-phase-a.spec.mjs` — regresión geométrica desktop.
 
 ## Validación
 
-- Browser: Banners aparece antes de Media; Save se habilita solo tras hidratación.
-- Settings scoped acepta solo `home.hero.slider`; variantes/otras keys fallan antes de SQL.
-- `hero-picker` excluye audio/documentos, devuelve solo publicados y nunca supera 200 filas; legacy reads siguen compatibles.
-- Las dos lecturas iniciales de Banners envían `cache: 'no-store'`; la regresión browser verifica también que Save siga deshabilitado mientras Media está pendiente.
-- Real-stack/harness usan endpoints scoped reales. Sin migración ni SQL destructivo.
+- El título/declaración no se solapan y el bloque completo permanece dentro del Hero en viewports desktop amplios.
+- Las capas extremas quedan fuera del header y del borde inferior.
+- Mobile conserva sus reglas existentes; no hay migración ni SQL de producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · pasar gates, mergear y validar exact-main. |
-| **NEXT** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · corregir clipping/overlap del hero desktop. |
-| **LATER** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · cerrar Phase 2. |
+| **NOW** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · gates, merge y exact-main. |
+| **NEXT** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · shell/navigation consistency. |
+| **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) · editorial productivity. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA/Appearance/Settings/Security~~ | ✅ ~~[#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#553](https://github.com/pl0n3r/brvtal/issues/553)~~ |
-| **NOW** | 🚧 Phase 2 closeout | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
-| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
-| **LATER** | 🚧 Operational dashboards | 🚧 [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |
+| **DONE** | ✅ ~~Phase 1 + Admin IA/Appearance/Settings/Security + Banners performance~~ | ✅ ~~[#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#553](https://github.com/pl0n3r/brvtal/issues/553), [#523](https://github.com/pl0n3r/brvtal/issues/523)~~ |
+| **NOW** | 🚧 Phase 2 closeout | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
+| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) |
 | **BLOCKED / EXTERNAL** | 🚧 Deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
