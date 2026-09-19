@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+550** | **−152** | **+398** |
+| **18** | **+560** | **−160** | **+400** |
 
 ## Calidad y entrega
 
@@ -57,7 +57,7 @@ flowchart LR
 
 ## Qué se hizo
 
-- El observer deja de depender de que Hostinger conserve `.git`: valida primero la release canónica y exige SHA exacto solo cuando el runtime realmente lo expone.
+- El observer deja de depender de que Hostinger conserve `.git`: valida primero la release canónica, exige SHA exacto solo cuando el runtime lo expone y mantiene su peor caso de polling dentro del deadline del job.
 - El smoke autenticado espera a que la release esperada llegue a producción antes de cargar DISCADMIN, evitando fallos por propagación normal.
 - Los assets dejan de usar metadata de build obsoleta como cache key cuando Git no está disponible.
 - `/api/deployment.php` y health distinguen claramente release, cache key y source SHA exacto/no disponible.
@@ -78,6 +78,7 @@ flowchart LR
 - `discadmin/index.php`
 - `index.php`
 - `package.json`
+- `tests/ci-scope-contract.php`
 - `tests/deployment-traceability-contract.php`
 - `tests/e2e/production-authenticated-smoke.mjs`
 - `tests/e2e/production-release-observer-contract.mjs`

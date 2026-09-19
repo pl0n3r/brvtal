@@ -41,14 +41,14 @@ jobs:
           mismatched_commit=""
           mismatched_source=""
           started_at=$(date +%s)
-          max_attempts=60
-          sleep_seconds=10
+          max_attempts=50
+          sleep_seconds=8
 
           for attempt in $(seq 1 "$max_attempts"); do
             probe_url="${BRVTAL_PROD_URL}/api/deployment.php?__deploy_observer=${EXPECTED_VERSION}-${attempt}-${GITHUB_RUN_ID}"
             payload=$(curl -fsSL \
-              --connect-timeout 3 \
-              --max-time 5 \
+              --connect-timeout 2 \
+              --max-time 4 \
               -H 'Cache-Control: no-cache' \
               "$probe_url" || true)
 

@@ -125,13 +125,14 @@ ci_scope_expect(str_contains($performance, "if: steps.connectivity.outputs.reach
 
 ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployObserver, 'branches: [main]'), 'deploy observer must start directly from main pushes');
 ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');
-ci_scope_expect(str_contains($deployObserver, 'DEPLOYED marker observed'), 'deploy observer must report exact marker observation');
+ci_scope_expect(str_contains($deployObserver, 'DEPLOYED release observed'), 'deploy observer must report canonical release observation');
 ci_scope_expect(!str_contains($deployObserver, 'VALIDATED IN PRODUCTION'), 'deploy marker observation must not be mislabeled as production validation');
 ci_scope_expect(str_contains($deployObserver, 'timeout-minutes: 12'), 'deploy observer must allow Hostinger propagation beyond the original short window');
-ci_scope_expect(str_contains($deployObserver, 'max_attempts=60'), 'deploy observer must use the calibrated bounded attempt count');
-ci_scope_expect(str_contains($deployObserver, 'sleep_seconds=10'), 'deploy observer must use bounded polling instead of tight loops');
+ci_scope_expect(str_contains($deployObserver, 'max_attempts=50'), 'deploy observer must fit its calibrated polling budget inside the workflow deadline');
+ci_scope_expect(str_contains($deployObserver, 'sleep_seconds=8'), 'deploy observer must use bounded polling instead of tight loops');
 ci_scope_expect(str_contains($deployObserver, 'Hostinger hPanel Git auto-deployment'), 'deploy observer failure evidence must point to the external configuration boundary');
-ci_scope_expect(!str_contains($deployObserver, 'echo "- Exact source SHA: `$EXPECTED_SHA`"'), 'deploy observer summary must not execute Markdown backticks as shell substitutions');
+ci_scope_expect(str_contains($deployObserver, 'RELEASE OBSERVED; EXACT SOURCE MISMATCH'), 'deploy observer must distinguish exact-source mismatch from a missing release');
+ci_scope_expect(str_contains($deployObserver, 'echo "- Expected release: \\`v$EXPECTED_VERSION\\`"'), 'deploy observer summary must escape Markdown backticks from shell substitution');
 
 ci_scope_expect(str_contains($sonarRelay, 'body = "\\n".join(lines).strip() + "\\n"'), 'Sonar relay must build Markdown with newline escape sequences interpreted by Python');
 ci_scope_expect(!str_contains($sonarRelay, 'body = "\\\\n".join(lines).strip() + "\\\\n"'), 'Sonar relay must never publish literal escaped newline markers');
