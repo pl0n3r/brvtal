@@ -45,9 +45,10 @@
     const y = mobile && layer.mobileY != null ? layer.mobileY : layer.y;
     const width = mobile && layer.mobileWidth != null ? layer.mobileWidth : layer.width;
     const src = mobile && layer.mobileSrc ? layer.mobileSrc : layer.src;
-    const safeTop = mobile
-      ? `${Number(y)}%`
-      : `clamp(128px, ${Number(y)}%, calc(100% - 96px))`;
+    const protectVerticalFlow = !mobile && ['text','cta'].includes(layer.type);
+    const safeTop = protectVerticalFlow
+      ? `clamp(128px, ${Number(y)}%, calc(100% - 96px))`
+      : `${Number(y)}%`;
     const style = `left:${Number(x)}%;top:${safeTop};width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
     if (layer.type === 'image' || layer.type === 'logo') {
       if (!src) return '';

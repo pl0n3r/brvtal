@@ -57,7 +57,7 @@ flowchart LR
 
 - El Hero fallback conserva escala editorial grande, pero limita el título desktop a 220 px y coloca la declaración cultural dentro del flujo.
 - La copia principal queda separada del header fijo con un safe top explícito.
-- En desktop, las capas publicadas desde Banners conservan X/ancho, pero su centro vertical se clampa fuera del header y de los controles inferiores; mobile conserva sus coordenadas previas.
+- En desktop, las capas de texto/CTA publicadas desde Banners conservan X/ancho, pero su centro vertical se clampa fuera del header y de los controles inferiores; imágenes/logos decorativos y mobile conservan su geometría authored.
 - Playwright valida bounding boxes en 1440×800 y 1920×900, además de capas extremas Y=0/Y=100.
 - Versión **0.1.11**.
 
@@ -75,7 +75,7 @@ flowchart LR
 ## Validación
 
 - El título/declaración no se solapan y el bloque completo permanece dentro del Hero en viewports desktop amplios.
-- Las capas desktop extremas quedan fuera del header y del borde inferior; las coordenadas mobile no cambian.
+- Las capas desktop de texto/CTA extremas quedan fuera del header y del borde inferior; imágenes/logos y coordenadas mobile no cambian.
 - Mobile conserva sus reglas existentes; no hay migración ni SQL de producción.
 
 ## Qué sigue
