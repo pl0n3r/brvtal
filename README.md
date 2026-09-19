@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · fast[PHP+JS] · chromium** |
+| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Banners dirty-state | snapshot limpio tras load/save; comparación normalizada |
 | Navigation | confirmación antes de go/tech/Back; commit de descarte solo tras éxito |
 | Browser lifecycle | `beforeunload` para refresh/cierre con cambios |
