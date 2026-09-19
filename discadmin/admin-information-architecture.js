@@ -222,8 +222,16 @@
       const visibleSection = ['theme','security'].includes(String(window.state?.section || ''))
         ? 'settings'
         : String(window.state?.section || '');
+      const memoriesActive = visibleSection === 'media'
+        && new URL(location.href).searchParams.get('view') === 'memories';
       nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"])').forEach(button => {
-        button.classList.toggle('active', buttonKey(button) === visibleSection);
+        const key = buttonKey(button);
+        if (key === 'media') {
+          const isMemories = button.dataset.memoriesNav === '1';
+          button.classList.toggle('active', visibleSection === 'media' && (isMemories === memoriesActive));
+          return;
+        }
+        button.classList.toggle('active', key === visibleSection);
       });
     } finally {
       applyingNav = false;

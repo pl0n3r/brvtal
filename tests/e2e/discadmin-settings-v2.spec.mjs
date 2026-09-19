@@ -79,6 +79,15 @@ test('Settings owns specialized Theme, Security and System destinations without 
     ['go','security'],
     ['tech','system']
   ]);
+
+  await page.evaluate(() => {
+    window.__settingsRoutes = [];
+    window.tech = undefined;
+  });
+  await system.click();
+  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([
+    ['go','system']
+  ]);
 });
 
 test('typed save preserves unknown sibling JSON keys', async ({ page }) => {

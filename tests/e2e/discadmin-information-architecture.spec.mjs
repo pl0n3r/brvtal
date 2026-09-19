@@ -193,6 +193,40 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
   await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
 });
 
+test('Memories stays directly after Media and owns the active state only in its view', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    const nav = document.querySelector('.side .nav');
+    const media = [...nav.querySelectorAll(':scope > button')].find(button => button.textContent.trim() === 'MEDIA');
+    const memories = document.createElement('button');
+    memories.type = 'button';
+    memories.textContent = 'MEMORIES';
+    memories.dataset.adminNav = 'media';
+    memories.dataset.memoriesNav = '1';
+    media.after(memories);
+
+    window.state.section = 'media';
+    history.replaceState({}, '', '?module=media&view=memories');
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+
+  const media = page.getByRole('button',{name:'MEDIA',exact:true});
+  const memories = page.getByRole('button',{name:'MEMORIES',exact:true});
+  await expect(memories).toBeVisible();
+  expect(await media.evaluate((node) => node.nextElementSibling?.textContent.trim())).toBe('MEMORIES');
+  await expect(memories).toHaveClass(/active/);
+  await expect(media).not.toHaveClass(/active/);
+
+  await page.evaluate(() => {
+    history.replaceState({}, '', '?module=media');
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+  await expect(media).toHaveClass(/active/);
+  await expect(memories).not.toHaveClass(/active/);
+});
+
 test('dynamic routes update the URL before readiness settles', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);

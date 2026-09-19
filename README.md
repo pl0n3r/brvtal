@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **18** | **+253** | **−125** | **+128** |
+| **19** | **+334** | **−142** | **+192** |
 
 ## Calidad y entrega
 
@@ -94,12 +94,14 @@ flowchart LR
 - `tests/e2e/discadmin-trigger-order.spec.mjs`
 - `tests/global-search-contract.php`
 - `tests/settings-control-plane-contract.php`
+- `tests/sonar-dom-before-quick-wins-contract.php`
 
 ## Validación
 
 - IA browser contract valida los dos grupos, destinos ocultos y orden visible exacto.
 - Global Search valida entrada superior + lateral antes de Logout.
-- Settings valida accesos Theme Studio / Security / System Status y ausencia de Control Plane.
+- Settings valida accesos Theme Studio / Security / System Status, fallback de System Status y ausencia de Control Plane.
+- Memories queda inmediatamente después de Media y conserva un único estado activo entre Media/Memories.
 - Contratos PHP validan shell, buscador y Settings.
 - Los gates finales del PR deben quedar verdes antes de merge.
 - No hay migración ni operación destructiva de producción.

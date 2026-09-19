@@ -376,8 +376,10 @@
       const destination = event.target.closest('[data-settings-open]');
       if (destination) {
         const section = destination.dataset.settingsOpen || '';
-        if (section === 'system') globalThis.tech?.('system');
-        else if (section) globalThis.go?.(section);
+        if (section === 'system') {
+          if (typeof globalThis.tech === 'function') globalThis.tech('system');
+          else globalThis.go?.('system');
+        } else if (section) globalThis.go?.(section);
         return;
       }
       const themeStudio = event.target.closest('[data-settings-theme-studio]');
