@@ -6,7 +6,12 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de solo este deploy.
+> **Development dashboard** · snapshot profesional de **solo el deploy actual**.
+
+## Progress convention
+
+- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
+- 🚧 Normal text = pending or currently in progress.
 
 ## Estado del deploy
 
@@ -23,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+38** | **−53** | **−15** |
+| **6** | **+53** | **−55** | **−2** |
 
 ## Calidad y entrega
 
@@ -52,7 +57,7 @@ flowchart LR
 
 - Se elimina el segundo click handler de Content Health que competía con la navegación delegada en capture phase.
 - `OPEN` queda bajo un único contrato: navegar al módulo y luego revelar el registro mediante `BRVTALAdminRecordNavigation`.
-- La regresión Playwright mantiene el caso `data-health-open=""` y sincroniza sobre el resultado completo en vez de encadenar tres polls independientes.
+- Las dos regresiones Playwright usan el owner canónico y sincronizan sobre el resultado completo en vez de depender de un handler local ya retirado.
 - Versión **0.1.16**.
 
 ## Archivos modificados en este deploy
@@ -62,10 +67,11 @@ flowchart LR
 - `discadmin/content-health.js`
 - `package.json`
 - `tests/e2e/discadmin-content-health-navigation.spec.mjs`
+- `tests/e2e/discadmin-content-health.spec.mjs`
 
 ## Validación
 
-- El cambio preserva la aserción funcional de #558; no aumenta timeouts arbitrarios.
+- El primer CI del head detectó correctamente un harness legado que todavía esperaba el handler local; el test quedó alineado con la navegación canónica sin aumentar timeouts.
 - No hay SQL, migraciones ni mutaciones de producción.
 - BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI.
