@@ -15,6 +15,7 @@ $expect = static function (bool $condition, string $message): void {
 $expect(is_file($script), 'report processor must exist');
 $expect(str_contains($workflow, 'python scripts/ci-throughput-report.py'), 'telemetry workflow must use the tested report processor');
 $expect(str_contains($workflow, 'artifacts/ci-throughput-summary.md'), 'telemetry workflow must publish the generated browser/setup summary');
+$expect(str_contains($workflow, 'ref: ${{ github.event.workflow_run.head_sha }}'), 'telemetry must execute the processor from the observed exact source SHA');
 $expect(str_contains($workflow, 'jobs?per_page=100') && str_contains($workflow, '--paginate'), 'telemetry must preserve paginated GitHub job collection');
 $expect(!str_contains($workflow, 'sleep '), 'post-CI telemetry must not add polling or serialization delays');
 
@@ -103,7 +104,7 @@ $expect(($breakdown['real-stack']['phase_seconds']['test'] ?? null) === 2, 'real
 $expect(($breakdown['webkit-totp']['phase_seconds']['browser_system_setup'] ?? null) === 5, 'WebKit must expose system setup independently');
 $expect(($breakdown['webkit-totp']['phase_seconds']['test'] ?? null) === 3, 'WebKit must expose actual TOTP runtime');
 $webkitInstall = array_values(array_filter($breakdown['webkit-totp']['steps'], static fn(array $step): bool => $step['name'] === 'Install WebKit browser'));
-$expect(($webkitInstall[0]['duration_seconds'] ?? 'missing') === null, 'skipped browser-install steps must remain null instead of fabricating time');
+$expect(isset($webkitInstall[0]) && array_key_exists('duration_seconds', $webkitInstall[0]) && $webkitInstall[0]['duration_seconds'] === null, 'skipped browser-install steps must remain null instead of fabricating time');
 $summaryText = (string)file_get_contents($summary);
 $expect(str_contains($summaryText, '## Browser setup vs test'), 'summary must expose the browser phase table');
 $expect(str_contains($summaryText, '| chromium | 4s | 5s | 0s | 5s | 3s | 17s |'), 'summary must expose Chromium phase totals');
