@@ -12,7 +12,7 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#558 Content Health navigation deflake (v0.1.16)** | un solo owner abre el registro tras navegación |
+| Work line | 🚧 **#558 Content Health navigation deflake (v0.1.16), PR #563** | un solo owner abre el registro tras navegación |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `7eb49d8a5296feb40dc1b00b3dd5fed2aa2f1683` |
 | Version | 🚧 **0.1.15 → 0.1.16** | patch deploy |
 | Producción | 🚧 **PENDING MERGE / OBSERVATION** | no se infiere validación de producción desde CI |
@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **pending CI** | **pending CI** | **pending CI** |
+| **5** | **+38** | **−53** | **−15** |
 
 ## Calidad y entrega
 
@@ -41,7 +41,7 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.16"] --> P["PR + snapshot exacto"]
+ A["Release v0.1.16"] --> P["PR #563 + snapshot exacto"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
