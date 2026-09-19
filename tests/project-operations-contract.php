@@ -63,7 +63,9 @@ $assert(str_contains($agents, 'Dark / Light / Glass'), 'AGENTS must retain the c
 $assert(str_contains($agents, '7 days') && str_contains($agents, '30 days'), 'AGENTS must retain the extended admin-session policy');
 $assert(str_contains($agents, 'Hero / Slider Manager'), 'AGENTS must retain Hero Slider context');
 $assert(str_contains($agents, 'shareable URL query parameters'), 'AGENTS must retain public discovery URL-state context');
-$assert(str_contains($agents, '## 9. Current priorities'), 'AGENTS must expose the next autonomous work priorities');
+$assert(str_contains($agents, '## 9. Canonical execution roadmap'), 'AGENTS must expose the canonical execution-roadmap handoff');
+$assert(str_contains($agents, 'GitHub Issue **#533** is BRVTAL\'s canonical execution roadmap'), 'AGENTS must identify Issue #533 as the single execution-order source');
+$assert(!str_contains($agents, '## 9. Current priorities'), 'AGENTS must not duplicate roadmap priorities outside Issue #533');
 $assert(str_contains($agents, '### Progress convention'), 'AGENTS must define the canonical project progress convention');
 $assert(str_contains($agents, '✅ ~~Struck through~~') && str_contains($agents, '🚧 Normal text'), 'AGENTS must preserve canonical completed vs pending progress markers');
 $assert(str_contains($agents, 'Keep completed items visible and crossed out instead of deleting them'), 'AGENTS must preserve completed roadmap history');
