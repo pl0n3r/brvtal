@@ -20,6 +20,7 @@ jobs:
     name: preflight
     runs-on: ubuntu-latest
     outputs:
+      started_epoch: ${{ steps.scope.outputs.started_epoch }}
       run_db: ${{ steps.scope.outputs.run_db }}
       run_browser: ${{ steps.scope.outputs.run_browser }}
       run_realstack: ${{ steps.scope.outputs.run_realstack }}
@@ -54,6 +55,8 @@ jobs:
           BRVTAL_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
+
+          echo "started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
           source_sha="$BRVTAL_SHA"
           if [[ "$BRVTAL_EVENT" == "pull_request" && -n "$BRVTAL_PR_HEAD_SHA" ]]; then
@@ -566,6 +569,7 @@ jobs:
           REALSTACK_RESULT: ${{ needs.realstack.result }}
           WEBKIT_RESULT: ${{ needs.webkit.result }}
           RECOVERY_RESULT: ${{ needs.recovery.result }}
+          CI_STARTED_EPOCH: ${{ needs.preflight.outputs.started_epoch }}
         run: |
           set +e
           deploy_note="Validation only."
@@ -586,5 +590,12 @@ jobs:
             echo "| Backup recovery | **$RECOVERY_RESULT** |"
             echo "| Deploy note | $deploy_note |"
             echo
+            now=$(date +%s)
+            if [[ "$CI_STARTED_EPOCH" =~ ^[0-9]+$ ]]; then
+              echo "## Throughput telemetry"
+              echo
+              echo "- Validation DAG wall time at summary: **$(( now - CI_STARTED_EPOCH ))s**"
+              echo
+            fi
             echo "> Pull requests and exact \`main\` pushes use the same diff-aware gates; manual dispatch runs the full matrix. CI success does **not** prove Hostinger deployment completion or production behavior."
           } >> "$GITHUB_STEP_SUMMARY"
