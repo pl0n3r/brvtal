@@ -117,6 +117,9 @@ def require_markers(readme: str) -> None:
         "## Validación",
         "## Qué sigue",
         "## Panorama general pendiente",
+        "## Progress convention",
+        "✅ ~~Struck through~~",
+        "🚧 Normal text",
         "actions/workflows/update-release-metadata.yml/badge.svg",
         "sonarcloud.io/api/project_badges/measure",
         "actions/workflows/production-deploy-observer.yml/badge.svg",
@@ -160,9 +163,27 @@ def validate_roadmap(readme: str) -> None:
     missing = [lane for lane in lanes if lane not in readme]
     if missing:
         fail("missing roadmap lane(s): " + ", ".join(missing))
+
+    convention = section(readme, "## Progress convention")
+    if "✅ ~~Struck through~~" not in convention or "🚧 Normal text" not in convention:
+        fail("README must preserve the canonical project progress convention")
+
     roadmap = section(readme, "## Qué sigue") + section(readme, "## Panorama general pendiente")
     if re.search(r"https://github\.com/pl0n3r/brvtal/issues/\d+", roadmap) is None:
         fail("roadmap must link to at least one canonical GitHub issue")
+
+    tracked_rows = [
+        line
+        for line in roadmap.splitlines()
+        if re.search(r"\*\*(?:DONE|NOW|NEXT|LATER|BLOCKED / EXTERNAL)\*\*", line)
+    ]
+    for row in tracked_rows:
+        if "✅" not in row and "🚧" not in row:
+            fail("every roadmap tracker row must use ✅ or 🚧")
+        if "✅" in row and "~~" not in row:
+            fail("completed roadmap rows must remain struck through")
+        if "🚧" in row and "~~" in row:
+            fail("pending/in-progress roadmap rows must remain normal text")
 
 
 def validate(base: str, head: str) -> None:
