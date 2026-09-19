@@ -18,9 +18,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#516 SETTINGS ADVANCED** | configuración real + 2FA consolidado dentro de Settings |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `a228f82b17582131a52a41b7a2ac356bfb1692b2` · exact-main `validate` verde |
-| Version | 🚧 **0.1.6 → 0.1.7** | patch deploy bump · pre-1.0 |
+| Work line | 🚧 **#553 SECURITY HOTFIX** | 2FA embebido: JSON autenticado + DOM seguro |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `f29cf1a25fee211c621368165d0877af74e3ab93` · exact-main `validate` verde; Sonar main detectó regresión de Security Rating |
+| Version | 🚧 **0.1.7 → 0.1.8** | patch hotfix · pre-1.0 |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+227** | **−140** | **+87** |
+| **9** | **+314** | **−82** | **+232** |
 
 ## Calidad y entrega
 
@@ -37,38 +37,36 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
-| Security | 2FA conserva endpoints, CSRF y sesión existentes; no se modifican secretos |
-| Browser | Advanced sin Raw Settings; Security inline; rutas Theme/System funcionales |
-| Real stack | administrador E2E aislado confirma Security/2FA real dentro de Settings |
-| Sonar + CodeRabbit | ejecutados en paralelo sobre el head estable |
-| Exact-main | CI del SHA exacto de main obligatorio tras squash merge |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack · webkit** |
+| Security | no HTML remoto/importado; estado 2FA JSON autenticado; mutaciones conservan CSRF |
+| Browser | estado/email se renderizan como texto y la UI 2FA sigue operativa |
+| Real stack | Settings Advanced carga Security real con administrador E2E aislado |
+| Sonar + CodeRabbit | ejecutados en paralelo; objetivo Sonar: volver a Security Rating **A** |
+| Exact-main | CI del SHA exacto de main + Sonar obligatorios tras squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
  P["PR + snapshot exacto"] --> Q["CI / Sonar / CodeRabbit"]
- Q --> X["CI del SHA exacto de main"]
- A["Settings"] --> G["General / Social / SEO / Analytics"]
- A --> V["Advanced"]
- V --> S["2FA inline"]
- V --> T["Theme Studio"]
- V --> O["System Status"]
- L["Legacy ?module=security"] --> V
+ A["Settings Advanced"] --> J["TOTP status JSON"]
+ J --> D["Safe DOM renderer"]
+ D --> U["2FA UI"]
+ U --> C["CSRF-protected actions"]
+ Q --> M["Squash merge"]
+ M --> X["CI + Sonar del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Reemplaza Settings → Advanced basado en Raw Settings por configuración realmente útil.
-- Embebe el flujo real de Security / 2FA dentro de Advanced usando el fragmento y endpoints existentes.
-- Mantiene Theme Studio y System Status como destinos especializados propiedad de Settings.
-- Retira de la UI normal Raw Settings, Raw Edit y New Advanced Setting.
-- Canonicaliza navegación legacy de Security hacia Settings → Advanced.
-- Mantiene capacidad interna de compatibilidad para records desconocidos sin presentarla como interfaz normal.
-- Hace que el módulo 2FA embebido herede Dark / Light / Glass para evitar una isla oscura.
-- Añade browser tests y smoke real-stack autenticado sin mutar la configuración 2FA.
-- Incrementa BRVTAL a **0.1.7**.
+- Elimina `DOMParser` + `document.importNode` del embedding de Security / 2FA.
+- Reutiliza el endpoint TOTP autenticado para entregar estado y email como JSON.
+- Renderiza la interfaz desde estructura DOM confiable y usa `textContent` para datos del administrador.
+- Mantiene START / CONFIRM / DISABLE, recovery codes, rate limits y CSRF existentes.
+- Evita `innerHTML` dentro del renderer Security.
+- Añade regresión browser para comprobar que texto con forma de markup sigue siendo texto.
+- Añade contratos que impiden reintroducir HTML remoto en Settings.
+- Incrementa BRVTAL a **0.1.8**.
 
 ## Archivos modificados en este deploy
 
@@ -76,29 +74,25 @@ flowchart LR
 - `README.md`
 - `config/version.php`
 - `discadmin/settings-v2.js`
-- `discadmin/settings-v2.css`
-- `discadmin/admin-route-aliases.js`
-- `discadmin/admin-appearance.css`
-- `tests/settings-control-plane-contract.php`
-- `tests/theme-active-reference-contract.php`
+- `discadmin/security.js`
+- `discadmin/totp-api.php`
 - `tests/e2e/discadmin-settings-v2.spec.mjs`
-- `tests/e2e/discadmin-settings-theme-active.spec.mjs`
-- `tests/e2e/discadmin-premium-real-stack.spec.mjs`
+- `tests/sonar-security-contract.php`
+- `tests/totp-enrollment-contract.php`
 
 ## Validación
 
-- Advanced carga Security / 2FA real dentro del mismo shell y sin una navegación separada.
-- No existen controles visibles para edición/creación arbitraria de Settings.
-- Deep link legacy Security converge a Settings → Advanced.
-- Theme Studio y System Status siguen accesibles desde Advanced.
-- Light / Dark / Glass comparten superficies semánticas para el módulo Security.
+- Settings deja de consumir `totp-status.php` como HTML para el embedding.
+- El estado 2FA usa sesión, CSRF y JSON.
+- Los datos dinámicos no se convierten en markup.
+- Las mutaciones TOTP conservan el endpoint y límites de seguridad existentes.
 - No hay migración ni operación destructiva de producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516) · cerrar gates, squash y exact-main. |
+| **NOW** | 🚧 [#553](https://github.com/pl0n3r/brvtal/issues/553) · recuperar Sonar Security Rating A y cerrar exact-main. |
 | **NEXT** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · medir/corregir primer load de Banners. |
 | **NEXT** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · hero desktop overlap/clipping. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
@@ -107,8 +101,8 @@ flowchart LR
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance + Premium Admin~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514)~~ |
-| **NOW** | 🚧 Settings | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516) |
+| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance + Premium Admin + Settings~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516)~~ |
+| **NOW** | 🚧 Security quality | 🚧 [#553](https://github.com/pl0n3r/brvtal/issues/553) |
 | **NEXT** | 🚧 Phase 2 closeout | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
 | **LATER** | 🚧 Operational dashboards | 🚧 [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |

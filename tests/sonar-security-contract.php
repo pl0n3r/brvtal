@@ -4,6 +4,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $archive = (string) file_get_contents($root . '/js/archive.js');
 $release = (string) file_get_contents($root . '/scripts/update-release-metadata.py');
+$settings = (string) file_get_contents($root . '/discadmin/settings-v2.js');
+$security = (string) file_get_contents($root . '/discadmin/security.js');
 
 $expect = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -18,6 +20,13 @@ $expect(str_contains($archive, 'document.createElement('), 'Public Archive must 
 $expect(str_contains($archive, "if (!/^https?:$/i.test(url.protocol)) return '';"), 'Public Archive image URLs must reject non-HTTP(S) schemes');
 $expect(!str_contains($archive, 'events.map(activeCard)'), 'Public Archive must adapt activeCard explicitly when used as an Array.map callback');
 $expect(!str_contains($archive, 'events.map(archiveCard)'), 'Public Archive must adapt archiveCard explicitly when used as an Array.map callback');
+
+$expect(!str_contains($settings, 'new DOMParser'), 'Settings Security must not parse authenticated responses as HTML');
+$expect(!str_contains($settings, 'document.importNode'), 'Settings Security must not import response-derived HTML into the live DOM');
+$expect(str_contains($settings, '/discadmin/totp-api.php?action=status'), 'Settings Security must load status from the authenticated JSON TOTP boundary');
+$expect(str_contains($security, 'document.createElement('), 'Embedded Security must construct its interface with DOM APIs');
+$expect(str_contains($security, 'email.textContent ='), 'Embedded Security must render administrator data via textContent');
+$expect(!str_contains($security, '.innerHTML'), 'Embedded Security must not use innerHTML sinks');
 
 $expect(str_contains($release, 'Path(__file__).resolve().parents[1]'), 'Release metadata path must be anchored to the repository root');
 $expect(str_contains($release, "CONFIG_ROOT = (REPO_ROOT / 'config').resolve()"), 'Release metadata writes must be anchored to the resolved config directory');

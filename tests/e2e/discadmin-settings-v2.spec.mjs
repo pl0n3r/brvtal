@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const aliasesJs = readFileSync(join(process.cwd(), 'discadmin/admin-route-aliases.js'), 'utf8');
+const securityJs = readFileSync(join(process.cwd(), 'discadmin/security.js'), 'utf8');
 const js = readFileSync(join(process.cwd(), 'discadmin/settings-v2.js'), 'utf8');
 const css = readFileSync(join(process.cwd(), 'discadmin/settings-v2.css'), 'utf8');
 const url = 'http://127.0.0.1:4173/settings-v2-e2e.html';
@@ -19,11 +20,12 @@ function harness() {
   ];
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#050505;color:#fff;font-family:Arial}.btn,.iconbtn{border:1px solid #444;background:#111;color:#fff;padding:10px}.btn.red{background:#ff2038}.btn.ghost{background:transparent}</style><style>${css}</style></head><body><div id="app"></div><div id="modal"></div><script>
     window.state={section:'settings',rows:${JSON.stringify(rows)}};
-    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];window.__settingsRoutes=[];window.__securityMounts=0;
-    window.BRVTALSecurity={mount(root){window.__securityMounts+=1;root.dataset.securityMounted='1';}};
-    window.fetch=async function(input){
-      if(String(input).includes('/discadmin/totp-status.php')){
-        return new Response('<section data-admin-module="security" data-csrf="test-csrf"><div class="wrap"><div class="card"><span>2FA DISABLED</span></div></div></section>',{status:200,headers:{'Content-Type':'text/html'}});
+    window.csrf='test-csrf';
+    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];window.__settingsRoutes=[];window.__statusRequests=[];window.__totpStatusEmail='admin@example.test';
+    window.fetch=async function(input,options={}){
+      if(String(input).includes('/discadmin/totp-api.php?action=status')){
+        window.__statusRequests.push({method:options.method,csrf:options.headers?.['X-CSRF-Token']});
+        return new Response(JSON.stringify({ok:true,enabled:false,confirmed:false,email:window.__totpStatusEmail}),{status:200,headers:{'Content-Type':'application/json'}});
       }
       return new Response('{}',{status:200,headers:{'Content-Type':'application/json'}});
     };
@@ -49,7 +51,7 @@ function harness() {
       return {data:[]};
     };
     window.render=function(){document.getElementById('app').innerHTML=window.settingsHome(state.rows)};
-  </script><script>${aliasesJs}</script><script>${js}</script><script>render()</script></body></html>`;
+  </script><script>${securityJs}</script><script>${aliasesJs}</script><script>${js}</script><script>render()</script></body></html>`;
 }
 
 async function open(page, viewport={width:1280,height:900}) {
@@ -76,8 +78,10 @@ test('Advanced contains working Security, Theme and System tools without raw-set
   await expect(page.getByRole('button',{name:/NEW ADVANCED SETTING/i})).toHaveCount(0);
   await expect(page.getByRole('button',{name:/RAW EDIT/i})).toHaveCount(0);
   await expect(page.getByTestId('settings-security-host').locator('[data-admin-module="security"]')).toBeVisible();
-  await expect(page.getByTestId('settings-security-host').getByText('2FA DISABLED')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.__securityMounts)).toBe(1);
+  const security = page.getByTestId('settings-security-host').locator('[data-admin-module="security"]');
+  await expect(security.getByText('2FA DISABLED')).toBeVisible();
+  await expect(security).toHaveAttribute('data-security-mounted','1');
+  await expect.poll(() => page.evaluate(() => window.__statusRequests)).toEqual([{method:'POST',csrf:'test-csrf'}]);
 
   const theme = page.getByRole('button',{name:'OPEN THEME STUDIO'});
   const system = page.getByRole('button',{name:'OPEN SYSTEM STATUS'});
@@ -98,6 +102,18 @@ test('legacy Security navigation resolves to Settings Advanced', async ({ page }
   await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([['go','settings']]);
   await expect(page.locator('[data-settings-pane="advanced"]')).toBeVisible();
   await expect(page.getByTestId('settings-security-host').locator('[data-admin-module="security"]')).toBeVisible();
+});
+
+test('embedded Security renders status data as text rather than markup', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => {
+    window.__totpStatusEmail = '<strong>admin@example.test</strong>';
+  });
+  await page.locator('[data-settings-tab="advanced"]').click();
+
+  const security = page.getByTestId('settings-security-host').locator('[data-admin-module="security"]');
+  await expect(security.locator('strong', {hasText:'admin@example.test'})).toHaveCount(0);
+  await expect(security.locator('[data-security-email]')).toHaveText('<strong>admin@example.test</strong>');
 });
 test('typed save preserves unknown sibling JSON keys', async ({ page }) => {
   await open(page);
