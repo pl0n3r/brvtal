@@ -5,6 +5,7 @@ import { join } from 'node:path';
 const css = readFileSync(join(process.cwd(), 'discadmin/admin-shell.css'), 'utf8');
 const js = readFileSync(join(process.cwd(), 'discadmin/admin-shell.js'), 'utf8');
 const indexPhp = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
+const indexCore = readFileSync(join(process.cwd(), 'discadmin/index-core.php'), 'utf8');
 
 async function mount(page) {
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>
@@ -53,4 +54,13 @@ test('dashboard PHP runtime label comes from the server runtime instead of a fix
   expect(indexPhp).toContain('$phpRuntime');
   expect(indexPhp).toMatch(/<h3>PHP<\/h3><div class=\\?"techvalue\\?">\[\^<\]\*<\/div><\/div>/);
   expect(indexPhp).not.toContain("$phpRuntime = '8.3+'");
+});
+
+test('admin release footer prioritizes human product version over deploy source', async () => {
+  expect(indexCore).toContain('data-testid="admin-product-version"');
+  expect(indexCore).toContain('BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION');
+  expect(indexCore).toContain('data-testid="admin-product-environment"');
+  expect(indexCore).toContain('data-testid="admin-deploy-source"');
+  expect(indexCore).toContain('SOURCE UNAVAILABLE');
+  expect(indexCore).not.toContain('v<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, "UTF-8") ?> · <?= htmlspecialchars(BRVTAL_APP_ENV');
 });

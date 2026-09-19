@@ -2,10 +2,17 @@
 declare(strict_types=1);
 
 /**
- * BRVTAL application release metadata.
- * Update APP_VERSION and APP_BUILD for each production release.
+ * BRVTAL product release metadata.
+ *
+ * Every deploy-bound PR increments BRVTAL_APP_VERSION before final gates.
+ * Patch is the default; pre-1.0 minor bumps are deliberate milestones.
+ * BRVTAL 1.0.0 requires an explicit administrator decision.
+ *
+ * BRVTAL_APP_BUILD remains compatibility-only fallback metadata and must not
+ * be presented as an exact deployed Git SHA unless the resolver confirms an
+ * environment/git-checkout source.
  */
-const BRVTAL_APP_VERSION = '0.1.0';
+const BRVTAL_APP_VERSION = '0.1.1';
 const BRVTAL_APP_BUILD = '89c59d4';
 const BRVTAL_APP_ENV = 'PRODUCTION';
-const BRVTAL_RELEASE_DATE = '2026-09-11';
+const BRVTAL_RELEASE_DATE = '2026-09-19';

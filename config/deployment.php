@@ -43,6 +43,11 @@ function brvtal_deployment_short_sha(): string
     return substr(brvtal_deployment_sha(), 0, 7);
 }
 
+function brvtal_deployment_is_exact(): bool
+{
+    return brvtal_deployment_source() !== 'release_fallback';
+}
+
 function brvtal_deployment_source(): string
 {
     $environment = trim((string)getenv('BRVTAL_DEPLOY_COMMIT'));

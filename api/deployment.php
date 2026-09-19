@@ -16,6 +16,7 @@ json_response([
         'commit' => brvtal_deployment_sha(),
         'short_commit' => brvtal_deployment_short_sha(),
         'source' => brvtal_deployment_source(),
+        'exact' => brvtal_deployment_is_exact(),
         'version' => BRVTAL_APP_VERSION,
         'environment' => BRVTAL_APP_ENV,
         'release_date' => BRVTAL_RELEASE_DATE,

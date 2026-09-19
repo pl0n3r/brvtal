@@ -148,6 +148,24 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Validate product version transition
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BRVTAL_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRVTAL_BEFORE: ${{ github.event.before }}
+          BRVTAL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$BRVTAL_EVENT" == "pull_request" ]]; then
+            python scripts/release-version.py --base "$BRVTAL_PR_BASE_SHA" --head "$BRVTAL_PR_HEAD_SHA"
+          elif [[ "$BRVTAL_EVENT" == "push" && "$BRVTAL_BEFORE" =~ ^[0-9a-fA-F]{40}$ && ! "$BRVTAL_BEFORE" =~ ^0+$ ]]; then
+            python scripts/release-version.py --base "$BRVTAL_BEFORE" --head "$BRVTAL_SHA"
+          else
+            python scripts/release-version.py --check-current
+          fi
+
   fast:
     name: fast
     needs: preflight
