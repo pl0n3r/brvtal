@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+122** | **−59** | **+63** |
+| **9** | **+140** | **−66** | **+74** |
 
 ## Calidad y entrega
 
@@ -72,12 +72,13 @@ flowchart LR
 - `config/version.php` — versión 0.1.12.
 - `package.json` — metadata 0.1.12.
 - `tests/deployment-traceability-contract.php` — paridad de versión.
+- `tests/production-smoke-contract.php` — seguridad del trigger manual/owner-only.
 - `tests/e2e/discadmin-premium-real-stack.spec.mjs` — versión visible con usuario E2E.
 - `tests/e2e/production-authenticated-smoke.mjs` — evidencia de versión en producción.
 
 ## Validación
 
-- El contrato fast falla si package y release canónica divergen.
+- El contrato fast falla si package y release canónica divergen y protege el trigger owner-only de producción.
 - Real-stack debe autenticar el admin E2E y leer `BRVTAL v0.1.12`.
 - Producción queda separada: el smoke reporta exactamente qué versión sirve Hostinger y no convierte CI en VALIDATED IN PRODUCTION.
 - Sin migración ni SQL destructivo.

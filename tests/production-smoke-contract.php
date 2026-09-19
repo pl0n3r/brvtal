@@ -15,7 +15,7 @@ $assert = static function (bool $condition, string $message): void {
     }
 };
 
-$assert(is_file($workflowPath), 'manual production smoke workflow must exist');
+$assert(is_file($workflowPath), 'authenticated production smoke workflow must exist');
 $assert(is_file($probePath), 'authenticated production smoke probe must exist');
 $assert(is_file($writeWorkflowPath), 'controlled Page write smoke workflow must exist');
 $assert(is_file($writeProbePath), 'controlled Page write smoke probe must exist');
@@ -26,15 +26,23 @@ $writeWorkflow = (string) file_get_contents($writeWorkflowPath);
 $writeProbe = (string) file_get_contents($writeProbePath);
 $testing = (string) file_get_contents($testingPath);
 
-// The authenticated production smoke is deliberately manual-only. It must never
-// become a push/PR/workflow_run side effect or a normal deploy gate.
+// The authenticated production smoke may be started manually or by the repository
+// owner's exact command on #534. It must never become a push/PR/workflow_run/schedule
+// side effect or a normal deploy gate. Both paths must use source checked out from main.
 $assert(str_contains($workflow, 'name: Authenticated Production Smoke'), 'workflow name must remain explicit');
 $assert(str_contains($workflow, "  workflow_dispatch:\n"), 'workflow must remain manually dispatchable');
-$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $workflow), 'workflow must remain manual-only');
-$assert(str_contains($workflow, "if: github.ref == 'refs/heads/main'"), 'workflow must refuse non-main refs');
+$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $workflow), 'workflow must not run from automatic deploy/code events');
+$assert(str_contains($workflow, "  issue_comment:\n"), 'workflow must expose the owner-only issue command trigger');
+$assert(str_contains($workflow, 'types: [created]'), 'issue command must only evaluate newly created comments');
+$assert(str_contains($workflow, "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"), 'manual dispatch must refuse non-main refs');
+$assert(str_contains($workflow, 'github.event.issue.number == 534'), 'issue command must be restricted to #534');
+$assert(str_contains($workflow, 'github.event.comment.user.login == github.repository_owner'), 'issue command must be restricted to the repository owner');
+$assert(str_contains($workflow, "github.event.comment.author_association == 'OWNER'"), 'issue command must require OWNER association');
+$assert(str_contains($workflow, "github.event.comment.body == '/production-smoke'"), 'issue command must require exact production-smoke text');
 $assert(str_contains($workflow, 'environment: production-smoke'), 'workflow must isolate production smoke credentials');
 $assert(str_contains($workflow, 'https://www.brvtal.com.co'), 'workflow must use the canonical www production origin');
-$assert(str_contains($workflow, 'BRVTAL_EXPECTED_SHA: ${{ github.sha }}'), 'workflow must tie evidence to the dispatched main SHA');
+$assert(str_contains($workflow, 'ref: main'), 'both smoke triggers must checkout canonical main');
+$assert(str_contains($workflow, 'BRVTAL_EXPECTED_SHA=$(git rev-parse HEAD)'), 'smoke evidence must resolve exact checked-out main SHA');
 $assert(str_contains($workflow, 'actions/upload-artifact@v4'), 'workflow must retain downloadable evidence');
 
 // Credentials must come from GitHub secrets and must never be embedded in source.
@@ -51,6 +59,8 @@ $assert(str_contains($probe, "url.pathname === '/api/media-permissions.php'"), '
 $assert(str_contains($probe, 'smoke_stub: true'), 'media-permission repair must be fulfilled locally');
 $assert(str_contains($probe, "route.abort('blockedbyclient')"), 'unexpected browser mutations must be blocked');
 $assert(str_contains($probe, 'blockedMutations'), 'blocked mutations must be captured in evidence');
+$assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
+$assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');
 $assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');
 $assert(str_contains($probe, 'published Artist and one published Event'), '#124 must use existing published relations rather than creating data');
 $assert(str_contains($probe, "window.go('hero-slider')"), '#125 must exercise the real Hero Slider manager');
@@ -64,7 +74,7 @@ $assert(!preg_match('/page\.request\.(?:post|put|patch|delete)\s*\(/i', $probe),
 // uniquely named, and self-cleaning.
 $assert(str_contains($writeWorkflow, 'name: Controlled Production Page Write Smoke'), 'controlled write workflow name must remain explicit');
 $assert(str_contains($writeWorkflow, "  workflow_dispatch:\n"), 'controlled write workflow must remain manually dispatchable');
-$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $writeWorkflow), 'controlled write workflow must remain manual-only');
+$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $writeWorkflow), 'controlled write workflow must not run from automatic deploy/code events');
 $assert(str_contains($writeWorkflow, 'confirm:'), 'controlled write workflow must require a confirmation input');
 $assert(str_contains($writeWorkflow, "inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE'"), 'controlled write job must require the exact confirmation token');
 $assert(str_contains($writeWorkflow, "github.ref == 'refs/heads/main'"), 'controlled write workflow must refuse non-main refs');
