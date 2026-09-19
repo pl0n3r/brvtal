@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+324** | **−129** | **+195** |
+| **13** | **+347** | **−130** | **+217** |
 
 ## Calidad y entrega
 
@@ -69,6 +69,7 @@ flowchart LR
 ## Archivos modificados en este deploy
 
 - `discadmin/index.php` — carga Dashboard V2 al final del bootstrap de mejoras, después de router/aliases/settings/theme/memories, para que sus quick actions no sean interactivos sobre un shell incompleto.
+- `discadmin/index-core.php` — descarta respuestas obsoletas de Dashboard antes de cualquier `render()` tardío.
 - `discadmin/admin-modules.js` — dueño único de readiness de módulos dinámicos.
 - `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
 - `discadmin/media-library.php` — elimina External Registry de la toolbar.
@@ -76,7 +77,7 @@ flowchart LR
 - `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido y recuperación real tras un fallo transitorio mediante RETRY.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins y sincronización temprana de URL antes de readiness.
 - `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
-- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real.
+- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real y regresión con Dashboard deliberadamente lento.
 - `tests/e2e/indexnow-real-stack.spec.mjs` — aislamiento por URL única; evita falsos fallos con workers concurrentes.
 - `AGENTS.md` — persiste la frontera canónica de readiness.
 - `README.md` — dashboard exacto de #522.
@@ -85,6 +86,7 @@ flowchart LR
 
 - Dashboard V2 no se expone hasta que el bootstrap canónico de mejoras de DISCADMIN está completo.
 - Una ruta inicial lenta no puede devolver el workspace a otro destino después de que el usuario abre Media.
+- Una respuesta vieja de Dashboard tampoco puede ejecutar un `render()` tardío que destruya Media ya montado.
 - Dashboard → Media monta el módulo sin depender del orden previo de navegación.
 - Sets → Media vuelve a montar correctamente el mismo workspace.
 - `?module=media` funciona en sesión autenticada.

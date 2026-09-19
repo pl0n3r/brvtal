@@ -183,10 +183,30 @@ test('Media mounts consistently from Dashboard, another module and a direct rout
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
   await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
 
+  let releaseStaleDashboard;
+  let markStaleDashboardStarted;
+  const staleDashboardStarted = new Promise(resolve => { markStaleDashboardStarted = resolve; });
+  const staleDashboardRelease = new Promise(resolve => { releaseStaleDashboard = resolve; });
+  await page.route('**/api/index.php/dashboard', async route => {
+    markStaleDashboardStarted();
+    await staleDashboardRelease;
+    await route.continue();
+  }, {times:1});
+
+  await page.evaluate(() => {
+    window.__staleDashboardNavigation = window.go('dashboard');
+  });
+  await staleDashboardStarted;
+
   await page.getByRole('button', {name:'MEDIA LIBRARY', exact:true}).click();
   await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
   await expect(page.locator('#media-grid')).toBeVisible();
   await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
+
+  releaseStaleDashboard();
+  await page.evaluate(() => window.__staleDashboardNavigation);
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 
   await page.getByRole('button', {name:'SETS', exact:true}).click();
   await expect(page.locator('.main .top h1')).toHaveText('SETS');
