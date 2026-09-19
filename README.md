@@ -17,9 +17,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#558 Content Health navigation deflake (v0.1.16), PR #563** | un solo owner abre el registro tras navegación |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `7eb49d8a5296feb40dc1b00b3dd5fed2aa2f1683` |
-| Version | 🚧 **0.1.15 → 0.1.16** | patch deploy |
+| Work line | 🚧 **#564 CI throughput telemetry (v0.1.17), PR #565** | un solo owner abre el registro tras navegación |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `2a57147e3c7b0ba9b1176e0293d501144a510b8f` |
+| Version | 🚧 **0.1.16 → 0.1.17** | patch deploy |
 | Producción | 🚧 **PENDING MERGE / OBSERVATION** | no se infiere validación de producción desde CI |
 
 ## Huella del cambio
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+46** | **−48** | **-2** |
+| **5** | **+100** | **−5** | **+95** |
 
 ## Calidad y entrega
 
@@ -46,7 +46,7 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.16"] --> P["PR + snapshot exacto"]
+ A["Release v0.1.17"] --> P["PR + snapshot exacto"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
@@ -55,24 +55,24 @@ flowchart LR
 
 ## Qué se hizo
 
-- Se elimina el segundo click handler de Content Health que competía con la navegación delegada en capture phase.
-- `OPEN` queda bajo un único contrato: navegar al módulo y luego revelar el registro mediante `BRVTALAdminRecordNavigation`.
-- Las dos regresiones Playwright usan el owner canónico y sincronizan sobre el resultado completo en vez de depender de un handler local ya retirado.
-- Versión **0.1.16**.
+- Se añade telemetría de wall time al DAG de BRVTAL CI sin serializar gates.
+- El preflight expone el epoch inicial y validate publica la duración agregada.
+- Se mantiene intacto el fan-out paralelo de database, Chromium, real-stack, WebKit y recovery.
+- La regresión Content Health ahora muta y acciona el botón atómicamente para probar el fallback real sin competir con el rerender del dashboard.
+- Versión **0.1.17**.
 
 ## Archivos modificados en este deploy
 
+- `.github/workflows/update-release-metadata.yml`
 - `README.md`
 - `config/version.php`
-- `discadmin/content-health.js`
 - `package.json`
 - `tests/e2e/discadmin-content-health-navigation.spec.mjs`
-- `tests/e2e/discadmin-content-health.spec.mjs`
 
 ## Validación
 
-- El primer CI del head detectó correctamente un harness legado que todavía esperaba el handler local; el test quedó alineado con la navegación canónica sin aumentar timeouts.
-- No hay SQL, migraciones ni mutaciones de producción.
+- Preflight, MariaDB, real-stack, WebKit y recovery ya pasaron sobre la implementación de telemetría.
+- Chromium expuso la carrera del harness Content Health; se corrige sin aumentar timeouts ni relajar expectativas funcionales.
 - BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI.
 
@@ -80,7 +80,7 @@ flowchart LR
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#558](https://github.com/pl0n3r/brvtal/issues/558) · cerrar la regresión flaky de navegación. |
+| **NOW** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · medir y reducir el critical path del pipeline. |
 | **NEXT** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) · proteger cambios sin guardar en Banners. |
 | **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) · productividad editorial y protección general de editores. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · verificación de Hostinger/hPanel separada. |
@@ -90,7 +90,7 @@ flowchart LR
 | Lane | Frente | Issues |
 | --- | --- | --- |
 | **DONE** | ✅ ~~Editor/modal navigation lifecycle~~ | ✅ ~~[#216](https://github.com/pl0n3r/brvtal/issues/216) · v0.1.15 / PR #562~~ |
-| **NOW** | 🚧 Browser/navigation closeout | 🚧 [#558](https://github.com/pl0n3r/brvtal/issues/558) |
+| **NOW** | 🚧 CI throughput telemetry | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
 | **NEXT** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
 | **BLOCKED / EXTERNAL** | 🚧 Hostinger deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
