@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+402** | **−56** | **+346** |
+| **9** | **+454** | **−57** | **+397** |
 
 ## Calidad y entrega
 
@@ -76,11 +76,11 @@ flowchart LR
 
 - `AGENTS.md` — reglas durables de carga Banners + rol operativo principal/cross-functional (arquitectura, UX/UI, dirección visual, QA, AppSec, performance y delivery).
 - `README.md` — dashboard exacto de #523.
-- `api/admin-read-plan.php` — planes autenticados de lectura reducida para Settings/Media.
+- `api/admin-read-plan.php` — planes autenticados de lectura reducida con allowlist estricta para Settings/Media.
 - `api/index.php` — aplica los planes antes de las colecciones legacy.
 - `config/version.php` — versión humana 0.1.10.
 - `discadmin/hero-slider.js` — bootstrap acotado, render temprano e hidratación Media asíncrona segura.
-- `tests/admin-read-plan-contract.php` — invariantes puras del payload reducido/protección.
+- `tests/admin-read-plan-contract.php` — invariantes del payload reducido, allowlist y variantes case-insensitive.
 - `tests/e2e/discadmin-hero-slider-security.spec.mjs` — carga progresiva + seguridad del picker.
 - `tests/e2e/hero-slider-integrity-real-stack.spec.mjs` — usuario E2E real-stack valida endpoints acotados y montaje.
 
@@ -88,6 +88,7 @@ flowchart LR
 
 - El contrato browser simula Settings rápido y Media lento: Banners debe quedar visible con Media aún pendiente y habilitar Save solo después.
 - El plan scoped de Settings mantiene bloqueada `security.totp_encryption_key`.
+- El read scoped queda allowlisted a `home.hero.slider`; keys desconocidas, variantes de mayúsculas/minúsculas y variantes del secreto fallan antes de ejecutar SQL.
 - El view `hero-picker` excluye audio/documentos y no usa `SELECT *`.
 - Las colecciones legacy siguen disponibles cuando no se pide un view/key optimizado.
 - No hay migración, SQL destructivo ni cambio de datos de producción.

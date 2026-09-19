@@ -225,7 +225,7 @@ try {
     }
 
     $resources=['events','artists','sets','media','pages','ticket_types','settings']; if(!in_array($resource,$resources,true))json_response(['ok'=>false,'error'=>'NOT_FOUND'],404); $table=table_for($resource); if($method!=='GET')brvtal_admin_require_csrf(); $pdo=db();
-    if($method==='GET') {
+    if ($method === 'GET') {
         $readPlan = brvtalAdminCollectionReadPlan($resource, $_GET);
         if ($readPlan !== null) {
             if ($readPlan['error'] !== null) {
@@ -237,17 +237,21 @@ try {
             $st = $pdo->prepare((string)$readPlan['sql']);
             $st->execute($readPlan['params']);
             $rows = $st->fetchAll();
-        } elseif($resource==='settings') {
-            $rows=$pdo->query("SELECT * FROM settings WHERE setting_key<>'security.totp_encryption_key' ORDER BY setting_key")->fetchAll();
-        } elseif($id!==null) {
-            $st=$pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");
+        } elseif ($resource === 'settings') {
+            $rows = $pdo->query(
+                "SELECT * FROM settings WHERE setting_key<>'security.totp_encryption_key' ORDER BY setting_key"
+            )->fetchAll();
+        } elseif ($id !== null) {
+            $st = $pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");
             $st->execute([$id]);
-            $rows=$st->fetch();
-            if(!$rows)json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);
+            $rows = $st->fetch();
+            if (!$rows) {
+                json_response(['ok' => false, 'error' => 'NOT_FOUND'], 404);
+            }
         } else {
-            $rows=$pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();
+            $rows = $pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();
         }
-        json_response(['ok'=>true,'data'=>$rows]);
+        json_response(['ok' => true, 'data' => $rows]);
     }
     if($method==='POST') {
         $d=input_json();

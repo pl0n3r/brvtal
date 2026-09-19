@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 const BRVTAL_ADMIN_PROTECTED_SETTING_KEY = 'security.totp_encryption_key';
+const BRVTAL_ADMIN_HERO_SETTING_KEY = 'home.hero.slider';
 const BRVTAL_ADMIN_HERO_MEDIA_VIEW = 'hero-picker';
 
 /**
@@ -25,8 +26,8 @@ function brvtalAdminCollectionReadPlan(string $resource, array $query): ?array
                 'status' => 422,
             ];
         }
-        $key = trim((string)$rawKey);
-        if ($key === '' || strlen($key) > 120) {
+        $key = (string)$rawKey;
+        if ($key === '' || strlen($key) > 120 || $key !== trim($key)) {
             return [
                 'sql' => null,
                 'params' => [],
@@ -42,10 +43,18 @@ function brvtalAdminCollectionReadPlan(string $resource, array $query): ?array
                 'status' => 403,
             ];
         }
+        if ($key !== BRVTAL_ADMIN_HERO_SETTING_KEY) {
+            return [
+                'sql' => null,
+                'params' => [],
+                'error' => 'SETTING_NOT_ALLOWED',
+                'status' => 422,
+            ];
+        }
 
         return [
             'sql' => 'SELECT setting_key,setting_value,is_json FROM settings WHERE setting_key=? LIMIT 1',
-            'params' => [$key],
+            'params' => [BRVTAL_ADMIN_HERO_SETTING_KEY],
             'error' => null,
             'status' => 200,
         ];
@@ -57,7 +66,8 @@ function brvtalAdminCollectionReadPlan(string $resource, array $query): ?array
         && $mediaView === BRVTAL_ADMIN_HERO_MEDIA_VIEW
     ) {
         return [
-            'sql' => "SELECT id,type,title,file_path,status FROM media WHERE type IN ('image','video') ORDER BY id DESC",
+            'sql' => 'SELECT id,type,title,file_path,status FROM media '
+                . "WHERE type IN ('image','video') ORDER BY id DESC",
             'params' => [],
             'error' => null,
             'status' => 200,

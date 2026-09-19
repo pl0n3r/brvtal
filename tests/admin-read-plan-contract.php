@@ -15,10 +15,10 @@ admin_read_expect(
     'Legacy Settings collection reads must remain unchanged when no key is requested'
 );
 
-$settingPlan = brvtalAdminCollectionReadPlan('settings', ['key' => ' home.hero.slider ']);
+$settingPlan = brvtalAdminCollectionReadPlan('settings', ['key' => BRVTAL_ADMIN_HERO_SETTING_KEY]);
 admin_read_expect(is_array($settingPlan), 'Scoped Settings reads must produce a read plan');
 admin_read_expect(
-    ($settingPlan['params'] ?? []) === ['home.hero.slider'],
+    ($settingPlan['params'] ?? []) === [BRVTAL_ADMIN_HERO_SETTING_KEY],
     'Scoped Settings reads must bind only the requested canonical key'
 );
 admin_read_expect(
@@ -38,6 +38,38 @@ admin_read_expect(
     ($protectedPlan['error'] ?? null) === 'PROTECTED_SETTING'
         && ($protectedPlan['status'] ?? null) === 403,
     'Protected Settings must fail closed even through scoped reads'
+);
+
+$unknownPlan = brvtalAdminCollectionReadPlan('settings', ['key' => 'site.title']);
+admin_read_expect(
+    ($unknownPlan['error'] ?? null) === 'SETTING_NOT_ALLOWED'
+        && ($unknownPlan['status'] ?? null) === 422
+        && ($unknownPlan['sql'] ?? null) === null,
+    'Scoped Settings reads must allow only the canonical Hero setting'
+);
+
+$heroCaseVariantPlan = brvtalAdminCollectionReadPlan('settings', ['key' => 'Home.Hero.Slider']);
+admin_read_expect(
+    ($heroCaseVariantPlan['error'] ?? null) === 'SETTING_NOT_ALLOWED'
+        && ($heroCaseVariantPlan['sql'] ?? null) === null,
+    'Case variants of the Hero setting must not reach case-insensitive SQL lookup'
+);
+
+$protectedCaseVariantPlan = brvtalAdminCollectionReadPlan(
+    'settings',
+    ['key' => 'Security.TOTP_Encryption_Key']
+);
+admin_read_expect(
+    ($protectedCaseVariantPlan['error'] ?? null) === 'SETTING_NOT_ALLOWED'
+        && ($protectedCaseVariantPlan['sql'] ?? null) === null,
+    'Protected-key case variants must fail closed before SQL execution'
+);
+
+$whitespaceVariantPlan = brvtalAdminCollectionReadPlan('settings', ['key' => ' home.hero.slider ']);
+admin_read_expect(
+    ($whitespaceVariantPlan['error'] ?? null) === 'KEY_REQUIRED'
+        && ($whitespaceVariantPlan['sql'] ?? null) === null,
+    'Scoped Settings reads must require the exact canonical key spelling'
 );
 
 $emptyPlan = brvtalAdminCollectionReadPlan('settings', ['key' => '']);
