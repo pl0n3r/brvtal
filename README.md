@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+393** | **−130** | **+263** |
+| **13** | **+411** | **−130** | **+281** |
 
 ## Calidad y entrega
 
@@ -77,7 +77,7 @@ flowchart LR
 - `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido y recuperación real tras un fallo transitorio mediante RETRY.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins y sincronización temprana de URL antes de readiness.
 - `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
-- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real y regresión con Dashboard deliberadamente lento.
+- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real y regresión con Dashboard deliberadamente lento. Si falla, captura estado de URL/sección/host/global del módulo para diagnosticar la carrera sin subir timeouts.
 - `tests/e2e/indexnow-real-stack.spec.mjs` — aislamiento por URL única; evita falsos fallos con workers concurrentes.
 - `AGENTS.md` — persiste la frontera canónica de readiness.
 - `README.md` — dashboard exacto de #522.

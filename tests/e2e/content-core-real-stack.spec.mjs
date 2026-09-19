@@ -177,6 +177,24 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
   }
 });
 
+async function expectMediaMounted(page, timeout = 10_000) {
+  try {
+    await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout});
+  } catch (error) {
+    const snapshot = await page.evaluate(() => ({
+      href: location.href,
+      section: window.state?.section ?? null,
+      title: document.querySelector('.main .top h1')?.textContent?.trim() ?? null,
+      hostText: document.getElementById('admin-module-host')?.textContent?.trim().slice(0, 500) ?? null,
+      hostHtml: document.getElementById('admin-module-host')?.innerHTML?.slice(0, 1000) ?? null,
+      mediaGlobal: Boolean(window.BRVTALMediaLibrary),
+      moduleHostConnected: Boolean(document.getElementById('admin-module-host')?.isConnected),
+      mediaNodeCount: document.querySelectorAll('[data-admin-module="media"]').length,
+    }));
+    throw new Error(`Media navigation state: ${JSON.stringify(snapshot)}\n${error.message}`);
+  }
+}
+
 test('Media mounts consistently from Dashboard, another module and a direct route', async ({ page }) => {
   await login(page);
 
@@ -199,22 +217,22 @@ test('Media mounts consistently from Dashboard, another module and a direct rout
   await staleDashboardStarted;
 
   await page.getByRole('button', {name:'MEDIA LIBRARY', exact:true}).click();
-  await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
+  await expectMediaMounted(page);
   await expect(page.locator('#media-grid')).toBeVisible();
   await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
 
   releaseStaleDashboard();
   await page.evaluate(() => window.__staleDashboardNavigation);
-  await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
+  await expectMediaMounted(page, 5_000);
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 
   await page.getByRole('button', {name:'SETS', exact:true}).click();
   await expect(page.locator('.main .top h1')).toHaveText('SETS');
   await page.getByRole('button', {name:'MEDIA', exact:true}).click();
-  await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
+  await expectMediaMounted(page);
 
   await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
-  await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout:10_000});
+  await expectMediaMounted(page);
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
   await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
 });
