@@ -711,7 +711,20 @@
     ensureNav();
     const observer=new MutationObserver(()=>ensureNav());observer.observe(document.documentElement,{childList:true,subtree:true});
     originalGo=window.go;
-    window.go=async function(section){if(section==='hero-slider'){const host=prepareWorkspace();if(host)await load();ensureNav();return;}loadRevision+=1;const result=await originalGo(section);ensureNav();return result;};
+    window.go=async function(section){
+      if(section==='hero-slider'){
+        const host=prepareWorkspace();
+        if(host){
+          await load();
+        }
+        ensureNav();
+        return;
+      }
+      loadRevision+=1;
+      const result=await originalGo(section);
+      ensureNav();
+      return result;
+    };
   }
 
   if (document.readyState === 'loading') {

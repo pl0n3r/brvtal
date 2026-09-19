@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+454** | **−57** | **+397** |
+| **9** | **+468** | **−57** | **+411** |
 
 ## Calidad y entrega
 
@@ -68,6 +68,7 @@ flowchart LR
 - Mientras Media sigue cargando, los pickers y Save permanecen deshabilitados; no se valida contra un registro parcial.
 - Las respuestas tardías de una navegación anterior se descartan para que no hidraten una vista Banners más nueva.
 - Conserva la hidratación segura con DOM APIs introducida por #553/#555.
+- Deja explícito el control de flujo del wrapper de navegación de Banners para eliminar la ambigüedad señalada por Sonar.
 - Añade contrato puro del plan de lectura, regresión browser de carga progresiva y verificación real-stack con el admin E2E aislado.
 - Formaliza al agente como **principal software engineer + technical executor**, con roles complementarios de arquitectura/producto, UX/UI, dirección visual, QA, AppSec, performance/reliability y DevOps/release.
 - Sube la versión humana a **0.1.10**.
