@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 BROWSER_JOBS = {"chromium", "webkit-totp", "real-stack"}
@@ -99,7 +98,7 @@ def browser_breakdown(job: dict[str, Any]) -> dict[str, Any] | None:
         return None
     job_duration = seconds(job.get("started_at"), job.get("completed_at"))
     steps = [timed_step(step) for step in job.get("steps", []) if isinstance(step, dict)]
-    totals = {phase: 0 for phase in PHASES}
+    totals = dict.fromkeys(PHASES, 0)
     attributed = 0
     for step in steps:
         duration = step["duration_seconds"]
@@ -195,18 +194,24 @@ def markdown_summary(report: dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", required=True, type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--summary", required=True, type=Path)
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--source-sha", required=True)
-    parser.add_argument("--event", required=True)
-    parser.add_argument("--conclusion", required=True)
-    parser.add_argument("--started-at", required=True)
-    parser.add_argument("--updated-at", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    report_parser = subparsers.add_parser("report")
+    report_parser.add_argument("--run-id", required=True)
+    report_parser.add_argument("--source-sha", required=True)
+    report_parser.add_argument("--event", required=True)
+    report_parser.add_argument("--conclusion", required=True)
+    report_parser.add_argument("--started-at", required=True)
+    report_parser.add_argument("--updated-at", required=True)
+    subparsers.add_parser("summary")
+
     args = parser.parse_args()
-    pages = json.loads(args.input.read_text(encoding="utf-8"))
-    report = build_report(pages, {
+    payload = json.load(sys.stdin)
+    if args.command == "summary":
+        print(markdown_summary(payload), end="")
+        return 0
+
+    report = build_report(payload, {
         "run_id": args.run_id,
         "source_sha": args.source_sha,
         "event": args.event,
@@ -214,8 +219,7 @@ def main() -> int:
         "started_at": args.started_at,
         "updated_at": args.updated_at,
     })
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    args.summary.write_text(markdown_summary(report), encoding="utf-8")
+    print(json.dumps(report, indent=2, sort_keys=True))
     return 0
 
 

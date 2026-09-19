@@ -37,16 +37,16 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" --slurp > artifacts/job-pages.json
-          python scripts/ci-throughput-report.py \
-            --input artifacts/job-pages.json \
-            --output artifacts/ci-throughput.json \
-            --summary artifacts/ci-throughput-summary.md \
+          python scripts/ci-throughput-report.py report \
             --run-id "$RUN_ID" \
             --source-sha "$SOURCE_SHA" \
             --event "$SOURCE_EVENT" \
             --conclusion "$SOURCE_CONCLUSION" \
             --started-at "$SOURCE_STARTED_AT" \
-            --updated-at "$SOURCE_UPDATED_AT"
+            --updated-at "$SOURCE_UPDATED_AT" \
+            < artifacts/job-pages.json > artifacts/ci-throughput.json
+          python scripts/ci-throughput-report.py summary \
+            < artifacts/ci-throughput.json > artifacts/ci-throughput-summary.md
           cat artifacts/ci-throughput-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload throughput evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

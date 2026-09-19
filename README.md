@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · fast[PHP+JS]** |
+| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Telemetry | post-CI; no añade dependencias ni segundos al DAG de validación |
 | Browser phases | dependencies/cache · browser/system · infrastructure · test · other |
 | Sonar + CodeRabbit | paralelo sobre head estable |
@@ -76,7 +76,8 @@ flowchart LR
 
 - Base exacta `5fba8a5`: BRVTAL CI / validate success.
 - El nuevo Production Performance ya demostró coordinación-only success cuando CI terminó antes del Deploy Observer, sin setup ni medición duplicada.
-- El contrato de throughput debe pasar en fast y el artifact post-CI debe confirmar el schema en una corrida real.
+- El contrato ejecutable de throughput ya pasó en fast; el artifact post-CI debe confirmar el schema en una corrida real.
+- Sonar detectó rutas de archivo controlables por CLI en el primer head; el procesador se endurece a stdin/stdout y ya no acepta paths externos.
 - BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI, telemetría ni deployment marker.
 

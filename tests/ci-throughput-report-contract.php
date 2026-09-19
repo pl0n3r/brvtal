@@ -13,7 +13,8 @@ $expect = static function (bool $condition, string $message): void {
 };
 
 $expect(is_file($script), 'report processor must exist');
-$expect(str_contains($workflow, 'python scripts/ci-throughput-report.py'), 'telemetry workflow must use the tested report processor');
+$expect(str_contains($workflow, 'python scripts/ci-throughput-report.py report'), 'telemetry workflow must use the tested report processor');
+$expect(str_contains($workflow, 'python scripts/ci-throughput-report.py summary'), 'telemetry workflow must generate the Job Summary through the same processor');
 $expect(str_contains($workflow, 'artifacts/ci-throughput-summary.md'), 'telemetry workflow must publish the generated browser/setup summary');
 $expect(str_contains($workflow, 'ref: ${{ github.event.workflow_run.head_sha }}'), 'telemetry must execute the processor from the observed exact source SHA');
 $expect(str_contains($workflow, 'jobs?per_page=100') && str_contains($workflow, '--paginate'), 'telemetry must preserve paginated GitHub job collection');
@@ -69,27 +70,27 @@ $pages = [[
     ],
 ]];
 
-$tmp = sys_get_temp_dir() . '/brvtal-throughput-' . bin2hex(random_bytes(6));
-$expect(mkdir($tmp, 0700), 'temporary fixture directory must be created');
-$input = $tmp . '/jobs.json';
-$output = $tmp . '/report.json';
-$summary = $tmp . '/summary.md';
-file_put_contents($input, json_encode($pages, JSON_THROW_ON_ERROR));
-$command = [
-    'python3', $script,
-    '--input', $input, '--output', $output, '--summary', $summary,
+$run = static function (array $command, string $stdin) use ($expect): string {
+    $pipes = [];
+    $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $expect(is_resource($process), 'report processor must execute');
+    fwrite($pipes[0], $stdin);
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $status = proc_close($process);
+    $expect($status === 0, 'report processor failed: ' . trim((string)$stderr));
+    return (string)$stdout;
+};
+
+$reportJson = $run([
+    'python3', $script, 'report',
     '--run-id', '42', '--source-sha', $sha, '--event', 'push', '--conclusion', 'success',
     '--started-at', '2026-09-19T16:00:00Z', '--updated-at', '2026-09-19T16:00:22Z',
-];
-$pipes = [];
-$process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-$expect(is_resource($process), 'report processor must execute');
-$stdout = stream_get_contents($pipes[1]);
-$stderr = stream_get_contents($pipes[2]);
-fclose($pipes[1]); fclose($pipes[2]);
-$status = proc_close($process);
-$expect($status === 0, 'report processor failed: ' . trim((string)$stderr) . trim((string)$stdout));
-$report = json_decode((string)file_get_contents($output), true, flags: JSON_THROW_ON_ERROR);
+], json_encode($pages, JSON_THROW_ON_ERROR));
+$report = json_decode($reportJson, true, flags: JSON_THROW_ON_ERROR);
 $expect(($report['workflow_wall_seconds'] ?? null) === 22, 'workflow wall time must be preserved');
 $expect(($report['critical_path']['jobs'] ?? []) === ['preflight', 'chromium', 'validate'], 'critical path must still select the slowest successful parallel gate');
 $expect(($report['critical_path']['duration_seconds'] ?? null) === 20, 'critical path duration must preserve previous semantics');
@@ -105,9 +106,8 @@ $expect(($breakdown['webkit-totp']['phase_seconds']['browser_system_setup'] ?? n
 $expect(($breakdown['webkit-totp']['phase_seconds']['test'] ?? null) === 3, 'WebKit must expose actual TOTP runtime');
 $webkitInstall = array_values(array_filter($breakdown['webkit-totp']['steps'], static fn(array $step): bool => $step['name'] === 'Install WebKit browser'));
 $expect(isset($webkitInstall[0]) && array_key_exists('duration_seconds', $webkitInstall[0]) && $webkitInstall[0]['duration_seconds'] === null, 'skipped browser-install steps must remain null instead of fabricating time');
-$summaryText = (string)file_get_contents($summary);
+$summaryText = $run(['python3', $script, 'summary'], $reportJson);
 $expect(str_contains($summaryText, '## Browser setup vs test'), 'summary must expose the browser phase table');
 $expect(str_contains($summaryText, '| chromium | 4s | 5s | 0s | 5s | 3s | 17s |'), 'summary must expose Chromium phase totals');
 
-@unlink($input); @unlink($output); @unlink($summary); @rmdir($tmp);
 fwrite(STDOUT, "CI throughput report contract passed.\n");
