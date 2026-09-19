@@ -22,7 +22,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+615** | **−100** | **+515** |
+| **6** | **+616** | **−103** | **+513** |
 
 ## Calidad y entrega
 
@@ -30,7 +30,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium** |
 | Browser | selector, persistencia, login, Light moderno y Glass |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
@@ -43,12 +43,10 @@ flowchart LR
  A["PR + snapshot exacto"] --> P["preflight"]
  P --> F["fast"]
  P --> B["Chromium"]
- P --> R["real-stack"]
  A --> S["Sonar"]
  A --> C["CodeRabbit parallel review"]
  F --> M["Squash merge"]
  B --> M
- R --> M
  S --> M
  C --> M
  M --> X["CI del SHA exacto de main"]
