@@ -117,36 +117,48 @@
     return '';
   }
 
+  function firstMediaError(checks) {
+    for (const [value, type, required, fieldLabel] of checks) {
+      const error = mediaReferenceError(value, type, required, fieldLabel);
+      if (error) return error;
+    }
+    return '';
+  }
+
+  function layerMediaError(slide, label) {
+    const layers = Array.isArray(slide.layers) ? slide.layers : [];
+    for (let layerIndex = 0; layerIndex < layers.length; layerIndex += 1) {
+      const layer = layers[layerIndex];
+      if (!['image','logo'].includes(layer.type)) continue;
+      const layerName = layer.name || `Layer ${layerIndex + 1}`;
+      const layerLabel = `${label} · ${layerName}`;
+      const error = firstMediaError([
+        [layer.src, 'image', false, `${layerLabel}: Desktop asset`],
+        [layer.mobileSrc, 'image', false, `${layerLabel}: Mobile asset`],
+      ]);
+      if (error) return error;
+    }
+    return '';
+  }
+
+  function slideMediaError(slide, slideIndex) {
+    if (slide.enabled === false) return '';
+    const label = slide.name || `Slide ${slideIndex + 1}`;
+    const expectedType = slide.mediaType === 'video' ? 'video' : 'image';
+    const checks = [
+      [slide.desktopSrc, expectedType, true, `${label}: Desktop media`],
+      [slide.mobileSrc, expectedType, false, `${label}: Mobile media`],
+    ];
+    if (expectedType === 'video') {
+      checks.push([slide.poster, 'image', false, `${label}: Video poster`]);
+    }
+    return firstMediaError(checks) || layerMediaError(slide, label);
+  }
+
   function configMediaError(payload) {
     for (let slideIndex = 0; slideIndex < payload.slides.length; slideIndex += 1) {
-      const slide = payload.slides[slideIndex];
-      if (slide.enabled === false) continue;
-      const label = slide.name || `Slide ${slideIndex + 1}`;
-      const expectedType = slide.mediaType === 'video' ? 'video' : 'image';
-      const checks = [
-        [slide.desktopSrc, expectedType, true, `${label}: Desktop media`],
-        [slide.mobileSrc, expectedType, false, `${label}: Mobile media`],
-      ];
-      if (expectedType === 'video') {
-        checks.push([slide.poster, 'image', false, `${label}: Video poster`]);
-      }
-      for (const [value, type, required, fieldLabel] of checks) {
-        const error = mediaReferenceError(value, type, required, fieldLabel);
-        if (error) return error;
-      }
-      for (let layerIndex = 0; layerIndex < slide.layers.length; layerIndex += 1) {
-        const layer = slide.layers[layerIndex];
-        if (!['image','logo'].includes(layer.type)) continue;
-        for (const [value, suffix] of [[layer.src, 'Desktop asset'], [layer.mobileSrc, 'Mobile asset']]) {
-          const error = mediaReferenceError(
-            value,
-            'image',
-            false,
-            `${label} · ${layer.name || `Layer ${layerIndex + 1}`}: ${suffix}`
-          );
-          if (error) return error;
-        }
-      }
+      const error = slideMediaError(payload.slides[slideIndex], slideIndex);
+      if (error) return error;
     }
     return '';
   }

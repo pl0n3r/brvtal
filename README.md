@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+557** | **−76** | **+481** |
+| **12** | **+571** | **−77** | **+494** |
 
 ## Calidad y entrega
 
@@ -31,7 +31,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Save authority | Settings API devuelve 422 con field exacto si media pública no es válida |
 | Local media | published Media Library + archivo real bajo `/uploads/` |
 | External media | HTTPS explícito; sin fetch server-side durante save |
@@ -63,6 +63,7 @@ flowchart LR
 - DISCADMIN bloquea errores obvios antes del request; el servidor sigue siendo la autoridad.
 - Se añadió cobertura real-stack autenticada para persistencia y rechazo 422.
 - El validador del README dejó de exigir el issue histórico #517.
+- Los helpers nuevos se refactorizaron para mantener complejidad y naming dentro de Clean-as-You-Code.
 - BRVTAL avanza a **v0.1.2**.
 
 ## Archivos modificados en este deploy

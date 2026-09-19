@@ -264,7 +264,7 @@ try {
                 json_response(['ok' => false, 'error' => 'INVALID_SETTING_JSON'], 422);
             }
             if ($key === BRVTAL_HERO_SLIDER_SETTING_KEY) {
-                $heroSliderError = brvtal_hero_slider_setting_error($pdo, $value, $isJson);
+                $heroSliderError = brvtalHeroSliderSettingError($pdo, $value, $isJson);
                 if ($heroSliderError !== null) {
                     json_response(
                         [

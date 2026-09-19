@@ -15,7 +15,7 @@ const BRVTAL_HERO_SLIDER_SETTING_KEY = 'home.hero.slider';
  * @param callable(string): ?array $resolveLocal
  * @return array{error:string,field:string}|null
  */
-function brvtal_hero_slider_media_reference_error(
+function brvtalHeroSliderMediaReferenceError(
     mixed $value,
     string $expectedType,
     string $field,
@@ -66,7 +66,7 @@ function brvtal_hero_slider_media_reference_error(
  * @param callable(string): ?array $resolveLocal
  * @return array{error:string,field:string}|null
  */
-function brvtal_hero_slider_config_error(array $config, callable $resolveLocal): ?array
+function brvtalHeroSliderConfigError(array $config, callable $resolveLocal): ?array
 {
     $slides = is_array($config['slides'] ?? null) ? array_slice($config['slides'], 0, 20) : [];
 
@@ -86,7 +86,7 @@ function brvtal_hero_slider_config_error(array $config, callable $resolveLocal):
             if ($field === 'poster' && $mediaType !== 'video') {
                 continue;
             }
-            $error = brvtal_hero_slider_media_reference_error(
+            $error = brvtalHeroSliderMediaReferenceError(
                 $slide[$field] ?? '',
                 $expectedType,
                 $prefix . '.' . $field,
@@ -104,7 +104,7 @@ function brvtal_hero_slider_config_error(array $config, callable $resolveLocal):
                 continue;
             }
             foreach (['src', 'mobileSrc'] as $field) {
-                $error = brvtal_hero_slider_media_reference_error(
+                $error = brvtalHeroSliderMediaReferenceError(
                     $layer[$field] ?? '',
                     'image',
                     $prefix . '.layers.' . $layerIndex . '.' . $field,
@@ -122,7 +122,7 @@ function brvtal_hero_slider_config_error(array $config, callable $resolveLocal):
 }
 
 /** @return array{error:string,field:string}|null */
-function brvtal_hero_slider_setting_error(PDO $pdo, string $value, int $isJson): ?array
+function brvtalHeroSliderSettingError(PDO $pdo, string $value, int $isJson): ?array
 {
     if ($isJson !== 1) {
         return ['error' => 'HERO_SLIDER_JSON_REQUIRED', 'field' => 'setting_value'];
@@ -149,5 +149,5 @@ function brvtal_hero_slider_setting_error(PDO $pdo, string $value, int $isJson):
         return $row;
     };
 
-    return brvtal_hero_slider_config_error($config, $resolveLocal);
+    return brvtalHeroSliderConfigError($config, $resolveLocal);
 }
