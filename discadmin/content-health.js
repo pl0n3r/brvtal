@@ -100,10 +100,6 @@
       </div>
       <div class="content-health-note">SEO title/description are scored only for content types that persist those fields. Diagnostics never publish, modify or block drafts automatically.</div>`;
     main.appendChild(panel);
-    panel.querySelectorAll('[data-health-open]').forEach(button => button.addEventListener('click', () => {
-      const section = button.dataset.healthOpen || sectionFor(button.dataset.healthType);
-      window.go?.(section);
-    }));
   }
 
   async function mount() {

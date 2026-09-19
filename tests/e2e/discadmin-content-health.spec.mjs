@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const recordNavigationJs = readFileSync(join(process.cwd(), 'discadmin/content-core-nav.js'), 'utf8');
 const contentHealthJs = readFileSync(join(process.cwd(), 'discadmin/content-health.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/content-health-e2e.html';
 
@@ -55,8 +56,10 @@ test('Dashboard Content Health separates public readiness from draft completenes
       <script>
         window.state = { authed: true, section: 'dashboard' };
         window.go = async section => { window.__healthRoute = section; window.state.section = section; };
+        window.BRVTALContentCore = { openEvent: async id => { window.__openedRecordId = Number(id); } };
         window.BRVTALFeedback = { error: message => { window.__healthError = message; } };
       </script>
+      <script>${recordNavigationJs}</script>
       <script>${contentHealthJs}</script>
     </body></html>`
   }));
@@ -74,5 +77,9 @@ test('Dashboard Content Health separates public readiness from draft completenes
   await expect(page.getByText('Drafts may be incomplete without lowering the public health score. Completeness remains visible as editorial progress.')).toBeVisible();
 
   await page.locator('[data-health-open="events"]').click();
-  await expect.poll(() => page.evaluate(() => window.__healthRoute)).toBe('events');
+  await expect.poll(() => page.evaluate(() => ({
+    section: window.__healthRoute,
+    recordId: window.__openedRecordId,
+    feedback: window.__healthError || '',
+  }))).toEqual({section:'events',recordId:10,feedback:''});
 });
