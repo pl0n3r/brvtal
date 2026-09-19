@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#564 browser phase telemetry (v0.1.19)** | setup/cache/infra/test medidos desde timestamps de GitHub |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `5fba8a5e651c21f178be0d1061cc67c830a479f1` |
-| Version | 🚧 **0.1.18 → 0.1.19** | patch deploy |
-| Producción | 🚧 **EXTERNAL BLOCKER OBSERVED** | Hostinger continúa fuera de sincronía; no se infiere validación de producción |
+| Work line | 🚧 **#174 Banners unsaved-change protection (v0.1.20)** | guard transaccional antes de reemplazar workspace/URL |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `a3b30d53429ce075a54c55af891a098331db2c90` |
+| Version | 🚧 **0.1.19 → 0.1.20** | patch deploy |
+| Producción | 🚧 **NOT VALIDATED IN PRODUCTION** | CI y tests no sustituyen validación real de Hostinger |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+406** | **−96** | **+310** |
+| **8** | **+302** | **−53** | **+249** |
 
 ## Calidad y entrega
 
@@ -37,8 +37,9 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Telemetry | post-CI; no añade dependencias ni segundos al DAG de validación |
-| Browser phases | dependencies/cache · browser/system · infrastructure · test · other |
+| Banners dirty-state | snapshot limpio tras load/save; comparación normalizada |
+| Navigation | confirmación antes de go/tech/Back; commit de descarte solo tras éxito |
+| Browser lifecycle | `beforeunload` para refresh/cierre con cambios |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
@@ -46,55 +47,57 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.19"] --> P["PR + snapshot exacto"]
+ A["Release v0.1.20"] --> P["PR + snapshot exacto"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI exact-main"]
- X --> T["Post-CI phase telemetry"]
+ X --> N["#174 protegido en navegación real"]
 ```
 
 ## Qué se hizo
 
-- La telemetría post-CI ahora conserva tiempos por step y agrega fases comparables para Chromium, WebKit y real-stack.
-- Se separan **dependency/cache**, **browser/system setup**, **infrastructure**, **test** y **other** sin insertar timers ni pasos adicionales dentro de los jobs críticos.
-- Un contrato con fixture local protege clasificación, tiempos, skipped steps y la semántica de critical path.
-- La primera evidencia real ya mostró que WebKit está dominado por setup, mientras Chromium dedica más tiempo al test; todavía no se shardeará desde una sola muestra.
-- Versión **0.1.19**.
+- Banners mantiene un snapshot limpio después de cargar y después de guardar; el dirty-state se deriva de la configuración normalizada actual.
+- Salir o reabrir Banners con cambios sin guardar exige confirmación **antes** de cambiar URL, cancelar módulos o reemplazar el workspace.
+- Si el usuario cancela Back/Forward, la capa de Information Architecture restaura la ruta de Banners.
+- Si una navegación confirmada falla, los cambios siguen marcados como pendientes; el descarte solo se consolida después de una transición exitosa.
+- Refresh/cierre de pestaña usa `beforeunload` únicamente cuando Banners está realmente dirty.
+- Versión **0.1.20**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/ci-throughput-telemetry.yml` — delega el reporte post-CI al procesador testeado.
-- `AGENTS.md` — fija la regla evidence-first para optimización de throughput.
+- `AGENTS.md` — documenta el contrato durable de dirty-state/navegación y actualiza prioridades.
 - `README.md` — snapshot visual del deploy actual.
-- `config/version.php` — declara la release runtime `0.1.19`.
-- `docs/TESTING.md` — documenta fases, semántica y uso de múltiples muestras.
-- `package.json` — alinea la versión del proyecto con `0.1.19`.
-- `scripts/ci-throughput-report.py` — procesa timestamps de jobs/steps y genera JSON + Job Summary.
-- `tests/ci-throughput-report-contract.php` — valida critical path y desglose setup/test con fixtures locales.
+- `config/version.php` — declara la release runtime `0.1.20`.
+- `discadmin/admin-information-architecture.js` — integra el guard antes de side effects y restaura URL en Back cancelado.
+- `discadmin/hero-slider.js` — añade snapshot limpio, confirmación, commit post-éxito y `beforeunload`.
+- `package.json` — alinea la versión del proyecto con `0.1.20`.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — cubre cancelación de rutas dinámicas, System y browser Back.
+- `tests/e2e/hero-slider-v2.spec.mjs` — cubre dirty-state, cancelar/aceptar, fallo de navegación, save y beforeunload.
 
 ## Validación
 
-- Base exacta `5fba8a5`: BRVTAL CI / validate success.
-- El nuevo Production Performance ya demostró coordinación-only success cuando CI terminó antes del Deploy Observer, sin setup ni medición duplicada.
-- El contrato ejecutable de throughput ya pasó en fast; el artifact post-CI debe confirmar el schema en una corrida real.
-- Sonar detectó rutas de archivo controlables por CLI en el primer head; el procesador se endurece a stdin/stdout, ya no acepta paths externos y elimina el return redundante reportado después.
-- BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
-- No se declara producción validada desde CI, telemetría ni deployment marker.
+- Base exacta `a3b30d5`: BRVTAL CI / validate success; Phase B throughput artifact real también success.
+- Los tests dirigidos deben demostrar que cancelación no muta URL/workspace y que navegación fallida conserva dirty-state.
+- BRVTAL CI, Sonar y CodeRabbit se revisan sobre el head estable antes del merge; CodeRabbit es advisory si el servicio no produce veredicto.
+- Tras merge se verificará BRVTAL CI sobre el SHA exacto de `main`.
+- No se declara producción validada desde CI.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · acumular muestras y decidir con datos si existe una optimización de setup suficientemente rentable. |
-| **NEXT** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) · proteger cambios sin guardar en Banners. |
-| **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) · productividad editorial y protección general de editores. |
-| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · producción sigue exponiendo una release antigua y requiere revisión Hostinger/hPanel. |
+| **NOW** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) · cerrar protección de cambios sin guardar en Banners. |
+| **NEXT** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519) · visual drag/drop ordering como primitiva editorial. |
+| **LATER** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) · data grid canónico y protección general de editores. |
+| **EVIDENCE** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · acumular muestras antes de Phase D/sharding. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger/hPanel sigue siendo el frente externo. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 CI throughput evidence | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
-| **NEXT** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
-| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
+| **NOW** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
+| **NEXT** | 🚧 Editorial ordering / grids | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) |
+| **LATER** | 🚧 General editor protection | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) |
+| **EVIDENCE** | 🚧 CI throughput Phase D decision | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
 | **BLOCKED / EXTERNAL** | 🚧 Hostinger configuration | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

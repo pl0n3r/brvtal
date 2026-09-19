@@ -242,6 +242,78 @@ test('Memories stays directly after Media and owns the active state only in its 
   await expect(memories).not.toHaveClass(/active/);
 });
 
+
+test('dirty Banners cancellation blocks dynamic navigation before URL or workspace commit', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.__guardRequests = [];
+    window.__guardCommits = [];
+    window.BRVTALHeroSliderGuard = {
+      requestNavigation(section) {
+        window.__guardRequests.push(section);
+        return false;
+      },
+      commitNavigation(section) {
+        window.__guardCommits.push(section);
+      }
+    };
+  });
+
+  const result = await page.evaluate(() => window.go('media'));
+
+  expect(result).toBe(false);
+  expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('hero-slider');
+  expect(await page.evaluate(() => window.__nativeGo.includes('media'))).toBe(false);
+  expect(await page.evaluate(() => window.__guardRequests)).toEqual(['media']);
+  expect(await page.evaluate(() => window.__guardCommits)).toEqual([]);
+});
+
+test('dirty Banners cancellation also blocks technical navigation', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALHeroSliderGuard = {
+      requestNavigation() { return false; },
+      commitNavigation() { throw new Error('must not commit cancelled navigation'); }
+    };
+  });
+
+  const result = await page.evaluate(() => window.tech('system'));
+
+  expect(result).toBe(false);
+  expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('hero-slider');
+});
+
+test('browser Back restores the Banners URL when unsaved navigation is cancelled', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    history.replaceState({brvtalAdminRoute:'artists'}, '', '?module=artists');
+    window.__renderShell('hero-slider');
+    history.pushState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALHeroSliderGuard = {
+      requestNavigation() { return false; },
+      commitNavigation() { throw new Error('must not commit cancelled navigation'); }
+    };
+  });
+
+  await page.goBack();
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('hero-slider');
+  expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+  await expect(page.locator('.main .top h1')).toHaveText('HERO-SLIDER');
+});
+
 test('dynamic routes update the URL before readiness settles', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
