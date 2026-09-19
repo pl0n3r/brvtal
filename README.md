@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+198** | **−88** | **+110** |
+| **14** | **+220** | **−97** | **+123** |
 
 ## Calidad y entrega
 
@@ -88,8 +88,10 @@ flowchart LR
 - `discadmin/hero-slider.js` — nombre visible Banners.
 - `discadmin/index-core.php` — elimina ONLINE y shortcut legacy conflictivo.
 - `discadmin/settings-v2.js` — Theme/Security bajo Settings y header claro.
+- `tests/blog-contract.php` — contrato Blog alineado al orden canónico de IA.
 - `tests/e2e/content-core-real-stack.spec.mjs` — smoke autenticado de navegación/search.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — regresiones de IA, search y Settings.
+- `tests/releases-contract.php` — contratos Releases alineados a la nueva jerarquía.
 
 ## Validación
 
