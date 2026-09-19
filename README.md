@@ -18,9 +18,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 📐 **PROJECT PROGRESS CONVENTION** | AGENTS + README validator + GitHub roadmap |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `d547411b0ae885de1fd078e274315c397f524d66` · exact-main `validate` verde |
-| Version | 🚀 **0.1.2 → 0.1.3** | patch deploy bump · pre-1.0 |
+| Work line | 🚧 **#348 TASK-ORIENTED DISCADMIN IA** | navegación jerárquica + search canónico |
+| Base exacta | 📌 **BRANCH BASE** | `main` `d7433b77786f06b67a2f6cf5edb5d6c0d268ad49` |
+| Version | 🚀 **0.1.3 → 0.1.4** | patch deploy bump · pre-1.0 |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+83** | **−54** | **+29** |
+| **12** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 
@@ -37,8 +37,9 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS]** |
-| Progress rule | **CI-enforced** · tracker rows require ✅/🚧 |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
+| Navegación | orden primario estable + children semánticos + deep links compatibles |
+| Search | top-right + sidebar comparten `BRVTALGlobalSearch` |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
 | Exact-main | **CI del SHA exacto de main** obligatorio tras squash merge |
@@ -47,50 +48,66 @@
 
 ```mermaid
 flowchart LR
- A["PR + snapshot exacto"] --> R["Canonical progress rule"]
- R --> T["README / Issues / Roadmap"]
- T --> C["CI contract"]
- C --> M["Squash merge"]
- M --> X["Exact-main validation"]
+ A["PR + snapshot exacto"] --> P["preflight"]
+ P --> F["fast PHP+JS"]
+ P --> B["Chromium"]
+ P --> R["real-stack"]
+ A --> S["Sonar"]
+ A --> C["CodeRabbit"]
+ F --> M["Squash merge"]
+ B --> M
+ R --> M
+ S --> M
+ C --> M
+ M --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Se formaliza una única convención visual de progreso para todo BRVTAL.
-- Un ítem solo puede pasar a ✅ tachado cuando superó los delivery gates requeridos.
-- Lo pendiente o en curso permanece 🚧 y sin tachado.
-- Los completados permanecen visibles en el tracker en vez de desaparecer.
-- AGENTS conserva la regla para cualquier chat/agente futuro.
-- El validador del README rechaza trackers sin la convención.
-- El roadmap maestro #533 ya usa la misma semántica.
-- BRVTAL avanza a **v0.1.3**.
+- DISCADMIN pasa a dos grupos: **SITE / EDITORIAL** y **CONFIGURATION / TECHNICAL**.
+- El orden principal queda Dashboard → Banners → Events → Artists → Releases → Sets → Media → Pages → Blog.
+- Hero Slider conserva su ruta interna pero se presenta al usuario como **Banners**.
+- Memories queda subordinado a Media; Theme Studio y Security / 2FA quedan subordinados a Settings.
+- Backups/Activity dejan de competir como pseudo-destinos cuando ya tienen superficie canónica.
+- Global Search permanece arriba y suma acceso persistente inmediatamente antes de Logout.
+- Se elimina el `ONLINE` estático que parecía un health check sin serlo.
+- Se elimina el atajo legacy `⌘K/Ctrl+K → Theme Studio`; Global Search queda como único dueño del shortcut.
+- Settings elimina la etiqueta ambigua “Control Plane” y expone Theme/Security desde su jerarquía.
+- Se añaden regresiones Playwright y real-stack autenticado.
+- BRVTAL avanza a **v0.1.4**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md`
-- `README.md`
-- `config/version.php`
-- `scripts/readme-dashboard.py`
-- `tests/project-operations-contract.php`
+- `AGENTS.md` — contrato durable de la nueva IA.
+- `README.md` — snapshot exacto del deploy.
+- `config/version.php` — versión 0.1.4.
+- `discadmin/admin-information-architecture.css` — jerarquía visual de children.
+- `discadmin/admin-information-architecture.js` — grupos, orden y aliases canónicos.
+- `discadmin/admin-modules.css` — elimina orden CSS legacy que competía con la IA.
+- `discadmin/global-search.js` — acceso sidebar al mismo buscador canónico.
+- `discadmin/hero-slider.js` — nombre visible Banners.
+- `discadmin/index-core.php` — elimina ONLINE y shortcut legacy conflictivo.
+- `discadmin/settings-v2.js` — Theme/Security bajo Settings y header claro.
+- `tests/e2e/content-core-real-stack.spec.mjs` — smoke autenticado de navegación/search.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — regresiones de IA, search y Settings.
 
 ## Validación
 
-- contrato de operaciones exige la convención en AGENTS y README;
-- el validador del dashboard exige ✅/🚧 en filas de progreso;
-- un ✅ sin tachado falla;
-- un 🚧 tachado falla;
-- no se cambia arquitectura, datos ni producción;
-- sin migración de producción ni operación destructiva.
+- Chromium cubre orden, jerarquía, aliases ocultos, Global Search y compatibilidad de rutas;
+- real-stack autenticado valida la misma IA contra PHP/MariaDB reales;
+- PHP/JS syntax y contratos corren en `fast`;
+- no hay cambio de esquema, migración de producción ni operación destructiva;
+- el PR todavía debe superar Sonar, CodeRabbit y BRVTAL CI antes de merge.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **DONE** | ✅ ~~[#221](https://github.com/pl0n3r/brvtal/issues/221) · Hero/Banner media integrity~~ |
-| **NOW** | 🚧 Phase 2 Admin: [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514). |
-| **NEXT** | 🚧 Settings/navigation follow-through: [#516](https://github.com/pl0n3r/brvtal/issues/516), [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480). |
+| **DONE** | ✅ ~~Phase 1 quick wins y [#221](https://github.com/pl0n3r/brvtal/issues/221) Hero/Banner media integrity~~ |
+| **NOW** | 🚧 Cerrar [#348](https://github.com/pl0n3r/brvtal/issues/348) con CI + Sonar + CodeRabbit + exact-main. |
+| **NEXT** | 🚧 Appearance/premium UX: [#149](https://github.com/pl0n3r/brvtal/issues/149) y [#514](https://github.com/pl0n3r/brvtal/issues/514). |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
-| **LATER** | 🚧 Editorial/productivity: [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#513](https://github.com/pl0n3r/brvtal/issues/513). |
+| **LATER** | 🚧 Settings/performance: [#516](https://github.com/pl0n3r/brvtal/issues/516), [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480). |
 
 ## Panorama general pendiente
 
