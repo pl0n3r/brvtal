@@ -200,13 +200,15 @@
     return window.state?.section === 'hero-slider' || Boolean(root());
   }
 
-  function requestNavigation() {
+  function requestNavigation(section) {
     if (!bannersWorkspaceActive() || !hasUnsavedChanges()) return true;
-    return window.confirm('You have unsaved changes in Banners. Discard them and continue?');
+    const action = section === 'hero-slider' ? 'reload Banners' : 'leave Banners';
+    return window.confirm(`You have unsaved changes in Banners. Discard them and ${action}?`);
   }
 
-  function commitNavigation() {
-    if (cleanConfigSnapshot !== null) markConfigClean();
+  function commitNavigation(section) {
+    if (!section || cleanConfigSnapshot === null) return;
+    markConfigClean();
   }
 
   function handleBeforeUnload(event) {
