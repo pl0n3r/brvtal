@@ -3,6 +3,8 @@ run-name: Authenticated Production Smoke #${{ github.run_number }} · ${{ github
 
 on:
   workflow_dispatch:
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -14,7 +16,13 @@ concurrency:
 jobs:
   smoke:
     name: read-only-admin-smoke
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 534 &&
+       github.event.comment.user.login == github.repository_owner &&
+       github.event.comment.author_association == 'OWNER' &&
+       github.event.comment.body == '/production-smoke')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-smoke
@@ -23,14 +31,17 @@ jobs:
       BRVTAL_PROD_ADMIN_EMAIL: ${{ secrets.BRVTAL_PROD_ADMIN_EMAIL }}
       BRVTAL_PROD_ADMIN_PASSWORD: ${{ secrets.BRVTAL_PROD_ADMIN_PASSWORD }}
       BRVTAL_PROD_TOTP_SECRET: ${{ secrets.BRVTAL_PROD_TOTP_SECRET }}
-      BRVTAL_EXPECTED_SHA: ${{ github.sha }}
       BRVTAL_PROD_SMOKE_OUTPUT: artifacts/production-authenticated-smoke.json
 
     steps:
       - name: Check out exact main source
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: main
+
+      - name: Resolve exact main source
+        shell: bash
+        run: echo "BRVTAL_EXPECTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Require isolated smoke credentials
         shell: bash
@@ -86,9 +97,9 @@ jobs:
             echo "## Authenticated production smoke"
             echo
             echo "- Canonical origin: \`${BRVTAL_PROD_URL}\`"
-            echo "- Source SHA: \`${GITHUB_SHA}\`"
-            echo "- Mode: **manual / authenticated / content-read-only**"
-            echo "- Checks: Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
+            echo "- Source SHA: \`${BRVTAL_EXPECTED_SHA}\`"
+            echo "- Mode: **manual or owner command / authenticated / content-read-only**"
+            echo "- Checks: visible Admin product version, Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
             echo "- Evidence: \`production-authenticated-smoke.json\` artifact"
             echo
             echo "The browser guard stubs the DISCADMIN media-permission repair locally and blocks any other post-login POST/PUT/PATCH/DELETE request."

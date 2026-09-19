@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 import { createHmac } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const baseUrl = String(process.env.BRVTAL_PROD_URL || 'https://www.brvtal.com.co').replace(/\/$/, '');
@@ -9,6 +9,10 @@ const adminPassword = String(process.env.BRVTAL_PROD_ADMIN_PASSWORD || '');
 const totpSecret = String(process.env.BRVTAL_PROD_TOTP_SECRET || '').trim();
 const expectedSha = String(process.env.BRVTAL_EXPECTED_SHA || '').trim();
 const outputPath = String(process.env.BRVTAL_PROD_SMOKE_OUTPUT || 'artifacts/production-authenticated-smoke.json');
+const versionSource = readFileSync(new URL('../../config/version.php', import.meta.url), 'utf8');
+const versionMatch = versionSource.match(/BRVTAL_APP_VERSION\s*=\s*'([^']+)'/);
+if (!versionMatch) throw new Error('Canonical BRVTAL_APP_VERSION could not be parsed.');
+const expectedVersion = versionMatch[1];
 
 if (!adminEmail || !adminPassword) {
   throw new Error('BRVTAL_PROD_ADMIN_EMAIL and BRVTAL_PROD_ADMIN_PASSWORD are required.');
@@ -22,9 +26,11 @@ const evidence = {
   checkedAt: new Date().toISOString(),
   baseUrl,
   expectedSha: expectedSha || null,
+  expectedVersion,
   deploymentObserved: false,
   authentication: { totp: false },
   checks: {
+    adminVersion: null,
     eventDate: null,
     setRelations: null,
     heroSlider: []
@@ -156,20 +162,7 @@ const context = await browser.newContext({
 });
 
 try {
-  await observeExactDeploy(context.request);
   await authenticate(context);
-
-  const [events, artists] = await Promise.all([
-    getAdminCollection(context, 'events'),
-    getAdminCollection(context, 'artists')
-  ]);
-  const datedEvent = events.find(event => String(event.event_date || '').trim());
-  if (!datedEvent) throw new Error('Production has no dated Event available for the #123 read-only verification.');
-  const publishedArtist = artists.find(artist => artist.status === 'published');
-  const publishedEvent = events.find(event => event.status === 'published');
-  if (!publishedArtist || !publishedEvent) {
-    throw new Error('Production needs at least one published Artist and one published Event to verify #124 without creating data.');
-  }
 
   // From this point forward the browser is content-read-only. DISCADMIN performs
   // a media-permission repair POST during session bootstrap; fulfill that request
@@ -199,6 +192,32 @@ try {
   const page = await context.newPage();
   await page.goto(`${baseUrl}/discadmin/`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await page.waitForFunction(() => typeof window.go === 'function' && document.querySelector('.shell'), null, { timeout: 15_000 });
+
+  const expectedVersionText = `BRVTAL v${expectedVersion}`;
+  const renderedVersion = (await page.getByTestId('admin-product-version').innerText()).trim();
+  evidence.checks.adminVersion = {
+    expected: expectedVersionText,
+    rendered: renderedVersion,
+    pass: renderedVersion === expectedVersionText
+  };
+  writeEvidence();
+  if (renderedVersion !== expectedVersionText) {
+    throw new Error(`Admin product version mismatch: expected ${expectedVersionText}, rendered ${renderedVersion || '(empty)'}.`);
+  }
+
+  await observeExactDeploy(context.request);
+
+  const [events, artists] = await Promise.all([
+    getAdminCollection(context, 'events'),
+    getAdminCollection(context, 'artists')
+  ]);
+  const datedEvent = events.find(event => String(event.event_date || '').trim());
+  if (!datedEvent) throw new Error('Production has no dated Event available for the #123 read-only verification.');
+  const publishedArtist = artists.find(artist => artist.status === 'published');
+  const publishedEvent = events.find(event => event.status === 'published');
+  if (!publishedArtist || !publishedEvent) {
+    throw new Error('Production needs at least one published Artist and one published Event to verify #124 without creating data.');
+  }
 
   // #123 — reopen a persisted Event and verify the datetime-local control is hydrated.
   await navigate(page, 'EVENTS', 'content-core');
@@ -258,7 +277,7 @@ try {
 
   evidence.status = 'passed';
   writeEvidence();
-  console.log('Authenticated production smoke passed for issues #123, #124 and #125.');
+  console.log('Authenticated production smoke passed for admin version and issues #123, #124 and #125.');
 } catch (error) {
   evidence.status = 'failed';
   evidence.error = String(error?.message || error);

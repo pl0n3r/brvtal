@@ -15,6 +15,8 @@ $health = (string)file_get_contents(__DIR__ . '/../api/health.php');
 $admin = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $adminShell = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
 $publicEntry = (string)file_get_contents(__DIR__ . '/../index.php');
+$package = json_decode((string)file_get_contents(__DIR__ . '/../package.json'), true);
+require_once __DIR__ . '/../config/version.php';
 require_once __DIR__ . '/../config/public_assets.php';
 
 deployment_expect(str_contains($resolver, "getenv('BRVTAL_DEPLOY_COMMIT')"), 'resolver must support an explicit deployment SHA');
@@ -27,6 +29,8 @@ deployment_expect(
     preg_match("/'deployment'\\s*=>\\s*\\[/", $health) === 1,
     'health response must identify its deployed source'
 );
+deployment_expect(is_array($package), 'package.json must remain valid JSON');
+deployment_expect(($package['version'] ?? null) === BRVTAL_APP_VERSION, 'package.json version must match canonical BRVTAL_APP_VERSION');
 deployment_expect(str_contains($admin, 'data-testid="admin-product-version"'), 'DISCADMIN must display the human product version as primary release identity');
 deployment_expect(str_contains($admin, 'BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION'), 'DISCADMIN product version must come from canonical release metadata');
 deployment_expect(str_contains($admin, 'data-testid="admin-deploy-source"'), 'DISCADMIN must retain deployed source as secondary technical detail');

@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#480 HOME HERO DESKTOP** | safe-area + composición responsive |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1526bbb1180b5b9bc97968b6f41e77b4e05751c3` |
-| Version | 🚧 **0.1.10 → 0.1.11** | patch deploy |
-| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger observado en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| Work line | 🚧 **#534 ADMIN RELEASE IDENTITY** | versión visible + smoke E2E |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `2b5a0d4d7539ef744a4bebd88afab89c00d9fcf3` |
+| Version | 🚧 **0.1.11 → 0.1.12** | patch deploy |
+| Producción | ⛔ **BLOCKED / EXTERNAL** | usuario reporta 0.1.0; se verificará con smoke autenticado |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+133** | **−53** | **+80** |
+| **8** | **+122** | **−59** | **+63** |
 
 ## Calidad y entrega
 
@@ -36,8 +36,10 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[JS] · chromium** |
-| Browser | geometría real desktop + safe-area de layers |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Release identity | `BRVTAL_APP_VERSION` = `package.json.version` |
+| E2E real-stack | usuario E2E valida versión visible, navegación y reload |
+| Producción | smoke read-only registra versión esperada/renderizada |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
@@ -45,53 +47,56 @@
 
 ```mermaid
 flowchart LR
- A["Hero desktop"] --> G["Safe area + flow"]
- G --> T["Playwright geometry"]
- T --> P["PR + snapshot exacto"]
- P --> Q["CI / Sonar / CodeRabbit"]
+ A["Canonical version"] --> P["Package parity"]
+ P --> E["E2E Admin visible version"]
+ E --> G["PR + snapshot exacto"]
+ G --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
+ X --> S["/production-smoke · #534"]
 ```
 
 ## Qué se hizo
 
-- El Hero fallback conserva escala editorial grande, pero limita el título desktop a 220 px y coloca la declaración cultural dentro del flujo.
-- La copia principal queda separada del header fijo con un safe top explícito.
-- En desktop, las capas de texto/CTA publicadas desde Banners conservan X/ancho, pero su centro vertical se clampa fuera del header y de los controles inferiores; imágenes/logos decorativos y mobile conservan su geometría authored.
-- Playwright valida bounding boxes en 1440×800 y 1920×900, además de capas extremas Y=0/Y=100.
-- Versión **0.1.11**.
+- Alinea `package.json` con la release canónica y añade contrato para impedir otra deriva a 0.1.0.
+- El usuario E2E real-stack verifica `data-testid="admin-product-version"` en carga, navegación y reload.
+- El smoke autenticado de producción registra la versión visible antes de fallar por un marker exacto ausente.
+- #534 acepta el comando owner-only `/production-smoke` para ejecutar ese smoke read-only.
+- Versión **0.1.12**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — contrato durable del safe-area y prioridades.
-- `README.md` — snapshot #480.
-- `config/version.php` — versión 0.1.11.
-- `css/hero-slider.css` — escala desktop segura del slider.
-- `css/public-home-phase-a.css` — composición desktop del fallback.
-- `js/hero-slider.js` — límites verticales de layers.
-- `tests/e2e/hero-slider.spec.mjs` — regresión de layers.
-- `tests/e2e/public-home-phase-a.spec.mjs` — regresión geométrica desktop.
+- `.github/workflows/production-authenticated-smoke.yml` — trigger owner-only desde #534.
+- `AGENTS.md` — regla durable de release identity.
+- `README.md` — snapshot de esta verificación.
+- `config/version.php` — versión 0.1.12.
+- `package.json` — metadata 0.1.12.
+- `tests/deployment-traceability-contract.php` — paridad de versión.
+- `tests/e2e/discadmin-premium-real-stack.spec.mjs` — versión visible con usuario E2E.
+- `tests/e2e/production-authenticated-smoke.mjs` — evidencia de versión en producción.
 
 ## Validación
 
-- El título/declaración no se solapan y el bloque completo permanece dentro del Hero en viewports desktop amplios.
-- Las capas desktop de texto/CTA extremas quedan fuera del header y del borde inferior; imágenes/logos y coordenadas mobile no cambian.
-- Mobile conserva sus reglas existentes; no hay migración ni SQL de producción.
+- El contrato fast falla si package y release canónica divergen.
+- Real-stack debe autenticar el admin E2E y leer `BRVTAL v0.1.12`.
+- Producción queda separada: el smoke reporta exactamente qué versión sirve Hostinger y no convierte CI en VALIDATED IN PRODUCTION.
+- Sin migración ni SQL destructivo.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · gates, merge y exact-main. |
-| **NEXT** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · shell/navigation consistency. |
-| **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) · editorial productivity. |
-| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
+| **NOW** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · ejecutar smoke autenticado y comparar versión visible con main. |
+| **NEXT** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · cerrar Phase 2. |
+| **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) · productividad editorial. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git/deploy marker. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA/Appearance/Settings/Security + Banners performance~~ | ✅ ~~[#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#553](https://github.com/pl0n3r/brvtal/issues/553), [#523](https://github.com/pl0n3r/brvtal/issues/523)~~ |
-| **NOW** | 🚧 Phase 2 closeout | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
-| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) |
-| **BLOCKED / EXTERNAL** | 🚧 Deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| **DONE** | ✅ ~~Phase 1 + Admin IA/Appearance/Settings/Security + Banners + Hero desktop~~ | ✅ ~~[#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480)~~ |
+| **NOW** | 🚧 Release/deploy observability | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| **NEXT** | 🚧 Phase 2 closeout | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
+| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
+| **BLOCKED / EXTERNAL** | 🚧 Hostinger deploy | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
