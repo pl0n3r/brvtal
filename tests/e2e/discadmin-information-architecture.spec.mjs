@@ -51,7 +51,7 @@ function harness(authed = true) {
         +navButton('ARTISTS',"go('artists')")
         +navButton('SETS',"go('sets')")
         +navButton('MEDIA',"go('media')")
-        +'<button data-admin-nav="media" data-memories-nav="1" onclick="go(\'memories\')">MEMORIES</button>'
+        +navButton('MEMORIES',"go('memories')",'memories')
         +navButton('PAGES',"go('pages')")
         +navButton('CONTENT CORE',"go('content-core')")
         +navButton('THEME STUDIO',"go('theme')")
@@ -139,11 +139,11 @@ test('sidebar exposes the task-oriented hierarchy while internal aliases stay hi
   const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"])').allTextContents();
   expect(visibleLabels).toEqual([
     'DASHBOARD','BANNERS','EVENTS','ARTISTS','RELEASES','SETS','MEDIA','MEMORIES','PAGES','BLOG',
-    'SETTINGS','THEME STUDIO','SECURITY / 2FA','SYSTEM STATUS'
+    'SETTINGS','SYSTEM STATUS'
   ]);
   await expect(page.getByRole('button',{name:'MEMORIES'})).toHaveClass(/ia-navchild/);
-  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toHaveClass(/ia-navchild/);
-  await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toHaveClass(/ia-navchild/);
+  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toBeHidden();
+  await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toBeHidden();
 });
 
 

@@ -97,7 +97,7 @@ The owner-facing sidebar has two high-level groups and one stable primary order:
 - **SITE / EDITORIAL** — Dashboard → Banners → Events → Artists → Releases → Sets → Media → Pages → Blog.
   - **Memories** is a subordinate Media destination, not another primary peer.
 - **CONFIGURATION / TECHNICAL** — Settings → System Status.
-  - **Theme Studio** and **Security / 2FA** are subordinate Settings destinations while their existing direct routes remain compatible during consolidation.
+  - **Theme Studio** and **Security / 2FA** are accessed from Settings instead of remaining sidebar peers; their existing direct routes remain compatible during consolidation.
   - Backups/Activity aliases must not become duplicate pseudo-pages when their canonical capability already lives in System Status/Dashboard.
 
 **Banners** is the owner-facing name of the existing internal `hero-slider` route/module. Keep the internal route compatible while using Banners in visible navigation and headings.
@@ -133,7 +133,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 ### DISCADMIN / editorial
 
 - canonical one-shell administration;
-- task-oriented sidebar grouped as Site / Editorial and Configuration / Technical, with Banners immediately after Dashboard and Theme Studio / Security nested under Settings;
+- task-oriented sidebar grouped as Site / Editorial and Configuration / Technical, with Banners immediately after Dashboard and Theme Studio / Security removed as sidebar peers in favor of Settings-owned access;
 - responsive/mobile sidebar and record lists;
 - unified forms/dialogs, validation and double-save protection;
 - Events uses the guided Content Core event workflow internally;
@@ -269,7 +269,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 42. **Dynamic DISCADMIN module readiness and navigation have one owner.** `BRVTALAdminModules` owns the readiness promises and exported `navigate()` path for Media, Releases and Blog; navigation/IA layers must delegate those dynamic destinations to that canonical boundary instead of attaching duplicate late `load` listeners or falling through to legacy `go('/media')` CRUD. Media must mount consistently from Dashboard, another module and direct `?module=media` navigation. Genuine dependency failures must surface the canonical ERROR / RETRY state, and RETRY must discard rejected readiness state plus recreate a failed script dependency instead of replaying the same rejected promise. The normal Media Library workflow does not expose manual External Registry controls; uploaded/reusable canonical assets remain the primary path.
 43. **Hero/Banners media integrity is authoritative at save time.** Enabled Hero slides require a valid primary asset. Local references must resolve to an exact published Media Library record whose source file still exists under `/uploads/`; optional mobile/poster/image-layer references are validated when present. Explicit external media is HTTPS-only and identified as external. Client-side checks improve feedback, but the authenticated Settings API is the final authority and must reject invalid publicable configurations with a field-specific 422. Disabled slides may retain incomplete draft media.
 44. **Project-wide progress status uses one visual language.** `✅ ~~Struck through~~` means completed only after the required delivery gates; `🚧 Normal text` means pending or currently in progress. Keep completed tracker items visible and crossed out rather than deleting them. Future roadmap/Issue/README/handoff maintenance must preserve this convention.
-45. **DISCADMIN navigation is task-oriented and hierarchical.** The primary editorial order is Dashboard → Banners → Events → Artists → Releases → Sets → Media → Pages → Blog; Configuration / Technical exposes Settings then System Status. Memories belongs under Media; Theme Studio and Security / 2FA belong under Settings; Global Search has top-right and pre-Logout sidebar affordances backed by the same search; ambiguous static `ONLINE` chrome is not a health signal.
+45. **DISCADMIN navigation is task-oriented and hierarchical.** The primary editorial order is Dashboard → Banners → Events → Artists → Releases → Sets → Media → Pages → Blog; Configuration / Technical exposes Settings then System Status. Memories belongs under Media; Theme Studio and Security / 2FA are Settings-owned tools rather than sidebar peers; Global Search has top-right and pre-Logout sidebar affordances backed by the same search; ambiguous static `ONLINE` chrome is not a health signal.
 
 ---
 

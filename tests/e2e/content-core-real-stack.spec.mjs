@@ -317,8 +317,13 @@ test('DISCADMIN real stack exposes task-oriented navigation and one Global Searc
     expect(visibleLabels.indexOf(before), `${before} before ${after}`).toBeLessThan(visibleLabels.indexOf(after));
   }
 
-  await expect(page.getByRole('button',{name:'THEME STUDIO',exact:true})).toHaveClass(/ia-navchild/);
-  await expect(page.getByRole('button',{name:'SECURITY / 2FA',exact:true})).toHaveClass(/ia-navchild/);
+  await expect(page.getByRole('button',{name:'THEME STUDIO',exact:true})).toBeHidden();
+  await expect(page.getByRole('button',{name:'SECURITY / 2FA',exact:true})).toBeHidden();
+
+  await page.getByRole('button',{name:'SETTINGS',exact:true}).click();
+  await expect(page.locator('[data-settings-theme-studio]')).toBeVisible();
+  await expect(page.locator('[data-settings-security]')).toBeVisible();
+
   await expect(page.locator('.main .top .brvtal-global-search-trigger')).toBeVisible();
   const sideSearch = page.locator('.sidefoot .brvtal-global-search-side-trigger');
   await expect(sideSearch).toBeVisible();

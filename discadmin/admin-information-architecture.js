@@ -166,10 +166,10 @@
 
   const groups = [
     {label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','memories','pages','blog']},
-    {label:'CONFIGURATION / TECHNICAL', keys:['settings','theme','security','system']},
+    {label:'CONFIGURATION / TECHNICAL', keys:['settings','system']},
   ];
-  const childNavigation = new Set(['memories','theme','security']);
-  const hiddenNavigation = new Set(['content-core','seo','backups','activity']);
+  const childNavigation = new Set(['memories']);
+  const hiddenNavigation = new Set(['content-core','seo','theme','security','backups','activity']);
 
   function observeNavigation() {
     navObserver?.observe(document.documentElement,{childList:true,subtree:true});

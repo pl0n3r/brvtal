@@ -54,12 +54,12 @@ releases_assert(
     'Releases must stay in the canonical Site / Editorial primary order'
 );
 releases_assert(
-    str_contains($adminIa, "{label:'CONFIGURATION / TECHNICAL', keys:['settings','theme','security','system']}"),
-    'Settings and System Status must remain in Configuration / Technical'
+    str_contains($adminIa, "{label:'CONFIGURATION / TECHNICAL', keys:['settings','system']}"),
+    'Settings and System Status must remain the Configuration / Technical sidebar destinations'
 );
 releases_assert(
-    str_contains($adminIa, "const childNavigation = new Set(['memories','theme','security'])"),
-    'Theme Studio and Security / 2FA must remain subordinate destinations'
+    str_contains($adminIa, "const hiddenNavigation = new Set(['content-core','seo','theme','security','backups','activity'])"),
+    'Theme Studio and Security / 2FA must be Settings-owned tools rather than sidebar peers'
 );
 
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
