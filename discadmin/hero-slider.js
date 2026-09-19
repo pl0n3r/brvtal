@@ -214,9 +214,23 @@
     return host;
   }
 
-  function mediaOptions(type) {
+  function hydrateMediaPicker(select) {
+    const type = select.dataset.mediaType === 'video' ? 'video' : 'image';
     const allowed = media.filter(item => type === 'video' ? item.type === 'video' : item.type === 'image');
-    return ['<option value="">Choose from Media Library…</option>',...allowed.map(item => `<option value="${esc(item.file_path || '')}">${esc(item.title || item.file_path || ('Media #' + item.id))}</option>`)].join('');
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Choose from Media Library…';
+    select.replaceChildren(placeholder);
+    allowed.forEach(item => {
+      const option = document.createElement('option');
+      option.value = String(item.file_path || '');
+      option.textContent = String(item.title || item.file_path || ('Media #' + item.id));
+      select.appendChild(option);
+    });
+  }
+
+  function hydrateMediaPickers(host) {
+    host.querySelectorAll('[data-media-picker],[data-layer-media]').forEach(hydrateMediaPicker);
   }
 
   async function load() {
@@ -263,9 +277,9 @@
         <label class="hero-switch"><input type="checkbox" data-field="enabled" ${slide.enabled ? 'checked' : ''}><span>Slide enabled</span></label>
         <label><span>Media type</span><select data-field="mediaType"><option value="image" ${slide.mediaType==='image'?'selected':''}>Image</option><option value="video" ${slide.mediaType==='video'?'selected':''}>Video</option></select></label>
         <label><span>Transition</span><select data-field="transition">${['fade','slide','zoom'].map(v => `<option value="${v}" ${slide.transition===v?'selected':''}>${v}</option>`).join('')}</select></label>
-        <label class="full"><span>Desktop media <em>Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><select data-media-picker="desktopSrc">${mediaOptions(slide.mediaType)}</select></div></label>
-        <label class="full"><span>Mobile override <em>optional · Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><select data-media-picker="mobileSrc">${mediaOptions(slide.mediaType)}</select></div></label>
-        ${slide.mediaType==='video'?`<label class="full"><span>Video poster</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><select data-media-picker="poster">${mediaOptions('image')}</select></div></label>`:''}
+        <label class="full"><span>Desktop media <em>Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="desktopSrc" value="${esc(slide.desktopSrc)}"><select data-media-picker="desktopSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}"><option value="">Choose from Media Library…</option></select></div></label>
+        <label class="full"><span>Mobile override <em>optional · Media Library or external HTTPS</em></span><div class="hero-media-pair"><input data-field="mobileSrc" value="${esc(slide.mobileSrc)}"><select data-media-picker="mobileSrc" data-media-type="${slide.mediaType === 'video' ? 'video' : 'image'}"><option value="">Choose from Media Library…</option></select></div></label>
+        ${slide.mediaType==='video'?`<label class="full"><span>Video poster</span><div class="hero-media-pair"><input data-field="poster" value="${esc(slide.poster)}"><select data-media-picker="poster" data-media-type="image"><option value="">Choose from Media Library…</option></select></div></label>`:''}
         <label class="full"><span>Legacy kicker</span><input data-field="kicker" value="${esc(slide.kicker)}"></label>
         <label class="full"><span>Legacy title</span><input data-field="title" value="${esc(slide.title)}"></label>
         <label class="full"><span>Legacy body</span><textarea data-field="body">${esc(slide.body)}</textarea></label>
@@ -281,7 +295,7 @@
     return `<div class="hero-layer-editor"><div class="hero-editor-head"><div><span class="hero-kicker">SELECTED LAYER</span><strong>${esc(layer.name)}</strong></div><button type="button" class="btn ghost" data-delete-layer>DELETE LAYER</button></div><div class="hero-form-grid">
       <label><span>Name</span><input data-layer-field="name" value="${esc(layer.name)}"></label>
       <label><span>Type</span><input value="${esc(layer.type)}" disabled></label>
-      ${imageFields?`<label class="full"><span>Desktop asset</span><div class="hero-media-pair"><input data-layer-field="src" value="${esc(layer.src)}"><select data-layer-media="src">${mediaOptions('image')}</select></div></label><label class="full"><span>Mobile asset override</span><div class="hero-media-pair"><input data-layer-field="mobileSrc" value="${esc(layer.mobileSrc)}"><select data-layer-media="mobileSrc">${mediaOptions('image')}</select></div></label>`:`<label class="full"><span>Text</span><textarea data-layer-field="text">${esc(layer.text)}</textarea></label>`}
+      ${imageFields?`<label class="full"><span>Desktop asset</span><div class="hero-media-pair"><input data-layer-field="src" value="${esc(layer.src)}"><select data-layer-media="src" data-media-type="image"><option value="">Choose from Media Library…</option></select></div></label><label class="full"><span>Mobile asset override</span><div class="hero-media-pair"><input data-layer-field="mobileSrc" value="${esc(layer.mobileSrc)}"><select data-layer-media="mobileSrc" data-media-type="image"><option value="">Choose from Media Library…</option></select></div></label>`:`<label class="full"><span>Text</span><textarea data-layer-field="text">${esc(layer.text)}</textarea></label>`}
       ${layer.type==='cta'?`<label class="full"><span>Link URL</span><input data-layer-field="url" value="${esc(layer.url)}"></label>`:''}
       <label><span>X %</span><input type="number" min="0" max="100" data-layer-field="x" value="${layer.x}"></label><label><span>Y %</span><input type="number" min="0" max="100" data-layer-field="y" value="${layer.y}"></label>
       <label><span>Width %</span><input type="number" min="5" max="100" data-layer-field="width" value="${layer.width}"></label><label><span>Align</span><select data-layer-field="align">${['left','center','right'].map(v=>`<option value="${v}" ${layer.align===v?'selected':''}>${v}</option>`).join('')}</select></label>
@@ -416,6 +430,7 @@
     if (!host) return;
     const slide = selectedSlide();
     host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider>SAVE</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
+    hydrateMediaPickers(host);
     renderPreview(host.querySelector('.hero-preview-frame'), slide);
     bind();
   }

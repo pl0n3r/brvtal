@@ -269,6 +269,7 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 44. **Project-wide progress status uses one visual language.** `✅ ~~Struck through~~` means completed only after the required delivery gates; `🚧 Normal text` means pending or currently in progress. Keep completed tracker items visible and crossed out rather than deleting them. Future roadmap/Issue/README/handoff maintenance must preserve this convention.
 45. **DISCADMIN uses one premium low-fatigue design layer.** `discadmin/admin-design-system.css` is loaded after module CSS and owns the shared Admin type scale, spacing, geometry and long-session readability floor. Ordinary body/table/input text should be about 14 px or larger, persistent metadata/labels must not rely on 7–10 px type, and mobile form controls stay at 16 px where useful to avoid browser zoom. Dark / Light / Glass remain appearance variants of this same component system rather than separate designs.
 46. **Embedded Admin security UI never imports response-derived HTML.** Security / 2FA state used inside Settings must come from an authenticated JSON boundary and be rendered from trusted DOM structure; administrator/status data is assigned with `textContent`. State-changing TOTP operations retain the existing authenticated CSRF-protected POST boundary. Legacy standalone HTML may remain only as a compatibility surface, not as the Settings embedding transport.
+47. **Remote Media/API data must not be interpolated into Banners manager HTML.** In particular, Media Library `file_path` / title values used by Hero/Banners pickers are hydrated after the static editor shell is created, using DOM APIs (`document.createElement('option')`, `value`, `textContent`). Do not reintroduce remote Media values into strings assigned to `innerHTML`; exact-main Sonar security findings such as `jssecurity:S5696` are release blockers until resolved on `main`.
 
 ---
 
@@ -418,7 +419,7 @@ When no newer explicit user instruction exists:
 4. ✅ ~~**Phase 2 appearance — #149**~~ — coherent Dark / Light / Glass is merged and exact-main validated.
 5. ✅ ~~**Phase 2 premium Admin — #514** — shared readable typography, spacing, geometry and low-fatigue component layer is merged and exact-main validated.~~
 6. ✅ ~~**Phase 2 Settings Advanced — #516** — raw/dead configuration UI removed; inline 2FA plus Theme Studio/System Status ownership consolidated under Settings.~~
-7. 🚧 **Security hotfix — #553** — restore Sonar Security Rating A after #552 by replacing response-derived HTML embedding with authenticated JSON + safe DOM rendering.
+7. 🚧 **Security hotfix — #553** — restore exact-main Sonar Security Rating A. The remaining confirmed blocker is `discadmin/hero-slider.js` / `jssecurity:S5696`: remote Media Library values must hydrate Banners pickers through DOM APIs instead of flowing into editor `innerHTML`.
 8. 🚧 **Continue later Phase 2 / #533** — #523, #480, #193 and #216 before moving into editorial productivity.
 9. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 

@@ -18,9 +18,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#553 SECURITY HOTFIX** | 2FA embebido: JSON autenticado + DOM seguro |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `f29cf1a25fee211c621368165d0877af74e3ab93` · exact-main `validate` verde; Sonar main detectó regresión de Security Rating |
-| Version | 🚧 **0.1.7 → 0.1.8** | patch hotfix · pre-1.0 |
+| Work line | 🚧 **#553 SONAR SECURITY HOTFIX** | Banners Media pickers: datos remotos → DOM seguro |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `bb15923a431ba072fef76212cec8e5e4350864f3` · #554 mergeado; exact-main Sonar detectó `jssecurity:S5696` |
+| Version | 🚧 **0.1.8 → 0.1.9** | patch hotfix · pre-1.0 |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+314** | **−82** | **+232** |
+| **5** | **+75** | **−52** | **+23** |
 
 ## Calidad y entrega
 
@@ -37,11 +37,10 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack · webkit** |
-| Security | no HTML remoto/importado; estado 2FA JSON autenticado; mutaciones conservan CSRF |
-| Browser | estado/email se renderizan como texto y la UI 2FA sigue operativa |
-| Real stack | Settings Advanced carga Security real con administrador E2E aislado |
-| Sonar + CodeRabbit | ejecutados en paralelo; objetivo Sonar: volver a Security Rating **A** |
+| Gates seleccionados | **preflight · fast[JS] · chromium** |
+| Security | `/media` title/path no entra en HTML; opciones creadas con DOM APIs + `textContent` |
+| Browser | payloads con forma de markup permanecen texto inerte dentro de los Media pickers |
+| Sonar + CodeRabbit | ejecutados en paralelo; objetivo exact-main: Security Rating **A** / 0 vulnerabilidades nuevas |
 | Exact-main | CI del SHA exacto de main + Sonar obligatorios tras squash merge |
 
 ## Flujo de entrega
@@ -49,52 +48,45 @@
 ```mermaid
 flowchart LR
  P["PR + snapshot exacto"] --> Q["CI / Sonar / CodeRabbit"]
- A["Settings Advanced"] --> J["TOTP status JSON"]
- J --> D["Safe DOM renderer"]
- D --> U["2FA UI"]
- U --> C["CSRF-protected actions"]
- Q --> M["Squash merge"]
- M --> X["CI + Sonar del SHA exacto de main"]
+ M["/media JSON"] --> H["DOM option hydration"]
+ H --> S["Banners select"]
+ S --> X["No remote data in innerHTML"]
+ Q --> G["Squash merge"]
+ G --> V["CI + Sonar del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Elimina `DOMParser` + `document.importNode` del embedding de Security / 2FA.
-- Reutiliza el endpoint TOTP autenticado para entregar estado y email como JSON.
-- Renderiza la interfaz desde estructura DOM confiable y usa `textContent` para datos del administrador.
-- Mantiene START / CONFIRM / DISABLE, recovery codes, rate limits y CSRF existentes.
-- Evita `innerHTML` dentro del renderer Security.
-- Añade regresión browser para comprobar que texto con forma de markup sigue siendo texto.
-- Añade contratos que impiden reintroducir HTML remoto en Settings.
-- Incrementa BRVTAL a **0.1.8**.
+- Diagnostica el fallo exact-main de Sonar mediante su API pública y confirma `discadmin/hero-slider.js` / `jssecurity:S5696`.
+- Elimina el flujo de `file_path` / title remotos hacia el HTML del editor de Banners.
+- Mantiene el shell del editor estático y llena cada selector de Media con `document.createElement('option')`, `value` y `textContent`.
+- Añade regresión Playwright con valores Media que parecen markup ejecutable.
+- Retira el workflow diagnóstico temporal antes del merge.
+- Documenta la frontera de seguridad durable y sube BRVTAL a **0.1.9**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md`
-- `README.md`
-- `config/version.php`
-- `discadmin/settings-v2.js`
-- `discadmin/security.js`
-- `discadmin/totp-api.php`
-- `tests/e2e/discadmin-settings-v2.spec.mjs`
-- `tests/sonar-security-contract.php`
-- `tests/totp-enrollment-contract.php`
+- `AGENTS.md` — frontera durable para Media/API → Banners.
+- `README.md` — snapshot exacto de esta hotfix.
+- `config/version.php` — versión humana 0.1.9.
+- `discadmin/hero-slider.js` — hidratación DOM segura de Media pickers.
+- `tests/e2e/discadmin-hero-slider-security.spec.mjs` — regresión XSS de Media Library.
 
 ## Validación
 
-- Settings deja de consumir `totp-status.php` como HTML para el embedding.
-- El estado 2FA usa sesión, CSRF y JSON.
-- Los datos dinámicos no se convierten en markup.
-- Las mutaciones TOTP conservan el endpoint y límites de seguridad existentes.
-- No hay migración ni operación destructiva de producción.
+- La fuente remota `/media` ya no puede construir `<option>` mediante concatenación HTML.
+- El selector conserva path/título literales aunque contengan caracteres con forma de markup.
+- El flujo de edición existente sigue usando el mismo input/select y la misma selección de assets.
+- El workflow diagnóstico temporal no forma parte del diff final.
+- No hay migración, SQL ni operación destructiva de producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#553](https://github.com/pl0n3r/brvtal/issues/553) · recuperar Sonar Security Rating A y cerrar exact-main. |
-| **NEXT** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · medir/corregir primer load de Banners. |
-| **NEXT** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · hero desktop overlap/clipping. |
+| **NOW** | 🚧 [#553](https://github.com/pl0n3r/brvtal/issues/553) · lograr exact-main Sonar Security Rating A y cerrar la hotfix. |
+| **NEXT** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · optimizar primer load de Banners. |
+| **LATER** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · cerrar Phase 2. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
 
 ## Panorama general pendiente
