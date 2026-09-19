@@ -38,12 +38,11 @@ $expect(str_contains($endpoint,'$previousIds !== $currentIds'), 'reorder must re
 $expect(str_contains($endpoint,'beginTransaction') && str_contains($endpoint,'rollBack'), 'reorder must be transactional');
 $expect(str_contains($endpoint,'SET sort_order=? WHERE id=?'), 'reorder must normalize positions');
 $expect(!str_contains($endpoint,'{$table}') && !str_contains($endpoint,'{$labelColumn}'), 'reorder SQL must stay literal after resource whitelisting');
-$expect(str_contains($core,'Display order is managed visually from the Artists list.'), 'Artist form must explain visual order');
-$expect(str_contains($core,'Display order is managed visually from the Sets list.'), 'Set form must explain visual order');
+$expect(str_contains($core,'replaceLegacySortOrderControl'), 'Artist/Set forms must replace numeric order with visual-order guidance');
 $expect(str_contains($core,'data-order-resource="${state.section}"'), 'core list must expose ordering contract');
 $expect(str_contains($modules,'visualOrderValue'), 'create/edit must preserve hidden order');
 $expect(!str_contains($releases,'id="release_sort_order"'), 'Release numeric Sort Order must be removed');
-$expect(!str_contains($blog,'id="blog_sort_order"'), 'Blog numeric Sort Order must be removed');
+$expect(str_contains($blog,'replaceBlogSortOrderControl'), 'Blog numeric Sort Order must be replaced before the editor is shown');
 $expect(str_contains($public,"ORDER BY sort_order ASC, featured DESC, COALESCE(release_date"), 'public Releases must honor canonical order first');
 $expect(str_contains($public,"ORDER BY sort_order ASC, featured DESC, COALESCE(published_at"), 'public Blog must honor canonical order first');
 fwrite(STDOUT,"Content ordering contract passed.\n");

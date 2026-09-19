@@ -207,14 +207,25 @@ async function go(s){
 }
 function openModal(type,id=null){state.editing=id;document.getElementById('modal').classList.add('open');document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);
+ replaceLegacySortOrderControl(type);
+}
+function replaceLegacySortOrderControl(type){
+ const control=document.getElementById('f_sort_order');
+ const fieldNode=control?.closest('.field');
+ if(!fieldNode||!['artists','sets'].includes(type))return;
+ const helper=document.createElement('div');
+ helper.className='helper full';
+ const label=type==='artists'?'Artists':'Sets';
+ helper.textContent='Display order is managed visually from the '+label+' list.';
+ fieldNode.replaceWith(helper);
 }
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 function field(id,label,val='',type='text',full=false){return `<div class="field ${full?'full':''}"><label for="f_${id}">${label}</label><input id="f_${id}" type="${type}" value="${esc(val)}"></div>`}
 function area(id,label,val='',full=true){return `<div class="field ${full?'full':''}"><label for="f_${id}">${label}</label><textarea id="f_${id}">${esc(val)}</textarea></div>`}
 function select(id,label,val,opts){return `<div class="field"><label for="f_${id}">${label}</label><select id="f_${id}">${opts.map(o=>`<option value="${o[0]}" ${o[0]===val?'selected':''}>${o[1]}</option>`).join('')}</select></div>`}
 function eventForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EVENT DATA</strong><span class="helper">Contenido y publicación</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${field('event_date','Date / time',r.event_date,'datetime-local')}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published'],['archived','Archived']])}${field('venue','Venue',r.venue)}${field('city','City',r.city)}${area('description','Description',r.description)}</div></div><div class="section"><div class="sectionhead"><strong>EVENT SKIN</strong><span class="helper">Identidad visual</span></div><div class="grid2">${field('skin','Skin key',r.skin||'CORE')}${field('accent','Accent',r.accent||'#FF2038')}<div class="field full"><label>Cover image URL / path</label><div class="thumbcell" style="margin-bottom:8px">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${field('ticket_url','Ticket URL',r.ticket_url)}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div></div>`}
-function artistForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>ARTIST PROFILE</strong><span class="helper">Roster BRVTAL</span></div><div class="grid2">${field('name','Name *',r.name)}${field('slug','Slug',r.slug)}${area('bio','Bio',r.bio)}<div class="field"><label>Photo URL / path</label><div class="thumbcell">${thumb(r.photo,r.name,true)}<input id="f_photo" type="text" value="${esc(r.photo)}"></div></div>${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}<div class="helper full">Display order is managed visually from the Artists list.</div></div></div><div class="section"><div class="sectionhead"><strong>LINKS</strong><span class="helper">Social / music</span></div><div class="grid2">${field('instagram_url','Instagram',r.instagram_url)}${field('soundcloud_url','SoundCloud',r.soundcloud_url)}${field('website_url','Website',r.website_url)}</div></div></div>`}
-function setForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>SET / SOUND</strong><span class="helper">SoundCloud, YouTube, Spotify</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('platform','Platform',r.platform||'soundcloud',[['soundcloud','SoundCloud'],['youtube','YouTube'],['spotify','Spotify'],['other','Other']])}${field('external_url','External URL',r.external_url)}${field('embed_url','Embed URL',r.embed_url)}<div class="field"><label>Cover image</label><div class="thumbcell">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${select('artist_id','Artist',String(r.artist_id||''),[['','—'],...state.artists.map(a=>[String(a.id),a.name])])}${select('event_id','Event',String(r.event_id||''),[['','—'],...state.events.map(a=>[String(a.id),a.title])])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}<div class="helper full">Display order is managed visually from the Sets list.</div>${area('description','Description',r.description)}</div></div></div>`}
+function artistForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>ARTIST PROFILE</strong><span class="helper">Roster BRVTAL</span></div><div class="grid2">${field('name','Name *',r.name)}${field('slug','Slug',r.slug)}${area('bio','Bio',r.bio)}<div class="field"><label>Photo URL / path</label><div class="thumbcell">${thumb(r.photo,r.name,true)}<input id="f_photo" type="text" value="${esc(r.photo)}"></div></div>${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div><div class="section"><div class="sectionhead"><strong>LINKS</strong><span class="helper">Social / music</span></div><div class="grid2">${field('instagram_url','Instagram',r.instagram_url)}${field('soundcloud_url','SoundCloud',r.soundcloud_url)}${field('website_url','Website',r.website_url)}</div></div></div>`}
+function setForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>SET / SOUND</strong><span class="helper">SoundCloud, YouTube, Spotify</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('platform','Platform',r.platform||'soundcloud',[['soundcloud','SoundCloud'],['youtube','YouTube'],['spotify','Spotify'],['other','Other']])}${field('external_url','External URL',r.external_url)}${field('embed_url','Embed URL',r.embed_url)}<div class="field"><label>Cover image</label><div class="thumbcell">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${select('artist_id','Artist',String(r.artist_id||''),[['','—'],...state.artists.map(a=>[String(a.id),a.name])])}${select('event_id','Event',String(r.event_id||''),[['','—'],...state.events.map(a=>[String(a.id),a.title])])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${field('sort_order','Sort order',r.sort_order||0,'number')}${area('description','Description',r.description)}</div></div></div>`}
 function mediaForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>MEDIA RECORD</strong><span class="helper">Use Upload in Media Library for real files</span></div><div class="grid2">${field('title','Title *',r.title)}${select('type','Type',r.type||'image',[['image','Image'],['video','Video'],['audio','Audio'],['document','Document']])}${field('file_path','File path / URL',r.file_path)}${field('mime_type','MIME type',r.mime_type)}${field('file_size','File size',r.file_size||0,'number')}${field('alt_text','Alt text',r.alt_text)}${select('status','Status',r.status||'published',[['published','Published'],['draft','Draft']])}</div></div></div>`}
 function pageForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>PAGE BUILDER DATA</strong><span class="helper">JSON blocks — editor visual comes next</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('locale','Locale',r.locale||'es',[['es','Español'],['en','English']])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${area('content_json','Content JSON',r.content_json)}${field('seo_title','SEO title',r.seo_title)}${area('seo_description','SEO description',r.seo_description)}</div></div></div>`}
 function settingsForm(r){
@@ -518,6 +529,61 @@ function filterSettingsHome(q){
   document.querySelectorAll('[data-setting-card]').forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q)?'':'none');
 }
 
+function artistOrderRow(x){
+ const avatar=x.photo
+  ? '<img class="avatar" src="'+esc(x.photo)+'">'
+  : '<div class="avatar"></div>';
+ return `
+  <div class="tr" data-order-id="${Number(x.id)}">
+   <div class="cell">
+    ${avatar}
+    <div>
+     <div class="title">${esc(x.name)}</div>
+     <div class="meta">${esc(x.slug)}</div>
+    </div>
+   </div>
+   <div>${x.soundcloud_url?'SOUNDCLOUD':''}</div>
+   <div><span class="pill">${esc(x.status)}</span></div>
+   <div data-order-position></div>
+   <div class="actions">
+    <button class="iconbtn" onclick="openModal('artists',${x.id})">EDIT</button>
+    <button class="iconbtn" onclick="del('artists',${x.id})">DEL</button>
+   </div>
+  </div>
+ `;
+}
+function setOrderRow(x){
+ return `
+  <div class="tr" data-order-id="${Number(x.id)}">
+   <div class="thumbcell">
+    ${thumb(x.cover_image,x.title)}
+    <div>
+     <div class="title">${esc(x.title)}</div>
+     <div class="meta">${esc(x.artist_name||'—')} · ${esc(x.event_title||'—')}</div>
+    </div>
+   </div>
+   <div>${esc(x.artist_name||x.artist_id||'—')}</div>
+   <div>${esc(x.event_title||x.event_id||'—')}</div>
+   <div><span class="pill">${esc(x.status)}</span></div>
+   <div class="actions">
+    <button class="iconbtn" onclick="openModal('sets',${x.id})">EDIT</button>
+    <button class="iconbtn" onclick="del('sets',${x.id})">DEL</button>
+   </div>
+  </div>
+ `;
+}
+function headersForSection(section){
+ if(section==='events')return ['EVENT','DATE','LOCATION','STATUS',''];
+ if(section==='artists')return ['ARTIST','LINKS','STATUS','POSITION',''];
+ if(section==='sets')return ['SET','ARTIST','EVENT','STATUS',''];
+ if(section==='media')return ['MEDIA','TYPE','MIME','STATUS',''];
+ if(section==='pages')return ['PAGE','LOCALE','STATUS','',''];
+ return ['SETTING','TYPE','VALUE','',''];
+}
+function orderingAttributes(section){
+ if(!['artists','sets'].includes(section))return '';
+ return ' data-order-resource="'+section+'" data-order-enabled="1"';
+}
 function content(){
 if(state.section==='theme')return '<div id="theme-root"></div>';
 if(state.section==='settings')return settingsHome(state.rows||[]);
@@ -540,21 +606,55 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
  if(state.section==='settings')button='<button class="btn ghost" onclick="openModal(\'settings\')">+ ADVANCED SETTING</button>';
  let rows='';
  if(state.section==='events')rows=r.map(x=>`<div class="tr"><div class="thumbcell">${thumb(x.cover_image,x.title)}<div><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.slug)}</div></div></div><div>${esc(x.event_date||'—')}</div><div>${esc(x.city||x.venue||'—')}</div><div><span class="pill">${esc(x.status)}</span></div><div class="actions"><button class="iconbtn" onclick="openLineup(${x.id})">LINEUP</button><button class="iconbtn" onclick="openModal('events',${x.id})">EDIT</button><button class="iconbtn" onclick="del('events',${x.id})">DEL</button></div></div>`).join('');
- else if(state.section==='artists')rows=r.map(x=>`<div class="tr" data-order-id="${Number(x.id)}"><div class="cell">${x.photo?`<img class="avatar" src="${esc(x.photo)}">`:'<div class="avatar"></div>'}<div><div class="title">${esc(x.name)}</div><div class="meta">${esc(x.slug)}</div></div></div><div>${x.soundcloud_url?'SOUNDCLOUD':''}</div><div><span class="pill">${esc(x.status)}</span></div><div data-order-position></div><div class="actions"><button class="iconbtn" onclick="openModal('artists',${x.id})">EDIT</button><button class="iconbtn" onclick="del('artists',${x.id})">DEL</button></div></div>`).join('');
- else if(state.section==='sets')rows=r.map(x=>`<div class="tr" data-order-id="${Number(x.id)}"><div class="thumbcell">${thumb(x.cover_image,x.title)}<div><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.artist_name||'—')} · ${esc(x.event_title||'—')}</div></div></div><div>${esc(x.artist_name||x.artist_id||'—')}</div><div>${esc(x.event_title||x.event_id||'—')}</div><div><span class="pill">${esc(x.status)}</span></div><div class="actions"><button class="iconbtn" onclick="openModal('sets',${x.id})">EDIT</button><button class="iconbtn" onclick="del('sets',${x.id})">DEL</button></div></div>`).join('');
+ else if(state.section==='artists')rows=r.map(artistOrderRow).join('');
+ else if(state.section==='sets')rows=r.map(setOrderRow).join('');
  else if(state.section==='media')rows=r.map(x=>`<div class="tr"><div class="thumbcell">${x.type==='image'?thumb(x.file_path,x.title):`<div class="thumbph">${esc(x.type).toUpperCase()}</div>`}<div><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.file_path)}</div></div></div><div>${esc(x.type)}</div><div>${esc(x.mime_type||'')}</div><div><span class="pill">${esc(x.status)}</span></div><div class="actions"><button class="iconbtn" onclick="openModal('media',${x.id})">EDIT</button><button class="iconbtn" onclick="del('media',${x.id})">DEL</button></div></div>`).join('');
  else if(state.section==='pages')rows=r.map(x=>`<div class="tr"><div class="thumbcell">${thumb(pageImage(x.content_json),x.title)}<div><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.slug)}</div></div></div><div>${esc(x.locale)}</div><div>${esc(x.status)}</div><div></div><div class="actions"><button class="iconbtn" onclick="openModal('pages',${x.id})">EDIT</button><button class="iconbtn" onclick="del('pages',${x.id})">DEL</button></div></div>`).join('');
  else if(state.section==='settings')rows='';
- const headers=state.section==='events'?['EVENT','DATE','LOCATION','STATUS','']:state.section==='artists'?['ARTIST','LINKS','STATUS','POSITION','']:state.section==='sets'?['SET','ARTIST','EVENT','STATUS','']:state.section==='media'?['MEDIA','TYPE','MIME','STATUS','']:state.section==='pages'?['PAGE','LOCALE','STATUS','','']:['SETTING','TYPE','VALUE','',''];
- const orderAttrs=['artists','sets'].includes(state.section)?` data-order-resource="${state.section}" data-order-enabled="1"`:'';
- return `<div class="toolbar"><input class="search" placeholder="Search ${state.section}..." oninput="filterRows(this.value)">${button}</div><div class="table"><div class="thead">${headers.map(h=>`<div>${h}</div>`).join('')}</div><div id="rows"${orderAttrs}>${rows||'<div class="empty">Sin registros todavía.</div>'}</div></div>`;
+ const headers=headersForSection(state.section);
+ const orderAttrs=orderingAttributes(state.section);
+ return `
+  <div class="toolbar">
+   <input
+    class="search"
+    placeholder="Search ${state.section}..."
+    oninput="filterRows(this.value)"
+   >
+   ${button}
+  </div>
+  <div class="table">
+   <div class="thead">${headers.map(h=>`<div>${h}</div>`).join('')}</div>
+   <div id="rows"${orderAttrs}>
+    ${rows||'<div class="empty">Sin registros todavía.</div>'}
+   </div>
+  </div>
+ `;
 }
-function filterRows(q){q=String(q||'').toLowerCase();const rows=document.getElementById('rows');document.querySelectorAll('#rows .tr').forEach(x=>x.style.display=x.innerText.toLowerCase().includes(q)?'grid':'none');if(rows?.dataset.orderResource){rows.dataset.orderEnabled=q.trim()?'0':'1';window.BRVTALContentOrdering?.refresh?.(rows)}}
+function filterRows(q){
+ q=String(q||'').toLowerCase();
+ const rows=document.getElementById('rows');
+ document.querySelectorAll('#rows .tr').forEach(row=>{
+  const matches=row.innerText.toLowerCase().includes(q);
+  row.style.display=matches?'grid':'none';
+ });
+ if(rows?.dataset.orderResource){
+  rows.dataset.orderEnabled=q.trim()?'0':'1';
+  window.BRVTALContentOrdering?.refresh?.(rows);
+ }
+}
 window.addEventListener('brvtal:content-order-changed',event=>{
  const detail=event.detail||{};
- if(detail.resource!==state.section||!['artists','sets'].includes(state.section)||!Array.isArray(detail.ids))return;
+ if(
+  detail.resource!==state.section
+  ||!['artists','sets'].includes(state.section)
+  ||!Array.isArray(detail.ids)
+ )return;
  const byId=new Map((state.rows||[]).map(row=>[Number(row.id),row]));
- state.rows=detail.ids.map((id,index)=>{const row=byId.get(Number(id));if(row)row.sort_order=index;return row}).filter(Boolean);
+ state.rows=detail.ids.map((id,index)=>{
+  const row=byId.get(Number(id));
+  if(row)row.sort_order=index;
+  return row;
+ }).filter(Boolean);
 });
 function render(){
  if(window.BRVTALAdminModules)BRVTALAdminModules.cancel();

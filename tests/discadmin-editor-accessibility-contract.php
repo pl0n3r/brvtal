@@ -109,9 +109,9 @@ editor_a11y_assert(
 );
 
 editor_a11y_assert(
-    !str_contains($blog, 'id="blog_sort_order"')
+    str_contains($blog, 'replaceBlogSortOrderControl')
         && !str_contains($releases, 'id="release_sort_order"'),
-    'Blog and Release editors must keep numeric Sort Order out of the primary UX.'
+    'Blog and Release editors must keep numeric Sort Order out of the rendered primary UX.'
 );
 editor_a11y_assert(
     str_contains($ordering, "handle.setAttribute('aria-label','Reorder ' + identity)")
