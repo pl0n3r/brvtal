@@ -13,6 +13,7 @@ $blog = (string)file_get_contents(__DIR__ . '/../discadmin/blog.js');
 $core = (string)file_get_contents(__DIR__ . '/../discadmin/content-core.js');
 $media = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 $releases = (string)file_get_contents(__DIR__ . '/../discadmin/releases.js');
+$ordering = (string)file_get_contents(__DIR__ . '/../discadmin/content-ordering.js');
 
 foreach ([
     'blog_title',
@@ -21,7 +22,6 @@ foreach ([
     'blog_body',
     'blog_cover_image',
     'blog_status_field',
-    'blog_sort_order',
     'blog_seo_title',
     'blog_seo_description',
 ] as $controlId) {
@@ -44,7 +44,6 @@ foreach ([
     'release_status_field',
     'release_artwork',
     'release_description',
-    'release_sort_order',
     'release_spotify',
     'release_soundcloud',
     'release_bandcamp',
@@ -107,6 +106,21 @@ editor_a11y_assert(
     str_contains($releases, 'for="release_artist_${Number(artist.id)}"')
         && str_contains($releases, 'id="release_artist_${Number(artist.id)}"'),
     'Release artist visible name must remain natively associated with its checkbox.'
+);
+
+editor_a11y_assert(
+    !str_contains($blog, 'id="blog_sort_order"')
+        && !str_contains($releases, 'id="release_sort_order"'),
+    'Blog and Release editors must keep numeric Sort Order out of the primary UX.'
+);
+editor_a11y_assert(
+    str_contains($ordering, "handle.setAttribute('aria-label','Reorder ' + identity)")
+        && str_contains($ordering, "handle.setAttribute('aria-keyshortcuts','ArrowUp ArrowDown')"),
+    'Visual ordering handles must keep accessible names and keyboard shortcuts.'
+);
+editor_a11y_assert(
+    str_contains($ordering, "['ArrowUp','ArrowDown'].includes(event.key)"),
+    'Visual ordering must retain keyboard-accessible move controls.'
 );
 
 editor_a11y_assert(
