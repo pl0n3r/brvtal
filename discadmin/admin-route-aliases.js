@@ -7,6 +7,7 @@
     const value = String(section || '').trim().toLowerCase();
     if (value === 'backups') return 'system';
     if (value === 'activity') return 'dashboard';
+    if (value === 'security') return 'settings';
     return value;
   }
 
@@ -18,6 +19,7 @@
 
     if (canonical === 'dashboard') url.searchParams.delete('module');
     else url.searchParams.set('module', canonical);
+    if (raw === 'security') url.searchParams.set('settings','advanced');
 
     window.history.replaceState(
       {brvtalAdminRoute: canonical},
@@ -31,12 +33,15 @@
   window.addEventListener('popstate', canonicalizeLocation);
 
   if (typeof nativeGo === 'function') {
-    window.go = function brvtalCanonicalAdminGo(section, ...args) {
-      const canonical = canonicalModule(section);
-      if (canonical === 'system' && String(section || '').trim().toLowerCase() === 'backups') {
+    window.go = async function brvtalCanonicalAdminGo(section, ...args) {
+      const requested = String(section || '').trim().toLowerCase();
+      const canonical = canonicalModule(requested);
+      if (canonical === 'system' && requested === 'backups') {
         if (typeof window.tech === 'function') return window.tech('system', ...args);
       }
-      return nativeGo.call(this, canonical, ...args);
+      const result = await nativeGo.call(this, canonical, ...args);
+      if (requested === 'security') window.BRVTALSettingsV2?.activate?.('advanced');
+      return result;
     };
   }
 

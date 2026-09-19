@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const aliasesJs = readFileSync(join(process.cwd(), 'discadmin/admin-route-aliases.js'), 'utf8');
 const js = readFileSync(join(process.cwd(), 'discadmin/settings-v2.js'), 'utf8');
 const css = readFileSync(join(process.cwd(), 'discadmin/settings-v2.css'), 'utf8');
 const url = 'http://127.0.0.1:4173/settings-v2-e2e.html';
@@ -18,7 +19,14 @@ function harness() {
   ];
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#050505;color:#fff;font-family:Arial}.btn,.iconbtn{border:1px solid #444;background:#111;color:#fff;padding:10px}.btn.red{background:#ff2038}.btn.ghost{background:transparent}</style><style>${css}</style></head><body><div id="app"></div><div id="modal"></div><script>
     window.state={section:'settings',rows:${JSON.stringify(rows)}};
-    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];window.__settingsRoutes=[];
+    window.__posts=[];window.__legacy=[];window.__newRaw=0;window.__feedback=[];window.__settingsRoutes=[];window.__securityMounts=0;
+    window.BRVTALSecurity={mount(root){window.__securityMounts+=1;root.dataset.securityMounted='1';}};
+    window.fetch=async function(input){
+      if(String(input).includes('/discadmin/totp-status.php')){
+        return new Response('<section data-admin-module="security" data-csrf="test-csrf"><div class="wrap"><div class="card"><span>2FA DISABLED</span></div></div></section>',{status:200,headers:{'Content-Type':'text/html'}});
+      }
+      return new Response('{}',{status:200,headers:{'Content-Type':'application/json'}});
+    };
     window.BRVTALFeedback={
       progress(message){window.__feedback.push(['progress',message])},
       success(message){window.__feedback.push(['success',message])},
@@ -41,12 +49,12 @@ function harness() {
       return {data:[]};
     };
     window.render=function(){document.getElementById('app').innerHTML=window.settingsHome(state.rows)};
-  </script><script>${js}</script><script>render()</script></body></html>`;
+  </script><script>${aliasesJs}</script><script>${js}</script><script>render()</script></body></html>`;
 }
 
 async function open(page, viewport={width:1280,height:900}) {
   await page.setViewportSize(viewport);
-  await page.route(url, route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
+  await page.route('**/settings-v2-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness()}));
   await page.goto(url);
 }
 
@@ -59,37 +67,38 @@ test('Settings uses typed logical sections instead of raw JSON as the primary UI
   await expect(page.locator('[data-settings-pane="general"] textarea')).toHaveCount(0);
 });
 
-test('Settings owns specialized Theme, Security and System destinations without Control Plane noise', async ({ page }) => {
+test('Advanced contains working Security, Theme and System tools without raw-settings UI', async ({ page }) => {
   await open(page);
 
+  await page.locator('[data-settings-tab="advanced"]').click();
   await expect(page.getByText('CONTROL PLANE',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('RAW SETTINGS',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:/NEW ADVANCED SETTING/i})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:/RAW EDIT/i})).toHaveCount(0);
+  await expect(page.getByTestId('settings-security-host').locator('[data-admin-module="security"]')).toBeVisible();
+  await expect(page.getByTestId('settings-security-host').getByText('2FA DISABLED')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__securityMounts)).toBe(1);
+
   const theme = page.getByRole('button',{name:'OPEN THEME STUDIO'});
-  const security = page.getByRole('button',{name:'OPEN SECURITY / 2FA'});
   const system = page.getByRole('button',{name:'OPEN SYSTEM STATUS'});
   await expect(theme).toBeVisible();
-  await expect(security).toBeVisible();
   await expect(system).toBeVisible();
-
   await theme.click();
-  await security.click();
   await system.click();
+  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([['go','theme'],['tech','system']]);
 
-  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([
-    ['go','theme'],
-    ['go','security'],
-    ['tech','system']
-  ]);
-
-  await page.evaluate(() => {
-    window.__settingsRoutes = [];
-    window.tech = undefined;
-  });
+  await page.evaluate(() => { window.__settingsRoutes = []; window.tech = undefined; });
   await system.click();
-  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([
-    ['go','system']
-  ]);
+  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([['go','system']]);
 });
 
+test('legacy Security navigation resolves to Settings Advanced', async ({ page }) => {
+  await open(page);
+  await page.evaluate(async () => { await window.go('security'); });
+  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([['go','settings']]);
+  await expect(page.locator('[data-settings-pane="advanced"]')).toBeVisible();
+  await expect(page.getByTestId('settings-security-host').locator('[data-admin-module="security"]')).toBeVisible();
+});
 test('typed save preserves unknown sibling JSON keys', async ({ page }) => {
   await open(page);
   await page.locator('#sv2_site_name').fill('BRVTAL SIGNAL');
@@ -167,7 +176,7 @@ test('typed save handlers keep validation failures from persisting invalid value
   expect(await page.evaluate(() => window.__posts.length)).toBe(0);
 });
 
-test('SEO and Analytics are first-class typed Settings while raw editing stays Advanced', async ({ page }) => {
+test('SEO and Analytics remain typed while Advanced avoids arbitrary record editing', async ({ page }) => {
   await open(page);
   await page.locator('[data-settings-tab="seo"]').click();
   await expect(page.locator('#sv2_seo_title')).toBeVisible();
@@ -181,9 +190,10 @@ test('SEO and Analytics are first-class typed Settings while raw editing stays A
   await expect(page.getByText('RETIRED')).toBeVisible();
 
   await page.locator('[data-settings-tab="advanced"]').click();
-  await expect(page.getByText('RAW SETTINGS')).toBeVisible();
-  await page.locator('[data-settings-raw="appearance"]').click();
-  await expect.poll(() => page.evaluate(() => window.__legacy)).toEqual(['appearance']);
+  await expect(page.getByText('RAW SETTINGS',{exact:true})).toHaveCount(0);
+  await expect(page.locator('[data-settings-raw]')).toHaveCount(0);
+  await expect(page.locator('[data-settings-new-raw]')).toHaveCount(0);
+  await expect(page.getByTestId('settings-security-host')).toBeVisible();
 });
 
 test('Settings remains usable on mobile without horizontal overflow', async ({ page }) => {

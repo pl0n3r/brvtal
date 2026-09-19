@@ -18,9 +18,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#514 PREMIUM ADMIN** | legibilidad + spacing + componentes de baja fatiga |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `41fc040fb94a9988a6bad7c0933408f9f0349dcd` · exact-main `validate` verde |
-| Version | 🚧 **0.1.5 → 0.1.6** | patch deploy bump · pre-1.0 |
+| Work line | 🚧 **#516 SETTINGS ADVANCED** | configuración real + 2FA consolidado dentro de Settings |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `a228f82b17582131a52a41b7a2ac356bfb1692b2` · exact-main `validate` verde |
+| Version | 🚧 **0.1.6 → 0.1.7** | patch deploy bump · pre-1.0 |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+380** | **−30** | **+350** |
+| **10** | **+217** | **−130** | **+87** |
 
 ## Calidad y entrega
 
@@ -37,78 +37,75 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack · webkit** |
-| Browser | escala tipográfica, superficies, responsive y carga final del design system |
-| Real stack | E2E admin autenticado valida Dashboard + Settings reales |
-| Sonar | Clean-as-You-Code en paralelo |
-| CodeRabbit | full review del head estable en paralelo |
-| Exact-main | **CI del SHA exacto de main** obligatorio tras squash merge |
+| Gates | preflight + fast PHP/JS + browser/real-stack según classifier |
+| Security | 2FA conserva endpoints, CSRF y sesión existentes; no se modifican secretos |
+| Browser | Advanced sin Raw Settings; Security inline; rutas Theme/System funcionales |
+| Real stack | administrador E2E aislado confirma Security/2FA real dentro de Settings |
+| Sonar + CodeRabbit | ejecutados en paralelo sobre el head estable |
+| Exact-main | CI del SHA exacto de main obligatorio tras squash merge |
 
-## Flujo de entrega
+## Flujo
 
 ```mermaid
 flowchart LR
- A["PR + snapshot exacto"] --> P["preflight"]
- P --> F["fast"]
- P --> B["Chromium"]
- P --> R["real-stack"]
- P --> W["WebKit"]
- A --> S["Sonar"]
- A --> C["CodeRabbit parallel review"]
- F --> M["Squash merge"]
- B --> M
- R --> M
- W --> M
- S --> M
- C --> M
- M --> X["CI del SHA exacto de main"]
+ A["Settings"] --> G["General / Social / SEO / Analytics"]
+ A --> V["Advanced"]
+ V --> S["2FA inline"]
+ V --> T["Theme Studio"]
+ V --> O["System Status"]
+ L["Legacy ?module=security"] --> V
 ```
 
 ## Qué se hizo
 
-- Añade una capa única `admin-design-system.css` cargada después de los estilos de cada módulo.
-- Establece tipografía de sistema profesional, body/table/input alrededor de 14 px y metadatos persistentes de 11–13 px.
-- Corrige la dependencia visual de texto de 7–10 px en Dashboard, Settings, System Status, Content Core, Media, Blog y Releases.
-- Unifica spacing, radios, elevación y microinteracciones sin convertir DISCADMIN en una copia visual de Apple.
-- Mantiene Dark / Light / Glass como apariencias del mismo sistema semántico.
-- Mantiene formularios móviles en 16 px para evitar zoom involuntario y conserva reduced-motion.
-- Añade E2E de comportamiento y un smoke real-stack autenticado para legibilidad computada.
-- Incrementa BRVTAL a **0.1.6**.
+- Reemplaza Settings → Advanced basado en Raw Settings por configuración realmente útil.
+- Embebe el flujo real de Security / 2FA dentro de Advanced usando el fragmento y endpoints existentes.
+- Mantiene Theme Studio y System Status como destinos especializados propiedad de Settings.
+- Retira de la UI normal Raw Settings, Raw Edit y New Advanced Setting.
+- Canonicaliza navegación legacy de Security hacia Settings → Advanced.
+- Mantiene capacidad interna de compatibilidad para records desconocidos sin presentarla como interfaz normal.
+- Hace que el módulo 2FA embebido herede Dark / Light / Glass para evitar una isla oscura.
+- Añade browser tests y smoke real-stack autenticado sin mutar la configuración 2FA.
+- Incrementa BRVTAL a **0.1.7**.
 
-## Archivos modificados en este deploy
+## Archivos modificados
 
 - `AGENTS.md`
 - `README.md`
 - `config/version.php`
-- `discadmin/index.php`
-- `discadmin/admin-design-system.css`
-- `tests/e2e/discadmin-premium-ui.spec.mjs`
+- `discadmin/settings-v2.js`
+- `discadmin/settings-v2.css`
+- `discadmin/admin-route-aliases.js`
+- `discadmin/admin-appearance.css`
+- `tests/settings-control-plane-contract.php`
+- `tests/e2e/discadmin-settings-v2.spec.mjs`
 - `tests/e2e/discadmin-premium-real-stack.spec.mjs`
-- `tests/e2e/run-content-core-real-stack.sh`
 
-## Validación
+## Validación esperada
 
-- Chromium verifica tamaños computados mínimos en shell y módulos representativos.
-- Chromium verifica que móvil mantenga lectura cómoda y controles de formulario de 16 px.
-- Real-stack usa el administrador E2E aislado y valida Dashboard + Settings dentro de PHP/MariaDB reales.
-- El design system se carga al final para que los módulos nuevos hereden la capa semántica sin hard-codes por tema.
+- Advanced carga Security / 2FA real dentro del mismo shell y sin una navegación separada.
+- No existen controles visibles para edición/creación arbitraria de Settings.
+- Deep link legacy Security converge a Settings → Advanced.
+- Theme Studio y System Status siguen accesibles desde Advanced.
+- Light / Dark / Glass comparten superficies semánticas para el módulo Security.
 - No hay migración ni operación destructiva de producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#514](https://github.com/pl0n3r/brvtal/issues/514) · cerrar gates y exact-main. |
-| **NEXT** | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516) · Settings Advanced + consolidación 2FA. |
+| **NOW** | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516) · cerrar gates, squash y exact-main. |
 | **NEXT** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · medir/corregir primer load de Banners. |
+| **NEXT** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · hero desktop overlap/clipping. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149)~~ |
-| **NOW** | 🚧 Premium Admin | 🚧 [#514](https://github.com/pl0n3r/brvtal/issues/514) |
-| **NEXT** | 🚧 Settings / Shell reliability | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516), [#523](https://github.com/pl0n3r/brvtal/issues/523), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
-| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
+| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance + Premium Admin~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514)~~ |
+| **NOW** | 🚧 Settings | 🚧 [#516](https://github.com/pl0n3r/brvtal/issues/516) |
+| **NEXT** | 🚧 Phase 2 closeout | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
+| **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
+| **LATER** | 🚧 Operational dashboards | 🚧 [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |
 | **BLOCKED / EXTERNAL** | 🚧 Deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
