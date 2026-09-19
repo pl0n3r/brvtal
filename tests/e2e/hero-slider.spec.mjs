@@ -45,6 +45,7 @@ test('published slider uses mobile media override and touch-sized controls', asy
   });
   await expect(page.locator('.hero')).toHaveClass(/hero-slider-active/);
   await expect(page.locator('[data-hero-slide="0"] img')).toHaveAttribute('src','/mobile.jpg');
+  await expect(page.locator('[data-hero-slide="0"] img')).toHaveAttribute('alt', '');
   await expect(page.locator('#static-hero')).toBeHidden();
   const dot = page.locator('[data-hero-dot="0"]');
   const box = await dot.boundingBox();
@@ -77,6 +78,7 @@ test('public hero reapplies responsive media and layer overrides after crossing 
   await expect(second).toHaveClass(/active/);
   await expect(media).toHaveAttribute('src','/two-desktop.jpg');
   await expect(art.locator('img')).toHaveAttribute('src','/layer-desktop.png');
+  await expect(art.locator('img')).toHaveAttribute('alt', '');
   await expect.poll(() => art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['10%','20%','30%']);
   await expect(second.getByText('HIDE ME')).toHaveCount(1);
 
