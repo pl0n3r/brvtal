@@ -32,66 +32,17 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" --slurp > artifacts/job-pages.json
-          jq -n \
-            --arg run_id "$RUN_ID" \
-            --arg sha "$SOURCE_SHA" \
-            --arg event "$SOURCE_EVENT" \
-            --arg conclusion "$SOURCE_CONCLUSION" \
-            --arg started "$SOURCE_STARTED_AT" \
-            --arg updated "$SOURCE_UPDATED_AT" \
-            --slurpfile pages artifacts/job-pages.json '
-              def seconds($a; $b):
-                if ($a == null or $b == null) then null
-                else (($b | fromdateiso8601) - ($a | fromdateiso8601))
-                end;
-              [$pages[0][] | .jobs[]] as $jobs |
-              [$jobs[] | {
-                name,
-                conclusion,
-                started_at,
-                completed_at,
-                duration_seconds: seconds(.started_at; .completed_at)
-              }] as $timings |
-              ($timings | map(select(.duration_seconds != null))) as $completed |
-              ($conclusion == "success") as $critical_path_eligible |
-              ($completed | map(select(.conclusion == "success" and .name != "preflight" and .name != "validate"))) as $parallel_gates |
-              ($parallel_gates | if length > 0 then max_by(.duration_seconds) else null end) as $critical_gate |
-              ($completed | map(select(.name == "preflight")) | .[0] // null) as $preflight |
-              ($completed | map(select(.name == "validate")) | .[0] // null) as $validate |
-              (if $critical_path_eligible
-               then ([$preflight, $critical_gate, $validate] | map(select(. != null)))
-               else []
-               end) as $critical_jobs |
-              {
-                run_id: ($run_id | tonumber),
-                source_sha: $sha,
-                event: $event,
-                conclusion: $conclusion,
-                workflow_started_at: $started,
-                workflow_updated_at: $updated,
-                workflow_wall_seconds: seconds($started; $updated),
-                critical_path: {
-                  eligible: $critical_path_eligible,
-                  jobs: ($critical_jobs | map(.name)),
-                  duration_seconds: ($critical_jobs | map(.duration_seconds) | add)
-                },
-                jobs: $timings
-              }
-            ' > artifacts/ci-throughput.json
-
-          {
-            echo "# BRVTAL CI throughput"
-            echo
-            echo "- Source SHA: \`$SOURCE_SHA\`"
-            echo "- Source result: **$SOURCE_CONCLUSION**"
-            echo "- Workflow wall time: **$(jq -r '.workflow_wall_seconds // "n/a"' artifacts/ci-throughput.json)s**"
-            echo "- Critical path: **$(jq -r 'if (.critical_path.jobs | length) > 0 then (.critical_path.jobs | join(" → ")) else "n/a" end' artifacts/ci-throughput.json)** ($(jq -r 'if .critical_path.duration_seconds == null then "n/a" else "\(.critical_path.duration_seconds)s" end' artifacts/ci-throughput.json))"
-            echo
-            echo "| Job | Result | Duration |"
-            echo "|---|---|---:|"
-            jq -r '.jobs[] | "| \(.name) | \(.conclusion // "n/a") | \(.duration_seconds // "n/a")s |"' artifacts/ci-throughput.json
-          } >> "$GITHUB_STEP_SUMMARY"
-
+          python scripts/ci-throughput-report.py \
+            --input artifacts/job-pages.json \
+            --output artifacts/ci-throughput.json \
+            --summary artifacts/ci-throughput-summary.md \
+            --run-id "$RUN_ID" \
+            --source-sha "$SOURCE_SHA" \
+            --event "$SOURCE_EVENT" \
+            --conclusion "$SOURCE_CONCLUSION" \
+            --started-at "$SOURCE_STARTED_AT" \
+            --updated-at "$SOURCE_UPDATED_AT"
+          cat artifacts/ci-throughput-summary.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload throughput evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#564 unified deploy/performance signal (v0.1.18), PR #567** | performance solo mide con CI + observer verdes sobre el mismo SHA |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `e29970ca9d03d5028df35604df423b06328d6e02` |
-| Version | 🚧 **0.1.17 → 0.1.18** | patch deploy |
-| Producción | 🚧 **PENDING MERGE / OBSERVATION** | no se infiere validación de producción desde CI |
+| Work line | 🚧 **#564 browser phase telemetry (v0.1.19)** | setup/cache/infra/test medidos desde timestamps de GitHub |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `5fba8a5e651c21f178be0d1061cc67c830a479f1` |
+| Version | 🚧 **0.1.18 → 0.1.19** | patch deploy |
+| Producción | 🚧 **EXTERNAL BLOCKER OBSERVED** | Hostinger continúa fuera de sincronía; no se infiere validación de producción |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+298** | **−102** | **+196** |
+| **8** | **+000** | **−000** | **+000** |
 
 ## Calidad y entrega
 
@@ -36,9 +36,9 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Performance prerequisite | mismo SHA con **BRVTAL CI + Production Deploy Observer** en success |
-| Deploy truth | único observer canónico; Performance ya no hace polling corto `?v=<sha>` |
+| Gates | **preflight · fast[PHP+JS]** |
+| Telemetry | post-CI; no añade dependencias ni segundos al DAG de validación |
+| Browser phases | dependencies/cache · browser/system · infrastructure · test · other |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
@@ -46,57 +46,54 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.18"] --> P["PR + snapshot exacto"]
+ A["Release v0.1.19"] --> P["PR + snapshot exacto"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI exact-main"]
- M --> O["Deploy Observer"]
- X --> R["Performance gate"]
- O --> R
+ X --> T["Post-CI phase telemetry"]
 ```
 
 ## Qué se hizo
 
-- Production Performance escucha BRVTAL CI y Production Deploy Observer, pero solo mide cuando ambos están verdes para el mismo SHA de `main`.
-- Un helper determinista asigna un único owner automático por SHA al prerequisite que terminó más tarde; el `run_id` desempata timestamps iguales, evitando mediciones/artefactos duplicados.
-- Se elimina el detector privado de ocho intentos sobre `?v=<sha>`, evitando falsos rojos cuando Hostinger tarda más que esa ventana.
-- Los contratos y la guía de testing fijan la separación entre **MAIN VALIDATED**, **DEPLOY OBSERVED** y **PRODUCTION PERFORMANCE MEASURED**.
-- Versión **0.1.18**.
+- La telemetría post-CI ahora conserva tiempos por step y agrega fases comparables para Chromium, WebKit y real-stack.
+- Se separan **dependency/cache**, **browser/system setup**, **infrastructure**, **test** y **other** sin insertar timers ni pasos adicionales dentro de los jobs críticos.
+- Un contrato con fixture local protege clasificación, tiempos, skipped steps y la semántica de critical path.
+- La primera evidencia real ya mostró que WebKit está dominado por setup, mientras Chromium dedica más tiempo al test; todavía no se shardeará desde una sola muestra.
+- Versión **0.1.19**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-performance.yml` — coordina CI + Deploy Observer por SHA, asigna ownership único y elimina el segundo polling de Hostinger.
-- `AGENTS.md` — conserva el nuevo contrato operativo y actualiza prioridades ya completadas.
+- `.github/workflows/ci-throughput-telemetry.yml` — delega el reporte post-CI al procesador testeado.
+- `AGENTS.md` — fija la regla evidence-first para optimización de throughput.
 - `README.md` — snapshot visual del deploy actual.
-- `config/version.php` — declara la release runtime `0.1.18`.
-- `docs/TESTING.md` — documenta la compuerta automática de dos señales y sus semánticas.
-- `package.json` — alinea la versión del proyecto con `0.1.18`.
-- `scripts/production-performance-prerequisite.py` — decide de forma testeable el único owner automático por SHA.
-- `tests/ci-scope-contract.php` — prueba missing/pending/failed/same-SHA/different-SHA y ownership único, además de impedir el detector corto de deploy.
-- `tests/project-operations-contract.php` — protege la coordinación same-SHA entre CI, observer y performance.
+- `config/version.php` — declara la release runtime `0.1.19`.
+- `docs/TESTING.md` — documenta fases, semántica y uso de múltiples muestras.
+- `package.json` — alinea la versión del proyecto con `0.1.19`.
+- `scripts/ci-throughput-report.py` — procesa timestamps de jobs/steps y genera JSON + Job Summary.
+- `tests/ci-throughput-report-contract.php` — valida critical path y desglose setup/test con fixtures locales.
 
 ## Validación
 
-- La reproducción real en `e29970c` confirmó el defecto: BRVTAL CI terminó verde mientras Production Performance falló antes de que el Deploy Observer terminara.
-- La telemetría real identificó el critical path actual en browser: WebKit 84s, real-stack 80s y Chromium 79s; no se añadirá sharding sin medir setup vs test.
-- El primer review de CodeRabbit detectó dos findings válidos — ownership duplicable y cobertura demasiado textual — corregidos con helper determinista + fixtures locales.
-- BRVTAL CI, Sonar y CodeRabbit deben volver a cerrar sobre el head estable antes del merge.
-- No se declara producción validada desde CI ni desde el marcador de despliegue.
+- Base exacta `5fba8a5`: BRVTAL CI / validate success.
+- El nuevo Production Performance ya demostró coordinación-only success cuando CI terminó antes del Deploy Observer, sin setup ni medición duplicada.
+- El contrato de throughput debe pasar en fast y el artifact post-CI debe confirmar el schema en una corrida real.
+- BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
+- No se declara producción validada desde CI, telemetría ni deployment marker.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · medir setup vs test en WebKit / real-stack / Chromium antes de optimizar runners o shards. |
+| **NOW** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · acumular muestras y decidir con datos si existe una optimización de setup suficientemente rentable. |
 | **NEXT** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) · proteger cambios sin guardar en Banners. |
 | **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) · productividad editorial y protección general de editores. |
-| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · hPanel solo si el observer canónico sigue sin ver la release. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · producción sigue exponiendo una release antigua y requiere revisión Hostinger/hPanel. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 CI throughput phase B | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
+| **NOW** | 🚧 CI throughput evidence | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
 | **NEXT** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
 | **BLOCKED / EXTERNAL** | 🚧 Hostinger configuration | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

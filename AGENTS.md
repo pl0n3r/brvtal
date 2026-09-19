@@ -338,6 +338,8 @@ Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshot
 
 **Production Performance consumes existing delivery evidence instead of inventing a second deployment observer.** On automatic runs it listens to both BRVTAL CI and Production Deploy Observer and measures only when both have succeeded for the same exact `main` SHA. Measurement ownership is deterministic and unique per SHA: the later prerequisite completion owns it, with GitHub run id as the timestamp tie-breaker; `scripts/production-performance-prerequisite.py` is the tested decision source. Do not reintroduce a private short `?v=<sha>` polling loop or duplicate automatic measurement artifacts.
 
+**CI throughput optimization is evidence-first.** `CI Throughput Telemetry` is post-CI and must never extend the validation DAG. It derives job and step durations from GitHub Actions timestamps, including dependency/cache, browser/system setup, real-stack infrastructure, actual test runtime and remaining overhead for Chromium, WebKit and real-stack. Use several real PR/main samples before changing runner/container topology or sharding; do not optimize from a single run.
+
 ### README per-deploy contract
 
 For every deploy-bound PR:
@@ -452,7 +454,7 @@ When no newer explicit user instruction exists:
 10. ✅ ~~**Native navigation transaction — #193 / PR #561** — failed reads no longer leave state/workspace mismatched; merged and exact-main validated.~~
 11. ✅ ~~**Editor/modal navigation lifecycle — #216 / PR #562** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it; merged and exact-main validated.~~
 12. ✅ ~~**Content Health navigation deflake — #558 / PR #563** — record navigation regression is stabilized and exact-main validated.~~
-13. 🚧 **CI throughput audit v2 — #564** — telemetry is merged; unify performance/deploy evidence, then measure browser setup vs test time before any sharding.
+13. 🚧 **CI throughput audit v2 — #564** — Phase A telemetry and Phase C deploy/performance coordination are merged and exact-main validated; Phase B now records browser setup vs test time before any sharding.
 14. 🚧 **Unsaved Banners protection — #174** — next product/reliability block after the current #564 delivery optimization.
 15. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 

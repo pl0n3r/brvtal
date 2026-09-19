@@ -35,6 +35,20 @@ BRVTAL CI validates combinations of:
 
 The CI workflow must **not** commit build metadata automatically. Product version metadata is deliberate release data, not per-change noise.
 
+### Throughput telemetry and browser phase evidence
+
+`.github/workflows/ci-throughput-telemetry.yml` is a post-CI observer. It fetches GitHub Actions job/step timestamps only after BRVTAL CI completes, so measurement adds no dependency or latency to the validation DAG.
+
+`scripts/ci-throughput-report.py` preserves total workflow/job and critical-path evidence and additionally separates the three browser-heavy jobs into:
+
+- **dependency/cache** — npm cache, Node dependency install and Playwright browser-cache restore;
+- **browser/system setup** — Playwright system dependencies plus browser installation when required;
+- **infrastructure** — real-stack MariaDB container initialization and PHP runtime setup;
+- **test** — the actual Chromium suite, targeted WebKit TOTP regression or authenticated real-stack smoke;
+- **other** — checkout/post-job/runner overhead plus any wall time not attributable to a timestamped step.
+
+Skipped steps retain `duration_seconds=null`; they are not converted into fake runtime. The machine-readable artifact retains individual step timings and phase totals, while the Job Summary shows a compact setup-vs-test comparison table. Collect multiple real PR/main samples before changing containers, runners or shards; a single slow run is not enough evidence for topology changes.
+
 ## Why the CI is consolidated
 
 Normal source validation lives in `.github/workflows/update-release-metadata.yml` under the visible workflow name **BRVTAL CI**. Standalone automatic wrappers for PHP 8.5 compatibility, README deploy-snapshot validation, backup recovery rehearsal, and production-smoke source contracts were removed because they duplicated checkout/runtime setup and could compete for runners.
