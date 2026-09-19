@@ -37,6 +37,7 @@ $expect(str_contains($endpoint,'ORDER_STALE'), 'stale writes must fail explicitl
 $expect(str_contains($endpoint,'$previousIds !== $currentIds'), 'reorder must reject a concurrent order change even when the ID set is unchanged');
 $expect(str_contains($endpoint,'beginTransaction') && str_contains($endpoint,'rollBack'), 'reorder must be transactional');
 $expect(str_contains($endpoint,'SET sort_order=? WHERE id=?'), 'reorder must normalize positions');
+$expect(!str_contains($endpoint,'{$table}') && !str_contains($endpoint,'{$labelColumn}'), 'reorder SQL must stay literal after resource whitelisting');
 $expect(str_contains($core,'Display order is managed visually from the Artists list.'), 'Artist form must explain visual order');
 $expect(str_contains($core,'Display order is managed visually from the Sets list.'), 'Set form must explain visual order');
 $expect(str_contains($core,'data-order-resource="${state.section}"'), 'core list must expose ordering contract');

@@ -11,6 +11,30 @@ function brvtal_order_json(array $payload, int $status = 200): never
     json_response($payload, $status, ['Cache-Control'=>'no-store']);
 }
 
+/** @return array<int,array{id:mixed,sort_order:mixed,label:mixed}> */
+function brvtal_order_locked_rows(PDO $pdo, string $resource): array
+{
+    $statement = match ($resource) {
+        'artists' => $pdo->query('SELECT id,sort_order,name AS label FROM artists ORDER BY sort_order ASC,id ASC FOR UPDATE'),
+        'sets' => $pdo->query('SELECT id,sort_order,title AS label FROM sets_media ORDER BY sort_order ASC,id ASC FOR UPDATE'),
+        'releases' => $pdo->query('SELECT id,sort_order,title AS label FROM releases ORDER BY sort_order ASC,id ASC FOR UPDATE'),
+        'blog' => $pdo->query('SELECT id,sort_order,title AS label FROM blog_posts ORDER BY sort_order ASC,id ASC FOR UPDATE'),
+        default => throw new InvalidArgumentException('ORDER_RESOURCE_NOT_ALLOWED'),
+    };
+    return $statement->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function brvtal_order_update_statement(PDO $pdo, string $resource): PDOStatement
+{
+    return match ($resource) {
+        'artists' => $pdo->prepare('UPDATE artists SET sort_order=? WHERE id=?'),
+        'sets' => $pdo->prepare('UPDATE sets_media SET sort_order=? WHERE id=?'),
+        'releases' => $pdo->prepare('UPDATE releases SET sort_order=? WHERE id=?'),
+        'blog' => $pdo->prepare('UPDATE blog_posts SET sort_order=? WHERE id=?'),
+        default => throw new InvalidArgumentException('ORDER_RESOURCE_NOT_ALLOWED'),
+    };
+}
+
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method !== 'POST') {
     brvtal_order_json(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
@@ -26,16 +50,13 @@ try {
     }
     $ids = brvtal_content_order_ids($input['ids'] ?? null);
     $previousIds = brvtal_content_order_ids($input['previous_ids'] ?? null);
-    $table = $definition['table'];
     $labelColumn = $definition['label'];
     $activityResource = $definition['activity'];
 
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $rows = $pdo->query(
-            "SELECT id,sort_order,{$labelColumn} AS label FROM {$table} ORDER BY sort_order ASC,id ASC FOR UPDATE"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        $rows = brvtal_order_locked_rows($pdo, $resource);
         $currentIds = array_map(static fn(array $row): int => (int)$row['id'], $rows);
         if (!brvtal_content_order_matches($ids, $currentIds)
             || $previousIds !== $currentIds
@@ -45,7 +66,7 @@ try {
 
         $byId = [];
         foreach ($rows as $row) $byId[(int)$row['id']] = $row;
-        $update = $pdo->prepare("UPDATE {$table} SET sort_order=? WHERE id=?");
+        $update = brvtal_order_update_statement($pdo, $resource);
         $changed = 0;
 
         foreach ($ids as $position => $id) {
