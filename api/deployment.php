@@ -9,15 +9,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
     json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
 }
 
+$exact = brvtalDeploymentIsExact();
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 json_response([
     'ok' => true,
     'data' => [
-        'commit' => brvtal_deployment_sha(),
-        'short_commit' => brvtal_deployment_short_sha(),
+        'commit' => $exact ? brvtal_deployment_sha() : null,
+        'short_commit' => $exact ? brvtal_deployment_short_sha() : null,
         'source' => brvtal_deployment_source(),
-        'exact' => brvtalDeploymentIsExact(),
+        'exact' => $exact,
         'version' => BRVTAL_APP_VERSION,
+        'release_identity' => brvtal_release_identity(),
+        'cache_key' => brvtal_deployment_cache_key(),
         'environment' => BRVTAL_APP_ENV,
         'release_date' => BRVTAL_RELEASE_DATE,
     ],

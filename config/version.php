@@ -12,7 +12,7 @@ declare(strict_types=1);
  * be presented as an exact deployed Git SHA unless the resolver confirms an
  * environment/git-checkout source.
  */
-const BRVTAL_APP_VERSION = '0.1.12';
+const BRVTAL_APP_VERSION = '0.1.13';
 const BRVTAL_APP_BUILD = '2b5a0d4';
 const BRVTAL_APP_ENV = 'PRODUCTION';
 const BRVTAL_RELEASE_DATE = '2026-09-19';
