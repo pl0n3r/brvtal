@@ -38,7 +38,7 @@
 | --- | --- |
 | Navegación Content Health | `content-core-nav.js` es el único owner del click OPEN |
 | Sincronización | Playwright espera el resultado compuesto de sección + registro + feedback |
-| Gates | preflight + gates diff-aware de BRVTAL CI |
+| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
@@ -46,7 +46,7 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.16"] --> P["PR #563 + snapshot exacto"]
+ A["Release v0.1.16"] --> P["PR + snapshot exacto"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
