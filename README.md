@@ -12,8 +12,8 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🖼️ **#522 Media navigation/UI** | una ruta canónica de readiness + retiro de External Registry |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `33f8b2f35ceb9904f13515629c7778071e618f17` · exact-main `validate` verde |
+| Work line | ♿ **#479 Public image alt** | hardening SEO/accesibilidad sin cambio visual |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `23d6a57503a7ed26946b437a38c61f276701c4f1` · exact-main `validate` verde |
 | Fase | ⚡ **Phase 1 / quick wins** | [#533](https://github.com/pl0n3r/brvtal/issues/533) |
 | Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker en [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+423** | **−130** | **+293** |
+| **3** | **+46** | **−45** | **+1** |
 
 ## Calidad y entrega
 
@@ -31,10 +31,10 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack · webkit** |
-| Browser | Dashboard → Media no depende de un evento `load` tardío; fallo real muestra ERROR + RETRY |
-| Real-stack | Dashboard → Media · Sets → Media · deep-link Media |
-| UI | `REGISTER EXTERNAL` no se renderiza |
+| Gates seleccionados | **preflight · fast[JS] · chromium** |
+| Static Home | todos los `img` deben exponer atributo `alt` |
+| Meaningful images | logo + flyer/arte conservan texto descriptivo no vacío |
+| Generated Hero | media/layers decorativos conservan `alt=""` |
 | Sonar | Clean-as-You-Code en paralelo |
 | CodeRabbit | full review del head estable en paralelo |
 | Exact-main | obligatorio después del squash merge |
@@ -45,7 +45,7 @@
 flowchart LR
  A["PR + snapshot exacto"] --> P["preflight"]
  P --> F["fast"]
- P --> B["Chromium + real-stack"]
+ P --> B["Chromium"]
  A --> S["Sonar"]
  A --> R["CodeRabbit"]
  F --> G["head listo"]
@@ -58,59 +58,40 @@ flowchart LR
 
 ## Qué se hizo
 
-- Media, Releases y Blog comparten una única frontera de readiness y navegación administrada por `BRVTALAdminModules.navigate()`.
-- El workspace dinámico normaliza `state.rows` a `[]` antes del render del shell; así el objeto-resumen que deja Dashboard no puede romper Media con `rows.map is not a function`.
-- La capa de información/navegación ya no instala listeners duplicados ni deja que Media/Releases/Blog caigan al CRUD legado; delega esos destinos al navegador dinámico canónico.
-- Los fallos de readiness se resuelven dentro del loader canónico y reutilizan su estado ERROR / RETRY; RETRY invalida promesas rechazadas y vuelve a crear dependencias de script fallidas.
-- Las rutas dinámicas sincronizan `?module=` al iniciar la navegación, incluso si una reconciliación inicial sigue en curso, para que el click explícito del usuario sea la fuente de verdad.
-- Media abre por la misma ruta desde Dashboard, Sets/sidebar y `?module=media`.
-- Se retira `REGISTER EXTERNAL` de la experiencia normal de Media Library; el backend compatible no se elimina.
-- Se añade cobertura de navegador y real-stack autenticada con el usuario E2E.
+- Se confirma que las imágenes estáticas reportadas originalmente por Bing ya exponen `alt` en el Home actual.
+- Se añade una regresión DOM que falla si cualquier `img` estático de Home pierde el atributo `alt`.
+- Logo BRVTAL, artwork manifiesto y flyer de evento deben conservar alternativas descriptivas no vacías.
+- El Hero Slider generado mantiene `alt=""` en imágenes puramente decorativas, evitando ruido para lectores de pantalla.
+- No se modifica layout, assets, contenido editorial ni comportamiento visual.
 
 ## Archivos modificados en este deploy
 
-- `discadmin/index.php` — difiere `restoreSession()` hasta después de router/aliases/settings/theme/memories/Dashboard V2, eliminando la carrera de primer arranque antes de restaurar la sesión.
-- `discadmin/index-core.php` — descarta respuestas obsoletas de Dashboard antes de cualquier `render()` tardío.
-- `discadmin/admin-modules.js` — dueño único de readiness de módulos dinámicos.
-- `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
-- `discadmin/media-library.php` — elimina External Registry de la toolbar.
-- `discadmin/media-library.js` — elimina modal/binding de registro externo.
-- `tests/e2e/discadmin-initial-media.spec.mjs` — regresión del evento `load` ya ocurrido y recuperación real tras un fallo transitorio mediante RETRY.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — latest-navigation-wins y sincronización temprana de URL antes de readiness.
-- `tests/e2e/discadmin-keyboard-modal-quick-wins.spec.mjs` — accesibilidad queda enfocada en el picker Media vigente.
-- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media autenticada en stack real y regresión con Dashboard deliberadamente lento. Si falla, captura estado de URL/sección/host/global del módulo para diagnosticar la carrera sin subir timeouts.
-- `tests/e2e/indexnow-real-stack.spec.mjs` — aislamiento por URL única; evita falsos fallos con workers concurrentes.
-- `AGENTS.md` — persiste la frontera canónica de readiness.
-- `README.md` — dashboard exacto de #522.
+- `tests/e2e/public-quick-wins.spec.mjs` — contrato de accesibilidad para imágenes estáticas Home.
+- `tests/e2e/hero-slider.spec.mjs` — contrato para `alt=""` en media/layers generados y decorativos.
+- `README.md` — dashboard exacto de #479.
 
 ## Validación
 
-- Dashboard V2 no se expone hasta que el bootstrap canónico de mejoras de DISCADMIN está completo.
-- La restauración autenticada comienza solo después de que el router canónico y Dashboard V2 están instalados; un Dashboard de arranque no puede nacer fuera de esa frontera.
-- Una ruta inicial lenta no puede devolver el workspace a otro destino después de que el usuario abre Media.
-- Una respuesta vieja de Dashboard tampoco puede ejecutar un `render()` tardío que destruya Media ya montado.
-- Dashboard → Media monta el módulo sin depender del orden previo de navegación.
-- La regresión de Dashboard usa explícitamente un `state.rows` con forma de objeto de métricas y verifica que Media monta igual.
-- Sets → Media vuelve a montar correctamente el mismo workspace.
-- `?module=media` funciona en sesión autenticada.
-- External Registry no aparece en la UI normal.
-- La protección de referencias, upload, picker y Media Engine permanecen sin cambios funcionales.
+- El Home actual contiene `alt` en todas sus imágenes estáticas.
+- Las imágenes con significado verificadas tienen texto alternativo no vacío.
+- Las imágenes decorativas generadas por Hero Slider siguen teniendo atributo `alt` explícito vacío.
+- No se introduce lógica basada en nombres de archivo ni heurísticas SEO.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | Cerrar [#522](https://github.com/pl0n3r/brvtal/issues/522). |
-| **NEXT** | [#479](https://github.com/pl0n3r/brvtal/issues/479) · alt attributes públicos. |
+| **NOW** | Cerrar [#479](https://github.com/pl0n3r/brvtal/issues/479). |
+| **NEXT** | [#517](https://github.com/pl0n3r/brvtal/issues/517) · versión humana en DISCADMIN. |
 | **BLOCKED / EXTERNAL** | [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy/hPanel. |
-| **LATER** | [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), luego Phase 2. |
+| **LATER** | [#221](https://github.com/pl0n3r/brvtal/issues/221), luego Phase 2. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | Media friction | [#522](https://github.com/pl0n3r/brvtal/issues/522) |
-| **NEXT** | Accessibility / SEO | [#479](https://github.com/pl0n3r/brvtal/issues/479) |
+| **NOW** | Accessibility / SEO | [#479](https://github.com/pl0n3r/brvtal/issues/479) |
+| **NEXT** | Version identity | [#517](https://github.com/pl0n3r/brvtal/issues/517) |
 | **BLOCKED / EXTERNAL** | Deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) |
-| **LATER** | Quick wins | [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221) |
+| **LATER** | Quick wins | [#221](https://github.com/pl0n3r/brvtal/issues/221) |
 | **LATER** | Admin foundation | [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514) |

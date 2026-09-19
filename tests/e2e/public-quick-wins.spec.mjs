@@ -98,6 +98,24 @@ test('Home exposes no public CMS status or generic section counters', async () =
   expect(source).toContain('css/public-legibility.css');
 });
 
+test('Home images keep explicit accessible alternatives', async ({ page }) => {
+  await page.setContent(source);
+
+  const images = page.locator('img');
+  expect(await images.count()).toBeGreaterThan(0);
+
+  const missingAlt = await images.evaluateAll(nodes =>
+    nodes
+      .filter(image => !image.hasAttribute('alt'))
+      .map(image => image.getAttribute('src') || image.outerHTML.slice(0, 120))
+  );
+  expect(missingAlt).toEqual([]);
+
+  await expect(page.locator('.hero-logo')).toHaveAttribute('alt', /\S+/);
+  await expect(page.locator('.manifesto-art img')).toHaveAttribute('alt', /\S+/);
+  await expect(page.locator('.event-img img').first()).toHaveAttribute('alt', /\S+/);
+});
+
 test('Hero counting remains tied to the configured slider total', async () => {
   expect(heroRuntime).toContain('class="brvtal-hero-counter mono"');
   expect(heroRuntime).toContain('data.slides.length');
