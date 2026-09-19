@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+122** | **−23** | **+99** |
+| **6** | **+123** | **−24** | **+99** |
 
 ## Calidad y entrega
 
@@ -38,7 +38,7 @@
 | --- | --- |
 | Throughput observer | `workflow_run` post-completion; no serializa ni extiende BRVTAL CI |
 | Job pagination | todas las páginas se aplanan antes de calcular jobs y critical path |
-| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
