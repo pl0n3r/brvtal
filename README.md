@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+463** | **−60** | **+403** |
+| **10** | **+484** | **−63** | **+421** |
 
 ## Calidad y entrega
 
@@ -37,7 +37,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| API | Settings allowlist + Media `hero-picker` acotados |
+| API | Settings allowlist + Media `hero-picker` ≤200 publicados · `no-store` |
 | Browser / real stack | render progresivo + usuario E2E autenticado |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI + Sonar tras squash merge |
@@ -61,6 +61,7 @@ flowchart LR
 ## Qué se hizo
 
 - Banners usa lecturas scoped paralelas: `home.hero.slider` + Media `hero-picker`; renderiza Settings antes de Media y mantiene picker/Save bloqueados hasta hidratación.
+- El bootstrap fuerza `no-store` y el picker queda acotado a **200 assets publicados**; referencias fuera de ese lote siguen validándose autoritativamente al guardar.
 - Las respuestas tardías se descartan y Media remoto sigue hidratándose con DOM seguro.
 - Se añadieron contratos, browser y real-stack con usuario E2E; el harness v2 usa los endpoints scoped reales.
 - `AGENTS.md` fija el rol **principal engineer + technical executor** y ownership de arquitectura, UX/UI, dirección visual, QA, AppSec, performance y release.
@@ -83,7 +84,8 @@ flowchart LR
 
 - Browser: Banners aparece antes de Media; Save se habilita solo tras hidratación.
 - Settings scoped acepta solo `home.hero.slider`; variantes/otras keys fallan antes de SQL.
-- `hero-picker` excluye audio/documentos; legacy reads siguen compatibles.
+- `hero-picker` excluye audio/documentos, devuelve solo publicados y nunca supera 200 filas; legacy reads siguen compatibles.
+- Las dos lecturas iniciales de Banners envían `cache: 'no-store'`; la regresión browser verifica también que Save siga deshabilitado mientras Media está pendiente.
 - Real-stack/harness usan endpoints scoped reales. Sin migración ni SQL destructivo.
 
 ## Qué sigue
