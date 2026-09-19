@@ -87,8 +87,7 @@ test('public hero reapplies responsive media and layer overrides after crossing 
   await expect(second).toHaveClass(/active/);
   await expect(media).toHaveAttribute('src','/two-mobile.jpg');
   await expect(art.locator('img')).toHaveAttribute('src','/layer-mobile.png');
-  await expect.poll(() => art.evaluate(node => [node.style.left,node.style.width])).toEqual(['35%','55%']);
-  await expect.poll(() => art.evaluate(node => node.style.top.startsWith('clamp(104px'))).toBe(true);
+  await expect.poll(() => art.evaluate(node => [node.style.left,node.style.top,node.style.width])).toEqual(['35%','45%','55%']);
   await expect(second.getByText('HIDE ME')).toHaveCount(0);
   await expect(page.locator('[data-hero-current]')).toHaveText('02');
 

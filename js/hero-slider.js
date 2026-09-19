@@ -46,7 +46,7 @@
     const width = mobile && layer.mobileWidth != null ? layer.mobileWidth : layer.width;
     const src = mobile && layer.mobileSrc ? layer.mobileSrc : layer.src;
     const safeTop = mobile
-      ? `clamp(104px, ${Number(y)}%, calc(100% - 80px))`
+      ? `${Number(y)}%`
       : `clamp(128px, ${Number(y)}%, calc(100% - 96px))`;
     const style = `left:${Number(x)}%;top:${safeTop};width:${Number(width)}%;text-align:${esc(layer.align)};--layer-delay:${Number(layer.delay || 0)}ms;--layer-duration:${Number(layer.duration || 650)}ms`;
     if (layer.type === 'image' || layer.type === 'logo') {
