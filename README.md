@@ -56,24 +56,24 @@ flowchart LR
 ## Qué se hizo
 
 - Se añade `CI Throughput Telemetry` como observador aislado después de BRVTAL CI, sin añadir latencia al DAG de validación.
-- La telemetría persiste wall time, duración por job y critical path, incluyendo todas las páginas devueltas por GitHub Actions.
+- La telemetría persiste wall time, duración por job y la ruta crítica `preflight → gate más lento → validate`, incluyendo todas las páginas devueltas por GitHub Actions.
 - `actions/upload-artifact` queda fijado al commit revisado de v4.6.2; el fan-out paralelo de los gates permanece intacto.
 - La regresión Content Health ahora muta y acciona el botón atómicamente para probar el fallback real sin competir con el rerender del dashboard.
 - Versión **0.1.17**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/ci-throughput-telemetry.yml`
-- `.github/workflows/update-release-metadata.yml`
-- `README.md`
-- `config/version.php`
-- `package.json`
-- `tests/e2e/discadmin-content-health-navigation.spec.mjs`
+- `.github/workflows/ci-throughput-telemetry.yml` — observa runs terminados, calcula la ruta crítica y persiste la evidencia.
+- `.github/workflows/update-release-metadata.yml` — expone el inicio del DAG y publica su wall time agregado.
+- `README.md` — mantiene el snapshot visual y verificable del deploy actual.
+- `config/version.php` — declara la release runtime `0.1.17`.
+- `package.json` — alinea la metadata de versión del proyecto con la release.
+- `tests/e2e/discadmin-content-health-navigation.spec.mjs` — estabiliza la regresión de navegación Content Health.
 
 ## Validación
 
 - En el head anterior, preflight, MariaDB, Chromium, real-stack, WebKit y recovery pasaron; `fast` falló únicamente por el snapshot README desactualizado.
-- Los findings válidos de CodeRabbit sobre paginación multi-page y pinning del action quedan corregidos en este cierre.
+- Los findings válidos de CodeRabbit sobre paginación, pinning del action, ruta crítica y snapshot README quedan corregidos en este head.
 - BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI.
 
@@ -90,7 +90,6 @@ flowchart LR
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Editor/modal navigation lifecycle~~ | ✅ ~~[#216](https://github.com/pl0n3r/brvtal/issues/216) · v0.1.15 / PR #562~~ |
 | **NOW** | 🚧 CI throughput telemetry | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
 | **NEXT** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
