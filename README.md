@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+347** | **−130** | **+217** |
+| **13** | **+383** | **−130** | **+253** |
 
 ## Calidad y entrega
 
