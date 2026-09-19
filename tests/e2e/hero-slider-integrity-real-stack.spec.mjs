@@ -7,6 +7,7 @@ const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || '';
 test.skip(!baseUrl || !adminPassword, 'BRVTAL real-stack URL and admin credentials are required');
 
 const settingKey = 'home.hero.slider';
+const heroMediaLimit = 200;
 
 async function login(page) {
   const response = await page.request.post(`${baseUrl}/api/index.php/auth`, {
@@ -73,8 +74,10 @@ test('Banners uses bounded bootstrap reads on the authenticated real stack', asy
   expect(mediaResponse.ok()).toBeTruthy();
   const mediaRows = (await mediaResponse.json()).data || [];
   expect(mediaRows.length).toBeGreaterThan(0);
+  expect(mediaRows.length).toBeLessThanOrEqual(heroMediaLimit);
   for (const row of mediaRows) {
     expect(['image','video']).toContain(row.type);
+    expect(row.status).toBe('published');
     expect(Object.keys(row).sort()).toEqual(['file_path','id','status','title','type']);
   }
 });

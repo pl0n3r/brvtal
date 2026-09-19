@@ -56,6 +56,7 @@ function harness({ failLoad = false, media = [], settingsDelay = 0, mediaDelay =
     <script>
       window.__heroXss = 0;
       window.__heroRequests = [];
+      window.__heroRequestOptions = [];
       window.__heroMediaResolved = false;
       window.state = {section:'dashboard'};
       window.render = function(){
@@ -63,8 +64,9 @@ function harness({ failLoad = false, media = [], settingsDelay = 0, mediaDelay =
       };
       window.go = async function(section){ state.section = section; render(); };
       window.BRVTALFeedback = {success(){},error(){}};
-      window.req = async function(path){
+      window.req = async function(path, options = {}){
         window.__heroRequests.push(path);
+        window.__heroRequestOptions.push({path,cache:options.cache || null});
         if (${failLoad ? 'true' : 'false'}) throw new Error(${JSON.stringify(payload)});
         if (path === '/settings?key=home.hero.slider') {
           await new Promise(resolve => setTimeout(resolve, ${settingsDelay}));
@@ -107,7 +109,6 @@ test('Banners load errors are rendered as text instead of HTML', async ({ page }
   expect(await page.evaluate(() => window.__heroXss)).toBe(0);
 });
 
-
 test('Banners media pickers render remote Media Library values as inert option data', async ({ page }) => {
   const mediaPath = '"><img src=x onerror="window.__heroXss += 1">';
   const mediaTitle = '<svg onload="window.__heroXss += 1">MEDIA</svg>';
@@ -133,6 +134,7 @@ test('Banners renders from the scoped setting before Media Library hydration fin
   const picker = page.locator('[data-media-picker="desktopSrc"]');
   await expect(picker).toBeDisabled();
   await expect(picker.locator('option')).toHaveText('Loading Media Library…');
+  await expect(page.locator('[data-save-slider]')).toBeDisabled();
 
   const stateAtFirstRender = await page.evaluate(() => ({
     requests:window.__heroRequests.slice(),
@@ -143,10 +145,13 @@ test('Banners renders from the scoped setting before Media Library hydration fin
     '/settings?key=home.hero.slider',
   ]);
   expect(stateAtFirstRender.mediaResolved).toBe(false);
+  expect(await page.evaluate(() => window.__heroRequestOptions)).toEqual([
+    {path:'/media?view=hero-picker',cache:'no-store'},
+    {path:'/settings?key=home.hero.slider',cache:'no-store'},
+  ]);
 
   await expect(picker).toBeEnabled({timeout:1500});
   await expect(picker.locator('option').nth(1)).toHaveText('Hero image');
   await expect(page.locator('[data-save-slider]')).toBeEnabled();
   expect(await page.evaluate(() => window.__heroMediaResolved)).toBe(true);
 });
-

@@ -112,7 +112,7 @@
       return `${label} must use a Media Library asset or an external HTTPS URL.`;
     }
     const item = mediaRecordForPath(reference);
-    if (!item) return `${label} is not registered in the Media Library.`;
+    if (!item) return ''; // Picker reads are bounded; the server remains authoritative at save time.
     if (String(item.status || 'published') !== 'published') {
       return `${label} must use a published Media Library asset.`;
     }
@@ -282,13 +282,13 @@
     mediaReady = false;
     mediaLoadError = '';
 
-    const mediaPromise = request(MEDIA_PICKER_PATH).then(
+    const mediaPromise = request(MEDIA_PICKER_PATH,{cache:'no-store'}).then(
       response => ({ok:true,response,error:null}),
       error => ({ok:false,response:null,error})
     );
 
     try {
-      const settingsResponse = await request(SETTINGS_READ_PATH);
+      const settingsResponse = await request(SETTINGS_READ_PATH,{cache:'no-store'});
       if (revision !== loadRevision || !root()) return;
       const settings = Array.isArray(settingsResponse.data) ? settingsResponse.data : [];
       const record = settings.find(item => item.setting_key === KEY);

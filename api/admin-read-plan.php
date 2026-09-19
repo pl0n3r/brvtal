@@ -4,6 +4,7 @@ declare(strict_types=1);
 const BRVTAL_ADMIN_PROTECTED_SETTING_KEY = 'security.totp_encryption_key';
 const BRVTAL_ADMIN_HERO_SETTING_KEY = 'home.hero.slider';
 const BRVTAL_ADMIN_HERO_MEDIA_VIEW = 'hero-picker';
+const BRVTAL_ADMIN_HERO_MEDIA_LIMIT = 200;
 
 /**
  * Return an optimized authenticated collection-read plan when a supported
@@ -67,7 +68,8 @@ function brvtalAdminCollectionReadPlan(string $resource, array $query): ?array
     ) {
         return [
             'sql' => 'SELECT id,type,title,file_path,status FROM media '
-                . "WHERE type IN ('image','video') ORDER BY id DESC",
+                . "WHERE type IN ('image','video') AND status='published' ORDER BY id DESC LIMIT "
+                . BRVTAL_ADMIN_HERO_MEDIA_LIMIT,
             'params' => [],
             'error' => null,
             'status' => 200,
