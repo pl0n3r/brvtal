@@ -42,7 +42,7 @@
 | Browser | estado/email se renderizan como texto y la UI 2FA sigue operativa |
 | Real stack | Settings Advanced carga Security real con administrador E2E aislado |
 | Sonar + CodeRabbit | ejecutados en paralelo; objetivo Sonar: volver a Security Rating **A** |
-| Exact-main | CI + Sonar del SHA exacto de main obligatorios tras squash merge |
+| Exact-main | CI del SHA exacto de main + Sonar obligatorios tras squash merge |
 
 ## Flujo de entrega
 
