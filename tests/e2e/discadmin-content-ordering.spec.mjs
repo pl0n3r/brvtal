@@ -41,6 +41,30 @@ test('keyboard reorder saves canonical IDs and updates positions', async ({page}
   expect(await page.evaluate(()=>window.__orderEvents[0])).toEqual({resource:'artists',ids:[2,1,3]});
 });
 
+test('touch-style Pointer Events reorder through the shared drag handle', async ({page}) => {
+  await harness(page);
+  await page.evaluate(async () => {
+    const handle = document.querySelector('[data-order-id="1"] .content-order-handle');
+    const target = document.querySelector('[data-order-id="3"]');
+    const original = document.elementFromPoint.bind(document);
+    document.elementFromPoint = () => target;
+    handle.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles:true, pointerId:17, pointerType:'touch', button:0, clientX:10, clientY:10
+    }));
+    document.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles:true, pointerId:17, pointerType:'touch', button:0, clientX:10, clientY:999
+    }));
+    document.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles:true, pointerId:17, pointerType:'touch', button:0, clientX:10, clientY:999
+    }));
+    document.elementFromPoint = original;
+  });
+
+  await expect.poll(() => page.evaluate(() => window.__orders.length)).toBe(1);
+  expect(await page.locator('#rows > [data-order-id]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.orderId)))).toEqual([2,3,1]);
+  expect(await page.evaluate(() => window.__orders[0].body)).toEqual({resource:'artists',ids:[2,3,1]});
+});
+
 test('failed reorder restores the exact previous DOM order', async ({page}) => {
   await harness(page); await page.evaluate(()=>{window.__failOrder=true});
   const second=page.locator('[data-order-id="2"] .content-order-handle');

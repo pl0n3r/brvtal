@@ -97,6 +97,7 @@ window.BRVTALReleases = (() => {
     grid.dataset.orderEnabled = orderingAvailable() ? '1' : '0';
     if (!rows.length) {
       grid.innerHTML = '<div class="releases-empty">NO RELEASES MATCH THIS VIEW</div>';
+      window.BRVTALContentOrdering?.refresh?.(grid);
       return;
     }
     grid.innerHTML = rows.map(release => {
