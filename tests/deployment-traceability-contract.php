@@ -23,7 +23,10 @@ deployment_expect(str_contains($resolver, 'BRVTAL_APP_BUILD'), 'resolver may ret
 deployment_expect(str_contains($resolver, 'function brvtalDeploymentIsExact()'), 'resolver must distinguish exact environment/git source from release fallback');
 deployment_expect(str_contains($endpoint, "'short_commit'"), 'public deployment endpoint must expose the deployed short SHA');
 deployment_expect(str_contains($endpoint, "'exact' => brvtalDeploymentIsExact()"), 'deployment endpoint must identify whether SHA is exact');
-deployment_expect(str_contains($health, "'deployment'=>"), 'health response must identify its deployed source');
+deployment_expect(
+    preg_match("/'deployment'\\s*=>\\s*\\[/", $health) === 1,
+    'health response must identify its deployed source'
+);
 deployment_expect(str_contains($admin, 'data-testid="admin-product-version"'), 'DISCADMIN must display the human product version as primary release identity');
 deployment_expect(str_contains($admin, 'BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION'), 'DISCADMIN product version must come from canonical release metadata');
 deployment_expect(str_contains($admin, 'data-testid="admin-deploy-source"'), 'DISCADMIN must retain deployed source as secondary technical detail');

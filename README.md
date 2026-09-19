@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+281** | **−55** | **+226** |
+| **17** | **+408** | **−56** | **+352** |
 
 ## Calidad y entrega
 
@@ -102,6 +102,7 @@ flowchart LR
 - exact SHA sigue disponible cuando proviene de entorno/Git checkout;
 - release fallback no se muestra como exact deployed source;
 - CI valida la transición pero nunca escribe ni commitea `config/version.php`.
+- `render()` del shell queda formateado en líneas mantenibles, sin la línea de 3745 caracteres reportada por Sonar.
 
 ## Qué sigue
 
