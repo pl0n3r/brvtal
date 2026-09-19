@@ -8,9 +8,10 @@ const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8')
 const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
 function harness(authed = true) {
-  return `<!doctype html><html><head><style>${iaCss}</style></head><body><div id="app"></div><script>
-    window.state={authed:${authed ? 'true' : 'false'},section:'dashboard',rows:[]};
+  return `<!doctype html><html><head><style>${iaCss}.legacy-test-modal{display:none}.legacy-test-modal.open{display:block}</style></head><body><div id="app"></div><div id="modal" class="legacy-test-modal"><button id="saveBtn" type="button">SAVE</button></div><script>
+    window.state={authed:${authed ? 'true' : 'false'},section:'dashboard',rows:[],editing:null};
     window.__legacyOpen=[];
+    window.__legacySaveCalls=0;
     window.__moduleLoadOptions=[];
     window.__nativeGo=[];
     window.__nativeRenders=[];
@@ -81,7 +82,17 @@ function harness(authed = true) {
       window.__renderShell(section);
     };
     window.tech=async function(section){window.__renderShell(section);};
-    window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
+    window.openModal=function(type,id){
+      window.__legacyOpen.push([type,id]);
+      state.editing=id;
+      document.getElementById('saveBtn').onclick=()=>{window.__legacySaveCalls+=1;};
+      document.getElementById('modal').classList.add('open');
+    };
+    window.closeModal=function(){
+      document.getElementById('modal').classList.remove('open');
+      state.editing=null;
+      document.getElementById('saveBtn').onclick=null;
+    };
     window.BRVTALAdminModules={
       cancel(){window.__moduleCancels+=1;window.__dynamicNavigationToken+=1;},
       async waitForSection(section){
@@ -475,6 +486,64 @@ test('failed current native navigation keeps the previous workspace, rows and UR
   await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
   expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
   expect(await page.evaluate(() => window.__nativeRenders.slice(-1)[0])).toBe('artists');
+});
+
+test('successful module navigation retires the previous legacy editor and save handler', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => window.go('artists'));
+  await page.evaluate(() => window.openModal('artists', 7));
+  await expect(page.locator('#modal')).toHaveClass(/open/);
+  expect(await page.evaluate(() => window.state.editing)).toBe(7);
+
+  await page.evaluate(() => window.go('pages'));
+
+  await expect(page.locator('.main .top h1')).toHaveText('PAGES');
+  await expect(page.locator('#modal')).not.toHaveClass(/open/);
+  expect(await page.evaluate(() => window.state.editing)).toBeNull();
+  await page.evaluate(() => document.getElementById('saveBtn').click());
+  expect(await page.evaluate(() => window.__legacySaveCalls)).toBe(0);
+});
+
+test('failed module navigation preserves the current legacy editor context', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => window.go('artists'));
+  await page.evaluate(() => {
+    window.openModal('artists', 7);
+    window.__requestFailures['/pages'] = 'PAGES_UNAVAILABLE';
+    window.__failedEditorNavigation = window.go('pages').catch(error => {
+      window.__editorNavigationFailure = error.message;
+    });
+  });
+  await page.evaluate(() => window.__failedEditorNavigation);
+
+  expect(await page.evaluate(() => window.__editorNavigationFailure)).toBe('PAGES_UNAVAILABLE');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  await expect(page.locator('#modal')).toHaveClass(/open/);
+  expect(await page.evaluate(() => window.state.editing)).toBe(7);
+  await page.evaluate(() => document.getElementById('saveBtn').click());
+  expect(await page.evaluate(() => window.__legacySaveCalls)).toBe(1);
+});
+
+test('browser Back retires an editor from the workspace being left', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => window.go('artists'));
+  await page.evaluate(() => window.go('pages'));
+  await page.evaluate(() => window.openModal('pages', 9));
+  await expect(page.locator('#modal')).toHaveClass(/open/);
+
+  await page.goBack();
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  await expect(page.locator('#modal')).not.toHaveClass(/open/);
+  expect(await page.evaluate(() => window.state.editing)).toBeNull();
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
 });
 
 test('system destination participates in the same URL state', async ({ page }) => {

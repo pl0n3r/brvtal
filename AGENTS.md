@@ -294,6 +294,8 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 52. **Hostinger deployment observation is release-first and SHA-strict when possible.** The canonical product version is the deploy marker that survives shared-hosting checkouts without `.git`; `/api/deployment.php` exposes that release with no-store caching. If the runtime exposes a full exact Git SHA, observers must additionally require it to equal exact `main`. If exact Git metadata is unavailable, do not fabricate it or fail solely for that reason. Asset cache-busting must use `brvtalDeploymentCacheKey()`, which falls back to the product version rather than stale compatibility build metadata. Authenticated production smoke waits for the expected release before loading DISCADMIN so normal Hostinger propagation does not create false failures.
 53. **Roadmap milestone titles show the assigned product version in parentheses.** For every deploy-bound milestone that has entered implementation/PR, place the canonical product version directly in the visible title using the exact style `Milestone name (vX.Y.Z), PR #N`; for example `🚧 Hostinger release observability (v0.1.13), PR #560` and, once completed, `✅ ~~Release identity end-to-end (v0.1.12), PR #559~~`. The version belongs in parentheses in the title itself, matching the visual ledger style. Backlog items without an assigned release may remain unversioned until their deploy-bound branch/PR gets its canonical `BRVTAL_APP_VERSION`. Never invent historical versions that cannot be proven. Keep completed milestones visible and struck through, and append merge SHA, exact-main CI/run evidence, deployment observation and production validation immediately after the title when available. `🚧` means active/pending and `⛔` means concretely blocked. Never leave an item marked in-flight after merge/closeout, and keep CI success, deployment observation and production validation explicitly distinct.
 
+54. **Successful DISCADMIN navigation retires legacy editor context transactionally.** Global Search, Back/Forward and canonical module navigation may change the workspace only through the shared navigation layer. An open legacy global `#modal` is retired only after the destination succeeds and is still the current route; failed or stale navigation preserves the existing editor. Retiring the editor must clear its editing marker and stale Save handler so an editor from the previous module cannot survive over the new workspace. Unsaved-change confirmation remains a separate editor-protection concern and, when added, must intercept before a navigation is committed rather than weakening this lifecycle boundary.
+
 ---
 
 ## 5. Data / API architecture rules
@@ -444,9 +446,11 @@ When no newer explicit user instruction exists:
 6. ✅ ~~**Phase 2 Settings Advanced — #516** — raw/dead configuration UI removed; inline 2FA plus Theme Studio/System Status ownership consolidated under Settings.~~
 7. ✅ ~~**Security hotfix — #553** — Banners remote Media values now hydrate through safe DOM APIs; PR #555 is merged and exact-main BRVTAL CI + Sonar Quality Gate are green on `1480380`.~~
 8. ✅ ~~**Banners first-load performance — #523** — bounded fresh Settings/Media reads, progressive render and published Media cap are merged and exact-main validated on `1526bbb`.~~
-9. 🚧 **Public Home hero desktop regression — #480** — keep the hero readable below the fixed header without losing BRVTAL's oversized editorial direction.
-10. 🚧 **Continue later Phase 2 / #533** — #193 and #216 after #480, before moving into editorial productivity.
-11. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+9. ✅ ~~**Public Home hero desktop regression — #480** — merged and exact-main validated.~~
+10. ✅ ~~**Native navigation transaction — #193 / PR #561** — failed reads no longer leave state/workspace mismatched; merged and exact-main validated.~~
+11. 🚧 **Editor/modal navigation lifecycle — #216** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it.
+12. 🚧 **Browser/navigation closeout — #558 then #174** — deflake record navigation, then protect Banners unsaved edits before larger editorial productivity work.
+13. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 

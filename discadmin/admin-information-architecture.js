@@ -4,6 +4,7 @@
   const originalGo = window.go;
   const originalTech = window.tech;
   const originalOpenModal = window.openModal;
+  const originalCloseModal = window.closeModal;
   const originalReq = typeof window.req === 'function' ? window.req : null;
   const STALE_NAVIGATION = 'BRVTAL_STALE_NAVIGATION';
   let routeToken = 0;
@@ -53,6 +54,17 @@
 
   function isStaleNavigation(error) {
     return error?.code === STALE_NAVIGATION || error?.message === STALE_NAVIGATION;
+  }
+
+  function retireLegacyEditor() {
+    const modal = document.getElementById('modal');
+    if (!modal?.classList.contains('open')) return false;
+    if (typeof originalCloseModal === 'function') originalCloseModal.call(window);
+    else modal.classList.remove('open');
+    if (typeof state === 'object' && state) state.editing = null;
+    const saveButton = document.getElementById('saveBtn');
+    if (saveButton) saveButton.onclick = null;
+    return true;
   }
 
   if (originalReq) {
@@ -419,6 +431,7 @@
       if (section === 'artists') setTimeout(enhanceArtistsList, 0);
       setTimeout(rebuildNavigation, 0);
     }
+    retireLegacyEditor();
     syncRouteUrl(section);
     return result;
   };
@@ -430,6 +443,7 @@
       window.BRVTALAdminModules?.cancel?.();
       const result = await originalTech.apply(this, [section, ...args]);
       if (token !== routeToken) return result;
+      retireLegacyEditor();
       syncRouteUrl(section);
       setTimeout(rebuildNavigation, 0);
       return result;
