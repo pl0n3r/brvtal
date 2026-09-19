@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **14** | **+220** | **−97** | **+123** |
+| **14** | **+225** | **−97** | **+128** |
 
 ## Calidad y entrega
 
@@ -67,7 +67,7 @@ flowchart LR
 - DISCADMIN pasa a dos grupos: **SITE / EDITORIAL** y **CONFIGURATION / TECHNICAL**.
 - El orden principal queda Dashboard → Banners → Events → Artists → Releases → Sets → Media → Pages → Blog.
 - Hero Slider conserva su ruta interna pero se presenta al usuario como **Banners**.
-- Memories queda subordinado a Media; Theme Studio y Security / 2FA quedan subordinados a Settings.
+- Memories queda subordinado a Media; Theme Studio y Security / 2FA salen del sidebar y quedan accesibles desde Settings.
 - Backups/Activity dejan de competir como pseudo-destinos cuando ya tienen superficie canónica.
 - Global Search permanece arriba y suma acceso persistente inmediatamente antes de Logout.
 - Se elimina el `ONLINE` estático que parecía un health check sin serlo.
