@@ -441,25 +441,6 @@ window.BRVTALMediaLibrary = (() => {
     }
   }
 
-  function externalRegistrationModal() {
-    const overlay = document.createElement('div'); overlay.className = 'brvtal-media-picker';
-    overlay.innerHTML = `<div class="brvtal-media-picker-box"><div class="brvtal-media-picker-head"><h3>REGISTER EXTERNAL MEDIA</h3><button class="btn ghost" type="button" data-close>CLOSE</button></div>
-      <form class="media-register-form"><label>TITLE<input name="title" required></label><label>FILE URL / UPLOAD PATH<input name="file_path" placeholder="https://… or /uploads/…" required></label><label>TYPE<select name="type"><option>image</option><option>video</option><option>audio</option><option>document</option></select></label><label>MIME TYPE<input name="mime_type" placeholder="image/jpeg"></label><label>ALT TEXT<input name="alt_text"></label><div class="media-register-actions"><button class="btn red" type="submit">REGISTER</button></div></form></div>`;
-    document.body.appendChild(overlay);
-    const close = () => overlay.remove(); overlay.querySelector('[data-close]').onclick = close;
-    overlay.addEventListener('click',e => { if (e.target === overlay) close(); });
-    overlay.querySelector('form').addEventListener('submit', async e => {
-      e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget).entries());
-      data.file_path = normalizeMediaPath(data.file_path);
-      try {
-        notify('processing', 'Registering external media…');
-        const j = await request('?action=register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-        close(); await refresh(j.data?.id || null); status('External media registered.', 'ok');
-      }
-      catch (err) { status('Could not register media: ' + err.message, 'err'); }
-    });
-  }
-
   function updateInputPreview(input, item) {
     const holder = input.closest('.thumbcell') || input.parentElement;
     if (!holder) return;
@@ -534,7 +515,6 @@ window.BRVTALMediaLibrary = (() => {
     const input = root.querySelector('#media-file');
     root.querySelector('#media-upload')?.addEventListener('click',() => input?.click());
     input?.addEventListener('change',() => { uploadFiles(input.files); input.value=''; });
-    root.querySelector('#media-register')?.addEventListener('click',externalRegistrationModal);
     const dz = root.querySelector('#media-dropzone');
     ['dragenter','dragover'].forEach(name => dz?.addEventListener(name,e => { e.preventDefault(); dz.classList.add('drag'); }));
     ['dragleave','drop'].forEach(name => dz?.addEventListener(name,e => { e.preventDefault(); dz.classList.remove('drag'); }));

@@ -26,7 +26,6 @@ brvtal_admin_require();
       </select>
     </div>
     <div class="media-toolbar-actions">
-      <button id="media-register" class="btn ghost" type="button">REGISTER EXTERNAL</button>
       <button id="media-upload" class="btn red" type="button">+ UPLOAD MEDIA</button>
       <label class="admin-sr-only" for="media-file">Choose media file to upload</label>
       <input id="media-file" type="file" hidden accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,audio/mpeg,audio/wav,application/pdf">

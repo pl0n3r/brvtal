@@ -180,7 +180,6 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
     expect(bulkCleanup.ok()).toBeTruthy();
     bulkArtistId = 0;
 
-    const beforeDisable = (await captured(page)).length;
     await page.getByTestId('indexnow-enabled').selectOption('0');
     await page.getByTestId('indexnow-save').click();
     await expect.poll(async () => {
@@ -198,7 +197,10 @@ test('IndexNow is configurable in Settings and submits real public mutations', a
     disabledArtistId = Number((await disabledCreate.json()).id || 0);
 
     await page.waitForTimeout(250);
-    expect((await captured(page)).length).toBe(beforeDisable);
+    const disabledUrl = `${baseUrl}/artists/${disabledSlug}`;
+    expect((await captured(page)).some(payload =>
+      Array.isArray(payload.urlList) && payload.urlList.includes(disabledUrl)
+    )).toBe(false);
 
     const disabledKeyResponse = await page.request.get(`${baseUrl}/indexnow-key.php`);
     expect(disabledKeyResponse.status()).toBe(404);

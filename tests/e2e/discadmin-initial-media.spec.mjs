@@ -17,7 +17,6 @@ const mediaFragment = `
       <select id="media-month-filter"><option value="">ALL DATES</option></select>
     </div>
     <div class="media-toolbar-actions">
-      <button id="media-register" type="button">REGISTER EXTERNAL</button>
       <button id="media-upload" type="button">+ UPLOAD MEDIA</button>
       <input id="media-file" type="file" hidden>
     </div>
@@ -30,7 +29,7 @@ const mediaFragment = `
   </div>
 </section>`;
 
-async function installRoutes(page, {loadIaAfterRestore = false} = {}) {
+async function installRoutes(page, {loadIaAfterRestore = false, failMediaScript = false} = {}) {
   await page.route('**/discadmin/e2e-initial-media.html**', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html><html><head></head><body>
@@ -62,9 +61,10 @@ async function installRoutes(page, {loadIaAfterRestore = false} = {}) {
     </body></html>`
   }));
 
-  await page.route('**/discadmin/media-library.js**', route => route.fulfill({
-    contentType: 'application/javascript', body: mediaLibraryJs
-  }));
+  await page.route('**/discadmin/media-library.js**', route => {
+    if (failMediaScript) return route.abort('failed');
+    return route.fulfill({contentType: 'application/javascript', body: mediaLibraryJs});
+  });
   await page.route('**/discadmin/releases.js**', route => route.fulfill({
     contentType: 'application/javascript', body: 'window.BRVTALReleases={mount(){}};'
   }));
@@ -90,6 +90,64 @@ test('restored session mounts Media on the first direct navigation', async ({ pa
   await expect(page.locator('#media-grid')).toBeVisible();
   expect(await page.evaluate(() => window.state.section)).toBe('media');
   expect(await page.evaluate(() => window.__legacyRestoreCalled)).toBe(false);
+});
+
+test('Dashboard to Media uses canonical readiness even after the dependency load event already fired', async ({ page }) => {
+  await installRoutes(page);
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.__restorePromise);
+
+  await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD');
+  await expect.poll(() => page.evaluate(() => Boolean(window.BRVTALMediaLibrary))).toBe(true);
+
+  // Match the real Dashboard contract: its summary is an object, not a list.
+  // Dynamic Media navigation must not feed that object into legacy rows.map().
+  await page.evaluate(() => {
+    window.state.rows = {events: 4, media: 12, published_events: 3};
+  });
+
+  await page.evaluate(() => {
+    const script = document.getElementById('brvtal-media-library-script');
+    if (script) delete script.dataset.ready;
+  });
+  await page.addScriptTag({content:adminIaJs});
+
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
+  await expect(page.locator('#media-grid')).toBeVisible();
+  await expect(page.locator('#media-register')).toHaveCount(0);
+  expect(await page.evaluate(() => window.state.section)).toBe('media');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('media');
+});
+
+test('Media dependency failure renders the canonical module error with Retry', async ({ page }) => {
+  await installRoutes(page, {failMediaScript:true});
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.__restorePromise);
+
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  await expect(page.locator('#admin-module-host .error')).toContainText('Unable to load this module');
+  await expect(page.getByRole('button', {name:'RETRY', exact:true})).toBeVisible();
+});
+
+test('Media Retry reloads a dependency after a transient script failure', async ({ page }) => {
+  await installRoutes(page, {failMediaScript:true});
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.__restorePromise);
+
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
+  await expect(page.locator('#admin-module-host .error')).toContainText('Unable to load this module');
+
+  await page.unroute('**/discadmin/media-library.js**');
+  await page.route('**/discadmin/media-library.js**', route => route.fulfill({
+    contentType: 'application/javascript',
+    body: mediaLibraryJs
+  }));
+
+  await page.getByRole('button', {name:'RETRY', exact:true}).click();
+  await expect(page.locator('[data-admin-module="media"]')).toBeVisible();
+  await expect(page.locator('#media-grid')).toBeVisible();
+  await expect(page.locator('#admin-module-host .error')).toHaveCount(0);
 });
 
 test('Media dropzone uses native button semantics and keyboard activation opens the file picker', async ({ page }) => {

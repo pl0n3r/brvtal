@@ -18,6 +18,7 @@ function harness(authed = true) {
     window.__requestLog=[];
     window.__deferredRequests={};
     window.__requestResolvers={};
+    window.__dynamicNavigationToken=0;
     window.req=function(path){
       window.__requestLog.push(path);
       if(window.__deferredRequests[path]){
@@ -62,6 +63,11 @@ function harness(authed = true) {
       document.querySelector('[data-new-event]')?.addEventListener('click',()=>window.openModal('events'));
     };
     window.go=async function(section){
+      if(['media','releases','blog'].includes(section)){
+        const token=++window.__dynamicNavigationToken;
+        await window.BRVTALAdminModules.waitForSection(section);
+        if(token!==window.__dynamicNavigationToken)return;
+      }
       window.__nativeGo.push(section);
       state.section=section;
       if(['events','artists','sets','media','pages','settings'].includes(section)){
@@ -73,7 +79,26 @@ function harness(authed = true) {
     window.tech=async function(section){window.__renderShell(section);};
     window.openModal=function(type,id){window.__legacyOpen.push([type,id]);};
     window.BRVTALAdminModules={
-      cancel(){window.__moduleCancels+=1;},
+      cancel(){window.__moduleCancels+=1;window.__dynamicNavigationToken+=1;},
+      async waitForSection(section){
+        const dependencies={
+          media:['brvtal-media-library-script'],
+          releases:['brvtal-media-library-script','brvtal-releases-script'],
+          blog:['brvtal-media-library-script','brvtal-blog-script']
+        }[section]||[];
+        await Promise.all(dependencies.map(id=>{
+          const script=document.getElementById(id);
+          if(!script||script.dataset.ready==='1')return Promise.resolve();
+          return new Promise((resolve,reject)=>{
+            const onLoad=()=>{cleanup();resolve();};
+            const onError=()=>{cleanup();reject(new Error('Unable to load '+id));};
+            const cleanup=()=>{script.removeEventListener('load',onLoad);script.removeEventListener('error',onError);};
+            script.addEventListener('load',onLoad,{once:true});
+            script.addEventListener('error',onError,{once:true});
+            if(script.dataset.ready==='1')onLoad();
+          });
+        }));
+      },
       async load(section,options={}){
         if(section!=='content-core')return;
         window.__moduleLoadOptions.push(options);
@@ -152,6 +177,68 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
     'CUSTOM TOOL':'other:custom tool'
   });
   await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
+});
+
+test('dynamic routes update the URL before readiness settles', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    const script = document.createElement('script');
+    script.id = 'brvtal-media-library-script';
+    document.head.appendChild(script);
+    window.__pendingMediaNavigation = window.go('media');
+  });
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('media');
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('dashboard');
+
+  await page.evaluate(() => {
+    const script = document.getElementById('brvtal-media-library-script');
+    script.dataset.ready = '1';
+    script.dispatchEvent(new Event('load'));
+  });
+  await page.evaluate(() => window.__pendingMediaNavigation);
+
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('media');
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+});
+
+test('explicit Media navigation wins while initial route reconciliation is still pending', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    history.replaceState({}, '', '?module=pages');
+    window.state.section = 'dashboard';
+    window.__deferredRequests['/pages'] = true;
+    window.__initialRoutePromise = window.BRVTALAdminIA.applyRoute();
+  });
+  await expect.poll(() => page.evaluate(() => window.__requestLog.includes('/pages'))).toBe(true);
+
+  await page.evaluate(() => {
+    const media = document.createElement('script');
+    media.id = 'brvtal-media-library-script';
+    document.head.appendChild(media);
+    window.__pendingMediaNavigation = window.go('media');
+  });
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('media');
+
+  await page.evaluate(() => {
+    const media = document.getElementById('brvtal-media-library-script');
+    media.dataset.ready = '1';
+    media.dispatchEvent(new Event('load'));
+  });
+  await page.evaluate(() => window.__pendingMediaNavigation);
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('media');
+
+  await page.evaluate(() => window.__resolveRequest('/pages'));
+  await page.evaluate(() => window.__initialRoutePromise);
+
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+  expect(await page.evaluate(() => window.state.section)).toBe('media');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('media');
 });
 
 test('Events is the single entry to the guided event editor', async ({ page }) => {
@@ -326,4 +413,11 @@ test('DISCADMIN wrapper loads the IA layer after existing enhancements', async (
   expect(wrapper).toContain('/discadmin/admin-information-architecture.css');
   expect(wrapper).toContain('/discadmin/admin-information-architecture.js');
   expect(wrapper.indexOf('admin-appearance.js')).toBeLessThan(wrapper.indexOf('admin-information-architecture.js'));
+  expect(wrapper.indexOf('admin-information-architecture.js')).toBeLessThan(wrapper.indexOf('admin-route-aliases.js'));
+  expect(wrapper.indexOf('admin-route-aliases.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('settings-v2.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('theme-studio-v2.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('memories.js')).toBeLessThan(wrapper.indexOf('dashboard-v2.js'));
+  expect(wrapper.indexOf('dashboard-v2.js')).toBeLessThan(wrapper.indexOf('data-admin-session-restore="1"'));
+  expect(wrapper).toContain("str_replace($legacyRestoreBootstrap, '', $html, $restoreBootstrapCount)");
 });

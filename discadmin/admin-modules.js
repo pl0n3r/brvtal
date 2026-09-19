@@ -14,13 +14,46 @@ window.BRVTALAdminModules = (() => {
     if (document.getElementById(id)) return;
     const link = document.createElement('link'); link.id = id; link.rel = 'stylesheet'; link.href = versioned(href); document.head.appendChild(link);
   }
-  function ensureScript(id, src) {
-    const existing = document.getElementById(id);
-    if (existing) return existing.dataset.ready === '1' ? Promise.resolve() : new Promise((resolve,reject) => { existing.addEventListener('load',resolve,{once:true}); existing.addEventListener('error',reject,{once:true}); });
+  function ensureScript(id, src, readyGlobal = '') {
+    const globalReady = () => readyGlobal !== '' && window[readyGlobal] !== undefined;
+    let existing = document.getElementById(id);
+    if (existing?.dataset.failed === '1' && !globalReady()) {
+      existing.remove();
+      existing = null;
+    }
+    if (existing) {
+      if (existing.dataset.ready === '1' || globalReady()) {
+        existing.dataset.ready = '1';
+        delete existing.dataset.failed;
+        return Promise.resolve();
+      }
+      return new Promise((resolve,reject) => {
+        const onLoad = () => {
+          existing.dataset.ready='1';
+          delete existing.dataset.failed;
+          resolve();
+        };
+        const onError = () => {
+          existing.dataset.failed='1';
+          reject(new Error('SCRIPT_LOAD_FAILED: ' + src));
+        };
+        existing.addEventListener('load',onLoad,{once:true});
+        existing.addEventListener('error',onError,{once:true});
+        if (globalReady()) onLoad();
+      });
+    }
     return new Promise((resolve,reject) => {
       const script = document.createElement('script'); script.id = id; script.src = versioned(src); script.defer = true;
-      script.addEventListener('load',() => { script.dataset.ready='1'; resolve(); },{once:true});
-      script.addEventListener('error',reject,{once:true}); document.head.appendChild(script);
+      script.addEventListener('load',() => {
+        script.dataset.ready='1';
+        delete script.dataset.failed;
+        resolve();
+      },{once:true});
+      script.addEventListener('error',() => {
+        script.dataset.failed='1';
+        reject(new Error('SCRIPT_LOAD_FAILED: ' + src));
+      },{once:true});
+      document.head.appendChild(script);
     });
   }
 
@@ -397,25 +430,63 @@ window.BRVTALAdminModules = (() => {
   ensureStyle('brvtal-media-library-style','/discadmin/media-library.css');
   ensureStyle('brvtal-releases-style','/discadmin/releases.css');
   ensureStyle('brvtal-blog-style','/discadmin/blog.css');
-  const mediaReady = ensureScript('brvtal-media-library-script','/discadmin/media-library.js');
-  const releasesReady = ensureScript('brvtal-releases-script','/discadmin/releases.js');
-  const blogReady = ensureScript('brvtal-blog-script','/discadmin/blog.js');
+  const scriptDefinitions = new Map([
+    ['media', ['brvtal-media-library-script','/discadmin/media-library.js','BRVTALMediaLibrary']],
+    ['releases', ['brvtal-releases-script','/discadmin/releases.js','BRVTALReleases']],
+    ['blog', ['brvtal-blog-script','/discadmin/blog.js','BRVTALBlog']]
+  ]);
+  const sectionDependencies = new Map([
+    ['media', ['media']],
+    ['releases', ['media','releases']],
+    ['blog', ['media','blog']]
+  ]);
+  const scriptReady = new Map();
+  const sectionReady = new Map();
+
+  const waitForScript = name => {
+    if (!scriptDefinitions.has(name)) return Promise.resolve();
+    let ready = scriptReady.get(name);
+    if (!ready) {
+      const [id,src,readyGlobal] = scriptDefinitions.get(name);
+      ready = ensureScript(id,src,readyGlobal);
+      scriptReady.set(name,ready);
+      ready.catch(() => {
+        if (scriptReady.get(name) === ready) scriptReady.delete(name);
+      });
+    }
+    return ready;
+  };
+
+  const waitForSection = section => {
+    const key = String(section || '').toLowerCase();
+    if (!sectionDependencies.has(key)) return Promise.resolve();
+    let ready = sectionReady.get(key);
+    if (!ready) {
+      ready = Promise.all(sectionDependencies.get(key).map(waitForScript)).then(() => undefined);
+      sectionReady.set(key,ready);
+      ready.catch(() => {
+        if (sectionReady.get(key) === ready) sectionReady.delete(key);
+      });
+    }
+    return ready;
+  };
+
+  for (const section of sectionDependencies.keys()) {
+    waitForSection(section).catch(() => {});
+  }
 
   const modules = {
     'content-core': {url:'/discadmin/content-core.php', mount:root=>BRVTALContentCore.mount(root)},
     security: {url:'/discadmin/totp-status.php', mount:root=>BRVTALSecurity.mount(root)},
     media: {url:'/discadmin/media-library.php', mount:async root=>{
-      await mediaReady;
       try { await mediaPermissions.repair(); }
       catch (e) { Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
       BRVTALMediaLibrary.mount(root);
     }},
     releases: {url:'/discadmin/releases.php', mount:async root=>{
-      await Promise.all([mediaReady,releasesReady]);
       BRVTALReleases.mount(root);
     }},
     blog: {url:'/discadmin/blog.php', mount:async root=>{
-      await Promise.all([mediaReady,blogReady]);
       BRVTALBlog.mount(root);
     }}
   };
@@ -432,6 +503,8 @@ window.BRVTALAdminModules = (() => {
     const host=document.getElementById('admin-module-host');
     if (!host || !modules[section]) return;
     try {
+      await waitForSection(section);
+      if(controller.signal.aborted || !host.isConnected) return;
       const response=await fetch(modules[section].url, {
         credentials:'same-origin', cache:'no-store', signal:controller.signal,
         headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
@@ -491,6 +564,10 @@ window.BRVTALAdminModules = (() => {
 
   function prepareModuleWorkspace(section) {
     state.section=section;
+    // Dashboard stores summary metrics in state.rows as an object. Dynamic
+    // modules own their records outside the legacy table, so normalize this
+    // shell input before render() can enter a list branch and call .map().
+    state.rows=[];
     render();
     ensureDynamicNavigation();
     const main=document.querySelector('.main');
@@ -501,19 +578,19 @@ window.BRVTALAdminModules = (() => {
   }
 
   const originalGo=window.go;
-  window.go=async function(section) {
+  async function navigate(section) {
     if(section==='media' || section==='releases' || section==='blog') {
       prepareModuleWorkspace(section);
-      if (section === 'media') await mediaReady;
-      if (section === 'releases') await Promise.all([mediaReady,releasesReady]);
-      if (section === 'blog') await Promise.all([mediaReady,blogReady]);
       await load(section);
       ensureDynamicNavigation();
-      return;
+      return true;
     }
     const result = await originalGo(section);
     ensureDynamicNavigation();
     return result;
+  }
+  window.go=async function(section) {
+    return navigate(section);
   };
 
   const originalOpenModal=window.openModal;
@@ -554,5 +631,5 @@ window.BRVTALAdminModules = (() => {
     };
   }
 
-  return {load,cancel,initialSection,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
+  return {load,cancel,initialSection,waitForSection,navigate,feedback:Feedback,repairMediaPermissions:()=>mediaPermissions.repair()};
 })();

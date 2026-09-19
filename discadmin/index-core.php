@@ -158,7 +158,43 @@ async function checkSystem(){const api=document.getElementById('st_api'),dbs=doc
 async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
 async function restoreSession(){try{const d=await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
 async function logout(){try{await req('/auth',{method:'DELETE'})}catch(e){}csrf='';state.authed=false;render()}
-async function go(s){state.section=s;if(s==='content-core'||s==='security'){render();await BRVTALAdminModules.load(s);return;}if(s==='dashboard'){try{const d=await req('/dashboard');state.dashboard=d.data||{};state.rows=state.dashboard;state.recent=d.recent||{events:[],artists:[],sets:[],media:[]}}catch(e){state.dashboard={};state.recent={events:[],artists:[],sets:[],media:[]}}render();if(state.authed){setTimeout(checkSystem,300);setTimeout(loadAllTech,350)}return}if(s==='theme'){render();setTimeout(loadThemeStudio,20);return}if(s==='events'||s==='artists'||s==='sets'||s==='media'||s==='pages'||s==='settings'){const d=await req('/'+s);state.rows=d.data||[];render()}else render()}
+async function go(s){
+ state.section=s;
+ if(s==='content-core'||s==='security'){
+  render();
+  await BRVTALAdminModules.load(s);
+  return;
+ }
+ if(s==='dashboard'){
+  try{
+   const d=await req('/dashboard');
+   state.dashboard=d.data||{};
+   state.rows=state.dashboard;
+   state.recent=d.recent||{events:[],artists:[],sets:[],media:[]};
+  }catch(e){
+   if(e?.code==='BRVTAL_STALE_NAVIGATION'||e?.message==='BRVTAL_STALE_NAVIGATION')return;
+   state.dashboard={};
+   state.recent={events:[],artists:[],sets:[],media:[]};
+  }
+  if(state.section!=='dashboard')return;
+  render();
+  if(state.authed){
+   setTimeout(checkSystem,300);
+   setTimeout(loadAllTech,350);
+  }
+  return;
+ }
+ if(s==='theme'){
+  render();
+  setTimeout(loadThemeStudio,20);
+  return;
+ }
+ if(s==='events'||s==='artists'||s==='sets'||s==='media'||s==='pages'||s==='settings'){
+  const d=await req('/'+s);
+  state.rows=d.data||[];
+  render();
+ }else render();
+}
 function openModal(type,id=null){state.editing=id;document.getElementById('modal').classList.add('open');document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);
 }

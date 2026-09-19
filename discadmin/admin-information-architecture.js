@@ -19,11 +19,7 @@
     'dashboard','events','artists','releases','sets','blog','pages','media','hero-slider',
     'theme','settings','security','system','backups','activity'
   ]);
-  const dynamicSectionScripts = new Map([
-    ['media', ['brvtal-media-library-script']],
-    ['releases', ['brvtal-media-library-script','brvtal-releases-script']],
-    ['blog', ['brvtal-media-library-script','brvtal-blog-script']]
-  ]);
+  const dynamicModuleSections = new Set(['media','releases','blog']);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
   const exactNavLabelKeys = new Map([
     ['DASHBOARD', 'dashboard'],
@@ -76,7 +72,10 @@
     let result;
     navigationRequestToken = token;
     try {
-      result = originalGo.call(window, section);
+      const moduleNavigate = window.BRVTALAdminModules?.navigate;
+      result = dynamicModuleSections.has(section) && typeof moduleNavigate === 'function'
+        ? moduleNavigate(section)
+        : originalGo.call(window, section);
     } finally {
       navigationRequestToken = null;
     }
@@ -101,8 +100,8 @@
     return canonicalRouteSection(raw);
   }
 
-  function syncRouteUrl(section, mode = 'push') {
-    if (applyingRoute) return;
+  function syncRouteUrl(section, mode = 'push', force = false) {
+    if (applyingRoute && !force) return;
     const canonical = canonicalRouteSection(section);
     const url = new URL(location.href);
     if (canonical === 'dashboard') url.searchParams.delete(ROUTE_PARAM);
@@ -111,28 +110,6 @@
     const current = `${location.pathname}${location.search}${location.hash}`;
     if (next === current) return;
     history[mode === 'replace' ? 'replaceState' : 'pushState']({brvtalAdminRoute: canonical}, '', next);
-  }
-
-  function waitForScriptReady(id) {
-    const script = document.getElementById(id);
-    if (!script || script.dataset.ready === '1') return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const cleanup = () => {
-        script.removeEventListener('load', onLoad);
-        script.removeEventListener('error', onError);
-      };
-      const onLoad = () => { cleanup(); resolve(); };
-      const onError = () => { cleanup(); reject(new Error(`Unable to load ${id}`)); };
-      script.addEventListener('load', onLoad, {once:true});
-      script.addEventListener('error', onError, {once:true});
-      if (script.dataset.ready === '1') onLoad();
-    });
-  }
-
-  async function waitForDynamicSection(section) {
-    const ids = dynamicSectionScripts.get(String(section || '').toLowerCase());
-    if (!ids) return;
-    await Promise.all(ids.map(waitForScriptReady));
   }
 
   async function navigateRoute(section) {
@@ -411,8 +388,7 @@
     } else {
       const token = ++routeToken;
       window.BRVTALAdminModules?.cancel?.();
-      await waitForDynamicSection(section);
-      if (token !== routeToken) return;
+      if (dynamicModuleSections.has(section)) syncRouteUrl(section, 'push', true);
       const applied = await invokeOriginalGo(section, token);
       if (!applied || token !== routeToken) return;
       result = true;
