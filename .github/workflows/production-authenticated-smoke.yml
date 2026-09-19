@@ -24,7 +24,7 @@ jobs:
        github.event.comment.author_association == 'OWNER' &&
        github.event.comment.body == '/production-smoke')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment: production-smoke
     env:
       BRVTAL_PROD_URL: https://www.brvtal.com.co

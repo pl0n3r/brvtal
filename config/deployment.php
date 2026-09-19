@@ -102,3 +102,20 @@ function brvtalDeploymentCacheKey(): string
     $version = preg_replace('/[^0-9A-Za-z._-]+/', '-', BRVTAL_APP_VERSION) ?? BRVTAL_APP_VERSION;
     return 'release-' . trim($version, '-');
 }
+
+function brvtalDeploymentPublicData(): array
+{
+    $exact = brvtalDeploymentIsExact();
+
+    return [
+        'commit' => $exact ? brvtal_deployment_sha() : null,
+        'short_commit' => $exact ? brvtal_deployment_short_sha() : null,
+        'source' => brvtal_deployment_source(),
+        'exact' => $exact,
+        'version' => BRVTAL_APP_VERSION,
+        'release_identity' => brvtalReleaseIdentity(),
+        'cache_key' => brvtalDeploymentCacheKey(),
+        'environment' => BRVTAL_APP_ENV,
+        'release_date' => BRVTAL_RELEASE_DATE,
+    ];
+}

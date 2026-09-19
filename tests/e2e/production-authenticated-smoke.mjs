@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+import { observeBeforeAuthenticate, observeRelease } from './production-release-observer.mjs';
 import { createHmac } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -30,6 +31,7 @@ const evidence = {
   releaseObserved: false,
   deploymentExact: null,
   observedDeployment: null,
+  deploymentProbeErrors: [],
   authentication: { totp: false },
   checks: {
     adminVersion: null,
@@ -91,53 +93,32 @@ async function jsonOrThrow(response, label) {
   return payload;
 }
 
-async function observeRelease(request) {
-  const attempts = 48;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const response = await request.get(
-      `${baseUrl}/api/deployment.php?__deploy_check=${encodeURIComponent(`${expectedVersion}-${attempt}-${Date.now()}`)}`,
-      {
-        headers: { 'Cache-Control': 'no-cache' },
-        timeout: 10_000
+async function observeProductionRelease(request) {
+  const result = await observeRelease({
+    request,
+    baseUrl,
+    expectedVersion,
+    expectedSha,
+    attempts: 36,
+    requestTimeoutMs: 5_000,
+    sleepMs: 10_000,
+    onObservation: ({ attempt, deployment, error }) => {
+      if (deployment) {
+        evidence.observedDeployment = deployment;
+        evidence.deploymentExact = deployment.exact;
       }
-    );
-
-    let payload = null;
-    try { payload = await response.json(); } catch (_) {}
-    const deployment = payload?.data || null;
-    const observedVersion = String(deployment?.version || '').trim();
-    const observedCommit = String(deployment?.commit || '').trim().toLowerCase();
-    const exact = deployment?.exact === true;
-
-    evidence.observedDeployment = {
-      version: observedVersion || null,
-      commit: observedCommit || null,
-      source: deployment?.source || null,
-      exact
-    };
-    evidence.deploymentExact = exact;
-    writeEvidence();
-
-    if (response.ok() && observedVersion === expectedVersion) {
-      if (exact && expectedSha && observedCommit !== expectedSha.toLowerCase()) {
-        if (attempt < attempts) {
-          await new Promise(resolve => setTimeout(resolve, 10_000));
-          continue;
-        }
-        throw new Error(`Production release v${expectedVersion} is visible, but exact source ${observedCommit || '(empty)'} does not match ${expectedSha}.`);
+      if (error) {
+        evidence.deploymentProbeErrors.push({ attempt, error });
       }
-
-      evidence.releaseObserved = true;
       writeEvidence();
-      return;
     }
+  });
 
-    if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 10_000));
-  }
-
-  throw new Error(`Production release v${expectedVersion} was not observed within the bounded deployment window.`);
+  evidence.releaseObserved = result.releaseObserved;
+  evidence.observedDeployment = result.deployment;
+  evidence.deploymentExact = result.deployment.exact;
+  writeEvidence();
 }
-
 async function authenticate(context) {
   const loginResponse = await context.request.post(`${baseUrl}/api/index.php/auth`, {
     headers: { 'Content-Type': 'application/json' },
@@ -190,8 +171,10 @@ const context = await browser.newContext({
 });
 
 try {
-  await observeRelease(context.request);
-  await authenticate(context);
+  await observeBeforeAuthenticate(
+    () => observeProductionRelease(context.request),
+    () => authenticate(context)
+  );
 
   // From this point forward the browser is content-read-only. DISCADMIN performs
   // a media-permission repair POST during session bootstrap; fulfill that request

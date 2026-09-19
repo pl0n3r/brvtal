@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **15** | **+256** | **−108** | **+148** |
+| **17** | **+550** | **−152** | **+398** |
 
 ## Calidad y entrega
 
@@ -80,12 +80,14 @@ flowchart LR
 - `package.json`
 - `tests/deployment-traceability-contract.php`
 - `tests/e2e/production-authenticated-smoke.mjs`
+- `tests/e2e/production-release-observer-contract.mjs`
+- `tests/e2e/production-release-observer.mjs`
 - `tests/production-smoke-contract.php`
 
 ## Validación
 
-- Contratos PHP protegen la separación release/SHA y el orden correcto del smoke.
-- El observer solo acepta una release correcta; si Hostinger expone SHA exacto, además debe coincidir con exact `main`.
+- Contratos ejecutables protegen la separación release/SHA, el cache key y el orden observer → autenticación.
+- El polling tolera fallos transitorios; si Hostinger expone SHA exacto, una discrepancia se reporta separada de una release ausente.
 - La UI E2E sigue validando la versión visible una vez observada la release.
 - No hay migraciones, SQL de producción ni despliegue manual.
 

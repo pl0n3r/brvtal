@@ -4,6 +4,8 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 $workflowPath = $root . '/.github/workflows/production-authenticated-smoke.yml';
 $probePath = $root . '/tests/e2e/production-authenticated-smoke.mjs';
+$releaseObserverPath = $root . '/tests/e2e/production-release-observer.mjs';
+$releaseObserverContractPath = $root . '/tests/e2e/production-release-observer-contract.mjs';
 $writeWorkflowPath = $root . '/.github/workflows/production-page-write-smoke.yml';
 $writeProbePath = $root . '/tests/e2e/production-page-write-smoke.mjs';
 $testingPath = $root . '/docs/TESTING.md';
@@ -17,11 +19,14 @@ $assert = static function (bool $condition, string $message): void {
 
 $assert(is_file($workflowPath), 'authenticated production smoke workflow must exist');
 $assert(is_file($probePath), 'authenticated production smoke probe must exist');
+$assert(is_file($releaseObserverPath), 'production release observer helper must exist');
+$assert(is_file($releaseObserverContractPath), 'production release observer behavior contract must exist');
 $assert(is_file($writeWorkflowPath), 'controlled Page write smoke workflow must exist');
 $assert(is_file($writeProbePath), 'controlled Page write smoke probe must exist');
 
 $workflow = (string) file_get_contents($workflowPath);
 $probe = (string) file_get_contents($probePath);
+$releaseObserver = (string) file_get_contents($releaseObserverPath);
 $writeWorkflow = (string) file_get_contents($writeWorkflowPath);
 $writeProbe = (string) file_get_contents($writeProbePath);
 $testing = (string) file_get_contents($testingPath);
@@ -61,8 +66,8 @@ $assert(str_contains($probe, "route.abort('blockedbyclient')"), 'unexpected brow
 $assert(str_contains($probe, 'blockedMutations'), 'blocked mutations must be captured in evidence');
 $assert(str_contains($probe, 'releaseObserved'), 'smoke must capture whether the expected production release was observed');
 $assert(str_contains($probe, 'observedDeployment'), 'smoke must capture runtime deployment identity evidence');
-$assert(str_contains($probe, '/api/deployment.php?__deploy_check='), 'smoke must wait on the canonical deployment endpoint before loading DISCADMIN');
-$assert(str_contains($probe, 'await observeRelease(context.request);'), 'smoke must wait for deployment before authenticating into the Admin UI');
+$assert(str_contains($releaseObserver, '/api/deployment.php?__deploy_check='), 'smoke must wait on the canonical deployment endpoint before loading DISCADMIN');
+$assert(str_contains($probe, 'await observeBeforeAuthenticate('), 'smoke must use the tested observe-before-auth orchestration boundary');
 $assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
 $assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');
 $assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');
@@ -72,6 +77,14 @@ $assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider load
 $assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POST calls must be login and optional TOTP verification');
 $assert(!preg_match('/context\.request\.(?:put|patch|delete)\s*\(/i', $probe), 'probe must not directly mutate production content through APIRequestContext');
 $assert(!preg_match('/page\.request\.(?:post|put|patch|delete)\s*\(/i', $probe), 'probe must not mutate production content through page.request');
+
+$observerOutput = [];
+$observerStatus = 0;
+exec('node ' . escapeshellarg($releaseObserverContractPath) . ' 2>&1', $observerOutput, $observerStatus);
+$assert(
+    $observerStatus === 0,
+    'production release observer behavior contract must pass: ' . implode(' | ', $observerOutput)
+);
 
 // #122 needs a real production write to validate the original failure mode, but
 // that capability must remain isolated, explicitly confirmed, narrowly scoped,
