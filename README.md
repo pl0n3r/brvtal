@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **15** | **+0** | **−0** | **+0** |
+| **15** | **+217** | **−106** | **+111** |
 
 ## Calidad y entrega
 
@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack** |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Deploy marker | release canónica siempre; SHA exacto adicional cuando existe |
 | E2E producción | espera release antes de autenticar y validar DISCADMIN |
 | Cache busting | SHA exacto o fallback `release-<version>` |
