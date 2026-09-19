@@ -17,7 +17,7 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#564 unified deploy/performance signal (v0.1.18)** | performance solo mide con CI + observer verdes sobre el mismo SHA |
+| Work line | 🚧 **#564 unified deploy/performance signal (v0.1.18), PR #567** | performance solo mide con CI + observer verdes sobre el mismo SHA |
 | Base exacta | ✅ **VALIDATED IN CODE** | `main` `e29970ca9d03d5028df35604df423b06328d6e02` |
 | Version | 🚧 **0.1.17 → 0.1.18** | patch deploy |
 | Producción | 🚧 **PENDING MERGE / OBSERVATION** | no se infiere validación de producción desde CI |
@@ -36,9 +36,9 @@
 
 | Control | Estado / contrato |
 | --- | --- |
+| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Performance prerequisite | mismo SHA con **BRVTAL CI + Production Deploy Observer** en success |
 | Deploy truth | único observer canónico; Performance ya no hace polling corto `?v=<sha>` |
-| Medición actual | WebKit **84s** · real-stack **80s** · Chromium **79s** en exact-main anterior |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
