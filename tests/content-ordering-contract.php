@@ -7,23 +7,23 @@ $expect = static function (bool $condition, string $message): void {
     if (!$condition) { fwrite(STDERR, "Content ordering contract failed: {$message}\n"); exit(1); }
 };
 
-$resources = brvtal_content_order_resources();
+$resources = brvtalContentOrderResources();
 $expect(array_keys($resources) === ['artists','sets','releases','blog'], 'canonical resources must be explicit');
 $expect($resources['sets']['table'] === 'sets_media', 'Sets must map to sets_media');
 $expect($resources['blog']['activity'] === 'blog', 'Blog activity resource must stay canonical');
-$expect(brvtal_content_order_resource(' RELEASES ') === $resources['releases'], 'resource lookup must normalize');
-$expect(brvtal_content_order_resource('events') === null, 'non-approved resources must fail closed');
-$expect(brvtal_content_order_ids([3,'2',1]) === [3,2,1], 'valid IDs preserve submitted order');
+$expect(brvtalContentOrderResource(' RELEASES ') === $resources['releases'], 'resource lookup must normalize');
+$expect(brvtalContentOrderResource('events') === null, 'non-approved resources must fail closed');
+$expect(brvtalContentOrderIds([3,'2',1]) === [3,2,1], 'valid IDs preserve submitted order');
 foreach ([[],[1,1],[0,1],[-1,2],['1x',2],[1.5,2]] as $invalid) {
-    $failed=false; try { brvtal_content_order_ids($invalid); } catch (InvalidArgumentException $e) { $failed=true; }
+    $failed=false; try { brvtalContentOrderIds($invalid); } catch (InvalidArgumentException $e) { $failed=true; }
     $expect($failed, 'invalid or duplicate IDs must fail');
 }
 $oversized = range(1,501);
-$failed=false; try { brvtal_content_order_ids($oversized); } catch (InvalidArgumentException $e) { $failed=true; }
+$failed=false; try { brvtalContentOrderIds($oversized); } catch (InvalidArgumentException $e) { $failed=true; }
 $expect($failed, 'oversized order payload must fail');
-$expect(brvtal_content_order_matches([3,1,2],[1,2,3]), 'exact ID sets may arrive in different order');
-$expect(!brvtal_content_order_matches([1,2],[1,2,3]), 'partial set must be stale');
-$expect(!brvtal_content_order_matches([1,2,4],[1,2,3]), 'foreign ID must be stale');
+$expect(brvtalContentOrderMatches([3,1,2],[1,2,3]), 'exact ID sets may arrive in different order');
+$expect(!brvtalContentOrderMatches([1,2],[1,2,3]), 'partial set must be stale');
+$expect(!brvtalContentOrderMatches([1,2,4],[1,2,3]), 'foreign ID must be stale');
 
 $endpoint=(string)file_get_contents(__DIR__ . '/../api/reorder.php');
 $core=(string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');

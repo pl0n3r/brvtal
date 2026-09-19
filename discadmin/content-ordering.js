@@ -131,8 +131,8 @@
     if (!sibling?.matches?.('[data-order-id]')) return;
     event.preventDefault();
     const previous = ids(container);
-    if (event.key === 'ArrowUp') container.insertBefore(item, sibling);
-    else container.insertBefore(sibling, item);
+    if (event.key === 'ArrowUp') sibling.before(item);
+    else item.before(sibling);
     updatePositions(container);
     item.querySelector('.content-order-handle')?.focus();
     void save(container, previous);

@@ -4,25 +4,41 @@ declare(strict_types=1);
 /**
  * @return array<string,array{table:string,label:string,activity:string}>
  */
-function brvtal_content_order_resources(): array
+function brvtalContentOrderResources(): array
 {
     return [
-        'artists' => ['table'=>'artists','label'=>'name','activity'=>'artists'],
-        'sets' => ['table'=>'sets_media','label'=>'title','activity'=>'sets'],
-        'releases' => ['table'=>'releases','label'=>'title','activity'=>'releases'],
-        'blog' => ['table'=>'blog_posts','label'=>'title','activity'=>'blog'],
+        'artists' => [
+            'table' => 'artists',
+            'label' => 'name',
+            'activity' => 'artists',
+        ],
+        'sets' => [
+            'table' => 'sets_media',
+            'label' => 'title',
+            'activity' => 'sets',
+        ],
+        'releases' => [
+            'table' => 'releases',
+            'label' => 'title',
+            'activity' => 'releases',
+        ],
+        'blog' => [
+            'table' => 'blog_posts',
+            'label' => 'title',
+            'activity' => 'blog',
+        ],
     ];
 }
 
 /** @return array{table:string,label:string,activity:string}|null */
-function brvtal_content_order_resource(string $resource): ?array
+function brvtalContentOrderResource(string $resource): ?array
 {
     $key = strtolower(trim($resource));
-    return brvtal_content_order_resources()[$key] ?? null;
+    return brvtalContentOrderResources()[$key] ?? null;
 }
 
 /** @return array<int,int> */
-function brvtal_content_order_ids(mixed $value): array
+function brvtalContentOrderIds(mixed $value): array
 {
     if (!is_array($value) || $value === [] || count($value) > 500) {
         throw new InvalidArgumentException('INVALID_ORDER');
@@ -38,12 +54,15 @@ function brvtal_content_order_ids(mixed $value): array
         } else {
             throw new InvalidArgumentException('INVALID_ORDER');
         }
+
         if ($id < 1 || isset($seen[$id])) {
             throw new InvalidArgumentException('INVALID_ORDER');
         }
+
         $seen[$id] = true;
         $ids[] = $id;
     }
+
     return $ids;
 }
 
@@ -51,9 +70,12 @@ function brvtal_content_order_ids(mixed $value): array
  * @param array<int,int> $submitted
  * @param array<int,int> $current
  */
-function brvtal_content_order_matches(array $submitted, array $current): bool
+function brvtalContentOrderMatches(array $submitted, array $current): bool
 {
-    if (count($submitted) !== count($current)) return false;
+    if (count($submitted) !== count($current)) {
+        return false;
+    }
+
     sort($submitted, SORT_NUMERIC);
     sort($current, SORT_NUMERIC);
     return $submitted === $current;
