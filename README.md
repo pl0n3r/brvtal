@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+468** | **−57** | **+411** |
+| **10** | **+472** | **−59** | **+413** |
 
 ## Calidad y entrega
 
@@ -83,6 +83,7 @@ flowchart LR
 - `discadmin/hero-slider.js` — bootstrap acotado, render temprano e hidratación Media asíncrona segura.
 - `tests/admin-read-plan-contract.php` — invariantes del payload reducido, allowlist y variantes case-insensitive.
 - `tests/e2e/discadmin-hero-slider-security.spec.mjs` — carga progresiva + seguridad del picker.
+- `tests/e2e/hero-slider-v2.spec.mjs` — harness v2 actualizado a los endpoints scoped de Settings/Media.
 - `tests/e2e/hero-slider-integrity-real-stack.spec.mjs` — usuario E2E real-stack valida endpoints acotados y montaje.
 
 ## Validación
@@ -91,6 +92,7 @@ flowchart LR
 - El plan scoped de Settings mantiene bloqueada `security.totp_encryption_key`.
 - El read scoped queda allowlisted a `home.hero.slider`; keys desconocidas, variantes de mayúsculas/minúsculas y variantes del secreto fallan antes de ejecutar SQL.
 - El view `hero-picker` excluye audio/documentos y no usa `SELECT *`.
+- El harness v2 usa exactamente los endpoints scoped nuevos, evitando falsos negativos con Media Library publicada.
 - Las colecciones legacy siguen disponibles cuando no se pide un view/key optimizado.
 - No hay migración, SQL destructivo ni cambio de datos de producción.
 

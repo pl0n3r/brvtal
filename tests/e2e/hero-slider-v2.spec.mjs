@@ -41,8 +41,8 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
         window.__heroSavePayloads.push(JSON.parse(options.body));
         return { data: [] };
       }
-      if (path === '/settings') return { data: [] };
-      if (path === '/media') return { data: mediaItems };
+      if (path === '/settings?key=home.hero.slider') return { data: [] };
+      if (path === '/media?view=hero-picker') return { data: mediaItems };
       return { data: [] };
     };
     if (disableCrypto) {
