@@ -208,7 +208,16 @@
   document.addEventListener('pointermove', pointerMove, {passive:true});
   document.addEventListener('pointerup', event => finishPointer(event,false));
   document.addEventListener('pointercancel', event => finishPointer(event,true));
-  new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+  const observer = new MutationObserver(records => {
+    records.forEach(record => {
+      record.addedNodes.forEach(node => {
+        if (!(node instanceof Element)) return;
+        if (node.matches('[data-order-resource]')) refresh(node);
+        node.querySelectorAll('[data-order-resource]').forEach(refresh);
+      });
+    });
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
   window.BRVTALContentOrdering = {refresh,scan,applyOrder};
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',scan,{once:true});
   else scan();

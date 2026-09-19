@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **20** | **+1048** | **−78** | **+970** |
+| **21** | **+1457** | **−146** | **+1311** |
 
 ## Calidad y entrega
 
@@ -68,13 +68,27 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `config/content_ordering.php`, `api/reorder.php` — contrato y persistencia compartida.
-- `discadmin/content-ordering.js`, `discadmin/content-ordering.css` — interacción visual reutilizable.
-- `discadmin/index-core.php`, `discadmin/admin-modules.js`, `discadmin/index.php` — integración Artists/Sets y assets.
-- `discadmin/releases.js`, `discadmin/blog.js` — integración de módulos dinámicos.
-- `api/index.php`, `api/releases.php`, `api/blog.php`, `api/public.php` — orden canónico en lecturas Admin/públicas.
-- `tests/content-ordering-contract.php`, `tests/e2e/discadmin-content-ordering.spec.mjs` — integridad y UX.
-- `AGENTS.md`, `README.md`, `config/version.php`, `package.json` — documentación/release.
+- `AGENTS.md` — contrato operativo durable y ownership del roadmap.
+- `README.md` — snapshot visual exacto de este deploy.
+- `api/blog.php` — lectura editorial de Blog con orden canónico.
+- `api/index.php` — orden canónico para colecciones Admin.
+- `api/public.php` — Releases/Blog públicos respetan `sort_order`.
+- `api/reorder.php` — endpoint transaccional, stale detection y errores seguros.
+- `config/content_ordering.php` — whitelist y validación compartida de ordering.
+- `config/version.php` — release runtime v0.1.21.
+- `discadmin/admin-modules.js` — preservación/append del orden interno.
+- `discadmin/blog.js` — ordering visual de Blog.
+- `discadmin/content-ordering.css` — estilos compartidos de handles/estado.
+- `discadmin/content-ordering.js` — drag, teclado, autosave, rollback y observer acotado.
+- `discadmin/index-core.php` — ordering Artists/Sets y thumbnails normalizados.
+- `discadmin/index.php` — carga del primitive compartido.
+- `discadmin/releases.js` — ordering visual de Releases.
+- `docs/BRVTAL-SPEC.md` — decisión funcional durable de ordering.
+- `package.json` — versión e integración MariaDB del contrato.
+- `tests/blog-contract.php` — contrato Blog actualizado.
+- `tests/content-ordering-contract.php` — contrato + endpoint real sobre MariaDB aislada.
+- `tests/discadmin-editor-accessibility-contract.php` — accesibilidad tras retirar Sort Order numérico.
+- `tests/e2e/discadmin-content-ordering.spec.mjs` — teclado, touch, rollback, filtros y stores.
 
 ## Validación
 

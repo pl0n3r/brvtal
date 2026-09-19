@@ -530,8 +530,9 @@ function filterSettingsHome(q){
 }
 
 function artistOrderRow(x){
- const avatar=x.photo
-  ? '<img class="avatar" src="'+esc(x.photo)+'">'
+ const avatarSrc=imgSrc(x.photo);
+ const avatar=avatarSrc
+  ? '<img class="avatar" src="'+esc(avatarSrc)+'" alt="'+esc(x.name||'Artist')+'">'
   : '<div class="avatar"></div>';
  return `
   <div class="tr" data-order-id="${Number(x.id)}">

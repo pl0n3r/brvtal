@@ -169,18 +169,33 @@ try {
         422
     );
 } catch (RuntimeException $error) {
-    if ($error->getMessage() === 'ACTIVITY_SCHEMA_MISSING') {
+    $publicErrors = [
+        'ORDER_STALE' => 409,
+        'ACTIVITY_SCHEMA_MISSING' => 503,
+    ];
+    $message = $error->getMessage();
+
+    if (isset($publicErrors[$message])) {
         brvtalOrderJson(
-            ['ok' => false, 'error' => 'ACTIVITY_SCHEMA_MISSING'],
-            503
+            ['ok' => false, 'error' => $message],
+            $publicErrors[$message]
         );
     }
 
-    $code = $error->getCode();
-    $status = $code >= 400 && $code <= 599 ? $code : 500;
+    if (function_exists('brvtal_log')) {
+        brvtal_log(
+            'CONTENT_ORDER_ERROR',
+            'Content reorder failed',
+            [
+                'class' => get_class($error),
+                'message' => $message,
+            ]
+        );
+    }
+
     brvtalOrderJson(
-        ['ok' => false, 'error' => $error->getMessage()],
-        $status
+        ['ok' => false, 'error' => 'INTERNAL_ERROR'],
+        500
     );
 } catch (Throwable $error) {
     if (function_exists('brvtal_log')) {
