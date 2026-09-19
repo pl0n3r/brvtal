@@ -28,7 +28,7 @@ const overview = {
   storage:{total_bytes:1000,used_bytes:400,free_bytes:600,total:'6.93 TB',used:'5.14 TB',free:'1.79 TB',used_percent:74.2,uploads_items:18},
   database:{driver:'mysql',server:'11.8.0-MariaDB',counts:{events:12,artists:24,sets:9,releases:4,media:83,pages:6,blog:7}},
   runtime:{php:'8.5.0',sapi:'fpm-fcgi',memory_limit:'512M',upload_max_filesize:'25M',post_max_size:'32M',max_execution_time:'30',extensions:{}},
-  deployment:{commit:'ad196b0f8ca564f45f40492cb8b320c620304433',short_commit:'ad196b0',source:'git_checkout',version:'0.1.0',environment:'PRODUCTION',release_date:'2026-09-11'},
+  deployment:{commit:'ad196b0f8ca564f45f40492cb8b320c620304433',short_commit:'ad196b0',source:'git_checkout',exact:true,version:'0.1.1',environment:'PRODUCTION',release_date:'2026-09-19'},
   repository:{source_files:137,source_lines:28000,by_language:{PHP:{files:52,lines:14000},JavaScript:{files:41,lines:9000},CSS:{files:18,lines:3500},SQL:{files:6,lines:1500}},github:{ok:true,commits:142,merged_prs:35,open_issues:31,recent_issues:recentIssues,backlog_state:'fresh',source:'github_public_api',cache:'fresh'}},
   issues:[{severity:'error',title:'DEPLOYMENT',detail:'CHECK — review this service.'}],
   time:'2026-09-16T19:00:00-05:00',generated_ms:22.4
@@ -101,6 +101,12 @@ test('System Status v2 mounts on production markup, shows GitHub backlog and rep
   await expect(repo).toContainText('28,000');
   await expect(repo).toContainText('137 source files');
   await expect(repo).toContainText('PHP');
+  await expect(repo).toContainText('SOURCE ad196b0');
+
+  const runtimePanel = page.locator('.ssv2-panel', {hasText:'RUNTIME / DEPLOYMENT'});
+  await expect(runtimePanel.locator('[data-testid="system-product-version"]')).toContainText('BRVTAL v0.1.1 · Production');
+  await expect(runtimePanel).toContainText('SOURCE SHA');
+  await expect(runtimePanel).toContainText('ad196b0');
 
   await expect(page.locator('.ssv2-panel', {hasText:'EDITORIAL HEALTH'})).toContainText('82%');
   const attention = page.locator('.ssv2-panel', {hasText:'ATTENTION REQUIRED'});

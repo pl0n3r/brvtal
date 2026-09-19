@@ -389,7 +389,10 @@
     const repo = data.repository || {};
     const github = repo.github || {};
     const deploy = data.deployment || {};
-    const commitUrl = `https://github.com/pl0n3r/brvtal/commit/${encodeURIComponent(deploy.commit || deploy.short_commit || '')}`;
+    const exactSource = deploy.exact !== false && Boolean(deploy.commit || deploy.short_commit);
+    const commitUrl = exactSource
+      ? `https://github.com/pl0n3r/brvtal/commit/${encodeURIComponent(deploy.commit || deploy.short_commit || '')}`
+      : '';
     const backlogKnown = github.open_issues !== null && github.open_issues !== undefined && github.backlog_state !== 'unavailable';
     const syncText = github.cache === 'stale' ? 'GitHub cached' : github.ok ? 'GitHub synced' : 'GitHub unavailable';
     return `<div class="ssv2-repo-metrics">
@@ -398,7 +401,7 @@
       <a href="${GITHUB_ISSUES}" target="_blank" rel="noopener"><strong>${backlogKnown ? number(github.open_issues) : '—'}</strong><span>OPEN ISSUES</span><small>${backlogKnown ? esc(String(github.backlog_state || 'fresh').toUpperCase()) : 'UNAVAILABLE'}</small></a>
       <div><strong>${number(repo.source_lines)}</strong><span>SOURCE LOC</span><small>${number(repo.source_files)} source files</small></div>
     </div>
-    <div class="ssv2-repo-foot"><a href="${esc(commitUrl)}" target="_blank" rel="noopener">DEPLOY ${esc(deploy.short_commit || 'UNKNOWN')} ↗</a><span>${esc(syncText)}</span></div>
+    <div class="ssv2-repo-foot">${exactSource ? `<a href="${esc(commitUrl)}" target="_blank" rel="noopener">SOURCE ${esc(deploy.short_commit || 'UNKNOWN')} ↗</a>` : '<span>SOURCE UNAVAILABLE</span>'}<span>${esc(syncText)}</span></div>
     <div class="ssv2-language-bars">${languageBars(repo)}</div>`;
   }
 
@@ -407,6 +410,12 @@
     const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
     const storage = data.storage || {};
     const deployment = data.deployment || {};
+    const environmentRaw = String(deployment.environment || '');
+    const environmentLabel = environmentRaw
+      ? environmentRaw.charAt(0).toUpperCase() + environmentRaw.slice(1).toLowerCase()
+      : 'Environment unavailable';
+    const productVersion = deployment.version ? `BRVTAL v${deployment.version}` : 'BRVTAL version unavailable';
+    const exactSource = deployment.exact !== false && Boolean(deployment.commit || deployment.short_commit);
     const runtime = data.runtime || {};
     const database = data.database || {};
     const github = data.repository?.github || {};
@@ -444,9 +453,9 @@
       </div>
 
       <div class="ssv2-grid split">
-        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RUNTIME / DEPLOYMENT</span><b>${esc(deployment.environment || '')}</b></div>
+        <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RUNTIME / DEPLOYMENT</span><b data-testid="system-product-version">${esc(productVersion)} · ${esc(environmentLabel)}</b></div>
           <div class="ssv2-runtime-grid">
-            <div><span>DEPLOY</span><strong>${esc(deployment.short_commit || '—')}</strong><small>${esc(deployment.source || '')}</small></div>
+            <div><span>SOURCE SHA</span><strong>${esc(exactSource ? (deployment.short_commit || '—') : '—')}</strong><small>${esc(exactSource ? (deployment.source || '') : 'unavailable')}</small></div>
             <div><span>PHP</span><strong>${esc(runtime.php || '—')}</strong><small>${esc(runtime.sapi || '')}</small></div>
             <div><span>MEMORY</span><strong>${esc(runtime.memory_limit || '—')}</strong><small>limit</small></div>
             <div><span>UPLOAD</span><strong>${esc(runtime.upload_max_filesize || '—')}</strong><small>max file</small></div>

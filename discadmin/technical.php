@@ -240,7 +240,7 @@ try {
         $activityReady = $tableExists($pdo, 'admin_activity_log');
         $uploadsReady = is_dir($root . '/uploads') && is_writable($root . '/uploads');
         $logsReady = is_dir($root . '/storage/logs') && is_writable($root . '/storage/logs');
-        $deploymentReady = brvtal_deployment_short_sha() !== '';
+        $deploymentReady = brvtalDeploymentIsExact();
 
         $checks = [
             ['key'=>'api','label'=>'API','status'=>'ok','value'=>'ONLINE'],
@@ -305,6 +305,7 @@ try {
                 'commit'=>brvtal_deployment_sha(),
                 'short_commit'=>brvtal_deployment_short_sha(),
                 'source'=>brvtal_deployment_source(),
+                'exact'=>brvtalDeploymentIsExact(),
                 'version'=>BRVTAL_APP_VERSION,
                 'environment'=>BRVTAL_APP_ENV,
                 'release_date'=>BRVTAL_RELEASE_DATE,

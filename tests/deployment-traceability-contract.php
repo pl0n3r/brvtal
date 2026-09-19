@@ -19,10 +19,18 @@ require_once __DIR__ . '/../config/public_assets.php';
 
 deployment_expect(str_contains($resolver, "getenv('BRVTAL_DEPLOY_COMMIT')"), 'resolver must support an explicit deployment SHA');
 deployment_expect(str_contains($resolver, "'/HEAD'"), 'resolver must inspect the deployed Git checkout');
-deployment_expect(str_contains($resolver, 'BRVTAL_APP_BUILD'), 'resolver must retain intentional release metadata as fallback');
+deployment_expect(str_contains($resolver, 'BRVTAL_APP_BUILD'), 'resolver may retain compatibility release metadata as fallback');
+deployment_expect(str_contains($resolver, 'function brvtalDeploymentIsExact()'), 'resolver must distinguish exact environment/git source from release fallback');
 deployment_expect(str_contains($endpoint, "'short_commit'"), 'public deployment endpoint must expose the deployed short SHA');
-deployment_expect(str_contains($health, "'deployment'=>"), 'health response must identify its deployed source');
-deployment_expect(str_contains($admin, 'DEPLOY <?= htmlspecialchars(brvtal_deployment_short_sha()'), 'DISCADMIN must display the resolved deployed SHA');
+deployment_expect(str_contains($endpoint, "'exact' => brvtalDeploymentIsExact()"), 'deployment endpoint must identify whether SHA is exact');
+deployment_expect(
+    preg_match("/'deployment'\\s*=>\\s*\\[/", $health) === 1,
+    'health response must identify its deployed source'
+);
+deployment_expect(str_contains($admin, 'data-testid="admin-product-version"'), 'DISCADMIN must display the human product version as primary release identity');
+deployment_expect(str_contains($admin, 'BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION'), 'DISCADMIN product version must come from canonical release metadata');
+deployment_expect(str_contains($admin, 'data-testid="admin-deploy-source"'), 'DISCADMIN must retain deployed source as secondary technical detail');
+deployment_expect(str_contains($admin, 'SOURCE UNAVAILABLE'), 'DISCADMIN must not present fallback build metadata as an exact deployed SHA');
 deployment_expect(str_contains($adminShell, 'brvtal_deployment_short_sha()'), 'DISCADMIN enhancement assets must be versioned by the deployed SHA');
 deployment_expect(str_contains($adminShell, "seo-editorial-defaults.js' . \$suffix"), 'SEO defaults enhancement must receive the deployment cache key');
 deployment_expect(str_contains($adminShell, "content-core-nav.js' . \$suffix"), 'Content Core direct navigation must load as a deployment-versioned enhancement');

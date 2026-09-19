@@ -539,7 +539,126 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
  return `<div class="toolbar"><input class="search" placeholder="Search ${state.section}..." oninput="filterRows(this.value)">${button}</div><div class="table"><div class="thead">${headers.map(h=>`<div>${h}</div>`).join('')}</div><div id="rows">${rows||'<div class="empty">Sin registros todavía.</div>'}</div></div>`;
 }
 function filterRows(q){q=q.toLowerCase();document.querySelectorAll('#rows .tr').forEach(x=>x.style.display=x.innerText.toLowerCase().includes(q)?'grid':'none')}
-function render(){if(window.BRVTALAdminModules)BRVTALAdminModules.cancel();const root=document.getElementById('app');if(!state.authed){root.innerHTML='<div class="login"><form class="loginbox" onsubmit="login(event)"><h1>BRVTAL</h1><div class="sub">DISCADMIN / CONTROL ROOM</div><div class="syscheck"><div class="sysrow"><span>WEB / PHP</span><b class="sysok">ONLINE</b></div><div class="sysrow"><span>API</span><b id="st_api" class="syswait">CHECKING</b></div><div class="sysrow"><span>DATABASE</span><b id="st_db" class="syswait">CHECKING</b></div><div class="sysrow"><span>SESSION</span><b class="sysok">READY</b></div></div><label class="eyebrow" for="admin-login-email">EMAIL</label><input id="admin-login-email" name="email" type="email" required><label class="eyebrow" for="admin-login-password">PASSWORD</label><input id="admin-login-password" name="password" type="password" required><button class="btn" type="submit" style="width:100%">ENTER</button><div class="error"></div></form></div>';setTimeout(checkSystem,300);return}const previousSide=root.querySelector('.side');document.body.classList.remove('admin-nav-open');root.innerHTML=`<div class="shell"><button type="button" class="admin-nav-scrim" aria-label="Close navigation" onclick="closeAdminNav()"></button><aside class="side" id="admin-primary-nav" aria-label="Primary navigation"><div class="logo">BRVTAL</div><div class="sub">DISCADMIN / CONTROL</div><div class="nav">${['dashboard','events','artists','sets','media','pages','content-core','theme','settings','security'].map(x=>`<button class="${state.section===x?'active':''}" onclick="go('${x}')">${x==='theme'?'THEME STUDIO':x==='content-core'?'CONTENT CORE':x==='security'?'SECURITY / 2FA':x.toUpperCase()}</button>`).join('')}<div class="navgroup">TECHNICAL</div>${[['system','SYSTEM STATUS']].map(x=>`<button class="${state.section===x[0]?'active':''}" onclick="tech('${x[0]}')">${x[1]}</button>`).join('')}</div><div class="sidefoot"><div class="brvtal-admin-release"><span class="version">v<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, "UTF-8") ?> · <?= htmlspecialchars(BRVTAL_APP_ENV, ENT_QUOTES, "UTF-8") ?></span><span class="build">DEPLOY <?= htmlspecialchars(brvtal_deployment_short_sha(), ENT_QUOTES, "UTF-8") ?></span></div><button class="btn ghost" style="width:100%" onclick="logout()">LOG OUT</button></div></aside><main class="main"><div class="top"><button type="button" class="admin-menu-toggle" aria-controls="admin-primary-nav" aria-expanded="false" onclick="toggleAdminNav()"><span aria-hidden="true">☰</span><span>MENU</span></button><div class="admin-page-title"><div class="eyebrow">BRVTAL CMS</div><h1>${state.section==='content-core'?'CONTENT CORE':state.section==='security'?'SECURITY / 2FA':state.section.toUpperCase()}</h1></div><span class="status"><i></i>ONLINE</span></div>${state.section==='content-core'||state.section==='security'?'<div id="admin-module-host" aria-live="polite">LOADING…</div>':content()}</main></div>`;if(previousSide){root.querySelector('.side').replaceWith(previousSide);previousSide.querySelectorAll('.nav button').forEach(button=>{const handler=button.getAttribute('onclick')||'';button.classList.toggle('active',handler===`go('${state.section}')`||handler===`tech('${state.section}')`);});}}
+function render(){
+ if(window.BRVTALAdminModules)BRVTALAdminModules.cancel();
+ const root=document.getElementById('app');
+ if(!state.authed){
+  root.innerHTML=`
+<div class="login">
+ <form class="loginbox" onsubmit="login(event)">
+  <h1>BRVTAL</h1>
+  <div class="sub">DISCADMIN / CONTROL ROOM</div>
+  <div class="syscheck">
+   <div class="sysrow"><span>WEB / PHP</span><b class="sysok">ONLINE</b></div>
+   <div class="sysrow"><span>API</span><b id="st_api" class="syswait">CHECKING</b></div>
+   <div class="sysrow"><span>DATABASE</span><b id="st_db" class="syswait">CHECKING</b></div>
+   <div class="sysrow"><span>SESSION</span><b class="sysok">READY</b></div>
+  </div>
+  <label class="eyebrow" for="admin-login-email">EMAIL</label>
+  <input id="admin-login-email" name="email" type="email" required>
+  <label class="eyebrow" for="admin-login-password">PASSWORD</label>
+  <input id="admin-login-password" name="password" type="password" required>
+  <button class="btn" type="submit" style="width:100%">ENTER</button>
+  <div class="error"></div>
+ </form>
+</div>`;
+  setTimeout(checkSystem,300);
+  return;
+ }
+ const previousSide=root.querySelector('.side');
+ document.body.classList.remove('admin-nav-open');
+ const navSections=[
+  'dashboard','events','artists','sets','media','pages',
+  'content-core','theme','settings','security'
+ ];
+ const navHtml=navSections.map(x=>{
+  const label=x==='theme'
+   ?'THEME STUDIO'
+   :x==='content-core'
+    ?'CONTENT CORE'
+    :x==='security'
+     ?'SECURITY / 2FA'
+     :x.toUpperCase();
+  const active=state.section===x?'active':'';
+  return `<button class="${active}" onclick="go('${x}')">${label}</button>`;
+ }).join('');
+ const systemActive=state.section==='system'?'active':'';
+ const moduleTitle=state.section==='content-core'
+  ?'CONTENT CORE'
+  :state.section==='security'
+   ?'SECURITY / 2FA'
+   :state.section.toUpperCase();
+ const moduleBody=state.section==='content-core'||state.section==='security'
+  ?'<div id="admin-module-host" aria-live="polite">LOADING…</div>'
+  :content();
+ root.innerHTML=`
+<div class="shell">
+ <button
+  type="button"
+  class="admin-nav-scrim"
+  aria-label="Close navigation"
+  onclick="closeAdminNav()"
+ ></button>
+ <aside class="side" id="admin-primary-nav" aria-label="Primary navigation">
+  <div class="logo">BRVTAL</div>
+  <div class="sub">DISCADMIN / CONTROL</div>
+  <div class="nav">
+   ${navHtml}
+   <div class="navgroup">TECHNICAL</div>
+   <button class="${systemActive}" onclick="tech('system')">SYSTEM STATUS</button>
+  </div>
+  <div class="sidefoot">
+   <div class="brvtal-admin-release">
+    <span class="version" data-testid="admin-product-version">
+     BRVTAL v<?= htmlspecialchars(BRVTAL_APP_VERSION, ENT_QUOTES, "UTF-8") ?>
+    </span>
+    <span class="build" data-testid="admin-product-environment">
+     <?= htmlspecialchars(ucfirst(strtolower(BRVTAL_APP_ENV)), ENT_QUOTES, "UTF-8") ?>
+    </span>
+    <span
+     class="build"
+     data-testid="admin-deploy-source"
+     title="<?= brvtalDeploymentIsExact()
+      ? 'Exact deployed source: ' . htmlspecialchars(brvtal_deployment_sha(), ENT_QUOTES, "UTF-8")
+      : 'Exact deployed Git SHA unavailable; release fallback metadata is not shown as deployed source.' ?>"
+    >
+     <?= brvtalDeploymentIsExact()
+      ? 'SOURCE ' . htmlspecialchars(brvtal_deployment_short_sha(), ENT_QUOTES, "UTF-8")
+      : 'SOURCE UNAVAILABLE' ?>
+    </span>
+   </div>
+   <button class="btn ghost" style="width:100%" onclick="logout()">LOG OUT</button>
+  </div>
+ </aside>
+ <main class="main">
+  <div class="top">
+   <button
+    type="button"
+    class="admin-menu-toggle"
+    aria-controls="admin-primary-nav"
+    aria-expanded="false"
+    onclick="toggleAdminNav()"
+   >
+    <span aria-hidden="true">☰</span><span>MENU</span>
+   </button>
+   <div class="admin-page-title">
+    <div class="eyebrow">BRVTAL CMS</div>
+    <h1>${moduleTitle}</h1>
+   </div>
+   <span class="status"><i></i>ONLINE</span>
+  </div>
+  ${moduleBody}
+ </main>
+</div>`;
+ if(previousSide){
+  root.querySelector('.side').replaceWith(previousSide);
+  previousSide.querySelectorAll('.nav button').forEach(button=>{
+   const handler=button.getAttribute('onclick')||'';
+   const active=handler===`go('${state.section}')`||handler===`tech('${state.section}')`;
+   button.classList.toggle('active',active);
+  });
+ }
+}
 document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(typeof state!=='undefined'&&state.authed)go('theme')}});
 scheduleTechRefresh();
 </script><script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/security.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script>restoreSession();</script></body></html>

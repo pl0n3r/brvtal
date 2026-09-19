@@ -58,6 +58,8 @@ brvtal_ci_classify_files() {
         brvtal_ci_scope_add_area "API"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
       database/*)
         brvtal_ci_scope_add_area "Database/migrations"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
+      config/version.php)
+        brvtal_ci_scope_add_area "Product version" ;;
       config/public_*.php)
         brvtal_ci_scope_add_area "Public runtime config"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
       config/*)
@@ -101,6 +103,8 @@ brvtal_ci_classify_files() {
     esac
 
     case "$file" in
+      config/version.php)
+        ;;
       *.php|database/*)
         BRVTAL_SCOPE_RUN_PHP=true ;;
       package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
