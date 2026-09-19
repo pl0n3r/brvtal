@@ -25,6 +25,7 @@ try {
         brvtal_order_json(['ok'=>false,'error'=>'ORDER_RESOURCE_NOT_ALLOWED'], 422);
     }
     $ids = brvtal_content_order_ids($input['ids'] ?? null);
+    $previousIds = brvtal_content_order_ids($input['previous_ids'] ?? null);
     $table = $definition['table'];
     $labelColumn = $definition['label'];
     $activityResource = $definition['activity'];
@@ -36,7 +37,9 @@ try {
             "SELECT id,sort_order,{$labelColumn} AS label FROM {$table} ORDER BY sort_order ASC,id ASC FOR UPDATE"
         )->fetchAll(PDO::FETCH_ASSOC);
         $currentIds = array_map(static fn(array $row): int => (int)$row['id'], $rows);
-        if (!brvtal_content_order_matches($ids, $currentIds)) {
+        if (!brvtal_content_order_matches($ids, $currentIds)
+            || $previousIds !== $currentIds
+        ) {
             throw new RuntimeException('ORDER_STALE', 409);
         }
 

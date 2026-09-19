@@ -37,7 +37,7 @@ test('keyboard reorder saves canonical IDs and updates positions', async ({page}
   await expect.poll(()=>page.evaluate(()=>window.__orders.length)).toBe(1);
   expect(await page.locator('#rows > [data-order-id]').evaluateAll(nodes=>nodes.map(node=>Number(node.dataset.orderId)))).toEqual([2,1,3]);
   expect(await page.locator('[data-order-position]').allTextContents()).toEqual(['01','02','03']);
-  expect(await page.evaluate(()=>window.__orders[0].body)).toEqual({resource:'artists',ids:[2,1,3]});
+  expect(await page.evaluate(()=>window.__orders[0].body)).toEqual({resource:'artists',ids:[2,1,3],previous_ids:[1,2,3]});
   expect(await page.evaluate(()=>window.__orderEvents[0])).toEqual({resource:'artists',ids:[2,1,3]});
 });
 
@@ -62,7 +62,7 @@ test('touch-style Pointer Events reorder through the shared drag handle', async 
 
   await expect.poll(() => page.evaluate(() => window.__orders.length)).toBe(1);
   expect(await page.locator('#rows > [data-order-id]').evaluateAll(nodes => nodes.map(node => Number(node.dataset.orderId)))).toEqual([2,3,1]);
-  expect(await page.evaluate(() => window.__orders[0].body)).toEqual({resource:'artists',ids:[2,3,1]});
+  expect(await page.evaluate(() => window.__orders[0].body)).toEqual({resource:'artists',ids:[2,3,1],previous_ids:[1,2,3]});
 });
 
 test('failed reorder restores the exact previous DOM order', async ({page}) => {

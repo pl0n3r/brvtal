@@ -80,11 +80,11 @@
     return payload.csrf;
   }
 
-  async function persist(resource, orderedIds) {
+  async function persist(resource, orderedIds, previousIds) {
     const response = await fetch(endpoint,{
       method:'POST',credentials:'same-origin',cache:'no-store',
       headers:{'Content-Type':'application/json','X-CSRF-Token':await csrfToken()},
-      body:JSON.stringify({resource,ids:orderedIds})
+      body:JSON.stringify({resource,ids:orderedIds,previous_ids:previousIds})
     });
     const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
     if (!response.ok || payload.ok === false) {
@@ -104,7 +104,7 @@
     refresh(container);
     announce(container, 'Saving order…');
     try {
-      await persist(resource, orderedIds);
+      await persist(resource, orderedIds, previousIds);
       updatePositions(container);
       window.dispatchEvent(new CustomEvent('brvtal:content-order-changed',{detail:{resource,ids:orderedIds}}));
       announce(container, 'Order saved');
