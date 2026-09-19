@@ -43,7 +43,11 @@ $controller = (string)file_get_contents(__DIR__ . '/../discadmin/blog.js');
 blog_assert(str_contains($controller, "const endpoint = '/api/blog.php'"), 'blog UI must use protected blog API');
 blog_assert(str_contains($controller, 'BRVTALMediaLibrary?.openPicker'), 'blog cover must use Media Library picker');
 blog_assert(str_contains($controller, 'data-blog-related-type'), 'blog editor must support related content');
-blog_assert(str_contains($controller, "method:id?'PUT':'POST'"), 'blog editor must create and update posts');
+blog_assert(
+    str_contains($controller, "method:id ? 'PUT' : 'POST'")
+        || str_contains($controller, "method:id?'PUT':'POST'"),
+    'blog editor must create and update posts'
+);
 blog_assert(!str_contains($controller, 'id="blog_tags"'), 'ordinary blog editor must not expose manual taxonomy controls');
 blog_assert(!str_contains($controller, "split(',')"), 'ordinary blog saves must not synthesize or clear taxonomy from a manual comma field');
 
