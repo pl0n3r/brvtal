@@ -12,16 +12,15 @@
 
 - ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
 - 🚧 Normal text = pending or currently in progress.
-- Completed roadmap items remain visible and crossed out.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#553 SONAR SECURITY HOTFIX** | Banners Media pickers: datos remotos → DOM seguro |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `bb15923a431ba072fef76212cec8e5e4350864f3` · #554 mergeado; exact-main Sonar detectó `jssecurity:S5696` |
-| Version | 🚧 **0.1.8 → 0.1.9** | patch hotfix · pre-1.0 |
-| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| Work line | 🚧 **#523 BANNERS FIRST LOAD** | payloads acotados + render progresivo |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `1480380280a10cd9252a978b78b78cf44c1f2873` · #555 exact-main BRVTAL CI + Sonar verdes |
+| Version | 🚧 **0.1.9 → 0.1.10** | patch deploy · pre-1.0 |
+| Producción | ⛔ **BLOCKED / EXTERNAL** | Hostinger marker tracked separately in [#534](https://github.com/pl0n3r/brvtal/issues/534) |
 
 ## Huella del cambio
 
@@ -29,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+75** | **−52** | **+23** |
+| **10** | **+486** | **−63** | **+423** |
 
 ## Calidad y entrega
 
@@ -37,65 +36,73 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[JS] · chromium** |
-| Security | `/media` title/path no entra en HTML; opciones creadas con DOM APIs + `textContent` |
-| Browser | payloads con forma de markup permanecen texto inerte dentro de los Media pickers |
-| Sonar + CodeRabbit | ejecutados en paralelo; objetivo exact-main: Security Rating **A** / 0 vulnerabilidades nuevas |
-| Exact-main | CI del SHA exacto de main + Sonar obligatorios tras squash merge |
+| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| API | Settings allowlist + Media `hero-picker` ≤200 publicados · `no-store` |
+| Browser / real stack | render progresivo + usuario E2E autenticado |
+| Sonar + CodeRabbit | paralelo sobre head estable |
+| Exact-main | CI + Sonar tras squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- P["PR + snapshot exacto"] --> Q["CI / Sonar / CodeRabbit"]
- M["/media JSON"] --> H["DOM option hydration"]
- H --> S["Banners select"]
- S --> X["No remote data in innerHTML"]
- Q --> G["Squash merge"]
- G --> V["CI + Sonar del SHA exacto de main"]
+ A["Abrir Banners"] --> S["Settings scoped"]
+ A --> M["Media picker scoped"]
+ S --> R["Render manager"]
+ M --> H["Hydrate pickers"]
+ R --> I["Editor interactivo"]
+ H --> V["Save habilitado"]
+ I --> G["PR + snapshot exacto · CI / Sonar / CodeRabbit"]
+ V --> G
+ G --> Q["Squash merge"]
+ Q --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Diagnostica el fallo exact-main de Sonar mediante su API pública y confirma `discadmin/hero-slider.js` / `jssecurity:S5696`.
-- Elimina el flujo de `file_path` / title remotos hacia el HTML del editor de Banners.
-- Mantiene el shell del editor estático y llena cada selector de Media con `document.createElement('option')`, `value` y `textContent`.
-- Añade regresión Playwright con valores Media que parecen markup ejecutable.
-- Retira el workflow diagnóstico temporal antes del merge.
-- Documenta la frontera de seguridad durable y sube BRVTAL a **0.1.9**.
+- Banners usa lecturas scoped paralelas: `home.hero.slider` + Media `hero-picker`; renderiza Settings antes de Media y mantiene picker/Save bloqueados hasta hidratación.
+- El bootstrap fuerza `no-store` y el picker queda acotado a **200 assets publicados**; referencias fuera de ese lote siguen validándose autoritativamente al guardar.
+- Las respuestas tardías se descartan y Media remoto sigue hidratándose con DOM seguro.
+- Se añadieron contratos, browser y real-stack con usuario E2E; el harness v2 usa los endpoints scoped reales.
+- `AGENTS.md` fija el rol **principal engineer + technical executor** y ownership de arquitectura, UX/UI, dirección visual, QA, AppSec, performance y release.
+- Versión **0.1.10**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — frontera durable para Media/API → Banners.
-- `README.md` — snapshot exacto de esta hotfix.
-- `config/version.php` — versión humana 0.1.9.
-- `discadmin/hero-slider.js` — hidratación DOM segura de Media pickers.
-- `tests/e2e/discadmin-hero-slider-security.spec.mjs` — regresión XSS de Media Library.
+- `AGENTS.md` — Banners + rol operativo cross-functional.
+- `README.md` — snapshot #523.
+- `api/admin-read-plan.php` — planes scoped + allowlist.
+- `api/index.php` — aplica planes scoped.
+- `config/version.php` — versión 0.1.10.
+- `discadmin/hero-slider.js` — bootstrap/render progresivo.
+- `tests/admin-read-plan-contract.php` — contrato scoped/allowlist.
+- `tests/e2e/discadmin-hero-slider-security.spec.mjs` — progresivo + picker seguro.
+- `tests/e2e/hero-slider-v2.spec.mjs` — harness scoped.
+- `tests/e2e/hero-slider-integrity-real-stack.spec.mjs` — E2E real-stack.
 
 ## Validación
 
-- La fuente remota `/media` ya no puede construir `<option>` mediante concatenación HTML.
-- El selector conserva path/título literales aunque contengan caracteres con forma de markup.
-- El flujo de edición existente sigue usando el mismo input/select y la misma selección de assets.
-- El workflow diagnóstico temporal no forma parte del diff final.
-- No hay migración, SQL ni operación destructiva de producción.
+- Browser: Banners aparece antes de Media; Save se habilita solo tras hidratación.
+- Settings scoped acepta solo `home.hero.slider`; variantes/otras keys fallan antes de SQL.
+- `hero-picker` excluye audio/documentos, devuelve solo publicados y nunca supera 200 filas; legacy reads siguen compatibles.
+- Las dos lecturas iniciales de Banners envían `cache: 'no-store'`; la regresión browser verifica también que Save siga deshabilitado mientras Media está pendiente.
+- Real-stack/harness usan endpoints scoped reales. Sin migración ni SQL destructivo.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#553](https://github.com/pl0n3r/brvtal/issues/553) · lograr exact-main Sonar Security Rating A y cerrar la hotfix. |
-| **NEXT** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · optimizar primer load de Banners. |
-| **LATER** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · cerrar Phase 2. |
+| **NOW** | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523) · pasar gates, mergear y validar exact-main. |
+| **NEXT** | 🚧 [#480](https://github.com/pl0n3r/brvtal/issues/480) · corregir clipping/overlap del hero desktop. |
+| **LATER** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) · cerrar Phase 2. |
 | **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger Git auto-deploy marker. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Phase 1 + Admin IA + Appearance + Premium Admin + Settings~~ | ✅ ~~[#527](https://github.com/pl0n3r/brvtal/issues/527), [#520](https://github.com/pl0n3r/brvtal/issues/520), [#521](https://github.com/pl0n3r/brvtal/issues/521), [#526](https://github.com/pl0n3r/brvtal/issues/526), [#522](https://github.com/pl0n3r/brvtal/issues/522), [#479](https://github.com/pl0n3r/brvtal/issues/479), [#517](https://github.com/pl0n3r/brvtal/issues/517), [#221](https://github.com/pl0n3r/brvtal/issues/221), [#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516)~~ |
-| **NOW** | 🚧 Security quality | 🚧 [#553](https://github.com/pl0n3r/brvtal/issues/553) |
-| **NEXT** | 🚧 Phase 2 closeout | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
+| **DONE** | ✅ ~~Phase 1 + Admin IA/Appearance/Settings/Security~~ | ✅ ~~[#348](https://github.com/pl0n3r/brvtal/issues/348), [#149](https://github.com/pl0n3r/brvtal/issues/149), [#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#553](https://github.com/pl0n3r/brvtal/issues/553)~~ |
+| **NOW** | 🚧 Phase 2 closeout | 🚧 [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480), [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
 | **LATER** | 🚧 Operational dashboards | 🚧 [#513](https://github.com/pl0n3r/brvtal/issues/513), [#515](https://github.com/pl0n3r/brvtal/issues/515), [#532](https://github.com/pl0n3r/brvtal/issues/532) |
 | **BLOCKED / EXTERNAL** | 🚧 Deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

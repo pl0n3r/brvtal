@@ -3,6 +3,8 @@
 
   const KEY = 'home.hero.slider';
   const API = '../api/index.php';
+  const SETTINGS_READ_PATH = '/settings?key=' + encodeURIComponent(KEY);
+  const MEDIA_PICKER_PATH = '/media?view=hero-picker';
   const MAX_SLIDES = 20;
   const MAX_LAYERS = 12;
   const layerTypes = ['text','image','logo','cta'];
@@ -10,6 +12,9 @@
   const defaultConfig = () => ({enabled:false,autoplay:true,interval:7000,slides:[]});
   let config = defaultConfig();
   let media = [];
+  let mediaReady = false;
+  let mediaLoadError = '';
+  let loadRevision = 0;
   let selectedId = '';
   let selectedLayerId = '';
   let previewMode = 'desktop';
@@ -107,7 +112,7 @@
       return `${label} must use a Media Library asset or an external HTTPS URL.`;
     }
     const item = mediaRecordForPath(reference);
-    if (!item) return `${label} is not registered in the Media Library.`;
+    if (!item) return ''; // Picker reads are bounded; the server remains authoritative at save time.
     if (String(item.status || 'published') !== 'published') {
       return `${label} must use a published Media Library asset.`;
     }
@@ -215,12 +220,22 @@
   }
 
   function hydrateMediaPicker(select) {
-    const type = select.dataset.mediaType === 'video' ? 'video' : 'image';
-    const allowed = media.filter(item => type === 'video' ? item.type === 'video' : item.type === 'image');
     const placeholder = document.createElement('option');
     placeholder.value = '';
+    if (!mediaReady) {
+      placeholder.textContent = mediaLoadError
+        ? 'Media Library unavailable — reopen Banners to retry'
+        : 'Loading Media Library…';
+      select.replaceChildren(placeholder);
+      select.disabled = true;
+      return;
+    }
+
+    const type = select.dataset.mediaType === 'video' ? 'video' : 'image';
+    const allowed = media.filter(item => type === 'video' ? item.type === 'video' : item.type === 'image');
     placeholder.textContent = 'Choose from Media Library…';
     select.replaceChildren(placeholder);
+    select.disabled = false;
     allowed.forEach(item => {
       const option = document.createElement('option');
       option.value = String(item.file_path || '');
@@ -229,32 +244,69 @@
     });
   }
 
-  function hydrateMediaPickers(host) {
+  function mediaSaveLabel() {
+    if (mediaReady) return 'SAVE';
+    return mediaLoadError ? 'MEDIA UNAVAILABLE' : 'MEDIA LOADING…';
+  }
+
+  function syncMediaControls(host) {
+    if (!host) return;
     host.querySelectorAll('[data-media-picker],[data-layer-media]').forEach(hydrateMediaPicker);
+    const saveButton = host.querySelector('[data-save-slider]');
+    if (saveButton) {
+      saveButton.disabled = !mediaReady;
+      saveButton.textContent = mediaSaveLabel();
+    }
+  }
+
+  function applyMediaLoad(result, revision) {
+    if (revision !== loadRevision || !root()) return;
+    if (result.ok) {
+      media = Array.isArray(result.response?.data) ? result.response.data : [];
+      mediaReady = true;
+      mediaLoadError = '';
+    } else {
+      media = [];
+      mediaReady = false;
+      mediaLoadError = String(result.error?.message || 'REQUEST_FAILED');
+    }
+    syncMediaControls(root());
   }
 
   async function load() {
     const host = root();
     if (!host) return;
+    const revision = ++loadRevision;
     host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
+    media = [];
+    mediaReady = false;
+    mediaLoadError = '';
+
+    const mediaPromise = request(MEDIA_PICKER_PATH,{cache:'no-store'}).then(
+      response => ({ok:true,response,error:null}),
+      error => ({ok:false,response:null,error})
+    );
+
     try {
-      const [settingsResponse,mediaResponse] = await Promise.all([request('/settings'),request('/media')]);
+      const settingsResponse = await request(SETTINGS_READ_PATH,{cache:'no-store'});
+      if (revision !== loadRevision || !root()) return;
       const settings = Array.isArray(settingsResponse.data) ? settingsResponse.data : [];
       const record = settings.find(item => item.setting_key === KEY);
       let stored = record?.setting_value || null;
       if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch (_) { stored = null; } }
       config = normalizeConfig(stored);
-      media = Array.isArray(mediaResponse.data) ? mediaResponse.data : [];
       if (!config.slides.some(slide => slide.id === selectedId)) selectedId = config.slides[0]?.id || '';
       const slide = selectedSlide();
       if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
       renderManager();
+      mediaPromise.then(result => applyMediaLoad(result, revision));
     } catch (error) {
       host.replaceChildren();
       const errorNode = document.createElement('div');
       errorNode.className = 'hero-slider-error';
       errorNode.textContent = `Unable to load Banners: ${String(error?.message || 'Unknown error')}`;
       host.appendChild(errorNode);
+      mediaPromise.then(() => {});
     }
   }
 
@@ -429,8 +481,8 @@
     const host = root();
     if (!host) return;
     const slide = selectedSlide();
-    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider>SAVE</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
-    hydrateMediaPickers(host);
+    host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider ${mediaReady?'':'disabled'}>${mediaSaveLabel()}</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
+    syncMediaControls(host);
     renderPreview(host.querySelector('.hero-preview-frame'), slide);
     bind();
   }
@@ -659,8 +711,25 @@
     ensureNav();
     const observer=new MutationObserver(()=>ensureNav());observer.observe(document.documentElement,{childList:true,subtree:true});
     originalGo=window.go;
-    window.go=async function(section){if(section==='hero-slider'){const host=prepareWorkspace();if(host)await load();ensureNav();return;}const result=await originalGo(section);ensureNav();return result;};
+    window.go=async function(section){
+      if(section==='hero-slider'){
+        const host=prepareWorkspace();
+        if(host){
+          await load();
+        }
+        ensureNav();
+        return;
+      }
+      loadRevision+=1;
+      const result=await originalGo(section);
+      ensureNav();
+      return result;
+    };
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install, {once:true});
+  } else {
+    install();
+  }
 })();

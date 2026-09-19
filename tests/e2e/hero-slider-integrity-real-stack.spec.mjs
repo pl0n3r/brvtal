@@ -7,6 +7,7 @@ const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || '';
 test.skip(!baseUrl || !adminPassword, 'BRVTAL real-stack URL and admin credentials are required');
 
 const settingKey = 'home.hero.slider';
+const heroMediaLimit = 200;
 
 async function login(page) {
   const response = await page.request.post(`${baseUrl}/api/index.php/auth`, {
@@ -17,10 +18,12 @@ async function login(page) {
 }
 
 async function readSetting(page) {
-  const response = await page.request.get(`${baseUrl}/api/index.php/settings`);
+  const response = await page.request.get(
+    `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(settingKey)}`
+  );
   expect(response.ok()).toBeTruthy();
   const rows = (await response.json()).data || [];
-  return rows.find(row => row.setting_key === settingKey) || null;
+  return rows[0] || null;
 }
 
 async function saveSetting(page, csrf, config) {
@@ -33,6 +36,51 @@ async function saveSetting(page, csrf, config) {
     },
   });
 }
+
+
+test('Banners uses bounded bootstrap reads on the authenticated real stack', async ({ page }) => {
+  await login(page);
+
+  const observed = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/index.php/settings' || url.pathname === '/api/index.php/media') {
+      observed.push(url.pathname + url.search);
+    }
+  });
+
+  await page.goto(`${baseUrl}/discadmin/`);
+  await page.getByRole('button', {name:'BANNERS'}).click();
+  await expect(page.locator('.hero-manager')).toBeVisible();
+
+  expect(observed).toContain('/api/index.php/settings?key=home.hero.slider');
+  expect(observed).toContain('/api/index.php/media?view=hero-picker');
+  expect(observed).not.toContain('/api/index.php/settings');
+  expect(observed).not.toContain('/api/index.php/media');
+
+  const settingsResponse = await page.request.get(
+    `${baseUrl}/api/index.php/settings?key=${encodeURIComponent(settingKey)}`
+  );
+  expect(settingsResponse.ok()).toBeTruthy();
+  const settingsRows = (await settingsResponse.json()).data || [];
+  expect(settingsRows.length).toBeLessThanOrEqual(1);
+  for (const row of settingsRows) {
+    expect(Object.keys(row).sort()).toEqual(['is_json','setting_key','setting_value']);
+  }
+
+  const mediaResponse = await page.request.get(
+    `${baseUrl}/api/index.php/media?view=hero-picker`
+  );
+  expect(mediaResponse.ok()).toBeTruthy();
+  const mediaRows = (await mediaResponse.json()).data || [];
+  expect(mediaRows.length).toBeGreaterThan(0);
+  expect(mediaRows.length).toBeLessThanOrEqual(heroMediaLimit);
+  for (const row of mediaRows) {
+    expect(['image','video']).toContain(row.type);
+    expect(row.status).toBe('published');
+    expect(Object.keys(row).sort()).toEqual(['file_path','id','status','title','type']);
+  }
+});
 
 test('Hero Slider settings reject broken local media and accept canonical or HTTPS media', async ({ page }) => {
   const auth = await login(page);
