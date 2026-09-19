@@ -45,9 +45,11 @@ control_plane_assert(str_contains($settingsUi, "['general','GENERAL']"), 'Settin
 control_plane_assert(str_contains($settingsUi, "['social','SOCIAL & CONTACT']"), 'Settings exposes Social typed section');
 control_plane_assert(str_contains($settingsUi, "['seo','SEO']"), 'Settings exposes canonical SEO section');
 control_plane_assert(str_contains($settingsUi, "['analytics','ANALYTICS & PRIVACY']"), 'Settings exposes Analytics & Privacy section');
-control_plane_assert(str_contains($settingsUi, 'data-settings-open="theme"'), 'Settings must own the visible Theme Studio entry point');
-control_plane_assert(str_contains($settingsUi, 'data-settings-open="security"'), 'Settings must own the visible Security / 2FA entry point');
-control_plane_assert(str_contains($settingsUi, 'data-settings-open="system"'), 'Settings must own the visible System Status entry point');
+control_plane_assert(str_contains($settingsUi, 'data-settings-open="theme"'), 'Settings Advanced must own the visible Theme Studio entry point');
+control_plane_assert(str_contains($settingsUi, 'data-settings-security-host'), 'Settings Advanced must embed Security / 2FA controls');
+control_plane_assert(str_contains($settingsUi, 'data-settings-open="system"'), 'Settings Advanced must own the visible System Status entry point');
+control_plane_assert(!str_contains($settingsUi, 'RAW SETTINGS'), 'Settings must not expose Raw Settings as a normal user-facing workspace');
+control_plane_assert(!str_contains($settingsUi, 'NEW ADVANCED SETTING'), 'Settings must not expose creation of arbitrary settings records');
 control_plane_assert(!str_contains($settingsUi, '<span>CONTROL PLANE</span>'), 'Settings must not expose the ambiguous Control Plane status block');
 control_plane_assert(str_contains($settingsUi, 'Google Tag Manager Container ID'), 'Analytics Settings exposes GTM as the canonical tag layer');
 control_plane_assert(str_contains($settingsUi, "read('gtm_id').toUpperCase()"), 'GTM save path normalizes the container ID');

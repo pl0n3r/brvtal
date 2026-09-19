@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const V2 = { tab:'general', pickerTarget:null, lastFocus:null };
+  const V2 = { tab:'general', pickerTarget:null, lastFocus:null, securityLoadToken:0 };
   const INDEXNOW_ENDPOINTS = [
     ['https://api.indexnow.org/indexnow','IndexNow Global'],
     ['https://indexnow.amazonbot.amazon/indexnow','Amazon'],
@@ -86,14 +86,6 @@
         <article><span>CANONICAL ORIGIN</span><strong>www.brvtal.com.co</strong><p>Environment-owned. Not editable here.</p></article>
         <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Stored values are visible for context, but public ES/EN behavior remains reserved for #212 and is not presented as a live control yet.</p></article>
         <article><span>STATUS</span><strong>LIVE</strong><p><code>settings.site</code> is consumed by the public runtime.</p></article>
-      </div>
-      <div class="sv2-tool-section">
-        <header class="sv2-section-head"><div><span>CONFIGURATION TOOLS</span><h3>Specialized settings</h3></div><p>Open deeper configuration without adding separate top-level sidebar destinations.</p></header>
-        <div class="sv2-context-grid">
-          <article class="sv2-tool-card"><span>VISUAL SYSTEM</span><strong>THEME STUDIO</strong><p>Public palette, typography, navigation and effects.</p><button type="button" class="btn ghost" data-settings-open="theme">OPEN THEME STUDIO</button></article>
-          <article class="sv2-tool-card"><span>ACCOUNT SECURITY</span><strong>SECURITY / 2FA</strong><p>Two-factor authentication and account security controls.</p><button type="button" class="btn ghost" data-settings-open="security">OPEN SECURITY / 2FA</button></article>
-          <article class="sv2-tool-card"><span>DIAGNOSTICS</span><strong>SYSTEM STATUS</strong><p>Runtime, database, storage and operational diagnostics.</p><button type="button" class="btn ghost" data-settings-open="system">OPEN SYSTEM STATUS</button></article>
-        </div>
       </div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="general">SAVE GENERAL</button></div>
     </section>`;
@@ -182,40 +174,70 @@
     </section>`;
   }
 
-  function advancedPane(rows) {
-    const safeRows = rows || [];
-    const cards = safeRows.map(record => {
-      const key = String(record.setting_key || '');
-      const isTheme = key === 'theme.active' || key.startsWith('theme.');
-      let role = 'ADVANCED';
-      if (key === 'appearance') role = 'LEGACY';
-      else if (isTheme) role = 'THEME STUDIO';
-      else if (['site','social','seo','analytics','indexnow'].includes(key)) role = 'TYPED + RAW';
-      let preview = String(record.setting_value ?? '');
-      if (preview.length > 180) preview = preview.slice(0,177) + '…';
-      const action = key === 'theme.active'
-        ? '<button type="button" class="iconbtn" data-settings-theme-studio>OPEN THEME STUDIO</button>'
-        : `<button type="button" class="iconbtn" data-settings-raw="${esc(key)}">RAW EDIT</button>`;
-      return `<article class="sv2-raw-row"><div><span>${esc(role)}</span><strong>${esc(key)}</strong><code>${esc(preview || 'EMPTY')}</code></div>${action}</article>`;
-    }).join('');
-    return `<section class="sv2-pane ${V2.tab==='advanced'?'active':''}" data-settings-pane="advanced">
-      <header class="sv2-section-head"><div><span>05 / ADVANCED</span><h3>Compatibility & raw records</h3></div><p>Escape hatch for recovery, unknown keys and legacy values. Primary configuration belongs in the typed screens or Theme Studio.</p></header>
-      <div class="sv2-status-map">
-        <article><span>LIVE / TYPED</span><strong>SITE · SOCIAL · SEO / INDEXNOW · ANALYTICS</strong><p>Normal editing happens through the dedicated controls above.</p></article>
-        <article><span>THEME-OWNED</span><strong>THEME.*</strong><p>Use Theme Studio for public visual identity, palette, typography, navigation and effects.</p></article>
-        <article><span>LEGACY</span><strong>APPEARANCE</strong><p>Preserved for compatibility. Theme Studio is the primary visual authority.</p></article>
-      </div>
-      <div class="sv2-advanced-head"><div><strong>RAW SETTINGS</strong><span>${safeRows.length} RECORDS</span></div><button type="button" class="btn ghost" data-settings-new-raw>+ NEW ADVANCED SETTING</button></div>
-      <div class="sv2-raw-list">${cards || '<p class="sv2-empty">No settings records.</p>'}</div>
-    </section>`;
+  function requestedSettingsTab() {
+    const requested = new URLSearchParams(location.search).get('settings');
+    return ['general','social','seo','analytics','advanced'].includes(requested) ? requested : '';
   }
 
-  function settingsScreen(rows) {
-    const allRows = rows || [];
-    return `<div class="settings-v2" data-settings-v2 data-testid="settings-v2-root">
+  function securityHost() {
+    return document.querySelector('[data-settings-security-host]');
+  }
+
+  async function loadSecurity(force = false) {
+    const host = securityHost();
+    if (!host || V2.tab !== 'advanced') return;
+    if (!force && host.dataset.securityLoaded === '1') return;
+
+    const token = ++V2.securityLoadToken;
+    delete host.dataset.securityLoaded;
+    host.innerHTML = '<p class="sv2-security-state">Loading account security…</p>';
+
+    try {
+      const response = await fetch('/discadmin/totp-status.php', {
+        credentials:'same-origin',
+        cache:'no-store',
+        headers:{'X-BRVTAL-ADMIN-FRAGMENT':'1'}
+      });
+      if (!response.ok || response.redirected) throw new Error(response.status === 401 ? 'AUTH_REQUIRED' : 'SECURITY_LOAD_FAILED');
+      const doc = new DOMParser().parseFromString(await response.text(),'text/html');
+      const fragment = doc.querySelector('[data-admin-module="security"]');
+      if (!fragment) throw new Error('SECURITY_FRAGMENT_INVALID');
+      if (token !== V2.securityLoadToken || !host.isConnected) return;
+
+      const imported = document.importNode(fragment,true);
+      imported.dataset.settingsEmbeddedSecurity = '1';
+      host.replaceChildren(imported);
+      window.BRVTALSecurity?.mount?.(imported);
+      host.dataset.securityLoaded = '1';
+    } catch (error) {
+      if (token !== V2.securityLoadToken || !host.isConnected) return;
+      host.innerHTML = '<div class="sv2-security-error"><strong>Security controls unavailable.</strong><span>Retry without leaving Settings.</span><button type="button" class="btn ghost" data-settings-security-retry>RETRY</button></div>';
+      feedback('error',error?.message === 'AUTH_REQUIRED' ? 'Your admin session needs to be refreshed.' : 'Security / 2FA could not be loaded.');
+    }
+  }
+
+  function advancedPane() {
+    return `<section class="sv2-pane ${V2.tab==='advanced'?'active':''}" data-settings-pane="advanced">
+      <header class="sv2-section-head"><div><span>05 / ADVANCED</span><h3>Security & technical tools</h3></div><p>Real configuration only. Internal settings records stay behind validated interfaces instead of being exposed as a raw editor.</p></header>
+      <div class="sv2-context-grid sv2-advanced-tools">
+        <article class="sv2-tool-card"><span>VISUAL SYSTEM</span><strong>THEME STUDIO</strong><p>Public palette, typography, navigation and effects.</p><button type="button" class="btn ghost" data-settings-open="theme">OPEN THEME STUDIO</button></article>
+        <article class="sv2-tool-card"><span>OPERATIONS</span><strong>SYSTEM STATUS</strong><p>Runtime, database, storage, backups and operational diagnostics.</p><button type="button" class="btn ghost" data-settings-open="system">OPEN SYSTEM STATUS</button></article>
+      </div>
+      <div class="sv2-security-shell">
+        <header class="sv2-section-head"><div><span>ACCOUNT SECURITY</span><h3>Two-factor authentication</h3></div><p>Configure 2FA for the signed-in administrator without leaving Settings. Enrollment and disable actions keep the existing CSRF/auth boundaries.</p></header>
+        <div class="sv2-security-host" data-settings-security-host data-testid="settings-security-host" aria-live="polite"><p class="sv2-security-state">Loading account security…</p></div>
+      </div>
+    </section>`;
+  }
+  function settingsScreen() {
+    const requested = requestedSettingsTab();
+    if (requested) V2.tab = requested;
+    const markup = `<div class="settings-v2" data-settings-v2 data-testid="settings-v2-root">
       <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior, integrations and access to specialized configuration tools.</p></div></header>
-      <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${advancedPane(allRows)}</div></div>
+      <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${advancedPane()}</div></div>
     </div>`;
+    queueMicrotask(() => { if (V2.tab === 'advanced') loadSecurity().catch(() => {}); });
+    return markup;
   }
 
   async function persistJson(key, patch, removeKeys = [], refresh = true) {
@@ -327,6 +349,7 @@
     if (!root) return;
     root.querySelectorAll('[data-settings-tab]').forEach(button => button.classList.toggle('active',button.dataset.settingsTab===V2.tab));
     root.querySelectorAll('[data-settings-pane]').forEach(pane => pane.classList.toggle('active',pane.dataset.settingsPane===V2.tab));
+    if (V2.tab === 'advanced') loadSecurity().catch(() => {});
   }
 
   function updateAsset(path) {
@@ -382,11 +405,7 @@
         } else if (section) globalThis.go?.(section);
         return;
       }
-      const themeStudio = event.target.closest('[data-settings-theme-studio]');
-      if (themeStudio) { globalThis.go?.('theme'); return; }
-      const raw = event.target.closest('[data-settings-raw]');
-      if (raw) { legacyOpenSettingByKey?.(raw.dataset.settingsRaw); return; }
-      if (event.target.closest('[data-settings-new-raw]')) { window.openModal?.('settings'); return; }
+      if (event.target.closest('[data-settings-security-retry]')) { loadSecurity(true).catch(() => {}); return; }
       const picker = event.target.closest('[data-settings-media-picker]');
       if (picker) { openPicker(picker); return; }
       if (event.target.closest('[data-settings-clear-asset]')) updateAsset('');
@@ -399,6 +418,6 @@
     if (map[key]) activate(map[key]);
     else legacyOpenSettingByKey?.(key);
   };
-  window.BRVTALSettingsV2 = { activate, openRaw:key=>legacyOpenSettingByKey?.(key), jsonValue };
+  window.BRVTALSettingsV2 = { activate, openRaw:key=>legacyOpenSettingByKey?.(key), jsonValue, reloadSecurity:()=>loadSecurity(true) };
   bind();
 })();

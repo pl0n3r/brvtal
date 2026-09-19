@@ -97,7 +97,7 @@ DISCADMIN uses two visible high-level groups:
 - **SITE / EDITORIAL** — Dashboard, Banners, Events, Artists, Releases, Sets, Media, Pages, Blog. **Banners** is the user-facing name for the Home Hero Slider and sits immediately after Dashboard. Memories remains a contextual Media sub-workflow rather than a competing high-level group.
 - **CONFIGURATION / TECHNICAL** — Settings, System Status and only other real technical destinations when they provide a useful canonical workspace.
 
-Theme Studio and Security / 2FA remain valid internal/configuration routes but are entered from **Settings**, not exposed as peer top-level sidebar destinations. Legacy/deep links must keep resolving safely.
+Theme Studio remains a valid internal configuration route entered from **Settings**, not exposed as a peer top-level sidebar destination. **Security / 2FA is configured inline in Settings → Advanced**; legacy `?module=security` navigation canonicalizes to Settings → Advanced. Deep links must keep resolving safely.
 
 Global Search remains available in the page header and as the same canonical search action in the persistent sidebar immediately above Logout. Content Health, Bulk Actions, feedback and appearance enhance the shell or relevant screens instead of becoming competing top-level mental models.
 
@@ -151,6 +151,7 @@ Treat these as implemented foundations unless current code/tests prove otherwise
 - System Status v2 with operational health and cached public GitHub backlog visibility;
 - Backups Foundation v1;
 - Dark / Light / Glass admin appearance;
+- Settings → Advanced exposes real technical tools only: inline per-admin Security / 2FA plus Theme Studio and System Status entry points; arbitrary Raw Settings creation/editing is not exposed in the normal UI;
 - extended admin session policy above.
 
 ### Hero / Slider Manager
@@ -414,9 +415,10 @@ When no newer explicit user instruction exists:
 2. ✅ ~~**Phase 1 quick wins from #533**~~ — #520, #521, #526, #522, #479, #517 and #221 are completed and verified through their required delivery gates.
 3. ✅ ~~**Phase 2 navigation — #348**~~ — task-based Admin IA is merged and exact-main validated.
 4. ✅ ~~**Phase 2 appearance — #149**~~ — coherent Dark / Light / Glass is merged and exact-main validated.
-5. 🚧 **Phase 2 premium Admin — #514** — shared readable typography, spacing, geometry and low-fatigue component layer.
-6. 🚧 **Continue later Phase 2 / #533** — #516, #523, #480, #193 and #216 before moving into editorial productivity.
-7. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
+5. ✅ ~~**Phase 2 premium Admin — #514** — shared readable typography, spacing, geometry and low-fatigue component layer is merged and exact-main validated.~~
+6. ✅ ~~**Phase 2 Settings Advanced — #516** — raw/dead configuration UI removed; inline 2FA plus Theme Studio/System Status ownership consolidated under Settings.~~
+7. 🚧 **Continue later Phase 2 / #533** — #523, #480, #193 and #216 before moving into editorial productivity.
+8. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.
 

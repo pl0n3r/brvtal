@@ -250,6 +250,29 @@ html[data-discadmin-appearance] .sv2-field small,
 html[data-discadmin-appearance] .sv2-asset small,
 html[data-discadmin-appearance] .sv2-field>span{color:var(--admin-muted)}
 
+/* Security / 2FA is embedded inside Settings → Advanced and inherits the active appearance. */
+html[data-discadmin-appearance] [data-admin-module="security"]{
+  color-scheme:inherit;
+  --bg:transparent;
+  --panel:var(--admin-surface-raised);
+  --line:var(--admin-border);
+  --text:var(--admin-text);
+  --muted:var(--admin-muted);
+  background:transparent;
+  color:var(--admin-text)
+}
+html[data-discadmin-appearance] [data-admin-module="security"] .card,
+html[data-discadmin-appearance] [data-admin-module="security"] .secret,
+html[data-discadmin-appearance] [data-admin-module="security"] .codes{
+  background:var(--admin-surface-raised);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] [data-admin-module="security"] input{
+  background:var(--admin-input);border-color:var(--admin-border);color:var(--admin-text)
+}
+html[data-discadmin-appearance] [data-admin-module="security"] .notice{
+  background:var(--admin-surface-soft);color:var(--admin-text)
+}
+
 /* System Status v2. */
 html[data-discadmin-appearance] #system-status-v2{
   color:var(--admin-text);

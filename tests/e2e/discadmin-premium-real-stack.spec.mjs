@@ -52,3 +52,17 @@ test('real DISCADMIN uses the readable premium type scale on desktop and mobile'
   expect(await computedFont(page, 'body')).toBeGreaterThanOrEqual(14);
   expect(await computedFont(page, '.nav button')).toBeGreaterThanOrEqual(13);
 });
+
+test('real Settings Advanced embeds account security and removes raw record controls', async ({ page }) => {
+  await login(page);
+  await openModule(page, 'settings', '[data-testid="settings-v2-root"]');
+
+  await page.getByTestId('settings-tab-advanced').click();
+  const security = page.getByTestId('settings-security-host');
+  await expect(security.locator('[data-admin-module="security"]')).toBeVisible({timeout:10_000});
+  await expect(security.getByText(/2FA (?:ENABLED|DISABLED)/)).toBeVisible();
+  await expect(page.getByText('RAW SETTINGS',{exact:true})).toHaveCount(0);
+  await expect(page.locator('[data-settings-new-raw]')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'OPEN THEME STUDIO'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'OPEN SYSTEM STATUS'})).toBeVisible();
+});

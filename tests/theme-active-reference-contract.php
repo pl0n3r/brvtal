@@ -143,7 +143,7 @@ theme_reference_assert(str_contains($settingsDeleteBlock, 'brvtalAcquireThemeRef
 theme_reference_assert(str_contains($settingsDeleteBlock, "setting_key='theme.active' LIMIT 1 FOR UPDATE"), 'Settings DELETE must lock theme.active before checking the protected target');
 theme_reference_assert(str_contains($settingsDeleteBlock, '$pdo->beginTransaction();'), 'Theme Settings DELETE must check and delete inside one transaction');
 theme_reference_assert(str_contains($settingsDeleteBlock, '409'), 'Settings DELETE must return an HTTP 409 conflict for the protected active theme.');
-theme_reference_assert(str_contains($settingsUi, 'data-settings-theme-studio'), 'Settings must route theme.active to Theme Studio');
-theme_reference_assert(str_contains($settingsUi, "globalThis.go?.('theme')"), 'Settings must keep Theme Studio inside the canonical shell');
+theme_reference_assert(str_contains($settingsUi, 'data-settings-open="theme"'), 'Settings Advanced must expose Theme Studio as the canonical visual-system destination');
+theme_reference_assert(str_contains($settingsUi, "else if (section) globalThis.go?.(section);"), 'Settings must route specialized destinations through the canonical shell');
 
 echo "Theme active reference contract OK\n";
