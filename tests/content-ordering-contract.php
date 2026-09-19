@@ -34,7 +34,7 @@ $public=(string)file_get_contents(__DIR__ . '/../api/public.php');
 $expect(str_contains($endpoint,'brvtal_admin_require_csrf'), 'reorder must require CSRF');
 $expect(str_contains($endpoint,'FOR UPDATE'), 'reorder must lock collection');
 $expect(str_contains($endpoint,'ORDER_STALE'), 'stale writes must fail explicitly');
-$expect(str_contains($endpoint,"$previousIds !== $currentIds"), 'reorder must reject a concurrent order change even when the ID set is unchanged');
+$expect(str_contains($endpoint,'$previousIds !== $currentIds'), 'reorder must reject a concurrent order change even when the ID set is unchanged');
 $expect(str_contains($endpoint,'beginTransaction') && str_contains($endpoint,'rollBack'), 'reorder must be transactional');
 $expect(str_contains($endpoint,'SET sort_order=? WHERE id=?'), 'reorder must normalize positions');
 $expect(str_contains($core,'Display order is managed visually from the Artists list.'), 'Artist form must explain visual order');
