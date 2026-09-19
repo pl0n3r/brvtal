@@ -81,12 +81,20 @@ window.BRVTALReleases = (() => {
     Object.entries(values).forEach(([id,value]) => { const el=store.root.querySelector('#'+id); if(el) el.textContent=String(value); });
   }
 
+  function orderingAvailable() {
+    if (!store.root) return false;
+    return !(store.root.querySelector('#release-search')?.value || '').trim()
+      && !(store.root.querySelector('#release-status-filter')?.value || '');
+  }
+
   function render() {
     if (!store.root) return;
     renderMetrics();
     const grid = store.root.querySelector('#release-grid');
     if (!grid) return;
     const rows = visibleRows();
+    grid.dataset.orderResource = 'releases';
+    grid.dataset.orderEnabled = orderingAvailable() ? '1' : '0';
     if (!rows.length) {
       grid.innerHTML = '<div class="releases-empty">NO RELEASES MATCH THIS VIEW</div>';
       return;
@@ -95,7 +103,7 @@ window.BRVTALReleases = (() => {
       const date = release.release_date || 'DATE TBD';
       const catalog = release.catalog_number || 'NO CATALOG #';
       const type = String(release.release_type || 'single').toUpperCase();
-      return `<article class="release-row" data-release-id="${Number(release.id)}">
+      return `<article class="release-row" data-release-id="${Number(release.id)}" data-order-id="${Number(release.id)}">
         <div>${artwork(release)}</div>
         <div><div class="release-title">${esc(release.title)}</div><div class="release-meta">${esc(catalog)} · ${esc(type)}${Number(release.featured)===1?' · FEATURED':''}</div></div>
         <div class="release-artists">${esc(artistNames(release))}</div>
@@ -108,6 +116,7 @@ window.BRVTALReleases = (() => {
       row.querySelector('[data-edit]')?.addEventListener('click',() => openEditor(id));
       row.querySelector('[data-delete]')?.addEventListener('click',() => remove(id));
     });
+    window.BRVTALContentOrdering?.refresh?.(grid);
   }
 
   async function loadArtists() {
@@ -178,7 +187,7 @@ window.BRVTALReleases = (() => {
         <div class="field full"><label for="release_artwork">Artwork</label><div class="release-editor-artwork thumbcell">${r.artwork?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.artwork))}" alt="${esc(r.title || 'Artwork')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="release_artwork" value="${esc(normalizeMediaPath(r.artwork || ''))}"><button class="media-picker-btn" id="release-artwork-picker" type="button">SELECT MEDIA</button></div></div></div>
         <div class="field full"><label for="release_description">Description</label><textarea id="release_description">${esc(r.description || '')}</textarea></div>
         <label class="release-featured full"><input id="release_featured" type="checkbox" ${Number(r.featured)===1?'checked':''}><span><b>FEATURED RELEASE</b><span class="meta">Highlight this release in public surfaces.</span></span></label>
-        <div class="field"><label for="release_sort_order">Sort order</label><input id="release_sort_order" type="number" value="${Number(r.sort_order || 0)}"></div>
+        <div class="helper full">Display order is managed visually from the Releases list.</div>
       </div></div>
       <div class="section"><div class="sectionhead"><strong>ARTISTS</strong><span class="helper">Link existing BRVTAL artist profiles</span></div><div class="release-artist-list">${artistEditor(r)}</div></div>
       <div class="section"><div class="sectionhead"><strong>PLATFORMS</strong><span class="helper">Public listening / purchase links</span></div><div class="release-platform-grid">
@@ -211,7 +220,7 @@ window.BRVTALReleases = (() => {
     modal.classList.add('open');
   }
 
-  function payload() {
+  function payload(sortOrder = 0) {
     const artists = [...document.querySelectorAll('[data-release-artist]:checked')].map((checkbox,index) => {
       const artistId = Number(checkbox.dataset.releaseArtist);
       return {
@@ -235,7 +244,7 @@ window.BRVTALReleases = (() => {
       beatport_url:value('release_beatport'),
       status:value('release_status_field') || 'draft',
       featured:input('release_featured')?.checked ? 1 : 0,
-      sort_order:Number(value('release_sort_order') || 0),
+      sort_order:Number(sortOrder),
       artists,
     };
   }
@@ -244,7 +253,11 @@ window.BRVTALReleases = (() => {
     const button = document.getElementById('saveBtn');
     if (button) { button.disabled = true; button.textContent = 'SAVING…'; }
     try {
-      const data = payload();
+      const current = id ? store.releases.find(record => Number(record.id) === Number(id)) : null;
+      const nextOrder = current
+        ? Number(current.sort_order || 0)
+        : store.releases.reduce((max,record) => Math.max(max,Number(record.sort_order ?? -1)), -1) + 1;
+      const data = payload(nextOrder);
       if (!data.title) throw new Error('TITLE_REQUIRED');
       if (!data.slug) data.slug = slugify(data.title);
       await request(id ? '?id=' + encodeURIComponent(id) : '', {
@@ -275,6 +288,11 @@ window.BRVTALReleases = (() => {
       setStatus('Could not delete release: ' + (error?.message || 'UNKNOWN_ERROR'), 'err');
     }
   }
+
+  window.addEventListener('brvtal:content-order-changed', event => {
+    if (event.detail?.resource !== 'releases' || !Array.isArray(event.detail.ids)) return;
+    store.releases = window.BRVTALContentOrdering?.applyOrder?.(store.releases,event.detail.ids) || store.releases;
+  });
 
   function mount(root) {
     store.root = root;
