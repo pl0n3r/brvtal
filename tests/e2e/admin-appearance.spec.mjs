@@ -83,7 +83,10 @@ test('Light applies to modern dashboard, settings, status, search and editorial 
     '.brvtal-seo-section',
     '.brvtal-global-search-trigger'
   ]) {
-    expect(await rgbTotal(page.locator(selector)), selector).toBeGreaterThan(620);
+    await expect.poll(
+      () => rgbTotal(page.locator(selector)),
+      { message: selector, timeout: 1000 }
+    ).toBeGreaterThan(620);
   }
   const titleColor = await page.locator('.content-health-title').evaluate(element => getComputedStyle(element).color);
   expect(titleColor).toMatch(/^rgb\((1[0-9]|2[0-9]|3[0-9])/);
