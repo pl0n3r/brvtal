@@ -290,3 +290,38 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
     }
   }
 });
+
+
+test('DISCADMIN real stack exposes task-oriented navigation and one Global Search', async ({ page }) => {
+  await login(page);
+  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
+
+  await expect(page.locator('.ia-navgroup')).toHaveText(['SITE / EDITORIAL','CONFIGURATION / TECHNICAL'], {timeout:10_000});
+  const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"])').allTextContents();
+  for (const [before, after] of [
+    ['DASHBOARD','BANNERS'],
+    ['BANNERS','EVENTS'],
+    ['EVENTS','ARTISTS'],
+    ['ARTISTS','RELEASES'],
+    ['RELEASES','SETS'],
+    ['SETS','MEDIA'],
+    ['MEDIA','PAGES'],
+    ['PAGES','BLOG'],
+    ['BLOG','SETTINGS'],
+    ['SETTINGS','SYSTEM STATUS'],
+  ]) {
+    expect(visibleLabels.indexOf(before), before).toBeGreaterThanOrEqual(0);
+    expect(visibleLabels.indexOf(after), after).toBeGreaterThanOrEqual(0);
+    expect(visibleLabels.indexOf(before), `${before} before ${after}`).toBeLessThan(visibleLabels.indexOf(after));
+  }
+
+  await expect(page.getByRole('button',{name:'THEME STUDIO',exact:true})).toHaveClass(/ia-navchild/);
+  await expect(page.getByRole('button',{name:'SECURITY / 2FA',exact:true})).toHaveClass(/ia-navchild/);
+  await expect(page.locator('.main .top .brvtal-global-search-trigger')).toBeVisible();
+  const sideSearch = page.locator('.sidefoot .brvtal-global-search-side-trigger');
+  await expect(sideSearch).toBeVisible();
+  await sideSearch.click();
+  await expect(page.locator('#brvtal-global-search')).toHaveClass(/open/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.main .top .status')).toHaveCount(0);
+});

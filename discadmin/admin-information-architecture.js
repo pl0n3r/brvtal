@@ -23,6 +23,8 @@
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
   const exactNavLabelKeys = new Map([
     ['DASHBOARD', 'dashboard'],
+    ['BANNERS', 'hero-slider'],
+    ['MEMORIES', 'memories'],
     ['EVENTS', 'events'],
     ['ARTISTS', 'artists'],
     ['RELEASES', 'releases'],
@@ -146,6 +148,7 @@
   }
 
   function buttonKey(button) {
+    if (button.dataset.memoriesNav === '1') return 'memories';
     const dataKey = String(button.dataset.adminNav || '').toLowerCase();
     if (dataKey) return dataKey;
 
@@ -162,11 +165,11 @@
   }
 
   const groups = [
-    {label:'CONTENT', keys:['events','artists','releases','sets','blog','pages']},
-    {label:'MEDIA', keys:['media','hero-slider']},
-    {label:'SITE', keys:['theme','settings','seo']},
-    {label:'SYSTEM', keys:['security','system','backups','activity']},
+    {label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','memories','pages','blog']},
+    {label:'CONFIGURATION / TECHNICAL', keys:['settings','theme','security','system']},
   ];
+  const childNavigation = new Set(['memories','theme','security']);
+  const hiddenNavigation = new Set(['content-core','seo','backups','activity']);
 
   function observeNavigation() {
     navObserver?.observe(document.documentElement,{childList:true,subtree:true});
@@ -187,7 +190,9 @@
       buttons.forEach(button => {
         const key = buttonKey(button);
         button.dataset.iaKey = key;
-        if (key === 'content-core') {
+        button.classList.remove('ia-navchild');
+        if (key === 'hero-slider') button.textContent = 'BANNERS';
+        if (hiddenNavigation.has(key)) {
           button.dataset.iaHidden = '1';
           button.setAttribute('aria-hidden','true');
           button.tabIndex = -1;
@@ -196,13 +201,10 @@
         delete button.dataset.iaHidden;
         button.removeAttribute('aria-hidden');
         button.removeAttribute('tabindex');
+        if (childNavigation.has(key)) button.classList.add('ia-navchild');
         if (!keyed.has(key)) keyed.set(key, []);
         keyed.get(key).push(button);
       });
-
-      const dashboard = keyed.get('dashboard') || [];
-      dashboard.forEach(button => nav.appendChild(button));
-      keyed.delete('dashboard');
 
       groups.forEach(group => {
         const groupButtons = [];

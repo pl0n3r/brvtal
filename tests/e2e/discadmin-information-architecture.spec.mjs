@@ -4,6 +4,9 @@ import { join } from 'node:path';
 
 const iaJs = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.js'), 'utf8');
 const iaCss = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.css'), 'utf8');
+const globalSearchJs = readFileSync(join(process.cwd(), 'discadmin/global-search.js'), 'utf8');
+const indexCore = readFileSync(join(process.cwd(), 'discadmin/index-core.php'), 'utf8');
+const settingsV2 = readFileSync(join(process.cwd(), 'discadmin/settings-v2.js'), 'utf8');
 const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
@@ -48,6 +51,7 @@ function harness(authed = true) {
         +navButton('ARTISTS',"go('artists')")
         +navButton('SETS',"go('sets')")
         +navButton('MEDIA',"go('media')")
+        +'<button data-admin-nav="media" data-memories-nav="1" onclick="go(\'memories\')">MEMORIES</button>'
         +navButton('PAGES',"go('pages')")
         +navButton('CONTENT CORE',"go('content-core')")
         +navButton('THEME STUDIO',"go('theme')")
@@ -59,7 +63,7 @@ function harness(authed = true) {
         +navButton('HERO SLIDER',"go('hero-slider')",'hero-slider')
         +navButton('BACKUPS',"go('backups')",'backups')
         +navButton('ACTIVITY',"go('activity')",'activity')
-        +'</div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1></div>'+sectionContent+'</main></div>';
+        +'</div><div class="sidefoot"><button class="btn ghost">LOG OUT</button></div></aside><main class="main"><div class="top"><h1>'+section.toUpperCase()+'</h1><span class="status"><i></i>ONLINE</span></div>'+sectionContent+'</main></div>';
       document.querySelector('[data-new-event]')?.addEventListener('click',()=>window.openModal('events'));
     };
     window.go=async function(section){
@@ -116,24 +120,56 @@ function harness(authed = true) {
       }
     };
     window.__renderShell('dashboard');
-  </script><script>${iaJs}</script></body></html>`;
+  </script><script>${globalSearchJs}</script><script>${iaJs}</script></body></html>`;
 }
 
 async function serveHarness(page, {authed = true} = {}) {
   await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
-test('sidebar exposes destinations while Content Core stays internal', async ({ page }) => {
+test('sidebar exposes the task-oriented hierarchy while internal aliases stay hidden', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
 
-  await expect(page.locator('.ia-navgroup')).toHaveText(['CONTENT','MEDIA','SITE','SYSTEM']);
+  await expect(page.locator('.ia-navgroup')).toHaveText(['SITE / EDITORIAL','CONFIGURATION / TECHNICAL']);
   await expect(page.getByRole('button',{name:'CONTENT CORE'})).toBeHidden();
+  await expect(page.getByRole('button',{name:'BACKUPS'})).toBeHidden();
+  await expect(page.getByRole('button',{name:'ACTIVITY'})).toBeHidden();
 
   const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"])').allTextContents();
-  expect(visibleLabels.indexOf('EVENTS')).toBeLessThan(visibleLabels.indexOf('MEDIA'));
-  expect(visibleLabels.indexOf('MEDIA')).toBeLessThan(visibleLabels.indexOf('THEME STUDIO'));
-  expect(visibleLabels.indexOf('THEME STUDIO')).toBeLessThan(visibleLabels.indexOf('SYSTEM STATUS'));
+  expect(visibleLabels).toEqual([
+    'DASHBOARD','BANNERS','EVENTS','ARTISTS','RELEASES','SETS','MEDIA','MEMORIES','PAGES','BLOG',
+    'SETTINGS','THEME STUDIO','SECURITY / 2FA','SYSTEM STATUS'
+  ]);
+  await expect(page.getByRole('button',{name:'MEMORIES'})).toHaveClass(/ia-navchild/);
+  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toHaveClass(/ia-navchild/);
+  await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toHaveClass(/ia-navchild/);
+});
+
+
+test('Global Search is available in the header and immediately above Logout', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const topSearch = page.locator('.main .top .brvtal-global-search-trigger');
+  const sideSearch = page.locator('.sidefoot .brvtal-global-search-side-trigger');
+  await expect(topSearch).toBeVisible();
+  await expect(sideSearch).toBeVisible();
+  expect(await sideSearch.evaluate(button => button.nextElementSibling?.textContent?.trim())).toBe('LOG OUT');
+
+  await sideSearch.click();
+  await expect(page.locator('#brvtal-global-search')).toHaveClass(/open/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#brvtal-global-search')).not.toHaveClass(/open/);
+});
+
+test('Settings owns Theme Studio and Security navigation without ambiguous shell status', async () => {
+  expect(settingsV2).toContain('data-settings-theme-studio');
+  expect(settingsV2).toContain('data-settings-security');
+  expect(settingsV2).toContain('<span>CONFIGURATION</span>');
+  expect(settingsV2).not.toContain('<span>CONTROL PLANE</span>');
+  expect(indexCore).not.toContain('<span class="status"><i></i>ONLINE</span>');
+  expect(indexCore).not.toContain("e.key.toLowerCase()==='k'");
 });
 
 test('navigation label fallbacks preserve canonical and fuzzy destination keys', async ({ page }) => {

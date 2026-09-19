@@ -14,6 +14,9 @@
       .brvtal-global-search-trigger{margin-left:auto;border:1px solid #34393e;background:#0b0d0e;color:#dfe3e6;padding:8px 11px;font:800 9px/1 monospace;letter-spacing:1.2px;white-space:nowrap}
       .brvtal-global-search-trigger:hover,.brvtal-global-search-trigger:focus-visible{border-color:#fff;outline:none}
       .brvtal-global-search-trigger kbd{margin-left:8px;color:#737b82;font:700 8px/1 monospace}
+      .brvtal-global-search-side-trigger{width:100%;min-height:44px;margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #34393e;background:#0b0d0e;color:#dfe3e6;padding:10px 11px;font:800 9px/1.2 monospace;letter-spacing:1.2px;text-align:left}
+      .brvtal-global-search-side-trigger:hover,.brvtal-global-search-side-trigger:focus-visible{border-color:#fff;outline:none}
+      .brvtal-global-search-side-trigger kbd{color:#737b82;font:700 8px/1 monospace}
       .brvtal-global-search-overlay{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);display:none;align-items:flex-start;justify-content:center;padding:9vh 18px 18px}
       .brvtal-global-search-overlay.open{display:flex}
       .brvtal-global-search-dialog{width:min(860px,100%);max-height:82vh;overflow:hidden;border:1px solid #34393e;background:#080909;box-shadow:0 28px 90px rgba(0,0,0,.55)}
@@ -74,6 +77,25 @@
     trigger.addEventListener('click', open);
     const status = top.querySelector('.status');
     if (status) status.before(trigger); else top.appendChild(trigger);
+  }
+
+  function ensureSidebarTrigger() {
+    const sidefoot = document.querySelector('.side .sidefoot');
+    if (!sidefoot || sidefoot.querySelector('.brvtal-global-search-side-trigger')) return;
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'brvtal-global-search-side-trigger';
+    trigger.setAttribute('aria-label','Open global DISCADMIN search');
+    trigger.innerHTML = '<span>GLOBAL SEARCH</span><kbd>⌘K / CTRL K</kbd>';
+    trigger.addEventListener('click', open);
+    const logout = [...sidefoot.querySelectorAll('button')]
+      .find(button => String(button.textContent || '').trim().toUpperCase() === 'LOG OUT');
+    if (logout) logout.before(trigger); else sidefoot.appendChild(trigger);
+  }
+
+  function ensureTriggers() {
+    ensureTrigger();
+    ensureSidebarTrigger();
   }
 
   function open() {
@@ -244,10 +266,10 @@
     }
   });
 
-  const observer = new MutationObserver(() => ensureTrigger());
+  const observer = new MutationObserver(() => ensureTriggers());
   observer.observe(document.documentElement,{childList:true,subtree:true});
   ensureStyle();
   ensureOverlay();
-  ensureTrigger();
+  ensureTriggers();
   window.BRVTALGlobalSearch = {open,close,search};
 })();

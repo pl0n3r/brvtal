@@ -188,7 +188,7 @@
       button = document.createElement('button');
       button.type = 'button';
       button.dataset.adminNav = 'hero-slider';
-      button.textContent = 'HERO SLIDER';
+      button.textContent = 'BANNERS';
       button.addEventListener('click', () => window.go('hero-slider'));
       const events = [...nav.querySelectorAll('button')].find(node => node.textContent.trim().toUpperCase() === 'EVENTS');
       if (events?.nextSibling) nav.insertBefore(button,events.nextSibling); else nav.appendChild(button);
@@ -205,7 +205,7 @@
     const top = main.querySelector('.top');
     if (top) {
       top.querySelector('.eyebrow') && (top.querySelector('.eyebrow').textContent = 'HOME / EXPERIENCE');
-      top.querySelector('h1') && (top.querySelector('h1').textContent = 'HERO SLIDER');
+      top.querySelector('h1') && (top.querySelector('h1').textContent = 'BANNERS');
     }
     [...main.children].forEach(child => { if (child !== top) child.remove(); });
     const host = document.createElement('div');
@@ -236,7 +236,7 @@
       if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
       renderManager();
     } catch (error) {
-      host.innerHTML = `<div class="hero-slider-error">Unable to load Hero Slider: ${esc(error.message)}</div>`;
+      host.innerHTML = `<div class="hero-slider-error">Unable to load Banners: ${esc(error.message)}</div>`;
     }
   }
 
@@ -530,10 +530,10 @@
       if(integrityError) throw new Error(integrityError);
       await request('/settings',{method:'POST',body:JSON.stringify({setting_key:KEY,setting_value:JSON.stringify(payload),is_json:1})});
       config=payload;
-      window.BRVTALFeedback?.success?.('Hero Slider saved. Public fallback remains protected.','hero-slider-save');
+      window.BRVTALFeedback?.success?.('Banners saved. Public fallback remains protected.','hero-slider-save');
       renderManager();
     } catch(error) {
-      window.BRVTALFeedback?.error?.('Hero Slider save failed: '+error.message,'hero-slider-save');
+      window.BRVTALFeedback?.error?.('Banners save failed: '+error.message,'hero-slider-save');
       if(button){button.disabled=false;button.textContent='SAVE';}
     }
   }

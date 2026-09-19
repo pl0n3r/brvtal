@@ -14,24 +14,9 @@
 .side{display:flex;flex-direction:column}
 .side .sidefoot{position:static;margin-top:auto;padding-top:24px;flex-shrink:0}
 
-/* Canonical DISCADMIN navigation groups.
-   Content stays above TECHNICAL; Theme Studio, Settings, 2FA and System Status stay below it.
-   Dynamic modules are ordered inside the content group. */
+/* The information-architecture layer owns canonical DOM order.
+   Keep this stylesheet layout-only so stale CSS ordering cannot override it. */
 .nav{display:flex;flex-direction:column}
-.nav>button[onclick="go('dashboard')"]{order:10}
-.nav>button[onclick="go('events')"]{order:20}
-.nav>button[onclick="go('artists')"]{order:30}
-.nav>button[data-admin-nav="releases"]{order:40}
-.nav>button[onclick="go('sets')"]{order:50}
-.nav>button[onclick="go('media')"]{order:60}
-.nav>button[onclick="go('pages')"]{order:70}
-.nav>button[data-admin-nav="blog"]{order:75}
-.nav>button[onclick="go('content-core')"]{order:80}
-.nav>.navgroup{order:100}
-.nav>button[onclick="go('theme')"]{order:110}
-.nav>button[onclick="go('settings')"]{order:120}
-.nav>button[onclick="go('security')"]{order:130}
-.nav>button[onclick="tech('system')"]{order:140}
 
 .brvtal-feedback-stack{position:fixed;right:20px;top:20px;z-index:10000;width:min(390px,calc(100vw - 32px));display:grid;gap:8px;pointer-events:none}
 .brvtal-feedback{pointer-events:auto;display:grid;grid-template-columns:9px minmax(0,1fr) 26px;gap:10px;align-items:start;background:#090a0b;border:1px solid #353a3f;padding:12px 12px 12px 13px;box-shadow:0 14px 42px #000b;opacity:0;transform:translateY(-8px);transition:opacity .16s ease,transform .16s ease,border-color .16s ease}

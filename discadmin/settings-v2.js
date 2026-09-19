@@ -202,10 +202,18 @@
     </section>`;
   }
 
+  function settingsNavigationTools() {
+    return `<div class="sv2-context-grid sv2-settings-tools" aria-label="Settings tools">
+      <article><span>APPEARANCE</span><strong>THEME STUDIO</strong><p>Public branding, palette, typography, navigation and visual effects.</p><button type="button" class="iconbtn" data-settings-theme-studio>OPEN THEME STUDIO</button></article>
+      <article><span>ACCOUNT SECURITY</span><strong>SECURITY / 2FA</strong><p>Two-factor authentication and recovery controls remain on their compatible workspace while Settings owns the navigation hierarchy.</p><button type="button" class="iconbtn" data-settings-security>OPEN SECURITY / 2FA</button></article>
+    </div>`;
+  }
+
   function settingsScreen(rows) {
     const allRows = rows || [];
     return `<div class="settings-v2" data-settings-v2 data-testid="settings-v2-root">
-      <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior and integrations. Visual theme controls live in Theme Studio; raw JSON is an advanced escape hatch, not the normal workflow.</p></div><div class="sv2-hero-status"><span>CONTROL PLANE</span><strong>${allRows.length}</strong><small>CONFIG RECORDS</small></div></header>
+      <header class="sv2-hero"><div><span>BRVTAL CMS / CONFIGURATION</span><h2>SETTINGS</h2><p>Global behavior and integrations, with appearance and account security nested under this configuration workspace.</p></div><div class="sv2-hero-status"><span>CONFIGURATION</span><strong>${allRows.length}</strong><small>SAVED RECORDS</small></div></header>
+      ${settingsNavigationTools()}
       <div class="sv2-layout"><aside class="sv2-tabs" aria-label="Settings sections">${tabs()}</aside><div class="sv2-editor">${generalPane()}${socialPane()}${seoPane()}${analyticsPane()}${advancedPane(allRows)}</div></div>
     </div>`;
   }
@@ -367,6 +375,8 @@
       if (saveButton) { save(saveButton.dataset.settingsSave); return; }
       const themeStudio = event.target.closest('[data-settings-theme-studio]');
       if (themeStudio) { globalThis.go?.('theme'); return; }
+      const security = event.target.closest('[data-settings-security]');
+      if (security) { globalThis.go?.('security'); return; }
       const raw = event.target.closest('[data-settings-raw]');
       if (raw) { legacyOpenSettingByKey?.(raw.dataset.settingsRaw); return; }
       if (event.target.closest('[data-settings-new-raw]')) { window.openModal?.('settings'); return; }

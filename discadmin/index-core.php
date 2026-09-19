@@ -645,7 +645,6 @@ function render(){
     <div class="eyebrow">BRVTAL CMS</div>
     <h1>${moduleTitle}</h1>
    </div>
-   <span class="status"><i></i>ONLINE</span>
   </div>
   ${moduleBody}
  </main>
@@ -659,6 +658,5 @@ function render(){
   });
  }
 }
-document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(typeof state!=='undefined'&&state.authed)go('theme')}});
 scheduleTechRefresh();
 </script><script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/security.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script>restoreSession();</script></body></html>
