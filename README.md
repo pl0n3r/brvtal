@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#534 HOSTINGER RELEASE OBSERVABILITY** | release-first observer + smoke |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `8f4f745ce4fda29b59066cb38adef1d676898495` |
-| Version | 🚧 **0.1.12 → 0.1.13** | patch deploy |
-| Producción | 🚧 **PENDING OBSERVATION** | release `v0.1.13` + SHA exacto cuando Hostinger lo exponga |
+| Work line | 🚧 **#193 Native navigation transaction (v0.1.14), PR #561** | state + URL rollback on authoritative navigation failure |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `32c41b6d17bc76d7c24a2f5faa66a92b10bfd70a` |
+| Version | 🚧 **0.1.13 → 0.1.14** | patch deploy |
+| Producción | 🚧 **PENDING MERGE / OBSERVATION** | release `v0.1.14` after squash merge |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **19** | **+575** | **−161** | **+414** |
+| **6** | **+85** | **−50** | **+35** |
 
 ## Calidad y entrega
 
@@ -37,9 +37,9 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Deploy marker | release canónica siempre; SHA exacto adicional cuando existe |
-| E2E producción | espera release antes de autenticar y validar DISCADMIN |
-| Cache busting | SHA exacto o fallback `release-<version>` |
+| Navegación | estado/rows se comprometen solo tras lectura autoritativa exitosa |
+| Latest-wins | respuestas stale no pueden restaurar ni sobrescribir el destino vigente |
+| Browser regression | fallo vigente conserva workspace, rows y URL previos |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
@@ -47,67 +47,52 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.13"] --> P["PR + snapshot exacto"]
+ A["Release v0.1.14"] --> P["PR + snapshot exacto · #561"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
  X --> O["Observer: /api/deployment.php"]
- O --> S["Smoke E2E autenticado"]
 ```
 
 ## Qué se hizo
 
-- El observer deja de depender de que Hostinger conserve `.git`: valida primero la release canónica, exige SHA exacto solo cuando el runtime lo expone y mantiene su peor caso de polling dentro del deadline del job.
-- El smoke autenticado espera a que la release esperada llegue a producción antes de cargar DISCADMIN, evitando fallos por propagación normal.
-- Los assets dejan de usar metadata de build obsoleta como cache key cuando Git no está disponible.
-- `/api/deployment.php` y health distinguen claramente release, cache key y source SHA exacto/no disponible.
-- Se documenta la regla durable: cada fallo recurrente debe provocar causa raíz + prevención, no reintentos rituales.
-- Versión **0.1.13**.
+- La navegación nativa deja de cambiar `state.section` antes de que el GET autoritativo termine correctamente.
+- La capa de Information Architecture restaura sección, filas y URL si falla la navegación vigente.
+- La protección latest-wins se mantiene: una navegación stale no puede revertir un destino más nuevo.
+- Playwright reproduce el fallo de Pages desde Artists y exige que el workspace anterior permanezca coherente.
+- Versión **0.1.14**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-authenticated-smoke.yml`
-- `.github/workflows/production-deploy-observer.yml`
-- `AGENTS.md`
 - `README.md`
-- `api/deployment.php`
-- `api/health.php`
-- `config/deployment.php`
 - `config/version.php`
+- `discadmin/admin-information-architecture.js`
 - `discadmin/index-core.php`
-- `discadmin/index.php`
-- `index.php`
 - `package.json`
-- `tests/ci-scope-contract.php`
-- `tests/deployment-traceability-contract.php`
-- `tests/e2e/production-authenticated-smoke.mjs`
-- `tests/e2e/production-release-observer-contract.mjs`
-- `tests/e2e/production-release-observer.mjs`
-- `tests/production-smoke-contract.php`
-- `tests/public-quick-wins-contract.php`
+- `tests/e2e/discadmin-information-architecture.spec.mjs`
 
 ## Validación
 
-- Contratos ejecutables protegen env SHA, Git checkout, fallback de release, cache key y el orden observer → autenticación.
-- El polling tolera fallos transitorios; si Hostinger expone SHA exacto, una discrepancia se reporta separada de una release ausente.
-- La UI E2E sigue validando la versión visible una vez observada la release.
-- No hay migraciones, SQL de producción ni despliegue manual.
+- Regresión browser dirigida incluida para el fallo vigente de navegación nativa.
+- La corrección no cambia datos ni ejecuta migraciones.
+- BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
+- No se declara producción validada desde CI.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · cerrar observabilidad Hostinger con evidencia post-merge. |
-| **NEXT** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216), [#558](https://github.com/pl0n3r/brvtal/issues/558) · regresiones/navegación. |
-| **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) · productividad editorial. |
-| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · solo hPanel si la release tampoco aparece. |
+| **NOW** | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193) · cerrar PR #561 y exact-main. |
+| **NEXT** | 🚧 [#216](https://github.com/pl0n3r/brvtal/issues/216), [#558](https://github.com/pl0n3r/brvtal/issues/558) · lifecycle de modales + deflake de navegación. |
+| **LATER** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174), [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) · protección de edición y productividad editorial. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · observación Hostinger continúa separada del desarrollo independiente. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
 | **DONE** | ✅ ~~Phase 1 + Phase 2 visual/Admin foundation~~ | ✅ ~~[#514](https://github.com/pl0n3r/brvtal/issues/514), [#516](https://github.com/pl0n3r/brvtal/issues/516), [#523](https://github.com/pl0n3r/brvtal/issues/523), [#480](https://github.com/pl0n3r/brvtal/issues/480)~~ |
-| **NOW** | 🚧 Release/deploy observability | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
-| **NEXT** | 🚧 Browser/navigation closeout | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193), [#216](https://github.com/pl0n3r/brvtal/issues/216), [#558](https://github.com/pl0n3r/brvtal/issues/558) |
+| **NOW** | 🚧 Navigation reliability | 🚧 [#193](https://github.com/pl0n3r/brvtal/issues/193) · PR #561 |
+| **NEXT** | 🚧 Browser/navigation closeout | 🚧 [#216](https://github.com/pl0n3r/brvtal/issues/216), [#558](https://github.com/pl0n3r/brvtal/issues/558), [#174](https://github.com/pl0n3r/brvtal/issues/174) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
-| **BLOCKED / EXTERNAL** | 🚧 Hostinger hPanel only if canonical release remains stale | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| **BLOCKED / EXTERNAL** | 🚧 Hostinger deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

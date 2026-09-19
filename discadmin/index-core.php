@@ -165,6 +165,14 @@ async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.
 async function restoreSession(){try{const d=await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
 async function logout(){try{await req('/auth',{method:'DELETE'})}catch(e){}csrf='';state.authed=false;render()}
 async function go(s){
+ const nativeSection=s==='events'||s==='artists'||s==='sets'||s==='media'||s==='pages'||s==='settings';
+ if(nativeSection){
+  const d=await req('/'+s);
+  state.section=s;
+  state.rows=d.data||[];
+  render();
+  return;
+ }
  state.section=s;
  if(s==='content-core'||s==='security'){
   render();
@@ -195,11 +203,7 @@ async function go(s){
   setTimeout(loadThemeStudio,20);
   return;
  }
- if(s==='events'||s==='artists'||s==='sets'||s==='media'||s==='pages'||s==='settings'){
-  const d=await req('/'+s);
-  state.rows=d.data||[];
-  render();
- }else render();
+ render();
 }
 function openModal(type,id=null){state.editing=id;document.getElementById('modal').classList.add('open');document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);

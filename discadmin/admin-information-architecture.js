@@ -70,6 +70,10 @@
   }
 
   async function invokeOriginalGo(section, token) {
+    const previousState = typeof state === 'undefined'
+      ? null
+      : {section:state.section, rows:state.rows};
+    const previousUrl = `${location.pathname}${location.search}${location.hash}`;
     let result;
     navigationRequestToken = token;
     try {
@@ -85,6 +89,19 @@
       return token === routeToken;
     } catch (error) {
       if (token !== routeToken && isStaleNavigation(error)) return false;
+      if (token === routeToken && previousState) {
+        state.section = previousState.section;
+        state.rows = previousState.rows;
+        const currentUrl = `${location.pathname}${location.search}${location.hash}`;
+        if (currentUrl !== previousUrl) {
+          history.replaceState(
+            {brvtalAdminRoute:canonicalRouteSection(previousState.section)},
+            '',
+            previousUrl
+          );
+        }
+        setTimeout(rebuildNavigation, 0);
+      }
       throw error;
     }
   }
