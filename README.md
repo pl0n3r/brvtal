@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+383** | **−130** | **+253** |
+| **13** | **+393** | **−130** | **+263** |
 
 ## Calidad y entrega
 
@@ -68,7 +68,7 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `discadmin/index.php` — carga Dashboard V2 al final del bootstrap de mejoras, después de router/aliases/settings/theme/memories, para que sus quick actions no sean interactivos sobre un shell incompleto.
+- `discadmin/index.php` — difiere `restoreSession()` hasta después de router/aliases/settings/theme/memories/Dashboard V2, eliminando la carrera de primer arranque antes de restaurar la sesión.
 - `discadmin/index-core.php` — descarta respuestas obsoletas de Dashboard antes de cualquier `render()` tardío.
 - `discadmin/admin-modules.js` — dueño único de readiness de módulos dinámicos.
 - `discadmin/admin-information-architecture.js` — delega readiness al loader canónico.
@@ -85,6 +85,7 @@ flowchart LR
 ## Validación
 
 - Dashboard V2 no se expone hasta que el bootstrap canónico de mejoras de DISCADMIN está completo.
+- La restauración autenticada comienza solo después de que el router canónico y Dashboard V2 están instalados; un Dashboard de arranque no puede nacer fuera de esa frontera.
 - Una ruta inicial lenta no puede devolver el workspace a otro destino después de que el usuario abre Media.
 - Una respuesta vieja de Dashboard tampoco puede ejecutar un `render()` tardío que destruya Media ya montado.
 - Dashboard → Media monta el módulo sin depender del orden previo de navegación.

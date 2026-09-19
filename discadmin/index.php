@@ -5,6 +5,12 @@ ob_start();
 require __DIR__ . '/index-core.php';
 $html = (string)ob_get_clean();
 
+$legacyRestoreBootstrap = '<script>restoreSession();</script>';
+$html = str_replace($legacyRestoreBootstrap, '', $html, $restoreBootstrapCount);
+if ($restoreBootstrapCount !== 1) {
+    throw new RuntimeException('DISCADMIN session restore bootstrap could not be deferred');
+}
+
 $runtimeDeclaration = "const API='../api/index.php';let csrf='';let state=";
 $explicitRuntimeDeclaration = "const API='../api/index.php';window.csrf='';window.state=";
 $html = str_replace($runtimeDeclaration, $explicitRuntimeDeclaration, $html, $runtimeReplacementCount);
@@ -73,7 +79,8 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/theme-studio-configuration.js' . $suffix . '"></script>'
     . '<script src="/discadmin/theme-studio-reliability.js' . $suffix . '"></script>'
     . '<script src="/discadmin/memories.js' . $suffix . '" data-memories-admin="1"></script>'
-    . '<script src="/discadmin/dashboard-v2.js' . $suffix . '"></script>';
+    . '<script src="/discadmin/dashboard-v2.js' . $suffix . '"></script>'
+    . '<script data-admin-session-restore="1">restoreSession();</script>';
 
 if (str_contains($html, '</head>')) {
     $html = str_replace('</head>', $appearanceBoot . '</head>', $html);
