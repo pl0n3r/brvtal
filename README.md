@@ -6,21 +6,16 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot profesional de **solo el deploy actual**.
-
-## Progress convention
-
-- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
-- 🚧 Normal text = pending or currently in progress.
+> **Development dashboard** · snapshot de solo este deploy.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#216 Editor/modal navigation lifecycle (v0.1.15)** | retire legacy editor only after successful navigation |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `fcbf149cf525f1ab05f5ad040a9d1f9aacdaf49b` |
-| Version | 🚧 **0.1.14 → 0.1.15** | patch deploy |
-| Producción | 🚧 **PENDING MERGE / OBSERVATION** | release `v0.1.15` after squash merge |
+| Work line | 🚧 **#558 Content Health navigation deflake (v0.1.16)** | un solo owner abre el registro tras navegación |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `7eb49d8a5296feb40dc1b00b3dd5fed2aa2f1683` |
+| Version | 🚧 **0.1.15 → 0.1.16** | patch deploy |
+| Producción | 🚧 **PENDING MERGE / OBSERVATION** | no se infiere validación de producción desde CI |
 
 ## Huella del cambio
 
@@ -28,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+123** | **−34** | **+89** |
+| **5** | **pending CI** | **pending CI** | **pending CI** |
 
 ## Calidad y entrega
 
@@ -36,10 +31,9 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates seleccionados | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Modal lifecycle | success retires previous editor; failure/stale keeps current editor |
-| Browser history | Back/Forward uses the same lifecycle boundary |
-| Save safety | retired legacy editor loses editing marker + stale Save handler |
+| Navegación Content Health | `content-core-nav.js` es el único owner del click OPEN |
+| Sincronización | Playwright espera el resultado compuesto de sección + registro + feedback |
+| Gates | preflight + gates diff-aware de BRVTAL CI |
 | Sonar + CodeRabbit | paralelo sobre head estable |
 | Exact-main | CI del SHA exacto de main tras squash merge |
 
@@ -47,54 +41,50 @@
 
 ```mermaid
 flowchart LR
- A["Release v0.1.15"] --> P["PR + snapshot exacto"]
+ A["Release v0.1.16"] --> P["PR + snapshot exacto"]
  P --> Q["CI / Sonar / CodeRabbit"]
  Q --> M["Squash merge"]
  M --> X["CI del SHA exacto de main"]
- X --> O["Observer: /api/deployment.php"]
+ X --> O["Observer de deploy"]
 ```
 
 ## Qué se hizo
 
-- La navegación canónica retira el modal editorial heredado solo después de que el nuevo destino haya cargado correctamente.
-- Un destino fallido o stale conserva el editor actual y su contexto, en línea con la navegación transaccional de #193.
-- Al retirar el editor se limpian `state.editing` y el handler de Save para que no sobreviva una acción del módulo anterior.
-- Back/Forward queda cubierto por la misma política.
-- Playwright protege éxito, fallo y navegación histórica.
-- `AGENTS.md` deja #193 como completado y #216 como frente activo.
-- Versión **0.1.15**.
+- Se elimina el segundo click handler de Content Health que competía con la navegación delegada en capture phase.
+- `OPEN` queda bajo un único contrato: navegar al módulo y luego revelar el registro mediante `BRVTALAdminRecordNavigation`.
+- La regresión Playwright mantiene el caso `data-health-open=""` y sincroniza sobre el resultado completo en vez de encadenar tres polls independientes.
+- Versión **0.1.16**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md`
 - `README.md`
 - `config/version.php`
-- `discadmin/admin-information-architecture.js`
+- `discadmin/content-health.js`
 - `package.json`
-- `tests/e2e/discadmin-information-architecture.spec.mjs`
+- `tests/e2e/discadmin-content-health-navigation.spec.mjs`
 
 ## Validación
 
-- Regresiones browser cubren cierre tras navegación exitosa, conservación ante fallo y cierre por Browser Back.
-- No hay mutaciones de datos, SQL de producción ni migraciones.
-- BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre este único head estable antes del merge.
+- El cambio preserva la aserción funcional de #558; no aumenta timeouts arbitrarios.
+- No hay SQL, migraciones ni mutaciones de producción.
+- BRVTAL CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 - No se declara producción validada desde CI.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#216](https://github.com/pl0n3r/brvtal/issues/216) · cerrar lifecycle de editores durante navegación. |
-| **NEXT** | 🚧 [#558](https://github.com/pl0n3r/brvtal/issues/558), [#174](https://github.com/pl0n3r/brvtal/issues/174) · deflake record navigation + proteger cambios de Banners. |
+| **NOW** | 🚧 [#558](https://github.com/pl0n3r/brvtal/issues/558) · cerrar la regresión flaky de navegación. |
+| **NEXT** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) · proteger cambios sin guardar en Banners. |
 | **LATER** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) · productividad editorial y protección general de editores. |
-| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger sigue sirviendo una release anterior; verificación hPanel separada. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · verificación de Hostinger/hPanel separada. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **DONE** | ✅ ~~Navigation transaction~~ | ✅ ~~[#193](https://github.com/pl0n3r/brvtal/issues/193) · v0.1.14 / PR #561~~ |
-| **NOW** | 🚧 Editor lifecycle | 🚧 [#216](https://github.com/pl0n3r/brvtal/issues/216) |
-| **NEXT** | 🚧 Browser/navigation closeout | 🚧 [#558](https://github.com/pl0n3r/brvtal/issues/558), [#174](https://github.com/pl0n3r/brvtal/issues/174) |
+| **DONE** | ✅ ~~Editor/modal navigation lifecycle~~ | ✅ ~~[#216](https://github.com/pl0n3r/brvtal/issues/216) · v0.1.15 / PR #562~~ |
+| **NOW** | 🚧 Browser/navigation closeout | 🚧 [#558](https://github.com/pl0n3r/brvtal/issues/558) |
+| **NEXT** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
 | **LATER** | 🚧 Editorial productivity | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) |
 | **BLOCKED / EXTERNAL** | 🚧 Hostinger deploy observation | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
