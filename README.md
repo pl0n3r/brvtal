@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+217** | **−130** | **+87** |
+| **11** | **+224** | **−138** | **+86** |
 
 ## Calidad y entrega
 
@@ -37,17 +37,19 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | preflight + fast PHP/JS + browser/real-stack según classifier |
+| Gates seleccionados | **preflight · fast[PHP+JS] · chromium · real-stack** |
 | Security | 2FA conserva endpoints, CSRF y sesión existentes; no se modifican secretos |
 | Browser | Advanced sin Raw Settings; Security inline; rutas Theme/System funcionales |
 | Real stack | administrador E2E aislado confirma Security/2FA real dentro de Settings |
 | Sonar + CodeRabbit | ejecutados en paralelo sobre el head estable |
 | Exact-main | CI del SHA exacto de main obligatorio tras squash merge |
 
-## Flujo
+## Flujo de entrega
 
 ```mermaid
 flowchart LR
+ P["PR + snapshot exacto"] --> Q["CI / Sonar / CodeRabbit"]
+ Q --> X["CI del SHA exacto de main"]
  A["Settings"] --> G["General / Social / SEO / Analytics"]
  A --> V["Advanced"]
  V --> S["2FA inline"]
@@ -68,7 +70,7 @@ flowchart LR
 - Añade browser tests y smoke real-stack autenticado sin mutar la configuración 2FA.
 - Incrementa BRVTAL a **0.1.7**.
 
-## Archivos modificados
+## Archivos modificados en este deploy
 
 - `AGENTS.md`
 - `README.md`
@@ -79,9 +81,10 @@ flowchart LR
 - `discadmin/admin-appearance.css`
 - `tests/settings-control-plane-contract.php`
 - `tests/e2e/discadmin-settings-v2.spec.mjs`
+- `tests/e2e/discadmin-settings-theme-active.spec.mjs`
 - `tests/e2e/discadmin-premium-real-stack.spec.mjs`
 
-## Validación esperada
+## Validación
 
 - Advanced carga Security / 2FA real dentro del mismo shell y sin una navegación separada.
 - No existen controles visibles para edición/creación arbitraria de Settings.

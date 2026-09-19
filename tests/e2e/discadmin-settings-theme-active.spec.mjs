@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const settingsJs = readFileSync(join(process.cwd(), 'discadmin/settings-v2.js'), 'utf8');
 const harness = 'http://127.0.0.1:4173/discadmin/settings-theme-active-e2e.html';
 
-test('theme.active routes to Theme Studio instead of raw text editing', async ({page}) => {
+test('Advanced routes to Theme Studio without exposing raw setting records', async ({page}) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html><body>
@@ -27,16 +27,12 @@ test('theme.active routes to Theme Studio instead of raw text editing', async ({
 
   await page.goto(harness);
 
-  const activeRow = page.locator('.sv2-raw-row', {hasText:'theme.active'});
-  await expect(activeRow.getByRole('button', {name:'OPEN THEME STUDIO'})).toBeVisible();
-  await expect(activeRow.getByRole('button', {name:'RAW EDIT'})).toHaveCount(0);
-  await activeRow.getByRole('button', {name:'OPEN THEME STUDIO'}).click();
+  await expect(page.locator('.sv2-raw-row')).toHaveCount(0);
+  await expect(page.getByText('RAW SETTINGS',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'RAW EDIT'})).toHaveCount(0);
+  const theme = page.getByRole('button',{name:'OPEN THEME STUDIO'});
+  await expect(theme).toBeVisible();
+  await theme.click();
   await expect.poll(() => page.evaluate(() => window.__went || '')).toBe('theme');
   expect(await page.evaluate(() => window.__raw || '')).toBe('');
-
-  const customRow = page.locator('.sv2-raw-row', {hasText:'custom.flag'});
-  const rawEdit = customRow.getByRole('button', {name:'RAW EDIT'});
-  await expect(rawEdit).toBeVisible();
-  await rawEdit.click();
-  await expect.poll(() => page.evaluate(() => window.__raw || '')).toBe('custom.flag');
 });
