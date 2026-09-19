@@ -297,6 +297,8 @@ test('DISCADMIN real stack exposes task-oriented navigation and one Global Searc
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
 
   await expect(page.locator('.ia-navgroup')).toHaveText(['SITE / EDITORIAL','CONFIGURATION / TECHNICAL'], {timeout:10_000});
+  await expect(page.getByRole('button',{name:'BANNERS',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'BLOG',exact:true})).toBeVisible();
   const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"])').allTextContents();
   for (const [before, after] of [
     ['DASHBOARD','BANNERS'],

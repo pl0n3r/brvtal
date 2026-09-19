@@ -52,8 +52,11 @@ blog_assert(str_contains($adminModules, "blog: {url:'/discadmin/blog.php'"), 'ca
 blog_assert(str_contains($adminModules, "section==='blog'"), 'canonical navigation must route blog through module workspace');
 blog_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'dynamic navigation must support blog');
 
-$adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
-blog_assert(str_contains($adminCss, 'data-admin-nav="blog"'), 'blog must stay in the content navigation group');
+$adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+blog_assert(
+    str_contains($adminIa, "keys:['dashboard','hero-slider','events','artists','releases','sets','media','memories','pages','blog']"),
+    'blog must stay in the canonical Site / Editorial primary order'
+);
 
 $media = (string)file_get_contents(__DIR__ . '/../config/media.php');
 blog_assert(str_contains($media, "'table' => 'blog_posts'"), 'Media Library must detect Blog cover usage');

@@ -48,13 +48,19 @@ releases_assert(str_contains($adminModules, "releases: {url:'/discadmin/releases
 releases_assert(str_contains($adminModules, "section==='releases'"), 'canonical navigation must route releases through module workspace');
 releases_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'shared dynamic navigation must inject Releases into the canonical sidebar');
 
-$adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
-releases_assert(str_contains($adminCss, '.nav>button[data-admin-nav="releases"]{order:40}'), 'Releases must stay with Events and Artists in content navigation');
-releases_assert(str_contains($adminCss, '.nav>.navgroup{order:100}'), 'Technical divider must separate content and technical tools');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'theme\')"]{order:110}'), 'Theme Studio must live below Technical');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'settings\')"]{order:120}'), 'Settings must live below Technical');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'security\')"]{order:130}'), 'Security / 2FA must live below Technical');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="tech(\'system\')"]{order:140}'), 'System Status must live below Technical');
+$adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+releases_assert(
+    str_contains($adminIa, "{label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','memories','pages','blog']}"),
+    'Releases must stay in the canonical Site / Editorial primary order'
+);
+releases_assert(
+    str_contains($adminIa, "{label:'CONFIGURATION / TECHNICAL', keys:['settings','theme','security','system']}"),
+    'Settings and System Status must remain in Configuration / Technical'
+);
+releases_assert(
+    str_contains($adminIa, "const childNavigation = new Set(['memories','theme','security'])"),
+    'Theme Studio and Security / 2FA must remain subordinate destinations'
+);
 
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 releases_assert(str_contains($publicApi, 'brvtal_public_releases'), 'public API must expose published releases');
