@@ -18,9 +18,13 @@ function harness(authed = true) {
     window.__requestLog=[];
     window.__deferredRequests={};
     window.__requestResolvers={};
+    window.__requestFailures={};
     window.__dynamicNavigationToken=0;
     window.req=function(path){
       window.__requestLog.push(path);
+      if(window.__requestFailures[path]){
+        return Promise.reject(new Error(window.__requestFailures[path]));
+      }
       if(window.__deferredRequests[path]){
         return new Promise(resolve=>{window.__requestResolvers[path]=resolve;});
       }
@@ -446,6 +450,31 @@ test('stale native response cannot overwrite the latest destination rows or rend
   expect(await page.evaluate(() => window.state.rows[0]?.source)).toBe('/pages');
   expect(new URL(page.url()).searchParams.get('module')).toBe('pages');
   expect(await page.evaluate(() => window.__nativeRenders.slice(-1)[0])).toBe('pages');
+});
+
+test('failed current native navigation keeps the previous workspace, rows and URL coherent', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => window.go('artists'));
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('artists');
+  expect(await page.evaluate(() => window.state.rows[0]?.source)).toBe('/artists');
+
+  await page.evaluate(() => {
+    window.__requestFailures['/pages'] = 'PAGES_UNAVAILABLE';
+    window.__failedPagesNavigation = window.go('pages').catch(error => {
+      window.__navigationFailure = error.message;
+    });
+  });
+  await page.evaluate(() => window.__failedPagesNavigation);
+
+  expect(await page.evaluate(() => window.__navigationFailure)).toBe('PAGES_UNAVAILABLE');
+  expect(await page.evaluate(() => window.state.section)).toBe('artists');
+  expect(await page.evaluate(() => window.state.rows[0]?.source)).toBe('/artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
+  expect(await page.evaluate(() => window.__nativeRenders.slice(-1)[0])).toBe('artists');
 });
 
 test('system destination participates in the same URL state', async ({ page }) => {
