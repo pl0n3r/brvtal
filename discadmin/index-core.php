@@ -124,7 +124,7 @@ require_once __DIR__ . '/../config/deployment.php';
 @media(max-width:1000px){.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-hero{align-items:flex-start}.settings-search{width:220px}}
 @media(max-width:650px){.settings-grid{grid-template-columns:1fr}.settings-hero{display:block}.settings-search{width:100%;margin-top:15px}.settings-raw-head{display:none}.settings-raw-row{grid-template-columns:1fr auto}.settings-raw-row .value{grid-column:1/-1}}
 
-</style><link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"><link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"><link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></head><body><div id="app"></div>
+</style><link rel="stylesheet" href="/discadmin/admin-modules.css?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"><link rel="stylesheet" href="/discadmin/content-core.css?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"><link rel="stylesheet" href="/discadmin/security.css?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></head><body><div id="app"></div>
 <div class="modal" id="modal">
   <div class="modalbox">
     <div class="modalhead">
@@ -632,7 +632,7 @@ function render(){
       : 'Exact deployed Git SHA unavailable; release fallback metadata is not shown as deployed source.' ?>"
     >
      <?= brvtalDeploymentIsExact()
-      ? 'SOURCE ' . htmlspecialchars(brvtal_deployment_short_sha(), ENT_QUOTES, "UTF-8")
+      ? 'SOURCE ' . htmlspecialchars(brvtal_deployment_cache_key(), ENT_QUOTES, "UTF-8")
       : 'SOURCE UNAVAILABLE' ?>
     </span>
    </div>
@@ -670,4 +670,4 @@ function render(){
 }
 document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(typeof state!=='undefined'&&state.authed)go('theme')}});
 scheduleTechRefresh();
-</script><script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/security.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtal_deployment_short_sha()) ?>"></script><script>restoreSession();</script></body></html>
+</script><script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></script><script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></script><script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></script><script src="/discadmin/security.js?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></script><script src="/discadmin/admin-modules.js?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></script><script src="/discadmin/totp-login.js?v=<?= rawurlencode(brvtal_deployment_cache_key()) ?>"></script><script>restoreSession();</script></body></html>

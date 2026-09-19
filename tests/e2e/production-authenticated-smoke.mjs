@@ -27,7 +27,9 @@ const evidence = {
   baseUrl,
   expectedSha: expectedSha || null,
   expectedVersion,
-  deploymentObserved: false,
+  releaseObserved: false,
+  deploymentExact: null,
+  observedDeployment: null,
   authentication: { totp: false },
   checks: {
     adminVersion: null,
@@ -89,25 +91,51 @@ async function jsonOrThrow(response, label) {
   return payload;
 }
 
-async function observeExactDeploy(request) {
-  if (!expectedSha) {
-    evidence.deploymentObserved = true;
-    return;
-  }
-  const shortSha = expectedSha.slice(0, 7);
-  for (let attempt = 1; attempt <= 8; attempt += 1) {
-    const response = await request.get(`${baseUrl}/?__deploy_check=${encodeURIComponent(`${shortSha}-${attempt}-${Date.now()}`)}`, {
-      headers: { 'Cache-Control': 'no-cache' },
-      timeout: 10_000
-    });
-    const html = await response.text();
-    if (response.ok() && html.includes(`?v=${shortSha}`)) {
-      evidence.deploymentObserved = true;
+async function observeRelease(request) {
+  const attempts = 48;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const response = await request.get(
+      `${baseUrl}/api/deployment.php?__deploy_check=${encodeURIComponent(`${expectedVersion}-${attempt}-${Date.now()}`)}`,
+      {
+        headers: { 'Cache-Control': 'no-cache' },
+        timeout: 10_000
+      }
+    );
+
+    let payload = null;
+    try { payload = await response.json(); } catch (_) {}
+    const deployment = payload?.data || null;
+    const observedVersion = String(deployment?.version || '').trim();
+    const observedCommit = String(deployment?.commit || '').trim().toLowerCase();
+    const exact = deployment?.exact === true;
+
+    evidence.observedDeployment = {
+      version: observedVersion || null,
+      commit: observedCommit || null,
+      source: deployment?.source || null,
+      exact
+    };
+    evidence.deploymentExact = exact;
+    writeEvidence();
+
+    if (response.ok() && observedVersion === expectedVersion) {
+      if (exact && expectedSha && observedCommit !== expectedSha.toLowerCase()) {
+        if (attempt < attempts) {
+          await new Promise(resolve => setTimeout(resolve, 10_000));
+          continue;
+        }
+        throw new Error(`Production release v${expectedVersion} is visible, but exact source ${observedCommit || '(empty)'} does not match ${expectedSha}.`);
+      }
+
+      evidence.releaseObserved = true;
+      writeEvidence();
       return;
     }
-    if (attempt < 8) await new Promise(resolve => setTimeout(resolve, 5_000));
+
+    if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 10_000));
   }
-  throw new Error(`Hostinger deploy marker ?v=${shortSha} was not observed.`);
+
+  throw new Error(`Production release v${expectedVersion} was not observed within the bounded deployment window.`);
 }
 
 async function authenticate(context) {
@@ -162,6 +190,7 @@ const context = await browser.newContext({
 });
 
 try {
+  await observeRelease(context.request);
   await authenticate(context);
 
   // From this point forward the browser is content-read-only. DISCADMIN performs
@@ -205,7 +234,6 @@ try {
     throw new Error(`Admin product version mismatch: expected ${expectedVersionText}, rendered ${renderedVersion || '(empty)'}.`);
   }
 
-  await observeExactDeploy(context.request);
 
   const [events, artists] = await Promise.all([
     getAdminCollection(context, 'events'),
