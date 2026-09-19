@@ -1,0 +1,86 @@
+name: CI Throughput Telemetry
+
+on:
+  workflow_run:
+    workflows: ["BRVTAL CI"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ci-throughput-${{ github.event.workflow_run.id }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect critical-path telemetry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_EVENT: ${{ github.event.workflow_run.event }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SOURCE_STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
+          SOURCE_UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" --slurp > artifacts/job-pages.json
+          jq -n \
+            --arg run_id "$RUN_ID" \
+            --arg sha "$SOURCE_SHA" \
+            --arg event "$SOURCE_EVENT" \
+            --arg conclusion "$SOURCE_CONCLUSION" \
+            --arg started "$SOURCE_STARTED_AT" \
+            --arg updated "$SOURCE_UPDATED_AT" \
+            --slurpfile pages artifacts/job-pages.json '
+              def seconds($a; $b):
+                if ($a == null or $b == null) then null
+                else (($b | fromdateiso8601) - ($a | fromdateiso8601))
+                end;
+              ($pages[0] | add | .jobs) as $jobs |
+              [$jobs[] | {
+                name,
+                conclusion,
+                started_at,
+                completed_at,
+                duration_seconds: seconds(.started_at; .completed_at)
+              }] as $timings |
+              {
+                run_id: ($run_id | tonumber),
+                source_sha: $sha,
+                event: $event,
+                conclusion: $conclusion,
+                workflow_started_at: $started,
+                workflow_updated_at: $updated,
+                workflow_wall_seconds: seconds($started; $updated),
+                critical_path: ($timings | map(select(.duration_seconds != null)) | max_by(.duration_seconds)),
+                jobs: $timings
+              }
+            ' > artifacts/ci-throughput.json
+
+          {
+            echo "# BRVTAL CI throughput"
+            echo
+            echo "- Source SHA: \`$SOURCE_SHA\`"
+            echo "- Source result: **$SOURCE_CONCLUSION**"
+            echo "- Workflow wall time: **$(jq -r '.workflow_wall_seconds // "n/a"' artifacts/ci-throughput.json)s**"
+            echo "- Critical-path job: **$(jq -r '.critical_path.name // "n/a"' artifacts/ci-throughput.json)** ($(jq -r '.critical_path.duration_seconds // "n/a"' artifacts/ci-throughput.json)s)"
+            echo
+            echo "| Job | Result | Duration |"
+            echo "|---|---|---:|"
+            jq -r '.jobs[] | "| \(.name) | \(.conclusion // "n/a") | \(.duration_seconds // "n/a")s |"' artifacts/ci-throughput.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload throughput evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-throughput-${{ github.event.workflow_run.id }}
+          path: artifacts/ci-throughput.json
+          retention-days: 30
