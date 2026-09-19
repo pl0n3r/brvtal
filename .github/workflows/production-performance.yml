@@ -58,9 +58,9 @@ jobs:
 
           decision=$(
             gh api "repos/$GH_REPO/actions/workflows/$counterpart_file/runs?head_sha=$EXPECTED_SHA&event=push&per_page=20" |
-              python scripts/production-performance-prerequisite.py \\
-                --expected-sha "$EXPECTED_SHA" \\
-                --source-run-id "$SOURCE_RUN_ID" \\
+              python scripts/production-performance-prerequisite.py \
+                --expected-sha "$EXPECTED_SHA" \
+                --source-run-id "$SOURCE_RUN_ID" \
                 --source-updated-at "$SOURCE_UPDATED_AT"
           )
           ready=$(jq -r '.ready' <<<"$decision")
