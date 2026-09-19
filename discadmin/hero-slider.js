@@ -19,6 +19,7 @@
   let selectedLayerId = '';
   let previewMode = 'desktop';
   let originalGo = null;
+  let cleanConfigSnapshot = null;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   let uidSequence = 0;
@@ -182,6 +183,38 @@
   }
 
   const root = () => document.getElementById('hero-slider-root');
+
+  function configSnapshot(value = config) {
+    return JSON.stringify(normalizeConfig(value));
+  }
+
+  function markConfigClean() {
+    cleanConfigSnapshot = configSnapshot();
+  }
+
+  function hasUnsavedChanges() {
+    return cleanConfigSnapshot !== null && configSnapshot() !== cleanConfigSnapshot;
+  }
+
+  function bannersWorkspaceActive() {
+    return window.state?.section === 'hero-slider' || Boolean(root());
+  }
+
+  function requestNavigation() {
+    if (!bannersWorkspaceActive() || !hasUnsavedChanges()) return true;
+    return window.confirm('You have unsaved changes in Banners. Discard them and continue?');
+  }
+
+  function commitNavigation() {
+    if (cleanConfigSnapshot !== null) markConfigClean();
+  }
+
+  function handleBeforeUnload(event) {
+    if (!bannersWorkspaceActive() || !hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  }
+
   const selectedSlide = () => config.slides.find(slide => slide.id === selectedId) || config.slides[0] || null;
   const selectedLayer = () => selectedSlide()?.layers.find(layer => layer.id === selectedLayerId) || null;
 
@@ -277,6 +310,7 @@
     const host = root();
     if (!host) return;
     const revision = ++loadRevision;
+    cleanConfigSnapshot = null;
     host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
     media = [];
     mediaReady = false;
@@ -289,17 +323,19 @@
 
     try {
       const settingsResponse = await request(SETTINGS_READ_PATH,{cache:'no-store'});
-      if (revision !== loadRevision || !root()) return;
+      if (revision !== loadRevision || !root()) return false;
       const settings = Array.isArray(settingsResponse.data) ? settingsResponse.data : [];
       const record = settings.find(item => item.setting_key === KEY);
       let stored = record?.setting_value || null;
       if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch (_) { stored = null; } }
       config = normalizeConfig(stored);
+      markConfigClean();
       if (!config.slides.some(slide => slide.id === selectedId)) selectedId = config.slides[0]?.id || '';
       const slide = selectedSlide();
       if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
       renderManager();
       mediaPromise.then(result => applyMediaLoad(result, revision));
+      return true;
     } catch (error) {
       host.replaceChildren();
       const errorNode = document.createElement('div');
@@ -307,6 +343,7 @@
       errorNode.textContent = `Unable to load Banners: ${String(error?.message || 'Unknown error')}`;
       host.appendChild(errorNode);
       mediaPromise.then(() => {});
+      return false;
     }
   }
 
@@ -698,6 +735,7 @@
       if(integrityError) throw new Error(integrityError);
       await request('/settings',{method:'POST',body:JSON.stringify({setting_key:KEY,setting_value:JSON.stringify(payload),is_json:1})});
       config=payload;
+      markConfigClean();
       window.BRVTALFeedback?.success?.('Hero Slider saved. Public fallback remains protected.','hero-slider-save');
       renderManager();
     } catch(error) {
@@ -706,24 +744,41 @@
     }
   }
 
+  window.BRVTALHeroSliderGuard = {
+    requestNavigation,
+    commitNavigation,
+    hasUnsavedChanges
+  };
+
   function install() {
     injectStyles();
     ensureNav();
+    window.addEventListener('beforeunload', handleBeforeUnload);
     const observer=new MutationObserver(()=>ensureNav());observer.observe(document.documentElement,{childList:true,subtree:true});
     originalGo=window.go;
     window.go=async function(section){
+      const iaOwnsGuard = window.BRVTALAdminIA?.guardsUnsavedChanges === true;
+      if (!iaOwnsGuard && !requestNavigation(section)) return false;
+
       if(section==='hero-slider'){
         const host=prepareWorkspace();
-        if(host){
-          await load();
-        }
+        if(!host) return false;
+        const loaded=await load();
+        if(loaded && !iaOwnsGuard) commitNavigation(section);
         ensureNav();
-        return;
+        return loaded;
       }
+
       loadRevision+=1;
-      const result=await originalGo(section);
-      ensureNav();
-      return result;
+      try {
+        const result=await originalGo(section);
+        if(!iaOwnsGuard) commitNavigation(section);
+        ensureNav();
+        return result;
+      } catch (error) {
+        ensureNav();
+        throw error;
+      }
     };
   }
 

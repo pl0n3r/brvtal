@@ -56,6 +56,16 @@
     return error?.code === STALE_NAVIGATION || error?.message === STALE_NAVIGATION;
   }
 
+  function requestWorkspaceNavigation(section) {
+    const guard = window.BRVTALHeroSliderGuard;
+    if (typeof guard?.requestNavigation !== 'function') return true;
+    return guard.requestNavigation(section) !== false;
+  }
+
+  function commitWorkspaceNavigation(section) {
+    window.BRVTALHeroSliderGuard?.commitNavigation?.(section);
+  }
+
   function retireLegacyEditor() {
     const modal = document.getElementById('modal');
     if (!modal?.classList.contains('open')) return false;
@@ -97,7 +107,8 @@
       navigationRequestToken = null;
     }
     try {
-      await result;
+      const outcome = await result;
+      if (outcome === false) return false;
       return token === routeToken;
     } catch (error) {
       if (token !== routeToken && isStaleNavigation(error)) return false;
@@ -155,9 +166,15 @@
       initialRouteApplied = true;
       return true;
     }
+    const previousSection = state.section;
     applyingRoute = true;
     try {
-      await navigateRoute(section);
+      const result = await navigateRoute(section);
+      if (result === false) {
+        syncRouteUrl(previousSection, 'replace', true);
+        setTimeout(rebuildNavigation, 0);
+        return false;
+      }
       initialRouteApplied = true;
       return true;
     } finally {
@@ -407,6 +424,7 @@
         applyingRoute = true;
         try {
           const result = await navigateRoute(requested);
+          if (result === false) return false;
           initialRouteApplied = true;
           return result;
         } finally {
@@ -415,6 +433,7 @@
       }
     }
 
+    if (!requestWorkspaceNavigation(section)) return false;
     if (!applyingRoute) initialRouteApplied = true;
 
     let result;
@@ -431,6 +450,7 @@
       if (section === 'artists') setTimeout(enhanceArtistsList, 0);
       setTimeout(rebuildNavigation, 0);
     }
+    commitWorkspaceNavigation(section);
     retireLegacyEditor();
     syncRouteUrl(section);
     return result;
@@ -438,11 +458,13 @@
 
   if (typeof originalTech === 'function') {
     window.tech = async function(section, ...args) {
+      if (!requestWorkspaceNavigation(section)) return false;
       if (!applyingRoute) initialRouteApplied = true;
       const token = ++routeToken;
       window.BRVTALAdminModules?.cancel?.();
       const result = await originalTech.apply(this, [section, ...args]);
       if (token !== routeToken) return result;
+      commitWorkspaceNavigation(section);
       retireLegacyEditor();
       syncRouteUrl(section);
       setTimeout(rebuildNavigation, 0);
@@ -460,6 +482,7 @@
   };
 
   window.BRVTALAdminIA = {
+    guardsUnsavedChanges:true,
     rebuildNavigation,
     openEvents:() => loadContentCoreContext('events'),
     openCollectiveStatus:() => loadContentCoreContext('roster'),

@@ -296,6 +296,8 @@ Centralized auth/session, CSRF on mutations, prepared statements, login rate lim
 
 54. **Successful DISCADMIN navigation retires legacy editor context transactionally.** Global Search, Back/Forward and canonical module navigation may change the workspace only through the shared navigation layer. An open legacy global `#modal` is retired only after the destination succeeds and is still the current route; failed or stale navigation preserves the existing editor. Retiring the editor must clear its editing marker and stale Save handler so an editor from the previous module cannot survive over the new workspace. Unsaved-change confirmation remains a separate editor-protection concern and, when added, must intercept before a navigation is committed rather than weakening this lifecycle boundary.
 
+55. **Banners protects unsaved editor state before every workspace replacement.** `hero-slider.js` owns the clean snapshot and dirty comparison; `admin-information-architecture.js` owns transactional navigation. Leaving or reopening Banners while dirty must require confirmation before URL/module side effects, and browser Back/Forward cancellation must restore the Banners route. `beforeunload` protects refresh/tab close. A confirmed discard becomes clean only after the destination succeeds; failed/stale navigation keeps the editor dirty so work is not silently lost.
+
 ---
 
 ## 5. Data / API architecture rules
@@ -454,8 +456,8 @@ When no newer explicit user instruction exists:
 10. ✅ ~~**Native navigation transaction — #193 / PR #561** — failed reads no longer leave state/workspace mismatched; merged and exact-main validated.~~
 11. ✅ ~~**Editor/modal navigation lifecycle — #216 / PR #562** — successful module transitions retire the previous legacy editor context while failed/stale navigation preserves it; merged and exact-main validated.~~
 12. ✅ ~~**Content Health navigation deflake — #558 / PR #563** — record navigation regression is stabilized and exact-main validated.~~
-13. 🚧 **CI throughput audit v2 — #564** — Phase A telemetry and Phase C deploy/performance coordination are merged and exact-main validated; Phase B now records browser setup vs test time before any sharding.
-14. 🚧 **Unsaved Banners protection — #174** — next product/reliability block after the current #564 delivery optimization.
+13. 🚧 **CI throughput audit v2 — #564** — Phases A/B/C are merged and exact-main validated through PRs #566–#568; collect multiple real samples before any Phase D sharding/topology change.
+14. 🚧 **Unsaved Banners protection — #174 (v0.1.20)** — active product/reliability block: transactional dirty-state guard for module navigation, Back/Forward and refresh/tab close.
 15. 🚧 **Authenticated production smoke remains separate** — run only when authorized credentials/environment access are available; never infer production validation from CI.
 
 Before starting each item, verify the current code/Issues have not already completed or invalidated it. An explicit user request always overrides this order and should update #533 plus this section in the next appropriate deploy-bound PR.

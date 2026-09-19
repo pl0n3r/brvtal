@@ -34,7 +34,16 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
   await page.evaluate(({ disableCrypto, mediaItems }) => {
     window.state = { section: 'dashboard' };
     window.render = () => {};
-    window.go = async () => {};
+    window.__heroNativeGo = [];
+    window.__heroNativeNavigationFailure = '';
+    window.go = async section => {
+      if (window.__heroNativeNavigationFailure) {
+        throw new Error(window.__heroNativeNavigationFailure);
+      }
+      window.__heroNativeGo.push(section);
+      window.state.section = section;
+      return true;
+    };
     window.__heroSavePayloads = [];
     window.req = async (path, options = {}) => {
       if (path === '/settings' && options.method === 'POST') {
@@ -124,6 +133,73 @@ test('v2 admin and endpoint keep constraints explicit', async () => {
   expect(adminScript).toContain('function bindGlobalControls(host)');
   expect(endpoint).toContain(', 0, 12');
   expect(endpoint).not.toContain('SELECT * FROM settings');
+});
+
+
+test('v2 admin warns before discarding dirty Banners navigation and preserves state on cancel', async ({ page }) => {
+  await openAdminUidHarness(page);
+  await page.locator('[data-add-slide]').click();
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+
+  page.once('dialog', dialog => dialog.dismiss());
+  const result = await page.evaluate(() => window.go('events'));
+
+  expect(result).toBe(false);
+  expect(await page.evaluate(() => window.__heroNativeGo)).toEqual([]);
+  expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+});
+
+test('v2 admin clears dirty state only after save or successful confirmed navigation', async ({ page }) => {
+  await openAdminUidHarness(page);
+  await page.locator('[data-add-slide]').click();
+  await page.locator('[data-field="desktopSrc"]').fill('https://cdn.example.test/hero.jpg');
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+
+  await page.locator('[data-save-slider]').click();
+  await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(false);
+
+  await page.locator('[data-field="name"]').fill('Changed again');
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.evaluate(() => window.go('events'));
+
+  expect(await page.evaluate(() => window.__heroNativeGo)).toEqual(['events']);
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(false);
+});
+
+test('v2 admin keeps dirty state when confirmed navigation fails', async ({ page }) => {
+  await openAdminUidHarness(page);
+  await page.locator('[data-add-slide]').click();
+  await page.evaluate(() => { window.__heroNativeNavigationFailure = 'EVENTS_UNAVAILABLE'; });
+
+  page.once('dialog', dialog => dialog.accept());
+  const message = await page.evaluate(() => window.go('events').catch(error => error.message));
+
+  expect(message).toBe('EVENTS_UNAVAILABLE');
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+  expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+});
+
+test('v2 admin registers a beforeunload guard only while Banners is dirty', async ({ page }) => {
+  await openAdminUidHarness(page);
+
+  const cleanPrevented = await page.evaluate(() => {
+    const event = new Event('beforeunload', {cancelable:true});
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(cleanPrevented).toBe(false);
+
+  await page.locator('[data-add-slide]').click();
+  const dirtyPrevented = await page.evaluate(() => {
+    const event = new Event('beforeunload', {cancelable:true});
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(dirtyPrevented).toBe(true);
 });
 
 test('v2 admin creates and duplicates nonempty unique slide and layer IDs', async ({ page }) => {
