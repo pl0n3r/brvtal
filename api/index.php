@@ -249,7 +249,10 @@ try {
                 json_response(['ok' => false, 'error' => 'NOT_FOUND'], 404);
             }
         } else {
-            $rows = $pdo->query("SELECT * FROM {$table} ORDER BY id DESC")->fetchAll();
+            $orderBy = in_array($resource, ['artists','sets'], true)
+                ? 'sort_order ASC,id ASC'
+                : 'id DESC';
+            $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
         }
         json_response(['ok' => true, 'data' => $rows]);
     }
