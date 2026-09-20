@@ -396,7 +396,7 @@
       const markInteraction = () => { state.preferenceRevision += 1; };
       input.addEventListener('pointerdown',markInteraction,{once:true});
       input.addEventListener('keydown',markInteraction,{once:true});
-      input.addEventListener('change',async () => {
+      input.addEventListener('input',async () => {
         const previous = new Set(state.visible);
         const next = new Set(state.visible);
         if (input.checked) next.add(input.dataset.gridColumn);
