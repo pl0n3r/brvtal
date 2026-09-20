@@ -1,0 +1,568 @@
+#!/usr/bin/env python3
+"""BRVTAL work-coordination helper."""
+
+from __future__ import annotations
+
+import unittest
+
+from scripts.work_coordinator import (
+    CoordinationError,
+    GitHub,
+    GitHubError,
+    STATUS_AVAILABLE,
+    STATUS_BLOCKED,
+    STATUS_COMPLETED,
+    STATUS_RESERVED,
+    STATUS_REVIEW,
+    active_reservation,
+    authorized,
+    closing_issues,
+    file_overlaps,
+    issue_from_branch,
+    latest_reservation,
+    parse_comment_command,
+    release_work,
+    reservation_from_pr_body,
+    reservation_marker,
+    reserve_work,
+    transfer_work,
+    update_issue_label_state,
+    update_issue_state,
+    update_pr_state,
+    validate_pull,
+)
+
+
+BOT = "github-actions[bot]"
+SESSION_A = "11111111-1111-4111-8111-111111111111"
+SESSION_B = "22222222-2222-4222-8222-222222222222"
+
+
+class FakeGitHub:
+    """BRVTAL work-coordination helper."""
+
+    def __init__(self) -> None:
+        """BRVTAL work-coordination helper."""
+        self.repo = "pl0n3r/brvtal"
+        self.branches = {"main": "abc123"}
+        self.issue_data = {
+            "number": 12,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_AVAILABLE}],
+        }
+        self.comments: list[dict] = []
+        self.pulls: dict[int, dict] = {}
+        self.pull_files_map: dict[int, set[str]] = {}
+        self.status_history: list[str | None] = []
+        self.assignees: set[str] = set()
+        self.fail_comment = False
+
+    def issue(self, number: int) -> dict:
+        """BRVTAL work-coordination helper."""
+        assert number == 12
+        return self.issue_data
+
+    def pull(self, number: int) -> dict:
+        """BRVTAL work-coordination helper."""
+        return self.pulls[number]
+
+    def comment(self, issue_number: int, body: str) -> None:
+        """BRVTAL work-coordination helper."""
+        assert issue_number == 12
+        if self.fail_comment:
+            raise CoordinationError("simulated comment failure")
+        self.comments.append({"body": body, "user": {"login": BOT}})
+
+    def set_status(self, issue_number: int, status: str | None) -> None:
+        """BRVTAL work-coordination helper."""
+        assert issue_number == 12
+        current = [
+            item
+            for item in self.issue_data["labels"]
+            if not str(item["name"]).startswith("status: ")
+        ]
+        if status:
+            current.append({"name": status})
+        self.issue_data["labels"] = current
+        self.status_history.append(status)
+
+    def branch_sha(self, branch: str) -> str | None:
+        """BRVTAL work-coordination helper."""
+        return self.branches.get(branch)
+
+    def create_branch(self, branch: str, sha: str) -> bool:
+        """BRVTAL work-coordination helper."""
+        if branch in self.branches:
+            return False
+        self.branches[branch] = sha
+        return True
+
+    def delete_branch(self, branch: str) -> None:
+        """BRVTAL work-coordination helper."""
+        self.branches.pop(branch, None)
+
+    def issue_comments(self, issue_number: int) -> list[dict]:
+        """BRVTAL work-coordination helper."""
+        assert issue_number == 12
+        return list(self.comments)
+
+    def open_pulls(self) -> list[dict]:
+        """BRVTAL work-coordination helper."""
+        return [
+            pull
+            for pull in self.pulls.values()
+            if pull.get("state", "open") == "open"
+        ]
+
+    def pull_files(self, number: int) -> set[str]:
+        """BRVTAL work-coordination helper."""
+        return set(self.pull_files_map.get(number, set()))
+
+    def close_pull(self, number: int) -> None:
+        """BRVTAL work-coordination helper."""
+        self.pulls[number]["state"] = "closed"
+
+    def try_assign(self, issue_number: int, login: str) -> None:
+        """BRVTAL work-coordination helper."""
+        assert issue_number == 12
+        self.assignees.add(login)
+
+    def try_unassign(self, issue_number: int, login: str) -> None:
+        """BRVTAL work-coordination helper."""
+        assert issue_number == 12
+        self.assignees.discard(login)
+
+
+def add_active_reservation(
+    api: FakeGitHub,
+    owner: str = "pl0n3r",
+    reservation_id: str = SESSION_A,
+) -> None:
+    """BRVTAL work-coordination helper."""
+    branch = "work/issue-12"
+    api.branches[branch] = "abc123"
+    api.set_status(12, STATUS_RESERVED)
+    api.comments.append(
+        {
+            "user": {"login": BOT},
+            "body": reservation_marker(
+                owner,
+                reservation_id,
+                branch,
+                True,
+                "take",
+            ),
+        }
+    )
+
+
+
+class BranchCleanupTests(unittest.TestCase):
+    """BRVTAL work-coordination helper."""
+
+    def test_delete_branch_existing_succeeds_without_extra_lookup(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = GitHub("pl0n3r/brvtal", "test-token")
+        calls: list[str] = []
+
+        def request(method, path, payload=None, allow=()):
+            calls.append(method)
+            return None
+
+        api.request = request  # type: ignore[method-assign]
+        api.delete_branch("work/issue-19")
+        self.assertEqual(calls, ["DELETE"])
+
+    def test_delete_branch_ignores_422_only_when_reference_is_gone(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = GitHub("pl0n3r/brvtal", "test-token")
+
+        def request(method, path, payload=None, allow=()):
+            if method == "DELETE":
+                raise GitHubError(422, "Reference does not exist")
+            return None
+
+        api.request = request  # type: ignore[method-assign]
+        api.delete_branch("work/issue-19")
+
+    def test_delete_branch_keeps_422_when_reference_still_exists(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = GitHub("pl0n3r/brvtal", "test-token")
+
+        def request(method, path, payload=None, allow=()):
+            if method == "DELETE":
+                raise GitHubError(422, "Validation Failed")
+            return {"object": {"sha": "abc123"}}
+
+        api.request = request  # type: ignore[method-assign]
+        with self.assertRaises(GitHubError):
+            api.delete_branch("work/issue-19")
+
+
+class CoordinationTests(unittest.TestCase):
+    """BRVTAL work-coordination helper."""
+
+    def test_issue_from_branch(self) -> None:
+        """BRVTAL work-coordination helper."""
+        self.assertEqual(issue_from_branch("work/issue-12"), 12)
+        self.assertEqual(issue_from_branch("work/issue-999"), 999)
+        self.assertIsNone(issue_from_branch("feature/algo"))
+        self.assertIsNone(issue_from_branch("work/issue-x"))
+
+    def test_closing_issues(self) -> None:
+        """BRVTAL work-coordination helper."""
+        body = "Closes #12\nFixes #18\nresolves #21"
+        self.assertEqual(closing_issues(body), {12, 18, 21})
+
+    def test_reservation_from_pr_body(self) -> None:
+        """BRVTAL work-coordination helper."""
+        self.assertEqual(
+            reservation_from_pr_body(f"Closes #12\nReservation: {SESSION_A}"),
+            SESSION_A,
+        )
+        self.assertEqual(
+            reservation_from_pr_body(
+                f"Closes #12\n<!-- brvtal-reservation-id: {SESSION_A} -->"
+            ),
+            SESSION_A,
+        )
+        self.assertIsNone(reservation_from_pr_body("Closes #12"))
+
+    def test_authorized_associations(self) -> None:
+        """BRVTAL work-coordination helper."""
+        self.assertTrue(authorized("OWNER"))
+        self.assertTrue(authorized("MEMBER"))
+        self.assertTrue(authorized("COLLABORATOR"))
+        self.assertFalse(authorized("NONE"))
+        self.assertFalse(authorized("CONTRIBUTOR"))
+
+    def test_markers_from_untrusted_users_are_ignored(self) -> None:
+        """BRVTAL work-coordination helper."""
+        marker = reservation_marker(
+            "outsider",
+            SESSION_A,
+            "work/issue-12",
+            False,
+            "falso",
+        )
+        comments = [{"body": marker, "user": {"login": "outsider"}}]
+        self.assertIsNone(latest_reservation(comments))
+
+    def test_issue_body_marker_is_not_trusted(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.issue_data["body"] = reservation_marker(
+            "outsider",
+            SESSION_B,
+            "work/issue-12",
+            True,
+            "falso",
+        )
+
+        self.assertIsNone(active_reservation(api, 12))
+
+    def test_latest_reservation_prefers_last_trusted_marker(self) -> None:
+        """BRVTAL work-coordination helper."""
+        first = reservation_marker(
+            "agent-a",
+            SESSION_A,
+            "work/issue-12",
+            True,
+            "take",
+        )
+        second = reservation_marker(
+            "agent-a",
+            SESSION_A,
+            "work/issue-12",
+            False,
+            "release",
+        )
+        comments = [
+            {"body": first, "user": {"login": BOT}},
+            {"body": second, "user": {"login": BOT}},
+        ]
+        latest = latest_reservation(comments)
+        self.assertIsNotNone(latest)
+        assert latest is not None
+        self.assertFalse(latest["active"])
+
+    def test_reserve_work_creates_atomic_lock_and_session(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        session = reserve_work(api, 12, "pl0n3r", "OWNER")
+        self.assertIsNotNone(session)
+        self.assertIn("work/issue-12", api.branches)
+        self.assertIn("pl0n3r", api.assignees)
+        self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+        reservation = active_reservation(api, 12)
+        self.assertIsNotNone(reservation)
+        assert reservation is not None
+        self.assertEqual(reservation["reservation_id"], session)
+        self.assertEqual(len(api.comments), 1)
+        self.assertTrue(api.comments[0]["body"].startswith("<!-- brvtal-work-reservation "))
+        self.assertNotIn("Work is reserved", api.comments[0]["body"])
+
+    def test_label_reserved_creates_silent_reservation(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.issue_data["labels"].append({"name": STATUS_RESERVED})
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertIn("work/issue-12", api.branches)
+        self.assertEqual(len(api.comments), 1)
+        self.assertTrue(api.comments[0]["body"].startswith("<!-- brvtal-work-reservation "))
+        reservation = active_reservation(api, 12)
+        self.assertIsNotNone(reservation)
+
+    def test_label_reserved_restores_blocked_state_if_rejected(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.issue_data["labels"] = [
+            {"name": STATUS_BLOCKED},
+            {"name": STATUS_RESERVED},
+        ]
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_BLOCKED)
+
+    def test_label_reserved_keeps_concurrent_winner_reserved(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.issue_data["labels"].append({"name": STATUS_RESERVED})
+        api.branches["work/issue-12"] = "winner-sha"
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+
+    def test_label_available_cannot_release_another_session(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.issue_data["labels"].append({"name": STATUS_AVAILABLE})
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_AVAILABLE)
+
+        self.assertIn("work/issue-12", api.branches)
+        reservation = active_reservation(api, 12)
+        self.assertIsNotNone(reservation)
+        self.assertEqual(reservation["reservation_id"], SESSION_A)
+
+    def test_second_reservation_cannot_win_same_branch(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.branches["work/issue-12"] = "abc123"
+        result = reserve_work(api, 12, "pl0n3r", "OWNER")
+        self.assertIsNone(result)
+        self.assertEqual(api.status_history, [])
+        self.assertIsNone(active_reservation(api, 12))
+
+    def test_blocked_issue_cannot_be_reserved(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.issue_data["labels"] = [{"name": STATUS_BLOCKED}]
+        result = reserve_work(api, 12, "pl0n3r", "OWNER")
+        self.assertIsNone(result)
+        self.assertNotIn("work/issue-12", api.branches)
+
+    def test_reservation_rolls_back_if_marker_fails(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.fail_comment = True
+        with self.assertRaises(CoordinationError):
+            reserve_work(api, 12, "pl0n3r", "OWNER")
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_AVAILABLE)
+
+    def test_wrong_session_cannot_release(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        release_work(api, 12, "pl0n3r", "OWNER", SESSION_B, False)
+        self.assertIn("work/issue-12", api.branches)
+        self.assertIsNotNone(active_reservation(api, 12))
+
+    def test_release_marks_inactive_before_available(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        release_work(api, 12, "pl0n3r", "OWNER", SESSION_A, False)
+        self.assertNotIn("work/issue-12", api.branches)
+        latest = latest_reservation(api.comments)
+        self.assertIsNotNone(latest)
+        assert latest is not None
+        self.assertFalse(latest["active"])
+        self.assertEqual(api.status_history[-1], STATUS_AVAILABLE)
+
+    def test_transfer_invalidates_previous_session(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        new_id = transfer_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+        self.assertIsNotNone(new_id)
+        self.assertNotEqual(new_id, SESSION_A)
+        reservation = active_reservation(api, 12)
+        assert reservation is not None
+        self.assertEqual(reservation["reservation_id"], new_id)
+
+    def test_parse_comment_commands(self) -> None:
+        """BRVTAL work-coordination helper."""
+        self.assertEqual(parse_comment_command("/take"), ("take", None))
+        self.assertEqual(
+            parse_comment_command(f"/liberar {SESSION_A}"),
+            ("release", SESSION_A),
+        )
+        self.assertEqual(
+            parse_comment_command(f"/transferir {SESSION_A}"),
+            ("transfer", SESSION_A),
+        )
+        with self.assertRaises(CoordinationError):
+            parse_comment_command("/liberar no-es-uuid")
+
+    def test_pr_opened_ready_moves_to_review(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "head": {"ref": "work/issue-12"},
+            "base": {"ref": "main"},
+            "merged": False,
+        }
+        update_pr_state(api, 15, "opened")
+        self.assertEqual(api.status_history[-1], STATUS_REVIEW)
+
+    def test_pr_close_without_merge_releases(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "closed",
+            "draft": False,
+            "head": {"ref": "work/issue-12"},
+            "base": {"ref": "main"},
+            "merged": False,
+        }
+        update_pr_state(api, 15, "closed")
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_AVAILABLE)
+
+    def test_issue_close_cleans_branch_and_completes(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.issue_data["state"] = "closed"
+        update_issue_state(api, 12, "closed")
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_COMPLETED)
+
+    def test_validate_pull_requires_main(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "body": "Closes #12",
+            "head": {"ref": "work/issue-12"},
+            "base": {"ref": "other-branch"},
+        }
+        with self.assertRaises(CoordinationError):
+            validate_pull(api, 15, False)
+
+    def test_validate_pull_checks_active_session(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "body": f"Closes #12\n<!-- brvtal-reservation-id: {SESSION_A} -->",
+            "head": {"ref": "work/issue-12"},
+            "base": {"ref": "main"},
+        }
+        api.pull_files_map[15] = {"src/a.php"}
+        validate_pull(api, 15, True)
+
+        api.pulls[15]["body"] = (
+            f"Closes #12\n<!-- brvtal-reservation-id: {SESSION_B} -->"
+        )
+        with self.assertRaises(CoordinationError):
+            validate_pull(api, 15, True)
+
+    def test_file_overlap_detects_collisions(self) -> None:
+        """BRVTAL work-coordination helper."""
+        current = {"src/a.php", "README.md", "src/b.php"}
+        others = {
+            10: {"src/a.php", "src/x.php"},
+            11: {"docs/otro.md"},
+            12: {"README.md"},
+        }
+        self.assertEqual(
+            file_overlaps(current, others),
+            {10: ["src/a.php"], 12: ["README.md"]},
+        )
+
+    def test_validate_pull_rejects_open_pr_overlap(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "body": f"Closes #12\n<!-- brvtal-reservation-id: {SESSION_A} -->",
+            "head": {"ref": "work/issue-12"},
+            "base": {"ref": "main"},
+        }
+        api.pulls[20] = {
+            "number": 20,
+            "state": "open",
+            "draft": False,
+            "body": "Closes #20",
+            "head": {"ref": "work/issue-20"},
+            "base": {"ref": "main"},
+        }
+        api.pull_files_map[15] = {"src/a.php"}
+        api.pull_files_map[20] = {"src/a.php"}
+        with self.assertRaises(CoordinationError):
+            validate_pull(api, 15, True)
+
+
+
+class BrvtalCoordinationExtensionsTests(unittest.TestCase):
+    """BRVTAL work-coordination helper."""
+
+    def test_unlabelled_legacy_issue_can_be_reserved_atomically(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.issue_data["labels"] = []
+        session = reserve_work(api, 12, "pl0n3r", "OWNER")
+        self.assertIsNotNone(session)
+        self.assertIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+
+    def test_deploy_bound_pr_requires_version_in_title(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.branches["work/issue-12"] = "abc123"
+        api.pulls[7] = {
+            "number": 7, "state": "open", "title": "infra: missing version",
+            "body": "Closes #12", "base": {"ref": "main"}, "head": {"ref": "work/issue-12"},
+        }
+        api.pull_files_map[7] = {"config/version.php"}
+        with self.assertRaises(CoordinationError):
+            validate_pull(api, 7, False)
+        api.pulls[7]["title"] = "infra: coordinated delivery (v0.1.22)"
+        validate_pull(api, 7, False)
+
+if __name__ == "__main__":
+    unittest.main()

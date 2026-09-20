@@ -35,6 +35,21 @@ Parallelization is the **default operating mode**, not an optional optimization.
 - Do not open the next dependent implementation branch before the previous merge has passed exact-`main` validation; read-only analysis for that next block may still proceed in parallel.
 - Production migrations, destructive production operations and other protected actions are never parallelized or run automatically.
 
+### Multi-agent work coordination
+
+After v0.1.22 is merged, GitHub is the arbiter for concurrent implementation work:
+
+- Reserve an Issue before implementation with the repository command `/take`. The atomic lock is creation of the canonical branch `work/issue-N`; two sessions cannot own the same Issue.
+- Read the latest trusted `brvtal-work-reservation` marker and carry its UUID into the PR body as `<!-- brvtal-reservation-id: UUID -->`.
+- The visible coordination states are `status: available`, `status: reserved`, `status: in review`, `status: completed`, `status: cancelled` and `status: blocked`.
+- Use `/release UUID` to release your own session, `/transfer UUID` to rotate the session ID for the same owner, and `/force-release` only as repository owner recovery.
+- Every coordinated PR targets `main`, uses its reserved `work/issue-N` branch and closes that Issue with `Closes #N` / `Fixes #N` / `Resolves #N`.
+- The coordination gate fails closed when the PR, Issue, reservation or canonical branch disagree, or when changed files overlap another open PR targeting `main`. The error must identify exact colliding paths.
+- Independent reserved Issues may proceed in parallel up to the existing four-work-line limit. File collisions block integration; merges to `main` remain serialized.
+- Closing/merging a PR or closing/reopening its Issue synchronizes the visible state and cleans reservation/branch ownership deterministically.
+- Deploy-bound PR titles end with `(vX.Y.Z)`. Historical Issues/PRs are not renamed retroactively.
+- PR #571 is the one-time bootstrap that introduces this mechanism; bootstrap validation does not require a reservation marker because no coordinator existed on its base `main`. After it lands, reservation validation is mandatory.
+
 ### Operating role: principal engineer + cross-functional owner
 
 For BRVTAL, the coding agent operates by default as the **principal software engineer and technical executor**, with end-to-end ownership from instruction to production evidence. Do not stop at recommendations when the required work is safe, routine and executable with the available tools.

@@ -5,6 +5,9 @@ $root = dirname(__DIR__);
 $readme = (string) file_get_contents($root . '/README.md');
 $readmeDashboardValidator = $root . '/scripts/readme-dashboard.py';
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
+$coordinationWorkflow = (string) file_get_contents($root . '/.github/workflows/work-coordination.yml');
+$workCoordinator = (string) file_get_contents($root . '/scripts/work_coordinator.py');
+$workCoordinatorTests = (string) file_get_contents($root . '/tests/test_work_coordinator.py');
 $performanceWorkflow = (string) file_get_contents($root . '/.github/workflows/production-performance.yml');
 $performancePrerequisite = (string) file_get_contents($root . '/scripts/production-performance-prerequisite.py');
 $performanceProbe = (string) file_get_contents($root . '/tests/e2e/production-performance-probe.mjs');
@@ -77,6 +80,19 @@ $assert(str_contains($agents, 'if a CI fix or late edit changes the PR file set 
 $assert(!str_contains($agents, 'README.md` is the human technical manual + requested-vs-completed checklist'), 'AGENTS must not describe README as a cumulative manual');
 $assert(!str_contains($agents, 'Read `README.md`, `docs/BRVTAL-SPEC.md`, `docs/DISCADMIN-UX-AUDIT.md`, and `docs/TESTING.md` before changing the product'), 'AGENTS must not require reconstructing startup context from multiple files');
 
+// Multi-agent work-coordination contract.
+$assert(str_contains($agents, '### Multi-agent work coordination'), 'AGENTS must document canonical multi-agent coordination');
+$assert(str_contains($agents, 'work/issue-N') && str_contains($agents, '/take'), 'AGENTS must document reservation branch and command');
+$assert(str_contains($coordinationWorkflow, 'name: Work Coordination'), 'work-coordination workflow must exist');
+$assert(str_contains($coordinationWorkflow, 'issue_comment:') && str_contains($coordinationWorkflow, 'pull_request:'), 'work-coordination workflow must synchronize commands and PR state');
+$assert(str_contains($workCoordinator, 'BRVTAL_TRUSTED_MARKER_LOGIN'), 'coordinator must trust only the configured bot identity');
+$assert(str_contains($workCoordinator, 'Collision with PR #'), 'coordinator must fail closed on changed-file collisions');
+$assert(str_contains($workCoordinator, 'Deploy-bound PR titles must end with (vX.Y.Z).'), 'coordinator must enforce prospective deploy version titles');
+$assert(str_contains($workCoordinatorTests, 'test_second_reservation_cannot_win_same_branch'), 'coordination tests must cover the atomic branch lock');
+$assert(str_contains($workCoordinatorTests, 'test_validate_pull_rejects_open_pr_overlap'), 'coordination tests must cover open-PR file collisions');
+$assert(str_contains($workflow, "  coordination:\n"), 'BRVTAL CI must expose the coordination gate');
+$assert(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate coordination with existing gates');
+
 // CI/deployment observability, consolidated fast gate and metadata safety contract.
 $assert(str_contains($workflow, 'GITHUB_STEP_SUMMARY'), 'BRVTAL CI must publish GitHub Actions job summaries');
 $assert(str_contains($workflow, 'Deploy eligibility'), 'CI summary must state whether a run is deploy-eligible');
@@ -92,7 +108,7 @@ $assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  b
 $assert(str_contains($workflow, "  realstack:\n") && str_contains($workflow, "  webkit:\n"), 'CI must keep real-stack and targeted WebKit validation independent');
 $assert(str_contains($workflow, "  recovery:\n"), 'CI must keep isolated backup recovery as a path-aware job');
 $assert(str_contains($workflow, "  validate:\n"), 'CI must preserve a final validate check for branch-protection compatibility');
-$assert(str_contains($workflow, 'needs: [preflight, fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
+$assert(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
 $assert(str_contains($workflow, 'run_recovery'), 'CI must make recovery path-aware');
 $assert(str_contains($workflow, 'Pull requests and exact') && str_contains($workflow, 'pushes use the same diff-aware gates'), 'exact main must use the same diff-aware scope instead of forcing every expensive job');
 $assert(str_contains($workflow, 'actions/cache@v4'), 'browser/npm setup must use reusable Actions caches');
