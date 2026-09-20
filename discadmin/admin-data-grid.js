@@ -416,7 +416,7 @@
           state.visible = previous;
           window.BRVTALFeedback?.error?.('Column preferences could not be saved.','admin-grid-columns');
         }
-        draw(state);
+        requestAnimationFrame(() => draw(state));
       });
     });
     state.host.querySelector('[data-grid-columns-reset]')?.addEventListener('click',async () => {
