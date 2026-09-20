@@ -37,12 +37,12 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Reservation | atomic `work/issue-N` branch lock · trusted UUID marker |
+| Reservation | PR + snapshot exacto · atomic `work/issue-N` branch lock · trusted UUID marker |
 | PR integrity | Issue + branch + reservation + closing relation fail closed |
 | Collision safety | exact changed-file overlap against other open PRs targeting `main` |
 | Lifecycle | available · reserved · in review · completed · cancelled · blocked |
 | Sonar + CodeRabbit | parallel on stable head |
-| Exact-main | CI of resulting main SHA after squash merge |
+| Exact-main | CI del SHA exacto de main after squash merge |
 
 ## Flujo de entrega
 
@@ -99,7 +99,7 @@ flowchart LR
 | **NEXT** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) · canonical professional Admin data grid. |
 | **LATER** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) · editor protection + rich Blog editor. |
 | **EVIDENCE** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · gather more samples before Phase D. |
-| **BLOCKED / EXTERNAL** | ✅ No active external blocker; [#534](https://github.com/pl0n3r/brvtal/issues/534) remains under freshness monitoring after v0.1.21 was observed. |
+| **BLOCKED / EXTERNAL** | 🚧 No active external blocker; [#534](https://github.com/pl0n3r/brvtal/issues/534) remains under freshness monitoring after v0.1.21 was observed. |
 
 ## Panorama general pendiente
 
@@ -109,4 +109,4 @@ flowchart LR
 | **NEXT** | 🚧 Admin data grid | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) |
 | **LATER** | 🚧 Admin editorial productivity | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
 | **EVIDENCE** | 🚧 CI throughput Phase D decision | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
-| **BLOCKED / EXTERNAL** | ✅ No active Hostinger blocker; release freshness restored in the latest observed deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) monitoring |
+| **BLOCKED / EXTERNAL** | 🚧 No active Hostinger blocker; release freshness restored in the latest observed deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) monitoring |
