@@ -74,7 +74,9 @@ test('tri-state sort is deterministic and returns to module default', async ({pa
 test('column chooser persists only the current module and restores defaults', async ({page}) => {
   await harness(page);
   await page.evaluate(rows => BRVTALDataGrid.render('events',document.getElementById('events'),rows,{allRows:rows}),events);
-  await page.locator('#events [data-grid-columns-toggle]').click();
+  const chooser = page.locator('#events [data-grid-columns-toggle]');
+  await chooser.click();
+  await expect(chooser).toHaveAttribute('aria-expanded','true');
   await page.locator('#events [data-grid-column="location"]').uncheck();
   await expect.poll(()=>page.evaluate(()=>window.__gridPreferenceWrites.length)).toBe(1);
   const write=await page.evaluate(()=>window.__gridPreferenceWrites[0]);
