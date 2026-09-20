@@ -82,7 +82,7 @@ def gate_plan(scope: dict[str, str]) -> str:
         if scope.get(key) == "true"
     ]
     fast = "fast[" + ("+".join(languages) if languages else "docs-only") + "]"
-    selected = ["preflight", fast]
+    selected = ["preflight", "coordination", fast]
     selected.extend(
         label
         for key, label in (

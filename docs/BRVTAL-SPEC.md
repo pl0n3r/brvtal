@@ -674,6 +674,22 @@ Completed roadmap work remains visible and struck through as historical executio
 
 An explicit user reprioritization updates Issue #533. Progress must not be duplicated as a second priority list in this specification.
 
+## 51.1 Multi-agent development coordination
+
+BRVTAL uses GitHub-native work coordination to preserve maximum safe parallelism without allowing sessions to overwrite one another.
+
+- An Issue is the unit of reservable implementation work.
+- `work/issue-N` is the canonical branch for a reserved Issue; branch creation is the atomic reservation lock.
+- Trusted reservation metadata is published by GitHub Actions and bound to a UUID session.
+- Pull Requests must match their Issue, canonical branch and active reservation, and must declare a closing relationship to that Issue.
+- Changed-file overlap against any other open PR targeting `main` is a fail-closed integration error and reports the exact colliding paths.
+- Ready/draft/closed PR transitions and Issue close/reopen events synchronize visible coordination state and branch cleanup.
+- Coordination complements the existing maximum of four independent work lines; it does not authorize parallel merges. Merges to `main` remain serialized.
+- BRVTAL CI owns source validation. Coordination is one job feeding the existing stable `validate` aggregate, not a competing CI system.
+- Exact-main validation, Sonar, CodeRabbit and production deployment observation retain their existing independent meanings and gates.
+- Deploy-bound PR titles carry the target version as `(vX.Y.Z)`; the rule applies prospectively.
+- Coordination never authorizes destructive production actions or production migrations.
+
 ## 52. Final product vision
 
 BRVTAL should not feel like “an event website with an admin panel.”
