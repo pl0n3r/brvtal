@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+1909** | **−66** | **+1843** |
+| **11** | **+1911** | **−67** | **+1844** |
 
 ## Calidad y entrega
 
@@ -79,6 +79,7 @@ flowchart LR
 - `docs/BRVTAL-SPEC.md` — contrato técnico durable de coordinación multiagente.
 - `package.json` — versión y comando local de pruebas de coordinación.
 - `scripts/work_coordinator.py` — árbitro de reservas, lifecycle, validación y colisiones.
+- `tests/ci-scope-contract.php` — protege el DAG canónico con el nuevo gate de coordinación.
 - `tests/project-operations-contract.php` — protege integración canónica al CI/documentación.
 - `tests/test_work_coordinator.py` — cobertura de lock atómico, sesiones, lifecycle y collisions.
 

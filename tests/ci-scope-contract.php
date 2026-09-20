@@ -96,7 +96,7 @@ ci_scope_expect(str_contains($workflow, 'preflight:'), 'BRVTAL CI must expose a 
 ci_scope_expect(str_contains($workflow, 'source scripts/ci-scope.sh'), 'BRVTAL CI must execute the shared changed-file classifier');
 ci_scope_expect(str_contains($workflow, 'needs: preflight'), 'selected heavy gates must fan out from preflight instead of waiting for fast');
 ci_scope_expect(!str_contains($workflow, "    needs: fast\n"), 'heavy gates must not serialize behind the fast job');
-ci_scope_expect(str_contains($workflow, 'needs: [preflight, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate preflight plus every canonical gate');
+ci_scope_expect(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate preflight plus every canonical gate');
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_php == 'true'"), 'PHP fast suite must be scope-aware');
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_js == 'true'"), 'JavaScript syntax validation must be scope-aware');
 ci_scope_expect(str_contains($workflow, 'python scripts/readme-dashboard.py --check'), 'README deploy facts must be checked by the reusable dashboard validator');
