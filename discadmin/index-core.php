@@ -669,7 +669,13 @@ function renderNativeDataGrid(query=null){
  const rows=q?all.filter(row=>adminGridSearchText(row).includes(q)):all;
  return window.BRVTALDataGrid.render(module,host,rows,{allRows:all,orderingEnabled:q==='' });
 }
-function filterRows(q){renderNativeDataGrid(q)}
+function filterRows(q){
+ if(renderNativeDataGrid(q))return;
+ const term=String(q??'').trim().toLowerCase();
+ document.querySelectorAll('#rows .tr').forEach(row=>{
+  row.style.display=!term||row.textContent.toLowerCase().includes(term)?'':'none';
+ });
+}
 window.addEventListener('brvtal:content-order-changed',event=>{
  const detail=event.detail||{};
  if(

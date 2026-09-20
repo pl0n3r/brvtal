@@ -17,7 +17,7 @@ const defaults = {
 
 async function harness(page) {
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${gridCss}</style></head><body>
-    <div id="events"></div><div id="releases"></div><div id="blog"></div>
+    <div id="events"></div><div id="releases"></div><div id="blog"></div><div id="media"></div>
   </body></html>`);
   await page.evaluate(values => {
     window.csrf='grid-csrf';
@@ -124,4 +124,31 @@ test('mobile keeps the canonical grid usable through horizontal scrolling', asyn
   }));
   expect(dimensions.scroll).toBeGreaterThan(dimensions.client);
   await expect(page.locator('#events [data-grid-columns-toggle]')).toBeVisible();
+});
+
+
+test('selection and column redraws restore keyboard focus', async ({page}) => {
+  await harness(page);
+  await page.evaluate(rows => BRVTALDataGrid.render('events',document.getElementById('events'),rows,{allRows:rows}),events);
+
+  const rowToggle=page.locator('#events [data-grid-select="9"]');
+  await rowToggle.focus();
+  await rowToggle.press('Space');
+  await expect(page.locator('#events [data-grid-select="9"]')).toBeFocused();
+
+  const chooser=page.locator('#events [data-grid-columns-toggle]');
+  await chooser.click();
+  const location=page.locator('#events [data-grid-column="location"]');
+  await location.focus();
+  await location.press('Space');
+  await expect(page.locator('#events [data-grid-column="location"]')).toBeFocused();
+});
+
+test('non-image media uses the fallback instead of requesting the document path as an image', async ({page}) => {
+  await harness(page);
+  const media=[{id:12,title:'Press Kit',file_path:'/uploads/press-kit.pdf',type:'document',mime_type:'application/pdf',file_size:2048,status:'published'}];
+  await page.evaluate(rows => BRVTALDataGrid.render('media',document.getElementById('media'),rows,{allRows:rows}),media);
+  await expect(page.locator('#media .admin-grid-thumb-ph')).toBeVisible();
+  await expect(page.locator('#media .admin-grid-primary small')).toContainText('DOCUMENT');
+  await expect(page.locator('#media img[src*="press-kit.pdf"]')).toHaveCount(0);
 });

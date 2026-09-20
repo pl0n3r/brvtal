@@ -96,7 +96,7 @@
     },
     media: {
       columns:[
-        {key:'primary',label:'MEDIA',width:'minmax(260px,1.6fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.file_path,r.title,r.file_path)},
+        {key:'primary',label:'MEDIA',width:'minmax(260px,1.6fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.type==='image'?r.file_path:'',r.title,r.type==='image'?r.file_path:String(r.type||'FILE').toUpperCase())},
         {key:'type',label:'TYPE',width:'110px',sort:true,value:r=>r.type||'',render:r=>esc(String(r.type||'—').toUpperCase())},
         {key:'mime',label:'MIME',width:'minmax(150px,.8fr)',sort:true,value:r=>r.mime_type||'',render:r=>esc(r.mime_type||'—')},
         {key:'size',label:'SIZE',width:'100px',sort:true,numeric:true,value:r=>Number(r.file_size||0),render:r=>esc(bytes(r.file_size))},
@@ -229,7 +229,7 @@
         module,host,rows:[],allRows:[],options:{},
         visible:new Set(defaultColumns(module)),
         preferencesLoaded:false,preferencesLoading:false,preferencePromise:null,
-        sortKey:null,sortDirection:null,chooserOpen:false,pendingFocusSortKey:null,preferenceRevision:0
+        sortKey:null,sortDirection:null,chooserOpen:false,pendingFocusSelector:null,preferenceRevision:0
       };
       instances.set(host,state);
     }
@@ -337,6 +337,7 @@
     if (selectAll) {
       selectAll.indeterminate = !allVisibleSelected && visibleIds.some(id => selected.has(id));
       selectAll.addEventListener('change',() => {
+        state.pendingFocusSelector = '[data-grid-select-all]';
         const shouldSelect = selectAll.checked;
         visibleIds.forEach(id => shouldSelect ? selected.add(id) : selected.delete(id));
         draw(state);
@@ -345,6 +346,7 @@
     state.host.querySelectorAll('[data-grid-select]').forEach(input => {
       input.addEventListener('change',() => {
         const id = Number(input.dataset.gridSelect);
+        state.pendingFocusSelector = '[data-grid-select="' + id + '"]';
         if (input.checked) selected.add(id);
         else selected.delete(id);
         draw(state);
@@ -356,7 +358,7 @@
     state.host.querySelectorAll('[data-grid-sort]').forEach(button => {
       button.addEventListener('click',() => {
         const key = button.dataset.gridSort;
-        state.pendingFocusSortKey = key;
+        state.pendingFocusSelector = '[data-grid-sort="' + key + '"]';
         if (state.sortKey !== key) {
           state.sortKey = key;
           state.sortDirection = 'asc';
@@ -373,12 +375,12 @@
     });
   }
 
-  function restoreSortFocus(state) {
-    const key = state.pendingFocusSortKey;
-    if (!key) return;
-    state.pendingFocusSortKey = null;
+  function restoreFocus(state) {
+    const selector = state.pendingFocusSelector;
+    if (!selector) return;
+    state.pendingFocusSelector = null;
     queueMicrotask(() => {
-      state.host.querySelector('[data-grid-sort="' + key + '"]')?.focus();
+      state.host.querySelector(selector)?.focus();
     });
   }
 
@@ -397,6 +399,7 @@
       input.addEventListener('pointerdown',markInteraction,{once:true});
       input.addEventListener('keydown',markInteraction,{once:true});
       input.addEventListener('input',async () => {
+        state.pendingFocusSelector = '[data-grid-column="' + input.dataset.gridColumn + '"]';
         const previous = new Set(state.visible);
         const next = new Set(state.visible);
         if (input.checked) next.add(input.dataset.gridColumn);
@@ -420,6 +423,7 @@
       });
     });
     state.host.querySelector('[data-grid-columns-reset]')?.addEventListener('click',async () => {
+      state.pendingFocusSelector = '[data-grid-columns-reset]';
       const previous = new Set(state.visible);
       const defaults = defaultColumns(state.module);
       state.visible = new Set(defaults);
@@ -439,6 +443,7 @@
 
   function bindRowActions(state, selected) {
     state.host.querySelector('[data-grid-clear]')?.addEventListener('click',() => {
+      state.pendingFocusSelector = '[data-grid-columns-toggle]';
       selected.clear();
       draw(state);
     });
@@ -516,7 +521,7 @@
 
     const body = state.host.querySelector('.admin-data-grid-body');
     if (body && spec.orderable) window.BRVTALContentOrdering?.refresh?.(body);
-    restoreSortFocus(state);
+    restoreFocus(state);
   }
 
   async function hydratePreferences(state) {
