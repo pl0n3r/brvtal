@@ -259,7 +259,7 @@ window.BRVTALMediaLibrary = (() => {
     grid.querySelectorAll('[data-media-id]').forEach(btn => btn.addEventListener('click', () => select(Number(btn.dataset.mediaId), {reveal:true})));
   }
 
-  function inspectorVisual  function inspectorVisual(item) {
+  function inspectorVisual(item) {
     return item.type === 'image'
       ? imageMarkup(item, 'contain')
       : `<span class="media-kind">${esc(String(item.type || 'FILE').toUpperCase())}</span>`;

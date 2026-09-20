@@ -120,7 +120,7 @@ window.BRVTALReleases = (() => {
     });
   }
 
-  async function loadArtists()  async function loadArtists() {
+  async function loadArtists() {
     const r = await fetch('/api/index.php/artists',{credentials:'same-origin',cache:'no-store'});
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j.ok === false) throw new Error(j.error || 'ARTISTS_LOAD_FAILED');

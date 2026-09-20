@@ -102,7 +102,7 @@ window.BRVTALBlog = (() => {
     });
   }
 
-  async function loadRelated()  async function loadRelated(){
+  async function loadRelated(){
     Object.keys(relatedSources).forEach(type=>{store.relatedState[type]='loading'});
     const results=await Promise.all(Object.entries(relatedSources).map(async([type,url])=>{
       try{
