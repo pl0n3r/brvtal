@@ -413,15 +413,15 @@ class CoordinationTests(unittest.TestCase):
         """BRVTAL work-coordination helper."""
         self.assertEqual(parse_comment_command("/take"), ("take", None))
         self.assertEqual(
-            parse_comment_command(f"/liberar {SESSION_A}"),
+            parse_comment_command(f"/release {SESSION_A}"),
             ("release", SESSION_A),
         )
         self.assertEqual(
-            parse_comment_command(f"/transferir {SESSION_A}"),
+            parse_comment_command(f"/transfer {SESSION_A}"),
             ("transfer", SESSION_A),
         )
         with self.assertRaises(CoordinationError):
-            parse_comment_command("/liberar no-es-uuid")
+            parse_comment_command("/release no-es-uuid")
 
     def test_pr_opened_ready_moves_to_review(self) -> None:
         """BRVTAL work-coordination helper."""
