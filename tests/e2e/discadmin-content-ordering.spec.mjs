@@ -27,7 +27,17 @@ async function harness(page) {
     };
   });
   await page.evaluate(source => {
-    window.eval(source);
+    const NativeMutationObserver = window.MutationObserver;
+    window.MutationObserver = class {
+      observe() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    };
+    try {
+      window.eval(source);
+    } finally {
+      window.MutationObserver = NativeMutationObserver;
+    }
   }, orderingJs);
   await expect(page.locator('.content-order-handle')).toHaveCount(3);
 }

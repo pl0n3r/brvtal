@@ -195,7 +195,7 @@ async function expectMediaMounted(page, timeout = 10_000) {
   }
 }
 
-test('Media mounts consistently from Dashboard, another module and a direct route', async ({ page }) => {
+test('Media remains mounted when a stale Dashboard navigation completes', async ({ page }) => {
   await login(page);
 
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
@@ -225,15 +225,25 @@ test('Media mounts consistently from Dashboard, another module and a direct rout
   await page.evaluate(() => window.__staleDashboardNavigation);
   await expectMediaMounted(page, 5_000);
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+});
+
+test('Media mounts consistently from another module and a direct route', async ({ page }) => {
+  await login(page);
+
+  await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
+  await expectMediaMounted(page);
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 
   await page.evaluate(async () => {
     await window.go('sets');
   });
   await expect(page.locator('.main .top h1')).toHaveText('SETS');
+
   await page.evaluate(async () => {
     await window.go('media');
   });
   await expectMediaMounted(page);
+  await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 
   await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
   await expectMediaMounted(page);
