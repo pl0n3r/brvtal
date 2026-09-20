@@ -229,7 +229,7 @@
         module,host,rows:[],allRows:[],options:{},
         visible:new Set(defaultColumns(module)),
         preferencesLoaded:false,preferencesLoading:false,
-        sortKey:null,sortDirection:null,chooserOpen:false,pendingFocusSortKey:null
+        sortKey:null,sortDirection:null,chooserOpen:false,pendingFocusSortKey:null,preferenceRevision:0
       };
       instances.set(host,state);
     }
@@ -392,6 +392,9 @@
       draw(state);
     });
     state.host.querySelectorAll('[data-grid-column]').forEach(input => {
+      const markInteraction = () => { state.preferenceRevision += 1; };
+      input.addEventListener('pointerdown',markInteraction,{once:true});
+      input.addEventListener('keydown',markInteraction,{once:true});
       input.addEventListener('change',async () => {
         const previous = new Set(state.visible);
         const next = new Set(state.visible);
@@ -517,10 +520,12 @@
 
   async function hydratePreferences(state) {
     if (state.preferencesLoaded || state.preferencesLoading) return;
+    const revision = state.preferenceRevision;
     state.preferencesLoading = true;
     const columns = await loadPreferences(state.module);
     state.preferencesLoading = false;
     state.preferencesLoaded = true;
+    if (state.preferenceRevision !== revision) return;
     state.visible = new Set(columns);
     draw(state);
   }
