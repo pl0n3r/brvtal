@@ -83,30 +83,16 @@ window.BRVTALBlog = (() => {
   function render() {
     if (!store.root) return;
     renderMetrics();
-
     const grid = store.root.querySelector('#blog-grid');
     if (!grid) return;
-
     const rows = visibleRows();
-    grid.dataset.orderResource = 'blog';
-    grid.dataset.orderEnabled = orderingAvailable() ? '1' : '0';
-
-    if (!rows.length) {
-      grid.innerHTML = '<div class="blog-empty">NO POSTS MATCH THIS VIEW</div>';
-      window.BRVTALContentOrdering?.refresh?.(grid);
-      return;
-    }
-
-    grid.innerHTML = rows.map(blogRow).join('');
-    grid.querySelectorAll('[data-blog-id]').forEach(row => {
-      const id = Number(row.dataset.blogId);
-      row.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(id));
-      row.querySelector('[data-delete]')?.addEventListener('click', () => remove(id));
+    window.BRVTALDataGrid?.render?.('blog',grid,rows,{
+      allRows:store.posts,
+      orderingEnabled:orderingAvailable()
     });
-    window.BRVTALContentOrdering?.refresh?.(grid);
   }
 
-  async function loadRelated(){
+  async function loadRelated()  async function loadRelated(){
     Object.keys(relatedSources).forEach(type=>{store.relatedState[type]='loading'});
     const results=await Promise.all(Object.entries(relatedSources).map(async([type,url])=>{
       try{
@@ -257,5 +243,5 @@ window.BRVTALBlog = (() => {
   });
 
   function mount(root){store.root=root;root.querySelector('#blog-new')?.addEventListener('click',()=>openEditor());root.querySelector('#blog-search')?.addEventListener('input',render);root.querySelector('#blog-status-filter')?.addEventListener('change',render);refresh()}
-  return {mount,refresh,openEditor};
+  return {mount,refresh,openEditor,remove};
 })();

@@ -1,0 +1,441 @@
+(() => {
+  'use strict';
+
+  const PREF_ENDPOINT = '/api/admin-grid-preferences.php';
+  const instances = new WeakMap();
+  const selections = new Map();
+  const preferences = new Map();
+
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[ch]));
+
+  function imgSrc(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    if (/^(?:https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    return '/' + raw.replace(/^\.?\//,'').replace(/^\/+/, '');
+  }
+
+  function imageCell(src, title, meta = '') {
+    const url = imgSrc(src);
+    const visual = url
+      ? `<img class="admin-grid-thumb" src="${esc(url)}" alt="${esc(title || '')}" loading="lazy">`
+      : '<span class="admin-grid-thumb admin-grid-thumb-ph">NO IMG</span>';
+    return `<div class="admin-grid-primary">${visual}<span><strong class="title">${esc(title || 'Untitled')}</strong><small>${esc(meta || '')}</small></span></div>`;
+  }
+
+  function statusCell(value) {
+    const status = String(value || '—');
+    return `<span class="admin-grid-status ${esc(status.toLowerCase())}">${esc(status)}</span>`;
+  }
+
+  function linksCell(row) {
+    const links = [];
+    if (row.instagram_url) links.push('INSTAGRAM');
+    if (row.soundcloud_url) links.push('SOUNDCLOUD');
+    if (row.website_url) links.push('WEBSITE');
+    return esc(links.join(' · ') || '—');
+  }
+
+  function artistsLabel(row) {
+    const names = Array.isArray(row.artists) ? row.artists.map(item => item?.name).filter(Boolean) : [];
+    return names.join(' · ') || 'NO ARTIST LINKED';
+  }
+
+  function bytes(value) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n <= 0) return '—';
+    const units = ['B','KB','MB','GB'];
+    let size = n, unit = 0;
+    while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
+    return (unit === 0 ? Math.round(size) : size.toFixed(size >= 10 ? 0 : 1)) + ' ' + units[unit];
+  }
+
+  const SPECS = {
+    events: {
+      columns:[
+        {key:'primary',label:'EVENT',width:'minmax(230px,1.6fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.cover_image,r.title,r.slug)},
+        {key:'date',label:'DATE',width:'minmax(150px,.9fr)',sort:true,value:r=>r.event_date||'',render:r=>esc(r.event_date||'—')},
+        {key:'location',label:'LOCATION',width:'minmax(150px,.9fr)',sort:true,value:r=>r.city||r.venue||'',render:r=>esc(r.city||r.venue||'—')},
+        {key:'status',label:'STATUS',width:'minmax(110px,.65fr)',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)}
+      ]
+    },
+    artists: {
+      orderable:true,
+      columns:[
+        {key:'primary',label:'ARTIST',width:'minmax(230px,1.6fr)',sort:true,value:r=>r.name||'',render:r=>imageCell(r.photo,r.name,r.slug)},
+        {key:'links',label:'LINKS',width:'minmax(150px,.8fr)',sort:false,value:r=>linksCell(r),render:r=>linksCell(r)},
+        {key:'status',label:'STATUS',width:'minmax(110px,.65fr)',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
+        {key:'position',label:'POSITION',width:'90px',sort:false,value:r=>Number(r.sort_order||0),render:()=>'<span data-order-position>—</span>'}
+      ]
+    },
+    releases: {
+      orderable:true,
+      columns:[
+        {key:'primary',label:'RELEASE',width:'minmax(240px,1.7fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.artwork,r.title,[r.catalog_number,String(r.release_type||'').toUpperCase()].filter(Boolean).join(' · '))},
+        {key:'artists',label:'ARTISTS',width:'minmax(170px,1fr)',sort:true,value:r=>artistsLabel(r),render:r=>esc(artistsLabel(r))},
+        {key:'type',label:'TYPE',width:'110px',sort:true,value:r=>r.release_type||'',render:r=>esc(String(r.release_type||'—').toUpperCase())},
+        {key:'date',label:'RELEASE DATE',width:'140px',sort:true,value:r=>r.release_date||'',render:r=>esc(r.release_date||'DATE TBD')},
+        {key:'status',label:'STATUS',width:'120px',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
+        {key:'position',label:'POSITION',width:'90px',sort:false,value:r=>Number(r.sort_order||0),render:()=>'<span data-order-position>—</span>'}
+      ]
+    },
+    sets: {
+      orderable:true,
+      columns:[
+        {key:'primary',label:'SET',width:'minmax(230px,1.5fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.cover_image,r.title,r.slug)},
+        {key:'artist',label:'ARTIST',width:'minmax(150px,.8fr)',sort:true,value:r=>r.artist_name||r.artist_id||'',render:r=>esc(r.artist_name||r.artist_id||'—')},
+        {key:'event',label:'EVENT',width:'minmax(160px,.9fr)',sort:true,value:r=>r.event_title||r.event_id||'',render:r=>esc(r.event_title||r.event_id||'—')},
+        {key:'status',label:'STATUS',width:'110px',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
+        {key:'position',label:'POSITION',width:'90px',sort:false,value:r=>Number(r.sort_order||0),render:()=>'<span data-order-position>—</span>'}
+      ]
+    },
+    media: {
+      columns:[
+        {key:'primary',label:'MEDIA',width:'minmax(260px,1.6fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.file_path,r.title,r.file_path)},
+        {key:'type',label:'TYPE',width:'110px',sort:true,value:r=>r.type||'',render:r=>esc(String(r.type||'—').toUpperCase())},
+        {key:'mime',label:'MIME',width:'minmax(150px,.8fr)',sort:true,value:r=>r.mime_type||'',render:r=>esc(r.mime_type||'—')},
+        {key:'size',label:'SIZE',width:'100px',sort:true,numeric:true,value:r=>Number(r.file_size||0),render:r=>esc(bytes(r.file_size))},
+        {key:'status',label:'STATUS',width:'110px',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)}
+      ]
+    },
+    pages: {
+      columns:[
+        {key:'primary',label:'PAGE',width:'minmax(250px,1.7fr)',sort:true,value:r=>r.title||'',render:r=>imageCell('',r.title,r.slug)},
+        {key:'locale',label:'LOCALE',width:'100px',sort:true,value:r=>r.locale||'',render:r=>esc(String(r.locale||'—').toUpperCase())},
+        {key:'status',label:'STATUS',width:'120px',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)}
+      ]
+    },
+    blog: {
+      orderable:true,
+      columns:[
+        {key:'primary',label:'POST',width:'minmax(240px,1.5fr)',sort:true,value:r=>r.title||'',render:r=>imageCell(r.cover_image,r.title,'/'+String(r.slug||''))},
+        {key:'excerpt',label:'EXCERPT',width:'minmax(220px,1.4fr)',sort:true,value:r=>r.excerpt||'',render:r=>esc(r.excerpt||'NO EXCERPT')},
+        {key:'published',label:'PUBLISHED',width:'160px',sort:true,value:r=>r.published_at||r.updated_at||'',render:r=>esc(r.published_at||'NOT YET')},
+        {key:'status',label:'STATUS',width:'120px',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
+        {key:'position',label:'POSITION',width:'90px',sort:false,value:r=>Number(r.sort_order||0),render:()=>'<span data-order-position>—</span>'}
+      ]
+    }
+  };
+
+  function actionsFor(module) {
+    if (module === 'events') return [
+      ['lineup','LINEUP'],['edit','EDIT'],['delete','DELETE']
+    ];
+    if (['artists','sets','pages'].includes(module)) return [['edit','EDIT'],['delete','DELETE']];
+    if (module === 'releases') return [['edit','EDIT'],['delete','DELETE']];
+    if (module === 'blog') return [['edit','EDIT'],['delete','DELETE']];
+    if (module === 'media') return [['details','DETAILS']];
+    return [];
+  }
+
+  function runAction(module, action, id) {
+    if (module === 'events' && action === 'lineup') return window.openLineup?.(id);
+    if (['events','artists','sets','pages'].includes(module) && action === 'edit') return window.openModal?.(module,id);
+    if (['events','artists','sets','pages'].includes(module) && action === 'delete') return window.del?.(module,id);
+    if (module === 'releases' && action === 'edit') return window.BRVTALReleases?.openEditor?.(id);
+    if (module === 'releases' && action === 'delete') return window.BRVTALReleases?.remove?.(id);
+    if (module === 'blog' && action === 'edit') return window.BRVTALBlog?.openEditor?.(id);
+    if (module === 'blog' && action === 'delete') return window.BRVTALBlog?.remove?.(id);
+    if (module === 'media' && action === 'details') return window.BRVTALMediaLibrary?.select?.(id,{reveal:true});
+  }
+
+  function selection(module) {
+    if (!selections.has(module)) selections.set(module,new Set());
+    return selections.get(module);
+  }
+
+  function defaultColumns(module) {
+    return SPECS[module].columns.map(column => column.key);
+  }
+
+  function normalizedVisible(module, requested) {
+    const defaults = defaultColumns(module);
+    const values = Array.isArray(requested) ? requested.filter(key => defaults.includes(key)) : defaults;
+    const unique = [...new Set(values)];
+    return unique.length ? unique : [defaults[0]];
+  }
+
+  async function csrfToken() {
+    try { if (window.csrf) return window.csrf; } catch (_) {}
+    const response = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store'});
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.authenticated || !payload.csrf) throw new Error('AUTH_REQUIRED');
+    return payload.csrf;
+  }
+
+  async function loadPreferences(module) {
+    if (!preferences.has(module)) {
+      preferences.set(module,(async () => {
+        const response = await fetch(PREF_ENDPOINT + '?module=' + encodeURIComponent(module),{
+          credentials:'same-origin',cache:'no-store'
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) throw new Error(payload.error || 'GRID_PREFERENCES_LOAD_FAILED');
+        return normalizedVisible(module,payload.data?.columns);
+      })().catch(() => defaultColumns(module)));
+    }
+    return preferences.get(module);
+  }
+
+  async function savePreferences(module, columns) {
+    const token = await csrfToken();
+    const response = await fetch(PREF_ENDPOINT + '?module=' + encodeURIComponent(module),{
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':token},
+      body:JSON.stringify({columns})
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || 'GRID_PREFERENCES_SAVE_FAILED');
+    const normalized = normalizedVisible(module,payload.data?.columns);
+    preferences.set(module,Promise.resolve(normalized));
+    return normalized;
+  }
+
+  function ensureInstance(module, host) {
+    let state = instances.get(host);
+    if (!state || state.module !== module) {
+      state = {
+        module,host,rows:[],allRows:[],options:{},
+        visible:new Set(defaultColumns(module)),
+        preferencesLoaded:false,preferencesLoading:false,
+        sortKey:null,sortDirection:null,chooserOpen:false
+      };
+      instances.set(host,state);
+    }
+    return state;
+  }
+
+  function compare(a,b,column) {
+    const av = column.value(a), bv = column.value(b);
+    if (column.numeric) return Number(av||0) - Number(bv||0);
+    return String(av ?? '').localeCompare(String(bv ?? ''),undefined,{numeric:true,sensitivity:'base'});
+  }
+
+  function sortedRows(state) {
+    const rows = state.rows.slice();
+    if (!state.sortKey || !state.sortDirection) return rows;
+    const column = SPECS[state.module].columns.find(item => item.key === state.sortKey);
+    if (!column) return rows;
+    const sign = state.sortDirection === 'asc' ? 1 : -1;
+    return rows.sort((a,b) => {
+      const primary = compare(a,b,column);
+      if (primary !== 0) return primary * sign;
+      const aid = Number(a.id), bid = Number(b.id);
+      if (Number.isFinite(aid) && Number.isFinite(bid)) return aid - bid;
+      return String(a.id ?? '').localeCompare(String(b.id ?? ''),undefined,{numeric:true});
+    });
+  }
+
+  function sortLabel(state,column) {
+    if (state.sortKey !== column.key || !state.sortDirection) return '';
+    return state.sortDirection === 'asc' ? '↑' : '↓';
+  }
+
+  function ariaSort(state,column) {
+    if (state.sortKey !== column.key || !state.sortDirection) return 'none';
+    return state.sortDirection === 'asc' ? 'ascending' : 'descending';
+  }
+
+  function renderActions(module,id) {
+    return actionsFor(module).map(([action,label]) =>
+      `<button type="button" class="iconbtn admin-grid-action" data-grid-action="${esc(action)}" data-grid-id="${Number(id)}">${esc(label)}</button>`
+    ).join('');
+  }
+
+  function gridTemplate(columns) {
+    return ['42px',...columns.map(column => column.width || 'minmax(120px,1fr)'),'minmax(150px,auto)'].join(' ');
+  }
+
+  function renderChooser(state) {
+    const spec = SPECS[state.module];
+    return `<div class="admin-grid-column-panel"${state.chooserOpen?'':' hidden'} data-grid-column-panel>
+      <div class="admin-grid-column-panel-head"><strong>COLUMNS / VIEW</strong><button type="button" data-grid-columns-close aria-label="Close column chooser">×</button></div>
+      ${spec.columns.map(column => `<label><input type="checkbox" data-grid-column="${esc(column.key)}" ${state.visible.has(column.key)?'checked':''}><span>${esc(column.label)}</span></label>`).join('')}
+      <button type="button" class="btn ghost admin-grid-reset-columns" data-grid-columns-reset>RESTORE DEFAULTS</button>
+    </div>`;
+  }
+
+  function draw(state) {
+    if (!state.host?.isConnected) return;
+    const spec = SPECS[state.module];
+    const visibleColumns = spec.columns.filter(column => state.visible.has(column.key));
+    const rows = sortedRows(state);
+    const selected = selection(state.module);
+    const visibleIds = rows.map(row => Number(row.id)).filter(Number.isInteger);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
+    const template = gridTemplate(visibleColumns);
+    const orderEnabled = Boolean(
+      spec.orderable
+      && state.options.orderingEnabled !== false
+      && !state.sortDirection
+    );
+    const canBulk = Boolean(window.BRVTALBulkActions?.supports?.(state.module));
+    const selectedCount = selected.size;
+
+    state.host.innerHTML = `
+      <div class="admin-data-grid-shell" data-grid-module="${esc(state.module)}">
+        <div class="admin-grid-controls">
+          <span class="admin-grid-result-count">${rows.length} RESULT${rows.length===1?'':'S'}</span>
+          <div class="admin-grid-view-control">
+            <button type="button" class="btn ghost" data-grid-columns-toggle aria-expanded="${state.chooserOpen?'true':'false'}">COLUMNS / VIEW</button>
+            ${renderChooser(state)}
+          </div>
+        </div>
+        <div class="admin-grid-selection-bar"${selectedCount?'':' hidden'} role="status" aria-live="polite">
+          <strong>${selectedCount} SELECTED</strong>
+          <span class="admin-grid-selection-actions">
+            ${canBulk?'<button type="button" class="btn red" data-grid-bulk>CHANGE STATUS</button>':''}
+            <button type="button" class="btn ghost" data-grid-clear>CLEAR</button>
+          </span>
+        </div>
+        <div class="admin-data-grid-scroll">
+          <div class="admin-data-grid" role="table" aria-label="${esc(state.module)} records">
+            <div class="admin-data-grid-head" role="row" style="--admin-grid-template:${esc(template)}">
+              <div role="columnheader" class="admin-grid-select-cell"><input type="checkbox" data-grid-select-all aria-label="Select all current results" ${allVisibleSelected?'checked':''}></div>
+              ${visibleColumns.map(column => `<div role="columnheader" aria-sort="${ariaSort(state,column)}" data-grid-column-key="${esc(column.key)}">${column.sort?`<button type="button" class="admin-grid-sort" data-grid-sort="${esc(column.key)}"><span>${esc(column.label)}</span><span aria-hidden="true">${sortLabel(state,column)}</span></button>`:`<span class="admin-grid-head-label">${esc(column.label)}</span>`}</div>`).join('')}
+              <div role="columnheader" class="admin-grid-actions-head"><span>ACTIONS</span></div>
+            </div>
+            <div class="admin-data-grid-body" role="rowgroup" ${spec.orderable?`data-order-resource="${esc(state.module)}" data-order-enabled="${orderEnabled?'1':'0'}"`:''}>
+              ${rows.length ? rows.map(row => {
+                const id = Number(row.id);
+                const checked = selected.has(id);
+                return `<div class="admin-data-grid-row${checked?' selected':''}" role="row" data-grid-row-id="${id}" ${spec.orderable?`data-order-id="${id}"`:''} style="--admin-grid-template:${esc(template)}">
+                  <div role="cell" class="admin-grid-select-cell"><input type="checkbox" data-grid-select="${id}" aria-label="Select record ${id}" ${checked?'checked':''}></div>
+                  ${visibleColumns.map(column => `<div role="cell" class="admin-grid-cell admin-grid-cell-${esc(column.key)}" data-grid-cell="${esc(column.key)}">${column.render(row)}</div>`).join('')}
+                  <div role="cell" class="admin-grid-row-actions">${renderActions(state.module,id)}</div>
+                </div>`;
+              }).join('') : '<div class="admin-grid-empty">NO RECORDS MATCH THIS VIEW.</div>'}
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const selectAll = state.host.querySelector('[data-grid-select-all]');
+    if (selectAll) {
+      selectAll.indeterminate = !allVisibleSelected && visibleIds.some(id => selected.has(id));
+      selectAll.addEventListener('change',() => {
+        const shouldSelect = selectAll.checked;
+        visibleIds.forEach(id => shouldSelect ? selected.add(id) : selected.delete(id));
+        draw(state);
+      });
+    }
+
+    state.host.querySelectorAll('[data-grid-select]').forEach(input => {
+      input.addEventListener('change',() => {
+        const id = Number(input.dataset.gridSelect);
+        input.checked ? selected.add(id) : selected.delete(id);
+        draw(state);
+      });
+    });
+
+    state.host.querySelectorAll('[data-grid-sort]').forEach(button => {
+      button.addEventListener('click',() => {
+        const key = button.dataset.gridSort;
+        if (state.sortKey !== key) {
+          state.sortKey = key; state.sortDirection = 'asc';
+        } else if (state.sortDirection === 'asc') {
+          state.sortDirection = 'desc';
+        } else if (state.sortDirection === 'desc') {
+          state.sortKey = null; state.sortDirection = null;
+        } else {
+          state.sortDirection = 'asc';
+        }
+        draw(state);
+      });
+    });
+
+    state.host.querySelector('[data-grid-columns-toggle]')?.addEventListener('click',() => {
+      state.chooserOpen = !state.chooserOpen; draw(state);
+    });
+    state.host.querySelector('[data-grid-columns-close]')?.addEventListener('click',() => {
+      state.chooserOpen = false; draw(state);
+    });
+    state.host.querySelectorAll('[data-grid-column]').forEach(input => {
+      input.addEventListener('change',async () => {
+        const previous = new Set(state.visible);
+        const next = new Set(state.visible);
+        input.checked ? next.add(input.dataset.gridColumn) : next.delete(input.dataset.gridColumn);
+        if (!next.size) { input.checked = true; return; }
+        state.visible = next;
+        state.chooserOpen = true;
+        draw(state);
+        try {
+          const saved = await savePreferences(state.module,defaultColumns(state.module).filter(key => next.has(key)));
+          state.visible = new Set(saved);
+        } catch (error) {
+          state.visible = previous;
+          window.BRVTALFeedback?.error?.('Column preferences could not be saved.','admin-grid-columns');
+        }
+        draw(state);
+      });
+    });
+    state.host.querySelector('[data-grid-columns-reset]')?.addEventListener('click',async () => {
+      const previous = new Set(state.visible);
+      state.visible = new Set(defaultColumns(state.module));
+      state.chooserOpen = true;
+      draw(state);
+      try {
+        const saved = await savePreferences(state.module,defaultColumns(state.module));
+        state.visible = new Set(saved);
+      } catch (_) {
+        state.visible = previous;
+        window.BRVTALFeedback?.error?.('Column preferences could not be reset.','admin-grid-columns');
+      }
+      draw(state);
+    });
+
+    state.host.querySelector('[data-grid-clear]')?.addEventListener('click',() => {
+      selected.clear(); draw(state);
+    });
+    state.host.querySelector('[data-grid-bulk]')?.addEventListener('click',() => {
+      window.BRVTALBulkActions?.open?.(state.module,[...selected]);
+    });
+    state.host.querySelectorAll('[data-grid-action]').forEach(button => {
+      button.addEventListener('click',() => runAction(state.module,button.dataset.gridAction,Number(button.dataset.gridId)));
+    });
+
+    const body = state.host.querySelector('.admin-data-grid-body');
+    if (body && spec.orderable) window.BRVTALContentOrdering?.refresh?.(body);
+  }
+
+  async function hydratePreferences(state) {
+    if (state.preferencesLoaded || state.preferencesLoading) return;
+    state.preferencesLoading = true;
+    const columns = await loadPreferences(state.module);
+    state.preferencesLoading = false;
+    state.preferencesLoaded = true;
+    state.visible = new Set(columns);
+    draw(state);
+  }
+
+  function render(module, host, rows, options = {}) {
+    if (!host || !SPECS[module]) return false;
+    const state = ensureInstance(module,host);
+    state.rows = Array.isArray(rows) ? rows.slice() : [];
+    state.allRows = Array.isArray(options.allRows) ? options.allRows.slice() : state.rows.slice();
+    state.options = {...options};
+    const validIds = new Set(state.allRows.map(row => Number(row.id)).filter(Number.isInteger));
+    const selected = selection(module);
+    [...selected].forEach(id => { if (!validIds.has(id)) selected.delete(id); });
+    draw(state);
+    void hydratePreferences(state);
+    return true;
+  }
+
+  function clearSelection(module) {
+    selection(module).clear();
+    document.querySelectorAll('[data-grid-module="'+CSS.escape(module)+'"]').forEach(shell => {
+      const host = shell.parentElement;
+      const state = host ? instances.get(host) : null;
+      if (state) draw(state);
+    });
+  }
+
+  function supports(module) { return Boolean(SPECS[module]); }
+
+  window.BRVTALDataGrid = {render,clearSelection,supports,defaultColumns};
+})();

@@ -106,7 +106,7 @@
     return payload.csrf;
   }
 
-  async function open(module = currentModule()) {
+  async function open(module = currentModule(), initialIds = []) {
     if (!module || !SPECS[module]) return;
     ensureStyle();
     const overlay = ensureOverlay();
@@ -129,6 +129,8 @@
       if (!state.open || state.module !== module || state.loadId !== loadId) return;
       state.rows = Array.isArray(payload.data) ? payload.data.slice(0,500) : [];
       state.rowsModule = module;
+      const allowedIds = new Set(state.rows.map(row => Number(row.id || 0)).filter(Boolean));
+      (Array.isArray(initialIds) ? initialIds : []).map(Number).filter(id => allowedIds.has(id)).forEach(id => state.selected.add(id));
       renderRows();
       requestAnimationFrame(() => {
         if (state.open && state.module === module && state.loadId === loadId) overlay.querySelector('.brvtal-bulk-search')?.focus();
@@ -227,6 +229,7 @@
       const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
       close();
+      window.BRVTALDataGrid?.clearSelection?.(module);
       window.BRVTALFeedback?.success?.(`${payload.data?.matched ?? ids.length} ${SPECS[module].label.toLowerCase()} updated to ${status}.`,'bulk-actions');
       if (typeof window.go === 'function') await window.go(module);
     } catch (error) {
@@ -242,5 +245,5 @@
   const observer = new MutationObserver(() => ensureTrigger());
   observer.observe(document.documentElement,{childList:true,subtree:true});
   ensureStyle(); ensureOverlay(); ensureTrigger();
-  window.BRVTALBulkActions = {open,close,currentModule};
+  window.BRVTALBulkActions = {open,close,currentModule,supports:module=>Boolean(SPECS[module])};
 })();
