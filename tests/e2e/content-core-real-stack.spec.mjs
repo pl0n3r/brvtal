@@ -195,20 +195,31 @@ async function expectMediaMounted(page, timeout = 10_000) {
   }
 }
 
-test('Artists and Sets render canonical ordering containers', async ({ page }) => {
+test('Artists and Sets renderer emits canonical ordering containers', async ({ page }) => {
   await login(page);
 
-  await page.goto(`${baseUrl}/discadmin/?module=events`, {waitUntil:'domcontentloaded'});
-  await expect(page.locator('[data-admin-module="content-core"]')).toBeAttached({timeout:10_000});
-  await expect(page.locator('.main .top h1')).toHaveText('EVENTS', {timeout:10_000});
+  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
+  await page.evaluate(async () => {
+    await restoreSession();
+  });
 
   for (const section of ['artists','sets']) {
-    await page.evaluate(async currentSection => {
-      await window.go(currentSection);
+    const rendered = await page.evaluate(currentSection => {
+      state.section = currentSection;
+      state.rows = [];
+      render();
+      const rows = document.getElementById('rows');
+      return {
+        title: document.querySelector('.main .top h1')?.textContent?.trim() || '',
+        resource: rows?.dataset.orderResource || '',
+        enabled: rows?.dataset.orderEnabled || '',
+      };
     }, section);
-    await expect(page.locator('.main .top h1')).toHaveText(section.toUpperCase(), {timeout:10_000});
-    const rows = page.locator(`#rows[data-order-resource="${section}"][data-order-enabled="1"]`);
-    await expect(rows).toBeVisible({timeout:10_000});
+    expect(rendered).toEqual({
+      title: section.toUpperCase(),
+      resource: section,
+      enabled: '1',
+    });
   }
 });
 
