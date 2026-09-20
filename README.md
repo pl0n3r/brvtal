@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#174 Banners unsaved-change protection (v0.1.20)** | guard transaccional antes de reemplazar workspace/URL |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `a3b30d53429ce075a54c55af891a098331db2c90` |
-| Version | 🚧 **0.1.19 → 0.1.20** | patch deploy |
-| Producción | 🚧 **NOT VALIDATED IN PRODUCTION** | CI y tests no sustituyen validación real de Hostinger |
+| Work line | 🚧 **#519 visual content ordering (v0.1.21)** | shared drag/touch/keyboard ordering for Artists · Releases · Sets · Blog |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `c4f962095e60ef2c61a3f8e798f2ad8949d3ba80` |
+| Version | 🚧 **0.1.20 → 0.1.21** | patch deploy |
+| Producción | 🚧 **NOT VALIDATED IN PRODUCTION** | bounded Hostinger observer still failed to expose the current release |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+302** | **−53** | **+249** |
+| **23** | **+1532** | **−146** | **+1386** |
 
 ## Calidad y entrega
 
@@ -37,67 +37,85 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Banners dirty-state | snapshot limpio tras load/save; comparación normalizada |
-| Navigation | confirmación antes de go/tech/Back; commit de descarte solo tras éxito |
-| Browser lifecycle | `beforeunload` para refresh/cierre con cambios |
-| Sonar + CodeRabbit | paralelo sobre head estable |
-| Exact-main | CI del SHA exacto de main tras squash merge |
+| Ordering API | exact-set · transaction · row locks · contiguous normalization · rollback |
+| Interaction | pointer/touch drag · keyboard arrows · visible focus · autosave |
+| Partial views | search/filter disables reorder; no subset writes |
+| Public order | Artists · Sets · Releases · Blog consume canonical `sort_order` first |
+| Sonar + CodeRabbit | parallel on stable head |
+| Exact-main | CI of resulting main SHA after squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- A["Release v0.1.20"] --> P["PR + snapshot exacto"]
- P --> Q["CI / Sonar / CodeRabbit"]
- Q --> M["Squash merge"]
- M --> X["CI exact-main"]
- X --> N["#174 protegido en navegación real"]
+ A["PR + snapshot exacto"] --> U["Shared ordering primitive"]
+ U --> API["Transactional reorder API"]
+ API --> M["4 Admin modules"]
+ M --> Q["CI / Sonar / CodeRabbit"]
+ Q --> X["CI del SHA exacto de main"]
 ```
 
 ## Qué se hizo
 
-- Banners mantiene un snapshot limpio después de cargar y después de guardar; el dirty-state se deriva de la configuración normalizada actual.
-- Salir o reabrir Banners con cambios sin guardar exige confirmación **antes** de cambiar URL, cancelar módulos o reemplazar el workspace.
-- Si el usuario cancela Back/Forward, la capa de Information Architecture restaura la ruta de Banners.
-- Si una navegación confirmada falla, los cambios siguen marcados como pendientes; el descarte solo se consolida después de una transición exitosa.
-- Refresh/cierre de pestaña usa `beforeunload` únicamente cuando Banners está realmente dirty.
-- Versión **0.1.20**.
+- Artists, Releases, Sets y Blog comparten un único componente visual de ordering.
+- Drag usa Pointer Events y cubre mouse/touch; el handle también admite Arrow Up/Down.
+- El reorder se guarda automáticamente y revierte el DOM al snapshot previo si el servidor falla.
+- Búsquedas/filtros desactivan el reorder para impedir escribir colecciones parciales.
+- El endpoint valida IDs positivos/únicos, exige el set completo actual, bloquea filas con `FOR UPDATE`, normaliza posiciones 0..N-1 y registra cambios en Admin Activity.
+- Los formularios ya no exponen Sort Order numérico; editar conserva la posición y crear añade al final.
+- El API público prioriza `sort_order` para Releases/Blog; Artists/Sets ya lo hacían.
+- Versión **0.1.21**.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — documenta el contrato durable de dirty-state/navegación y actualiza prioridades.
-- `README.md` — snapshot visual del deploy actual.
-- `config/version.php` — declara la release runtime `0.1.20`.
-- `discadmin/admin-information-architecture.js` — integra el guard antes de side effects y restaura URL en Back cancelado.
-- `discadmin/hero-slider.js` — añade snapshot limpio, confirmación, commit post-éxito y `beforeunload`.
-- `package.json` — alinea la versión del proyecto con `0.1.20`.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — cubre cancelación de rutas dinámicas, System y browser Back.
-- `tests/e2e/hero-slider-v2.spec.mjs` — cubre dirty-state, cancelar/aceptar, fallo de navegación, save y beforeunload.
+- `AGENTS.md` — contrato operativo durable y ownership del roadmap.
+- `README.md` — snapshot visual exacto de este deploy.
+- `api/blog.php` — lectura editorial de Blog con orden canónico.
+- `api/index.php` — orden canónico para colecciones Admin.
+- `api/public.php` — Releases/Blog públicos respetan `sort_order`.
+- `api/reorder.php` — endpoint transaccional, stale detection y errores seguros.
+- `config/content_ordering.php` — whitelist y validación compartida de ordering.
+- `config/version.php` — release runtime v0.1.21.
+- `discadmin/admin-modules.js` — preservación/append del orden interno.
+- `discadmin/blog.js` — ordering visual de Blog.
+- `discadmin/content-ordering.css` — estilos compartidos de handles/estado.
+- `discadmin/content-ordering.js` — drag, teclado, autosave, rollback y observer acotado.
+- `discadmin/index-core.php` — ordering Artists/Sets y thumbnails normalizados.
+- `discadmin/index.php` — carga del primitive compartido.
+- `discadmin/releases.js` — ordering visual de Releases.
+- `docs/BRVTAL-SPEC.md` — decisión funcional durable de ordering.
+- `package.json` — versión e integración MariaDB del contrato.
+- `tests/blog-contract.php` — contrato Blog actualizado.
+- `tests/content-ordering-contract.php` — contrato + endpoint real sobre MariaDB aislada con posiciones 0..N-1 exactas.
+- `tests/discadmin-editor-accessibility-contract.php` — accesibilidad tras retirar Sort Order numérico.
+- `tests/e2e/content-core-real-stack.spec.mjs` — renderer autenticado Artists/Sets vía content() + stale Dashboard→Media + deep link Media.
+- `tests/e2e/discadmin-content-ordering.spec.mjs` — teclado, touch, rollback, filtros y stores con observer aislado y aserciones multi-handle deterministas.
+- `tests/project-operations-contract.php` — valida #533 como única fuente del orden de ejecución.
 
 ## Validación
 
-- Base exacta `a3b30d5`: BRVTAL CI / validate success; Phase B throughput artifact real también success.
-- Los tests dirigidos deben demostrar que cancelación no muta URL/workspace y que navegación fallida conserva dirty-state.
-- BRVTAL CI, Sonar y CodeRabbit se revisan sobre el head estable antes del merge; CodeRabbit es advisory si el servicio no produce veredicto.
-- Tras merge se verificará BRVTAL CI sobre el SHA exacto de `main`.
-- No se declara producción validada desde CI.
+- Base exacta `c4f9620`: BRVTAL CI / `validate` success.
+- Production Deploy Observer de esa base: failure externo; no se declara producción validada.
+- Contrato PHP cubre whitelist, IDs, exact-set, CSRF, row lock y ausencia de inputs Sort Order.
+- Playwright cubre teclado, Pointer Events tipo touch, rollback, filtros y sincronización de stores.
+- CI, Sonar y CodeRabbit deben cerrar sobre el head estable antes del merge.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) · cerrar protección de cambios sin guardar en Banners. |
-| **NEXT** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519) · visual drag/drop ordering como primitiva editorial. |
-| **LATER** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257) · data grid canónico y protección general de editores. |
-| **EVIDENCE** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · acumular muestras antes de Phase D/sharding. |
-| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger/hPanel sigue siendo el frente externo. |
+| **NOW** | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519) · completar y validar visual ordering. |
+| **NEXT** | 🚧 [#571](https://github.com/pl0n3r/brvtal/issues/571) · multi-agent coordination and PR collision prevention. |
+| **LATER** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) · data grid + editor protection + rich Blog editor. |
+| **EVIDENCE** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · gather more samples before Phase D. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) · Hostinger production freshness. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Unsaved Banners protection | 🚧 [#174](https://github.com/pl0n3r/brvtal/issues/174) |
-| **NEXT** | 🚧 Editorial ordering / grids | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519), [#518](https://github.com/pl0n3r/brvtal/issues/518) |
-| **LATER** | 🚧 General editor protection | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) |
+| **NOW** | 🚧 Visual content ordering closeout | 🚧 [#519](https://github.com/pl0n3r/brvtal/issues/519) |
+| **NEXT** | 🚧 Multi-agent coordination / collision prevention | 🚧 [#571](https://github.com/pl0n3r/brvtal/issues/571) |
+| **LATER** | 🚧 Admin editorial productivity | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518), [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
 | **EVIDENCE** | 🚧 CI throughput Phase D decision | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
-| **BLOCKED / EXTERNAL** | 🚧 Hostinger configuration | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |
+| **BLOCKED / EXTERNAL** | 🚧 Hostinger production freshness | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

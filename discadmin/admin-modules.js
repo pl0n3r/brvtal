@@ -376,15 +376,14 @@ window.BRVTALAdminModules = (() => {
     if (type === 'artists') return {
       name:fieldValue('name'), slug:fieldValue('slug'), bio:fieldValue('bio'), photo:fieldValue('photo'),
       instagram_url:fieldValue('instagram_url'), soundcloud_url:fieldValue('soundcloud_url'),
-      website_url:fieldValue('website_url'), status:fieldValue('status') || 'draft',
-      sort_order:Number(fieldValue('sort_order') || 0)
+      website_url:fieldValue('website_url'), status:fieldValue('status') || 'draft'
     };
     if (type === 'sets') return {
       title:fieldValue('title'), slug:fieldValue('slug'), platform:fieldValue('platform') || 'soundcloud',
       external_url:fieldValue('external_url'), embed_url:fieldValue('embed_url'), cover_image:fieldValue('cover_image'),
       artist_id:fieldValue('artist_id') ? Number(fieldValue('artist_id')) : null,
       event_id:fieldValue('event_id') ? Number(fieldValue('event_id')) : null,
-      status:fieldValue('status') || 'draft', sort_order:Number(fieldValue('sort_order') || 0),
+      status:fieldValue('status') || 'draft',
       description:fieldValue('description')
     };
     if (type === 'media') return {
@@ -404,11 +403,23 @@ window.BRVTALAdminModules = (() => {
     return {};
   }
 
+  function visualOrderValue(type, id) {
+    if (!['artists','sets'].includes(type)) return null;
+    const rows = Array.isArray(state?.rows) ? state.rows : [];
+    if (id !== null && id !== '') {
+      const current = rows.find(row => Number(row.id) === Number(id));
+      if (current) return Number(current.sort_order || 0);
+    }
+    return rows.reduce((max,row) => Math.max(max,Number(row.sort_order ?? -1)), -1) + 1;
+  }
+
   window.save = async function(type, id = null) {
     const saveBtn = document.getElementById('saveBtn');
     const previousLabel = saveBtn?.textContent || 'SAVE';
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING…'; }
     const payload = formPayload(type);
+    const orderValue = visualOrderValue(type,id);
+    if (orderValue !== null) payload.sort_order = orderValue;
     try {
       if (typeof req !== 'function') throw new Error('ADMIN_REQUEST_UNAVAILABLE');
       if (type === 'settings') {

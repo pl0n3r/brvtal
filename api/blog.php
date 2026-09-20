@@ -161,7 +161,11 @@ function brvtal_blog_fetch(PDO $pdo, int $id): ?array
 
 function brvtal_blog_list(PDO $pdo): array
 {
-    $rows = $pdo->query('SELECT * FROM blog_posts ORDER BY featured DESC, COALESCE(published_at,updated_at) DESC, sort_order ASC, id DESC')->fetchAll();
+    $rows = $pdo->query(
+        'SELECT * FROM blog_posts '
+        . 'ORDER BY sort_order ASC, featured DESC, '
+        . 'COALESCE(published_at,updated_at) DESC, id ASC'
+    )->fetchAll();
     foreach ($rows as &$row) {
         $row['id'] = (int)$row['id'];
         $row['featured'] = (int)$row['featured'];

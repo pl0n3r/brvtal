@@ -127,7 +127,7 @@ function brvtal_public_releases(PDO $pdo): array
                 featured,published_at,sort_order
          FROM releases
          WHERE status='published'
-         ORDER BY featured DESC, COALESCE(release_date,'9999-12-31') DESC, sort_order ASC, id DESC"
+         ORDER BY sort_order ASC, featured DESC, COALESCE(release_date,'9999-12-31') DESC, id ASC"
     )->fetchAll();
 
     if (!$releases) {
@@ -170,7 +170,7 @@ function brvtal_public_blog(PDO $pdo): array
                 featured,published_at,sort_order
          FROM blog_posts
          WHERE status='published'
-         ORDER BY featured DESC, COALESCE(published_at,updated_at) DESC, sort_order ASC, id DESC"
+         ORDER BY sort_order ASC, featured DESC, COALESCE(published_at,updated_at) DESC, id ASC"
     )->fetchAll();
 
     if (!$posts) return [];

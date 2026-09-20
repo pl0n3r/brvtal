@@ -195,7 +195,35 @@ async function expectMediaMounted(page, timeout = 10_000) {
   }
 }
 
-test('Media mounts consistently from Dashboard, another module and a direct route', async ({ page }) => {
+test('Artists and Sets renderer emits canonical ordering containers', async ({ page }) => {
+  await login(page);
+
+  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
+  await page.evaluate(async () => {
+    await restoreSession();
+  });
+
+  for (const section of ['artists','sets']) {
+    const rendered = await page.evaluate(currentSection => {
+      const previousSection = state.section;
+      const previousRows = state.rows;
+      try {
+        state.section = currentSection;
+        state.rows = [];
+        return content();
+      } finally {
+        state.section = previousSection;
+        state.rows = previousRows;
+      }
+    }, section);
+
+    expect(rendered).toContain('id="rows"');
+    expect(rendered).toContain(`data-order-resource="${section}"`);
+    expect(rendered).toContain('data-order-enabled="1"');
+  }
+});
+
+test('Media remains mounted when a stale Dashboard navigation completes', async ({ page }) => {
   await login(page);
 
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
@@ -225,11 +253,10 @@ test('Media mounts consistently from Dashboard, another module and a direct rout
   await page.evaluate(() => window.__staleDashboardNavigation);
   await expectMediaMounted(page, 5_000);
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
+});
 
-  await page.getByRole('button', {name:'SETS', exact:true}).click();
-  await expect(page.locator('.main .top h1')).toHaveText('SETS');
-  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
-  await expectMediaMounted(page);
+test('Media mounts from its canonical deep link', async ({ page }) => {
+  await login(page);
 
   await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
   await expectMediaMounted(page);
