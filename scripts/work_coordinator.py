@@ -43,7 +43,7 @@ STATUS_LABELS: dict[str, tuple[str, str]] = {
 
 BRANCH_RE = re.compile(r"^work/issue-(\d+)$")
 CLOSING_RE = re.compile(r"(?im)\b(?:closes|fixes|resolves)\s+#(\d+)\b")
-VERSION_TITLE_RE = re.compile(r"\(v[0-9]+\.[0-9]+\.[0-9]+\)$")
+VERSION_TITLE_RE = re.compile(r"\(v\d+\.\d+\.\d+\)$")
 RESERVATION_LINE_RE = re.compile(
     r"(?im)^Reservation:\s*([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
     r"[89ab][0-9a-f]{3}-[0-9a-f]{12})\s*$"
