@@ -60,7 +60,7 @@
     const copy = help.querySelector('[data-order-help-copy]');
     if (copy) copy.textContent = enabled
       ? 'Drag to reorder · Arrow Up/Down on the handle · saves automatically'
-      : 'Clear search/filter to reorder the complete collection';
+      : 'Clear search/filter/sort to reorder the complete collection';
     help.classList.toggle('disabled', !enabled);
     return help;
   }
