@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **23** | **+1484** | **−146** | **+1338** |
+| **23** | **+1515** | **−146** | **+1369** |
 
 ## Calidad y entrega
 
@@ -86,9 +86,9 @@ flowchart LR
 - `docs/BRVTAL-SPEC.md` — decisión funcional durable de ordering.
 - `package.json` — versión e integración MariaDB del contrato.
 - `tests/blog-contract.php` — contrato Blog actualizado.
-- `tests/content-ordering-contract.php` — contrato + endpoint real sobre MariaDB aislada.
+- `tests/content-ordering-contract.php` — contrato + endpoint real sobre MariaDB aislada con posiciones 0..N-1 exactas.
 - `tests/discadmin-editor-accessibility-contract.php` — accesibilidad tras retirar Sort Order numérico.
-- `tests/e2e/content-core-real-stack.spec.mjs` — stale Dashboard→Media y deep link canónico de Media sobre el stack autenticado real.
+- `tests/e2e/content-core-real-stack.spec.mjs` — containers reales Artists/Sets + stale Dashboard→Media + deep link canónico de Media.
 - `tests/e2e/discadmin-content-ordering.spec.mjs` — teclado, touch, rollback, filtros y stores con observer aislado y aserciones multi-handle deterministas.
 - `tests/project-operations-contract.php` — valida #533 como única fuente del orden de ejecución.
 

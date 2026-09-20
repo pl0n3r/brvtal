@@ -39,7 +39,12 @@ $expect(str_contains($endpoint,'beginTransaction') && str_contains($endpoint,'ro
 $expect(str_contains($endpoint,'SET sort_order=? WHERE id=?'), 'reorder must normalize positions');
 $expect(!str_contains($endpoint,'{$table}') && !str_contains($endpoint,'{$labelColumn}'), 'reorder SQL must stay literal after resource whitelisting');
 $expect(str_contains($core,'replaceLegacySortOrderControl'), 'Artist/Set forms must replace numeric order with visual-order guidance');
-$expect(str_contains($core,'function orderingAttributes(section)') && str_contains($core,'data-order-enabled="1"'), 'core list must expose ordering contract');
+$expect(
+    str_contains($core,'function orderingAttributes(section)')
+        && str_contains($core,'artistOrderRow')
+        && str_contains($core,'setOrderRow'),
+    'core must retain the runtime ordering renderer hooks covered by real-stack E2E'
+);
 $expect(str_contains($modules,'visualOrderValue'), 'create/edit must preserve hidden order');
 $expect(!str_contains($releases,'id="release_sort_order"'), 'Release numeric Sort Order must be removed');
 $expect(str_contains($blog,'replaceBlogSortOrderControl'), 'Blog numeric Sort Order must be replaced before the editor is shown');
@@ -318,6 +323,21 @@ $csrfRejected = $orderHttp($endpointUrl, 'POST', [
 $csrfBody = json_decode($csrfRejected['body'], true);
 $expect($csrfRejected['status'] === 419 && ($csrfBody['error'] ?? '') === 'CSRF', 'endpoint must reject missing CSRF');
 
+$readPositions = static function (PDO $connection, array $orderedIds): array {
+    $statement = $connection->query('SELECT id, sort_order FROM sets_media');
+    if (!$statement instanceof PDOStatement) {
+        throw new RuntimeException('Unable to read persisted ordering fixture.');
+    }
+    $positions = [];
+    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $positions[(int)$row['id']] = (int)$row['sort_order'];
+    }
+    return array_map(
+        static fn (int $id): ?int => $positions[$id] ?? null,
+        $orderedIds
+    );
+};
+
 $target = [$ids[2], $ids[0], $ids[1]];
 $committed = $orderHttp($endpointUrl, 'POST', [
     'resource' => 'sets',
@@ -326,8 +346,8 @@ $committed = $orderHttp($endpointUrl, 'POST', [
 ], $csrfHeaders);
 $committedBody = json_decode($committed['body'], true);
 $expect($committed['status'] === 200 && ($committedBody['ok'] ?? false) === true, 'valid reorder must commit');
-$persisted = array_map('intval', $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
-$expect($persisted === $target, 'committed reorder must persist canonical ordering');
+$persistedPositions = $readPositions($pdo, $target);
+$expect($persistedPositions === [0,1,2], 'committed reorder must persist exact zero-based positions');
 
 $staleTarget = [$ids[0], $ids[2], $ids[1]];
 $stale = $orderHttp($endpointUrl, 'POST', [
@@ -337,8 +357,8 @@ $stale = $orderHttp($endpointUrl, 'POST', [
 ], $csrfHeaders);
 $staleBody = json_decode($stale['body'], true);
 $expect($stale['status'] === 409 && ($staleBody['error'] ?? '') === 'ORDER_STALE', 'stale reorder must preserve its public domain error');
-$afterStale = array_map('intval', $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
-$expect($afterStale === $target, 'stale reorder must not mutate persisted ordering');
+$afterStalePositions = $readPositions($pdo, $target);
+$expect($afterStalePositions === [0,1,2], 'stale reorder must preserve exact persisted positions');
 
 $pdo->exec('DROP TABLE admin_activity_log');
 $rollbackTarget = [$ids[1], $ids[2], $ids[0]];
@@ -349,8 +369,8 @@ $rollback = $orderHttp($endpointUrl, 'POST', [
 ], $csrfHeaders);
 $rollbackBody = json_decode($rollback['body'], true);
 $expect($rollback['status'] === 503 && ($rollbackBody['error'] ?? '') === 'ACTIVITY_SCHEMA_MISSING', 'audit failure must remain a bounded public domain error');
-$afterRollback = array_map('intval', $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
-$expect($afterRollback === $target, 'audit failure must rollback every ordering mutation');
+$afterRollbackPositions = $readPositions($pdo, $target);
+$expect($afterRollbackPositions === [0,1,2], 'audit failure must rollback every ordering position');
 
 $pdo->exec('DROP TABLE sets_media');
 $unexpected = $orderHttp($endpointUrl, 'POST', [
