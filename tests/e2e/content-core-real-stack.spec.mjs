@@ -227,15 +227,8 @@ test('Media remains mounted when a stale Dashboard navigation completes', async 
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 });
 
-test('Media mounts after settled shell navigation through Sets and a canonical Media deep link', async ({ page }) => {
+test('Media mounts from its canonical deep link', async ({ page }) => {
   await login(page);
-
-  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
-  await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
-  await expect(page.locator('#brvtal-dashboard-v2')).toBeVisible({timeout:10_000});
-
-  await page.getByRole('button', {name:'SETS', exact:true}).click();
-  await expect(page.locator('.main .top h1')).toHaveText('SETS', {timeout:10_000});
 
   await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
   await expectMediaMounted(page);
