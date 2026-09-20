@@ -837,7 +837,7 @@ def reservation_validation_errors(
 
     if reservation["branch"] != branch:
         errors.append(
-            f"Reservation marker points to {reservation['branch']}, no a {branch}."
+            f"Reservation marker points to {reservation['branch']}, not {branch}."
         )
     if reservation_from_pr_body(body) != reservation["reservation_id"]:
         errors.append(
