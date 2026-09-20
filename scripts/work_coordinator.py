@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -502,12 +503,12 @@ def reserve_work(
             ),
         )
     except Exception:
-        api.delete_branch(branch)
-        api.try_unassign(issue_number, actor)
-        try:
+        with contextlib.suppress(Exception):
+            api.delete_branch(branch)
+        with contextlib.suppress(Exception):
+            api.try_unassign(issue_number, actor)
+        with contextlib.suppress(Exception):
             api.set_status(issue_number, STATUS_AVAILABLE)
-        except Exception:
-            pass
         raise
 
     print(
@@ -718,6 +719,11 @@ def close_pr_reservation(
         api.try_unassign(issue_number, str(current["owner"]))
 
     issue = api.issue(issue_number)
+    if (
+        issue.get("state") == "closed"
+        and issue.get("state_reason") == "not_planned"
+    ):
+        return
     if merged or issue.get("state") != "open":
         api.set_status(issue_number, STATUS_COMPLETED)
     elif STATUS_BLOCKED not in label_names(issue):

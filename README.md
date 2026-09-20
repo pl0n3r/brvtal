@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+1912** | **−68** | **+1844** |
+| **12** | **+1965** | **−69** | **+1896** |
 
 ## Calidad y entrega
 
@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Reservation | PR + snapshot exacto · atomic `work/issue-N` branch lock · trusted UUID marker |
 | PR integrity | Issue + branch + reservation + closing relation fail closed |
 | Collision safety | exact changed-file overlap against other open PRs targeting `main` |
@@ -78,6 +78,7 @@ flowchart LR
 - `config/version.php` — release runtime v0.1.22.
 - `docs/BRVTAL-SPEC.md` — contrato técnico durable de coordinación multiagente.
 - `package.json` — versión y comando local de pruebas de coordinación.
+- `scripts/readme-dashboard.py` — mantiene el snapshot de gates alineado con el DAG canónico.
 - `scripts/work_coordinator.py` — árbitro de reservas, lifecycle, validación y colisiones.
 - `tests/ci-scope-contract.php` — protege el DAG canónico con el nuevo gate de coordinación.
 - `tests/project-operations-contract.php` — protege integración canónica al CI/documentación.

@@ -91,6 +91,8 @@ $assert(str_contains($workCoordinator, 'Deploy-bound PR titles must end with (vX
 $assert(str_contains($workCoordinatorTests, 'test_second_reservation_cannot_win_same_branch'), 'coordination tests must cover the atomic branch lock');
 $assert(str_contains($workCoordinatorTests, 'test_validate_pull_rejects_open_pr_overlap'), 'coordination tests must cover open-PR file collisions');
 $assert(str_contains($workflow, "  coordination:\n"), 'BRVTAL CI must expose the coordination gate');
+$assert(str_contains($workflow, 'COORDINATION_RESULT: ${{ needs.coordination.result }}'), 'validation summary must publish the coordination result');
+$assert(str_contains($coordinationWorkflow, "format('work/issue-{0}', github.event.issue.number)"), 'coordination workflow must serialize events by canonical Issue key');
 $assert(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate coordination with existing gates');
 
 // CI/deployment observability, consolidated fast gate and metadata safety contract.

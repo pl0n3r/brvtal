@@ -11,6 +11,7 @@ from scripts.work_coordinator import (
     GitHubError,
     STATUS_AVAILABLE,
     STATUS_BLOCKED,
+    STATUS_CANCELLED,
     STATUS_COMPLETED,
     STATUS_RESERVED,
     STATUS_REVIEW,
@@ -57,6 +58,8 @@ class FakeGitHub:
         self.status_history: list[str | None] = []
         self.assignees: set[str] = set()
         self.fail_comment = False
+        self.fail_delete_branch = False
+        self.fail_unassign = False
 
     def issue(self, number: int) -> dict:
         """BRVTAL work-coordination helper."""
@@ -100,6 +103,8 @@ class FakeGitHub:
 
     def delete_branch(self, branch: str) -> None:
         """BRVTAL work-coordination helper."""
+        if self.fail_delete_branch:
+            raise CoordinationError("simulated delete failure")
         self.branches.pop(branch, None)
 
     def issue_comments(self, issue_number: int) -> list[dict]:
@@ -131,6 +136,8 @@ class FakeGitHub:
     def try_unassign(self, issue_number: int, login: str) -> None:
         """BRVTAL work-coordination helper."""
         assert issue_number == 12
+        if self.fail_unassign:
+            raise CoordinationError("simulated unassign failure")
         self.assignees.discard(login)
 
 
@@ -378,6 +385,17 @@ class CoordinationTests(unittest.TestCase):
         self.assertNotIn("work/issue-12", api.branches)
         self.assertEqual(api.status_history[-1], STATUS_AVAILABLE)
 
+    def test_reservation_rollback_preserves_original_error_and_continues_cleanup(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        api.fail_comment = True
+        api.fail_delete_branch = True
+        api.fail_unassign = True
+        with self.assertRaisesRegex(CoordinationError, "simulated comment failure"):
+            reserve_work(api, 12, "pl0n3r", "OWNER")
+        self.assertIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_AVAILABLE)
+
     def test_wrong_session_cannot_release(self) -> None:
         """BRVTAL work-coordination helper."""
         api = FakeGitHub()
@@ -453,6 +471,25 @@ class CoordinationTests(unittest.TestCase):
         update_pr_state(api, 15, "closed")
         self.assertNotIn("work/issue-12", api.branches)
         self.assertEqual(api.status_history[-1], STATUS_AVAILABLE)
+
+    def test_pr_close_preserves_cancelled_issue_state(self) -> None:
+        """BRVTAL work-coordination helper."""
+        api = FakeGitHub()
+        add_active_reservation(api)
+        api.issue_data["state"] = "closed"
+        api.issue_data["state_reason"] = "not_planned"
+        api.set_status(12, STATUS_CANCELLED)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "closed",
+            "draft": False,
+            "head": {"ref": "work/issue-12"},
+            "base": {"ref": "main"},
+            "merged": False,
+        }
+        update_pr_state(api, 15, "closed")
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.status_history[-1], STATUS_CANCELLED)
 
     def test_issue_close_cleans_branch_and_completes(self) -> None:
         """BRVTAL work-coordination helper."""
