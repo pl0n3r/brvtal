@@ -90,7 +90,9 @@ test('failed reorder restores the exact previous DOM order', async ({page}) => {
 test('filters disable ordering rather than persisting a partial collection', async ({page}) => {
   await harness(page);
   await page.evaluate(()=>{const rows=document.getElementById('rows');rows.dataset.orderEnabled='0';window.BRVTALContentOrdering.refresh(rows)});
-  await expect(page.locator('.content-order-handle')).toBeHidden();
+  expect(await page.locator('.content-order-handle').evaluateAll(handles =>
+    handles.length === 3 && handles.every(handle => handle.hidden && handle.disabled)
+  )).toBe(true);
   await expect(page.locator('.content-order-help')).toContainText('Clear search/filter');
   expect(await page.evaluate(()=>window.__orders.length)).toBe(0);
 });
