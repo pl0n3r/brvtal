@@ -27,9 +27,7 @@ async function harness(page) {
     };
   });
   await page.evaluate(source => {
-    const script = document.createElement('script');
-    script.textContent = source;
-    document.head.appendChild(script);
+    window.eval(source);
   }, orderingJs);
   await expect(page.locator('.content-order-handle')).toHaveCount(3);
 }
