@@ -19,7 +19,7 @@ if ($adminId < 1) {
 }
 
 try {
-    $key = brvtal_admin_grid_setting_key($adminId, $module);
+    $key = brvtalAdminGridSettingKey($adminId, $module);
     $pdo = db();
 
     if ($method === 'GET') {
@@ -27,7 +27,7 @@ try {
         $st->execute([$key]);
         $raw = $st->fetchColumn();
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
-        $preferences = brvtal_admin_grid_normalize_preferences(
+        $preferences = brvtalAdminGridNormalizePreferences(
             $module,
             is_array($decoded) ? $decoded : []
         );
@@ -35,7 +35,7 @@ try {
     }
 
     brvtal_admin_require_csrf();
-    $preferences = brvtal_admin_grid_normalize_preferences($module, input_json());
+    $preferences = brvtalAdminGridNormalizePreferences($module, input_json());
     $encoded = json_encode($preferences, JSON_UNESCAPED_SLASHES);
     if (!is_string($encoded)) {
         throw new RuntimeException('GRID_PREFERENCE_ENCODING_FAILED');

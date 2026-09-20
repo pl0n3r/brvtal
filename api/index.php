@@ -239,7 +239,10 @@ try {
             $rows = $st->fetchAll();
         } elseif ($resource === 'settings') {
             $rows = $pdo->query(
-                "SELECT * FROM settings WHERE setting_key<>'security.totp_encryption_key' AND setting_key NOT LIKE 'admin.grid.%' ORDER BY setting_key"
+                "SELECT * FROM settings "
+                . "WHERE setting_key<>'security.totp_encryption_key' "
+                . "AND setting_key NOT LIKE 'admin.grid.%' "
+                . "ORDER BY setting_key"
             )->fetchAll();
         } elseif ($id !== null) {
             $st = $pdo->prepare("SELECT * FROM {$table} WHERE id=? LIMIT 1");

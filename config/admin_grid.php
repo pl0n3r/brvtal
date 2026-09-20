@@ -10,7 +10,7 @@ declare(strict_types=1);
  */
 
 /** @return array<string,array<int,string>> */
-function brvtal_admin_grid_columns(): array
+function brvtalAdminGridColumns(): array
 {
     return [
         'events' => ['primary','date','location','status'],
@@ -23,9 +23,9 @@ function brvtal_admin_grid_columns(): array
     ];
 }
 
-function brvtal_admin_grid_setting_key(int $adminId, string $module): string
+function brvtalAdminGridSettingKey(int $adminId, string $module): string
 {
-    $columns = brvtal_admin_grid_columns();
+    $columns = brvtalAdminGridColumns();
     if ($adminId < 1 || !array_key_exists($module, $columns)) {
         throw new InvalidArgumentException('INVALID_GRID_CONTEXT');
     }
@@ -34,9 +34,9 @@ function brvtal_admin_grid_setting_key(int $adminId, string $module): string
 }
 
 /** @return array<int,string> */
-function brvtal_admin_grid_default_columns(string $module): array
+function brvtalAdminGridDefaultColumns(string $module): array
 {
-    $columns = brvtal_admin_grid_columns();
+    $columns = brvtalAdminGridColumns();
     if (!array_key_exists($module, $columns)) {
         throw new InvalidArgumentException('INVALID_GRID_MODULE');
     }
@@ -47,9 +47,9 @@ function brvtal_admin_grid_default_columns(string $module): array
  * @param array<string,mixed> $input
  * @return array{columns:array<int,string>}
  */
-function brvtal_admin_grid_normalize_preferences(string $module, array $input): array
+function brvtalAdminGridNormalizePreferences(string $module, array $input): array
 {
-    $allowed = brvtal_admin_grid_default_columns($module);
+    $allowed = brvtalAdminGridDefaultColumns($module);
     $requested = $input['columns'] ?? $allowed;
     if (!is_array($requested)) {
         throw new InvalidArgumentException('INVALID_GRID_COLUMNS');

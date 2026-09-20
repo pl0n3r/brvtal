@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/config/admin_grid.php';
 
-function grid_pref_it_assert(bool $condition, string $message): void
+function gridPrefItAssert(bool $condition, string $message): void
 {
     if (!$condition) {
         fwrite(STDERR, "ADMIN GRID PREFERENCES INTEGRATION FAILED: {$message}\n");
@@ -17,7 +17,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') !== '1') {
 }
 
 $dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
-grid_pref_it_assert(
+gridPrefItAssert(
     (bool)preg_match('/^brvtal_test[a-zA-Z0-9_]*$/', $dbName),
     'test database name must start with brvtal_test'
 );
@@ -49,9 +49,9 @@ $pdo->exec(
 );
 
 $keys = [
-    'admin_a_events' => brvtal_admin_grid_setting_key(101, 'events'),
-    'admin_b_events' => brvtal_admin_grid_setting_key(202, 'events'),
-    'admin_a_blog' => brvtal_admin_grid_setting_key(101, 'blog'),
+    'admin_a_events' => brvtalAdminGridSettingKey(101, 'events'),
+    'admin_b_events' => brvtalAdminGridSettingKey(202, 'events'),
+    'admin_a_blog' => brvtalAdminGridSettingKey(101, 'blog'),
 ];
 
 $upsert = $pdo->prepare(
@@ -70,29 +70,29 @@ $load = static function (string $key) use ($read): array {
     return is_array($decoded) ? $decoded : [];
 };
 
-grid_pref_it_assert(
+gridPrefItAssert(
     $load($keys['admin_a_events'])['columns'] === ['primary','status'],
     'admin A Events preferences must persist independently'
 );
-grid_pref_it_assert(
+gridPrefItAssert(
     $load($keys['admin_b_events'])['columns'] === ['primary','date','location'],
     'admin B Events preferences must not inherit admin A preferences'
 );
-grid_pref_it_assert(
+gridPrefItAssert(
     $load($keys['admin_a_blog'])['columns'] === ['primary','published'],
     'the same administrator must have module-isolated preferences'
 );
 
 $upsert->execute([$keys['admin_a_events'], json_encode(['columns'=>['primary','date']])]);
-grid_pref_it_assert(
+gridPrefItAssert(
     $load($keys['admin_a_events'])['columns'] === ['primary','date'],
     'upsert must update exactly one admin/module preference'
 );
-grid_pref_it_assert(
+gridPrefItAssert(
     $load($keys['admin_b_events'])['columns'] === ['primary','date','location'],
     'updating admin A must preserve admin B'
 );
-grid_pref_it_assert(
+gridPrefItAssert(
     $load($keys['admin_a_blog'])['columns'] === ['primary','published'],
     'updating Events must preserve Blog preferences'
 );
