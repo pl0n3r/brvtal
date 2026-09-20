@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#571 multi-agent coordination (v0.1.22)** | atomic Issue reservation · canonical branches · PR collision prevention |
-| Base exacta | ✅ **VALIDATED IN CODE** | `main` `da4527c484899cea912710e1fbeca611c03a2a7d` |
-| Version | 🚧 **0.1.21 → 0.1.22** | infrastructure patch deploy |
-| Producción base | ✅ **DEPLOYED release observed** | v0.1.21 visible through Production Deploy Observer after 9 s; not behavioral validation |
+| Work line | 🚧 **#518 canonical Admin data grid (v0.1.23)** | sorting · Columns/View · multi-select · shared table model |
+| Base exacta | ✅ **VALIDATED IN CODE** | `main` `e05cc9113f89d247dcb892186180ab497d31b060` · BRVTAL CI #1375 success |
+| Version | 🚧 **0.1.22 → 0.1.23** | editorial productivity release |
+| Producción base | ✅ **DEPLOYED release observed** | v0.1.22 visible through Production Deploy Observer after 9 s; not behavioral validation |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+1965** | **−69** | **+1896** |
+| **20** | **+1243** | **−95** | **+1148** |
 
 ## Calidad y entrega
 
@@ -36,78 +36,84 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| Reservation | PR + snapshot exacto · atomic `work/issue-N` branch lock · trusted UUID marker |
-| PR integrity | Issue + branch + reservation + closing relation fail closed |
-| Collision safety | exact changed-file overlap against other open PRs targeting `main` |
-| Lifecycle | available · reserved · in review · completed · cancelled · blocked |
-| Sonar + CodeRabbit | parallel on stable head |
-| Exact-main | CI del SHA exacto de main after squash merge |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Reservation | Issue #518 · `work/issue-518` · atomic reservation |
+| PR integrity | **PR + snapshot exacto** · Issue/branch/reservation fail closed |
+| Grid contract | seven modules · tri-state sort · per-admin columns · shared selection |
+| Bulk safety | existing transactional Bulk Actions · CSRF · audit · no bulk delete |
+| Sonar + CodeRabbit | parallel on stable intended head |
+| Exact-main | **CI del SHA exacto de main** after squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- I["Issue"] --> R["/take → atomic reservation"]
- R --> B["work/issue-N"]
- B --> P["PR + reservation UUID"]
- P --> C["Coordination + CI + Sonar + CodeRabbit"]
- C --> M["Serialized squash merge"]
+ I["#518 / reserved"] --> B["work/issue-518"]
+ B --> G["Shared Data Grid"]
+ G --> T["Contracts + MariaDB + Playwright"]
+ T --> P["PR · CI · Sonar · CodeRabbit"]
+ P --> M["Squash merge"]
  M --> X["Exact-main + deploy observation"]
 ```
 
 ## Qué se hizo
 
-- Se porta a BRVTAL la coordinación multiagente probada en Condor sin cambiar nombres canónicos existentes del repositorio.
-- La creación de `work/issue-N` funciona como lock atómico por Issue.
-- Los comandos `/take`, `/release UUID`, `/transfer UUID` y `/force-release` administran ownership sin depender del chat.
-- Los estados de coordinación quedan visibles mediante labels y se sincronizan con eventos de PR/Issue.
-- El PR falla si Issue, rama, reserva o metadata no coinciden.
-- El gate detecta colisiones de archivos con otros PR abiertos hacia `main` y reporta paths exactos.
-- El gate `coordination` entra al `validate` existente; no se crea un CI competidor.
-- El propio PR #571 usa bootstrap seguro; después del merge las reservas pasan a ser obligatorias.
-- Los PR deploy-bound deben terminar su título con `(vX.Y.Z)`.
-- Versión **0.1.22**.
+- Se crea un único motor `admin-data-grid` para Events, Artists, Releases, Sets, Media, Pages y Blog.
+- Sort de columnas usa ciclo ascendente → descendente → orden por defecto, con desempate determinista por ID.
+- Columns / View permite ocultar/restaurar columnas y persiste preferencias privadas por administrador + módulo sin nueva migración.
+- Las preferencias `admin.grid.*` quedan protegidas frente al editor genérico de Settings.
+- Multi-select, Select All y Clear viven en el grid; módulos compatibles entregan la selección al Bulk Actions transaccional existente.
+- Releases Catalog y Blog dejan el patrón bespoke en el shell real y renderizan con la misma tabla canónica.
+- Media conserva uploader/inspector, pero su listado administrativo usa el grid común.
+- Artists, Sets, Releases y Blog conservan drag/drop; el reorder se bloquea cuando hay filtro o sort explícito.
+- Se añaden contratos, persistencia MariaDB y Playwright para sort, columnas, aislamiento, selección, bulk handoff y móvil.
+- Versión **0.1.23**.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/update-release-metadata.yml` — agrega coordination al DAG y al validate agregado.
-- `.github/workflows/work-coordination.yml` — comandos y sincronización GitHub-native de Issue/PR.
-- `AGENTS.md` — reglas operativas durables de reserva, colisiones y paralelización.
-- `README.md` — snapshot visual exacto de v0.1.22.
-- `config/version.php` — release runtime v0.1.22.
-- `docs/BRVTAL-SPEC.md` — contrato técnico durable de coordinación multiagente.
-- `package.json` — versión y comando local de pruebas de coordinación.
-- `scripts/readme-dashboard.py` — mantiene el snapshot de gates alineado con el DAG canónico.
-- `scripts/work_coordinator.py` — árbitro de reservas, lifecycle, validación y colisiones.
-- `tests/ci-scope-contract.php` — protege el DAG canónico con el nuevo gate de coordinación.
-- `tests/project-operations-contract.php` — protege integración canónica al CI/documentación.
-- `tests/test_work_coordinator.py` — cobertura de lock atómico, sesiones, lifecycle y collisions.
+- `README.md` — snapshot exacto de v0.1.23.
+- `api/admin-grid-preferences.php` — endpoint privado de preferencias por administrador/módulo.
+- `api/index.php` — oculta/protege preferencias privadas del Settings genérico.
+- `config/admin_grid.php` — allowlist y normalización canónica de columnas/preferencias.
+- `config/version.php` — release runtime v0.1.23.
+- `discadmin/admin-data-grid.css` — layout compartido, focus y comportamiento móvil.
+- `discadmin/admin-data-grid.js` — sorting, chooser, selección, acciones y render compartido.
+- `discadmin/blog.js` — Blog usa el grid canónico en el shell.
+- `discadmin/bulk-actions.js` — acepta selección inicial desde el grid.
+- `discadmin/content-ordering.js` — ayuda UX coherente con filtro/sort.
+- `discadmin/index-core.php` — Events/Artists/Sets/Pages migran al grid compartido.
+- `discadmin/index.php` — carga assets canónicos del grid.
+- `discadmin/media-library.js` — listado Media migrado al grid, inspector preservado.
+- `discadmin/releases.js` — Catalog migrado al grid compartido.
+- `docs/BRVTAL-SPEC.md` — contrato durable del data-grid.
+- `package.json` — v0.1.23 + persistencia de preferencias en integración.
+- `tests/admin-data-grid-contract.php` — arquitectura, protección y aislamiento.
+- `tests/e2e/content-core-real-stack.spec.mjs` — valida que reorder siga siendo canónico a través del grid compartido.
+- `tests/e2e/discadmin-data-grid.spec.mjs` — tri-state, columnas, selección, módulos y móvil.
+- `tests/integration/admin-grid-preferences.php` — persistencia real aislada por admin/módulo.
 
 ## Validación
 
-- Base exacta `da4527c`: BRVTAL CI / `validate` success.
-- Production Deploy Observer de la base: v0.1.21 observada tras 9 s.
-- El PR debe cerrar unit tests del coordinador, BRVTAL CI, Sonar y CodeRabbit sobre el head estable.
+- Base exacta `e05cc9113f89d247dcb892186180ab497d31b060`: BRVTAL CI / `validate` success.
+- v0.1.22 observada en producción tras 9 s; esto confirma identidad de release, no comportamiento.
+- La rama incluye contratos PHP, MariaDB integration y Playwright específicos de #518.
+- El PR debe cerrar BRVTAL CI, Sonar y CodeRabbit sobre el head estable.
 - Exact-main seguirá siendo obligatorio después del squash merge.
-- Deploy observado no equivale a comportamiento validado en producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#571](https://github.com/pl0n3r/brvtal/issues/571) · multi-agent coordination and PR collision prevention. |
-| **NEXT** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) · canonical professional Admin data grid. |
-| **LATER** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525) · editor protection + rich Blog editor. |
-| **EVIDENCE** | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) · gather more samples before Phase D. |
-| **BLOCKED / EXTERNAL** | 🚧 No active external blocker; [#534](https://github.com/pl0n3r/brvtal/issues/534) remains under freshness monitoring after v0.1.21 was observed. |
+| **NOW** | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) · canonical professional Admin data grid v0.1.23. |
+| **NEXT** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) · protect unsaved editor changes. |
+| **LATER** | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) · editorial productivity. |
+| **BLOCKED / EXTERNAL** | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) remains freshness monitoring; no active Hostinger blocker. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Multi-agent coordination / collision prevention | 🚧 [#571](https://github.com/pl0n3r/brvtal/issues/571) |
-| **NEXT** | 🚧 Admin data grid | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) |
-| **LATER** | 🚧 Admin editorial productivity | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
-| **EVIDENCE** | 🚧 CI throughput Phase D decision | 🚧 [#564](https://github.com/pl0n3r/brvtal/issues/564) |
-| **BLOCKED / EXTERNAL** | 🚧 No active Hostinger blocker; release freshness restored in the latest observed deploy | [#534](https://github.com/pl0n3r/brvtal/issues/534) monitoring |
+| **NOW** | 🚧 Admin data grid | 🚧 [#518](https://github.com/pl0n3r/brvtal/issues/518) |
+| **NEXT** | 🚧 Unsaved editor protection | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) |
+| **LATER** | 🚧 Rich editor / membership / drafts / preview | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
+| **BLOCKED / EXTERNAL** | 🚧 Hostinger freshness monitoring | 🚧 [#534](https://github.com/pl0n3r/brvtal/issues/534) |

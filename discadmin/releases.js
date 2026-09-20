@@ -93,23 +93,24 @@ window.BRVTALReleases = (() => {
     const grid = store.root.querySelector('#release-grid');
     if (!grid) return;
     const rows = visibleRows();
-    grid.dataset.orderResource = 'releases';
-    grid.dataset.orderEnabled = orderingAvailable() ? '1' : '0';
+    if (window.BRVTALDataGrid?.render?.('releases',grid,rows,{
+      allRows:store.releases,
+      orderingEnabled:orderingAvailable()
+    })) return;
     if (!rows.length) {
       grid.innerHTML = '<div class="releases-empty">NO RELEASES MATCH THIS VIEW</div>';
-      window.BRVTALContentOrdering?.refresh?.(grid);
       return;
     }
     grid.innerHTML = rows.map(release => {
       const date = release.release_date || 'DATE TBD';
       const catalog = release.catalog_number || 'NO CATALOG #';
       const type = String(release.release_type || 'single').toUpperCase();
-      return `<article class="release-row" data-release-id="${Number(release.id)}" data-order-id="${Number(release.id)}">
+      return `<article class="release-row" data-release-id="${Number(release.id)}">
         <div>${artwork(release)}</div>
-        <div><div class="release-title">${esc(release.title)}</div><div class="release-meta">${esc(catalog)} · ${esc(type)}${Number(release.featured)===1?' · FEATURED':''}</div></div>
+        <div><div class="release-title">${esc(release.title)}</div><div class="release-meta">${esc(catalog)} · ${esc(type)}</div></div>
         <div class="release-artists">${esc(artistNames(release))}</div>
-        <div class="release-date"><div class="release-meta">RELEASE DATE</div><b>${esc(date)}</b></div>
-        <div class="release-actions"><span class="release-status-wrap"><span class="release-status-pill ${esc(release.status)}">${esc(release.status)}</span></span><button class="iconbtn" type="button" data-edit>EDIT</button><button class="iconbtn" type="button" data-delete>DELETE</button></div>
+        <div class="release-date">${esc(date)}</div>
+        <div class="release-actions"><button class="iconbtn" type="button" data-edit>EDIT</button><button class="iconbtn" type="button" data-delete>DELETE</button></div>
       </article>`;
     }).join('');
     grid.querySelectorAll('[data-release-id]').forEach(row => {
@@ -117,7 +118,6 @@ window.BRVTALReleases = (() => {
       row.querySelector('[data-edit]')?.addEventListener('click',() => openEditor(id));
       row.querySelector('[data-delete]')?.addEventListener('click',() => remove(id));
     });
-    window.BRVTALContentOrdering?.refresh?.(grid);
   }
 
   async function loadArtists() {

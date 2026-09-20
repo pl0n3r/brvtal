@@ -598,6 +598,27 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
 <a class="system-pulse-card" href="#" onclick="tech('system');return false" data-pulse-target="database"><span class="system-pulse-label"><i></i>DATABASE</span><b class="system-pulse-value" id="pulse-db">CHECKING</b><small class="system-pulse-meta">Engine &amp; connection</small></a>
 <a class="system-pulse-card" href="#" onclick="tech('system');return false" data-pulse-target="storage"><span class="system-pulse-label"><i></i>STORAGE</span><b class="system-pulse-value" id="pulse-storage">CHECKING</b><small class="system-pulse-meta">Uploads &amp; logs</small></a>
 </div></div><div class="dashsection"><div class="sectionhead"><strong>QUICK ACTIONS</strong><span class="helper">Crear contenido</span></div><div class="quickgrid"><button class="btn red" onclick="openModal('events')">+ EVENT</button><button class="btn ghost" onclick="openModal('artists')">+ ARTIST</button><button class="btn ghost" onclick="openModal('sets')">+ SET</button><button class="btn ghost" onclick="openModal('media')">+ MEDIA</button></div></div><div class="dashgrid"><div class="dashsection"><div class="sectionhead"><strong>RECENT EVENTS</strong><button class="iconbtn" onclick="go('events')">VIEW ALL</button></div><div class="dashlist">${events.map(x=>`<div class="dashitem">${thumb(x.cover_image,x.title)}<div class="grow"><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.event_date||'No date')} · ${esc(x.city||x.venue||'No location')}</div></div><span class="pill">${esc(x.status)}</span></div>`).join('')||'<div class="empty">No events.</div>'}</div></div><div class="dashsection"><div class="sectionhead"><strong>RECENT ARTISTS</strong><button class="iconbtn" onclick="go('artists')">VIEW ALL</button></div><div class="dashlist">${artists.map(x=>`<div class="dashitem">${thumb(x.photo,x.name)}<div class="grow"><div class="title">${esc(x.name)}</div><div class="meta">${esc(x.slug)}</div></div><span class="pill">${esc(x.status)}</span></div>`).join('')||'<div class="empty">No artists.</div>'}</div></div></div><div class="dashgrid"><div class="dashsection"><div class="sectionhead"><strong>RECENT SETS</strong><button class="iconbtn" onclick="go('sets')">VIEW ALL</button></div><div class="dashlist">${sets.map(x=>`<div class="dashitem">${thumb(x.cover_image,x.title)}<div class="grow"><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.artist_name||'Unknown artist')} · ${esc(x.event_title||'Unlinked event')}</div></div><span class="pill">${esc(x.platform)}</span></div>`).join('')||'<div class="empty">No sets.</div>'}</div></div><div class="dashsection"><div class="sectionhead"><strong>MEDIA / LATEST</strong><button class="iconbtn" onclick="go('media')">VIEW ALL</button></div><div class="dashlist">${media.map(x=>`<div class="dashitem">${x.type==='image'?thumb(x.file_path,x.title):`<div class="thumbph">${esc(x.type).toUpperCase()}</div>`}<div class="grow"><div class="title">${esc(x.title)}</div><div class="meta">${esc(x.mime_type||x.type)}</div></div><span class="pill">${esc(x.status)}</span></div>`).join('')||'<div class="empty">No media.</div>'}</div></div></div><div class="dashgrid"><div class="dashsection"><div class="sectionhead"><strong>PUBLICATION HEALTH</strong><span class="helper">Content visibility</span></div><div class="metricrow"><div class="metric"><span class="eyebrow">EVENTS PUBLISHED</span><b>${evPct}%</b><div class="bar"><i style="width:${evPct}%"></i></div></div><div class="metric"><span class="eyebrow">ARTISTS PUBLISHED</span><b>${arPct}%</b><div class="bar"><i style="width:${arPct}%"></i></div></div><div class="metric"><span class="eyebrow">ANALYTICS / 30D</span><b>${analytics}</b><div class="meta">tracked events</div></div></div></div><div class="dashsection"><div class="sectionhead"><strong>TECHNICAL SNAPSHOT</strong><button class="btn ghost" onclick="go('theme')">THEME STUDIO</button><button class="btn ghost" onclick="tech('system')">SYSTEM STATUS</button></div><div class="techgrid"><div class="techcard"><h3>API</h3><div class="techvalue" id="dash_api">CHECKING</div></div><div class="techcard"><h3>DATABASE</h3><div class="techvalue" id="dash_db">CHECKING</div></div><div class="techcard"><h3>PHP</h3><div class="techvalue">8.3+</div></div></div></div></div>`} 
+ if(['events','artists','sets','pages'].includes(state.section)){
+  let button = `<button class="btn red" onclick="openModal('${state.section}')">
+   + NEW ${state.section.slice(0,-1).toUpperCase()}
+  </button>`;
+  if(state.section==='events')button='<button class="btn red" onclick="openModal(\'events\')">+ NEW EVENT</button>';
+  if(state.section==='artists')button='<button class="btn red" onclick="openModal(\'artists\')">+ NEW ARTIST</button>';
+  if(state.section==='sets')button='<button class="btn red" onclick="openModal(\'sets\')">+ NEW SET</button>';
+  if(state.section==='pages')button='<button class="btn red" onclick="openModal(\'pages\')">+ NEW PAGE</button>';
+  return `
+   <div class="toolbar admin-grid-toolbar">
+    <input
+     class="search"
+     data-admin-grid-search
+     placeholder="Search ${state.section}..."
+     oninput="filterRows(this.value)"
+    >
+    ${button}
+   </div>
+   <div id="rows" data-admin-grid-host="${state.section}"></div>
+  `;
+ }
  const r=state.rows||[];let button=`<button class="btn red" onclick="openModal('${state.section}')">+ NEW ${state.section.slice(0,-1).toUpperCase()}</button>`;
  if(state.section==='events')button='<button class="btn red" onclick="openModal(\'events\')">+ NEW EVENT</button>';
  if(state.section==='artists')button='<button class="btn red" onclick="openModal(\'artists\')">+ NEW ARTIST</button>';
@@ -631,17 +652,29 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
   </div>
  `;
 }
+function adminGridSearchText(row){
+ return Object.values(row||{}).map(value=>{
+  if(value&&typeof value==='object'){try{return JSON.stringify(value)}catch(_){return ''}}
+  return String(value??'');
+ }).join(' ').toLowerCase();
+}
+function renderNativeDataGrid(query=null){
+ const module=state.section;
+ if(!['events','artists','sets','pages'].includes(module))return false;
+ const host=document.getElementById('rows');
+ if(!host||!window.BRVTALDataGrid)return false;
+ const input=document.querySelector('[data-admin-grid-search]');
+ const q=String(query??input?.value??'').trim().toLowerCase();
+ const all=Array.isArray(state.rows)?state.rows:[];
+ const rows=q?all.filter(row=>adminGridSearchText(row).includes(q)):all;
+ return window.BRVTALDataGrid.render(module,host,rows,{allRows:all,orderingEnabled:q==='' });
+}
 function filterRows(q){
- q=String(q||'').toLowerCase();
- const rows=document.getElementById('rows');
+ if(renderNativeDataGrid(q))return;
+ const term=String(q??'').trim().toLowerCase();
  document.querySelectorAll('#rows .tr').forEach(row=>{
-  const matches=row.innerText.toLowerCase().includes(q);
-  row.style.display=matches?'grid':'none';
+  row.style.display=!term||row.textContent.toLowerCase().includes(term)?'':'none';
  });
- if(rows?.dataset.orderResource){
-  rows.dataset.orderEnabled=q.trim()?'0':'1';
-  window.BRVTALContentOrdering?.refresh?.(rows);
- }
 }
 window.addEventListener('brvtal:content-order-changed',event=>{
  const detail=event.detail||{};
@@ -776,6 +809,7 @@ function render(){
   ${moduleBody}
  </main>
 </div>`;
+ queueMicrotask(()=>renderNativeDataGrid());
  if(previousSide){
   root.querySelector('.side').replaceWith(previousSide);
   previousSide.querySelectorAll('.nav button').forEach(button=>{

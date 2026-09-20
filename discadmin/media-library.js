@@ -238,6 +238,10 @@ window.BRVTALMediaLibrary = (() => {
     if (!grid) return;
     const items = filteredItems();
     if (summary) summary.textContent = `${items.length} OF ${store.items.length} ASSETS · ORIGINALS PRESERVED`;
+    if (window.BRVTALDataGrid?.render?.('media',grid,items,{
+      allRows:store.items,
+      orderingEnabled:false
+    })) return;
     if (!items.length) {
       grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No media matches this view.</div>';
       return;
@@ -525,5 +529,5 @@ window.BRVTALMediaLibrary = (() => {
 
   installGlobalFeedback();
   startPickerObserver();
-  return {mount,refresh,openPicker,decoratePickerInputs,notify,mediaUrl,handleImageError,handleThumbError};
+  return {mount,refresh,select,openPicker,decoratePickerInputs,notify,mediaUrl,handleImageError,handleThumbError};
 })();

@@ -699,3 +699,26 @@ It should become **BRVTAL DIGITAL PLATFORM**:
 PUBLIC EXPERIENCE + CONTENT PLATFORM + ARTIST PLATFORM + EVENT PLATFORM + MUSIC/LABEL + ARCHIVE + PROPRIETARY DISCADMIN.
 
 All parts must share a coherent, secure, scalable and unmistakably BRVTAL architecture.
+
+
+## 39. Canonical DISCADMIN data grid
+
+Major record lists use one shared professional data-grid interaction model for Events, Artists, Releases, Sets, Media, Pages and Blog.
+
+The canonical shared layer is `discadmin/admin-data-grid.js` + `discadmin/admin-data-grid.css`. Modules retain their own editorial actions and filters, but must not reintroduce bespoke table/card interaction models for record management.
+
+Grid behavior:
+
+- sortable columns use a tri-state cycle: ascending → descending → module default;
+- explicit sorting is deterministic and uses record identity as a stable secondary order;
+- column visibility is configurable through Columns / View and can be restored to module defaults;
+- visible columns persist per authenticated administrator and per module through private `admin.grid.<admin_id>.<module>` settings;
+- those private preference records are not exposed through the generic Settings editor;
+- every supported grid provides row selection, select-all for the current result set and clear selection;
+- modules with safe status bulk actions reuse the existing transactional Bulk Actions engine rather than implementing a second mutation path;
+- destructive bulk delete remains out of scope;
+- Artists, Sets, Releases and Blog keep visual ordering; drag/drop ordering is disabled whenever an explicit grid sort or partial filtered view is active;
+- Releases Catalog and Blog render through the same canonical grid pattern as the core record lists;
+- Media keeps its uploader and inspector around the canonical record table rather than maintaining a separate record-card interaction model.
+
+The shared grid must remain keyboard/focus accessible and horizontally usable on narrow/mobile viewports.
