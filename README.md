@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **20** | **+1194** | **−99** | **+1095** |
+| **20** | **+1195** | **−99** | **+1096** |
 
 ## Calidad y entrega
 
@@ -88,6 +88,7 @@ flowchart LR
 - `docs/BRVTAL-SPEC.md` — contrato durable del data-grid.
 - `package.json` — v0.1.23 + persistencia de preferencias en integración.
 - `tests/admin-data-grid-contract.php` — arquitectura, protección y aislamiento.
+- `tests/e2e/content-core-real-stack.spec.mjs` — valida que reorder siga siendo canónico a través del grid compartido.
 - `tests/e2e/discadmin-data-grid.spec.mjs` — tri-state, columnas, selección, módulos y móvil.
 - `tests/integration/admin-grid-preferences.php` — persistencia real aislada por admin/módulo.
 
