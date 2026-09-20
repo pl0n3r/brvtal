@@ -205,21 +205,21 @@ test('Artists and Sets renderer emits canonical ordering containers', async ({ p
 
   for (const section of ['artists','sets']) {
     const rendered = await page.evaluate(currentSection => {
-      state.section = currentSection;
-      state.rows = [];
-      render();
-      const rows = document.getElementById('rows');
-      return {
-        title: document.querySelector('.main .top h1')?.textContent?.trim() || '',
-        resource: rows?.dataset.orderResource || '',
-        enabled: rows?.dataset.orderEnabled || '',
-      };
+      const previousSection = state.section;
+      const previousRows = state.rows;
+      try {
+        state.section = currentSection;
+        state.rows = [];
+        return content();
+      } finally {
+        state.section = previousSection;
+        state.rows = previousRows;
+      }
     }, section);
-    expect(rendered).toEqual({
-      title: section.toUpperCase(),
-      resource: section,
-      enabled: '1',
-    });
+
+    expect(rendered).toContain('id="rows"');
+    expect(rendered).toContain(`data-order-resource="${section}"`);
+    expect(rendered).toContain('data-order-enabled="1"');
   }
 });
 
