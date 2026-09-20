@@ -226,9 +226,9 @@ test('Media mounts consistently from Dashboard, another module and a direct rout
   await expectMediaMounted(page, 5_000);
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
 
-  await page.goto(`${baseUrl}/discadmin/?module=sets`, {waitUntil:'domcontentloaded'});
+  await page.getByRole('button', {name:'SETS', exact:true}).click();
   await expect(page.locator('.main .top h1')).toHaveText('SETS');
-  await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
+  await page.getByRole('button', {name:'MEDIA', exact:true}).click();
   await expectMediaMounted(page);
 
   await page.goto(`${baseUrl}/discadmin/?module=media`, {waitUntil:'domcontentloaded'});
