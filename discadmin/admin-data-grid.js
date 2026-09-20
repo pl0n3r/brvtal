@@ -228,7 +228,7 @@
       state = {
         module,host,rows:[],allRows:[],options:{},
         visible:new Set(defaultColumns(module)),
-        preferencesLoaded:false,preferencesLoading:false,
+        preferencesLoaded:false,preferencesLoading:false,preferencePromise:null,
         sortKey:null,sortDirection:null,chooserOpen:false,pendingFocusSortKey:null,preferenceRevision:0
       };
       instances.set(host,state);
@@ -383,7 +383,8 @@
   }
 
   function bindColumnChooser(state) {
-    state.host.querySelector('[data-grid-columns-toggle]')?.addEventListener('click',() => {
+    state.host.querySelector('[data-grid-columns-toggle]')?.addEventListener('click',async () => {
+      await hydratePreferences(state);
       state.chooserOpen = !state.chooserOpen;
       draw(state);
     });
@@ -519,15 +520,21 @@
   }
 
   async function hydratePreferences(state) {
-    if (state.preferencesLoaded || state.preferencesLoading) return;
+    if (state.preferencesLoaded) return;
+    if (state.preferencePromise) return state.preferencePromise;
     const revision = state.preferenceRevision;
     state.preferencesLoading = true;
-    const columns = await loadPreferences(state.module);
-    state.preferencesLoading = false;
-    state.preferencesLoaded = true;
-    if (state.preferenceRevision !== revision) return;
-    state.visible = new Set(columns);
-    draw(state);
+    state.preferencePromise = (async () => {
+      const columns = await loadPreferences(state.module);
+      state.preferencesLoaded = true;
+      if (state.preferenceRevision !== revision) return;
+      state.visible = new Set(columns);
+      draw(state);
+    })().finally(() => {
+      state.preferencesLoading = false;
+      state.preferencePromise = null;
+    });
+    return state.preferencePromise;
   }
 
   function render(module, host, rows, options = {}) {
