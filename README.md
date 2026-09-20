@@ -88,7 +88,7 @@ flowchart LR
 - `tests/blog-contract.php` — contrato Blog actualizado.
 - `tests/content-ordering-contract.php` — contrato + endpoint real sobre MariaDB aislada.
 - `tests/discadmin-editor-accessibility-contract.php` — accesibilidad tras retirar Sort Order numérico.
-- `tests/e2e/content-core-real-stack.spec.mjs` — navegación determinista Media/SETS sobre el stack real.
+- `tests/e2e/content-core-real-stack.spec.mjs` — navegación Media/SETS dentro del shell autenticado sobre el stack real.
 - `tests/e2e/discadmin-content-ordering.spec.mjs` — teclado, touch, rollback, filtros y stores.
 - `tests/project-operations-contract.php` — valida #533 como única fuente del orden de ejecución.
 
