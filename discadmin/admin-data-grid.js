@@ -403,7 +403,6 @@
         }
         state.visible = next;
         state.chooserOpen = true;
-        draw(state);
         try {
           const columns = defaultColumns(state.module).filter(key => next.has(key));
           const saved = await savePreferences(state.module,columns);

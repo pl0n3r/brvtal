@@ -195,7 +195,7 @@ async function expectMediaMounted(page, timeout = 10_000) {
   }
 }
 
-test('Artists and Sets renderer emits canonical ordering containers', async ({ page }) => {
+test('Artists and Sets renderer emits canonical ordering containers through the shared grid', async ({ page }) => {
   await login(page);
 
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
@@ -204,22 +204,34 @@ test('Artists and Sets renderer emits canonical ordering containers', async ({ p
   });
 
   for (const section of ['artists','sets']) {
-    const rendered = await page.evaluate(currentSection => {
+    const result = await page.evaluate(currentSection => {
       const previousSection = state.section;
       const previousRows = state.rows;
+      const probe = document.createElement('div');
+      probe.id = 'grid-order-probe';
+      document.body.appendChild(probe);
       try {
         state.section = currentSection;
         state.rows = [];
-        return content();
+        const rendered = content();
+        BRVTALDataGrid.render(currentSection,probe,[],{allRows:[],orderingEnabled:true});
+        const body = probe.querySelector('.admin-data-grid-body');
+        return {
+          rendered,
+          resource: body?.dataset.orderResource || '',
+          enabled: body?.dataset.orderEnabled || '',
+        };
       } finally {
+        probe.remove();
         state.section = previousSection;
         state.rows = previousRows;
       }
     }, section);
 
-    expect(rendered).toContain('id="rows"');
-    expect(rendered).toContain(`data-order-resource="${section}"`);
-    expect(rendered).toContain('data-order-enabled="1"');
+    expect(result.rendered).toContain('id="rows"');
+    expect(result.rendered).toContain(`data-admin-grid-host="${section}"`);
+    expect(result.resource).toBe(section);
+    expect(result.enabled).toBe('1');
   }
 });
 
