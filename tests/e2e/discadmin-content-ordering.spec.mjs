@@ -26,7 +26,11 @@ async function harness(page) {
       return new Response('{}',{status:404});
     };
   });
-  await page.addScriptTag({content:orderingJs});
+  await page.evaluate(source => {
+    const script = document.createElement('script');
+    script.textContent = source;
+    document.head.appendChild(script);
+  }, orderingJs);
   await expect(page.locator('.content-order-handle')).toHaveCount(3);
 }
 
