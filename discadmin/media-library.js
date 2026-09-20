@@ -238,10 +238,25 @@ window.BRVTALMediaLibrary = (() => {
     if (!grid) return;
     const items = filteredItems();
     if (summary) summary.textContent = `${items.length} OF ${store.items.length} ASSETS · ORIGINALS PRESERVED`;
-    window.BRVTALDataGrid?.render?.('media',grid,items,{
+    if (window.BRVTALDataGrid?.render?.('media',grid,items,{
       allRows:store.items,
       orderingEnabled:false
+    })) return;
+    if (!items.length) {
+      grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No media matches this view.</div>';
+      return;
+    }
+    const groups = new Map();
+    items.forEach(item => {
+      const key = monthKey(item);
+      if (!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(item);
     });
+    grid.innerHTML = [...groups.entries()].map(([key,rows]) =>
+      `<div class="media-month-heading">${esc(monthLabel(key))}<span>${rows.length}</span></div>` +
+      rows.map(item => card(item, store.selected && Number(store.selected.id) === Number(item.id))).join('')
+    ).join('');
+    grid.querySelectorAll('[data-media-id]').forEach(btn => btn.addEventListener('click', () => select(Number(btn.dataset.mediaId), {reveal:true})));
   }
 
   function inspectorVisual  function inspectorVisual(item) {

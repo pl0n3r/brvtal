@@ -93,9 +93,30 @@ window.BRVTALReleases = (() => {
     const grid = store.root.querySelector('#release-grid');
     if (!grid) return;
     const rows = visibleRows();
-    window.BRVTALDataGrid?.render?.('releases',grid,rows,{
+    if (window.BRVTALDataGrid?.render?.('releases',grid,rows,{
       allRows:store.releases,
       orderingEnabled:orderingAvailable()
+    })) return;
+    if (!rows.length) {
+      grid.innerHTML = '<div class="releases-empty">NO RELEASES MATCH THIS VIEW</div>';
+      return;
+    }
+    grid.innerHTML = rows.map(release => {
+      const date = release.release_date || 'DATE TBD';
+      const catalog = release.catalog_number || 'NO CATALOG #';
+      const type = String(release.release_type || 'single').toUpperCase();
+      return `<article class="release-row" data-release-id="${Number(release.id)}">
+        <div>${artwork(release)}</div>
+        <div><div class="release-title">${esc(release.title)}</div><div class="release-meta">${esc(catalog)} · ${esc(type)}</div></div>
+        <div class="release-artists">${esc(artistNames(release))}</div>
+        <div class="release-date">${esc(date)}</div>
+        <div class="release-actions"><button class="iconbtn" type="button" data-edit>EDIT</button><button class="iconbtn" type="button" data-delete>DELETE</button></div>
+      </article>`;
+    }).join('');
+    grid.querySelectorAll('[data-release-id]').forEach(row => {
+      const id = Number(row.dataset.releaseId);
+      row.querySelector('[data-edit]')?.addEventListener('click',() => openEditor(id));
+      row.querySelector('[data-delete]')?.addEventListener('click',() => remove(id));
     });
   }
 

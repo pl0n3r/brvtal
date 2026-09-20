@@ -86,9 +86,19 @@ window.BRVTALBlog = (() => {
     const grid = store.root.querySelector('#blog-grid');
     if (!grid) return;
     const rows = visibleRows();
-    window.BRVTALDataGrid?.render?.('blog',grid,rows,{
+    if (window.BRVTALDataGrid?.render?.('blog',grid,rows,{
       allRows:store.posts,
       orderingEnabled:orderingAvailable()
+    })) return;
+    if (!rows.length) {
+      grid.innerHTML = '<div class="blog-empty">NO POSTS MATCH THIS VIEW</div>';
+      return;
+    }
+    grid.innerHTML = rows.map(blogRow).join('');
+    grid.querySelectorAll('[data-blog-id]').forEach(row => {
+      const id = Number(row.dataset.blogId);
+      row.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(id));
+      row.querySelector('[data-delete]')?.addEventListener('click', () => remove(id));
     });
   }
 
