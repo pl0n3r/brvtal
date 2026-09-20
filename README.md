@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Gates | **preflight · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Reservation | PR + snapshot exacto · atomic `work/issue-N` branch lock · trusted UUID marker |
 | PR integrity | Issue + branch + reservation + closing relation fail closed |
 | Collision safety | exact changed-file overlap against other open PRs targeting `main` |
