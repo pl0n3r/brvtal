@@ -30,7 +30,7 @@ async function harness(page) {
     };
     window.__gridDefaults=values;
     window.fetch=async(url,options={})=>{
-      const target=new URL(String(url),location.href);
+      const target=new URL(String(url),'https://brvtal.test');
       if(target.pathname.endsWith('/api/admin-grid-preferences.php')) {
         const module=target.searchParams.get('module');
         if(String(options.method||'GET').toUpperCase()==='POST') {
