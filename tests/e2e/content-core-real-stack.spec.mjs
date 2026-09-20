@@ -198,8 +198,14 @@ async function expectMediaMounted(page, timeout = 10_000) {
 test('Artists and Sets render canonical ordering containers', async ({ page }) => {
   await login(page);
 
+  await page.goto(`${baseUrl}/discadmin/?module=events`, {waitUntil:'domcontentloaded'});
+  await expect(page.locator('[data-admin-module="content-core"]')).toBeAttached({timeout:10_000});
+  await expect(page.locator('.main .top h1')).toHaveText('EVENTS', {timeout:10_000});
+
   for (const section of ['artists','sets']) {
-    await page.goto(`${baseUrl}/discadmin/?module=${section}`, {waitUntil:'domcontentloaded'});
+    await page.evaluate(async currentSection => {
+      await window.go(currentSection);
+    }, section);
     await expect(page.locator('.main .top h1')).toHaveText(section.toUpperCase(), {timeout:10_000});
     const rows = page.locator(`#rows[data-order-resource="${section}"][data-order-enabled="1"]`);
     await expect(rows).toBeVisible({timeout:10_000});
