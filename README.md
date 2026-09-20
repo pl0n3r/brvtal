@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **22** | **+1467** | **−141** | **+1326** |
+| **23** | **+1474** | **−143** | **+1331** |
 
 ## Calidad y entrega
 
@@ -88,6 +88,7 @@ flowchart LR
 - `tests/blog-contract.php` — contrato Blog actualizado.
 - `tests/content-ordering-contract.php` — contrato + endpoint real sobre MariaDB aislada.
 - `tests/discadmin-editor-accessibility-contract.php` — accesibilidad tras retirar Sort Order numérico.
+- `tests/e2e/content-core-real-stack.spec.mjs` — navegación cross-module determinista sobre el shell autenticado real.
 - `tests/e2e/discadmin-content-ordering.spec.mjs` — teclado, touch, rollback, filtros y stores.
 - `tests/project-operations-contract.php` — valida #533 como única fuente del orden de ejecución.
 
