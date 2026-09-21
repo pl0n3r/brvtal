@@ -48,9 +48,11 @@ brvtal_ci_classify_files() {
     [[ -z "$file" ]] && continue
 
     case "$file" in
-      api/*|config/*|database/*|discadmin/*|js/*|css/*|assets/*|uploads/*|index.php|index.html|sitemap.php|.htaccess)
-        BRVTAL_SCOPE_DEPLOY_BOUND=true ;;
-      *) ;;
+      README.md|AGENTS.md|docs/*|tests/*|scripts/*|.github/*|.coderabbit.yaml|.sonarcloud.properties|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
+        ;;
+      *)
+        BRVTAL_SCOPE_DEPLOY_BOUND=true
+        ;;
     esac
 
     case "$file" in

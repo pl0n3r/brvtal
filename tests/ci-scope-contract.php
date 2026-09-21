@@ -115,6 +115,14 @@ ci_scope_expect_flags(ci_scope_run(['README.md', 'AGENTS.md']), [
     'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
     'run_php' => 'false', 'run_js' => 'false', 'deploy_bound' => 'false',
 ], 'docs only');
+
+ci_scope_expect_flags(ci_scope_run(['robots.txt']), [
+    'deploy_bound' => 'true',
+], 'unknown public/runtime surface fails closed');
+
+ci_scope_expect_flags(ci_scope_run(['scripts/release-version.py', '.github/workflows/sonar-annotation-relay.yml']), [
+    'deploy_bound' => 'false',
+], 'repository maintenance surfaces');
 ci_scope_expect_flags(ci_scope_run(['config/public_home.php']), [
     'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false', 'deploy_bound' => 'true',
 ], 'public runtime config');
