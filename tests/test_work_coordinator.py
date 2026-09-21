@@ -535,17 +535,24 @@ class CoordinationTests(unittest.TestCase):
         with self.assertRaises(CoordinationError):
             validate_pull(api, 15, True)
 
-    def test_file_overlap_detects_collisions(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_file_overlap_detects_only_blocking_collisions(self) -> None:
+        """Transient README snapshots must not serialize otherwise independent PRs."""
         current = {"src/a.php", "README.md", "src/b.php"}
         others = {
-            10: {"src/a.php", "src/x.php"},
-            11: {"docs/otro.md"},
+            10: {"src/a.php", "src/x.php", "README.md"},
+            11: {"docs/other.md"},
             12: {"README.md"},
         }
         self.assertEqual(
             file_overlaps(current, others),
-            {10: ["src/a.php"], 12: ["README.md"]},
+            {10: ["src/a.php"]},
+        )
+
+    def test_readme_only_overlap_is_non_blocking(self) -> None:
+        """Every PR rewrites README, so README-only overlap must remain parallel-safe."""
+        self.assertEqual(
+            file_overlaps({"README.md"}, {20: {"README.md"}}),
+            {},
         )
 
     def test_validate_pull_rejects_open_pr_overlap(self) -> None:
