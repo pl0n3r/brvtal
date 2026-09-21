@@ -57,13 +57,34 @@
   }
 
   function requestWorkspaceNavigation(section) {
-    const guard = window.BRVTALHeroSliderGuard;
-    if (typeof guard?.requestNavigation !== 'function') return true;
-    return guard.requestNavigation(section) !== false;
+    const operation = {accepted:true,unsavedToken:0};
+    const heroGuard = window.BRVTALHeroSliderGuard;
+    if (typeof heroGuard?.requestNavigation === 'function'
+      && heroGuard.requestNavigation(section) === false) {
+      operation.accepted = false;
+      return operation;
+    }
+
+    const unsavedGuard = window.BRVTALUnsavedChanges;
+    if (typeof unsavedGuard?.requestNavigation === 'function') {
+      operation.unsavedToken = unsavedGuard.requestNavigation(section);
+      if (operation.unsavedToken === 0) operation.accepted = false;
+    }
+    return operation;
   }
 
-  function commitWorkspaceNavigation(section) {
+  function commitWorkspaceNavigation(section, operation) {
+    const unsavedGuard = window.BRVTALUnsavedChanges;
+    const unsavedResult = typeof unsavedGuard?.commitNavigation === 'function'
+      ? unsavedGuard.commitNavigation(operation?.unsavedToken)
+      : true;
+    if (unsavedResult !== true) return unsavedResult;
     window.BRVTALHeroSliderGuard?.commitNavigation?.(section);
+    return true;
+  }
+
+  function cancelWorkspaceNavigation(operation) {
+    window.BRVTALUnsavedChanges?.cancelNavigation?.(operation?.unsavedToken);
   }
 
   function retireLegacyEditor() {
@@ -109,9 +130,9 @@
     try {
       const outcome = await result;
       if (outcome === false) return false;
-      return token === routeToken;
+      return token === routeToken ? true : undefined;
     } catch (error) {
-      if (token !== routeToken && isStaleNavigation(error)) return false;
+      if (token !== routeToken && isStaleNavigation(error)) return undefined;
       if (token === routeToken && previousState) {
         state.section = previousState.section;
         state.rows = previousState.rows;
@@ -311,6 +332,55 @@
     });
   }
 
+  function captureWorkspaceSnapshot() {
+    const currentState = typeof state === 'object' && state ? state : null;
+    return {
+      section:String(currentState?.section || 'dashboard'),
+      rows:currentState?.rows,
+      url:`${location.pathname}${location.search}${location.hash}`,
+      contentContext:document.querySelector('#admin-module-host [data-admin-module="content-core"]')?.dataset.iaContext || '',
+      roots:['modal','eventModal']
+        .map(id => ({id,root:document.getElementById(id)}))
+        .filter(entry => entry.root?.classList.contains('open'))
+    };
+  }
+
+  async function restoreWorkspaceSnapshot(snapshot) {
+    if (!snapshot) return;
+    window.BRVTALAdminModules?.cancel?.();
+    try {
+      if (snapshot.contentContext === 'events') {
+        await loadContentCoreContext('events');
+      } else if (snapshot.contentContext === 'artists-roster') {
+        await loadContentCoreContext('roster');
+      } else if (snapshot.section === 'system' && typeof originalTech === 'function') {
+        await originalTech.call(window,'system');
+      } else {
+        const token = ++routeToken;
+        await invokeOriginalGo(snapshot.section,token);
+      }
+    } catch (_) {
+      restoreVisibleSection(snapshot.section);
+    }
+
+    if (typeof state === 'object' && state) {
+      state.section = snapshot.section;
+      if (snapshot.rows !== undefined) state.rows = snapshot.rows;
+    }
+    snapshot.roots.forEach(entry => {
+      if (entry.root.isConnected) return;
+      const replacement = document.getElementById(entry.id);
+      if (replacement) replacement.replaceWith(entry.root);
+      else document.body.appendChild(entry.root);
+    });
+    const currentUrl = `${location.pathname}${location.search}${location.hash}`;
+    if (currentUrl !== snapshot.url) {
+      history.replaceState({brvtalAdminRoute:canonicalRouteSection(snapshot.section)},'',snapshot.url);
+    }
+    restoreVisibleSection(snapshot.section);
+    setTimeout(rebuildNavigation,0);
+  }
+
   function contextBar(title, description, actions = []) {
     const bar = document.createElement('div');
     bar.className = 'ia-contextbar';
@@ -384,12 +454,13 @@
     window.BRVTALAdminModules?.cancel?.();
     const visibleSection = context === 'roster' ? 'artists' : 'events';
     const visibleApplied = await invokeOriginalGo(visibleSection, token);
-    if (!visibleApplied || token !== routeToken) return false;
+    if (visibleApplied === false) return false;
+    if (!visibleApplied || token !== routeToken) return undefined;
 
     if (!window.BRVTALAdminModules?.load) return true;
     ensureWorkspaceHost();
     await window.BRVTALAdminModules.load('content-core', {syncUrl:false});
-    if (token !== routeToken) return false;
+    if (token !== routeToken) return undefined;
 
     const root = document.querySelector('#admin-module-host [data-admin-module="content-core"]');
     if (!root) throw new Error('DISCADMIN internal content workflow failed to mount');
@@ -433,24 +504,50 @@
       }
     }
 
-    if (!requestWorkspaceNavigation(section)) return false;
+    const previousWorkspace = captureWorkspaceSnapshot();
+    const navigationOperation = requestWorkspaceNavigation(section);
+    if (!navigationOperation.accepted) return false;
     if (!applyingRoute) initialRouteApplied = true;
 
     let result;
-    if (section === 'events') {
-      const applied = await loadContentCoreContext('events');
-      if (!applied) return;
-    } else {
-      const token = ++routeToken;
-      window.BRVTALAdminModules?.cancel?.();
-      if (dynamicModuleSections.has(section)) syncRouteUrl(section, 'push', true);
-      const applied = await invokeOriginalGo(section, token);
-      if (!applied || token !== routeToken) return;
-      result = true;
-      if (section === 'artists') setTimeout(enhanceArtistsList, 0);
-      setTimeout(rebuildNavigation, 0);
+    try {
+      if (section === 'events') {
+        const applied = await loadContentCoreContext('events');
+        if (applied === false) {
+          cancelWorkspaceNavigation(navigationOperation);
+          return false;
+        }
+        if (!applied) {
+          cancelWorkspaceNavigation(navigationOperation);
+          return undefined;
+        }
+      } else {
+        const token = ++routeToken;
+        window.BRVTALAdminModules?.cancel?.();
+        if (dynamicModuleSections.has(section)) syncRouteUrl(section, 'push', true);
+        const applied = await invokeOriginalGo(section, token);
+        if (applied === false) {
+          cancelWorkspaceNavigation(navigationOperation);
+          return false;
+        }
+        if (!applied || token !== routeToken) {
+          cancelWorkspaceNavigation(navigationOperation);
+          return undefined;
+        }
+        result = true;
+        if (section === 'artists') setTimeout(enhanceArtistsList, 0);
+        setTimeout(rebuildNavigation, 0);
+      }
+    } catch (error) {
+      cancelWorkspaceNavigation(navigationOperation);
+      throw error;
     }
-    commitWorkspaceNavigation(section);
+    const committed = commitWorkspaceNavigation(section,navigationOperation);
+    if (committed === null) return undefined;
+    if (committed === false) {
+      await restoreWorkspaceSnapshot(previousWorkspace);
+      return false;
+    }
     retireLegacyEditor();
     syncRouteUrl(section);
     return result;
@@ -458,13 +555,29 @@
 
   if (typeof originalTech === 'function') {
     window.tech = async function(section, ...args) {
-      if (!requestWorkspaceNavigation(section)) return false;
+      const previousWorkspace = captureWorkspaceSnapshot();
+      const navigationOperation = requestWorkspaceNavigation(section);
+      if (!navigationOperation.accepted) return false;
       if (!applyingRoute) initialRouteApplied = true;
       const token = ++routeToken;
       window.BRVTALAdminModules?.cancel?.();
-      const result = await originalTech.apply(this, [section, ...args]);
-      if (token !== routeToken) return result;
-      commitWorkspaceNavigation(section);
+      let result;
+      try {
+        result = await originalTech.apply(this, [section, ...args]);
+      } catch (error) {
+        cancelWorkspaceNavigation(navigationOperation);
+        throw error;
+      }
+      if (token !== routeToken) {
+        cancelWorkspaceNavigation(navigationOperation);
+        return result;
+      }
+      const committed = commitWorkspaceNavigation(section,navigationOperation);
+      if (committed === null) return undefined;
+      if (committed === false) {
+        await restoreWorkspaceSnapshot(previousWorkspace);
+        return false;
+      }
       retireLegacyEditor();
       syncRouteUrl(section);
       setTimeout(rebuildNavigation, 0);

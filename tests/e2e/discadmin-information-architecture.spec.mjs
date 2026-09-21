@@ -314,6 +314,35 @@ test('browser Back restores the Banners URL when unsaved navigation is cancelled
   await expect(page.locator('.main .top h1')).toHaveText('HERO-SLIDER');
 });
 
+test('late dirty mutation rolls an applied workspace back to its previous route', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    window.__renderShell('artists');
+    history.replaceState({brvtalAdminRoute:'artists'}, '', '?module=artists');
+    window.__commitCalls=0;
+    window.BRVTALUnsavedChanges = {
+      requestNavigation: () => 77,
+      commitNavigation: token => {
+        window.__commitToken=token;
+        window.__commitCalls+=1;
+        return false;
+      },
+      cancelNavigation: () => true
+    };
+  });
+
+  const result = await page.evaluate(() => window.go('pages'));
+
+  expect(result).toBe(false);
+  expect(await page.evaluate(() => window.__commitToken)).toBe(77);
+  expect(await page.evaluate(() => window.__commitCalls)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
+  await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
+  expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
+});
+
 test('dynamic routes update the URL before readiness settles', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
@@ -346,6 +375,20 @@ test('explicit Media navigation wins while initial route reconciliation is still
   await page.evaluate(() => {
     history.replaceState({}, '', '?module=pages');
     window.state.section = 'dashboard';
+    window.__unsavedNextToken = 0;
+    window.__unsavedCommitTokens = [];
+    window.__unsavedCancelTokens = [];
+    window.BRVTALUnsavedChanges = {
+      requestNavigation: () => ++window.__unsavedNextToken,
+      commitNavigation: token => {
+        window.__unsavedCommitTokens.push(token);
+        return true;
+      },
+      cancelNavigation: token => {
+        window.__unsavedCancelTokens.push(token);
+        return true;
+      }
+    };
     window.__deferredRequests['/pages'] = true;
     window.__initialRoutePromise = window.BRVTALAdminIA.applyRoute();
   });
@@ -374,6 +417,13 @@ test('explicit Media navigation wins while initial route reconciliation is still
   await expect(page.locator('.main .top h1')).toHaveText('MEDIA');
   expect(await page.evaluate(() => window.state.section)).toBe('media');
   expect(new URL(page.url()).searchParams.get('module')).toBe('media');
+  const tokenState = await page.evaluate(() => ({
+    commits:window.__unsavedCommitTokens,
+    cancels:window.__unsavedCancelTokens
+  }));
+  expect(tokenState.commits.length).toBeGreaterThan(0);
+  const committedMediaToken = tokenState.commits.at(-1);
+  expect(tokenState.cancels.every(token => token !== committedMediaToken)).toBe(true);
 });
 
 test('Events is the single entry to the guided event editor', async ({ page }) => {

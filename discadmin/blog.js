@@ -205,7 +205,7 @@ window.BRVTALBlog = (() => {
         body:JSON.stringify(data)
       });
 
-      if (typeof closeModal === 'function') closeModal();
+      if (typeof closeModal === 'function') closeModal(true);
       await refresh();
       setStatus('Post saved.','ok');
     } catch (error) {

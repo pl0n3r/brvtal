@@ -266,7 +266,7 @@ window.BRVTALReleases = (() => {
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(data),
       });
-      if (typeof closeModal === 'function') closeModal();
+      if (typeof closeModal === 'function') closeModal(true);
       await refresh();
       setStatus('Release saved.', 'ok');
     } catch (error) {

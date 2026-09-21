@@ -75,19 +75,42 @@
 
   if (typeof nativeReq === 'function') {
     window.logout = async function brvtalReliableLogout() {
+      const unsaved = window.BRVTALUnsavedChanges;
+      const hero = window.BRVTALHeroSliderGuard;
+      const hasUnsavedGuard = typeof unsaved?.requestNavigation === 'function';
+      const unsavedToken = hasUnsavedGuard ? unsaved.requestNavigation('logout') : null;
+      if (hasUnsavedGuard && unsavedToken === 0) return false;
+      if (typeof hero?.requestNavigation === 'function'
+        && hero.requestNavigation('logout') === false) {
+        unsaved?.cancelNavigation?.(unsavedToken);
+        return false;
+      }
+
+      const finalizeLogout = () => {
+        window.csrf = '';
+        window.state.authed = false;
+        const committed = typeof unsaved?.commitNavigation === 'function'
+          ? unsaved.commitNavigation(unsavedToken)
+          : true;
+        if (committed !== true) {
+          window.BRVTALAdminAuthBoundary?.preserveUnsavedAuthState?.();
+          return false;
+        }
+        hero?.commitNavigation?.('logout');
+        window.BRVTALAdminAuthBoundary?.clearDeferredAuthState?.();
+        render();
+        return true;
+      };
+
       try {
         await nativeReq('/auth', {method:'DELETE'});
       } catch (error) {
-        if (String(error?.message || '') === 'AUTH_REQUIRED') {
-          window.csrf = '';
-          return;
-        }
+        if (String(error?.message || '') === 'AUTH_REQUIRED') return finalizeLogout();
+        unsaved?.cancelNavigation?.(unsavedToken);
         window.alert?.('LOGOUT COULD NOT BE CONFIRMED. TRY AGAIN.');
-        return;
+        return false;
       }
-      window.csrf = '';
-      window.state.authed = false;
-      render();
+      return finalizeLogout();
     };
   }
 

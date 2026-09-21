@@ -690,6 +690,23 @@ BRVTAL uses GitHub-native work coordination to preserve maximum safe parallelism
 - Deploy-bound PR titles carry the target version as `(vX.Y.Z)`; the rule applies prospectively.
 - Coordination never authorizes destructive production actions or production migrations.
 
+## 51.2 Unsaved editor change protection
+
+DISCADMIN editors must not discard user work silently.
+
+- The legacy shared editor modal and the Content Core Event editor share one dirty-state manager.
+- Dirty state compares the current editable/structural editor payload against a clean baseline; it covers ordinary fields plus dynamic ticket and lineup membership/order.
+- Async editor hydration may refresh the clean baseline only until the administrator starts editing.
+- Escape, Close and Cancel request confirmation only when the editor is dirty. Unchanged editors close immediately.
+- Workspace navigation, technical-route navigation, browser history routing and Logout must also consult the same dirty-state guard before replacing an editor; rejected discard leaves the current editor and baseline intact.
+- Async workspace navigation and Logout own operation tokens: stale completions cannot release or commit a newer dirty-editor transaction.
+- A confirmed navigation revalidates the editor snapshot before final commit. If a later programmatic edit appears, DISCADMIN restores the previous canonical workspace/URL and preserves the dirty editor.
+- If authentication expires while a dirty editor is pending, the shell preserves that editor DOM and shows an explicit session-ended state instead of rendering it away.
+- Successful navigation after an accepted discard commits and retires all tracked editor baselines, including Content Core's `#eventModal`, so replacement cannot leave stale dirty state behind.
+- Successful persistence explicitly marks the editor clean before closing or before allowing later close, so saving never produces a false discard warning.
+- Browser/page unload retains native unsaved-change protection while a tracked dirty editor is open.
+- This protection is UI safety only; it does not create autosave, drafts or server-side recovery semantics.
+
 ## 52. Final product vision
 
 BRVTAL should not feel like “an event website with an admin panel.”

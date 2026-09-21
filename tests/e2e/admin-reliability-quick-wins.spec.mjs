@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const authBoundary = readFileSync(join(process.cwd(), 'discadmin/admin-auth-boundary.js'), 'utf8');
+const adminReliability = readFileSync(join(process.cwd(), 'discadmin/admin-reliability.js'), 'utf8');
 const heroAccessibility = readFileSync(join(process.cwd(), 'discadmin/hero-slider-accessibility.js'), 'utf8');
 const storageStatus = readFileSync(join(process.cwd(), 'discadmin/system-status-storage.js'), 'utf8');
 const backups = readFileSync(join(process.cwd(), 'discadmin/backups.js'), 'utf8');
@@ -34,6 +35,103 @@ test('same-origin admin 401 returns the shell to login state', async ({ page }) 
   });
 
   expect(result).toEqual({status:401, authed:false, csrf:'', renderCount:1, closeCount:1, authEvents:1});
+});
+
+test('same-origin 401 preserves a dirty editor instead of rendering it away', async ({ page }) => {
+  await page.route('https://www.brvtal.test/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/api/media-library.php')) {
+      await route.fulfill({status:401, contentType:'application/json', body:'{"ok":false,"error":"AUTH_REQUIRED"}'});
+      return;
+    }
+    await route.fulfill({status:200, contentType:'text/html', body:`<!doctype html><html><body>
+      <div id="modal" class="open"><input value="unsaved"></div>
+      <script>
+        window.csrf='csrf-token';
+        window.state={authed:true};
+        window.renderCount=0;
+        window.closeCount=0;
+        window.authEvents=0;
+        window.render=()=>window.renderCount++;
+        window.closeModal=()=>window.closeCount++;
+        window.BRVTALUnsavedChanges={hasDirtyChanges:()=>true};
+        addEventListener('brvtal:auth-required',()=>window.authEvents++);
+      </script>
+    </body></html>`});
+  });
+
+  await page.goto('https://www.brvtal.test/discadmin');
+  await page.addScriptTag({content:authBoundary});
+  const result = await page.evaluate(async () => {
+    const response=await fetch('/api/media-library.php');
+    return {
+      status:response.status,
+      authed:window.state.authed,
+      csrf:window.csrf,
+      renderCount:window.renderCount,
+      closeCount:window.closeCount,
+      authEvents:window.authEvents,
+      deferred:document.documentElement.dataset.brvtalAuthRequired,
+      notice:document.querySelectorAll('[data-brvtal-auth-required="1"]').length
+    };
+  });
+
+  expect(result).toEqual({
+    status:401,
+    authed:false,
+    csrf:'',
+    renderCount:0,
+    closeCount:0,
+    authEvents:1,
+    deferred:'unsaved',
+    notice:1
+  });
+});
+
+test('logout refuses dependent render when the confirmed editor changes before commit', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><body><div id="modal" class="open"></div><script>
+    window.state={authed:true};
+    window.csrf='csrf-token';
+    window.renderCount=0;
+    window.heroCommits=0;
+    window.preservedAuth=0;
+    window.req=async()=>({ok:true});
+    window.render=()=>window.renderCount++;
+    window.BRVTALUnsavedChanges={
+      requestNavigation:()=>91,
+      commitNavigation:token=>{window.commitToken=token;return false;},
+      cancelNavigation:()=>true
+    };
+    window.BRVTALHeroSliderGuard={
+      requestNavigation:()=>true,
+      commitNavigation:()=>window.heroCommits++
+    };
+    window.BRVTALAdminAuthBoundary={
+      preserveUnsavedAuthState:()=>{window.preservedAuth++;return true;},
+      clearDeferredAuthState:()=>{}
+    };
+  </script></body></html>`);
+  await page.addScriptTag({content:adminReliability});
+
+  const result = await page.evaluate(async () => ({
+    outcome:await window.logout(),
+    authed:window.state.authed,
+    csrf:window.csrf,
+    commitToken:window.commitToken,
+    renderCount:window.renderCount,
+    heroCommits:window.heroCommits,
+    preservedAuth:window.preservedAuth
+  }));
+
+  expect(result).toEqual({
+    outcome:false,
+    authed:false,
+    csrf:'',
+    commitToken:91,
+    renderCount:0,
+    heroCommits:0,
+    preservedAuth:1
+  });
 });
 
 test('Hero Slider rows expose and execute keyboard reorder shortcuts', async ({ page }) => {

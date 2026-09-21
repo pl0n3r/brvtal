@@ -14,6 +14,48 @@
     if ('csrf' in window) window.csrf = '';
   }
 
+  function hasUnsavedChanges() {
+    return window.BRVTALUnsavedChanges?.hasDirtyChanges?.() === true;
+  }
+
+  function preserveUnsavedAuthState() {
+    document.documentElement.dataset.brvtalAuthRequired = 'unsaved';
+    const root = document.querySelector('#eventModal.open,#modal.open');
+    if (root && !root.querySelector('[data-brvtal-auth-required]')) {
+      const notice = document.createElement('div');
+      notice.dataset.brvtalAuthRequired = '1';
+      notice.setAttribute('role','status');
+      notice.setAttribute('aria-live','assertive');
+      notice.className = 'error';
+      notice.textContent = 'SESSION ENDED. UNSAVED CHANGES ARE PRESERVED; COPY THEM BEFORE SIGNING IN AGAIN.';
+      root.prepend(notice);
+    }
+    return true;
+  }
+
+  function clearDeferredAuthState() {
+    delete document.documentElement.dataset.brvtalAuthRequired;
+    document.querySelectorAll('[data-brvtal-auth-required]').forEach(node => node.remove());
+  }
+
+  function renderExpiredSession() {
+    clearDeferredAuthState();
+    try {
+      if (typeof closeModal === 'function') closeModal();
+      else if (typeof window.closeModal === 'function') window.closeModal();
+    } catch (_) {}
+
+    try {
+      if (typeof render === 'function') render();
+      else if (typeof window.render === 'function') window.render();
+    } catch (_) {}
+  }
+
+  function applyExpiredSessionState(preserveUnsaved) {
+    if (preserveUnsaved) preserveUnsavedAuthState();
+    else renderExpiredSession();
+  }
+
   function expireSession() {
     if (expiring) return false;
     const currentState = adminState();
@@ -24,17 +66,11 @@
       if (currentState) currentState.authed = false;
       clearCsrf();
 
-      try {
-        if (typeof closeModal === 'function') closeModal();
-        else if (typeof window.closeModal === 'function') window.closeModal();
-      } catch (_) {}
-
-      try {
-        if (typeof render === 'function') render();
-        else if (typeof window.render === 'function') window.render();
-      } catch (_) {}
-
-      window.dispatchEvent(new CustomEvent('brvtal:auth-required'));
+      const preserveUnsaved = hasUnsavedChanges();
+      applyExpiredSessionState(preserveUnsaved);
+      window.dispatchEvent(new CustomEvent('brvtal:auth-required',{
+        detail:{preservedUnsavedChanges:preserveUnsaved}
+      }));
       return true;
     } finally {
       expiring = false;
@@ -69,5 +105,10 @@
   guardedFetch.__brvtalOriginalFetch = originalFetch;
   window.fetch = guardedFetch;
 
-  window.BRVTALAdminAuthBoundary = {expireSession, isAdminRequest};
+  window.BRVTALAdminAuthBoundary = {
+    expireSession,
+    isAdminRequest,
+    preserveUnsavedAuthState,
+    clearDeferredAuthState
+  };
 })();
