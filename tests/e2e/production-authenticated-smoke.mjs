@@ -238,8 +238,12 @@ try {
   const contentCore = page.locator('[data-admin-module="content-core"]');
   await contentCore.waitFor({ state: 'attached', timeout: 15_000 });
   await page.locator('.main .toolbar .search:visible').waitFor({ state: 'visible', timeout: 15_000 });
-  const eventsHeading = (await page.locator('.main .top h1').innerText()).trim().toUpperCase();
-  const internalWrapHidden = await contentCore.locator('.wrap').isHidden();
+  const eventsHeadingLocator = page.locator('.main .top h1');
+  await eventsHeadingLocator.waitFor({ state: 'visible', timeout: 15_000 });
+  const eventsHeading = (await eventsHeadingLocator.innerText()).trim().toUpperCase();
+  const internalWrap = contentCore.locator('.wrap');
+  await internalWrap.waitFor({ state: 'attached', timeout: 15_000 });
+  const internalWrapHidden = await internalWrap.isHidden();
   evidence.checks.eventsWorkspace = {
     heading: eventsHeading,
     visibleSearch: true,
