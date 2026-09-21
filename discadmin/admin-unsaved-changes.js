@@ -240,6 +240,9 @@
   }
 
   function syncRoots() {
+    activeRoots.forEach(root => {
+      if (!root.isConnected) end(root);
+    });
     document.querySelectorAll(ROOT_SELECTOR).forEach(root => {
       bind(root);
       const state = stateFor(root);
