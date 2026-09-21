@@ -35,6 +35,7 @@ const evidence = {
   authentication: { totp: false },
   checks: {
     adminVersion: null,
+    eventsWorkspace: null,
     eventDate: null,
     setRelations: null,
     heroSlider: []
@@ -230,9 +231,26 @@ try {
     throw new Error('Production needs at least one published Artist and one published Event to verify #124 without creating data.');
   }
 
-  // #123 — reopen a persisted Event and verify the datetime-local control is hydrated.
+  // #123 — Events keeps its canonical list visible while Content Core remains
+  // mounted as an internal editor host. The host is intentionally not a visible
+  // workspace until its Event modal is opened.
   await navigate(page, 'EVENTS', 'content-core');
-  await page.locator('[data-admin-module="content-core"]').waitFor({ state: 'visible', timeout: 15_000 });
+  const contentCore = page.locator('[data-admin-module="content-core"]');
+  await contentCore.waitFor({ state: 'attached', timeout: 15_000 });
+  await page.locator('.main .toolbar .search:visible').waitFor({ state: 'visible', timeout: 15_000 });
+  const eventsHeading = (await page.locator('.main .top h1').innerText()).trim().toUpperCase();
+  const internalWrapHidden = await contentCore.locator('.wrap').isHidden();
+  evidence.checks.eventsWorkspace = {
+    heading: eventsHeading,
+    visibleSearch: true,
+    contentCoreAttached: true,
+    internalWrapHidden,
+    pass: eventsHeading === 'EVENTS' && internalWrapHidden
+  };
+  writeEvidence();
+  if (eventsHeading !== 'EVENTS' || !internalWrapHidden) {
+    throw new Error('Canonical Events workspace or internal Content Core mount is inconsistent.');
+  }
   await page.evaluate(id => window.BRVTALContentCore.openEvent(id), Number(datedEvent.id));
   await page.locator('#eventModal').waitFor({ state: 'visible', timeout: 10_000 });
   const expectedDate = normalizeDatetimeLocal(datedEvent.event_date);
