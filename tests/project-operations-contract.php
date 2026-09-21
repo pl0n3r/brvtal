@@ -92,6 +92,8 @@ $assert(str_contains($coordinationWorkflow, 'name: Work Coordination'), 'work-co
 $assert(str_contains($coordinationWorkflow, 'issue_comment:') && str_contains($coordinationWorkflow, 'pull_request:'), 'work-coordination workflow must synchronize commands and PR state');
 $assert(str_contains($workCoordinator, 'BRVTAL_TRUSTED_MARKER_LOGIN'), 'coordinator must trust only the configured bot identity');
 $assert(str_contains($workCoordinator, 'Collision with PR #'), 'coordinator must fail closed on changed-file collisions');
+$assert(str_contains($workCoordinator, 'NON_BLOCKING_SHARED_FILES = {"README.md"}'), 'README must be the only explicit non-blocking shared PR snapshot');
+$assert(str_contains($workCoordinatorTests, 'test_readme_only_overlap_is_non_blocking'), 'coordination tests must prove README-only overlap remains parallel-safe');
 $assert(str_contains($workCoordinator, 'Deploy-bound PR titles must end with (vX.Y.Z).'), 'coordinator must enforce prospective deploy version titles');
 $assert(str_contains($workCoordinatorTests, 'test_second_reservation_cannot_win_same_branch'), 'coordination tests must cover the atomic branch lock');
 $assert(str_contains($workCoordinatorTests, 'test_validate_pull_rejects_open_pr_overlap'), 'coordination tests must cover open-PR file collisions');
@@ -125,6 +127,9 @@ $assert(str_contains($workflow, 'run_webkit'), 'CI must make WebKit path-aware')
 $assert(!str_contains($workflow, 'mariadb-client'), 'CI must not replace the runner MySQL client with mariadb-client');
 $assert(!preg_match('/git\s+(?:add|commit)[^\n]*config\/version\.php/i', $workflow), 'CI must not commit config/version.php');
 $assert(!preg_match('/(?:>|>>|tee\s+)[^\n]*config\/version\.php/i', $workflow), 'CI must not rewrite config/version.php');
+$assert(str_contains($workflow, 'deploy_bound: ${{ steps.scope.outputs.deploy_bound }}'), 'preflight must publish product/runtime deploy-bound classification');
+$assert(str_contains($workflow, 'BRVTAL_DEPLOY_BOUND: ${{ steps.scope.outputs.deploy_bound }}'), 'version validation must consume product/runtime deploy-bound classification');
+$assert(str_contains($workflow, 'Repository-only maintenance: product version may remain unchanged.'), 'non-runtime maintenance must not require artificial product-version bumps');
 $assert(!is_file($root . '/.github/workflows/php85-compatibility.yml'), 'standalone PHP compatibility workflow must stay retired');
 $assert(!is_file($root . '/.github/workflows/readme-deploy-snapshot.yml'), 'standalone README snapshot workflow must stay retired');
 $assert(!is_file($root . '/.github/workflows/backup-recovery-rehearsal.yml'), 'standalone recovery workflow must stay retired');

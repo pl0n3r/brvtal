@@ -101,24 +101,32 @@ ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_php == 
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_js == 'true'"), 'JavaScript syntax validation must be scope-aware');
 ci_scope_expect(str_contains($workflow, 'python scripts/readme-dashboard.py --check'), 'README deploy facts must be checked by the reusable dashboard validator');
 ci_scope_expect(str_contains($workflow, 'brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"'), 'workflow must pass its actual changed-file list and event to the shared classifier');
+ci_scope_expect(str_contains($workflow, 'deploy_bound: ${{ steps.scope.outputs.deploy_bound }}'), 'preflight must publish deploy-bound classification');
+ci_scope_expect(str_contains($workflow, 'BRVTAL_DEPLOY_BOUND: ${{ steps.scope.outputs.deploy_bound }}'), 'version validation must consume deploy-bound classification');
+ci_scope_expect(str_contains($workflow, 'Repository-only maintenance: product version may remain unchanged.'), 'repository-only maintenance must allow a stable product version');
 ci_scope_expect(str_contains($workflow, 'run: npm run test:integration'), 'CI database gate must call the canonical integration script');
 ci_scope_expect(!str_contains($workflow, "php tests/integration/global-search.php\n          php tests/integration/bulk-actions.php"), 'CI must not maintain a second manual integration list');
 
 ci_scope_expect_flags(ci_scope_run(['api/hero-slider.php']), [
     'full' => 'false', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
-    'run_php' => 'true', 'run_js' => 'false',
+    'run_php' => 'true', 'run_js' => 'false', 'deploy_bound' => 'true',
 ], 'public hero API');
 ci_scope_expect_flags(ci_scope_run(['README.md', 'AGENTS.md']), [
     'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
-    'run_php' => 'false', 'run_js' => 'false',
+    'run_php' => 'false', 'run_js' => 'false', 'deploy_bound' => 'false',
 ], 'docs only');
 ci_scope_expect_flags(ci_scope_run(['config/public_home.php']), [
-    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'false', 'run_recovery' => 'false', 'deploy_bound' => 'true',
 ], 'public runtime config');
 ci_scope_expect_flags(ci_scope_run(['package.json']), [
     'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
-    'run_php' => 'true', 'run_js' => 'true',
+    'run_php' => 'true', 'run_js' => 'true', 'deploy_bound' => 'false',
 ], 'test tooling');
+ci_scope_expect_flags(ci_scope_run(['config/version.php']), [
+    'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_php' => 'false', 'run_js' => 'false', 'deploy_bound' => 'true',
+], 'product version');
+
 ci_scope_expect_flags(ci_scope_run(['config/totp_auth.php']), [
     'run_db' => 'true', 'run_browser' => 'false', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'false',
 ], 'auth-sensitive runtime config');
@@ -130,7 +138,7 @@ ci_scope_expect_flags(ci_scope_run(['README.md', 'api/hero-slider.php', 'config/
 ], 'combined changed-file union');
 ci_scope_expect_flags(ci_scope_run([], 'workflow_dispatch'), [
     'full' => 'true', 'run_db' => 'true', 'run_browser' => 'true', 'run_realstack' => 'true', 'run_webkit' => 'true', 'run_recovery' => 'true',
-    'run_php' => 'true', 'run_js' => 'true',
+    'run_php' => 'true', 'run_js' => 'true', 'deploy_bound' => 'false',
 ], 'manual full matrix');
 
 $packageData = json_decode($package, true);

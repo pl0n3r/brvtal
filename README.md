@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#577 AGENTS operating-contract audit** | autonomy · source ownership · compact bootstrap · anti-bloat guardrail |
+| Work line | 🚧 **#577 AGENTS operating-model audit** | compact bootstrap · autonomy · parallel-safe coordination · release semantics |
 | Base exacta | 🚧 **current main** | `7519c2d4749427622ff6de618b037d94b5a870b6` |
-| Version | ✅ **0.1.23 unchanged** | non-runtime repository operating-contract maintenance |
-| Producción base | ✅ **NO PRODUCT RUNTIME CHANGE** | no production behavior is modified by this PR |
+| Version | ✅ **0.1.23 unchanged** | repository-only maintenance; no product/runtime surface changed |
+| Producción base | ✅ **NO PRODUCT RUNTIME CHANGE** | no behavioral production claim required |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+326** | **−541** | **−215** |
+| **8** | **+394** | **−559** | **−165** |
 
 ## Calidad y entrega
 
@@ -36,11 +36,11 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP]** |
-| Reservation | Issue #577 · `work/issue-577` · atomic reservation |
-| PR integrity | **PR + snapshot exacto** · no overlap with #574 / #576 |
-| AGENTS target | < 360 lines · < 30 KB · no product-state ledger |
-| Source ownership | AGENTS=execution · SPEC=product · #533=roadmap · README=snapshot |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Reservation | Issue #577 · `work/issue-577` · UUID trusted marker |
+| PR integrity | **PR + snapshot exacto** · implementation overlaps fail closed |
+| Parallelism | README is the sole non-blocking shared snapshot; real file overlaps still block |
+| Versioning | product/runtime changes require bump; repository-only maintenance may keep current version |
 | Sonar + CodeRabbit | parallel on stable intended head |
 | Exact-main | **CI del SHA exacto de main** after squash merge |
 
@@ -48,51 +48,57 @@
 
 ```mermaid
 flowchart LR
- I["#577 / reserved"] --> A["AGENTS audit"]
- A --> C["Compact operating contract + guardrail"]
- C --> P["PR snapshot"]
- P --> G["CI + Sonar + CodeRabbit"]
- G --> M["Squash merge"]
+ I["#577 reserved"] --> A["AGENTS audit"]
+ A --> O["Operating contract"]
+ O --> P["Parallelism + version guardrails"]
+ P --> G["CI · Sonar · CodeRabbit"]
+ G --> M["Serialized squash merge"]
  M --> X["Exact-main validation"]
 ```
 
 ## Qué se hizo
 
-- Se convierte `AGENTS.md` de manual mixto a contrato operativo para agentes.
-- Se añade una regla explícita de autonomía: máximo trabajo seguro por turno, sin detenerse por microavances.
-- Se mantiene paralelización segura y coordinación GitHub-native como comportamiento por defecto.
-- Producto/arquitectura se delega a `docs/BRVTAL-SPEC.md`; ejecución/progreso a #533; snapshot a README.
-- Se elimina el bootstrap histórico de #571 y otras reglas ya obsoletas.
-- Se conserva el contrato de exact-main, Sonar, CodeRabbit, deploy observation y límites de producción.
-- El test operativo impide que AGENTS vuelva a superar 360 líneas / 30 KB o reintroduzca inventarios de producto.
+- `AGENTS.md` pasa de manual mixto de 540 líneas / ~57 KB a contrato operativo compacto de ~344 líneas / ~16 KB.
+- Se explicita máximo trabajo seguro por turno, prohibición de cerrar por microavances y comunicación agrupada.
+- Producto/arquitectura queda en `BRVTAL-SPEC`; progreso en #533; aceptación en cada Issue; README queda como snapshot transitorio.
+- Se elimina el bootstrap histórico de #571 y se conserva coordinación GitHub-native obligatoria.
+- Se corrige una contradicción de paralelización: `README.md` es la única superposición no bloqueante porque todos los PRs deben regenerarlo; cualquier otro path compartido sigue fallando cerrado.
+- Se corrige una contradicción de versionado: el clasificador CI distingue producto/runtime de mantenimiento del repositorio para no inventar versiones en docs/tests/CI.
+- Se añaden contratos para impedir que AGENTS vuelva a convertirse en inventario de producto o que estas dos reglas se degraden.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md` — bootstrap operativo compacto y reglas de autonomía/paralelización.
+- `.github/workflows/update-release-metadata.yml` — consume clasificación product/runtime antes de exigir transición de versión.
+- `AGENTS.md` — contrato operativo compacto con autonomía, paralelización y ownership de fuentes.
 - `README.md` — snapshot exacto de #577.
-- `tests/project-operations-contract.php` — guardrails de tamaño, ownership y contenido de AGENTS.
+- `scripts/ci-scope.sh` — publica `deploy_bound` para superficies de producto/runtime.
+- `scripts/work_coordinator.py` — excluye solo README de colisiones bloqueantes.
+- `tests/ci-scope-contract.php` — valida clasificación deploy-bound/no-runtime.
+- `tests/project-operations-contract.php` — guardrails de AGENTS, versionado y paralelización.
+- `tests/test_work_coordinator.py` — prueba README-only no bloqueante y colisiones reales fail-closed.
 
 ## Validación
 
-- Cambio no-runtime: no altera versión de producto ni comportamiento público/DISCADMIN.
-- El PR debe pasar contract suite, README exacto, coordination, Sonar y CodeRabbit.
+- Sin cambio de producto/runtime: v0.1.23 permanece correcta.
+- El PR debe cerrar el full matrix porque modifica el clasificador/workflow central.
+- Coordination debe aceptar README compartido con PRs independientes y seguir rechazando cualquier overlap real.
+- Sonar y CodeRabbit se validan sobre el head estable.
 - Exact-main sigue siendo obligatorio después del squash merge.
-- Sin cambios de producción ni migraciones.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#577](https://github.com/pl0n3r/brvtal/issues/577) · compact AGENTS operating contract. |
+| **NOW** | 🚧 [#577](https://github.com/pl0n3r/brvtal/issues/577) · agent operating-model audit. |
 | **NEXT** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) / PR #574 · unsaved editor protection; [#575](https://github.com/pl0n3r/brvtal/issues/575) / PR #576 · production-smoke IA alignment. |
 | **LATER** | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529). |
-| **BLOCKED / EXTERNAL** | 🚧 No active Hostinger blocker; external delivery evidence remains independently observed. |
+| **BLOCKED / EXTERNAL** | 🚧 No active external blocker for this maintenance line. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
 | **NOW** | 🚧 Agent operating model | 🚧 [#577](https://github.com/pl0n3r/brvtal/issues/577) |
-| **NEXT** | 🚧 Active editorial / production-smoke lines | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#575](https://github.com/pl0n3r/brvtal/issues/575) |
+| **NEXT** | 🚧 Editorial safety / production smoke | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257), [#575](https://github.com/pl0n3r/brvtal/issues/575) |
 | **LATER** | 🚧 Rich editor / membership / drafts / preview | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
-| **BLOCKED / EXTERNAL** | 🚧 External deploy/production evidence | monitored separately from code validation |
+| **BLOCKED / EXTERNAL** | 🚧 External deploy/production evidence | monitored independently from code validation |

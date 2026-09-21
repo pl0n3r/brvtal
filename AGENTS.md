@@ -117,7 +117,8 @@ GitHub is the arbiter for concurrent implementation.
 - Coordinated PRs target `main`, use their reserved `work/issue-N` branch and close the matching Issue with `Closes #N`, `Fixes #N` or `Resolves #N`.
 - Coordination fails closed when Issue, branch, reservation metadata or closing relation disagree.
 - Changed-file overlap with another open PR targeting `main` is a fail-closed collision and must identify exact paths.
-- Independent reservations may run in parallel; conflicting work may not.
+- `README.md` is the one deliberate non-blocking overlap because every PR owns an exact transient snapshot; all other overlapping paths still block. If `main` moves, regenerate README against the new base before merge.
+- Independent reservations may run in parallel; conflicting implementation work may not.
 - PR/Issue lifecycle synchronizes visible state and reservation/branch cleanup.
 - Deploy-bound PR titles end with `(vX.Y.Z)`.
 
@@ -222,8 +223,9 @@ Rules:
 ### Versioning
 
 - `config/version.php` is the human product-version source of truth.
-- `package.json.version` matches it on deploy-bound PRs.
-- Patch +1 is the default.
+- `package.json.version` matches it on deploy-bound product/runtime PRs.
+- The CI scope classifier decides whether a PR is product/runtime deploy-bound. Repository-only docs/tests/CI/agent-maintenance may keep the current product version.
+- If a PR changes product/runtime delivery surfaces, the version bump is mandatory. Patch +1 is the default.
 - A pre-1.0 minor bump is deliberate.
 - **1.0.0 requires explicit administrator decision.**
 - Git SHA remains separate technical deployment identity.
