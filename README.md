@@ -17,7 +17,7 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#257 · unsaved editor protection v0.1.24** | PR #574 · findings Major en corrección |
+| Work line | 🚧 **#257 · unsaved editor protection v0.1.24** | PR #574 · revisión final en validación |
 | Base exacta | ✅ ~~main validado~~ | `f1eeb5c355ea2a799b016493e2100afd35510c57` · BRVTAL CI / Sonar / Deploy Observer success |
 | Versión | 🚧 **0.1.23 → 0.1.24** | cambio deploy-bound de DISCADMIN |
 | Producción base | ✅ ~~release observado~~ | identidad del release base; no implica comportamiento validado |
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+1039** | **−90** | **+949** |
+| **17** | **+1060** | **−108** | **+952** |
 
 ## Calidad y entrega
 
@@ -42,6 +42,7 @@
 | Dirty-state | snapshot + lock + operation token; completion stale = no-op |
 | Navigation | mutación tardía = rollback de workspace/URL + editor dirty preservado |
 | Auth expiry | 401/Logout no pueden renderizar y destruir cambios sin guardar |
+| Lifecycle | roots desconectados se podan del tracking para no retener subárboles desmontados |
 | Sonar / CodeRabbit | nueva revisión sobre el head estable |
 | Exact-main | **CI del SHA exacto de main** después del squash merge |
 
@@ -65,28 +66,29 @@ flowchart LR
 - El snapshot se revalida antes del commit; una mutación tardía restaura workspace y URL previos sin perder el editor dirty.
 - Logout coordina Unsaved Changes + Hero guard y evita render/commit dependiente si el snapshot cambió.
 - Un 401 administrativo con cambios dirty conserva el DOM editable y muestra estado explícito de sesión terminada.
+- El manager elimina roots desconectados cuando un módulo desmonta un editor, evitando retención innecesaria de su subárbol DOM.
 - Playwright cubre carrera de navegación, rollback, Logout y expiración de sesión.
 - Los findings nuevos de Sonar se corrigen en el mismo head: retornos uniformes para las transacciones de navegación y menor complejidad en expiración de sesión.
 
 ## Archivos modificados en este deploy
 
-- `README.md`
-- `config/version.php`
-- `discadmin/admin-auth-boundary.js`
-- `discadmin/admin-information-architecture.js`
-- `discadmin/admin-modules.js`
-- `discadmin/admin-reliability.js`
-- `discadmin/admin-unsaved-changes.js`
-- `discadmin/blog.js`
-- `discadmin/content-core.js`
-- `discadmin/index-core.php`
-- `discadmin/index.php`
-- `discadmin/releases.js`
-- `docs/BRVTAL-SPEC.md`
-- `package.json`
-- `tests/e2e/admin-reliability-quick-wins.spec.mjs`
-- `tests/e2e/discadmin-information-architecture.spec.mjs`
-- `tests/e2e/discadmin-unsaved-changes.spec.mjs`
+- `README.md` — snapshot exacto del deploy, gates, huella Git y siguiente trabajo.
+- `config/version.php` — eleva la versión de producto a 0.1.24.
+- `discadmin/admin-auth-boundary.js` — preserva editores dirty cuando expira la autenticación.
+- `discadmin/admin-information-architecture.js` — coordina navegación protegida, tokens y rollback de workspace/URL.
+- `discadmin/admin-modules.js` — integra el guard compartido en editores administrativos legacy.
+- `discadmin/admin-reliability.js` — coordina Logout con los guards de cambios sin guardar y Banners.
+- `discadmin/admin-unsaved-changes.js` — implementa baselines, dirty state, locks, tokens y lifecycle de roots.
+- `discadmin/blog.js` — integra protección de cambios sin guardar en Blog.
+- `discadmin/content-core.js` — integra dirty state y saves de Content Core con el guard compartido.
+- `discadmin/index-core.php` — carga e integra el manager dentro del shell canónico de DISCADMIN.
+- `discadmin/index.php` — incorpora el script del guard en la entrada administrativa.
+- `discadmin/releases.js` — integra protección de cambios sin guardar en Releases.
+- `docs/BRVTAL-SPEC.md` — documenta el contrato funcional durable de protección de ediciones.
+- `package.json` — sincroniza la versión deploy-bound 0.1.24.
+- `tests/e2e/admin-reliability-quick-wins.spec.mjs` — cubre Logout y expiración de sesión sin pérdida de cambios.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — cubre navegación protegida, carreras y rollback.
+- `tests/e2e/discadmin-unsaved-changes.spec.mjs` — cubre cierres, saves y estado dirty en flujos reales.
 
 ## Validación
 
