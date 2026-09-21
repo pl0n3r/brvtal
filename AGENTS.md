@@ -215,6 +215,12 @@ Rules:
 - Sonar follows Clean-as-You-Code: fix new actionable issues/security hotspots on the intended head; do not create repo-wide churn for low-value legacy style debt.
 - CodeRabbit reviews the **stable intended PR head**, not every intermediate push. Request the final review in parallel with CI/Sonar.
 - If a gate requires code changes, batch the fix, create a new stable head and revalidate the affected gates.
+- `scripts/ci_retry.py` may retry only external dependency operations with a
+  verified transient signal, a bounded backoff and at most five attempts. It
+  never retries tests, static analysis, migrations or product assertions.
+- `scripts/ci_self_audit.py` is the machine-checkable baseline for workflow
+  pins, credential persistence, timeouts and fail-closed execution. Any newly
+  added workflow must satisfy it before becoming a required gate.
 - Do not report CodeRabbit/Sonar as passed while they are still processing.
 - A stalled advisory external reviewer with no actionable output must not block delivery indefinitely when canonical required gates are green and branch protection permits merge; document the state precisely.
 

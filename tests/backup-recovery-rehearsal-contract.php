@@ -40,7 +40,11 @@ $expect(str_contains($workflow, 'MARIADB_DATABASE: brvtal_test_backup_source'), 
 $expect(str_contains($workflow, "BRVTAL_INTEGRATION_TESTS: '1'"), 'integration guard must be enabled explicitly');
 $expect(str_contains($workflow, "BRVTAL_BACKUP_RECOVERY_REHEARSAL: '1'"), 'recovery guard must be enabled explicitly');
 $expect(str_contains($workflow, 'BRVTAL_TEST_DB_NAME: brvtal_test_backup_source'), 'rehearsal must target only its disposable source DB');
-$expect(str_contains($workflow, 'actions/upload-artifact@v4'), 'recovery evidence must be retained');
+$expect(
+    str_contains($workflow, 'actions/upload-artifact@v4')
+    || str_contains($workflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'),
+    'recovery evidence must be retained'
+);
 $expect(!str_contains($workflow, 'secrets.'), 'BRVTAL CI recovery must not consume production or repository secrets');
 $expect(!str_contains($workflow, 'brvtal.com.co'), 'BRVTAL CI recovery must not target production URLs');
 
