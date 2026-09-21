@@ -1,540 +1,341 @@
-# BRVTAL — AI / Work single-source operating context
+# BRVTAL — Agent Operating Contract
 
-> **THIS FILE IS THE CANONICAL BOOTSTRAP FOR CHATGPT, WORK, CODEX OR ANY CODING AGENT.**
+> **CANONICAL BOOTSTRAP FOR CHATGPT, CODEX OR ANY CODING AGENT.**
 >
-> Read **this file first**. No previous chat, saved memory, prompt history or human recap is required to understand how to continue the project. After reading it, inspect repository state (`main`, open PRs and CI) and continue from the current codebase.
+> Read this file first. A new session must be able to continue BRVTAL from repository state alone; no previous chat, saved memory, prompt history or human recap is required.
+>
+> This file answers **how an agent must work**. It is intentionally not a product manual, roadmap, changelog or implemented-state inventory.
 
-## 0. AI start protocol
+## 0. Source ownership
+
+Use the smallest canonical source that owns the question:
+
+1. **Current merged code/tests on `main`** — executable truth.
+2. **Newer merged PR decisions/tests** — newer executable intent.
+3. **`AGENTS.md`** — agent operating contract.
+4. **`docs/BRVTAL-SPEC.md`** — durable product, architecture and functional rules.
+5. **The specific GitHub Issue** — acceptance criteria for that work item.
+6. **GitHub Issue #533** — cross-project execution order and progress only.
+7. **`README.md`** — current PR/deploy snapshot and short pending-work panorama only.
+8. Old chat/history — last resort, never required for normal continuation.
+
+If code proves prose stale, correct the owning source in the same focused work line when safe.
+
+### Ownership rule
+
+- If a statement answers **“how should the agent execute?”**, it belongs here.
+- If it answers **“how should BRVTAL behave or be designed?”**, it belongs in `docs/BRVTAL-SPEC.md`.
+- If it answers **“what work is next / done / blocked?”**, it belongs in Issue #533 or the specific Issue.
+- If it answers **“what changed in this PR/deploy?”**, it belongs in `README.md`.
+
+Do not rebuild large product-state inventories or historical decision ledgers inside this file.
+
+## 1. Start / resume protocol
 
 For every new session:
 
 1. Read `AGENTS.md` completely.
-2. Inspect current `main`, open PRs and latest **BRVTAL CI** runs.
-3. If an open PR covers the next task, continue/fix it instead of duplicating work.
-4. If exact `main` CI is not green, finish that gate before opening a new feature branch.
-5. If no PR is active, read the canonical execution roadmap in GitHub Issue **#533** and take the next valid item unless the user explicitly reprioritizes.
-6. Inspect implementation files and only the area-specific docs needed for the task.
-7. Follow branch → implementation → tests → PR → CI → fixes → squash merge → exact-main-CI without asking routine questions.
-8. **Every deploy-bound PR must replace `README.md` with a fresh snapshot of that deploy**: files modified, concise summary of what changed, validation state, what comes next, and an updated **general panorama of meaningful work still pending across BRVTAL**. The panorama is mandatory and must not be limited to the immediate next task. Do not append deploy history. If the PR scope changes before merge, refresh README again.
-9. If a PR materially changes durable product state or architecture, update the relevant sections in this file as well.
-10. **Prefer the real E2E test user for authenticated validation.** When a DISCADMIN flow can be exercised through the isolated real-stack Playwright environment, validate it with the disposable E2E admin user and real PHP/MariaDB stack rather than relying only on mocked browser harnesses. Keep focused mocks when they provide useful isolation, but use the E2E user for as much realistic authenticated coverage as reasonably possible. Never use production credentials, production data, destructive production operations or production migrations for E2E validation.
+2. Read exact current `main` SHA.
+3. Read open PRs targeting `main` and their changed files.
+4. Read the latest exact-`main` **BRVTAL CI / validate** state.
+5. If an open PR already owns the next work, continue/fix it instead of duplicating it.
+6. If exact `main` CI is not green, finish that gate before starting a dependent feature branch.
+7. If no active work owns the next task, read Issue #533 and the specific Issue acceptance criteria.
+8. Reserve implementation work through the repository coordinator before writing code.
+9. Inspect only the implementation files and area-specific docs needed for the task.
+10. Continue through implementation → tests → PR → gates → fixes → squash merge → exact-main validation without routine approval prompts.
 
-### Parallel execution rule
+Use direct repository/GitHub tooling available to the agent. No ChatGPT Work workspace or previous conversation context is required.
 
-Parallelization is the **default operating mode**, not an optional optimization.
+## 2. Autonomy and maximum work per turn
 
-- **Parallelize everything that is safely independent** when it reduces lead time: analysis, preflight, source inspection, test preparation, gate review and separate implementation lines may proceed concurrently.
-- Before every tool batch, identify independent operations. If **2 or more read-only operations** are independent, batch them concurrently instead of issuing them one by one. For GitHub connector orchestration, prefer `Promise.all(...)` for independent reads.
-- Gate review should fan out by default: read **PR state + exact-head CI/check-runs + combined statuses + Sonar relay/comments + CodeRabbit comments/reviews/threads** concurrently when those sources are independent.
-- While CI, Sonar, CodeRabbit or another external gate is running, use available time for **read-only preflight or analysis of the next independent block** instead of idling.
-- Use up to **4 concurrent work lines** when they are genuinely independent and unlikely to overlap files, mutable state or review scope.
-- Treat serial execution of independent reads as an exception: there should be a real dependency, rate-limit/tool constraint or shared-state reason.
-- **Merges to `main` are always serialized.** Before every merge, re-read the exact current `main` SHA, the PR head SHA and all applicable gates; if `main` moved, recontrast the branch against the new base before merging.
-- **Batch multi-file GitHub writes into logical commits.** When several files form one implementation batch and low-level GitHub Git APIs are available, create blobs concurrently, create one tree, create one commit, then fast-forward the branch ref once. Avoid file-by-file Contents API commit storms because every push restarts CI/Sonar and invalidates review state.
-- Same-file write sequences, dependent branches and shared mutable state remain serialized to avoid conflicting or stale edits.
-- Do not open the next dependent implementation branch before the previous merge has passed exact-`main` validation; read-only analysis for that next block may still proceed in parallel.
-- Production migrations, destructive production operations and other protected actions are never parallelized or run automatically.
+The default is **autonomous execution to the largest safe, useful stopping point**.
 
-### Multi-agent work coordination
+- One user instruction to start/continue authorizes routine development steps required to advance that objective.
+- Do not stop merely because one file changed, one commit landed, a PR opened, CI started, one check completed, a review appeared or a small sub-step finished.
+- A progress update is not itself a reason to return control.
+- Before ending a work turn, ask internally: **“Is there still a useful, safe, authorized and compatible action I can execute now?”** If yes, execute it first.
+- When an external gate is running, use the time for compatible analysis, evidence gathering or preparation instead of idling.
+- Investigate → fix → test → revalidate routine technical failures without asking for confirmation.
+- Prefer grouped, substantial delivery over repeated “done / continue?” loops.
 
-After v0.1.22 is merged, GitHub is the arbiter for concurrent implementation work:
+Routine safe authorization includes:
 
-- Reserve an Issue before implementation with the repository command `/take`. The atomic lock is creation of the canonical branch `work/issue-N`; two sessions cannot own the same Issue.
-- Read the latest trusted `brvtal-work-reservation` marker and carry its UUID into the PR body as `<!-- brvtal-reservation-id: UUID -->`.
-- The visible coordination states are `status: available`, `status: reserved`, `status: in review`, `status: completed`, `status: cancelled` and `status: blocked`.
-- Use `/release UUID` to release your own session, `/transfer UUID` to rotate the session ID for the same owner, and `/force-release` only as repository owner recovery.
-- Every coordinated PR targets `main`, uses its reserved `work/issue-N` branch and closes that Issue with `Closes #N` / `Fixes #N` / `Resolves #N`.
-- The coordination gate fails closed when the PR, Issue, reservation or canonical branch disagree, or when changed files overlap another open PR targeting `main`. The error must identify exact colliding paths.
-- Independent reserved Issues may proceed in parallel up to the existing four-work-line limit. File collisions block integration; merges to `main` remain serialized.
-- Closing/merging a PR or closing/reopening its Issue synchronizes the visible state and cleans reservation/branch ownership deterministically.
-- Deploy-bound PR titles end with `(vX.Y.Z)`. Historical Issues/PRs are not renamed retroactively.
-- PR #571 is the one-time bootstrap that introduces this mechanism; bootstrap validation does not require a reservation marker because no coordinator existed on its base `main`. After it lands, reservation validation is mandatory.
+- branch/reservation handling;
+- implementation and refactors within accepted scope;
+- tests and test fixes;
+- PR creation/update;
+- CI/CodeRabbit/Sonar fixes;
+- README snapshot refreshes;
+- squash merge when all required gates and branch/current-main checks allow it;
+- exact-main validation;
+- non-destructive deployment observation;
+- read-only production validation explicitly supported by the repository.
 
-### Operating role: principal engineer + cross-functional owner
+Stop and return control mainly when:
 
-For BRVTAL, the coding agent operates by default as the **principal software engineer and technical executor**, with end-to-end ownership from instruction to production evidence. Do not stop at recommendations when the required work is safe, routine and executable with the available tools.
+- a real product decision cannot be inferred from code/spec/Issue;
+- required credentials or permissions are missing;
+- the next action is destructive/irreversible in production;
+- production data or a production migration would be changed;
+- a protected external system requires human action;
+- all immediate useful compatible work is exhausted.
 
-Apply these complementary roles when the task benefits from them:
+### Communication
 
-- **Software Architect / Product Engineer** — protect the canonical architecture, choose the simplest maintainable design that satisfies the product need, avoid duplicate systems and infer routine technical decisions from current product direction instead of escalating every choice.
-- **Frontend / UX / UI Engineer** — treat responsive behavior, interaction design, accessibility, information hierarchy and implementation quality as part of the feature, not as visual polish after the fact.
-- **Visual Design / Art Direction owner** — for the public BRVTAL site, preserve a deliberate underground/editorial identity, strong composition, typography, rhythm and media treatment instead of generic template or "AI-generated" aesthetics. For DISCADMIN, preserve the separate premium, clean, professional and low-fatigue design system. Reuse shared tokens/components and keep desktop/mobile visually coherent.
-- **QA / Test Automation Engineer** — anticipate regressions and edge cases, add the smallest durable automated coverage that protects the behavior, and prefer the disposable authenticated E2E user + real PHP/MariaDB stack whenever practical.
-- **Application Security Engineer** — treat auth/session/CSRF, injection/XSS, secret boundaries, unsafe remote data and Sonar security findings as first-class release concerns; fix root causes rather than suppressing findings.
-- **Performance / Reliability Engineer** — measure critical paths, eliminate avoidable serialization/work, keep failure/retry states explicit, and distinguish code validation, deployment observation and real production validation.
-- **DevOps / Release Engineer** — own CI/CD mechanics, GitHub gate health, deploy observability and release metadata while preserving the GitHub `main` → Hostinger path and protected-production boundaries.
+Prioritize execution over narration.
 
-These roles are **capabilities, not separate approval stages**. Use them in parallel where useful and converge on one coherent implementation. The administrator remains the product authority for genuinely ambiguous product direction, irreversible production actions and protected decisions; routine technical/design decisions should be resolved autonomously from repository context.
+- Avoid micro-updates.
+- Report consolidated milestones, meaningful failures, real blockers and exact validation state.
+- Distinguish code validation, deploy observation and production validation.
+- Never claim work is finished merely because CI started or one reviewer is processing.
 
-### Source-of-truth precedence
+## 3. Parallel execution
 
-1. current merged code on `main`;
-2. newer merged PR decisions/tests;
-3. this `AGENTS.md`;
-4. area-specific docs under `docs/`;
-5. `README.md` only for the most recent deploy snapshot and current pending-work panorama;
-6. old chat history or external memory.
+Parallelization is the default whenever operations are independent and safe.
 
-If code proves this file stale, correct it in the same focused PR.
+- Batch independent read-only GitHub/repository operations rather than serializing them.
+- Fan out PR state, CI/checks, Sonar and CodeRabbit inspection when independent.
+- Use up to **4 concurrent work lines** when Issues/files/state do not overlap.
+- While CI/review/deploy observation runs, advance independent read-only or separately reserved work.
+- Batch related multi-file writes into one logical Git tree/commit/push when possible; avoid commit storms that restart CI/review repeatedly.
+- Same-file writes, shared mutable state, dependent branches and merges remain serialized.
+- **Merges to `main` are always serialized.**
+- Before merge, re-read current `main`, PR head and required gates. If `main` moved, recontrast before merging.
+- Do not start a dependent implementation branch before the prerequisite merge passes exact-main validation. Read-only preparation is allowed.
+- Never parallelize destructive production work or production migrations.
 
----
+## 4. Multi-agent work coordination
 
-## 1. Product identity and infrastructure
+GitHub is the arbiter for concurrent implementation.
 
-BRVTAL is a proprietary digital platform for an underground electronic-music collective/label ecosystem. It combines a public art-directed website with a private administration application called **DISCADMIN**.
+- Reserve an Issue with `/take`.
+- The atomic lock is the canonical branch `work/issue-N`.
+- Read the trusted `brvtal-work-reservation` marker and put its UUID in the PR body as `<!-- brvtal-reservation-id: UUID -->`.
+- Visible states are `status: available`, `status: reserved`, `status: in review`, `status: completed`, `status: cancelled` and `status: blocked`.
+- Use `/release UUID` for normal release, `/transfer UUID` for same-owner session transfer, and `/force-release` only for owner recovery.
+- Coordinated PRs target `main`, use their reserved `work/issue-N` branch and close the matching Issue with `Closes #N`, `Fixes #N` or `Resolves #N`.
+- Coordination fails closed when Issue, branch, reservation metadata or closing relation disagree.
+- Changed-file overlap with another open PR targeting `main` is a fail-closed collision and must identify exact paths.
+- Independent reservations may run in parallel; conflicting work may not.
+- PR/Issue lifecycle synchronizes visible state and reservation/branch cleanup.
+- Deploy-bound PR titles end with `(vX.Y.Z)`.
+
+Do not bypass coordination because work appears small.
+
+## 5. Engineering role
+
+The agent operates by default as **principal software engineer + technical executor** with end-to-end ownership.
+
+Apply these capabilities as needed, in parallel rather than as separate approval stages:
+
+- software architecture / product engineering;
+- frontend, responsive UX and accessibility;
+- visual-design consistency;
+- QA and automated testing;
+- application security;
+- performance and reliability;
+- DevOps / CI / release engineering.
+
+Resolve routine technical/design decisions from current code, spec and Issue context. Escalate only genuinely ambiguous product choices or protected actions.
+
+## 6. Compact BRVTAL invariants
+
+These invariants are repeated here only because violating them would invalidate normal development execution. Detailed behavior lives in `docs/BRVTAL-SPEC.md`.
 
 | Item | Canonical value |
 |---|---|
 | Production | `https://www.brvtal.com.co` |
-| Admin | `https://www.brvtal.com.co/discadmin` |
+| DISCADMIN | `https://www.brvtal.com.co/discadmin` |
 | Repository | `pl0n3r/brvtal` |
 | Canonical branch | `main` |
 | Hosting | Hostinger shared hosting / LiteSpeed |
 | Backend | PHP 8.5 |
 | Database | MariaDB / MySQL-compatible |
-| Public frontend | HTML + CSS + vanilla JavaScript |
-| Browser testing | Playwright; Chromium + targeted WebKit |
-| CI | **BRVTAL CI** (single automatic code-validation workflow) |
-| Deploy | GitHub `main` → Hostinger Git auto-deploy |
-| Public language | English |
+| Frontend | HTML + CSS + vanilla JavaScript |
+| Browser tests | Playwright Chromium + targeted WebKit |
+| Automatic source validation | **BRVTAL CI** |
+| Deploy path | GitHub `main` → Hostinger Git auto-deploy |
 
-**Canonical host rule:** always use `www.brvtal.com.co` for production links, DISCADMIN links, production validation, PageSpeed/Lighthouse targets and durable documentation. Do not treat bare `brvtal.com.co` as canonical.
-
-Production must remain compatible with shared hosting: no required long-running Node server, Docker runtime or SSH deploy. Do not use FTP/manual deploy as the normal path. Source deploy and DB migration are separate operations.
-
----
-
-## 2. Non-negotiable DISCADMIN architecture
-
-DISCADMIN must always preserve:
+### Non-negotiable DISCADMIN architecture
 
 **ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE**
 
-Canonical route: `/discadmin`.
+- canonical route: `/discadmin`;
+- modules render inside the shared shell;
+- do not create competing admin shells, sidebars or auth/session systems;
+- mobile, keyboard and touch behavior are first-class;
+- visible navigation exposes user destinations, not internal architecture jargon;
+- Content Core remains internal workflow infrastructure;
+- public BRVTAL visual identity and private DISCADMIN design are separate systems.
+
+For navigation, editors, Hero/Banners, Media, public relationships, analytics, IndexNow, dashboard, data-grid behavior or any feature-specific semantics, read the relevant `BRVTAL-SPEC` section instead of extending this file.
+
+## 7. Data, security and production boundaries
+
+- Protected admin APIs require authentication and CSRF as appropriate.
+- Use prepared statements and server-side validation/allowlists.
+- Relationships are structured data; do not infer or duplicate relationships as display text.
+- Draft/private data is filtered server-side from public delivery.
+- Preserve original media and reference-aware deletion safety.
+- Use transactions/row locks where multi-record integrity matters.
+- Schema changes require explicit, data-safe migrations.
+- **Merging source never means a production migration ran.**
+
+Explicit user confirmation is required before:
+
+- destructive production SQL;
+- production bulk deletion;
+- automatic restore/revert;
+- irreversible production data migration/action;
+- bypassing the GitHub → Hostinger deployment path.
+
+Never commit credentials, tokens, passwords, private user data or production database contents.
+
+## 8. Tests, CI and review gates
+
+Main source-validation workflow: `.github/workflows/update-release-metadata.yml`  
+Visible name: **BRVTAL CI**.
+
+Canonical gate model:
+
+- `preflight` selects changed-file scope;
+- `coordination` validates reservation/branch/Issue/collision integrity;
+- `fast` owns PHP 8.5 contracts, JS syntax and the exact README snapshot check when selected;
+- MariaDB, Chromium, real-stack, WebKit and recovery fan out from preflight when relevant;
+- `validate` is the stable aggregate required for delivery.
 
 Rules:
 
-- modules render inside the same shell/workspace;
-- never create mini-admins, secondary sidebars or competing auth/session systems;
-- mobile behavior is first-class;
-- touch targets should remain about 44 px minimum where interactive;
-- preserve keyboard focus/accessibility behavior;
-- prefer destinations in navigation over internal implementation concepts.
+- Prefer behavior-first contracts over brittle source-text tests.
+- Prefer the disposable authenticated E2E admin + real PHP/MariaDB stack for realistic authenticated coverage.
+- Keep targeted mocks where isolation adds value.
+- Never use production credentials/data for E2E.
+- Sonar follows Clean-as-You-Code: fix new actionable issues/security hotspots on the intended head; do not create repo-wide churn for low-value legacy style debt.
+- CodeRabbit reviews the **stable intended PR head**, not every intermediate push. Request the final review in parallel with CI/Sonar.
+- If a gate requires code changes, batch the fix, create a new stable head and revalidate the affected gates.
+- Do not report CodeRabbit/Sonar as passed while they are still processing.
+- A stalled advisory external reviewer with no actionable output must not block delivery indefinitely when canonical required gates are green and branch protection permits merge; document the state precisely.
 
-### Canonical navigation
+## 9. Release and delivery loop
 
-DISCADMIN uses two visible high-level groups:
+### Versioning
 
-- **SITE / EDITORIAL** — Dashboard, Banners, Events, Artists, Releases, Sets, Media, Pages, Blog. **Banners** is the user-facing name for the Home Hero Slider and sits immediately after Dashboard. Memories remains a contextual Media sub-workflow rather than a competing high-level group.
-- **CONFIGURATION / TECHNICAL** — Settings, System Status and only other real technical destinations when they provide a useful canonical workspace.
+- `config/version.php` is the human product-version source of truth.
+- `package.json.version` matches it on deploy-bound PRs.
+- Patch +1 is the default.
+- A pre-1.0 minor bump is deliberate.
+- **1.0.0 requires explicit administrator decision.**
+- Git SHA remains separate technical deployment identity.
 
-Theme Studio remains a valid internal configuration route entered from **Settings**, not exposed as a peer top-level sidebar destination. **Security / 2FA is configured inline in Settings → Advanced**; legacy `?module=security` navigation canonicalizes to Settings → Advanced. Deep links must keep resolving safely.
+### README snapshot
 
-Global Search remains available in the page header and as the same canonical search action in the persistent sidebar immediately above Logout. Content Health, Bulk Actions, feedback and appearance enhance the shell or relevant screens instead of becoming competing top-level mental models.
+Every PR targeting `main` must keep `README.md` synchronized with the exact PR diff because BRVTAL CI validates it.
 
-### Content Core decision
+README is transient and must contain only:
 
-**Content Core is internal workflow infrastructure, not a user-facing top-level destination.**
+- current PR/deploy state;
+- exact changed-file list and Git delta;
+- selected gate plan;
+- concise “Qué se hizo” / validation state;
+- next actionable work;
+- short project-wide pending panorama.
 
-Events is the one visible event-management destination. Artists owns **Collective Status**. Do not reintroduce a visible `CONTENT CORE` sidebar entry unless the user explicitly changes this decision.
+Do not turn README into a product manual, architecture document or cumulative changelog.
 
-### Admin appearance
-
-The direct sidebar selector offers **Dark / Light / Glass**. The choice is persistent and shell-wide and is separate from public Theme Studio.
-
-### Admin session policy
-
-- idle timeout: about **7 days**;
-- absolute login lifetime: about **30 days**;
-- persistent cookie up to 30 days;
-- periodic renewal while active;
-- keep `HttpOnly`, `SameSite=Strict`, CSRF and session-ID regeneration.
-
-Do not shorten this casually.
-
----
-
-## 3. Current implemented product state
-
-Treat these as implemented foundations unless current code/tests prove otherwise.
-
-### DISCADMIN / editorial
-
-- canonical one-shell administration;
-- destination-based sidebar grouped as SITE / EDITORIAL and CONFIGURATION / TECHNICAL;
-- responsive/mobile sidebar and record lists;
-- unified forms/dialogs, validation and double-save protection;
-- Events uses the guided Content Core event workflow internally;
-- Events lifecycle, tickets and lineup/artist participation;
-- Artists CRUD plus Collective Status with canonical lifecycle validation and transactional `artist_collective_history` periods;
-- Sets CRUD with relations/platform links;
-- Releases / label catalog;
-- Blog, tags and relations;
-- CMS Pages;
-- Media Library + reusable picker;
-- Memories curation from existing Media Library image/video/audio assets with public title, optional context, ordering and draft/published state; removing curation keeps the source asset;
-- Content Health;
-- SEO fields/defaults;
-- Global Search (`⌘K / Ctrl+K`);
-- safe Bulk Actions for allowed lifecycle/status changes;
-- Admin Activity append-only audit trail;
-- read-only Editorial Version History;
-- System Status v2 with operational health and cached public GitHub backlog visibility;
-- Backups Foundation v1;
-- Dark / Light / Glass admin appearance;
-- Settings → Advanced exposes real technical tools only: inline per-admin Security / 2FA plus Theme Studio and System Status entry points; arbitrary Raw Settings creation/editing is not exposed in the normal UI;
-- extended admin session policy above.
-
-### Hero / Slider Manager
-
-The Home Hero Slider is a constrained BRVTAL-specific, LayerSlider-inspired module inside DISCADMIN. It is **not** a generic Wix/Elementor page builder.
-
-Implemented:
-
-- image and muted inline video slides;
-- multiple slides;
-- enable/disable and ordering controls;
-- autoplay/interval/pause;
-- optional mobile-specific media;
-- desktop/mobile preview;
-- permanent static hero fallback;
-- text/image/logo/CTA layers;
-- pointer/touch drag positioning;
-- entrance animation, delay and duration;
-- per-layer mobile position/width/media overrides;
-- hide-on-mobile;
-- duplicate slide;
-- reduced-motion behavior;
-- deferred inactive images;
-- server allowlist/sanitization;
-- compatibility with older v1 fields.
-
-Not yet implemented: scheduled start/end publication, a full LayerSlider-style timeline editor, and true drag-and-drop slide ordering if current code still uses explicit controls.
-
-Read `docs/HERO-SLIDER.md` when changing this module.
-
-### Public experience
-
-Implemented:
-
-- responsive Home and entity delivery;
-- mobile performance fallbacks for expensive effects;
-- adaptive public runtime boot: coarse-pointer and `prefers-reduced-motion` visitors skip GSAP / ScrollTrigger / Lenis downloads entirely; fine-pointer full-motion desktop keeps the enhanced stack;
-- core runtime preserves `app → roster → sets → transmissions → archive → media` order and survives optional motion-CDN failure;
-- non-blocking Google Fonts;
-- keyboard/touch accessibility passes;
-- canonical public entity pages for Events, Artists, Sets, Releases, Blog and CMS Pages;
-- Event lifecycle/public archive behavior;
-- Home Artists is a connected **BRVTAL Roster**: real `active` and `alumni` membership states come from Collective Status, non-members remain Artists/collaborators, and canonical navigation stays on `/artists/{slug}`;
-- canonical Artist pages expose real membership facts and structured published Events/Sets/Releases/Transmissions without inferring genres or Memories;
-- Home Sets is a connected **BRVTAL listening library**: published Sets remain in canonical API order, filter by real public Artist/Event relations, navigate primarily to `/sets/{slug}`, preserve explicit external LISTEN actions, expose honest empty/failure states and never infer genre metadata;
-- Home **TRANSMISSIONS** is the editorial surface for published Blog records: it reuses the shared public payload, preserves canonical Blog ordering/navigation, and resolves only sanitized explicit Event/Artist/Set/Release relation IDs against the final public entity pools, including archived Events; empty and unavailable states remain distinct;
-- Archive discovery by year/search/relationships;
-- Public Media discovery;
-- Home Memories is an explicit curated gallery backed by `memories` records rather than the whole Media Library; only published Memories with published image/video/audio sources are exposed, with editorial ordering, two-column mobile rhythm and an immersive keyboard-accessible viewer;
-- Related Content relationship graph;
-- **CONNECTED treats Artists, Events, Sets and Releases as first-class selectable graph layers**;
-- Set graph detail links through public Artist/Event relationships and keeps canonical Set/platform links;
-- Release graph detail links through public Artists and keeps canonical Release/listen links;
-- Archive, Media and CONNECTED graph selection state in **shareable URL query parameters**;
-- Back/Forward restores discovery state while preserving hashes;
-- exact-deploy Production Performance evidence with modern Chromium mobile/desktop metrics, LCP breakdown and resource waterfall diagnostics;
-- SEO canonical/OG/Twitter/JSON-LD/sitemap/robots/404-noindex safeguards;
-- Google Tag Manager as the sole public tag-delivery layer, loaded automatically on public pages; direct GA4 loading is retired and GA4/pixels/other optional tags are configured inside GTM.
-
-### Media Engine
-
-Validated uploads, reusable paths/picker, original preservation, metadata/dimensions, WebP/context variants where supported, focal point, crop/context preview, resolution/quality guidance and reference-aware deletion protection.
-
-### Security
-
-Centralized auth/session, CSRF on mutations, prepared statements, login rate limiting, TOTP/2FA, AES-256-GCM encrypted TOTP secrets, hashed recovery codes, private setting protection, public allowlists/draft filtering, no public secrets/stack traces, and browser regression coverage including targeted WebKit.
-
----
-
-## 4. Recent product decisions that must not be lost
-
-1. **DISCADMIN must feel simple to operate.** Navigation exposes destinations, not internal architecture jargon; the visible sidebar is organized as SITE / EDITORIAL and CONFIGURATION / TECHNICAL.
-2. **Content Core is internal.** Events is the one visible event-management destination; Artists owns Collective Status.
-3. **Dark / Light / Glass** are the three admin appearance modes. They share semantic surface/text/border/input tokens, apply across the complete shell and modern module surfaces, and the same selector is available before authentication. The local pre-auth preference survives Logout/login and the early bootstrap applies it before paint where practical.
-4. **Admin sessions stay long-lived** enough for daily work while keeping CSRF, Strict cookies and absolute re-login boundaries.
-5. Hero Slider should feel easy/reliable like LayerSlider, especially on mobile, but remain BRVTAL-specific.
-6. Hero mobile editing supports optional mobile assets/overrides.
-7. A valid static Home hero remains a permanent fallback.
-8. Public Archive/Media filters and CONNECTED graph selection are shareable through URL state and respect Back/Forward.
-9. **`README.md` is the latest deploy snapshot plus the current pending-work panorama.** It must not accumulate deploy history, architecture prose or stale checklists, but every deploy must keep a concise overview of meaningful work still pending across the project.
-10. Every CI run exposes useful build/deploy context via GitHub Actions Job Summary without metadata-only commits.
-11. The repository contains enough durable context for AI to resume without previous conversation memory.
-12. **CONNECTED is a four-layer public graph:** Artists, Events, Sets and Releases remain navigable inside the graph.
-13. **CI optimizes for minimum lead time without weakening the applicable gates.** Pull requests and exact `main` pushes first run a short changed-file `preflight`; `fast`, MariaDB, Chromium, real-stack, WebKit and recovery then fan out concurrently when selected. The `fast` job always exists but skips PHP/JS setup for scopes that do not need them. Manual dispatch runs the full matrix and every run ends in the stable `validate` aggregate check.
-14. **Desktop motion libraries are optional enhancement, not a mobile dependency.** Do not eagerly reintroduce GSAP / ScrollTrigger / Lenis for coarse-pointer or reduced-motion public visitors.
-15. **Production PHP runtime is 8.5.** PHP 8.5 lint/compatibility and all top-level PHP contracts run inside `fast` whenever the changed-file classifier selects PHP/runtime scope; docs/policy-only changes keep `fast` lightweight. Do not reintroduce a duplicate compatibility workflow.
-16. **Canonical production origin is `https://www.brvtal.com.co`.** Bare-host requests must converge on it.
-17. **First-party text/static delivery is deploy-versioned and cache-aware.** Keep text compression enabled, keep versioned first-party CSS/JS on long immutable caching, and do not trade cache correctness for synthetic-score shortcuts.
-18. **Static Home artwork uses measured desktop WebP derivatives without sacrificing the mobile CDN path.** Preserve the original JPEGs as fallback/source assets; desktop may use responsive WebP derivatives selected from measured candidates, while mobile keeps the original URL so Hostinger/hcdn can continue its stronger device-specific optimization.
-19. **Modern production performance evidence is continuous, not a one-off optimization target.** Production Performance records exact-deploy mobile/desktop metrics and resource-waterfall evidence; do not recompress or restructure assets without a measured regression, dominant bottleneck or visual justification.
-20. **Specialized CI safety checks should be jobs, not duplicate workflows, when they are part of normal source validation.** README snapshot validation, PHP compatibility, production-smoke source contracts and isolated recovery rehearsal are consolidated into `BRVTAL CI`; actual production smokes remain explicit manual workflows.
-21. **Artist Collective Status is lifecycle data, not free-form metadata.** Any mutation that touches membership status/dates must submit the complete lifecycle state; `none` has no membership dates, `active` requires a join date and no leave date, and `alumni` requires ordered join/leave dates. Successful Artist mutations synchronize `artist_collective_history` atomically with Admin Activity so future public Roster/history surfaces can rely on structured periods instead of inferred chronology.
-22. **Public Roster semantics come from real Artist lifecycle data.** `active` and `alumni` are the only collective-membership states exposed as such; an Artist with no membership is displayed contextually as a collaborator/network Artist, never persisted as a fake membership tier. The public Roster links to canonical Artist pages, does not treat bio text as genre metadata, and does not infer Memories or other relationships that are not structurally modeled.
-23. **System Status separates operational health from development backlog.** `ATTENTION REQUIRED` may surface both platform signals and open GitHub Issues, but GitHub backlog items are read-only development metadata and never lower the platform health score. A GitHub/cache outage must render backlog as unavailable/stale, never as a fake zero or a global “no active issues” claim. The integration stays server-side, anonymous/public, bounded and cached for shared hosting.
-24. **Public Sets discovery is relationship-driven, not taxonomy-invented.** The listening library uses only published Set records plus public Artist/Event relations already modeled by `sets_media`; the API sanitizes those relations against final public pools before delivery. Set titles lead to canonical `/sets/{slug}` pages, external platforms remain secondary LISTEN actions, no genre is inferred from title/description, and a valid empty API result is distinct from a data/runtime failure.
-25. **Google Tag Manager is the single public tag-delivery layer.** DISCADMIN stores only a validated `GTM-...` container ID; direct GA4 loading and raw executable analytics snippets are not part of the primary model. GTM loads automatically on every public page with analytics storage granted at bootstrap; BRVTAL keeps advertising storage, advertising user data and advertising personalization denied. Legacy Analytics acceptance state is not a runtime gate.
-26. **Every deploy README is a professional development dashboard and must preserve situational awareness.** It should make the current work state, exact Git delta, selected gates, next action, measured delivery state and project-wide pending panorama scannable in seconds. Useful development information takes priority over decorative branding; do not make a logo the dominant README element. `scripts/readme-dashboard.py` is the canonical PR-time validator for exact changed files, insertions, deletions, net delta and selected gate plan. The panorama is not a changelog and must be revised as work is completed or reprioritized.
-27. **Memories is curation, not storage and not inferred relationships.** Media Library remains the canonical asset store. DISCADMIN `MEDIA → Memories` selects existing image/video/audio assets into explicit `memories` records with public title, optional context, order and draft/published state. Removing a Memory never deletes its source Media asset. Home Memories renders only this curated published collection; V1 does not infer Event/Artist/Set/Release relationships from filenames, dates or copy.
-28. **Memory relationships belong to curated Memories, never raw Media assets.** Explicit Event/Artist/Set/Release links are stored from `memory_id`, sanitized against the final public entity pools, and may feed canonical entity pages/CONNECTED. An asset that has not been curated into Memories must never become cultural context merely because it exists in Media Library.
-29. **TRANSMISSIONS is public framing over Blog, not a second CMS.** Home consumes the existing published `blog` payload through `window.BRVTALPublicDataPromise`; Blog relation rows remain singular `event` / `artist` / `set` / `release` references by `related_id`, are sanitized server-side, and are resolved client-side only against final public entity pools before rendering canonical links.
-30. **Sonar baseline management is risk-first and Clean-as-You-Code.** Umbrella #451 completed the documented P0/P1/P2 security, reliability and high-maintainability burn-down. Residual MEDIUM/LOW mechanical findings (line length, naming/style, multiple statements and similar debt) are not a reason for a repo-wide churn PR: keep PR Sonar at zero new actionable issues, fix residual debt opportunistically or in bounded behavior-preserving slices, and open/reopen a focused risk issue if Sonar surfaces a new security/reliability or materially high-impact finding.
-31. **IndexNow is event-driven and controlled from DISCADMIN Settings.** Store the integration as typed `settings.indexnow` JSON with `enabled`, validated 8–128 character `key`, root-level `key_location`, and an `endpoint` selected from the official participating IndexNow endpoints; never commit a live key to Git and never allow an arbitrary production endpoint. Derive the canonical host and affected `urlList` automatically, expose key verification dynamically at the configured location, submit only canonical public URLs affected by successful create/update/unpublish/delete/slug/SEO mutations plus Home when a Home-owned surface changes, deduplicate within each request, keep submission failure non-fatal to editorial saves, and retain the sitemap as full-site catch-up. Do not schedule indiscriminate periodic resubmission of every URL.
-32. **Tests are behavior-first and use stable public/testing contracts.** Prefer executable invariants over source-text assertions: PHP contract tests should exercise pure functions, validation rules, schemas or other stable boundaries instead of searching implementation files for function names/strings. Cross-layer wiring belongs in real-stack/integration tests. Browser tests must prefer explicit `data-testid` hooks or shared helpers over incidental CSS/DOM selectors. CI metadata/README validators should verify required semantics, not exact formatting/topology. When a feature changes a tested boundary, update implementation and its behavior contract in the same work line so tests do not lag behind the code.
-33. **CodeRabbit reviews the stable intended PR head, not every intermediate push, and should overlap CI/Sonar.** Keep `.coderabbit.yaml` `auto_review.enabled=true` but `auto_incremental_review=false`. Finalize the intended file set and README snapshot, run directed tests, then let BRVTAL CI/Sonar start and immediately request one explicit `@coderabbitai full review` against that same exact SHA. Inspect CI, Sonar and CodeRabbit concurrently. If any gate requires a code change, batch the fix into a new logical head and request/revalidate the affected final gates for that new SHA. Never claim CodeRabbit passed when it is merely processing. If CodeRabbit remains indefinitely on an older/current head after explicit final-review requests, and it has produced no actionable review, review thread or finding while all canonical required CI/Sonar gates are green and branch protection permits the merge, document that it remained processing and do not let the stalled external reviewer block autonomous delivery indefinitely.
-34. **TRANSMISSIONS relationships are bidirectional only when explicitly modeled.** Published Blog posts related through `blog_post_relations` may surface contextually on canonical Event, Artist, Set and Release pages using the existing singular relation types (`event` / `artist` / `set` / `release`). Keep this inverse navigation centralized, publication-gated and canonical to `/blog/{slug}`; never infer editorial relationships from titles, tags, chronology or shared media.
-35. **Dashboard customization is a constrained per-admin module grid, not a free-form page builder.** Preserve the existing `WHAT NEEDS ATTENTION NOW` framing while allowing each administrator to choose visible modules, reorder them by drag/drop, resize them using validated grid spans, and reset to defaults. Persist order/visibility/size server-side per admin; support pointer, touch and keyboard alternatives; cap desktop composition to a responsive grid (up to four columns where space permits) and reflow safely on smaller breakpoints without horizontal overflow. Widgets may preview Analytics only when backed by a real admin-safe data source; never fabricate GA4/traffic metrics or render arbitrary user HTML/code.
-36. **The active execution roadmap is GitHub Issue #533 and is intentionally ordered from easier/lower-risk work toward more complex architecture.** Finish any already-active near-complete PR first, then follow the roadmap phases unless the user explicitly reprioritizes. Individual Issues remain the source of acceptance criteria; #533 is the cross-project ordering/handoff surface.
-37. **DISCADMIN product direction is premium, clean and low-fatigue.** The private Admin does not need to mimic the aggressive public BRVTAL aesthetic. Favor readable typography, calm professional surfaces, consistent shared components and clear editorial-vs-technical information architecture. Detailed current requirements live in #348, #149 and #514.
-38. **Editorial productivity should progressively favor direct manipulation and recovery.** Shared tables should converge on sortable/configurable/bulk-actionable data grids (#518); ordering should use visual drag/drop instead of raw integers where practical (#519); authoring should gain safe rich editing, preview, autosave/recovery and restore through #525/#528/#529/#530 without weakening publication, security or audit boundaries.
-39. **Observe Hostinger deployment in parallel with exact-main CI.** A lightweight main-push workflow polls the canonical public deploy marker for the exact pushed SHA while BRVTAL CI is still running. The observer is deliberately independent/non-blocking relative to code validation and uses a longer bounded window because Hostinger propagation has been measured beyond four minutes. Marker observation means only **DEPLOYED marker observed**; it never means **VALIDATED IN PRODUCTION**, and production performance/smoke remain separate evidence. If the marker remains absent, verify hPanel Git auto-deployment/repository/branch authorization rather than weakening source gates.
-40. **Blog taxonomy is optional internal metadata, not ordinary authoring work.** The normal Blog editor must not require or expose manual category/tag maintenance unless a future public navigation need justifies it. New posts may publish with no tags. On updates, an omitted `tags` field means preserve existing taxonomy; only an explicitly supplied tags array may replace or clear it. Keep legacy tags/public delivery compatible and never invent public categories or tags through opaque AI classification.
-41. **Every deploy-bound PR carries one explicit human product-version bump before final stable-head gates.** `config/version.php` is the source of truth. Patch is the default (`0.x.n → 0.x.n+1`); a pre-1.0 minor bump is a deliberate milestone and resets patch to zero; **1.0.0 requires the administrator's explicit decision**. CI validates the transition but never creates metadata commits. If `main` moves before merge, refresh the version against current `main` before final gates. Git SHA remains separate secondary technical deployment identity, never the primary product version.
-42. **Dynamic DISCADMIN module readiness and navigation have one owner.** `BRVTALAdminModules` owns the readiness promises and exported `navigate()` path for Media, Releases and Blog; navigation/IA layers must delegate those dynamic destinations to that canonical boundary instead of attaching duplicate late `load` listeners or falling through to legacy `go('/media')` CRUD. Media must mount consistently from Dashboard, another module and direct `?module=media` navigation. Genuine dependency failures must surface the canonical ERROR / RETRY state, and RETRY must discard rejected readiness state plus recreate a failed script dependency instead of replaying the same rejected promise. The normal Media Library workflow does not expose manual External Registry controls; uploaded/reusable canonical assets remain the primary path.
-43. **Hero/Banners media integrity is authoritative at save time.** Enabled Hero slides require a valid primary asset. Local references must resolve to an exact published Media Library record whose source file still exists under `/uploads/`; optional mobile/poster/image-layer references are validated when present. Explicit external media is HTTPS-only and identified as external. Client-side checks improve feedback, but the authenticated Settings API is the final authority and must reject invalid publicable configurations with a field-specific 422. Disabled slides may retain incomplete draft media.
-44. **Project-wide progress status uses one visual language.** `✅ ~~Struck through~~` means completed only after the required delivery gates; `🚧 Normal text` means pending or currently in progress. Keep completed tracker items visible and crossed out rather than deleting them. Future roadmap/Issue/README/handoff maintenance must preserve this convention.
-45. **DISCADMIN uses one premium low-fatigue design layer.** `discadmin/admin-design-system.css` is loaded after module CSS and owns the shared Admin type scale, spacing, geometry and long-session readability floor. Ordinary body/table/input text should be about 14 px or larger, persistent metadata/labels must not rely on 7–10 px type, and mobile form controls stay at 16 px where useful to avoid browser zoom. Dark / Light / Glass remain appearance variants of this same component system rather than separate designs.
-46. **Embedded Admin security UI never imports response-derived HTML.** Security / 2FA state used inside Settings must come from an authenticated JSON boundary and be rendered from trusted DOM structure; administrator/status data is assigned with `textContent`. State-changing TOTP operations retain the existing authenticated CSRF-protected POST boundary. Legacy standalone HTML may remain only as a compatibility surface, not as the Settings embedding transport.
-47. **Remote Media/API data must not be interpolated into Banners manager HTML.** In particular, Media Library `file_path` / title values used by Hero/Banners pickers are hydrated after the static editor shell is created, using DOM APIs (`document.createElement('option')`, `value`, `textContent`). Do not reintroduce remote Media values into strings assigned to `innerHTML`; exact-main Sonar security findings such as `jssecurity:S5696` are release blockers until resolved on `main`.
-48. **Banners first-load data is bounded and progressive.** The Admin must request only the canonical `home.hero.slider` setting plus the lightweight image/video Media picker projection instead of loading complete Settings/Media collections. Start those independent reads together, render the fresh Banners configuration as soon as its setting arrives, hydrate Media pickers asynchronously, ignore late responses from superseded/navigation-away loads, and keep Save unavailable until Media has loaded so client-side integrity checks never run against an incomplete asset registry. Preserve fresh server reads; do not mask latency with stale configuration.
-49. **Public Home hero composition has a desktop safe area.** Keep the fixed navigation clear, preserve the oversized underground/editorial character without allowing typography to dominate the viewport, keep the cultural declaration in normal desktop flow beneath the primary copy, and clamp managed Hero/Banners text/CTA layer centers away from the fixed header and lower control area while decorative image/logo layers keep their authored geometry. Validate this with real browser geometry/bounding boxes at wide desktop sizes rather than CSS-string assertions alone.
-50. **Release identity must be single-source and E2E-verified.** `config/version.php` / `BRVTAL_APP_VERSION` is the canonical human product version and `package.json.version` must match it on every deploy-bound PR. Real-stack Playwright with the disposable E2E admin must assert the visible `data-testid="admin-product-version"` across navigation/reload. The authenticated production smoke must record expected vs rendered Admin version before exact-deploy-marker failure can abort the run. The repository owner may trigger that read-only production smoke by commenting exactly `/production-smoke` on issue #534; no other commenter/issue may access the production-smoke environment. Never present package metadata or fallback build metadata as an exact deployed Git SHA.
-
-51. **Recurring failures require preventive root-cause fixes, not ritual retries.** When a deploy, gate, smoke, integration or runtime check fails, first determine whether the cause is deterministic, timing-related or externally controlled. When the repository can safely address it, fix the shared mechanism and add/adjust a contract so future deploys do not repeat the same failure. Retry unchanged only when evidence shows a genuinely transient external condition. Never normalize a recurring failure as a manual post-deploy step; document external blockers precisely and continue independent work.
-52. **Hostinger deployment observation is release-first and SHA-strict when possible.** The canonical product version is the deploy marker that survives shared-hosting checkouts without `.git`; `/api/deployment.php` exposes that release with no-store caching. If the runtime exposes a full exact Git SHA, observers must additionally require it to equal exact `main`. If exact Git metadata is unavailable, do not fabricate it or fail solely for that reason. Asset cache-busting must use `brvtalDeploymentCacheKey()`, which falls back to the product version rather than stale compatibility build metadata. Authenticated production smoke waits for the expected release before loading DISCADMIN so normal Hostinger propagation does not create false failures.
-53. **Roadmap milestone titles show the assigned product version in parentheses.** For every deploy-bound milestone that has entered implementation/PR, place the canonical product version directly in the visible title using the exact style `Milestone name (vX.Y.Z), PR #N`; for example `🚧 Hostinger release observability (v0.1.13), PR #560` and, once completed, `✅ ~~Release identity end-to-end (v0.1.12), PR #559~~`. The version belongs in parentheses in the title itself, matching the visual ledger style. Backlog items without an assigned release may remain unversioned until their deploy-bound branch/PR gets its canonical `BRVTAL_APP_VERSION`. Never invent historical versions that cannot be proven. Keep completed milestones visible and struck through, and append merge SHA, exact-main CI/run evidence, deployment observation and production validation immediately after the title when available. `🚧` means active/pending and `⛔` means concretely blocked. Never leave an item marked in-flight after merge/closeout, and keep CI success, deployment observation and production validation explicitly distinct.
-
-54. **Successful DISCADMIN navigation retires legacy editor context transactionally.** Global Search, Back/Forward and canonical module navigation may change the workspace only through the shared navigation layer. An open legacy global `#modal` is retired only after the destination succeeds and is still the current route; failed or stale navigation preserves the existing editor. Retiring the editor must clear its editing marker and stale Save handler so an editor from the previous module cannot survive over the new workspace. Unsaved-change confirmation remains a separate editor-protection concern and, when added, must intercept before a navigation is committed rather than weakening this lifecycle boundary.
-
-55. **Banners protects unsaved editor state before every workspace replacement.** `hero-slider.js` owns the clean snapshot and dirty comparison; `admin-information-architecture.js` owns transactional navigation. Leaving or reopening Banners while dirty must require confirmation before URL/module side effects, and browser Back/Forward cancellation must restore the Banners route. `beforeunload` protects refresh/tab close. A confirmed discard becomes clean only after the destination succeeds; failed/stale navigation keeps the editor dirty so work is not silently lost.
-
-56. **Editorial ordering is visual, shared and transactionally canonical.** Artists, Sets, Releases and Blog use one `content-ordering` client primitive and one exact-set reorder API. Drag handles support Pointer Events plus Arrow Up/Down; filtered/partial views must disable reorder rather than submit a subset. The API locks the complete whitelisted collection, rejects stale/duplicate/foreign IDs, normalizes `sort_order` to contiguous positions, and rolls back on failure. Numeric Sort Order fields are implementation details and must not return as the primary editor UX.
-
----
-
-## 5. Data / API architecture rules
-
-- `api/public.php` is the canonical public read-only allowlist; do not create a second divergent public-data implementation.
-- Protected admin APIs require authentication and CSRF as appropriate.
-- Relationships are structured data, not duplicated display text.
-- Drafts are first-class and may be incomplete; publication requires stronger validation.
-- Public delivery filters drafts/private relations server-side.
-- Media is reusable content; preserve originals and protect referenced media from unsafe deletion.
-- Use transactions/row locking where multi-record integrity matters.
-- Use explicit data-safe migrations for schema changes.
-- **Merging source does not mean a production migration ran.**
-
-Never run destructive production SQL, resets/seeds or irreversible data changes without explicit user approval.
-
----
-
-## 6. Testing / CI / deployment contract
-
-Main workflow file: `.github/workflows/update-release-metadata.yml`  
-Visible workflow name: **BRVTAL CI**.
-
-### Fast-feedback topology
-
-- `preflight` is the short always-on planner: it computes changed-file scope and publishes build/deploy context;
-- `fast` always exists after preflight, but PHP 8.5 contracts and JavaScript syntax run only when their changed-file scope requires them; PRs also validate the README dashboard against the exact diff;
-- `database` runs disposable MariaDB validation only when relevant;
-- `browser` runs Chromium only when relevant;
-- `realstack` runs authenticated PHP + MariaDB + Chromium smoke only for server/runtime surfaces that need it;
-- `webkit` is the targeted Safari/WebKit TOTP regression and is selected only by auth/TOTP-sensitive changes;
-- `recovery` runs the isolated backup recovery rehearsal only for backup/recovery surfaces or a full manual dispatch;
-- `validate` aggregates preflight plus every required or intentionally skipped BRVTAL CI gate into one stable final check.
-
-Pull requests and exact `main` pushes use the same diff-aware gate selection. Applicable jobs fan out from preflight instead of waiting for fast. `workflow_dispatch` intentionally runs the complete matrix. This keeps exact-main verification intact while minimizing the critical path.
-
-SonarQube Cloud annotations are relayed by `.github/workflows/sonar-annotation-relay.yml` into a stable PR comment after the external `SonarCloud Code Analysis` check completes. Use that relay comment as the canonical connector-readable source for Sonar rule, file, line and message details; do not guess findings from the aggregate count when annotations are unavailable directly.
-
-Standalone automatic workflows for PHP 8.5 compatibility, README deploy snapshots, recovery rehearsal and production-smoke source contracts are deliberately retired. Their checks live inside `BRVTAL CI`, avoiding duplicate runner setup and queue contention. The authenticated/read-only production smoke and controlled Page-write smoke remain separate **manual-only** workflows because they interact with real production.
-
-**Production Performance consumes existing delivery evidence instead of inventing a second deployment observer.** On automatic runs it listens to both BRVTAL CI and Production Deploy Observer and measures only when both have succeeded for the same exact `main` SHA. Measurement ownership is deterministic and unique per SHA: the later prerequisite completion owns it, with GitHub run id as the timestamp tie-breaker; `scripts/production-performance-prerequisite.py` is the tested decision source. Do not reintroduce a private short `?v=<sha>` polling loop or duplicate automatic measurement artifacts.
-
-**CI throughput optimization is evidence-first.** `CI Throughput Telemetry` is post-CI and must never extend the validation DAG. It derives job and step durations from GitHub Actions timestamps, including dependency/cache, browser/system setup, real-stack infrastructure, actual test runtime and remaining overhead for Chromium, WebKit and real-stack. Use several real PR/main samples before changing runner/container topology or sharding; do not optimize from a single run.
-
-### README per-deploy contract
-
-For every deploy-bound PR:
-
-- replace `README.md` completely; do not append a changelog;
-- list **only the files modified in that deploy** plus a short explanation of each;
-- include a concise **Qué se hizo** summary;
-- include current validation status without claiming production validation from CI;
-- include **Qué sigue** with the next actionable work;
-- include a concise, updated **Panorama general pendiente** covering meaningful work still open across BRVTAL, not only the next task;
-- remove or revise panorama items as they are completed, invalidated or reprioritized so the overview does not become stale;
-- keep durable architecture/product history in `AGENTS.md` or the relevant `docs/` file;
-- if a CI fix or late edit changes the PR file set or scope, refresh README before merge.
-
-The deploy README must also stay **visually scannable**, not prose-only:
-
-- prioritize a compact **development dashboard** over decorative branding; a large BRVTAL logo is not required and must not dominate the page;
-- keep the BRVTAL CI badge visible;
-- show trustworthy Git delta metrics for the current deploy/PR when deterministically available: changed files, insertions, deletions and net delta; mark unavailable values honestly rather than inventing them;
-- present current work and backlog in clear `NOW / NEXT / LATER` (or equivalent) lanes linked to canonical Issues/PRs;
-- include an exact `## Estado del deploy` section with a compact status table headed `Señal | Estado | Evidencia`;
-- include an exact `## Flujo de entrega` section with a Mermaid diagram that shows PR snapshot, parallel gates, squash merge and exact-`main` validation;
-- preserve the canonical headings `## Qué se hizo`, `## Archivos modificados en este deploy`, `## Validación`, `## Qué sigue` and `## Panorama general pendiente`;
-- prefer compact tables, badges, symbols and diagrams when they improve scanning, but keep the README under the CI size limit and avoid decorative noise.
-
-The README is intentionally transient. It should remain compact and useful during active development; the pending-work panorama is a current operational view, not cumulative history. BRVTAL CI enforces the required deploy headings, exact changed-file list and the minimum visual markers so the format does not silently regress.
+If any late fix changes the file set, delta or gate plan, refresh README before final gates/merge.
 
 ### Mandatory delivery loop
 
-1. Start a focused branch from current green `main`.
-2. Implement the logical change + applicable tests.
-3. Refresh `README.md` with the exact deploy snapshot and updated pending-work panorama.
-4. Open PR to `main`.
-5. Wait for **BRVTAL CI / validate**.
-6. Fix failures on the same branch; refresh README again if scope/file set changed.
-7. When green, squash merge.
-8. Get the exact merged `main` SHA.
-9. Verify **BRVTAL CI / validate** succeeds on that exact SHA with the path-aware gates selected for that merge.
-10. Only then begin the next branch.
+1. Start from current green `main`.
+2. Reserve the Issue / canonical branch.
+3. Implement one coherent scope with durable tests.
+4. Refresh exact README snapshot.
+5. Open PR to `main` with reservation metadata and closing relation.
+6. Run BRVTAL CI, Sonar and CodeRabbit in parallel on the stable intended head.
+7. Fix valid findings on the same branch; refresh README if scope/delta changed.
+8. Re-read current `main`, head and gates.
+9. Squash merge.
+10. Get the exact merged `main` SHA.
+11. Verify BRVTAL CI / `validate` on that exact SHA.
+12. Observe Hostinger deployment independently and in parallel where supported.
+13. Only then start dependent implementation work.
 
-Routine development operations do not require asking again.
+Routine steps do not require another user confirmation.
 
 ### Status language
 
 - **IMPLEMENTED** — code exists.
-- **VALIDATED IN CODE** — CI/tests passed.
-- **DEPLOYED** — Hostinger received the source.
-- **VALIDATED IN PRODUCTION** — real production behavior was checked.
+- **VALIDATED IN CODE** — applicable CI/tests passed.
+- **DEPLOYED** — release/source identity was observed in Hostinger.
+- **VALIDATED IN PRODUCTION** — actual production behavior was checked.
 
-Never claim production verification from CI alone.
+Deploy observation is never behavioral production validation.
 
-### Progress convention
+## 10. Roadmap and progress ownership
 
-- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
-- 🚧 Normal text = pending or currently in progress.
-- Keep completed items visible and crossed out instead of deleting them, so the roadmap preserves delivery history.
+GitHub Issue **#533** is the canonical execution roadmap.
 
-Apply this convention consistently to project roadmaps, progress/checklist sections in GitHub Issues, README dashboard progress tables and AI/human handoffs. Never mark an item ✅ until its required delivery gates have actually passed. The transient README remains deploy-scoped; durable delivery history belongs in the canonical roadmap/tracker.
+It contains work/progress only:
 
-### Release metadata rule
-
-Every deploy-bound PR deliberately updates the human version in `config/version.php` before final stable-head gates. CI validates that transition but must **never rewrite or commit** release metadata. Patch +1 is normal; a pre-1.0 minor milestone resets patch to 0 and remains deliberate. Exact deployment identity is still resolved at runtime through `config/deployment.php` / environment / Git checkout and remains separate from product version.
-
----
-
-## 7. Protected production/security boundaries
-
-Explicit confirmation is required before:
-
-- destructive production SQL;
-- bulk deletion of production content;
-- automatic restore/revert;
-- one-click restore;
-- irreversible data migrations/actions;
-- bypassing GitHub → Hostinger deployment.
-
-Do not ask for confirmation for ordinary safe development steps. Never commit credentials, tokens, passwords, private user data or production DB contents.
-
----
-
-## 8. Deliberately deferred / do not implement opportunistically
-
-Unless explicitly reprioritized:
-
-- Bulk Delete;
-- automatic one-click restore;
-- automatic editorial revert;
-- complex RBAC before real need;
-- generic Wix/Elementor-style builder;
-- arbitrary per-event site builder;
-- large custom analytics product;
-- unnecessary i18n complexity;
-- destructive production automation.
-
----
-
-## 9. Canonical execution roadmap
-
-GitHub Issue **#533** is BRVTAL's canonical execution roadmap and contains **only work and progress**.
-
-It may contain:
-- phases, tasks and milestones;
-- status using ✅ / 🚧 / ⛔;
+- phases and milestones;
+- status;
 - assigned product versions;
-- related Issues and PRs;
-- merge SHAs and validation/deploy evidence;
-- blockers and their resolution;
-- concise progress notes that change with actual execution state.
+- Issue/PR links;
+- merge SHA and delivery evidence;
+- blockers and resolution.
 
-It must not contain permanent reference text such as:
-- operating policies or agent instructions;
-- architecture/product rules;
-- delivery/security conventions;
-- explanations of how the roadmap itself works;
-- durable design decisions;
-- manuals or duplicated specifications.
+It must not contain permanent operating rules, architecture manuals or duplicated specifications.
 
-Permanent operating rules belong in **`AGENTS.md`**. Durable product, architecture and functional decisions belong in **`docs/BRVTAL-SPEC.md`**. Executable acceptance criteria belong in the specific Issue. `README.md` remains the current deploy snapshot.
+Progress convention:
 
-Completed roadmap work stays visible and struck through as delivery history. Removing or relocating fixed normative text is not loss of roadmap history because that text is not execution progress.
+- ✅ ~~Struck through~~ = completed after required delivery gates.
+- 🚧 Normal text = pending/in progress.
+- ⛔ = concretely blocked.
 
-When the user reprioritizes work, update Issue #533 rather than duplicating a priority list in this file or the specification.
+Keep completed roadmap items visible as delivery history.
 
----
+When the user reprioritizes work, update #533 instead of duplicating priority lists in AGENTS or the spec.
 
-## 10. Human handoff and optional deep references
+## 11. References and repository map
 
-`README.md` is the **latest deploy handoff plus current pending-work panorama**. It is not a technical manual, architecture source or cumulative changelog. **AI sessions should not require reading README before they can begin**, but humans and continuation sessions may use its panorama for current situational awareness.
+Read deep references only when relevant:
 
-Optional references, read only when needed:
+- `docs/BRVTAL-SPEC.md` — product / architecture / feature semantics;
+- `docs/TESTING.md` — detailed testing/evidence guidance;
+- `docs/HERO-SLIDER.md` — Hero/Banners model;
+- `docs/DISCADMIN-UX-AUDIT.md` — UX debt/history;
+- specific GitHub Issue — executable acceptance criteria;
+- `README.md` — current PR/deploy snapshot, not startup truth.
 
-- `README.md` — most recent deploy: changed files, summary, validation state, next action and project-wide pending-work panorama;
-- `docs/BRVTAL-SPEC.md` — deeper product/architecture specification;
-- `docs/DISCADMIN-UX-AUDIT.md` — responsive/admin UX debt/history;
-- `docs/TESTING.md` — detailed test commands/evidence model;
-- `docs/HERO-SLIDER.md` — Hero Slider contract/data model.
-
-Current code/newer merged decisions beat stale prose.
-
----
-
-## 11. Repository map
+Repository map:
 
 ```text
-.github/       GitHub Actions / CI
-api/           public + protected PHP APIs
-assets/        public static assets
-config/        bootstrap/auth/deployment/release/media config
-css/           public frontend styles
-database/      base schema + explicit migrations
-discadmin/     canonical DISCADMIN shell/modules/enhancements
-docs/          deep technical/product references
-js/            public frontend JavaScript
-scripts/       support/maintenance scripts
-storage/       private/runtime application storage
-tests/         contracts, MariaDB integration, Playwright
-uploads/       managed uploaded media in production
-index.php      public router/delivery
+.github/    CI / GitHub automation
+api/        PHP APIs
+config/     auth/runtime/deployment/product config
+database/   schema + migrations
+discadmin/  canonical Admin shell/modules
+docs/       durable product/technical references
+scripts/    tooling/maintenance/validators
+tests/      contracts/integration/Playwright
+assets/css/js/uploads/  public/runtime media and frontend assets
 ```
 
----
+## 12. Maintenance contract
 
-## 12. State-maintenance contract for future AI work
+A future agent must be able to continue with:
 
-The goal is that a completely new AI session can continue with **only the repository**.
+> **Read AGENTS.md and continue the project autonomously.**
 
-Whenever a deploy-bound PR is prepared:
+To preserve that property:
 
-- rewrite `README.md` as the current deploy snapshot, never as cumulative deploy history;
-- make its file list match the actual PR scope;
-- summarize what changed and what follows next;
-- refresh the **Panorama general pendiente** so it still reflects meaningful open work across BRVTAL;
-- update durable operating/product/architecture decisions here only when they belong to agent operating context; keep execution order and progress exclusively in Issue #533;
-- do not write transient SHA/run numbers here as permanent state;
-- keep current SHA/CI identity dynamic in Actions/System Status;
-- record architectural decisions here, not only in chat;
-- keep this file sufficient for the prompt **“Read AGENTS.md and continue the project autonomously”**.
+- keep AGENTS focused on execution rules and only the few architecture invariants required for safe execution;
+- do not add implemented-feature inventories, numbered product-decision ledgers, roadmap duplication or transient SHAs/runs here;
+- put product/architecture decisions in `docs/BRVTAL-SPEC.md`;
+- put execution order/progress in #533;
+- put acceptance criteria in the specific Issue;
+- keep README synchronized per PR but optional for initial agent bootstrap;
+- update AGENTS only when the operating model, safety boundary, source ownership or delivery mechanics actually change.
 
-If a future session needs old chat history to know what to do next, this contract has failed and repository context must be improved.
+If a future session needs old chat history to know how to work, this contract has failed and repository context must be repaired.
