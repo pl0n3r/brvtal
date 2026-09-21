@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual**. PR #576 corrige smoke E2E; sin cambios en el runtime del producto.
+> **Development dashboard** · snapshot de **solo el deploy actual** para PR #574 / v0.1.24.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#575 · smoke autenticado Events** | Content Core interno, ninguna escritura productiva |
-| Base exacta | ✅ ~~main v0.1.23~~ | `e8182922f1ee62fe7f9a9c158c995bb1a037b2cb` · PR #578 fusionado |
-| Versión | ✅ ~~0.1.23 sin cambios~~ | Test/README no alteran runtime |
-| Producción | 🚧 Smoke por comprobar | CI de código no prueba producción |
+| Work line | 🚧 **#257 · unsaved editor protection v0.1.24** | PR #574 · findings Major en corrección |
+| Base exacta | ✅ ~~main validado~~ | `f1eeb5c355ea2a799b016493e2100afd35510c57` · BRVTAL CI / Sonar / Deploy Observer success |
+| Versión | 🚧 **0.1.23 → 0.1.24** | cambio deploy-bound de DISCADMIN |
+| Producción base | ✅ ~~release observado~~ | identidad del release base; no implica comportamiento validado |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+56** | **−48** | **+8** |
+| **17** | **+1039** | **−90** | **+949** |
 
 ## Calidad y entrega
 
@@ -36,55 +36,79 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[JS] · chromium** |
-| Reserva | Issue #575 · `work/issue-575` · PR #576 |
-| PR integrity | **PR + snapshot exacto** |
-| Sonar / CodeRabbit | Revisar el head estable; espera de heading y wrapper corregida |
-| Exact-main | **CI del SHA exacto de main** tras squash merge |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Reservation | Issue #257 · `work/issue-257` · UUID vigente |
+| PR integrity | **PR + snapshot exacto** · rebase lógico sobre el main actual |
+| Dirty-state | snapshot + lock + operation token; completion stale = no-op |
+| Navigation | mutación tardía = rollback de workspace/URL + editor dirty preservado |
+| Auth expiry | 401/Logout no pueden renderizar y destruir cambios sin guardar |
+| Sonar / CodeRabbit | nueva revisión sobre el head estable |
+| Exact-main | **CI del SHA exacto de main** después del squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- A["Smoke #575"] --> B["Events visible, Content Core attached"]
- B --> C["PR · CI · Sonar · CodeRabbit"]
- C --> D["Squash merge"]
- D --> E["CI exact-main"]
- E --> F["Smoke autenticado read-only"]
+ I["#257 / PR #574"] --> R["Rebase sobre main"]
+ R --> G["Tokenized dirty guard"]
+ G --> A["Rollback + auth preservation"]
+ A --> T["Contracts + Playwright"]
+ T --> P["CI · Sonar · CodeRabbit"]
+ P --> M["Squash merge"]
+ M --> X["Exact-main validation"]
 ```
 
 ## Qué se hizo
 
-- Smoke autenticado exige Events visible, heading y búsqueda, pero Content Core solo montado internamente.
-- El wrapper interno debe existir antes de declararlo oculto; elemento ausente ya no cuenta como éxito.
-- Se conservan comprobaciones de fecha de evento, relaciones de Set y Hero Slider, sin crear contenido ni mutar producción.
-- Se incluye snapshot exacto de #575 con versión humana v0.1.23 para cambios exclusivos de pruebas.
+- Se conserva un único manager de cambios sin guardar para CRUD legacy, Lineup, Releases, Blog y Content Core.
+- Navegaciones asíncronas y Logout ahora poseen token de operación; una respuesta stale no puede liberar el lock de otra operación.
+- El snapshot se revalida antes del commit; una mutación tardía restaura workspace y URL previos sin perder el editor dirty.
+- Logout coordina Unsaved Changes + Hero guard y evita render/commit dependiente si el snapshot cambió.
+- Un 401 administrativo con cambios dirty conserva el DOM editable y muestra estado explícito de sesión terminada.
+- Playwright cubre carrera de navegación, rollback, Logout y expiración de sesión.
+- Los findings nuevos de Sonar se corrigen en el mismo head: retornos uniformes para las transacciones de navegación y menor complejidad en expiración de sesión.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot del smoke #575.
-- `tests/e2e/production-authenticated-smoke.mjs` — comprobar Events/Content Core canónicos.
+- `README.md`
+- `config/version.php`
+- `discadmin/admin-auth-boundary.js`
+- `discadmin/admin-information-architecture.js`
+- `discadmin/admin-modules.js`
+- `discadmin/admin-reliability.js`
+- `discadmin/admin-unsaved-changes.js`
+- `discadmin/blog.js`
+- `discadmin/content-core.js`
+- `discadmin/index-core.php`
+- `discadmin/index.php`
+- `discadmin/releases.js`
+- `docs/BRVTAL-SPEC.md`
+- `package.json`
+- `tests/e2e/admin-reliability-quick-wins.spec.mjs`
+- `tests/e2e/discadmin-information-architecture.spec.mjs`
+- `tests/e2e/discadmin-unsaved-changes.spec.mjs`
 
 ## Validación
 
-- Base `e8182922f1ee62fe7f9a9c158c995bb1a037b2cb`; CI exact-main previa y CI del PR se verifican separadamente.
-- Smoke productivo autenticado se ejecuta solo lectura tras la fusión, sin inferirlo de Chromium sintético.
-- Sin migración SQL ni cambio del runtime productivo.
+- Base exacta `f1eeb5c355ea2a799b016493e2100afd35510c57`: BRVTAL CI / `validate`, Sonar y Deploy Observer success.
+- El head final de #574 debe volver a pasar los gates aplicables, Sonar y CodeRabbit.
+- Sin migraciones ni operaciones destructivas de producción.
+- Deploy observado no se confundirá con **VALIDATED IN PRODUCTION**.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#575](https://github.com/pl0n3r/brvtal/issues/575) / PR #576 · smoke Events. |
-| **NEXT** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) / PR #574 · cambios sin guardar y revisión. |
-| **LATER** | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529). |
-| **BLOCKED / EXTERNAL** | 🚧 Evidencia autenticada de Hostinger separada de CI. |
+| **NOW** | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) / PR #574 · cerrar revisión y v0.1.24. |
+| **NEXT** | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525) · rich Blog editor + safe HTML source mode. |
+| **LATER** | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529). |
+| **BLOCKED / EXTERNAL** | 🚧 Sin bloqueo externo activo para #257. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Smoke productivo | 🚧 [#575](https://github.com/pl0n3r/brvtal/issues/575) |
-| **NEXT** | 🚧 Unsaved editor protection | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) |
-| **LATER** | 🚧 Editor / colectivo / drafts / preview | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525), [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
-| **BLOCKED / EXTERNAL** | 🚧 Deploy y producción | Monitoreo independiente |
+| **NOW** | 🚧 Unsaved editor protection | 🚧 [#257](https://github.com/pl0n3r/brvtal/issues/257) |
+| **NEXT** | 🚧 Rich Blog editor | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525) |
+| **LATER** | 🚧 Membership / drafts / preview | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
+| **BLOCKED / EXTERNAL** | 🚧 Protected production actions | requieren confirmación explícita cuando apliquen |

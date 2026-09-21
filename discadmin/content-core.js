@@ -10,10 +10,18 @@ async function loadEvents(){try{const j=await api('/events');events=j.data||j.ev
 function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
 function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_archive_year',currentEvent?.archive_year);fill('e_status',currentEvent?.status||'draft');fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();$('#eventModal').classList.add('open')}
-function closeEvent(){$('#eventModal').classList.remove('open')}
+function closeEvent(force=false){
+  const modal=$('#eventModal');
+  const close=()=>modal.classList.remove('open');
+  if(window.BRVTALUnsavedChanges?.requestClose){
+    return window.BRVTALUnsavedChanges.requestClose(modal,close,{force});
+  }
+  close();
+  return true;
+}
 function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}currentStep=Math.max(1,Math.min(5,currentStep+dir));setStep()}
 function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===5?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===5?'SAVE EVENT':'SAVE DRAFT'}
-function addTicket(t={}){const d=document.createElement('div');d.className='ticket-row';if(t.id)d.dataset.id=String(t.id);d.innerHTML=`<input data-k="name" aria-label="Ticket name" placeholder="Name" value="${esc(t.name||'')}"><input data-k="price" aria-label="Ticket price" type="number" min="0" step="0.01" placeholder="Price" value="${esc(t.price??'')}"><select data-k="status" aria-label="Ticket status"><option ${t.status==='draft'?'selected':''}>draft</option><option ${!t.status||t.status==='active'?'selected':''}>active</option><option ${t.status==='inactive'?'selected':''}>inactive</option><option ${t.status==='sold_out'?'selected':''}>sold_out</option></select><input data-k="external_url" aria-label="Ticket external URL" placeholder="External ticket URL" value="${esc(t.external_url||'')}"><button type="button" class="icon" aria-label="Remove ticket type" onclick="this.parentElement.remove()">×</button>`;$('#tickets').appendChild(d)}
+function addTicket(t={}){const d=document.createElement('div');d.className='ticket-row';if(t.id){d.dataset.id=String(t.id);}d.innerHTML=`<input data-k="name" aria-label="Ticket name" placeholder="Name" value="${esc(t.name||'')}"><input data-k="price" aria-label="Ticket price" type="number" min="0" step="0.01" placeholder="Price" value="${esc(t.price??'')}"><select data-k="status" aria-label="Ticket status"><option ${t.status==='draft'?'selected':''}>draft</option><option ${!t.status||t.status==='active'?'selected':''}>active</option><option ${t.status==='inactive'?'selected':''}>inactive</option><option ${t.status==='sold_out'?'selected':''}>sold_out</option></select><input data-k="external_url" aria-label="Ticket external URL" placeholder="External ticket URL" value="${esc(t.external_url||'')}"><button type="button" class="icon" aria-label="Remove ticket type" onclick="this.parentElement.remove()">×</button>`;$('#tickets').appendChild(d)}
 function ticketPayload(row,eventId,i){const o={event_id:eventId,sort_order:i};row.querySelectorAll('[data-k]').forEach(el=>o[el.dataset.k]=el.value);return o}
 function validateEventPayload(payload){
   if(!payload.title){
@@ -180,11 +188,12 @@ $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
     const saved=await originalSaveEvent();
     if(!saved)return false;
     const eventId=Number(currentEvent?.id||0);
-    if(!eventId||!canSaveLineup())return true;
+    if(!eventId||!canSaveLineup()){window.BRVTALUnsavedChanges?.markClean?.($('#eventModal'));return true;}
     const lineup=lineupPayloadFromSelection();
     try{
       await window.BRVTALContentCoreLineup.save(eventId,lineup,csrf);
       currentEvent.lineup=lineup;
+      window.BRVTALUnsavedChanges?.markClean?.($('#eventModal'));
       msg('Event participation saved.');
       return true;
     }catch(e){msg('Event saved, but roster could not be saved: '+e.message,false,'eventNotice');return false;}

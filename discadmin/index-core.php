@@ -219,7 +219,15 @@ function replaceLegacySortOrderControl(type){
  helper.textContent='Display order is managed visually from the '+label+' list.';
  fieldNode.replaceWith(helper);
 }
-function closeModal(){document.getElementById('modal').classList.remove('open')}
+function closeModal(force=false){
+ const modal=document.getElementById('modal');
+ const close=()=>modal.classList.remove('open');
+ if(window.BRVTALUnsavedChanges?.requestClose){
+  return window.BRVTALUnsavedChanges.requestClose(modal,close,{force});
+ }
+ close();
+ return true;
+}
 function field(id,label,val='',type='text',full=false){return `<div class="field ${full?'full':''}"><label for="f_${id}">${label}</label><input id="f_${id}" type="${type}" value="${esc(val)}"></div>`}
 function area(id,label,val='',full=true){return `<div class="field ${full?'full':''}"><label for="f_${id}">${label}</label><textarea id="f_${id}">${esc(val)}</textarea></div>`}
 function select(id,label,val,opts){return `<div class="field"><label for="f_${id}">${label}</label><select id="f_${id}">${opts.map(o=>`<option value="${o[0]}" ${o[0]===val?'selected':''}>${o[1]}</option>`).join('')}</select></div>`}
@@ -234,7 +242,63 @@ function settingsForm(r){
 }
 function show(x){const n=document.getElementById('notice');n.textContent=x;n.className='notice show error'}
 async function loadRefs(){try{state.events=(await req('/events')).data||[];state.artists=(await req('/artists')).data||[]}catch(e){}}
-async function openLineup(eventId){await loadRefs();let d=await req('/events/'+eventId+'/lineup');let current=d.data||[];document.getElementById('mtitle').textContent='LINEUP / '+(state.events.find(e=>Number(e.id)===Number(eventId))?.title||'EVENT');document.getElementById('modal').classList.add('open');document.getElementById('notice').className='notice';document.getElementById('saveBtn').onclick=async()=>{const items=[...document.querySelectorAll('#lineupCurrent .lineitem')].map((el,i)=>({artist_id:Number(el.dataset.id),role:el.querySelector('input')?.value||''}));try{await req('/events/'+eventId+'/lineup',{method:'POST',body:JSON.stringify({lineup:items})});closeModal()}catch(e){show(e.message)}};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="lineup"><div class="linebox"><h3>AVAILABLE ARTISTS</h3><div id="available">${state.artists.filter(a=>!current.some(x=>Number(x.artist_id)===Number(a.id))).map(a=>`<div class="artistpick drag"><span>${esc(a.name)}</span><button class="iconbtn" onclick="addLine(${a.id})">ADD</button></div>`).join('')||'<div class="empty">No hay artistas disponibles.</div>'}</div></div><div class="linebox"><h3>LINEUP / DRAG ORDER</h3><div id="lineupCurrent">${current.map(x=>lineHtml(x.artist_id,x.name,x.role)).join('')||'<div class="empty">Añade artistas.</div>'}</div><div class="helper">Puedes reordenar con ↑ ↓. El orden se guarda como lineup.</div></div></div></div>`}
+async function openLineup(eventId){
+ await loadRefs();
+ const response=await req('/events/'+eventId+'/lineup');
+ const current=response.data||[];
+ const title=state.events.find(event=>Number(event.id)===Number(eventId))?.title||'EVENT';
+ const modal=document.getElementById('modal');
+ const notice=document.getElementById('notice');
+ const saveButton=document.getElementById('saveBtn');
+ const content=document.getElementById('mcontent');
+ document.getElementById('mtitle').textContent='LINEUP / '+title;
+ modal.classList.add('open');
+ notice.className='notice';
+ saveButton.onclick=async()=>{
+  const items=[...document.querySelectorAll('#lineupCurrent .lineitem')].map((el,index)=>({
+   artist_id:Number(el.dataset.id),
+   role:el.querySelector('input')?.value||'',
+   sort_order:index
+  }));
+  try{
+   await req('/events/'+eventId+'/lineup',{
+    method:'POST',
+    body:JSON.stringify({lineup:items})
+   });
+   closeModal(true);
+  }catch(error){
+   show(error.message);
+  }
+ };
+ const available=state.artists
+  .filter(artist=>!current.some(item=>Number(item.artist_id)===Number(artist.id)))
+  .map(artist=>[
+   '<div class="artistpick drag"><span>',
+   esc(artist.name),
+   '</span><button class="iconbtn" onclick="addLine(',
+   artist.id,
+   ')">ADD</button></div>'
+  ].join(''))
+  .join('')||'<div class="empty">No hay artistas disponibles.</div>';
+ const lineup=current
+  .map(item=>lineHtml(item.artist_id,item.name,item.role))
+  .join('')||'<div class="empty">Añade artistas.</div>';
+ content.innerHTML=`
+  <div class="form">
+   <div class="lineup">
+    <div class="linebox">
+     <h3>AVAILABLE ARTISTS</h3>
+     <div id="available">${available}</div>
+    </div>
+    <div class="linebox">
+     <h3>LINEUP / DRAG ORDER</h3>
+     <div id="lineupCurrent">${lineup}</div>
+     <div class="helper">Puedes reordenar con ↑ ↓. El orden se guarda como lineup.</div>
+    </div>
+   </div>
+  </div>
+ `;
+}
 function lineHtml(id,name,role=''){return `<div class="lineitem" data-id="${id}"><span class="handle">☷</span><strong>${esc(name)}</strong><input class="role" placeholder="ROLE" value="${esc(role)}"><button class="iconbtn" onclick="moveLine(this,-1)">↑</button><button class="iconbtn" onclick="moveLine(this,1)">↓</button><button class="iconbtn" onclick="this.parentElement.remove()">×</button></div>`}
 function addLine(id){const a=state.artists.find(x=>Number(x.id)===Number(id));if(!a)return;const box=document.getElementById('lineupCurrent');if(box.querySelector('.empty'))box.innerHTML='';box.insertAdjacentHTML('beforeend',lineHtml(a.id,a.name));document.querySelector(`#available .artistpick button[onclick="addLine(${id})"]`)?.closest('.artistpick')?.remove()}
 function moveLine(btn,dir){const el=btn.closest('.lineitem');if(dir<0&&el.previousElementSibling)el.parentNode.insertBefore(el,el.previousElementSibling);if(dir>0&&el.nextElementSibling)el.parentNode.insertBefore(el.nextElementSibling,el)}

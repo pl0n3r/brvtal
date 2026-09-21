@@ -428,7 +428,7 @@ window.BRVTALAdminModules = (() => {
         const path = '/' + type + (id !== null && id !== '' ? '/' + encodeURIComponent(id) : '');
         await req(path,{method:id !== null && id !== '' ? 'PUT' : 'POST',body:JSON.stringify(payload)});
       }
-      if (typeof closeModal === 'function') closeModal();
+      if (typeof closeModal === 'function') closeModal(true);
       if (typeof go === 'function') await go(type);
     } catch (error) {
       if (typeof show === 'function') show(error?.message || 'SAVE_FAILED');
