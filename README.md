@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+1044** | **−90** | **+954** |
+| **9** | **+294** | **−33** | **+261** |
 
 ## Calidad y entrega
 
@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Reservation | Issue #257 · `work/issue-257` · UUID vigente |
 | PR integrity | **PR + snapshot exacto** · rebase lógico sobre el main actual |
 | Dirty-state | snapshot + lock + operation token; completion stale = no-op |
@@ -72,23 +72,15 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del deploy, gates, huella Git y siguiente trabajo.
-- `config/version.php` — eleva la versión de producto a 0.1.24.
-- `discadmin/admin-auth-boundary.js` — preserva editores dirty cuando expira la autenticación.
-- `discadmin/admin-information-architecture.js` — coordina navegación protegida, tokens y rollback de workspace/URL.
-- `discadmin/admin-modules.js` — integra el guard compartido en editores administrativos legacy.
-- `discadmin/admin-reliability.js` — coordina Logout con los guards de cambios sin guardar y Banners.
-- `discadmin/admin-unsaved-changes.js` — implementa baselines, dirty state, locks, tokens y lifecycle de roots.
-- `discadmin/blog.js` — integra protección de cambios sin guardar en Blog.
-- `discadmin/content-core.js` — integra dirty state y saves de Content Core con el guard compartido.
-- `discadmin/index-core.php` — carga e integra el manager dentro del shell canónico de DISCADMIN.
-- `discadmin/index.php` — incorpora el script del guard en la entrada administrativa.
-- `discadmin/releases.js` — integra protección de cambios sin guardar en Releases.
-- `docs/BRVTAL-SPEC.md` — documenta el contrato funcional durable de protección de ediciones.
-- `package.json` — sincroniza la versión deploy-bound 0.1.24.
-- `tests/e2e/admin-reliability-quick-wins.spec.mjs` — cubre Logout y expiración de sesión sin pérdida de cambios.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — cubre navegación protegida, carreras y rollback.
-- `tests/e2e/discadmin-unsaved-changes.spec.mjs` — cubre cierres, saves y estado dirty en flujos reales.
+- `.github/workflows/update-release-metadata.yml` — CI principal con límites, pins y contratos de resiliencia.
+- `AGENTS.md` — política durable de reintentos y autoauditoría.
+- `README.md` — snapshot exacto de esta entrega de mejora continua.
+- `scripts/ci_retry.py` — reintentos acotados solo para dependencias externas transitorias.
+- `scripts/ci_self_audit.py` — verificador reutilizable de seguridad de workflows.
+- `tests/backup-recovery-rehearsal-contract.php` — acepta evidencia con acción fijada por SHA.
+- `tests/ci-self-audit-contract.py` — contrato de detección de drift de workflows.
+- `tests/project-operations-contract.php` — acepta acciones de artifacts fijadas por SHA.
+- `tests/test_ci_retry.py` — contrato de límites y clasificación de reintentos.
 
 ## Validación
 
