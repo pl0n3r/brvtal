@@ -14,6 +14,7 @@ brvtal_ci_scope_reset() {
   BRVTAL_SCOPE_RUN_RECOVERY=false
   BRVTAL_SCOPE_RUN_PHP=false
   BRVTAL_SCOPE_RUN_JS=false
+  BRVTAL_SCOPE_DEPLOY_BOUND=false
   BRVTAL_SCOPE_AREAS=""
 }
 
@@ -45,6 +46,15 @@ brvtal_ci_classify_files() {
 
   while IFS= read -r file; do
     [[ -z "$file" ]] && continue
+
+    case "$file" in
+      README.md|AGENTS.md|docs/*|tests/*|scripts/*|.github/*|.coderabbit.yaml|.sonarcloud.properties|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
+        ;;
+      *)
+        BRVTAL_SCOPE_DEPLOY_BOUND=true
+        ;;
+    esac
+
     case "$file" in
       discadmin/*.js|discadmin/*.css)
         brvtal_ci_scope_add_area "DISCADMIN UI"; BRVTAL_SCOPE_RUN_BROWSER=true ;;
@@ -145,6 +155,7 @@ brvtal_ci_scope_print() {
   printf 'run_recovery=%s\n' "$BRVTAL_SCOPE_RUN_RECOVERY"
   printf 'run_php=%s\n' "$BRVTAL_SCOPE_RUN_PHP"
   printf 'run_js=%s\n' "$BRVTAL_SCOPE_RUN_JS"
+  printf 'deploy_bound=%s\n' "$BRVTAL_SCOPE_DEPLOY_BOUND"
   printf 'areas=%s\n' "$BRVTAL_SCOPE_AREAS"
 }
 

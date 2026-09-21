@@ -394,14 +394,18 @@ def latest_reservation(
     return latest
 
 
+NON_BLOCKING_SHARED_FILES = {"README.md"}
+
+
 def file_overlaps(
     current_files: set[str],
     others: dict[int, set[str]],
 ) -> dict[int, list[str]]:
-    """BRVTAL work-coordination helper."""
+    """Return only implementation collisions; transient shared snapshots do not block."""
+    blocking_current = current_files - NON_BLOCKING_SHARED_FILES
     collisions: dict[int, list[str]] = {}
     for pr_number, files in others.items():
-        overlap = sorted(current_files & files)
+        overlap = sorted(blocking_current & (files - NON_BLOCKING_SHARED_FILES))
         if overlap:
             collisions[pr_number] = overlap
     return collisions
@@ -948,7 +952,7 @@ def validate_pull(
     mode = "reservation required" if require_reservation else "bootstrap"
     print(
         f"Coordination valid for PR #{pr_number} "
-        f"({mode}); no file overlap with other open PRs."
+        f"({mode}); no blocking file overlap with other open PRs."
     )
 
 def parse_comment_command(body: str) -> tuple[str, str | None]:
