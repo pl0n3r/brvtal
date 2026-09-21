@@ -150,7 +150,11 @@ $assert(str_contains($performanceWorkflow, 'https://www.brvtal.com.co/'), 'produ
 $assert(str_contains($performanceWorkflow, 'github.event.workflow_run.head_sha'), 'production performance workflow must preserve exact-main SHA traceability');
 $assert(!str_contains($performanceWorkflow, '?v=$short_sha') && !str_contains($performanceWorkflow, 'Wait for exact Hostinger deploy'), 'production performance must not duplicate Hostinger deploy polling');
 $assert(str_contains($performanceWorkflow, 'production-performance-mobile.json') && str_contains($performanceWorkflow, 'production-performance-desktop.json'), 'production performance workflow must retain mobile and desktop evidence');
-$assert(str_contains($performanceWorkflow, 'actions/upload-artifact@v4'), 'production performance evidence must be downloadable from the run');
+$assert(
+    str_contains($performanceWorkflow, 'actions/upload-artifact@v4')
+    || str_contains($performanceWorkflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'),
+    'production performance evidence must be downloadable from the run'
+);
 $assert(str_contains($performanceProbe, 'largest-contentful-paint'), 'production performance probe must observe LCP directly in Chromium');
 $assert(str_contains($performanceProbe, 'layout-shift'), 'production performance probe must observe CLS directly in Chromium');
 $assert(str_contains($performanceProbe, 'resourceLoadDelay'), 'production performance probe must expose LCP resource load delay');
