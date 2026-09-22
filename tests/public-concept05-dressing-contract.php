@@ -46,6 +46,28 @@ dressing_assert(
     str_contains($rendered, 'js/public-concept05-connected.js'),
     'dressing must load the Connected data-fill script'
 );
+
+dressing_assert(
+    str_contains($rendered, 'css/public-concept05-hero.css'),
+    'Home identity must load the authored Concept 05 Hero stylesheet'
+);
+dressing_assert(
+    str_contains($rendered, 'js/public-concept05-hero.js'),
+    'Home identity must load the Concept 05 Hero data projection runtime'
+);
+dressing_assert(
+    str_contains($rendered, 'data-c5-hero-documentary'),
+    'Concept 05 Hero must expose a documentary media surface'
+);
+dressing_assert(
+    str_contains($rendered, 'data-c5-hero-description'),
+    'Concept 05 Hero statement must expose managed site-description projection'
+);
+dressing_assert(
+    str_contains($rendered, 'class="c5-hero-explore magnetic"')
+        && str_contains($rendered, 'href="#genesis"'),
+    'Concept 05 Hero must keep a canonical Explore CTA into the public journey'
+);
 dressing_assert(
     !str_contains($rendered, 'data-connected-count>0<')
     && (bool)preg_match('~data-connected-count>&mdash;<~', $rendered),
@@ -68,6 +90,18 @@ dressing_assert(
 dressing_assert(
     substr_count($idempotent, 'c5-bottom-nav') === 1,
     'bottom nav must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($idempotent, 'css/public-concept05-hero.css') === 1,
+    'Concept 05 Hero stylesheet must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($idempotent, 'js/public-concept05-hero.js') === 1,
+    'Concept 05 Hero runtime must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($idempotent, 'data-c5-hero-documentary') === 1,
+    'Concept 05 documentary surface must not duplicate on repeated calls'
 );
 dressing_assert(
     substr_count($idempotent, 'events scene c5-numbered') === 1,
