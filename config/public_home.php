@@ -202,9 +202,19 @@ function brvtal_public_home_concept05_dressing(string $html): string
         );
     }
 
-    $brandLink = '<a class="brand magnetic" href="#top" data-cursor="HOME"><span data-site-name>BRVTAL</span><small data-site-tagline>RAVE TILL GRAVE</small></a>';
+    $brandLink = '<a class="brand magnetic" href="#top" data-cursor="HOME">'
+        . '<span data-site-name>BRVTAL</span>'
+        . '<small data-site-tagline>RAVE TILL GRAVE</small>'
+        . '</a>';
     if (str_contains($html, $brandLink) && !str_contains($html, 'c5-header-nav')) {
-        $headerNav = '<nav class="c5-header-nav" aria-label="Primary"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a><a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a></nav>';
+        $headerNav = '<nav class="c5-header-nav" aria-label="Primary">'
+            . '<a href="#events">NIGHTS</a>'
+            . '<a href="#artists">ARTISTS</a>'
+            . '<a href="#sets">SOUND</a>'
+            . '<a href="/releases">RECORDS</a>'
+            . '<a href="#transmissions">JOURNAL</a>'
+            . '<a href="#connected">CONNECTED</a>'
+            . '</nav>';
         $html = str_replace($brandLink, $brandLink . $headerNav, $html);
     }
 
@@ -225,7 +235,10 @@ function brvtal_public_home_concept05_dressing(string $html): string
     }
     // home-phase-a-experience is appended by brvtal_public_render_next_experience()
     // after this runs on the Next Experience path, so also cover that variant.
-    if (str_contains($html, 'class="genesis scene home-phase-a-experience') && !str_contains($html, 'class="genesis scene home-phase-a-experience c5-numbered')) {
+    if (
+        str_contains($html, 'class="genesis scene home-phase-a-experience')
+        && !str_contains($html, 'class="genesis scene home-phase-a-experience c5-numbered')
+    ) {
         $html = str_replace(
             'class="genesis scene home-phase-a-experience',
             'class="genesis scene home-phase-a-experience c5-numbered',
@@ -261,22 +274,32 @@ function brvtal_public_home_concept05_connected_section(string $html): string
         return $html;
     }
 
-    $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="09" id="connected" aria-labelledby="connected-title">'
+    $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="09"'
+        . ' id="connected" aria-labelledby="connected-title">'
         . '<div class="c5-connected-graph" data-connected-graph aria-live="polite">'
         . '<h2 id="connected-title" class="sr-only">Connected</h2>'
         . '<ul class="c5-connected-nodes">'
-        . '<li data-connected-node="events"><span class="mono">EVENTS</span><strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="artists"><span class="mono">ARTISTS</span><strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="sets"><span class="mono">SOUND</span><strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="releases"><span class="mono">RECORDS</span><strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="memories"><span class="mono">MEMORIES</span><strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="events"><span class="mono">EVENTS</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="artists"><span class="mono">ARTISTS</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="sets"><span class="mono">SOUND</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="releases"><span class="mono">RECORDS</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="memories"><span class="mono">MEMORIES</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
         . '</ul>'
         . '<p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>'
         . '<p class="c5-connected-tagline">TODO CONECTADO.</p>'
         . '</div>'
         . '</section>';
 
-    return str_replace('<footer class="footer scene"', $section . "\n  " . '<footer class="footer scene"', $html);
+    return str_replace(
+        '<footer class="footer scene"',
+        $section . "\n  " . '<footer class="footer scene"',
+        $html
+    );
 }
 
 function brvtal_public_home_identity(string $html): string
