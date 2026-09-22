@@ -51,8 +51,8 @@
   }
 
   function documentaryFrom(data) {
-    return firstImage(data?.media)
-      || firstImage(data?.memories)
+    return firstImage(data?.memories)
+      || firstImage(data?.media)
       || firstImage(data?.events, ['cover_image','image','photo'])
       || firstImage(data?.archive?.events, ['cover_image','image','photo']);
   }
@@ -143,6 +143,10 @@
     const hero = document.querySelector('.home-phase-a-hero');
     if (!hero || hero.dataset.c5HeroReady === '1') return;
     hero.dataset.c5HeroReady = '1';
+
+    if (document.readyState !== 'complete') {
+      await new Promise(resolve => window.addEventListener('load', resolve, {once:true}));
+    }
 
     const data = await waitForPublicData();
     projectDescription(data);
