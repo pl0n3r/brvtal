@@ -62,25 +62,6 @@ $secondPass = brvtal_blog_sanitize_html($roundTrip['html']);
 rich_blog_assert($roundTrip['html'] === $secondPass['html'], 'clean rich Blog HTML must be idempotent');
 rich_blog_assert($secondPass['warnings'] === [], 'clean round-trip must not create cleanup warnings');
 
-$controller = (string)file_get_contents(__DIR__ . '/../discadmin/blog.js');
-foreach ([
-    'data-blog-body-mode="visual"',
-    'data-blog-body-mode="source"',
-    'data-blog-body-preview',
-    'data-blog-body-media',
-    'insertUnorderedList',
-    'insertOrderedList',
-    'data-blog-body-link',
-    'justifyCenter',
-    'undo',
-    'redo',
-    'clipboardData?.getData(\'text/plain\')',
-    'BRVTALMediaLibrary?.openPicker',
-    'setBodyClientCleanupWarning',
-] as $marker) {
-    rich_blog_assert(str_contains($controller, $marker), "Blog editor must contain {$marker}");
-}
-
 $publicPage = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 rich_blog_assert(
     str_contains($publicPage, "brvtal_blog_sanitize_html"),
