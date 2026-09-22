@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from scripts.work_coordinator import (
     CoordinationError,
@@ -22,6 +23,8 @@ from scripts.work_coordinator import (
     issue_from_branch,
     latest_reservation,
     parse_comment_command,
+    process_comment,
+    recover_work,
     release_work,
     reservation_from_pr_body,
     reservation_marker,
@@ -46,25 +49,36 @@ class FakeGitHub:
         """BRVTAL work-coordination helper."""
         self.repo = "pl0n3r/brvtal"
         self.branches = {"main": "abc123"}
+        self.branch_commit_times = {
+            "abc123": datetime.now(timezone.utc) - timedelta(hours=2)
+        }
         self.issue_data = {
             "number": 12,
             "state": "open",
             "state_reason": None,
             "labels": [{"name": STATUS_AVAILABLE}],
+            "assignees": [],
         }
+        self.issues: dict[int, dict] = {12: self.issue_data}
         self.comments: list[dict] = []
+        self.comments_by_issue: dict[int, list[dict]] = {12: self.comments}
         self.pulls: dict[int, dict] = {}
         self.pull_files_map: dict[int, set[str]] = {}
         self.status_history: list[str | None] = []
         self.assignees: set[str] = set()
+        self.assignees_by_issue: dict[int, set[str]] = {12: self.assignees}
+        self.compare_files_map: dict[tuple[str, str], set[str]] = {}
         self.fail_comment = False
         self.fail_delete_branch = False
+        self.fail_assign = False
         self.fail_unassign = False
+        self.fail_update_pull = False
+        self.fail_rollback_comment = False
+        self.fail_verify_after_recover = False
 
     def issue(self, number: int) -> dict:
         """BRVTAL work-coordination helper."""
-        assert number == 12
-        return self.issue_data
+        return self.issues[number]
 
     def pull(self, number: int) -> dict:
         """BRVTAL work-coordination helper."""
@@ -72,27 +86,39 @@ class FakeGitHub:
 
     def comment(self, issue_number: int, body: str) -> None:
         """BRVTAL work-coordination helper."""
-        assert issue_number == 12
         if self.fail_comment:
             raise CoordinationError("simulated comment failure")
-        self.comments.append({"body": body, "user": {"login": BOT}})
+        if self.fail_rollback_comment and "recover-rollback" in body:
+            raise CoordinationError("simulated rollback marker failure")
+        self.comments_by_issue.setdefault(issue_number, []).append(
+            {
+                "body": body,
+                "user": {"login": BOT, "type": "Bot"},
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     def set_status(self, issue_number: int, status: str | None) -> None:
         """BRVTAL work-coordination helper."""
-        assert issue_number == 12
+        issue = self.issues[issue_number]
         current = [
             item
-            for item in self.issue_data["labels"]
+            for item in issue["labels"]
             if not str(item["name"]).startswith("status: ")
         ]
         if status:
             current.append({"name": status})
-        self.issue_data["labels"] = current
+        issue["labels"] = current
         self.status_history.append(status)
 
     def branch_sha(self, branch: str) -> str | None:
         """BRVTAL work-coordination helper."""
         return self.branches.get(branch)
+
+    def branch_commit_time(self, branch: str) -> datetime | None:
+        """BRVTAL work-coordination helper."""
+        sha = self.branches.get(branch)
+        return self.branch_commit_times.get(sha) if sha else None
 
     def create_branch(self, branch: str, sha: str) -> bool:
         """BRVTAL work-coordination helper."""
@@ -109,8 +135,14 @@ class FakeGitHub:
 
     def issue_comments(self, issue_number: int) -> list[dict]:
         """BRVTAL work-coordination helper."""
-        assert issue_number == 12
-        return list(self.comments)
+        comments = self.comments_by_issue.get(issue_number, [])
+        if (
+            self.fail_verify_after_recover
+            and comments
+            and '"reason":"recover"' in str(comments[-1].get("body") or "")
+        ):
+            raise CoordinationError("simulated post-marker verification failure")
+        return list(comments)
 
     def open_pulls(self) -> list[dict]:
         """BRVTAL work-coordination helper."""
@@ -120,6 +152,17 @@ class FakeGitHub:
             if pull.get("state", "open") == "open"
         ]
 
+    def open_issues(self) -> list[dict]:
+        """BRVTAL work-coordination helper."""
+        return [
+            issue for issue in self.issues.values()
+            if issue.get("state") == "open" and not issue.get("pull_request")
+        ]
+
+    def compare_files(self, base_sha: str, head_sha: str) -> set[str]:
+        """BRVTAL work-coordination helper."""
+        return set(self.compare_files_map.get((base_sha, head_sha), set()))
+
     def pull_files(self, number: int) -> set[str]:
         """BRVTAL work-coordination helper."""
         return set(self.pull_files_map.get(number, set()))
@@ -128,31 +171,73 @@ class FakeGitHub:
         """BRVTAL work-coordination helper."""
         self.pulls[number]["state"] = "closed"
 
+    def update_pull_body(self, number: int, body: str) -> None:
+        """BRVTAL work-coordination helper."""
+        if self.fail_update_pull:
+            raise CoordinationError("simulated pull update failure")
+        self.pulls[number]["body"] = body
+
+    def _sync_assignees(self, issue_number: int) -> set[str]:
+        assigned = self.assignees_by_issue.setdefault(issue_number, set())
+        self.issues[issue_number]["assignees"] = [
+            {"login": value} for value in sorted(assigned)
+        ]
+        return assigned
+
+    def assign_strict(self, issue_number: int, login: str) -> None:
+        """BRVTAL work-coordination helper."""
+        if self.fail_assign:
+            raise CoordinationError("simulated strict assign failure")
+        assigned = self.assignees_by_issue.setdefault(issue_number, set())
+        assigned.add(login)
+        self._sync_assignees(issue_number)
+
+    def unassign_strict(self, issue_number: int, login: str) -> None:
+        """BRVTAL work-coordination helper."""
+        if self.fail_unassign:
+            raise CoordinationError("simulated strict unassign failure")
+        assigned = self.assignees_by_issue.setdefault(issue_number, set())
+        assigned.discard(login)
+        self._sync_assignees(issue_number)
+
     def try_assign(self, issue_number: int, login: str) -> None:
         """BRVTAL work-coordination helper."""
-        assert issue_number == 12
-        self.assignees.add(login)
+        assigned = self.assignees_by_issue.setdefault(issue_number, set())
+        assigned.add(login)
+        self._sync_assignees(issue_number)
 
     def try_unassign(self, issue_number: int, login: str) -> None:
         """BRVTAL work-coordination helper."""
-        assert issue_number == 12
         if self.fail_unassign:
             raise CoordinationError("simulated unassign failure")
-        self.assignees.discard(login)
+        assigned = self.assignees_by_issue.setdefault(issue_number, set())
+        assigned.discard(login)
+        self._sync_assignees(issue_number)
 
 
 def add_active_reservation(
     api: FakeGitHub,
     owner: str = "pl0n3r",
     reservation_id: str = SESSION_A,
+    age_minutes: int = 60,
+    issue_number: int = 12,
+    branch_sha: str = "abc123",
 ) -> None:
     """BRVTAL work-coordination helper."""
-    branch = "work/issue-12"
-    api.branches[branch] = "abc123"
-    api.set_status(12, STATUS_RESERVED)
-    api.comments.append(
+    branch = f"work/issue-{issue_number}"
+    api.branches[branch] = branch_sha
+    api.branch_commit_times.setdefault(
+        branch_sha,
+        datetime.now(timezone.utc) - timedelta(hours=2),
+    )
+    api.set_status(issue_number, STATUS_RESERVED)
+    api.try_assign(issue_number, owner)
+    api.comments_by_issue.setdefault(issue_number, []).append(
         {
-            "user": {"login": BOT},
+            "user": {"login": BOT, "type": "Bot"},
+            "created_at": (
+                datetime.now(timezone.utc) - timedelta(minutes=age_minutes)
+            ).isoformat(),
             "body": reservation_marker(
                 owner,
                 reservation_id,
@@ -427,6 +512,253 @@ class CoordinationTests(unittest.TestCase):
         assert reservation is not None
         self.assertEqual(reservation["reservation_id"], new_id)
 
+    def test_recover_work_keeps_branch_and_pr_while_rotating_owner(self) -> None:
+        """Recovery must reuse the exact work line and synchronize its reservation metadata."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "body": (
+                f"Closes #12\n\nReservation: {SESSION_A}\n\n"
+                f"<!-- brvtal-reservation-id: {SESSION_A} -->"
+            ),
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+            "base": {"ref": "main"},
+        }
+
+        new_id = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertIsNotNone(new_id)
+        self.assertEqual(api.branches["work/issue-12"], "abc123")
+        self.assertEqual(api.pulls[15]["state"], "open")
+        self.assertIn("pl0n3r", api.assignees)
+        self.assertNotIn("agent-a", api.assignees)
+        reservation = active_reservation(api, 12)
+        assert reservation is not None
+        self.assertEqual(reservation["owner"], "pl0n3r")
+        self.assertEqual(reservation["reservation_id"], new_id)
+        self.assertIn(f"Reservation: {new_id}", api.pulls[15]["body"])
+        self.assertIn(f"brvtal-reservation-id: {new_id}", api.pulls[15]["body"])
+        self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+
+    def test_recover_work_rejects_recent_reservation(self) -> None:
+        """A reservation must age past the inactivity window before takeover."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a", age_minutes=5)
+
+        result = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertIsNone(result)
+        self.assertIn("agent-a", api.assignees)
+        self.assertNotIn("pl0n3r", api.assignees)
+
+    def test_recover_work_rejects_recent_branch_commit(self) -> None:
+        """Recent implementation commits keep the current owner authoritative."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        api.branch_commit_times["abc123"] = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+        result = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertIsNone(result)
+        self.assertIn("agent-a", api.assignees)
+        self.assertNotIn("pl0n3r", api.assignees)
+
+    def test_recover_work_rejects_recent_human_activity(self) -> None:
+        """Useful human Issue activity resets the recovery inactivity clock."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        api.comments.append(
+            {
+                "user": {"login": "agent-a", "type": "User"},
+                "body": "Sigo implementando el cambio de coordinación.",
+                "created_at": (
+                    datetime.now(timezone.utc) - timedelta(minutes=5)
+                ).isoformat(),
+            }
+        )
+
+        result = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertIsNone(result)
+        self.assertIn("agent-a", api.assignees)
+        self.assertNotIn("pl0n3r", api.assignees)
+
+    def test_recover_work_ignores_recent_coordination_command(self) -> None:
+        """Coordination commands do not fake implementation activity."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        api.comments.append(
+            {
+                "user": {"login": "agent-a", "type": "User"},
+                "body": f"/transfer {SESSION_A}",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        result = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertIsNotNone(result)
+        self.assertIn("pl0n3r", api.assignees)
+        self.assertNotIn("agent-a", api.assignees)
+
+    def test_recover_work_rejects_invalid_existing_pr_contract(self) -> None:
+        """Recovery must never rewrite a PR whose ownership contract is ambiguous."""
+        variants = {
+            "fork": lambda pull: pull["head"].update(
+                {"repo": {"full_name": "other/fork"}}
+            ),
+            "base": lambda pull: pull.update({"base": {"ref": "release"}}),
+            "closing": lambda pull: pull.update(
+                {
+                    "body": (
+                        f"Reservation: {SESSION_A}\n"
+                        f"<!-- brvtal-reservation-id: {SESSION_A} -->"
+                    )
+                }
+            ),
+            "reservation": lambda pull: pull.update(
+                {
+                    "body": (
+                        f"Closes #12\nReservation: {SESSION_B}\n"
+                        f"<!-- brvtal-reservation-id: {SESSION_B} -->"
+                    )
+                }
+            ),
+        }
+        for name, mutate in variants.items():
+            with self.subTest(name=name):
+                api = FakeGitHub()
+                add_active_reservation(api, owner="agent-a")
+                pull = {
+                    "number": 15,
+                    "state": "open",
+                    "body": (
+                        f"Closes #12\nReservation: {SESSION_A}\n"
+                        f"<!-- brvtal-reservation-id: {SESSION_A} -->"
+                    ),
+                    "head": {
+                        "ref": "work/issue-12",
+                        "repo": {"full_name": "pl0n3r/brvtal"},
+                    },
+                    "base": {"ref": "main"},
+                }
+                mutate(pull)
+                api.pulls[15] = pull
+                before = pull["body"]
+
+                with self.assertRaises(CoordinationError):
+                    recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+                self.assertEqual(api.pulls[15]["body"], before)
+                reservation = active_reservation(api, 12)
+                assert reservation is not None
+                self.assertEqual(reservation["reservation_id"], SESSION_A)
+
+    def test_recover_work_blocks_issue_when_authority_rollback_fails(self) -> None:
+        """An incomplete rollback must leave the Issue explicitly fail-closed."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "body": (
+                f"Closes #12\nReservation: {SESSION_A}\n"
+                f"<!-- brvtal-reservation-id: {SESSION_A} -->"
+            ),
+            "head": {
+                "ref": "work/issue-12",
+                "repo": {"full_name": "pl0n3r/brvtal"},
+            },
+            "base": {"ref": "main"},
+        }
+        api.fail_verify_after_recover = True
+        api.fail_rollback_comment = True
+
+        with self.assertRaisesRegex(CoordinationError, "rollback was incomplete"):
+            recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertEqual(api.status_history[-1], STATUS_BLOCKED)
+
+    def test_take_recovers_oldest_inactive_work_before_new_issue(self) -> None:
+        """The normal take path must drain compatible stale work before opening a new line."""
+        api = FakeGitHub()
+        api.issues[20] = {
+            "number": 20,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[20] = []
+        api.assignees_by_issue[20] = set()
+        add_active_reservation(
+            api,
+            owner="agent-a",
+            issue_number=20,
+            branch_sha="stale20",
+            age_minutes=90,
+        )
+
+        process_comment(api, 12, "pl0n3r", "OWNER", "/take")
+
+        self.assertNotIn("work/issue-12", api.branches)
+        recovered = active_reservation(api, 20)
+        assert recovered is not None
+        self.assertEqual(recovered["owner"], "pl0n3r")
+        self.assertNotEqual(recovered["reservation_id"], SESSION_A)
+        self.assertIn("pl0n3r", api.assignees_by_issue[20])
+        self.assertNotIn("agent-a", api.assignees_by_issue[20])
+
+    def test_recover_work_rotates_same_owner_session_when_stale(self) -> None:
+        """Recovery also serves a new agent session using the same GitHub actor."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="pl0n3r")
+
+        new_id = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        self.assertIsNotNone(new_id)
+        self.assertNotEqual(new_id, SESSION_A)
+        self.assertIn("pl0n3r", api.assignees)
+
+    def test_recover_work_rejects_wrong_session_without_mutation(self) -> None:
+        """A stale-looking Issue cannot be stolen without the exact active UUID."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        before_comments = list(api.comments)
+
+        result = recover_work(api, 12, "pl0n3r", "OWNER", SESSION_B)
+
+        self.assertIsNone(result)
+        self.assertEqual(api.comments, before_comments)
+        self.assertIn("agent-a", api.assignees)
+        self.assertNotIn("pl0n3r", api.assignees)
+
+    def test_recover_work_rolls_back_if_pr_metadata_cannot_move(self) -> None:
+        """Failed PR metadata rotation must leave the previous reservation authoritative."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a")
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "body": f"Closes #12\nReservation: {SESSION_A}",
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+            "base": {"ref": "main"},
+        }
+        api.fail_update_pull = True
+
+        with self.assertRaisesRegex(CoordinationError, "simulated pull update failure"):
+            recover_work(api, 12, "pl0n3r", "OWNER", SESSION_A)
+
+        reservation = active_reservation(api, 12)
+        assert reservation is not None
+        self.assertEqual(reservation["owner"], "agent-a")
+        self.assertEqual(reservation["reservation_id"], SESSION_A)
+        self.assertNotIn("pl0n3r", api.assignees)
+        self.assertIn("agent-a", api.assignees)
+
     def test_parse_comment_commands(self) -> None:
         """BRVTAL work-coordination helper."""
         self.assertEqual(parse_comment_command("/take"), ("take", None))
@@ -437,6 +769,10 @@ class CoordinationTests(unittest.TestCase):
         self.assertEqual(
             parse_comment_command(f"/transfer {SESSION_A}"),
             ("transfer", SESSION_A),
+        )
+        self.assertEqual(
+            parse_comment_command(f"/recover {SESSION_A}"),
+            ("recover", SESSION_A),
         )
         with self.assertRaises(CoordinationError):
             parse_comment_command("/release no-es-uuid")
@@ -449,7 +785,7 @@ class CoordinationTests(unittest.TestCase):
             "number": 15,
             "state": "open",
             "draft": False,
-            "head": {"ref": "work/issue-12"},
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
             "base": {"ref": "main"},
             "merged": False,
         }
@@ -464,7 +800,7 @@ class CoordinationTests(unittest.TestCase):
             "number": 15,
             "state": "closed",
             "draft": False,
-            "head": {"ref": "work/issue-12"},
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
             "base": {"ref": "main"},
             "merged": False,
         }
@@ -483,7 +819,7 @@ class CoordinationTests(unittest.TestCase):
             "number": 15,
             "state": "closed",
             "draft": False,
-            "head": {"ref": "work/issue-12"},
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
             "base": {"ref": "main"},
             "merged": False,
         }
@@ -508,7 +844,7 @@ class CoordinationTests(unittest.TestCase):
             "state": "open",
             "draft": False,
             "body": "Closes #12",
-            "head": {"ref": "work/issue-12"},
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
             "base": {"ref": "other-branch"},
         }
         with self.assertRaises(CoordinationError):
@@ -523,7 +859,7 @@ class CoordinationTests(unittest.TestCase):
             "state": "open",
             "draft": False,
             "body": f"Closes #12\n<!-- brvtal-reservation-id: {SESSION_A} -->",
-            "head": {"ref": "work/issue-12"},
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
             "base": {"ref": "main"},
         }
         api.pull_files_map[15] = {"src/a.php"}
@@ -564,7 +900,7 @@ class CoordinationTests(unittest.TestCase):
             "state": "open",
             "draft": False,
             "body": f"Closes #12\n<!-- brvtal-reservation-id: {SESSION_A} -->",
-            "head": {"ref": "work/issue-12"},
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
             "base": {"ref": "main"},
         }
         api.pulls[20] = {
@@ -600,7 +936,7 @@ class BrvtalCoordinationExtensionsTests(unittest.TestCase):
         api.branches["work/issue-12"] = "abc123"
         api.pulls[7] = {
             "number": 7, "state": "open", "title": "infra: missing version",
-            "body": "Closes #12", "base": {"ref": "main"}, "head": {"ref": "work/issue-12"},
+            "body": "Closes #12", "base": {"ref": "main"}, "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
         }
         api.pull_files_map[7] = {"config/version.php"}
         with self.assertRaises(CoordinationError):

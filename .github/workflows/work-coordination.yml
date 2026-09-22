@@ -30,7 +30,8 @@ jobs:
       (github.event.comment.body == '/take' ||
        github.event.comment.body == '/force-release' ||
        startsWith(github.event.comment.body, '/release ') ||
-       startsWith(github.event.comment.body, '/transfer '))
+       startsWith(github.event.comment.body, '/transfer ') ||
+       startsWith(github.event.comment.body, '/recover '))
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import uuid
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError
@@ -25,6 +26,10 @@ TRUSTED_MARKER_LOGIN = os.getenv(
 )
 
 ALLOWED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
+RECOVERY_INACTIVITY = timedelta(minutes=30)
+COORDINATION_COMMAND_RE = re.compile(
+    r"^(?:/(?:take|force-release)|/(?:release|transfer|recover)\s+\S+)\s*$"
+)
 
 STATUS_AVAILABLE = "status: available"
 STATUS_RESERVED = "status: reserved"
@@ -215,6 +220,25 @@ class GitHub:
         obj = payload.get("object")
         return str(obj.get("sha")) if isinstance(obj, dict) and obj.get("sha") else None
 
+    def branch_commit_time(self, branch: str) -> datetime | None:
+        """Return the timestamp of the commit currently at the branch head."""
+        sha = self.branch_sha(branch)
+        if not sha:
+            return None
+        payload = self.request("GET", f"/repos/{self.repo}/commits/{sha}")
+        if not isinstance(payload, dict):
+            return None
+        commit = payload.get("commit")
+        if not isinstance(commit, dict):
+            return None
+        for key in ("committer", "author"):
+            identity = commit.get(key)
+            if isinstance(identity, dict):
+                parsed = parse_github_timestamp(identity.get("date"))
+                if parsed is not None:
+                    return parsed
+        return None
+
     def create_branch(self, branch: str, sha: str) -> bool:
         """BRVTAL work-coordination helper."""
         try:
@@ -252,6 +276,31 @@ class GitHub:
         """BRVTAL work-coordination helper."""
         return self.paginate(f"/repos/{self.repo}/pulls?state=open")
 
+    def open_issues(self) -> list[dict[str, Any]]:
+        """Return open Issues only; GitHub's Issues endpoint also includes PRs."""
+        return [
+            item
+            for item in self.paginate(f"/repos/{self.repo}/issues?state=open")
+            if not item.get("pull_request")
+        ]
+
+    def compare_files(self, base_sha: str, head_sha: str) -> set[str]:
+        """Return changed paths between two repository commits."""
+        payload = self.request(
+            "GET",
+            f"/repos/{self.repo}/compare/{base_sha}...{head_sha}",
+        )
+        if not isinstance(payload, dict):
+            return set()
+        files = payload.get("files")
+        if not isinstance(files, list):
+            return set()
+        return {
+            str(item["filename"])
+            for item in files
+            if isinstance(item, dict) and isinstance(item.get("filename"), str)
+        }
+
     def pull_files(self, number: int) -> set[str]:
         """BRVTAL work-coordination helper."""
         files = self.paginate(f"/repos/{self.repo}/pulls/{number}/files")
@@ -267,6 +316,30 @@ class GitHub:
             "PATCH",
             f"/repos/{self.repo}/pulls/{number}",
             {"state": "closed"},
+        )
+
+    def update_pull_body(self, number: int, body: str) -> None:
+        """Keep reservation metadata synchronized when ownership is recovered."""
+        self.request(
+            "PATCH",
+            f"/repos/{self.repo}/pulls/{number}",
+            {"body": body},
+        )
+
+    def assign_strict(self, issue_number: int, login: str) -> None:
+        """Assign recovery ownership without swallowing GitHub failures."""
+        self.request(
+            "POST",
+            f"/repos/{self.repo}/issues/{issue_number}/assignees",
+            {"assignees": [login]},
+        )
+
+    def unassign_strict(self, issue_number: int, login: str) -> None:
+        """Remove recovery ownership without swallowing GitHub failures."""
+        self.request(
+            "DELETE",
+            f"/repos/{self.repo}/issues/{issue_number}/assignees",
+            {"assignees": [login]},
         )
 
     def try_assign(self, issue_number: int, login: str) -> None:
@@ -306,9 +379,41 @@ def reservation_from_pr_body(body: str) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def replace_pr_reservation(body: str, reservation_id: str) -> str:
+    """Synchronize visible and hidden PR reservation metadata."""
+    reservation_id = reservation_id.lower()
+    value = body or ""
+    visible = f"Reservation: {reservation_id}"
+    hidden = f"<!-- brvtal-reservation-id: {reservation_id} -->"
+
+    if RESERVATION_LINE_RE.search(value):
+        value = RESERVATION_LINE_RE.sub(visible, value, count=1)
+    else:
+        value = value.rstrip() + f"\n\n{visible}\n"
+
+    if RESERVATION_HIDDEN_RE.search(value):
+        value = RESERVATION_HIDDEN_RE.sub(hidden, value, count=1)
+    else:
+        value = value.rstrip() + f"\n\n{hidden}\n"
+    return value
+
+
 def new_reservation_id() -> str:
     """BRVTAL work-coordination helper."""
     return str(uuid.uuid4())
+
+
+def parse_github_timestamp(value: Any) -> datetime | None:
+    """Parse GitHub ISO timestamps as timezone-aware UTC datetimes."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def reservation_marker(
@@ -378,20 +483,75 @@ def reservation_from_text(text: str) -> dict[str, Any] | None:
     return latest
 
 
-def latest_reservation(
+def latest_reservation_record(
     comments: list[dict[str, Any]],
     trusted_login: str = TRUSTED_MARKER_LOGIN,
-) -> dict[str, Any] | None:
-    """BRVTAL work-coordination helper."""
-    latest: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], datetime | None] | None:
+    """Return the latest trusted reservation plus its authoritative marker time."""
+    latest: tuple[dict[str, Any], datetime | None] | None = None
     for comment in comments:
         user = comment.get("user")
         if not isinstance(user, dict) or user.get("login") != trusted_login:
             continue
         parsed = reservation_from_text(str(comment.get("body") or ""))
         if parsed is not None:
-            latest = parsed
+            latest = (parsed, parse_github_timestamp(comment.get("created_at")))
     return latest
+
+
+def latest_reservation(
+    comments: list[dict[str, Any]],
+    trusted_login: str = TRUSTED_MARKER_LOGIN,
+) -> dict[str, Any] | None:
+    """BRVTAL work-coordination helper."""
+    record = latest_reservation_record(comments, trusted_login)
+    return record[0] if record is not None else None
+
+
+def latest_qualifying_human_activity(
+    comments: list[dict[str, Any]],
+) -> datetime | None:
+    """Return the latest human implementation comment, excluding coordination noise."""
+    latest: datetime | None = None
+    for comment in comments:
+        user = comment.get("user")
+        if not isinstance(user, dict):
+            continue
+        login = str(user.get("login") or "")
+        if user.get("type") == "Bot" or login.endswith("[bot]"):
+            continue
+        body = str(comment.get("body") or "").strip()
+        if COORDINATION_COMMAND_RE.fullmatch(body):
+            continue
+        created_at = parse_github_timestamp(comment.get("created_at"))
+        if created_at is not None and (latest is None or created_at > latest):
+            latest = created_at
+    return latest
+
+
+def reservation_is_inactive(
+    api: GitHub,
+    issue_number: int,
+    branch: str,
+    comments: list[dict[str, Any]],
+    reservation_started_at: datetime | None,
+) -> bool:
+    """Fail closed unless the reservation has had no useful activity for 30 minutes."""
+    if reservation_started_at is None:
+        raise CoordinationError(
+            f"Cannot recover Issue #{issue_number}: reservation timestamp is missing."
+        )
+    branch_time = api.branch_commit_time(branch)
+    if branch_time is None:
+        raise CoordinationError(
+            f"Cannot recover Issue #{issue_number}: branch activity timestamp is unavailable."
+        )
+    activity = [reservation_started_at, branch_time]
+    human_activity = latest_qualifying_human_activity(comments)
+    if human_activity is not None:
+        activity.append(human_activity)
+    last_activity = max(activity)
+    return datetime.now(timezone.utc) - last_activity >= RECOVERY_INACTIVITY
 
 
 NON_BLOCKING_SHARED_FILES = {"README.md"}
@@ -431,6 +591,28 @@ def active_reservation(api: GitHub, issue_number: int) -> dict[str, Any] | None:
     if not reservation or not reservation["active"]:
         return None
     return reservation
+
+
+def assignee_logins(issue: dict[str, Any]) -> set[str]:
+    """Return the normalized assignee login set for an Issue."""
+    return {
+        str(item["login"])
+        for item in (issue.get("assignees") or [])
+        if isinstance(item, dict) and isinstance(item.get("login"), str)
+    }
+
+
+def pull_head_repo(pull: dict[str, Any]) -> str | None:
+    """Return the full repository name for a PR head."""
+    head = pull.get("head")
+    if not isinstance(head, dict):
+        return None
+    head_repo = head.get("repo")
+    if not isinstance(head_repo, dict):
+        return None
+    full_name = head_repo.get("full_name")
+    return str(full_name) if isinstance(full_name, str) else None
+
 
 def open_pulls_for_branch(api: GitHub, branch: str) -> list[int]:
     """BRVTAL work-coordination helper."""
@@ -554,6 +736,323 @@ def transfer_work(
     print(f"Reservation transferred: Issue #{issue_number} -> {new_id}")
     return new_id
 
+
+
+def recovery_context(
+    api: GitHub,
+    issue_number: int,
+    actor: str,
+    association: str,
+    reservation_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], str] | None:
+    """Validate recovery ownership and return the immutable recovery context."""
+    if not authorized(association):
+        raise CoordinationError(
+            f"@{actor} is not authorized to recover work."
+        )
+
+    comments = api.issue_comments(issue_number)
+    record = latest_reservation_record(comments)
+    if record is None:
+        return None
+    current, reservation_started_at = record
+    if not current["active"] or current["reservation_id"] != reservation_id.lower():
+        return None
+    issue = api.issue(issue_number)
+    if issue.get("state") != "open":
+        return None
+    if not (label_names(issue) & {STATUS_RESERVED, STATUS_REVIEW}):
+        return None
+
+    branch = str(current["branch"])
+    if api.branch_sha(branch) is None:
+        raise CoordinationError(
+            f"Cannot recover Issue #{issue_number}: canonical branch {branch} is missing."
+        )
+    if not reservation_is_inactive(
+        api,
+        issue_number,
+        branch,
+        comments,
+        reservation_started_at,
+    ):
+        return None
+    return current, issue, branch
+
+
+def recovery_pull_context(
+    api: GitHub,
+    issue_number: int,
+    branch: str,
+    reservation_id: str,
+) -> tuple[int | None, str | None]:
+    """Resolve and validate the optional PR attached to recovered work."""
+    pull_numbers = open_pulls_for_branch(api, branch)
+    if len(pull_numbers) > 1:
+        raise CoordinationError(
+            f"Cannot recover Issue #{issue_number}: multiple open PRs own {branch}."
+        )
+    if not pull_numbers:
+        return None, None
+
+    pull_number = pull_numbers[0]
+    pull = api.pull(pull_number)
+    head = pull.get("head")
+    base = pull.get("base")
+    body = str(pull.get("body") or "")
+    errors: list[str] = []
+
+    if pull_head_repo(pull) != api.repo:
+        errors.append("the existing PR head repository does not match this repository")
+    if not isinstance(head, dict) or head.get("ref") != branch:
+        errors.append("the existing PR no longer uses the canonical reserved branch")
+    if not isinstance(base, dict) or base.get("ref") != "main":
+        errors.append("the existing PR does not target main")
+    if issue_number not in closing_issues(body):
+        errors.append(f"the existing PR does not close Issue #{issue_number}")
+    if reservation_from_pr_body(body) != reservation_id.lower():
+        errors.append("the existing PR reservation UUID does not match the active marker")
+
+    if errors:
+        raise CoordinationError(
+            f"Cannot recover Issue #{issue_number}: " + "; ".join(errors) + "."
+        )
+    return pull_number, body
+
+
+@dataclass
+class RecoveryMutationState:
+    """Track completed ownership mutations so rollback can be exact."""
+    actor_was_assigned: bool
+    previous_owner_was_assigned: bool
+    actor_assigned: bool = False
+    previous_owner_unassigned: bool = False
+    pr_updated: bool = False
+    marker_published: bool = False
+
+
+def recovery_collision_errors(
+    api: GitHub,
+    branch: str,
+    pull_number: int | None,
+) -> list[str]:
+    """Detect changed-file collisions before stale work changes owner."""
+    if pull_number is not None:
+        current_files = api.pull_files(pull_number)
+    else:
+        main_sha = api.branch_sha("main")
+        branch_sha = api.branch_sha(branch)
+        if not main_sha or not branch_sha:
+            return ["unable to resolve branch commits for compatibility"]
+        current_files = api.compare_files(main_sha, branch_sha)
+
+    others: dict[int, set[str]] = {}
+    for pull in api.open_pulls():
+        other_number = pull.get("number")
+        if not isinstance(other_number, int) or other_number == pull_number:
+            continue
+        base = pull.get("base")
+        if isinstance(base, dict) and base.get("ref") != "main":
+            continue
+        others[other_number] = api.pull_files(other_number)
+
+    return [
+        f"collision with PR #{number}: {', '.join(files)}"
+        for number, files in file_overlaps(current_files, others).items()
+    ]
+
+
+def verify_recovery_assignees(
+    api: GitHub,
+    issue_number: int,
+    actor: str,
+    previous_owner: str,
+) -> None:
+    """Require the final assignee state before publishing new authority."""
+    assigned = assignee_logins(api.issue(issue_number))
+    if actor not in assigned:
+        raise CoordinationError(
+            f"Recovery assignee @{actor} is not assigned to Issue #{issue_number}."
+        )
+    if previous_owner != actor and previous_owner in assigned:
+        raise CoordinationError(
+            f"Previous owner @{previous_owner} is still assigned to Issue #{issue_number}."
+        )
+
+
+def attempt_recovery_rollback(
+    failures: list[str],
+    label: str,
+    action: Any,
+) -> None:
+    """Run one rollback action and preserve its failure for fail-closed handling."""
+    try:
+        action()
+    except Exception as exc:
+        failures.append(f"{label}: {exc}")
+
+
+def rollback_recovery(
+    api: GitHub,
+    issue_number: int,
+    actor: str,
+    previous_owner: str,
+    reservation_id: str,
+    branch: str,
+    pull_number: int | None,
+    previous_body: str | None,
+    state: RecoveryMutationState,
+) -> list[str]:
+    """Restore previous authority and report every rollback failure."""
+    failures: list[str] = []
+
+    if state.pr_updated and pull_number is not None and previous_body is not None:
+        attempt_recovery_rollback(
+            failures,
+            "restore PR body",
+            lambda: api.update_pull_body(pull_number, previous_body),
+        )
+
+    if state.marker_published:
+        attempt_recovery_rollback(
+            failures,
+            "restore reservation authority",
+            lambda: api.comment(
+                issue_number,
+                reservation_marker(
+                    previous_owner,
+                    reservation_id,
+                    branch,
+                    True,
+                    "recover-rollback",
+                ),
+            ),
+        )
+
+    if state.previous_owner_unassigned and previous_owner != actor:
+        attempt_recovery_rollback(
+            failures,
+            "restore previous assignee",
+            lambda: api.assign_strict(issue_number, previous_owner),
+        )
+
+    if state.actor_assigned and not state.actor_was_assigned:
+        attempt_recovery_rollback(
+            failures,
+            "remove recovery assignee",
+            lambda: api.unassign_strict(issue_number, actor),
+        )
+
+    if failures:
+        attempt_recovery_rollback(
+            failures,
+            "set fail-closed status",
+            lambda: api.set_status(issue_number, STATUS_BLOCKED),
+        )
+    return failures
+
+
+def recover_work(
+    api: GitHub,
+    issue_number: int,
+    actor: str,
+    association: str,
+    reservation_id: str,
+) -> str | None:
+    """Atomically transfer stale work without replacing its branch or PR."""
+    context = recovery_context(
+        api,
+        issue_number,
+        actor,
+        association,
+        reservation_id,
+    )
+    if context is None:
+        return None
+
+    current, issue, branch = context
+    previous_owner = str(current["owner"])
+    pull_number, previous_body = recovery_pull_context(
+        api,
+        issue_number,
+        branch,
+        reservation_id,
+    )
+    collisions = recovery_collision_errors(api, branch, pull_number)
+    if collisions:
+        raise CoordinationError(
+            f"Cannot recover Issue #{issue_number}: " + "; ".join(collisions) + "."
+        )
+
+    previous_assignees = assignee_logins(issue)
+    state = RecoveryMutationState(
+        actor_was_assigned=actor in previous_assignees,
+        previous_owner_was_assigned=previous_owner in previous_assignees,
+    )
+    new_id = new_reservation_id()
+
+    try:
+        api.assign_strict(issue_number, actor)
+        state.actor_assigned = True
+
+        if pull_number is not None and previous_body is not None:
+            api.update_pull_body(
+                pull_number,
+                replace_pr_reservation(previous_body, new_id),
+            )
+            state.pr_updated = True
+
+        if previous_owner != actor and state.previous_owner_was_assigned:
+            api.unassign_strict(issue_number, previous_owner)
+            state.previous_owner_unassigned = True
+
+        verify_recovery_assignees(
+            api,
+            issue_number,
+            actor,
+            previous_owner,
+        )
+
+        api.comment(
+            issue_number,
+            reservation_marker(actor, new_id, branch, True, "recover"),
+        )
+        state.marker_published = True
+
+        verified = active_reservation(api, issue_number)
+        if (
+            not verified
+            or verified["owner"] != actor
+            or verified["reservation_id"] != new_id
+        ):
+            raise CoordinationError(
+                f"Recovery authority verification failed for Issue #{issue_number}."
+            )
+    except Exception as exc:
+        rollback_failures = rollback_recovery(
+            api,
+            issue_number,
+            actor,
+            previous_owner,
+            reservation_id,
+            branch,
+            pull_number,
+            previous_body,
+            state,
+        )
+        if rollback_failures:
+            details = "; ".join(rollback_failures)
+            raise CoordinationError(
+                f"Recovery failed for Issue #{issue_number} and rollback was incomplete: "
+                f"{details}"
+            ) from exc
+        raise
+
+    print(
+        f"Reservation recovered: Issue #{issue_number} keeps {branch}; "
+        f"@{previous_owner} -> @{actor} ({new_id})"
+    )
+    return new_id
 
 
 def release_permission(
@@ -955,6 +1454,81 @@ def validate_pull(
         f"({mode}); no blocking file overlap with other open PRs."
     )
 
+def inactive_recovery_candidate(
+    api: GitHub,
+    issue: dict[str, Any],
+) -> tuple[datetime, int, str] | None:
+    """Return sortable stale reservation metadata when an Issue is recoverable."""
+    number = issue.get("number")
+    if not isinstance(number, int) or issue.get("state") != "open":
+        return None
+    labels = label_names(issue)
+    if STATUS_BLOCKED in labels or not ({STATUS_RESERVED, STATUS_REVIEW} & labels):
+        return None
+
+    comments = api.issue_comments(number)
+    record = latest_reservation_record(comments)
+    if record is None:
+        return None
+    reservation, started_at = record
+    branch = f"work/issue-{number}"
+    if (
+        not reservation["active"]
+        or reservation["branch"] != branch
+        or started_at is None
+        or api.branch_sha(branch) is None
+    ):
+        return None
+    try:
+        inactive = reservation_is_inactive(
+            api,
+            number,
+            branch,
+            comments,
+            started_at,
+        )
+    except CoordinationError:
+        return None
+    if not inactive:
+        return None
+    return started_at, number, str(reservation["reservation_id"])
+
+
+def recover_oldest_inactive_before_take(
+    api: GitHub,
+    actor: str,
+    association: str,
+) -> bool:
+    """Recover the oldest compatible inactive reservation before opening new work."""
+    candidates = [
+        candidate
+        for issue in api.open_issues()
+        if (candidate := inactive_recovery_candidate(api, issue)) is not None
+    ]
+    for _started_at, issue_number, reservation_id in sorted(candidates):
+        try:
+            recovered = recover_work(
+                api,
+                issue_number,
+                actor,
+                association,
+                reservation_id,
+            )
+        except CoordinationError as exc:
+            print(
+                f"Skipping inactive Issue #{issue_number}: {exc}",
+                file=sys.stderr,
+            )
+            continue
+        if recovered is not None:
+            print(
+                f"Recovery-first selected inactive Issue #{issue_number} "
+                f"before reserving new work."
+            )
+            return True
+    return False
+
+
 def parse_comment_command(body: str) -> tuple[str, str | None]:
     """BRVTAL work-coordination helper."""
     value = body.strip()
@@ -966,6 +1540,7 @@ def parse_comment_command(body: str) -> tuple[str, str | None]:
     for prefix, command in (
         ("/release ", "release"),
         ("/transfer ", "transfer"),
+        ("/recover ", "recover"),
     ):
         if value.startswith(prefix):
             session = value[len(prefix):].strip().lower()
@@ -987,7 +1562,8 @@ def process_comment(
     """BRVTAL work-coordination helper."""
     command, reservation_id = parse_comment_command(body)
     if command == "take":
-        reserve_work(api, issue_number, actor, association)
+        if not recover_oldest_inactive_before_take(api, actor, association):
+            reserve_work(api, issue_number, actor, association)
     elif command == "release":
         release_work(
             api,
@@ -1002,6 +1578,15 @@ def process_comment(
     elif command == "transfer":
         assert reservation_id is not None
         transfer_work(
+            api,
+            issue_number,
+            actor,
+            association,
+            reservation_id,
+        )
+    elif command == "recover":
+        assert reservation_id is not None
+        recover_work(
             api,
             issue_number,
             actor,

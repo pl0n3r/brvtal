@@ -109,11 +109,21 @@ Parallelization is the default whenever operations are independent and safe.
 
 GitHub is the arbiter for concurrent implementation.
 
+### Recovery-first and anti-starvation
+
+- The `/take` path itself scans active `status: reserved` / `status: in review` reservations before reserving the requested `status: available` Issue; it attempts the oldest inactive candidate first and only opens new work when no compatible stale candidate can be recovered safely.
+- A reservation is **inactive** only when the latest trusted active reservation marker is at least **30 minutes** old and the most recent timestamp among that marker, the canonical branch-head commit, and any qualifying human Issue comment is also at least **30 minutes** old. Qualifying human activity is any non-bot Issue comment except coordination commands (`/take`, `/release`, `/transfer`, `/recover`, `/force-release`); PR `updated_at`, bot comments, CI, Sonar, CodeRabbit and label changes never count.
+- Among inactive candidates, **oldest** means the earliest `created_at` of the latest trusted active `brvtal-work-reservation` marker.
+- A candidate is **compatible** when it is not blocked, its existing PR has no blocking changed-file overlap with another open coordinated PR (README-only overlap remains non-blocking), and no unmet prerequisite prevents continuing its Issue scope. If compatibility cannot be established safely, skip it rather than guessing.
+- Recover the oldest compatible inactive reservation first. Normal `/take` performs this selection automatically; direct `/recover UUID` remains available for explicit recovery. Recovery keeps the same Issue, `work/issue-N` branch and open PR, validates that PR against this repository/`main`/Issue/current UUID, rotates to a new reservation UUID, verifies assignees, and publishes the new trusted marker only after those transitions succeed.
+- `/recover` requires the exact active reservation UUID, an authorized owner/member/collaborator, and coordinator-side proof that the reservation is actually inactive by the rule above. It supports same-GitHub-owner session recovery by rotating the UUID. It never deletes or recreates the branch or PR. If recovery rollback is incomplete, the Issue becomes `status: blocked` so inconsistent authority cannot continue silently.
+
+- Assignment is one coordinated ownership state, not independent signals: the Issue status, GitHub assignee, trusted reservation marker and canonical `work/issue-N` branch must agree. Never treat an assignee, label or branch alone as permission to duplicate work.
 - Reserve an Issue with `/take`.
 - The atomic lock is the canonical branch `work/issue-N`.
 - Read the trusted `brvtal-work-reservation` marker and put its UUID in the PR body as `<!-- brvtal-reservation-id: UUID -->`.
 - Visible states are `status: available`, `status: reserved`, `status: in review`, `status: completed`, `status: cancelled` and `status: blocked`.
-- Use `/release UUID` for normal release, `/transfer UUID` for same-owner session transfer, and `/force-release` only for owner recovery.
+- Use `/release UUID` for normal release, `/transfer UUID` for same-owner session transfer, `/recover UUID` for authorized takeover of inactive work, and `/force-release` only for repository-owner cleanup.
 - Coordinated PRs target `main`, use their reserved `work/issue-N` branch and close the matching Issue with `Closes #N`, `Fixes #N` or `Resolves #N`.
 - Coordination fails closed when Issue, branch, reservation metadata or closing relation disagree.
 - Changed-file overlap with another open PR targeting `main` is a fail-closed collision and must identify exact paths.
