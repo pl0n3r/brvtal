@@ -156,14 +156,14 @@ window.BRVTALBlog = (() => {
   }
 
   function cleanBlogBodyStyle(value){
-    const match=String(value||'').match(/(?:^|;)\s*text-align\s*:\s*(left|center|right)\s*(?:;|$)/i);
+    const match=/(?:^|;)\s*text-align\s*:\s*(left|center|right)\s*(?:;|$)/i.exec(String(value||''));
     return match?'text-align:'+match[1].toLowerCase():'';
   }
 
   function isSafeBlogBodyUrl(value,image=false){
     const url=String(value||'').trim();
     if(/^https?:\/\//i.test(url))return true;
-    if(/^\/[^\/]/.test(url))return true;
+    if(url.startsWith('/')&&!url.startsWith('//'))return true;
     if(!image&&(url.startsWith('#')||/^mailto:/i.test(url)))return true;
     return false;
   }
@@ -312,27 +312,88 @@ window.BRVTALBlog = (() => {
     editor.querySelector('[data-blog-body-preview]')?.setAttribute('aria-pressed','true');
   }
 
+  function executeBlogBodyCommand(command,value=null){
+    document.execCommand(command,false,value);
+  }
+
+  function pasteBlogBodyPlainText(event,editor){
+    event.preventDefault();
+    const text=event.clipboardData?.getData('text/plain')||'';
+    executeBlogBodyCommand('insertText',text);
+    syncBodyVisualToSource(editor);
+  }
+
+  function insertBlogBodyMedia(editor,visual,mediaInput){
+    const src=normalizeMediaPath(mediaInput?.value||'');
+    if(!src)return;
+
+    setBodyMode(editor,'visual');
+    visual?.focus();
+    executeBlogBodyCommand('insertImage',src);
+
+    const images=[...(visual?.querySelectorAll('img')||[])];
+    const inserted=images.at(-1);
+    if(inserted&&!inserted.getAttribute('alt')){
+      const filename=src.split('/').pop()?.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ').trim()
+        ||'BRVTAL editorial image';
+      inserted.setAttribute('alt',filename);
+    }
+    syncBodyVisualToSource(editor);
+    if(mediaInput)mediaInput.value='';
+  }
+
   function initBodyEditor(body=''){
-    const editor=currentBodyEditor();if(!editor)return;
-    const source=editor.querySelector('#blog_body'),visual=editor.querySelector('[data-blog-body-visual]');
+    const editor=currentBodyEditor();
+    if(!editor)return;
+
+    const source=editor.querySelector('#blog_body');
+    const visual=editor.querySelector('[data-blog-body-visual]');
+    const mediaInput=editor.querySelector('#blog_body_media_path');
+
     if(source)source.value=String(body||'');
     syncBodySourceToVisual(editor);
+
     visual?.addEventListener('input',()=>syncBodyVisualToSource(editor));
-    visual?.addEventListener('paste',event=>{event.preventDefault();const text=event.clipboardData?.getData('text/plain')||'';document.execCommand('insertText',false,text);syncBodyVisualToSource(editor)});
-    editor.querySelectorAll('[data-blog-body-mode]').forEach(button=>button.addEventListener('click',()=>setBodyMode(editor,button.dataset.blogBodyMode)));
-    editor.querySelector('[data-blog-body-preview]')?.addEventListener('click',()=>renderBodyPreview(editor));
-    editor.querySelectorAll('[data-blog-body-command]').forEach(button=>button.addEventListener('click',()=>{setBodyMode(editor,'visual');visual?.focus();document.execCommand(button.dataset.blogBodyCommand,false,null);syncBodyVisualToSource(editor)}));
-    editor.querySelector('[data-blog-body-block]')?.addEventListener('change',event=>{setBodyMode(editor,'visual');visual?.focus();document.execCommand('formatBlock',false,event.target.value);syncBodyVisualToSource(editor)});
-    editor.querySelector('[data-blog-body-link]')?.addEventListener('click',()=>{setBodyMode(editor,'visual');visual?.focus();const href=window.prompt?.('Link URL','https://')||'';if(!href)return;document.execCommand('createLink',false,href);syncBodyVisualToSource(editor)});
-    const mediaInput=editor.querySelector('#blog_body_media_path');
-    editor.querySelector('[data-blog-body-media]')?.addEventListener('click',()=>{if(mediaInput&&window.BRVTALMediaLibrary?.openPicker)window.BRVTALMediaLibrary.openPicker(mediaInput,{imagesOnly:true})});
-    mediaInput?.addEventListener('change',()=>{
-      const src=normalizeMediaPath(mediaInput.value);if(!src)return;
-      setBodyMode(editor,'visual');visual?.focus();document.execCommand('insertImage',false,src);
-      const images=[...(visual?.querySelectorAll('img')||[])],inserted=images[images.length-1];
-      if(inserted&&!inserted.getAttribute('alt')){const filename=src.split('/').pop()?.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ').trim()||'BRVTAL editorial image';inserted.setAttribute('alt',filename)}
-      syncBodyVisualToSource(editor);mediaInput.value='';
+    visual?.addEventListener('paste',event=>pasteBlogBodyPlainText(event,editor));
+
+    editor.querySelectorAll('[data-blog-body-mode]').forEach(button=>{
+      button.addEventListener('click',()=>setBodyMode(editor,button.dataset.blogBodyMode));
     });
+    editor.querySelector('[data-blog-body-preview]')?.addEventListener(
+      'click',
+      ()=>renderBodyPreview(editor)
+    );
+    editor.querySelectorAll('[data-blog-body-command]').forEach(button=>{
+      button.addEventListener('click',()=>{
+        setBodyMode(editor,'visual');
+        visual?.focus();
+        executeBlogBodyCommand(button.dataset.blogBodyCommand);
+        syncBodyVisualToSource(editor);
+      });
+    });
+    editor.querySelector('[data-blog-body-block]')?.addEventListener('change',event=>{
+      setBodyMode(editor,'visual');
+      visual?.focus();
+      executeBlogBodyCommand('formatBlock',event.target.value);
+      syncBodyVisualToSource(editor);
+    });
+    editor.querySelector('[data-blog-body-link]')?.addEventListener('click',()=>{
+      setBodyMode(editor,'visual');
+      visual?.focus();
+      const href=window.prompt?.('Link URL','https://')||'';
+      if(!href)return;
+      executeBlogBodyCommand('createLink',href);
+      syncBodyVisualToSource(editor);
+    });
+    editor.querySelector('[data-blog-body-media]')?.addEventListener('click',()=>{
+      if(mediaInput&&window.BRVTALMediaLibrary?.openPicker){
+        window.BRVTALMediaLibrary.openPicker(mediaInput,{imagesOnly:true});
+      }
+    });
+    mediaInput?.addEventListener(
+      'change',
+      ()=>insertBlogBodyMedia(editor,visual,mediaInput)
+    );
   }
 
   function showBodyWarnings(warnings,cleanBody=''){
@@ -342,24 +403,74 @@ window.BRVTALBlog = (() => {
     if(warning){warning.hidden=!list.length;warning.textContent=list.length?'SAVED WITH CLEANUP · '+list.join(' · '):''}
   }
 
-  function openEditor(id=null){
+  function blogEditorCoverMarkup(record){
+    const path=normalizeMediaPath(record.cover_image||'');
+    if(!path)return '<div class="thumb lg">NO IMAGE</div>';
+    return '<img class="thumb lg" src="'+esc(path)+'" alt="'+esc(record.title||'Cover')+'">';
+  }
+
+  function blogPostEditorMarkup(record){
+    const cover=blogEditorCoverMarkup(record);
+    return `<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="grid2"><div class="field"><label for="blog_title">Title *</label><input id="blog_title" value="${esc(record.title||'')}"></div><div class="field"><label for="blog_slug">Slug *</label><input id="blog_slug" value="${esc(record.slug||'')}"></div><div class="field full"><label for="blog_excerpt">Excerpt</label><textarea id="blog_excerpt">${esc(record.excerpt||'')}</textarea></div>${bodyEditorMarkup(record.body||'')}<div class="field full"><label for="blog_cover_image">Cover image</label><div class="blog-editor-cover thumbcell">${cover}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(record.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label for="blog_status_field">Status</label><select id="blog_status_field"><option value="draft" ${record.status==='draft'||!record.status?'selected':''}>Draft</option><option value="published" ${record.status==='published'?'selected':''}>Published</option><option value="archived" ${record.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label for="blog_sort_order">Sort order</label><input id="blog_sort_order" type="number" value="${Number(record.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(record.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(record)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label for="blog_seo_title">SEO title</label><input id="blog_seo_title" value="${esc(record.seo_title||'')}"></div><div class="field"><label for="blog_seo_description">SEO description</label><textarea id="blog_seo_description">${esc(record.seo_description||'')}</textarea></div></div></div></div>`;
+  }
+
+  async function loadBlogEditorRecord(id,base,controller,loadId){
+    if(!id)return base||{};
+    try{
+      const detail=await request('?id='+encodeURIComponent(id),{signal:controller?.signal});
+      if(loadId!==editorLoadId)return null;
+      return detail.data||base||{};
+    }catch(error){
+      if(error?.name==='AbortError'||loadId!==editorLoadId)return null;
+      setStatus('Unable to load post: '+error.message,'err');
+      return null;
+    }
+  }
+
+  function bindBlogEditorFields(record,id,saveButton){
+    const titleInput=input('blog_title');
+    const slugInput=input('blog_slug');
+    let slugTouched=Boolean(record.slug);
+
+    slugInput?.addEventListener('input',()=>{slugTouched=true});
+    titleInput?.addEventListener('input',()=>{
+      if(!slugTouched&&slugInput)slugInput.value=slugify(titleInput.value);
+    });
+
+    document.getElementById('blog-cover-picker')?.addEventListener('click',()=>{
+      const coverInput=input('blog_cover_image');
+      if(coverInput&&window.BRVTALMediaLibrary?.openPicker){
+        window.BRVTALMediaLibrary.openPicker(coverInput,{imagesOnly:true});
+      }
+    });
+    saveButton.onclick=()=>save(id,record);
+  }
+
+  async function openEditor(id=null){
     const loadId=++editorLoadId;
     editorController?.abort();
     const controller=id?new AbortController():null;
     editorController=controller;
-    const base=id?store.posts.find(x=>Number(x.id)===Number(id)):null;
-    const load=async()=>{let r=base||{};if(id){try{const detail=await request('?id='+encodeURIComponent(id),{signal:controller.signal});if(loadId!==editorLoadId)return;r=detail.data||r}catch(e){if(e?.name==='AbortError'||loadId!==editorLoadId)return;setStatus('Unable to load post: '+e.message,'err');return}}
-      if(loadId!==editorLoadId)return;
-      const modal=document.getElementById('modal'),content=document.getElementById('mcontent'),title=document.getElementById('mtitle'),notice=document.getElementById('notice'),saveButton=document.getElementById('saveBtn');if(!modal||!content||!title||!saveButton)return;
-      title.textContent=id?'EDIT BLOG POST':'NEW BLOG POST';if(notice)notice.className='notice';
-      content.innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="grid2"><div class="field"><label for="blog_title">Title *</label><input id="blog_title" value="${esc(r.title||'')}"></div><div class="field"><label for="blog_slug">Slug *</label><input id="blog_slug" value="${esc(r.slug||'')}"></div><div class="field full"><label for="blog_excerpt">Excerpt</label><textarea id="blog_excerpt">${esc(r.excerpt||'')}</textarea></div>${bodyEditorMarkup(r.body||'')}<div class="field full"><label for="blog_cover_image">Cover image</label><div class="blog-editor-cover thumbcell">${r.cover_image?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.cover_image))}" alt="${esc(r.title||'Cover')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(r.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label for="blog_status_field">Status</label><select id="blog_status_field"><option value="draft" ${r.status==='draft'||!r.status?'selected':''}>Draft</option><option value="published" ${r.status==='published'?'selected':''}>Published</option><option value="archived" ${r.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label for="blog_sort_order">Sort order</label><input id="blog_sort_order" type="number" value="${Number(r.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(r.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(r)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label for="blog_seo_title">SEO title</label><input id="blog_seo_title" value="${esc(r.seo_title||'')}"></div><div class="field"><label for="blog_seo_description">SEO description</label><textarea id="blog_seo_description">${esc(r.seo_description||'')}</textarea></div></div></div></div>`;
-      replaceBlogSortOrderControl();
-      initBodyEditor(r.body||'');
-      const titleInput=input('blog_title'),slugInput=input('blog_slug');let slugTouched=Boolean(r.slug);slugInput?.addEventListener('input',()=>{slugTouched=true});titleInput?.addEventListener('input',()=>{if(!slugTouched&&slugInput)slugInput.value=slugify(titleInput.value)});
-      document.getElementById('blog-cover-picker')?.addEventListener('click',()=>{const coverInput=input('blog_cover_image');if(coverInput&&window.BRVTALMediaLibrary?.openPicker)window.BRVTALMediaLibrary.openPicker(coverInput,{imagesOnly:true})});
-      saveButton.onclick=()=>save(id,r);modal.classList.add('open');
-    };load();
+    const base=id?store.posts.find(item=>Number(item.id)===Number(id)):null;
+    const record=await loadBlogEditorRecord(id,base,controller,loadId);
+    if(!record||loadId!==editorLoadId)return;
+
+    const modal=document.getElementById('modal');
+    const content=document.getElementById('mcontent');
+    const title=document.getElementById('mtitle');
+    const notice=document.getElementById('notice');
+    const saveButton=document.getElementById('saveBtn');
+    if(!modal||!content||!title||!saveButton)return;
+
+    title.textContent=id?'EDIT BLOG POST':'NEW BLOG POST';
+    if(notice)notice.className='notice';
+    content.innerHTML=blogPostEditorMarkup(record);
+    replaceBlogSortOrderControl();
+    initBodyEditor(record.body||'');
+    bindBlogEditorFields(record,id,saveButton);
+    modal.classList.add('open');
   }
+
   function payload(existingRelations = [], sortOrder = 0) {
     const relations = mergeRelations(existingRelations);
     return {
