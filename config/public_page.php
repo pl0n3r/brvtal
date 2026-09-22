@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/media.php';
 require_once __DIR__ . '/memory_relations.php';
 require_once __DIR__ . '/public_visibility.php';
+require_once __DIR__ . '/blog_html.php';
 
 function brvtal_public_media_variant(string $image, string $context): string
 {
@@ -148,7 +149,8 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
     } elseif ($type === 'blog') {
         $detail = brvtal_page_row($pdo, "SELECT body,published_at FROM blog_posts WHERE id=? LIMIT 1", [$id], true);
         $data['entity'] += $detail;
-        $data['entity']['description'] = $detail['body'] ?: $entity['description'];
+        $bodyResult = brvtal_blog_sanitize_html((string)($detail['body'] ?? ''));
+        $data['record']['body_html'] = $bodyResult['html'];
         $data['facts'] = array_filter(['PUBLISHED' => isset($detail['published_at']) ? date('d.m.Y', strtotime((string)$detail['published_at'])) : '']);
         $tags = brvtal_page_rows($pdo, "SELECT t.name AS title FROM blog_post_tags pt JOIN blog_tags t ON t.id=pt.tag_id WHERE pt.post_id=? ORDER BY t.name", [$id]);
         $data['facts']['TAGS'] = implode(' / ', array_column($tags, 'title'));
@@ -280,6 +282,13 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     }
     $body = nl2br($escape(trim((string)($entity['description'] ?? ''))));
     if ($body === '') $body = 'BRVTAL / RAVE TILL GRAVE';
+    $statementBody = '<p>' . $body . '</p>';
+    if ($routeTypeRaw === 'blog') {
+        $richBody = trim((string)($page['record']['body_html'] ?? ''));
+        if ($richBody !== '') {
+            $statementBody = '<div class="entity-rich-body">' . $richBody . '</div>';
+        }
+    }
     $title = $escape($seo['title']);
     $description = $escape($seo['description']);
     $entityTitle = $escape($entity['title']);
@@ -343,7 +352,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
       <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
     {$recordBand}
-    <section class="entity-statement"><div class="entity-section-label">{$statementLabel}</div><p>{$body}</p></section>
+    <section class="entity-statement">
+      <div class="entity-section-label">{$statementLabel}</div>
+      {$statementBody}
+    </section>
     {$degradedNotice}
     {$related}
   </main>

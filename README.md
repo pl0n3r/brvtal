@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #584 / PR #585.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #525 / PR #587.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#584 · Concept 05 foundation** | PR #585 · parent #583 |
-| Base exacta | ✅ ~~main validado~~ | `6e21a23c3418d2ba91483009aca79dddc3daf233` |
-| Versión | 🚧 **0.1.25** | cambio de producto/runtime público |
-| Producción | 🚧 pendiente de merge + observación | sin migración de datos |
+| Work line | 🚧 **#525 · rich Blog editor + safe HTML source mode** | PR #587 |
+| Base exacta | ✅ ~~main validado~~ | `67f56cc1b97bda9e321b25ee9b275a40b0e386c6` |
+| Versión | 🚧 **0.1.26** | cambio de producto/runtime Admin + Blog público |
+| Producción | 🚧 pendiente de merge + observación | sin migración de esquema en este slice |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+909** | **−45** | **+864** |
+| **11** | **+880** | **−103** | **+777** |
 
 ## Calidad y entrega
 
@@ -37,67 +37,69 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Reservation | Issue #584 · `work/issue-584` · UUID activo en PR |
+| Reservation | Issue #525 · `work/issue-525` · UUID `c875c468-977c-4382-a6cc-923bccf46442` |
 | PR integrity | **PR + snapshot exacto** contra `main` |
-| BRVTAL CI | 🚧 head actual: contratos, Chromium, MariaDB y real-stack pasan; README exacto se corrige en este commit |
-| Sonar / CodeRabbit | 🚧 Quality Gate Sonar pasa; quedan findings nuevos de estilo por clasificar/corregir; CodeRabbit sin threads bloqueantes registrados |
+| BRVTAL CI | 🚧 nuevo head en validación tras corregir coordinación, accesibilidad y browser regressions |
+| Sonar / CodeRabbit | 🚧 Quality Gate previo pasó; findings accionables de save rebinding y behavior tests corregidos en el head actual |
 | Exact-main | **CI del SHA exacto de main** después del squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- I["#584 reservado"] --> F["Concept 05 foundation"]
- F --> P["PR #585"]
+ R["#525 recuperado"] --> E["Rich editor + sanitizer"]
+ E --> T["Behavior tests"]
+ T --> P["PR #587"]
  P --> C["CI · Sonar · CodeRabbit"]
  C --> M["Squash merge"]
  M --> X["Exact-main validation"]
- X --> N["Siguiente slice #583"]
 ```
 
 ## Qué se hizo
 
-- Se añadió el root contract `data-concept="05"` para aislar la nueva identidad pública.
-- Se incorporaron tokens semánticos, frame/grid editorial y utilidades de textura física.
-- Se añadió motion GSAP reutilizable con reduced-motion y modo determinístico de prueba visual.
-- Se añadió dressing público Concept 05: navegación editorial desktop/mobile y numeración de módulos existentes.
-- Se añadió la sección Connected usando el grafo relacional real ya expuesto por BRVTAL, sin relaciones ficticias.
-- Se mantuvieron los datos existentes y no se introdujeron migraciones ni contenido falso.
-- Se añadieron contratos PHP específicos para foundation/dressing y el resto de la suite permanece verde.
+- Se reemplaza el Body plano del Blog por un editor visual con modo HTML/source, headings, énfasis, listas, links, citas, alineación, undo/redo y pegado como texto limpio.
+- La inserción de imágenes reutiliza Media Library y conserva rutas/alt compatibles con el renderer público.
+- Un sanitizador allowlist compartido protege mutaciones y render público frente a scripts, handlers, embeds, URLs peligrosas y estilos fuera del contrato.
+- La limpieza destructiva deja warnings visibles; un POST creado con warnings se rebindea al ID persistido para que el siguiente guardado sea PUT.
+- El renderer público conserva HTML semántico permitido dentro de `.entity-rich-body` con estilos responsive.
+- Se añadió cobertura PHP de seguridad/idempotencia y Playwright de round-trip Visual↔HTML, paste, Media Library, preview sanitizado y warning-aware save.
+- Se mantiene el Blog sin controles manuales de taxonomía y se preservan relaciones existentes cuando una fuente relacionada falla.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto de PR #585.
-- `config/public_home.php` — integración Concept 05, dressing y Connected.
-- `config/version.php` — versión 0.1.25.
-- `css/public-concept05-home.css` — composición/dressing público Concept 05.
-- `css/public-concept05-tokens.css` — tokens, grid, frame y texturas.
-- `js/public-concept05-connected.js` — hidratación de Connected con datos reales.
-- `js/public-concept05-motion.js` — motion/reduced-motion/visual-test.
-- `package.json` — versión 0.1.25.
-- `tests/public-concept05-dressing-contract.php` — contrato de dressing.
-- `tests/public-concept05-foundation-contract.php` — contrato de foundation.
+- `README.md` — snapshot exacto de PR #587.
+- `api/blog.php` — sanitización canónica y warnings en mutaciones.
+- `config/blog_html.php` — allowlist HTML compartida y segura.
+- `config/public_page.php` — proyección de rich Blog HTML en página pública.
+- `config/version.php` — versión 0.1.26.
+- `css/public-entity.css` — tipografía/layout del cuerpo editorial público.
+- `discadmin/blog.css` — UI del rich editor.
+- `discadmin/blog.js` — editor visual/source, preview, Media Library y save lifecycle.
+- `package.json` — versión 0.1.26.
+- `tests/blog-rich-editor-contract.php` — contratos de seguridad del HTML.
+- `tests/e2e/discadmin-blog.spec.mjs` — comportamiento real del editor.
 
 ## Validación
 
-- Base exacta: `6e21a23c3418d2ba91483009aca79dddc3daf233`.
-- PR #585: preflight, coordination, PHP/JS, MariaDB, Chromium, real-stack y WebKit TOTP pasaron en el head anterior; el único fallo canónico fue el snapshot README desactualizado.
-- Sonar Quality Gate pasó; no hay Security Hotspots nuevos.
-- Antes del merge se revalidará el head estable, findings accionables y estado actual de `main`.
+- Base exacta: `67f56cc1b97bda9e321b25ee9b275a40b0e386c6`.
+- Los gates de base/main quedaron verdes antes de recuperar #525.
+- La corrida anterior de PR confirmó database, real-stack y WebKit verdes; los fallos concretos de coordination, accessibility y el E2E de Blog fueron corregidos.
+- Sonar Quality Gate previo pasó con 0 Security Hotspots; el único finding de complejidad marcado FAILURE fue refactorizado.
+- No se hace merge hasta revalidar el head final, reviews y snapshot exacto.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#584](https://github.com/pl0n3r/brvtal/issues/584) / PR #585 · cerrar foundation Concept 05 y gates. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · siguiente slice visual, empezando por Hero/primera composición administrable. |
-| **LATER** | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#399](https://github.com/pl0n3r/brvtal/issues/399), [#422](https://github.com/pl0n3r/brvtal/issues/422) · archivo cultural público conectado. |
-| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo para #584. |
+| **NOW** | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525) / PR #587 · cerrar rich Blog editor v0.1.26. |
+| **NEXT** | 🚧 [#586](https://github.com/pl0n3r/brvtal/issues/586) · Concept 05 Hero authored 1440/390. |
+| **LATER** | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529). |
+| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo para #525. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Concept 05 foundation | 🚧 [#584](https://github.com/pl0n3r/brvtal/issues/584) |
-| **NEXT** | 🚧 fidelidad visual Concept 05 | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
-| **LATER** | 🚧 cultural archive + Home | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#399](https://github.com/pl0n3r/brvtal/issues/399), [#422](https://github.com/pl0n3r/brvtal/issues/422) |
+| **NOW** | 🚧 editorial productivity | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525) |
+| **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583), [#586](https://github.com/pl0n3r/brvtal/issues/586) |
+| **LATER** | 🚧 membership / drafts / preview | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |

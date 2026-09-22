@@ -39,6 +39,7 @@ const seedPost = {
 async function mockApi(page, options = {}) {
   const failedRelated = new Set(options.failedRelated || []);
   const emptyRelated = new Set(options.emptyRelated || []);
+  let mutationCount = 0;
   const relatedPayload = (type, data) => {
     if (failedRelated.has(type)) {
       return {
@@ -68,8 +69,30 @@ async function mockApi(page, options = {}) {
       return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: id ? seedPost : [seedPost] }) });
     }
     const body = req.postDataJSON?.() || JSON.parse(req.postData() || '{}');
-    await page.evaluate(({ method, body }) => { window.__blogMutation = { method, body }; }, { method: req.method(), body });
-    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { ...seedPost, ...body, id: id ? Number(id) : 10 } }) });
+    mutationCount += 1;
+    const mutation = { method: req.method(), body, url: req.url() };
+    await page.evaluate(current => {
+      window.__blogMutation = current;
+      window.__blogMutations = [...(window.__blogMutations || []), current];
+    }, mutation);
+
+    const warningCreate = Boolean(options.warningOnCreate)
+      && req.method() === 'POST'
+      && mutationCount === 1;
+    const data = {
+      ...seedPost,
+      ...body,
+      id: id ? Number(id) : 10,
+      body: warningCreate ? '<p>Server-cleaned body.</p>' : body.body
+    };
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        data,
+        warnings: warningCreate ? ['Unsupported <script> markup was removed.'] : []
+      })
+    });
   });
 }
 
@@ -111,7 +134,7 @@ test('new blog post uses Media Library and related content without manual taxono
   await page.locator('#blog_title').fill('Underground Signal');
   await expect(page.locator('#blog_slug')).toHaveValue('underground-signal');
   await page.locator('#blog_excerpt').fill('A new BRVTAL editorial signal.');
-  await page.locator('#blog_body').fill('Long-form editorial content.');
+  await page.locator('[data-blog-body-visual]').fill('Long-form editorial content.');
   await expect(page.locator('#blog_tags')).toHaveCount(0);
   await expect(page.getByText('TAXONOMY', { exact: true })).toHaveCount(0);
   await page.locator('[data-blog-related-type="artist"][data-blog-related-id="7"]').check();
@@ -178,4 +201,103 @@ test('successful empty related source remains an authoritative empty state', asy
   await expect(artists).toHaveAttribute('data-state', 'ready');
   await expect(artists).toContainText('No records available.');
   await expect(artists).not.toContainText('Unable to load');
+});
+
+
+test('rich Blog editor round-trips source safely and reports client cleanup', async ({ page }) => {
+  await loadHarness(page);
+  await page.locator('#blog-new').click();
+
+  const visual = page.locator('[data-blog-body-visual]');
+  await visual.evaluate(element => {
+    element.innerHTML = '<h2>Signal</h2><p>Body <strong>bold</strong>.</p>';
+    element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+  });
+
+  await page.locator('[data-blog-body-mode="source"]').click();
+  const source = page.locator('#blog_body');
+  await expect(source).toBeVisible();
+  await expect(source).toHaveValue(/<h2>Signal<\/h2>/);
+  await expect(source).toHaveValue(/<strong>bold<\/strong>/);
+
+  await source.fill('<div><h3>Archive</h3><p onclick="alert(1)">Safe<script>alert(2)</script></p></div>');
+  await page.locator('[data-blog-body-mode="visual"]').click();
+
+  await expect(visual.locator('h3')).toHaveText('Archive');
+  await expect(visual.locator('script')).toHaveCount(0);
+  await expect(visual.locator('[onclick]')).toHaveCount(0);
+  await expect(page.locator('[data-blog-body-warning]')).toBeVisible();
+  await expect(page.locator('[data-blog-body-warning]')).toContainText('UNSUPPORTED MARKUP DETECTED');
+
+  await page.locator('[data-blog-body-mode="source"]').click();
+  await expect(source).not.toHaveValue(/<script/i);
+  await expect(source).not.toHaveValue(/onclick=/i);
+  await expect(source).not.toHaveValue(/<div/i);
+});
+
+test('rich Blog paste stays plain text and Media Library inserts a canonical image', async ({ page }) => {
+  await loadHarness(page);
+  await page.locator('#blog-new').click();
+
+  const visual = page.locator('[data-blog-body-visual]');
+  await visual.focus();
+  await visual.evaluate(element => {
+    const clipboard = new DataTransfer();
+    clipboard.setData('text/plain', 'Plain <b>paste</b>');
+    element.dispatchEvent(new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: clipboard
+    }));
+  });
+
+  await expect(visual).toContainText('Plain <b>paste</b>');
+  await expect(visual.locator('b')).toHaveCount(0);
+
+  await page.locator('[data-blog-body-media]').click();
+  await page.getByRole('button', { name: /Editorial cover/i }).click();
+
+  const image = visual.locator('img');
+  await expect(image).toHaveCount(1);
+  await expect(image).toHaveAttribute('src', '/uploads/media/2026/09/editorial.jpg');
+  await expect(image).toHaveAttribute('alt', 'editorial');
+});
+
+test('rich Blog preview sanitizes unsafe source without executing it', async ({ page }) => {
+  await loadHarness(page);
+  await page.locator('#blog-new').click();
+  await page.locator('[data-blog-body-mode="source"]').click();
+
+  const source = page.locator('#blog_body');
+  await source.fill('<p>Preview<script>window.__unsafePreview=true</script><a href="javascript:alert(1)">link</a></p>');
+  await page.locator('[data-blog-body-preview]').click();
+
+  const frame = page.locator('[data-blog-body-preview-frame]');
+  await expect(frame).toBeVisible();
+  const srcdoc = await frame.getAttribute('srcdoc');
+  expect(srcdoc).not.toMatch(/<script/i);
+  expect(srcdoc).not.toMatch(/javascript:/i);
+  await expect(page.locator('[data-blog-body-warning]')).toBeVisible();
+  expect(await page.evaluate(() => window.__unsafePreview)).toBeUndefined();
+});
+
+test('warning-aware create save rebinds the open editor to PUT', async ({ page }) => {
+  await loadHarness(page, { warningOnCreate: true });
+  await page.locator('#blog-new').click();
+  await page.locator('#blog_title').fill('Sanitized Signal');
+  await page.locator('[data-blog-body-visual]').fill('Unsafe source cleaned by server.');
+
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__blogMutations?.length || 0)).toBe(1);
+  let mutations = await page.evaluate(() => window.__blogMutations);
+  expect(mutations[0].method).toBe('POST');
+  await expect(page.locator('[data-blog-body-warning]')).toContainText('SAVED WITH CLEANUP');
+  await expect(page.locator('#modal')).toHaveClass(/open/);
+
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__blogMutations?.length || 0)).toBe(2);
+  mutations = await page.evaluate(() => window.__blogMutations);
+  expect(mutations.map(item => item.method)).toEqual(['POST', 'PUT']);
+  expect(mutations[1].url).toContain('id=10');
+  await expect(page.locator('#modal')).not.toHaveClass(/open/);
 });
