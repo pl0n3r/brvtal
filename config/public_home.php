@@ -153,8 +153,33 @@ function brvtal_public_next_experience_tag(?array $event): string
     };
 }
 
+function brvtal_public_home_concept05_foundation(string $html): string
+{
+    if (!str_contains($html, 'css/public-concept05-tokens.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-tokens.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-motion.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-motion.js\" defer></script>\n</body>",
+            $html
+        );
+    }
+    if (preg_match('~<body([^>]*)>~', $html, $m) === 1 && !str_contains($m[1], 'data-concept=')) {
+        $html = preg_replace('~<body([^>]*)>~', '<body$1 data-concept="05">', $html, 1) ?? $html;
+    }
+
+    return $html;
+}
+
 function brvtal_public_home_identity(string $html): string
 {
+    $html = brvtal_public_home_concept05_foundation($html);
+
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(
             '</head>',
