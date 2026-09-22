@@ -13,6 +13,7 @@ function dressing_assert(bool $condition, string $message): void
 
 $html = (string)file_get_contents(__DIR__ . '/../index.html');
 $rendered = brvtal_public_home_concept05_dressing($html);
+$identity = brvtal_public_home_identity($html);
 
 dressing_assert(
     str_contains($rendered, 'css/public-concept05-home.css'),
@@ -48,24 +49,24 @@ dressing_assert(
 );
 
 dressing_assert(
-    str_contains($rendered, 'css/public-concept05-hero.css'),
+    str_contains($identity, 'css/public-concept05-hero.css'),
     'Home identity must load the authored Concept 05 Hero stylesheet'
 );
 dressing_assert(
-    str_contains($rendered, 'js/public-concept05-hero.js'),
+    str_contains($identity, 'js/public-concept05-hero.js'),
     'Home identity must load the Concept 05 Hero data projection runtime'
 );
 dressing_assert(
-    str_contains($rendered, 'data-c5-hero-documentary'),
+    str_contains($identity, 'data-c5-hero-documentary'),
     'Concept 05 Hero must expose a documentary media surface'
 );
 dressing_assert(
-    str_contains($rendered, 'data-c5-hero-description'),
+    str_contains($identity, 'data-c5-hero-description'),
     'Concept 05 Hero statement must expose managed site-description projection'
 );
 dressing_assert(
-    str_contains($rendered, 'class="c5-hero-explore magnetic"')
-        && str_contains($rendered, 'href="#genesis"'),
+    str_contains($identity, 'class="c5-hero-explore magnetic"')
+        && str_contains($identity, 'href="#genesis"'),
     'Concept 05 Hero must keep a canonical Explore CTA into the public journey'
 );
 dressing_assert(
@@ -79,6 +80,7 @@ dressing_assert(
 );
 
 $idempotent = brvtal_public_home_concept05_dressing($rendered);
+$identityIdempotent = brvtal_public_home_identity($identity);
 dressing_assert(
     substr_count($idempotent, 'css/public-concept05-home.css') === 1,
     'stylesheet link must not duplicate on repeated calls'
@@ -92,15 +94,15 @@ dressing_assert(
     'bottom nav must not duplicate on repeated calls'
 );
 dressing_assert(
-    substr_count($idempotent, 'css/public-concept05-hero.css') === 1,
+    substr_count($identityIdempotent, 'css/public-concept05-hero.css') === 1,
     'Concept 05 Hero stylesheet must not duplicate on repeated calls'
 );
 dressing_assert(
-    substr_count($idempotent, 'js/public-concept05-hero.js') === 1,
+    substr_count($identityIdempotent, 'js/public-concept05-hero.js') === 1,
     'Concept 05 Hero runtime must not duplicate on repeated calls'
 );
 dressing_assert(
-    substr_count($idempotent, 'data-c5-hero-documentary') === 1,
+    substr_count($identityIdempotent, 'data-c5-hero-documentary') === 1,
     'Concept 05 documentary surface must not duplicate on repeated calls'
 );
 dressing_assert(
