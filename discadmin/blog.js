@@ -143,6 +143,136 @@ window.BRVTALBlog = (() => {
     field.replaceWith(helper);
   }
 
+
+  const BLOG_BODY_ALLOWED = new Set(['P','BR','H2','H3','H4','STRONG','B','EM','I','UL','OL','LI','A','BLOCKQUOTE','IMG']);
+
+  function clientSafeBlogHtml(html='') {
+    const template=document.createElement('template');
+    template.innerHTML=String(html||'');
+    const dangerous=new Set(['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','SVG','MATH']);
+    [...template.content.querySelectorAll('*')].forEach(node=>{
+      if(dangerous.has(node.tagName)){node.remove();return}
+      if(!BLOG_BODY_ALLOWED.has(node.tagName)){node.replaceWith(...node.childNodes);return}
+      [...node.attributes].forEach(attr=>{
+        const name=attr.name.toLowerCase();
+        const allowed=node.tagName==='A'
+          ? ['href','title','target','rel']
+          : node.tagName==='IMG'
+            ? ['src','alt','title','width','height']
+            : ['P','H2','H3','H4'].includes(node.tagName)
+              ? ['style']
+              : [];
+        if(name.startsWith('on')||!allowed.includes(name)){node.removeAttribute(attr.name);return}
+        if(name==='style'){
+          const match=String(attr.value||'').match(/(?:^|;)\s*text-align\s*:\s*(left|center|right)\s*(?:;|$)/i);
+          if(match)node.setAttribute('style','text-align:'+match[1].toLowerCase());else node.removeAttribute('style');
+        }
+        if((node.tagName==='A'&&name==='href')||(node.tagName==='IMG'&&name==='src')){
+          const value=String(attr.value||'').trim();
+          const safe=/^(?:https?:\/\/|\/[^\/]|#|mailto:)/i.test(value);
+          if(!safe)node.removeAttribute(name);
+        }
+      });
+      if(node.tagName==='A'&&String(node.getAttribute('target')).toLowerCase()==='_blank')node.setAttribute('rel','noopener noreferrer');
+    });
+    return template.innerHTML;
+  }
+
+  function bodyEditorMarkup(body='') {
+    return `<div class="field full blog-body-field">
+      <div class="blog-body-label"><label id="blog-body-label">Body</label><span class="helper">Visual editor + safe HTML source. Unsupported markup is reported on save.</span></div>
+      <div class="blog-body-editor" data-blog-body-editor data-mode="visual">
+        <div class="blog-body-toolbar" role="toolbar" aria-label="Blog body formatting">
+          <div class="blog-body-mode" aria-label="Editor mode">
+            <button type="button" class="active" data-blog-body-mode="visual" aria-pressed="true">VISUAL</button>
+            <button type="button" data-blog-body-mode="source" aria-pressed="false">HTML</button>
+            <button type="button" data-blog-body-preview aria-pressed="false">PREVIEW</button>
+          </div>
+          <div class="blog-body-formatting">
+            <select data-blog-body-block aria-label="Text block">
+              <option value="p">PARAGRAPH</option><option value="h2">H2</option><option value="h3">H3</option><option value="h4">H4</option><option value="blockquote">QUOTE</option>
+            </select>
+            <button type="button" data-blog-body-command="bold" aria-label="Bold"><b>B</b></button>
+            <button type="button" data-blog-body-command="italic" aria-label="Italic"><i>I</i></button>
+            <button type="button" data-blog-body-command="insertUnorderedList" aria-label="Bulleted list">• LIST</button>
+            <button type="button" data-blog-body-command="insertOrderedList" aria-label="Numbered list">1. LIST</button>
+            <button type="button" data-blog-body-link aria-label="Insert link">LINK</button>
+            <button type="button" data-blog-body-command="justifyLeft" aria-label="Align left">L</button>
+            <button type="button" data-blog-body-command="justifyCenter" aria-label="Align center">C</button>
+            <button type="button" data-blog-body-command="justifyRight" aria-label="Align right">R</button>
+            <button type="button" data-blog-body-command="undo" aria-label="Undo">UNDO</button>
+            <button type="button" data-blog-body-command="redo" aria-label="Redo">REDO</button>
+            <button type="button" data-blog-body-media aria-label="Insert image from Media Library">MEDIA</button>
+          </div>
+        </div>
+        <div class="blog-body-visual" data-blog-body-visual contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="blog-body-label"></div>
+        <textarea id="blog_body" class="blog-body-source" aria-label="Blog body HTML source" spellcheck="false" hidden>${esc(body)}</textarea>
+        <div class="blog-body-media-picker-source" hidden><input id="blog_body_media_path" aria-hidden="true" tabindex="-1"></div>
+        <iframe class="blog-body-preview" data-blog-body-preview-frame title="Rendered blog body preview" sandbox hidden></iframe>
+        <div class="blog-body-warning" data-blog-body-warning role="status" aria-live="polite" hidden></div>
+      </div>
+    </div>`;
+  }
+
+  function currentBodyEditor(){return document.querySelector('[data-blog-body-editor]')}
+  function syncBodyVisualToSource(editor=currentBodyEditor()){if(!editor)return'';const visual=editor.querySelector('[data-blog-body-visual]'),source=editor.querySelector('#blog_body');if(visual&&source)source.value=visual.innerHTML.trim();return source?.value||''}
+  function syncBodySourceToVisual(editor=currentBodyEditor()){if(!editor)return'';const source=editor.querySelector('#blog_body'),visual=editor.querySelector('[data-blog-body-visual]'),clean=clientSafeBlogHtml(source?.value||'');if(visual)visual.innerHTML=clean;if(source)source.value=clean;return clean}
+  function blogBodyValue(){const editor=currentBodyEditor();if(!editor)return value('blog_body');if(editor.dataset.mode==='visual')syncBodyVisualToSource(editor);return String(editor.querySelector('#blog_body')?.value||'').trim()}
+
+  function setBodyMode(editor,mode){
+    if(!editor)return;
+    const visual=editor.querySelector('[data-blog-body-visual]'),source=editor.querySelector('#blog_body'),preview=editor.querySelector('[data-blog-body-preview-frame]');
+    if(mode==='source')syncBodyVisualToSource(editor);
+    if(mode==='visual')syncBodySourceToVisual(editor);
+    editor.dataset.mode=mode;
+    if(visual)visual.hidden=mode!=='visual';
+    if(source)source.hidden=mode!=='source';
+    if(preview)preview.hidden=true;
+    editor.querySelectorAll('[data-blog-body-mode]').forEach(button=>{const active=button.dataset.blogBodyMode===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+    editor.querySelector('[data-blog-body-preview]')?.setAttribute('aria-pressed','false');
+  }
+
+  function renderBodyPreview(editor=currentBodyEditor()){
+    if(!editor)return;
+    if(editor.dataset.mode==='visual')syncBodyVisualToSource(editor);
+    const source=editor.querySelector('#blog_body'),preview=editor.querySelector('[data-blog-body-preview-frame]');
+    if(!preview)return;
+    const clean=clientSafeBlogHtml(source?.value||'');
+    preview.srcdoc=`<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;padding:24px;background:#090a0b;color:#f4f4f0;font:17px/1.65 Arial,sans-serif}h2,h3,h4{line-height:1.05}a{color:#9dff45}img{max-width:100%;height:auto}blockquote{margin-left:0;padding-left:18px;border-left:2px solid #9dff45;color:#c8c8c2}</style></head><body>${clean||'<p>Nothing to preview yet.</p>'}</body></html>`;
+    preview.hidden=false;
+    editor.querySelector('[data-blog-body-preview]')?.setAttribute('aria-pressed','true');
+  }
+
+  function initBodyEditor(body=''){
+    const editor=currentBodyEditor();if(!editor)return;
+    const source=editor.querySelector('#blog_body'),visual=editor.querySelector('[data-blog-body-visual]');
+    if(source)source.value=String(body||'');
+    syncBodySourceToVisual(editor);
+    visual?.addEventListener('input',()=>syncBodyVisualToSource(editor));
+    visual?.addEventListener('paste',event=>{event.preventDefault();const text=event.clipboardData?.getData('text/plain')||'';document.execCommand('insertText',false,text);syncBodyVisualToSource(editor)});
+    editor.querySelectorAll('[data-blog-body-mode]').forEach(button=>button.addEventListener('click',()=>setBodyMode(editor,button.dataset.blogBodyMode)));
+    editor.querySelector('[data-blog-body-preview]')?.addEventListener('click',()=>renderBodyPreview(editor));
+    editor.querySelectorAll('[data-blog-body-command]').forEach(button=>button.addEventListener('click',()=>{setBodyMode(editor,'visual');visual?.focus();document.execCommand(button.dataset.blogBodyCommand,false,null);syncBodyVisualToSource(editor)}));
+    editor.querySelector('[data-blog-body-block]')?.addEventListener('change',event=>{setBodyMode(editor,'visual');visual?.focus();document.execCommand('formatBlock',false,event.target.value);syncBodyVisualToSource(editor)});
+    editor.querySelector('[data-blog-body-link]')?.addEventListener('click',()=>{setBodyMode(editor,'visual');visual?.focus();const href=window.prompt?.('Link URL','https://')||'';if(!href)return;document.execCommand('createLink',false,href);syncBodyVisualToSource(editor)});
+    const mediaInput=editor.querySelector('#blog_body_media_path');
+    editor.querySelector('[data-blog-body-media]')?.addEventListener('click',()=>{if(mediaInput&&window.BRVTALMediaLibrary?.openPicker)window.BRVTALMediaLibrary.openPicker(mediaInput,{imagesOnly:true})});
+    mediaInput?.addEventListener('change',()=>{
+      const src=normalizeMediaPath(mediaInput.value);if(!src)return;
+      setBodyMode(editor,'visual');visual?.focus();document.execCommand('insertImage',false,src);
+      const images=[...(visual?.querySelectorAll('img')||[])],inserted=images[images.length-1];
+      if(inserted&&!inserted.getAttribute('alt')){const filename=src.split('/').pop()?.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ').trim()||'BRVTAL editorial image';inserted.setAttribute('alt',filename)}
+      syncBodyVisualToSource(editor);mediaInput.value='';
+    });
+  }
+
+  function showBodyWarnings(warnings,cleanBody=''){
+    const editor=currentBodyEditor();if(!editor)return;
+    const list=Array.isArray(warnings)?warnings.filter(Boolean):[],warning=editor.querySelector('[data-blog-body-warning]');
+    if(cleanBody!==''){const source=editor.querySelector('#blog_body');if(source)source.value=String(cleanBody);syncBodySourceToVisual(editor)}
+    if(warning){warning.hidden=!list.length;warning.textContent=list.length?'SAVED WITH CLEANUP · '+list.join(' · '):''}
+  }
+
   function openEditor(id=null){
     const loadId=++editorLoadId;
     editorController?.abort();
@@ -153,8 +283,9 @@ window.BRVTALBlog = (() => {
       if(loadId!==editorLoadId)return;
       const modal=document.getElementById('modal'),content=document.getElementById('mcontent'),title=document.getElementById('mtitle'),notice=document.getElementById('notice'),saveButton=document.getElementById('saveBtn');if(!modal||!content||!title||!saveButton)return;
       title.textContent=id?'EDIT BLOG POST':'NEW BLOG POST';if(notice)notice.className='notice';
-      content.innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="grid2"><div class="field"><label for="blog_title">Title *</label><input id="blog_title" value="${esc(r.title||'')}"></div><div class="field"><label for="blog_slug">Slug *</label><input id="blog_slug" value="${esc(r.slug||'')}"></div><div class="field full"><label for="blog_excerpt">Excerpt</label><textarea id="blog_excerpt">${esc(r.excerpt||'')}</textarea></div><div class="field full"><label for="blog_body">Body</label><textarea id="blog_body" style="min-height:300px">${esc(r.body||'')}</textarea></div><div class="field full"><label for="blog_cover_image">Cover image</label><div class="blog-editor-cover thumbcell">${r.cover_image?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.cover_image))}" alt="${esc(r.title||'Cover')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(r.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label for="blog_status_field">Status</label><select id="blog_status_field"><option value="draft" ${r.status==='draft'||!r.status?'selected':''}>Draft</option><option value="published" ${r.status==='published'?'selected':''}>Published</option><option value="archived" ${r.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label for="blog_sort_order">Sort order</label><input id="blog_sort_order" type="number" value="${Number(r.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(r.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(r)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label for="blog_seo_title">SEO title</label><input id="blog_seo_title" value="${esc(r.seo_title||'')}"></div><div class="field"><label for="blog_seo_description">SEO description</label><textarea id="blog_seo_description">${esc(r.seo_description||'')}</textarea></div></div></div></div>`;
+      content.innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="grid2"><div class="field"><label for="blog_title">Title *</label><input id="blog_title" value="${esc(r.title||'')}"></div><div class="field"><label for="blog_slug">Slug *</label><input id="blog_slug" value="${esc(r.slug||'')}"></div><div class="field full"><label for="blog_excerpt">Excerpt</label><textarea id="blog_excerpt">${esc(r.excerpt||'')}</textarea></div>${bodyEditorMarkup(r.body||'')}<div class="field full"><label for="blog_cover_image">Cover image</label><div class="blog-editor-cover thumbcell">${r.cover_image?`<img class="thumb lg" src="${esc(normalizeMediaPath(r.cover_image))}" alt="${esc(r.title||'Cover')}">`:'<div class="thumb lg">NO IMAGE</div>'}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(r.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label for="blog_status_field">Status</label><select id="blog_status_field"><option value="draft" ${r.status==='draft'||!r.status?'selected':''}>Draft</option><option value="published" ${r.status==='published'?'selected':''}>Published</option><option value="archived" ${r.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label for="blog_sort_order">Sort order</label><input id="blog_sort_order" type="number" value="${Number(r.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(r.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(r)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label for="blog_seo_title">SEO title</label><input id="blog_seo_title" value="${esc(r.seo_title||'')}"></div><div class="field"><label for="blog_seo_description">SEO description</label><textarea id="blog_seo_description">${esc(r.seo_description||'')}</textarea></div></div></div></div>`;
       replaceBlogSortOrderControl();
+      initBodyEditor(r.body||'');
       const titleInput=input('blog_title'),slugInput=input('blog_slug');let slugTouched=Boolean(r.slug);slugInput?.addEventListener('input',()=>{slugTouched=true});titleInput?.addEventListener('input',()=>{if(!slugTouched&&slugInput)slugInput.value=slugify(titleInput.value)});
       document.getElementById('blog-cover-picker')?.addEventListener('click',()=>{const coverInput=input('blog_cover_image');if(coverInput&&window.BRVTALMediaLibrary?.openPicker)window.BRVTALMediaLibrary.openPicker(coverInput,{imagesOnly:true})});
       saveButton.onclick=()=>save(id,r);modal.classList.add('open');
@@ -166,7 +297,7 @@ window.BRVTALBlog = (() => {
       title:value('blog_title'),
       slug:value('blog_slug'),
       excerpt:value('blog_excerpt'),
-      body:value('blog_body'),
+      body:blogBodyValue(),
       cover_image:normalizeMediaPath(value('blog_cover_image')),
       seo_title:value('blog_seo_title'),
       seo_description:value('blog_seo_description'),
@@ -199,11 +330,20 @@ window.BRVTALBlog = (() => {
       if (!data.title) throw new Error('TITLE_REQUIRED');
       if (!data.slug) data.slug = slugify(data.title);
 
-      await request(id ? '?id=' + encodeURIComponent(id) : '', {
+      const result = await request(id ? '?id=' + encodeURIComponent(id) : '', {
         method:id ? 'PUT' : 'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(data)
       });
+
+      const warnings=Array.isArray(result?.warnings)?result.warnings.filter(Boolean):[];
+      if(warnings.length){
+        showBodyWarnings(warnings,result?.data?.body||data.body);
+        await refresh();
+        setStatus('Post saved with body cleanup warnings. Review the editor before leaving.','err');
+        window.BRVTALMediaLibrary?.notify?.('warning','Post saved after unsupported body markup was removed.',{timeout:6200});
+        return;
+      }
 
       if (typeof closeModal === 'function') closeModal(true);
       await refresh();

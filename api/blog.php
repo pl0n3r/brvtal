@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/indexnow.php';
+require_once __DIR__ . '/../config/blog_html.php';
 require_once __DIR__ . '/blog-relations.php';
 
 brvtal_admin_require();
@@ -97,11 +98,14 @@ function brvtal_blog_payload(array $input): array
         ];
     }
 
+    $bodyResult = brvtal_blog_sanitize_html((string)($input['body'] ?? ''));
+
     return [
         'title' => mb_substr($title, 0, 220),
         'slug' => mb_substr($slug, 0, 190),
         'excerpt' => mb_substr(trim((string)($input['excerpt'] ?? '')), 0, 700),
-        'body' => trim((string)($input['body'] ?? '')),
+        'body' => $bodyResult['html'],
+        'body_warnings' => $bodyResult['warnings'],
         'cover_image' => brvtal_blog_image($input['cover_image'] ?? ''),
         'seo_title' => mb_substr(trim((string)($input['seo_title'] ?? '')), 0, 190),
         'seo_description' => mb_substr(trim((string)($input['seo_description'] ?? '')), 0, 320),
@@ -263,7 +267,11 @@ try {
     }
 
     brvtalIndexNowNotifyChange($pdo, 'blog', $before, $after);
-    brvtal_blog_json(['ok'=>true,'data'=>$after], $method==='POST' ? 201 : 200);
+    brvtal_blog_json([
+        'ok'=>true,
+        'data'=>$after,
+        'warnings'=>$data['body_warnings'],
+    ], $method==='POST' ? 201 : 200);
 } catch (InvalidArgumentException $e) {
     brvtal_blog_json(['ok'=>false,'error'=>$e->getMessage()],422);
 } catch (PDOException $e) {
