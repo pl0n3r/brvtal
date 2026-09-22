@@ -7,18 +7,25 @@
  */
 
 [data-concept="05"]{
-  /* Structural colors */
-  --c5-deep-black:#050505;
-  --c5-soft-black:#0a0a0a;
-  --c5-surface:#0d0d0d;
-  --c5-paper-dirty:#e9e5da;
-  --c5-paper-muted:#c9c4b6;
-  --c5-signal-red:#d31822;
-  --c5-signal-red-deep:#9e0d12;
-  --c5-signal-green:#3dff7a;
+  /*
+   * Structural colors — aliased to the existing administrable Theme
+   * Studio palette (#351: --bg/--fg/--muted/--red/--acid/--line/
+   * --theme-surface, set live by js/public-theme-runtime.js from
+   * DISCADMIN). Concept 05 introduces no parallel, non-administrable
+   * color system: an admin changing brand colors in Theme Studio
+   * already retints every Concept 05 primitive.
+   */
+  --c5-deep-black:var(--bg,#050505);
+  --c5-soft-black:var(--theme-surface,#0a0a0a);
+  --c5-surface:var(--theme-surface,#0d0d0d);
+  --c5-paper-dirty:var(--fg,#e9e5da);
+  --c5-paper-muted:var(--muted,#c9c4b6);
+  --c5-signal-red:var(--red,#d31822);
+  --c5-signal-red-deep:var(--red,#9e0d12);
+  --c5-signal-green:var(--acid,var(--signal,#3dff7a));
 
   /* Structural rules / spacing */
-  --c5-rule-color:rgba(233,229,218,.16);
+  --c5-rule-color:var(--line,rgba(233,229,218,.16));
   --c5-rule-thickness:1px;
   --c5-gutter-outer:clamp(16px,4vw,48px);
   --c5-gutter-module:clamp(10px,2vw,24px);
@@ -139,3 +146,6 @@ html[data-theme-glitch="0"] [data-concept="05"] .c5-registration{
   animation:none!important;
   opacity:0!important;
 }
+html[data-theme-scanlines="0"] [data-concept="05"] .c5-tx-scanline{display:none!important}
+html[data-theme-grain="0"] [data-concept="05"] .c5-tx-grain,
+html[data-theme-grain="0"] [data-concept="05"] .c5-tx-distress{display:none!important}

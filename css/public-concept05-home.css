@@ -164,3 +164,38 @@ body[data-concept="05"]{
 @media(prefers-reduced-motion:reduce){
   [data-concept="05"] .c5-header-nav a::after{transition:none}
 }
+
+/* Respects the existing administrable Theme Studio grain control (#351). */
+html[data-theme-grain="0"] [data-concept="05"] .genesis::before,
+html[data-theme-grain="0"] [data-concept="05"] .transmissions::before{
+  display:none!important;
+}
+
+/* Hover/focus: registration offset + CTA arrow displacement (#583 §9). */
+@media(hover:hover) and (pointer:fine){
+  [data-concept="05"] .events .event-ticket,
+  [data-concept="05"] .experience-actions .enter,
+  [data-concept="05"] .experience-actions .ticket-cta{
+    transition:transform .18s steps(2),text-shadow .18s steps(2);
+  }
+  [data-concept="05"] .events .event-ticket:hover,
+  [data-concept="05"] .experience-actions .enter:hover,
+  [data-concept="05"] .experience-actions .ticket-cta:hover{
+    transform:translate(1px,-1px);
+    text-shadow:2px 0 rgba(255,255,255,.35),-2px 0 var(--c5-signal-green);
+  }
+  [data-concept="05"] .events .event-ticket:hover span,
+  [data-concept="05"] .experience-actions .enter:hover span{
+    transform:translateX(3px);
+  }
+  [data-concept="05"] .events .event-ticket span,
+  [data-concept="05"] .experience-actions .enter span{
+    display:inline-block;
+    transition:transform .18s ease;
+  }
+}
+html[data-theme-glitch="0"] [data-concept="05"] .events .event-ticket:hover,
+html[data-theme-glitch="0"] [data-concept="05"] .experience-actions .enter:hover,
+html[data-theme-glitch="0"] [data-concept="05"] .experience-actions .ticket-cta:hover{
+  text-shadow:none;
+}
