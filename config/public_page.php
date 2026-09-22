@@ -352,7 +352,10 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
       <div class="entity-copy"><div class="entity-kicker">BRVTAL / {$kindLabel} / {$entityId}</div><h1 data-text="{$entityTitle}">{$entityTitle}</h1><div class="entity-facts">{$facts}</div><div class="entity-actions">{$links}</div></div>
     </article>
     {$recordBand}
-    <section class="entity-statement">\n      <div class="entity-section-label">{$statementLabel}</div>{$statementBody}\n    </section>
+    <section class="entity-statement">
+      <div class="entity-section-label">{$statementLabel}</div>
+      {$statementBody}
+    </section>
     {$degradedNotice}
     {$related}
   </main>
