@@ -212,7 +212,7 @@ window.BRVTALBlog = (() => {
 
   function bodyEditorMarkup(body='') {
     return `<div class="field full blog-body-field">
-      <div class="blog-body-label"><label id="blog-body-label" for="blog_body">Body</label><span class="helper">Visual editor + safe HTML source. Unsupported markup is reported on save.</span></div>
+      <div class="blog-body-label"><label for="blog_body" id="blog-body-label">Body</label><span class="helper">Visual editor + safe HTML source. Unsupported markup is reported on save.</span></div>
       <div class="blog-body-editor" data-blog-body-editor data-mode="visual">
         <div class="blog-body-toolbar" role="toolbar" aria-label="Blog body formatting">
           <div class="blog-body-mode" aria-label="Editor mode">
