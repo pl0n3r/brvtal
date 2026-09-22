@@ -254,6 +254,11 @@ test('Concept 05 documentary frame stays hidden when managed media fails to load
 
 test('Concept 05 visual-test mode freezes Hero entrance motion deterministically', async ({ page }) => {
   await page.setViewportSize({ width:1440, height:900 });
+  await page.route('https://example.test/night.jpg', route => route.fulfill({
+    status:200,
+    contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>'
+  }));
   await page.setContent(fixture);
   await page.evaluate(data => {
     document.documentElement.classList.add('c5-visual-test');
