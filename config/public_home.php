@@ -306,6 +306,21 @@ function brvtal_public_home_identity(string $html): string
 {
     $html = brvtal_public_home_concept05_dressing($html);
 
+    if (!str_contains($html, 'css/public-concept05-hero.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-hero.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-hero.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-hero.js\" defer></script>\n</body>",
+            $html
+        );
+    }
+
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(
             '</head>',
@@ -326,12 +341,28 @@ function brvtal_public_home_identity(string $html): string
     );
 
     $heroSub = '<div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>';
-    if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration"')) {
-        $html = str_replace(
-            $heroSub,
-            $heroSub . '<div class="hero-declaration"><span class="mono">BRVTAL / CULTURAL SIGNAL</span><strong>EVENTS / SOUND / ARTISTS / ARCHIVE</strong><p>BUILT IN PEREIRA. CONNECTED THROUGH UNDERGROUND ELECTRONIC CULTURE.</p></div>',
-            $html
-        );
+    if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration')) {
+        $heroStatement = '<div class="hero-declaration c5-hero-statement">'
+            . '<span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
+            . '<strong data-site-tagline>RAVE TILL GRAVE</strong>'
+            . '<p data-c5-hero-description>UNDERGROUND ELECTRONIC CULTURE FROM PEREIRA.</p>'
+            . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">'
+            . 'EXPLORE <span>↘</span></a>'
+            . '</div>';
+        $html = str_replace($heroSub, $heroSub . $heroStatement, $html);
+    }
+
+    $heroLogoWrap = '<div class="hero-logo-wrap">';
+    if (
+        str_contains($html, $heroLogoWrap)
+        && !str_contains($html, 'data-c5-hero-documentary')
+    ) {
+        $documentary = '<figure class="c5-hero-documentary" data-c5-hero-documentary hidden>'
+            . '<img data-c5-hero-documentary-image src="" alt="" decoding="async" fetchpriority="low">'
+            . '<figcaption><span>DOCUMENT / MEDIA LIBRARY</span>'
+            . '<span data-c5-hero-documentary-label>BRVTAL ARCHIVE</span></figcaption>'
+            . '</figure>';
+        $html = str_replace($heroLogoWrap, $documentary . $heroLogoWrap, $html);
     }
 
     return $html;
