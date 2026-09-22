@@ -75,11 +75,19 @@
     const documentary = documentaryFrom(data);
     if (!documentary) return false;
 
-    image.src = documentary.src;
     image.alt = documentary.alt || 'BRVTAL archive';
     const label = figure.querySelector('[data-c5-hero-documentary-label]');
     if (label) label.textContent = documentary.label || 'BRVTAL ARCHIVE';
-    figure.hidden = false;
+
+    figure.hidden = true;
+    image.onload = () => {
+      figure.hidden = false;
+    };
+    image.onerror = () => {
+      figure.hidden = true;
+      image.removeAttribute('src');
+    };
+    image.src = documentary.src;
     return true;
   }
 
