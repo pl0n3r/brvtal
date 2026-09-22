@@ -39,6 +39,10 @@ dressing_assert(
     'dressing must inject the real 07 / CONNECTED section'
 );
 dressing_assert(
+    str_contains($rendered, 'data-index="07"'),
+    'Connected must use the canonical Concept 05 section index 07'
+);
+dressing_assert(
     str_contains($rendered, 'js/public-concept05-connected.js'),
     'dressing must load the Connected data-fill script'
 );
