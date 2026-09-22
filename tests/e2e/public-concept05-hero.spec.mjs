@@ -201,6 +201,57 @@ test('Concept 05 mobile Hero is an authored 390 composition with stacked identit
   await expect(page.locator('.c5-bottom-nav')).toBeVisible();
 });
 
+test('Concept 05 mobile Hero grows with managed copy instead of clipping the CTA', async ({ page }) => {
+  const longPayload = structuredClone(payload);
+  longPayload.payload.data.settings.site.description =
+    'Independent electronic culture from Pereira built through nights, sound, artists, archives and long-form cultural documentation that must remain readable at enlarged text sizes.';
+
+  await page.setViewportSize({ width:390, height:844 });
+  await page.route('https://example.test/night.jpg', route => route.fulfill({
+    status:200,
+    contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>'
+  }));
+  await page.setContent(fixture);
+  await page.evaluate(data => {
+    document.documentElement.style.fontSize = '20px';
+    window.BRVTALPublicDataPromise = Promise.resolve(data);
+    window.BRVTALRuntimeReady = Promise.resolve({ mode:'test' });
+  }, longPayload);
+  await page.addScriptTag({ content: runtime });
+
+  await expect(page.locator('.c5-hero-explore')).toBeVisible();
+  const geometry = await page.evaluate(() => {
+    const hero = document.querySelector('.home-phase-a-hero').getBoundingClientRect();
+    const statement = document.querySelector('.hero-declaration').getBoundingClientRect();
+    const cta = document.querySelector('.c5-hero-explore').getBoundingClientRect();
+    return {
+      heroBottom:hero.bottom,
+      statementBottom:statement.bottom,
+      ctaBottom:cta.bottom,
+      scrollWidth:document.documentElement.scrollWidth,
+      viewport:document.documentElement.clientWidth,
+    };
+  });
+  expect(geometry.statementBottom).toBeLessThanOrEqual(geometry.heroBottom);
+  expect(geometry.ctaBottom).toBeLessThanOrEqual(geometry.heroBottom);
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewport);
+});
+
+test('Concept 05 documentary frame stays hidden when managed media fails to load', async ({ page }) => {
+  await page.setViewportSize({ width:1440, height:900 });
+  await page.route('https://example.test/night.jpg', route => route.fulfill({ status:404, body:'missing' }));
+  await page.setContent(fixture);
+  await page.evaluate(data => {
+    window.BRVTALPublicDataPromise = Promise.resolve(data);
+    window.BRVTALRuntimeReady = Promise.resolve({ mode:'test' });
+  }, payload);
+  await page.addScriptTag({ content: runtime });
+
+  await expect(page.locator('[data-c5-hero-documentary]')).toBeHidden();
+  await expect(page.locator('[data-c5-hero-documentary-image]')).not.toHaveAttribute('src');
+});
+
 test('Concept 05 visual-test mode freezes Hero entrance motion deterministically', async ({ page }) => {
   await page.setViewportSize({ width:1440, height:900 });
   await page.setContent(fixture);
