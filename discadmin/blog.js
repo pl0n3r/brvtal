@@ -145,42 +145,74 @@ window.BRVTALBlog = (() => {
 
 
   const BLOG_BODY_ALLOWED = new Set(['P','BR','H2','H3','H4','STRONG','B','EM','I','UL','OL','LI','A','BLOCKQUOTE','IMG']);
+  const BLOG_BODY_DANGEROUS = new Set(['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','SVG','MATH']);
+  const BLOG_BODY_STYLE_TAGS = new Set(['P','H2','H3','H4']);
+
+  function blogBodyAllowedAttributes(tagName){
+    if(tagName==='A')return ['href','title','target','rel'];
+    if(tagName==='IMG')return ['src','alt','title','width','height'];
+    if(BLOG_BODY_STYLE_TAGS.has(tagName))return ['style'];
+    return [];
+  }
+
+  function cleanBlogBodyStyle(value){
+    const match=String(value||'').match(/(?:^|;)\s*text-align\s*:\s*(left|center|right)\s*(?:;|$)/i);
+    return match?'text-align:'+match[1].toLowerCase():'';
+  }
+
+  function isSafeBlogBodyUrl(value,image=false){
+    const url=String(value||'').trim();
+    if(/^https?:\/\//i.test(url))return true;
+    if(/^\/[^\/]/.test(url))return true;
+    if(!image&&(url.startsWith('#')||/^mailto:/i.test(url)))return true;
+    return false;
+  }
+
+  function sanitizeBlogBodyAttribute(node,attr){
+    const name=attr.name.toLowerCase();
+    const allowed=blogBodyAllowedAttributes(node.tagName);
+    if(name.startsWith('on')||!allowed.includes(name)){
+      node.removeAttribute(attr.name);
+      return;
+    }
+    if(name==='style'){
+      const clean=cleanBlogBodyStyle(attr.value);
+      if(clean)node.setAttribute('style',clean);
+      else node.removeAttribute('style');
+      return;
+    }
+    const isLinkUrl=node.tagName==='A'&&name==='href';
+    const isImageUrl=node.tagName==='IMG'&&name==='src';
+    if((isLinkUrl||isImageUrl)&&!isSafeBlogBodyUrl(attr.value,isImageUrl)){
+      node.removeAttribute(name);
+    }
+  }
+
+  function sanitizeBlogBodyNode(node){
+    if(BLOG_BODY_DANGEROUS.has(node.tagName)){
+      node.remove();
+      return;
+    }
+    if(!BLOG_BODY_ALLOWED.has(node.tagName)){
+      node.replaceWith(...node.childNodes);
+      return;
+    }
+    [...node.attributes].forEach(attr=>sanitizeBlogBodyAttribute(node,attr));
+    if(node.tagName==='A'&&String(node.getAttribute('target')).toLowerCase()==='_blank'){
+      node.setAttribute('rel','noopener noreferrer');
+    }
+  }
 
   function clientSafeBlogHtml(html='') {
     const template=document.createElement('template');
     template.innerHTML=String(html||'');
-    const dangerous=new Set(['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','SVG','MATH']);
-    [...template.content.querySelectorAll('*')].forEach(node=>{
-      if(dangerous.has(node.tagName)){node.remove();return}
-      if(!BLOG_BODY_ALLOWED.has(node.tagName)){node.replaceWith(...node.childNodes);return}
-      [...node.attributes].forEach(attr=>{
-        const name=attr.name.toLowerCase();
-        const allowed=node.tagName==='A'
-          ? ['href','title','target','rel']
-          : node.tagName==='IMG'
-            ? ['src','alt','title','width','height']
-            : ['P','H2','H3','H4'].includes(node.tagName)
-              ? ['style']
-              : [];
-        if(name.startsWith('on')||!allowed.includes(name)){node.removeAttribute(attr.name);return}
-        if(name==='style'){
-          const match=String(attr.value||'').match(/(?:^|;)\s*text-align\s*:\s*(left|center|right)\s*(?:;|$)/i);
-          if(match)node.setAttribute('style','text-align:'+match[1].toLowerCase());else node.removeAttribute('style');
-        }
-        if((node.tagName==='A'&&name==='href')||(node.tagName==='IMG'&&name==='src')){
-          const value=String(attr.value||'').trim();
-          const safe=/^(?:https?:\/\/|\/[^\/]|#|mailto:)/i.test(value);
-          if(!safe)node.removeAttribute(name);
-        }
-      });
-      if(node.tagName==='A'&&String(node.getAttribute('target')).toLowerCase()==='_blank')node.setAttribute('rel','noopener noreferrer');
-    });
+    [...template.content.querySelectorAll('*')].forEach(sanitizeBlogBodyNode);
     return template.innerHTML;
   }
 
   function bodyEditorMarkup(body='') {
     return `<div class="field full blog-body-field">
-      <div class="blog-body-label"><label id="blog-body-label">Body</label><span class="helper">Visual editor + safe HTML source. Unsupported markup is reported on save.</span></div>
+      <div class="blog-body-label"><label id="blog-body-label" for="blog_body">Body</label><span class="helper">Visual editor + safe HTML source. Unsupported markup is reported on save.</span></div>
       <div class="blog-body-editor" data-blog-body-editor data-mode="visual">
         <div class="blog-body-toolbar" role="toolbar" aria-label="Blog body formatting">
           <div class="blog-body-mode" aria-label="Editor mode">
@@ -375,6 +407,11 @@ window.BRVTALBlog = (() => {
 
       const warnings=Array.isArray(result?.warnings)?result.warnings.filter(Boolean):[];
       if(warnings.length){
+        if(!id&&result?.data?.id){
+          id=Number(result.data.id);
+          record=result.data;
+          if(button)button.onclick=()=>save(id,record);
+        }
         showBodyWarnings(warnings,result?.data?.body||data.body);
         await refresh();
         setStatus('Post saved with body cleanup warnings. Review the editor before leaving.','err');
