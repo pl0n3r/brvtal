@@ -1,0 +1,265 @@
+/*
+ * BRVTAL — Concept 05 Home dressing (Issue #584, parent #583).
+ * Applies the canonical visual language to the EXISTING real Home
+ * sections/data hooks (no markup rebuild, no fake data): numbered
+ * editorial labels, deep-black/paper/red/green palette, dense grid
+ * framing, physical texture and a persistent mobile bottom nav.
+ * Builds on tokens/primitives from public-concept05-tokens.css.
+ */
+
+[data-concept="05"] body,
+body[data-concept="05"]{
+  background:var(--c5-deep-black);
+}
+
+/* ---------- Header: inline editorial nav (desktop) ---------- */
+[data-concept="05"] .c5-header-nav{
+  display:none;
+  align-items:center;
+  gap:clamp(14px,1.6vw,26px);
+  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+[data-concept="05"] .c5-header-nav a{
+  color:var(--c5-paper-muted);
+  text-decoration:none;
+  position:relative;
+  padding-bottom:4px;
+}
+[data-concept="05"] .c5-header-nav a::after{
+  content:"";
+  position:absolute;
+  left:0;right:100%;bottom:0;height:1px;
+  background:var(--c5-signal-red);
+  transition:right .3s ease;
+}
+[data-concept="05"] .c5-header-nav a:hover,
+[data-concept="05"] .c5-header-nav a:focus-visible{color:var(--c5-paper-dirty)}
+[data-concept="05"] .c5-header-nav a:hover::after,
+[data-concept="05"] .c5-header-nav a:focus-visible::after{right:0}
+
+@media(min-width:901px){
+  [data-concept="05"] .c5-header-nav{display:flex}
+}
+
+/* ---------- Numbered editorial section labels ---------- */
+[data-concept="05"] .c5-numbered{
+  position:relative;
+  padding-top:calc(var(--c5-label-height) + 10px);
+}
+[data-concept="05"] .c5-numbered::before{
+  content:attr(data-c5-index) " / " attr(data-c5-label);
+  position:absolute;
+  top:0;left:0;
+  display:flex;
+  align-items:center;
+  height:var(--c5-label-height);
+  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--c5-paper-muted);
+  border-bottom:var(--c5-rule-thickness) solid var(--c5-rule-color);
+  padding-bottom:8px;
+  width:100%;
+}
+
+[data-concept="05"] .genesis{position:relative}
+[data-concept="05"] .genesis.c5-numbered::before{content:"01 / NEXT EXPERIENCE"}
+[data-concept="05"] .events.c5-numbered::before{content:"02 / NIGHTS"}
+[data-concept="05"] .artists.c5-numbered::before{content:"03 / ARTISTS"}
+[data-concept="05"] .sets.c5-numbered::before{content:"04 / SOUND"}
+[data-concept="05"] .media.c5-numbered::before{content:"05 / MEMORIES"}
+[data-concept="05"] .transmissions.c5-numbered::before{content:"06 / JOURNAL"}
+[data-concept="05"] .connected.c5-numbered::before{content:"07 / CONNECTED"}
+
+/* ---------- Palette + editorial framing on real sections ---------- */
+[data-concept="05"] .genesis,
+[data-concept="05"] .events,
+[data-concept="05"] .artists,
+[data-concept="05"] .sets,
+[data-concept="05"] .media,
+[data-concept="05"] .transmissions,
+[data-concept="05"] .connected{
+  background:var(--c5-deep-black);
+  border-top:var(--c5-rule-thickness) solid var(--c5-rule-color);
+  padding-left:var(--c5-gutter-outer);
+  padding-right:var(--c5-gutter-outer);
+}
+
+[data-concept="05"] .hero-title{
+  font-size:var(--c5-type-display);
+  color:var(--c5-paper-dirty);
+}
+[data-concept="05"] .eyebrow.mono,
+[data-concept="05"] .hero-sub{color:var(--c5-paper-muted)}
+
+[data-concept="05"] .events .event-info h3,
+[data-concept="05"] .genesis h2{
+  color:var(--c5-paper-dirty);
+  font-size:var(--c5-type-section);
+}
+
+[data-concept="05"] .events .event-ticket,
+[data-concept="05"] .experience-actions .enter,
+[data-concept="05"] .experience-actions .ticket-cta{
+  background:var(--c5-signal-red);
+  border-color:var(--c5-signal-red);
+  color:var(--c5-paper-dirty);
+}
+
+[data-concept="05"] .artists .artist strong{color:var(--c5-paper-dirty)}
+[data-concept="05"] .artists .artist i{color:var(--c5-signal-green)}
+
+[data-concept="05"] .genesis-tag,
+[data-concept="05"] .events .event-status{color:var(--c5-signal-green)}
+
+/* Physical texture pass on the two most editorial modules. */
+[data-concept="05"] .genesis,
+[data-concept="05"] .transmissions{position:relative;isolation:isolate}
+[data-concept="05"] .genesis::before,
+[data-concept="05"] .transmissions::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:.05;
+  background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(255,255,255,.08) 3px 4px);
+  mix-blend-mode:overlay;
+}
+
+/* ---------- Persistent mobile bottom navigation ---------- */
+[data-concept="05"] .c5-bottom-nav{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  z-index:60;
+  display:flex;
+  height:var(--c5-bottom-nav-h);
+  padding-bottom:var(--c5-mobile-safe-bottom);
+  background:var(--c5-deep-black);
+  border-top:var(--c5-rule-thickness) solid var(--c5-rule-color);
+}
+[data-concept="05"] .c5-bottom-nav a{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  min-height:44px;
+  color:var(--c5-paper-muted);
+  text-decoration:none;
+  font:700 10px/1 "Space Mono",monospace;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+[data-concept="05"] .c5-bottom-nav a[aria-current="page"]{color:var(--c5-signal-green)}
+
+@media(min-width:901px){
+  [data-concept="05"] .c5-bottom-nav{display:none}
+}
+@media(max-width:900px){
+  [data-concept="05"] main{padding-bottom:var(--c5-bottom-nav-h)}
+}
+
+@media(prefers-reduced-motion:reduce){
+  [data-concept="05"] .c5-header-nav a::after{transition:none}
+}
+
+/* Respects the existing administrable Theme Studio grain control (#351). */
+html[data-theme-grain="0"] [data-concept="05"] .genesis::before,
+html[data-theme-grain="0"] [data-concept="05"] .transmissions::before{
+  display:none!important;
+}
+
+/* Hover/focus: registration offset + CTA arrow displacement (#583 §9). */
+@media(hover:hover) and (pointer:fine){
+  [data-concept="05"] .events .event-ticket,
+  [data-concept="05"] .experience-actions .enter,
+  [data-concept="05"] .experience-actions .ticket-cta{
+    transition:transform .18s steps(2),text-shadow .18s steps(2);
+  }
+  [data-concept="05"] .events .event-ticket:hover,
+  [data-concept="05"] .experience-actions .enter:hover,
+  [data-concept="05"] .experience-actions .ticket-cta:hover{
+    transform:translate(1px,-1px);
+    text-shadow:2px 0 rgba(255,255,255,.35),-2px 0 var(--c5-signal-green);
+  }
+  [data-concept="05"] .events .event-ticket:hover span,
+  [data-concept="05"] .experience-actions .enter:hover span{
+    transform:translateX(3px);
+  }
+  [data-concept="05"] .events .event-ticket span,
+  [data-concept="05"] .experience-actions .enter span{
+    display:inline-block;
+    transition:transform .18s ease;
+  }
+}
+html[data-theme-glitch="0"] [data-concept="05"] .events .event-ticket:hover,
+html[data-theme-glitch="0"] [data-concept="05"] .experience-actions .enter:hover,
+html[data-theme-glitch="0"] [data-concept="05"] .experience-actions .ticket-cta:hover{
+  text-shadow:none;
+}
+
+/* ---------- 07 / CONNECTED: real relational summary, compact system field ---------- */
+[data-concept="05"] .c5-connected-graph{
+  padding:var(--c5-gutter-module) 0 calc(var(--c5-gutter-module) * 2);
+}
+[data-concept="05"] .sr-only{
+  position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+}
+[data-concept="05"] .c5-connected-nodes{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:var(--c5-gutter-module);
+}
+[data-concept="05"] .c5-connected-nodes li{
+  position:relative;
+  border:var(--c5-rule-thickness) solid var(--c5-rule-color);
+  padding:var(--c5-cell-padding);
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  isolation:isolate;
+}
+[data-concept="05"] .c5-connected-nodes li::before{
+  content:"";
+  position:absolute;
+  top:-1px;left:-1px;
+  width:6px;height:6px;
+  background:var(--c5-signal-red);
+  border-radius:50%;
+  box-shadow:0 0 0 3px var(--c5-deep-black);
+}
+[data-concept="05"] .c5-connected-nodes span.mono{
+  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  letter-spacing:.08em;
+  color:var(--c5-paper-muted);
+}
+[data-concept="05"] .c5-connected-nodes strong{
+  font-size:var(--c5-type-section);
+  color:var(--c5-paper-dirty);
+  line-height:1;
+}
+[data-concept="05"] .c5-connected-edges{
+  margin:var(--c5-gutter-module) 0 8px;
+  color:var(--c5-signal-green);
+  font-size:var(--c5-type-mono);
+  letter-spacing:.04em;
+}
+[data-concept="05"] .c5-connected-tagline{
+  margin:0;
+  font-size:var(--c5-type-section);
+  color:var(--c5-paper-dirty);
+  text-transform:uppercase;
+  letter-spacing:-.02em;
+}
+
+@media(max-width:900px){
+  [data-concept="05"] .c5-connected-nodes{grid-template-columns:repeat(2,1fr)}
+}
+

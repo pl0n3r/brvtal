@@ -153,8 +153,159 @@ function brvtal_public_next_experience_tag(?array $event): string
     };
 }
 
+function brvtal_public_home_concept05_foundation(string $html): string
+{
+    if (!str_contains($html, 'css/public-concept05-tokens.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-tokens.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-motion.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-motion.js\" defer></script>\n</body>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-connected.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-connected.js\" defer></script>\n</body>",
+            $html
+        );
+    }
+    if (preg_match('~<body([^>]*)>~', $html, $m) === 1 && !str_contains($m[1], 'data-concept=')) {
+        $html = preg_replace('~<body([^>]*)>~', '<body$1 data-concept="05">', $html, 1) ?? $html;
+    }
+
+    return $html;
+}
+
+/**
+ * Concept 05 Home dressing (Issue #584, parent #583): applies the canonical visual
+ * language to the existing, real Home sections/data hooks. Adds the
+ * dressing stylesheet, an inline desktop header nav, numbered
+ * editorial labels on the real sections and a persistent mobile
+ * bottom nav — all reusing existing anchors/routes, no fake content.
+ */
+function brvtal_public_home_concept05_dressing(string $html): string
+{
+    $html = brvtal_public_home_concept05_foundation($html);
+
+    if (!str_contains($html, 'css/public-concept05-home.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-home.css\">\n</head>",
+            $html
+        );
+    }
+
+    $brandLink = '<a class="brand magnetic" href="#top" data-cursor="HOME">'
+        . '<span data-site-name>BRVTAL</span>'
+        . '<small data-site-tagline>RAVE TILL GRAVE</small>'
+        . '</a>';
+    if (str_contains($html, $brandLink) && !str_contains($html, 'c5-header-nav')) {
+        $headerNav = '<nav class="c5-header-nav" aria-label="Primary">'
+            . '<a href="#events">NIGHTS</a>'
+            . '<a href="#artists">ARTISTS</a>'
+            . '<a href="#sets">SOUND</a>'
+            . '<a href="/releases">RECORDS</a>'
+            . '<a href="#transmissions">JOURNAL</a>'
+            . '<a href="#connected">CONNECTED</a>'
+            . '</nav>';
+        $html = str_replace($brandLink, $brandLink . $headerNav, $html);
+    }
+
+    $html = brvtal_public_home_concept05_connected_section($html);
+
+    $sectionLabels = [
+        'class="genesis scene' => '01',
+        'class="events scene' => '02',
+        'class="artists scene' => '03',
+        'class="sets scene' => '04',
+        'class="media scene' => '05',
+        'class="scene transmissions"' => '06',
+    ];
+    foreach ($sectionLabels as $needle => $index) {
+        if (str_contains($html, $needle) && !str_contains($html, $needle . ' c5-numbered')) {
+            $html = str_replace($needle, $needle . ' c5-numbered', $html);
+        }
+    }
+    // home-phase-a-experience is appended by brvtal_public_render_next_experience()
+    // after this runs on the Next Experience path, so also cover that variant.
+    if (
+        str_contains($html, 'class="genesis scene home-phase-a-experience')
+        && !str_contains($html, 'class="genesis scene home-phase-a-experience c5-numbered')
+    ) {
+        $html = str_replace(
+            'class="genesis scene home-phase-a-experience',
+            'class="genesis scene home-phase-a-experience c5-numbered',
+            $html
+        );
+    }
+
+    if (!str_contains($html, 'c5-bottom-nav')) {
+        $bottomNav = '<nav class="c5-bottom-nav" aria-label="Primary mobile">'
+            . '<a href="#events">NIGHTS</a>'
+            . '<a href="#artists">ARTISTS</a>'
+            . '<a href="#sets">SOUND</a>'
+            . '<a href="/releases">RECORDS</a>'
+            . '<a href="#transmissions">JOURNAL</a>'
+            . '</nav>';
+        $html = str_replace('</body>', '  ' . $bottomNav . "\n</body>", $html);
+    }
+
+    return $html;
+}
+
+/**
+ * "07 / CONNECTED" section (#583 §5.9). Renders a real relational
+ * summary — never fabricated links. Counts and edges are filled at
+ * runtime by js/public-concept05-connected.js from the SAME real
+ * relational graph already computed server-side in api/public.php
+ * (brvtal_public_add_memory_edges() over event/artist/set/release
+ * Memory relations) and exposed as payload.relations/payload.archive.
+ */
+function brvtal_public_home_concept05_connected_section(string $html): string
+{
+    if (str_contains($html, 'id="connected"')) {
+        return $html;
+    }
+
+    $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="07"'
+        . ' id="connected" aria-labelledby="connected-title">'
+        . '<div class="c5-connected-graph" data-connected-graph aria-live="polite">'
+        . '<h2 id="connected-title" class="sr-only">Connected</h2>'
+        . '<ul class="c5-connected-nodes">'
+        . '<li data-connected-node="events"><span class="mono">EVENTS</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="artists"><span class="mono">ARTISTS</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="sets"><span class="mono">SOUND</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="releases"><span class="mono">RECORDS</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="memories"><span class="mono">MEMORIES</span>'
+        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '</ul>'
+        . '<p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>'
+        . '<p class="c5-connected-tagline">TODO CONECTADO.</p>'
+        . '</div>'
+        . '</section>';
+
+    return str_replace(
+        '<footer class="footer scene"',
+        $section . "\n  " . '<footer class="footer scene"',
+        $html
+    );
+}
+
 function brvtal_public_home_identity(string $html): string
 {
+    $html = brvtal_public_home_concept05_dressing($html);
+
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(
             '</head>',
