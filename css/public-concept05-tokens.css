@@ -1,0 +1,151 @@
+/*
+ * BRVTAL — Concept 05 foundation (Issue #584, parent #583).
+ * Canonical tokens + editorial frame/texture primitives for the
+ * approved public visual direction. Additive and inert by default:
+ * nothing here changes current Home rendering until a later slice
+ * opts an element into `[data-concept="05"]`.
+ */
+
+[data-concept="05"]{
+  /*
+   * Structural colors — aliased to the existing administrable Theme
+   * Studio palette (#351: --bg/--fg/--muted/--red/--acid/--line/
+   * --theme-surface, set live by js/public-theme-runtime.js from
+   * DISCADMIN). Concept 05 introduces no parallel, non-administrable
+   * color system: an admin changing brand colors in Theme Studio
+   * already retints every Concept 05 primitive.
+   */
+  --c5-deep-black:var(--bg,#050505);
+  --c5-soft-black:var(--theme-surface,#0a0a0a);
+  --c5-surface:var(--theme-surface,#0d0d0d);
+  --c5-paper-dirty:var(--fg,#e9e5da);
+  --c5-paper-muted:var(--muted,#c9c4b6);
+  --c5-signal-red:var(--red,#d31822);
+  --c5-signal-red-deep:var(--red,#9e0d12);
+  --c5-signal-green:var(--acid,var(--signal,#3dff7a));
+
+  /* Structural rules / spacing */
+  --c5-rule-color:var(--line,rgba(233,229,218,.16));
+  --c5-rule-thickness:1px;
+  --c5-gutter-outer:clamp(16px,4vw,48px);
+  --c5-gutter-module:clamp(10px,2vw,24px);
+  --c5-cell-padding:clamp(12px,2vw,22px);
+  --c5-label-height:28px;
+  --c5-header-h-desktop:64px;
+  --c5-header-h-mobile:56px;
+  --c5-mobile-safe-bottom:env(safe-area-inset-bottom,0px);
+  --c5-bottom-nav-h:calc(56px + var(--c5-mobile-safe-bottom));
+
+  /* Type scale (semantic, not literal px per element) */
+  /* Reuses the existing administrable Theme Studio H1 control (#351) when set. */
+  --c5-type-display:var(--theme-h1,clamp(64px,14vw,220px));
+  --c5-type-section:clamp(28px,4.5vw,56px);
+  --c5-type-card:clamp(16px,2vw,22px);
+  --c5-type-body:clamp(14px,1.1vw,17px);
+  --c5-type-mono:clamp(11px,.9vw,13px);
+}
+
+/* Editorial frame primitives — opt-in, no layout side effects elsewhere. */
+[data-concept="05"] .c5-frame{
+  border:var(--c5-rule-thickness) solid var(--c5-rule-color);
+  padding:var(--c5-cell-padding);
+}
+[data-concept="05"] .c5-module{
+  border-top:var(--c5-rule-thickness) solid var(--c5-rule-color);
+  padding-top:var(--c5-gutter-module);
+}
+[data-concept="05"] .c5-section-label{
+  display:flex;
+  align-items:center;
+  gap:.6em;
+  height:var(--c5-label-height);
+  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--c5-paper-muted);
+}
+[data-concept="05"] .c5-section-label .c5-index{color:var(--c5-signal-green)}
+[data-concept="05"] .c5-grid-dense{
+  display:grid;
+  grid-template-columns:repeat(12,1fr);
+  gap:var(--c5-gutter-module);
+}
+[data-concept="05"] .c5-paper-strip{background:var(--c5-paper-dirty);color:var(--c5-deep-black)}
+[data-concept="05"] .c5-black-cell{background:var(--c5-deep-black);color:var(--c5-paper-dirty)}
+[data-concept="05"] .c5-mark-red{color:var(--c5-signal-red)}
+[data-concept="05"] .c5-mark-green{color:var(--c5-signal-green)}
+
+@media(max-width:600px){
+  [data-concept="05"] .c5-grid-dense{grid-template-columns:1fr}
+}
+
+/*
+ * Physical texture primitives — decorative, pointer-inert, no layout
+ * shift (absolutely positioned within a `position:relative` host).
+ */
+[data-concept="05"] .c5-tx-grain,
+[data-concept="05"] .c5-tx-scanline,
+[data-concept="05"] .c5-tx-distress{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  content:"";
+}
+[data-concept="05"] .c5-tx-grain{
+  opacity:.05;
+  background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(255,255,255,.08) 3px 4px);
+  mix-blend-mode:overlay;
+}
+[data-concept="05"] .c5-tx-scanline{
+  opacity:.08;
+  background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(255,255,255,.05) 4px 5px);
+  mix-blend-mode:screen;
+}
+[data-concept="05"] .c5-tx-distress{
+  opacity:.06;
+  background:
+    radial-gradient(circle at 20% 30%,rgba(255,255,255,.08),transparent 6%),
+    radial-gradient(circle at 78% 62%,rgba(0,0,0,.35),transparent 8%);
+}
+
+/* Registration/glitch utility state — applied briefly by JS, not looping by default. */
+[data-concept="05"] .c5-registration{
+  text-shadow:2px 0 var(--c5-signal-red),-2px 0 rgba(255,255,255,.2);
+}
+
+/*
+ * Deterministic visual-test mode: freezes decorative motion/texture so
+ * screenshot-based tests get stable output. Toggled by adding
+ * `.c5-visual-test` on <html> in the test harness only.
+ */
+html.c5-visual-test [data-concept="05"] .c5-tx-grain,
+html.c5-visual-test [data-concept="05"] .c5-tx-scanline,
+html.c5-visual-test [data-concept="05"] .c5-tx-distress,
+html.c5-visual-test [data-concept="05"] .c5-registration{
+  animation:none!important;
+  opacity:0!important;
+  text-shadow:none!important;
+}
+
+@media(prefers-reduced-motion:reduce){
+  [data-concept="05"] .c5-tx-grain,
+  [data-concept="05"] .c5-tx-scanline,
+  [data-concept="05"] .c5-tx-distress{
+    animation:none!important;
+  }
+}
+
+/* Respects the existing administrable Theme Studio motion/glitch controls (#351). */
+html[data-theme-motion="reduced"] [data-concept="05"] .c5-tx-grain,
+html[data-theme-motion="minimal"] [data-concept="05"] .c5-tx-grain,
+html[data-theme-motion="reduced"] [data-concept="05"] .c5-tx-scanline,
+html[data-theme-motion="minimal"] [data-concept="05"] .c5-tx-scanline,
+html[data-theme-motion="reduced"] [data-concept="05"] .c5-tx-distress,
+html[data-theme-motion="minimal"] [data-concept="05"] .c5-tx-distress,
+html[data-theme-glitch="0"] [data-concept="05"] .c5-registration{
+  animation:none!important;
+  opacity:0!important;
+}
+html[data-theme-scanlines="0"] [data-concept="05"] .c5-tx-scanline{display:none!important}
+html[data-theme-grain="0"] [data-concept="05"] .c5-tx-grain,
+html[data-theme-grain="0"] [data-concept="05"] .c5-tx-distress{display:none!important}
