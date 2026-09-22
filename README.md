@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+921** | **−53** | **+868** |
+| **8** | **+987** | **−53** | **+934** |
 
 ## Calidad y entrega
 
@@ -39,8 +39,8 @@
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Reservation | Issue #586 · `work/issue-586` · UUID `6affb2ca-c9ef-46b4-a21f-55dc1bc13f74` |
 | PR integrity | **PR + snapshot exacto** contra `main` |
-| Browser | 🚧 geometría authored 1440/390 + data projection + visual-test mode |
-| Sonar / CodeRabbit | 🚧 pendientes sobre el head de PR |
+| Browser | 🚧 revalidando geometría 1440/390 tras corregir safe bounds, copy growth y media failure |
+| Sonar / CodeRabbit | 🚧 2 findings funcionales corregidos; nueva revisión sobre el head final pendiente |
 | Exact-main | **CI del SHA exacto de main** después del squash merge |
 
 ## Flujo de entrega
@@ -83,7 +83,8 @@ flowchart LR
 - La implementación conserva el Hero Slider administrable existente: cuando `.hero-slider-active` existe, el slider canónico mantiene ownership del primer viewport.
 - El runtime Concept 05 reutiliza `window.BRVTALPublicDataPromise`; no añade otra petición pública.
 - No hay migraciones, contenido ficticio ni un segundo subsistema de Theme Studio.
-- Merge únicamente después de CI, Sonar y revisión del head estable.
+- El primer Chromium run detectó overflow vertical del statement desktop; además se corrigieron los dos findings funcionales de revisión: copy móvil flow-driven y media documental fail-closed.
+- Merge únicamente después de revalidar CI, Sonar y revisión del head estable.
 
 ## Qué sigue
 
