@@ -102,7 +102,7 @@ dressing_assert(
     'Concept 05 Hero runtime must not duplicate on repeated calls'
 );
 dressing_assert(
-    substr_count($identityIdempotent, 'data-c5-hero-documentary') === 1,
+    substr_count($identityIdempotent, '<figure class="c5-hero-documentary" data-c5-hero-documentary') === 1,
     'Concept 05 documentary surface must not duplicate on repeated calls'
 );
 dressing_assert(
