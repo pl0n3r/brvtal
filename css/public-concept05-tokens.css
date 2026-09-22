@@ -30,7 +30,8 @@
   --c5-bottom-nav-h:calc(56px + var(--c5-mobile-safe-bottom));
 
   /* Type scale (semantic, not literal px per element) */
-  --c5-type-display:clamp(64px,14vw,220px);
+  /* Reuses the existing administrable Theme Studio H1 control (#351) when set. */
+  --c5-type-display:var(--theme-h1,clamp(64px,14vw,220px));
   --c5-type-section:clamp(28px,4.5vw,56px);
   --c5-type-card:clamp(16px,2vw,22px);
   --c5-type-body:clamp(14px,1.1vw,17px);
@@ -125,4 +126,16 @@ html.c5-visual-test [data-concept="05"] .c5-registration{
   [data-concept="05"] .c5-tx-distress{
     animation:none!important;
   }
+}
+
+/* Respects the existing administrable Theme Studio motion/glitch controls (#351). */
+html[data-theme-motion="reduced"] [data-concept="05"] .c5-tx-grain,
+html[data-theme-motion="minimal"] [data-concept="05"] .c5-tx-grain,
+html[data-theme-motion="reduced"] [data-concept="05"] .c5-tx-scanline,
+html[data-theme-motion="minimal"] [data-concept="05"] .c5-tx-scanline,
+html[data-theme-motion="reduced"] [data-concept="05"] .c5-tx-distress,
+html[data-theme-motion="minimal"] [data-concept="05"] .c5-tx-distress,
+html[data-theme-glitch="0"] [data-concept="05"] .c5-registration{
+  animation:none!important;
+  opacity:0!important;
 }

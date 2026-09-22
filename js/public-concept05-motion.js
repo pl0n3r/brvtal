@@ -8,8 +8,11 @@
   'use strict';
 
   function reducedMotion() {
+    var themeMotion = document.documentElement.getAttribute('data-theme-motion');
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      || document.documentElement.classList.contains('c5-visual-test');
+      || document.documentElement.classList.contains('c5-visual-test')
+      || themeMotion === 'reduced'
+      || themeMotion === 'minimal';
   }
 
   function init() {
@@ -32,6 +35,32 @@
             ? { trigger: el, start: 'top 88%', once: true }
             : undefined,
         });
+      });
+
+      // Real Home sections dressed by brvtal_public_home_concept05_dressing():
+      // cut-in reveal on the numbered editorial label + registration-offset
+      // glitch on the section title, once per section on scroll-in.
+      host.querySelectorAll('.c5-numbered').forEach(function (section) {
+        gsap.from(section, {
+          clipPath: 'inset(0 0 100% 0)',
+          duration: 0.5,
+          ease: 'power4.inOut',
+          scrollTrigger: window.ScrollTrigger
+            ? { trigger: section, start: 'top 85%', once: true }
+            : undefined,
+        });
+
+        var title = section.querySelector('h2, h3');
+        if (title && window.ScrollTrigger) {
+          var tl = gsap.timeline({
+            scrollTrigger: { trigger: section, start: 'top 80%', once: true },
+          });
+          tl.fromTo(
+            title,
+            { textShadow: '4px 0 var(--c5-signal-red), -3px 0 rgba(255,255,255,.3)' },
+            { textShadow: '0 0 rgba(0,0,0,0)', duration: 0.18, ease: 'steps(1)' }
+          );
+        }
       });
     });
   }
