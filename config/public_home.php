@@ -274,7 +274,7 @@ function brvtal_public_home_concept05_connected_section(string $html): string
         return $html;
     }
 
-    $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="09"'
+    $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="07"'
         . ' id="connected" aria-labelledby="connected-title">'
         . '<div class="c5-connected-graph" data-connected-graph aria-live="polite">'
         . '<h2 id="connected-title" class="sr-only">Connected</h2>'
