@@ -34,6 +34,23 @@ dressing_assert(
     (bool)preg_match('~<section class="events[^"]*\bc5-numbered\b[^"]*"~', $rendered),
     'Events section must carry the numbered label class'
 );
+dressing_assert(
+    str_contains($rendered, 'id="connected"'),
+    'dressing must inject the real 07 / CONNECTED section'
+);
+dressing_assert(
+    str_contains($rendered, 'js/public-concept05-connected.js'),
+    'dressing must load the Connected data-fill script'
+);
+dressing_assert(
+    !str_contains($rendered, 'data-connected-count>0<')
+    && (bool)preg_match('~data-connected-count>&mdash;<~', $rendered),
+    'Connected counts must start as static placeholders, never a fabricated number'
+);
+dressing_assert(
+    strpos($rendered, 'id="connected"') < strpos($rendered, '<footer class="footer scene"'),
+    'Connected section must sit before the footer'
+);
 
 $idempotent = brvtal_public_home_concept05_dressing($rendered);
 dressing_assert(
@@ -51,6 +68,10 @@ dressing_assert(
 dressing_assert(
     substr_count($idempotent, 'events scene c5-numbered') === 1,
     'numbered label class must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($idempotent, 'id="connected"') === 1,
+    'Connected section must not duplicate on repeated calls'
 );
 
 echo "OK\n";

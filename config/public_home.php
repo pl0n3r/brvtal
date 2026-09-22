@@ -169,6 +169,13 @@ function brvtal_public_home_concept05_foundation(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'js/public-concept05-connected.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-connected.js\" defer></script>\n</body>",
+            $html
+        );
+    }
     if (preg_match('~<body([^>]*)>~', $html, $m) === 1 && !str_contains($m[1], 'data-concept=')) {
         $html = preg_replace('~<body([^>]*)>~', '<body$1 data-concept="05">', $html, 1) ?? $html;
     }
@@ -197,9 +204,11 @@ function brvtal_public_home_concept05_dressing(string $html): string
 
     $brandLink = '<a class="brand magnetic" href="#top" data-cursor="HOME"><span data-site-name>BRVTAL</span><small data-site-tagline>RAVE TILL GRAVE</small></a>';
     if (str_contains($html, $brandLink) && !str_contains($html, 'c5-header-nav')) {
-        $headerNav = '<nav class="c5-header-nav" aria-label="Primary"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a><a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a><a href="#media">CONNECTED</a></nav>';
+        $headerNav = '<nav class="c5-header-nav" aria-label="Primary"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a><a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a></nav>';
         $html = str_replace($brandLink, $brandLink . $headerNav, $html);
     }
+
+    $html = brvtal_public_home_concept05_connected_section($html);
 
     $sectionLabels = [
         'class="genesis scene' => '01',
@@ -236,6 +245,38 @@ function brvtal_public_home_concept05_dressing(string $html): string
     }
 
     return $html;
+}
+
+/**
+ * "07 / CONNECTED" section (#583 §5.9). Renders a real relational
+ * summary — never fabricated links. Counts and edges are filled at
+ * runtime by js/public-concept05-connected.js from the SAME real
+ * relational graph already computed server-side in api/public.php
+ * (brvtal_public_add_memory_edges() over event/artist/set/release
+ * Memory relations) and exposed as payload.relations/payload.archive.
+ */
+function brvtal_public_home_concept05_connected_section(string $html): string
+{
+    if (str_contains($html, 'id="connected"')) {
+        return $html;
+    }
+
+    $section = '<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="09" id="connected" aria-labelledby="connected-title">'
+        . '<div class="c5-connected-graph" data-connected-graph aria-live="polite">'
+        . '<h2 id="connected-title" class="sr-only">Connected</h2>'
+        . '<ul class="c5-connected-nodes">'
+        . '<li data-connected-node="events"><span class="mono">EVENTS</span><strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="artists"><span class="mono">ARTISTS</span><strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="sets"><span class="mono">SOUND</span><strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="releases"><span class="mono">RECORDS</span><strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="memories"><span class="mono">MEMORIES</span><strong data-connected-count>&mdash;</strong></li>'
+        . '</ul>'
+        . '<p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>'
+        . '<p class="c5-connected-tagline">TODO CONECTADO.</p>'
+        . '</div>'
+        . '</section>';
+
+    return str_replace('<footer class="footer scene"', $section . "\n  " . '<footer class="footer scene"', $html);
 }
 
 function brvtal_public_home_identity(string $html): string
