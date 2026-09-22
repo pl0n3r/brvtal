@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Reservation | Issue #584 · `work/issue-584` · UUID activo en PR |
 | PR integrity | **PR + snapshot exacto** contra `main` |
 | BRVTAL CI | 🚧 head actual: contratos, Chromium, MariaDB y real-stack pasan; README exacto se corrige en este commit |
