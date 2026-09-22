@@ -397,10 +397,20 @@ window.BRVTALBlog = (() => {
   }
 
   function showBodyWarnings(warnings,cleanBody=''){
-    const editor=currentBodyEditor();if(!editor)return;
-    const list=Array.isArray(warnings)?warnings.filter(Boolean):[],warning=editor.querySelector('[data-blog-body-warning]');
-    if(cleanBody!==''){const source=editor.querySelector('#blog_body');if(source)source.value=String(cleanBody);syncBodySourceToVisual(editor)}
-    if(warning){warning.hidden=!list.length;warning.textContent=list.length?'SAVED WITH CLEANUP · '+list.join(' · '):''}
+    const editor=currentBodyEditor();
+    if(!editor)return;
+
+    const list=Array.isArray(warnings)?warnings.filter(Boolean):[];
+    const warning=editor.querySelector('[data-blog-body-warning]');
+    if(cleanBody!==''){
+      const source=editor.querySelector('#blog_body');
+      if(source)source.value=String(cleanBody);
+      syncBodySourceToVisual(editor);
+    }
+    if(warning){
+      warning.hidden=!list.length;
+      warning.textContent=list.length?'SAVED WITH CLEANUP · '+list.join(' · '):'';
+    }
   }
 
   function blogEditorCoverMarkup(record){
@@ -488,65 +498,102 @@ window.BRVTALBlog = (() => {
     };
   }
 
+  function blogNextSortOrder(id){
+    const current=id
+      ? store.posts.find(post=>Number(post.id)===Number(id))
+      : null;
+    if(current)return Number(current.sort_order||0);
+
+    return store.posts.reduce(
+      (max,post)=>Math.max(max,Number(post.sort_order??-1)),
+      -1
+    )+1;
+  }
+
+  function blogSavePayload(id,record){
+    const data=payload(record?.relations||[],blogNextSortOrder(id));
+    if(!data.title)throw new Error('TITLE_REQUIRED');
+    if(!data.slug)data.slug=slugify(data.title);
+    return data;
+  }
+
+  function blogSaveRequest(id,data){
+    return request(id?'?id='+encodeURIComponent(id):'',{
+      method:id?'PUT':'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
+  }
+
+  function rebindCreatedBlogWarningSave(button,id,record,result){
+    if(id||!result?.data?.id)return {id,record};
+
+    const reboundId=Number(result.data.id);
+    const reboundRecord=result.data;
+    if(button)button.onclick=()=>save(reboundId,reboundRecord);
+    return {id:reboundId,record:reboundRecord};
+  }
+
+  async function handleBlogSaveWarnings(button,id,record,result,data,warnings){
+    const rebound=rebindCreatedBlogWarningSave(button,id,record,result);
+    showBodyWarnings(warnings,result?.data?.body||data.body);
+    await refresh();
+    setStatus('Post saved with body cleanup warnings. Review the editor before leaving.','err');
+    window.BRVTALMediaLibrary?.notify?.(
+      'warning',
+      'Post saved after unsupported body markup was removed.',
+      {timeout:6200}
+    );
+    return rebound;
+  }
+
+  function setBlogSaveButtonBusy(button,busy){
+    if(!button?.isConnected)return;
+    button.disabled=busy;
+    button.textContent=busy?'SAVING…':'GUARDAR';
+  }
+
+  function reportBlogSaveError(error){
+    const message=error?.message||'UNKNOWN_ERROR';
+    setStatus('Could not save post: '+message,'err');
+    window.BRVTALFeedback?.error?.(
+      message.replaceAll('_',' '),
+      'blog-save'
+    );
+  }
+
   async function save(id = null, record = {}) {
-    const button = document.getElementById('saveBtn');
-    if (button) {
-      button.disabled = true;
-      button.textContent = 'SAVING…';
-    }
+    const button=document.getElementById('saveBtn');
+    setBlogSaveButtonBusy(button,true);
 
-    try {
-      const current = id
-        ? store.posts.find(post => Number(post.id) === Number(id))
-        : null;
-      const nextOrder = current
-        ? Number(current.sort_order || 0)
-        : store.posts.reduce(
-          (max, post) => Math.max(max, Number(post.sort_order ?? -1)),
-          -1
-        ) + 1;
-      const data = payload(record?.relations || [], nextOrder);
+    try{
+      const data=blogSavePayload(id,record);
+      const result=await blogSaveRequest(id,data);
+      const warnings=Array.isArray(result?.warnings)
+        ? result.warnings.filter(Boolean)
+        : [];
 
-      if (!data.title) throw new Error('TITLE_REQUIRED');
-      if (!data.slug) data.slug = slugify(data.title);
-
-      const result = await request(id ? '?id=' + encodeURIComponent(id) : '', {
-        method:id ? 'PUT' : 'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(data)
-      });
-
-      const warnings=Array.isArray(result?.warnings)?result.warnings.filter(Boolean):[];
       if(warnings.length){
-        if(!id&&result?.data?.id){
-          id=Number(result.data.id);
-          record=result.data;
-          if(button)button.onclick=()=>save(id,record);
-        }
-        showBodyWarnings(warnings,result?.data?.body||data.body);
-        await refresh();
-        setStatus('Post saved with body cleanup warnings. Review the editor before leaving.','err');
-        window.BRVTALMediaLibrary?.notify?.('warning','Post saved after unsupported body markup was removed.',{timeout:6200});
+        const rebound=await handleBlogSaveWarnings(
+          button,
+          id,
+          record,
+          result,
+          data,
+          warnings
+        );
+        id=rebound.id;
+        record=rebound.record;
         return;
       }
 
-      if (typeof closeModal === 'function') closeModal(true);
+      if(typeof closeModal==='function')closeModal(true);
       await refresh();
       setStatus('Post saved.','ok');
-    } catch (error) {
-      setStatus(
-        'Could not save post: ' + (error?.message || 'UNKNOWN_ERROR'),
-        'err'
-      );
-      window.BRVTALFeedback?.error?.(
-        (error?.message || 'Blog save failed').replaceAll('_',' '),
-        'blog-save'
-      );
-    } finally {
-      if (button?.isConnected) {
-        button.disabled = false;
-        button.textContent = 'GUARDAR';
-      }
+    }catch(error){
+      reportBlogSaveError(error);
+    }finally{
+      setBlogSaveButtonBusy(button,false);
     }
   }
 
