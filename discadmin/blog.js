@@ -535,7 +535,7 @@ window.BRVTALBlog = (() => {
   }
 
   async function handleBlogSaveWarnings(button,id,record,result,data,warnings){
-    const rebound=rebindCreatedBlogWarningSave(button,id,record,result);
+    rebindCreatedBlogWarningSave(button,id,record,result);
     showBodyWarnings(warnings,result?.data?.body||data.body);
     await refresh();
     setStatus('Post saved with body cleanup warnings. Review the editor before leaving.','err');
@@ -544,7 +544,6 @@ window.BRVTALBlog = (() => {
       'Post saved after unsupported body markup was removed.',
       {timeout:6200}
     );
-    return rebound;
   }
 
   function setBlogSaveButtonBusy(button,busy){
@@ -574,7 +573,7 @@ window.BRVTALBlog = (() => {
         : [];
 
       if(warnings.length){
-        const rebound=await handleBlogSaveWarnings(
+        await handleBlogSaveWarnings(
           button,
           id,
           record,
@@ -582,8 +581,6 @@ window.BRVTALBlog = (() => {
           data,
           warnings
         );
-        id=rebound.id;
-        record=rebound.record;
         return;
       }
 
