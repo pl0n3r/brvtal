@@ -48,8 +48,8 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
     $whereParameters = $definition['parameters'];
     $imageSelect = $imageField === '' ? "'' AS image" : "`{$imageField}` AS image";
     $eventSelect = $definition['event_visibility']
-        ? ',status,event_date,published_at'
-        : '';
+        ? ',status,event_date,venue,city,published_at'
+        : ($type === 'blog' ? ',published_at,updated_at' : '');
     $sql = "SELECT id,slug,`{$titleField}` AS title,"
         . "`{$descriptionField}` AS description,seo_title,seo_description,"
         . "{$imageSelect}{$eventSelect} FROM `{$table}` "
@@ -107,7 +107,71 @@ function brvtal_public_seo_document(?array $entity, string $base, array $default
         'image' => $image,
         'description' => $description,
     ];
+    if ($entity) {
+        $schema = array_merge($schema, brvtal_public_seo_type_properties($entity));
+    }
     return compact('title', 'description', 'canonical', 'image', 'schema');
+}
+
+/**
+ * Real, type-specific Schema.org properties from data the entity already
+ * carries (#272). No relations are queried here — only fields the entity
+ * row already has. Absent/empty fields are omitted rather than guessed.
+ */
+function brvtal_public_seo_type_properties(array $entity): array
+{
+    $schemaType = (string)($entity['schema_type'] ?? '');
+
+    if ($schemaType === 'MusicEvent') {
+        $properties = [];
+        $eventDate = trim((string)($entity['event_date'] ?? ''));
+        if ($eventDate !== '') {
+            try {
+                $properties['startDate'] = (new DateTimeImmutable($eventDate))->format(DateTimeInterface::ATOM);
+            } catch (Throwable) {
+                // Unparseable date: omit rather than emit a wrong ISO value.
+            }
+        }
+        $venue = trim((string)($entity['venue'] ?? ''));
+        $city = trim((string)($entity['city'] ?? ''));
+        if ($venue !== '' || $city !== '') {
+            $properties['location'] = array_filter([
+                '@type' => 'Place',
+                'name' => $venue !== '' ? $venue : null,
+                'address' => $city !== '' ? ['@type' => 'PostalAddress', 'addressLocality' => $city] : null,
+            ], static fn(mixed $value): bool => $value !== null);
+        }
+        $eventStatus = match (strtolower(trim((string)($entity['status'] ?? '')))) {
+            'sold_out' => 'https://schema.org/SoldOut',
+            'cancelled', 'canceled' => 'https://schema.org/EventCancelled',
+            default => 'https://schema.org/EventScheduled',
+        };
+        $properties['eventStatus'] = $eventStatus;
+        $properties['eventAttendanceMode'] = 'https://schema.org/OfflineEventAttendanceMode';
+
+        return $properties;
+    }
+
+    if ($schemaType === 'BlogPosting') {
+        $properties = [];
+        $published = trim((string)($entity['published_at'] ?? ''));
+        if ($published !== '') {
+            try {
+                $properties['datePublished'] = (new DateTimeImmutable($published))->format(DateTimeInterface::ATOM);
+            } catch (Throwable) {
+            }
+        }
+        $updated = trim((string)($entity['updated_at'] ?? ''));
+        if ($updated !== '') {
+            try {
+                $properties['dateModified'] = (new DateTimeImmutable($updated))->format(DateTimeInterface::ATOM);
+            } catch (Throwable) {
+            }
+        }
+        return $properties;
+    }
+
+    return [];
 }
 
 function brvtal_public_not_found_seo(string $base, string $type, string $slug): array
