@@ -67,7 +67,14 @@ function brvtal_blog_sanitize_html(string $html): array
                     $child->parentNode?->removeChild($child);
                     continue;
                 }
-                while ($child->firstChild) $child->parentNode?->insertBefore($child->firstChild, $child);
+
+                // Sanitize descendants before unwrapping this harmless container.
+                // Otherwise a nested dangerous element could move outside the
+                // traversal cursor and escape the allowlist pass.
+                $walk($child);
+                while ($child->firstChild) {
+                    $child->parentNode?->insertBefore($child->firstChild, $child);
+                }
                 $child->parentNode?->removeChild($child);
                 continue;
             }
