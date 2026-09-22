@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #525 / PR #587.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #586.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#525 · rich Blog editor + safe HTML source mode** | PR #587 |
-| Base exacta | ✅ ~~main validado~~ | `67f56cc1b97bda9e321b25ee9b275a40b0e386c6` |
-| Versión | 🚧 **0.1.26** | cambio de producto/runtime Admin + Blog público |
-| Producción | 🚧 pendiente de merge + observación | sin migración de esquema en este slice |
+| Work line | 🚧 **#586 · Concept 05 authored Hero 1440/390** | parent #583 |
+| Base exacta | ✅ ~~main v0.1.26 validado y observado~~ | `67be14f1942aafaecae6ee9f6ca58f733a2b93bd` |
+| Versión | 🚧 **0.1.27** | cambio visible de producto/runtime público |
+| Producción | 🚧 pendiente de merge + observación | sin migración de datos |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+880** | **−103** | **+777** |
+| **8** | **+921** | **−53** | **+868** |
 
 ## Calidad y entrega
 
@@ -37,69 +37,67 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Reservation | Issue #525 · `work/issue-525` · UUID `c875c468-977c-4382-a6cc-923bccf46442` |
+| Reservation | Issue #586 · `work/issue-586` · UUID `6affb2ca-c9ef-46b4-a21f-55dc1bc13f74` |
 | PR integrity | **PR + snapshot exacto** contra `main` |
-| BRVTAL CI | 🚧 nuevo head en validación tras corregir coordinación, accesibilidad y browser regressions |
-| Sonar / CodeRabbit | 🚧 Quality Gate previo pasó; findings accionables de save rebinding y behavior tests corregidos en el head actual |
+| Browser | 🚧 geometría authored 1440/390 + data projection + visual-test mode |
+| Sonar / CodeRabbit | 🚧 pendientes sobre el head de PR |
 | Exact-main | **CI del SHA exacto de main** después del squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- R["#525 recuperado"] --> E["Rich editor + sanitizer"]
- E --> T["Behavior tests"]
- T --> P["PR #587"]
- P --> C["CI · Sonar · CodeRabbit"]
- C --> M["Squash merge"]
- M --> X["Exact-main validation"]
+ F["#584 foundation"] --> H["#586 Hero 1440 / 390"]
+ H --> D["Managed copy + documentary media"]
+ D --> T["Geometry / deterministic tests"]
+ T --> P["PR · CI · Sonar · CodeRabbit"]
+ P --> M["Squash merge"]
+ M --> X["Exact-main + production observer"]
 ```
 
 ## Qué se hizo
 
-- Se reemplaza el Body plano del Blog por un editor visual con modo HTML/source, headings, énfasis, listas, links, citas, alineación, undo/redo y pegado como texto limpio.
-- La inserción de imágenes reutiliza Media Library y conserva rutas/alt compatibles con el renderer público.
-- Un sanitizador allowlist compartido protege mutaciones y render público frente a scripts, handlers, embeds, URLs peligrosas y estilos fuera del contrato.
-- La limpieza destructiva deja warnings visibles; un POST creado con warnings se rebindea al ID persistido para que el siguiente guardado sea PUT.
-- El renderer público conserva HTML semántico permitido dentro de `.entity-rich-body` con estilos responsive.
-- Se añadió cobertura PHP de seguridad/idempotencia y Playwright de round-trip Visual↔HTML, paste, Media Library, preview sanitizado y warning-aware save.
-- Se mantiene el Blog sin controles manuales de taxonomía y se preservan relaciones existentes cuando una fuente relacionada falla.
+- Se convierte el primer viewport estático en una composición editorial Concept 05 distinta para desktop 1440 y mobile 390.
+- Desktop usa campo negro estructural, contaminación roja, wordmark sobredimensionado, statement lateral y documento fotográfico superpuesto.
+- Mobile recompone la jerarquía en vez de comprimir desktop: wordmark apilado, statement, fotografía y navegación inferior permanecen contenidos.
+- El statement reutiliza tagline/description administrables y el Hero Slider sigue siendo autoritativo cuando está habilitado.
+- La fotografía documental se proyecta desde datos públicos reales, priorizando Memories curadas y reutilizando el payload existente sin una segunda petición.
+- Si no existe material público utilizable, la superficie documental permanece oculta; no se inventa contenido.
+- Motion GSAP queda acotado a entrada jerárquica y se desactiva con reduced-motion o `c5-visual-test`.
+- Se añadieron contratos PHP y Playwright para idempotencia, 1440/390, no-overflow, CTA, media/copy projection y determinismo.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto de PR #587.
-- `api/blog.php` — sanitización canónica y warnings en mutaciones.
-- `config/blog_html.php` — allowlist HTML compartida y segura.
-- `config/public_page.php` — proyección de rich Blog HTML en página pública.
-- `config/version.php` — versión 0.1.26.
-- `css/public-entity.css` — tipografía/layout del cuerpo editorial público.
-- `discadmin/blog.css` — UI del rich editor.
-- `discadmin/blog.js` — editor visual/source, preview, Media Library y save lifecycle.
-- `package.json` — versión 0.1.26.
-- `tests/blog-rich-editor-contract.php` — contratos de seguridad del HTML.
-- `tests/e2e/discadmin-blog.spec.mjs` — comportamiento real del editor.
+- `README.md` — snapshot exacto de #586.
+- `config/public_home.php` — proyección authored Hero y hooks administrables.
+- `config/version.php` — versión 0.1.27.
+- `css/public-concept05-hero.css` — composiciones desktop/mobile Concept 05.
+- `js/public-concept05-hero.js` — proyección de settings/media y motion del Hero.
+- `package.json` — versión 0.1.27.
+- `tests/e2e/public-concept05-hero.spec.mjs` — geometría y comportamiento real.
+- `tests/public-concept05-dressing-contract.php` — contrato de integración/idempotencia.
 
 ## Validación
 
-- Base exacta: `67f56cc1b97bda9e321b25ee9b275a40b0e386c6`.
-- Los gates de base/main quedaron verdes antes de recuperar #525.
-- La corrida anterior de PR confirmó database, real-stack y WebKit verdes; los fallos concretos de coordination, accessibility y el E2E de Blog fueron corregidos.
-- Sonar Quality Gate previo pasó con 0 Security Hotspots; el único finding de complejidad marcado FAILURE fue refactorizado.
-- No se hace merge hasta revalidar el head final, reviews y snapshot exacto.
+- Base exacta: `67be14f1942aafaecae6ee9f6ca58f733a2b93bd`, con CI exact-main y Production Deploy Observer verdes.
+- La implementación conserva el Hero Slider administrable existente: cuando `.hero-slider-active` existe, el slider canónico mantiene ownership del primer viewport.
+- El runtime Concept 05 reutiliza `window.BRVTALPublicDataPromise`; no añade otra petición pública.
+- No hay migraciones, contenido ficticio ni un segundo subsistema de Theme Studio.
+- Merge únicamente después de CI, Sonar y revisión del head estable.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525) / PR #587 · cerrar rich Blog editor v0.1.26. |
-| **NEXT** | 🚧 [#586](https://github.com/pl0n3r/brvtal/issues/586) · Concept 05 Hero authored 1440/390. |
-| **LATER** | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529). |
-| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo para #525. |
+| **NOW** | 🚧 [#586](https://github.com/pl0n3r/brvtal/issues/586) · Hero Concept 05 authored 1440/390. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · continuar fidelidad Concept 05 con el siguiente slice dependiente. |
+| **LATER** | 🚧 [#182](https://github.com/pl0n3r/brvtal/issues/182), [#252](https://github.com/pl0n3r/brvtal/issues/252), [#528](https://github.com/pl0n3r/brvtal/issues/528). |
+| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo para #586. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 editorial productivity | 🚧 [#525](https://github.com/pl0n3r/brvtal/issues/525) |
-| **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583), [#586](https://github.com/pl0n3r/brvtal/issues/586) |
-| **LATER** | 🚧 membership / drafts / preview | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#529](https://github.com/pl0n3r/brvtal/issues/529) |
+| **NOW** | 🚧 Concept 05 first viewport | 🚧 [#586](https://github.com/pl0n3r/brvtal/issues/586) |
+| **NEXT** | 🚧 visual fidelity / connected cultural archive | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583), [#398](https://github.com/pl0n3r/brvtal/issues/398) |
+| **LATER** | 🚧 editorial trust / drafts | 🚧 [#182](https://github.com/pl0n3r/brvtal/issues/182), [#252](https://github.com/pl0n3r/brvtal/issues/252), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
