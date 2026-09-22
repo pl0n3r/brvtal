@@ -215,9 +215,44 @@ window.BRVTALBlog = (() => {
   }
 
   function currentBodyEditor(){return document.querySelector('[data-blog-body-editor]')}
-  function syncBodyVisualToSource(editor=currentBodyEditor()){if(!editor)return'';const visual=editor.querySelector('[data-blog-body-visual]'),source=editor.querySelector('#blog_body');if(visual&&source)source.value=visual.innerHTML.trim();return source?.value||''}
-  function syncBodySourceToVisual(editor=currentBodyEditor()){if(!editor)return'';const source=editor.querySelector('#blog_body'),visual=editor.querySelector('[data-blog-body-visual]'),clean=clientSafeBlogHtml(source?.value||'');if(visual)visual.innerHTML=clean;if(source)source.value=clean;return clean}
-  function blogBodyValue(){const editor=currentBodyEditor();if(!editor)return value('blog_body');if(editor.dataset.mode==='visual')syncBodyVisualToSource(editor);return String(editor.querySelector('#blog_body')?.value||'').trim()}
+
+  function setBodyClientCleanupWarning(editor,changed){
+    const warning=editor?.querySelector('[data-blog-body-warning]');
+    if(!warning)return;
+    warning.hidden=!changed;
+    warning.textContent=changed
+      ? 'UNSUPPORTED MARKUP DETECTED · Visual/Preview mode uses the safe allowlist. Review the cleaned result before saving.'
+      : '';
+  }
+
+  function syncBodyVisualToSource(editor=currentBodyEditor()){
+    if(!editor)return'';
+    const visual=editor.querySelector('[data-blog-body-visual]');
+    const source=editor.querySelector('#blog_body');
+    if(visual&&source)source.value=visual.innerHTML.trim();
+    setBodyClientCleanupWarning(editor,false);
+    return source?.value||'';
+  }
+
+  function syncBodySourceToVisual(editor=currentBodyEditor()){
+    if(!editor)return'';
+    const source=editor.querySelector('#blog_body');
+    const visual=editor.querySelector('[data-blog-body-visual]');
+    const raw=String(source?.value||'').trim();
+    const clean=clientSafeBlogHtml(raw).trim();
+    const changed=clean!==raw;
+    if(visual)visual.innerHTML=clean;
+    if(source)source.value=clean;
+    setBodyClientCleanupWarning(editor,changed);
+    return clean;
+  }
+
+  function blogBodyValue(){
+    const editor=currentBodyEditor();
+    if(!editor)return value('blog_body');
+    if(editor.dataset.mode==='visual')syncBodyVisualToSource(editor);
+    return String(editor.querySelector('#blog_body')?.value||'').trim();
+  }
 
   function setBodyMode(editor,mode){
     if(!editor)return;
@@ -237,7 +272,9 @@ window.BRVTALBlog = (() => {
     if(editor.dataset.mode==='visual')syncBodyVisualToSource(editor);
     const source=editor.querySelector('#blog_body'),preview=editor.querySelector('[data-blog-body-preview-frame]');
     if(!preview)return;
-    const clean=clientSafeBlogHtml(source?.value||'');
+    const raw=String(source?.value||'').trim();
+    const clean=clientSafeBlogHtml(raw).trim();
+    setBodyClientCleanupWarning(editor,clean!==raw);
     preview.srcdoc=`<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;padding:24px;background:#090a0b;color:#f4f4f0;font:17px/1.65 Arial,sans-serif}h2,h3,h4{line-height:1.05}a{color:#9dff45}img{max-width:100%;height:auto}blockquote{margin-left:0;padding-left:18px;border-left:2px solid #9dff45;color:#c8c8c2}</style></head><body>${clean||'<p>Nothing to preview yet.</p>'}</body></html>`;
     preview.hidden=false;
     editor.querySelector('[data-blog-body-preview]')?.setAttribute('aria-pressed','true');
