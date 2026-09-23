@@ -232,33 +232,48 @@
     renderRows();
   }
 
-  function updateControls() {
-    const overlay = document.getElementById('brvtal-bulk-actions');
-    if (!overlay) return;
-    const status = overlay.querySelector('.brvtal-bulk-status')?.value || '';
-    const count = state.selected.size;
-    const catalogReady = Boolean(state.module && state.rowsModule === state.module);
-    const countNode = overlay.querySelector('.brvtal-bulk-count'); if (countNode) countNode.textContent = count + ' SELECTED';
-    const button = overlay.querySelector('.brvtal-bulk-apply'); if (button) button.disabled = !catalogReady || !status || count < 1 || count > MAX_SELECTED;
-    const visible = catalogReady ? visibleRows() : [];
-    const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  function pageInfoText(catalogReady, visible, pages) {
+    if (!catalogReady) return 'LOADING CONTENT…';
     const start = visible.length ? state.page * PAGE_SIZE + 1 : 0;
     const end = Math.min(visible.length, (state.page + 1) * PAGE_SIZE);
+    const resultKind = state.query.trim()
+      ? ' MATCHES (' + state.rows.length + ' TOTAL)'
+      : ' TOTAL';
+    return `PAGE ${state.page + 1}/${pages} · ${start}–${end} OF ${visible.length}${resultKind} · SEARCH ALL RECORDS`;
+  }
+
+  function updatePagingControls(overlay, catalogReady) {
+    const visible = catalogReady ? visibleRows() : [];
+    const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
     const pageInfo = overlay.querySelector('.brvtal-bulk-page-info');
-    if (pageInfo) pageInfo.textContent = catalogReady
-      ? `PAGE ${state.page + 1}/${pages} · ${start}–${end} OF ${visible.length}${state.query.trim() ? ` MATCHES (${state.rows.length} TOTAL)` : ' TOTAL'} · SEARCH ALL RECORDS`
-      : 'LOADING CONTENT…';
+    if (pageInfo) pageInfo.textContent = pageInfoText(catalogReady, visible, pages);
+
     const prev = overlay.querySelector('.brvtal-bulk-prev');
     const next = overlay.querySelector('.brvtal-bulk-next');
     if (prev) prev.disabled = !catalogReady || state.page === 0;
     if (next) next.disabled = !catalogReady || state.page >= pages - 1;
+
     const pageIds = pageRows().map(row => Number(row.id || 0)).filter(Boolean);
     const allSelected = pageIds.length > 0 && pageIds.every(id => state.selected.has(id));
     const selectAll = overlay.querySelector('.brvtal-bulk-select-all');
-    if (selectAll) {
-      selectAll.textContent = allSelected ? 'CLEAR PAGE' : 'SELECT PAGE';
-      selectAll.disabled = !catalogReady || pageIds.length === 0;
-    }
+    if (!selectAll) return;
+    selectAll.textContent = allSelected ? 'CLEAR PAGE' : 'SELECT PAGE';
+    selectAll.disabled = !catalogReady || pageIds.length === 0;
+  }
+
+  function updateControls() {
+    const overlay = document.getElementById('brvtal-bulk-actions');
+    if (!overlay) return;
+
+    const status = overlay.querySelector('.brvtal-bulk-status')?.value || '';
+    const count = state.selected.size;
+    const catalogReady = Boolean(state.module && state.rowsModule === state.module);
+    const countNode = overlay.querySelector('.brvtal-bulk-count');
+    if (countNode) countNode.textContent = count + ' SELECTED';
+
+    const button = overlay.querySelector('.brvtal-bulk-apply');
+    if (button) button.disabled = !catalogReady || !status || count < 1 || count > MAX_SELECTED;
+    updatePagingControls(overlay, catalogReady);
   }
 
   async function apply() {
