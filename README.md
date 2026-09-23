@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #272.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #252.
 
 ## Progress convention
 
@@ -17,9 +17,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#272 · JSON-LD específico por entidad pública** | SEO / indexación |
-| Base exacta | ✅ ~~main v0.1.32 CI/validate + Deploy Observer + Performance verdes~~ | `58537f2196902b2f9bbfa3ed3d2f319c1adf7633` |
-| Versión | 🚧 **0.1.33** | runtime SEO, sin migración |
+| Work line | 🚧 **#252 · integridad Media ↔ Content Core ↔ Content Health** | Events / Artists / Sets |
+| Base exacta | ✅ ~~main v0.1.33 CI/validate + Deploy Observer + Performance verdes~~ | `a59f0cca44d783c84263574cbb15f3b8eb8098db` |
+| Versión | 🚧 **0.1.34** | runtime/admin health, sin migración |
 | Producción | 🚧 pendiente de PR → merge → exact-main → observación | no asumir deploy |
 
 ## Huella del cambio
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+473** | **−54** | **+419** |
+| **12** | **+472** | **−40** | **+432** |
 
 ## Calidad y entrega
 
@@ -37,8 +37,9 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #272 · `work/issue-272` · UUID `f4e30caa-9da0-423f-9529-0c5f49df8d0b` |
-| Public SEO | 🚧 MusicEvent, MusicGroup, MusicRecording, MusicAlbum, BlogPosting; fallback WebPage |
+| PR integrity | **PR + snapshot exacto** · Issue #252 · `work/issue-252` · UUID `2ea86e7a-6f1b-4b86-9bf6-8647f9b86cd0` |
+| Media refs | 🚧 HTTP(S) seguro + `/uploads/…` resoluble; draft repairable, public fail-closed |
+| Content Health | 🚧 diferencia visual ausente vs referencia rota |
 | Sonar | 🚧 Quality Gate sobre head final |
 | CodeRabbit | 🚧 full review sobre head final |
 | Exact-main | 🚧 **CI del SHA exacto de main** tras squash merge |
@@ -47,7 +48,7 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.32 verde"] --> S["#272 JSON-LD rico"]
+ B["main v0.1.33 verde"] --> S["#252 media integrity"]
  S --> P["PR · CI · Sonar · CodeRabbit"]
  P --> M["Squash merge"]
  M --> X["Exact-main CI"]
@@ -56,43 +57,49 @@ flowchart LR
 
 ## Qué se hizo
 
-- Events públicos con fecha y lugar real producen `MusicEvent` con `startDate`, `Place`/ciudad, `eventStatus` según lifecycle y performers solo de artistas publicados.
-- Blog expone `headline`, `datePublished`, `dateModified` reales y publisher BRVTAL, sin autor ficticio.
-- Releases aportan fecha, catálogo, artistas publicados y enlaces HTTP(S) seguros; Sets enlazan artista publicado y destino de escucha válido.
-- Artists anuncian solo perfiles configurados y seguros. Pages públicas en inglés declaran `inLanguage`.
-- Event sin fecha/lugar, Blog sin publicación o Set sin relaciones ni URL segura usan `WebPage` en lugar de inventar hechos.
-- No se inventan zonas horarias ni se reintroducen drafts en JSON-LD; rutas y SEO manual permanecen intactos.
-- Test PHP unitario auto-descubierto e integración MariaDB con tablas temporales y guardia `brvtal_test*`; contrato durable en `docs/BRVTAL-SPEC.md`.
+- Events, Artists y Sets comparten un contrato visual: referencias malformadas se rechazan y rutas locales quedan confinadas a `/uploads/…`.
+- Un asset local solo cuenta como sano cuando existe dentro del árbol permitido y decodifica como imagen; no se hacen probes de red a URLs externas.
+- Drafts pueden conservar temporalmente una referencia local bien formada pero rota; un estado realmente público no puede conservarla silenciosamente.
+- Events usan la política pública canónica `brvtal_public_event_is_visible()`; Artists/Sets publicados aplican el mismo fail-closed visual.
+- Content Health deja de equiparar “string no vacío” con visual válido, expone `image_reference_kind` y separa `empty_visuals` de `broken_visuals` manteniendo compatibilidad de `missing_visuals`.
+- DISCADMIN muestra deuda visual vacía y rota por separado.
+- Contratos PHP y real-stack PHP/MariaDB reproducen rutas inexistentes, archivos no-imagen, referencias externas seguras y rollback de intentos de publicación inválidos.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — huella exacta y gates del candidato.
-- `config/public_seo.php` — resolver y JSON-LD enriquecidos de forma fail-closed.
-- `config/version.php` — versión humana 0.1.33.
-- `docs/BRVTAL-SPEC.md` — semántica durable de datos estructurados públicos.
-- `package.json` — versión y runner MariaDB de regresiones SEO.
-- `tests/integration/public-rich-schema.php` — datos sintéticos publicados/draft sobre MariaDB desechable.
-- `tests/public-rich-schema-contract.php` — contratos PHP de fechas, tipos, seguridad y rutas.
+- `api/content-health.php` — salud basada en resolubilidad real y diagnóstico de referencias.
+- `api/content-validation.php` — contrato visual compartido y gate de estado público.
+- `api/index.php` — validación visual en CRUD canónico.
+- `config/media.php` — clasificación segura de referencias visuales.
+- `config/version.php` — versión humana 0.1.34.
+- `discadmin/content-health.js` — métricas separadas de visual vacío/roto.
+- `package.json` — versión 0.1.34.
+- `tests/content-health-contract.php` — contrato durable de Content Health.
+- `tests/e2e/content-core-real-stack.spec.mjs` — reproducción real PHP/MariaDB del bug.
+- `tests/e2e/discadmin-content-health.spec.mjs` — cobertura de diagnóstico en UI.
+- `tests/media-reference-contract.php` — contrato de paths, URLs y estados editoriales.
 
 ## Validación
 
-- Base exacta `58537f2196902b2f9bbfa3ed3d2f319c1adf7633`: BRVTAL CI / `validate` #35813401204 success; Deploy Observer y Production Performance success por separado.
-- Este candidato requiere CI/Sonar/CodeRabbit del HEAD final. No implica publicación en Hostinger.
-- No altera credenciales, tablas persistentes, Hostinger ni contenido editorial productivo.
+- Base exacta `a59f0cca44d783c84263574cbb15f3b8eb8098db`: BRVTAL CI / `validate` #35819015300 success.
+- Deploy Observer #35819015313 y Production Performance #35819032736 success por separado sobre la misma base.
+- El candidato v0.1.34 requiere CI/Sonar/CodeRabbit del HEAD final antes de merge.
+- No altera credenciales, migraciones, Hostinger ni contenido editorial productivo.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#272](https://github.com/pl0n3r/brvtal/issues/272) · cerrar JSON-LD tipado y validar exact-main. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · revisar fidelidad pública Concept 05. |
-| **LATER** | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390) · SEO workspace; [#214](https://github.com/pl0n3r/brvtal/issues/214) · fallbacks dinámicos. |
+| **NOW** | 🚧 [#252](https://github.com/pl0n3r/brvtal/issues/252) · cerrar integridad de referencias visuales y validar exact-main. |
+| **NEXT** | 🚧 [#275](https://github.com/pl0n3r/brvtal/issues/275) · completar cobertura de catálogo en Bulk Actions. |
+| **LATER** | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351) · Theme Studio Concept 05; [#531](https://github.com/pl0n3r/brvtal/issues/531) · Media Library smarter. |
 | **BLOCKED / EXTERNAL** | 🚧 Sin acciones protegidas necesarias para este slice. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Structured data canónico | 🚧 [#272](https://github.com/pl0n3r/brvtal/issues/272) |
-| **NEXT** | 🚧 Fidelity + customization | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583), [#351](https://github.com/pl0n3r/brvtal/issues/351) |
-| **LATER** | 🚧 SEO/Admin enhancements | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390), [#214](https://github.com/pl0n3r/brvtal/issues/214) |
+| **NOW** | 🚧 Media integrity | 🚧 [#252](https://github.com/pl0n3r/brvtal/issues/252) |
+| **NEXT** | 🚧 Admin scale | 🚧 [#275](https://github.com/pl0n3r/brvtal/issues/275) |
+| **LATER** | 🚧 Theme / Media evolution | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351), [#531](https://github.com/pl0n3r/brvtal/issues/531) |

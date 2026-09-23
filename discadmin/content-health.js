@@ -19,7 +19,7 @@
       .content-health-head h2{margin:2px 0 4px;font-size:clamp(24px,3vw,42px);letter-spacing:-.04em}
       .content-health-score{min-width:88px;text-align:right;font:900 34px/1 monospace;color:#fff}
       .content-health-score small{display:block;margin-top:5px;font:700 8px/1.2 monospace;letter-spacing:1.5px;color:#7d848b}
-      .content-health-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+      .content-health-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:10px}
       .content-health-stat{border:1px solid #25292d;padding:12px;background:#070808}
       .content-health-stat span{display:block;font:700 8px/1.2 monospace;letter-spacing:1.4px;color:#777f86;margin-bottom:8px}
       .content-health-stat b{font:900 20px/1 monospace}
@@ -79,7 +79,8 @@
       <div class="content-health-stats">
         <div class="content-health-stat"><span>PUBLIC READY ≥80</span><b>${Number(publicHealth.ready ?? 0)}</b></div>
         <div class="content-health-stat"><span>PUBLIC ATTENTION</span><b>${Number(publicHealth.needs_attention ?? 0)}</b></div>
-        <div class="content-health-stat"><span>PUBLIC MISSING VISUALS</span><b>${Number(publicHealth.missing_visuals ?? 0)}</b></div>
+        <div class="content-health-stat"><span>PUBLIC EMPTY VISUALS</span><b>${Number(publicHealth.empty_visuals ?? publicHealth.missing_visuals ?? 0)}</b></div>
+        <div class="content-health-stat"><span>PUBLIC BROKEN VISUALS</span><b>${Number(publicHealth.broken_visuals ?? 0)}</b></div>
         <div class="content-health-stat"><span>PUBLIC SEO GAPS</span><b>${Number(publicHealth.seo_gaps ?? 0)}</b></div>
       </div>
       <div class="content-health-drafts">

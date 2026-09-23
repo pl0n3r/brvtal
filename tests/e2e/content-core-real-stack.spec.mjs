@@ -177,6 +177,123 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
   }
 });
 
+test('Content Core media references fail closed at public-state mutation and stay visible as health debt', async ({ page }, testInfo) => {
+  const auth = await login(page);
+  const headers = {'X-CSRF-Token':auth.csrf};
+  const runKey = `${Date.now().toString(36)}-${testInfo.workerIndex}`;
+  const missingImage = `/uploads/media/ci-missing-${runKey}.png`;
+  const created = {sets:[], artists:[], events:[]};
+
+  const create = async (resource, data) => {
+    const response = await page.request.post(`${baseUrl}/api/index.php/${resource}`, {headers,data});
+    expect(response.status(), `create ${resource}`).toBe(201);
+    const payload = await response.json();
+    const id = Number(payload.id || 0);
+    expect(id).toBeGreaterThan(0);
+    created[resource].push(id);
+    return id;
+  };
+
+  const getOne = async (resource, id) => {
+    const response = await page.request.get(`${baseUrl}/api/index.php/${resource}/${id}`);
+    expect(response.ok()).toBeTruthy();
+    return (await response.json()).data;
+  };
+
+  try {
+    const malformed = await page.request.post(`${baseUrl}/api/index.php/events`, {
+      headers,
+      data:{
+        title:`CI INVALID MEDIA ${runKey}`,
+        slug:`ci-invalid-media-${runKey}`,
+        status:'draft',
+        cover_image:'javascript:alert(1)',
+      },
+    });
+    expect(malformed.status()).toBe(422);
+    expect(await malformed.json()).toMatchObject({error:'INVALID_MEDIA_REFERENCE',field:'cover_image'});
+
+    const eventId = await create('events', {
+      title:`CI BROKEN EVENT ${runKey}`,
+      slug:`ci-broken-event-${runKey}`,
+      status:'draft',
+      event_date:'2026-12-01T21:00',
+      city:'Pereira',
+      cover_image:missingImage,
+    });
+    const publishEvent = await page.request.put(`${baseUrl}/api/index.php/events/${eventId}`, {
+      headers,
+      data:{status:'published'},
+    });
+    expect(publishEvent.status()).toBe(422);
+    expect(await publishEvent.json()).toMatchObject({error:'MEDIA_REFERENCE_UNRESOLVABLE',field:'cover_image'});
+    expect((await getOne('events',eventId)).status).toBe('draft');
+
+    const artistId = await create('artists', {
+      name:`CI BROKEN ARTIST ${runKey}`,
+      slug:`ci-broken-artist-${runKey}`,
+      status:'draft',
+      photo:missingImage,
+    });
+    const publishArtist = await page.request.put(`${baseUrl}/api/index.php/artists/${artistId}`, {
+      headers,
+      data:{status:'published'},
+    });
+    expect(publishArtist.status()).toBe(422);
+    expect(await publishArtist.json()).toMatchObject({error:'MEDIA_REFERENCE_UNRESOLVABLE',field:'photo'});
+    expect((await getOne('artists',artistId)).status).toBe('draft');
+
+    const setId = await create('sets', {
+      title:`CI BROKEN SET ${runKey}`,
+      slug:`ci-broken-set-${runKey}`,
+      artist_id:artistId,
+      platform:'other',
+      external_url:'https://soundcloud.com/brvtal/ci-media-contract',
+      status:'draft',
+      cover_image:missingImage,
+    });
+    const publishSet = await page.request.put(`${baseUrl}/api/index.php/sets/${setId}`, {
+      headers,
+      data:{status:'published'},
+    });
+    expect(publishSet.status()).toBe(422);
+    expect(await publishSet.json()).toMatchObject({error:'MEDIA_REFERENCE_UNRESOLVABLE',field:'cover_image'});
+    expect((await getOne('sets',setId)).status).toBe('draft');
+
+    const externalSetId = await create('sets', {
+      title:`CI EXTERNAL MEDIA SET ${runKey}`,
+      slug:`ci-external-media-set-${runKey}`,
+      artist_id:artistId,
+      platform:'other',
+      external_url:'https://soundcloud.com/brvtal/ci-external-media',
+      status:'published',
+      cover_image:'https://cdn.example.test/ci-cover.jpg',
+    });
+    expect((await getOne('sets',externalSetId)).status).toBe('published');
+
+    const healthResponse = await page.request.get(`${baseUrl}/api/content-health.php`);
+    expect(healthResponse.ok()).toBeTruthy();
+    const health = (await healthResponse.json()).data;
+    const draftItems = Array.isArray(health?.drafts?.items) ? health.drafts.items : [];
+    for (const [type,id] of [['events',eventId],['artists',artistId],['sets',setId]]) {
+      const item = draftItems.find(row => row.type === type && Number(row.id) === id);
+      expect(item, `Content Health missing ${type} ${id}`).toBeTruthy();
+      expect(item).toMatchObject({
+        has_image:false,
+        image_reference_kind:'local_missing',
+      });
+      expect(item.issues).toContain('Broken primary visual');
+    }
+    expect(Number(health?.drafts?.broken_visuals || 0)).toBeGreaterThanOrEqual(3);
+  } finally {
+    for (const resource of ['sets','artists','events']) {
+      for (const id of [...created[resource]].reverse()) {
+        await page.request.delete(`${baseUrl}/api/index.php/${resource}/${id}`, {headers}).catch(() => {});
+      }
+    }
+  }
+});
+
 async function expectMediaMounted(page, timeout = 10_000) {
   try {
     await expect(page.locator('[data-admin-module="media"]')).toBeVisible({timeout});

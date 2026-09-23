@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/public_visibility.php';
+require_once __DIR__ . '/../config/media.php';
 
 brvtal_admin_require();
 
@@ -40,6 +41,9 @@ function brvtal_content_health_item(string $type, array $row): array
     $slug = brvtal_content_health_pick($row, ['slug']);
     $description = brvtal_content_health_pick($row, ['description','bio','excerpt','body','content_json']);
     $image = brvtal_content_health_pick($row, ['cover_image','photo','artwork']);
+    $imageState = brvtalMediaImageReferenceState($image);
+    $hasImage = $imageState['usable'];
+    $visualIssue = $image === '' ? 'Primary visual' : 'Broken primary visual';
     $status = strtolower(brvtal_content_health_pick($row, ['status']));
     $seoTitleSupported = array_key_exists('seo_title', $row);
     $seoDescriptionSupported = array_key_exists('seo_description', $row);
@@ -54,7 +58,7 @@ function brvtal_content_health_item(string $type, array $row): array
     $add('identity', 'Title / name', 20, $title !== '');
     if ($type !== 'media') $add('slug', 'Slug', 12, $slug !== '');
     if (!in_array($type, ['media'], true)) $add('description', 'Useful description', 18, mb_strlen(strip_tags($description)) >= 40);
-    if (!in_array($type, ['pages'], true)) $add('image', 'Primary visual', 15, $image !== '');
+    if (!in_array($type, ['pages'], true)) $add('image', $visualIssue, 15, $hasImage);
 
     if ($seoTitleSupported) $add('seo_title', 'SEO title', 12, $seoTitle !== '');
     if ($seoDescriptionSupported) $add('seo_description', 'SEO description', 13, mb_strlen($seoDescription) >= 60);
@@ -97,7 +101,8 @@ function brvtal_content_health_item(string $type, array $row): array
         'score' => $score,
         'issues' => $issues,
         'seo_supported' => $seoTitleSupported || $seoDescriptionSupported,
-        'has_image' => $image !== '',
+        'has_image' => $hasImage,
+        'image_reference_kind' => $imageState['kind'],
         'is_public' => $isPublic,
         'is_draft' => $status === 'draft',
     ];
@@ -120,7 +125,19 @@ function brvtal_content_health_summary(array $items): array
     $total = count($items);
     $score = $total ? (int)round(array_sum(array_column($items, 'score')) / $total) : 100;
     $ready = count(array_filter($items, static fn(array $row): bool => $row['score'] >= 80));
+    // Keep missing_visuals as the legacy aggregate "visual gaps" metric.
+    // New consumers can distinguish truly empty fields from broken references.
     $missingVisuals = count(array_filter($items, static fn(array $row): bool => !$row['has_image'] && $row['type'] !== 'pages'));
+    $emptyVisuals = count(array_filter(
+        $items,
+        static fn(array $row): bool => ($row['image_reference_kind'] ?? 'empty') === 'empty' && $row['type'] !== 'pages'
+    ));
+    $brokenVisuals = count(array_filter(
+        $items,
+        static fn(array $row): bool => !$row['has_image']
+            && ($row['image_reference_kind'] ?? 'empty') !== 'empty'
+            && $row['type'] !== 'pages'
+    ));
     $seoGaps = 0;
     foreach ($items as $item) {
         if (!$item['seo_supported']) continue;
@@ -133,6 +150,8 @@ function brvtal_content_health_summary(array $items): array
         'ready' => $ready,
         'needs_attention' => $total - $ready,
         'missing_visuals' => $missingVisuals,
+        'empty_visuals' => $emptyVisuals,
+        'broken_visuals' => $brokenVisuals,
         'seo_gaps' => $seoGaps,
         'items' => array_values($items),
     ];
@@ -185,6 +204,8 @@ try {
             'ready' => $public['ready'],
             'needs_attention' => $public['needs_attention'],
             'missing_visuals' => $public['missing_visuals'],
+            'empty_visuals' => $public['empty_visuals'],
+            'broken_visuals' => $public['broken_visuals'],
             'seo_gaps' => $public['seo_gaps'],
             'by_type' => $byType,
             'items' => $public['items'],
