@@ -108,9 +108,6 @@ try {
     }
 }
 $html = brvtal_public_render_next_experience($html, $nextExperience);
-$html = str_replace('<a href="#contact"><span>07</span>CONTACT</a>', '<a href="/contact"><span>07</span>CONTACT</a>', $html);
-$html = str_replace('<footer class="footer scene" id="contact" data-scene="CORE">', '<footer class="footer scene" id="site-footer" data-scene="CORE">', $html);
-$html = str_replace('href="mailto:contact@brvtal.com.co" data-cursor="CONTACT"', 'href="/contact" data-cursor="CONTACT"', $html);
 $html = brvtal_public_preload_home_lcp($html);
 $html = brvtal_public_keep_home_lcp_visible($html);
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);

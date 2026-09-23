@@ -73,6 +73,11 @@ phase_a_assert(str_contains($rendered, 'PEREIRA / WAREHOUSE 09'), 'Next Experien
 phase_a_assert(str_contains($rendered, 'PL0N3R <i>/</i> DNL5'), 'Next Experience must render structured lineup names');
 phase_a_assert(str_contains($rendered, 'href="https://tickets.example.com/signal"'), 'valid public ticket URL must render a Tickets CTA');
 phase_a_assert(str_contains($rendered, 'TICKETS <span>↗</span>'), 'Tickets CTA must be explicit');
+phase_a_assert(
+    str_contains($rendered, 'class="c5-header-ticket magnetic"')
+        && str_contains($rendered, 'TICKETS <span>→</span>'),
+    'Valid canonical ticketing must also power the authored desktop header CTA'
+);
 phase_a_assert(str_contains($rendered, 'PREVENTA') && str_contains($rendered, '20.000 COP'), 'Ticket Type pricing must be canonical and formatted for COP');
 phase_a_assert(str_contains($rendered, 'DOOR') && str_contains($rendered, '25.000 COP'), 'Secondary Door price must come from the second canonical Ticket Type');
 phase_a_assert(str_contains($rendered, 'BRVTAL × RANDOM KORE'), 'Event description must remain an administrable editorial note');
@@ -81,6 +86,10 @@ $invalidTicket = $event;
 $invalidTicket['public_ticket_url'] = 'javascript:alert(1)';
 $invalidRendered = brvtal_public_render_next_experience($template, $invalidTicket);
 phase_a_assert(!str_contains($invalidRendered, 'class="ticket-cta'), 'invalid ticket URL must not render a Tickets CTA');
+phase_a_assert(
+    !str_contains($invalidRendered, 'class="c5-header-ticket'),
+    'invalid ticket URL must not render a header Tickets CTA'
+);
 
 $soldOut = $event;
 $soldOut['status'] = 'sold_out';
@@ -92,5 +101,9 @@ $soldOut['ticket_types'] = [
 $soldOutRendered = brvtal_public_render_next_experience($template, $soldOut);
 phase_a_assert(str_contains($soldOutRendered, 'SOLD OUT'), 'Sold-out canonical Ticket Type must remain visible as status');
 phase_a_assert(!str_contains($soldOutRendered, 'class="ticket-cta'), 'Sold-out Event must not expose a purchase CTA');
+phase_a_assert(
+    !str_contains($soldOutRendered, 'class="c5-header-ticket'),
+    'Sold-out Event must not expose a header purchase CTA'
+);
 
 echo "PASS public-home-phase-a-contract\n";

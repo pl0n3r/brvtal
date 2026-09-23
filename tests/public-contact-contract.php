@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/public_contact.php';
 require_once __DIR__ . '/../config/public_seo.php';
 require_once __DIR__ . '/../config/public_contact_page.php';
+require_once __DIR__ . '/../config/public_home.php';
 require_once __DIR__ . '/../config/public_sitemap.php';
 
 function contact_assert(bool $condition, string $message): void
@@ -150,8 +151,16 @@ contact_assert(str_contains($styles, '@media(prefers-reduced-motion:reduce)'), '
 contact_assert(str_contains($styles, 'font:16px "Space Mono"'), 'form controls avoid small iOS input text');
 
 contact_assert(!str_contains($indexHtml, 'id="brvtalContactForm"'), 'Home source does not contain the complete Contact form');
-contact_assert(str_contains($indexPhp, "str_replace('<a href=\"#contact\"><span>07</span>CONTACT</a>', '<a href=\"/contact\"><span>07</span>CONTACT</a>'"), 'Home navigation is server-rendered to the dedicated Contact route');
-contact_assert(str_contains($indexPhp, "href=\"/contact\" data-cursor=\"CONTACT\""), 'Home footer CTA routes to dedicated Contact');
+$homeMenu = brvtalPublicHomeConcept05Menu('<aside class="menu-panel" id="menuPanel" aria-hidden="true"></aside>');
+contact_assert(
+    str_contains($homeMenu, '<a href="/contact"><span>08</span><strong>CONTACT</strong></a>'),
+    'Home navigation is server-rendered to the dedicated Contact route'
+);
+$homeFooter = brvtalPublicHomeConcept05Footer('<footer class="footer scene"></footer>');
+contact_assert(
+    substr_count($homeFooter, 'href="/contact"') >= 2,
+    'Home footer CONTACT and COLLABORATE route to dedicated Contact'
+);
 contact_assert(str_contains($indexPhp, "\$pageRoute === 'contact'"), 'canonical public router recognizes Contact');
 contact_assert(str_contains($htaccess, 'RewriteRule ^contact/?$ index.php?page=contact'), 'LiteSpeed direct load/refresh routes /contact server-side');
 contact_assert(in_array('/contact', brvtal_public_static_routes(), true), 'canonical sitemap route registry includes Contact');

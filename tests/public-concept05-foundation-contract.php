@@ -24,6 +24,11 @@ concept05_assert(
     'foundation must load the Concept 05 motion script'
 );
 concept05_assert(
+    str_contains($result, 'css/public-concept05-shell.css')
+        && str_contains($result, 'js/public-concept05-shell.js'),
+    'foundation must load the authored Concept 05 public shell'
+);
+concept05_assert(
     str_contains($result, 'data-concept="05"'),
     'body must carry the Concept 05 root hook'
 );
@@ -36,6 +41,11 @@ concept05_assert(
 concept05_assert(
     substr_count($idempotent, 'js/public-concept05-motion.js') === 1,
     'motion script must not duplicate on repeated calls'
+);
+concept05_assert(
+    substr_count($idempotent, 'css/public-concept05-shell.css') === 1
+        && substr_count($idempotent, 'js/public-concept05-shell.js') === 1,
+    'shell assets must not duplicate on repeated calls'
 );
 concept05_assert(
     substr_count($idempotent, 'data-concept="05"') === 1,
