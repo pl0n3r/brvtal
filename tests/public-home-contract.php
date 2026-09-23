@@ -12,7 +12,10 @@ $now = new DateTimeImmutable('2026-09-14 12:00:00');
 $selected = brvtal_public_select_next_experience([
     ['id'=>1,'title'=>'Past featured','slug'=>'past-featured','event_date'=>'2026-09-13 23:00:00','status'=>'published','featured'=>1,'sort_order'=>0],
     ['id'=>2,'title'=>'Nearest regular','slug'=>'nearest-regular','event_date'=>'2026-09-20 22:00:00','status'=>'published','featured'=>0,'sort_order'=>0],
-    ['id'=>3,'title'=>'TENSION & NOISE','slug'=>'tension-midnight','event_date'=>'2026-12-12 23:00:00','status'=>'tickets_available','featured'=>1,'sort_order'=>2,'city'=>'Medellín','venue'=>'Club X','cover_image'=>'/uploads/media/tension.webp'],
+    ['id'=>3,'title'=>'TENSION & NOISE','slug'=>'tension-midnight','event_date'=>'2026-12-12 23:00:00','status'=>'tickets_available','featured'=>1,'sort_order'=>2,'city'=>'Medellín','venue'=>'Club X','description'=>'BRVTAL × SIGNAL UNIT','cover_image'=>'/uploads/media/tension.webp','public_ticket_url'=>'https://tickets.example.com/tension','ticket_types'=>[
+        ['name'=>'Preventa','price'=>'45000.00','currency'=>'COP','status'=>'active'],
+        ['name'=>'Door','price'=>'60000.00','currency'=>'COP','status'=>'active'],
+    ]],
     ['id'=>4,'title'=>'Private draft','slug'=>'private-draft','event_date'=>'2026-09-15 22:00:00','status'=>'draft','featured'=>1,'sort_order'=>0],
     ['id'=>5,'title'=>'Later featured','slug'=>'later-featured','event_date'=>'2027-01-01 01:00:00','status'=>'upcoming','featured'=>1,'sort_order'=>0],
 ], $now);
@@ -38,10 +41,24 @@ $section = substr($rendered, $start, $end - $start);
 public_home_expect(str_contains($section, 'data-scene="EXPERIENCE"'), 'Next Experience scene must no longer identify itself as legacy Genesis');
 public_home_expect(str_contains($section, 'data-text="TENSION &amp; NOISE"') && str_contains($section, '>TENSION &amp; NOISE</h2>'), 'Event title must come from CMS data and be escaped');
 public_home_expect(str_contains($section, 'TICKETS AVAILABLE.'), 'Public lifecycle status must drive the event tag when useful');
-public_home_expect(str_contains($section, '<span>12.12.2026</span><span>23:00</span>'), 'Event date and time must render from CMS data');
+public_home_expect(
+    str_contains($section, 'data-c5-fact="date" data-label="DATE">12.12.2026</span>')
+    && str_contains($section, 'data-c5-fact="time" data-label="TIME">23:00</span>'),
+    'Event date and time must render from CMS data with authored fact hooks'
+);
 public_home_expect(str_contains($section, 'MEDELLÍN / CLUB X'), 'Event city and venue must render from CMS data');
 public_home_expect(str_contains($section, 'href="/events/tension-midnight"'), 'Next Experience CTA must use the canonical public event route');
-public_home_expect(str_contains($section, 'src="/uploads/media/tension.webp"'), 'Next Experience background must use the event cover when available');
+public_home_expect(
+    str_contains($section, 'data-c5-experience-artwork')
+    && str_contains($section, 'src="/uploads/media/tension.webp"')
+    && str_contains($section, 'alt="TENSION &amp; NOISE event artwork"'),
+    'Next Experience artwork must use canonical Event media with meaningful fallback semantics'
+);
+public_home_expect(str_contains($section, 'class="c5-experience-authored"') || str_contains($section, ' c5-experience-authored'), 'Next Experience must expose the authored Concept 05 surface');
+public_home_expect(str_contains($section, 'BRVTAL × SIGNAL UNIT'), 'Administrable Event description must remain available as the editorial note');
+public_home_expect(str_contains($section, 'PREVENTA') && str_contains($section, '45.000 COP'), 'Canonical Ticket Type price must project into the event takeover');
+public_home_expect(str_contains($section, 'DOOR') && str_contains($section, '60.000 COP'), 'A second canonical Ticket Type may provide the secondary Door price');
+public_home_expect(str_contains($section, 'href="https://tickets.example.com/tension"'), 'Valid canonical ticket URL must power the Tickets action');
 public_home_expect(str_contains($rendered, '<a href="#genesis"><span>02</span>TENSION &amp; NOISE</a>'), 'Navigation label must follow the selected event instead of staying on Genesis');
 
 $unsafe = brvtal_public_render_next_experience($index, [
@@ -61,9 +78,19 @@ public_home_expect($fallbackStart !== false && $fallbackEnd !== false, 'Fallback
 $fallbackSection = substr($fallback, $fallbackStart, $fallbackEnd - $fallbackStart);
 public_home_expect(str_contains($fallbackSection, '>NEXT SIGNAL</h2>'), 'No eligible event must render a neutral Next Experience fallback');
 public_home_expect(str_contains($fallbackSection, 'NEW DATE TO BE ANNOUNCED.'), 'Neutral fallback must not advertise legacy event copy');
-public_home_expect(str_contains($fallbackSection, '<span>DATE TBA</span><span>TIME TBA</span><span>LOCATION TBA</span>'), 'Neutral fallback must not reuse legacy date/location data');
+public_home_expect(
+    str_contains($fallbackSection, 'data-c5-fact="date" data-label="DATE">DATE TBA</span>')
+    && str_contains($fallbackSection, 'data-c5-fact="time" data-label="TIME">TIME TBA</span>')
+    && str_contains($fallbackSection, 'data-c5-fact="location" data-label="LOCATION">LOCATION TBA</span>'),
+    'Neutral fallback must not reuse legacy date/location data'
+);
 public_home_expect(str_contains($fallbackSection, 'VIEW EVENTS'), 'Neutral fallback must keep a useful Events CTA');
-public_home_expect(str_contains($fallbackSection, '<div class="genesis-bg" style="background-image:none"></div>'), 'Neutral fallback must suppress legacy Genesis artwork');
+public_home_expect(
+    str_contains($fallbackSection, 'class="genesis-bg c5-experience-artwork"')
+    && str_contains($fallbackSection, 'data-c5-experience-artwork')
+    && !str_contains($fallbackSection, '<img'),
+    'Neutral fallback must suppress legacy Genesis artwork without inventing media'
+);
 
 public_home_expect(str_contains($indexPhp, "require_once __DIR__ . '/config/public_home.php';"), 'Canonical Home delivery must load the Next Experience renderer');
 $renderPos = strpos($indexPhp, 'brvtal_public_render_next_experience($html, $nextExperience)');
