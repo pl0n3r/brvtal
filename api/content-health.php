@@ -41,7 +41,9 @@ function brvtal_content_health_item(string $type, array $row): array
     $slug = brvtal_content_health_pick($row, ['slug']);
     $description = brvtal_content_health_pick($row, ['description','bio','excerpt','body','content_json']);
     $image = brvtal_content_health_pick($row, ['cover_image','photo','artwork']);
-    $hasImage = brvtalMediaImageReferenceUsable($image);
+    $imageState = brvtalMediaImageReferenceState($image);
+    $hasImage = $imageState['usable'];
+    $visualIssue = $image === '' ? 'Primary visual' : 'Broken primary visual';
     $status = strtolower(brvtal_content_health_pick($row, ['status']));
     $seoTitleSupported = array_key_exists('seo_title', $row);
     $seoDescriptionSupported = array_key_exists('seo_description', $row);
@@ -56,7 +58,7 @@ function brvtal_content_health_item(string $type, array $row): array
     $add('identity', 'Title / name', 20, $title !== '');
     if ($type !== 'media') $add('slug', 'Slug', 12, $slug !== '');
     if (!in_array($type, ['media'], true)) $add('description', 'Useful description', 18, mb_strlen(strip_tags($description)) >= 40);
-    if (!in_array($type, ['pages'], true)) $add('image', 'Primary visual', 15, $hasImage);
+    if (!in_array($type, ['pages'], true)) $add('image', $visualIssue, 15, $hasImage);
 
     if ($seoTitleSupported) $add('seo_title', 'SEO title', 12, $seoTitle !== '');
     if ($seoDescriptionSupported) $add('seo_description', 'SEO description', 13, mb_strlen($seoDescription) >= 60);
@@ -100,6 +102,7 @@ function brvtal_content_health_item(string $type, array $row): array
         'issues' => $issues,
         'seo_supported' => $seoTitleSupported || $seoDescriptionSupported,
         'has_image' => $hasImage,
+        'image_reference_kind' => $imageState['kind'],
         'is_public' => $isPublic,
         'is_draft' => $status === 'draft',
     ];

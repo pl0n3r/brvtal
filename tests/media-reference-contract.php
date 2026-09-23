@@ -84,7 +84,9 @@ try {
     $healthSource = (string)file_get_contents(__DIR__ . '/../api/content-health.php');
     brvtal_media_reference_assert(str_contains($indexSource, 'brvtalContentVisualShapeError'), 'generic CRUD must enforce visual shape');
     brvtal_media_reference_assert(substr_count($indexSource, 'brvtalContentVisualPublicationError') >= 2, 'create and update must enforce final visual state');
-    brvtal_media_reference_assert(str_contains($healthSource, 'brvtalMediaImageReferenceUsable'), 'Content Health must score resolvable visuals');
+    brvtal_media_reference_assert(str_contains($healthSource, 'brvtalMediaImageReferenceState'), 'Content Health must classify visual references');
+    brvtal_media_reference_assert(str_contains($healthSource, 'Broken primary visual'), 'Content Health must distinguish broken references from missing visuals');
+    brvtal_media_reference_assert(str_contains($healthSource, "'image_reference_kind'"), 'Content Health must expose the diagnostic reference kind');
     brvtal_media_reference_assert(!str_contains($healthSource, "'has_image' => \$image !== ''"), 'Content Health must not treat non-empty as healthy');
 } finally {
     @unlink($imagePath);
