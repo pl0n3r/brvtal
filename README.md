@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **40** | **+991** | **−842** | **+149** |
+| **42** | **+998** | **−846** | **+152** |
 
 ## Calidad y entrega
 
@@ -112,6 +112,8 @@ flowchart LR
 - `tests/e2e/run-content-core-real-stack.sh`
 - `tests/integration/artist-collective-membership-migration.sh`
 - `tests/public-roster-contract.php`
+- `tests/set-publication-contract.php`
+- `tests/theme-active-reference-contract.php`
 
 ## Validación
 
