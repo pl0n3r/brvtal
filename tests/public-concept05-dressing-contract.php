@@ -81,6 +81,10 @@ dressing_assert(
     'Home identity must load the Concept 05 Sound + Memories progressive enhancer'
 );
 dressing_assert(
+    str_contains($identity, 'css/public-concept05-journal-connected.css'),
+    'Home identity must load the authored Concept 05 Journal + Connected stylesheet'
+);
+dressing_assert(
     str_contains($identity, 'data-c5-hero-documentary'),
     'Concept 05 Hero must expose a documentary media surface'
 );
@@ -148,6 +152,10 @@ dressing_assert(
 dressing_assert(
     substr_count($identityIdempotent, 'js/public-concept05-sound-memories.js') === 1,
     'Concept 05 Sound + Memories runtime must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($identityIdempotent, 'css/public-concept05-journal-connected.css') === 1,
+    'Concept 05 Journal + Connected stylesheet must not duplicate on repeated calls'
 );
 dressing_assert(
     substr_count($identityIdempotent, '<figure class="c5-hero-documentary" data-c5-hero-documentary') === 1,
