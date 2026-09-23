@@ -46,7 +46,7 @@ $mustContain($admin, 'TEXT / BLACK CONTRAST', 'Theme Studio must expose a basic 
 $mustContain($admin, 'LOCAL THEME PREVIEW', 'Theme Studio must label its local token preview honestly');
 $mustNotContain($admin, "['seo','SEO']", 'Theme Studio must not expose SEO controls until server-side SEO consumes them');
 $mustNotContain($admin, "toggleField('sceneIndicator'", 'Theme Studio must not expose the legacy scene indicator neutralized by Concept 05');
-$mustContain($admin, 't.seo = { ...(t.seo || {}) };', 'hidden legacy SEO payload must round-trip without destructive blanking');
+$mustContain($admin, 't.seo = { ...t.seo };', 'hidden legacy SEO payload must round-trip without destructive blanking');
 $mustContain($admin, 'sceneIndicator:t.navigation?.sceneIndicator ?? false', 'hidden legacy scene-indicator state must round-trip safely');
 $mustContain($admin, '>1440<', 'Theme Studio must expose the canonical desktop preview target');
 $mustContain($admin, '>390<', 'Theme Studio must expose the canonical mobile preview target');
