@@ -163,6 +163,7 @@ npx playwright test \
   tests/e2e/discadmin-premium-real-stack.spec.mjs \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/theme-active-reference-real-stack.spec.mjs \
+  tests/e2e/public-preview-real-stack.spec.mjs \
   tests/e2e/event-publication-invariant-real-stack.spec.mjs \
   tests/e2e/blog-relation-integrity-real-stack.spec.mjs \
   tests/e2e/memory-relations-real-stack.spec.mjs \
