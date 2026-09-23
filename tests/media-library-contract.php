@@ -79,7 +79,7 @@ $registerStart = strpos($api, "if (\$method === 'POST' && \$action === 'register
 media_assert($uploadStart !== false && $registerStart !== false && $registerStart > $uploadStart, 'upload source block must remain discoverable');
 $uploadSource = substr($api, $uploadStart, $registerStart - $uploadStart);
 media_assert(
-    preg_match("/\\$st->execute\\(\\[\\$type, \\$title, \\$publicPath, \\$mime, \\$size, \\$contentHash, \\$alt, 'draft'\\]\\);/", $uploadSource) === 1,
+    str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$contentHash, \$alt, 'draft']);"),
     'new physical uploads must be persisted as draft'
 );
 media_assert(!str_contains($uploadSource, "'published'"), 'upload path must not silently publish newly uploaded assets');
