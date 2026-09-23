@@ -420,15 +420,32 @@ Do not automatically claim complete legal compliance. Tooling assists maintenanc
 
 ## 32. Theme Studio and skins
 
-Earlier concepts included BRVTAL CORE + event skins. The **current decision** is to keep the public design fixed for now.
+Theme Studio is the bounded visual customizer for the canonical **BRVTAL Concept 05** public system. It is not a free-form page builder and must not create a second public renderer.
 
-Do not prioritize:
+The administrable surface is limited to semantic capabilities that the public renderer actually consumes:
+
+- identity assets selected through the canonical Media Library, including main/mobile logo, favicon, preloader and default social image where supported;
+- semantic mother-palette roles **BLACK / PAPER / RED / SIGNAL / LINE**, with contrast feedback and safe group resets;
+- curated public typography choices with a visual selector, **Space Grotesk** as the recommended display/body starting point, a compatible mono family, system fallbacks and only the selected allowlisted Google Fonts families/weights loaded with `display=swap`;
+- bounded navigation/component, texture, grain, scanline, glitch, motion and sound presets only when they have a real public effect;
+- local preview modes authored for the canonical **1440 px desktop** and **390 px mobile** targets, with unsaved-change state visible before persistence;
+- draft/save and activation semantics that preserve the existing single active-theme contract.
+
+Concept 05 is the safe reset/default visual system. Resetting visual controls must preserve theme identity, selected assets, slug and compatible legacy payload that is outside the reset scope. Event-specific variation may contaminate/accent the mother palette but must not replace BRVTAL's global identity.
+
+Theme Studio must not expose controls that are ignored or authoritatively owned elsewhere. In particular, arbitrary per-element positions, z-indexes, breakpoints, animation timelines, raw layout geometry and component-level free-form font sizing remain design-system owned. SEO/analytics settings belong in their authoritative configuration surface and must not be presented as functional Theme Studio controls until the server/public runtime actually consumes them.
+
+Preview and production must resolve through the same semantic tokens and public runtime path. A local Theme Studio preview is not a substitute for the separate true public draft-preview workflow.
+
+Do not introduce:
 
 - arbitrary skin creation;
-- complex live theme builders;
-- one-site-per-event architectures.
+- one-site-per-event architectures;
+- unrestricted custom code;
+- a Wix/Elementor-style builder;
+- hard-coded event presets that fork the mother identity.
 
-BRVTAL remains visually consistent.
+BRVTAL remains visually consistent while allowing safe, bounded customization.
 
 ## 33. Backups
 
