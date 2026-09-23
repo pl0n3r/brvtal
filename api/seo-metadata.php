@@ -103,23 +103,15 @@ try {
             'seo_title'=>$locked['seo_title'] ?? null,
             'seo_description'=>$locked['seo_description'] ?? null,
         ];
-        $seoTitle = $requestedTitle !== ''
-            ? brvtal_seo_truncate(brvtal_seo_plain_text($requestedTitle), 190)
-            : brvtal_seo_default_title($locked['source_title'] ?? '');
-        $seoDescription = $requestedDescription !== ''
-            ? brvtal_seo_truncate(brvtal_seo_plain_text($requestedDescription), 320)
-            : brvtal_seo_default_description($locked['source_description'] ?? '', 160);
+        $seoTitle = brvtal_seo_override_value($requestedTitle, 190);
+        $seoDescription = brvtal_seo_override_value($requestedDescription, 320);
 
         $st = $pdo->prepare("UPDATE `{$table}` SET seo_title=?,seo_description=? WHERE id=?");
-        $st->execute([
-            $seoTitle !== '' ? $seoTitle : null,
-            $seoDescription !== '' ? $seoDescription : null,
-            $id,
-        ]);
+        $st->execute([$seoTitle, $seoDescription, $id]);
         $after = [
             'id'=>$id,
-            'seo_title'=>$seoTitle !== '' ? $seoTitle : null,
-            'seo_description'=>$seoDescription !== '' ? $seoDescription : null,
+            'seo_title'=>$seoTitle,
+            'seo_description'=>$seoDescription,
         ];
         if (brvtal_activity_changed_fields(
             brvtal_activity_snapshot($resource, $before),

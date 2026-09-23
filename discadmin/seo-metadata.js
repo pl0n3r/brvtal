@@ -60,6 +60,18 @@
     </section>`;
   }
 
+  function effectiveInputValue(input, fallback = '') {
+    const shared = window.BRVTALSEODefaults?.effectiveValue;
+    return typeof shared === 'function'
+      ? shared(input,fallback)
+      : (String(input?.value || '').trim() || String(fallback || '').trim());
+  }
+
+  function persistableInputValue(input) {
+    const shared = window.BRVTALSEODefaults?.persistableValue;
+    return typeof shared === 'function' ? shared(input) : String(input?.value || '').trim();
+  }
+
   function bindPreview(section, context = {}) {
     if (!section || section.dataset.seoBound === '1') return;
     section.dataset.seoBound = '1';
@@ -70,18 +82,20 @@
     const titleCounter = section.querySelector('[data-seo-count="title"]');
     const descriptionCounter = section.querySelector('[data-seo-count="description"]');
     const update = () => {
-      const title = titleInput?.value?.trim() || context.title || 'BRVTAL';
-      const description = descriptionInput?.value?.trim() || 'Add a concise SEO description to preview how this content can appear in search results.';
+      const title = effectiveInputValue(titleInput,context.title || 'BRVTAL') || 'BRVTAL';
+      const description = effectiveInputValue(descriptionInput,'Add a concise SEO description to preview how this content can appear in search results.');
       if (titlePreview) titlePreview.textContent = title;
       if (descriptionPreview) descriptionPreview.textContent = description;
       if (titleCounter) {
-        const n = titleInput?.value?.length || 0;
-        titleCounter.textContent = `${n}/60 recommended`;
+        const n = title.length;
+        const auto = titleInput?.dataset.seoMode === 'auto';
+        titleCounter.textContent = (auto ? 'AUTO · ' : '') + `${n}/60 recommended`;
         titleCounter.className = 'brvtal-seo-counter' + (n > 70 ? ' bad' : n > 60 ? ' warn' : '');
       }
       if (descriptionCounter) {
-        const n = descriptionInput?.value?.length || 0;
-        descriptionCounter.textContent = `${n}/160 recommended`;
+        const n = description.length;
+        const auto = descriptionInput?.dataset.seoMode === 'auto';
+        descriptionCounter.textContent = (auto ? 'AUTO · ' : '') + `${n}/160 recommended`;
         descriptionCounter.className = 'brvtal-seo-counter' + (n > 180 ? ' bad' : n > 160 ? ' warn' : '');
       }
     };
@@ -188,16 +202,16 @@
 
   function metadataFor(resource) {
     if (resource === 'releases') return {
-      seo_title: document.getElementById('release_seo_title')?.value?.trim() || '',
-      seo_description: document.getElementById('release_seo_description')?.value?.trim() || '',
+      seo_title:persistableInputValue(document.getElementById('release_seo_title')),
+      seo_description:persistableInputValue(document.getElementById('release_seo_description')),
     };
     if (resource === 'events' && document.getElementById('eventModal')?.classList.contains('open')) return {
-      seo_title: document.getElementById('e_seo_title')?.value?.trim() || '',
-      seo_description: document.getElementById('e_seo_description')?.value?.trim() || '',
+      seo_title:persistableInputValue(document.getElementById('e_seo_title')),
+      seo_description:persistableInputValue(document.getElementById('e_seo_description')),
     };
     return {
-      seo_title: document.getElementById('f_seo_title')?.value?.trim() || '',
-      seo_description: document.getElementById('f_seo_description')?.value?.trim() || '',
+      seo_title:persistableInputValue(document.getElementById('f_seo_title')),
+      seo_description:persistableInputValue(document.getElementById('f_seo_description')),
     };
   }
 

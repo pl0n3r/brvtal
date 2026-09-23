@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const defaultsJs = readFileSync(join(process.cwd(), 'discadmin/seo-editorial-defaults.js'), 'utf8');
 const seoJs = readFileSync(join(process.cwd(), 'discadmin/seo-metadata.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/seo-metadata-e2e.html';
 
@@ -190,4 +191,57 @@ test('SEO failure is a recoverable partial save and cannot duplicate a Release P
   expect(releaseWrites).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__seoResolved)).toEqual({resource:'releases',id:99});
   await expect(page.locator('[data-seo-recovery]')).toContainText('SEO RECOVERED');
+});
+
+
+test('automatic Release fallback previews dynamically but SEO persistence receives empty overrides', async ({ page }) => {
+  let seoRequest = null;
+  await page.route('**/api/releases.php', async route => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:[]})});
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{id:77,title:'AUTO RELEASE',slug:'auto-release'}})});
+  });
+  await page.route('**/api/seo-metadata.php**', async route => {
+    seoRequest = route.request().postDataJSON();
+    await route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{id:77}})});
+  });
+
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:`<!doctype html><html><head><meta charset="utf-8"></head><body>
+      <div id="modal" class="modal open"><div id="mcontent"><div class="form">
+        <input id="release_title" value="AUTO RELEASE">
+        <input id="release_slug" value="auto-release">
+        <textarea id="release_description">Dynamic release description.</textarea>
+      </div></div></div>
+      <script>
+        window.csrf='csrf-token';
+        window.BRVTALFeedback={success:()=>{},error:()=>{}};
+      </script>
+      <script>${defaultsJs}</script><script>${seoJs}</script>
+    </body></html>`
+  }));
+  await page.goto(harnessUrl);
+
+  await expect(page.locator('#release_seo_title')).toBeVisible();
+  await expect(page.locator('#release_seo_title')).toHaveValue('');
+  await expect(page.locator('#release_seo_title')).toHaveAttribute('data-seo-mode','auto');
+  await expect(page.locator('#release_seo_title')).toHaveAttribute('placeholder','AUTO RELEASE');
+  await expect(page.locator('[data-seo-preview="title"]')).toHaveText('AUTO RELEASE');
+  await expect(page.locator('[data-seo-preview="description"]')).toHaveText('Dynamic release description.');
+
+  await page.locator('#release_title').fill('AUTO RELEASE II');
+  await expect(page.locator('#release_seo_title')).toHaveValue('');
+  await expect(page.locator('#release_seo_title')).toHaveAttribute('placeholder','AUTO RELEASE II');
+  await expect(page.locator('[data-seo-preview="title"]')).toHaveText('AUTO RELEASE II');
+
+  await page.evaluate(() => fetch('/api/releases.php',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRF-Token':'csrf-token'},
+    body:JSON.stringify({title:'AUTO RELEASE II',slug:'auto-release'})
+  }));
+  await expect.poll(() => seoRequest).not.toBeNull();
+  expect(seoRequest.seo_title).toBe('');
+  expect(seoRequest.seo_description).toBe('');
 });
