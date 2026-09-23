@@ -45,7 +45,7 @@
 | Canonical/social | 🚧 canonical derivado/read-only; OG/Twitter heredan metadata efectiva |
 | Settings | 🚧 delega metadata al workspace y conserva IndexNow |
 | Durable coverage | 🚧 contratos PHP + MariaDB + browser desktop/mobile + IA/Settings |
-| Sonar | 🚧 Quality Gate verde; limpieza de deuda nueva en curso |
+| Sonar | ✅ ~~Quality Gate verde · 0 issues nuevos · 0 hotspots~~ |
 | CodeRabbit | 🚧 full review en curso |
 | CI del SHA exacto de main | 🚧 después del squash merge |
 
@@ -112,9 +112,9 @@ flowchart LR
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 #390 · cerrar PR #621 y entregar v0.1.44. |
-| **NEXT** | 🚧 #528 · autosave/recovery del editor. |
-| **LATER** | 🚧 #530 · recycle bin y backlog restante según roadmap #533. |
+| **NOW** | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390) · cerrar PR #621 y entregar v0.1.44. |
+| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery del editor. |
+| **LATER** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin y backlog restante según [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533). |
 | **BLOCKED / EXTERNAL** | 🚧 migraciones o mutaciones manuales SEO en producción requieren autorización explícita. |
 
 ## Panorama general pendiente
