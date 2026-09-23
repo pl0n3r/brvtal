@@ -86,7 +86,68 @@ async function saveEvent(){
     return false;
   }
 }
-async function saveTickets(eventId){const rows=$$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=ticketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=ticketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
+async function saveTickets(eventId){const rows=$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=ticketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=ticketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
+function eventPreviewLineup(){
+  const existing=new Map(
+    (Array.isArray(currentEvent?.lineup)?currentEvent.lineup:[])
+      .map((item,index)=>[Number(item.artist_id||item.id||0),{
+        artist_id:Number(item.artist_id||item.id||0),
+        role:String(item.role||''),
+        sort_order:Number.isFinite(Number(item.lineup_order))
+          ? Number(item.lineup_order)
+          : index
+      }])
+  );
+  let nextOrder=existing.size;
+  return $('#eventArtists [data-artist]:checked').map(checkbox=>{
+    const artistId=Number(checkbox.dataset.artist||0);
+    return existing.get(artistId)||{
+      artist_id:artistId,
+      role:'',
+      sort_order:nextOrder++
+    };
+  }).filter(item=>item.artist_id>0);
+}
+function eventPreviewPayload(){
+  const rawDate=$('#e_event_date').value;
+  return {
+    id:Number(currentEvent?.id||0),
+    title:$('#e_title').value.trim(),
+    slug:$('#e_slug').value.trim(),
+    description:$('#e_description').value,
+    cover_image:$('#e_cover_image').value,
+    accent:$('#e_accent').value.trim(),
+    status:$('#e_status').value||'draft',
+    event_date:rawDate?rawDate.replace('T',' '):'',
+    city:$('#e_city').value.trim(),
+    venue:$('#e_venue').value.trim(),
+    ticket_instructions:$('#e_ticket_instructions').value,
+    ticket_url:$('#e_ticket_url').value,
+    ticket_types:$('#tickets .ticket-row').map((row,index)=>
+      ticketPayload(row,Number(currentEvent?.id||0),index)
+    ),
+    lineup:eventPreviewLineup()
+  };
+}
+async function previewEvent(){
+  if(!window.BRVTALPublicPreview){
+    msg('Public preview is unavailable. Reload DISCADMIN.',false,'eventNotice');
+    return;
+  }
+  if($('#tickets').dataset.loadState==='loading'||$('#eventArtists').dataset.loadState==='loading'){
+    msg('Wait for event relationships to finish loading before previewing.',false,'eventNotice');
+    return;
+  }
+  const button=$('#cc-previewBtn');
+  if(button){button.disabled=true;button.textContent='BUILDING PREVIEW…';}
+  try{
+    await window.BRVTALPublicPreview.open('events',eventPreviewPayload());
+  }catch(error){
+    msg('Preview failed: '+String(error?.message||'UNKNOWN_ERROR').replaceAll('_',' '),false,'eventNotice');
+  }finally{
+    if(button?.isConnected){button.disabled=false;button.textContent='PUBLIC PREVIEW';}
+  }
+}
 async function loadArtists(){try{const j=await api('/artists');artists=j.data||j.artists||[];renderRoster();renderEventArtists()}catch(e){msg('Could not load artists: '+e.message,false)}}
 function renderRoster(){const q=($('#artistSearch').value||'').toLowerCase();const a=artists.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#rosterList').innerHTML=a.map(x=>`<div class="artist"><div class="ph">${x.photo?'IMG':'BRV'}</div><div class="grow"><b>${esc(x.name)}</b><small>${esc(x.collective_status||'none')} · order ${esc(x.collective_order??'—')}</small></div><button class="icon" onclick="BRVTALContentCore.editArtist(${Number(x.id)})">EDIT</button></div>`).join('')||'<div class="empty">No artists found.</div>'}
 function editArtist(id){const a=artists.find(x=>Number(x.id)===Number(id));if(!a)return;$('#artistDetail').innerHTML=`<div class="field"><label for="a_name">Artist</label><input id="a_name" value="${esc(a.name)}" disabled></div><div class="field"><label for="a_status">Collective status</label><select id="a_status"><option ${a.collective_status==='none'?'selected':''}>none</option><option ${a.collective_status==='active'?'selected':''}>active</option><option ${a.collective_status==='alumni'?'selected':''}>alumni</option></select></div><div class="field"><label for="a_order">Collective order</label><input id="a_order" type="number" value="${esc(a.collective_order??0)}"></div><div class="field"><label for="a_joined">Joined at</label><input id="a_joined" type="date" value="${esc((a.collective_joined_at||'').slice(0,10))}"></div><div class="field"><label for="a_left">Left at</label><input id="a_left" type="date" value="${esc((a.collective_left_at||'').slice(0,10))}"></div><button class="btn red" onclick="BRVTALContentCore.saveArtist(${id})">SAVE ARTIST</button>`}
@@ -200,5 +261,5 @@ $$('.tab').forEach(t=>t.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
   };
 })();
 
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,editArtist,saveArtist});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,previewEvent,editArtist,saveArtist});
 }};

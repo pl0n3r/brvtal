@@ -218,6 +218,17 @@ window.BRVTALReleases = (() => {
     });
 
     saveButton.onclick = () => save(id);
+    window.BRVTALPublicPreview?.bindButton(
+      document.getElementById('previewBtn'),
+      'releases',
+      () => {
+        const current = id ? store.releases.find(item => Number(item.id) === Number(id)) : null;
+        const sortOrder = current
+          ? Number(current.sort_order || 0)
+          : store.releases.reduce((max,item) => Math.max(max,Number(item.sort_order ?? -1)), -1) + 1;
+        return {id:Number(id||0),...payload(sortOrder)};
+      }
+    );
     modal.classList.add('open');
   }
 
