@@ -448,7 +448,7 @@
       const items = canonicalEventList(activeItems, archiveItems);
       if (!items.length) return false;
 
-      track.innerHTML = items.map(eventCardMarkup).join('');
+      track.innerHTML = items.map((event, index) => eventCardMarkup(event, index)).join('');
       return true;
     };
 
