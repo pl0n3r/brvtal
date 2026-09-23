@@ -165,6 +165,14 @@ test('duplicate upload reuses and selects the canonical Media asset with explici
     })
   }));
 
+  await page.route('**/api/media-library.php?action=detail&id=11', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      data: { ...mediaItem, content_hash: 'a'.repeat(64), usage: [], usage_count: 0 }
+    })
+  }));
+
   await page.locator('#media-file').setInputFiles({
     name: 'same-bytes-different-name.png',
     mimeType: 'image/png',

@@ -16,7 +16,7 @@ $temp = tempnam(sys_get_temp_dir(), 'brvtal-media-hash-');
 media_dedup_assert(is_string($temp), 'temporary hash fixture must be created');
 file_put_contents($temp, 'BRVTAL exact duplicate fixture');
 $expected = hash('sha256', 'BRVTAL exact duplicate fixture');
-media_dedup_assert(brvtal_media_content_hash($temp) === $expected, 'content hash must derive from bytes, not filename');
+media_dedup_assert(brvtalMediaContentHash($temp) === $expected, 'content hash must derive from bytes, not filename');
 @unlink($temp);
 
 $migration = (string)file_get_contents(__DIR__ . '/../database/migration_media_content_hash_01.sql');
@@ -33,9 +33,9 @@ $api = (string)file_get_contents(__DIR__ . '/../api/media-library.php');
 media_dedup_assert(str_contains($api, "require_once __DIR__ . '/../config/media_dedup.php';"), 'Media API must load dedup helpers');
 media_dedup_assert(str_contains($api, 'MEDIA_DEDUP_MIGRATION_REQUIRED'), 'upload must fail explicitly when migration is missing');
 media_dedup_assert(str_contains($api, 'MEDIA_DEDUP_LEGACY_SCAN_LIMIT'), 'bounded legacy scan must fail closed instead of silently duplicating');
-media_dedup_assert(str_contains($api, 'brvtal_media_find_duplicate($pdo, $contentHash, $size, $mime)'), 'upload must dedupe after validation and before moving');
+media_dedup_assert(str_contains($api, 'brvtalMediaFindDuplicate($pdo, $contentHash, $size, $mime)'), 'upload must dedupe after validation and before moving');
 media_dedup_assert(str_contains($api, "'concurrent_race'"), 'unique-index race must resolve to the winning Media row');
-media_dedup_assert(str_contains($api, "@unlink($absolute);"), 'losing concurrent upload must remove its moved orphan');
+media_dedup_assert(str_contains($api, '@unlink($absolute);'), 'losing concurrent upload must remove its moved orphan');
 media_dedup_assert(str_contains($api, "'duplicate' => true") && str_contains($api, "'reused' => true"), 'reuse response must be explicit');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');

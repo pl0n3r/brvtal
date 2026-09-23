@@ -65,7 +65,7 @@ media_assert(str_contains($mediaIntegrity, 'brvtal_media_usage($pdo, $media)') &
 media_assert(str_contains($api, "25 * 1024 * 1024"), 'upload size ceiling must be explicit');
 media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported');
 media_assert(str_contains($api, "MEDIA_DEDUP_MIGRATION_REQUIRED"), 'physical upload must expose explicit dedup migration state');
-media_assert(str_contains($api, "brvtal_media_find_duplicate"), 'physical upload must use exact-content deduplication before storage');
+media_assert(str_contains($api, "brvtalMediaFindDuplicate"), 'physical upload must use exact-content deduplication before storage');
 media_assert(str_contains($api, "\$action === 'transform'"), 'Media Engine v2 must expose a focal-point transform action');
 media_assert(str_contains($api, 'brvtal_media_remove_generated_variants'), 'regeneration must clean previously tracked variants');
 media_assert(!str_contains($api, "image/svg+xml"), 'SVG uploads stay disabled until a sanitizer exists');

@@ -9,7 +9,7 @@ declare(strict_types=1);
  * deduplication after the feature ships.
  */
 
-function brvtal_media_dedup_schema_state(PDO $pdo): array
+function brvtalMediaDedupSchemaState(PDO $pdo): array
 {
     $column = (int)$pdo->query(
         "SELECT COUNT(*) FROM information_schema.COLUMNS " .
@@ -30,16 +30,16 @@ function brvtal_media_dedup_schema_state(PDO $pdo): array
     ];
 }
 
-function brvtal_media_dedup_select_columns(PDO $pdo): string
+function brvtalMediaDedupSelectColumns(PDO $pdo): string
 {
     $columns = 'id,type,title,file_path,mime_type,file_size,alt_text,status,created_at';
-    if (brvtal_media_dedup_schema_state($pdo)['column']) {
+    if (brvtalMediaDedupSchemaState($pdo)['column']) {
         $columns .= ',content_hash';
     }
     return $columns;
 }
 
-function brvtal_media_content_hash(string $path): string
+function brvtalMediaContentHash(string $path): string
 {
     if ($path === '' || !is_file($path)) {
         throw new RuntimeException('MEDIA_HASH_SOURCE_MISSING');
@@ -51,17 +51,17 @@ function brvtal_media_content_hash(string $path): string
     return $hash;
 }
 
-function brvtal_media_find_by_content_hash(PDO $pdo, string $hash): ?array
+function brvtalMediaFindByContentHash(PDO $pdo, string $hash): ?array
 {
     if (preg_match('/^[a-f0-9]{64}$/', $hash) !== 1) {
         throw new InvalidArgumentException('INVALID_MEDIA_CONTENT_HASH');
     }
-    $state = brvtal_media_dedup_schema_state($pdo);
+    $state = brvtalMediaDedupSchemaState($pdo);
     if (!$state['column']) {
         return null;
     }
 
-    $sql = 'SELECT ' . brvtal_media_dedup_select_columns($pdo) .
+    $sql = 'SELECT ' . brvtalMediaDedupSelectColumns($pdo) .
         ' FROM media WHERE content_hash=? ORDER BY id ASC LIMIT 1';
     $st = $pdo->prepare($sql);
     $st->execute([$hash]);
@@ -69,7 +69,7 @@ function brvtal_media_find_by_content_hash(PDO $pdo, string $hash): ?array
     return is_array($row) ? $row : null;
 }
 
-function brvtal_media_is_unique_hash_conflict(Throwable $error): bool
+function brvtalMediaIsUniqueHashConflict(Throwable $error): bool
 {
     if (!$error instanceof PDOException) {
         return false;
@@ -97,7 +97,7 @@ function brvtal_media_is_unique_hash_conflict(Throwable $error): bool
  *   bytes_hashed:int
  * }
  */
-function brvtal_media_find_duplicate(
+function brvtalMediaFindDuplicate(
     PDO $pdo,
     string $incomingHash,
     int $fileSize,
@@ -110,7 +110,7 @@ function brvtal_media_find_duplicate(
         throw new InvalidArgumentException('INVALID_MEDIA_DEDUP_CANDIDATE');
     }
 
-    $state = brvtal_media_dedup_schema_state($pdo);
+    $state = brvtalMediaDedupSchemaState($pdo);
     if (!$state['ready']) {
         return [
             'duplicate' => null,
@@ -122,7 +122,7 @@ function brvtal_media_find_duplicate(
         ];
     }
 
-    $existing = brvtal_media_find_by_content_hash($pdo, $incomingHash);
+    $existing = brvtalMediaFindByContentHash($pdo, $incomingHash);
     if ($existing !== null) {
         return [
             'duplicate' => $existing,
@@ -144,7 +144,7 @@ function brvtal_media_find_duplicate(
     $count->execute([$fileSize, $mimeType]);
     $candidateCount = (int)$count->fetchColumn();
 
-    $sql = 'SELECT ' . brvtal_media_dedup_select_columns($pdo) .
+    $sql = 'SELECT ' . brvtalMediaDedupSelectColumns($pdo) .
         ' FROM media WHERE content_hash IS NULL AND file_size=? AND mime_type=? ' .
         'ORDER BY id ASC LIMIT ' . $candidateLimit;
     $st = $pdo->prepare($sql);
@@ -181,7 +181,7 @@ function brvtal_media_find_duplicate(
             ];
         }
 
-        $candidateHash = brvtal_media_content_hash($absolute);
+        $candidateHash = brvtalMediaContentHash($absolute);
         $hashedCandidates++;
         $bytesHashed += $actualSize;
 
@@ -189,13 +189,13 @@ function brvtal_media_find_duplicate(
             $update = $pdo->prepare('UPDATE media SET content_hash=? WHERE id=? AND content_hash IS NULL');
             $update->execute([$candidateHash, (int)$row['id']]);
         } catch (PDOException $error) {
-            if (!brvtal_media_is_unique_hash_conflict($error)) {
+            if (!brvtalMediaIsUniqueHashConflict($error)) {
                 throw $error;
             }
         }
 
         if (hash_equals($incomingHash, $candidateHash)) {
-            $winner = brvtal_media_find_by_content_hash($pdo, $incomingHash);
+            $winner = brvtalMediaFindByContentHash($pdo, $incomingHash);
             if ($winner !== null) {
                 return [
                     'duplicate' => $winner,

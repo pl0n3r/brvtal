@@ -68,14 +68,14 @@ CREATE TABLE media (
 SQL
 );
 
-$before = brvtal_media_dedup_schema_state($writer);
+$before = brvtalMediaDedupSchemaState($writer);
 media_dedup_it_assert($before['ready'] === false, 'legacy schema must be reported as migration-required');
 
 $migration = (string)file_get_contents(__DIR__ . '/../../database/migration_media_content_hash_01.sql');
 media_dedup_it_assert(trim($migration) !== '', 'dedup migration must exist');
 $writer->exec($migration);
 $writer->exec($migration);
-$after = brvtal_media_dedup_schema_state($writer);
+$after = brvtalMediaDedupSchemaState($writer);
 media_dedup_it_assert($after['ready'] === true, 'migration must be idempotent and leave the schema ready');
 media_dedup_it_assert(
     (int)$writer->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='media' AND COLUMN_NAME='content_hash'")->fetchColumn() === 1,
@@ -106,7 +106,7 @@ $insert->execute(['document', 'External legacy', 'https://example.test/external.
 $insert->execute(['document', 'Legacy A', $publicA, $mime, $size, '', 'draft']);
 $legacyAId = (int)$writer->lastInsertId();
 
-$lookupA = brvtal_media_find_duplicate($writer, hash('sha256', $bytesA), $size, $mime);
+$lookupA = brvtalMediaFindDuplicate($writer, hash('sha256', $bytesA), $size, $mime);
 media_dedup_it_assert((int)($lookupA['duplicate']['id'] ?? 0) === $legacyAId, 'same bytes with a different incoming filename must reuse the legacy canonical row');
 media_dedup_it_assert(($lookupA['source'] ?? '') === 'legacy_backfill', 'legacy exact match must report lazy backfill source');
 media_dedup_it_assert(($lookupA['scan_complete'] ?? false) === true, 'missing/non-local legacy candidates must not block a bounded completed scan');
@@ -117,7 +117,7 @@ media_dedup_it_assert(
 
 $insert->execute(['document', 'Legacy B', $publicB, $mime, $size, '', 'draft']);
 $legacyBId = (int)$writer->lastInsertId();
-$lookupC = brvtal_media_find_duplicate($writer, hash('sha256', $bytesC), $size, $mime);
+$lookupC = brvtalMediaFindDuplicate($writer, hash('sha256', $bytesC), $size, $mime);
 media_dedup_it_assert($lookupC['duplicate'] === null, 'different bytes must not dedupe');
 media_dedup_it_assert(($lookupC['scan_complete'] ?? false) === true, 'different-byte scan should complete');
 media_dedup_it_assert(
@@ -137,10 +137,10 @@ try {
         'INSERT INTO media(type,title,file_path,mime_type,file_size,content_hash,alt_text,status) VALUES(?,?,?,?,?,?,?,?)'
     )->execute(['document', 'Race loser', '/uploads/media/' . $token . '/loser.pdf', $mime, 12, $raceHash, '', 'draft']);
 } catch (PDOException $error) {
-    $raceRejected = brvtal_media_is_unique_hash_conflict($error);
+    $raceRejected = brvtalMediaIsUniqueHashConflict($error);
 }
 media_dedup_it_assert($raceRejected, 'unique content hash must reject a concurrent duplicate insert');
-$winner = brvtal_media_find_by_content_hash($racer, $raceHash);
+$winner = brvtalMediaFindByContentHash($racer, $raceHash);
 media_dedup_it_assert((int)($winner['id'] ?? 0) === $winnerId, 'race loser must be able to resolve the canonical winning asset');
 
 $cleanup();

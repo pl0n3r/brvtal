@@ -377,6 +377,15 @@ window.BRVTALMediaLibrary = (() => {
     }
   }
 
+  function renderEngineStatus() {
+    if (store.engine?.deduplication && !store.engine.deduplication.ready) {
+      status('MEDIA ENGINE: DEDUP MIGRATION REQUIRED · ' + (store.engine.deduplication.migration || 'migration pending'), 'err');
+      return;
+    }
+    const ready = Boolean(store.engine?.gd && store.engine?.webp);
+    status(ready ? 'MEDIA ENGINE ONLINE' : 'MEDIA ENGINE: ORIGINALS ONLY ON THIS PHP RUNTIME', ready ? 'ok' : '');
+  }
+
   async function refresh(selectId = null) {
     if (store.loading) return;
     store.loading = true;
@@ -390,11 +399,7 @@ window.BRVTALMediaLibrary = (() => {
         const still = store.items.some(x => Number(x.id) === Number(store.selected.id));
         if (still) await select(store.selected.id); else { store.selected = null; renderInspector(null); }
       }
-      if (store.engine?.deduplication && !store.engine.deduplication.ready) {
-        status('MEDIA ENGINE: DEDUP MIGRATION REQUIRED · ' + (store.engine.deduplication.migration || 'migration pending'), 'err');
-      } else {
-        status(store.engine?.gd && store.engine?.webp ? 'MEDIA ENGINE ONLINE' : 'MEDIA ENGINE: ORIGINALS ONLY ON THIS PHP RUNTIME', store.engine?.gd && store.engine?.webp ? 'ok' : '');
-      }
+      renderEngineStatus();
     } catch (e) { status('Media library failed: ' + e.message, 'err'); }
     finally { store.loading = false; }
   }
