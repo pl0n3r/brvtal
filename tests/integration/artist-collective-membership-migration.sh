@@ -49,7 +49,7 @@ INSERT INTO artists(name,collective_status,sort_order) VALUES
 mapped=$("${cli[@]}" -N -B "$db" -e "SELECT GROUP_CONCAT(CONCAT(name,':',is_collective_member) ORDER BY id SEPARATOR '|') FROM artists;")
 [[ "$mapped" == "ACTIVE LEGACY:1|ALUMNI LEGACY:0|NETWORK LEGACY:0" ]]
 
-index_count=$("${cli[@]}" -N -B "$db" -e "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='artists' AND INDEX_NAME='idx_artists_collective_member';")
+index_count=$("${cli[@]}" -N -B "$db" -e "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='artists' AND INDEX_NAME='idx_artists_collective_member';")
 [[ "$index_count" == "1" ]]
 
 # Direct reruns must not re-derive state from legacy columns after the boolean
