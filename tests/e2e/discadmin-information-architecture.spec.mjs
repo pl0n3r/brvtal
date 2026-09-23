@@ -129,7 +129,7 @@ function harness(authed = true) {
         host.innerHTML='<section data-admin-module="content-core"><div class="wrap"><div class="tabs"><button data-tab="events" class="active">EVENT EDITOR</button><button data-tab="roster">COLLECTIVE ROSTER</button></div><section id="eventsTab">EVENTS TABLE</section><section id="rosterTab" style="display:none">ROSTER TABLE</section></div><div id="eventModal"><div class="ey">CONTENT CORE / EVENT</div></div></section>';
         const root=host.firstElementChild;
         root.querySelector('[data-tab="roster"]').addEventListener('click',()=>{root.querySelector('#eventsTab').style.display='none';root.querySelector('#rosterTab').style.display='block';});
-        window.BRVTALContentCore={openEvent(id){window.__openedEvent=id??'new';}};
+        window.BRVTALContentCore={openEvent(id){window.__openedEvent=id??'new';const editor=root.querySelector('#eventModal');editor.dataset.eventId=id==null?'new':String(id);editor.classList.add('open');}};
       }
     };
     window.__renderShell('dashboard');
@@ -452,6 +452,57 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await page.evaluate(() => window.openModal('events', 42));
   await expect.poll(() => page.evaluate(() => window.__openedEvent)).toBe(42);
   await expect.poll(() => page.evaluate(() => window.__legacyOpen.length)).toBe(0);
+});
+
+test('native Events EDIT uses the mounted guided editor without reloading navigation', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.go('events'));
+  const baseline = await page.evaluate(() => ({
+    loads: window.__moduleLoadOptions.length,
+    native: window.__nativeGo.filter(section => section === 'events').length
+  }));
+  await page.evaluate(() => window.openModal('events', 42));
+  expect(await page.evaluate(() => window.__openedEvent)).toBe(42);
+  expect(await page.evaluate(() => ({
+    loads: window.__moduleLoadOptions.length,
+    native: window.__nativeGo.filter(section => section === 'events').length
+  }))).toEqual(baseline);
+  await expect(page.locator('#modal')).not.toHaveClass(/open/);
+});
+
+test('mounted Events EDIT preserves unsaved changes across record switches and rejects pending navigation', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.go('events'));
+  await page.evaluate(() => {
+    window.BRVTALUnsavedChanges = {
+      isDirty: () => true,
+      requestClose(editor, close) {
+        window.__discardRequests = (window.__discardRequests || 0) + 1;
+        if (!window.__confirmDiscard) return false;
+        close();
+        return true;
+      }
+    };
+    window.__confirmDiscard = false;
+  });
+  await page.evaluate(() => window.openModal('events', 42));
+  expect(await page.evaluate(() => window.__openedEvent)).toBe(42);
+  // Reopening the same record never wipes the existing unsaved form.
+  expect(await page.evaluate(() => window.openModal('events', 42))).toBe(true);
+  expect(await page.evaluate(() => window.__discardRequests || 0)).toBe(0);
+  expect(await page.evaluate(() => window.openModal('events', 43))).toBe(false);
+  expect(await page.evaluate(() => window.__openedEvent)).toBe(42);
+  await expect(page.locator('#eventModal')).toHaveClass(/open/);
+  expect(await page.evaluate(() => window.__discardRequests)).toBe(1);
+  await page.evaluate(() => { document.getElementById('eventModal').inert = true; });
+  expect(await page.evaluate(() => window.openModal('events', 43))).toBe(false);
+  expect(await page.evaluate(() => window.__discardRequests)).toBe(1);
+  await page.evaluate(() => { document.getElementById('eventModal').inert = false; window.__confirmDiscard = true; });
+  expect(await page.evaluate(() => window.openModal('events', 43))).toBe(true);
+  expect(await page.evaluate(() => window.__openedEvent)).toBe(43);
+  expect(await page.evaluate(() => window.__discardRequests)).toBe(2);
 });
 
 test('Artist membership remains inside the canonical Artists editor with no duplicate workflow', async ({ page }) => {

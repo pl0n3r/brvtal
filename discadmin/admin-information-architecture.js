@@ -522,9 +522,33 @@
 
   window.openModal = async function(type, id = null) {
     if (type === 'events') {
-      await window.go('events');
-      window.BRVTALContentCore?.openEvent?.(id);
-      return;
+      // A grid EDIT already has a mounted workflow. Re-navigating it would
+      // discard its loaded record cache and race a NEW EVENT form against EDIT.
+      const context = document.querySelector('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]');
+      if (window.state?.section !== 'events' || !context) {
+        const navigated = await window.go('events');
+        if (navigated === false) return false;
+      }
+      const workflow = window.BRVTALContentCore;
+      const mounted = document.querySelector('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]');
+      if (!mounted || typeof workflow?.openEvent !== 'function') {
+        throw new Error('DISCADMIN Events editor is not available');
+      }
+      const editor = mounted.querySelector('#eventModal');
+      if (editor?.classList.contains('open')) {
+        if (editor.inert) return false; // Navigation guard has the editor locked.
+        const targetId = id == null ? 'new' : String(id);
+        if (editor.dataset.eventId === targetId) return true; // Preserve in-progress edits.
+        const unsaved = window.BRVTALUnsavedChanges;
+        if (unsaved?.isDirty?.(editor)) {
+          // The mounted path bypasses go('events'), so honor its discard guard
+          // before switching records. A rejected confirmation preserves edits.
+          if (typeof unsaved.requestClose !== 'function'
+            || unsaved.requestClose(editor, () => editor.classList.remove('open')) !== true) return false;
+        }
+      }
+      workflow.openEvent(id);
+      return true;
     }
     return originalOpenModal?.apply(this, arguments);
   };
