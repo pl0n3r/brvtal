@@ -77,35 +77,47 @@ function brvtalMediaImageReferenceState(mixed $value): array
     }
 
     if ($reference === '') {
-        return $cache[$reference] = ['valid' => true, 'usable' => false, 'kind' => 'empty'];
+        $result = ['valid' => true, 'usable' => false, 'kind' => 'empty'];
+        $cache[$reference] = $result;
+        return $result;
     }
 
     if (filter_var($reference, FILTER_VALIDATE_URL) !== false) {
         $scheme = strtolower((string)parse_url($reference, PHP_URL_SCHEME));
         $valid = in_array($scheme, ['http', 'https'], true);
-        return $cache[$reference] = [
+        $result = [
             'valid' => $valid,
             'usable' => $valid,
             'kind' => $valid ? 'external' : 'invalid',
         ];
+        $cache[$reference] = $result;
+        return $result;
     }
 
     if (!str_starts_with($reference, '/uploads/')
         || str_contains($reference, '..')
         || str_contains($reference, "\0")) {
-        return $cache[$reference] = ['valid' => false, 'usable' => false, 'kind' => 'invalid'];
+        $result = ['valid' => false, 'usable' => false, 'kind' => 'invalid'];
+        $cache[$reference] = $result;
+        return $result;
     }
 
     $absolute = brvtal_media_local_absolute($reference);
     if ($absolute === null || !is_file($absolute)) {
-        return $cache[$reference] = ['valid' => true, 'usable' => false, 'kind' => 'local_missing'];
+        $result = ['valid' => true, 'usable' => false, 'kind' => 'local_missing'];
+        $cache[$reference] = $result;
+        return $result;
     }
 
     if (@getimagesize($absolute) === false) {
-        return $cache[$reference] = ['valid' => true, 'usable' => false, 'kind' => 'local_not_image'];
+        $result = ['valid' => true, 'usable' => false, 'kind' => 'local_not_image'];
+        $cache[$reference] = $result;
+        return $result;
     }
 
-    return $cache[$reference] = ['valid' => true, 'usable' => true, 'kind' => 'local_image'];
+    $result = ['valid' => true, 'usable' => true, 'kind' => 'local_image'];
+    $cache[$reference] = $result;
+    return $result;
 }
 
 /** Return whether one image reference is usable by public visual surfaces. */
