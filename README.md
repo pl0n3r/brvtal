@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **16** | **+519** | **−185** | **+334** |
+| **17** | **+526** | **−186** | **+340** |
 
 ## Calidad y entrega
 
@@ -85,6 +85,7 @@ flowchart LR
 - `tests/e2e/discadmin-seo-defaults.spec.mjs`
 - `tests/e2e/discadmin-seo-metadata.spec.mjs`
 - `tests/integration/seo-persistence.php`
+- `tests/seo-contract.php`
 - `tests/seo-defaults-contract.php`
 
 ## Validación

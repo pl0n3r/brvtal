@@ -18,6 +18,7 @@ seo_assert(substr_count($migration, 'ADD COLUMN IF NOT EXISTS seo_description') 
 seo_assert(!preg_match('/\b(?:DROP|TRUNCATE|DELETE)\b/i', $migration), 'SEO migration must stay additive');
 
 $api = (string)file_get_contents(__DIR__ . '/../api/seo-metadata.php');
+$persistence = (string)file_get_contents(__DIR__ . '/../config/seo_persistence.php');
 seo_assert(str_contains($api, 'brvtal_admin_require();'), 'SEO API must require admin authentication');
 seo_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'SEO mutations must require CSRF');
 seo_assert(str_contains($api, 'SEO_SCHEMA_MISSING'), 'SEO API must fail explicitly before migration');
@@ -25,7 +26,8 @@ seo_assert(str_contains($api, "'events' => ['table'=>'events'"), 'SEO API must s
 seo_assert(str_contains($api, "'artists' => ['table'=>'artists'"), 'SEO API must support Artists');
 seo_assert(str_contains($api, "'sets' => ['table'=>'sets_media'"), 'SEO API must support Sets');
 seo_assert(str_contains($api, "'releases' => ['table'=>'releases'"), 'SEO API must support Releases');
-seo_assert(str_contains($api, "UPDATE `{$table}` SET seo_title=?,seo_description=?") || str_contains($api, 'SET seo_title=?,seo_description=?'), 'SEO API must persist both metadata fields');
+seo_assert(str_contains($api, 'brvtalSeoPersistOverrides'), 'SEO API must delegate writes to the shared persistence boundary');
+seo_assert(str_contains($persistence, 'SET seo_title=?,seo_description=?'), 'SEO persistence boundary must write both metadata fields');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/seo-metadata.js');
 foreach (['f_seo_title','e_seo_title','release_seo_title','f_seo_description','e_seo_description','release_seo_description'] as $id) {

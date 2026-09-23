@@ -25,10 +25,11 @@ function brvtalSeoPersistOverrides(
 
     $pdo->beginTransaction();
     try {
-        $lock = $pdo->prepare(
-            "SELECT id,seo_title,seo_description,`{$titleField}` AS source_title,`{$descriptionField}` AS source_description
-             FROM `{$table}` WHERE id=? LIMIT 1 FOR UPDATE"
-        );
+        $select = "SELECT id,seo_title,seo_description,"
+            . "`{$titleField}` AS source_title,"
+            . "`{$descriptionField}` AS source_description "
+            . "FROM `{$table}` WHERE id=? LIMIT 1 FOR UPDATE";
+        $lock = $pdo->prepare($select);
         $lock->execute([$id]);
         $locked = $lock->fetch(PDO::FETCH_ASSOC);
         if (!$locked) {
@@ -69,7 +70,9 @@ function brvtalSeoPersistOverrides(
         $pdo->commit();
         return $after;
     } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $error;
     }
 }
