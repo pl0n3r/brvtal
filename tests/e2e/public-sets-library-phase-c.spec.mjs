@@ -45,6 +45,7 @@ async function openWithSets(page) {
     body:markup(`window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:${JSON.stringify(sets)}}}});`),
   }));
   await page.goto(harness);
+  expect(await page.evaluate(() => typeof window.BRVTALPublicSetsLibrary?.render)).toBe('function');
   await expect(page.locator('html')).toHaveAttribute('data-public-sets', 'library');
 }
 
