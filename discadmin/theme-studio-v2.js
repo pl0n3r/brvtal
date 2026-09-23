@@ -10,6 +10,40 @@
   };
 
   const clone = value => JSON.parse(JSON.stringify(value ?? {}));
+
+  const FONT_CATALOG = Object.freeze({
+    display:[
+      ['"Space Grotesk", Arial, sans-serif','Space Grotesk · recommended'],
+      ['"Barlow Condensed", Arial, sans-serif','Barlow Condensed · industrial condensed'],
+      ['"Inter Tight", Arial, sans-serif','Inter Tight · compact grotesk'],
+      ['Arial, Helvetica, sans-serif','System grotesk · offline-safe'],
+    ],
+    body:[
+      ['"Space Grotesk", Arial, sans-serif','Space Grotesk · recommended'],
+      ['"Inter Tight", Arial, sans-serif','Inter Tight · compact grotesk'],
+      ['Arial, Helvetica, sans-serif','System grotesk · offline-safe'],
+    ],
+    mono:[
+      ['"Space Mono", monospace','Space Mono · recommended'],
+      ['"IBM Plex Mono", monospace','IBM Plex Mono · technical'],
+      ['ui-monospace, SFMono-Regular, Menlo, monospace','System mono · offline-safe'],
+    ],
+  });
+
+  const GOOGLE_FONT_QUERY = Object.freeze({
+    'Space Grotesk':'Space+Grotesk:wght@400;500;600;700',
+    'Barlow Condensed':'Barlow+Condensed:wght@400;500;600;700;800;900',
+    'Inter Tight':'Inter+Tight:wght@400;500;600;700;800',
+    'Space Mono':'Space+Mono:wght@400;700',
+    'IBM Plex Mono':'IBM+Plex+Mono:wght@400;500;600;700',
+  });
+
+  const CONCEPT05_VISUAL = Object.freeze({
+    colors:{bg:'#050505',surface:'#0A0B0C',text:'#F4F1E8',muted:'#8A8A82',primary:'#E31B23',accent:'#B6FF00',border:'#30302D'},
+    typography:{display:'"Space Grotesk", Arial, sans-serif',body:'"Space Grotesk", Arial, sans-serif',mono:'"Space Mono", monospace',h1:'clamp(58px,9vw,132px)',bodySize:'16px',tracking:'-0.055em'},
+    navigation:{fixed:true,transparentHero:true,blur:true,menuStyle:'fullscreen',logoPosition:'left',sceneIndicator:false,soundToggle:true},
+    effects:{grain:true,scanlines:true,glitch:true,cursor:true,magnetic:true,motion:'brvtal'},
+  });
   const escapeHtml = value => String(value ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -69,6 +103,45 @@
     return `<label class="tsv2-field"><span>${escapeHtml(label)}</span><select id="th_${id}">${opts}</select>${help ? `<small>${escapeHtml(help)}</small>` : ''}</label>`;
   }
 
+  function fontSelectField(id, label, current, role, help = '') {
+    const options = [...(FONT_CATALOG[role] || [])];
+    if (current && !options.some(([stack]) => stack === current)) {
+      options.unshift([current, 'Current / legacy stack']);
+    }
+    return selectField(id, label, current, options, help);
+  }
+
+  function fontFamilyName(stack) {
+    return String(stack || '').split(',')[0].trim().replace(/^["']|["']$/g, '');
+  }
+
+  function ensurePreviewFonts(typography) {
+    const families = [...new Set(['display','body','mono']
+      .map(key => GOOGLE_FONT_QUERY[fontFamilyName(typography?.[key])])
+      .filter(Boolean))];
+    let link = document.getElementById('brvtal-theme-studio-fonts');
+    if (!families.length) { link?.remove(); return; }
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'brvtal-theme-studio-fonts';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    link.href = 'https://fonts.googleapis.com/css2?' + families.map(family => 'family=' + family).join('&') + '&display=swap';
+  }
+
+  function contrastRatio(a, b) {
+    const luminance = value => {
+      const match = /^#([0-9a-f]{6})$/i.exec(String(value || ''));
+      if (!match) return 0;
+      const parts = [0,2,4].map(offset => parseInt(match[1].slice(offset, offset + 2), 16) / 255)
+        .map(channel => channel <= .03928 ? channel / 12.92 : Math.pow((channel + .055) / 1.055, 2.4));
+      return .2126 * parts[0] + .7152 * parts[1] + .0722 * parts[2];
+    };
+    const l1 = luminance(a), l2 = luminance(b);
+    return (Math.max(l1,l2) + .05) / (Math.min(l1,l2) + .05);
+  }
+
   function colorField(id, label, current, help = '') {
     const color = /^#[0-9a-f]{6}$/i.test(String(current || '')) ? String(current) : '#000000';
     return `<label class="tsv2-field tsv2-color-field"><span>${escapeHtml(label)}</span><div class="tsv2-color-row"><input id="th_${id}_picker" type="color" value="${escapeHtml(color)}" aria-label="${escapeHtml(label)} color picker"><input id="th_${id}" value="${escapeHtml(color)}" inputmode="text" spellcheck="false"><i style="background:${escapeHtml(color)}" aria-hidden="true"></i></div>${help ? `<small>${escapeHtml(help)}</small>` : ''}</label>`;
@@ -94,7 +167,7 @@
 
   function panel(theme) {
     const t = mergeTheme(theme);
-    const b = t.branding || {}, c = t.colors || {}, ty = t.typography || {}, n = t.navigation || {}, e = t.effects || {}, s = t.sound || {}, seo = t.seo || {};
+    const b = t.branding || {}, c = t.colors || {}, ty = t.typography || {}, n = t.navigation || {}, e = t.effects || {}, s = t.sound || {};
     const isActive = V2.editingSlug === activeSlug();
     return `<div class="theme-v2" data-theme-studio-v2>
       <header class="tsv2-toolbar">
@@ -106,7 +179,7 @@
 
       <div class="tsv2-layout">
         <aside class="tsv2-tabs" aria-label="Theme Studio sections">
-          ${[['brand','BRAND'],['palette','PALETTE'],['type','TYPE'],['navigation','NAVIGATION'],['effects','EXPERIENCE'],['seo','SEO'],['manage','MANAGE']].map(([id,label],index) => `<button type="button" class="${index === 0 ? 'active' : ''}" data-theme-tab="${id}"><span>0${index + 1}</span>${label}</button>`).join('')}
+          ${[['brand','BRAND'],['palette','PALETTE'],['type','TYPE'],['navigation','NAVIGATION'],['effects','EXPERIENCE'],['manage','MANAGE']].map(([id,label],index) => `<button type="button" class="${index === 0 ? 'active' : ''}" data-theme-tab="${id}"><span>0${index + 1}</span>${label}</button>`).join('')}
         </aside>
 
         <section class="tsv2-editor">
@@ -118,19 +191,21 @@
           </div>
 
           <div class="tsv2-pane" data-theme-pane="palette">
-            <div class="tsv2-section-head"><div><span>02 / PALETTE</span><h3>Color system</h3></div><p>Every color below maps to a live public CSS token.</p></div>
-            <div class="tsv2-grid two">${colorField('bg','Background',c.bg,'Main canvas.')}${colorField('surface','Surface',c.surface,'Panels and non-transparent navigation.')}${colorField('text','Text',c.text,'Primary foreground.')}${colorField('muted','Muted',c.muted,'Secondary copy and metadata.')}${colorField('primary','Primary',c.primary,'BRVTAL signal/red role.')}${colorField('accent','Accent',c.accent,'Acid/highlight role.')}${colorField('border','Border',c.border,'Lines and separators.')}</div>
+            <div class="tsv2-section-head"><div><span>02 / PALETTE</span><h3>BRVTAL mother palette</h3></div><div class="tsv2-section-side"><p>BLACK / PAPER / RED remain the mother identity. SIGNAL is a bounded neon accent, never a replacement background.</p><button type="button" class="btn ghost" data-theme-reset="palette">RESET PALETTE</button></div></div>
+            <div class="tsv2-grid two">${colorField('bg','BLACK · canvas',c.bg,'Primary black canvas.')}${colorField('surface','BLACK · elevated',c.surface,'Panels and opaque navigation.')}${colorField('text','PAPER · foreground',c.text,'Primary editorial foreground.')}${colorField('muted','PAPER · muted',c.muted,'Secondary copy and metadata.')}${colorField('primary','RED · mother signal',c.primary,'Core BRVTAL red role.')}${colorField('accent','SIGNAL · neon accent',c.accent,'Bounded glitch/highlight role; never the page background.')}${colorField('border','LINE · structure',c.border,'Editorial rules and separators.')}</div>
             <div class="tsv2-palette-strip" aria-label="Current palette">${[c.bg,c.surface,c.text,c.muted,c.primary,c.accent,c.border].map(x => `<i style="background:${escapeHtml(x || '#000')}"></i>`).join('')}</div>
+            <div class="tsv2-contrast" data-contrast-check><span>TEXT / BLACK CONTRAST</span><strong data-contrast-value>—</strong><small data-contrast-copy>WCAG readability check for the primary editorial pair.</small></div>
           </div>
 
           <div class="tsv2-pane" data-theme-pane="type">
-            <div class="tsv2-section-head"><div><span>03 / TYPE</span><h3>Typography</h3></div><p>Use installed/system font stacks. Invalid CSS values are ignored by the public runtime.</p></div>
-            <div class="tsv2-grid two">${textField('display','Display font stack',ty.display,'Headlines and high-impact labels.')}${textField('body','Body font stack',ty.body,'General interface/body copy.')}${textField('mono','Mono font stack',ty.mono,'Metadata and technical labels.')}${textField('h1','Hero title scale',ty.h1,'Any valid CSS font-size such as clamp(...).')}${textField('bodySize','Body size',ty.bodySize,'Example: 16px.')}${textField('tracking','Display tracking',ty.tracking,'Example: -0.04em.')}</div>
+            <div class="tsv2-section-head"><div><span>03 / TYPE</span><h3>Typography</h3></div><div class="tsv2-section-side"><p>Choose from the curated BRVTAL catalog. Google Fonts load only for selected supported families and always use system fallbacks.</p><button type="button" class="btn ghost" data-theme-reset="type">RESET TYPE</button></div></div>
+            <div class="tsv2-grid two">${fontSelectField('display','Display family',ty.display,'display','Space Grotesk is the recommended Concept 05 display family.')}${fontSelectField('body','Body family',ty.body,'body','Independent public body family with safe fallback.')}${fontSelectField('mono','Mono family',ty.mono,'mono','Technical metadata / data labels.')}${textField('bodySize','Body size',ty.bodySize,'Global baseline only; authored Concept 05 display geometry remains design-system owned.')}</div>
+            <div class="tsv2-type-specimens" aria-label="Typography preview"><article data-type-specimen="display"><span>DISPLAY</span><strong>RAVE TILL GRAVE</strong></article><article data-type-specimen="mono"><span>MONO / DATA</span><strong>02 / NIGHTS · PEREIRA / COLOMBIA</strong></article></div>
           </div>
 
           <div class="tsv2-pane" data-theme-pane="navigation">
             <div class="tsv2-section-head"><div><span>04 / NAVIGATION</span><h3>Header & menu</h3></div><p>Only controls with a public runtime mapping are exposed here.</p></div>
-            <div class="tsv2-toggle-list">${toggleField('navFixed','Fixed header',n.fixed,'Keep navigation pinned while scrolling.')}${toggleField('navTransparent','Transparent over hero',n.transparentHero,'Use the visual hero behind navigation.')}${toggleField('navBlur','Header backdrop blur',n.blur,'Apply glass blur when supported.')}${toggleField('sceneIndicator','Scene indicator',n.sceneIndicator,'Show the CORE / SIGNAL scene marker.')}${toggleField('soundToggle','Sound control',n.soundToggle && s.enabled !== false,'Show the user-initiated sound control.')}</div>
+            <div class="tsv2-toggle-list">${toggleField('navFixed','Fixed header',n.fixed,'Keep navigation pinned while scrolling.')}${toggleField('navTransparent','Transparent over hero',n.transparentHero,'Use the visual hero behind navigation.')}${toggleField('navBlur','Header backdrop blur',n.blur,'Apply glass blur when supported.')}${toggleField('soundToggle','Sound control',n.soundToggle && s.enabled !== false,'Show the user-initiated sound control.')}</div>
             <div class="tsv2-grid two">${selectField('menuStyle','Menu presentation',n.menuStyle,[['fullscreen','Fullscreen'],['dropdown','Dropdown'],['slide','Slide panel']],'Applied to the public menu container.')}${selectField('logoPosition','Brand position',n.logoPosition,[['left','Left'],['center','Center']],'Header brand alignment.')}</div>
           </div>
 
@@ -140,26 +215,21 @@
             ${selectField('motion','Motion profile',e.motion,[['brvtal','BRVTAL / full'],['subtle','Subtle'],['minimal','Minimal'],['reduced','Reduced']],'Reduces CSS motion progressively; OS reduced-motion preference always wins.')}
           </div>
 
-          <div class="tsv2-pane" data-theme-pane="seo">
-            <div class="tsv2-section-head"><div><span>06 / SEO</span><h3>Global presentation</h3></div><p>Theme SEO is a client-side visual fallback; canonical server SEO remains authoritative for entity pages.</p></div>
-            <div class="tsv2-grid">${textField('seoTitle','Default site title',seo.siteTitle,'Used on the public home when configured.')}${textField('seoDescription','Default description',seo.description,'Public home meta description fallback.')}${assetField('ogImage','Default share image',seo.ogImage,'Choose the default social preview artwork from Media.')}</div>
-          </div>
-
           <div class="tsv2-pane" data-theme-pane="manage">
-            <div class="tsv2-section-head"><div><span>07 / MANAGE</span><h3>Theme lifecycle</h3></div><p>Draft safely, duplicate before experiments, then activate when ready.</p></div>
+            <div class="tsv2-section-head"><div><span>06 / MANAGE</span><h3>Theme lifecycle</h3></div><p>Draft safely, duplicate before experiments, then activate when ready.</p></div>
             <div class="tsv2-manage-grid">
               <article><span>ACTIVE THEME</span><strong>${escapeHtml(activeSlug().toUpperCase())}</strong><p>The public API serves this theme under <code>settings.theme</code>.</p></article>
               <article><span>EDITING</span><strong>${escapeHtml((V2.editingSlug || t.slug || '').toUpperCase())}</strong><p>Saving does not change production until Activate is used.</p></article>
               <article><span>MEDIA</span><strong>${(state.themeMedia || []).filter(item => item.type === 'image').length}</strong><p>Image assets currently available to this workspace.</p></article>
             </div>
-            <div class="tsv2-manage-actions"><button type="button" class="btn ghost" data-theme-action="duplicate">DUPLICATE THEME</button><button type="button" class="btn ghost" data-theme-action="revert">REVERT SAVED</button><button type="button" class="btn ghost" data-theme-action="preset-core">LOAD CORE PRESET</button><button type="button" class="btn ghost" data-theme-action="preset-genesis">LOAD GENESIS PRESET</button></div>
+            <div class="tsv2-manage-actions"><button type="button" class="btn ghost" data-theme-action="duplicate">DUPLICATE THEME</button><button type="button" class="btn ghost" data-theme-action="revert">REVERT SAVED</button><button type="button" class="btn ghost" data-theme-action="preset-concept05">RESET VISUALS TO CONCEPT 05</button></div>
             <div class="tsv2-legacy-note"><strong>LEGACY SETTINGS PRESERVED</strong><p>Existing preloader, responsive, analytics and custom-code values remain stored when this editor saves. They are intentionally not exposed here unless the public runtime can honor them safely.</p></div>
           </div>
         </section>
 
         <aside class="tsv2-preview" data-preview-mode="${escapeHtml(V2.previewMode)}">
-          <div class="tsv2-preview-head"><div><span>LIVE PREVIEW</span><b>PUBLIC TOKENS</b></div><div><button type="button" class="${V2.previewMode === 'desktop' ? 'active' : ''}" data-preview-mode="desktop">DESKTOP</button><button type="button" class="${V2.previewMode === 'mobile' ? 'active' : ''}" data-preview-mode="mobile">MOBILE</button></div></div>
-          <div class="tsv2-device"><div class="tsv2-preview-nav"><div data-preview-brand>BRVTAL</div><span data-preview-tagline>RAVE TILL GRAVE</span><b>MENU +</b></div><div class="tsv2-preview-hero"><span>BRVTAL / SYSTEM</span><h4 data-preview-title>BRVTAL</h4><div data-preview-logo></div><p data-preview-copy>THE EXPERIENCE IS THE INTERFACE.</p><button type="button">ENTER EXPERIENCE ↗</button></div><div class="tsv2-preview-grid"><i></i><i></i><i></i></div></div>
+          <div class="tsv2-preview-head"><div><span>LOCAL THEME PREVIEW</span><b>CONCEPT 05 / TOKENS</b></div><div><button type="button" class="${V2.previewMode === 'desktop' ? 'active' : ''}" data-preview-mode="desktop">1440</button><button type="button" class="${V2.previewMode === 'mobile' ? 'active' : ''}" data-preview-mode="mobile">390</button></div></div>
+          <div class="tsv2-device"><div class="tsv2-preview-browser"><span data-preview-favicon>B</span><b>brvtal.co / local preview</b></div><div class="tsv2-preview-nav"><div data-preview-brand>BRVTAL</div><div class="tsv2-preview-links"><span>NIGHTS</span><span>ARTISTS</span><span>SOUND</span></div><b>PEREIRA / COLOMBIA</b></div><div class="tsv2-preview-hero"><span>01 / HOME · UNDERGROUND CULTURE</span><h4 data-preview-title>BRVTAL</h4><div data-preview-logo></div><p data-preview-tagline>RAVE TILL GRAVE</p><div class="tsv2-preview-signal"><i>RED / MOTHER</i><i>SIGNAL / GLITCH</i></div></div><div class="tsv2-preview-grid"><i><b>02</b>NIGHTS</i><i><b>03</b>ARTISTS</i><i><b>04</b>SOUND</i></div></div>
           <div class="tsv2-preview-meta"><span id="tsv2-preview-name">${escapeHtml(t.name || '')}</span><code id="tsv2-preview-slug">theme.${escapeHtml(t.slug || '')}</code></div>
         </aside>
       </div>
@@ -188,22 +258,21 @@
     };
     t.typography = {
       ...(t.typography || {}), display:value('display'), body:value('body'), mono:value('mono'),
-      h1:value('h1'), bodySize:value('bodySize'), tracking:value('tracking'),
+      bodySize:value('bodySize'),
     };
     t.navigation = {
       ...(t.navigation || {}), fixed:checked('navFixed'), transparentHero:checked('navTransparent'),
       blur:checked('navBlur'), menuStyle:value('menuStyle'), logoPosition:value('logoPosition'),
-      sceneIndicator:checked('sceneIndicator'), soundToggle:checked('soundToggle'),
+      sceneIndicator:t.navigation?.sceneIndicator ?? false, soundToggle:checked('soundToggle'),
     };
     t.effects = {
       ...(t.effects || {}), grain:checked('grain'), scanlines:checked('scanlines'),
       glitch:checked('glitch'), cursor:checked('cursor'), magnetic:checked('magnetic'), motion:value('motion'),
     };
     t.sound = { ...(t.sound || {}), enabled:checked('soundToggle') };
-    t.seo = {
-      ...(t.seo || {}), siteTitle:value('seoTitle').trim(), description:value('seoDescription').trim(),
-      ogImage:value('ogImage_custom'),
-    };
+    // Canonical SEO is server-rendered. Preserve legacy theme.seo values
+    // without exposing controls that currently have no public authority.
+    t.seo = { ...(t.seo || {}) };
     return t;
   }
 
@@ -224,11 +293,23 @@
     preview.style.setProperty('--p-display', ty.display || 'Arial, sans-serif');
     preview.style.setProperty('--p-body', ty.body || 'Arial, sans-serif');
     preview.style.setProperty('--p-mono', ty.mono || 'monospace');
+    ensurePreviewFonts(ty);
+    root.querySelectorAll('[data-type-specimen="display"] strong').forEach(node => { node.style.fontFamily = ty.display || 'Arial, sans-serif'; });
+    root.querySelectorAll('[data-type-specimen="mono"] strong').forEach(node => { node.style.fontFamily = ty.mono || 'monospace'; });
+    const ratio = contrastRatio(c.text || '#F4F1E8', c.bg || '#050505');
+    const contrast = root.querySelector('[data-contrast-check]');
+    const contrastValue = contrast?.querySelector('[data-contrast-value]');
+    const contrastCopy = contrast?.querySelector('[data-contrast-copy]');
+    if (contrastValue) contrastValue.textContent = ratio.toFixed(1) + ':1 · ' + (ratio >= 4.5 ? 'PASS' : 'REVIEW');
+    if (contrastCopy) contrastCopy.textContent = ratio >= 4.5 ? 'Primary editorial pair meets WCAG AA for normal text.' : 'Increase PAPER / BLACK contrast before activation.';
+    contrast?.toggleAttribute('data-low-contrast', ratio < 4.5);
     root.querySelector('[data-preview-brand]').textContent = b.siteName || 'BRVTAL';
     root.querySelector('[data-preview-title]').textContent = b.siteName || 'BRVTAL';
     root.querySelector('[data-preview-tagline]').textContent = b.tagline || 'RAVE TILL GRAVE';
     const logo = imagePath((V2.previewMode === 'mobile' ? b.mobileLogo : '') || b.logo);
     root.querySelector('[data-preview-logo]').innerHTML = logo ? `<img src="${escapeHtml(logo)}" alt="Theme logo preview">` : '<span>LOGO / MEDIA</span>';
+    const favicon = imagePath(b.favicon);
+    root.querySelector('[data-preview-favicon]').innerHTML = favicon ? `<img src="${escapeHtml(favicon)}" alt="Favicon preview">` : escapeHtml((b.siteName || 'B').slice(0,1));
     root.querySelector('#tsv2-preview-name').textContent = t.name || 'THEME';
     root.querySelector('#tsv2-preview-slug').textContent = 'theme.' + (t.slug || 'theme');
     root.querySelectorAll('.tsv2-color-field').forEach(field => {
@@ -371,17 +452,26 @@
     setTimeout(() => search?.focus(), 0);
   }
 
-  function preset(kind) {
-    let next = mergeTheme(typeof THEME_DEFAULT !== 'undefined' ? THEME_DEFAULT : state.theme || {});
-    if (kind === 'genesis') {
-      next.name = 'GENESIS';
-      next.slug = 'genesis';
-      next.branding = { ...(next.branding || {}), tagline:'GENESIS / BRVTAL' };
-      next.colors = { ...(next.colors || {}), primary:'#B6FF00', accent:'#B6FF00', border:'#343B2B' };
-      next.effects = { ...(next.effects || {}), glitch:true };
-    }
+  function resetGroup(group) {
+    const next = currentTheme();
+    if (group === 'palette') next.colors = { ...(next.colors || {}), ...CONCEPT05_VISUAL.colors };
+    if (group === 'type') next.typography = { ...(next.typography || {}), ...CONCEPT05_VISUAL.typography };
     state.theme = next;
-    V2.editingSlug = next.slug || kind;
+    render(next);
+    tab(group === 'palette' ? 'palette' : 'type');
+  }
+
+  function preset(kind) {
+    if (kind !== 'concept05') return;
+    const current = currentTheme();
+    const next = mergeTheme(current);
+    next.colors = { ...(next.colors || {}), ...CONCEPT05_VISUAL.colors };
+    next.typography = { ...(next.typography || {}), ...CONCEPT05_VISUAL.typography };
+    next.navigation = { ...(next.navigation || {}), ...CONCEPT05_VISUAL.navigation };
+    next.effects = { ...(next.effects || {}), ...CONCEPT05_VISUAL.effects };
+    next.sound = { ...(next.sound || {}), enabled:true };
+    if ((next.slug || 'core') === 'core') next.name = 'BRVTAL CONCEPT 05';
+    state.theme = next;
     render(next);
   }
 
@@ -414,14 +504,14 @@
       root.querySelectorAll('[data-preview-mode]').forEach(item => item.classList.toggle('active', item.dataset.previewMode === V2.previewMode));
       renderPreview();
     }));
+    root.querySelectorAll('[data-theme-reset]').forEach(button => button.addEventListener('click', () => resetGroup(button.dataset.themeReset || '')));
     root.querySelectorAll('[data-theme-action]').forEach(button => button.addEventListener('click', () => {
       const action = button.dataset.themeAction;
       if (action === 'save') persist(false);
       if (action === 'activate') persist(true);
       if (action === 'revert') loadThemeStudioV2(V2.editingSlug);
       if (action === 'duplicate') duplicate();
-      if (action === 'preset-core') preset('core');
-      if (action === 'preset-genesis') preset('genesis');
+      if (action === 'preset-concept05') preset('concept05');
     }));
     root.addEventListener('input', event => {
       const target = event.target;

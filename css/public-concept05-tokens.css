@@ -59,7 +59,7 @@
   align-items:center;
   gap:.6em;
   height:var(--c5-label-height);
-  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   text-transform:uppercase;
   color:var(--c5-paper-muted);

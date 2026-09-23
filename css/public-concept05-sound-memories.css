@@ -142,7 +142,7 @@
   position:absolute;
   inset:auto 10px 10px;
   color:var(--c5-paper-muted);
-  font:700 9px/1.25 "Space Mono",monospace;
+  font:700 9px/1.25 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.06em;
 }
 
@@ -254,7 +254,7 @@
 [data-concept="05"] .media-title-note p{
   margin:7px 0 0;
   color:var(--c5-paper-muted);
-  font:700 9px/1.45 "Space Mono",monospace;
+  font:700 9px/1.45 var(--theme-mono-font,"Space Mono",monospace);
   text-transform:uppercase;
 }
 
@@ -360,7 +360,7 @@
   position:absolute;
   inset:auto 12px 12px;
   color:var(--c5-paper-muted);
-  font:700 9px/1.25 "Space Mono",monospace;
+  font:700 9px/1.25 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.07em;
 }
 
@@ -373,7 +373,7 @@
   display:block;
   margin:18px 0 0;
   color:var(--c5-paper-muted);
-  font:700 clamp(12px,1.25vw,17px)/1.2 "Space Mono",monospace;
+  font:700 clamp(12px,1.25vw,17px)/1.2 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.12em;
   text-align:right;
   text-transform:uppercase;
