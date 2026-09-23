@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **15** | **+508** | **−184** | **+324** |
+| **16** | **+519** | **−185** | **+334** |
 
 ## Calidad y entrega
 
@@ -80,6 +80,8 @@ flowchart LR
 - `discadmin/seo-metadata.js`
 - `docs/BRVTAL-SPEC.md`
 - `package.json`
+- `tests/admin-activity-contract.php`
+- `tests/e2e/discadmin-content-core-regressions.spec.mjs`
 - `tests/e2e/discadmin-seo-defaults.spec.mjs`
 - `tests/e2e/discadmin-seo-metadata.spec.mjs`
 - `tests/integration/seo-persistence.php`

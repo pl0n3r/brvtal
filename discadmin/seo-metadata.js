@@ -72,10 +72,16 @@
     return typeof shared === 'function' ? shared(input) : String(input?.value || '').trim();
   }
 
+  function counterTone(length, recommended, badLimit) {
+    if (length > badLimit) return ' bad';
+    if (length > recommended) return ' warn';
+    return '';
+  }
+
   function updateCounter(counter, length, automatic, recommended, badLimit) {
     if (!counter) return;
     counter.textContent = (automatic ? 'AUTO · ' : '') + `${length}/${recommended} recommended`;
-    counter.className = 'brvtal-seo-counter' + (length > badLimit ? ' bad' : length > recommended ? ' warn' : '');
+    counter.className = 'brvtal-seo-counter' + counterTone(length,recommended,badLimit);
   }
 
   function bindPreview(section, context = {}) {
