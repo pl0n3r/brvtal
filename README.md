@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #214.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #390.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#214 · SEO fallbacks dinámicos / overrides explícitos** | rama reservada `work/issue-214` |
-| Base exacta | ✅ ~~main v0.1.42 exact-main CI/deploy/performance verde~~ | `db68764fe880b396c5e671e7e43faeeddaf0bc93` |
-| Versión | 🚧 **0.1.43 candidate** | SEO editorial integrity |
-| Producción | 🚧 pendiente PR + merge + exact-main + observación Hostinger | sin migraciones ni mutaciones manuales de SEO real |
+| Work line | 🚧 **#390 · WEBSITE → SEO workspace canónico** | rama reservada `work/issue-390` |
+| Base exacta | ✅ ~~main v0.1.43 exact-main CI/deploy/performance verde~~ | `722690d2fc9feeb1cfa21ead9b8f85c9555f00f5` |
+| Versión | 🚧 **0.1.44 candidate** | centralized server-rendered SEO authority |
+| Producción | 🚧 pendiente PR + merge + exact-main + observación Hostinger | **sin migraciones ni mutaciones manuales de SEO real** |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+526** | **−186** | **+340** |
+| **24** | **+1660** | **−127** | **+1533** |
 
 ## Calidad y entrega
 
@@ -37,13 +37,14 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #214 · `work/issue-214` · UUID `5d7b8107-977e-4e0e-a492-dd55b265c214` |
-| Auto semantics | 🚧 fallback automático vive en preview/effective state; no se escribe en el campo persistible |
-| Manual semantics | 🚧 solo una edición explícita crea override; limpiar vuelve a auto |
-| Split SEO API | 🚧 PUT vacío persiste NULL, no el fallback calculado |
-| Event atomicity | 🚧 Content Core transporta vacío en auto y texto solo en manual dentro del workflow atómico |
-| Blog / Pages | 🚧 saves vacíos dejan SEO vacío para que public delivery derive el fallback vigente |
-| Durable coverage | 🚧 browser contracts + PHP normalization + isolated MariaDB persistence/audit contract |
+| PR integrity | **PR + snapshot exacto** · Issue #390 · `work/issue-390` · UUID `74a6178a-25bf-4c36-9278-e3d1ce1f8fe1` |
+| Single authority | 🚧 Home/Contact + seis familias de entidades editan la misma metadata que usa el renderer público |
+| Static routes | 🚧 allowlist cerrada `home` / `contact` dentro de `settings.seo.routes`; sin tabla ni migración nueva |
+| Entity routes | 🚧 Events, Artists, Sets, Releases, Blog y Pages reutilizan `seo_title` / `seo_description` y el persistence boundary auditado |
+| AUTO semantics | 🚧 fallback efectivo visible; limpiar override vuelve a AUTO sin materializar el valor derivado |
+| Social/canonical | 🚧 canonical derivado/read-only; OG/Twitter heredan título, descripción e imagen efectivos del renderer |
+| Settings | 🚧 Settings → SEO deriva al workspace y conserva IndexNow; deja de ser un segundo editor Home |
+| Durable coverage | 🚧 contratos PHP + MariaDB para rutas estáticas + browser desktop/mobile + integración IA/Settings |
 | Sonar | 🚧 stable-head analysis |
 | CodeRabbit | 🚧 stable-head review |
 | CI del SHA exacto de main | 🚧 después del squash merge |
@@ -52,61 +53,63 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.42 · db68764"] --> S["#214 · dynamic SEO fallbacks"]
+ B["main v0.1.43 · 722690d"] --> S["#390 · WEBSITE → SEO"]
  S --> P["PR · CI · Sonar · review"]
- P --> M["Squash merge v0.1.43"]
+ P --> M["Squash merge v0.1.44"]
  M --> X["Exact-main CI"]
  X --> D["Observe Hostinger deploy"]
 ```
 
 ## Qué se hizo
 
-- Los defaults SEO automáticos dejan de escribir físicamente los inputs: se mantienen como fallback visual/dinámico.
-- El estado del editor distingue `auto` de `manual`; limpiar un override vuelve a `auto` sin congelar el fallback actual.
-- Legacy Events/Artists/Sets, Releases y el Event workflow atómico serializan vacío en modo automático y solo texto explícito en modo manual.
-- El endpoint SEO separado normaliza vacío a NULL; public delivery ya deriva title/description desde el contenido fuente cuando no hay override.
-- Blog y Pages dejan de recibir defaults materializados por un wrapper de fetch: un save sin override conserva ausencia de override.
-- Se amplía cobertura browser para preview dinámico, transición auto↔manual, Event workflow y Release metadata, más contrato PHP del boundary de persistencia.
+- Se crea un único workspace **WEBSITE → SEO** dentro del shell canónico de DISCADMIN.
+- El inventario compacto cubre Home, Contact, Pages, Events, Artists, Sets, Releases y Blog con búsqueda/filtros por tipo, publicación, modo y health.
+- Home y Contact usan un registro de rutas estáticas allowlisted dentro del setting SEO existente; Home mantiene compatibilidad con los valores flat previos.
+- Los seis tipos de entidad reutilizan el registro público, sus columnas SEO actuales y la misma transacción/auditoría ya usada por los editores.
+- AUTO / MANUAL / MIXED se basa en overrides almacenados; preview, canonical, OG y Twitter muestran/usan el valor efectivo server-rendered.
+- Reset por campo limpia el override. Las fallas de escritura mantienen el editor y el input para retry.
+- Settings deja de escribir metadata Home directamente y enlaza al workspace; IndexNow sigue siendo infraestructura tipada.
+- Contact pasa a consumir su metadata desde la misma fuente estática server-side sin perder `ContactPage` JSON-LD.
+- Se agrega cobertura MariaDB para compatibilidad legacy, preservación de siblings, Home AUTO y Contact MANUAL→AUTO; browser cubre filtros, edición, retry y 390px.
 
 ## Archivos modificados en este deploy
 
 - `README.md`
 - `api/seo-metadata.php`
-- `config/seo_defaults.php`
-- `config/seo_persistence.php`
+- `api/seo-workspace.php`
+- `config/public_contact_page.php`
+- `config/public_seo.php`
+- `config/seo_workspace.php`
 - `config/version.php`
-- `discadmin/event-workflow-seo.js`
-- `discadmin/seo-editorial-defaults.js`
-- `discadmin/seo-metadata.js`
+- `discadmin/admin-information-architecture.js`
+- `discadmin/admin-modules.js`
+- `discadmin/seo-workspace.css`
+- `discadmin/seo-workspace.js`
+- `discadmin/seo-workspace.php`
+- `discadmin/settings-v2.js`
 - `docs/BRVTAL-SPEC.md`
+- `index.php`
 - `package.json`
-- `tests/admin-activity-contract.php`
-- `tests/e2e/discadmin-content-core-regressions.spec.mjs`
-- `tests/e2e/discadmin-seo-defaults.spec.mjs`
-- `tests/e2e/discadmin-seo-metadata.spec.mjs`
-- `tests/integration/seo-persistence.php`
+- `tests/e2e/discadmin-information-architecture.spec.mjs`
+- `tests/e2e/discadmin-seo-workspace.spec.mjs`
+- `tests/e2e/discadmin-settings-v2.spec.mjs`
+- `tests/integration/seo-workspace.php`
+- `tests/public-contact-contract.php`
 - `tests/seo-contract.php`
 - `tests/seo-defaults-contract.php`
+- `tests/seo-workspace-contract.php`
 
 ## Validación
 
-- Base exacta `db68764fe880b396c5e671e7e43faeeddaf0bc93`: BRVTAL CI/`validate`, Production Deploy Observer y Production Performance verdes para v0.1.42.
-- #214 tiene reserva canónica activa y `work/issue-214` partió idéntica a `main`.
+- Base exacta `722690d2fc9feeb1cfa21ead9b8f85c9555f00f5`: BRVTAL CI/`validate`, Sonar, Production Deploy Observer y Production Performance verdes para v0.1.43.
+- #390 tiene reserva canónica activa en `work/issue-390` desde la base exacta.
 - Pendiente: PR, gates del HEAD estable, Sonar, revisión, squash merge, exact-main y observación de deploy.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#214](https://github.com/pl0n3r/brvtal/issues/214) · mantener los defaults SEO realmente dinámicos y no destructivos. |
-| **NEXT** | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390) · siguiente frente explícito de publicación/SEO del roadmap. |
-| **LATER** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery; [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin. |
-| **BLOCKED / EXTERNAL** | 🚧 migraciones o mutaciones de datos SEO en producción requieren autorización explícita. |
-
-## Panorama general pendiente
-
-| Lane | Frente | Issues |
-| --- | --- | --- |
-| **NOW** | 🚧 SEO override integrity | 🚧 [#214](https://github.com/pl0n3r/brvtal/issues/214) |
-| **NEXT** | 🚧 Publication / SEO integrity | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390) |
-| **LATER** | 🚧 Editorial resilience | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528), [#530](https://github.com/pl0n3r/brvtal/issues/530) |
+| **NOW** | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390) · cerrar el workspace SEO centralizado y su entrega v0.1.44. |
+| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery del editor. |
+| **LATER** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin; backlog explícito restante según coordinador/roadmap. |
+| **BLOCKED / EXTERNAL** | 🚧 cualquier migración o mutación manual de datos SEO en producción requiere autorización explícita. |
