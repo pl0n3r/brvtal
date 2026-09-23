@@ -289,6 +289,8 @@ Editorial SEO defaults are automatic but non-destructive:
 - empty SEO description falls back to the relevant description/bio/excerpt/editorial text and is normalized to a search-appropriate length;
 - manually authored SEO values always win.
 
+Explicit SEO fields participate in the editor save contract. On legacy/resource editors that persist primary content and SEO through separate endpoints, a successful primary mutation followed by an SEO failure is a **partial save**, never a complete success: keep the editor and authored SEO values recoverable, prevent a second content mutation that could duplicate a create, and retry only the SEO write against the already-saved resource ID. Once that retry succeeds, the editor may finish its normal close/refresh path. The canonical Content Core Event workflow keeps SEO inside its atomic Event workflow instead of using this split-save recovery path.
+
 The CMS calculates a **Content Health Score** and warns about missing SEO, missing images, incomplete information and common errors.
 
 CMS intelligence advises; it does **not** autonomously publish or irreversibly modify editorial content.

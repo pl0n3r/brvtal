@@ -301,6 +301,15 @@ window.BRVTALReleases = (() => {
     }
   }
 
+  window.addEventListener('brvtal:seo-partial-resolved', event => {
+    if (event.detail?.resource !== 'releases') return;
+    if (!document.getElementById('release_title')) return;
+    if (typeof closeModal === 'function') closeModal(true);
+    refresh()
+      .then(() => setStatus('Release saved.', 'ok'))
+      .catch(error => setStatus('SEO recovered, but releases could not refresh: ' + (error?.message || 'UNKNOWN_ERROR'), 'err'));
+  });
+
   window.addEventListener('brvtal:content-order-changed', event => {
     if (event.detail?.resource !== 'releases' || !Array.isArray(event.detail.ids)) return;
     store.releases = window.BRVTALContentOrdering?.applyOrder?.(store.releases,event.detail.ids) || store.releases;
