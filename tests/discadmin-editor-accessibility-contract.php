@@ -85,9 +85,10 @@ foreach ([
     editor_a11y_assert(str_contains($core, $marker), "Content Core must keep {$marker}.");
 }
 editor_a11y_assert(
-    str_contains($artistEditor, "checkbox('is_collective_member'")
+    str_contains($artistEditor, 'function checkbox(id,label,checked=false,help=\'\')')
         && str_contains($artistEditor, 'for="f_${id}"')
-        && str_contains($artistEditor, 'id="f_${id}" type="checkbox"'),
+        && str_contains($artistEditor, 'id="f_${id}" type="checkbox"')
+        && str_contains($artistEditor, "'is_collective_member'"),
     'Canonical Artist membership checkbox must keep an explicit visible label association.'
 );
 foreach (['a_status','a_order','a_joined','a_left'] as $legacyControlId) {
