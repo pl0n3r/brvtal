@@ -43,7 +43,11 @@ roster_expect(str_contains($runtime, '`/artists/${encodeURIComponent(slug)}`'), 
 roster_expect(!str_contains($runtime, 'website_url') && !str_contains($runtime, 'instagram_url'), 'Roster navigation must not use external profile URLs as its primary destination');
 roster_expect(str_contains($runtime, "['member', 'BRVTAL / COLLECTIVE']"), 'Home Roster must visibly identify current members');
 roster_expect(!str_contains($runtime, 'ALUMNI / ARCHIVE'), 'Home Roster must not recreate a second alumni state');
-roster_expect(str_contains($runtime, "return 'ARTIST / COLLABORATOR';"), 'non-member framing must stay contextual and must not create a backend membership tier');
+roster_expect(
+    str_contains($runtime, "'ARTIST / COLLABORATOR'")
+        && str_contains($runtime, 'isMember(artist)'),
+    'non-member framing must stay contextual and must not create a backend membership tier'
+);
 roster_expect(str_contains($runtime, 'window.BRVTALPublicDataPromise'), 'Roster runtime must reuse the canonical public request');
 roster_expect(!str_contains($runtime, 'fetch('), 'Roster runtime must not add a duplicate public API request');
 roster_expect(str_contains($loader, "'js/app.js', 'js/public-roster.js'"), 'Roster must load after the canonical dynamic frontend');
