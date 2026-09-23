@@ -285,6 +285,8 @@ Global admin search is implemented across Events, Artists, Sets, Media, Pages, R
 
 Bulk status actions are implemented for Events, Artists, Sets, Pages, Releases and Blog with CSRF, explicit status allowlists, row locking, transactions, rollback on missing IDs and a maximum batch size.
 
+**Complete-catalog selection:** Bulk Actions searches the full catalog returned by the authenticated module list endpoint, including records after position 500, without silently truncating the result. The modal renders bounded pages of 50 records rather than every result at once, announces the current range and total, and selects/clears **only the visible page**. Selection persists across pages and filters but never exceeds 100 IDs per mutation, matching the server-side limit; search/filter resets to the first page. Partial results must never be presented as exhaustive. A future server-side cursor may replace the full response only if it preserves full-catalog search and explicit range/completeness signals.
+
 **Bulk Delete is not part of v1** and must not be introduced casually. Destructive bulk operations require a separate explicit safety design.
 
 ## 24. DISCADMIN architecture
