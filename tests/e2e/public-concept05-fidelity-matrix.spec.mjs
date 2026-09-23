@@ -446,14 +446,21 @@ const canonicalVisualRegions = [
   '.c5-footer',
 ];
 
+/*
+ * Baseline refresh is intentionally manual: after an approved Concept 05
+ * visual change, replace both values for the affected viewport with
+ * PENDING_CALIBRATION, run Chromium once, visually review the captured change,
+ * then copy the logged aggregate structure/color fingerprints back here.
+ * Never auto-update these values in CI.
+ */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: 'PENDING_CALIBRATION',
-    color: 'PENDING_CALIBRATION',
+    structure: '0041af2a9a92437bfdf97f4ccb800b8a681c4e4333deecddbee6dbdb3ac76121',
+    color: 'c10a87b74a32a59ca0269d9286c2167e07551eba6145e96bf7a34bcdfcb5bbd5',
   },
   1440: {
-    structure: 'PENDING_CALIBRATION',
-    color: 'PENDING_CALIBRATION',
+    structure: '6c9d561a897171adffcc1bf63704850228d5945a396deea310a8af5fa17cd2f8',
+    color: 'c31260ce2874445790d9bce56c61b4f043a60d0158e7722567fe1bf7935e49b7',
   },
 };
 
