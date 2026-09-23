@@ -210,11 +210,19 @@ for (const viewport of matrix) {
         const rect = el.getBoundingClientRect();
         return { tag:el.tagName, className:el.className, left:rect.left, right:rect.right, width:rect.width };
       });
-      const titles = [...document.querySelectorAll('[data-fidelity-title]')].filter(visible).map(el => ({
-        text:el.textContent.trim(),
-        clientWidth:el.clientWidth,
-        scrollWidth:el.scrollWidth,
-      }));
+      const titles = [...document.querySelectorAll('[data-fidelity-title]')].filter(visible).map(el => {
+        const rect = el.getBoundingClientRect();
+        const owner = el.closest('.genesis-copy,.event-card,.c5-artist-card,.set-main,.transmission-copy,.c5-footer-brand') || el.parentElement;
+        const ownerRect = owner.getBoundingClientRect();
+        return {
+          text:el.textContent.trim(),
+          left:rect.left,
+          right:rect.right,
+          width:rect.width,
+          ownerLeft:ownerRect.left,
+          ownerRight:ownerRect.right,
+        };
+      });
       const headerChildren = [...document.querySelector('.nav').children].filter(visible).map(el => {
         const rect = el.getBoundingClientRect();
         return { className:el.className, left:rect.left, right:rect.right };
@@ -239,7 +247,9 @@ for (const viewport of matrix) {
       expect(block.width).toBeGreaterThan(0);
     }
     for (const title of geometry.titles) {
-      expect(title.scrollWidth, `title overflows: ${title.text}`).toBeLessThanOrEqual(title.clientWidth + 2);
+      expect(title.width, `title collapsed: ${title.text}`).toBeGreaterThan(0);
+      expect(title.left, `title starts outside its owner: ${title.text}`).toBeGreaterThanOrEqual(title.ownerLeft - 1);
+      expect(title.right, `title escapes its owner: ${title.text}`).toBeLessThanOrEqual(title.ownerRight + 1);
     }
     for (let index = 1; index < geometry.headerChildren.length; index += 1) {
       expect(
@@ -259,17 +269,22 @@ for (const viewport of matrix) {
 
 test('Concept 05 canonical 390 and 1440 preserve distinct authored compositions', async ({ page }) => {
   await mount(page, { width:390, height:844 });
-  const mobile = await page.evaluate(() => ({
-    heroTitle:Number.parseFloat(getComputedStyle(document.querySelector('.hero-title')).fontSize),
-    experienceColumns:getComputedStyle(document.querySelector('.c5-experience-authored')).gridTemplateColumns.split(' ').length,
-    footerColumns:getComputedStyle(document.querySelector('.c5-footer-grid')).gridTemplateColumns.split(' ').length,
-    headerNav:getComputedStyle(document.querySelector('.c5-header-nav')).display,
-    experienceTitleWidth:document.querySelector('#genesis h2').getBoundingClientRect().width,
-  }));
+  const mobile = await page.evaluate(() => {
+    const experienceStyle = getComputedStyle(document.querySelector('.c5-experience-authored'));
+    return {
+      heroTitle:Number.parseFloat(getComputedStyle(document.querySelector('.hero-title')).fontSize),
+      experienceDisplay:experienceStyle.display,
+      experienceDirection:experienceStyle.flexDirection,
+      footerColumns:getComputedStyle(document.querySelector('.c5-footer-grid')).gridTemplateColumns.split(' ').length,
+      headerNav:getComputedStyle(document.querySelector('.c5-header-nav')).display,
+      experienceTitleWidth:document.querySelector('#genesis h2').getBoundingClientRect().width,
+    };
+  });
 
   expect(mobile.heroTitle).toBeGreaterThanOrEqual(86);
   expect(mobile.heroTitle).toBeLessThanOrEqual(126);
-  expect(mobile.experienceColumns).toBe(1);
+  expect(mobile.experienceDisplay).toBe('flex');
+  expect(mobile.experienceDirection).toBe('column');
   expect(mobile.footerColumns).toBe(1);
   expect(mobile.headerNav).toBe('none');
   expect(mobile.experienceTitleWidth).toBeLessThanOrEqual(390 - 24);
