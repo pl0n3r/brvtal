@@ -134,8 +134,35 @@
     dialog.setAttribute('aria-label',String(title));
     viewer.querySelectorAll('video,audio').forEach(media => { try { media.pause(); } catch (_) {} });
     const media=viewerMediaNode(item); stage.replaceChildren(media); if (media instanceof HTMLImageElement) applyResponsiveImage(media,'viewer');
+    const audio = media instanceof HTMLAudioElement ? media : media.querySelector?.('audio');
+    if (audio) {
+      audio.addEventListener('error', () => {
+        if (!audio.isConnected || !stage.contains(audio)) return;
+        markMemoryUnavailable(item, audio, stage);
+      }, {once:true});
+    }
     titleNode.textContent=String(title); context.textContent=String(item.context||'').trim(); context.hidden=context.textContent==='';
     position.textContent=`${type.toUpperCase()} / ${state.viewerIndex+1} OF ${state.viewerItems.length}`;
+  }
+  function markMemoryUnavailable(item, mediaNode, stage) {
+    const id = Number(item?.id) || 0;
+    const opener = [...document.querySelectorAll('[data-public-media-open]')]
+      .find(button => Number(button.dataset.publicMediaOpen) === id);
+    if (opener) {
+      opener.disabled = true;
+      opener.setAttribute('aria-disabled', 'true');
+      const card = opener.closest('[data-public-media-item]');
+      card?.classList.add('is-media-missing');
+      const cardMedia = opener.querySelector('img,video');
+      if (cardMedia) cardMedia.hidden = true;
+    }
+    if (mediaNode) mediaNode.hidden = true;
+    if (stage) {
+      stage.replaceChildren(create('div', {
+        className:'public-media-viewer-audio',
+        text:'MEDIA UNAVAILABLE',
+      }));
+    }
   }
   function moveViewer(direction) { if (state.viewerItems.length<2) return; state.viewerIndex=(state.viewerIndex+direction+state.viewerItems.length)%state.viewerItems.length; showViewerItem(); }
   function buildViewer() {
@@ -301,6 +328,10 @@
     grid.classList.add('public-media-grid');
     grid.replaceChildren(...state.items.map(itemNode).filter(Boolean));
     applyFilters();
+    document.documentElement.dataset.publicMemories = 'curated';
+    window.dispatchEvent(new CustomEvent('brvtal:memories-rendered', {
+      detail: { count: state.items.length },
+    }));
     return true;
   }
 

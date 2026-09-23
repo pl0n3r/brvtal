@@ -15,6 +15,8 @@ const items = [
 ];
 
 async function mountHarness(page) {
+  const silentWav = Buffer.from('UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'base64');
+  await page.route('**/uploads/closing.mp3', route => route.fulfill({contentType:'audio/wav',body:silentWav}));
   await page.route('**/api/public-image-delivery.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{}})}));
   await page.route(harnessUrl, route => route.fulfill({
     contentType:'text/html; charset=utf-8',

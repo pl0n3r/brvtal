@@ -132,9 +132,14 @@ $html = str_replace(
     'ARTIST / PROFILE',
     $html
 );
+$soundHeadSource = '<div class="section-head"><span class="mono">AUDIO ARCHIVE / 05</span>'
+    . '<h2>SETS</h2><span class="mono">SOUNDCLOUD / BRVTAL</span></div>';
+$soundHeadTarget = '<div class="section-head"><span class="mono">BRVTAL SOUND / 04</span>'
+    . '<h2>SOUND</h2><span class="mono">SETS / LISTEN / ARCHIVE</span></div>';
+$html = str_replace($soundHeadSource, $soundHeadTarget, $html);
 $html = str_replace(
-    '<div class="section-head"><span class="mono">AUDIO ARCHIVE / 05</span><h2>SETS</h2><span class="mono">SOUNDCLOUD / BRVTAL</span></div>',
-    '<div class="section-head"><span class="mono">SOUND LIBRARY / 05</span><h2>SETS</h2><span class="mono">LISTEN / EXPLORE</span></div>',
+    '<span class="mono">VISUAL ARCHIVE / 06</span>',
+    '<span class="mono">BRVTAL MEMORIES / 05</span>',
     $html
 );
 $html = preg_replace('/(<div class="set-main">.*?<p>).*?(<\/p><\/div>)/sU', '$1SET / ARCHIVE$2', $html) ?? $html;

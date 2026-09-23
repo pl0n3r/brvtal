@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #592 / PR #593.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #594.
 
 ## Progress convention
 
@@ -17,11 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#592 · Concept 05 NIGHTS + ARTISTS authored 1440/390** | parent #583 |
-| Base exacta | ✅ ~~main v0.1.28 validado + deploy/performance observados~~ | `409e544375104fc41aa83762187c30d26eefa3cb` |
-| PR | 🚧 **#593** | `work/issue-592` |
-| Versión | 🚧 **0.1.29** | cambio visible de producto/runtime |
-| Producción | 🚧 pendiente de squash + exact-main | sin migración de esquema |
+| Work line | 🚧 **#594 · Concept 05 SOUND + MEMORIES authored 1440/390** | parent #583 |
+| Base exacta | ✅ ~~main v0.1.29 validado + deploy/performance observados~~ | `7a70dce6e3bf4503f43516d0b4dd67f1dab5a8dc` |
+| Versión | 🚧 **0.1.30** | cambio visible de producto/runtime público |
+| Producción | 🚧 pendiente de PR → merge → exact-main | sin migración de esquema |
 
 ## Huella del cambio
 
@@ -29,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+1023** | **−84** | **+939** |
+| **15** | **+1138** | **−63** | **+1075** |
 
 ## Calidad y entrega
 
@@ -38,18 +37,18 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #592 · `work/issue-592` · UUID `7d174b8e-c33e-4dd9-a0cf-08e2702dc523` |
-| Browser | ✅ ~~Chromium behavior/geometry pasó en el head previo; se revalida en head final~~ |
-| Sonar | 🚧 último finding S6481 corregido; nuevo análisis pendiente sobre head final |
-| CodeRabbit | 🚧 revisión solicitada sobre head estable final |
+| PR integrity | **PR + snapshot exacto** · Issue #594 · `work/issue-594` · UUID `4ca01b23-6cd2-4032-a2b5-a087540a6ceb` |
+| Browser | 🚧 geometría/behavior 1440 + 390 + media failure + reduced motion |
+| Sonar | 🚧 Quality Gate sobre head estable |
+| CodeRabbit | 🚧 review final sobre head estable |
 | Exact-main | 🚧 **CI del SHA exacto de main** después del squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.28 verde"] --> N["#592 NIGHTS + ARTISTS"]
- N --> P["PR #593 · CI · Sonar · CodeRabbit"]
+ B["main v0.1.29 verde"] --> S["#594 SOUND + MEMORIES"]
+ S --> P["PR · CI · Sonar · CodeRabbit"]
  P --> M["Squash merge"]
  M --> X["Exact-main CI"]
  X --> D["Deploy Observer + Performance"]
@@ -57,53 +56,54 @@ flowchart LR
 
 ## Qué se hizo
 
-- **02 / NIGHTS** proyecta Events activos + `archive.events` reales desde el mismo payload público y deduplica por identidad.
-- Cada Night usa `/events/{slug}` cuando existe slug; no se inventan rutas ni contenido.
-- Ticket CTA usa `ticket_url` o Ticket Type público activo; archivo y sold-out no muestran compra.
-- **03 / ARTISTS** reutiliza `public-roster.js`; mantiene Collective Status, orden canónico y `/artists/{slug}`.
-- Desktop 1440 usa tira editorial densa de Nights y grid documental de Artists; mobile 390 usa swipe ~84vw y grid 2 columnas.
-- Media rota/ausente falla cerrada, sin broken-image chrome ni pérdida del contenido textual.
-- No se añadió un segundo fetch: el enhancer Concept 05 solo compone el DOM ya alimentado por `BRVTALPublicDataPromise`.
-- Cobertura incluye active+archive, dedupe, links canónicos, Ticket Types, missing media, long copy, mobile overflow y reduced-motion/visual-test.
+- **04 / SOUND** reutiliza `public-sets-library.js` como renderer único y conserva filtros LATEST / ARTIST / EVENT.
+- Set Record sigue siendo `/sets/{slug}`; LISTEN solo aparece con URL HTTP(S) externa válida y las relaciones Artist/Event siguen estructuradas.
+- `cover_image` canónico entra al módulo como artwork documental; la primera pieza recibe foco editorial y el “signal” añadido es puramente decorativo, no un waveform falso.
+- **05 / MEMORIES** usa exclusivamente `memories` curadas; el Home deja de intentar proyectar `media` crudo como fallback dinámico.
+- `public-media.js` continúa siendo el viewer único y conserva relaciones Memory → Event/Artist/Set/Release, filtros, teclado y scroll lock.
+- Desktop 1440 usa archivo sonoro denso + contact sheet asimétrico; mobile 390 usa Sound compacto y Memories 2-columnas con full-span deliberado.
+- Artwork/media rota falla cerrada sin broken-image chrome; el texto y relaciones permanecen visibles.
+- El enhancer Concept 05 no hace requests y no toma ownership de playback, viewer ni GSAP.
 
 ## Archivos modificados en este deploy
 
-- `README.md`
-- `config/public_home.php`
-- `config/version.php`
-- `css/public-concept05-nights-artists.css`
-- `index.php`
-- `js/app.js`
-- `js/public-concept05-nights-artists.js`
-- `js/public-home-visual.js`
-- `js/public-roster.js`
-- `package.json`
-- `tests/e2e/public-concept05-nights-artists.spec.mjs`
-- `tests/e2e/public-roster-phase-c.spec.mjs`
-- `tests/public-concept05-dressing-contract.php`
+- `README.md` — snapshot exacto del deploy y gates.
+- `config/public_home.php` — carga assets authored de SOUND + MEMORIES.
+- `config/version.php` — versión pública 0.1.30.
+- `css/public-concept05-sound-memories.css` — geometría authored 1440/390 y estados fail-closed.
+- `css/public-sets-library.css` — artwork de Set opt-in fuera de Concept 05.
+- `index.php` — framing editorial 04 / SOUND y 05 / MEMORIES.
+- `js/app.js` — delegación a renderers canónicos y Memories curadas.
+- `js/public-concept05-sound-memories.js` — composición progresiva sin requests ni playback falso.
+- `js/public-media.js` — señal de render curado y fallo seguro del viewer.
+- `js/public-sets-library.js` — renderer SOUND reutilizable, artwork y URLs seguras.
+- `package.json` — sincronización de versión 0.1.30.
+- `tests/e2e/public-concept05-sound-memories.spec.mjs` — regresión 1440/390, URLs y media fallida.
+- `tests/e2e/public-media.spec.mjs` — viewer multimedia con fixture de audio válido y regresión existente.
+- `tests/e2e/public-sets-library-phase-c.spec.mjs` — contrato del renderer Sets reutilizable.
+- `tests/public-concept05-dressing-contract.php` — contrato de carga/idempotencia de assets Concept 05.
 
 ## Validación
 
-- Base exacta `409e544375104fc41aa83762187c30d26eefa3cb`: BRVTAL CI, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #592.
-- Coordination ya reconoce la reserva oculta de #592 en PR #593.
-- Database, Chromium, real-stack y WebKit pasaron en la iteración previa del PR; el head final se revalida completo.
-- Findings Sonar previos de complejidad/ternaries/líneas largas fueron corregidos; el último S6481 se corrigió con callback explícito.
-- No hay migraciones ni cambios de esquema.
+- Base exacta `7a70dce6e3bf4503f43516d0b4dd67f1dab5a8dc`: BRVTAL CI, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #594.
+- #594 fue reservado atómicamente antes de modificar `work/issue-594`.
+- Cobertura nueva verifica payload compartido, curated-only Memories, canonical Set links, relaciones, 1440/390, media rota, touch targets y reduced motion.
+- No hay nuevo fetch público, player falso, migraciones ni cambios de esquema.
 - Producción se observa por separado; CI verde no se presenta como prueba de deploy.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#592](https://github.com/pl0n3r/brvtal/issues/592) · cerrar PR #593 sobre head final y validar exact-main. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · 04 / SOUND + 05 / MEMORIES. |
-| **LATER** | 🚧 JOURNAL + CONNECTED, Footer, Theme Studio/Preview; luego #398/#351 según roadmap. |
+| **NOW** | 🚧 [#594](https://github.com/pl0n3r/brvtal/issues/594) · cerrar SOUND + MEMORIES y validar exact-main. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · 06 / JOURNAL + 07 / CONNECTED. |
+| **LATER** | 🚧 Footer + mobile nav polish, Theme Studio/Admin controls y Preview; luego #398/#351 según roadmap. |
 | **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo; reviewers externos son advisory salvo finding accionable. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Concept 05 NIGHTS + ARTISTS | 🚧 [#592](https://github.com/pl0n3r/brvtal/issues/592) |
+| **NOW** | 🚧 Concept 05 SOUND + MEMORIES | 🚧 [#594](https://github.com/pl0n3r/brvtal/issues/594) |
 | **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
 | **LATER** | 🚧 visión pública / customization | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#351](https://github.com/pl0n3r/brvtal/issues/351) |

@@ -25,6 +25,18 @@
     }
   };
 
+  const safeMediaUrl = value => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, window.location.href);
+      return /^https?:$/i.test(url.protocol) ? raw : '';
+    } catch (error) {
+      if (error instanceof TypeError) return '';
+      throw error;
+    }
+  };
+
   const routeUrl = (type, slug) => {
     const clean = String(slug ?? '').trim();
     return clean ? `/${type}/${encodeURIComponent(clean)}` : '';
@@ -118,8 +130,13 @@
       const external = safeHttpUrl(item?.external_url ?? '');
       const description = String(item?.description ?? '').trim();
       const relations = relationLinks(item);
+      const cover = safeMediaUrl(item?.cover_image ?? '');
+      const coverMarkup = cover
+        ? `<figure class="set-library-cover" data-set-cover><img src="${escapeHtml(cover)}" alt="" loading="lazy" decoding="async"></figure>`
+        : '<figure class="set-library-cover set-library-cover--empty" data-set-cover aria-hidden="true"></figure>';
       return `<article class="set-item set-library-item" data-set-id="${escapeHtml(item?.id ?? '')}" data-sets-artist="${escapeHtml(item?.artist_id ?? '')}" data-sets-event="${escapeHtml(item?.event_id ?? '')}">
         <div class="set-num mono">${String(index + 1).padStart(3, '0')}</div>
+        ${coverMarkup}
         <div class="set-main">
           <span class="mono">${escapeHtml(platformLabel(item))} / BRVTAL SOUND</span>
           <a class="set-record-link" href="${escapeHtml(canonical)}"><h4>${escapeHtml(title)}</h4><span class="mono">OPEN RECORD →</span></a>
@@ -130,9 +147,25 @@
       </article>`;
     }).join('') : emptyCopy;
 
+    list.querySelectorAll('[data-set-cover] img').forEach(image => {
+      const cover = image.closest('[data-set-cover]');
+      if (!cover) return;
+      const failCover = () => {
+        image.hidden = true;
+        cover.classList.add('set-library-cover--empty');
+        cover.setAttribute('aria-hidden', 'true');
+      };
+      image.addEventListener('error', failCover, {once:true});
+      if (image.complete && image.naturalWidth === 0) failCover();
+    });
+
     if (countRoot) countRoot.textContent = `${String(visible.length).padStart(2, '0')} / ${String(sets.length).padStart(2, '0')} RECORDS`;
     const sectionCount = section.querySelector('.section-head > span:first-child');
-    if (sectionCount) sectionCount.textContent = `SOUND LIBRARY / ${String(sets.length).padStart(2, '0')}`;
+    const concept05 = document.querySelector('[data-concept="05"]');
+    if (sectionCount && !concept05) {
+      sectionCount.textContent = `SOUND LIBRARY / ${String(sets.length).padStart(2, '0')}`;
+    }
+    section.dataset.publicSetCount = String(sets.length);
   };
 
   const renderOptions = () => {
@@ -190,8 +223,15 @@
     return null;
   };
 
+  window.BRVTALPublicSetsLibrary = {
+    render,
+    selectMode,
+    visibleSets,
+  };
+
   window.addEventListener('load', () => {
     window.setTimeout(async () => {
+      if (document.documentElement.dataset.publicSets === 'library') return;
       try {
         const items = await dataFromSharedRequest();
         if (items === null) {
