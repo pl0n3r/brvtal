@@ -438,6 +438,19 @@ window.BRVTALAdminModules = (() => {
     }
   };
 
+  window.addEventListener('brvtal:seo-partial-resolved', event => {
+    const resource = String(event.detail?.resource || '');
+    if (!['events','artists','sets'].includes(resource)) return;
+    if (!document.getElementById('modal')?.classList.contains('open')) return;
+    if (typeof closeModal === 'function') closeModal(true);
+    if (typeof go === 'function') {
+      Promise.resolve(go(resource)).catch(error => Feedback.error(
+        'SEO recovered, but the ' + resource + ' list could not refresh: ' + (error?.message || error),
+        'seo-metadata'
+      ));
+    }
+  });
+
   ensureStyle('brvtal-media-library-style','/discadmin/media-library.css');
   ensureStyle('brvtal-releases-style','/discadmin/releases.css');
   ensureStyle('brvtal-blog-style','/discadmin/blog.css');

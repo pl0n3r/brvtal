@@ -5,6 +5,7 @@
   const nativeFetch = window.fetch.bind(window);
   let csrfCache = '';
   let decorateTimer = null;
+  const partialSaves = new WeakMap();
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -31,6 +32,8 @@
       .brvtal-search-preview .url{font-size:10px;color:#49d98a;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .brvtal-search-preview .title{font-size:16px;color:#8ab4f8;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .brvtal-search-preview .description{font-size:10px;line-height:1.45;color:#b7bdc2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .brvtal-seo-recovery{margin-top:12px;border:1px solid #6b3b3f;background:#170b0d;padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+      .brvtal-seo-recovery.ok{border-color:#295f45;background:#08130e}.brvtal-seo-recovery strong{display:block;font:800 9px/1.3 monospace;letter-spacing:1px;color:#f4f5f6}.brvtal-seo-recovery span{display:block;margin-top:5px;font-size:9px;line-height:1.45;color:#a9afb4}.brvtal-seo-recovery button{background:#f4f5f6;border:0;color:#080909;padding:9px 11px;font:800 9px/1 monospace;letter-spacing:1px;cursor:pointer}.brvtal-seo-recovery button:disabled{opacity:.45;cursor:wait}
       @media(max-width:650px){.brvtal-seo-section .seo-head{display:block}.brvtal-seo-section .seo-help{margin-top:7px}}
     `;
     document.head.appendChild(style);
@@ -198,6 +201,86 @@
     };
   }
 
+  function editorSection(resource) {
+    if (resource === 'releases') return document.querySelector('#mcontent [data-seo-editor="release"]');
+    if (resource === 'events' && document.getElementById('eventModal')?.classList.contains('open')) {
+      return document.querySelector('#eventModal [data-seo-editor="content-core"]');
+    }
+    return document.querySelector('#modal.open [data-seo-editor="legacy"]');
+  }
+
+  function partialResponse(record, code, detail = '') {
+    return new Response(JSON.stringify({
+      ok:false,
+      error:code,
+      partial_save:true,
+      content_saved:true,
+      content_id:Number(record?.id || 0),
+      resource:String(record?.resource || ''),
+      seo_error:String(detail || record?.lastError || '')
+    }),{
+      status:409,
+      headers:{'Content-Type':'application/json','Cache-Control':'no-store'}
+    });
+  }
+
+  function recoveryNode(section) {
+    let node = section?.querySelector('[data-seo-recovery]');
+    if (node || !section) return node;
+    node = document.createElement('div');
+    node.className = 'brvtal-seo-recovery';
+    node.dataset.seoRecovery = '1';
+    section.appendChild(node);
+    return node;
+  }
+
+  function renderRecovery(section, record, message, ok = false) {
+    const node = recoveryNode(section);
+    if (!node) return;
+    node.className = 'brvtal-seo-recovery' + (ok ? ' ok' : '');
+    node.replaceChildren();
+    const copy = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = ok ? 'SEO RECOVERED' : 'PARTIAL SAVE';
+    const detail = document.createElement('span');
+    detail.textContent = message;
+    copy.append(title, detail);
+    node.appendChild(copy);
+    if (!ok) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.seoRetry = '1';
+      button.textContent = 'RETRY SEO';
+      button.addEventListener('click', () => retryPartial(section));
+      node.appendChild(button);
+    }
+  }
+
+  async function retryPartial(section) {
+    const pending = partialSaves.get(section);
+    if (!pending) return false;
+    const button = section.querySelector('[data-seo-retry]');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'RETRYING…';
+    }
+    try {
+      await persistMetadata(pending.resource, pending.id, metadataFor(pending.resource));
+      partialSaves.delete(section);
+      renderRecovery(section,pending,'SEO metadata is now saved. The content mutation was not repeated.',true);
+      window.BRVTALFeedback?.success?.('SEO metadata recovered.','seo-metadata');
+      window.dispatchEvent(new CustomEvent('brvtal:seo-partial-resolved',{
+        detail:{resource:pending.resource,id:pending.id}
+      }));
+      return true;
+    } catch (error) {
+      pending.lastError = String(error?.message || error);
+      renderRecovery(section,pending,'Content is already saved. SEO retry failed: ' + pending.lastError);
+      window.BRVTALFeedback?.error?.('SEO metadata retry failed: ' + pending.lastError,'seo-metadata');
+      return false;
+    }
+  }
+
   function targetFor(url, method) {
     if (!['POST','PUT'].includes(method)) return null;
     if (url.pathname.endsWith('/api/releases.php')) return {resource:'releases',queryId:Number(url.searchParams.get('id') || 0)};
@@ -240,6 +323,13 @@
     try { url = new URL(request?.url || String(input), location.href); }
     catch (_) { return nativeFetch(input, init); }
     const target = url.origin === location.origin ? targetFor(url, method) : null;
+    const section = target ? editorSection(target.resource) : null;
+    const pending = section ? partialSaves.get(section) : null;
+    if (pending) {
+      renderRecovery(section,pending,'Content is already saved. Retry SEO metadata before saving the form again.');
+      window.BRVTALFeedback?.error?.('Content is already saved. Retry SEO metadata before saving again.','seo-metadata');
+      return partialResponse(pending,'SEO_METADATA_RETRY_REQUIRED');
+    }
     const metadata = target ? metadataFor(target.resource) : null;
 
     const response = await nativeFetch(input, init);
@@ -255,7 +345,17 @@
       await persistMetadata(target.resource, id, metadata, init);
       window.BRVTALFeedback?.success?.('SEO metadata saved.','seo-metadata');
     } catch (error) {
-      window.BRVTALFeedback?.error?.('Content saved, but SEO metadata could not be saved: ' + (error?.message || error),'seo-metadata');
+      const record = {
+        resource:target.resource,
+        id,
+        lastError:String(error?.message || error)
+      };
+      if (section) {
+        partialSaves.set(section,record);
+        renderRecovery(section,record,'Content was saved, but SEO metadata was not. Retry only the SEO write; the content mutation will not run again.');
+      }
+      window.BRVTALFeedback?.error?.('Content saved, but SEO metadata could not be saved: ' + record.lastError,'seo-metadata');
+      return partialResponse(record,'SEO_METADATA_SAVE_FAILED',record.lastError);
     }
     return response;
   };
@@ -264,5 +364,5 @@
   observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
   ensureStyle();
   scheduleDecorate();
-  window.BRVTALSEOMetadata = {decorate:scheduleDecorate,persist:persistMetadata};
+  window.BRVTALSEOMetadata = {decorate:scheduleDecorate,persist:persistMetadata,retry:retryPartial};
 })();
