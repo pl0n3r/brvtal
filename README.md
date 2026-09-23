@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **35** | **+933** | **−808** | **+125** |
+| **36** | **+957** | **−820** | **+137** |
 
 ## Calidad y entrega
 
@@ -101,6 +101,7 @@ flowchart LR
 - `tests/api-contract.php`
 - `tests/artist-collective-lifecycle-contract.php`
 - `tests/content-core-form-accessibility-contract.php`
+- `tests/content-validation-contract.php`
 - `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs`
 - `tests/e2e/discadmin-data-grid.spec.mjs`
 - `tests/e2e/public-roster-phase-c.spec.mjs`
