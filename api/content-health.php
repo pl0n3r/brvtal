@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/public_visibility.php';
 require_once __DIR__ . '/../config/media.php';
+require_once __DIR__ . '/../config/schema_catalog.php';
 
 brvtal_admin_require();
 
@@ -20,9 +21,7 @@ function brvtal_content_health_json(array $payload, int $status = 200): never
 
 function brvtal_content_health_table_exists(PDO $pdo, string $table): bool
 {
-    $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
-    $st->execute([$table]);
-    return (int)$st->fetchColumn() > 0;
+    return brvtalSchemaTableExists($pdo, $table);
 }
 
 function brvtal_content_health_pick(array $row, array $keys): string
@@ -111,7 +110,28 @@ function brvtal_content_health_item(string $type, array $row): array
 function brvtal_content_health_fetch(PDO $pdo, string $type, string $table): array
 {
     if (!brvtal_content_health_table_exists($pdo, $table)) return [];
-    $rows = $pdo->query("SELECT * FROM `{$table}` ORDER BY id DESC")->fetchAll();
+
+    $columns = [
+        'events' => 'id,title,slug,description,cover_image,status,event_date,city,published_at,cancelled_at,finished_at',
+        'artists' => 'id,name,slug,bio,photo,status,seo_title,seo_description',
+        'sets' => 'id,title,slug,description,cover_image,status,seo_title,seo_description,external_url',
+        'releases' => 'id,title,slug,description,artwork,status,seo_title,seo_description,release_date',
+        'pages' => 'id,title,slug,content_json,status,seo_title,seo_description,locale',
+        'blog' => 'id,title,slug,body,excerpt,cover_image,status,seo_title,seo_description',
+    ][$type] ?? 'id';
+
+    if ($type === 'events') {
+        // The base events table lacks SEO/publication columns until later
+        // migrations. Inspect this one table once and project only real fields.
+        $fields = $pdo->query('SHOW COLUMNS FROM `events`')->fetchAll(PDO::FETCH_COLUMN);
+        $available = array_fill_keys(array_map('strval', $fields), true);
+        $columns = implode(',', array_filter(
+            explode(',', $columns),
+            static fn(string $name): bool => isset($available[$name])
+        ));
+    }
+
+    $rows = $pdo->query("SELECT {$columns} FROM `{$table}` ORDER BY id DESC")->fetchAll();
     return array_map(static fn(array $row): array => brvtal_content_health_item($type, $row), $rows ?: []);
 }
 

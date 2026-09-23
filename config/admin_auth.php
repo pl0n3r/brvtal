@@ -53,6 +53,13 @@ function brvtal_admin_session_start(): void
     }
 }
 
+function brvtal_admin_release_session(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+}
+
 function brvtal_admin_refresh_cookie(bool $force = false): void
 {
     brvtal_admin_session_start();
@@ -176,6 +183,10 @@ function brvtal_admin_require(): void
 
     $_SESSION['last_activity'] = time();
     brvtal_admin_refresh_cookie();
+
+    if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) === 'GET') {
+        brvtal_admin_release_session();
+    }
 }
 
 function brvtal_admin_csrf_token(): string

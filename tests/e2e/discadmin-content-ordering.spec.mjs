@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const authBoundaryJs = readFileSync(join(process.cwd(),'discadmin/admin-auth-boundary.js'),'utf8');
 const orderingJs = readFileSync(join(process.cwd(),'discadmin/content-ordering.js'),'utf8');
 const orderingCss = readFileSync(join(process.cwd(),'discadmin/content-ordering.css'),'utf8');
 
@@ -14,6 +15,7 @@ async function harness(page) {
     '</div></div></body></html>');
   await page.evaluate(() => {
     window.__orders=[]; window.__orderEvents=[]; window.__failOrder=false;
+    window.state={authed:true}; window.csrf='';
     window.BRVTALFeedback={success(){},error(){}};
     window.addEventListener('brvtal:content-order-changed',event=>window.__orderEvents.push(event.detail));
     window.fetch=async(url,options={})=>{
@@ -26,6 +28,7 @@ async function harness(page) {
       return new Response('{}',{status:404});
     };
   });
+  await page.evaluate(source => window.eval(source),authBoundaryJs);
   await page.evaluate(source => {
     const NativeMutationObserver = window.MutationObserver;
     window.MutationObserver = class {

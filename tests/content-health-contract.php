@@ -13,7 +13,10 @@ $api = (string)file_get_contents(__DIR__ . '/../api/content-health.php');
 health_assert(str_contains($api, 'brvtal_admin_require();'), 'Content Health API must require admin authentication');
 health_assert(str_contains($api, "REQUEST_METHOD") && str_contains($api, "'GET'"), 'Content Health API must be read-only GET');
 health_assert(str_contains($api, 'METHOD_NOT_ALLOWED'), 'non-GET Content Health requests must be rejected');
-health_assert(str_contains($api, 'information_schema.TABLES'), 'optional modules must be checked before querying');
+health_assert(str_contains($api, 'brvtalSchemaTableExists($pdo, $table)'), 'optional modules must be checked through the shared schema catalog before querying');
+health_assert(!str_contains($api, 'information_schema.TABLES'), 'Content Health must not probe information_schema once per optional module');
+health_assert(str_contains($api, 'SHOW COLUMNS FROM `events`'), 'Content Health must introspect optional events columns on the base schema');
+health_assert(str_contains($api, 'isset($available['), 'Content Health must omit optional events columns absent from the actual schema');
 foreach (['events','artists','sets','releases','pages','blog'] as $type) {
     health_assert(str_contains($api, "'{$type}'"), "Content Health must include {$type}");
 }

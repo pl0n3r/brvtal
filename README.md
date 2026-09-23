@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #524.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #623.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#524 · Artist collective membership simplificada** | `work/issue-524` · PR #622 |
-| Base exacta | ✅ ~~main v0.1.44~~ | `14f5d3b5d9d53c259c29a6ef17905ada5c81e08c` |
-| Versión | 🚧 **0.1.45 candidate** | un booleano canónico `is_collective_member` |
-| Producción | 🚧 pendiente merge/deploy + migración explícita | migración aditiva, preserva legacy e historial |
+| Work line | 🚧 **#623 · DISCADMIN authenticated performance** | `work/issue-623` · PR #626 |
+| Base exacta | ✅ ~~main v0.1.45~~ | `3193dfae8d3debc7427e98d9dfa7e8db6d04660e` |
+| Versión | 🚧 **0.1.46 candidate** | sesión, auth, dashboard y listados |
+| Producción | 🚧 después del merge | sin migración de DB para #623 |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **42** | **+997** | **−845** | **+152** |
+| **39** | **+1107** | **−183** | **+924** |
 
 ## Calidad y entrega
 
@@ -37,102 +37,100 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | PR #622 · Issue #524 · UUID `a04b7904-e12e-4f6e-bb18-7a03b7dacc6b` |
-| Autoridad única | 🚧 checkbox interno `is_collective_member` en Create/Edit Artist |
-| Migración | 🚧 `active → 1`; `alumni/none → 0`; legacy e historial no se borran |
-| Compatibilidad deploy | 🚧 pre-migration bridge mantiene lecturas/escrituras seguras |
-| Admin | 🚧 se elimina Collective Status separado; Artists muestra columna + filtro BRVTAL |
-| Público | 🚧 roster/perfil/event lineup leen la misma membresía canónica |
-| Cobertura | 🚧 contratos + browser + MariaDB migration + real-stack |
-| Sonar | 🚧 pendiente sobre head estable |
-| CodeRabbit | 🚧 pendiente revisión final |
+| PR + snapshot exacto | PR #626 · Issue #623 · UUID `9c8da78e-52d6-4e6b-b662-7c9e1e275310` |
+| Sesión | 🚧 GET autenticado libera el lock PHP después de revalidar/actualizar actividad |
+| Auth frontend | 🚧 un dueño memoizado de auth/CSRF; módulos dejan de repetir `/auth` |
+| Dashboard | 🚧 sin preload legacy; conteos agregados + 1 catálogo de tablas/request |
+| Listados | 🚧 páginas de 50 + búsqueda server-side; consumidores internos conservan compatibilidad |
+| Evidencia | 🚧 contrato concurrente + browser + benchmark real-stack before/after |
+| Sonar | ✅ Quality Gate passed · 0 Security Hotspots |
+| CodeRabbit | 🚧 9 hallazgos de primera ronda atendidos en la candidata; requiere segunda revisión |
 | CI del SHA exacto de main | 🚧 después del squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.44 · 14f5d3b"] --> S["#524 · Artist membership"]
- S --> P["PR #622 · CI · Sonar · review"]
- P --> M["Squash merge v0.1.45"]
+ B["main v0.1.45 · 3193dfa"] --> S["#623 · Admin performance"]
+ S --> P["PR #626 · CI · benchmark · review"]
+ P --> M["Squash merge v0.1.46"]
  M --> X["Exact-main CI"]
- X --> D["Hostinger + migration + production validation"]
+ X --> D["Hostinger deploy + production observation"]
 ```
 
 ## Qué se hizo
 
-- Artist tiene una sola autoridad de membresía actual: `is_collective_member`.
-- Create/Edit Artist expone el checkbox **BRVTAL artist / Member of collective**; los códigos `active/alumni/none` dejan de ser controles del administrador.
-- La pantalla/workflow separado **Collective Status** se elimina; el listado de Artists incorpora columna y filtro MEMBER / EXTERNAL.
-- La migración añade el booleano y mapea únicamente membresía vigente: legacy `active` queda marcado; `alumni` y `none` quedan desmarcados.
-- `artist_collective_history` se conserva como auditoría histórica y no vuelve a gobernar estado actual.
-- La API pública, roster, perfil Artist y participación de Events comparten el mismo campo canónico.
-- Existe puente de compatibilidad para desplegar código antes de ejecutar la migración sin romper Artists.
-- La regla operativa del proyecto reconoce producción como entorno mutable de desarrollo mientras BRVTAL siga en desarrollo, manteniendo trazabilidad y preservación de datos.
+- Los GET autenticados liberan el lock de sesión PHP inmediatamente después de autenticar/revalidar y refrescar la actividad.
+- DISCADMIN centraliza auth/CSRF en `BRVTALAdminAuthBoundary`; los módulos reutilizan la misma promesa/token.
+- Dashboard V2 elimina el preload legacy y reduce consultas con conteos SQL agregados.
+- `information_schema.TABLES` se consulta una sola vez por request mediante un catálogo compartido.
+- Events, Artists, Sets, Media y Pages soportan paginación server-side opt-in, búsqueda parametrizada y metadatos de página.
+- Los consumidores internos que necesitan colecciones completas mantienen el contrato anterior al no solicitar paginación.
+- Content Health usa proyecciones explícitas y omite columnas opcionales de Events que falten antes de la migración SEO.
+- El real-stack compara 9 auth + dashboard legacy con V2: 309.7 ms contra 19.3 ms (~93.8% menos) en el stack descartable; la carga inicial fue 595.7 ms y no es comparable directamente. Producción autenticada sigue pendiente.
+- No hay cambio de esquema ni migración para v0.1.46.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md`
-- `README.md`
-- `api/content-validation.php`
-- `api/index.php`
-- `api/public.php`
-- `config/admin_activity.php`
-- `config/admin_grid.php`
-- `config/artist_collective_lifecycle.php`
-- `config/artist_collective_membership.php`
-- `config/public_artist.php`
-- `config/version.php`
-- `css/public-roster.css`
-- `database/migration_artist_collective_membership_01.sql`
-- `database/schema.sql`
-- `discadmin/admin-data-grid.css`
-- `discadmin/admin-data-grid.js`
-- `discadmin/admin-information-architecture.js`
-- `discadmin/admin-modules.js`
-- `discadmin/content-core.js`
-- `discadmin/content-core.php`
-- `discadmin/index-core.php`
-- `docs/BRVTAL-SPEC.md`
-- `index.php`
-- `js/public-roster.js`
-- `package.json`
-- `tests/admin-data-grid-contract.php`
-- `tests/api-contract.php`
-- `tests/artist-collective-lifecycle-contract.php`
-- `tests/content-core-form-accessibility-contract.php`
-- `tests/content-ordering-contract.php`
-- `tests/content-validation-contract.php`
-- `tests/discadmin-editor-accessibility-contract.php`
-- `tests/event-publication-invariant-contract.php`
-- `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs`
-- `tests/e2e/discadmin-information-architecture.spec.mjs`
-- `tests/e2e/discadmin-data-grid.spec.mjs`
-- `tests/e2e/public-roster-phase-c.spec.mjs`
-- `tests/e2e/run-content-core-real-stack.sh`
-- `tests/integration/artist-collective-membership-migration.sh`
-- `tests/public-roster-contract.php`
-- `tests/set-publication-contract.php`
-- `tests/theme-active-reference-contract.php`
+- `README.md` — estado, medición y huella exacta
+- `api/admin-grid-preferences.php` — optimización admin
+- `api/admin-read-plan.php` — paginación y búsqueda literal
+- `api/admin-search.php` — catálogo compartido
+- `api/content-health.php` — proyección compatible
+- `api/dashboard-overview.php` — conteos agregados
+- `api/index.php` — listados paginados
+- `config/admin_auth.php` — libera sesión GET
+- `config/schema_catalog.php` — tablas memoizadas
+- `config/version.php` — release 0.1.46
+- `discadmin/admin-auth-boundary.js` — auth compartida
+- `discadmin/admin-data-grid.css` — estilos paginación
+- `discadmin/admin-data-grid.js` — paginación accesible
+- `discadmin/backups.js` — cliente auth compartido
+- `discadmin/blog.js` — cliente auth compartido
+- `discadmin/bulk-actions.js` — cliente auth compartido
+- `discadmin/content-ordering.js` — cliente auth compartido
+- `discadmin/event-workflow.js` — cliente auth compartido
+- `discadmin/index-core.php` — búsqueda sin foco perdido
+- `discadmin/totp-api.php` — 405 antes de CSRF
+- `discadmin/public-preview.js` — cliente auth compartido
+- `discadmin/releases.js` — cliente auth compartido
+- `discadmin/seo-metadata.js` — cliente auth compartido
+- `discadmin/seo-workspace.js` — cliente auth compartido
+- `package.json` — versión 0.1.46
+- `tests/admin-data-grid-contract.php` — contrato PHP
+- `tests/admin-performance-contract.php` — contrato PHP
+- `tests/admin-read-plan-contract.php` — escape SQL literal
+- `tests/admin-session-lock-contract.php` — contrato PHP
+- `tests/admin-session-revalidation-contract.php` — contrato PHP
+- `tests/content-health-contract.php` — columnas opcionales
+- `tests/dashboard-v2-contract.php` — contrato PHP
+- `tests/e2e/admin-performance-real-stack.spec.mjs` — benchmark real-stack
+- `tests/e2e/content-core-real-stack.spec.mjs` — montaje dashboard estable
+- `tests/e2e/discadmin-auth-cache.spec.mjs` — cache CSRF invalidable
+- `tests/e2e/discadmin-content-ordering.spec.mjs` — regresión E2E
+- `tests/e2e/discadmin-data-grid.spec.mjs` — regresión E2E
+- `tests/e2e/run-content-core-real-stack.sh` — PHP concurrente
+- `tests/e2e/ticket-types-editor.spec.mjs` — regresión E2E
 
 ## Validación
 
-- Rama reservada #524, 0 commits detrás de `main` al abrir PR #622.
-- Migración diseñada como aditiva/idempotente y sin DROP/DELETE de legacy o historial.
-- Cobertura dedicada verifica mapping legacy, rerun no destructivo, UI canónica, filtro de Artists y comportamiento público.
-- Pendiente: gates completos del PR, Sonar/CodeRabbit, squash merge, exact-main, deploy Hostinger, aplicación de migración y smoke de producción.
+- Reserva #623 íntegra y rama 0 commits detrás de `main` al preparar el candidato.
+- Contrato concurrente verifica que dos lectores de la misma sesión no se serialicen después de liberar el lock.
+- Browser contract verifica una única promesa auth/CSRF y paginación accesible.
+- Real-stack verifica 1 GET `/auth`, 0 GET al dashboard legacy y registra before/after en el log del gate.
+- Pendiente: CI/Sonar sobre HEAD corregido, segunda revisión CodeRabbit, squash merge, exact-main, observación y smoke productivos.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524) · cerrar PR #622 y entregar v0.1.45. |
-| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery del editor. |
-| **LATER** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin / safe restore y backlog según [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533). |
-| **BLOCKED / EXTERNAL** | 🚧 ninguno técnico conocido; producción se ejecuta tras merge con herramientas disponibles y rollback seguro. |
+| **NOW** | 🚧 [#623](https://github.com/pl0n3r/brvtal/issues/623) · cerrar gates y entregar v0.1.46. |
+| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery editorial. |
+| **LATER** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin; orden general en [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533). |
+| **BLOCKED / EXTERNAL** | 🚧 medición autenticada en Hostinger y smoke productivo pendiente; verificar migraciones v0.1.45. |
 
 ## Panorama general pendiente
 
 - 🚧 **Editorial resilience:** #528 autosave/recovery y #530 recycle bin.
-- 🚧 **Roadmap:** mantener #533 como fuente de orden/progreso y corregir estados al cerrar cada entrega.
-- 🚧 **Producción:** después del deploy v0.1.45 aplicar `migration_artist_collective_membership_01.sql` mediante el flujo explícito de migraciones y validar Artists/roster.
+- 🚧 **Operaciones:** mantener #533 alineado con cierres reales.
+- 🚧 **Producción previa:** aplicar/verificar la migración v0.1.45 cuando exista acceso al runner canónico; no pertenece a #623.

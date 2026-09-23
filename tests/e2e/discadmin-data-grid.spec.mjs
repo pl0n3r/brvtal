@@ -171,3 +171,25 @@ test('non-image media uses the fallback instead of requesting the document path 
   await expect(page.locator('#media .admin-grid-primary small')).toContainText('DOCUMENT');
   await expect(page.locator('#media img[src*="press-kit.pdf"]')).toHaveCount(0);
 });
+
+
+test('server pagination exposes total/page state and delegates page changes', async ({page}) => {
+  await harness(page);
+  await page.evaluate(rows => {
+    window.__requestedPage = null;
+    BRVTALDataGrid.render('events',document.getElementById('events'),rows,{
+      allRows:rows,
+      pagination:{page:2,page_size:50,total:123,pages:3,has_previous:true,has_next:true},
+      onPageChange:page => { window.__requestedPage = page; },
+      orderingEnabled:false
+    });
+  },events);
+
+  await expect(page.locator('#events .admin-grid-result-count')).toContainText('123 TOTAL');
+  await expect(page.locator('#events .admin-grid-pagination')).toContainText('PAGE 2 / 3');
+  await page.locator('#events [data-grid-page-next]').click();
+  await expect.poll(() => page.evaluate(() => window.__requestedPage)).toBe(3);
+  await page.evaluate(() => { window.__requestedPage = null; });
+  await page.locator('#events [data-grid-page-prev]').click();
+  await expect.poll(() => page.evaluate(() => window.__requestedPage)).toBe(1);
+});

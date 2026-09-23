@@ -5,6 +5,10 @@ require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/totp_auth.php';
 
 brvtal_admin_require();
+if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+    header('Allow: POST');
+    json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
+}
 brvtal_admin_require_csrf();
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

@@ -5,6 +5,8 @@
   window.__BRVTAL_ADMIN_AUTH_BOUNDARY__ = true;
 
   let expiring = false;
+  let authPromise = null;
+  let authSnapshot = null;
 
   function adminState() {
     return window.state && typeof window.state === 'object' ? window.state : null;
@@ -12,6 +14,20 @@
 
   function clearCsrf() {
     if ('csrf' in window) window.csrf = '';
+  }
+
+  function rememberAuth(payload) {
+    const normalized = payload && typeof payload === 'object' ? payload : {};
+    authSnapshot = normalized;
+    if (normalized.authenticated && normalized.csrf && 'csrf' in window) {
+      window.csrf = String(normalized.csrf);
+    }
+    return normalized;
+  }
+
+  function clearAuthCache() {
+    authPromise = null;
+    authSnapshot = null;
   }
 
   function hasUnsavedChanges() {
@@ -65,6 +81,7 @@
     try {
       if (currentState) currentState.authed = false;
       clearCsrf();
+      clearAuthCache();
 
       const preserveUnsaved = hasUnsavedChanges();
       applyExpiredSessionState(preserveUnsaved);
@@ -96,6 +113,42 @@
   }
 
   const originalFetch = window.fetch.bind(window);
+
+  async function auth(options = {}) {
+    const force = options?.force === true;
+    if (!force && authSnapshot?.authenticated && authSnapshot?.csrf) {
+      return authSnapshot;
+    }
+    if (!force && authPromise) return authPromise;
+
+    authPromise = (async () => {
+      const response = await originalFetch('/api/index.php/auth', {
+        method:'GET',
+        credentials:'same-origin',
+        cache:'no-store'
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401) expireSession();
+        throw new Error(payload.error || 'AUTH_REQUIRED');
+      }
+      return rememberAuth(payload);
+    })().finally(() => {
+      authPromise = null;
+    });
+
+    return authPromise;
+  }
+
+  async function csrfToken() {
+    try {
+      if (typeof window.csrf === 'string' && window.csrf) return window.csrf;
+    } catch (_) {}
+    const payload = await auth();
+    if (!payload.authenticated || !payload.csrf) throw new Error('AUTH_REQUIRED');
+    return String(payload.csrf);
+  }
+
   const guardedFetch = async function(input, init) {
     const response = await originalFetch(input, init);
     if (response.status === 401 && isAdminRequest(input)) expireSession();
@@ -109,6 +162,10 @@
     expireSession,
     isAdminRequest,
     preserveUnsavedAuthState,
-    clearDeferredAuthState
+    clearDeferredAuthState,
+    auth,
+    csrfToken,
+    rememberAuth,
+    clearAuthCache
   };
 })();
