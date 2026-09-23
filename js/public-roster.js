@@ -131,8 +131,11 @@
     return [];
   };
 
+  window.BRVTALPublicRoster = { render, compareArtists, rosterStatus };
+
   window.addEventListener('load', () => {
     window.setTimeout(async () => {
+      if (document.documentElement.dataset.publicRoster === 'connected') return;
       try {
         render(await dataFromSharedRequest());
       } catch (_) {

@@ -453,6 +453,20 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'css/public-concept05-nights-artists.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-nights-artists.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-nights-artists.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-nights-artists.js\" defer></script>\n</body>",
+            $html
+        );
+    }
 
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(

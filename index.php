@@ -116,11 +116,17 @@ $html = brvtal_public_keep_home_lcp_visible($html);
 $html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('class="artist" href="#"', 'class="artist" aria-disabled="true"', $html);
-$html = str_replace(
-    '<div class="section-head"><span class="mono">ROSTER / 04</span><h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>',
-    '<div class="section-head"><span class="mono">BRVTAL ROSTER / 04</span><h2>ROSTER</h2><span class="mono">CORE / ALUMNI / ARTISTS</span></div>',
-    $html
-);
+$artistHeadSource = '<div class="section-head"><span class="mono">ROSTER / 04</span>'
+    . '<h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>';
+$artistHeadTarget = '<div class="section-head"><span class="mono">BRVTAL ARTISTS / 03</span>'
+    . '<h2>ARTISTS</h2><span class="mono">CORE / ALUMNI / COLLABORATORS</span></div>';
+$html = str_replace($artistHeadSource, $artistHeadTarget, $html);
+
+$nightHeadSource = '<div class="section-head"><span class="mono">EVENTS / 03</span>'
+    . '<h2>EVENTS</h2><span class="mono">DRAG / SCROLL →</span></div>';
+$nightHeadTarget = '<div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span>'
+    . '<h2>NIGHTS</h2><span class="mono">DRAG / SWIPE →</span></div>';
+$html = str_replace($nightHeadSource, $nightHeadTarget, $html);
 $html = str_replace(
     ['RAW / HARD TECHNO','HARDCORE / INDUSTRIAL','HARD TECHNO / RAW','TECHNO / HARD DANCE','PSY / HARDCORE'],
     'ARTIST / PROFILE',
