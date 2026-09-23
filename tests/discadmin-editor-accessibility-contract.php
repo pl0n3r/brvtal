@@ -11,6 +11,7 @@ function editor_a11y_assert(bool $condition, string $message): void
 
 $blog = (string)file_get_contents(__DIR__ . '/../discadmin/blog.js');
 $core = (string)file_get_contents(__DIR__ . '/../discadmin/content-core.js');
+$artistEditor = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $media = (string)file_get_contents(__DIR__ . '/../discadmin/media-library.js');
 $releases = (string)file_get_contents(__DIR__ . '/../discadmin/releases.js');
 $ordering = (string)file_get_contents(__DIR__ . '/../discadmin/content-ordering.js');
@@ -83,14 +84,16 @@ foreach ([
 ] as $marker) {
     editor_a11y_assert(str_contains($core, $marker), "Content Core must keep {$marker}.");
 }
-foreach (['a_name','a_status','a_order','a_joined','a_left'] as $controlId) {
+editor_a11y_assert(
+    str_contains($artistEditor, "checkbox('is_collective_member'")
+        && str_contains($artistEditor, 'for="f_${id}"')
+        && str_contains($artistEditor, 'id="f_${id}" type="checkbox"'),
+    'Canonical Artist membership checkbox must keep an explicit visible label association.'
+);
+foreach (['a_status','a_order','a_joined','a_left'] as $legacyControlId) {
     editor_a11y_assert(
-        str_contains($core, 'label for="' . $controlId . '"'),
-        "Artist lifecycle control {$controlId} must keep an explicit label association."
-    );
-    editor_a11y_assert(
-        str_contains($core, 'id="' . $controlId . '"'),
-        "Artist lifecycle label target {$controlId} must remain present."
+        !str_contains($core, 'id="' . $legacyControlId . '"'),
+        "Removed Artist lifecycle control {$legacyControlId} must not reappear in Content Core."
     );
 }
 editor_a11y_assert(
