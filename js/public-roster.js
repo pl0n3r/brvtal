@@ -18,10 +18,10 @@
     return raw.replace(/^\.?\//, '');
   };
 
-  const rosterStatus = artist => {
-    const status = String(artist?.collective_status ?? 'none').trim().toLowerCase();
-    return status === 'active' || status === 'alumni' ? status : 'network';
-  };
+  const isMember = artist =>
+    artist?.is_collective_member === true || Number(artist?.is_collective_member ?? 0) === 1;
+
+  const rosterStatus = artist => isMember(artist) ? 'member' : 'network';
 
   const numberValue = (value, fallback = Number.MAX_SAFE_INTEGER) => {
     const parsed = Number(value);
@@ -29,44 +29,17 @@
   };
 
   const compareArtists = (a, b) => {
-    const groupRank = { active: 0, alumni: 1, network: 2 };
-    const groupDelta = groupRank[rosterStatus(a)] - groupRank[rosterStatus(b)];
+    const groupDelta = (isMember(a) ? 0 : 1) - (isMember(b) ? 0 : 1);
     if (groupDelta) return groupDelta;
-
-    const status = rosterStatus(a);
-    if (status !== 'network') {
-      const aCollective = numberValue(a.collective_order);
-      const bCollective = numberValue(b.collective_order);
-      if (aCollective !== bCollective) return aCollective - bCollective;
-    }
     const sortDelta = numberValue(a.sort_order) - numberValue(b.sort_order);
     if (sortDelta) return sortDelta;
     return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'en', { sensitivity: 'base' });
   };
 
-  const year = value => {
-    const match = String(value ?? '').match(/^([0-9]{4})/);
-    return match ? match[1] : '';
-  };
-
-  const rowMeta = artist => {
-    const status = rosterStatus(artist);
-    if (status === 'active') {
-      const since = year(artist.collective_joined_at);
-      return `BRVTAL / ACTIVE${since ? ` · SINCE ${since}` : ''}`;
-    }
-    if (status === 'alumni') {
-      const joined = year(artist.collective_joined_at);
-      const left = year(artist.collective_left_at);
-      const period = [joined, left].filter(Boolean).join('—');
-      return `BRVTAL / ALUMNI${period ? ` · ${period}` : ''}`;
-    }
-    return 'ARTIST / COLLABORATOR';
-  };
+  const rowMeta = artist => isMember(artist) ? 'BRVTAL / MEMBER' : 'ARTIST / COLLABORATOR';
 
   const groups = [
-    ['active', 'CORE / ACTIVE'],
-    ['alumni', 'ALUMNI / ARCHIVE'],
+    ['member', 'BRVTAL / COLLECTIVE'],
     ['network', 'ARTISTS / COLLABORATORS'],
   ];
 
@@ -105,7 +78,9 @@
     }).join('');
 
     list.innerHTML = markup;
-    const firstPhoto = ordered.map(artist => imageUrl(artist.photo ?? artist.image ?? artist.cover_image ?? '')).find(Boolean);
+    const firstPhoto = ordered
+      .map(artist => imageUrl(artist.photo ?? artist.image ?? artist.cover_image ?? ''))
+      .find(Boolean);
     const preview = document.querySelector('.artist-preview img');
     if (preview && firstPhoto) preview.src = firstPhoto;
 
