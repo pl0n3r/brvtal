@@ -11,31 +11,24 @@
 
   const clone = value => JSON.parse(JSON.stringify(value ?? {}));
 
+  const fontOption = (stack, label, query = '') => Object.freeze({ stack, label, query });
   const FONT_CATALOG = Object.freeze({
     display:[
-      ['"Space Grotesk", Arial, sans-serif','Space Grotesk · recommended'],
-      ['"Barlow Condensed", Arial, sans-serif','Barlow Condensed · industrial condensed'],
-      ['"Inter Tight", Arial, sans-serif','Inter Tight · compact grotesk'],
-      ['Arial, Helvetica, sans-serif','System grotesk · offline-safe'],
+      fontOption('"Space Grotesk", Arial, sans-serif','Space Grotesk · recommended','Space+Grotesk:wght@400;500;600;700'),
+      fontOption('"Barlow Condensed", Arial, sans-serif','Barlow Condensed · industrial condensed','Barlow+Condensed:wght@400;500;600;700;800;900'),
+      fontOption('"Inter Tight", Arial, sans-serif','Inter Tight · compact grotesk','Inter+Tight:wght@400;500;600;700;800'),
+      fontOption('Arial, Helvetica, sans-serif','System grotesk · offline-safe'),
     ],
     body:[
-      ['"Space Grotesk", Arial, sans-serif','Space Grotesk · recommended'],
-      ['"Inter Tight", Arial, sans-serif','Inter Tight · compact grotesk'],
-      ['Arial, Helvetica, sans-serif','System grotesk · offline-safe'],
+      fontOption('"Space Grotesk", Arial, sans-serif','Space Grotesk · recommended','Space+Grotesk:wght@400;500;600;700'),
+      fontOption('"Inter Tight", Arial, sans-serif','Inter Tight · compact grotesk','Inter+Tight:wght@400;500;600;700;800'),
+      fontOption('Arial, Helvetica, sans-serif','System grotesk · offline-safe'),
     ],
     mono:[
-      ['"Space Mono", monospace','Space Mono · recommended'],
-      ['"IBM Plex Mono", monospace','IBM Plex Mono · technical'],
-      ['ui-monospace, SFMono-Regular, Menlo, monospace','System mono · offline-safe'],
+      fontOption('"Space Mono", monospace','Space Mono · recommended','Space+Mono:wght@400;700'),
+      fontOption('"IBM Plex Mono", monospace','IBM Plex Mono · technical','IBM+Plex+Mono:wght@400;500;600;700'),
+      fontOption('ui-monospace, SFMono-Regular, Menlo, monospace','System mono · offline-safe'),
     ],
-  });
-
-  const GOOGLE_FONT_QUERY = Object.freeze({
-    'Space Grotesk':'Space+Grotesk:wght@400;500;600;700',
-    'Barlow Condensed':'Barlow+Condensed:wght@400;500;600;700;800;900',
-    'Inter Tight':'Inter+Tight:wght@400;500;600;700;800',
-    'Space Mono':'Space+Mono:wght@400;700',
-    'IBM Plex Mono':'IBM+Plex+Mono:wght@400;500;600;700',
   });
 
   const CONCEPT05_VISUAL = Object.freeze({
@@ -104,20 +97,23 @@
   }
 
   function fontSelectField(id, label, current, role, help = '') {
-    const options = [...(FONT_CATALOG[role] || [])];
-    if (current && !options.some(([stack]) => stack === current)) {
+    const catalog = FONT_CATALOG[role] || [];
+    const options = catalog.map(({ stack, label: optionLabel }) => [stack, optionLabel]);
+    if (current && !catalog.some(option => option.stack === current)) {
       options.unshift([current, 'Current / legacy stack']);
     }
     return selectField(id, label, current, options, help);
   }
 
-  function fontFamilyName(stack) {
-    return String(stack || '').split(',')[0].trim().replace(/^["']|["']$/g, '');
+  function fontQuery(stack) {
+    return Object.values(FONT_CATALOG)
+      .flat()
+      .find(option => option.stack === stack)?.query || '';
   }
 
   function ensurePreviewFonts(typography) {
     const families = [...new Set(['display','body','mono']
-      .map(key => GOOGLE_FONT_QUERY[fontFamilyName(typography?.[key])])
+      .map(key => fontQuery(typography?.[key]))
       .filter(Boolean))];
     let link = document.getElementById('brvtal-theme-studio-fonts');
     if (!families.length) { link?.remove(); return; }
