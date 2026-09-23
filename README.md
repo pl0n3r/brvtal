@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+280** | **−153** | **+127** |
+| **15** | **+508** | **−184** | **+324** |
 
 ## Calidad y entrega
 
@@ -43,7 +43,7 @@
 | Split SEO API | 🚧 PUT vacío persiste NULL, no el fallback calculado |
 | Event atomicity | 🚧 Content Core transporta vacío en auto y texto solo en manual dentro del workflow atómico |
 | Blog / Pages | 🚧 saves vacíos dejan SEO vacío para que public delivery derive el fallback vigente |
-| Durable coverage | 🚧 browser contracts + PHP normalization contract |
+| Durable coverage | 🚧 browser contracts + PHP normalization + isolated MariaDB persistence/audit contract |
 | Sonar | 🚧 stable-head analysis |
 | CodeRabbit | 🚧 stable-head review |
 | CI del SHA exacto de main | 🚧 después del squash merge |
@@ -73,6 +73,7 @@ flowchart LR
 - `README.md`
 - `api/seo-metadata.php`
 - `config/seo_defaults.php`
+- `config/seo_persistence.php`
 - `config/version.php`
 - `discadmin/event-workflow-seo.js`
 - `discadmin/seo-editorial-defaults.js`
@@ -81,6 +82,7 @@ flowchart LR
 - `package.json`
 - `tests/e2e/discadmin-seo-defaults.spec.mjs`
 - `tests/e2e/discadmin-seo-metadata.spec.mjs`
+- `tests/integration/seo-persistence.php`
 - `tests/seo-defaults-contract.php`
 
 ## Validación
