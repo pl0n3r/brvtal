@@ -40,7 +40,11 @@ async function loadHarness(page) {
         window.__previewOpened='';
         window.open=()=>({
           closed:false,
-          document:{write:()=>{}},
+          document:{
+            title:'',
+            body:{style:{cssText:''},replaceChildren:()=>{}},
+            createElement:()=>({textContent:''})
+          },
           location:{replace:url=>{window.__previewOpened=url}},
           close:()=>{}
         });
