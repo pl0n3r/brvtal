@@ -87,7 +87,7 @@ flowchart LR
 
 - Base exacta `546ae7efbdd78d44425abd8ae4e6bd8884437c83`: BRVTAL CI/`validate`, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #599.
 - #599 fue reservado atómicamente antes de modificar `work/issue-599`.
-- #596/#598 ya está integrado en la base v0.1.31; #599 parte de ese exact-main y no duplica esa entrega.
+- La reserva duplicada #596 fue liberada y la Issue cerrada como duplicado: su scope ya fue entregado por #597 / PR #598 en v0.1.31.
 - CI del head previo detectó dos regresiones de prueba: el contrato Contact seguía atado al rewrite legacy y la geometría 1024 medía un origin intencionalmente oculto; ambos contratos se corrigieron sin reintroducir código legacy.
 - No hay nuevo fetch público, migraciones, nuevas rutas ni campos CMS.
 - Producción se observará por separado; CI verde no se presentará como prueba de deploy.
