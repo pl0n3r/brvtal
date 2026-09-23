@@ -71,7 +71,6 @@ Routine safe authorization includes:
 - exact-main validation;
 - deployment observation;
 - production validation and production changes needed to advance BRVTAL while the project remains in active development, provided they are traceable, reversible where practical and preserve existing data.
-
 Stop and return control mainly when:
 
 - a real product decision cannot be inferred from code/spec/Issue;
