@@ -352,6 +352,11 @@ function brvtalPublicHomeConcept05Menu(string $html): string
         . '</div>'
         . '</aside>';
 
+    $emptyLegacyMenu = '<aside class="menu-panel" id="menuPanel" aria-hidden="true"></aside>';
+    if (str_contains($html, $emptyLegacyMenu)) {
+        return str_replace($emptyLegacyMenu, $menu, $html);
+    }
+
     return preg_replace(
         '~<aside class="menu-panel" id="menuPanel".*?</aside>~s',
         $menu,
