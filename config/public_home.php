@@ -302,11 +302,108 @@ function brvtal_public_home_concept05_foundation(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'css/public-concept05-shell.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-shell.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-shell.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-shell.js\" defer></script>\n</body>",
+            $html
+        );
+    }
     if (preg_match('~<body([^>]*)>~', $html, $m) === 1 && !str_contains($m[1], 'data-concept=')) {
         $html = preg_replace('~<body([^>]*)>~', '<body$1 data-concept="05">', $html, 1) ?? $html;
     }
 
     return $html;
+}
+
+
+function brvtal_public_home_concept05_menu(string $html): string
+{
+    if (str_contains($html, 'c5-menu-nav')) {
+        return $html;
+    }
+
+    $menu = '<aside class="menu-panel c5-menu-panel" id="menuPanel" aria-hidden="true">'
+        . '<div class="menu-panel-bg"></div>'
+        . '<div class="menu-panel-inner">'
+        . '<div class="menu-label mono">NAVIGATION / CULTURAL ARCHIVE</div>'
+        . '<nav class="c5-menu-nav" aria-label="Site destinations">'
+        . '<a href="#top"><span>00</span><strong>BRVTAL</strong></a>'
+        . '<a href="#genesis" data-c5-next-menu><span>01</span>'
+        . '<strong data-c5-next-label>NEXT</strong></a>'
+        . '<a href="#events" data-c5-nav-section="events"><span>02</span><strong>NIGHTS</strong></a>'
+        . '<a href="#artists" data-c5-nav-section="artists"><span>03</span><strong>ARTISTS</strong></a>'
+        . '<a href="#sets" data-c5-nav-section="sets"><span>04</span><strong>SOUND</strong></a>'
+        . '<a href="/releases" data-c5-nav-section="releases"><span>05</span><strong>RECORDS</strong></a>'
+        . '<a href="#transmissions" data-c5-nav-section="transmissions"><span>06</span>'
+        . '<strong>JOURNAL</strong></a>'
+        . '<a href="#connected" data-c5-nav-section="connected"><span>07</span>'
+        . '<strong>CONNECTED</strong></a>'
+        . '<a href="/contact"><span>08</span><strong>CONTACT</strong></a>'
+        . '</nav>'
+        . '<div class="menu-footer mono">PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</div>'
+        . '</div>'
+        . '</aside>';
+
+    return preg_replace(
+        '~<aside class="menu-panel" id="menuPanel".*?</aside>~s',
+        $menu,
+        $html,
+        1
+    ) ?? $html;
+}
+
+function brvtal_public_home_concept05_footer(string $html): string
+{
+    if (str_contains($html, 'c5-footer')) {
+        return $html;
+    }
+
+    $footer = '<footer class="footer scene c5-footer" id="site-footer" data-scene="CORE"'
+        . ' aria-labelledby="c5-footer-title">'
+        . '<div class="c5-footer-grid">'
+        . '<div class="c5-footer-brand">'
+        . '<span class="mono">PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</span>'
+        . '<h2 id="c5-footer-title" data-site-name>BRVTAL</h2>'
+        . '<p><span data-site-tagline>RAVE TILL GRAVE</span> / CULTURE IN MOTION.</p>'
+        . '</div>'
+        . '<nav class="c5-footer-nav mono" aria-label="Footer destinations">'
+        . '<a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a>'
+        . '<a href="#sets">SOUND</a><a href="/releases">RECORDS</a>'
+        . '<a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a>'
+        . '</nav>'
+        . '<div class="c5-footer-contact">'
+        . '<span class="mono">TRANSMIT / COLLABORATE</span>'
+        . '<a href="/contact">CONTACT ↗</a>'
+        . '<a href="/contact">COLLABORATE ↗</a>'
+        . '</div>'
+        . '<div class="c5-footer-socials mono" aria-label="BRVTAL social links">'
+        . '<a href="#" data-social="instagram" target="_blank" rel="noopener noreferrer" hidden>INSTAGRAM ↗</a>'
+        . '<a href="#" data-social="soundcloud" target="_blank" rel="noopener noreferrer" hidden>SOUNDCLOUD ↗</a>'
+        . '<a href="#" data-social="youtube" target="_blank" rel="noopener noreferrer" hidden>YOUTUBE ↗</a>'
+        . '<a href="#" data-social="spotify" target="_blank" rel="noopener noreferrer" hidden>SPOTIFY ↗</a>'
+        . '</div>'
+        . '<div class="c5-footer-legal mono">'
+        . '<span>© <span data-footer-year>2026</span> <span data-site-name>BRVTAL</span></span>'
+        . '<a href="#" data-footer-privacy hidden>PRIVACY ↗</a>'
+        . '<span>EN</span>'
+        . '</div>'
+        . '</div>'
+        . '</footer>';
+
+    return preg_replace(
+        '~<footer class="footer scene"[^>]*>.*?</footer>~s',
+        $footer,
+        $html,
+        1
+    ) ?? $html;
 }
 
 /**
@@ -334,17 +431,20 @@ function brvtal_public_home_concept05_dressing(string $html): string
         . '</a>';
     if (str_contains($html, $brandLink) && !str_contains($html, 'c5-header-nav')) {
         $headerNav = '<nav class="c5-header-nav" aria-label="Primary">'
-            . '<a href="#events">NIGHTS</a>'
-            . '<a href="#artists">ARTISTS</a>'
-            . '<a href="#sets">SOUND</a>'
-            . '<a href="/releases">RECORDS</a>'
-            . '<a href="#transmissions">JOURNAL</a>'
-            . '<a href="#connected">CONNECTED</a>'
-            . '</nav>';
+            . '<a href="#events" data-c5-nav-section="events">NIGHTS</a>'
+            . '<a href="#artists" data-c5-nav-section="artists">ARTISTS</a>'
+            . '<a href="#sets" data-c5-nav-section="sets">SOUND</a>'
+            . '<a href="/releases" data-c5-nav-section="releases">RECORDS</a>'
+            . '<a href="#transmissions" data-c5-nav-section="transmissions">JOURNAL</a>'
+            . '<a href="#connected" data-c5-nav-section="connected">CONNECTED</a>'
+            . '</nav>'
+            . '<span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>';
         $html = str_replace($brandLink, $brandLink . $headerNav, $html);
     }
 
     $html = brvtal_public_home_concept05_connected_section($html);
+    $html = brvtal_public_home_concept05_menu($html);
+    $html = brvtal_public_home_concept05_footer($html);
 
     $sectionLabels = [
         'class="genesis scene' => '01',
@@ -374,11 +474,16 @@ function brvtal_public_home_concept05_dressing(string $html): string
 
     if (!str_contains($html, 'c5-bottom-nav')) {
         $bottomNav = '<nav class="c5-bottom-nav" aria-label="Primary mobile">'
-            . '<a href="#events">NIGHTS</a>'
-            . '<a href="#artists">ARTISTS</a>'
-            . '<a href="#sets">SOUND</a>'
-            . '<a href="/releases">RECORDS</a>'
-            . '<a href="#transmissions">JOURNAL</a>'
+            . '<a href="#events" data-c5-nav-section="events">'
+            . '<span class="c5-bottom-icon" data-icon="nights" aria-hidden="true"></span><span>NIGHTS</span></a>'
+            . '<a href="#artists" data-c5-nav-section="artists">'
+            . '<span class="c5-bottom-icon" data-icon="artists" aria-hidden="true"></span><span>ARTISTS</span></a>'
+            . '<a href="#sets" data-c5-nav-section="sets">'
+            . '<span class="c5-bottom-icon" data-icon="sound" aria-hidden="true"></span><span>SOUND</span></a>'
+            . '<a href="/releases" data-c5-nav-section="releases">'
+            . '<span class="c5-bottom-icon" data-icon="records" aria-hidden="true"></span><span>RECORDS</span></a>'
+            . '<a href="#transmissions" data-c5-nav-section="transmissions">'
+            . '<span class="c5-bottom-icon" data-icon="journal" aria-hidden="true"></span><span>JOURNAL</span></a>'
             . '</nav>';
         $html = str_replace('</body>', '  ' . $bottomNav . "\n</body>", $html);
     }
@@ -701,12 +806,21 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
 
     $html = substr($html, 0, $sectionStart) . $section . substr($html, $sectionEnd);
     $html = brvtalPublicHomePlaceNextExperienceAfterHero($html);
-    $navLabel = $event ? $safeTitle : 'NEXT';
-    $html = str_replace(
-        '<a href="#genesis"><span>02</span>GENESIS</a>',
-        '<a href="#genesis"><span>02</span>' . $navLabel . '</a>',
-        $html
-    );
+
+    if ($ticketUrl !== '' && !str_contains($html, 'c5-header-ticket')) {
+        $headerTicket = '<a class="c5-header-ticket magnetic" href="'
+            . brvtal_public_home_escape($ticketUrl)
+            . '" target="_blank" rel="noopener" data-cursor="TICKETS">'
+            . 'TICKETS <span>→</span></a>';
+        $html = str_replace('<div class="nav-right">', $headerTicket . '<div class="nav-right">', $html);
+    }
+
+    $html = preg_replace(
+        '~<strong data-c5-next-label>.*?</strong>~s',
+        '<strong data-c5-next-label>' . $safeTitle . '</strong>',
+        $html,
+        1
+    ) ?? $html;
 
     return $html;
 }

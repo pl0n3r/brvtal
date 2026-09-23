@@ -28,6 +28,33 @@ dressing_assert(
     'dressing must inject the persistent mobile bottom nav'
 );
 dressing_assert(
+    str_contains($rendered, 'css/public-concept05-shell.css')
+        && str_contains($rendered, 'js/public-concept05-shell.js'),
+    'dressing must load the authored Concept 05 shell assets'
+);
+dressing_assert(
+    str_contains($rendered, 'c5-menu-nav')
+        && str_contains($rendered, '<strong>NIGHTS</strong>')
+        && str_contains($rendered, '<strong>CONNECTED</strong>'),
+    'overlay menu must use the Concept 05 public information architecture'
+);
+dressing_assert(
+    str_contains($rendered, 'c5-footer')
+        && str_contains($rendered, 'data-site-name>BRVTAL</')
+        && str_contains($rendered, 'href="/contact">COLLABORATE ↗</a>'),
+    'footer must expose managed identity and canonical contact/collaboration routes'
+);
+dressing_assert(
+    str_contains($rendered, 'data-social="instagram"')
+        && str_contains($rendered, 'data-social="soundcloud"')
+        && str_contains($rendered, 'data-footer-privacy hidden'),
+    'footer socials/legal destinations must start fail-closed and use existing hydration hooks'
+);
+dressing_assert(
+    substr_count($rendered, 'class="c5-bottom-icon"') === 5,
+    'mobile navigation must expose five icon+label destinations'
+);
+dressing_assert(
     (bool)preg_match('~<section class="genesis[^"]*\bc5-numbered\b[^"]*"~', $rendered),
     'Next Experience section must carry the numbered label class'
 );
@@ -135,6 +162,16 @@ dressing_assert(
 dressing_assert(
     substr_count($idempotent, 'c5-bottom-nav') === 1,
     'bottom nav must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($idempotent, 'css/public-concept05-shell.css') === 1
+        && substr_count($idempotent, 'js/public-concept05-shell.js') === 1,
+    'Concept 05 shell assets must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($idempotent, 'c5-menu-nav') === 1
+        && substr_count($idempotent, 'c5-footer') === 1,
+    'authored menu/footer must not duplicate on repeated calls'
 );
 dressing_assert(
     substr_count($identityIdempotent, 'css/public-concept05-hero.css') === 1,
