@@ -32,6 +32,7 @@
       const url = new URL(raw, window.location.href);
       return /^https?:$/i.test(url.protocol) ? raw : '';
     } catch (_) {
+      // Malformed media references are intentionally rejected, never repaired heuristically.
       return '';
     }
   };
