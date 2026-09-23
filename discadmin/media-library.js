@@ -551,7 +551,7 @@ window.BRVTALMediaLibrary = (() => {
   }
 
   function decoratePickerInputs(root = document) {
-    root.querySelectorAll('#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr').forEach(input => {
+    root.querySelectorAll('#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr,[data-media-picker="image"]').forEach(input => {
       if (input.dataset.mediaPickerBound === '1') return;
       input.dataset.mediaPickerBound = '1';
       input.value = normalizeMediaPath(input.value);

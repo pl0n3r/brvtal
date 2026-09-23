@@ -39,6 +39,7 @@
       EVENT_CITY_REQUIRED:'City is required before leaving draft.',
       TICKET_NAME_REQUIRED:'Every ticket type needs a name.',
       INVALID_PRICE:'Ticket price must be a valid non-negative number.',
+      INVALID_CURRENCY:'Ticket currency must use a 3-letter code such as COP or USD.',
       INVALID_EXTERNAL_URL:'Ticket purchase URL must use http(s).',
       INVALID_TICKET_URL:'Event ticket URL must use http(s).',
       INVALID_ACCENT:'Event Accent must be a 6-digit HEX color.',
@@ -100,17 +101,28 @@
       if (!name) throw new Error('TICKET_NAME_REQUIRED');
       const price = read('price');
       if (price !== '' && (!Number.isFinite(Number(price)) || Number(price) < 0)) throw new Error('INVALID_PRICE');
+      const currency = (read('currency').trim() || 'COP').toUpperCase();
+      if (!/^[A-Z]{3}$/.test(currency)) throw new Error('INVALID_CURRENCY');
       const externalUrl = read('external_url').trim();
       if (externalUrl) {
         let parsed;
         try { parsed = new URL(externalUrl); } catch (_) { throw new Error('INVALID_EXTERNAL_URL'); }
-        if (!['http:','https:'].includes(parsed.protocol)) throw new Error('INVALID_EXTERNAL_URL');
+        if (!['http:','https:'].includes(parsed.protocol) || externalUrl.length > 700) throw new Error('INVALID_EXTERNAL_URL');
       }
+      const availableFrom = read('available_from');
+      const availableUntil = read('available_until');
+      if (availableFrom && availableUntil && availableUntil < availableFrom) throw new Error('INVALID_AVAILABILITY_WINDOW');
       const payload = {
         name,
+        description:read('description'),
         price:price === '' ? null : price,
+        currency,
         status:read('status') || 'active',
         external_url:externalUrl || null,
+        payment_instructions:read('payment_instructions'),
+        qr_image:read('qr_image').trim(),
+        available_from:availableFrom || null,
+        available_until:availableUntil || null,
         sort_order:index
       };
       const id = Number(row.dataset.id || 0);

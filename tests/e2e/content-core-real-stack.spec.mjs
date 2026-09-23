@@ -61,9 +61,15 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     await page.getByRole('button', {name:'+ ADD TICKET'}).click();
     const ticket = page.locator('#tickets .ticket-row').first();
     await ticket.locator('[data-k="name"]').fill('PREVENTA');
+    await ticket.locator('[data-k="description"]').fill('Early-release CI ticket.');
     await ticket.locator('[data-k="price"]').fill('20000');
+    await ticket.locator('[data-k="currency"]').fill('COP');
     await ticket.locator('[data-k="status"]').selectOption('active');
     await ticket.locator('[data-k="external_url"]').fill('https://tickets.example/ci-preventa');
+    await ticket.locator('[data-k="payment_instructions"]').fill('Transfer to CI merchant and present confirmation.');
+    await ticket.locator('[data-k="qr_image"]').fill('/uploads/ci-ticket-qr.webp');
+    await ticket.locator('[data-k="available_from"]').fill('2026-10-01T08:00');
+    await ticket.locator('[data-k="available_until"]').fill('2026-10-31T20:00');
 
     await step(5).click();
     const artistRow = page.locator('#eventArtists .artist').filter({hasText:'PL0N3R SMOKE'});
@@ -100,7 +106,15 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     const persistedTicket = tickets.data.find(row => Number(row.event_id) === eventId);
     expect(persistedTicket).toBeTruthy();
     expect(persistedTicket.name).toBe('PREVENTA');
+    expect(persistedTicket.description).toBe('Early-release CI ticket.');
     expect(Number(persistedTicket.price)).toBe(20000);
+    expect(persistedTicket.currency).toBe('COP');
+    expect(persistedTicket.status).toBe('active');
+    expect(persistedTicket.external_url).toBe('https://tickets.example/ci-preventa');
+    expect(persistedTicket.payment_instructions).toBe('Transfer to CI merchant and present confirmation.');
+    expect(persistedTicket.qr_image).toBe('/uploads/ci-ticket-qr.webp');
+    expect(persistedTicket.available_from).toBe('2026-10-01 08:00:00');
+    expect(persistedTicket.available_until).toBe('2026-10-31 20:00:00');
 
     const lineupResponse = await page.request.get(`${baseUrl}/api/index.php/events/${eventId}/lineup`);
     expect(lineupResponse.ok()).toBeTruthy();
@@ -124,6 +138,14 @@ test('Content Core saves Event, Tickets, roster and SEO through one atomic workf
     const updatePayload = await updateResponse.json();
     expect(updatePayload.data.event.status).toBe('sold_out');
     expect(Number(updatePayload.data.ticket_types[0].price)).toBe(25000);
+    expect(updatePayload.data.ticket_types[0]).toMatchObject({
+      description:'Early-release CI ticket.',
+      currency:'COP',
+      payment_instructions:'Transfer to CI merchant and present confirmation.',
+      qr_image:'/uploads/ci-ticket-qr.webp',
+      available_from:'2026-10-01 08:00:00',
+      available_until:'2026-10-31 20:00:00',
+    });
     expect(updatePayload.data.event.seo_description).toContain('Updated atomically');
 
     const partialSlug = `ci-atomic-rollback-${runKey}`;
