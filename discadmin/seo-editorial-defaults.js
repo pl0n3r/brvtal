@@ -91,7 +91,7 @@
   }
 
   function setAutomaticFallback(input, value) {
-    if (!input || input.dataset.seoMode !== 'auto') return;
+    if (input?.dataset.seoMode !== 'auto') return;
     if (!Object.hasOwn(input.dataset,'seoOriginalPlaceholder')) {
       input.dataset.seoOriginalPlaceholder = input.getAttribute('placeholder') || '';
     }

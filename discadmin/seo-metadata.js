@@ -72,6 +72,12 @@
     return typeof shared === 'function' ? shared(input) : String(input?.value || '').trim();
   }
 
+  function updateCounter(counter, length, automatic, recommended, badLimit) {
+    if (!counter) return;
+    counter.textContent = (automatic ? 'AUTO · ' : '') + `${length}/${recommended} recommended`;
+    counter.className = 'brvtal-seo-counter' + (length > badLimit ? ' bad' : length > recommended ? ' warn' : '');
+  }
+
   function bindPreview(section, context = {}) {
     if (!section || section.dataset.seoBound === '1') return;
     section.dataset.seoBound = '1';
@@ -86,18 +92,8 @@
       const description = effectiveInputValue(descriptionInput,'Add a concise SEO description to preview how this content can appear in search results.');
       if (titlePreview) titlePreview.textContent = title;
       if (descriptionPreview) descriptionPreview.textContent = description;
-      if (titleCounter) {
-        const n = title.length;
-        const auto = titleInput?.dataset.seoMode === 'auto';
-        titleCounter.textContent = (auto ? 'AUTO · ' : '') + `${n}/60 recommended`;
-        titleCounter.className = 'brvtal-seo-counter' + (n > 70 ? ' bad' : n > 60 ? ' warn' : '');
-      }
-      if (descriptionCounter) {
-        const n = description.length;
-        const auto = descriptionInput?.dataset.seoMode === 'auto';
-        descriptionCounter.textContent = (auto ? 'AUTO · ' : '') + `${n}/160 recommended`;
-        descriptionCounter.className = 'brvtal-seo-counter' + (n > 180 ? ' bad' : n > 160 ? ' warn' : '');
-      }
+      updateCounter(titleCounter,title.length,titleInput?.dataset.seoMode === 'auto',60,70);
+      updateCounter(descriptionCounter,description.length,descriptionInput?.dataset.seoMode === 'auto',160,180);
     };
     titleInput?.addEventListener('input', update);
     descriptionInput?.addEventListener('input', update);

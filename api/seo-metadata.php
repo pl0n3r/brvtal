@@ -103,8 +103,8 @@ try {
             'seo_title'=>$locked['seo_title'] ?? null,
             'seo_description'=>$locked['seo_description'] ?? null,
         ];
-        $seoTitle = brvtal_seo_override_value($requestedTitle, 190);
-        $seoDescription = brvtal_seo_override_value($requestedDescription, 320);
+        $seoTitle = brvtalSeoOverrideValue($requestedTitle, 190);
+        $seoDescription = brvtalSeoOverrideValue($requestedDescription, 320);
 
         $st = $pdo->prepare("UPDATE `{$table}` SET seo_title=?,seo_description=? WHERE id=?");
         $st->execute([$seoTitle, $seoDescription, $id]);

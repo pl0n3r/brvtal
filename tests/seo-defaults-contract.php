@@ -41,11 +41,11 @@ seo_defaults_assert(str_contains($api, "'artists' => ['table'=>'artists','title'
 seo_defaults_assert(str_contains($api, "'events' => ['table'=>'events','title'=>'title','description'=>'description']"), 'Events must default SEO from title and description');
 seo_defaults_assert(str_contains($api, "'sets' => ['table'=>'sets_media','title'=>'title','description'=>'description']"), 'Sets must default SEO from title and description');
 seo_defaults_assert(str_contains($api, "'releases' => ['table'=>'releases','title'=>'title','description'=>'description']"), 'Releases must default SEO from title and description');
-seo_defaults_assert(brvtal_seo_override_value('   ', 190) === null, 'blank SEO title override must remain absent');
-seo_defaults_assert(brvtal_seo_override_value('<b>Manual title</b>', 190) === 'Manual title', 'manual SEO override must be normalized');
-seo_defaults_assert(mb_strlen((string)brvtal_seo_override_value(str_repeat('description ', 50), 320)) <= 320, 'manual SEO override must respect its storage cap');
-seo_defaults_assert(str_contains($api, 'brvtal_seo_override_value($requestedTitle, 190)'), 'SEO title PUT must persist only explicit overrides');
-seo_defaults_assert(str_contains($api, 'brvtal_seo_override_value($requestedDescription, 320)'), 'SEO description PUT must persist only explicit overrides');
+seo_defaults_assert(brvtalSeoOverrideValue('   ', 190) === null, 'blank SEO title override must remain absent');
+seo_defaults_assert(brvtalSeoOverrideValue('<b>Manual title</b>', 190) === 'Manual title', 'manual SEO override must be normalized');
+seo_defaults_assert(mb_strlen((string)brvtalSeoOverrideValue(str_repeat('description ', 50), 320)) <= 320, 'manual SEO override must respect its storage cap');
+seo_defaults_assert(str_contains($api, 'brvtalSeoOverrideValue($requestedTitle, 190)'), 'SEO title PUT must persist only explicit overrides');
+seo_defaults_assert(str_contains($api, 'brvtalSeoOverrideValue($requestedDescription, 320)'), 'SEO description PUT must persist only explicit overrides');
 
 $adminDefaults = (string)file_get_contents(__DIR__ . '/../discadmin/seo-editorial-defaults.js');
 seo_defaults_assert(str_contains($adminDefaults, 'persistableValue'), 'DISCADMIN must expose mode-aware SEO persistence');
