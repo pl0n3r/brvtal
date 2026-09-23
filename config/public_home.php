@@ -295,6 +295,13 @@ function brvtal_public_home_concept05_foundation(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'css/public-concept05-journal-connected.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-journal-connected.css\">\n</head>",
+            $html
+        );
+    }
     if (preg_match('~<body([^>]*)>~', $html, $m) === 1 && !str_contains($m[1], 'data-concept=')) {
         $html = preg_replace('~<body([^>]*)>~', '<body$1 data-concept="05">', $html, 1) ?? $html;
     }
@@ -397,18 +404,21 @@ function brvtal_public_home_concept05_connected_section(string $html): string
         . ' id="connected" aria-labelledby="connected-title">'
         . '<div class="c5-connected-graph" data-connected-graph aria-live="polite">'
         . '<h2 id="connected-title" class="sr-only">Connected</h2>'
+        . '<div class="c5-connected-kicker mono">PUBLIC RELATIONAL SYSTEM / VERIFIED EDGES ONLY</div>'
+        . '<svg class="c5-connected-lines" data-connected-lines aria-hidden="true"></svg>'
         . '<ul class="c5-connected-nodes">'
-        . '<li data-connected-node="events"><span class="mono">EVENTS</span>'
-        . '<strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="artists"><span class="mono">ARTISTS</span>'
-        . '<strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="sets"><span class="mono">SOUND</span>'
-        . '<strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="releases"><span class="mono">RECORDS</span>'
-        . '<strong data-connected-count>&mdash;</strong></li>'
-        . '<li data-connected-node="memories"><span class="mono">MEMORIES</span>'
-        . '<strong data-connected-count>&mdash;</strong></li>'
+        . '<li data-connected-node="events"><a href="#events"><span class="mono">EVENTS</span>'
+        . '<strong data-connected-count>&mdash;</strong></a></li>'
+        . '<li data-connected-node="artists"><a href="#artists"><span class="mono">ARTISTS</span>'
+        . '<strong data-connected-count>&mdash;</strong></a></li>'
+        . '<li data-connected-node="sets"><a href="#sets"><span class="mono">SOUND</span>'
+        . '<strong data-connected-count>&mdash;</strong></a></li>'
+        . '<li data-connected-node="releases"><a href="/releases"><span class="mono">RECORDS</span>'
+        . '<strong data-connected-count>&mdash;</strong></a></li>'
+        . '<li data-connected-node="memories"><a href="#media"><span class="mono">MEMORIES</span>'
+        . '<strong data-connected-count>&mdash;</strong></a></li>'
         . '</ul>'
+        . '<div class="c5-connected-ledger" data-connected-ledger aria-label="Published relationships"></div>'
         . '<p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>'
         . '<p class="c5-connected-tagline">TODO CONECTADO.</p>'
         . '</div>'

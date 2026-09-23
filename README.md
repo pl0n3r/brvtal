@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #594.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #597.
 
 ## Progress convention
 
@@ -17,9 +17,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#594 · Concept 05 SOUND + MEMORIES authored 1440/390** | parent #583 |
-| Base exacta | ✅ ~~main v0.1.29 validado + deploy/performance observados~~ | `7a70dce6e3bf4503f43516d0b4dd67f1dab5a8dc` |
-| Versión | 🚧 **0.1.30** | cambio visible de producto/runtime público |
+| Work line | 🚧 **#597 · Concept 05 JOURNAL + CONNECTED authored 1440/390** | parent #583 |
+| Base exacta | ✅ ~~main v0.1.30 validado + deploy/performance observados~~ | `86c2d2410fd11b1d1c67e02a25d2930a77c43c9f` |
+| Versión | 🚧 **0.1.31** | cambio visible de producto/runtime público |
 | Producción | 🚧 pendiente de PR → merge → exact-main | sin migración de esquema |
 
 ## Huella del cambio
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **15** | **+1138** | **−63** | **+1075** |
+| **11** | **+984** | **−105** | **+879** |
 
 ## Calidad y entrega
 
@@ -37,8 +37,8 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #594 · `work/issue-594` · UUID `4ca01b23-6cd2-4032-a2b5-a087540a6ceb` |
-| Browser | 🚧 geometría/behavior 1440 + 390 + media failure + reduced motion |
+| PR integrity | **PR + snapshot exacto** · Issue #597 · `work/issue-597` · UUID `b2c93a85-2f28-4a99-9b29-e92fd3bda92f` |
+| Browser | 🚧 geometría/behavior 1440 + 390 + broken cover + zero-relations + reduced motion |
 | Sonar | 🚧 Quality Gate sobre head estable |
 | CodeRabbit | 🚧 review final sobre head estable |
 | Exact-main | 🚧 **CI del SHA exacto de main** después del squash merge |
@@ -47,8 +47,8 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.29 verde"] --> S["#594 SOUND + MEMORIES"]
- S --> P["PR · CI · Sonar · CodeRabbit"]
+ B["main v0.1.30 verde"] --> J["#597 JOURNAL + CONNECTED"]
+ J --> P["PR · CI · Sonar · CodeRabbit"]
  P --> M["Squash merge"]
  M --> X["Exact-main CI"]
  X --> D["Deploy Observer + Performance"]
@@ -56,54 +56,53 @@ flowchart LR
 
 ## Qué se hizo
 
-- **04 / SOUND** reutiliza `public-sets-library.js` como renderer único y conserva filtros LATEST / ARTIST / EVENT.
-- Set Record sigue siendo `/sets/{slug}`; LISTEN solo aparece con URL HTTP(S) externa válida y las relaciones Artist/Event siguen estructuradas.
-- `cover_image` canónico entra al módulo como artwork documental; la primera pieza recibe foco editorial y el “signal” añadido es puramente decorativo, no un waveform falso.
-- **05 / MEMORIES** usa exclusivamente `memories` curadas; el Home deja de intentar proyectar `media` crudo como fallback dinámico.
-- `public-media.js` continúa siendo el viewer único y conserva relaciones Memory → Event/Artist/Set/Release, filtros, teclado y scroll lock.
-- Desktop 1440 usa archivo sonoro denso + contact sheet asimétrico; mobile 390 usa Sound compacto y Memories 2-columnas con full-span deliberado.
-- Artwork/media rota falla cerrada sin broken-image chrome; el texto y relaciones permanecen visibles.
-- El enhancer Concept 05 no hace requests y no toma ownership de playback, viewer ni GSAP.
+- **06 / JOURNAL** reutiliza `public-transmissions.js` y Blog como única fuente editorial.
+- El primer post real se convierte en feature zine/newspaper con `cover_image`, fecha, tags, excerpt y relaciones públicas reales; el resto conserva un índice editorial compacto.
+- Cada entrada usa `/blog/{slug}`; relaciones Blog → Event/Artist/Set/Release solo aparecen cuando resuelven a entidades públicas con slug canónico.
+- Cover ausente o roto falla cerrado sin broken-image chrome y sin perder titular/ruta/copy.
+- El Home corrige el orden visual heredado para respetar **05 MEMORIES → 06 JOURNAL → 07 CONNECTED**.
+- **07 / CONNECTED** usa exclusivamente `payload.relations.counts`; cada línea SVG y cada ledger item existe solo si el backend reporta al menos una relación real.
+- Conteos de nodos vienen de Events activos+archivo deduplicados, Artists, Sets, Releases y Memories; cero relaciones no produce líneas falsas.
+- Los nodos navegan solo a superficies públicas existentes (`#events`, `#artists`, `#sets`, `/releases`, `#media`).
+- Desktop 1440 usa feature editorial + índice lateral y grafo horizontal; mobile 390 refluye a feature vertical + grafo 2-columnas touch-safe.
+- No se añadió fetch, CMS, grafo ni ownership GSAP paralelo.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y gates.
-- `config/public_home.php` — carga assets authored de SOUND + MEMORIES.
-- `config/version.php` — versión pública 0.1.30.
-- `css/public-concept05-sound-memories.css` — geometría authored 1440/390 y estados fail-closed.
-- `css/public-sets-library.css` — artwork de Set opt-in fuera de Concept 05.
-- `index.php` — framing editorial 04 / SOUND y 05 / MEMORIES.
-- `js/app.js` — delegación a renderers canónicos y Memories curadas.
-- `js/public-concept05-sound-memories.js` — composición progresiva sin requests ni playback falso.
-- `js/public-media.js` — señal de render curado y fallo seguro del viewer.
-- `js/public-sets-library.js` — renderer SOUND reutilizable, artwork y URLs seguras.
-- `package.json` — sincronización de versión 0.1.30.
-- `tests/e2e/public-concept05-sound-memories.spec.mjs` — regresión 1440/390, URLs y media fallida.
-- `tests/e2e/public-media.spec.mjs` — viewer multimedia con fixture de audio válido y regresión existente.
-- `tests/e2e/public-sets-library-phase-c.spec.mjs` — contrato del renderer Sets reutilizable.
-- `tests/public-concept05-dressing-contract.php` — contrato de carga/idempotencia de assets Concept 05.
+- `config/public_home.php` — asset authored y markup relacional real de CONNECTED.
+- `config/version.php` — versión pública 0.1.31.
+- `css/public-concept05-journal-connected.css` — geometría authored 1440/390 de JOURNAL + CONNECTED.
+- `index.html` — orden canónico MEMORIES → JOURNAL en el fallback/base público.
+- `index.php` — framing público de TRANSMISSIONS como JOURNAL.
+- `js/public-concept05-connected.js` — conteos y edges agregados solo desde relaciones verificadas.
+- `js/public-transmissions.js` — feature/index Journal, cover fail-closed y rutas/relaciones canónicas.
+- `package.json` — sincronización de versión 0.1.31.
+- `tests/e2e/public-concept05-journal-connected.spec.mjs` — regresión 1440/390, graph edges, zero-relations y media rota.
+- `tests/public-concept05-dressing-contract.php` — contrato de assets, orden canónico y superficies CONNECTED.
 
 ## Validación
 
-- Base exacta `7a70dce6e3bf4503f43516d0b4dd67f1dab5a8dc`: BRVTAL CI, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #594.
-- #594 fue reservado atómicamente antes de modificar `work/issue-594`.
-- Cobertura nueva verifica payload compartido, curated-only Memories, canonical Set links, relaciones, 1440/390, media rota, touch targets y reduced motion.
-- No hay nuevo fetch público, player falso, migraciones ni cambios de esquema.
+- Base exacta `86c2d2410fd11b1d1c67e02a25d2930a77c43c9f`: BRVTAL CI, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #597.
+- #597 fue reservado atómicamente antes de modificar `work/issue-597`.
+- Cobertura nueva verifica Blog canónico, relaciones resueltas, payload compartido, 1440/390, media rota, cero relaciones, touch targets y reduced motion.
+- CONNECTED nunca deriva líneas de decoración: cada edge depende de un contador real del grafo público.
+- No hay nuevo fetch, migraciones ni cambios de esquema.
 - Producción se observa por separado; CI verde no se presenta como prueba de deploy.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#594](https://github.com/pl0n3r/brvtal/issues/594) · cerrar SOUND + MEMORIES y validar exact-main. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · 06 / JOURNAL + 07 / CONNECTED. |
-| **LATER** | 🚧 Footer + mobile nav polish, Theme Studio/Admin controls y Preview; luego #398/#351 según roadmap. |
+| **NOW** | 🚧 [#597](https://github.com/pl0n3r/brvtal/issues/597) · cerrar JOURNAL + CONNECTED y validar exact-main. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · Footer + mobile navigation final fidelity. |
+| **LATER** | 🚧 Theme Studio/Admin controls y Preview; luego #398/#351 según roadmap. |
 | **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo; reviewers externos son advisory salvo finding accionable. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Concept 05 SOUND + MEMORIES | 🚧 [#594](https://github.com/pl0n3r/brvtal/issues/594) |
+| **NOW** | 🚧 Concept 05 JOURNAL + CONNECTED | 🚧 [#597](https://github.com/pl0n3r/brvtal/issues/597) |
 | **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
 | **LATER** | 🚧 visión pública / customization | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#351](https://github.com/pl0n3r/brvtal/issues/351) |

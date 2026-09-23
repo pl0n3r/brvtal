@@ -81,6 +81,10 @@ dressing_assert(
     'Home identity must load the Concept 05 Sound + Memories progressive enhancer'
 );
 dressing_assert(
+    str_contains($identity, 'css/public-concept05-journal-connected.css'),
+    'Home identity must load the authored Concept 05 Journal + Connected stylesheet'
+);
+dressing_assert(
     str_contains($identity, 'data-c5-hero-documentary'),
     'Concept 05 Hero must expose a documentary media surface'
 );
@@ -101,6 +105,21 @@ dressing_assert(
 dressing_assert(
     strpos($rendered, 'id="connected"') < strpos($rendered, '<footer class="footer scene"'),
     'Connected section must sit before the footer'
+);
+dressing_assert(
+    str_contains($rendered, 'data-connected-lines')
+        && str_contains($rendered, 'data-connected-ledger'),
+    'Connected must expose the verified edge drawing and ledger surfaces'
+);
+dressing_assert(
+    str_contains($rendered, 'data-connected-node="events"><a href="#events"')
+        && str_contains($rendered, 'data-connected-node="releases"><a href="/releases"'),
+    'Connected nodes must navigate only to existing canonical public surfaces'
+);
+dressing_assert(
+    strpos($rendered, 'id="media"') < strpos($rendered, 'id="transmissions"')
+        && strpos($rendered, 'id="transmissions"') < strpos($rendered, 'id="connected"'),
+    'Concept 05 Home must preserve the canonical MEMORIES → JOURNAL → CONNECTED order'
 );
 
 $idempotent = brvtal_public_home_concept05_dressing($rendered);
@@ -148,6 +167,10 @@ dressing_assert(
 dressing_assert(
     substr_count($identityIdempotent, 'js/public-concept05-sound-memories.js') === 1,
     'Concept 05 Sound + Memories runtime must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($identityIdempotent, 'css/public-concept05-journal-connected.css') === 1,
+    'Concept 05 Journal + Connected stylesheet must not duplicate on repeated calls'
 );
 dressing_assert(
     substr_count($identityIdempotent, '<figure class="c5-hero-documentary" data-c5-hero-documentary') === 1,
