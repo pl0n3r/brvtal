@@ -52,36 +52,85 @@ function brvtal_public_home_http_url(mixed $value): string
     return in_array($scheme, ['http', 'https'], true) ? $url : '';
 }
 
-function brvtal_public_next_experience_ticket_url(PDO $pdo, array $event, ?DateTimeImmutable $now = null): string
-{
-    if (!brvtal_public_event_allows_ticketing($event, $now)) return '';
-
-    $direct = brvtal_public_home_http_url($event['ticket_url'] ?? '');
-    if ($direct !== '') return $direct;
+function brvtalPublicNextExperienceTicketTypes(
+    PDO $pdo,
+    int $eventId,
+    ?DateTimeImmutable $now = null
+): array {
+    if ($eventId < 1) {
+        return [];
+    }
 
     try {
         $statement = $pdo->prepare(
-            "SELECT external_url,status,available_from,available_until,sort_order,id
+            "SELECT id,event_id,name,description,price,currency,external_url,status,
+                    available_from,available_until,sort_order
              FROM event_ticket_types
-             WHERE event_id=? AND status='active'
+             WHERE event_id=? AND status IN ('active','sold_out')
              ORDER BY sort_order ASC,id ASC"
         );
-        $statement->execute([(int)($event['id'] ?? 0)]);
-        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $ticket) {
-            if (!brvtal_public_ticket_type_is_available($ticket, $now)) continue;
-            $url = brvtal_public_home_http_url($ticket['external_url'] ?? '');
-            if ($url !== '') return $url;
-        }
+        $statement->execute([$eventId]);
+        return array_values(array_filter(
+            $statement->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            static fn(array $ticket): bool => brvtal_public_ticket_type_is_available($ticket, $now)
+        ));
     } catch (Throwable) {
-        // Ticket types are an enhancement. The Event remains renderable without them.
+        // Ticket Types enhance the event card; an Event remains renderable without them.
+        return [];
+    }
+}
+
+function brvtalPublicNextExperienceTicketUrlFromTypes(
+    array $event,
+    array $ticketTypes,
+    ?DateTimeImmutable $now = null
+): string {
+    if (!brvtal_public_event_allows_ticketing($event, $now)) {
+        return '';
+    }
+    if (strtolower(trim((string)($event['status'] ?? ''))) === 'sold_out') {
+        return '';
+    }
+
+    $direct = brvtal_public_home_http_url($event['ticket_url'] ?? '');
+    if ($direct !== '') {
+        return $direct;
+    }
+
+    foreach ($ticketTypes as $ticket) {
+        if (!is_array($ticket)) {
+            continue;
+        }
+        if (strtolower(trim((string)($ticket['status'] ?? ''))) !== 'active') {
+            continue;
+        }
+        if (!brvtal_public_ticket_type_is_available($ticket, $now)) {
+            continue;
+        }
+        $url = brvtal_public_home_http_url($ticket['external_url'] ?? '');
+        if ($url !== '') {
+            return $url;
+        }
     }
 
     return '';
 }
 
+function brvtal_public_next_experience_ticket_url(PDO $pdo, array $event, ?DateTimeImmutable $now = null): string
+{
+    $ticketTypes = brvtalPublicNextExperienceTicketTypes(
+        $pdo,
+        (int)($event['id'] ?? 0),
+        $now
+    );
+    return brvtalPublicNextExperienceTicketUrlFromTypes($event, $ticketTypes, $now);
+}
+
 function brvtal_public_next_experience_lineup(PDO $pdo, int $eventId): array
 {
-    if ($eventId < 1) return [];
+    if ($eventId < 1) {
+        return [];
+    }
 
     try {
         $statement = $pdo->prepare(
@@ -103,7 +152,7 @@ function brvtal_public_next_experience(PDO $pdo, ?DateTimeImmutable $now = null)
     $statuses = brvtal_public_event_statuses()['active'];
     $placeholders = brvtal_public_sql_placeholders($statuses);
     $statement = $pdo->prepare(
-        "SELECT id,title,slug,event_date,venue,city,cover_image,ticket_url,featured,status,sort_order
+        "SELECT id,title,slug,event_date,venue,city,description,cover_image,ticket_url,featured,status,sort_order
          FROM events
          WHERE status IN ({$placeholders})"
     );
@@ -111,8 +160,14 @@ function brvtal_public_next_experience(PDO $pdo, ?DateTimeImmutable $now = null)
     $selected = brvtal_public_select_next_experience($statement->fetchAll(PDO::FETCH_ASSOC), $now);
     if ($selected === null) return null;
 
-    $selected['lineup'] = brvtal_public_next_experience_lineup($pdo, (int)($selected['id'] ?? 0));
-    $selected['public_ticket_url'] = brvtal_public_next_experience_ticket_url($pdo, $selected, $now);
+    $eventId = (int)($selected['id'] ?? 0);
+    $selected['lineup'] = brvtal_public_next_experience_lineup($pdo, $eventId);
+    $selected['ticket_types'] = brvtalPublicNextExperienceTicketTypes($pdo, $eventId, $now);
+    $selected['public_ticket_url'] = brvtalPublicNextExperienceTicketUrlFromTypes(
+        $selected,
+        $selected['ticket_types'],
+        $now
+    );
     return $selected;
 }
 
@@ -151,6 +206,70 @@ function brvtal_public_next_experience_tag(?array $event): string
         'upcoming' => 'UPCOMING.',
         default => 'NEXT SIGNAL.',
     };
+}
+
+function brvtalPublicNextExperiencePriceLabel(array $ticket): string
+{
+    $raw = $ticket['price'] ?? null;
+    if ($raw === null || trim((string)$raw) === '' || !is_numeric($raw)) {
+        return '';
+    }
+
+    $price = (float)$raw;
+    if ($price < 0) {
+        return '';
+    }
+
+    $currency = strtoupper(trim((string)($ticket['currency'] ?? '')));
+    if ($currency === 'COP') {
+        return number_format($price, 0, ',', '.') . ' COP';
+    }
+    if ($currency !== '' && preg_match('/^[A-Z]{3}$/', $currency) === 1) {
+        return number_format($price, 2, '.', ',') . ' ' . $currency;
+    }
+    return number_format($price, 2, '.', ',');
+}
+
+function brvtalPublicNextExperienceTicketSignalMarkup(?array $event): string
+{
+    if ($event === null) {
+        return '';
+    }
+    $tickets = is_array($event['ticket_types'] ?? null) ? $event['ticket_types'] : [];
+    if ($tickets === []) {
+        return '';
+    }
+
+    $items = [];
+    foreach ($tickets as $ticket) {
+        if (!is_array($ticket)) {
+            continue;
+        }
+        $name = trim((string)($ticket['name'] ?? ''));
+        $status = strtolower(trim((string)($ticket['status'] ?? '')));
+        $price = brvtalPublicNextExperiencePriceLabel($ticket);
+        if ($name === '' && $price === '' && $status !== 'sold_out') {
+            continue;
+        }
+
+        $label = $name !== '' ? brvtal_public_home_escape(brvtal_public_home_upper($name)) : 'TICKET';
+        $value = $status === 'sold_out'
+            ? 'SOLD OUT'
+            : ($price !== '' ? brvtal_public_home_escape($price) : 'AVAILABLE');
+        $items[] = '<div class="c5-experience-ticket" data-ticket-status="'
+            . brvtal_public_home_escape($status !== '' ? $status : 'active')
+            . '"><span class="mono">' . $label . '</span><strong>' . $value . '</strong></div>';
+        if (count($items) >= 2) {
+            break;
+        }
+    }
+
+    if ($items === []) {
+        return '';
+    }
+    return '<div class="c5-experience-ticket-signal" aria-label="Ticket status">'
+        . implode('', $items)
+        . '</div>';
 }
 
 function brvtal_public_home_concept05_foundation(string $html): string
@@ -320,6 +439,20 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'css/public-concept05-experience.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-concept05-experience.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-concept05-experience.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-concept05-experience.js\" defer></script>\n</body>",
+            $html
+        );
+    }
 
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(
@@ -368,6 +501,36 @@ function brvtal_public_home_identity(string $html): string
     return $html;
 }
 
+function brvtalPublicHomePlaceNextExperienceAfterHero(string $html): string
+{
+    $experienceStart = strpos($html, '<section class="genesis scene');
+    if ($experienceStart === false) {
+        return $html;
+    }
+    $experienceEnd = strpos($html, '</section>', $experienceStart);
+    if ($experienceEnd === false) {
+        return $html;
+    }
+    $experienceEnd += strlen('</section>');
+    $experience = substr($html, $experienceStart, $experienceEnd - $experienceStart);
+
+    $withoutExperience = substr($html, 0, $experienceStart) . substr($html, $experienceEnd);
+    $heroStart = strpos($withoutExperience, '<section class="hero scene');
+    if ($heroStart === false) {
+        return $html;
+    }
+    $heroEnd = strpos($withoutExperience, '</section>', $heroStart);
+    if ($heroEnd === false) {
+        return $html;
+    }
+    $heroEnd += strlen('</section>');
+
+    return substr($withoutExperience, 0, $heroEnd)
+        . "\n\n    "
+        . $experience
+        . substr($withoutExperience, $heroEnd);
+}
+
 function brvtal_public_next_experience_lineup_markup(?array $event): string
 {
     $lineup = is_array($event['lineup'] ?? null) ? $event['lineup'] : [];
@@ -397,6 +560,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $city = trim((string)($event['city'] ?? ''));
     $venue = trim((string)($event['venue'] ?? ''));
     $cover = trim((string)($event['cover_image'] ?? ''));
+    $description = trim((string)($event['description'] ?? ''));
 
     if ($title === '') {
         $title = 'NEXT SIGNAL';
@@ -404,6 +568,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
         $city = '';
         $venue = '';
         $cover = '';
+        $description = '';
         $event = null;
     }
 
@@ -420,8 +585,14 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $safeTag = brvtal_public_home_escape(brvtal_public_next_experience_tag($event));
 
     $section = substr($html, $sectionStart, $sectionEnd - $sectionStart);
-    $section = str_replace('class="genesis scene', 'class="genesis scene home-phase-a-experience', $section);
-    $section = str_replace('data-scene="GENESIS"', 'data-scene="EXPERIENCE"', $section);
+    if (!str_contains($section, 'c5-experience-authored')) {
+        $section = str_replace(
+            'class="genesis scene',
+            'class="genesis scene home-phase-a-experience c5-experience-authored',
+            $section
+        );
+    }
+    $section = str_replace('data-scene="GENESIS"', 'data-scene="EXPERIENCE" data-c5-experience', $section);
     $section = preg_replace(
         '~<div class="eyebrow mono">.*?</div>~s',
         '<div class="eyebrow mono">NEXT EXPERIENCE / BRVTAL</div>',
@@ -442,33 +613,56 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     ) ?? $section;
     $section = preg_replace(
         '~<div class="genesis-data mono">.*?</div>~s',
-        '<div class="genesis-data mono"><span>' . brvtal_public_home_escape($dateLabel) . '</span><span>' . brvtal_public_home_escape($timeLabel) . '</span><span>' . $safeLocation . '</span></div>',
+        '<div class="genesis-data mono">'
+            . '<span data-c5-fact="date" data-label="DATE">' . brvtal_public_home_escape($dateLabel) . '</span>'
+            . '<span data-c5-fact="time" data-label="TIME">' . brvtal_public_home_escape($timeLabel) . '</span>'
+            . '<span data-c5-fact="location" data-label="LOCATION">' . $safeLocation . '</span>'
+            . '</div>',
         $section,
         1
     ) ?? $section;
 
-    $actions = '<div class="experience-actions"><a class="enter magnetic" href="' . $safeHref . '" data-cursor="ENTER">' . $cta . ' <span>↗</span></a>';
+    $ticketSignal = brvtalPublicNextExperienceTicketSignalMarkup($event);
+    $eventNote = $description !== ''
+        ? '<p class="c5-experience-note">' . brvtal_public_home_escape($description) . '</p>'
+        : '';
+
+    $actions = '<div class="experience-actions">'
+        . '<a class="enter magnetic" href="' . $safeHref . '" data-cursor="ENTER">'
+        . $cta
+        . ' <span>↗</span></a>';
     if ($ticketUrl !== '') {
-        $actions .= '<a class="ticket-cta magnetic" href="' . brvtal_public_home_escape($ticketUrl) . '" target="_blank" rel="noopener" data-cursor="TICKETS">TICKETS <span>↗</span></a>';
+        $actions .= '<a class="ticket-cta magnetic" href="'
+            . brvtal_public_home_escape($ticketUrl)
+            . '" target="_blank" rel="noopener" data-cursor="TICKETS">'
+            . 'TICKETS <span>↗</span></a>';
     }
     $actions .= '</div>';
 
     $lineupMarkup = brvtal_public_next_experience_lineup_markup($event);
     $section = preg_replace(
         '~<a class="enter magnetic"[^>]*>.*?</a>~s',
-        $lineupMarkup . $actions,
+        $ticketSignal . $eventNote . $lineupMarkup . $actions,
         $section,
         1
     ) ?? $section;
 
-    $background = '<div class="genesis-bg" style="background-image:none"></div>';
+    $background = '<div class="genesis-bg c5-experience-artwork"'
+        . ' data-c5-experience-artwork style="background-image:none"></div>';
     if ($cover !== '') {
         $safeCover = brvtal_public_home_escape($cover);
-        $background = '<div class="genesis-bg" style="background-image:none"><img src="' . $safeCover . '" alt="" aria-hidden="true" loading="lazy" decoding="async"></div>';
+        $background = '<div class="genesis-bg c5-experience-artwork"'
+            . ' data-c5-experience-artwork style="background-image:none">'
+            . '<img src="' . $safeCover . '" alt="' . $safeTitle
+            . ' event artwork" loading="lazy" decoding="async">'
+            . '<span class="c5-experience-artwork-label mono" aria-hidden="true">'
+            . 'BRVTAL / NEXT EXPERIENCE</span>'
+            . '</div>';
     }
     $section = str_replace('<div class="genesis-bg"></div>', $background, $section);
 
     $html = substr($html, 0, $sectionStart) . $section . substr($html, $sectionEnd);
+    $html = brvtalPublicHomePlaceNextExperienceAfterHero($html);
     $navLabel = $event ? $safeTitle : 'NEXT';
     $html = str_replace(
         '<a href="#genesis"><span>02</span>GENESIS</a>',
