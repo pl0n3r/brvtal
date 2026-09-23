@@ -170,7 +170,16 @@ brvtal_admin_require();
     <div id="tickets"></div>
   </div>
 </div>
-<div class="step-content" data-content="5"><div class="section"><div class="sectionhead"><strong>ARTISTS / EVENT PARTICIPATION</strong></div><div class="helper" style="margin-bottom:12px">Current BRVTAL members are listed first. Existing external participants stay available so event history is never lost.</div><div id="eventArtists" class="artist-list"></div></div></div>
+<div class="step-content" data-content="5">
+  <div class="section">
+    <div class="sectionhead"><strong>ARTISTS / EVENT PARTICIPATION</strong></div>
+    <div class="helper" style="margin-bottom:12px">
+      Current BRVTAL members are listed first. Existing external participants stay available
+      so event history is never lost.
+    </div>
+    <div id="eventArtists" class="artist-list"></div>
+  </div>
+</div>
 </form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
 </div></div></div></div>
 
