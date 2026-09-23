@@ -382,7 +382,15 @@
         const status = String(pick(e,['status'],'published')).toUpperCase();
         const slug = String(pick(e,['slug'],'')).trim();
         const record = slug ? `/events/${encodeURIComponent(slug)}` : '';
-        const ticket = cleanUrl(pick(e,['ticket_url','ticketUrl'],''));
+        const ticketTypes = Array.isArray(e.ticket_types) ? e.ticket_types : [];
+        const typeTicket = ticketTypes.find(ticketType =>
+          String(ticketType?.status ?? '').toLowerCase() === 'active'
+          && cleanUrl(ticketType?.external_url ?? '')
+        );
+        const directTicket = cleanUrl(pick(e,['ticket_url','ticketUrl'],''));
+        const ticket = e.__brvtalArchive || status === 'SOLD_OUT'
+          ? ''
+          : (directTicket || cleanUrl(typeTicket?.external_url ?? ''));
         const lifecycle = e.__brvtalArchive ? 'archive' : 'active';
         const statusLabel = e.__brvtalArchive
           ? 'ARCHIVE'
