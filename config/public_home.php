@@ -324,7 +324,7 @@ function brvtal_public_home_concept05_foundation(string $html): string
 }
 
 
-function brvtal_public_home_concept05_menu(string $html): string
+function brvtalPublicHomeConcept05Menu(string $html): string
 {
     if (str_contains($html, 'c5-menu-nav')) {
         return $html;
@@ -360,7 +360,7 @@ function brvtal_public_home_concept05_menu(string $html): string
     ) ?? $html;
 }
 
-function brvtal_public_home_concept05_footer(string $html): string
+function brvtalPublicHomeConcept05Footer(string $html): string
 {
     if (str_contains($html, 'c5-footer')) {
         return $html;
@@ -444,8 +444,8 @@ function brvtal_public_home_concept05_dressing(string $html): string
     }
 
     $html = brvtal_public_home_concept05_connected_section($html);
-    $html = brvtal_public_home_concept05_menu($html);
-    $html = brvtal_public_home_concept05_footer($html);
+    $html = brvtalPublicHomeConcept05Menu($html);
+    $html = brvtalPublicHomeConcept05Footer($html);
 
     $sectionLabels = [
         'class="genesis scene' => '01',

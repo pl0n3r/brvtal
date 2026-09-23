@@ -130,7 +130,7 @@ dressing_assert(
     'Connected counts must start as static placeholders, never a fabricated number'
 );
 dressing_assert(
-    strpos($rendered, 'id="connected"') < strpos($rendered, '<footer class="footer scene"'),
+    strpos($rendered, 'id="connected"') < strpos($rendered, '<footer class="footer scene'),
     'Connected section must sit before the footer'
 );
 dressing_assert(
