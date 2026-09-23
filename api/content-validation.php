@@ -142,10 +142,7 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
                 ['Y-m-d\\TH:i', 'Y-m-d H:i:s'],
             ],
         ],
-        'artists' => [
-            'collective_joined_at' => [['Y-m-d', 'Y-m-d']],
-            'collective_left_at' => [['Y-m-d', 'Y-m-d']],
-        ],
+        'artists' => [],
         default => [],
     };
 

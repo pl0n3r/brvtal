@@ -59,7 +59,7 @@ function brvtal_activity_allowed_fields(string $resource): array
 {
     return [
         'events' => ['id','title','slug','event_date','archive_year','venue','city','description','skin','accent','cover_image','ticket_url','ticket_instructions','ticket_qr','featured','published_at','cancelled_at','finished_at','status','sort_order','seo_title','seo_description'],
-        'artists' => ['id','name','slug','bio','photo','instagram_url','soundcloud_url','website_url','collective_status','collective_order','collective_joined_at','collective_left_at','status','sort_order','seo_title','seo_description'],
+        'artists' => ['id','name','slug','bio','photo','instagram_url','soundcloud_url','website_url','is_collective_member','status','sort_order','seo_title','seo_description'],
         'sets' => ['id','title','slug','artist_id','event_id','platform','external_url','embed_url','cover_image','description','status','sort_order','seo_title','seo_description'],
         'pages' => ['id','title','slug','locale','content_json','seo_title','seo_description','status'],
         'ticket_types' => ['id','event_id','name','description','price','currency','external_url','payment_instructions','qr_image','status','available_from','available_until','sort_order'],
@@ -160,6 +160,10 @@ function brvtal_activity_record(
         throw new InvalidArgumentException('INVALID_ACTIVITY_EVENT');
     }
 
+    if ($resource === 'artists') {
+        $before = is_array($before) ? brvtal_artist_collective_membership_enrich_row($before) : null;
+        $after = is_array($after) ? brvtal_artist_collective_membership_enrich_row($after) : null;
+    }
     $safeBefore = brvtal_activity_snapshot($resource, $before);
     $safeAfter = brvtal_activity_snapshot($resource, $after);
     $changed = brvtal_activity_changed_fields($safeBefore, $safeAfter);
