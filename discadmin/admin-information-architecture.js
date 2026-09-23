@@ -534,6 +534,19 @@
       if (!mounted || typeof workflow?.openEvent !== 'function') {
         throw new Error('DISCADMIN Events editor is not available');
       }
+      const editor = mounted.querySelector('#eventModal');
+      if (editor?.classList.contains('open')) {
+        if (editor.inert) return false; // Navigation guard has the editor locked.
+        const targetId = id == null ? 'new' : String(id);
+        if (editor.dataset.eventId === targetId) return true; // Preserve in-progress edits.
+        const unsaved = window.BRVTALUnsavedChanges;
+        if (unsaved?.isDirty?.(editor)) {
+          // The mounted path bypasses go('events'), so honor its discard guard
+          // before switching records. A rejected confirmation preserves edits.
+          if (typeof unsaved.requestClose !== 'function'
+            || unsaved.requestClose(editor, () => editor.classList.remove('open')) !== true) return false;
+        }
+      }
       workflow.openEvent(id);
       return true;
     }
