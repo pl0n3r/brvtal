@@ -20,6 +20,7 @@
 [data-concept="05"] .nav .brand>small{
   color:var(--c5-paper-muted);font:700 7px/1 "Space Mono",monospace;letter-spacing:.07em;white-space:nowrap
 }
+[data-concept="05"] .nav-center{display:none!important}
 [data-concept="05"] .c5-header-nav{min-width:0;justify-self:center;gap:clamp(7px,1vw,18px)}
 [data-concept="05"] .c5-header-nav a{font-size:clamp(8px,.72vw,10px);white-space:nowrap}
 [data-concept="05"] .c5-header-nav a[aria-current="location"]{color:var(--c5-signal-green)}

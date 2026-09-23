@@ -14,7 +14,8 @@ const url = 'http://127.0.0.1:4173/concept05-shell.html';
 function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
   const payload = JSON.stringify({pages}).replace(/</g, '\\u003c');
   const ticketMarkup = ticket
-    ? '<a class="c5-header-ticket magnetic" href="https://tickets.example/night" target="_blank" rel="noopener">TICKETS <span>→</span></a>'
+    ? '<a class="c5-header-ticket magnetic" href="https://tickets.example/night" '
+      + 'target="_blank" rel="noopener">TICKETS <span>→</span></a>'
     : '';
   return '<!doctype html><html data-concept="05"><head><meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<style>*{box-sizing:border-box}html,body{margin:0;background:#050505;color:#e8e6df}' + css + '</style></head>'
@@ -27,7 +28,9 @@ function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
     + '<a href="/releases" data-c5-nav-section="releases">RECORDS</a>'
     + '<a href="#transmissions" data-c5-nav-section="transmissions">JOURNAL</a>'
     + '<a href="#connected" data-c5-nav-section="connected">CONNECTED</a></nav>'
-    + '<span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>' + ticketMarkup
+    + '<span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>'
+    + '<div class="nav-center mono"><span>CORE</span><b>///</b><span>01</span></div>'
+    + ticketMarkup
     + '<div class="nav-right"><button class="sound">SOUND <b>OFF</b></button>'
     + '<button class="menu">MENU <strong>+</strong></button></div></header>'
     + '<main id="top"><section id="events" style="height:700px">EVENTS</section>'
@@ -46,11 +49,16 @@ function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
     + '<div class="c5-footer-legal mono"><span>© <span data-footer-year>2026</span> BRVTAL</span>'
     + '<a data-footer-privacy hidden>PRIVACY ↗</a><span>EN</span></div></div></footer></main>'
     + '<nav class="c5-bottom-nav" aria-label="Primary mobile">'
-    + '<a href="#events" data-c5-nav-section="events"><span class="c5-bottom-icon" data-icon="nights"></span><span>NIGHTS</span></a>'
-    + '<a href="#artists" data-c5-nav-section="artists"><span class="c5-bottom-icon" data-icon="artists"></span><span>ARTISTS</span></a>'
-    + '<a href="#sets" data-c5-nav-section="sets"><span class="c5-bottom-icon" data-icon="sound"></span><span>SOUND</span></a>'
-    + '<a href="/releases" data-c5-nav-section="releases"><span class="c5-bottom-icon" data-icon="records"></span><span>RECORDS</span></a>'
-    + '<a href="#transmissions" data-c5-nav-section="transmissions"><span class="c5-bottom-icon" data-icon="journal"></span><span>JOURNAL</span></a>'
+    + '<a href="#events" data-c5-nav-section="events">'
+    + '<span class="c5-bottom-icon" data-icon="nights"></span><span>NIGHTS</span></a>'
+    + '<a href="#artists" data-c5-nav-section="artists">'
+    + '<span class="c5-bottom-icon" data-icon="artists"></span><span>ARTISTS</span></a>'
+    + '<a href="#sets" data-c5-nav-section="sets">'
+    + '<span class="c5-bottom-icon" data-icon="sound"></span><span>SOUND</span></a>'
+    + '<a href="/releases" data-c5-nav-section="releases">'
+    + '<span class="c5-bottom-icon" data-icon="records"></span><span>RECORDS</span></a>'
+    + '<a href="#transmissions" data-c5-nav-section="transmissions">'
+    + '<span class="c5-bottom-icon" data-icon="journal"></span><span>JOURNAL</span></a>'
     + '</nav><script>window.__reads=0;window.BRVTALPublicDataPromise=Promise.resolve({payload:{data:'
     + payload + '}}).then(value=>{window.__reads+=1;return value;});</script></body></html>';
 }
@@ -79,7 +87,10 @@ test('mobile shell exposes five touch-safe icon destinations and tracks hash sta
     .toHaveAttribute('aria-current','location');
   await expect(page.locator('.c5-header-nav [data-c5-nav-section="artists"]'))
     .toHaveAttribute('aria-current','location');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  const noOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  );
+  expect(noOverflow).toBe(true);
 });
 
 test('menu lock makes persistent mobile navigation non-interactive and restores it', async ({page}) => {
@@ -103,7 +114,10 @@ test('footer reveals only a real public privacy page from the shared payload', a
   expect(await page.evaluate(() => window.__reads)).toBe(1);
   const brand = await page.locator('.c5-footer-brand h2').boundingBox();
   expect(brand?.width || 0).toBeGreaterThan(500);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  const noOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  );
+  expect(noOverflow).toBe(true);
 });
 
 test('footer keeps privacy fail-closed when no compatible public Page exists', async ({page}) => {
@@ -113,8 +127,8 @@ test('footer keeps privacy fail-closed when no compatible public Page exists', a
   await expect(privacy).not.toHaveAttribute('href', /.+/);
 });
 
-test('desktop shell keeps ticket CTA and utilities collision-free', async ({page}) => {
-  await openShell(page, [], {width:1440,height:900});
+async function expectDesktopHeaderFits(page, width) {
+  await openShell(page, [], {width,height:900});
   const geometry = await page.evaluate(() => {
     const nodes = ['.brand','.c5-header-nav','.c5-header-origin','.c5-header-ticket','.nav-right']
       .map(selector => document.querySelector(selector)).filter(Boolean);
@@ -131,7 +145,19 @@ test('desktop shell keeps ticket CTA and utilities collision-free', async ({page
     expect(geometry.items[i-1].right).toBeLessThanOrEqual(geometry.items[i].left + 1);
   }
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
-  await expect(page.locator('.c5-header-ticket')).toHaveAttribute('href','https://tickets.example/night');
+  await expect(page.locator('.nav-center')).toBeHidden();
+  await expect(page.locator('.c5-header-ticket')).toHaveAttribute(
+    'href',
+    'https://tickets.example/night'
+  );
+}
+
+test('desktop shell keeps ticket CTA and utilities collision-free', async ({page}) => {
+  await expectDesktopHeaderFits(page, 1440);
+});
+
+test('compact desktop shell remains collision-free above the mobile breakpoint', async ({page}) => {
+  await expectDesktopHeaderFits(page, 1024);
 });
 
 test('reduced motion keeps the authored shell complete and static', async ({page}) => {

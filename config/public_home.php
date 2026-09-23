@@ -389,6 +389,7 @@ function brvtal_public_home_concept05_footer(string $html): string
         . '<a href="#" data-social="soundcloud" target="_blank" rel="noopener noreferrer" hidden>SOUNDCLOUD ↗</a>'
         . '<a href="#" data-social="youtube" target="_blank" rel="noopener noreferrer" hidden>YOUTUBE ↗</a>'
         . '<a href="#" data-social="spotify" target="_blank" rel="noopener noreferrer" hidden>SPOTIFY ↗</a>'
+        . '<a href="#" data-social="website" target="_blank" rel="noopener noreferrer" hidden>WEBSITE ↗</a>'
         . '</div>'
         . '<div class="c5-footer-legal mono">'
         . '<span>© <span data-footer-year>2026</span> <span data-site-name>BRVTAL</span></span>'
