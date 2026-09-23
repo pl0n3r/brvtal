@@ -58,3 +58,14 @@ function brvtal_seo_default_description(mixed $value, int $limit = 160): string
 {
     return brvtal_seo_truncate(brvtal_seo_plain_text($value), $limit);
 }
+
+
+/**
+ * Normalize an authored SEO override. Blank means "automatic" and stays NULL
+ * so public delivery can derive the current fallback from editorial content.
+ */
+function brvtalSeoOverrideValue(mixed $value, int $limit): ?string
+{
+    $normalized = brvtal_seo_truncate(brvtal_seo_plain_text($value), $limit);
+    return $normalized === '' ? null : $normalized;
+}

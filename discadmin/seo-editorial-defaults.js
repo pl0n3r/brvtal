@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  const nativeFetch = window.fetch.bind(window);
   const AUTO_DESCRIPTION_LIMIT = 160;
   const SEO_TRAILING_CHARS = new Set([' ', ',', '.', ';', ':', '-']);
   let dedupeTimer = null;
@@ -49,28 +48,6 @@
     return trimSeoSuffix(cut);
   }
 
-  function withDefaults(payload, kind) {
-    const next = {...payload};
-    const title = String(next.title || '').trim();
-    if (!String(next.seo_title || '').trim() && title) next.seo_title = truncate(title, 190);
-
-    if (!String(next.seo_description || '').trim()) {
-      const source = kind === 'blog'
-        ? (String(next.excerpt || '').trim() || next.body || '')
-        : (next.content_json || '');
-      const description = truncate(source, AUTO_DESCRIPTION_LIMIT);
-      if (description) next.seo_description = description;
-    }
-    return next;
-  }
-
-  function targetKind(url, method) {
-    if (!['POST','PUT'].includes(method) || url.origin !== location.origin) return '';
-    if (url.pathname.endsWith('/api/blog.php')) return 'blog';
-    if (/\/api\/index\.php\/pages(?:\/\d+)?\/?$/.test(url.pathname)) return 'page';
-    return '';
-  }
-
   function editorConfig(section) {
     const editor = section?.dataset?.seoEditor || '';
     if (editor === 'content-core') {
@@ -108,16 +85,37 @@
     };
   }
 
-  function ensureMode(input, automaticValue) {
+  function ensureMode(input) {
     if (!input || input.dataset.seoMode) return;
-    const current = String(input.value || '').trim();
-    input.dataset.seoMode = current === '' || current === automaticValue ? 'auto' : 'manual';
+    input.dataset.seoMode = String(input.value || '').trim() === '' ? 'auto' : 'manual';
   }
 
-  function setAutomaticValue(input, value) {
-    if (!input || input.dataset.seoMode !== 'auto' || input.value === value) return;
-    input.value = value;
-    input.dispatchEvent(new Event('input',{bubbles:true}));
+  function setAutomaticFallback(input, value) {
+    if (input?.dataset.seoMode !== 'auto') return;
+    if (!Object.hasOwn(input.dataset,'seoOriginalPlaceholder')) {
+      input.dataset.seoOriginalPlaceholder = input.getAttribute('placeholder') || '';
+    }
+    const fallback = String(value || '');
+    const nextPlaceholder = fallback || input.dataset.seoOriginalPlaceholder || '';
+    const changed = input.value !== ''
+      || input.dataset.seoFallback !== fallback
+      || input.getAttribute('placeholder') !== nextPlaceholder;
+    input.value = '';
+    input.dataset.seoFallback = fallback;
+    input.setAttribute('placeholder',nextPlaceholder);
+    if (changed) input.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+
+  function persistableValue(input) {
+    if (!input) return '';
+    if (input.dataset.seoMode === 'auto') return '';
+    return String(input.value || '').trim();
+  }
+
+  function effectiveValue(input, fallback = '') {
+    const authored = String(input?.value || '').trim();
+    if (authored) return authored;
+    return String(input?.dataset?.seoFallback || fallback || '').trim();
   }
 
   function syncSeoSection(section) {
@@ -125,10 +123,10 @@
     const config = editorConfig(section);
     if (!config?.seoTitle || !config?.seoDescription) return;
     const automatic = autoValues(config);
-    ensureMode(config.seoTitle, automatic.title);
-    ensureMode(config.seoDescription, automatic.description);
-    setAutomaticValue(config.seoTitle, automatic.title);
-    setAutomaticValue(config.seoDescription, automatic.description);
+    ensureMode(config.seoTitle);
+    ensureMode(config.seoDescription);
+    setAutomaticFallback(config.seoTitle, automatic.title);
+    setAutomaticFallback(config.seoDescription, automatic.description);
   }
 
   function syncSeoEditors() {
@@ -171,32 +169,13 @@
     if (!config) return;
     const automatic = autoValues(config);
     const isTitle = target === config.seoTitle;
-    const fallback = isTitle ? automatic.title : automatic.description;
     if (String(target.value || '').trim() === '') {
       target.dataset.seoMode = 'auto';
-      setAutomaticValue(target, fallback);
+      setAutomaticFallback(target, isTitle ? automatic.title : automatic.description);
     } else {
       target.dataset.seoMode = 'manual';
     }
   }
-
-  window.fetch = function(input, init = {}) {
-    const request = input instanceof Request ? input : null;
-    const method = String(init.method || request?.method || 'GET').toUpperCase();
-    let url;
-    try { url = new URL(request?.url || String(input), location.href); }
-    catch (_) { return nativeFetch(input, init); }
-
-    const kind = targetKind(url, method);
-    if (!kind || typeof init.body !== 'string') return nativeFetch(input, init);
-
-    let payload;
-    try { payload = JSON.parse(init.body); }
-    catch (_) { return nativeFetch(input, init); }
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return nativeFetch(input, init);
-
-    return nativeFetch(input, {...init, body:JSON.stringify(withDefaults(payload, kind))});
-  };
 
   document.addEventListener('input',handleSeoInput,true);
   const observer = new MutationObserver(scheduleDedupe);
@@ -206,7 +185,8 @@
   window.BRVTALSEODefaults = {
     plainText,
     truncate,
-    withDefaults,
+    persistableValue,
+    effectiveValue,
     dedupe:dedupeSeoEditors,
     sync:syncSeoEditors,
     limit:AUTO_DESCRIPTION_LIMIT,

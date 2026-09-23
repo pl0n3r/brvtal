@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/seo_defaults.php';
+require_once __DIR__ . '/../config/seo_persistence.php';
 require_once __DIR__ . '/../config/indexnow.php';
 
 brvtal_admin_require();
@@ -85,53 +86,16 @@ try {
 
     brvtal_admin_require_csrf();
     $body = brvtal_seo_body();
-    $requestedTitle = trim((string)($body['seo_title'] ?? ''));
-    $requestedDescription = trim((string)($body['seo_description'] ?? ''));
-
-    $pdo->beginTransaction();
     try {
-        $lock = $pdo->prepare("SELECT id,seo_title,seo_description,`{$titleField}` AS source_title,`{$descriptionField}` AS source_description FROM `{$table}` WHERE id=? LIMIT 1 FOR UPDATE");
-        $lock->execute([$id]);
-        $locked = $lock->fetch(PDO::FETCH_ASSOC);
-        if (!$locked) {
-            $pdo->rollBack();
+        $after = brvtalSeoPersistOverrides($pdo, $resource, $id, $definition, $body);
+    } catch (RuntimeException $error) {
+        if ($error->getMessage() === 'SEO_RESOURCE_NOT_FOUND') {
             brvtal_seo_json(['ok'=>false,'error'=>'NOT_FOUND'], 404);
         }
-
-        $before = [
-            'id'=>$id,
-            'seo_title'=>$locked['seo_title'] ?? null,
-            'seo_description'=>$locked['seo_description'] ?? null,
-        ];
-        $seoTitle = $requestedTitle !== ''
-            ? brvtal_seo_truncate(brvtal_seo_plain_text($requestedTitle), 190)
-            : brvtal_seo_default_title($locked['source_title'] ?? '');
-        $seoDescription = $requestedDescription !== ''
-            ? brvtal_seo_truncate(brvtal_seo_plain_text($requestedDescription), 320)
-            : brvtal_seo_default_description($locked['source_description'] ?? '', 160);
-
-        $st = $pdo->prepare("UPDATE `{$table}` SET seo_title=?,seo_description=? WHERE id=?");
-        $st->execute([
-            $seoTitle !== '' ? $seoTitle : null,
-            $seoDescription !== '' ? $seoDescription : null,
-            $id,
-        ]);
-        $after = [
-            'id'=>$id,
-            'seo_title'=>$seoTitle !== '' ? $seoTitle : null,
-            'seo_description'=>$seoDescription !== '' ? $seoDescription : null,
-        ];
-        if (brvtal_activity_changed_fields(
-            brvtal_activity_snapshot($resource, $before),
-            brvtal_activity_snapshot($resource, $after)
-        ) !== []) {
-            brvtal_activity_record($pdo, 'seo_update', $resource, $id, $before, $after, ['source'=>'seo_metadata']);
-        }
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $e;
+        throw $error;
     }
+    $seoTitle = $after['seo_title'];
+    $seoDescription = $after['seo_description'];
 
     brvtalIndexNowNotifyEntityId($pdo, $resource, $id);
 

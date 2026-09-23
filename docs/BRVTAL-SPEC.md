@@ -287,7 +287,9 @@ Editorial SEO defaults are automatic but non-destructive:
 
 - empty SEO title falls back to the content name/title;
 - empty SEO description falls back to the relevant description/bio/excerpt/editorial text and is normalized to a search-appropriate length;
-- manually authored SEO values always win.
+- manually authored SEO values always win;
+- automatic fallbacks are **effective/preview values, not stored overrides**: the persistible SEO field stays empty/NULL while in automatic mode, and public delivery derives the current fallback at read/render time;
+- clearing a manual SEO override returns that field to automatic mode instead of materializing the fallback that happened to exist at save time.
 
 Explicit SEO fields participate in the editor save contract. On legacy/resource editors that persist primary content and SEO through separate endpoints, a successful primary mutation followed by an SEO failure is a **partial save**, never a complete success: keep the editor and authored SEO values recoverable, prevent a second content mutation that could duplicate a create, and retry only the SEO write against the already-saved resource ID. Once that retry succeeds, the editor may finish its normal close/refresh path. The canonical Content Core Event workflow keeps SEO inside its atomic Event workflow instead of using this split-save recovery path.
 

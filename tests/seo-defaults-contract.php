@@ -41,11 +41,15 @@ seo_defaults_assert(str_contains($api, "'artists' => ['table'=>'artists','title'
 seo_defaults_assert(str_contains($api, "'events' => ['table'=>'events','title'=>'title','description'=>'description']"), 'Events must default SEO from title and description');
 seo_defaults_assert(str_contains($api, "'sets' => ['table'=>'sets_media','title'=>'title','description'=>'description']"), 'Sets must default SEO from title and description');
 seo_defaults_assert(str_contains($api, "'releases' => ['table'=>'releases','title'=>'title','description'=>'description']"), 'Releases must default SEO from title and description');
-seo_defaults_assert(str_contains($api, 'brvtal_seo_default_description($locked[\'source_description\'] ?? \'\', 160)'), 'SEO persistence must cap automatic descriptions at 160');
+seo_defaults_assert(brvtalSeoOverrideValue('   ', 190) === null, 'blank SEO title override must remain absent');
+seo_defaults_assert(brvtalSeoOverrideValue('<b>Manual title</b>', 190) === 'Manual title', 'manual SEO override must be normalized');
+seo_defaults_assert(mb_strlen((string)brvtalSeoOverrideValue(str_repeat('description ', 50), 320)) <= 320, 'manual SEO override must respect its storage cap');
+seo_defaults_assert(str_contains($api, 'brvtalSeoPersistOverrides($pdo, $resource, $id, $definition, $body)'), 'SEO PUT must use the tested persistence boundary');
 
 $adminDefaults = (string)file_get_contents(__DIR__ . '/../discadmin/seo-editorial-defaults.js');
-seo_defaults_assert(str_contains($adminDefaults, "url.pathname.endsWith('/api/blog.php')"), 'Blog saves must receive editorial SEO defaults');
-seo_defaults_assert(str_contains($adminDefaults, '/api\\/index\\.php\\/pages'), 'Page saves must receive editorial SEO defaults');
+seo_defaults_assert(str_contains($adminDefaults, 'persistableValue'), 'DISCADMIN must expose mode-aware SEO persistence');
+seo_defaults_assert(str_contains($adminDefaults, 'seoFallback'), 'DISCADMIN must keep automatic SEO as preview fallback state');
+seo_defaults_assert(!str_contains($adminDefaults, 'window.fetch ='), 'automatic defaults must not rewrite Blog/Page mutation payloads');
 seo_defaults_assert(str_contains($adminDefaults, 'AUTO_DESCRIPTION_LIMIT = 160'), 'admin automatic descriptions must use the 160-character limit');
 
 $entry = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');

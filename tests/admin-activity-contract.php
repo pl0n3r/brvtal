@@ -17,6 +17,7 @@ $core = (string)file_get_contents($root . '/api/index.php');
 $releases = (string)file_get_contents($root . '/api/releases.php');
 $blog = (string)file_get_contents($root . '/api/blog.php');
 $seo = (string)file_get_contents($root . '/api/seo-metadata.php');
+$seoPersistence = (string)file_get_contents($root . '/config/seo_persistence.php');
 $bulk = (string)file_get_contents($root . '/api/bulk-actions.php');
 $shell = (string)file_get_contents($root . '/discadmin/index.php');
 $ui = (string)file_get_contents($root . '/discadmin/admin-activity.js');
@@ -54,7 +55,8 @@ activity_assert(str_contains($core, "'lineup_update'"), 'event lineup changes mu
 activity_assert(str_contains($core, "['events','artists','sets','pages','ticket_types']"), 'core editorial resources must be audited');
 activity_assert(str_contains($releases, "'releases'"), 'release mutations must write activity history');
 activity_assert(str_contains($blog, "'blog'"), 'blog mutations must write activity history');
-activity_assert(str_contains($seo, "'seo_update'"), 'SEO metadata changes must be audited');
+activity_assert(str_contains($seo, 'brvtalSeoPersistOverrides'), 'SEO endpoint must delegate persistence through the audited boundary');
+activity_assert(str_contains($seoPersistence, "'seo_update'"), 'SEO metadata changes must be audited by the persistence boundary');
 activity_assert(str_contains($bulk, "'bulk_status'"), 'bulk status changes must be audited');
 
 activity_assert(str_contains($shell, '/discadmin/admin-activity.js'), 'canonical DISCADMIN shell must load the activity panel');

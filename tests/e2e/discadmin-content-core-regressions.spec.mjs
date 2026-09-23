@@ -92,7 +92,7 @@ test('Content Core keeps one SEO metadata section when async decoration races', 
   await expect(page.locator('#e_seo_description')).toHaveValue('description');
 });
 
-test('Content Core SEO follows title and description until the editor makes a manual override', async ({ page }) => {
+test('Content Core SEO keeps dynamic fallbacks until the editor makes a manual override', async ({ page }) => {
   await page.route(seoLiveHarness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html><body>
@@ -119,14 +119,18 @@ test('Content Core SEO follows title and description until the editor makes a ma
 
   await page.fill('#e_title', 'test');
   await page.fill('#e_description', 'gt');
-  await expect(page.locator('#e_seo_title')).toHaveValue('test');
-  await expect(page.locator('#e_seo_description')).toHaveValue('gt');
+  await expect(page.locator('#e_seo_title')).toHaveValue('');
+  await expect(page.locator('#e_seo_title')).toHaveAttribute('placeholder','test');
+  await expect(page.locator('#e_seo_description')).toHaveValue('');
+  await expect(page.locator('#e_seo_description')).toHaveAttribute('placeholder','gt');
 
   await page.fill('#e_seo_title', 'CUSTOM SEARCH TITLE');
   await page.fill('#e_title', 'test changed');
   await expect(page.locator('#e_seo_title')).toHaveValue('CUSTOM SEARCH TITLE');
-  await expect(page.locator('#e_seo_description')).toHaveValue('gt');
+  await expect(page.locator('#e_seo_description')).toHaveValue('');
+  await expect(page.locator('#e_seo_description')).toHaveAttribute('placeholder','gt');
 
   await page.fill('#e_seo_title', '');
-  await expect(page.locator('#e_seo_title')).toHaveValue('test changed');
+  await expect(page.locator('#e_seo_title')).toHaveValue('');
+  await expect(page.locator('#e_seo_title')).toHaveAttribute('placeholder','test changed');
 });
