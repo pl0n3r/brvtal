@@ -109,7 +109,7 @@ function ticketFieldError(index,field,message){
   return false;
 }
 function validateTicketRows(){
-  const rows=$('#tickets .ticket-row');
+  const rows=$$('#tickets .ticket-row');
   for(let i=0;i<rows.length;i++){
     const validation=brvtalTicketRowValidation(rows[i]);
     if(validation)return ticketFieldError(i,validation.field,validation.message);
