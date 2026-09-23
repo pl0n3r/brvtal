@@ -17,7 +17,13 @@ const activity = {
   items:[{id:11,resource:'events',resource_id:9,resource_label:'EVENT #9',action:'update',admin_name:'Admin',created_at:'2026-09-17 18:00:00'}],
 };
 
-async function mount(page, {overviewDelay = 0, waitForRender = true, overviewStatus = 200, overviewPayload = null} = {}) {
+async function mount(page, {
+  overviewDelay = 0,
+  overviewGate = null,
+  waitForRender = true,
+  overviewStatus = 200,
+  overviewPayload = null,
+} = {}) {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html><body>
@@ -36,7 +42,8 @@ async function mount(page, {overviewDelay = 0, waitForRender = true, overviewSta
     </body></html>`,
   }));
   await page.route('**/api/dashboard-overview.php', async route => {
-    if (overviewDelay) await new Promise(resolve => setTimeout(resolve, overviewDelay));
+    if (overviewGate?.promise) await overviewGate.promise;
+    else if (overviewDelay) await new Promise(resolve => setTimeout(resolve, overviewDelay));
     const payload = overviewPayload ?? {ok:true,data:{summary:{public_records:1,draft_records:1,active_events:0,media_assets:2},next_event:null}};
     await route.fulfill({status:overviewStatus,contentType:'application/json',body:JSON.stringify(payload)});
   });
@@ -61,10 +68,15 @@ test('Dashboard V2 reserves ownership while slow data is still loading', async (
 });
 
 test('Dashboard V2 releases reserved ownership when render becomes invalid', async ({page}) => {
-  await mount(page, {overviewDelay:200, waitForRender:false});
+  let releaseOverview;
+  const overviewGate = {
+    promise:new Promise(resolve => { releaseOverview = resolve; }),
+  };
+  await mount(page, {overviewGate, waitForRender:false});
 
   await expect(page.locator('#brvtal-dashboard-v2')).toHaveCount(1);
   await page.evaluate(() => { state.section = 'events'; });
+  releaseOverview();
   await expect(page.locator('#brvtal-dashboard-v2')).toHaveCount(0);
 
   await page.evaluate(async () => {
