@@ -90,6 +90,7 @@ test('Roster runtime renders the shared public payload with lifecycle ordering a
     });
   });
   await page.addScriptTag({ content: rosterScript });
+  expect(await page.evaluate(() => typeof window.BRVTALPublicRoster?.render)).toBe('function');
   await page.evaluate(() => window.dispatchEvent(new Event('load')));
 
   await expect(page.locator('html')).toHaveAttribute('data-public-roster', 'connected');
