@@ -251,7 +251,7 @@ try {
     $eventsStatement->execute($eventStatuses);
     $allEvents = $eventsStatement->fetchAll();
 
-    $artistMembership = brvtal_artist_collective_membership_sql($pdo);
+    $artistMembership = brvtalArtistCollectiveMembershipSql($pdo);
     $artists = $pdo->query(
         "SELECT id,name,slug,bio,seo_title,seo_description,photo,instagram_url,soundcloud_url,website_url,
                 {$artistMembership} AS is_collective_member,status,sort_order
