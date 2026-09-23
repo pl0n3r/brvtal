@@ -86,7 +86,7 @@ async function saveEvent(){
     return false;
   }
 }
-async function saveTickets(eventId){const rows=$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=ticketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=ticketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
+async function saveTickets(eventId){const rows=$$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=ticketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=ticketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
 function eventPreviewLineup(){
   const existing=new Map(
     (Array.isArray(currentEvent?.lineup)?currentEvent.lineup:[])
@@ -99,7 +99,7 @@ function eventPreviewLineup(){
       }])
   );
   let nextOrder=existing.size;
-  return $('#eventArtists [data-artist]:checked').map(checkbox=>{
+  return $$('#eventArtists [data-artist]:checked').map(checkbox=>{
     const artistId=Number(checkbox.dataset.artist||0);
     return existing.get(artistId)||{
       artist_id:artistId,
@@ -123,7 +123,7 @@ function eventPreviewPayload(){
     venue:$('#e_venue').value.trim(),
     ticket_instructions:$('#e_ticket_instructions').value,
     ticket_url:$('#e_ticket_url').value,
-    ticket_types:$('#tickets .ticket-row').map((row,index)=>
+    ticket_types:$$('#tickets .ticket-row').map((row,index)=>
       ticketPayload(row,Number(currentEvent?.id||0),index)
     ),
     lineup:eventPreviewLineup()
