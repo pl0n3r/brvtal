@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+156** | **−34** | **+122** |
+| **2** | **+163** | **−34** | **+129** |
 
 ## Calidad y entrega
 
@@ -38,8 +38,8 @@
 | --- | --- |
 | Gates | **preflight · coordination · fast[JS] · chromium** |
 | PR integrity | **PR + snapshot exacto** · Issue #608 · `work/issue-608` · UUID `711755a1-5912-432e-a15d-d6b77948e1ed` |
-| Canonical screenshots | 🚧 390×844 · 1440×900 |
-| Baseline model | 🚧 screenshot real → dHash estructural + RGB grid cuantizado → aggregate SHA-256 |
+| Canonical screenshots | ✅ ~~390×844 · 1440×900 calibrated~~ |
+| Baseline model | ✅ ~~screenshot real → dHash estructural + RGB grid cuantizado → aggregate SHA-256~~ |
 | Existing matrix | ✅ ~~390 · 430 · 768 · 1024 · 1280 · 1440 · 1728 · 1920~~ |
 | Sonar | 🚧 análisis del HEAD final |
 | CodeRabbit | 🚧 full review sobre HEAD final |
@@ -65,7 +65,8 @@ flowchart LR
 - Cada screenshot se reduce a una firma estructural perceptual y una rejilla RGB cuantizada para detectar cambios materiales sin depender del hash binario exacto del PNG.
 - Las firmas regionales se agregan por viewport en dos hashes compactos: **structure** y **color**.
 - La captura fuerza `animations: disabled`, oculta caret y conserva `c5-visual-test` para eliminar ruido deliberadamente no determinista.
-- La primera corrida calibra los fingerprints reales de 390/1440; después esos valores quedan committed y cualquier cambio visual exige refresh explícito/revisión.
+- La corrida de calibración produjo únicamente los dos fallos esperados de baseline pendiente; todos los tests Concept 05 existentes siguieron verdes.
+- Los fingerprints aprobados de 390/1440 quedaron committed y cualquier cambio visual exige refresh manual explícito + revisión.
 
 ## Archivos modificados en este deploy
 
@@ -77,7 +78,7 @@ flowchart LR
 - Base exacta `ac239e9e2af244f01ebf76032432384483965181`: v0.1.38 con exact-main CI, Sonar, Deploy Observer y Production Performance verdes.
 - #608 está reservado por el coordinador; `work/issue-608` nació idéntica a esa base y no existe PR competidor.
 - #583 permanece abierto hasta que las dos baselines visuales queden calibradas y exact-main valide el child.
-- Pendiente: obtener fingerprints desde Chromium CI, fijar las dos baselines, full review final, squash y exact-main.
+- Pendiente: CI final sobre las baselines fijadas, full review, squash y exact-main.
 
 ## Qué sigue
 
