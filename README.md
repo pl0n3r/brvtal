@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **40** | **+986** | **−840** | **+146** |
+| **40** | **+986** | **−841** | **+145** |
 
 ## Calidad y entrega
 
