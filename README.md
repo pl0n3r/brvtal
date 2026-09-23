@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **20** | **+1351** | **−67** | **+1284** |
+| **21** | **+1354** | **−68** | **+1286** |
 
 ## Calidad y entrega
 
@@ -88,6 +88,7 @@ flowchart LR
 - `tests/e2e/discadmin-public-preview.spec.mjs` — payload no guardado/browser.
 - `tests/e2e/public-preview-real-stack.spec.mjs` — privacidad y canonical rendering real-stack.
 - `tests/e2e/run-content-core-real-stack.sh` — incluye smoke real de preview.
+- `tests/public-entity-pages-contract.php` — contrato existente actualizado al pipeline compartido.
 - `tests/public-preview-contract.php` — invariantes de privacidad/renderer.
 
 ## Validación
