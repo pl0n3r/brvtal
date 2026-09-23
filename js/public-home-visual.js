@@ -10,13 +10,13 @@
 
     const info = card.querySelector('.event-info');
     if (!info) return;
-    if (info.querySelector('.event-ticket,.event-view')) return;
+    if (info.querySelector('.event-ticket,.event-view,.event-record')) return;
 
     const title = (info.querySelector('h3')?.textContent || 'event').trim();
     const link = document.createElement('a');
     link.className = 'event-view mono';
     link.href = '#eventArchive';
-    link.textContent = 'EXPLORE EVENTS ↓';
+    link.textContent = 'VIEW NIGHTS ↓';
     link.setAttribute('aria-label', `Explore BRVTAL events after ${title}`);
     info.appendChild(link);
   }
