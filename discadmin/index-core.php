@@ -292,7 +292,8 @@ function artistForm(r){
       'is_collective_member',
       'BRVTAL artist / Member of collective',
       Number(r.is_collective_member||0)===1,
-      'This checkbox is the only current-membership authority. Historical membership periods are retained automatically and are not edited here.'
+      'This checkbox is the only current-membership authority. '
+        + 'Historical membership periods are retained automatically and are not edited here.'
     )}
    </div>
   </div>
