@@ -17,7 +17,8 @@ function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
     ? '<a class="c5-header-ticket magnetic" href="https://tickets.example/night" '
       + 'target="_blank" rel="noopener">TICKETS <span>→</span></a>'
     : '';
-  return '<!doctype html><html data-concept="05"><head><meta name="viewport" content="width=device-width,initial-scale=1">'
+  return '<!doctype html><html data-concept="05"><head>'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<style>*{box-sizing:border-box}html,body{margin:0;background:#050505;color:#e8e6df}' + css + '</style></head>'
     + '<body data-concept="05"><header class="nav">'
     + '<a class="brand" href="#top"><span>BRVTAL</span><small>RAVE TILL GRAVE</small></a>'
