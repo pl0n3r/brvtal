@@ -73,9 +73,13 @@ try {
         $row['seo_title'] = trim((string)($row['seo_title'] ?? '')) !== ''
             ? (string)$row['seo_title']
             : brvtal_seo_default_title($row['source_title'] ?? '');
+        $sourceDescription = brvtalSeoWorkspaceSourceDescription(
+            $resource,
+            $row['source_description'] ?? ''
+        );
         $row['seo_description'] = trim((string)($row['seo_description'] ?? '')) !== ''
             ? (string)$row['seo_description']
-            : brvtal_seo_default_description($row['source_description'] ?? '', 160);
+            : brvtal_seo_default_description($sourceDescription, 160);
         unset($row['source_title'], $row['source_description']);
         brvtal_seo_json(['ok'=>true,'data'=>$row]);
     }

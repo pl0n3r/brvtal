@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/seo_defaults.php';
 require_once __DIR__ . '/public_routes.php';
 require_once __DIR__ . '/public_settings.php';
+require_once __DIR__ . '/page_content.php';
 
 const BRVTAL_SEO_WORKSPACE_SETTING_KEY = 'seo';
 
@@ -70,13 +71,30 @@ function brvtalSeoWorkspaceEntityDefinitions(): array
  * input means AUTO. The helper intentionally does not accept arbitrary root
  * paths because static SEO is not a generic URL injection surface.
  */
+function brvtalSeoWorkspaceRootImagePathIsSafe(string $value): bool
+{
+    if (
+        $value === ''
+        || strlen($value) > 700
+        || !str_starts_with($value, '/')
+        || str_starts_with($value, '//')
+    ) {
+        return false;
+    }
+    foreach (["\0","\r","\n",'..','?','#'] as $blocked) {
+        if (str_contains($value, $blocked)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function brvtalSeoWorkspaceImageValue(mixed $value): string
 {
     $value = trim((string)$value);
     if ($value === '') {
         return '';
     }
-
     if (preg_match('#^https?://#i', $value)) {
         if (strlen($value) > 700 || filter_var($value, FILTER_VALIDATE_URL) === false) {
             return '';
@@ -93,21 +111,40 @@ function brvtalSeoWorkspaceImageValue(mixed $value): string
         $scheme = strtolower((string)($parts['scheme'] ?? ''));
         return in_array($scheme, ['http','https'], true) ? $value : '';
     }
-
-    if (!str_starts_with($value, '/uploads/') && !str_starts_with($value, '/assets/')) {
-        return '';
-    }
     if (
-        str_contains($value, "\0")
-        || str_contains($value, "\r")
-        || str_contains($value, "\n")
-        || str_contains($value, '..')
-        || str_contains($value, '?')
-        || str_contains($value, '#')
+        !brvtalSeoWorkspaceRootImagePathIsSafe($value)
+        || (!str_starts_with($value, '/uploads/') && !str_starts_with($value, '/assets/'))
     ) {
         return '';
     }
     return mb_substr($value, 0, 700);
+}
+
+/**
+ * Read a previously stored public root-relative image without widening the
+ * validation applied to new writes. Legacy Home settings historically allowed
+ * paths such as /share.webp.
+ */
+function brvtalSeoWorkspaceStoredImageValue(mixed $value): string
+{
+    $value = trim((string)$value);
+    $strict = brvtalSeoWorkspaceImageValue($value);
+    if ($strict !== '') {
+        return $strict;
+    }
+    if (!brvtalSeoWorkspaceRootImagePathIsSafe($value)) {
+        return '';
+    }
+    return mb_substr($value, 0, 700);
+}
+
+/** Normalize the editorial description source before deriving automatic SEO. */
+function brvtalSeoWorkspaceSourceDescription(string $resource, mixed $value): string
+{
+    $description = (string)$value;
+    return $resource === 'pages'
+        ? brvtal_page_content_plain_text($description)
+        : $description;
 }
 
 /** @return array{seo_title:string,seo_description:string,share_image:string} */
@@ -136,7 +173,7 @@ function brvtalSeoWorkspaceStaticOverrides(?PDO $pdo, string $key): array
     return [
         'seo_title'=>(string)(brvtalSeoOverrideValue($route['title'] ?? '', 190) ?? ''),
         'seo_description'=>(string)(brvtalSeoOverrideValue($route['description'] ?? '', 320) ?? ''),
-        'share_image'=>brvtalSeoWorkspaceImageValue($route['share_image'] ?? ''),
+        'share_image'=>brvtalSeoWorkspaceStoredImageValue($route['share_image'] ?? ''),
     ];
 }
 

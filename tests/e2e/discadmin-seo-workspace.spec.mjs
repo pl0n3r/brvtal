@@ -76,7 +76,8 @@ function harness() {
           total:rows.length,
           auto:rows.filter(row=>row.mode==='AUTO').length,
           manual:rows.filter(row=>row.mode!=='AUTO').length,
-          issues:rows.filter(row=>row.warnings.length).length
+          issues:rows.filter(row=>row.warnings.length).length,
+          truncated_resources:window.__seoTruncated || []
         }}),{status:200,headers:{'Content-Type':'application/json'}});
       }
       if(target==='/api/seo-workspace.php' && options.method==='PUT'){
@@ -126,6 +127,15 @@ test('central SEO inventory exposes static and entity destinations with useful f
   await expect(page.getByText('Genesis',{exact:true})).toBeVisible();
 });
 
+test('bounded inventory makes truncation visible to the operator', async ({ page }) => {
+  await open(page);
+  await page.evaluate(async () => {
+    window.__seoTruncated = ['pages'];
+    await window.BRVTALSEOWorkspace.load();
+  });
+  await expect(page.locator('#seo-workspace-status')).toContainText('CAPPED: PAGES');
+});
+
 test('static destination supports AUTO preview, manual overrides and per-field reset', async ({ page }) => {
   await open(page);
   await page.locator('[data-seo-open="home"]').click();
@@ -172,7 +182,7 @@ test('entity reset sends blanks through the shared persistence boundary without 
   await expect(page.locator('#seo-editor-preview-title')).toHaveText('Genesis — BRVTAL');
   await page.locator('#seo-workspace-form').evaluate(form => form.requestSubmit());
 
-  const write = await expect.poll(async () => page.evaluate(() => window.__seoWrites.at(-1))).not.toBeNull();
+  await expect.poll(() => page.evaluate(() => window.__seoWrites.length)).toBe(1);
   const payload = await page.evaluate(() => window.__seoWrites.at(-1).body);
   expect(payload.kind).toBe('entity');
   expect(payload.resource).toBe('events');

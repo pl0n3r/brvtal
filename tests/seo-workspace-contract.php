@@ -27,7 +27,11 @@ seo_workspace_assert(brvtalSeoWorkspaceImageValue('/uploads/share.webp') === '/u
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('/assets/brvtal-logo.jpeg') === '/assets/brvtal-logo.jpeg', 'bundled assets are valid static SEO images');
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('https://cdn.example.com/share.webp') === 'https://cdn.example.com/share.webp', 'HTTP(S) share images are valid');
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('javascript:alert(1)') === '', 'script URLs must be rejected');
-seo_workspace_assert(brvtalSeoWorkspaceImageValue('/private/secret.jpg') === '', 'arbitrary root paths must be rejected');
+seo_workspace_assert(brvtalSeoWorkspaceImageValue('/private/secret.jpg') === '', 'arbitrary new root paths must be rejected');
+seo_workspace_assert(
+    brvtalSeoWorkspaceStoredImageValue('/share.webp') === '/share.webp',
+    'legacy root-relative share images must remain readable before migration'
+);
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('/uploads/../config.php') === '', 'asset traversal paths must be rejected');
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('/uploads/share.webp?x=1') === '', 'asset query strings must be rejected');
 
@@ -38,6 +42,11 @@ seo_workspace_assert(
 );
 seo_workspace_assert(($entities['pages']['description'] ?? '') === 'content_json', 'Pages must keep Content JSON as the canonical fallback source');
 seo_workspace_assert(($entities['blog']['description'] ?? '') === 'excerpt', 'Blog must keep excerpt as the canonical fallback source');
+$pageJson = json_encode(['body'=>'Readable page summary'], JSON_UNESCAPED_SLASHES);
+seo_workspace_assert(
+    brvtalSeoWorkspaceSourceDescription('pages', $pageJson) === 'Readable page summary',
+    'Pages must convert content JSON to plain text before automatic SEO fallback'
+);
 
 $api = (string)file_get_contents(__DIR__ . '/../api/seo-workspace.php');
 seo_workspace_assert(str_contains($api, 'brvtal_admin_require();'), 'workspace API must require admin authentication');
@@ -45,6 +54,11 @@ seo_workspace_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'worksp
 seo_workspace_assert(str_contains($api, 'brvtalSeoPersistOverrides'), 'entity writes must reuse the audited SEO persistence boundary');
 seo_workspace_assert(str_contains($api, 'brvtalSeoWorkspacePersistStatic'), 'static writes must use the allowlisted static persistence boundary');
 seo_workspace_assert(str_contains($api, 'brvtal_public_seo_document'), 'inventory previews must reuse the public server SEO renderer');
+seo_workspace_assert(
+    str_contains($api, 'BRVTAL_SEO_WORKSPACE_RESOURCE_LIMIT')
+        && str_contains($api, "'truncated_resources'"),
+    'workspace inventory must be bounded and expose truncation'
+);
 seo_workspace_assert(!str_contains($api, "\$_GET['table']"), 'workspace API must never accept arbitrary table names');
 
 $module = (string)file_get_contents(__DIR__ . '/../discadmin/seo-workspace.php');

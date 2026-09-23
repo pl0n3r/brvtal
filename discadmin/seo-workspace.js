@@ -5,7 +5,7 @@ window.BRVTALSEOWorkspace = (() => {
   const state = {
     root:null,
     items:[],
-    summary:{total:0,auto:0,manual:0,issues:0},
+    summary:{total:0,auto:0,manual:0,issues:0,truncated_resources:[]},
     editing:null,
     dirty:false,
     lastFocus:null,
@@ -127,10 +127,16 @@ window.BRVTALSEOWorkspace = (() => {
       if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
       state.items = Array.isArray(payload.data) ? payload.data : [];
       state.summary = payload.summary || {
-        total:state.items.length,auto:0,manual:0,issues:0
+        total:state.items.length,auto:0,manual:0,issues:0,truncated_resources:[]
       };
       rerender();
-      setStatus(`${state.items.length} DESTINATIONS · SERVER-RENDERED AUTHORITY`);
+      const truncated = Array.isArray(state.summary.truncated_resources)
+        ? state.summary.truncated_resources
+        : [];
+      const cap = truncated.length
+        ? ` · CAPPED: ${truncated.map(value => String(value).toUpperCase()).join(', ')}`
+        : '';
+      setStatus(`${state.items.length} DESTINATIONS · SERVER-RENDERED AUTHORITY${cap}`);
     } catch (error) {
       setStatus('SEO inventory could not be loaded: ' + (error?.message || error), true);
       window.BRVTALFeedback?.error?.('SEO inventory failed: ' + (error?.message || error),'seo-workspace');

@@ -73,33 +73,33 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `README.md`
-- `api/seo-metadata.php`
-- `api/seo-workspace.php`
-- `config/public_contact_page.php`
-- `config/public_seo.php`
-- `config/seo_workspace.php`
-- `config/version.php`
-- `discadmin/admin-information-architecture.js`
-- `discadmin/admin-modules.js`
-- `discadmin/seo-workspace.css`
-- `discadmin/seo-workspace.js`
-- `discadmin/seo-workspace.php`
-- `discadmin/settings-v2.js`
-- `docs/BRVTAL-SPEC.md`
-- `index.php`
-- `package.json`
-- `tests/blog-contract.php`
-- `tests/e2e/discadmin-information-architecture.spec.mjs`
-- `tests/e2e/discadmin-seo-workspace.spec.mjs`
-- `tests/e2e/discadmin-settings-v2.spec.mjs`
-- `tests/integration/seo-workspace.php`
-- `tests/media-library-contract.php`
-- `tests/public-contact-contract.php`
-- `tests/releases-contract.php`
-- `tests/seo-contract.php`
-- `tests/seo-defaults-contract.php`
-- `tests/seo-workspace-contract.php`
+- `README.md` — deploy dashboard
+- `api/seo-metadata.php` — entity SEO API
+- `api/seo-workspace.php` — bounded SEO inventory API
+- `config/public_contact_page.php` — Contact SEO source
+- `config/public_seo.php` — public metadata renderer
+- `config/seo_workspace.php` — SEO registries/persistence
+- `config/version.php` — v0.1.44 version
+- `discadmin/admin-information-architecture.js` — SEO navigation
+- `discadmin/admin-modules.js` — SEO module routing
+- `discadmin/seo-workspace.css` — workspace styles
+- `discadmin/seo-workspace.js` — workspace controller
+- `discadmin/seo-workspace.php` — workspace fragment
+- `discadmin/settings-v2.js` — Settings SEO handoff
+- `docs/BRVTAL-SPEC.md` — SEO workspace contract
+- `index.php` — Contact SEO render
+- `package.json` — version/test suite
+- `tests/blog-contract.php` — module contract
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — navigation coverage
+- `tests/e2e/discadmin-seo-workspace.spec.mjs` — workspace browser coverage
+- `tests/e2e/discadmin-settings-v2.spec.mjs` — Settings coverage
+- `tests/integration/seo-workspace.php` — MariaDB SEO regression
+- `tests/media-library-contract.php` — module contract
+- `tests/public-contact-contract.php` — Contact SEO contract
+- `tests/releases-contract.php` — module contract
+- `tests/seo-contract.php` — entity SEO contract
+- `tests/seo-defaults-contract.php` — fallback contract
+- `tests/seo-workspace-contract.php` — workspace contract
 
 ## Validación
 

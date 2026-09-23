@@ -48,7 +48,7 @@ $pdo->exec('CREATE TEMPORARY TABLE settings (
 $legacy = [
     'site_title'=>'Legacy Home title',
     'description'=>'Legacy Home description',
-    'share_image'=>'/uploads/legacy.webp',
+    'share_image'=>'/legacy-share.webp',
     'custom_keep'=>'preserve-me',
 ];
 $insert = $pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,1)');
@@ -60,6 +60,10 @@ $insert->execute([
 $home = brvtalSeoWorkspaceStaticValues($pdo, 'home');
 seo_workspace_it_expect($home['mode'] === 'MANUAL', 'legacy flat Home values must remain authoritative before central editing');
 seo_workspace_it_expect($home['seo_title'] === 'Legacy Home title', 'legacy Home title must remain readable');
+seo_workspace_it_expect(
+    $home['share_image'] === '/legacy-share.webp',
+    'legacy root-relative Home image must remain readable before central save'
+);
 
 $clearedHome = brvtalSeoWorkspacePersistStatic($pdo, 'home', [
     'seo_title'=>'',

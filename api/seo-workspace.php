@@ -9,6 +9,8 @@ require_once __DIR__ . '/../config/indexnow.php';
 
 brvtal_admin_require();
 
+const BRVTAL_SEO_WORKSPACE_RESOURCE_LIMIT = 100;
+
 function brvtalSeoWorkspaceJson(array $payload, int $status = 200): never
 {
     http_response_code($status);
@@ -88,8 +90,11 @@ function brvtalSeoWorkspaceEntityType(string $resource): string
 }
 
 /** @return list<array<string,mixed>> */
-function brvtalSeoWorkspaceEntityInventory(PDO $pdo, string $base): array
-{
+function brvtalSeoWorkspaceEntityInventory(
+    PDO $pdo,
+    string $base,
+    array &$truncatedResources
+): array {
     $items = [];
     $homeDefaults = brvtal_public_global_seo($pdo);
 
@@ -105,17 +110,27 @@ function brvtalSeoWorkspaceEntityInventory(PDO $pdo, string $base): array
             'blog' => ',published_at',
             default => '',
         };
+        $fetchLimit = BRVTAL_SEO_WORKSPACE_RESOURCE_LIMIT + 1;
         $sql = "SELECT id,slug,status,seo_title,seo_description,"
             . "`{$titleField}` AS source_title,"
             . "`{$descriptionField}` AS source_description,"
-            . "{$imageSelect}{$extras} FROM `{$table}` ORDER BY id DESC";
-        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+            . "{$imageSelect}{$extras} FROM `{$table}` ORDER BY id DESC LIMIT {$fetchLimit}";
+        // Table/column names come exclusively from the canonical allowlisted registry.
+        $statement = $pdo->query($sql);
+        if ($statement === false) {
+            throw new RuntimeException('SEO_INVENTORY_QUERY_FAILED');
+        }
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        if (count($rows) > BRVTAL_SEO_WORKSPACE_RESOURCE_LIMIT) {
+            $truncatedResources[] = $resource;
+            $rows = array_slice($rows, 0, BRVTAL_SEO_WORKSPACE_RESOURCE_LIMIT);
+        }
 
         foreach ($rows as $row) {
-            $description = (string)($row['source_description'] ?? '');
-            if ($resource === 'pages') {
-                $description = brvtal_page_content_plain_text($description);
-            }
+            $description = brvtalSeoWorkspaceSourceDescription(
+                $resource,
+                $row['source_description'] ?? ''
+            );
             $entity = [
                 'id'=>(int)$row['id'],
                 'route_type'=>$resource,
@@ -176,7 +191,7 @@ function brvtalSeoWorkspaceEntityInventory(PDO $pdo, string $base): array
 }
 
 /** @return list<array<string,mixed>> */
-function brvtalSeoWorkspaceInventory(PDO $pdo): array
+function brvtalSeoWorkspaceInventory(PDO $pdo, array &$truncatedResources): array
 {
     $base = brvtal_public_base_url($GLOBALS['config'] ?? []);
     $items = [];
@@ -211,12 +226,15 @@ function brvtalSeoWorkspaceInventory(PDO $pdo): array
         $items[] = $item;
     }
 
-    array_push($items, ...brvtalSeoWorkspaceEntityInventory($pdo, $base));
+    array_push(
+        $items,
+        ...brvtalSeoWorkspaceEntityInventory($pdo, $base, $truncatedResources)
+    );
 
     $paths = [];
     foreach ($items as $index => $item) {
         $path = (string)($item['path'] ?? '');
-        if ($path === '') {
+        if ($path === '' || empty($item['public'])) {
             continue;
         }
         $paths[$path][] = $index;
@@ -236,12 +254,14 @@ try {
     $pdo = db();
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     if ($method === 'GET') {
-        $items = brvtalSeoWorkspaceInventory($pdo);
+        $truncatedResources = [];
+        $items = brvtalSeoWorkspaceInventory($pdo, $truncatedResources);
         $summary = [
             'total'=>count($items),
             'auto'=>count(array_filter($items, static fn(array $item): bool => $item['mode'] === 'AUTO')),
             'manual'=>count(array_filter($items, static fn(array $item): bool => $item['mode'] !== 'AUTO')),
             'issues'=>count(array_filter($items, static fn(array $item): bool => $item['warnings'] !== [])),
+            'truncated_resources'=>$truncatedResources,
         ];
         brvtalSeoWorkspaceJson(['ok'=>true,'data'=>$items,'summary'=>$summary]);
     }
