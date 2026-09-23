@@ -116,6 +116,8 @@ $discadminIndex = file_get_contents(__DIR__ . '/../discadmin/index.php');
 $pageContractJs = file_get_contents(__DIR__ . '/../discadmin/pages-publication-contract.js');
 expect(is_string($index) && is_string($public) && is_string($health) && is_string($bootstrap) && is_string($publicApp) && is_string($router) && is_string($discadminIndex) && is_string($pageContractJs), 'API and Page contract sources must be readable');
 
+$indexCompact = preg_replace('/\\s+/', '', $index) ?? '';
+
 $delegatePos = strpos($index, "if(\$resource==='public')");
 $authGatePos = strpos($index, 'brvtal_admin_require();');
 expect($delegatePos !== false, 'api/index.php must handle the public compatibility route');
@@ -162,12 +164,12 @@ expect(str_contains($bootstrap, 'brvtal_public_health_request'), 'JSON response 
 expect(str_contains($bootstrap, 'brvtal_public_health_sanitize'), 'JSON response boundary must sanitize compatibility health responses');
 
 expect(str_contains($index, "require_once __DIR__ . '/../config/event_lifecycle.php';"), 'Core API must load the canonical Event lifecycle mutation policy');
-expect(str_contains($index, "if(\$resource==='events')\$p=brvtal_event_lifecycle_patch([],\$p);"), 'Event creation must derive lifecycle timestamps server-side');
+expect(str_contains($indexCompact, "if(\$resource==='events'){\$p=brvtal_event_lifecycle_patch([],\$p);}"), 'Event creation must derive lifecycle timestamps server-side');
 expect(str_contains($putBlock, "if(\$resource==='events')\$p=brvtal_event_lifecycle_patch(\$before,\$p);"), 'Event updates must derive lifecycle timestamps from the locked previous state');
 expect(!str_contains($index, "'featured','published_at','cancelled_at','finished_at','archive_year'"), 'Event lifecycle timestamps must not remain directly writable payload fields');
 
 expect(str_contains($index, "require_once __DIR__ . '/pages-contract.php';"), 'Core API must load the CMS Page publication contract');
-expect(str_contains($index, "if(\$resource==='pages'&&!array_key_exists('locale',\$p))\$p['locale']='en';"), 'Core API must default new CMS Pages to English');
+expect(str_contains($indexCompact, "if(\$resource==='pages'&&!array_key_exists('locale',\$p)){\$p['locale']='en';}"), 'Core API must default new CMS Pages to English');
 expect(str_contains($index, 'array_replace($before,$p)'), 'Partial Page PUT validation must combine the locked existing state with the patch');
 expect(str_contains($index, 'brvtal_page_content_json_error'), 'Core API must validate Page content JSON');
 expect(str_contains($index, 'brvtal_page_publication_error'), 'Core API must validate Page publication locale');
