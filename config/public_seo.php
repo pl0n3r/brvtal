@@ -167,12 +167,20 @@ function brvtal_public_schema_enrich(array $schema, array $entity, string $base)
         if ($artists !== []) $schema['byArtist'] = $artists;
         $catalog = brvtal_seo_plain_text($entity['catalog_number'] ?? '');
         if ($catalog !== '') $schema['identifier'] = $catalog;
+        $sameAs = [];
+        foreach (['spotify_url', 'soundcloud_url', 'bandcamp_url', 'youtube_url', 'beatport_url'] as $field) {
+            $external = brvtal_public_schema_external_url($entity[$field] ?? null);
+            if ($external !== null) $sameAs[] = $external;
+        }
+        if ($sameAs !== []) $schema['sameAs'] = array_values(array_unique($sameAs));
     } elseif ($type === 'blog') {
         $date = brvtal_public_schema_date($entity['published_at'] ?? null);
         if ($date === null) {
             $schema['@type'] = 'WebPage';
             return $schema;
         }
+        $schema['headline'] = brvtal_seo_plain_text($entity['title'] ?? '');
+        $schema['mainEntityOfPage'] = $schema['url'];
         $schema['datePublished'] = $date;
         $modified = brvtal_public_schema_date($entity['updated_at'] ?? null);
         if ($modified !== null && $modified >= $date) $schema['dateModified'] = $modified;
@@ -202,7 +210,7 @@ function brvtal_public_seo_entity(PDO $pdo, string $type, string $slug): ?array
         'events' => ',status,event_date,published_at,venue,city',
         'artists' => ',instagram_url,soundcloud_url,website_url',
         'sets' => ',external_url,artist_id',
-        'releases' => ',release_date,catalog_number',
+        'releases' => ',release_date,catalog_number,spotify_url,soundcloud_url,bandcamp_url,youtube_url,beatport_url',
         'blog' => ',published_at,updated_at',
         'pages' => ',locale',
         default => '',
