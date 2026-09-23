@@ -40,6 +40,7 @@ function brvtal_public_global_seo(PDO $pdo): array
  */
 function brvtal_public_schema_date(mixed $value): ?string
 {
+    if (!is_string($value) && !is_int($value)) return null;
     $value = trim((string)$value);
     if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/D', $value, $parts)) {
         return null;
@@ -54,7 +55,8 @@ function brvtal_public_schema_date(mixed $value): ?string
 /** Never advertise javascript:, relative URLs or credential-bearing URLs. */
 function brvtal_public_schema_external_url(mixed $value): ?string
 {
-    $url = trim((string)$value);
+    if (!is_string($value)) return null;
+    $url = trim($value);
     if (!preg_match('#^https?://#i', $url) || filter_var($url, FILTER_VALIDATE_URL) === false) return null;
     $parts = parse_url($url);
     if (!is_array($parts) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) return null;
@@ -100,8 +102,10 @@ function brvtal_public_schema_artists(PDO $pdo, string $type, int $id): array
 /** @return list<array{@type:string,name:string,url:string}> */
 function brvtal_public_schema_artist_nodes(array $entity, string $base): array
 {
+    $candidates = $entity['schema_artists'] ?? [];
+    if (!is_array($candidates)) return [];
     $nodes = [];
-    foreach (($entity['schema_artists'] ?? []) as $artist) {
+    foreach ($candidates as $artist) {
         if (!is_array($artist)) continue;
         $name = brvtal_seo_plain_text($artist['name'] ?? '');
         $slug = trim((string)($artist['slug'] ?? ''));
