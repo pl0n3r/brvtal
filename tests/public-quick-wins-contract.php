@@ -25,9 +25,11 @@ public_quick_win_assert(
 );
 
 $index = (string)file_get_contents(__DIR__ . '/../index.php');
+$entityDelivery = (string)file_get_contents(__DIR__ . '/../config/public_entity_delivery.php');
 public_quick_win_assert(
-    str_contains($index, '$entityHtml = brvtal_public_version_assets($entityHtml, brvtalDeploymentCacheKey());'),
-    'canonical entity HTML must pass through the deploy asset versioner'
+    str_contains($index, 'brvtalPublicEntityDocument(')
+        && str_contains($entityDelivery, 'brvtal_public_version_assets($html, $cacheKey)'),
+    'canonical entity HTML must pass through the shared deploy-versioned delivery pipeline'
 );
 public_quick_win_assert(
     str_contains($index, "class=\"artist\" aria-disabled=\"true\""),
