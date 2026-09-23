@@ -132,7 +132,13 @@ async function expectDesktopHeaderFits(page, width) {
   await openShell(page, [], {width,height:900});
   const geometry = await page.evaluate(() => {
     const nodes = ['.brand','.c5-header-nav','.c5-header-origin','.c5-header-ticket','.nav-right']
-      .map(selector => document.querySelector(selector)).filter(Boolean);
+      .map(selector => document.querySelector(selector))
+      .filter(Boolean)
+      .filter(node => {
+        const box = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return style.display !== 'none' && style.visibility !== 'hidden' && box.width > 0 && box.height > 0;
+      });
     return {
       items:nodes.map(node => {
         const box=node.getBoundingClientRect();
