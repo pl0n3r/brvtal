@@ -5,6 +5,7 @@ $root = dirname(__DIR__);
 require_once $root . '/config/set_publication.php';
 
 $api = file_get_contents($root . '/api/index.php');
+$apiCompact = preg_replace('/\s+/', '', (string)$api) ?? '';
 $bulk = file_get_contents($root . '/api/bulk-actions-lib.php');
 $admin = file_get_contents($root . '/discadmin/set-publication-contract.js');
 $entry = file_get_contents($root . '/discadmin/index.php');
@@ -26,8 +27,8 @@ $expect(brvtal_set_publication_error(['status'=>'published','external_url'=>'ftp
 $expect(brvtal_set_publication_error(['status'=>'published','external_url'=>'https://soundcloud.com/brvtal/example']), null, 'valid https listening URLs may publish');
 
 $mustContain($api, "require_once __DIR__ . '/../config/set_publication.php'", 'core API must load the Set publication policy');
-$mustContain($api, "brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],\$p))", 'Set create must enforce publication readiness');
-$mustContain($api, 'brvtal_set_publication_error(array_replace($before,$p))', 'partial Set updates must validate the resulting persisted state');
+$mustContain($apiCompact, "brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],\$p))", 'Set create must enforce publication readiness');
+$mustContain($apiCompact, 'brvtal_set_publication_error(array_replace($before,$p))', 'partial Set updates must validate the resulting persisted state');
 $mustContain($api, "'field'=>'external_url'", 'Set publication failures must identify the listening URL field');
 
 $mustContain($bulk, "require_once __DIR__ . '/../config/set_publication.php'", 'Bulk Actions must use the same publication policy');
