@@ -19,13 +19,28 @@ const mediaItem = {
   created_at: '2026-09-11 17:00:00',
   engine: {
     status: 'ready',
+    policy: { version: 3, generator: 'gd-webp', generator_version: 3, webp_quality: 82 },
     focal_point: { x: 0.5, y: 0.5 },
+    optimization: {
+      state: 'reused',
+      generated: [],
+      repaired: [],
+      reused: ['square'],
+      aliases: {},
+      logical_variant_count: 1,
+      physical_variant_count: 1,
+      physical_bytes: 42000
+    },
     variants: {
       square: {
         path: 'uploads/media/2026/09/genesis--square-480.webp',
         width: 480,
         height: 480,
-        mime_type: 'image/webp'
+        mime_type: 'image/webp',
+        bytes: 42000,
+        state: 'reused',
+        generated_at: '2026-09-11T17:00:00-05:00',
+        reused_at: '2026-09-23T06:00:00-05:00'
       }
     }
   },
@@ -216,6 +231,40 @@ test('upload remains available before dedup migration and reports degraded mode'
   await expect(page.locator('.media-card.active')).toHaveAttribute('data-media-id', String(mediaItem.id));
 });
 
+test('upload reports incomplete optimization without pretending success', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+
+  await page.route('**/api/media-library.php?action=upload', route => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      duplicate: false,
+      reused: false,
+      optimization_warning: 'GD_WEBP_UNAVAILABLE',
+      data: {
+        ...mediaItem,
+        engine: {
+          status: 'original_only',
+          reason: 'GD_WEBP_UNAVAILABLE',
+          variants: {},
+          focal_point: {x:0.5,y:0.5}
+        }
+      }
+    })
+  }));
+
+  await page.locator('#media-file').setInputFiles({
+    name: 'original-only.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng
+  });
+
+  await expect(page.locator('#media-status')).toContainText('original preserved · optimization incomplete');
+  await expect(page.locator('#media-status')).toContainText('GD WEBP UNAVAILABLE');
+  await expect(page.locator('#media-status')).toHaveClass(/err/);
+});
+
 test('media picker normalizes paths, updates inputs/previews, and shows guidance', async ({ page }) => {
   await loadMediaLibraryHarness(page);
 
@@ -259,6 +308,9 @@ test('media inspector previews contexts and submits a focal point regeneration',
   await page.getByRole('button', { name: 'SAVE FOCUS + REGENERATE' }).click();
   const request = await transform;
   expect(request.postDataJSON()).toEqual({x:0.75,y:0.25});
+  await expect(page.locator('#media-inspector')).toContainText('OPTIMIZATION / REUSED');
+  await expect(page.locator('#media-inspector')).toContainText('PHYSICAL FOOTPRINT');
+  await expect(page.locator('#media-status')).toHaveText('Optimization up to date · existing variants reused.');
 });
 
 test('media inspector keeps non-image assets simple and protects referenced media', async ({ page }) => {

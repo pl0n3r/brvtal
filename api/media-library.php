@@ -204,9 +204,14 @@ try {
             throw $e;
         }
 
+        $optimizationWarning = null;
         if ($type === 'image') {
-            $metadata = brvtal_media_generate_variants($absolute, $mime);
-            brvtal_media_store_sidecar($absolute, $metadata);
+            $metadata = brvtalMediaGenerateVariants($absolute, $mime);
+            if (!brvtalMediaStoreSidecar($absolute, $metadata)) {
+                $optimizationWarning = 'MEDIA_SIDECAR_STORE_FAILED';
+            } elseif (($metadata['status'] ?? '') !== 'ready') {
+                $optimizationWarning = (string)($metadata['reason'] ?? 'VARIANT_GENERATION_INCOMPLETE');
+            }
         }
 
         $row = brvtal_media_find($pdo, $mediaId);
@@ -216,6 +221,7 @@ try {
             'reused' => false,
             'content_hash' => $contentHash,
             'deduplication' => $dedupSchema,
+            'optimization_warning' => $optimizationWarning,
             'data' => $row ? brvtal_media_asset_payload($row) : [
                 'id' => $mediaId,
                 'file_path' => $publicPath,
@@ -294,18 +300,59 @@ try {
     if ($method === 'POST' && $action === 'transform') {
         brvtal_admin_require_csrf();
         if (!$id) brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_ID_REQUIRED'], 422);
-        $row = brvtal_media_find($pdo, $id);
-        if (!$row || ($row['type'] ?? '') !== 'image') brvtal_media_json_response(['ok'=>false,'error'=>'IMAGE_NOT_FOUND'], 404);
-        $absolute = brvtal_media_local_absolute((string)$row['file_path']);
-        if ($absolute === null) brvtal_media_json_response(['ok'=>false,'error'=>'LOCAL_IMAGE_REQUIRED'], 422);
         $data = brvtal_media_input_json();
         $x = filter_var($data['x'] ?? null, FILTER_VALIDATE_FLOAT);
         $y = filter_var($data['y'] ?? null, FILTER_VALIDATE_FLOAT);
-        if ($x === false || $y === false || $x < 0 || $x > 1 || $y < 0 || $y > 1) brvtal_media_json_response(['ok'=>false,'error'=>'INVALID_FOCAL_POINT'], 422);
-        $metadata = brvtal_media_generate_variants($absolute, (string)$row['mime_type'], ['x'=>$x,'y'=>$y]);
-        if (($metadata['status'] ?? '') !== 'ready') brvtal_media_json_response(['ok'=>false,'error'=>$metadata['reason'] ?? 'VARIANT_GENERATION_FAILED'], 422);
-        brvtal_media_remove_generated_variants($absolute, $metadata['variants']);
-        brvtal_media_store_sidecar($absolute, $metadata);
+        if ($x === false || $y === false || $x < 0 || $x > 1 || $y < 0 || $y > 1) {
+            brvtal_media_json_response(['ok'=>false,'error'=>'INVALID_FOCAL_POINT'], 422);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $row = brvtal_media_find($pdo, $id, true);
+            if (!$row || ($row['type'] ?? '') !== 'image') {
+                $pdo->rollBack();
+                brvtal_media_json_response(['ok'=>false,'error'=>'IMAGE_NOT_FOUND'], 404);
+            }
+
+            $absolute = brvtal_media_local_absolute((string)$row['file_path']);
+            if ($absolute === null) {
+                $pdo->rollBack();
+                brvtal_media_json_response(['ok'=>false,'error'=>'LOCAL_IMAGE_REQUIRED'], 422);
+            }
+
+            $previousSidecar = brvtal_media_read_sidecar((string)$row['file_path']);
+            $metadata = brvtalMediaGenerateVariants($absolute, (string)$row['mime_type'], ['x'=>$x,'y'=>$y]);
+            if (($metadata['status'] ?? '') !== 'ready') {
+                $pdo->rollBack();
+                brvtal_media_json_response([
+                    'ok'=>false,
+                    'error'=>$metadata['reason'] ?? 'VARIANT_GENERATION_FAILED',
+                    'optimization'=>$metadata['optimization'] ?? null,
+                ], 422);
+            }
+            if (!brvtalMediaStoreSidecar($absolute, $metadata)) {
+                $pdo->rollBack();
+                brvtal_media_json_response([
+                    'ok'=>false,
+                    'error'=>'MEDIA_SIDECAR_STORE_FAILED',
+                    'optimization'=>$metadata['optimization'] ?? null,
+                ], 500);
+            }
+
+            brvtalMediaRemoveGeneratedVariants(
+                $absolute,
+                $metadata['variants'],
+                is_array($previousSidecar) ? $previousSidecar : null
+            );
+            $pdo->commit();
+        } catch (Throwable $transformError) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $transformError;
+        }
+
         $asset = brvtal_media_asset_payload($row);
         $asset['usage'] = brvtal_media_integrity_usage($pdo, $row);
         brvtal_media_json_response(['ok'=>true,'data'=>$asset]);

@@ -271,10 +271,45 @@ window.BRVTALMediaLibrary = (() => {
 
   function inspectorEngineSummary(item) {
     if (item.type !== 'image') return 'ORIGINAL ASSET';
+    const optimization = item.engine?.optimization;
     if (item.engine?.status === 'ready') {
-      return `MEDIA ENGINE READY · ${Object.keys(item.engine.variants || {}).length} VARIANTS`;
+      const state = String(optimization?.state || 'ready').toUpperCase();
+      const logical = Number(optimization?.logical_variant_count ?? Object.keys(item.engine.variants || {}).length);
+      const physical = Number(optimization?.physical_variant_count ?? logical);
+      return `MEDIA ENGINE ${state} · ${logical} LOGICAL / ${physical} FILES`;
+    }
+    if (item.engine?.status === 'partial') {
+      return `MEDIA ENGINE PARTIAL · ${esc(item.engine?.reason || 'VARIANT GENERATION INCOMPLETE')}`;
     }
     return `ORIGINAL PRESERVED · ${esc(item.engine?.reason || 'NO GENERATED VARIANTS')}`;
+  }
+
+  function inspectorOptimizationMarkup(item) {
+    const optimization = item.engine?.optimization;
+    const policy = item.engine?.policy;
+    if (!optimization || item.type !== 'image') return '';
+
+    const generated = (optimization.generated || []).length + (optimization.repaired || []).length;
+    const reused = (optimization.reused || []).length;
+    const aliases = Object.keys(optimization.aliases || {}).length;
+    const footprint = bytes(Number(optimization.physical_bytes || 0));
+    const state = String(optimization.state || 'unknown').toUpperCase();
+    const policyLabel = policy
+      ? `POLICY ${Number(policy.version || 0)} · ${esc(String(policy.generator || 'unknown').toUpperCase())} ${Number(policy.generator_version || 0)} · Q${Number(policy.webp_quality || 0)}`
+      : 'POLICY LEGACY';
+
+    return `<div class="media-optimization"><b>OPTIMIZATION / ${esc(state)}</b><span>${policyLabel}</span><span>PHYSICAL FOOTPRINT ${esc(footprint)}</span><span>GENERATED/REPAIRED ${generated} · REUSED ${reused} · ALIASES ${aliases}</span></div>`;
+  }
+
+  function optimizationFeedback(item) {
+    const optimization = item?.engine?.optimization;
+    if (!optimization) return 'Focal point saved and variants updated.';
+    const generated = (optimization.generated || []).length + (optimization.repaired || []).length;
+    const reused = (optimization.reused || []).length;
+    if (optimization.state === 'reused') return 'Optimization up to date · existing variants reused.';
+    if (optimization.state === 'mixed') return `Optimization updated · ${generated} generated/repaired · ${reused} reused.`;
+    if (optimization.state === 'generated') return `Optimization updated · ${generated} variants generated/repaired.`;
+    return 'Optimization updated.';
   }
 
   function inspectorUsageMarkup(usage) {
@@ -312,6 +347,7 @@ window.BRVTALMediaLibrary = (() => {
     const engine = inspectorEngineSummary(item);
     const usageHtml = inspectorUsageMarkup(usage);
     const cropHtml = inspectorCropMarkup(item, quality, focal);
+    const optimizationHtml = inspectorOptimizationMarkup(item);
 
     box.innerHTML = `<div class="media-inspector-preview">${visual}</div><div class="media-inspector-body">
       <h3>${esc(item.title || 'Untitled')}</h3><div class="media-inspector-path">${esc(original(item) || item.file_path)}</div>
@@ -321,6 +357,7 @@ window.BRVTALMediaLibrary = (() => {
       <label for="media-edit-alt">ALT TEXT</label><input id="media-edit-alt" value="${esc(item.alt_text || '')}">
       <label for="media-edit-status">PUBLICATION</label><select id="media-edit-status"><option value="published" ${item.status==='published'?'selected':''}>PUBLISHED</option><option value="draft" ${item.status==='draft'?'selected':''}>DRAFT</option></select>
       <div class="media-engine">${engine}</div>
+      ${optimizationHtml}
       ${cropHtml}
       <div class="media-usage"><h4>USED BY / ${usage.length}</h4>${usageHtml}</div>
       <div class="media-inspector-actions"><button class="btn" id="media-save" type="button">SAVE</button><button class="btn ghost" id="media-copy" type="button">COPY PATH</button><button class="btn ghost" id="media-delete" type="button" ${usage.length?'disabled title="This asset is in use"':''}>DELETE</button></div>
@@ -351,7 +388,7 @@ window.BRVTALMediaLibrary = (() => {
     try {
       status('Regenerating context crops…');
       const j = await request('?action=transform&id=' + encodeURIComponent(store.selected.id), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({x,y})});
-      store.selected = j.data; renderInspector(store.selected); renderGrid(); status('Focal point saved and variants regenerated.', 'ok');
+      store.selected = j.data; renderInspector(store.selected); renderGrid(); status(optimizationFeedback(store.selected), 'ok');
     } catch (e) { status('Could not regenerate variants: ' + e.message, 'err'); }
   }
 
@@ -416,6 +453,10 @@ window.BRVTALMediaLibrary = (() => {
         await refresh(j.data?.id || null);
         if (j.duplicate === true && j.reused === true) {
           status('Duplicate detected — existing asset reused.', 'ok');
+        } else if (j.optimization_warning) {
+          const detail = String(j.optimization_warning).replaceAll('_',' ');
+          const message = 'Uploaded ' + file.name + ' · original preserved · optimization incomplete (' + detail + ').';
+          status(message, 'err');
         } else if (j.deduplication?.ready === false) {
           const message = 'Uploaded ' + file.name + ' · duplicate detection pending migration.';
           status(message);

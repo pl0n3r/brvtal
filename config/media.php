@@ -329,8 +329,265 @@ function brvtal_media_create_image_resource(string $absolute, string $mime): GdI
     };
 }
 
-function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sourceHeight, string $target, int $targetWidth, int $targetHeight, bool $crop = false, float $focalX = .5, float $focalY = .5): bool
+const BRVTAL_MEDIA_VARIANT_POLICY_VERSION = 3;
+const BRVTAL_MEDIA_VARIANT_GENERATOR_VERSION = 3;
+const BRVTAL_MEDIA_WEBP_QUALITY = 82;
+
+function brvtalMediaVariantPolicy(): array
 {
+    return [
+        'version' => BRVTAL_MEDIA_VARIANT_POLICY_VERSION,
+        'generator' => 'gd-webp',
+        'generator_version' => BRVTAL_MEDIA_VARIANT_GENERATOR_VERSION,
+        'webp_quality' => BRVTAL_MEDIA_WEBP_QUALITY,
+    ];
+}
+
+function brvtalMediaOriginalIdentity(
+    string $absoluteOriginal,
+    string $mime,
+    int $width,
+    int $height
+): array {
+    $bytes = max(0, (int)(@filesize($absoluteOriginal) ?: 0));
+    $hash = @hash_file('sha256', $absoluteOriginal);
+    return [
+        'path' => brvtal_media_public_upload_path($absoluteOriginal),
+        'width' => $width,
+        'height' => $height,
+        'mime_type' => $mime,
+        'bytes' => $bytes,
+        'sha256' => is_string($hash) && preg_match('/^[a-f0-9]{64}$/', $hash) === 1 ? $hash : null,
+    ];
+}
+
+function brvtalMediaSiblingPublicPath(string $absoluteOriginal, string $target): ?string
+{
+    $originalPublic = brvtal_media_public_upload_path($absoluteOriginal);
+    if ($originalPublic === null) {
+        return null;
+    }
+    $directory = dirname($originalPublic);
+    return ($directory === '/' ? '' : $directory) . '/' . basename($target);
+}
+
+function brvtalMediaVariantSpecs(
+    string $absoluteOriginal,
+    string $mime,
+    int $width,
+    int $height
+): array {
+    $infoPath = pathinfo($absoluteOriginal);
+    $base = $infoPath['dirname'] . '/' . $infoPath['filename'];
+    $specs = [];
+
+    $squareSize = min(800, max(1, min($width, $height)));
+    $squarePath = $base . '--square-' . $squareSize . '.webp';
+    $specs['square'] = [
+        'absolute_path' => $squarePath,
+        'path' => brvtalMediaSiblingPublicPath($absoluteOriginal, $squarePath),
+        'width' => $squareSize,
+        'height' => $squareSize,
+        'mime_type' => 'image/webp',
+        'crop' => true,
+    ];
+
+    foreach (['card'=>[1200,900], 'hero'=>[1920,1080]] as $name => [$wantedWidth,$wantedHeight]) {
+        $scale = min(1, $width / $wantedWidth, $height / $wantedHeight);
+        $targetWidth = max(1, (int)floor($wantedWidth * $scale));
+        $targetHeight = max(1, (int)floor($wantedHeight * $scale));
+        $targetPath = $base . '--' . $name . '-' . $targetWidth . 'x' . $targetHeight . '.webp';
+        $specs[$name] = [
+            'absolute_path' => $targetPath,
+            'path' => brvtalMediaSiblingPublicPath($absoluteOriginal, $targetPath),
+            'width' => $targetWidth,
+            'height' => $targetHeight,
+            'mime_type' => 'image/webp',
+            'crop' => true,
+        ];
+    }
+
+    if (in_array($mime, ['image/jpeg', 'image/png'], true)) {
+        $displayWidth = min(1920, $width);
+        $displayHeight = max(1, (int)round($height * ($displayWidth / $width)));
+        $displayPath = $base . '--display-' . $displayWidth . 'x' . $displayHeight . '.webp';
+        $specs['display'] = [
+            'absolute_path' => $displayPath,
+            'path' => brvtalMediaSiblingPublicPath($absoluteOriginal, $displayPath),
+            'width' => $displayWidth,
+            'height' => $displayHeight,
+            'mime_type' => 'image/webp',
+            'crop' => false,
+        ];
+    }
+
+    foreach ([1280, 1920] as $targetWidth) {
+        if ($width <= $targetWidth) {
+            continue;
+        }
+        $targetHeight = max(1, (int)round($height * ($targetWidth / $width)));
+        $key = 'w' . $targetWidth;
+
+        if (
+            $targetWidth === 1920
+            && isset($specs['display'])
+            && (int)$specs['display']['width'] === $targetWidth
+            && (int)$specs['display']['height'] === $targetHeight
+        ) {
+            $specs[$key] = [
+                'absolute_path' => $specs['display']['absolute_path'],
+                'path' => $specs['display']['path'],
+                'width' => $targetWidth,
+                'height' => $targetHeight,
+                'mime_type' => 'image/webp',
+                'crop' => false,
+                'alias_of' => 'display',
+            ];
+            continue;
+        }
+
+        $targetPath = $base . '--' . $key . '.webp';
+        $specs[$key] = [
+            'absolute_path' => $targetPath,
+            'path' => brvtalMediaSiblingPublicPath($absoluteOriginal, $targetPath),
+            'width' => $targetWidth,
+            'height' => $targetHeight,
+            'mime_type' => 'image/webp',
+            'crop' => false,
+        ];
+    }
+
+    return $specs;
+}
+
+function brvtalMediaVariantPolicyMatches(array $previous, array $policy): bool
+{
+    $old = is_array($previous['policy'] ?? null) ? $previous['policy'] : [];
+    return (int)($old['version'] ?? 0) === (int)$policy['version']
+        && (string)($old['generator'] ?? '') === (string)$policy['generator']
+        && (int)($old['generator_version'] ?? 0) === (int)$policy['generator_version']
+        && (int)($old['webp_quality'] ?? 0) === (int)$policy['webp_quality'];
+}
+
+function brvtalMediaOriginalMatches(array $previous, array $original): bool
+{
+    $old = is_array($previous['original'] ?? null) ? $previous['original'] : [];
+    $hash = (string)($original['sha256'] ?? '');
+    return $hash !== ''
+        && hash_equals((string)($old['sha256'] ?? ''), $hash)
+        && (string)($old['path'] ?? '') === (string)($original['path'] ?? '')
+        && (int)($old['width'] ?? 0) === (int)($original['width'] ?? 0)
+        && (int)($old['height'] ?? 0) === (int)($original['height'] ?? 0)
+        && (string)($old['mime_type'] ?? '') === (string)($original['mime_type'] ?? '')
+        && (int)($old['bytes'] ?? -1) === (int)($original['bytes'] ?? -2);
+}
+
+function brvtalMediaFocalMatches(array $previous, array $focal): bool
+{
+    $old = is_array($previous['focal_point'] ?? null) ? $previous['focal_point'] : [];
+    return abs((float)($old['x'] ?? -1) - (float)$focal['x']) < 0.000001
+        && abs((float)($old['y'] ?? -1) - (float)$focal['y']) < 0.000001;
+}
+
+function brvtalMediaVariantMetadataMatches(array $previousVariant, array $spec): bool
+{
+    return !isset($previousVariant['alias_of'])
+        && (string)($previousVariant['path'] ?? '') === (string)($spec['path'] ?? '')
+        && (int)($previousVariant['width'] ?? 0) === (int)($spec['width'] ?? 0)
+        && (int)($previousVariant['height'] ?? 0) === (int)($spec['height'] ?? 0)
+        && (string)($previousVariant['mime_type'] ?? '') === 'image/webp';
+}
+
+function brvtalMediaVariantFileValid(array $spec): bool
+{
+    $path = (string)($spec['absolute_path'] ?? '');
+    if ($path === '' || !is_file($path) || (int)(@filesize($path) ?: 0) < 1) {
+        return false;
+    }
+    $info = @getimagesize($path);
+    return is_array($info)
+        && (int)($info[0] ?? 0) === (int)($spec['width'] ?? 0)
+        && (int)($info[1] ?? 0) === (int)($spec['height'] ?? 0)
+        && strtolower((string)($info['mime'] ?? '')) === 'image/webp';
+}
+
+/**
+ * @param callable(array<string,mixed>):bool|null $validator
+ */
+function brvtalMediaVariantDecision(
+    array $previousVariant,
+    array $spec,
+    bool $sharedCompatible,
+    bool $focalMatches,
+    ?callable $validator = null
+): string {
+    $metadataCompatible = $sharedCompatible
+        && brvtalMediaVariantMetadataMatches($previousVariant, $spec)
+        && (!(bool)($spec['crop'] ?? false) || $focalMatches);
+
+    if (!$metadataCompatible) {
+        return 'generate';
+    }
+
+    $isValid = ($validator ?? 'brvtalMediaVariantFileValid')($spec);
+    return $isValid ? 'reuse' : 'repair';
+}
+
+function brvtalMediaVariantEntry(
+    array $spec,
+    string $state,
+    string $now,
+    array $previousVariant = [],
+    ?string $measurementPath = null
+): array {
+    $measure = $measurementPath ?? (string)($spec['absolute_path'] ?? '');
+    $entry = [
+        'path' => $spec['path'] ?? null,
+        'width' => (int)($spec['width'] ?? 0),
+        'height' => (int)($spec['height'] ?? 0),
+        'mime_type' => 'image/webp',
+        'bytes' => max(0, (int)(@filesize($measure) ?: 0)),
+        'state' => $state,
+    ];
+
+    if ($state === 'reused') {
+        $generatedAt = trim((string)($previousVariant['generated_at'] ?? ''));
+        if ($generatedAt !== '') {
+            $entry['generated_at'] = $generatedAt;
+        }
+        $entry['reused_at'] = $now;
+    } else {
+        $entry['generated_at'] = $now;
+    }
+
+    return $entry;
+}
+
+function brvtalMediaVariantFootprint(array $variants): int
+{
+    $paths = [];
+    foreach ($variants as $variant) {
+        $path = trim((string)($variant['path'] ?? ''));
+        if ($path === '' || isset($paths[$path])) {
+            continue;
+        }
+        $paths[$path] = max(0, (int)($variant['bytes'] ?? 0));
+    }
+    return array_sum($paths);
+}
+
+function brvtalMediaWriteVariant(
+    GdImage $source,
+    int $sourceWidth,
+    int $sourceHeight,
+    string $target,
+    int $targetWidth,
+    int $targetHeight,
+    bool $crop = false,
+    float $focalX = .5,
+    float $focalY = .5,
+    int $quality = BRVTAL_MEDIA_WEBP_QUALITY
+): bool {
     $canvas = imagecreatetruecolor($targetWidth, $targetHeight);
     if (!$canvas) {
         return false;
@@ -352,7 +609,7 @@ function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sour
         imagecopyresampled($canvas, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $sourceWidth, $sourceHeight);
     }
 
-    $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, 82);
+    $ok = function_exists('imagewebp') && @imagewebp($canvas, $target, $quality);
     imagedestroy($canvas);
     if ($ok) {
         @chmod($target, 0644);
@@ -360,120 +617,348 @@ function brvtal_media_write_variant(GdImage $source, int $sourceWidth, int $sour
     return $ok;
 }
 
-function brvtal_media_generate_variants(string $absoluteOriginal, string $mime, array $focalPoint = ['x'=>.5, 'y'=>.5]): array
-{
+function brvtalMediaGenerateVariants(
+    string $absoluteOriginal,
+    string $mime,
+    array $focalPoint = ['x'=>.5, 'y'=>.5]
+): array {
     $info = @getimagesize($absoluteOriginal);
     $width = is_array($info) ? (int)($info[0] ?? 0) : 0;
     $height = is_array($info) ? (int)($info[1] ?? 0) : 0;
+    $now = date(DATE_ATOM);
+    $focal = [
+        'x' => max(0, min(1, (float)($focalPoint['x'] ?? .5))),
+        'y' => max(0, min(1, (float)($focalPoint['y'] ?? .5))),
+    ];
+    $policy = brvtalMediaVariantPolicy();
+    $original = brvtalMediaOriginalIdentity($absoluteOriginal, $mime, $width, $height);
+    $publicOriginal = (string)($original['path'] ?? '');
+    $previous = $publicOriginal !== '' ? (brvtal_media_read_sidecar($publicOriginal) ?? []) : [];
+
     $result = [
-        'version' => 2,
-        'generated_at' => date(DATE_ATOM),
+        'version' => 3,
+        'generated_at' => (string)($previous['generated_at'] ?? $now),
+        'updated_at' => $now,
         'status' => 'original_only',
-        'original' => [
-            'path' => brvtal_media_public_upload_path($absoluteOriginal),
-            'width' => $width,
-            'height' => $height,
-            'mime_type' => $mime,
-        ],
+        'policy' => $policy,
+        'original' => $original,
         'variants' => [],
-        'focal_point' => ['x'=>max(0, min(1, (float)($focalPoint['x'] ?? .5))), 'y'=>max(0, min(1, (float)($focalPoint['y'] ?? .5)))],
+        'focal_point' => $focal,
+        'optimization' => [
+            'state' => 'original_only',
+            'generated' => [],
+            'repaired' => [],
+            'reused' => [],
+            'aliases' => [],
+            'rolled_back' => [],
+            'physical_variant_count' => 0,
+            'logical_variant_count' => 0,
+            'physical_bytes' => 0,
+            'generated_bytes_this_run' => 0,
+            'reused_bytes_this_run' => 0,
+            'run_at' => $now,
+        ],
+        '_staged_files' => [],
     ];
 
-    if ($width < 1 || $height < 1 || $width * $height > 40000000) {
+    if ($width < 1 || $height < 1) {
         $result['reason'] = 'IMAGE_DIMENSIONS_UNSUPPORTED';
         return $result;
     }
 
-    $source = brvtal_media_create_image_resource($absoluteOriginal, $mime);
-    if (!$source || !function_exists('imagewebp')) {
-        $result['reason'] = 'GD_WEBP_UNAVAILABLE';
-        return $result;
-    }
+    $specs = brvtalMediaVariantSpecs($absoluteOriginal, $mime, $width, $height);
+    $sharedCompatible = brvtalMediaVariantPolicyMatches($previous, $policy)
+        && brvtalMediaOriginalMatches($previous, $original);
+    $focalMatches = brvtalMediaFocalMatches($previous, $focal);
+    $pending = [];
 
-    $infoPath = pathinfo($absoluteOriginal);
-    $base = $infoPath['dirname'] . '/' . $infoPath['filename'];
+    foreach ($specs as $name => $spec) {
+        if (isset($spec['alias_of'])) {
+            continue;
+        }
 
-    $focalX = $result['focal_point']['x'];
-    $focalY = $result['focal_point']['y'];
-    $squareSize = min(800, max(1, min($width, $height)));
-    $squarePath = $base . '--square-' . $squareSize . '.webp';
-    if (brvtal_media_write_variant($source, $width, $height, $squarePath, $squareSize, $squareSize, true, $focalX, $focalY)) {
-        $result['variants']['square'] = [
-            'path' => brvtal_media_public_upload_path($squarePath),
-            'width' => $squareSize,
-            'height' => $squareSize,
-            'mime_type' => 'image/webp',
+        $previousVariant = is_array($previous['variants'][$name] ?? null)
+            ? $previous['variants'][$name]
+            : [];
+        $decision = brvtalMediaVariantDecision(
+            $previousVariant,
+            $spec,
+            $sharedCompatible,
+            $focalMatches
+        );
+
+        if ($decision === 'reuse') {
+            $entry = brvtalMediaVariantEntry($spec, 'reused', $now, $previousVariant);
+            $result['variants'][$name] = $entry;
+            $result['optimization']['reused'][] = $name;
+            $result['optimization']['reused_bytes_this_run'] += (int)$entry['bytes'];
+            continue;
+        }
+
+        $pending[$name] = [
+            'spec' => $spec,
+            'state' => $decision === 'repair' ? 'repaired' : 'generated',
+            'previous' => $previousVariant,
         ];
     }
 
-    foreach (['card'=>[1200,900], 'hero'=>[1920,1080]] as $name => [$wantedWidth,$wantedHeight]) {
-        $scale = min(1, $width / $wantedWidth, $height / $wantedHeight);
-        $targetWidth = max(1, (int)floor($wantedWidth * $scale));
-        $targetHeight = max(1, (int)floor($wantedHeight * $scale));
-        $targetPath = $base . '--' . $name . '-' . $targetWidth . 'x' . $targetHeight . '.webp';
-        if (brvtal_media_write_variant($source, $width, $height, $targetPath, $targetWidth, $targetHeight, true, $focalX, $focalY)) {
-            $result['variants'][$name] = ['path'=>brvtal_media_public_upload_path($targetPath),'width'=>$targetWidth,'height'=>$targetHeight,'mime_type'=>'image/webp'];
-        }
+    $source = false;
+    if ($pending !== [] && $width * $height <= 40000000) {
+        $source = brvtal_media_create_image_resource($absoluteOriginal, $mime);
     }
 
-    // Every static JPEG/PNG upload gets one preserve-aspect WebP suitable for
-    // generic public <img> delivery. Originals remain untouched and authoritative.
-    if (in_array($mime, ['image/jpeg', 'image/png'], true)) {
-        $displayWidth = min(1920, $width);
-        $displayHeight = max(1, (int)round($height * ($displayWidth / $width)));
-        $displayPath = $base . '--display-' . $displayWidth . 'x' . $displayHeight . '.webp';
-        if (brvtal_media_write_variant($source, $width, $height, $displayPath, $displayWidth, $displayHeight, false)) {
-            $result['variants']['display'] = [
-                'path' => brvtal_media_public_upload_path($displayPath),
-                'width' => $displayWidth,
-                'height' => $displayHeight,
-                'mime_type' => 'image/webp',
+    if ($pending !== [] && (!$source || !function_exists('imagewebp'))) {
+        $result['reason'] = match (true) {
+            $width * $height > 40000000 => 'IMAGE_DIMENSIONS_UNSUPPORTED',
+            !extension_loaded('gd') || !function_exists('imagewebp') => 'GD_WEBP_UNAVAILABLE',
+            default => 'IMAGE_DECODE_FAILED',
+        };
+    }
+
+    if ($source instanceof GdImage) {
+        foreach ($pending as $name => $work) {
+            $spec = $work['spec'];
+            $target = (string)$spec['absolute_path'];
+            $temporary = $target . '.tmp-' . bin2hex(random_bytes(6));
+            $ok = brvtalMediaWriteVariant(
+                $source,
+                $width,
+                $height,
+                $temporary,
+                (int)$spec['width'],
+                (int)$spec['height'],
+                (bool)$spec['crop'],
+                $focal['x'],
+                $focal['y'],
+                (int)$policy['webp_quality']
+            );
+            if (!$ok || !is_file($temporary)) {
+                @unlink($temporary);
+                continue;
+            }
+
+            $state = (string)$work['state'];
+            $entry = brvtalMediaVariantEntry(
+                $spec,
+                $state,
+                $now,
+                (array)$work['previous'],
+                $temporary
+            );
+            $result['variants'][$name] = $entry;
+            $result['_staged_files'][] = [
+                'logical_name' => $name,
+                'temporary' => $temporary,
+                'target' => $target,
             ];
+            $bucket = $state === 'repaired' ? 'repaired' : 'generated';
+            $result['optimization'][$bucket][] = $name;
+            $result['optimization']['generated_bytes_this_run'] += (int)$entry['bytes'];
         }
+        imagedestroy($source);
     }
 
-    foreach ([1280, 1920] as $targetWidth) {
-        if ($width <= $targetWidth) {
+    foreach ($specs as $name => $spec) {
+        $aliasOf = (string)($spec['alias_of'] ?? '');
+        if ($aliasOf === '' || !isset($result['variants'][$aliasOf])) {
             continue;
         }
-        $targetHeight = max(1, (int)round($height * ($targetWidth / $width)));
-        $targetPath = $base . '--w' . $targetWidth . '.webp';
-        if (brvtal_media_write_variant($source, $width, $height, $targetPath, $targetWidth, $targetHeight, false)) {
-            $result['variants']['w' . $targetWidth] = [
-                'path' => brvtal_media_public_upload_path($targetPath),
-                'width' => $targetWidth,
-                'height' => $targetHeight,
-                'mime_type' => 'image/webp',
-            ];
+        $target = $result['variants'][$aliasOf];
+        $result['variants'][$name] = [
+            'path' => $target['path'],
+            'width' => (int)$spec['width'],
+            'height' => (int)$spec['height'],
+            'mime_type' => 'image/webp',
+            'bytes' => (int)($target['bytes'] ?? 0),
+            'state' => 'alias',
+            'alias_of' => $aliasOf,
+            'generated_at' => $target['generated_at'] ?? null,
+            'reused_at' => $target['reused_at'] ?? null,
+            'aliased_at' => $now,
+        ];
+        $result['optimization']['aliases'][$name] = $aliasOf;
+    }
+
+    $logicalCount = count($result['variants']);
+    $expectedCount = count($specs);
+    $physicalPaths = [];
+    foreach ($result['variants'] as $variant) {
+        $path = trim((string)($variant['path'] ?? ''));
+        if ($path !== '') {
+            $physicalPaths[$path] = true;
         }
     }
 
-    imagedestroy($source);
-    if ($result['variants'] !== []) {
+    $result['optimization']['logical_variant_count'] = $logicalCount;
+    $result['optimization']['physical_variant_count'] = count($physicalPaths);
+    $result['optimization']['physical_bytes'] = brvtalMediaVariantFootprint($result['variants']);
+
+    if ($logicalCount === $expectedCount && $expectedCount > 0) {
         $result['status'] = 'ready';
+        $hasGenerated = $result['optimization']['generated'] !== []
+            || $result['optimization']['repaired'] !== [];
+        $hasReused = $result['optimization']['reused'] !== [];
+        $result['optimization']['state'] = $hasGenerated && $hasReused
+            ? 'mixed'
+            : ($hasGenerated ? 'generated' : 'reused');
+        unset($result['reason']);
+    } elseif ($logicalCount > 0) {
+        $result['status'] = 'partial';
+        $result['optimization']['state'] = 'partial';
+        $result['reason'] = $result['reason'] ?? 'VARIANT_GENERATION_PARTIAL';
     }
+
+    if (($result['status'] ?? '') !== 'ready') {
+        $rolledBack = [];
+        foreach ((array)$result['_staged_files'] as $staged) {
+            $name = (string)($staged['logical_name'] ?? '');
+            if ($name !== '') {
+                $rolledBack[$name] = true;
+                unset($result['variants'][$name]);
+            }
+            @unlink((string)($staged['temporary'] ?? ''));
+        }
+
+        foreach ($result['variants'] as $name => $variant) {
+            $aliasOf = (string)($variant['alias_of'] ?? '');
+            if ($aliasOf !== '' && isset($rolledBack[$aliasOf])) {
+                unset($result['variants'][$name]);
+            }
+        }
+
+        $result['optimization']['rolled_back'] = array_keys($rolledBack);
+        $result['optimization']['generated'] = [];
+        $result['optimization']['repaired'] = [];
+        $result['optimization']['generated_bytes_this_run'] = 0;
+        $physicalPaths = [];
+        foreach ($result['variants'] as $variant) {
+            $path = trim((string)($variant['path'] ?? ''));
+            if ($path !== '') {
+                $physicalPaths[$path] = true;
+            }
+        }
+        $result['optimization']['logical_variant_count'] = count($result['variants']);
+        $result['optimization']['physical_variant_count'] = count($physicalPaths);
+        $result['optimization']['physical_bytes'] = brvtalMediaVariantFootprint($result['variants']);
+        $result['_staged_files'] = [];
+    }
+
     return $result;
 }
 
-function brvtal_media_store_sidecar(string $absoluteOriginal, array $metadata): void
+function brvtalMediaRollbackStagedVariants(array $committed, array $pending): void
 {
-    $sidecar = brvtal_media_sidecar_path($absoluteOriginal);
-    @file_put_contents(
-        $sidecar,
-        json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        LOCK_EX
-    );
-    @chmod($sidecar, 0640);
+    foreach (array_reverse($committed) as $entry) {
+        $target = (string)($entry['target'] ?? '');
+        $backup = (string)($entry['backup'] ?? '');
+        if ($target !== '' && is_file($target)) {
+            @unlink($target);
+        }
+        if ($backup !== '' && is_file($backup)) {
+            @rename($backup, $target);
+        }
+    }
+    foreach ($pending as $entry) {
+        $temporary = (string)($entry['temporary'] ?? '');
+        if ($temporary !== '' && is_file($temporary)) {
+            @unlink($temporary);
+        }
+    }
 }
 
-function brvtal_media_remove_generated_variants(string $absoluteOriginal, array $keep = []): void
+function brvtalMediaStoreSidecar(string $absoluteOriginal, array $metadata): bool
 {
-    $sidecar = brvtal_media_read_sidecar(brvtal_media_public_upload_path($absoluteOriginal));
-    $preserved = array_column($keep, 'path');
+    $sidecar = brvtal_media_sidecar_path($absoluteOriginal);
+    $stagedFiles = is_array($metadata['_staged_files'] ?? null)
+        ? $metadata['_staged_files']
+        : [];
+    unset($metadata['_staged_files']);
+
+    $encoded = json_encode(
+        $metadata,
+        JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    );
+    if (!is_string($encoded)) {
+        brvtalMediaRollbackStagedVariants([], $stagedFiles);
+        return false;
+    }
+
+    $sidecarTemporary = $sidecar . '.tmp-' . bin2hex(random_bytes(6));
+    if (@file_put_contents($sidecarTemporary, $encoded, LOCK_EX) === false) {
+        @unlink($sidecarTemporary);
+        brvtalMediaRollbackStagedVariants([], $stagedFiles);
+        return false;
+    }
+    @chmod($sidecarTemporary, 0640);
+
+    $committed = [];
+    foreach ($stagedFiles as $index => $entry) {
+        $temporary = (string)($entry['temporary'] ?? '');
+        $target = (string)($entry['target'] ?? '');
+        if ($temporary === '' || $target === '' || !is_file($temporary)) {
+            @unlink($sidecarTemporary);
+            brvtalMediaRollbackStagedVariants($committed, array_slice($stagedFiles, $index));
+            return false;
+        }
+
+        $backup = '';
+        if (is_file($target)) {
+            $backup = $target . '.bak-' . bin2hex(random_bytes(6));
+            if (!@rename($target, $backup)) {
+                @unlink($sidecarTemporary);
+                brvtalMediaRollbackStagedVariants($committed, array_slice($stagedFiles, $index));
+                return false;
+            }
+        }
+
+        if (!@rename($temporary, $target)) {
+            if ($backup !== '') {
+                @rename($backup, $target);
+            }
+            @unlink($sidecarTemporary);
+            brvtalMediaRollbackStagedVariants($committed, array_slice($stagedFiles, $index));
+            return false;
+        }
+        @chmod($target, 0644);
+        $committed[] = ['target'=>$target, 'backup'=>$backup];
+    }
+
+    if (!@rename($sidecarTemporary, $sidecar)) {
+        @unlink($sidecarTemporary);
+        brvtalMediaRollbackStagedVariants($committed, []);
+        return false;
+    }
+    @chmod($sidecar, 0640);
+
+    foreach ($committed as $entry) {
+        $backup = (string)($entry['backup'] ?? '');
+        if ($backup !== '' && is_file($backup)) {
+            @unlink($backup);
+        }
+    }
+    return true;
+}
+
+function brvtalMediaRemoveGeneratedVariants(
+    string $absoluteOriginal,
+    array $keep = [],
+    ?array $previousSidecar = null
+): void {
+    $sidecar = $previousSidecar ?? brvtal_media_read_sidecar(
+        brvtal_media_public_upload_path($absoluteOriginal)
+    );
+    $preserved = array_fill_keys(array_filter(array_column($keep, 'path')), true);
+    $seen = [];
     foreach (($sidecar['variants'] ?? []) as $variant) {
-        if (in_array((string)($variant['path'] ?? ''), $preserved, true)) continue;
-        $path = brvtal_media_local_absolute((string)($variant['path'] ?? ''));
-        if ($path !== null && is_file($path)) @unlink($path);
+        $publicPath = (string)($variant['path'] ?? '');
+        if ($publicPath === '' || isset($preserved[$publicPath]) || isset($seen[$publicPath])) {
+            continue;
+        }
+        $seen[$publicPath] = true;
+        $path = brvtal_media_local_absolute($publicPath);
+        if ($path !== null && is_file($path)) {
+            @unlink($path);
+        }
     }
 }
 
