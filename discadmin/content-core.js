@@ -1,3 +1,51 @@
+function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
+function brvtalTicketPayload(row,eventId,index){
+  const payload={event_id:eventId,sort_order:index};
+  row.querySelectorAll('[data-k]').forEach(element=>{
+    const key=element.dataset.k;
+    let value=element.value;
+    if(key==='currency')value=value.trim().toUpperCase();
+    if(key==='price')value=value===''?null:value;
+    if(key==='available_from'||key==='available_until')value=value?value.replace('T',' '):null;
+    if(key==='external_url'||key==='qr_image')value=value.trim();
+    payload[key]=value;
+  });
+  return payload;
+}
+function brvtalTicketRowValidation(row){
+  const name=row.querySelector('[data-k="name"]');
+  if(!name?.value.trim())return {field:name,message:'needs a name before saving.'};
+
+  const price=row.querySelector('[data-k="price"]');
+  if(price?.value&&(!Number.isFinite(Number(price.value))||Number(price.value)<0)){
+    return {field:price,message:'needs a valid non-negative price.'};
+  }
+
+  const currency=row.querySelector('[data-k="currency"]');
+  if(!/^[A-Za-z]{3}$/.test(currency?.value.trim()||'')){
+    return {field:currency,message:'needs a 3-letter currency code.'};
+  }
+
+  const url=row.querySelector('[data-k="external_url"]');
+  if(url?.value.trim()){
+    try{
+      const parsed=new URL(url.value.trim());
+      if(!['http:','https:'].includes(parsed.protocol)||url.value.trim().length>700){
+        return {field:url,message:'needs a valid http(s) purchase URL.'};
+      }
+    }catch(_){
+      return {field:url,message:'needs a valid http(s) purchase URL.'};
+    }
+  }
+
+  const from=row.querySelector('[data-k="available_from"]');
+  const until=row.querySelector('[data-k="available_until"]');
+  if(from?.value&&until?.value&&until.value<from.value){
+    return {field:until,message:'availability end must not be before its start.'};
+  }
+  return null;
+}
+
 window.BRVTALContentCore = {mount(root) {
 
 const API='/api/index.php';let events=[],artists=[],currentEvent=null,currentStep=1,csrf='',ticketRowSeq=0;
@@ -21,7 +69,6 @@ function closeEvent(force=false){
 }
 function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}currentStep=Math.max(1,Math.min(5,currentStep+dir));setStep()}
 function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===5?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===5?'SAVE EVENT':'SAVE DRAFT'}
-function ticketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
 function addTicket(t={}){
   const d=document.createElement('div');
   const rowId='ticket_'+(++ticketRowSeq);
@@ -35,25 +82,12 @@ function addTicket(t={}){
     <label class="ticket-field"><span>Status</span><select data-k="status" aria-label="Ticket status"><option value="draft" ${t.status==='draft'?'selected':''}>draft</option><option value="active" ${!t.status||t.status==='active'?'selected':''}>active</option><option value="inactive" ${t.status==='inactive'?'selected':''}>inactive</option><option value="sold_out" ${t.status==='sold_out'?'selected':''}>sold_out</option></select></label>
     <label class="ticket-field ticket-wide"><span>Description</span><textarea data-k="description" aria-label="Ticket description" maxlength="500" placeholder="What this ticket includes">${esc(t.description||'')}</textarea></label>
     <label class="ticket-field ticket-wide"><span>External purchase URL</span><input data-k="external_url" aria-label="Ticket external URL" maxlength="700" placeholder="https://…" value="${esc(t.external_url||'')}"></label>
-    <label class="ticket-field"><span>Available from</span><input data-k="available_from" aria-label="Ticket available from" type="datetime-local" value="${esc(ticketDateInputValue(t.available_from))}"></label>
-    <label class="ticket-field"><span>Available until</span><input data-k="available_until" aria-label="Ticket available until" type="datetime-local" value="${esc(ticketDateInputValue(t.available_until))}"></label>
+    <label class="ticket-field"><span>Available from</span><input data-k="available_from" aria-label="Ticket available from" type="datetime-local" value="${esc(brvtalTicketDateInputValue(t.available_from))}"></label>
+    <label class="ticket-field"><span>Available until</span><input data-k="available_until" aria-label="Ticket available until" type="datetime-local" value="${esc(brvtalTicketDateInputValue(t.available_until))}"></label>
     <label class="ticket-field ticket-wide"><span>Payment instructions</span><textarea data-k="payment_instructions" aria-label="Ticket payment instructions" maxlength="4000" placeholder="Nequi, transfer or pickup instructions">${esc(t.payment_instructions||'')}</textarea></label>
     <div class="ticket-field ticket-wide"><label for="${rowId}_qr">QR image</label><input id="${rowId}_qr" data-k="qr_image" data-media-picker="image" aria-label="Ticket QR image" maxlength="500" placeholder="/uploads/…" value="${esc(t.qr_image||'')}"></div>
   </div>`;
   $('#tickets').appendChild(d);
-}
-function ticketPayload(row,eventId,i){
-  const o={event_id:eventId,sort_order:i};
-  row.querySelectorAll('[data-k]').forEach(el=>{
-    const key=el.dataset.k;
-    let value=el.value;
-    if(key==='currency')value=value.trim().toUpperCase();
-    if(key==='price')value=value===''?null:value;
-    if(key==='available_from'||key==='available_until')value=value?value.replace('T',' '):null;
-    if(key==='external_url'||key==='qr_image')value=value.trim();
-    o[key]=value;
-  });
-  return o;
 }
 function validateEventPayload(payload){
   if(!payload.title){
@@ -75,24 +109,10 @@ function ticketFieldError(index,field,message){
   return false;
 }
 function validateTicketRows(){
-  const rows=$$('#tickets .ticket-row');
+  const rows=$('#tickets .ticket-row');
   for(let i=0;i<rows.length;i++){
-    const name=rows[i].querySelector('[data-k="name"]');
-    if(!name?.value.trim())return ticketFieldError(i,name,'needs a name before saving.');
-    const price=rows[i].querySelector('[data-k="price"]');
-    if(price?.value && (!Number.isFinite(Number(price.value)) || Number(price.value)<0))return ticketFieldError(i,price,'needs a valid non-negative price.');
-    const currency=rows[i].querySelector('[data-k="currency"]');
-    if(!/^[A-Za-z]{3}$/.test(currency?.value.trim()||''))return ticketFieldError(i,currency,'needs a 3-letter currency code.');
-    const url=rows[i].querySelector('[data-k="external_url"]');
-    if(url?.value.trim()){
-      try{
-        const parsed=new URL(url.value.trim());
-        if(!['http:','https:'].includes(parsed.protocol) || url.value.trim().length>700)throw new Error('INVALID_URL');
-      }catch(_){return ticketFieldError(i,url,'needs a valid http(s) purchase URL.');}
-    }
-    const from=rows[i].querySelector('[data-k="available_from"]');
-    const until=rows[i].querySelector('[data-k="available_until"]');
-    if(from?.value&&until?.value&&until.value<from.value)return ticketFieldError(i,until,'availability end must not be before its start.');
+    const validation=brvtalTicketRowValidation(rows[i]);
+    if(validation)return ticketFieldError(i,validation.field,validation.message);
   }
   return true;
 }
@@ -123,7 +143,7 @@ async function saveEvent(){
     return false;
   }
 }
-async function saveTickets(eventId){const rows=$$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=ticketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=ticketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
+async function saveTickets(eventId){const rows=$$('#tickets .ticket-row');const keep=new Set();for(let i=0;i<rows.length;i++){const row=rows[i],p=brvtalTicketPayload(row,eventId,i),existing=Number(row.dataset.id||0);let j;if(existing){keep.add(existing);j=await api('/ticket_types/'+existing,{method:'PUT',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}})}else{j=await api('/ticket_types',{method:'POST',body:JSON.stringify(p),headers:{'X-CSRF-Token':csrf}});if(j.id)row.dataset.id=String(j.id)}if(j.ok===false)throw new Error(j.error||'Ticket save failed')}const old=(currentEvent?.ticket_types||[]).map(t=>Number(t.id)).filter(Boolean);for(const id of old){if(!keep.has(id)){const j=await api('/ticket_types/'+id,{method:'DELETE',headers:{'X-CSRF-Token':csrf}});if(j.ok===false)throw new Error(j.error||'Ticket delete failed')}}currentEvent=currentEvent||{id:eventId};currentEvent.ticket_types=rows.map((row,i)=>{const p=brvtalTicketPayload(row,eventId,i);return {...p,id:Number(row.dataset.id||0)}})}
 function eventPreviewLineup(){
   const existing=new Map(
     (Array.isArray(currentEvent?.lineup)?currentEvent.lineup:[])
@@ -161,7 +181,7 @@ function eventPreviewPayload(){
     ticket_instructions:$('#e_ticket_instructions').value,
     ticket_url:$('#e_ticket_url').value,
     ticket_types:$$('#tickets .ticket-row').map((row,index)=>
-      ticketPayload(row,Number(currentEvent?.id||0),index)
+      brvtalTicketPayload(row,Number(currentEvent?.id||0),index)
     ),
     lineup:eventPreviewLineup()
   };
