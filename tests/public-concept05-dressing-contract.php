@@ -57,6 +57,14 @@ dressing_assert(
     'Home identity must load the Concept 05 Hero data projection runtime'
 );
 dressing_assert(
+    str_contains($identity, 'css/public-concept05-experience.css'),
+    'Home identity must load the authored Concept 05 Next Experience stylesheet'
+);
+dressing_assert(
+    str_contains($identity, 'js/public-concept05-experience.js'),
+    'Home identity must load the fail-closed Next Experience media runtime'
+);
+dressing_assert(
     str_contains($identity, 'data-c5-hero-documentary'),
     'Concept 05 Hero must expose a documentary media surface'
 );
@@ -100,6 +108,14 @@ dressing_assert(
 dressing_assert(
     substr_count($identityIdempotent, 'js/public-concept05-hero.js') === 1,
     'Concept 05 Hero runtime must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($identityIdempotent, 'css/public-concept05-experience.css') === 1,
+    'Concept 05 Next Experience stylesheet must not duplicate on repeated calls'
+);
+dressing_assert(
+    substr_count($identityIdempotent, 'js/public-concept05-experience.js') === 1,
+    'Concept 05 Next Experience runtime must not duplicate on repeated calls'
 );
 dressing_assert(
     substr_count($identityIdempotent, '<figure class="c5-hero-documentary" data-c5-hero-documentary') === 1,
