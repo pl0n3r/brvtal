@@ -156,9 +156,29 @@
 }
 @media(min-width:901px) and (max-width:1180px){
   [data-concept="05"] .c5-header-origin{display:none}
-  [data-concept="05"] .nav{gap:7px;padding-left:20px;padding-right:20px}
-  [data-concept="05"] .c5-header-nav{gap:7px}
+  [data-concept="05"] .nav{
+    grid-template-columns:auto minmax(0,1fr) auto auto;
+    gap:4px;
+    padding-left:12px;
+    padding-right:12px
+  }
   [data-concept="05"] .nav .brand>small{display:none}
+  [data-concept="05"] .nav .brand>span{font-size:18px}
+  [data-concept="05"] .c5-header-nav{
+    justify-self:stretch;
+    justify-content:center;
+    gap:5px
+  }
+  [data-concept="05"] .c5-header-nav a{font-size:7px;letter-spacing:.03em}
+  [data-concept="05"] .c5-header-ticket{min-height:34px;padding:0 8px;font-size:8px}
+  [data-concept="05"] .nav-right .sound,
+  [data-concept="05"] .nav-right .menu{
+    min-width:0;
+    min-height:40px;
+    padding-left:7px;
+    padding-right:7px;
+    font-size:8px
+  }
 }
 @media(max-width:900px){
   [data-concept="05"] .nav{
