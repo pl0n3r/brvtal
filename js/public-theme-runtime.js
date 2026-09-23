@@ -34,6 +34,33 @@
     return /^[a-z0-9\s,"'_-]{1,180}$/i.test(raw) ? raw : fallback;
   }
 
+  const GOOGLE_FONT_QUERY = Object.freeze({
+    'Space Grotesk':'Space+Grotesk:wght@400;500;600;700',
+    'Barlow Condensed':'Barlow+Condensed:wght@400;500;600;700;800;900',
+    'Inter Tight':'Inter+Tight:wght@400;500;600;700;800',
+    'Space Mono':'Space+Mono:wght@400;700',
+    'IBM Plex Mono':'IBM+Plex+Mono:wght@400;500;600;700',
+  });
+
+  function fontFamilyName(stack) {
+    return String(stack || '').split(',')[0].trim().replace(/^["']|["']$/g, '');
+  }
+
+  function ensureThemeFonts(typography) {
+    const families = [...new Set(['display','body','mono']
+      .map(key => GOOGLE_FONT_QUERY[fontFamilyName(typography?.[key])])
+      .filter(Boolean))];
+    let link = document.getElementById('brvtal-theme-fonts');
+    if (!families.length) { link?.remove(); return; }
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'brvtal-theme-fonts';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    link.href = 'https://fonts.googleapis.com/css2?' + families.map(family => 'family=' + family).join('&') + '&display=swap';
+  }
+
   function bool(value, fallback = true) {
     return typeof value === 'boolean' ? value : fallback;
   }
@@ -76,7 +103,7 @@
       html[data-theme-menu-style="dropdown"] .menu-panel nav a{font-size:clamp(42px,7vw,96px)}
       .theme-preloader-logo{display:block;max-width:min(390px,72vw);max-height:110px;object-fit:contain;margin:20px 0 14px}
       .loader-inner[data-theme-wordmark="1"] .loader-mark{display:none}
-      html{--theme-display-font:"Barlow Condensed",Arial,sans-serif;--theme-body-font:"Barlow Condensed",Arial,sans-serif;--theme-mono-font:"Space Mono",monospace}
+      html{--theme-display-font:"Space Grotesk",Arial,sans-serif;--theme-body-font:"Space Grotesk",Arial,sans-serif;--theme-mono-font:"Space Mono",monospace}
       body{font-family:var(--theme-body-font)}
       h1,h2,h3,h4,.brand,.menu-panel nav a,.loader-mark{font-family:var(--theme-display-font)}
       .mono,.eyebrow,.hero-sub,.hero-bottom,.scene-index,.nav-center,.sound,.menu,.event-status,.set-num{font-family:var(--theme-mono-font)}
@@ -312,6 +339,7 @@
 
   function applyTypography(typography) {
     const t = typography || {};
+    ensureThemeFonts(t);
     setToken('--theme-display-font', safeFont(t.display));
     setToken('--theme-body-font', safeFont(t.body));
     setToken('--theme-mono-font', safeFont(t.mono));

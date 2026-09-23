@@ -66,4 +66,26 @@ concept05_assert(
     'root hook must be appended to <body> without dropping existing attributes'
 );
 
+$concept05Styles = glob(__DIR__ . '/../css/public-concept05-*.css') ?: [];
+concept05_assert(count($concept05Styles) >= 7, 'Concept 05 font-token contract must inspect the authored stylesheet family');
+foreach ($concept05Styles as $stylesheet) {
+    $css = file_get_contents($stylesheet);
+    if ($css === false) {
+        concept05_assert(false, 'Concept 05 stylesheet must be readable: ' . basename($stylesheet));
+    }
+    $withoutMonoFallback = str_replace(
+        'var(--theme-mono-font,"Space Mono",monospace)',
+        '',
+        $css
+    );
+    concept05_assert(
+        !str_contains($withoutMonoFallback, '"Space Mono",monospace'),
+        'Concept 05 mono typography must use the active Theme Studio token: ' . basename($stylesheet)
+    );
+    concept05_assert(
+        !str_contains($css, '"Barlow Condensed",sans-serif'),
+        'Concept 05 body typography must use the active Theme Studio token: ' . basename($stylesheet)
+    );
+}
+
 echo "OK\n";
