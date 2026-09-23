@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/media.php';
 require_once __DIR__ . '/../config/media_integrity.php';
+require_once __DIR__ . '/../config/media_dedup.php';
 
 brvtal_admin_require();
 header('X-Content-Type-Options: nosniff');
@@ -15,7 +16,7 @@ $id = isset($_GET['id']) && ctype_digit((string)$_GET['id']) ? (int)$_GET['id'] 
 
 function brvtal_media_find(PDO $pdo, int $id, bool $lock = false): ?array
 {
-    $sql = 'SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at FROM media WHERE id=? LIMIT 1';
+    $sql = 'SELECT ' . brvtalMediaDedupSelectColumns($pdo) . ' FROM media WHERE id=? LIMIT 1';
     if ($lock) {
         $sql .= ' FOR UPDATE';
     }
@@ -43,11 +44,25 @@ function brvtal_media_safe_text(mixed $value, int $max): string
     return mb_substr(trim((string)$value), 0, $max);
 }
 
+function brvtalMediaReuseUpload(PDO $pdo, array $row, string $contentHash, string $source): never
+{
+    $fresh = brvtal_media_find($pdo, (int)($row['id'] ?? 0)) ?? $row;
+    brvtal_media_json_response([
+        'ok' => true,
+        'duplicate' => true,
+        'reused' => true,
+        'dedupe_source' => $source,
+        'content_hash' => $contentHash,
+        'data' => brvtal_media_asset_payload($fresh),
+    ]);
+}
+
 try {
     if ($method === 'GET' && $action === 'list') {
         $rows = $pdo->query(
-            'SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at FROM media ORDER BY created_at DESC,id DESC'
+            'SELECT ' . brvtalMediaDedupSelectColumns($pdo) . ' FROM media ORDER BY created_at DESC,id DESC'
         )->fetchAll();
+        $dedupSchema = brvtalMediaDedupSchemaState($pdo);
         $data = array_map('brvtal_media_asset_payload', $rows ?: []);
         brvtal_media_json_response([
             'ok' => true,
@@ -56,6 +71,7 @@ try {
                 'gd' => extension_loaded('gd'),
                 'webp' => function_exists('imagewebp'),
                 'max_upload_bytes' => 25 * 1024 * 1024,
+                'deduplication' => $dedupSchema,
             ],
         ]);
     }
@@ -112,6 +128,31 @@ try {
             brvtal_media_json_response(['ok' => false, 'error' => 'INVALID_IMAGE'], 422);
         }
 
+        $dedupSchema = brvtalMediaDedupSchemaState($pdo);
+        $contentHash = null;
+        if ($dedupSchema['ready']) {
+            $contentHash = brvtalMediaContentHash($tmp);
+            $duplicate = brvtalMediaFindDuplicate($pdo, $contentHash, $size, $mime);
+            if (!$duplicate['scan_complete']) {
+                brvtal_media_json_response([
+                    'ok' => false,
+                    'error' => 'MEDIA_DEDUP_LEGACY_SCAN_LIMIT',
+                    'hashed_candidates' => $duplicate['hashed_candidates'],
+                    'skipped_candidates' => $duplicate['skipped_candidates'],
+                    'bytes_hashed' => $duplicate['bytes_hashed'],
+                    'deduplication' => $dedupSchema,
+                ], 409);
+            }
+            if (is_array($duplicate['duplicate'])) {
+                brvtalMediaReuseUpload(
+                    $pdo,
+                    $duplicate['duplicate'],
+                    $contentHash,
+                    (string)($duplicate['source'] ?? 'indexed')
+                );
+            }
+        }
+
         $year = date('Y');
         $month = date('m');
         $directory = dirname(__DIR__) . '/uploads/media/' . $year . '/' . $month;
@@ -136,11 +177,28 @@ try {
         $alt = brvtal_media_safe_text($_POST['alt_text'] ?? '', 255);
 
         try {
-            $st = $pdo->prepare(
-                'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
-            );
-            $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'draft']);
+            if ($contentHash !== null) {
+                $st = $pdo->prepare(
+                    'INSERT INTO media(type,title,file_path,mime_type,file_size,content_hash,alt_text,status) ' .
+                    'VALUES(?,?,?,?,?,?,?,?)'
+                );
+                $st->execute([$type, $title, $publicPath, $mime, $size, $contentHash, $alt, 'draft']);
+            } else {
+                $st = $pdo->prepare(
+                    'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
+                );
+                $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'draft']);
+            }
             $mediaId = (int)$pdo->lastInsertId();
+        } catch (PDOException $e) {
+            @unlink($absolute);
+            if ($contentHash !== null && brvtalMediaIsUniqueHashConflict($e)) {
+                $winner = brvtalMediaFindByContentHash($pdo, $contentHash);
+                if ($winner !== null) {
+                    brvtalMediaReuseUpload($pdo, $winner, $contentHash, 'concurrent_race');
+                }
+            }
+            throw $e;
         } catch (Throwable $e) {
             @unlink($absolute);
             throw $e;
@@ -154,7 +212,15 @@ try {
         $row = brvtal_media_find($pdo, $mediaId);
         brvtal_media_json_response([
             'ok' => true,
-            'data' => $row ? brvtal_media_asset_payload($row) : ['id' => $mediaId, 'file_path' => $publicPath],
+            'duplicate' => false,
+            'reused' => false,
+            'content_hash' => $contentHash,
+            'deduplication' => $dedupSchema,
+            'data' => $row ? brvtal_media_asset_payload($row) : [
+                'id' => $mediaId,
+                'file_path' => $publicPath,
+                'content_hash' => $contentHash,
+            ],
         ], 201);
     }
 

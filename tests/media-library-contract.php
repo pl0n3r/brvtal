@@ -64,6 +64,8 @@ media_assert(str_contains($api, 'brvtal_media_integrity_usage'), 'delete/detail 
 media_assert(str_contains($mediaIntegrity, 'brvtal_media_usage($pdo, $media)') && str_contains($mediaIntegrity, 'brvtal_media_duplicate_usage($pdo, $media)'), 'integrity-aware usage must preserve editorial references and add duplicate local Media ownership');
 media_assert(str_contains($api, "25 * 1024 * 1024"), 'upload size ceiling must be explicit');
 media_assert(str_contains($api, "image/webp"), 'WebP uploads must be supported');
+media_assert(!str_contains($api, "MEDIA_DEDUP_MIGRATION_REQUIRED"), 'physical upload must remain available before the optional dedup schema is activated');
+media_assert(str_contains($api, "brvtalMediaFindDuplicate"), 'physical upload must use exact-content deduplication before storage when schema is ready');
 media_assert(str_contains($api, "\$action === 'transform'"), 'Media Engine v2 must expose a focal-point transform action');
 media_assert(str_contains($api, 'brvtal_media_remove_generated_variants'), 'regeneration must clean previously tracked variants');
 media_assert(!str_contains($api, "image/svg+xml"), 'SVG uploads stay disabled until a sanitizer exists');
@@ -76,7 +78,10 @@ $uploadStart = strpos($api, "if (\$method === 'POST' && \$action === 'upload')")
 $registerStart = strpos($api, "if (\$method === 'POST' && \$action === 'register')");
 media_assert($uploadStart !== false && $registerStart !== false && $registerStart > $uploadStart, 'upload source block must remain discoverable');
 $uploadSource = substr($api, $uploadStart, $registerStart - $uploadStart);
-media_assert(str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$alt, 'draft']);"), 'new physical uploads must be persisted as draft');
+media_assert(
+    str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$contentHash, \$alt, 'draft']);"),
+    'new physical uploads must be persisted as draft'
+);
 media_assert(!str_contains($uploadSource, "'published'"), 'upload path must not silently publish newly uploaded assets');
 media_assert(preg_match("/FROM media\\s+WHERE status='published'/", $publicApi) === 1, 'public Media must remain limited to explicitly published records');
 media_assert(str_contains($mediaConfig, "in_array(\$mime, ['image/jpeg', 'image/png'], true)"), 'JPEG and PNG uploads must generate a generic preserve-aspect WebP');

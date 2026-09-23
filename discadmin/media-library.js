@@ -316,6 +316,7 @@ window.BRVTALMediaLibrary = (() => {
     box.innerHTML = `<div class="media-inspector-preview">${visual}</div><div class="media-inspector-body">
       <h3>${esc(item.title || 'Untitled')}</h3><div class="media-inspector-path">${esc(original(item) || item.file_path)}</div>
       <div class="media-inspector-grid"><div class="media-fact"><span>TYPE</span><b>${esc(item.type)}</b></div><div class="media-fact"><span>SIZE</span><b>${esc(bytes(item.file_size))}</b></div><div class="media-fact"><span>DIMENSIONS</span><b>${esc(dims)}</b></div><div class="media-fact"><span>STATUS</span><b>${esc(item.status)}</b></div></div>
+      ${item.content_hash ? `<div class="media-inspector-path"><b>SHA-256</b> · ${esc(item.content_hash)}</div>` : ''}
       <label for="media-edit-title">TITLE</label><input id="media-edit-title" value="${esc(item.title || '')}">
       <label for="media-edit-alt">ALT TEXT</label><input id="media-edit-alt" value="${esc(item.alt_text || '')}">
       <label for="media-edit-status">PUBLICATION</label><select id="media-edit-status"><option value="published" ${item.status==='published'?'selected':''}>PUBLISHED</option><option value="draft" ${item.status==='draft'?'selected':''}>DRAFT</option></select>
@@ -376,6 +377,15 @@ window.BRVTALMediaLibrary = (() => {
     }
   }
 
+  function renderEngineStatus() {
+    if (store.engine?.deduplication && !store.engine.deduplication.ready) {
+      status('MEDIA ENGINE: DEDUP MIGRATION REQUIRED · ' + (store.engine.deduplication.migration || 'migration pending'), 'err');
+      return;
+    }
+    const ready = Boolean(store.engine?.gd && store.engine?.webp);
+    status(ready ? 'MEDIA ENGINE ONLINE' : 'MEDIA ENGINE: ORIGINALS ONLY ON THIS PHP RUNTIME', ready ? 'ok' : '');
+  }
+
   async function refresh(selectId = null) {
     if (store.loading) return;
     store.loading = true;
@@ -389,7 +399,7 @@ window.BRVTALMediaLibrary = (() => {
         const still = store.items.some(x => Number(x.id) === Number(store.selected.id));
         if (still) await select(store.selected.id); else { store.selected = null; renderInspector(null); }
       }
-      status(store.engine?.gd && store.engine?.webp ? 'MEDIA ENGINE ONLINE' : 'MEDIA ENGINE: ORIGINALS ONLY ON THIS PHP RUNTIME', store.engine?.gd && store.engine?.webp ? 'ok' : '');
+      renderEngineStatus();
     } catch (e) { status('Media library failed: ' + e.message, 'err'); }
     finally { store.loading = false; }
   }
@@ -404,7 +414,15 @@ window.BRVTALMediaLibrary = (() => {
         const fd = new FormData(); fd.append('file',file); fd.append('title',file.name.replace(/\.[^.]+$/,''));
         const j = await request('?action=upload',{method:'POST',body:fd});
         await refresh(j.data?.id || null);
-        status('Uploaded ' + file.name + '.', 'ok');
+        if (j.duplicate === true && j.reused === true) {
+          status('Duplicate detected — existing asset reused.', 'ok');
+        } else if (j.deduplication?.ready === false) {
+          const message = 'Uploaded ' + file.name + ' · duplicate detection pending migration.';
+          status(message);
+          notify('warning', message, {timeout:5200});
+        } else {
+          status('Uploaded ' + file.name + '.', 'ok');
+        }
       } catch (e) { status('Upload failed: ' + (e.payload?.error || e.message), 'err'); }
     }
   }
