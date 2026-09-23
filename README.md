@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+782** | **−67** | **+715** |
+| **13** | **+801** | **−69** | **732** |
 
 ## Calidad y entrega
 
@@ -38,7 +38,7 @@
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR integrity | **PR + snapshot exacto** · Issue #599 · `work/issue-599` |
-| Browser | 🚧 header 1440/1024 · mobile 390 · active state · modal lock · footer/legal · reduced motion |
+| Browser | 🚧 header 1440/1024 · mobile 390 · active state · modal lock · footer/legal · Contact · reduced motion |
 | Sonar | 🚧 Quality Gate sobre head estable |
 | CodeRabbit | 🚧 review final sobre head estable |
 | Exact-main | 🚧 **CI del SHA exacto de main** después del squash merge |
@@ -77,6 +77,7 @@ flowchart LR
 - `js/public-concept05-shell.js` — active navigation, modal interlock, privacy Page y year.
 - `package.json` — sincronización de versión 0.1.32.
 - `tests/e2e/public-concept05-shell.spec.mjs` — 1440/1024/390, modal lock, privacy y reduced motion.
+- `tests/public-contact-contract.php` — valida `/contact` contra los renderers Concept 05 en lugar del rewrite legacy eliminado.
 - `tests/public-concept05-dressing-contract.php` — contrato de menú/footer/mobile nav e idempotencia.
 - `tests/public-concept05-foundation-contract.php` — carga/idempotencia de assets del shell.
 - `tests/public-home-contract.php` — Next Experience → overlay/header Tickets.
@@ -86,7 +87,8 @@ flowchart LR
 
 - Base exacta `546ae7efbdd78d44425abd8ae4e6bd8884437c83`: BRVTAL CI/`validate`, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #599.
 - #599 fue reservado atómicamente antes de modificar `work/issue-599`.
-- #596 permanece reservado por otra sesión/agente; esta línea no lo modifica ni duplica su trabajo.
+- #596/#598 ya está integrado en la base v0.1.31; #599 parte de ese exact-main y no duplica esa entrega.
+- CI del head previo detectó dos regresiones de prueba: el contrato Contact seguía atado al rewrite legacy y la geometría 1024 medía un origin intencionalmente oculto; ambos contratos se corrigieron sin reintroducir código legacy.
 - No hay nuevo fetch público, migraciones, nuevas rutas ni campos CMS.
 - Producción se observará por separado; CI verde no se presentará como prueba de deploy.
 
@@ -97,7 +99,7 @@ flowchart LR
 | **NOW** | 🚧 [#599](https://github.com/pl0n3r/brvtal/issues/599) · cerrar public shell y validar exact-main. |
 | **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · evaluar cierre del contrato público y pendientes reales de fidelidad. |
 | **LATER** | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351) Theme Studio + [#529](https://github.com/pl0n3r/brvtal/issues/529) Preview; luego #398. |
-| **BLOCKED / EXTERNAL** | 🚧 #596 reservado por otra línea; no se toma mientras su reserva siga vigente. |
+| **BLOCKED / EXTERNAL** | — |
 
 ## Panorama general pendiente
 
