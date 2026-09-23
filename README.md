@@ -37,7 +37,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #272 · `work/issue-272` · UUID `a55dcb7d-8943-45f7-bab4-19c984fa1e16` |
+| PR integrity | **PR + snapshot exacto** · Issue #272 · `work/issue-272` · UUID `f4e30caa-9da0-423f-9529-0c5f49df8d0b` |
 | Public SEO | 🚧 MusicEvent, MusicGroup, MusicRecording, MusicAlbum, BlogPosting; fallback WebPage |
 | Sonar | 🚧 Quality Gate sobre head final |
 | CodeRabbit | 🚧 full review sobre head final |
