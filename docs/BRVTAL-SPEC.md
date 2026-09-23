@@ -254,16 +254,6 @@ Public Related Content foundation is implemented and must only resolve through e
 
 ## 22. SEO and Content Health
 
-### Entity-specific public structured data
-
-- The JSON-LD family is built from the same canonical, published/visible row as the public page, not from separate client-side metadata. A draft artist may never reappear through `performer` or `byArtist`.
-- A dated, located public Event exposes `MusicEvent`, local ISO-8601 `startDate`, genuine `Place`/city and a lifecycle-aware `eventStatus` (scheduled, completed or cancelled). SQL DATETIME fields have no timezone metadata: do not invent UTC or infer a timezone from the web server.
-- A published Blog exposes its genuine publication and modification timestamps; Releases expose real release dates, catalog IDs and published linked artists; Sets expose their published linked artist and validated public listening URL; Artist identity URLs are only published when configured and valid.
-- If an Event lacks a valid date or location, a Blog lacks its publication date, or a Set has neither a public artist nor a safe listening link, publish neutral `WebPage` JSON-LD rather than inventing rich-result properties. The HTTP/publication policy and existing canonical URL must remain unchanged.
-- External entity references accept HTTP(S) URLs without embedded credentials. Only published artist relations appear in JSON-LD. No new schema migration or separate schema CMS is required.
-
-
-
 Support title, description, canonical, Open Graph/social previews, Google preview and structured data when appropriate.
 
 Public delivery uses server-rendered metadata for Home and published entity routes. Canonical route families are `/events/{slug}`, `/artists/{slug}`, `/sets/{slug}`, `/releases/{slug}`, `/blog/{slug}` and `/pages/{slug}`. The public sitemap contains published entities only; unknown, draft or private entity routes return `404` with `noindex`.
@@ -279,6 +269,15 @@ Editorial SEO defaults are automatic but non-destructive:
 The CMS calculates a **Content Health Score** and warns about missing SEO, missing images, incomplete information and common errors.
 
 CMS intelligence advises; it does **not** autonomously publish or irreversibly modify editorial content.
+
+### Entity-specific public structured data
+
+- The JSON-LD family is built from the same canonical, published/visible row as the public page, not from separate client-side metadata. A draft artist may never reappear through `performer` or `byArtist`.
+- A dated, located public Event exposes `MusicEvent`, local ISO-8601 `startDate`, genuine `Place`/city and a lifecycle-aware `eventStatus` (scheduled, completed or cancelled). SQL DATETIME fields have no timezone metadata: do not invent UTC or infer a timezone from the web server.
+- A published Blog exposes its genuine publication and modification timestamps; Releases expose real release dates, catalog IDs and published linked artists; Sets expose their published linked artist and validated public listening URL; Artist identity URLs are only published when configured and valid.
+- If an Event lacks a valid date or location, a Blog lacks its publication date, a Release has neither a valid release date nor a published artist, or a Set has neither a public artist nor a safe listening link, publish neutral `WebPage` JSON-LD rather than inventing rich-result properties. The HTTP/publication policy and existing canonical URL must remain unchanged.
+- External entity references accept HTTP(S) URLs without embedded credentials. Only published artist relations appear in JSON-LD. No new schema migration or separate schema CMS is required.
+
 
 ## 23. DISCADMIN search and bulk actions
 
