@@ -3,11 +3,12 @@
 -- Legacy active => member; alumni/none => not a current member.
 -- Idempotent direct re-runs never overwrite canonical edits after the first add.
 
-SET @noop_sql := @noop_sql;
+SET @noop_sql := 'SELECT 1';
+SET @artists_table := 'artists';
 
 SET @membership_exists := (
   SELECT COUNT(*) FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artists' AND COLUMN_NAME='is_collective_member'
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=@artists_table AND COLUMN_NAME='is_collective_member'
 );
 SET @membership_added := IF(@membership_exists=0,1,0);
 SET @sql := IF(
@@ -19,7 +20,7 @@ PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 SET @legacy_status_exists := (
   SELECT COUNT(*) FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artists' AND COLUMN_NAME='collective_status'
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=@artists_table AND COLUMN_NAME='collective_status'
 );
 SET @sql := IF(
   @membership_added=1 AND @legacy_status_exists=1,
@@ -30,7 +31,7 @@ PREPARE s FROM @sql; EXECUTE s; DEALLOCATE PREPARE s;
 
 SET @idx := (
   SELECT COUNT(*) FROM information_schema.STATISTICS
-  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='artists' AND INDEX_NAME='idx_artists_collective_member'
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=@artists_table AND INDEX_NAME='idx_artists_collective_member'
 );
 SET @sql := IF(
   @idx=0,
