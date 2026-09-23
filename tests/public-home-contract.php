@@ -59,7 +59,15 @@ public_home_expect(str_contains($section, 'BRVTAL × SIGNAL UNIT'), 'Administrab
 public_home_expect(str_contains($section, 'PREVENTA') && str_contains($section, '45.000 COP'), 'Canonical Ticket Type price must project into the event takeover');
 public_home_expect(str_contains($section, 'DOOR') && str_contains($section, '60.000 COP'), 'A second canonical Ticket Type may provide the secondary Door price');
 public_home_expect(str_contains($section, 'href="https://tickets.example.com/tension"'), 'Valid canonical ticket URL must power the Tickets action');
-public_home_expect(str_contains($rendered, '<a href="#genesis"><span>02</span>TENSION &amp; NOISE</a>'), 'Navigation label must follow the selected event instead of staying on Genesis');
+public_home_expect(
+    str_contains($rendered, '<strong data-c5-next-label>TENSION &amp; NOISE</strong>'),
+    'Overlay navigation must follow the selected event instead of staying on Genesis'
+);
+public_home_expect(
+    str_contains($rendered, 'class="c5-header-ticket magnetic"')
+        && str_contains($rendered, 'href="https://tickets.example.com/tension"'),
+    'Valid Next Experience ticketing must project into the authored desktop header'
+);
 $heroPos = strpos($rendered, '<section class="hero scene');
 $experiencePos = strpos($rendered, '<section class="genesis scene');
 $manifestoPos = strpos($rendered, '<section class="manifesto scene');
@@ -77,7 +85,15 @@ $unsafe = brvtal_public_render_next_experience($index, [
     'status'=>'published',
     'city'=>'Pereira',
 ]);
-public_home_expect(!str_contains($unsafe, '<script>alert(1)</script>') && str_contains($unsafe, '&lt;script&gt;alert(1)&lt;/script&gt;'), 'CMS event text must be HTML-escaped before Home rendering');
+public_home_expect(
+    !str_contains($unsafe, '<script>alert(1)</script>')
+        && str_contains($unsafe, '&lt;script&gt;alert(1)&lt;/script&gt;'),
+    'CMS event text must be HTML-escaped before Home rendering'
+);
+public_home_expect(
+    !str_contains($unsafe, 'class="c5-header-ticket'),
+    'Event without a valid public ticket destination must not create a header Tickets CTA'
+);
 
 $fallback = brvtal_public_render_next_experience($index, null);
 $fallbackStart = strpos($fallback, '<section class="genesis scene');

@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #597.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #599.
 
 ## Progress convention
 
@@ -17,9 +17,9 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#597 · Concept 05 JOURNAL + CONNECTED authored 1440/390** | parent #583 |
-| Base exacta | ✅ ~~main v0.1.30 validado + deploy/performance observados~~ | `86c2d2410fd11b1d1c67e02a25d2930a77c43c9f` |
-| Versión | 🚧 **0.1.31** | cambio visible de producto/runtime público |
+| Work line | 🚧 **#599 · Concept 05 public shell authored 1440/390** | parent #583 |
+| Base exacta | ✅ ~~main v0.1.31 validado + deploy/performance observados~~ | `546ae7efbdd78d44425abd8ae4e6bd8884437c83` |
+| Versión | 🚧 **0.1.32** | cambio visible de shell/runtime público |
 | Producción | 🚧 pendiente de PR → merge → exact-main | sin migración de esquema |
 
 ## Huella del cambio
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+984** | **−105** | **+879** |
+| **13** | **+826** | **−69** | **+757** |
 
 ## Calidad y entrega
 
@@ -37,8 +37,8 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #597 · `work/issue-597` · UUID `b2c93a85-2f28-4a99-9b29-e92fd3bda92f` |
-| Browser | 🚧 geometría/behavior 1440 + 390 + broken cover + zero-relations + reduced motion |
+| PR integrity | **PR + snapshot exacto** · Issue #599 · `work/issue-599` |
+| Browser | 🚧 header 1440/1024 · mobile 390 · active state · modal lock · footer/legal · Contact · reduced motion |
 | Sonar | 🚧 Quality Gate sobre head estable |
 | CodeRabbit | 🚧 review final sobre head estable |
 | Exact-main | 🚧 **CI del SHA exacto de main** después del squash merge |
@@ -47,8 +47,8 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.30 verde"] --> J["#597 JOURNAL + CONNECTED"]
- J --> P["PR · CI · Sonar · CodeRabbit"]
+ B["main v0.1.31 verde"] --> S["#599 PUBLIC SHELL"]
+ S --> P["PR · CI · Sonar · CodeRabbit"]
  P --> M["Squash merge"]
  M --> X["Exact-main CI"]
  X --> D["Deploy Observer + Performance"]
@@ -56,53 +56,55 @@ flowchart LR
 
 ## Qué se hizo
 
-- **06 / JOURNAL** reutiliza `public-transmissions.js` y Blog como única fuente editorial.
-- El primer post real se convierte en feature zine/newspaper con `cover_image`, fecha, tags, excerpt y relaciones públicas reales; el resto conserva un índice editorial compacto.
-- Cada entrada usa `/blog/{slug}`; relaciones Blog → Event/Artist/Set/Release solo aparecen cuando resuelven a entidades públicas con slug canónico.
-- Cover ausente o roto falla cerrado sin broken-image chrome y sin perder titular/ruta/copy.
-- El Home corrige el orden visual heredado para respetar **05 MEMORIES → 06 JOURNAL → 07 CONNECTED**.
-- **07 / CONNECTED** usa exclusivamente `payload.relations.counts`; cada línea SVG y cada ledger item existe solo si el backend reporta al menos una relación real.
-- Conteos de nodos vienen de Events activos+archivo deduplicados, Artists, Sets, Releases y Memories; cero relaciones no produce líneas falsas.
-- Los nodos navegan solo a superficies públicas existentes (`#events`, `#artists`, `#sets`, `/releases`, `#media`).
-- Desktop 1440 usa feature editorial + índice lateral y grafo horizontal; mobile 390 refluye a feature vertical + grafo 2-columnas touch-safe.
-- No se añadió fetch, CMS, grafo ni ownership GSAP paralelo.
+- Header Concept 05 queda como una barra editorial compacta con BRVTAL, NIGHTS / ARTISTS / SOUND / RECORDS / JOURNAL / CONNECTED y origen `PEREIRA / COLOMBIA`.
+- El CTA rojo **TICKETS →** solo aparece cuando el Next Experience ya seleccionado expone un destino HTTP(S) canónico; no se hace un segundo lookup ni un segundo fetch.
+- El contador/escena legacy del header se neutraliza en Concept 05 para evitar una sexta columna implícita y colisiones.
+- El overlay MENU deja la IA legacy y usa el vocabulario público Concept 05, conservando el mismo modal/focus trap/scroll lock accesible.
+- Mobile bottom nav mantiene NIGHTS / ARTISTS / SOUND / RECORDS / JOURNAL con icono + label, targets >=44 px, active state por sección/hash y safe-area.
+- Cuando el menú modal está abierto, el bottom nav queda oculto, `aria-hidden` e `inert`; vuelve a estar disponible al cerrar.
+- Footer se convierte en un cierre editorial con wordmark grande, origen, tagline administrable, destinos reales, CONTACT/COLLABORATE → `/contact`, sociales configurables y copyright dinámico.
+- Socials arrancan ocultos y reutilizan los hooks `data-social` existentes; Instagram/SoundCloud/YouTube/Website siguen a `settings.social` y Spotify a Theme Branding Sync.
+- PRIVACY aparece únicamente si el payload público compartido contiene una Page publicada con slug compatible; en caso contrario permanece fail-closed.
+- El runtime del shell reutiliza `BRVTALPublicDataPromise`; no crea requests, rutas, CMS ni estado paralelo.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del deploy y gates.
-- `config/public_home.php` — asset authored y markup relacional real de CONNECTED.
-- `config/version.php` — versión pública 0.1.31.
-- `css/public-concept05-journal-connected.css` — geometría authored 1440/390 de JOURNAL + CONNECTED.
-- `index.html` — orden canónico MEMORIES → JOURNAL en el fallback/base público.
-- `index.php` — framing público de TRANSMISSIONS como JOURNAL.
-- `js/public-concept05-connected.js` — conteos y edges agregados solo desde relaciones verificadas.
-- `js/public-transmissions.js` — feature/index Journal, cover fail-closed y rutas/relaciones canónicas.
-- `package.json` — sincronización de versión 0.1.31.
-- `tests/e2e/public-concept05-journal-connected.spec.mjs` — regresión 1440/390, graph edges, zero-relations y media rota.
-- `tests/public-concept05-dressing-contract.php` — contrato de assets, orden canónico y superficies CONNECTED.
+- `config/public_home.php` — header/menu/footer authored + Tickets CTA canónico.
+- `config/version.php` — versión pública 0.1.32.
+- `css/public-concept05-shell.css` — geometría authored desktop/mobile del shell.
+- `index.php` — elimina rewrites legacy ya absorbidos por el renderer canónico.
+- `js/public-concept05-shell.js` — active navigation, modal interlock, privacy Page y year.
+- `package.json` — sincronización de versión 0.1.32.
+- `tests/e2e/public-concept05-shell.spec.mjs` — 1440/1024/390, modal lock, privacy y reduced motion.
+- `tests/public-contact-contract.php` — valida `/contact` contra los renderers Concept 05 en lugar del rewrite legacy eliminado.
+- `tests/public-concept05-dressing-contract.php` — contrato de menú/footer/mobile nav e idempotencia.
+- `tests/public-concept05-foundation-contract.php` — carga/idempotencia de assets del shell.
+- `tests/public-home-contract.php` — Next Experience → overlay/header Tickets.
+- `tests/public-home-phase-a-contract.php` — Tickets válido/unsafe/sold-out también en header.
 
 ## Validación
 
-- Base exacta `86c2d2410fd11b1d1c67e02a25d2930a77c43c9f`: BRVTAL CI, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #597.
-- #597 fue reservado atómicamente antes de modificar `work/issue-597`.
-- Cobertura nueva verifica Blog canónico, relaciones resueltas, payload compartido, 1440/390, media rota, cero relaciones, touch targets y reduced motion.
-- CONNECTED nunca deriva líneas de decoración: cada edge depende de un contador real del grafo público.
-- No hay nuevo fetch, migraciones ni cambios de esquema.
-- Producción se observa por separado; CI verde no se presenta como prueba de deploy.
+- Base exacta `546ae7efbdd78d44425abd8ae4e6bd8884437c83`: BRVTAL CI/`validate`, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #599.
+- #599 fue reservado atómicamente antes de modificar `work/issue-599`.
+- La reserva duplicada #596 fue liberada y la Issue cerrada como duplicado: su scope ya fue entregado por #597 / PR #598 en v0.1.31.
+- CI del head previo detectó dos regresiones de prueba: el contrato Contact seguía atado al rewrite legacy y la geometría 1024 medía un origin intencionalmente oculto; ambos contratos se corrigieron sin reintroducir código legacy.
+- No hay nuevo fetch público, migraciones, nuevas rutas ni campos CMS.
+- Producción se observará por separado; CI verde no se presentará como prueba de deploy.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#597](https://github.com/pl0n3r/brvtal/issues/597) · cerrar JOURNAL + CONNECTED y validar exact-main. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · Footer + mobile navigation final fidelity. |
-| **LATER** | 🚧 Theme Studio/Admin controls y Preview; luego #398/#351 según roadmap. |
-| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo; reviewers externos son advisory salvo finding accionable. |
+| **NOW** | 🚧 [#599](https://github.com/pl0n3r/brvtal/issues/599) · cerrar public shell y validar exact-main. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · evaluar cierre del contrato público y pendientes reales de fidelidad. |
+| **LATER** | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351) Theme Studio + [#529](https://github.com/pl0n3r/brvtal/issues/529) Preview; luego #398. |
+| **BLOCKED / EXTERNAL** | 🚧 Sin bloqueos externos activos. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Concept 05 JOURNAL + CONNECTED | 🚧 [#597](https://github.com/pl0n3r/brvtal/issues/597) |
+| **NOW** | 🚧 Concept 05 public shell | 🚧 [#599](https://github.com/pl0n3r/brvtal/issues/599) |
 | **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
-| **LATER** | 🚧 visión pública / customization | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#351](https://github.com/pl0n3r/brvtal/issues/351) |
+| **LATER** | 🚧 customization / preview / cultural archive | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351), [#529](https://github.com/pl0n3r/brvtal/issues/529), [#398](https://github.com/pl0n3r/brvtal/issues/398) |
