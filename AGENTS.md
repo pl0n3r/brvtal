@@ -69,15 +69,14 @@ Routine safe authorization includes:
 - README snapshot refreshes;
 - squash merge when all required gates and branch/current-main checks allow it;
 - exact-main validation;
-- non-destructive deployment observation;
-- read-only production validation explicitly supported by the repository.
+- deployment observation;
+- production validation and production changes needed to advance BRVTAL while the project remains in active development, provided they are traceable, reversible where practical and preserve existing data.
 
 Stop and return control mainly when:
 
 - a real product decision cannot be inferred from code/spec/Issue;
 - required credentials or permissions are missing;
-- the next action is destructive/irreversible in production;
-- production data or a production migration would be changed;
+- the next production action is destructive/irreversible and lacks a safe rollback or data-preservation plan;
 - a protected external system requires human action;
 - all immediate useful compatible work is exhausted.
 
@@ -103,7 +102,7 @@ Parallelization is the default whenever operations are independent and safe.
 - **Merges to `main` are always serialized.**
 - Before merge, re-read current `main`, PR head and required gates. If `main` moved, recontrast before merging.
 - Do not start a dependent implementation branch before the prerequisite merge passes exact-main validation. Read-only preparation is allowed.
-- Never parallelize destructive production work or production migrations.
+- Serialize production writes and migrations that share mutable state; independent read-only production checks may run in parallel.
 
 ## 4. Multi-agent work coordination
 
@@ -193,12 +192,14 @@ For navigation, editors, Hero/Banners, Media, public relationships, analytics, I
 - Schema changes require explicit, data-safe migrations.
 - **Merging source never means a production migration ran.**
 
-Explicit user confirmation is required before:
+While BRVTAL remains in active development, production is an authorized mutable development environment. Routine production migrations, configuration fixes and data-safe corrective writes do not require another confirmation when they are necessary to deliver an accepted Issue and follow the repository's migration/deploy tooling.
 
-- destructive production SQL;
+Explicit user confirmation is still required before:
+
+- destructive production SQL with material data-loss risk;
 - production bulk deletion;
-- automatic restore/revert;
-- irreversible production data migration/action;
+- automatic restore/revert that can discard newer data;
+- an irreversible production action without a verified recovery path;
 - bypassing the GitHub → Hostinger deployment path.
 
 Never commit credentials, tokens, passwords, private user data or production database contents.
