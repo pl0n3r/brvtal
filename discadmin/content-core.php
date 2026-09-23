@@ -176,7 +176,19 @@ brvtal_admin_require();
     </div>
   </div>
 </div>
-<div class="step-content" data-content="4"><div class="section"><div class="sectionhead"><strong>TICKET TYPES</strong><button type="button" class="btn" onclick="BRVTALContentCore.addTicket()">+ ADD TICKET</button></div><div class="helper" style="margin-bottom:12px">No purchaser or attendee data is stored. Manage each type’s price/currency, lifecycle, availability window, payment details, QR and external destination here.</div><div id="tickets"></div></div></div>
+<div class="step-content" data-content="4">
+  <div class="section">
+    <div class="sectionhead">
+      <strong>TICKET TYPES</strong>
+      <button type="button" class="btn" onclick="BRVTALContentCore.addTicket()">+ ADD TICKET</button>
+    </div>
+    <div class="helper" style="margin-bottom:12px">
+      No purchaser or attendee data is stored. Manage price/currency, lifecycle, availability,
+      payment details, QR and external destination for each type.
+    </div>
+    <div id="tickets"></div>
+  </div>
+</div>
 <div class="step-content" data-content="5"><div class="section"><div class="sectionhead"><strong>BRVTAL COLLECTIVE / EVENT PARTICIPATION</strong></div><div class="helper" style="margin-bottom:12px">This is the event roster. It does not redefine the artist's collective history.</div><div id="eventArtists" class="artist-list"></div></div></div>
 </form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
 </div></div></div></div>
