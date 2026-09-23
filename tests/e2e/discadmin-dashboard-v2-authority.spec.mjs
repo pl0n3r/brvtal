@@ -78,16 +78,12 @@ test('Dashboard V2 releases reserved ownership when render becomes invalid', asy
   await page.evaluate(() => { state.section = 'events'; });
   releaseOverview();
   await expect(page.locator('#brvtal-dashboard-v2')).toHaveCount(0);
-
-  await page.evaluate(async () => {
-    state.section = 'dashboard';
-    await Promise.all([
-      window.BRVTALContentHealth.mount(),
-      window.BRVTALAdminActivity.mount(),
-    ]);
-  });
-  await expect(page.locator('#brvtal-content-health')).toBeVisible();
-  await expect(page.locator('#brvtal-admin-activity')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => state.section)).toBe('events');
+  await expect(page.locator('#brvtal-content-health')).toHaveCount(0);
+  await expect(page.locator('#brvtal-admin-activity')).toHaveCount(0);
+  // Legacy fallback ownership is covered independently below when Dashboard V2
+  // is absent. Re-entering dashboard here would intentionally wake the V2
+  // MutationObserver and turn this ownership-release test into a timing race.
 });
 
 test('NEXT EVENT keeps an unavailable overview source explicit', async ({page}) => {
