@@ -226,6 +226,17 @@ Media Engine v2 extends this foundation with editorial UX:
 - per-context quality/resolution guidance;
 - safe regeneration that preserves originals and removes superseded derived files.
 
+Media Engine v3 keeps the same public delivery keys while making generation incremental and inspectable:
+
+- source originals remain authoritative and receive a stable SHA-256/byte-size identity in sidecar metadata;
+- policy version, generator version and WebP quality are explicit;
+- same source + same policy + same focal point reuses valid derivatives without re-encoding;
+- focal-only changes regenerate crop-dependent outputs while preserving valid preserve-aspect derivatives;
+- missing/corrupt derivatives are repaired individually;
+- semantically equivalent logical keys may alias one physical WebP (notably `w1920 → display`) while public URL/reference semantics remain compatible;
+- each derivative records bytes and generated/reused/alias provenance so DISCADMIN never presents a skipped encode as freshly generated;
+- partial generation is reported as partial/error, never as a successful optimization run.
+
 Administrators should not manually prepare many versions of the same source image. Media should remain automatically organizable by date.
 
 ## 19. Pages
