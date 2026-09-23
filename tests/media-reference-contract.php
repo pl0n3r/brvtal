@@ -92,7 +92,6 @@ try {
     @unlink($imagePath);
     @unlink($textPath);
     @rmdir($testDir);
-    @rmdir(dirname($testDir));
 }
 
 echo "media-reference-contract: OK\n";
