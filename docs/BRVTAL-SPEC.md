@@ -159,7 +159,7 @@ POST requires CSRF and replaces event participation transactionally. Route parsi
 
 Artists have full CRUD and a rich profile model. Most fields should remain optional. Artists without images use a BRVTAL-consistent anonymous/incognito fallback rather than broken images.
 
-Collective membership/lifecycle is part of the model, including `artist_collective_history` and collective status/order/joined/left fields.
+Current BRVTAL membership is one internal boolean on the Artist (`is_collective_member`) and is edited only from Create/Edit Artist. Legacy collective status/order/joined/left fields are migration-era data, not current-state authority or admin controls. Existing `artist_collective_history` rows remain preserved as an audit trail; checkbox transitions may append/close history automatically, but history never drives current membership. During migration, legacy `active` maps to checked, while `alumni` and `none` map to unchecked because they are not current members.
 
 ## 13. Sets / Music
 

@@ -48,6 +48,7 @@ sed \
   database/schema.sql | "${mysql_root[@]}"
 
 "${mysql_db[@]}" < database/migration_content_core_01.sql
+"${mysql_db[@]}" < database/migration_artist_collective_membership_01.sql
 "${mysql_db[@]}" < database/migration_releases_01.sql
 "${mysql_db[@]}" < database/migration_blog_01.sql
 "${mysql_db[@]}" < database/migration_seo_01.sql
@@ -58,7 +59,7 @@ sed \
 
 ADMIN_HASH="$(php -r 'echo password_hash(getenv("BRVTAL_REAL_STACK_ADMIN_PASSWORD") ?: "brvtal-ci-password", PASSWORD_DEFAULT);')"
 "${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0);"
-"${mysql_db[@]}" -e "INSERT INTO artists(name,slug,bio,status,collective_status,collective_order) VALUES ('PL0N3R SMOKE','pl0n3r-smoke','Real-stack smoke artist','published','active',1),('DNL5 SMOKE','dnl5-smoke','Secondary smoke artist','published','active',2);"
+"${mysql_db[@]}" -e "INSERT INTO artists(name,slug,bio,status,is_collective_member,sort_order) VALUES ('PL0N3R SMOKE','pl0n3r-smoke','Real-stack smoke artist','published',1,1),('DNL5 SMOKE','dnl5-smoke','Secondary smoke artist','published',1,2);"
 
 mkdir -p storage/logs storage/rate_limits uploads/ci
 printf 'BRVTAL CI hero fixture\n' > uploads/ci/hero-integrity.jpg
