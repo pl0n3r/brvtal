@@ -454,15 +454,18 @@ window.BRVTALAdminModules = (() => {
   ensureStyle('brvtal-media-library-style','/discadmin/media-library.css');
   ensureStyle('brvtal-releases-style','/discadmin/releases.css');
   ensureStyle('brvtal-blog-style','/discadmin/blog.css');
+  ensureStyle('brvtal-seo-workspace-style','/discadmin/seo-workspace.css');
   const scriptDefinitions = new Map([
     ['media', ['brvtal-media-library-script','/discadmin/media-library.js','BRVTALMediaLibrary']],
     ['releases', ['brvtal-releases-script','/discadmin/releases.js','BRVTALReleases']],
-    ['blog', ['brvtal-blog-script','/discadmin/blog.js','BRVTALBlog']]
+    ['blog', ['brvtal-blog-script','/discadmin/blog.js','BRVTALBlog']],
+    ['seo', ['brvtal-seo-workspace-script','/discadmin/seo-workspace.js','BRVTALSEOWorkspace']]
   ]);
   const sectionDependencies = new Map([
     ['media', ['media']],
     ['releases', ['media','releases']],
-    ['blog', ['media','blog']]
+    ['blog', ['media','blog']],
+    ['seo', ['seo']]
   ]);
   const scriptReady = new Map();
   const sectionReady = new Map();
@@ -512,6 +515,9 @@ window.BRVTALAdminModules = (() => {
     }},
     blog: {url:'/discadmin/blog.php', mount:async root=>{
       BRVTALBlog.mount(root);
+    }},
+    seo: {url:'/discadmin/seo-workspace.php', mount:async root=>{
+      await BRVTALSEOWorkspace.mount(root);
     }}
   };
   let pending;
@@ -560,7 +566,8 @@ window.BRVTALAdminModules = (() => {
     if (!nav) return;
     const definitions = [
       ['releases','RELEASES'],
-      ['blog','BLOG']
+      ['blog','BLOG'],
+      ['seo','SEO']
     ];
     definitions.forEach(([section,label]) => {
       let button = nav.querySelector(`[data-admin-nav="${section}"]`);
@@ -603,7 +610,7 @@ window.BRVTALAdminModules = (() => {
 
   const originalGo=window.go;
   async function navigate(section) {
-    if(section==='media' || section==='releases' || section==='blog') {
+    if(sectionDependencies.has(section)) {
       prepareModuleWorkspace(section);
       await load(section);
       ensureDynamicNavigation();

@@ -107,9 +107,7 @@
   }
 
   function seoPane() {
-    const seo = jsonValue('seo');
     const indexnow = jsonValue('indexnow');
-    const share = seo.share_image || seo.og_image || '';
     const indexNowKey = String(indexnow.key || '').trim();
     const keyLocation = String(indexnow.key_location || '/indexnow-key.txt').trim();
     const endpoint = String(indexnow.endpoint || INDEXNOW_ENDPOINTS[0][0]).trim();
@@ -124,15 +122,11 @@
     const verificationUrl = `https://www.brvtal.com.co${keyLocationValid ? keyLocation : '/indexnow-key.txt'}`;
 
     return `<section class="sv2-pane ${V2.tab==='seo'?'active':''}" data-settings-pane="seo">
-      <header class="sv2-section-head"><div><span>03 / SEO</span><h3>Canonical site defaults</h3></div><p>Server-owned defaults for public documents plus event-driven indexing controls. Entity-specific SEO fields remain authoritative for Events, Artists, Sets, Releases, Blog and Pages.</p></header>
-      <div class="sv2-grid">${text('seo_title','Default Home title',seo.site_title || 'BRVTAL — Rave till Grave','Server-rendered Home title fallback.')}
-        <label class="sv2-field"><span>Default Home description</span><textarea id="sv2_seo_description" maxlength="320">${esc(seo.description || 'BRVTAL — Rave till Grave. Underground electronic music, experiences and events from Colombia.')}</textarea><small>Used server-side for the Home meta/OG description.</small></label>
-      </div>
-      <div class="sv2-asset" data-settings-asset>
-        <div><span>DEFAULT SHARE IMAGE</span><strong>OG / SOCIAL PREVIEW</strong><small>Choose an existing image from Media or enter a safe public path/URL.</small><code data-settings-asset-path>${esc(share || 'Not selected')}</code></div>
-        <div class="sv2-asset-preview">${share ? `<img src="${esc(share)}" alt="Share image preview" loading="lazy">` : '<span>NO ASSET</span>'}</div>
-        <input id="sv2_seo_share" value="${esc(share)}" placeholder="/uploads/... or https://...">
-        <div class="sv2-asset-actions"><button type="button" class="btn ghost" data-settings-media-picker>CHOOSE FROM MEDIA</button><button type="button" class="btn ghost" data-settings-clear-asset>CLEAR</button></div>
+      <header class="sv2-section-head"><div><span>03 / SEO</span><h3>Search discovery</h3></div><p>Search metadata has one canonical editor. Settings keeps only indexing infrastructure so Home metadata cannot drift from the rest of the public site.</p></header>
+      <div class="sv2-context-grid">
+        <article class="sv2-tool-card"><span>CANONICAL EDITOR</span><strong>WEBSITE → SEO</strong><p>Home, Contact, Pages, Events, Artists, Sets, Releases and Blog share one server-rendered source of truth.</p><button type="button" class="btn red" data-settings-open="seo">OPEN SEO WORKSPACE</button></article>
+        <article><span>METADATA AUTHORITY</span><strong>SERVER-RENDERED</strong><p>Title, description, canonical, Open Graph and Twitter/X are derived before HTML reaches crawlers.</p></article>
+        <article><span>AUTO / MANUAL</span><strong>REVERSIBLE</strong><p>Clear an explicit override in the SEO workspace to return that field to its live editorial fallback.</p></article>
       </div>
       <div class="sv2-integration">
         <div class="sv2-section-head"><div><span>INDEXNOW</span><h3>Search-engine change notifications</h3></div><p>Notify participating search engines only when public URLs are created, updated, unpublished or removed. No scheduled full-site resubmission.</p></div>
@@ -154,7 +148,6 @@
         </div>
         <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="indexnow" data-testid="indexnow-save">SAVE INDEXNOW</button></div>
       </div>
-      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="seo">SAVE SEO</button></div>
     </section>`;
   }
 
@@ -298,18 +291,6 @@
     await persistJson('social',patch);
   }
 
-  async function saveSeo() {
-    const share = read('seo_share');
-    if (share && !validHttpUrl(share) && !share.startsWith('/')) {
-      throw new Error('Share image must be an HTTP/HTTPS URL or an absolute public path.');
-    }
-    await persistJson('seo',{
-      site_title:read('seo_title'),
-      description:read('seo_description').slice(0,320),
-      share_image:share
-    });
-  }
-
   async function saveIndexNow() {
     const indexNowKey = read('indexnow_key');
     const keyLocation = read('indexnow_key_location');
@@ -348,7 +329,6 @@
   const saveHandlers = {
     general:saveGeneral,
     social:saveSocial,
-    seo:saveSeo,
     indexnow:saveIndexNow,
     analytics:saveAnalytics
   };
@@ -436,7 +416,11 @@
 
   window.settingsHome = settingsScreen;
   window.openSettingByKey = key => {
-    const map = {site:'general',social:'social',seo:'seo',indexnow:'seo',analytics:'analytics'};
+    if (key === 'seo') {
+      globalThis.go?.('seo');
+      return;
+    }
+    const map = {site:'general',social:'social',indexnow:'seo',analytics:'analytics'};
     if (map[key]) activate(map[key]);
     else legacyOpenSettingByKey?.(key);
   };
