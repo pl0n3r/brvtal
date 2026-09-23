@@ -188,7 +188,8 @@ function brvtalArtistCollectiveHistorySchemaReady(PDO $pdo): bool
 
 function brvtalArtistCollectiveLatestHistory(PDO $pdo, int $artistId, bool $openOnly = false): ?array
 {
-    $sql = 'SELECT id,artist_id,status,started_at,ended_at,created_by FROM artist_collective_history WHERE artist_id=?';
+    $sql = 'SELECT id,artist_id,status,started_at,ended_at,created_by '
+        . 'FROM artist_collective_history WHERE artist_id=?';
     if ($openOnly) {
         $sql .= ' AND ended_at IS NULL';
     }
