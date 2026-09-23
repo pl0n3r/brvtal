@@ -416,6 +416,10 @@ window.BRVTALMediaLibrary = (() => {
         await refresh(j.data?.id || null);
         if (j.duplicate === true && j.reused === true) {
           status('Duplicate detected — existing asset reused.', 'ok');
+        } else if (j.deduplication?.ready === false) {
+          const message = 'Uploaded ' + file.name + ' · duplicate detection pending migration.';
+          status(message);
+          notify('warning', message, {timeout:5200});
         } else {
           status('Uploaded ' + file.name + '.', 'ok');
         }

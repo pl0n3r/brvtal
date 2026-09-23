@@ -129,33 +129,28 @@ try {
         }
 
         $dedupSchema = brvtalMediaDedupSchemaState($pdo);
-        if (!$dedupSchema['ready']) {
-            brvtal_media_json_response([
-                'ok' => false,
-                'error' => 'MEDIA_DEDUP_MIGRATION_REQUIRED',
-                'migration' => $dedupSchema['migration'],
-                'deduplication' => $dedupSchema,
-            ], 503);
-        }
-
-        $contentHash = brvtalMediaContentHash($tmp);
-        $duplicate = brvtalMediaFindDuplicate($pdo, $contentHash, $size, $mime);
-        if (!$duplicate['scan_complete']) {
-            brvtal_media_json_response([
-                'ok' => false,
-                'error' => 'MEDIA_DEDUP_LEGACY_SCAN_LIMIT',
-                'hashed_candidates' => $duplicate['hashed_candidates'],
-                'skipped_candidates' => $duplicate['skipped_candidates'],
-                'bytes_hashed' => $duplicate['bytes_hashed'],
-            ], 409);
-        }
-        if (is_array($duplicate['duplicate'])) {
-            brvtalMediaReuseUpload(
-                $pdo,
-                $duplicate['duplicate'],
-                $contentHash,
-                (string)($duplicate['source'] ?? 'indexed')
-            );
+        $contentHash = null;
+        if ($dedupSchema['ready']) {
+            $contentHash = brvtalMediaContentHash($tmp);
+            $duplicate = brvtalMediaFindDuplicate($pdo, $contentHash, $size, $mime);
+            if (!$duplicate['scan_complete']) {
+                brvtal_media_json_response([
+                    'ok' => false,
+                    'error' => 'MEDIA_DEDUP_LEGACY_SCAN_LIMIT',
+                    'hashed_candidates' => $duplicate['hashed_candidates'],
+                    'skipped_candidates' => $duplicate['skipped_candidates'],
+                    'bytes_hashed' => $duplicate['bytes_hashed'],
+                    'deduplication' => $dedupSchema,
+                ], 409);
+            }
+            if (is_array($duplicate['duplicate'])) {
+                brvtalMediaReuseUpload(
+                    $pdo,
+                    $duplicate['duplicate'],
+                    $contentHash,
+                    (string)($duplicate['source'] ?? 'indexed')
+                );
+            }
         }
 
         $year = date('Y');
@@ -182,15 +177,22 @@ try {
         $alt = brvtal_media_safe_text($_POST['alt_text'] ?? '', 255);
 
         try {
-            $st = $pdo->prepare(
-                'INSERT INTO media(type,title,file_path,mime_type,file_size,content_hash,alt_text,status) ' .
-                'VALUES(?,?,?,?,?,?,?,?)'
-            );
-            $st->execute([$type, $title, $publicPath, $mime, $size, $contentHash, $alt, 'draft']);
+            if ($contentHash !== null) {
+                $st = $pdo->prepare(
+                    'INSERT INTO media(type,title,file_path,mime_type,file_size,content_hash,alt_text,status) ' .
+                    'VALUES(?,?,?,?,?,?,?,?)'
+                );
+                $st->execute([$type, $title, $publicPath, $mime, $size, $contentHash, $alt, 'draft']);
+            } else {
+                $st = $pdo->prepare(
+                    'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
+                );
+                $st->execute([$type, $title, $publicPath, $mime, $size, $alt, 'draft']);
+            }
             $mediaId = (int)$pdo->lastInsertId();
         } catch (PDOException $e) {
             @unlink($absolute);
-            if (brvtalMediaIsUniqueHashConflict($e)) {
+            if ($contentHash !== null && brvtalMediaIsUniqueHashConflict($e)) {
                 $winner = brvtalMediaFindByContentHash($pdo, $contentHash);
                 if ($winner !== null) {
                     brvtalMediaReuseUpload($pdo, $winner, $contentHash, 'concurrent_race');
@@ -213,6 +215,7 @@ try {
             'duplicate' => false,
             'reused' => false,
             'content_hash' => $contentHash,
+            'deduplication' => $dedupSchema,
             'data' => $row ? brvtal_media_asset_payload($row) : [
                 'id' => $mediaId,
                 'file_path' => $publicPath,

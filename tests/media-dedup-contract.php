@@ -31,8 +31,9 @@ media_dedup_assert(str_contains($schema, 'UNIQUE KEY uq_media_content_hash (cont
 
 $api = (string)file_get_contents(__DIR__ . '/../api/media-library.php');
 media_dedup_assert(str_contains($api, "require_once __DIR__ . '/../config/media_dedup.php';"), 'Media API must load dedup helpers');
-media_dedup_assert(str_contains($api, 'MEDIA_DEDUP_MIGRATION_REQUIRED'), 'upload must fail explicitly when migration is missing');
-media_dedup_assert(str_contains($api, 'MEDIA_DEDUP_LEGACY_SCAN_LIMIT'), 'bounded legacy scan must fail closed instead of silently duplicating');
+media_dedup_assert(!str_contains($api, 'MEDIA_DEDUP_MIGRATION_REQUIRED'), 'legacy schema must not turn an existing upload workflow into an outage');
+media_dedup_assert(str_contains($api, "if (\$dedupSchema['ready'])"), 'exact dedup must activate only when the explicit schema is ready');
+media_dedup_assert(str_contains($api, 'MEDIA_DEDUP_LEGACY_SCAN_LIMIT'), 'bounded legacy scan must fail closed once exact dedup is active');
 media_dedup_assert(str_contains($api, 'brvtalMediaFindDuplicate($pdo, $contentHash, $size, $mime)'), 'upload must dedupe after validation and before moving');
 media_dedup_assert(str_contains($api, "'concurrent_race'"), 'unique-index race must resolve to the winning Media row');
 media_dedup_assert(str_contains($api, '@unlink($absolute);'), 'losing concurrent upload must remove its moved orphan');
