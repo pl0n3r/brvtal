@@ -82,7 +82,7 @@ $set = brvtal_public_seo_document([
 rich_schema_expect($set['schema']['@type'] === 'MusicRecording', 'real set must retain MusicRecording');
 rich_schema_expect($set['schema']['byArtist'][0]['name'] === 'Actual Public Artist', 'recording must expose its published artist');
 rich_schema_expect($set['schema']['sameAs'] === 'https://soundcloud.com/example/real-set', 'recording must reference its real safe destination');
-foreach (['javascript:alert(1)', 'https://user:pass@example.com/path', '/internal/path'] as $unsafe) {
+foreach (['javascript:alert(1)', 'https://user:pass@example.com/path', '/internal/path', 'http://127.0.0.1/private', 'http://localhost/admin', 'http://internal.local/file'] as $unsafe) {
     rich_schema_expect(brvtal_public_schema_external_url($unsafe) === null, 'unsafe external URL must be omitted');
 }
 $missingSet = brvtal_public_seo_document([
