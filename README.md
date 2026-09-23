@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **39** | **+981** | **−838** | **+143** |
+| **40** | **+986** | **−840** | **+146** |
 
 ## Calidad y entrega
 
@@ -104,6 +104,7 @@ flowchart LR
 - `tests/content-ordering-contract.php`
 - `tests/content-validation-contract.php`
 - `tests/discadmin-editor-accessibility-contract.php`
+- `tests/event-publication-invariant-contract.php`
 - `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs`
 - `tests/e2e/discadmin-information-architecture.spec.mjs`
 - `tests/e2e/discadmin-data-grid.spec.mjs`
