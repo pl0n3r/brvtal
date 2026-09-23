@@ -96,7 +96,10 @@ test('Roster runtime renders the shared public payload with lifecycle ordering a
   await expect(page.locator('.artist-list script')).toHaveCount(0);
   await expect(page.locator('[data-roster-group="member"] .artist').first()).toHaveAttribute('href', '/artists/member%3C%26%22first');
   await expect(page.locator('[data-roster-group="member"] .artist').first()).toHaveAttribute('data-image', '/uploads/member-"first"&<cut>.jpg');
-  await expect(page.locator('[data-roster-group="network"] .artist')).not.toHaveAttribute('href', 'https://example.com');
+  const networkHrefs = await page.locator('[data-roster-group="network"] .artist').evaluateAll(
+    nodes => nodes.map(node => node.getAttribute('href'))
+  );
+  expect(networkHrefs).not.toContain('https://example.com');
   await expect(page.locator('.artist-list')).not.toContainText('SHOULD NOT LEAK');
   await expect(page.locator('.artist-preview img')).toHaveAttribute('src', '/uploads/member-"first"&<cut>.jpg');
   expect(await page.evaluate(() => window.__rosterRendered)).toEqual({ count: 4 });
