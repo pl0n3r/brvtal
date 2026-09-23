@@ -30,7 +30,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+67** | **−108** | **-41** |
+| **2** | **+134** | **−109** | **+25** |
 
 ## Calidad y entrega
 
@@ -59,7 +59,7 @@ flowchart LR
 
 - La versión desplegada `v0.1.45` y su SHA exacto están acreditados por el artefacto de smoke; la autenticación y versión DISCADMIN pasaron.
 - El smoke de 23/09/2026 falló porque buscaba `[data-admin-module="content-core"]` al abrir **EVENTS**, pero la ruta de usuario actual es `go('events')` y el formulario nativo es `#modal / #f_event_date`.
-- El contrato actualizado exige navegación real a Events, búsqueda visible y edición nativa, y vuelve a verificar una fecha existente sin guardar datos; los checks de Sets y Hero siguen intactos.
+- El contrato actualizado exige navegación real a Events, búsqueda visible y edición nativa, y vuelve a verificar una fecha existente sin guardar datos; los checks de Sets y Hero siguen intactos. Además verifica directamente /api/health.php (HTTP 200, versión, SHA exacto y DB), home y DISCADMIN sin 5xx, y mide el tiempo hasta el Dashboard V2 visible.
 - La PR #626 / Issue #623 de rendimiento se mantiene independiente: este cambio no toca sus archivos salvo el solapamiento de README autorizado.
 
 ## Archivos modificados en este deploy

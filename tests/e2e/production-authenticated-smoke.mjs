@@ -34,6 +34,10 @@ const evidence = {
   deploymentProbeErrors: [],
   authentication: { totp: false },
   checks: {
+    health: null,
+    home: null,
+    adminDocument: null,
+    dashboardLoad: null,
     adminVersion: null,
     eventsWorkspace: null,
     eventDate: null,
@@ -177,6 +181,32 @@ try {
     () => authenticate(context)
   );
 
+  // Assert source identity and database health directly, not solely from the
+  // deployment marker. Capture public home HTTP status without private data.
+  const healthResponse = await context.request.get(`${baseUrl}/api/health.php`, {
+    timeout: 12_000,
+    headers: { 'Cache-Control': 'no-cache' }
+  });
+  const health = await jsonOrThrow(healthResponse, 'Production health');
+  const deployment = health.deployment || {};
+  evidence.checks.health = {
+    httpStatus: healthResponse.status(),
+    database: health.database,
+    version: deployment.version,
+    commit: deployment.commit,
+    exact: deployment.exact === true,
+    pass: healthResponse.status() === 200 && health.ok === true
+      && health.database === 'connected' && deployment.exact === true
+      && deployment.version === expectedVersion && deployment.commit === expectedSha
+  };
+  writeEvidence();
+  if (!evidence.checks.health.pass) throw new Error('Production health/version/SHA/database does not match exact main.');
+
+  const homeResponse = await context.request.get(`${baseUrl}/`, { timeout: 12_000 });
+  evidence.checks.home = { httpStatus: homeResponse.status(), pass: homeResponse.status() === 200 };
+  writeEvidence();
+  if (!evidence.checks.home.pass) throw new Error(`Production home returned HTTP ${homeResponse.status()}.`);
+
   // From this point forward the browser is content-read-only. DISCADMIN performs
   // a media-permission repair POST during session bootstrap; fulfill that request
   // locally so the smoke never sends it to production. Any other browser mutation
@@ -203,8 +233,41 @@ try {
   });
 
   const page = await context.newPage();
-  await page.goto(`${baseUrl}/discadmin/`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  const serverErrors = [];
+  page.on('response', response => {
+    if (response.status() >= 500) {
+      const url = new URL(response.url());
+      if (url.origin === baseUrl) serverErrors.push({ path: url.pathname, status: response.status() });
+    }
+  });
+  const dashboardStarted = performance.now();
+  const adminResponse = await page.goto(`${baseUrl}/discadmin/`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20_000
+  });
+  evidence.checks.adminDocument = {
+    httpStatus: adminResponse?.status() ?? null,
+    pass: adminResponse?.status() === 200
+  };
+  writeEvidence();
+  if (!evidence.checks.adminDocument.pass) {
+    throw new Error(`Production DISCADMIN document returned HTTP ${adminResponse?.status() ?? 'none'}.`);
+  }
   await page.waitForFunction(() => typeof window.go === 'function' && document.querySelector('.shell'), null, { timeout: 15_000 });
+  await page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero').waitFor({
+    state: 'visible',
+    timeout: 20_000
+  });
+  evidence.checks.dashboardLoad = {
+    elapsedMs: Math.round(performance.now() - dashboardStarted),
+    visibleHero: true,
+    serverErrors,
+    pass: serverErrors.length === 0
+  };
+  writeEvidence();
+  if (serverErrors.length) {
+    throw new Error('Production dashboard returned HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+  }
 
   const expectedVersionText = `BRVTAL v${expectedVersion}`;
   const renderedVersion = (await page.getByTestId('admin-product-version').innerText()).trim();
@@ -314,6 +377,9 @@ try {
     }
   }
 
+  if (serverErrors.length) {
+    throw new Error('Authenticated DISCADMIN emitted HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+  }
   if (evidence.blockedMutations.length) {
     throw new Error(`Read-only guard blocked unexpected production mutations: ${evidence.blockedMutations.join(', ')}`);
   }
