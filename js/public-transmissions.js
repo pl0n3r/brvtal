@@ -25,8 +25,9 @@
     try {
       const url = new URL(raw, window.location.href);
       return /^https?:$/i.test(url.protocol) ? url.href : '';
-    } catch (_) {
-      return '';
+    } catch (error) {
+      if (error instanceof TypeError) return '';
+      throw error;
     }
   };
 
@@ -111,12 +112,19 @@
         .slice(0, 4)
         .join('');
       const cover = index === 0 ? safeMediaUrl(post.cover_image) : '';
-      const coverMarkup = index === 0
-        ? `<figure class="transmission-cover${cover ? '' : ' is-media-missing'}" data-transmission-cover>
-            ${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(title)}" loading="lazy" decoding="async">` : ''}
+      let coverMarkup = '';
+      if (index === 0) {
+        const coverClass = cover
+          ? 'transmission-cover'
+          : 'transmission-cover is-media-missing';
+        const imageMarkup = cover
+          ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(title)}" loading="lazy" decoding="async">`
+          : '';
+        coverMarkup = `<figure class="${coverClass}" data-transmission-cover>
+            ${imageMarkup}
             <span class="mono" aria-hidden="true">JOURNAL / IMAGE SIGNAL</span>
-          </figure>`
-        : '';
+          </figure>`;
+      }
       const titleMarkup = href
         ? `<a class="transmission-link" href="${escapeHtml(href)}"><h3>${escapeHtml(title)}</h3></a>`
         : `<div class="transmission-link"><h3>${escapeHtml(title)}</h3></div>`;
