@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+82** | **−46** | **+36** |
+| **7** | **+131** | **−48** | **+83** |
 
 ## Calidad y entrega
 
@@ -53,10 +53,10 @@ flowchart LR
 
 ## Qué se hizo
 
-- La navegación Events deja de remontar el Content Core al pulsar EDIT sobre la grilla ya montada, evitando que un registro existente se abra como NEW EVENT.
-- La carga inicial de Content Core es esperada por el cargador del módulo; auth reutiliza el límite compartido en vez de emitir otro GET de sesión.
+- La navegación Events deja de remontar el Content Core al pulsar EDIT sobre la grilla ya montada, evitando que un registro existente se abra como NEW EVENT. El cambio de registro respeta el descarte de ediciones sin guardar y bloquea operaciones mientras el modal esté inert.
+- La carga inicial de Content Core es esperada por el cargador del módulo y falla explícitamente si no hidrata Events; auth reutiliza el límite compartido en vez de emitir otro GET de sesión.
 - El smoke comprueba el editor real `#eventModal`, su título EDIT EVENT, la fecha `#e_event_date`, compara datos de grilla/API y cierra sin escribir.
-- Regresión de navegador asegura que el EDIT nativo reutiliza el workflow montado sin navegar ni duplicar carga.
+- Regresión de navegador asegura que el EDIT nativo reutiliza el workflow montado sin navegar ni duplicar carga, y protege la edición sucia/cancelación/inert al cambiar de registro.
 - No hay migraciones, SQL destructivo ni ediciones de registros de clientes.
 
 ## Archivos modificados en este deploy
