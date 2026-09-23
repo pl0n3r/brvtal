@@ -211,7 +211,9 @@ function brvtalArtistCollectiveInsertHistory(
     ?string $note = null
 ): void {
     $st = $pdo->prepare(
-        'INSERT INTO artist_collective_history(artist_id,status,started_at,ended_at,note,created_by) VALUES(?,?,?,?,?,?)'
+        'INSERT INTO artist_collective_history'
+        . '(artist_id,status,started_at,ended_at,note,created_by) '
+        . 'VALUES(?,?,?,?,?,?)'
     );
     $st->execute([$artistId, $status, $startedAt, $endedAt, $note, $createdBy]);
 }
