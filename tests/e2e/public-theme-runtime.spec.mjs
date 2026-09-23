@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const runtimeJs = readFileSync(join(process.cwd(), 'js/public-theme-runtime.js'), 'utf8');
+const conceptTokensCss = readFileSync(join(process.cwd(), 'css/public-concept05-tokens.css'), 'utf8');
+const conceptHomeCss = readFileSync(join(process.cwd(), 'css/public-concept05-home.css'), 'utf8');
+const conceptShellCss = readFileSync(join(process.cwd(), 'css/public-concept05-shell.css'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-theme-runtime-e2e.html';
 const pixel = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
@@ -211,4 +214,73 @@ test('public theme runtime falls back from failed branding images and recovers t
   await expect(page.locator('.hero-logo')).not.toHaveAttribute('src', /.+/);
   await expect(page.locator('picture source')).not.toHaveAttribute('srcset', /.+/);
   await expect(page.locator('[data-site-name]')).toHaveText('TEXT ONLY');
+});
+
+test('public theme runtime loads only selected curated Google Fonts with display swap', async ({ page }) => {
+  await page.route('https://fonts.googleapis.com/**', route => route.fulfill({status:200,contentType:'text/css; charset=utf-8',body:''}));
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:harness({
+      slug:'concept05-fonts', branding:{siteName:'BRVTAL'}, colors:{},
+      typography:{display:'"Space Grotesk", Arial, sans-serif',body:'"Space Grotesk", Arial, sans-serif',mono:'"Space Mono", monospace'},
+      navigation:{},effects:{},sound:{},
+    }),
+  }));
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.BRVTALThemeReady);
+  const href = await page.locator('#brvtal-theme-fonts').getAttribute('href');
+  expect(href).toContain('family=Space+Grotesk:wght@400;500;600;700');
+  expect(href).toContain('family=Space+Mono:wght@400;700');
+  expect(href).toContain('display=swap');
+  expect((href.match(/Space\+Grotesk/g) || []).length).toBe(1);
+});
+
+test('public theme runtime survives a Google Fonts stylesheet failure with local fallbacks intact', async ({ page }) => {
+  await page.route('https://fonts.googleapis.com/**', route => route.abort('failed'));
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:harness({
+      slug:'font-network-fallback',branding:{siteName:'BRVTAL'},colors:{},
+      typography:{display:'"Space Grotesk", Arial, sans-serif',body:'"Space Grotesk", Arial, sans-serif',mono:'"Space Mono", monospace'},
+      navigation:{},effects:{},sound:{},
+    }),
+  }));
+  await page.goto(harnessUrl);
+  await expect.poll(() => page.evaluate(() => window.BRVTALThemeReady)).toBe(true);
+  const display = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-display-font').trim());
+  expect(display).toContain('Space Grotesk');
+  await expect(page.locator('#brvtal-theme-fonts')).toHaveAttribute('href',/display=swap/);
+});
+test('public theme runtime does not remotely load arbitrary legacy font stacks', async ({ page }) => {
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:harness({
+      slug:'legacy-fonts', branding:{siteName:'BRVTAL'}, colors:{},
+      typography:{display:'"Custom Local Face", Arial, sans-serif',body:'Arial, sans-serif',mono:'ui-monospace, monospace'},
+      navigation:{},effects:{},sound:{},
+    }),
+  }));
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.BRVTALThemeReady);
+  await expect(page.locator('#brvtal-theme-fonts')).toHaveCount(0);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-display-font').trim())).toContain('Custom Local Face');
+});
+
+test('Concept 05 consumes Theme Studio color and font tokens from the public runtime', async ({ page }) => {
+  await page.route('https://fonts.googleapis.com/**', route => route.fulfill({status:200,contentType:'text/css; charset=utf-8',body:''}));
+  const theme = {
+    slug:'concept05-runtime-bridge',branding:{siteName:'BRVTAL'},
+    colors:{bg:'#050505',surface:'#0a0b0c',text:'#f4f1e8',muted:'#888880',primary:'#123456',accent:'#b6ff00',border:'#30302d'},
+    typography:{display:'"Space Grotesk", Arial, sans-serif',body:'"Space Grotesk", Arial, sans-serif',mono:'"IBM Plex Mono", monospace'},
+    navigation:{},effects:{},sound:{}
+  };
+  const body = harness(theme)
+    .replace('<head>', '<head><style>' + conceptTokensCss + '\n' + conceptHomeCss + '\n' + conceptShellCss + '</style>')
+    .replace('<body>', '<body data-concept="05"><nav class="c5-bottom-nav"><a href="#">TOKEN TEST</a></nav><a class="c5-header-ticket"><span>TICKET</span></a>');
+  await page.route(harnessUrl, route => route.fulfill({contentType:'text/html; charset=utf-8',body}));
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.BRVTALThemeReady);
+  const monoFamily = await page.locator('.c5-bottom-nav a').evaluate(el => getComputedStyle(el).fontFamily);
+  expect(monoFamily).toContain('IBM Plex Mono');
+  await expect(page.locator('.c5-header-ticket')).toHaveCSS('background-color','rgb(18, 52, 86)');
 });

@@ -115,7 +115,7 @@
   left:var(--c5-cell-padding);
   bottom:var(--c5-cell-padding);
   color:var(--c5-paper-muted);
-  font:700 var(--c5-type-mono)/1.2 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1.2 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.1em;
   z-index:3;
 }
@@ -189,7 +189,7 @@
   padding:8px 10px;
   color:var(--c5-deep-black);
   background:var(--c5-signal-green);
-  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
 }
 
@@ -281,7 +281,7 @@
   max-width:46ch;
   margin:clamp(18px,2vw,28px) 0 0;
   color:var(--c5-paper-muted);
-  font:600 var(--c5-type-body)/1.5 "Barlow Condensed",sans-serif;
+  font:600 var(--c5-type-body)/1.5 var(--theme-body-font,"Space Grotesk",Arial,sans-serif);
   letter-spacing:.015em;
 }
 

@@ -62,7 +62,7 @@
   color:var(--c5-paper-dirty);
   background:transparent;
   text-decoration:none;
-  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.07em;
   text-transform:uppercase;
 }
@@ -114,7 +114,7 @@
   background:var(--c5-deep-black);
   border:1px solid rgba(255,255,255,.22);
   color:var(--c5-paper-muted);
-  font:700 9px/1 "Space Mono",monospace;
+  font:700 9px/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   text-transform:uppercase;
 }
@@ -161,7 +161,7 @@
   position:absolute;
   inset:auto 12px 12px;
   color:var(--c5-paper-muted);
-  font:700 10px/1.2 "Space Mono",monospace;
+  font:700 10px/1.2 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
 }
 
@@ -202,7 +202,7 @@
 
 [data-concept="05"] .c5-night-card .event-status{
   color:var(--c5-signal-green);
-  font:700 10px/1 "Space Mono",monospace;
+  font:700 10px/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
 }
 
@@ -338,7 +338,7 @@
   left:10px;
   bottom:8px;
   color:var(--c5-signal-red);
-  font:700 34px/1 "Space Mono",monospace;
+  font:700 34px/1 var(--theme-mono-font,"Space Mono",monospace);
 }
 
 [data-concept="05"] .artist.c5-artist-card .c5-artist-index{
@@ -355,7 +355,7 @@
   background:var(--c5-deep-black);
   border:1px solid rgba(255,255,255,.22);
   color:var(--c5-signal-green);
-  font:700 10px/1 "Space Mono",monospace;
+  font:700 10px/1 var(--theme-mono-font,"Space Mono",monospace);
 }
 
 [data-concept="05"] .artist.c5-artist-card strong,
@@ -374,7 +374,7 @@
 
 [data-concept="05"] .artist.c5-artist-card i{
   color:var(--c5-paper-muted);
-  font:700 9px/1.35 "Space Mono",monospace;
+  font:700 9px/1.35 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.04em;
   text-align:left;
   overflow-wrap:anywhere;
