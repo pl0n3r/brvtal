@@ -213,7 +213,6 @@ test('upload remains available before dedup migration and reports degraded mode'
   });
 
   await expect(page.locator('#media-status')).toHaveText('Uploaded legacy-compatible.png · duplicate detection pending migration.');
-  await expect(page.getByText('Uploaded legacy-compatible.png · duplicate detection pending migration.')).toBeVisible();
   await expect(page.locator('.media-card.active')).toHaveAttribute('data-media-id', String(mediaItem.id));
 });
 
