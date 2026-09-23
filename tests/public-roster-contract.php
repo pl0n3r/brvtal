@@ -37,6 +37,7 @@ $artist = (string)file_get_contents(__DIR__ . '/../config/public_artist.php');
 $runtime = (string)file_get_contents(__DIR__ . '/../js/public-roster.js');
 $loader = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $entry = (string)file_get_contents(__DIR__ . '/../index.php');
+$delivery = (string)file_get_contents(__DIR__ . '/../config/public_entity_delivery.php');
 $css = (string)file_get_contents(__DIR__ . '/../css/public-roster.css');
 
 roster_expect(str_contains($api, "FROM artists\n         WHERE status='published'"), 'Home Roster source must remain limited to published Artists');
@@ -55,8 +56,9 @@ roster_expect(str_contains($artist, "rel.related_type='artist'"), 'Artist Transm
 roster_expect(str_contains($artist, "bp.status='published'"), 'Artist Transmissions must suppress unpublished posts');
 roster_expect(str_contains($artist, 'brvtal_public_event_is_historical($event)'), 'Artist Event grouping must reuse canonical Event lifecycle');
 roster_expect(!str_contains($artist, 'media') && !str_contains($artist, 'memories'), 'Artist pages must not infer Memories without a structured relation');
-roster_expect(str_contains($entry, "require_once __DIR__ . '/config/public_artist.php';"), 'canonical delivery must load the Artist roster enhancer');
-roster_expect(str_contains($entry, 'brvtal_public_artist_enhance_page'), 'canonical Artist pages must use roster enrichment');
+roster_expect(str_contains($delivery, "require_once __DIR__ . '/public_artist.php';"), 'canonical delivery must load the Artist roster enhancer');
+roster_expect(str_contains($entry, 'brvtalPublicEntityDocument('), 'public entity routes must use canonical delivery');
+roster_expect(str_contains($delivery, 'brvtal_public_artist_enhance_page'), 'canonical Artist pages must use roster enrichment');
 roster_expect(str_contains($entry, 'css/public-roster.css'), 'Home must receive the dedicated Roster visual layer');
 roster_expect(str_contains($css, '@media(max-width:760px)'), 'Roster must have an explicit mobile layout');
 roster_expect(str_contains($css, 'min-height:44px'), 'Roster/mobile controls must preserve touch-size affordances');
