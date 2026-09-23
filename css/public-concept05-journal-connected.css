@@ -124,6 +124,10 @@
   min-height:280px;
 }
 
+[data-concept="05"] #transmissions .transmission-cover.is-media-missing img{
+  display:none!important;
+}
+
 [data-concept="05"] #transmissions .transmission-cover.is-media-missing::before{
   content:"IMAGE SIGNAL UNAVAILABLE";
   position:absolute;
