@@ -7,7 +7,7 @@ const gridCss = readFileSync(join(process.cwd(),'discadmin/admin-data-grid.css')
 
 const defaults = {
   events:['primary','date','location','status'],
-  artists:['primary','links','status','position'],
+  artists:['primary','links','collective','status','position'],
   releases:['primary','artists','type','date','status','position'],
   sets:['primary','artist','event','status','position'],
   media:['primary','type','mime','size','status'],
@@ -17,7 +17,7 @@ const defaults = {
 
 async function harness(page) {
   await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${gridCss}</style></head><body>
-    <div id="events"></div><div id="releases"></div><div id="blog"></div><div id="media"></div>
+    <div id="events"></div><div id="artists"></div><div id="releases"></div><div id="blog"></div><div id="media"></div>
   </body></html>`);
   await page.evaluate(values => {
     window.csrf='grid-csrf';
@@ -88,6 +88,25 @@ test('column chooser persists only the current module and restores defaults', as
   await page.locator('#events [data-grid-columns-reset]').click();
   await expect.poll(()=>page.evaluate(()=>window.__gridPreferenceWrites.length)).toBe(2);
   expect((await page.evaluate(()=>window.__gridPreferenceWrites[1].body.columns))).toEqual(defaults.events);
+});
+
+test('Artist membership filter uses the canonical checkbox without duplicating state', async ({page}) => {
+  await harness(page);
+  const artists=[
+    {id:1,name:'PL0N3R',slug:'pl0n3r',is_collective_member:1,status:'published',sort_order:0},
+    {id:2,name:'GUEST',slug:'guest',is_collective_member:0,status:'published',sort_order:1},
+  ];
+  await page.evaluate(rows => BRVTALDataGrid.render('artists',document.getElementById('artists'),rows,{allRows:rows}),artists);
+  await expect(page.locator('#artists [data-grid-cell="collective"]')).toHaveText(['MEMBER','EXTERNAL']);
+  const filter=page.locator('#artists [data-grid-membership-filter]');
+  await filter.selectOption('member');
+  await expect(page.locator('#artists [data-grid-row-id]')).toHaveCount(1);
+  await expect(page.locator('#artists [data-grid-row-id="1"]')).toBeVisible();
+  await filter.selectOption('external');
+  await expect(page.locator('#artists [data-grid-row-id]')).toHaveCount(1);
+  await expect(page.locator('#artists [data-grid-row-id="2"]')).toBeVisible();
+  await filter.selectOption('all');
+  await expect(page.locator('#artists [data-grid-row-id]')).toHaveCount(2);
 });
 
 test('row selection supports select-all, clear and safe bulk-action handoff', async ({page}) => {
