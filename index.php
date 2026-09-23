@@ -79,7 +79,7 @@ if ($entity) {
     } else {
         header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     }
-    echo brvtal_public_entity_document(
+    echo brvtalPublicEntityDocument(
         db(),
         $page,
         $seo,

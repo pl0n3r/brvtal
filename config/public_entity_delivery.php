@@ -12,7 +12,7 @@ require_once __DIR__ . '/public_artist.php';
  * pipeline so layout, artist enrichment, public controls and asset versioning
  * cannot drift between preview and live delivery.
  */
-function brvtal_public_entity_document(
+function brvtalPublicEntityDocument(
     PDO $pdo,
     array $page,
     array $seo,

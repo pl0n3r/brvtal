@@ -38,9 +38,9 @@ $mustContain($config, 'brvtalMediaImageReferenceState', 'preview must preserve m
 $mustContain($config, 'INVALID_PREVIEW_URL', 'preview must reject unsafe raw editor URLs');
 $mustContain($config, 'INVALID_PREVIEW_DATE', 'preview must reject malformed event dates instead of inventing output');
 
-$mustContain($delivery, 'function brvtal_public_entity_document', 'canonical entity delivery must be a shared function');
-$mustContain($publicIndex, 'brvtal_public_entity_document(', 'production entity routes must use shared delivery');
-$mustContain($preview, 'brvtal_public_entity_document(', 'preview must use the production entity delivery function');
+$mustContain($delivery, 'function brvtalPublicEntityDocument', 'canonical entity delivery must be a shared function');
+$mustContain($publicIndex, 'brvtalPublicEntityDocument(', 'production entity routes must use shared delivery');
+$mustContain($preview, 'brvtalPublicEntityDocument(', 'preview must use the production entity delivery function');
 $mustContain($preview, "header('X-Robots-Tag: noindex, nofollow');", 'preview must be non-indexable at HTTP level');
 $mustContain($preview, '<meta name="robots" content="noindex,nofollow">', 'preview shell must be non-indexable in markup');
 $mustContain($preview, 'Cache-Control: no-store', 'preview documents must never be cached');

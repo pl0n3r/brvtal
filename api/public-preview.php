@@ -35,11 +35,11 @@ if (!is_array($input) || !is_array($input['payload'] ?? null)) {
 }
 
 try {
-    $snapshot = brvtal_public_preview_snapshot(
+    $snapshot = brvtalPublicPreviewSnapshot(
         strtolower(trim((string)($input['type'] ?? ''))),
         $input['payload']
     );
-    $stored = brvtal_public_preview_store($snapshot);
+    $stored = brvtalPublicPreviewStore($snapshot);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['ok' => true, 'data' => $stored], JSON_UNESCAPED_SLASHES);
 } catch (InvalidArgumentException $e) {

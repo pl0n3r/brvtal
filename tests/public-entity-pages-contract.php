@@ -21,7 +21,7 @@ $pageContractUi = (string)file_get_contents(__DIR__ . '/../discadmin/pages-publi
 $unavailable = (string)file_get_contents(__DIR__ . '/../config/public_unavailable.php');
 $css = (string)file_get_contents(__DIR__ . '/../css/public-entity.css');
 
-public_pages_expect(str_contains($entry, 'brvtal_public_entity_document('), 'entity routes must use the canonical delivery pipeline');
+public_pages_expect(str_contains($entry, 'brvtalPublicEntityDocument('), 'entity routes must use the canonical delivery pipeline');
 public_pages_expect(str_contains($delivery, 'brvtal_public_entity_page('), 'canonical delivery must use the dedicated public renderer');
 foreach (['events','artists','releases','blog','pages'] as $type) {
     public_pages_expect(str_contains($pages, "\$type === '{$type}'"), "renderer must hydrate {$type}");

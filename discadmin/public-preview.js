@@ -47,12 +47,19 @@
     const tab = window.open('about:blank', '_blank');
     if (!tab) return null;
     try { tab.opener = null; } catch (_) {}
-    tab.document.write(
-      '<!doctype html><title>BRVTAL Preview</title>'
-      + '<body style="margin:0;background:#050505;color:#f4f1e8;'
-      + 'font:14px/1.5 ui-monospace,monospace;display:grid;place-items:center;min-height:100vh">'
-      + '<b>BUILDING PRIVATE PUBLIC PREVIEW…</b></body>'
-    );
+    tab.document.title = 'BRVTAL Preview';
+    tab.document.body.style.cssText = [
+      'margin:0',
+      'background:#050505',
+      'color:#f4f1e8',
+      'font:14px/1.5 ui-monospace,monospace',
+      'display:grid',
+      'place-items:center',
+      'min-height:100vh'
+    ].join(';');
+    const message = tab.document.createElement('b');
+    message.textContent = 'BUILDING PRIVATE PUBLIC PREVIEW…';
+    tab.document.body.replaceChildren(message);
     return tab;
   }
 

@@ -11,26 +11,28 @@ const BRVTAL_PUBLIC_PREVIEW_TTL = 600;
 const BRVTAL_PUBLIC_PREVIEW_MAX_SNAPSHOTS = 12;
 
 /** @return list<string> */
-function brvtal_public_preview_types(): array
+function brvtalPublicPreviewTypes(): array
 {
     return ['events', 'artists', 'sets', 'releases', 'blog', 'pages'];
 }
 
-function brvtal_public_preview_text(mixed $value, int $max = 1000): string
+function brvtalPublicPreviewText(mixed $value, int $max = 1000): string
 {
     return mb_substr(trim((string)$value), 0, $max);
 }
 
-function brvtal_public_preview_int(mixed $value): int
+function brvtalPublicPreviewInt(mixed $value): int
 {
     $number = filter_var($value, FILTER_VALIDATE_INT);
     return $number === false ? 0 : max(0, (int)$number);
 }
 
-function brvtal_public_preview_url(mixed $value): string
+function brvtalPublicPreviewUrl(mixed $value): string
 {
-    $url = brvtal_public_preview_text($value, 700);
-    if ($url === '') return '';
+    $url = brvtalPublicPreviewText($value, 700);
+    if ($url === '') {
+        return '';
+    }
     if (filter_var($url, FILTER_VALIDATE_URL) === false) {
         throw new InvalidArgumentException('INVALID_PREVIEW_URL');
     }
@@ -43,78 +45,92 @@ function brvtal_public_preview_url(mixed $value): string
     return $url;
 }
 
-function brvtal_public_preview_media(mixed $value): string
+function brvtalPublicPreviewMedia(mixed $value): string
 {
-    $reference = brvtal_public_preview_text($value, 500);
-    if ($reference === '') return '';
+    $reference = brvtalPublicPreviewText($value, 500);
+    if ($reference === '') {
+        return '';
+    }
     if (!brvtalMediaImageReferenceState($reference)['valid']) {
         throw new InvalidArgumentException('INVALID_PREVIEW_MEDIA');
     }
     return $reference;
 }
 
-function brvtal_public_preview_datetime(mixed $value): string
+function brvtalPublicPreviewDatetime(mixed $value): string
 {
-    $raw = brvtal_public_preview_text($value, 32);
-    if ($raw === '') return '';
+    $raw = brvtalPublicPreviewText($value, 32);
+    if ($raw === '') {
+        return '';
+    }
     foreach (['Y-m-d H:i:s','Y-m-d H:i','Y-m-d\\TH:i:s','Y-m-d\\TH:i'] as $format) {
         $date = DateTimeImmutable::createFromFormat('!' . $format, $raw);
         $errors = DateTimeImmutable::getLastErrors();
-        if (!$date) continue;
+        if (!$date) {
+            continue;
+        }
         if (is_array($errors) && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0)) {
             continue;
         }
-        if ($date->format($format) !== $raw) continue;
+        if ($date->format($format) !== $raw) {
+            continue;
+        }
         return $date->format('Y-m-d H:i:s');
     }
     throw new InvalidArgumentException('INVALID_PREVIEW_DATE');
 }
 
 /** @return list<array<string,mixed>> */
-function brvtal_public_preview_list(string $type, mixed $value): array
+function brvtalPublicPreviewList(string $type, mixed $value): array
 {
-    if (!is_array($value)) return [];
+    if (!is_array($value)) {
+        return [];
+    }
     $rows = array_slice(array_values($value), 0, 100);
     $out = [];
 
     foreach ($rows as $index => $row) {
-        if (!is_array($row)) continue;
+        if (!is_array($row)) {
+            continue;
+        }
         if ($type === 'ticket_types') {
             $out[] = [
-                'name' => brvtal_public_preview_text($row['name'] ?? '', 180),
-                'description' => brvtal_public_preview_text($row['description'] ?? '', 1000),
+                'name' => brvtalPublicPreviewText($row['name'] ?? '', 180),
+                'description' => brvtalPublicPreviewText($row['description'] ?? '', 1000),
                 'price' => is_numeric($row['price'] ?? null) ? (float)$row['price'] : null,
-                'currency' => brvtal_public_preview_text($row['currency'] ?? 'COP', 8) ?: 'COP',
-                'external_url' => brvtal_public_preview_url($row['external_url'] ?? ''),
-                'status' => brvtal_public_preview_text($row['status'] ?? 'draft', 24),
-                'available_from' => brvtal_public_preview_text($row['available_from'] ?? '', 32),
-                'available_until' => brvtal_public_preview_text($row['available_until'] ?? '', 32),
-                'sort_order' => brvtal_public_preview_int($row['sort_order'] ?? $index),
+                'currency' => brvtalPublicPreviewText($row['currency'] ?? 'COP', 8) ?: 'COP',
+                'external_url' => brvtalPublicPreviewUrl($row['external_url'] ?? ''),
+                'status' => brvtalPublicPreviewText($row['status'] ?? 'draft', 24),
+                'available_from' => brvtalPublicPreviewText($row['available_from'] ?? '', 32),
+                'available_until' => brvtalPublicPreviewText($row['available_until'] ?? '', 32),
+                'sort_order' => brvtalPublicPreviewInt($row['sort_order'] ?? $index),
             ];
             continue;
         }
         if ($type === 'lineup' || $type === 'artists') {
-            $artistId = brvtal_public_preview_int($row['artist_id'] ?? $row['id'] ?? 0);
-            if ($artistId < 1) continue;
+            $artistId = brvtalPublicPreviewInt($row['artist_id'] ?? $row['id'] ?? 0);
+            if ($artistId < 1) {
+                continue;
+            }
             $out[] = [
                 'artist_id' => $artistId,
-                'role' => brvtal_public_preview_text($row['role'] ?? '', 120),
-                'sort_order' => brvtal_public_preview_int(
+                'role' => brvtalPublicPreviewText($row['role'] ?? '', 120),
+                'sort_order' => brvtalPublicPreviewInt(
                     $row['lineup_order'] ?? $row['sort_order'] ?? $index
                 ),
             ];
             continue;
         }
         if ($type === 'relations') {
-            $relatedType = brvtal_public_preview_text($row['related_type'] ?? '', 20);
-            $relatedId = brvtal_public_preview_int($row['related_id'] ?? 0);
+            $relatedType = brvtalPublicPreviewText($row['related_type'] ?? '', 20);
+            $relatedId = brvtalPublicPreviewInt($row['related_id'] ?? 0);
             if (!in_array($relatedType, ['event', 'artist', 'set', 'release'], true) || $relatedId < 1) {
                 continue;
             }
             $out[] = [
                 'related_type' => $relatedType,
                 'related_id' => $relatedId,
-                'sort_order' => brvtal_public_preview_int($row['sort_order'] ?? $index),
+                'sort_order' => brvtalPublicPreviewInt($row['sort_order'] ?? $index),
             ];
         }
     }
@@ -123,9 +139,9 @@ function brvtal_public_preview_list(string $type, mixed $value): array
 }
 
 /** @return array{type:string,payload:array<string,mixed>} */
-function brvtal_public_preview_snapshot(string $type, array $payload): array
+function brvtalPublicPreviewSnapshot(string $type, array $payload): array
 {
-    if (!in_array($type, brvtal_public_preview_types(), true)) {
+    if (!in_array($type, brvtalPublicPreviewTypes(), true)) {
         throw new InvalidArgumentException('PREVIEW_TYPE_NOT_ALLOWED');
     }
 
@@ -159,23 +175,25 @@ function brvtal_public_preview_snapshot(string $type, array $payload): array
 
     $clean = [];
     foreach ($allowed as $field) {
-        if (!array_key_exists($field, $payload)) continue;
+        if (!array_key_exists($field, $payload)) {
+            continue;
+        }
         if ($field === 'id' || in_array($field, ['artist_id','event_id'], true)) {
-            $clean[$field] = brvtal_public_preview_int($payload[$field]);
+            $clean[$field] = brvtalPublicPreviewInt($payload[$field]);
         } elseif (in_array($field, ['ticket_types','lineup','artists','relations'], true)) {
-            $clean[$field] = brvtal_public_preview_list($field, $payload[$field]);
+            $clean[$field] = brvtalPublicPreviewList($field, $payload[$field]);
         } elseif (in_array($field, ['cover_image','photo','artwork'], true)) {
-            $clean[$field] = brvtal_public_preview_media($payload[$field]);
+            $clean[$field] = brvtalPublicPreviewMedia($payload[$field]);
         } elseif (in_array($field, [
             'ticket_url','instagram_url','soundcloud_url','website_url','external_url',
             'embed_url','spotify_url','bandcamp_url','youtube_url','beatport_url'
         ], true)) {
-            $clean[$field] = brvtal_public_preview_url($payload[$field]);
+            $clean[$field] = brvtalPublicPreviewUrl($payload[$field]);
         } elseif ($field === 'event_date') {
-            $clean[$field] = brvtal_public_preview_datetime($payload[$field]);
+            $clean[$field] = brvtalPublicPreviewDatetime($payload[$field]);
         } else {
             $max = in_array($field, ['body','content_json'], true) ? 50000 : 4000;
-            $clean[$field] = brvtal_public_preview_text($payload[$field], $max);
+            $clean[$field] = brvtalPublicPreviewText($payload[$field], $max);
         }
     }
 
@@ -193,7 +211,7 @@ function brvtal_public_preview_snapshot(string $type, array $payload): array
 }
 
 /** @return array{token:string,url:string,expires_at:int} */
-function brvtal_public_preview_store(array $snapshot): array
+function brvtalPublicPreviewStore(array $snapshot): array
 {
     brvtal_admin_session_start();
     $now = time();
@@ -208,8 +226,10 @@ function brvtal_public_preview_store(array $snapshot): array
     }
 
     if (count($previews) >= BRVTAL_PUBLIC_PREVIEW_MAX_SNAPSHOTS) {
-        uasort($previews, static fn(array $a, array $b): int =>
-            (int)($a['created_at'] ?? 0) <=> (int)($b['created_at'] ?? 0)
+        uasort(
+            $previews,
+            static fn(array $a, array $b): int =>
+                (int)($a['created_at'] ?? 0) <=> (int)($b['created_at'] ?? 0)
         );
         while (count($previews) >= BRVTAL_PUBLIC_PREVIEW_MAX_SNAPSHOTS) {
             array_shift($previews);
@@ -233,12 +253,16 @@ function brvtal_public_preview_store(array $snapshot): array
 }
 
 /** @return array{type:string,payload:array<string,mixed>}|null */
-function brvtal_public_preview_load(string $token): ?array
+function brvtalPublicPreviewLoad(string $token): ?array
 {
-    if (!preg_match('/^[a-f0-9]{48}$/D', $token)) return null;
+    if (!preg_match('/^[a-f0-9]{48}$/D', $token)) {
+        return null;
+    }
     brvtal_admin_session_start();
     $entry = $_SESSION['public_previews'][$token] ?? null;
-    if (!is_array($entry)) return null;
+    if (!is_array($entry)) {
+        return null;
+    }
     if ((int)($entry['expires_at'] ?? 0) <= time()) {
         unset($_SESSION['public_previews'][$token]);
         return null;
@@ -247,13 +271,15 @@ function brvtal_public_preview_load(string $token): ?array
     return is_array($snapshot) ? $snapshot : null;
 }
 
-function brvtal_public_preview_reference(
+function brvtalPublicPreviewReference(
     PDO $pdo,
     string $type,
     int $id,
     string $meta = ''
 ): ?array {
-    if ($id < 1) return null;
+    if ($id < 1) {
+        return null;
+    }
 
     $map = [
         'artist' => ['artists', 'name', 'photo', 'artists', "status='published'"],
@@ -261,7 +287,9 @@ function brvtal_public_preview_reference(
         'set' => ['sets_media', 'title', 'cover_image', 'sets', "status='published'"],
         'release' => ['releases', 'title', 'artwork', 'releases', "status='published'"],
     ];
-    if (!isset($map[$type])) return null;
+    if (!isset($map[$type])) {
+        return null;
+    }
 
     [$table, $titleField, $imageField, $routeType, $where] = $map[$type];
     $statement = $pdo->prepare(
@@ -270,7 +298,9 @@ function brvtal_public_preview_reference(
     );
     $statement->execute([$id]);
     $row = $statement->fetch(PDO::FETCH_ASSOC);
-    if (!$row) return null;
+    if (!$row) {
+        return null;
+    }
 
     $row['route_type'] = $routeType;
     $row['meta'] = $meta;
@@ -278,38 +308,42 @@ function brvtal_public_preview_reference(
 }
 
 /** @return list<array<string,mixed>> */
-function brvtal_public_preview_artist_cards(PDO $pdo, array $rows): array
+function brvtalPublicPreviewArtistCards(PDO $pdo, array $rows): array
 {
     $cards = [];
     foreach ($rows as $row) {
-        $card = brvtal_public_preview_reference(
+        $card = brvtalPublicPreviewReference(
             $pdo,
             'artist',
             (int)($row['artist_id'] ?? 0),
             (string)($row['role'] ?? '')
         );
-        if ($card) $cards[] = $card;
+        if ($card) {
+            $cards[] = $card;
+        }
     }
     return $cards;
 }
 
 /** @return list<array<string,mixed>> */
-function brvtal_public_preview_relation_cards(PDO $pdo, array $rows): array
+function brvtalPublicPreviewRelationCards(PDO $pdo, array $rows): array
 {
     $cards = [];
     foreach ($rows as $row) {
-        $card = brvtal_public_preview_reference(
+        $card = brvtalPublicPreviewReference(
             $pdo,
             (string)($row['related_type'] ?? ''),
             (int)($row['related_id'] ?? 0)
         );
-        if ($card) $cards[] = $card;
+        if ($card) {
+            $cards[] = $card;
+        }
     }
     return $cards;
 }
 
 /** @return array<string,mixed> */
-function brvtal_public_preview_entity(array $snapshot): array
+function brvtalPublicPreviewEntity(array $snapshot): array
 {
     $type = (string)$snapshot['type'];
     $payload = $snapshot['payload'];
@@ -322,7 +356,9 @@ function brvtal_public_preview_entity(array $snapshot): array
         'artists' => (string)($payload['name'] ?? ''),
         default => (string)($payload['title'] ?? ''),
     };
-    if ($title === '') $title = 'UNTITLED PREVIEW';
+    if ($title === '') {
+        $title = 'UNTITLED PREVIEW';
+    }
 
     $description = match ($type) {
         'artists' => (string)($payload['bio'] ?? ''),
@@ -355,18 +391,20 @@ function brvtal_public_preview_entity(array $snapshot): array
         'status','event_date','venue','city','accent','release_date','catalog_number',
         'published_at','instagram_url','soundcloud_url','website_url','external_url',
     ] as $field) {
-        if (array_key_exists($field, $payload)) $entity[$field] = $payload[$field];
+        if (array_key_exists($field, $payload)) {
+            $entity[$field] = $payload[$field];
+        }
     }
 
     return $entity;
 }
 
 /** @return array<string,mixed> */
-function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
+function brvtalPublicPreviewPage(PDO $pdo, array $snapshot): array
 {
     $type = (string)$snapshot['type'];
     $payload = $snapshot['payload'];
-    $entity = brvtal_public_preview_entity($snapshot);
+    $entity = brvtalPublicPreviewEntity($snapshot);
     $page = [
         'entity' => $entity,
         'facts' => [],
@@ -402,12 +440,16 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
             'ticket_url' => (string)($payload['ticket_url'] ?? ''),
             'ticket_instructions' => (string)($payload['ticket_instructions'] ?? ''),
         ]);
-        $page['facts'] = array_filter([
-            'DATE' => $date !== '' ? date('d.m.Y / H:i', strtotime($date)) : '',
-            'LOCATION' => implode(' / ', array_filter([
+        $location = implode(
+            ' / ',
+            array_filter([
                 $payload['venue'] ?? '',
                 $payload['city'] ?? '',
-            ])),
+            ])
+        );
+        $page['facts'] = array_filter([
+            'DATE' => $date !== '' ? date('d.m.Y / H:i', strtotime($date)) : '',
+            'LOCATION' => $location,
             'STATUS' => $status,
         ]);
         $historical = in_array(
@@ -426,7 +468,7 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
             : [];
 
         if (array_key_exists('lineup', $payload)) {
-            $page['related']['LINEUP'] = brvtal_public_preview_artist_cards(
+            $page['related']['LINEUP'] = brvtalPublicPreviewArtistCards(
                 $pdo,
                 $payload['lineup']
             );
@@ -437,7 +479,9 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
                 if (!in_array((string)($ticket['status'] ?? ''), ['active','sold_out'], true)) {
                     continue;
                 }
-                if (!brvtal_public_ticket_type_is_available($ticket)) continue;
+                if (!brvtal_public_ticket_type_is_available($ticket)) {
+                    continue;
+                }
                 $tickets[] = [
                     'title' => (string)($ticket['name'] ?? ''),
                     'description' => (string)($ticket['description'] ?? ''),
@@ -466,7 +510,7 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
         ]);
         $page['links'] = array_filter(['LISTEN' => $payload['external_url'] ?? '']);
         if (array_key_exists('artist_id', $payload)) {
-            $artist = brvtal_public_preview_reference(
+            $artist = brvtalPublicPreviewReference(
                 $pdo,
                 'artist',
                 (int)$payload['artist_id']
@@ -474,7 +518,7 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
             $page['related']['ARTIST'] = $artist ? [$artist] : [];
         }
         if (array_key_exists('event_id', $payload)) {
-            $event = brvtal_public_preview_reference(
+            $event = brvtalPublicPreviewReference(
                 $pdo,
                 'event',
                 (int)$payload['event_id']
@@ -495,7 +539,7 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
             'BEATPORT' => $payload['beatport_url'] ?? '',
         ]);
         if (array_key_exists('artists', $payload)) {
-            $page['related']['ARTISTS'] = brvtal_public_preview_artist_cards(
+            $page['related']['ARTISTS'] = brvtalPublicPreviewArtistCards(
                 $pdo,
                 $payload['artists']
             );
@@ -511,7 +555,7 @@ function brvtal_public_preview_page(PDO $pdo, array $snapshot): array
             );
         }
         if (array_key_exists('relations', $payload)) {
-            $page['related']['RELATED'] = brvtal_public_preview_relation_cards(
+            $page['related']['RELATED'] = brvtalPublicPreviewRelationCards(
                 $pdo,
                 $payload['relations']
             );

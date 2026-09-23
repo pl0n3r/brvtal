@@ -54,7 +54,12 @@ brvtal_admin_require();
         <h2 id="eventHeading">NEW EVENT</h2>
       </div>
       <div class="modal-actions" style="display:flex;gap:8px;align-items:center">
-        <button id="cc-previewBtn" type="button" class="btn" onclick="BRVTALContentCore.previewEvent()">PUBLIC PREVIEW</button>
+        <button
+          id="cc-previewBtn"
+          type="button"
+          class="btn"
+          onclick="BRVTALContentCore.previewEvent()"
+        >PUBLIC PREVIEW</button>
         <button id="cc-top-saveBtn" type="button" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE</button>
         <button class="icon" type="button" onclick="BRVTALContentCore.closeEvent()">CLOSE</button>
       </div>

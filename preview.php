@@ -28,7 +28,7 @@ if (!brvtal_admin_is_authenticated()) {
 }
 
 $token = strtolower(trim((string)($_GET['token'] ?? '')));
-$snapshot = brvtal_public_preview_load($token);
+$snapshot = brvtalPublicPreviewLoad($token);
 if ($snapshot === null) {
     brvtal_preview_error(410, 'This preview has expired or is not available in this session.');
 }
@@ -41,7 +41,7 @@ header('Referrer-Policy: no-referrer');
 
 if (($_GET['render'] ?? '') === '1') {
     $pdo = db();
-    $page = brvtal_public_preview_page($pdo, $snapshot);
+    $page = brvtalPublicPreviewPage($pdo, $snapshot);
     $baseUrl = brvtal_public_base_url($config);
     $seo = brvtal_public_seo_document(
         $page['entity'],
@@ -54,7 +54,7 @@ if (($_GET['render'] ?? '') === '1') {
         $seo['schema']['url'] = $previewCanonical;
     }
 
-    $html = brvtal_public_entity_document(
+    $html = brvtalPublicEntityDocument(
         $pdo,
         $page,
         $seo,

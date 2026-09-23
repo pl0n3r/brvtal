@@ -39,7 +39,7 @@
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR integrity | **PR + snapshot exacto** · Issue #529 · `work/issue-529` · UUID `7450f035-72bc-4bcf-a301-b51a69620d07` |
 | Preview privacy | 🚧 auth + CSRF al crear · token aleatorio 48 hex · sesión Admin · TTL 10 min · no-store/noindex |
-| Renderer | 🚧 producción y preview llaman `brvtal_public_entity_document()`; no segundo template |
+| Renderer | 🚧 producción y preview llaman `brvtalPublicEntityDocument()`; no segundo template |
 | Fidelity | 🚧 shell de inspección **1440 desktop / 390 mobile** sobre el documento público real |
 | Sonar | 🚧 Quality Gate sobre HEAD final |
 | CodeRabbit | 🚧 full review sobre HEAD final |
@@ -61,7 +61,7 @@ flowchart LR
 - Events, Artists, Releases, Sets, Pages y Blog reciben una acción **PUBLIC PREVIEW** que consume valores actuales del editor, incluso sin guardarlos.
 - Los snapshots viven solo en la sesión Admin, expiran en 10 minutos y usan tokens criptográficos; crear preview exige autenticación + CSRF.
 - La ruta browser-visible usa `no-store`, `noindex,nofollow` y requiere también la sesión que originó el token.
-- Se extrajo `brvtal_public_entity_document()`: producción y preview comparten exactamente la misma entrega pública, incluidos assets, Artist framing y controles.
+- Se extrajo `brvtalPublicEntityDocument()`: producción y preview comparten exactamente la misma entrega pública, incluidos assets, Artist framing y controles.
 - El shell permite revisar composición Concept 05 en **1440** y **390** sin copiar componentes al Admin.
 - Event preview incluye estado actual de ticket types, precios/CTA, accent y lineup; Releases/Blog incluyen relaciones/artwork/body actuales.
 - URLs, media, accent, fecha y JSON de Page se validan antes de renderizar datos crudos del editor.
