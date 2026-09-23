@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -432,3 +433,127 @@ test('Concept 05 motion foundation still animates fine pointers when motion is a
   await page.addScriptTag({ content:motion });
   expect(await page.evaluate(() => window.__c5MotionCalls)).toBeGreaterThan(0);
 });
+
+const canonicalVisualRegions = [
+  '.home-phase-a-hero',
+  '#genesis',
+  '#events',
+  '#artists',
+  '#sets',
+  '#media',
+  '#transmissions',
+  '#connected',
+  '.c5-footer',
+];
+
+const canonicalScreenshotBaselines = {
+  390: {
+    structure: 'PENDING_CALIBRATION',
+    color: 'PENDING_CALIBRATION',
+  },
+  1440: {
+    structure: 'PENDING_CALIBRATION',
+    color: 'PENDING_CALIBRATION',
+  },
+};
+
+/**
+ * Reduce one real PNG screenshot to low-noise structural and palette signals.
+ * The structural dHash tolerates antialiasing while retaining composition;
+ * the coarse RGB grid protects the Concept 05 black/paper/red/green hierarchy.
+ */
+async function screenshotSignature(page, png) {
+  return page.evaluate(async base64 => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+
+    const structureCanvas = document.createElement('canvas');
+    structureCanvas.width = 17;
+    structureCanvas.height = 16;
+    const structureContext = structureCanvas.getContext('2d', { willReadFrequently:true });
+    structureContext.drawImage(image, 0, 0, 17, 16);
+    const structurePixels = structureContext.getImageData(0, 0, 17, 16).data;
+
+    const luminance = offset =>
+      (structurePixels[offset] * 299 + structurePixels[offset + 1] * 587 + structurePixels[offset + 2] * 114) / 1000;
+
+    let bits = '';
+    for (let y = 0; y < 16; y += 1) {
+      for (let x = 0; x < 16; x += 1) {
+        const left = (y * 17 + x) * 4;
+        const right = left + 4;
+        bits += luminance(left) > luminance(right) ? '1' : '0';
+      }
+    }
+    let structure = '';
+    for (let index = 0; index < bits.length; index += 4) {
+      structure += Number.parseInt(bits.slice(index, index + 4), 2).toString(16);
+    }
+
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = 12;
+    colorCanvas.height = 12;
+    const colorContext = colorCanvas.getContext('2d', { willReadFrequently:true });
+    colorContext.drawImage(image, 0, 0, 12, 12);
+    const colorPixels = colorContext.getImageData(0, 0, 12, 12).data;
+    const colorGrid = [];
+    for (let offset = 0; offset < colorPixels.length; offset += 4) {
+      const r = Math.min(3, Math.floor(colorPixels[offset] / 64));
+      const g = Math.min(3, Math.floor(colorPixels[offset + 1] / 64));
+      const b = Math.min(3, Math.floor(colorPixels[offset + 2] / 64));
+      colorGrid.push((r << 4) | (g << 2) | b);
+    }
+
+    return {
+      structure,
+      color: btoa(String.fromCharCode(...colorGrid)),
+    };
+  }, png.toString('base64'));
+}
+
+/**
+ * Capture all canonical Concept 05 modules and aggregate perceptual screenshot
+ * signatures into compact baselines committed in this spec.
+ */
+async function captureCanonicalVisualFingerprint(page) {
+  const regions = [];
+  for (const selector of canonicalVisualRegions) {
+    const locator = page.locator(selector).first();
+    await expect(locator).toBeVisible();
+    const png = await locator.screenshot({
+      animations:'disabled',
+      caret:'hide',
+      scale:'css',
+    });
+    regions.push({ selector, ...(await screenshotSignature(page, png)) });
+  }
+
+  return {
+    structure:createHash('sha256')
+      .update(regions.map(region => `${region.selector}:${region.structure}`).join('|'))
+      .digest('hex'),
+    color:createHash('sha256')
+      .update(regions.map(region => `${region.selector}:${region.color}`).join('|'))
+      .digest('hex'),
+    regions,
+  };
+}
+
+for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+  test(`Concept 05 canonical ${viewport.width}px screenshot fingerprint stays approved`, async ({ page }) => {
+    await mount(page, viewport);
+    const actual = await captureCanonicalVisualFingerprint(page);
+    const expected = canonicalScreenshotBaselines[viewport.width];
+
+    if (expected.structure === 'PENDING_CALIBRATION') {
+      console.log(`CONCEPT05_SCREENSHOT_BASELINE_${viewport.width}=${JSON.stringify(actual)}`);
+    }
+
+    expect(
+      { structure:actual.structure, color:actual.color },
+      'Intentional Concept 05 visual changes require explicit baseline refresh after review.'
+    ).toEqual(expected);
+  });
+}
+
