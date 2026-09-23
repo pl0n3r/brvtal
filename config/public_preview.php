@@ -27,6 +27,49 @@ function brvtal_public_preview_int(mixed $value): int
     return $number === false ? 0 : max(0, (int)$number);
 }
 
+function brvtal_public_preview_url(mixed $value): string
+{
+    $url = brvtal_public_preview_text($value, 700);
+    if ($url === '') return '';
+    if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+        throw new InvalidArgumentException('INVALID_PREVIEW_URL');
+    }
+    $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+    $hasCredentials = parse_url($url, PHP_URL_USER) !== null
+        || parse_url($url, PHP_URL_PASS) !== null;
+    if (!in_array($scheme, ['http','https'], true) || $hasCredentials) {
+        throw new InvalidArgumentException('INVALID_PREVIEW_URL');
+    }
+    return $url;
+}
+
+function brvtal_public_preview_media(mixed $value): string
+{
+    $reference = brvtal_public_preview_text($value, 500);
+    if ($reference === '') return '';
+    if (!brvtalMediaImageReferenceState($reference)['valid']) {
+        throw new InvalidArgumentException('INVALID_PREVIEW_MEDIA');
+    }
+    return $reference;
+}
+
+function brvtal_public_preview_datetime(mixed $value): string
+{
+    $raw = brvtal_public_preview_text($value, 32);
+    if ($raw === '') return '';
+    foreach (['Y-m-d H:i:s','Y-m-d H:i','Y-m-d\\TH:i:s','Y-m-d\\TH:i'] as $format) {
+        $date = DateTimeImmutable::createFromFormat('!' . $format, $raw);
+        $errors = DateTimeImmutable::getLastErrors();
+        if (!$date) continue;
+        if (is_array($errors) && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0)) {
+            continue;
+        }
+        if ($date->format($format) !== $raw) continue;
+        return $date->format('Y-m-d H:i:s');
+    }
+    throw new InvalidArgumentException('INVALID_PREVIEW_DATE');
+}
+
 /** @return list<array<string,mixed>> */
 function brvtal_public_preview_list(string $type, mixed $value): array
 {
@@ -42,7 +85,7 @@ function brvtal_public_preview_list(string $type, mixed $value): array
                 'description' => brvtal_public_preview_text($row['description'] ?? '', 1000),
                 'price' => is_numeric($row['price'] ?? null) ? (float)$row['price'] : null,
                 'currency' => brvtal_public_preview_text($row['currency'] ?? 'COP', 8) ?: 'COP',
-                'external_url' => brvtal_public_preview_text($row['external_url'] ?? '', 700),
+                'external_url' => brvtal_public_preview_url($row['external_url'] ?? ''),
                 'status' => brvtal_public_preview_text($row['status'] ?? 'draft', 24),
                 'available_from' => brvtal_public_preview_text($row['available_from'] ?? '', 32),
                 'available_until' => brvtal_public_preview_text($row['available_until'] ?? '', 32),
@@ -121,10 +164,29 @@ function brvtal_public_preview_snapshot(string $type, array $payload): array
             $clean[$field] = brvtal_public_preview_int($payload[$field]);
         } elseif (in_array($field, ['ticket_types','lineup','artists','relations'], true)) {
             $clean[$field] = brvtal_public_preview_list($field, $payload[$field]);
+        } elseif (in_array($field, ['cover_image','photo','artwork'], true)) {
+            $clean[$field] = brvtal_public_preview_media($payload[$field]);
+        } elseif (in_array($field, [
+            'ticket_url','instagram_url','soundcloud_url','website_url','external_url',
+            'embed_url','spotify_url','bandcamp_url','youtube_url','beatport_url'
+        ], true)) {
+            $clean[$field] = brvtal_public_preview_url($payload[$field]);
+        } elseif ($field === 'event_date') {
+            $clean[$field] = brvtal_public_preview_datetime($payload[$field]);
         } else {
             $max = in_array($field, ['body','content_json'], true) ? 50000 : 4000;
             $clean[$field] = brvtal_public_preview_text($payload[$field], $max);
         }
+    }
+
+    if (isset($clean['accent']) && $clean['accent'] !== ''
+        && preg_match('/^#[0-9a-f]{6}$/i', $clean['accent']) !== 1) {
+        throw new InvalidArgumentException('INVALID_PREVIEW_ACCENT');
+    }
+    if ($type === 'pages' && isset($clean['content_json'])
+        && json_decode($clean['content_json'], true) === null
+        && trim($clean['content_json']) !== 'null') {
+        throw new InvalidArgumentException('INVALID_PREVIEW_CONTENT_JSON');
     }
 
     return ['type' => $type, 'payload' => $clean];
