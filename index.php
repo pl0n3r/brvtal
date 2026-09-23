@@ -109,8 +109,8 @@ $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('class="artist" href="#"', 'class="artist" aria-disabled="true"', $html);
 $artistHeadSource = '<div class="section-head"><span class="mono">ROSTER / 04</span>'
     . '<h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>';
-$artistHeadTarget = '<div class="section-head"><span class="mono">BRVTAL ARTISTS / 03</span>'
-    . '<h2>ARTISTS</h2><span class="mono">CORE / ALUMNI / COLLABORATORS</span></div>';
+$artistHeadTarget = '<div class="section-head"><span class="mono">BRVTAL ARTISTS / 02</span>'
+    . '<h2>ARTISTS</h2><span class="mono">MEMBERS / COLLABORATORS</span></div>';
 $html = str_replace($artistHeadSource, $artistHeadTarget, $html);
 
 $nightHeadSource = '<div class="section-head"><span class="mono">EVENTS / 03</span>'

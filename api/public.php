@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/memory_relations.php';
+require_once __DIR__ . '/../config/artist_collective_membership.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
 require_once __DIR__ . '/public-response.php';
@@ -250,10 +251,10 @@ try {
     $eventsStatement->execute($eventStatuses);
     $allEvents = $eventsStatement->fetchAll();
 
+    $artistMembership = brvtalArtistCollectiveMembershipSql($pdo);
     $artists = $pdo->query(
         "SELECT id,name,slug,bio,seo_title,seo_description,photo,instagram_url,soundcloud_url,website_url,
-                collective_status,collective_order,collective_joined_at,collective_left_at,
-                status,sort_order
+                {$artistMembership} AS is_collective_member,status,sort_order
          FROM artists
          WHERE status='published'
          ORDER BY sort_order ASC, name ASC"

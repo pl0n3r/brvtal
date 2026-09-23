@@ -173,6 +173,7 @@ $expect(count($ids) === 3, 'ordering fixture must create three records');
 $copies = [
     'api/reorder.php',
     'config/admin_activity.php',
+    'config/artist_collective_membership.php',
     'config/admin_auth.php',
     'config/admin_session_revalidation.php',
     'config/artist_collective_lifecycle.php',

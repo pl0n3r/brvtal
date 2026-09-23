@@ -14,7 +14,7 @@ function brvtalAdminGridColumns(): array
 {
     return [
         'events' => ['primary','date','location','status'],
-        'artists' => ['primary','links','status','position'],
+        'artists' => ['primary','links','collective','status','position'],
         'releases' => ['primary','artists','type','date','status','position'],
         'sets' => ['primary','artist','event','status','position'],
         'media' => ['primary','type','mime','size','status'],

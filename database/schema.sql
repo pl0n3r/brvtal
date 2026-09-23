@@ -41,9 +41,11 @@ CREATE TABLE artists (
   soundcloud_url VARCHAR(500) NULL,
   website_url VARCHAR(500) NULL,
   status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+  is_collective_member TINYINT(1) NOT NULL DEFAULT 0,
   sort_order INT NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_artists_collective_member (is_collective_member, sort_order, name)
 ) ENGINE=InnoDB;
 
 CREATE TABLE event_artists (

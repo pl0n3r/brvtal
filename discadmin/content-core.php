@@ -15,7 +15,6 @@ brvtal_admin_require();
 <div class="wrap">
 
 <div id="cc-notice" class="notice"></div>
-<div class="tabs"><button class="tab active" data-tab="events">EVENT EDITOR</button><button class="tab" data-tab="roster">COLLECTIVE ROSTER</button></div>
 <section id="eventsTab" class="panel">
   <div class="toolbar">
     <label class="admin-sr-only" for="eventSearch">Search events</label>
@@ -26,24 +25,6 @@ brvtal_admin_require();
     </div>
   </div>
   <div id="eventsTable" class="table"></div>
-</section>
-<section id="rosterTab" class="panel" style="display:none">
-  <div class="toolbar">
-    <label class="admin-sr-only" for="artistSearch">Search artists</label>
-    <input id="artistSearch" class="search" placeholder="Search artists…">
-    <button class="btn" onclick="BRVTALContentCore.loadArtists()">REFRESH</button>
-  </div>
-  <div class="roster">
-    <div class="box">
-      <h3>COLLECTIVE ROSTER</h3>
-      <div class="helper">Manage active BRVTAL DJs and alumni without changing the artist identity itself.</div>
-      <div id="rosterList" class="artist-list" style="margin-top:12px"></div>
-    </div>
-    <div class="box">
-      <h3>ARTIST LIFECYCLE</h3>
-      <div id="artistDetail" class="helper">Select an artist to edit collective status and order.</div>
-    </div>
-  </div>
 </section>
 </div>
 <div id="eventModal" class="modal">
@@ -189,7 +170,16 @@ brvtal_admin_require();
     <div id="tickets"></div>
   </div>
 </div>
-<div class="step-content" data-content="5"><div class="section"><div class="sectionhead"><strong>BRVTAL COLLECTIVE / EVENT PARTICIPATION</strong></div><div class="helper" style="margin-bottom:12px">This is the event roster. It does not redefine the artist's collective history.</div><div id="eventArtists" class="artist-list"></div></div></div>
+<div class="step-content" data-content="5">
+  <div class="section">
+    <div class="sectionhead"><strong>ARTISTS / EVENT PARTICIPATION</strong></div>
+    <div class="helper" style="margin-bottom:12px">
+      Current BRVTAL members are listed first. Existing external participants stay available
+      so event history is never lost.
+    </div>
+    <div id="eventArtists" class="artist-list"></div>
+  </div>
+</div>
 </form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
 </div></div></div></div>
 

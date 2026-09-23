@@ -11,8 +11,8 @@ const events = [
   {id:43,title:'NIGHT 43',slug:'night-43',description:'desc',status:'draft',city:'Bogota',venue:'Bodega',event_date:'2026-12-01 22:00:00'},
 ];
 const artists = [
-  {id:1,name:'ARTIST A',collective_status:'active',collective_order:1},
-  {id:2,name:'ARTIST B',collective_status:'active',collective_order:2},
+  {id:1,name:'ARTIST A',is_collective_member:1,sort_order:1},
+  {id:2,name:'ARTIST B',is_collective_member:1,sort_order:2},
 ];
 
 function html() {

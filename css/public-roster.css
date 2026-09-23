@@ -6,10 +6,9 @@
 .roster-group{position:relative;margin:0 0 8vh}
 .roster-group-head{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,.28);font-size:9px;letter-spacing:.13em;color:#8c8c88}
 .roster-group-head b{font-weight:400;color:#d7d7d1}
-.roster-group--active .roster-group-head{color:var(--acid)}
-.roster-group--active .artist{border-left:2px solid transparent}
-.roster-group--active .artist:hover,.roster-group--active .artist:focus-visible{border-left-color:var(--acid)}
-.roster-group--alumni{opacity:.82}
+.roster-group--member .roster-group-head{color:var(--acid)}
+.roster-group--member .artist{border-left:2px solid transparent}
+.roster-group--member .artist:hover,.roster-group--member .artist:focus-visible{border-left-color:var(--acid)}
 .roster-group--network .roster-group-head{color:#777}
 .artist{min-height:74px;outline:none}
 .artist:focus-visible{padding-left:18px;color:var(--acid);box-shadow:inset 0 0 0 1px var(--acid)}
@@ -17,11 +16,11 @@
 .artist-preview{z-index:2}
 .entity-page--artist{--artist-signal:var(--red,#9e0d12);background:#050505}
 .entity-page--artist:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:20;background:repeating-linear-gradient(0deg,transparent 0 4px,rgba(255,255,255,.014) 5px 6px)}
-.entity-page--artist-active{--artist-signal:#b8ff00}
+.entity-page--artist-member{--artist-signal:#b8ff00}
 .entity-page--artist .entity-image:after{content:"";position:absolute;inset:0;border:1px solid rgba(255,255,255,.13);box-shadow:inset 0 -80px 120px rgba(0,0,0,.42);pointer-events:none}
 .entity-page--artist .entity-image>span{color:var(--artist-signal)}
 .entity-page--artist .entity-copy h1{text-shadow:4px 0 rgba(158,13,18,.2),-3px 0 rgba(255,255,255,.06)}
-.entity-page--artist-active .entity-copy h1{text-shadow:4px 0 rgba(184,255,0,.18),-3px 0 rgba(255,255,255,.06)}
+.entity-page--artist-member .entity-copy h1{text-shadow:4px 0 rgba(184,255,0,.18),-3px 0 rgba(255,255,255,.06)}
 .entity-page--artist .entity-facts span,.entity-page--artist .entity-section-label{color:var(--artist-signal)}
 .entity-page--artist .entity-related{position:relative}
 .entity-page--artist .entity-related:before{content:"";position:absolute;top:0;left:0;width:min(180px,24vw);height:1px;background:var(--artist-signal);opacity:.75}

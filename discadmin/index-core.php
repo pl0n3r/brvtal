@@ -16,6 +16,24 @@ require_once __DIR__ . '/../config/deployment.php';
 .login{min-height:100vh;display:grid;place-items:center}.loginbox{width:min(420px,90vw);background:#090a0b;border:1px solid #282c30;padding:30px}.loginbox h1{margin:0;font-size:38px;letter-spacing:-2px}.loginbox .sub{margin-bottom:28px}.loginbox input{width:100%;background:#050606;color:#fff;border:1px solid #34383d;padding:12px;margin:7px 0 14px}.syscheck{margin:18px 0;border:1px solid #24282c;background:#070808;padding:12px}.sysrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #181b1d;font-size:9px;letter-spacing:1.2px}.sysrow:last-child{border-bottom:0}.sysok{color:var(--green)}.syserr{color:#ff5555}.syswait{color:#8b9197}.navgroup{font-size:8px;letter-spacing:2px;color:#4f555a;margin:25px 0 7px}.thumb{width:58px;height:58px;object-fit:cover;border:1px solid #333;background:#111;flex:0 0 auto}.thumb.lg{width:84px;height:84px}.thumbph{width:58px;height:58px;border:1px solid #292e33;background:linear-gradient(135deg,#0c0d0e,#15181a);display:grid;place-items:center;color:#454b50;font:9px monospace;flex:0 0 auto}.dashgrid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-top:14px}.dashlist{display:grid;gap:8px}.dashitem{display:flex;gap:12px;align-items:center;border:1px solid #24282c;background:#090a0b;padding:10px}.dashitem .grow{min-width:0;flex:1}.dashitem .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metricrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border:1px solid #24282c;background:#080909;padding:12px}.metric b{display:block;font-size:18px;margin-top:6px}.bar{height:5px;background:#171a1d;margin-top:10px}.bar i{display:block;height:100%;background:var(--green);width:0}.quickgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.quickgrid button{min-height:58px}.dashsection{border:1px solid #24282c;background:#080909;padding:18px}.dashsection .sectionhead{margin-bottom:12px}.thumbcell{display:flex;gap:12px;align-items:center;min-width:0}.techgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.techcard{border:1px solid #24282c;background:#090a0b;padding:18px}.techcard h3{font-size:11px;letter-spacing:1.5px;margin:0 0 9px}.techcard p{font-size:10px;color:#737980;line-height:1.5;min-height:30px}.techvalue{font-size:18px;font-weight:900;margin:8px 0}.techactions{display:flex;gap:7px;flex-wrap:wrap}.logbox{background:#030404;border:1px solid #22272b;padding:15px;white-space:pre-wrap;word-break:break-word;font:10px/1.5 monospace;color:#aeb4b9;max-height:58vh;overflow:auto}.tester{display:grid;grid-template-columns:220px 1fr;gap:12px}.tester pre{margin:0;background:#030404;border:1px solid #22272b;padding:14px;overflow:auto;min-height:260px;font:10px/1.5 monospace}
 @media(max-width:850px){.dashgrid{grid-template-columns:1fr}.quickgrid{grid-template-columns:1fr 1fr}.metricrow{grid-template-columns:1fr 1fr}.shell{grid-template-columns:1fr}.side{position:static;height:auto;border-right:0;border-bottom:1px solid #202326}.sidefoot{position:static;margin-top:20px}.stats{grid-template-columns:1fr 1fr}.grid2,.lineup{grid-template-columns:1fr}.thead{display:none}.tr{grid-template-columns:1fr 1fr}.tr>div:nth-child(2),.tr>div:nth-child(3),.tr>div:nth-child(4){display:none}}
 
+.membership-check{
+ display:flex;
+ gap:12px;
+ align-items:flex-start;
+ border:1px solid #353a3f;
+ background:#050606;
+ padding:14px
+}
+.membership-check input{
+ width:auto!important;
+ min-height:0!important;
+ margin:2px 0 0;
+ accent-color:var(--green)
+}
+.membership-check span{display:grid;gap:5px}
+.membership-check b{font-size:11px;letter-spacing:.5px}
+.membership-check small{color:#747b82;font-size:10px;line-height:1.5}
+
 /* BRVTAL SYSTEM PULSE V2 */
 .system-pulse{border:1px solid #292d31;background:#080909;padding:22px;margin:22px 0 14px}
 .system-pulse-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding-bottom:16px;margin-bottom:14px;border-bottom:1px solid #24282c}
@@ -233,8 +251,62 @@ function closeModal(force=false){
 function field(id,label,val='',type='text',full=false){return `<div class="field ${full?'full':''}"><label for="f_${id}">${label}</label><input id="f_${id}" type="${type}" value="${esc(val)}"></div>`}
 function area(id,label,val='',full=true){return `<div class="field ${full?'full':''}"><label for="f_${id}">${label}</label><textarea id="f_${id}">${esc(val)}</textarea></div>`}
 function select(id,label,val,opts){return `<div class="field"><label for="f_${id}">${label}</label><select id="f_${id}">${opts.map(o=>`<option value="${o[0]}" ${o[0]===val?'selected':''}>${o[1]}</option>`).join('')}</select></div>`}
+function checkbox(id,label,checked=false,help=''){
+ return `<div class="field full">
+  <label for="f_${id}">${label}</label>
+  <label class="membership-check" for="f_${id}">
+   <input id="f_${id}" type="checkbox" ${checked?'checked':''}>
+   <span><b>${label}</b><small>${help}</small></span>
+  </label>
+ </div>`;
+}
 function eventForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EVENT DATA</strong><span class="helper">Contenido y publicación</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${field('event_date','Date / time',r.event_date,'datetime-local')}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published'],['archived','Archived']])}${field('venue','Venue',r.venue)}${field('city','City',r.city)}${area('description','Description',r.description)}</div></div><div class="section"><div class="sectionhead"><strong>EVENT SKIN</strong><span class="helper">Identidad visual</span></div><div class="grid2">${field('skin','Skin key',r.skin||'CORE')}${field('accent','Accent',r.accent||'#FF2038')}<div class="field full"><label>Cover image URL / path</label><div class="thumbcell" style="margin-bottom:8px">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${field('ticket_url','Ticket URL',r.ticket_url)}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div></div>`}
-function artistForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>ARTIST PROFILE</strong><span class="helper">Roster BRVTAL</span></div><div class="grid2">${field('name','Name *',r.name)}${field('slug','Slug',r.slug)}${area('bio','Bio',r.bio)}<div class="field"><label>Photo URL / path</label><div class="thumbcell">${thumb(r.photo,r.name,true)}<input id="f_photo" type="text" value="${esc(r.photo)}"></div></div>${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div><div class="section"><div class="sectionhead"><strong>LINKS</strong><span class="helper">Social / music</span></div><div class="grid2">${field('instagram_url','Instagram',r.instagram_url)}${field('soundcloud_url','SoundCloud',r.soundcloud_url)}${field('website_url','Website',r.website_url)}</div></div></div>`}
+function artistForm(r){
+ r=r||{};
+ document.getElementById('mcontent').innerHTML=`<div class="form">
+  <div class="section">
+   <div class="sectionhead">
+    <strong>ARTIST PROFILE</strong><span class="helper">Identity and publication</span>
+   </div>
+   <div class="grid2">
+    ${field('name','Name *',r.name)}
+    ${field('slug','Slug',r.slug)}
+    ${area('bio','Bio',r.bio)}
+    <div class="field">
+     <label>Photo URL / path</label>
+     <div class="thumbcell">
+      ${thumb(r.photo,r.name,true)}
+      <input id="f_photo" type="text" value="${esc(r.photo)}">
+     </div>
+    </div>
+    ${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}
+    ${field('sort_order','Sort order',r.sort_order||0,'number')}
+   </div>
+  </div>
+  <div class="section">
+   <div class="sectionhead">
+    <strong>BRVTAL MEMBERSHIP</strong><span class="helper">Internal current-state flag</span>
+   </div>
+   <div class="grid2">
+    ${checkbox(
+      'is_collective_member',
+      'BRVTAL artist / Member of collective',
+      Number(r.is_collective_member||0)===1,
+      'This checkbox is the only current-membership authority. '
+        + 'Historical membership periods are retained automatically and are not edited here.'
+    )}
+   </div>
+  </div>
+  <div class="section">
+   <div class="sectionhead"><strong>LINKS</strong><span class="helper">Social / music</span></div>
+   <div class="grid2">
+    ${field('instagram_url','Instagram',r.instagram_url)}
+    ${field('soundcloud_url','SoundCloud',r.soundcloud_url)}
+    ${field('website_url','Website',r.website_url)}
+   </div>
+  </div>
+ </div>`;
+}
 function setForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>SET / SOUND</strong><span class="helper">SoundCloud, YouTube, Spotify</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('platform','Platform',r.platform||'soundcloud',[['soundcloud','SoundCloud'],['youtube','YouTube'],['spotify','Spotify'],['other','Other']])}${field('external_url','External URL',r.external_url)}${field('embed_url','Embed URL',r.embed_url)}<div class="field"><label>Cover image</label><div class="thumbcell">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${select('artist_id','Artist',String(r.artist_id||''),[['','—'],...state.artists.map(a=>[String(a.id),a.name])])}${select('event_id','Event',String(r.event_id||''),[['','—'],...state.events.map(a=>[String(a.id),a.title])])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${field('sort_order','Sort order',r.sort_order||0,'number')}${area('description','Description',r.description)}</div></div></div>`}
 function mediaForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>MEDIA RECORD</strong><span class="helper">Use Upload in Media Library for real files</span></div><div class="grid2">${field('title','Title *',r.title)}${select('type','Type',r.type||'image',[['image','Image'],['video','Video'],['audio','Audio'],['document','Document']])}${field('file_path','File path / URL',r.file_path)}${field('mime_type','MIME type',r.mime_type)}${field('file_size','File size',r.file_size||0,'number')}${field('alt_text','Alt text',r.alt_text)}${select('status','Status',r.status||'published',[['published','Published'],['draft','Draft']])}</div></div></div>`}
 function pageForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>PAGE BUILDER DATA</strong><span class="helper">JSON blocks — editor visual comes next</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('locale','Locale',r.locale||'es',[['es','Español'],['en','English']])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${area('content_json','Content JSON',r.content_json)}${field('seo_title','SEO title',r.seo_title)}${area('seo_description','SEO description',r.seo_description)}</div></div></div>`}

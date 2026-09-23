@@ -44,6 +44,8 @@ $assert(str_contains($js, 'data-grid-columns-reset'), 'grid must expose restore-
 $assert(str_contains($js, 'data-grid-select-all') && str_contains($js, 'data-grid-clear'), 'grid must expose select-all and clear-selection controls');
 $assert(str_contains($js, 'BRVTALBulkActions?.open?.(state.module,[...selected])'), 'grid selection must reuse the safe bulk-actions engine');
 $assert(str_contains($js, "releases: {") && str_contains($js, "blog: {") && str_contains($js, "media: {"), 'shared renderer must own Releases, Blog and Media configs');
+$assert(in_array('collective', brvtalAdminGridDefaultColumns('artists'), true), 'Artist grid must expose canonical BRVTAL membership');
+$assert(str_contains($js, 'data-grid-membership-filter') && str_contains($js, "state.membershipFilter"), 'Artist grid must expose useful membership filtering');
 $assert(str_contains($api, 'brvtalAdminGridSettingKey($adminId, $module)'), 'preference endpoint must namespace persistence by authenticated admin');
 $assert(str_contains($api, 'brvtal_admin_require_csrf()'), 'preference mutation must retain CSRF');
 $assert(str_contains($coreApi, "setting_key NOT LIKE 'admin.grid.%'"), 'generic settings listing must hide private grid preferences');
@@ -51,5 +53,6 @@ $assert(substr_count($coreApi, "str_starts_with(\$key, 'admin.grid.')") >= 2, 'g
 $assert(str_contains($index, '/discadmin/admin-data-grid.js') && str_contains($index, '/discadmin/admin-data-grid.css'), 'canonical shell must load shared data-grid assets');
 $assert(str_contains($css, '@media(max-width:760px)'), 'data grid must define mobile behavior');
 $assert(str_contains($css, '.admin-grid-sort:focus-visible'), 'sortable headers must expose keyboard focus');
+$assert(str_contains($css, '.admin-grid-membership-filter'), 'Artist membership filter must have shared responsive styling');
 
 fwrite(STDOUT, "Admin data-grid contract OK\n");

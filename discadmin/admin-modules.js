@@ -376,7 +376,9 @@ window.BRVTALAdminModules = (() => {
     if (type === 'artists') return {
       name:fieldValue('name'), slug:fieldValue('slug'), bio:fieldValue('bio'), photo:fieldValue('photo'),
       instagram_url:fieldValue('instagram_url'), soundcloud_url:fieldValue('soundcloud_url'),
-      website_url:fieldValue('website_url'), status:fieldValue('status') || 'draft'
+      website_url:fieldValue('website_url'),
+      is_collective_member:Boolean(document.getElementById('f_is_collective_member')?.checked),
+      status:fieldValue('status') || 'draft'
     };
     if (type === 'sets') return {
       title:fieldValue('title'), slug:fieldValue('slug'), platform:fieldValue('platform') || 'soundcloud',

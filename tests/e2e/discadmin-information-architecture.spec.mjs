@@ -454,20 +454,15 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await expect.poll(() => page.evaluate(() => window.__legacyOpen.length)).toBe(0);
 });
 
-test('collective membership is an Artists sub-workflow instead of a top-level module', async ({ page }) => {
+test('Artist membership remains inside the canonical Artists editor with no duplicate workflow', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
 
   await page.evaluate(() => window.go('artists'));
-  const collective = page.getByRole('button',{name:'COLLECTIVE STATUS'});
-  await expect(collective).toBeVisible();
-  await collective.click();
 
   await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
-  await expect(page.locator('[data-admin-module="content-core"]')).toHaveAttribute('data-ia-context','artists-roster');
-  await expect(page.locator('#eventsTab')).toBeHidden();
-  await expect(page.locator('#rosterTab')).toBeVisible();
-  await expect(page.getByRole('button',{name:'← ARTIST PROFILES'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toHaveCount(0);
+  await expect(page.locator('[data-admin-module="content-core"]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
   await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('artists');
 });
@@ -496,7 +491,7 @@ test('direct native destination URL restores after the IA layer boots', async ({
 
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
   await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
-  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toHaveCount(0);
   expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
 });
 
@@ -522,7 +517,7 @@ test('deep link survives authentication redirect to Dashboard', async ({ page })
 
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('artists');
   await expect(page.locator('.main .top h1')).toHaveText('ARTISTS');
-  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'COLLECTIVE STATUS'})).toHaveCount(0);
   expect(new URL(page.url()).searchParams.get('module')).toBe('artists');
 });
 

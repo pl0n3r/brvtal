@@ -57,8 +57,30 @@ function sanitize_payload(string $resource, array $d): array {
     if($visualError!==null) json_response(['ok'=>false,'error'=>$visualError['error'],'field'=>$visualError['field']],422);
     return $temporal['payload'];
 }
-function allowed_fields(string $resource): array {
-    return ['events'=>['title','slug','event_date','venue','city','description','skin','accent','cover_image','ticket_url','ticket_instructions','ticket_qr','featured','archive_year','status','sort_order'],'artists'=>['name','slug','bio','photo','instagram_url','soundcloud_url','website_url','collective_status','collective_order','collective_joined_at','collective_left_at','status','sort_order'],'sets'=>['title','slug','artist_id','event_id','platform','external_url','embed_url','cover_image','description','status','sort_order'],'media'=>['type','title','file_path','mime_type','file_size','alt_text','status'],'pages'=>['title','slug','locale','content_json','seo_title','seo_description','status'],'ticket_types'=>['event_id','name','description','price','currency','external_url','payment_instructions','qr_image','status','available_from','available_until','sort_order']][$resource] ?? [];
+function allowed_fields(string $resource): array
+{
+    return [
+        'events' => [
+            'title','slug','event_date','venue','city','description','skin','accent',
+            'cover_image','ticket_url','ticket_instructions','ticket_qr','featured',
+            'archive_year','status','sort_order',
+        ],
+        'artists' => [
+            'name','slug','bio','photo','instagram_url','soundcloud_url','website_url',
+            'is_collective_member','status','sort_order',
+        ],
+        'sets' => [
+            'title','slug','artist_id','event_id','platform','external_url','embed_url',
+            'cover_image','description','status','sort_order',
+        ],
+        'media' => ['type','title','file_path','mime_type','file_size','alt_text','status'],
+        'pages' => ['title','slug','locale','content_json','seo_title','seo_description','status'],
+        'ticket_types' => [
+            'event_id','name','description','price','currency','external_url',
+            'payment_instructions','qr_image','status','available_from',
+            'available_until','sort_order',
+        ],
+    ][$resource] ?? [];
 }
 function table_for(string $resource): string { return ['events'=>'events','artists'=>'artists','sets'=>'sets_media','media'=>'media','pages'=>'pages','ticket_types'=>'event_ticket_types','settings'=>'settings'][$resource] ?? ''; }
 function brvtal_activity_audited_resource(string $resource): bool { return in_array($resource,['events','artists','sets','pages','ticket_types'],true); }
@@ -259,6 +281,9 @@ try {
                 : 'id DESC';
             $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
         }
+        if ($resource === 'artists' && is_array($rows)) {
+            $rows = brvtalArtistCollectiveMembershipEnrichResult($rows);
+        }
         json_response(['ok' => true, 'data' => $rows]);
     }
     if($method==='POST') {
@@ -424,7 +449,99 @@ try {
             }
             json_response(['ok' => true]);
         }
-        $d=sanitize_payload($resource,$d);$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if($resource==='events')$p=brvtal_event_lifecycle_patch([],$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace(['status'=>'draft'],$p));if($eventStateError!==null)json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);} if($resource==='pages'&&!array_key_exists('locale',$p))$p['locale']='en';if($resource==='pages'){if(!array_key_exists('slug',$p)||$p['slug']==='')$p['slug']=slugify((string)($p['title']??''));$pageIdentityError=brvtal_page_identity_error($p);if($pageIdentityError!==null)json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);$pageStateError=brvtal_page_publication_error(array_replace(['status'=>'draft','locale'=>'en'],$p)); if($pageStateError!==null)json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422); }if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error($p);if($ticketWindowError!==null)json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}if($resource==='sets'){ $setPublicationError=brvtal_set_publication_error(array_replace(['status'=>'draft','external_url'=>''],$p)); if($setPublicationError!==null)json_response(['ok'=>false,'error'=>$setPublicationError,'field'=>'external_url'],422); }if($resource==='events'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);if($resource==='artists'&&empty($p['name']))json_response(['ok'=>false,'error'=>'NAME_REQUIRED'],422);if($resource==='sets'&&empty($p['title']))json_response(['ok'=>false,'error'=>'TITLE_REQUIRED'],422);$visualPublicationError=brvtalContentVisualPublicationError($resource,array_replace(['status'=>'draft'],$p));if($visualPublicationError!==null)json_response(['ok'=>false,'error'=>$visualPublicationError['error'],'field'=>$visualPublicationError['field']],422);if(isset($p['slug'])&&$p['slug']==='')$p['slug']=slugify((string)($p['title']??$p['name']??'item'));if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);$fields=array_keys($p);$cols=implode(',',array_map(fn($f)=>"`{$f}`",$fields));$marks=implode(',',array_fill(0,count($fields),'?'));
+        $d = sanitize_payload($resource, $d);
+        $allowed = allowed_fields($resource);
+        $p = [];
+        foreach ($allowed as $f) {
+            if (array_key_exists($f, $d)) {
+                $p[$f] = $d[$f];
+            }
+        }
+        if ($resource === 'artists') {
+            $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
+        }
+        if ($resource === 'events') {
+            $p = brvtal_event_lifecycle_patch([], $p);
+        }
+        if ($resource === 'events') {
+            $eventStateError = brvtal_event_publication_error(array_replace(['status' => 'draft'], $p));
+            if ($eventStateError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $eventStateError['error'], 'field' => $eventStateError['field']],
+                    422
+                );
+            }
+        }
+        if ($resource === 'pages' && !array_key_exists('locale', $p)) {
+            $p['locale'] = 'en';
+        }
+        if ($resource === 'pages') {
+            if (!array_key_exists('slug', $p) || $p['slug'] === '') {
+                $p['slug'] = slugify((string)($p['title'] ?? ''));
+            }
+            $pageIdentityError = brvtal_page_identity_error($p);
+            if ($pageIdentityError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $pageIdentityError['error'], 'field' => $pageIdentityError['field']],
+                    422
+                );
+            }
+            $pageStateError = brvtal_page_publication_error(
+                array_replace(['status' => 'draft', 'locale' => 'en'], $p)
+            );
+            if ($pageStateError !== null) {
+                json_response(['ok' => false, 'error' => $pageStateError, 'field' => 'locale'], 422);
+            }
+        }
+        if ($resource === 'ticket_types') {
+            $ticketWindowError = brvtal_ticket_window_error($p);
+            if ($ticketWindowError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $ticketWindowError['error'], 'field' => $ticketWindowError['field']],
+                    422
+                );
+            }
+        }
+        if ($resource === 'sets') {
+            $setPublicationError = brvtal_set_publication_error(
+                array_replace(['status' => 'draft', 'external_url' => ''], $p)
+            );
+            if ($setPublicationError !== null) {
+                json_response(['ok' => false, 'error' => $setPublicationError, 'field' => 'external_url'], 422);
+            }
+        }
+        if ($resource === 'events' && empty($p['title'])) {
+            json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
+        }
+        if ($resource === 'artists' && empty($p['name'])) {
+            json_response(['ok' => false, 'error' => 'NAME_REQUIRED'], 422);
+        }
+        if ($resource === 'sets' && empty($p['title'])) {
+            json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
+        }
+        $visualPublicationError = brvtalContentVisualPublicationError(
+            $resource,
+            array_replace(['status' => 'draft'], $p)
+        );
+        if ($visualPublicationError !== null) {
+            json_response(
+                [
+                    'ok' => false,
+                    'error' => $visualPublicationError['error'],
+                    'field' => $visualPublicationError['field'],
+                ],
+                422
+            );
+        }
+        if (isset($p['slug']) && $p['slug'] === '') {
+            $p['slug'] = slugify((string)($p['title'] ?? $p['name'] ?? 'item'));
+        }
+        if (!$p) {
+            json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
+        }
+        $fields = array_keys($p);
+        $cols = implode(',', array_map(fn($f) => "`{$f}`", $fields));
+        $marks = implode(',', array_fill(0, count($fields), '?'));
         $audited=brvtal_activity_audited_resource($resource);if($audited)$pdo->beginTransaction();
         try {
             $st = $pdo->prepare("INSERT INTO {$table} ({$cols}) VALUES ({$marks})");
@@ -465,7 +582,20 @@ try {
         }
     }
     if($method==='PUT'&&$id!==null){
-        $d=sanitize_payload($resource,input_json());$allowed=allowed_fields($resource);$p=[];foreach($allowed as $f)if(array_key_exists($f,$d))$p[$f]=$d[$f];if(!$p)json_response(['ok'=>false,'error'=>'NO_FIELDS'],422);
+        $d = sanitize_payload($resource, input_json());
+        $allowed = allowed_fields($resource);
+        $p = [];
+        foreach ($allowed as $f) {
+            if (array_key_exists($f, $d)) {
+                $p[$f] = $d[$f];
+            }
+        }
+        if ($resource === 'artists') {
+            $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
+        }
+        if (!$p) {
+            json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
+        }
         $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
         try{
             $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);

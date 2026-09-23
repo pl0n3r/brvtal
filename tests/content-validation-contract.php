@@ -22,21 +22,32 @@ $nonScalarEvent = brvtal_content_temporal_normalize('events', ['event_date' => [
 content_validation_expect(($nonScalarEvent['error']['error'] ?? null) === 'INVALID_DATE', 'array Event dates must fail cleanly before string conversion');
 content_validation_expect(($nonScalarEvent['error']['field'] ?? null) === 'event_date', 'non-scalar Event date errors must identify event_date');
 
-$artist = brvtal_content_temporal_normalize('artists', [
-    'collective_status' => 'active',
-    'collective_joined_at' => '2026-09-16',
-    'collective_left_at' => null,
+$memberArtist = brvtal_content_temporal_normalize('artists', [
+    'is_collective_member' => true,
 ]);
-content_validation_expect($artist['error'] === null, 'valid complete Artist lifecycle DATE values must be accepted');
-content_validation_expect(($artist['payload']['collective_joined_at'] ?? null) === '2026-09-16', 'Artist lifecycle DATE values must preserve the canonical DATE format');
-$partialArtist = brvtal_content_temporal_normalize('artists', ['collective_joined_at' => '2026-09-16']);
-content_validation_expect(($partialArtist['error']['error'] ?? null) === 'COLLECTIVE_LIFECYCLE_FIELDS_REQUIRED', 'partial Artist lifecycle updates must be rejected');
+content_validation_expect(
+    $memberArtist['error'] === null
+        && ($memberArtist['payload']['is_collective_member'] ?? null) === 1,
+    'Artist membership checkbox true must normalize to canonical 1'
+);
+
+$externalArtist = brvtal_content_temporal_normalize('artists', [
+    'is_collective_member' => false,
+]);
+content_validation_expect(
+    $externalArtist['error'] === null
+        && ($externalArtist['payload']['is_collective_member'] ?? null) === 0,
+    'Artist membership checkbox false must normalize to canonical 0'
+);
+
 $invalidArtist = brvtal_content_temporal_normalize('artists', [
-    'collective_status' => 'alumni',
-    'collective_joined_at' => '2026-09-01',
-    'collective_left_at' => '16/09/2026',
+    'is_collective_member' => 'active',
 ]);
-content_validation_expect(($invalidArtist['error']['field'] ?? null) === 'collective_left_at', 'malformed Artist lifecycle dates must be rejected');
+content_validation_expect(
+    ($invalidArtist['error']['error'] ?? null) === 'INVALID_COLLECTIVE_MEMBERSHIP'
+        && ($invalidArtist['error']['field'] ?? null) === 'is_collective_member',
+    'Artist membership must reject legacy lifecycle status values'
+);
 
 $ticket = brvtal_content_temporal_normalize('ticket_types', [
     'available_from' => '2026-10-10T20:00',

@@ -123,7 +123,7 @@ theme_reference_assert(str_contains($api, 'return is_array($decoded)'), 'API mus
 theme_reference_assert(str_contains($api, 'brvtalThemeDeleteReferenceError'), 'Settings DELETE must protect the active theme record.');
 $settingsPostStart = strpos($api, 'if ($resource === \'settings\') {');
 theme_reference_assert($settingsPostStart !== false, 'Settings POST block marker must remain present');
-$settingsPostEnd = strpos($api, '$d=sanitize_payload', (int)$settingsPostStart);
+$settingsPostEnd = strpos($api, '$d = sanitize_payload', (int)$settingsPostStart);
 theme_reference_assert($settingsPostEnd !== false, 'Settings POST block end marker must remain present');
 $settingsPostBlock = substr($api, (int)$settingsPostStart, (int)$settingsPostEnd - (int)$settingsPostStart);
 

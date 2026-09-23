@@ -13,16 +13,13 @@ function roster_expect(bool $condition, string $message): void
     }
 }
 
-roster_expect(brvtal_public_artist_roster_status(['collective_status'=>'active']) === 'active', 'active membership must remain active');
-roster_expect(brvtal_public_artist_roster_status(['collective_status'=>'alumni']) === 'alumni', 'alumni membership must remain alumni');
-roster_expect(brvtal_public_artist_roster_status(['collective_status'=>'none']) === 'network', 'non-members must be framed as network artists, not invented collective members');
+roster_expect(brvtal_public_artist_roster_status(['is_collective_member'=>1]) === 'member', 'current members must use canonical boolean framing');
+roster_expect(brvtal_public_artist_roster_status(['is_collective_member'=>0]) === 'network', 'non-members must be framed as network artists');
+roster_expect(brvtal_public_artist_roster_status(['is_collective_member'=>0,'collective_status'=>'active']) === 'network', 'canonical boolean must override stale legacy status');
 
-$activeFacts = brvtal_public_artist_membership_facts(['collective_status'=>'active','collective_joined_at'=>'2025-04-10']);
-roster_expect(($activeFacts['BRVTAL'] ?? '') === 'ACTIVE COLLECTIVE', 'active Artist page must expose real collective state');
-roster_expect(($activeFacts['MEMBER SINCE'] ?? '') === '10.04.2025', 'active Artist page must expose structured joined date');
-$alumniFacts = brvtal_public_artist_membership_facts(['collective_status'=>'alumni','collective_joined_at'=>'2024-02-01','collective_left_at'=>'2025-03-09']);
-roster_expect(($alumniFacts['MEMBERSHIP'] ?? '') === '01.02.2024 — 09.03.2025', 'alumni Artist page must expose the real membership period');
-roster_expect(brvtal_public_artist_membership_facts(['collective_status'=>'none']) === [], 'non-members must not receive a fake collective fact');
+$memberFacts = brvtal_public_artist_membership_facts(['is_collective_member'=>1]);
+roster_expect(($memberFacts['BRVTAL'] ?? '') === 'COLLECTIVE MEMBER', 'member Artist page must expose current collective membership');
+roster_expect(brvtal_public_artist_membership_facts(['is_collective_member'=>0]) === [], 'non-members must not receive a fake collective fact');
 
 $events = brvtal_public_artist_partition_events([
     ['title'=>'Later','status'=>'published','event_date'=>'2099-12-20 22:00:00'],
@@ -41,13 +38,16 @@ $delivery = (string)file_get_contents(__DIR__ . '/../config/public_entity_delive
 $css = (string)file_get_contents(__DIR__ . '/../css/public-roster.css');
 
 roster_expect(str_contains($api, "FROM artists\n         WHERE status='published'"), 'Home Roster source must remain limited to published Artists');
-foreach (['collective_status','collective_order','collective_joined_at','collective_left_at'] as $field) {
-    roster_expect(str_contains($api, $field), "public Artist payload must expose {$field}");
-}
+roster_expect(str_contains($api, 'is_collective_member'), 'public Artist payload must expose canonical membership');
 roster_expect(str_contains($runtime, '`/artists/${encodeURIComponent(slug)}`'), 'Home Roster must navigate to canonical Artist pages');
 roster_expect(!str_contains($runtime, 'website_url') && !str_contains($runtime, 'instagram_url'), 'Roster navigation must not use external profile URLs as its primary destination');
-roster_expect(str_contains($runtime, "['active', 'CORE / ACTIVE']") && str_contains($runtime, "['alumni', 'ALUMNI / ARCHIVE']"), 'Home Roster must visibly separate current and alumni membership');
-roster_expect(str_contains($runtime, "return 'ARTIST / COLLABORATOR';"), 'non-member framing must stay contextual and must not create a backend membership tier');
+roster_expect(str_contains($runtime, "['member', 'BRVTAL / COLLECTIVE']"), 'Home Roster must visibly identify current members');
+roster_expect(!str_contains($runtime, 'ALUMNI / ARCHIVE'), 'Home Roster must not recreate a second alumni state');
+roster_expect(
+    str_contains($runtime, "'ARTIST / COLLABORATOR'")
+        && str_contains($runtime, 'isMember(artist)'),
+    'non-member framing must stay contextual and must not create a backend membership tier'
+);
 roster_expect(str_contains($runtime, 'window.BRVTALPublicDataPromise'), 'Roster runtime must reuse the canonical public request');
 roster_expect(!str_contains($runtime, 'fetch('), 'Roster runtime must not add a duplicate public API request');
 roster_expect(str_contains($loader, "'js/app.js', 'js/public-roster.js'"), 'Roster must load after the canonical dynamic frontend');
@@ -66,10 +66,10 @@ roster_expect(str_contains($css, 'prefers-reduced-motion:reduce'), 'Roster visua
 
 $decorated = brvtal_public_artist_decorate_html(
     '<link rel="stylesheet" href="/css/public-entity.css"><body class="entity-page"><a>← BACK TO ARCHIVE</a><div>ABOUT / INFORMATION</div>',
-    ['entity'=>['route_type'=>'artists','collective_status'=>'active']]
+    ['entity'=>['route_type'=>'artists','is_collective_member'=>1]]
 );
 roster_expect(str_contains($decorated, '/css/public-roster.css'), 'Artist page must load Roster styling');
-roster_expect(str_contains($decorated, 'entity-page--artist-active'), 'Artist page body must expose membership framing to CSS');
+roster_expect(str_contains($decorated, 'entity-page--artist-member'), 'Artist page body must expose membership framing to CSS');
 roster_expect(str_contains($decorated, '← BACK TO ROSTER'), 'Artist page must return to the Roster, not generic archive wording');
 roster_expect(str_contains($decorated, 'ARTIST / IDENTITY'), 'Artist statement must use identity framing');
 
