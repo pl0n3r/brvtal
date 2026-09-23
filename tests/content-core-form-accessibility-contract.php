@@ -64,7 +64,6 @@ $document = content_core_a11y_document($fragment);
 
 foreach ([
     'eventSearch' => 'Search events',
-    'artistSearch' => 'Search artists',
 ] as $controlId => $labelText) {
     content_core_a11y_label_targets_control($document, $controlId, $labelText, true);
 }
