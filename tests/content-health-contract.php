@@ -23,12 +23,16 @@ health_assert(str_contains($api, "'seo_supported'"), 'Content Health must distin
 health_assert(str_contains($api, 'brvtalMediaImageReferenceState'), 'Content Health must resolve visual references instead of trusting non-empty strings');
 health_assert(str_contains($api, 'Broken primary visual'), 'Content Health must distinguish a broken visual reference from a missing visual');
 health_assert(str_contains($api, "'image_reference_kind'"), 'Content Health must expose visual-reference diagnostics');
+health_assert(str_contains($api, "'empty_visuals'"), 'Content Health must count truly empty visual fields separately');
+health_assert(str_contains($api, "'broken_visuals'"), 'Content Health must count broken visual references separately');
 health_assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+|FROM\s+)?[`a-z_]/i', $api), 'Content Health API must not mutate database records');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/content-health.js');
 health_assert(str_contains($controller, "'/api/content-health.php'"), 'Dashboard panel must use Content Health API');
 health_assert(str_contains($controller, "state.section !== 'dashboard'"), 'Content Health must stay scoped to Dashboard');
 health_assert(str_contains($controller, 'Read-only diagnostics'), 'UI must state that diagnostics do not mutate content');
+health_assert(str_contains($controller, 'PUBLIC EMPTY VISUALS'), 'Dashboard must show empty visual debt explicitly');
+health_assert(str_contains($controller, 'PUBLIC BROKEN VISUALS'), 'Dashboard must show broken visual debt explicitly');
 health_assert(str_contains($controller, 'data-health-open'), 'priority issues must link back to canonical editors');
 health_assert(str_contains($controller, 'window.go'), 'editor navigation must use canonical DISCADMIN routing');
 

@@ -96,6 +96,8 @@ try {
     brvtal_media_reference_assert(str_contains($healthSource, 'brvtalMediaImageReferenceState'), 'Content Health must classify visual references');
     brvtal_media_reference_assert(str_contains($healthSource, 'Broken primary visual'), 'Content Health must distinguish broken references from missing visuals');
     brvtal_media_reference_assert(str_contains($healthSource, "'image_reference_kind'"), 'Content Health must expose the diagnostic reference kind');
+    brvtal_media_reference_assert(str_contains($healthSource, "'empty_visuals'"), 'Content Health must distinguish empty visual debt');
+    brvtal_media_reference_assert(str_contains($healthSource, "'broken_visuals'"), 'Content Health must distinguish broken visual debt');
     brvtal_media_reference_assert(!str_contains($healthSource, "'has_image' => \$image !== ''"), 'Content Health must not treat non-empty as healthy');
 } finally {
     @unlink($imagePath);

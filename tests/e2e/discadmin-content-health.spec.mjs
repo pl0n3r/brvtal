@@ -28,6 +28,8 @@ test('Dashboard Content Health separates public readiness from draft completenes
           ready: 0,
           needs_attention: 1,
           missing_visuals: 1,
+          empty_visuals: 0,
+          broken_visuals: 1,
           seo_gaps: 0,
           items: [
             { id: 10, type: 'events', title: 'Genesis', status: 'published', score: 52, issues: ['Useful description','Primary visual'], seo_supported: false, has_image: false, is_public: true, is_draft: false }
@@ -39,6 +41,8 @@ test('Dashboard Content Health separates public readiness from draft completenes
           ready: 0,
           needs_attention: 1,
           missing_visuals: 0,
+          empty_visuals: 0,
+          broken_visuals: 0,
           seo_gaps: 1,
           items: [
             { id: 20, type: 'blog', title: 'BRVTAL Story', status: 'draft', score: 68, issues: ['SEO description'], seo_supported: true, has_image: true, is_public: false, is_draft: true }
@@ -69,6 +73,8 @@ test('Dashboard Content Health separates public readiness from draft completenes
   await expect(page.locator('.content-health-score')).toContainText('52%');
   await expect(page.locator('.content-health-score')).toContainText('PUBLIC SCORE');
   await expect(page.getByText('Genesis')).toBeVisible();
+  await expect(page.getByText('PUBLIC EMPTY VISUALS', { exact: true })).toBeVisible();
+  await expect(page.getByText('PUBLIC BROKEN VISUALS', { exact: true })).toBeVisible();
   await expect(page.getByText('BRVTAL Story')).toHaveCount(0);
   await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Useful description');
   await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Primary visual');

@@ -125,7 +125,19 @@ function brvtal_content_health_summary(array $items): array
     $total = count($items);
     $score = $total ? (int)round(array_sum(array_column($items, 'score')) / $total) : 100;
     $ready = count(array_filter($items, static fn(array $row): bool => $row['score'] >= 80));
+    // Keep missing_visuals as the legacy aggregate "visual gaps" metric.
+    // New consumers can distinguish truly empty fields from broken references.
     $missingVisuals = count(array_filter($items, static fn(array $row): bool => !$row['has_image'] && $row['type'] !== 'pages'));
+    $emptyVisuals = count(array_filter(
+        $items,
+        static fn(array $row): bool => ($row['image_reference_kind'] ?? 'empty') === 'empty' && $row['type'] !== 'pages'
+    ));
+    $brokenVisuals = count(array_filter(
+        $items,
+        static fn(array $row): bool => !$row['has_image']
+            && ($row['image_reference_kind'] ?? 'empty') !== 'empty'
+            && $row['type'] !== 'pages'
+    ));
     $seoGaps = 0;
     foreach ($items as $item) {
         if (!$item['seo_supported']) continue;
@@ -138,6 +150,8 @@ function brvtal_content_health_summary(array $items): array
         'ready' => $ready,
         'needs_attention' => $total - $ready,
         'missing_visuals' => $missingVisuals,
+        'empty_visuals' => $emptyVisuals,
+        'broken_visuals' => $brokenVisuals,
         'seo_gaps' => $seoGaps,
         'items' => array_values($items),
     ];
@@ -190,6 +204,8 @@ try {
             'ready' => $public['ready'],
             'needs_attention' => $public['needs_attention'],
             'missing_visuals' => $public['missing_visuals'],
+            'empty_visuals' => $public['empty_visuals'],
+            'broken_visuals' => $public['broken_visuals'],
             'seo_gaps' => $public['seo_gaps'],
             'by_type' => $byType,
             'items' => $public['items'],
