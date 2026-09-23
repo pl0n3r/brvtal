@@ -161,8 +161,8 @@ function brvtal_activity_record(
     }
 
     if ($resource === 'artists') {
-        $before = is_array($before) ? brvtal_artist_collective_membership_enrich_row($before) : null;
-        $after = is_array($after) ? brvtal_artist_collective_membership_enrich_row($after) : null;
+        $before = is_array($before) ? brvtalArtistCollectiveMembershipEnrichRow($before) : null;
+        $after = is_array($after) ? brvtalArtistCollectiveMembershipEnrichRow($after) : null;
     }
     $safeBefore = brvtal_activity_snapshot($resource, $before);
     $safeAfter = brvtal_activity_snapshot($resource, $after);
@@ -171,7 +171,7 @@ function brvtal_activity_record(
 
     $actor = brvtal_activity_actor($pdo);
     if ($resource === 'artists' && $resourceId !== null && in_array($action, ['create', 'update'], true)) {
-        brvtal_artist_collective_sync_history(
+        brvtalArtistCollectiveSyncHistory(
             $pdo,
             $action,
             $resourceId,
