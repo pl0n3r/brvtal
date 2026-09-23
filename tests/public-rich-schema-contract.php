@@ -19,6 +19,7 @@ $event = [
     'title' => 'Night One',
     'description' => 'A real night',
     'event_date' => '2026-10-14 22:30:00',
+    'published_at' => '2026-09-01 12:00:00',
     'venue' => 'Club Example',
     'city' => 'Pereira',
     'status' => 'tickets_available',
