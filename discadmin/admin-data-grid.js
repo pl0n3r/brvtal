@@ -38,6 +38,10 @@
     return esc(links.join(' · ') || '—');
   }
 
+  function membershipCell(row) {
+    return statusCell(Number(row.is_collective_member || 0) === 1 ? 'MEMBER' : 'EXTERNAL');
+  }
+
   function artistsLabel(row) {
     const names = Array.isArray(row.artists) ? row.artists.map(item => item?.name).filter(Boolean) : [];
     return names.join(' · ') || 'NO ARTIST LINKED';
@@ -69,6 +73,7 @@
       columns:[
         {key:'primary',label:'ARTIST',width:'minmax(230px,1.6fr)',sort:true,value:r=>r.name||'',render:r=>imageCell(r.photo,r.name,r.slug)},
         {key:'links',label:'LINKS',width:'minmax(150px,.8fr)',sort:false,value:r=>linksCell(r),render:r=>linksCell(r)},
+        {key:'collective',label:'BRVTAL',width:'120px',sort:true,numeric:true,value:r=>Number(r.is_collective_member||0),render:r=>membershipCell(r)},
         {key:'status',label:'STATUS',width:'minmax(110px,.65fr)',sort:true,value:r=>r.status||'',render:r=>statusCell(r.status)},
         {key:'position',label:'POSITION',width:'90px',sort:false,value:r=>Number(r.sort_order||0),render:()=>'<span data-order-position>—</span>'}
       ]
@@ -229,7 +234,7 @@
         module,host,rows:[],allRows:[],options:{},
         visible:new Set(defaultColumns(module)),
         preferencesLoaded:false,preferencesLoading:false,preferencePromise:null,
-        sortKey:null,sortDirection:null,chooserOpen:false,pendingFocusSelector:null,preferenceRevision:0
+        sortKey:null,sortDirection:null,chooserOpen:false,membershipFilter:'all',pendingFocusSelector:null,preferenceRevision:0
       };
       instances.set(host,state);
     }
@@ -242,8 +247,14 @@
     return String(av ?? '').localeCompare(String(bv ?? ''),undefined,{numeric:true,sensitivity:'base'});
   }
 
+  function filteredRows(state) {
+    if (state.module !== 'artists' || state.membershipFilter === 'all') return state.rows.slice();
+    const expected = state.membershipFilter === 'member' ? 1 : 0;
+    return state.rows.filter(row => Number(row.is_collective_member || 0) === expected);
+  }
+
   function sortedRows(state) {
-    const rows = state.rows.slice();
+    const rows = filteredRows(state);
     if (!state.sortKey || !state.sortDirection) return rows;
     const column = SPECS[state.module].columns.find(item => item.key === state.sortKey);
     if (!column) return rows;
@@ -441,6 +452,16 @@
     });
   }
 
+  function bindMembershipFilter(state) {
+    const control = state.host.querySelector('[data-grid-membership-filter]');
+    if (!control) return;
+    control.value = state.membershipFilter;
+    control.addEventListener('change',() => {
+      state.membershipFilter = ['member','external'].includes(control.value) ? control.value : 'all';
+      draw(state);
+    });
+  }
+
   function bindRowActions(state, selected) {
     state.host.querySelector('[data-grid-clear]')?.addEventListener('click',() => {
       state.pendingFocusSelector = '[data-grid-columns-toggle]';
@@ -480,6 +501,9 @@
     const bulkButton = canBulk
       ? '<button type="button" class="btn red" data-grid-bulk>CHANGE STATUS</button>'
       : '';
+    const membershipFilter = state.module === 'artists'
+      ? `<label class="admin-grid-membership-filter"><span>MEMBERSHIP</span><select data-grid-membership-filter><option value="all">ALL</option><option value="member">BRVTAL MEMBERS</option><option value="external">EXTERNAL / NETWORK</option></select></label>`
+      : '';
     const headers = headerCellsMarkup(state,visibleColumns);
     const bodyRows = rowsMarkup(state,spec,rows,visibleColumns,template,selected);
     const ordering = orderAttributes(spec,state,orderEnabled);
@@ -488,6 +512,7 @@
       <div class="admin-data-grid-shell" data-grid-module="${esc(state.module)}">
         <div class="admin-grid-controls">
           <span class="admin-grid-result-count">${rows.length} RESULT${resultSuffix}</span>
+          ${membershipFilter}
           <div class="admin-grid-view-control">
             <button type="button" class="btn ghost" data-grid-columns-toggle aria-expanded="${chooserExpanded}">COLUMNS / VIEW</button>
             ${renderChooser(state)}
@@ -516,6 +541,7 @@
 
     bindSelection(state,selected,visibleIds,allVisibleSelected);
     bindSorting(state);
+    bindMembershipFilter(state);
     bindColumnChooser(state);
     bindRowActions(state,selected);
 
