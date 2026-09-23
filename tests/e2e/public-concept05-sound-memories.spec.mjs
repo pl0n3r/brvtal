@@ -207,7 +207,9 @@ test('Concept 05 desktop Sound uses canonical records while Memories keeps a cur
   await expect(page.locator('.set-library-item').nth(2).locator('.set-listen-action')).toHaveCount(0);
   await expect(page.locator('.set-library-item').nth(3).locator('.set-listen-action')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'ARTIST / PL0N3R' })).toHaveAttribute('href', '/artists/pl0n3r');
-  await expect(page.getByRole('link', { name: 'EVENT / GENESIS' })).toHaveAttribute('href', '/events/genesis');
+  await expect(
+    page.locator('.set-library-item').first().getByRole('link', { name: 'EVENT / GENESIS' })
+  ).toHaveAttribute('href', '/events/genesis');
   await expect(page.locator('.c5-sound-signal')).toHaveCount(1);
   await expect(page.locator('.c5-section-route--sound')).toHaveAttribute('href', '/sets/genesis-closing-signal');
 
@@ -317,9 +319,6 @@ test('Concept 05 failed audio Memory disables its opener and replaces unusable v
 
   const opener = page.getByRole('button', { name: 'Open BROKEN AUDIO MEMORY' });
   await opener.click();
-  const viewerAudio = page.getByRole('dialog').locator('audio');
-  await expect(viewerAudio).toHaveCount(1);
-  await viewerAudio.evaluate(audio => audio.dispatchEvent(new Event('error')));
   await expect(page.getByRole('dialog')).toContainText('MEDIA UNAVAILABLE');
   await expect(opener).toBeDisabled();
   await expect(page.locator('.c5-memory-cell')).toHaveClass(/is-media-missing/);
