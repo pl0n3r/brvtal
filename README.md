@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #599.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #272.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#599 · Concept 05 public shell authored 1440/390** | parent #583 |
-| Base exacta | ✅ ~~main v0.1.31 validado + deploy/performance observados~~ | `546ae7efbdd78d44425abd8ae4e6bd8884437c83` |
-| Versión | 🚧 **0.1.32** | cambio visible de shell/runtime público |
-| Producción | 🚧 pendiente de PR → merge → exact-main | sin migración de esquema |
+| Work line | 🚧 **#272 · JSON-LD específico por entidad pública** | SEO / indexación |
+| Base exacta | ✅ ~~main v0.1.32 CI/validate + Deploy Observer + Performance verdes~~ | `58537f2196902b2f9bbfa3ed3d2f319c1adf7633` |
+| Versión | 🚧 **0.1.33** | runtime SEO, sin migración |
+| Producción | 🚧 pendiente de PR → merge → exact-main → observación | no asumir deploy |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+826** | **−69** | **+757** |
+| **7** | **+473** | **−54** | **+419** |
 
 ## Calidad y entrega
 
@@ -37,17 +37,17 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #599 · `work/issue-599` |
-| Browser | 🚧 header 1440/1024 · mobile 390 · active state · modal lock · footer/legal · Contact · reduced motion |
-| Sonar | 🚧 Quality Gate sobre head estable |
-| CodeRabbit | 🚧 review final sobre head estable |
-| Exact-main | 🚧 **CI del SHA exacto de main** después del squash merge |
+| PR integrity | **PR + snapshot exacto** · Issue #272 · `work/issue-272` · UUID `f4e30caa-9da0-423f-9529-0c5f49df8d0b` |
+| Public SEO | 🚧 MusicEvent, MusicGroup, MusicRecording, MusicAlbum, BlogPosting; fallback WebPage |
+| Sonar | 🚧 Quality Gate sobre head final |
+| CodeRabbit | 🚧 full review sobre head final |
+| Exact-main | 🚧 **CI del SHA exacto de main** tras squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.31 verde"] --> S["#599 PUBLIC SHELL"]
+ B["main v0.1.32 verde"] --> S["#272 JSON-LD rico"]
  S --> P["PR · CI · Sonar · CodeRabbit"]
  P --> M["Squash merge"]
  M --> X["Exact-main CI"]
@@ -56,55 +56,43 @@ flowchart LR
 
 ## Qué se hizo
 
-- Header Concept 05 queda como una barra editorial compacta con BRVTAL, NIGHTS / ARTISTS / SOUND / RECORDS / JOURNAL / CONNECTED y origen `PEREIRA / COLOMBIA`.
-- El CTA rojo **TICKETS →** solo aparece cuando el Next Experience ya seleccionado expone un destino HTTP(S) canónico; no se hace un segundo lookup ni un segundo fetch.
-- El contador/escena legacy del header se neutraliza en Concept 05 para evitar una sexta columna implícita y colisiones.
-- El overlay MENU deja la IA legacy y usa el vocabulario público Concept 05, conservando el mismo modal/focus trap/scroll lock accesible.
-- Mobile bottom nav mantiene NIGHTS / ARTISTS / SOUND / RECORDS / JOURNAL con icono + label, targets >=44 px, active state por sección/hash y safe-area.
-- Cuando el menú modal está abierto, el bottom nav queda oculto, `aria-hidden` e `inert`; vuelve a estar disponible al cerrar.
-- Footer se convierte en un cierre editorial con wordmark grande, origen, tagline administrable, destinos reales, CONTACT/COLLABORATE → `/contact`, sociales configurables y copyright dinámico.
-- Socials arrancan ocultos y reutilizan los hooks `data-social` existentes; Instagram/SoundCloud/YouTube/Website siguen a `settings.social` y Spotify a Theme Branding Sync.
-- PRIVACY aparece únicamente si el payload público compartido contiene una Page publicada con slug compatible; en caso contrario permanece fail-closed.
-- El runtime del shell reutiliza `BRVTALPublicDataPromise`; no crea requests, rutas, CMS ni estado paralelo.
+- Events públicos con fecha y lugar real producen `MusicEvent` con `startDate`, `Place`/ciudad, `eventStatus` según lifecycle y performers solo de artistas publicados.
+- Blog expone `headline`, `datePublished`, `dateModified` reales y publisher BRVTAL, sin autor ficticio.
+- Releases aportan fecha, catálogo, artistas publicados y enlaces HTTP(S) seguros; Sets enlazan artista publicado y destino de escucha válido.
+- Artists anuncian solo perfiles configurados y seguros. Pages públicas en inglés declaran `inLanguage`.
+- Event sin fecha/lugar, Blog sin publicación o Set sin relaciones ni URL segura usan `WebPage` en lugar de inventar hechos.
+- No se inventan zonas horarias ni se reintroducen drafts en JSON-LD; rutas y SEO manual permanecen intactos.
+- Test PHP unitario auto-descubierto e integración MariaDB con tablas temporales y guardia `brvtal_test*`; contrato durable en `docs/BRVTAL-SPEC.md`.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del deploy y gates.
-- `config/public_home.php` — header/menu/footer authored + Tickets CTA canónico.
-- `config/version.php` — versión pública 0.1.32.
-- `css/public-concept05-shell.css` — geometría authored desktop/mobile del shell.
-- `index.php` — elimina rewrites legacy ya absorbidos por el renderer canónico.
-- `js/public-concept05-shell.js` — active navigation, modal interlock, privacy Page y year.
-- `package.json` — sincronización de versión 0.1.32.
-- `tests/e2e/public-concept05-shell.spec.mjs` — 1440/1024/390, modal lock, privacy y reduced motion.
-- `tests/public-contact-contract.php` — valida `/contact` contra los renderers Concept 05 en lugar del rewrite legacy eliminado.
-- `tests/public-concept05-dressing-contract.php` — contrato de menú/footer/mobile nav e idempotencia.
-- `tests/public-concept05-foundation-contract.php` — carga/idempotencia de assets del shell.
-- `tests/public-home-contract.php` — Next Experience → overlay/header Tickets.
-- `tests/public-home-phase-a-contract.php` — Tickets válido/unsafe/sold-out también en header.
+- `README.md` — huella exacta y gates del candidato.
+- `config/public_seo.php` — resolver y JSON-LD enriquecidos de forma fail-closed.
+- `config/version.php` — versión humana 0.1.33.
+- `docs/BRVTAL-SPEC.md` — semántica durable de datos estructurados públicos.
+- `package.json` — versión y runner MariaDB de regresiones SEO.
+- `tests/integration/public-rich-schema.php` — datos sintéticos publicados/draft sobre MariaDB desechable.
+- `tests/public-rich-schema-contract.php` — contratos PHP de fechas, tipos, seguridad y rutas.
 
 ## Validación
 
-- Base exacta `546ae7efbdd78d44425abd8ae4e6bd8884437c83`: BRVTAL CI/`validate`, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #599.
-- #599 fue reservado atómicamente antes de modificar `work/issue-599`.
-- La reserva duplicada #596 fue liberada y la Issue cerrada como duplicado: su scope ya fue entregado por #597 / PR #598 en v0.1.31.
-- CI del head previo detectó dos regresiones de prueba: el contrato Contact seguía atado al rewrite legacy y la geometría 1024 medía un origin intencionalmente oculto; ambos contratos se corrigieron sin reintroducir código legacy.
-- No hay nuevo fetch público, migraciones, nuevas rutas ni campos CMS.
-- Producción se observará por separado; CI verde no se presentará como prueba de deploy.
+- Base exacta `58537f2196902b2f9bbfa3ed3d2f319c1adf7633`: BRVTAL CI / `validate` #35813401204 success; Deploy Observer y Production Performance success por separado.
+- Este candidato requiere CI/Sonar/CodeRabbit del HEAD final. No implica publicación en Hostinger.
+- No altera credenciales, tablas persistentes, Hostinger ni contenido editorial productivo.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#599](https://github.com/pl0n3r/brvtal/issues/599) · cerrar public shell y validar exact-main. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · evaluar cierre del contrato público y pendientes reales de fidelidad. |
-| **LATER** | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351) Theme Studio + [#529](https://github.com/pl0n3r/brvtal/issues/529) Preview; luego #398. |
-| **BLOCKED / EXTERNAL** | 🚧 Sin bloqueos externos activos. |
+| **NOW** | 🚧 [#272](https://github.com/pl0n3r/brvtal/issues/272) · cerrar JSON-LD tipado y validar exact-main. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · revisar fidelidad pública Concept 05. |
+| **LATER** | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390) · SEO workspace; [#214](https://github.com/pl0n3r/brvtal/issues/214) · fallbacks dinámicos. |
+| **BLOCKED / EXTERNAL** | 🚧 Sin acciones protegidas necesarias para este slice. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Concept 05 public shell | 🚧 [#599](https://github.com/pl0n3r/brvtal/issues/599) |
-| **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
-| **LATER** | 🚧 customization / preview / cultural archive | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351), [#529](https://github.com/pl0n3r/brvtal/issues/529), [#398](https://github.com/pl0n3r/brvtal/issues/398) |
+| **NOW** | 🚧 Structured data canónico | 🚧 [#272](https://github.com/pl0n3r/brvtal/issues/272) |
+| **NEXT** | 🚧 Fidelity + customization | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583), [#351](https://github.com/pl0n3r/brvtal/issues/351) |
+| **LATER** | 🚧 SEO/Admin enhancements | 🚧 [#390](https://github.com/pl0n3r/brvtal/issues/390), [#214](https://github.com/pl0n3r/brvtal/issues/214) |
