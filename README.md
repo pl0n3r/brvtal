@@ -97,3 +97,11 @@ flowchart LR
 | **NEXT** | 🚧 [#182](https://github.com/pl0n3r/brvtal/issues/182) · no perder metadata SEO ante guardado parcial. |
 | **LATER** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery; [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin. |
 | **BLOCKED / EXTERNAL** | 🚧 migraciones o mutaciones manuales de producción requieren autorización explícita. |
+
+## Panorama general pendiente
+
+| Lane | Frente | Issues |
+| --- | --- | --- |
+| **NOW** | 🚧 Events / Ticket Types | 🚧 [#224](https://github.com/pl0n3r/brvtal/issues/224) |
+| **NEXT** | 🚧 SEO reliability / editorial recovery | 🚧 [#182](https://github.com/pl0n3r/brvtal/issues/182), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
+| **LATER** | 🚧 Admin resilience | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530), [#232](https://github.com/pl0n3r/brvtal/issues/232) |
