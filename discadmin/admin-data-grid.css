@@ -53,3 +53,9 @@
   .admin-grid-selection-bar{align-items:flex-start;flex-direction:column}
   .admin-data-grid{min-width:720px}
 }
+
+
+.admin-grid-pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 0;font-size:10px;letter-spacing:.08em}
+.admin-grid-pagination span{color:var(--muted,#7d848b)}
+.admin-grid-pagination button[disabled]{opacity:.35;cursor:not-allowed}
+@media(max-width:760px){.admin-grid-pagination{justify-content:space-between;flex-wrap:wrap}.admin-grid-pagination span{order:-1;width:100%}}

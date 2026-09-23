@@ -135,7 +135,7 @@ if [[ "$stub_ready" != "1" ]]; then
   exit 1
 fi
 
-php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
+PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
 PHP_PID=$!
 
 ready=0
@@ -162,6 +162,7 @@ export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
 export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
 npx playwright test \
   tests/e2e/discadmin-premium-real-stack.spec.mjs \
+  tests/e2e/admin-performance-real-stack.spec.mjs \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/theme-active-reference-real-stack.spec.mjs \
   tests/e2e/public-preview-real-stack.spec.mjs \

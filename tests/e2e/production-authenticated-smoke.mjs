@@ -328,9 +328,14 @@ try {
   }
   const matchingEvent = events.find(event => Number(event.id) === visibleDatedEvent.id);
   if (!matchingEvent) throw new Error('Native Events grid record was not returned by the authenticated Events API.');
-  await page.evaluate(id => window.openModal('events', id), visibleDatedEvent.id);
+  // Exercise the actual user's EDIT button, not the implementation helper.
+  await page.locator(`#rows button[onclick="openModal('events',${visibleDatedEvent.id})"]`).click();
   await page.locator('#modal').waitFor({ state: 'visible', timeout: 10_000 });
+  const gridDate = normalizeDatetimeLocal(visibleDatedEvent.event_date);
   const expectedDate = normalizeDatetimeLocal(matchingEvent.event_date);
+  if (!gridDate || !expectedDate || gridDate !== expectedDate) {
+    throw new Error(`Event #${visibleDatedEvent.id} grid/API date mismatch (grid=${gridDate || '(empty)'}, API=${expectedDate || '(empty)'}).`);
+  }
   const renderedDate = await page.locator('#f_event_date').inputValue();
   if (renderedDate !== expectedDate) {
     throw new Error(`Event date reopen failed: Event #${visibleDatedEvent.id} expected ${expectedDate}, rendered ${renderedDate || '(empty)'}.`);
@@ -338,6 +343,7 @@ try {
   evidence.checks.eventDate = {
     eventId: visibleDatedEvent.id,
     expected: expectedDate,
+    grid: gridDate,
     rendered: renderedDate,
     pass: true
   };

@@ -48,4 +48,25 @@ dashboard_v2_assert(str_contains($entry, '/discadmin/dashboard-v2.js'), 'canonic
 dashboard_v2_assert(str_contains($entry, "require __DIR__ . '/index-core.php';"), 'Dashboard V2 must remain inside the one canonical shell');
 dashboard_v2_assert(!str_contains($entry, 'admin-sidebar.php'), 'Dashboard V2 must not introduce a parallel sidebar');
 
+dashboard_v2_assert(
+    str_contains($api, "require_once __DIR__ . '/../config/schema_catalog.php';"),
+    'Dashboard overview must use the shared request-local schema catalog'
+);
+dashboard_v2_assert(
+    substr_count($api, 'information_schema.TABLES') === 0,
+    'Dashboard overview must not issue per-table information_schema queries'
+);
+dashboard_v2_assert(
+    str_contains($api, "COALESCE(SUM(status='draft'),0)")
+        && str_contains($api, 'brvtal_dashboard_media_counts'),
+    'Dashboard overview must aggregate related counters instead of issuing one COUNT per metric'
+);
+
+$core = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
+dashboard_v2_assert(
+    str_contains($core, 'if(window.BRVTALDashboardV2)')
+        && str_contains($core, 'window.BRVTALDashboardV2?.mount?.()'),
+    'Dashboard navigation must skip the redundant legacy dashboard data load when V2 owns the workspace'
+);
+
 echo "BRVTAL Dashboard V2 contract tests passed.\n";

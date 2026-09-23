@@ -19,10 +19,10 @@
   async function ensureCsrf() {
     const existing = csrfToken();
     if (existing) return existing;
-    const response = await fetch('/api/index.php/auth', {credentials:'same-origin', cache:'no-store'});
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.authenticated || !data.csrf) throw new Error(data.error || 'CSRF_UNAVAILABLE');
-    return String(data.csrf);
+    if (window.BRVTALAdminAuthBoundary?.csrfToken) {
+      return window.BRVTALAdminAuthBoundary.csrfToken();
+    }
+    throw new Error('CSRF_UNAVAILABLE');
   }
 
   async function fetchJson(url, options={}) {

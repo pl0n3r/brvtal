@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const authBoundaryJs = readFileSync(join(process.cwd(), 'discadmin/admin-auth-boundary.js'), 'utf8');
 const contentCoreJs = readFileSync(join(process.cwd(), 'discadmin/content-core.js'), 'utf8');
 const eventWorkflowJs = readFileSync(join(process.cwd(), 'discadmin/event-workflow.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/e2e-ticket-types-editor.html';
@@ -22,7 +23,8 @@ function harnessHtml() {
         <button id="prevBtn"></button><button id="nextBtn"></button><button id="cc-saveBtn">SAVE</button><button id="cc-top-saveBtn">SAVE EVENT</button>
       </div>
     </div>
-    <script>${contentCoreJs}</script><script>${eventWorkflowJs}</script>
+    <script>window.state={authed:true};window.csrf='';</script>
+    <script>${authBoundaryJs}</script><script>${contentCoreJs}</script><script>${eventWorkflowJs}</script>
     <script>window.BRVTALContentCore.mount(document.getElementById('root'));</script>
   </body></html>`;
 }

@@ -51,4 +51,15 @@ admin_session_contract_assert(
     'inactive or deleted admins must have their PHP session destroyed and authorization denied'
 );
 
+admin_session_contract_assert(
+    str_contains($auth, 'function brvtal_admin_release_session(): void')
+        && str_contains($auth, 'session_write_close();'),
+    'admin auth must expose one canonical session-lock release helper'
+);
+admin_session_contract_assert(
+    str_contains($auth, "strtoupper((string)(\$_SERVER['REQUEST_METHOD'] ?? '')) === 'GET'")
+        && str_contains($auth, 'brvtal_admin_release_session();'),
+    'authenticated GET requests must release the PHP session lock after revalidation/activity refresh'
+);
+
 echo "BRVTAL admin session revalidation contract tests passed.\n";

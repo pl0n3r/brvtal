@@ -18,10 +18,10 @@
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Work line | 🚧 **#631 · smoke de Events desactualizado** | `work/issue-631`; reserva `5e23b6cc-22d7-4231-a6f9-88fb696e2fba` |
-| Base exacta | ✅ ~~main v0.1.45~~ | `3193dfae8d3debc7427e98d9dfa7e8db6d04660e` |
-| Versión | ✅ ~~v0.1.45 sin incremento~~ | cambio exclusivamente en pruebas/documentación |
-| CI del SHA exacto de main | ✅ ~~success~~ | [#35911623096](https://github.com/pl0n3r/brvtal/actions/runs/35911623096) sobre la base |
-| Deploy Observer base | ✅ ~~success~~ | [#35911623080](https://github.com/pl0n3r/brvtal/actions/runs/35911623080); smoke confirma SHA exacto |
+| Base exacta | ✅ ~~main v0.1.46~~ | `04da2e3ce33b3b4afe5e57bb6a2be571736f03f6` |
+| Versión | ✅ ~~v0.1.46 sin incremento~~ | cambio exclusivamente en pruebas/documentación |
+| CI del SHA exacto de main | ✅ ~~success~~ | [#35928853338](https://github.com/pl0n3r/brvtal/actions/runs/35928853338) sobre la base |
+| Deploy Observer base | ✅ ~~success~~ | [#35928853541](https://github.com/pl0n3r/brvtal/actions/runs/35928853541); smoke confirma SHA exacto |
 | Production Smoke base | ⛔ **failure** | [#35926109962](https://github.com/pl0n3r/brvtal/actions/runs/35926109962), espera un módulo ajeno a Events |
 | Entrega candidata | 🚧 pendiente gates, merge y smoke nuevo | No equivale a producción validada |
 
@@ -30,7 +30,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+134** | **−109** | **+25** |
+| **2** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 
@@ -47,7 +47,7 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.45 · 3193dfa"] --> I["#631 · corregir smoke Events"]
+ B["main v0.1.46 · 04da2e3"] --> I["#631 · corregir smoke Events"]
  I --> P["PR + snapshot exacto · gates"]
  P --> M["Squash merge"]
  M --> C["CI exact-main"]
@@ -57,10 +57,10 @@ flowchart LR
 
 ## Qué se hizo
 
-- La versión desplegada `v0.1.45` y su SHA exacto están acreditados por el artefacto de smoke; la autenticación y versión DISCADMIN pasaron.
+- El release v0.1.46 y SHA exacto en Hostinger están acreditados por el observer; el smoke anterior en v0.1.45 falló por selector incorrecto.
 - El smoke de 23/09/2026 falló porque buscaba `[data-admin-module="content-core"]` al abrir **EVENTS**, pero la ruta de usuario actual es `go('events')` y el formulario nativo es `#modal / #f_event_date`.
 - El contrato actualizado exige navegación real a Events, búsqueda visible y edición nativa, y vuelve a verificar una fecha existente sin guardar datos; los checks de Sets y Hero siguen intactos. Además verifica directamente /api/health.php (HTTP 200, versión, SHA exacto y DB), home y DISCADMIN sin 5xx, y mide el tiempo hasta el Dashboard V2 visible.
-- La PR #626 / Issue #623 de rendimiento se mantiene independiente: este cambio no toca sus archivos salvo el solapamiento de README autorizado.
+- La PR #626 / Issue #623 de rendimiento ya está fusionada y desplegada como v0.1.46; este PR preserva el código de rendimiento.
 
 ## Archivos modificados en este deploy
 
@@ -76,12 +76,12 @@ flowchart LR
 ## Qué sigue
 
 - 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): reparar y acreditar el smoke sin ocultar fallos reales.
-- 🚧 [#623](https://github.com/pl0n3r/brvtal/issues/623): cerrar rendimiento DISCADMIN por la [PR #626](https://github.com/pl0n3r/brvtal/pull/626).
+- ✅ ~~[#623](https://github.com/pl0n3r/brvtal/issues/623): rendimiento DISCADMIN integrado por la [PR #626](https://github.com/pl0n3r/brvtal/pull/626).~~
 - 🚧 [Roadmap #533](https://github.com/pl0n3r/brvtal/issues/533): declarar PRODUCTION GREEN solo con las cinco señales.
 
 ## Panorama general pendiente
 
-- 🚧 **NOW:** smoke autenticado nativo #631 y rendimiento Admin #623.
-- 🚧 **NEXT:** exact-main, observación Hostinger, nueva medición Dashboard y smoke aprobado.
-- 🚧 **LATER:** backlog de producto tras GREEN, sin adelantar cambios.
-- 🚧 **BLOCKED / EXTERNAL:** comprobar comportamiento productivo tras merge; no extrapolar pruebas de CI.
+- 🚧 **NOW**: smoke autenticado nativo #631 y rendimiento Admin #623.
+- 🚧 **NEXT**: exact-main, observación Hostinger, nueva medición Dashboard y smoke aprobado.
+- 🚧 **LATER**: backlog de producto tras GREEN, sin adelantar cambios.
+- 🚧 **BLOCKED / EXTERNAL**: comprobar comportamiento productivo tras merge; no extrapolar pruebas de CI.

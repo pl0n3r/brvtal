@@ -190,11 +190,11 @@
   }
 
   async function csrfToken() {
+    if (window.BRVTALAdminAuthBoundary?.csrfToken) {
+      return window.BRVTALAdminAuthBoundary.csrfToken();
+    }
     try { if (window.csrf) return window.csrf; } catch (_) {}
-    const response = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store'});
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.authenticated || !payload.csrf) throw new Error('AUTH_REQUIRED');
-    return payload.csrf;
+    throw new Error('AUTH_REQUIRED');
   }
 
   async function loadPreferences(module) {
@@ -462,6 +462,18 @@
     });
   }
 
+  function bindPagination(state) {
+    const pagination = state.options.pagination;
+    if (!pagination || typeof state.options.onPageChange !== 'function') return;
+    const move = page => {
+      const target = Math.max(1, Math.min(Number(pagination.pages || 1), Number(page || 1)));
+      if (target === Number(pagination.page || 1)) return;
+      state.options.onPageChange(target);
+    };
+    state.host.querySelector('[data-grid-page-prev]')?.addEventListener('click',() => move(Number(pagination.page || 1) - 1));
+    state.host.querySelector('[data-grid-page-next]')?.addEventListener('click',() => move(Number(pagination.page || 1) + 1));
+  }
+
   function bindRowActions(state, selected) {
     state.host.querySelector('[data-grid-clear]')?.addEventListener('click',() => {
       state.pendingFocusSelector = '[data-grid-columns-toggle]';
@@ -495,6 +507,10 @@
     const canBulk = Boolean(window.BRVTALBulkActions?.supports?.(state.module));
     const selectedCount = selected.size;
     const resultSuffix = rows.length === 1 ? '' : 'S';
+    const pagination = state.options.pagination;
+    const totalResults = Number(pagination?.total ?? rows.length);
+    const pageNumber = Number(pagination?.page || 1);
+    const pageCount = Number(pagination?.pages || 1);
     const chooserExpanded = state.chooserOpen ? 'true' : 'false';
     const selectionHidden = selectedCount ? '' : ' hidden';
     const allChecked = allVisibleSelected ? 'checked' : '';
@@ -507,11 +523,18 @@
     const headers = headerCellsMarkup(state,visibleColumns);
     const bodyRows = rowsMarkup(state,spec,rows,visibleColumns,template,selected);
     const ordering = orderAttributes(spec,state,orderEnabled);
+    const paginationControls = pagination
+      ? `<div class="admin-grid-pagination" role="navigation" aria-label="Records pagination">
+          <button type="button" class="btn ghost" data-grid-page-prev ${pagination.has_previous?'':'disabled'}>← PREVIOUS</button>
+          <span>PAGE ${pageNumber} / ${pageCount} · ${totalResults} TOTAL</span>
+          <button type="button" class="btn ghost" data-grid-page-next ${pagination.has_next?'':'disabled'}>NEXT →</button>
+        </div>`
+      : '';
 
     state.host.innerHTML = `
       <div class="admin-data-grid-shell" data-grid-module="${esc(state.module)}">
         <div class="admin-grid-controls">
-          <span class="admin-grid-result-count">${rows.length} RESULT${resultSuffix}</span>
+          <span class="admin-grid-result-count">${rows.length} RESULT${resultSuffix} ON THIS PAGE · ${totalResults} TOTAL</span>
           ${membershipFilter}
           <div class="admin-grid-view-control">
             <button type="button" class="btn ghost" data-grid-columns-toggle aria-expanded="${chooserExpanded}">COLUMNS / VIEW</button>
@@ -537,6 +560,7 @@
             </div>
           </div>
         </div>
+        ${paginationControls}
       </div>`;
 
     bindSelection(state,selected,visibleIds,allVisibleSelected);
@@ -544,6 +568,7 @@
     bindMembershipFilter(state);
     bindColumnChooser(state);
     bindRowActions(state,selected);
+    bindPagination(state);
 
     const body = state.host.querySelector('.admin-data-grid-body');
     if (body && spec.orderable) window.BRVTALContentOrdering?.refresh?.(body);

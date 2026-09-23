@@ -310,12 +310,12 @@
     const supplied = headers.get('X-CSRF-Token');
     if (supplied) return supplied;
     if (csrfCache) return csrfCache;
+    if (window.BRVTALAdminAuthBoundary?.csrfToken) {
+      csrfCache = await window.BRVTALAdminAuthBoundary.csrfToken();
+      return csrfCache;
+    }
     try { if (typeof csrf !== 'undefined' && csrf) { csrfCache = csrf; return csrfCache; } } catch (_) {}
-    const r = await nativeFetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store'});
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.authenticated || !j.csrf) throw new Error('AUTH_REQUIRED');
-    csrfCache = j.csrf;
-    return csrfCache;
+    throw new Error('AUTH_REQUIRED');
   }
 
   async function persistMetadata(resource, id, metadata, init = {}) {
