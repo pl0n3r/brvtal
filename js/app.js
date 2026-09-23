@@ -264,6 +264,7 @@
       const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
       return {
         events: arrayFrom(root, ['events','event']),
+        archiveEvents: Array.isArray(root?.archive?.events) ? root.archive.events : [],
         settings: (root?.settings && typeof root.settings === 'object') ? root.settings : {},
         artists: arrayFrom(root, ['artists','artist']),
         sets: arrayFrom(root, ['sets','sets_media','audio','sound']),
@@ -354,10 +355,23 @@
       if (logo) qsa('[data-site-logo]').forEach(img => { img.src = imgUrl(logo); });
     };
 
-    const renderEvents = (items) => {
-      if (!items.length) return false;
+    const renderEvents = (activeItems, archiveItems = []) => {
       const track = qs('.events-track');
       if (!track) return false;
+
+      const seen = new Set();
+      const source = [
+        ...(Array.isArray(activeItems) ? activeItems.map(event => ({ ...event, __brvtalArchive:false })) : []),
+        ...(Array.isArray(archiveItems) ? archiveItems.map(event => ({ ...event, __brvtalArchive:true })) : []),
+      ];
+      const items = source.filter(event => {
+        const key = String(event?.id ?? event?.slug ?? '').trim();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      if (!items.length) return false;
+
       const cards = items.map((e, i) => {
         const title = pick(e,['title','name'],'UNTITLED EVENT');
         const image = imgUrl(pick(e,['cover_image','coverImage','image','photo','flyer'],''));
@@ -366,16 +380,25 @@
         const venue = pick(e,['venue'],'');
         const desc = pick(e,['description','tagline'],'BRVTAL');
         const status = String(pick(e,['status'],'published')).toUpperCase();
-        const ticket = cleanUrl(pick(e,['ticket_url','ticketUrl','url'],''));
-        const fallback = i === 0 ? 'NEXT EXPERIENCE' : 'ARCHIVE';
-        return `<article class="event-card ${i===0?'event-active':''}">
-          <div class="event-img">${image ? `<img src="${esc(image)}" alt="${esc(title)}" loading="${i?'lazy':'eager'}">` : ''}</div>
+        const slug = String(pick(e,['slug'],'')).trim();
+        const record = slug ? `/events/${encodeURIComponent(slug)}` : '';
+        const ticket = cleanUrl(pick(e,['ticket_url','ticketUrl'],''));
+        const lifecycle = e.__brvtalArchive ? 'archive' : 'active';
+        const statusLabel = e.__brvtalArchive
+          ? 'ARCHIVE'
+          : (status === 'PUBLISHED' ? (i === 0 ? 'NEXT EXPERIENCE' : 'ACTIVE') : status);
+
+        return `<article class="event-card c5-night-card ${i===0 && !e.__brvtalArchive?'event-active':''}" data-c5-night-card data-c5-lifecycle="${lifecycle}">
+          <div class="event-img" data-c5-night-media>${image ? `<img src="${esc(image)}" alt="${esc(title)}" loading="${i?'lazy':'eager'}" decoding="async">` : ''}</div>
           <div class="event-info">
             <span class="mono">${esc([date,city].filter(Boolean).join(' / '))}</span>
             <h3>${esc(title)}</h3>
             <p>${esc([venue,desc].filter(Boolean).join(' / '))}</p>
-            <span class="event-status">${esc(status==='PUBLISHED'?fallback:status)}</span>
-            ${ticket ? `<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">TICKETS ↗</a>` : ''}
+            <span class="event-status">${esc(statusLabel)}</span>
+            <div class="c5-night-actions">
+              ${record ? `<a class="event-record mono" href="${esc(record)}">VIEW RECORD ↗</a>` : ''}
+              ${ticket ? `<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">TICKETS ↗</a>` : ''}
+            </div>
           </div>
         </article>`;
       }).join('');
@@ -384,7 +407,11 @@
     };
 
     const renderArtists = (items) => {
-      if (!items.length) return false;
+      if (!Array.isArray(items) || !items.length) return false;
+      if (window.BRVTALPublicRoster?.render) {
+        return window.BRVTALPublicRoster.render(items);
+      }
+
       const list = qs('.artist-list');
       if (!list) return false;
       const preview = qs('.artist-preview img');
@@ -392,7 +419,9 @@
         const name = pick(a,['name','title'],'UNKNOWN');
         const bio = pick(a,['bio','genre','style'],'BRVTAL ARTIST');
         const photo = imgUrl(pick(a,['photo','image','cover_image'],''));
-        return `<a class="artist" href="${esc(cleanUrl(pick(a,['website_url','website','instagram_url','instagram'],'#')) || '#')}"
+        const slug = String(pick(a,['slug'],'')).trim();
+        const href = slug ? `/artists/${encodeURIComponent(slug)}` : '#artists';
+        return `<a class="artist" href="${esc(href)}"
           ${photo ? `data-image="${esc(photo)}"` : ''} data-cursor="PROFILE">
           <span>${String(i+1).padStart(2,'0')}</span><strong>${esc(name)}</strong><i>${esc(bio)}</i>
         </a>`;
@@ -523,7 +552,7 @@
         const data = normalize(payload);
         applyPublicSettings(data.settings);
         let changed = 0;
-        if (renderEvents(data.events)) changed++;
+        if (renderEvents(data.events, data.archiveEvents)) changed++;
         if (renderArtists(data.artists)) changed++;
         if (renderSets(data.sets)) changed++;
         if (renderMedia(data.media)) changed++;
@@ -540,8 +569,10 @@
       }
     };
 
-    return { init };
+    return { init, normalize, renderEvents, renderArtists };
   })();
+
+  window.BRVTALDynamicHome = Dynamic;
 
   // Start after the static experience is ready; never block first paint.
   window.addEventListener('load', () => {
