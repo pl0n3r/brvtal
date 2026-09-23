@@ -51,7 +51,8 @@ foreach ([
         id INT PRIMARY KEY,slug VARCHAR(190),title VARCHAR(180),
         description TEXT,seo_title VARCHAR(190),seo_description TEXT,
         artwork VARCHAR(500),status VARCHAR(30),release_date DATE NULL,
-        catalog_number VARCHAR(80))",
+        catalog_number VARCHAR(80),spotify_url VARCHAR(700),soundcloud_url VARCHAR(700),
+        bandcamp_url VARCHAR(700),youtube_url VARCHAR(700),beatport_url VARCHAR(700))",
     "CREATE TEMPORARY TABLE release_artists (
         release_id INT,artist_id INT,sort_order INT DEFAULT 0)",
     "CREATE TEMPORARY TABLE blog_posts (
@@ -79,7 +80,8 @@ $pdo->exec("INSERT INTO sets_media VALUES
      'https://soundcloud.com/example/recording',1),
     (2,'private-performer-set','Orphan Set','Recording',NULL,NULL,'','published',
      'javascript:alert(1)',2)");
-$pdo->exec("INSERT INTO releases VALUES
+$pdo->exec("INSERT INTO releases (id,slug,title,description,seo_title,seo_description,
+    artwork,status,release_date,catalog_number) VALUES
     (1,'real-release','Real Release','Album',NULL,NULL,'','published',
      '2026-09-12','BRVTAL-CI-001')");
 $pdo->exec('INSERT INTO release_artists VALUES (1,2,0),(1,1,1)');
