@@ -243,7 +243,51 @@ function checkbox(id,label,checked=false,help=''){
  </div>`;
 }
 function eventForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>EVENT DATA</strong><span class="helper">Contenido y publicación</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${field('event_date','Date / time',r.event_date,'datetime-local')}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published'],['archived','Archived']])}${field('venue','Venue',r.venue)}${field('city','City',r.city)}${area('description','Description',r.description)}</div></div><div class="section"><div class="sectionhead"><strong>EVENT SKIN</strong><span class="helper">Identidad visual</span></div><div class="grid2">${field('skin','Skin key',r.skin||'CORE')}${field('accent','Accent',r.accent||'#FF2038')}<div class="field full"><label>Cover image URL / path</label><div class="thumbcell" style="margin-bottom:8px">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${field('ticket_url','Ticket URL',r.ticket_url)}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div></div>`}
-function artistForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>ARTIST PROFILE</strong><span class="helper">Identity and publication</span></div><div class="grid2">${field('name','Name *',r.name)}${field('slug','Slug',r.slug)}${area('bio','Bio',r.bio)}<div class="field"><label>Photo URL / path</label><div class="thumbcell">${thumb(r.photo,r.name,true)}<input id="f_photo" type="text" value="${esc(r.photo)}"></div></div>${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${field('sort_order','Sort order',r.sort_order||0,'number')}</div></div><div class="section"><div class="sectionhead"><strong>BRVTAL MEMBERSHIP</strong><span class="helper">Internal current-state flag</span></div><div class="grid2">${checkbox('is_collective_member','BRVTAL artist / Member of collective',Number(r.is_collective_member||0)===1,'This checkbox is the only current-membership authority. Historical membership periods are retained automatically and are not edited here.')}</div></div><div class="section"><div class="sectionhead"><strong>LINKS</strong><span class="helper">Social / music</span></div><div class="grid2">${field('instagram_url','Instagram',r.instagram_url)}${field('soundcloud_url','SoundCloud',r.soundcloud_url)}${field('website_url','Website',r.website_url)}</div></div></div>`}
+function artistForm(r){
+ r=r||{};
+ document.getElementById('mcontent').innerHTML=`<div class="form">
+  <div class="section">
+   <div class="sectionhead">
+    <strong>ARTIST PROFILE</strong><span class="helper">Identity and publication</span>
+   </div>
+   <div class="grid2">
+    ${field('name','Name *',r.name)}
+    ${field('slug','Slug',r.slug)}
+    ${area('bio','Bio',r.bio)}
+    <div class="field">
+     <label>Photo URL / path</label>
+     <div class="thumbcell">
+      ${thumb(r.photo,r.name,true)}
+      <input id="f_photo" type="text" value="${esc(r.photo)}">
+     </div>
+    </div>
+    ${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}
+    ${field('sort_order','Sort order',r.sort_order||0,'number')}
+   </div>
+  </div>
+  <div class="section">
+   <div class="sectionhead">
+    <strong>BRVTAL MEMBERSHIP</strong><span class="helper">Internal current-state flag</span>
+   </div>
+   <div class="grid2">
+    ${checkbox(
+      'is_collective_member',
+      'BRVTAL artist / Member of collective',
+      Number(r.is_collective_member||0)===1,
+      'This checkbox is the only current-membership authority. Historical membership periods are retained automatically and are not edited here.'
+    )}
+   </div>
+  </div>
+  <div class="section">
+   <div class="sectionhead"><strong>LINKS</strong><span class="helper">Social / music</span></div>
+   <div class="grid2">
+    ${field('instagram_url','Instagram',r.instagram_url)}
+    ${field('soundcloud_url','SoundCloud',r.soundcloud_url)}
+    ${field('website_url','Website',r.website_url)}
+   </div>
+  </div>
+ </div>`;
+}
 function setForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>SET / SOUND</strong><span class="helper">SoundCloud, YouTube, Spotify</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('platform','Platform',r.platform||'soundcloud',[['soundcloud','SoundCloud'],['youtube','YouTube'],['spotify','Spotify'],['other','Other']])}${field('external_url','External URL',r.external_url)}${field('embed_url','Embed URL',r.embed_url)}<div class="field"><label>Cover image</label><div class="thumbcell">${thumb(r.cover_image,r.title,true)}<input id="f_cover_image" type="text" value="${esc(r.cover_image)}"></div></div>${select('artist_id','Artist',String(r.artist_id||''),[['','—'],...state.artists.map(a=>[String(a.id),a.name])])}${select('event_id','Event',String(r.event_id||''),[['','—'],...state.events.map(a=>[String(a.id),a.title])])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${field('sort_order','Sort order',r.sort_order||0,'number')}${area('description','Description',r.description)}</div></div></div>`}
 function mediaForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>MEDIA RECORD</strong><span class="helper">Use Upload in Media Library for real files</span></div><div class="grid2">${field('title','Title *',r.title)}${select('type','Type',r.type||'image',[['image','Image'],['video','Video'],['audio','Audio'],['document','Document']])}${field('file_path','File path / URL',r.file_path)}${field('mime_type','MIME type',r.mime_type)}${field('file_size','File size',r.file_size||0,'number')}${field('alt_text','Alt text',r.alt_text)}${select('status','Status',r.status||'published',[['published','Published'],['draft','Draft']])}</div></div></div>`}
 function pageForm(r){r=r||{};document.getElementById('mcontent').innerHTML=`<div class="form"><div class="section"><div class="sectionhead"><strong>PAGE BUILDER DATA</strong><span class="helper">JSON blocks — editor visual comes next</span></div><div class="grid2">${field('title','Title *',r.title)}${field('slug','Slug',r.slug)}${select('locale','Locale',r.locale||'es',[['es','Español'],['en','English']])}${select('status','Status',r.status||'draft',[['draft','Draft'],['published','Published']])}${area('content_json','Content JSON',r.content_json)}${field('seo_title','SEO title',r.seo_title)}${area('seo_description','SEO description',r.seo_description)}</div></div></div>`}
