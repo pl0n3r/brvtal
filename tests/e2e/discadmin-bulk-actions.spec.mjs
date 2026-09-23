@@ -6,22 +6,8 @@ const bulkActionsJs = readFileSync(join(process.cwd(), 'discadmin/bulk-actions.j
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/bulk-actions-e2e.html';
 
 async function installHarness(page, csrfToken) {
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
-      <div class="nav"><button class="active" onclick="go('events')">EVENTS</button></div>
-      <div class="main"><div class="top"><div><div class="eyebrow">BRVTAL CMS</div><h1>EVENTS</h1></div><span class="status"><i></i>ONLINE</span></div></div>
-      <script>
-        let csrf = '${csrfToken}';
-        window.go = async section => { window.__bulkRoute = section; };
-        window.BRVTALFeedback = {
-          success: message => { window.__bulkSuccess = message; },
-          error: message => { window.__bulkError = message; }
-        };
-      </script>
-      <script>${bulkActionsJs}</script>
-    </body></html>`,
-  }));
+  const body = `<!doctype html><html><head><meta charset="utf-8"></head><body><div class="nav"><button class="active" onclick="go('events')">EVENTS</button></div><div class="main"><div class="top"><div><div class="eyebrow">BRVTAL CMS</div><h1>EVENTS</h1></div><span class="status"><i></i>ONLINE</span></div></div><script>let csrf='${csrfToken}';window.go=async section=>{window.__bulkRoute=section};window.BRVTALFeedback={error:message=>{window.__bulkError=message}};</script><script>${bulkActionsJs}</script></body></html>`;
+  await page.route(harnessUrl, route => route.fulfill({contentType:'text/html; charset=utf-8', body}));
 }
 
 test('bulk actions selects multiple events, confirms, sends CSRF and refreshes canonical module', async ({ page }) => {
