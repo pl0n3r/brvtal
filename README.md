@@ -37,7 +37,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | PR #621 · Issue #390 · UUID `74a6178a-25bf-4c36-9278-e3d1ce1f8fe1` |
+| PR + snapshot exacto | PR #621 · Issue #390 · UUID `74a6178a-25bf-4c36-9278-e3d1ce1f8fe1` |
 | Single authority | 🚧 Home/Contact + Events/Artists/Sets/Releases/Blog/Pages usan la metadata del renderer público |
 | AUTO semantics | 🚧 override vacío vuelve a fallback vivo; no materializa defaults derivados |
 | Static routes | 🚧 allowlist cerrada Home/Contact dentro de `settings.seo.routes`; sin tabla nueva |
@@ -47,7 +47,7 @@
 | Durable coverage | 🚧 contratos PHP + MariaDB + browser desktop/mobile + IA/Settings |
 | Sonar | 🚧 Quality Gate verde; limpieza de deuda nueva en curso |
 | CodeRabbit | 🚧 full review en curso |
-| CI exact-main | 🚧 después del squash merge |
+| CI del SHA exacto de main | 🚧 después del squash merge |
 
 ## Flujo de entrega
 
