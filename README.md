@@ -6,16 +6,22 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot exclusivo del deploy actual para Issue #592.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #592 / PR #593.
+
+## Progress convention
+
+- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
+- 🚧 Normal text = pending or currently in progress.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Work line | 🚧 **#592 · Concept 05 NIGHTS + ARTISTS authored 1440/390** | parent #583 |
-| Base exacta | ✅ ~~main v0.1.28 validado + desplegado + performance observado~~ | `409e544375104fc41aa83762187c30d26eefa3cb` |
-| Versión | 🚧 **0.1.29** | cambio visible de producto/runtime público |
-| Producción | 🚧 pendiente de PR → merge → exact-main | sin migración de esquema |
+| Base exacta | ✅ ~~main v0.1.28 validado + deploy/performance observados~~ | `409e544375104fc41aa83762187c30d26eefa3cb` |
+| PR | 🚧 **#593** | `work/issue-592` |
+| Versión | 🚧 **0.1.29** | cambio visible de producto/runtime |
+| Producción | 🚧 pendiente de squash + exact-main | sin migración de esquema |
 
 ## Huella del cambio
 
@@ -23,9 +29,44 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+1030** | **−110** | **+920** |
+| **13** | **+0000** | **−000** | **+0000** |
 
-Archivos del slice:
+## Calidad y entrega
+
+<!-- brvtal:gate-plan -->
+
+| Control | Estado / contrato |
+| --- | --- |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · validate** |
+| Reservation | Issue #592 · `work/issue-592` · UUID `7d174b8e-c33e-4dd9-a0cf-08e2702dc523` |
+| Browser | ✅ ~~Chromium behavior/geometry pasó en el head previo; se revalida en head final~~ |
+| Sonar | 🚧 último finding S6481 corregido; nuevo análisis pendiente sobre head final |
+| CodeRabbit | 🚧 revisión solicitada sobre head estable final |
+| Exact-main | 🚧 solo después del squash merge |
+
+## Flujo de entrega
+
+```mermaid
+flowchart LR
+ B["main v0.1.28 verde"] --> N["#592 NIGHTS + ARTISTS"]
+ N --> P["PR #593 · CI · Sonar · CodeRabbit"]
+ P --> M["Squash merge"]
+ M --> X["Exact-main CI"]
+ X --> D["Deploy Observer + Performance"]
+```
+
+## Qué se hizo
+
+- **02 / NIGHTS** proyecta Events activos + `archive.events` reales desde el mismo payload público y deduplica por identidad.
+- Cada Night usa `/events/{slug}` cuando existe slug; no se inventan rutas ni contenido.
+- Ticket CTA usa `ticket_url` o Ticket Type público activo; archivo y sold-out no muestran compra.
+- **03 / ARTISTS** reutiliza `public-roster.js`; mantiene Collective Status, orden canónico y `/artists/{slug}`.
+- Desktop 1440 usa tira editorial densa de Nights y grid documental de Artists; mobile 390 usa swipe ~84vw y grid 2 columnas.
+- Media rota/ausente falla cerrada, sin broken-image chrome ni pérdida del contenido textual.
+- No se añadió un segundo fetch: el enhancer Concept 05 solo compone el DOM ya alimentado por `BRVTALPublicDataPromise`.
+- Cobertura incluye active+archive, dedupe, links canónicos, Ticket Types, missing media, long copy, mobile overflow y reduced-motion/visual-test.
+
+## Archivos modificados en este deploy
 
 - `README.md`
 - `config/public_home.php`
@@ -41,50 +82,28 @@ Archivos del slice:
 - `tests/e2e/public-roster-phase-c.spec.mjs`
 - `tests/public-concept05-dressing-contract.php`
 
-## Calidad y entrega
+## Validación
 
-<!-- brvtal:gate-plan -->
+- Base exacta `409e544375104fc41aa83762187c30d26eefa3cb`: BRVTAL CI, Sonar, Deploy Observer y Production Performance verdes antes de iniciar #592.
+- Coordination ya reconoce la reserva oculta de #592 en PR #593.
+- Database, Chromium, real-stack y WebKit pasaron en la iteración previa del PR; el head final se revalida completo.
+- Findings Sonar previos de complejidad/ternaries/líneas largas fueron corregidos; el último S6481 se corrigió con callback explícito.
+- No hay migraciones ni cambios de esquema.
+- Producción se observa por separado; CI verde no se presenta como prueba de deploy.
 
-| Control | Estado / contrato |
+## Qué sigue
+
+| Lane | Trabajo |
 | --- | --- |
-| preflight / coordination | 🚧 requeridos sobre head estable |
-| fast | 🚧 PHP 8.5 contracts + JS syntax + README exact snapshot |
-| database | 🚧 requerido por contratos públicos compartidos |
-| chromium | 🚧 geometría/behavior 1440 + 390 + payload real |
-| real-stack | 🚧 runtime público integrado |
-| webkit-totp | 🚧 compatibilidad browser/auth transversal |
-| Sonar | 🚧 Quality Gate sobre head estable |
-| CodeRabbit | 🚧 review final sobre head estable |
+| **NOW** | 🚧 [#592](https://github.com/pl0n3r/brvtal/issues/592) · cerrar PR #593 sobre head final y validar exact-main. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · 04 / SOUND + 05 / MEMORIES. |
+| **LATER** | 🚧 JOURNAL + CONNECTED, Footer, Theme Studio/Preview; luego #398/#351 según roadmap. |
+| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo; reviewers externos son advisory salvo finding accionable. |
 
-## Qué se hizo
+## Panorama general pendiente
 
-- **02 / NIGHTS** deja de ser una card genérica: usa Events activos + `archive.events` reales del mismo payload público, deduplica por identidad y conserva navegación horizontal nativa.
-- Cada Night enlaza a `/events/{slug}` cuando existe slug; nunca inventa una ruta. Ticket CTA usa `ticket_url` o Ticket Type público activo y desaparece para archivo/sold-out.
-- **03 / ARTISTS** reutiliza `public-roster.js` como renderer canónico; perfiles permanecen en `/artists/{slug}` y Collective Status sigue gobernando orden/metadata.
-- Nueva composición Concept 05 separada para 1440/390: 3–4 Nights densas en desktop, swipe card ~84vw en mobile, Artists 4→2 columnas con retratos documentales.
-- Media de Nights/Artists falla cerrada; no aparece broken-image chrome y el contenido textual/canónico permanece usable.
-- El enhancer Concept 05 no hace requests: observa los renderers existentes y solo añade composición/media/CTA honestos.
-- Cobertura nueva para payload compartido, active+archive, dedupe, Event/Artist canonical links, Ticket Types, missing media, long copy, mobile overflow y reduced-motion/visual-test.
-
-## Flujo de entrega
-
-1. Rama reservada desde el `main` exacto verde.
-2. Implementación + contratos durables + snapshot README exacto.
-3. PR estable con BRVTAL CI, Sonar y CodeRabbit en paralelo.
-4. Corrección de findings válidos sin ampliar alcance.
-5. Squash merge solo con `main` aún compatible.
-6. Validación del SHA exacto mergeado + Deploy Observer + Production Performance.
-7. Solo después se inicia el siguiente slice dependiente.
-
-## Próximo paso
-
-1. Completar gates de PR #593 sobre el head estable.
-2. Corregir findings válidos sin ampliar scope.
-3. Squash merge y validar el SHA exacto de `main`.
-4. Observar deploy/performance y continuar #583 con **04 / SOUND + 05 / MEMORIES**.
-
-## Panorama pendiente
-
-- #583: después de este slice quedan SOUND + MEMORIES, JOURNAL + CONNECTED, Footer y los slices administrables Theme Studio/Preview.
-- #398 sigue siendo la visión de producto; #583 manda sobre la fidelidad visual pública.
-- No iniciar slices dependientes mientras #592 no haya cerrado exact-main + deploy.
+| Lane | Frente | Issues |
+| --- | --- | --- |
+| **NOW** | 🚧 Concept 05 NIGHTS + ARTISTS | 🚧 [#592](https://github.com/pl0n3r/brvtal/issues/592) |
+| **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
+| **LATER** | 🚧 visión pública / customization | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#351](https://github.com/pl0n3r/brvtal/issues/351) |
