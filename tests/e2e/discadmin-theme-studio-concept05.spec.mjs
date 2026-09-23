@@ -111,12 +111,17 @@ test('Theme Studio group resets are bounded and keep unrelated visual state', as
 test('Theme Studio remains touch-sized and horizontally contained at 390px', async ({ page }) => {
   await page.setViewportSize({width:390,height:844});
   await loadStudio(page);
-  const geometry = await page.evaluate(() => ({
-    innerWidth:window.innerWidth,
-    scrollWidth:document.documentElement.scrollWidth,
-    buttons:[...document.querySelectorAll('.tsv2-footer .btn')].map(button => button.getBoundingClientRect().height)
-  }));
+  const geometry = await page.evaluate(() => {
+    const visibleButtons = [...document.querySelectorAll('.tsv2-footer .btn')]
+      .filter(button => button.getClientRects().length > 0);
+    return {
+      innerWidth:window.innerWidth,
+      scrollWidth:document.documentElement.scrollWidth,
+      buttons:visibleButtons.map(button => button.getBoundingClientRect().height)
+    };
+  });
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.innerWidth);
+  expect(geometry.buttons.length).toBeGreaterThan(0);
   expect(Math.min(...geometry.buttons)).toBeGreaterThanOrEqual(44);
 });
 test('Theme Studio contrast check flags insufficient PAPER / BLACK readability', async ({ page }) => {

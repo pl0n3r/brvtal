@@ -359,7 +359,14 @@ const THEME_DEFAULT={
   name:"BRVTAL CONCEPT 05", slug:"core",
   branding:{siteName:"BRVTAL",tagline:"RAVE TILL GRAVE",logo:"",mobileLogo:"",favicon:"",preloaderLogo:""},
   colors:{bg:"#050505",surface:"#0A0B0C",text:"#F4F1E8",muted:"#8A8A82",primary:"#E31B23",accent:"#B6FF00",border:"#30302D"},
-  typography:{display:"\"Space Grotesk\", Arial, sans-serif",body:"\"Space Grotesk\", Arial, sans-serif",mono:"\"Space Mono\", monospace",h1:"clamp(58px,9vw,132px)",bodySize:"16px",tracking:"-0.055em"},
+  typography:{
+    display:'"Space Grotesk", Arial, sans-serif',
+    body:'"Space Grotesk", Arial, sans-serif',
+    mono:'"Space Mono", monospace',
+    h1:"clamp(58px,9vw,132px)",
+    bodySize:"16px",
+    tracking:"-0.055em"
+  },
   navigation:{fixed:true,transparentHero:true,blur:true,menuStyle:"fullscreen",menuAnimation:"glitch",logoPosition:"left",sceneIndicator:true,soundToggle:true},
   effects:{grain:true,scanlines:true,glitch:true,distortion:true,cursor:true,magnetic:true,pageTransitions:true,parallax:true,horizontalScroll:true,webgl:false,motion:"brvtal"},
   sound:{enabled:true,defaultState:"off",uiSounds:true,masterVolume:0.65},

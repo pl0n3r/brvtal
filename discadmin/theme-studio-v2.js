@@ -134,7 +134,7 @@
     const luminance = value => {
       const match = /^#([0-9a-f]{6})$/i.exec(String(value || ''));
       if (!match) return 0;
-      const parts = [0,2,4].map(offset => parseInt(match[1].slice(offset, offset + 2), 16) / 255)
+      const parts = [0,2,4].map(offset => Number.parseInt(match[1].slice(offset, offset + 2), 16) / 255)
         .map(channel => channel <= .03928 ? channel / 12.92 : Math.pow((channel + .055) / 1.055, 2.4));
       return .2126 * parts[0] + .7152 * parts[1] + .0722 * parts[2];
     };
@@ -272,7 +272,7 @@
     t.sound = { ...(t.sound || {}), enabled:checked('soundToggle') };
     // Canonical SEO is server-rendered. Preserve legacy theme.seo values
     // without exposing controls that currently have no public authority.
-    t.seo = { ...(t.seo || {}) };
+    t.seo = { ...t.seo };
     return t;
   }
 
@@ -452,24 +452,25 @@
     setTimeout(() => search?.focus(), 0);
   }
 
+  function applyConcept05Section(theme, section) {
+    theme[section] = { ...theme[section], ...CONCEPT05_VISUAL[section] };
+  }
+
   function resetGroup(group) {
     const next = currentTheme();
-    if (group === 'palette') next.colors = { ...(next.colors || {}), ...CONCEPT05_VISUAL.colors };
-    if (group === 'type') next.typography = { ...(next.typography || {}), ...CONCEPT05_VISUAL.typography };
+    const section = group === 'palette' ? 'colors' : group === 'type' ? 'typography' : '';
+    if (!section) return;
+    applyConcept05Section(next, section);
     state.theme = next;
     render(next);
-    tab(group === 'palette' ? 'palette' : 'type');
+    tab(group);
   }
 
   function preset(kind) {
     if (kind !== 'concept05') return;
-    const current = currentTheme();
-    const next = mergeTheme(current);
-    next.colors = { ...(next.colors || {}), ...CONCEPT05_VISUAL.colors };
-    next.typography = { ...(next.typography || {}), ...CONCEPT05_VISUAL.typography };
-    next.navigation = { ...(next.navigation || {}), ...CONCEPT05_VISUAL.navigation };
-    next.effects = { ...(next.effects || {}), ...CONCEPT05_VISUAL.effects };
-    next.sound = { ...(next.sound || {}), enabled:true };
+    const next = mergeTheme(currentTheme());
+    ['colors','typography','navigation','effects'].forEach(section => applyConcept05Section(next, section));
+    next.sound = { ...next.sound, enabled:true };
     if ((next.slug || 'core') === 'core') next.name = 'BRVTAL CONCEPT 05';
     state.theme = next;
     render(next);
