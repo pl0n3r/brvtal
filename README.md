@@ -38,7 +38,7 @@
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Reservation | Issue #590 · `work/issue-590` · UUID `5923f15a-d866-4b2a-a9af-c5096a382528` |
-| PR integrity | **PR + snapshot exacto** contra `main` |
+| PR integrity | **PR + snapshot exacto + hidden reservation metadata** contra `main` |
 | Browser | 🚧 nueva geometría authored 1440/390 + long-copy/media failure coverage |
 | Sonar / CodeRabbit | 🚧 pendientes sobre el head estable del PR |
 | Exact-main | **CI del SHA exacto de main** después del squash merge |
