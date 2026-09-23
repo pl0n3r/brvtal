@@ -58,6 +58,56 @@ function brvtal_media_local_absolute(?string $publicPath): ?string
     return $real;
 }
 
+/**
+ * Classify one image reference without performing any remote network request.
+ *
+ * External HTTP(S) references are structurally usable because availability is
+ * a browser concern; local uploads are usable only when the file resolves
+ * inside the uploads root and is a decodable image.
+ *
+ * @return array{valid:bool,usable:bool,kind:string}
+ */
+function brvtalMediaImageReferenceState(mixed $value): array
+{
+    $reference = trim((string)$value);
+    if ($reference === '') {
+        return ['valid' => true, 'usable' => false, 'kind' => 'empty'];
+    }
+
+    if (filter_var($reference, FILTER_VALIDATE_URL) !== false) {
+        $scheme = strtolower((string)parse_url($reference, PHP_URL_SCHEME));
+        $valid = in_array($scheme, ['http', 'https'], true);
+        return [
+            'valid' => $valid,
+            'usable' => $valid,
+            'kind' => $valid ? 'external' : 'invalid',
+        ];
+    }
+
+    if (!str_starts_with($reference, '/uploads/')
+        || str_contains($reference, '..')
+        || str_contains($reference, "\0")) {
+        return ['valid' => false, 'usable' => false, 'kind' => 'invalid'];
+    }
+
+    $absolute = brvtal_media_local_absolute($reference);
+    if ($absolute === null || !is_file($absolute)) {
+        return ['valid' => true, 'usable' => false, 'kind' => 'local_missing'];
+    }
+
+    if (@getimagesize($absolute) === false) {
+        return ['valid' => true, 'usable' => false, 'kind' => 'local_not_image'];
+    }
+
+    return ['valid' => true, 'usable' => true, 'kind' => 'local_image'];
+}
+
+/** Return whether one image reference is usable by public visual surfaces. */
+function brvtalMediaImageReferenceUsable(mixed $value): bool
+{
+    return brvtalMediaImageReferenceState($value)['usable'];
+}
+
 function brvtal_media_make_public_readable(?string $publicPath): void
 {
     $absolute = brvtal_media_local_absolute($publicPath);

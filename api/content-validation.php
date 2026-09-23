@@ -2,6 +2,76 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/artist_collective_lifecycle.php';
+require_once __DIR__ . '/../config/media.php';
+
+/** Return the canonical primary visual field for Content Core resources. */
+function brvtalContentVisualField(string $resource): ?string
+{
+    return match ($resource) {
+        'events' => 'cover_image',
+        'artists' => 'photo',
+        'sets' => 'cover_image',
+        default => null,
+    };
+}
+
+/**
+ * Reject malformed visual references whenever the field is explicitly edited.
+ * A well-formed missing local upload may remain in draft so legacy editorial
+ * work is not destructively erased before the editor can repair it.
+ */
+function brvtalContentVisualShapeError(string $resource, array $payload): ?array
+{
+    $field = brvtalContentVisualField($resource);
+    if ($field === null || !array_key_exists($field, $payload)) {
+        return null;
+    }
+
+    $reference = trim((string)($payload[$field] ?? ''));
+    if ($reference === '') {
+        return null;
+    }
+
+    $state = brvtalMediaImageReferenceState($reference);
+    return $state['valid']
+        ? null
+        : ['error' => 'INVALID_MEDIA_REFERENCE', 'field' => $field];
+}
+
+/**
+ * Prevent non-draft/public Content Core state from retaining a broken primary
+ * visual. Empty visuals remain allowed and are reported as missing by Content
+ * Health; only a populated but unusable reference is blocked here.
+ */
+function brvtalContentVisualPublicationError(string $resource, array $state): ?array
+{
+    $field = brvtalContentVisualField($resource);
+    if ($field === null) {
+        return null;
+    }
+
+    $reference = trim((string)($state[$field] ?? ''));
+    if ($reference === '') {
+        return null;
+    }
+
+    $status = strtolower(trim((string)($state['status'] ?? 'draft')));
+    $requiresUsableVisual = $resource === 'events'
+        ? $status !== 'draft'
+        : $status === 'published';
+    if (!$requiresUsableVisual) {
+        return null;
+    }
+
+    $media = brvtalMediaImageReferenceState($reference);
+    if (!$media['valid']) {
+        return ['error' => 'INVALID_MEDIA_REFERENCE', 'field' => $field];
+    }
+    if (!$media['usable']) {
+        return ['error' => 'MEDIA_REFERENCE_UNRESOLVABLE', 'field' => $field];
+    }
+    return null;
+}
 
 /** Parse an exact temporal value without accepting rollover or partial matches. */
 function brvtal_exact_temporal_value(string $value, array $formats): ?string
