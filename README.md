@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #608.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #610.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#608 · Concept 05 screenshot regression baselines** | último child de QA de #583 |
-| Base exacta | ✅ ~~main v0.1.38 exact-main CI + Sonar + Deploy Observer + Production Performance verdes~~ | `ac239e9e2af244f01ebf76032432384483965181` |
-| Versión | ✅ ~~0.1.38 sin bump~~ | test/QA únicamente |
-| Producción | ✅ ~~v0.1.38 observada y medida~~ | este slice no modifica runtime |
+| Work line | 🚧 **#610 · exact Media duplicate detection + canonical reuse** | child enfocado de #531 |
+| Base exacta | ✅ ~~main v0.1.38 exact-main CI + Sonar + Deploy Observer + Production Performance verdes~~ | `7e3c9dd2ff9bb94e909acfe757140339e9755974` |
+| Versión | 🚧 **0.1.39** | Media runtime/API/DB schema cambian |
+| Producción | 🚧 source aún no mergeado · migración explícita requerida antes de habilitar uploads | `migration_media_content_hash_01.sql` |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+164** | **−34** | **+130** |
+| **12** | **+552** | **−11** | **+541** |
 
 ## Calidad y entrega
 
@@ -36,63 +36,63 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[JS] · chromium** |
-| PR integrity | **PR + snapshot exacto** · Issue #608 · `work/issue-608` · UUID `711755a1-5912-432e-a15d-d6b77948e1ed` |
-| Canonical screenshots | ✅ ~~390×844 · 1440×900 calibrated~~ |
-| Baseline model | ✅ ~~screenshot real → dHash estructural + RGB grid cuantizado → aggregate SHA-256~~ |
-| Existing matrix | ✅ ~~390 · 430 · 768 · 1024 · 1280 · 1440 · 1728 · 1920~~ |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · validate** |
+| PR integrity | **PR + snapshot exacto** · Issue #610 · `work/issue-610` · UUID `b606662f-5b0f-49c1-b33b-ff49653fa097` |
+| Exact dedup | 🚧 SHA-256 por bytes · mismo contenido/diferente filename → canonical reuse |
+| Legacy compatibility | 🚧 lazy backfill solo size+MIME · bounded hashing · missing/non-local skip |
+| Concurrency | 🚧 unique `content_hash` + race winner lookup + orphan cleanup |
+| Migration safety | ✅ ~~aditiva, nullable, idempotente, jamás auto-run~~ |
 | Sonar | 🚧 análisis del HEAD final |
 | CodeRabbit | 🚧 full review sobre HEAD final |
-| CI del SHA exacto de main | 🚧 después del squash merge |
-
-## Flujo de entrega
-
-```mermaid
-flowchart LR
- B["main v0.1.38 verde"] --> S["#608 SCREENSHOT BASELINES"]
- S --> C["Calibration CI"]
- C --> F["Commit approved 390 / 1440 fingerprints"]
- F --> P["PR · CI · Sonar · CodeRabbit"]
- P --> M["Squash merge"]
- M --> X["Exact-main CI"]
- X --> V["Re-evaluate / close #583"]
-```
+| Production migration | 🚧 requiere control humano antes de cambiar schema productivo |
 
 ## Qué se hizo
 
-- Se reutiliza el fixture integrado Concept 05 ya validado por #606; no se creó otro renderer ni otra fuente de verdad.
-- Se capturan screenshots reales de Hero, Next Experience, Nights, Artists, Sound, Memories, Journal, Connected y footer.
-- Cada screenshot se reduce a una firma estructural perceptual y una rejilla RGB cuantizada para detectar cambios materiales sin depender del hash binario exacto del PNG.
-- Las firmas regionales se agregan por viewport en dos hashes compactos: **structure** y **color**.
-- La captura fuerza `animations: disabled`, oculta caret y conserva `c5-visual-test` para eliminar ruido deliberadamente no determinista.
-- La corrida de calibración produjo únicamente los dos fallos esperados de baseline pendiente; todos los tests Concept 05 existentes siguieron verdes.
-- Los fingerprints aprobados de 390/1440 quedaron committed y cualquier cambio visual exige refresh manual explícito + revisión.
+- Añadido `media.content_hash CHAR(64) NULL` con índice único explícito e idempotente.
+- Upload calcula SHA-256 después de las validaciones actuales de tamaño/MIME/imagen.
+- Assets ya hasheados se reutilizan por índice sin escribir otro archivo ni modificar título/path/original/variants del canonical.
+- Legacy Media con hash NULL se inspecciona solo si coincide tamaño+MIME, con límite de candidatos y bytes hasheados; si el límite no permite demostrar ausencia de duplicado, el upload falla cerrado.
+- Missing/non-local legacy candidates se omiten sin bloquear una búsqueda que sí puede completarse.
+- Carrera concurrente: el índice único elige ganador; el request perdedor borra el archivo recién movido y devuelve el canonical ganador.
+- Reads de Media Library siguen funcionando con esquema legacy; solo nuevos uploads responden `MEDIA_DEDUP_MIGRATION_REQUIRED` hasta aplicar la migración.
+- DISCADMIN selecciona el asset reutilizado, muestra `Duplicate detected — existing asset reused.` y expone SHA-256 como metadata de trazabilidad.
+- Pruebas nuevas cubren hash por bytes, migración idempotente, backfill legacy, bytes distintos, missing/non-local, race unique y UX de reuse.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto de #608 y estrategia de baseline visual.
-- `tests/e2e/public-concept05-fidelity-matrix.spec.mjs` — fingerprints de screenshots 390/1440 sobre los módulos canónicos.
+- `api/media-library.php`
+- `config/media_dedup.php`
+- `config/version.php`
+- `database/migration_media_content_hash_01.sql`
+- `database/schema.sql`
+- `discadmin/media-library.js`
+- `package.json`
+- `tests/e2e/discadmin-media.spec.mjs`
+- `tests/integration/media-dedup.php`
+- `tests/media-dedup-contract.php`
+- `tests/media-library-contract.php`
+- `README.md`
 
 ## Validación
 
-- Base exacta `ac239e9e2af244f01ebf76032432384483965181`: v0.1.38 con exact-main CI, Sonar, Deploy Observer y Production Performance verdes.
-- #608 está reservado por el coordinador; `work/issue-608` nació idéntica a esa base y no existe PR competidor.
-- #583 permanece abierto hasta que las dos baselines visuales queden calibradas y exact-main valide el child.
-- Pendiente: CI final sobre las baselines fijadas, full review, squash y exact-main.
+- Base exacta `7e3c9dd2ff9bb94e909acfe757140339e9755974`: v0.1.38 con exact-main CI, Sonar, Deploy Observer y Production Performance verdes.
+- #610 está reservado por el coordinador; `work/issue-610` nació idéntica a esa base y no existe PR competidor.
+- El rollout no autoejecuta SQL. Aplicar la migración en producción es una acción separada y explícita.
+- Pendiente: PR/CI/Sonar/CodeRabbit; después, detenerse antes de cualquier cambio de schema productivo.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#608](https://github.com/pl0n3r/brvtal/issues/608) · fijar regresión visual canónica 390/1440. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · consolidar evidencia y cerrar el contrato Concept 05 si no quedan gaps. |
-| **LATER** | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398) · archivo cultural conectado; [#531](https://github.com/pl0n3r/brvtal/issues/531) · Media Library smarter. |
-| **BLOCKED / EXTERNAL** | 🚧 Sin bloqueos externos activos. |
+| **NOW** | 🚧 [#610](https://github.com/pl0n3r/brvtal/issues/610) · validar exact dedup y dejar v0.1.39 listo para rollout. |
+| **NEXT** | 🚧 aplicar la migración productiva de #610 únicamente con autorización explícita; luego merge/deploy/exact-main. |
+| **LATER** | 🚧 [#531](https://github.com/pl0n3r/brvtal/issues/531) · política/UX de optimización; [#398](https://github.com/pl0n3r/brvtal/issues/398) · archivo cultural conectado. |
+| **BLOCKED / EXTERNAL** | 🚧 producción: cambio de schema requiere control humano según AGENTS.md. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Visual regression closeout | 🚧 [#608](https://github.com/pl0n3r/brvtal/issues/608) |
-| **NEXT** | 🚧 Parent visual contract | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
-| **LATER** | 🚧 Public archive / media scale | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#531](https://github.com/pl0n3r/brvtal/issues/531) |
+| **NOW** | 🚧 Media exact dedup | 🚧 [#610](https://github.com/pl0n3r/brvtal/issues/610) |
+| **NEXT** | 🚧 Media optimization / archive evolution | 🚧 [#531](https://github.com/pl0n3r/brvtal/issues/531), [#398](https://github.com/pl0n3r/brvtal/issues/398) |
+| **LATER** | 🚧 Admin resilience / SEO | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#390](https://github.com/pl0n3r/brvtal/issues/390) |
