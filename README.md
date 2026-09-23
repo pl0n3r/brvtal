@@ -44,6 +44,7 @@
 | Migration safety | ✅ ~~aditiva, nullable, idempotente, jamás auto-run~~ |
 | Sonar | ✅ ~~Quality Gate · 0 new issues · 0 hotspots~~ |
 | CodeRabbit | 🚧 full review sobre HEAD final |
+| CI del SHA exacto de main | 🚧 después del squash merge y migración productiva autorizada |
 | Production migration | 🚧 requiere control humano antes de cambiar schema productivo |
 
 ## Flujo de entrega
