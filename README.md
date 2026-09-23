@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para incidente #631. **Engineering roles:** SRE, frontend/PHP backend, QA.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.47 exact `main` `786780eddd60a14c7fae4286db20459a2af8667e` has green CI/deploy observer; authenticated production smoke #35932847504 fails on transient duplicate Events search while the editor mounts. **Engineering roles:** SRE, QA automation, DISCADMIN frontend auditor.
 
 ## Progress convention
 
@@ -17,10 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#631 · Events EDIT / production smoke** | `work/issue-631` · nueva reserva `5ae2fbce-4d98-48bf-921a-f118cc6d6bda` |
-| Base exacta | ✅ ~~main v0.1.46~~ | `41dfed2886c2c668a6bbe26aa648a5ee7352f288` |
-| Versión | 🚧 **v0.1.47 candidate** | runtime Events editor + smoke |
-| Producción | 🚧 validar después del merge | smoke #35930077218 falla en selector legacy |
+| Work line | 🚧 **#631 · Events workspace smoke readiness** | `work/issue-631`; reserva `d3db0a43-99f8-474f-87ce-7ed9aa96dd2f` |
+| Base exacta | ✅ ~~main v0.1.47~~ | `786780eddd60a14c7fae4286db20459a2af8667e` |
+| Versión | ✅ ~~v0.1.47 sin incremento~~ | cambios solo en prueba/documentación |
+| CI del SHA exacto de main | ✅ ~~success~~ | [#35932632845](https://github.com/pl0n3r/brvtal/actions/runs/35932632845) |
+| Deploy Observer base | ✅ ~~success~~ | [#35932632897](https://github.com/pl0n3r/brvtal/actions/runs/35932632897) |
+| Smoke autenticado base | ⛔ **failure** | [#35932847504](https://github.com/pl0n3r/brvtal/actions/runs/35932847504) · doble búsqueda transitoria |
+| Entrega candidata | 🚧 PR gates, merge y smoke nuevo | no equivale a producción validada |
 
 ## Huella del cambio
 
@@ -28,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+131** | **−48** | **+83** |
+| **2** | **+48** | **−41** | **+7** |
 
 ## Calidad y entrega
 
@@ -36,57 +39,51 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | Issue #631 · reserva `5ae2fbce-4d98-48bf-921a-f118cc6d6bda` |
-| CodeRabbit / Sonar | 🚧 revisión y Quality Gate sobre HEAD final |
-| CI del SHA exacto de main | 🚧 después de merge |
-| Producción | 🚧 health/DB/SHA, Home/Admin/Dashboard, Events EDIT, Sets/Hero |
+| Gates | **preflight · coordination · fast[JS] · chromium** |
+| PR + snapshot exacto | Issue #631 · reserva `d3db0a43-99f8-474f-87ce-7ed9aa96dd2f` |
+| CodeRabbit / Sonar | ✅ ~~revisión sin hallazgos / Quality Gate~~; revalidar HEAD final |
+| CI del SHA exacto de main | 🚧 después del merge |
+| Producción | 🚧 health/version/SHA/DB, Home/Admin/Dashboard, Events EDIT/date, Sets y Hero |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.46 · 41dfed2"] --> F["#631 · guided Events editor"]
- F --> P["PR · tests + review"] --> M["v0.1.47 merge"]
- M --> C["Exact-main CI + Hostinger observer"] --> S["Authenticated production smoke"]
+ B["main v0.1.47 · 786780e"] --> F["#631 · esperar editor Events"]
+ F --> P["PR #634 · smoke + snapshot exacto"] --> M["Squash merge"]
+ M --> C["CI exact-main + Hostinger observer"] --> S["Smoke autenticado completo"]
 ```
 
 ## Qué se hizo
 
-- La navegación Events deja de remontar el Content Core al pulsar EDIT sobre la grilla ya montada, evitando que un registro existente se abra como NEW EVENT. El cambio de registro respeta el descarte de ediciones sin guardar y bloquea operaciones mientras el modal esté inert.
-- La carga inicial de Content Core es esperada por el cargador del módulo y falla explícitamente si no hidrata Events; auth reutiliza el límite compartido en vez de emitir otro GET de sesión.
-- El smoke comprueba el editor real `#eventModal`, su título EDIT EVENT, la fecha `#e_event_date`, compara datos de grilla/API y cierra sin escribir.
-- Regresión de navegador asegura que el EDIT nativo reutiliza el workflow montado sin navegar ni duplicar carga, y protege la edición sucia/cancelación/inert al cambiar de registro.
-- No hay migraciones, SQL destructivo ni ediciones de registros de clientes.
+- Esperar a que se monte el Content Core interno de Events y su `.wrap` quede oculta antes de verificar exactamente una búsqueda visible en la grilla nativa, sin omitir el fallo si sigue duplicada.
+- Comprobar `[data-admin-grid-search]` visible y preservar EDIT real, fecha API/grilla/formulario guiado, relaciones Sets, tres cargas de Hero y guardia de red de solo lectura.
+- Mantener runtime v0.1.47 intacto, sin credenciales, migraciones, SQL destructivo ni cambios en contenido de producción.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del incidente.
-- `config/version.php` — versión 0.1.47.
-- `discadmin/admin-information-architecture.js` — editor Events sin remontaje.
-- `discadmin/content-core.js` — carga inicial awaited y auth compartida.
-- `package.json` — versión 0.1.47.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión de EDIT montado.
-- `tests/e2e/production-authenticated-smoke.mjs` — modal guiado canónico.
+- `README.md` — snapshot exacto de PR #634, incidencia y validaciones.
+- `tests/e2e/production-authenticated-smoke.mjs` — esperar montaje de Events y exigir una búsqueda visible.
 
 ## Validación
 
-- ✅ ~~Smoke anterior #35930077218 verifica health 200/DB connected/SHA exacto, home 200, Admin 200 y Dashboard 484 ms sin HTTP 5xx.~~
-- 🚧 El smoke anterior falla esperando `#modal`; la arquitectura real abre `#eventModal` y necesita hidratar Content Core antes de EDIT.
-- 🚧 Gates de PR, deploy, CI exacto y nuevo smoke pendientes; **no declarar PRODUCTION GREEN** antes de evidencia efectiva.
+- ✅ ~~Base v0.1.47 validada: CI exact-main #35932632845 y observer #35932632897 aprobaron.~~
+- ⛔ Smoke #35932847504 falló en búsqueda transitoriamente duplicada antes de probar EDIT/date, Sets y Hero; las comprobaciones posteriores NO están validadas.
+- 🚧 CI del HEAD final, merge, deploy y smoke autenticado ejecutado pendiente; **no declarar PRODUCTION GREEN** sin las cinco evidencias.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631) · corregir editor y completar smoke productivo. |
-| **NEXT** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533) · registrar GREEN con 5 evidencias exactas. |
-| **LATER** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · retomar backlog tras GREEN. |
-| **BLOCKED / EXTERNAL** | 🚧 entrega productiva hasta prueba autenticada completa. |
+| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): estabilizar smoke real y corregir solo fallos observados. |
+| **NEXT** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): registrar GREEN tras cinco señales probadas. |
+| **LATER** | 🚧 retomar backlog de producto después de GREEN. |
+| **BLOCKED / EXTERNAL** | 🚧 acreditación productiva hasta ejecutar smoke completo. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: completar recuperación #631 sin perder datos.
-- 🚧 **NEXT**: cerrar incidente solo con prueba real aprobada.
-- 🚧 **LATER**: roadmap de producto después de GREEN.
-- 🚧 **BLOCKED / EXTERNAL**: ninguno adicional identificado.
+- 🚧 **NOW**: recuperación de producción #631 con prueba real.
+- 🚧 **NEXT**: cierre de incidente solo tras evidencias exactas.
+- 🚧 **LATER**: roadmap producto luego de GREEN.
+- 🚧 **BLOCKED / EXTERNAL**: todavía no hay smoke autenticado completo aprobado.
+

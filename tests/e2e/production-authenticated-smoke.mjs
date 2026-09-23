@@ -294,12 +294,21 @@ try {
     throw new Error('Production needs at least one published Artist and one published Event to verify #124 without creating data.');
   }
 
-  // The canonical EVENTS sidebar opens the native Events grid. Content Core
-  // is a separate module; requiring its hidden host here is an obsolete smoke
-  // assumption and does not reflect the user's Events workspace.
+  // Events uses the canonical native grid plus a hidden Content Core host for
+  // the guided editor. Wait for the asynchronous host/simplifier to settle:
+  // two temporarily visible search inputs are not a completed workspace.
   await navigate(page, 'EVENTS', 'events');
   await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
-  await page.locator('.main .toolbar .search:visible').waitFor({ state: 'visible', timeout: 15_000 });
+  await page.locator('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]')
+    .waitFor({ state: 'attached', timeout: 15_000 });
+  await page.locator('#admin-module-host [data-admin-module="content-core"] .wrap')
+    .waitFor({ state: 'hidden', timeout: 15_000 });
+  await page.locator('.main [data-admin-grid-search]:visible')
+    .waitFor({ state: 'visible', timeout: 15_000 });
+  const visibleSearchCount = await page.locator('.main .toolbar .search:visible').count();
+  if (visibleSearchCount !== 1) {
+    throw new Error(`Events workspace exposes ${visibleSearchCount} search inputs; expected exactly one canonical visible search.`);
+  }
   const eventsHeadingLocator = page.locator('.main .top h1');
   await eventsHeadingLocator.waitFor({ state: 'visible', timeout: 15_000 });
   const eventsHeading = (await eventsHeadingLocator.innerText()).trim().toUpperCase();
@@ -308,6 +317,7 @@ try {
   evidence.checks.eventsWorkspace = {
     heading: eventsHeading,
     visibleSearch: true,
+    visibleSearchCount,
     nativeEditVisible: true,
     pass: eventsHeading === 'EVENTS'
   };
