@@ -270,6 +270,15 @@ The CMS calculates a **Content Health Score** and warns about missing SEO, missi
 
 CMS intelligence advises; it does **not** autonomously publish or irreversibly modify editorial content.
 
+### Entity-specific public structured data
+
+- The JSON-LD family is built from the same canonical, published/visible row as the public page, not from separate client-side metadata. A draft artist may never reappear through `performer` or `byArtist`.
+- A dated, located public Event exposes `MusicEvent`, local ISO-8601 `startDate`, genuine `Place`/city and a lifecycle-aware `eventStatus` (scheduled, completed or cancelled). SQL DATETIME fields have no timezone metadata: do not invent UTC or infer a timezone from the web server.
+- A published Blog exposes its genuine publication and modification timestamps; Releases expose real release dates, catalog IDs and published linked artists; Sets expose their published linked artist and validated public listening URL; Artist identity URLs are only published when configured and valid.
+- If an Event lacks a valid date or location, a Blog lacks its publication date, a Release has neither a valid release date nor a published artist, or a Set has neither a public artist nor a safe listening link, publish neutral `WebPage` JSON-LD rather than inventing rich-result properties. The HTTP/publication policy and existing canonical URL must remain unchanged.
+- External entity references accept HTTP(S) URLs without embedded credentials. Only published artist relations appear in JSON-LD. No new schema migration or separate schema CMS is required.
+
+
 ## 23. DISCADMIN search and bulk actions
 
 Global admin search is implemented across Events, Artists, Sets, Media, Pages, Releases and Blog with `⌘K / Ctrl+K` navigation inside the canonical shell.
