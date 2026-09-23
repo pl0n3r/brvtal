@@ -37,10 +37,12 @@ seo_defaults_assert(str_contains($pageText, 'Dark electronic music culture from 
 seo_defaults_assert(!str_contains($pageText, '/uploads/cover.jpg'), 'page JSON fallback must ignore media paths');
 
 $api = (string)file_get_contents(__DIR__ . '/../api/seo-metadata.php');
-seo_defaults_assert(str_contains($api, "'artists' => ['table'=>'artists','title'=>'name','description'=>'bio']"), 'Artists must default SEO from name and bio');
-seo_defaults_assert(str_contains($api, "'events' => ['table'=>'events','title'=>'title','description'=>'description']"), 'Events must default SEO from title and description');
-seo_defaults_assert(str_contains($api, "'sets' => ['table'=>'sets_media','title'=>'title','description'=>'description']"), 'Sets must default SEO from title and description');
-seo_defaults_assert(str_contains($api, "'releases' => ['table'=>'releases','title'=>'title','description'=>'description']"), 'Releases must default SEO from title and description');
+require_once __DIR__ . '/../config/seo_workspace.php';
+$seoDefinitions = brvtalSeoWorkspaceEntityDefinitions();
+seo_defaults_assert(($seoDefinitions['artists']['title'] ?? '') === 'name', 'Artists must default SEO from name and bio');
+seo_defaults_assert(($seoDefinitions['events']['description'] ?? '') === 'description', 'Events must default SEO from title and description');
+seo_defaults_assert(($seoDefinitions['sets']['table'] ?? '') === 'sets_media', 'Sets must use the canonical sets table');
+seo_defaults_assert(isset($seoDefinitions['releases'], $seoDefinitions['blog'], $seoDefinitions['pages']), 'SEO registry must include Releases, Blog and Pages');
 seo_defaults_assert(brvtalSeoOverrideValue('   ', 190) === null, 'blank SEO title override must remain absent');
 seo_defaults_assert(brvtalSeoOverrideValue('<b>Manual title</b>', 190) === 'Manual title', 'manual SEO override must be normalized');
 seo_defaults_assert(mb_strlen((string)brvtalSeoOverrideValue(str_repeat('description ', 50), 320)) <= 320, 'manual SEO override must respect its storage cap');
