@@ -20,7 +20,7 @@ test('Dashboard Content Health separates public readiness from draft completenes
         seo_gaps: 0,
         by_type: {},
         items: [
-          { id: 10, type: 'events', title: 'Genesis', status: 'published', score: 52, issues: ['Useful description','Primary visual'], seo_supported: false, has_image: false, is_public: true, is_draft: false }
+          { id: 10, type: 'events', title: 'Genesis', status: 'published', score: 52, issues: ['Useful description','Broken primary visual'], seo_supported: false, has_image: false, is_public: true, is_draft: false }
         ],
         public: {
           score: 52,
@@ -32,7 +32,7 @@ test('Dashboard Content Health separates public readiness from draft completenes
           broken_visuals: 1,
           seo_gaps: 0,
           items: [
-            { id: 10, type: 'events', title: 'Genesis', status: 'published', score: 52, issues: ['Useful description','Primary visual'], seo_supported: false, has_image: false, is_public: true, is_draft: false }
+            { id: 10, type: 'events', title: 'Genesis', status: 'published', score: 52, issues: ['Useful description','Broken primary visual'], seo_supported: false, has_image: false, is_public: true, is_draft: false }
           ]
         },
         drafts: {
@@ -77,7 +77,7 @@ test('Dashboard Content Health separates public readiness from draft completenes
   await expect(page.getByText('PUBLIC BROKEN VISUALS', { exact: true })).toBeVisible();
   await expect(page.getByText('BRVTAL Story')).toHaveCount(0);
   await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Useful description');
-  await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Primary visual');
+  await expect(page.locator('.content-health-row').first().locator('.content-health-issues')).toContainText('Broken primary visual');
   await expect(page.getByText('Read-only diagnostics. Public readiness and draft completeness are intentionally separate.')).toBeVisible();
   await expect(page.getByText('DRAFT BACKLOG', { exact: true })).toBeVisible();
   await expect(page.getByText('Drafts may be incomplete without lowering the public health score. Completeness remains visible as editorial progress.')).toBeVisible();

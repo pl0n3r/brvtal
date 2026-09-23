@@ -73,6 +73,24 @@ try {
         'draft event may retain a repairable missing local reference'
     );
     brvtal_media_reference_assert(
+        brvtalContentVisualPublicationError('events', [
+            'status'=>'cancelled',
+            'event_date'=>'2200-01-01 22:00:00',
+            'published_at'=>null,
+            'cover_image'=>'/uploads/media/contract-reference/missing.jpg',
+        ]) === null,
+        'non-public future historical event may retain a repairable missing local reference'
+    );
+    brvtal_media_reference_assert(
+        brvtalContentVisualPublicationError('events', [
+            'status'=>'archived',
+            'event_date'=>'2000-01-01 22:00:00',
+            'published_at'=>null,
+            'cover_image'=>'/uploads/media/contract-reference/missing.jpg',
+        ]) === ['error'=>'MEDIA_REFERENCE_UNRESOLVABLE','field'=>'cover_image'],
+        'public historical event must reject a missing local visual'
+    );
+    brvtal_media_reference_assert(
         brvtalContentVisualPublicationError('events', ['status'=>'published','cover_image'=>'/uploads/media/contract-reference/missing.jpg']) === ['error'=>'MEDIA_REFERENCE_UNRESOLVABLE','field'=>'cover_image'],
         'published event must reject missing local visual'
     );

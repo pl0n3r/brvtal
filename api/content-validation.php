@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/artist_collective_lifecycle.php';
 require_once __DIR__ . '/../config/media.php';
+require_once __DIR__ . '/../config/public_visibility.php';
 
 /** Return the canonical primary visual field for Content Core resources. */
 function brvtalContentVisualField(string $resource): ?string
@@ -57,7 +58,7 @@ function brvtalContentVisualPublicationError(string $resource, array $state): ?a
 
     $status = strtolower(trim((string)($state['status'] ?? 'draft')));
     $requiresUsableVisual = $resource === 'events'
-        ? $status !== 'draft'
+        ? brvtal_public_event_is_visible($state)
         : $status === 'published';
     if (!$requiresUsableVisual) {
         return null;
