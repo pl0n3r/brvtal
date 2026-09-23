@@ -352,8 +352,6 @@
     try {
       if (snapshot.contentContext === 'events') {
         await loadContentCoreContext();
-      } else if (snapshot.contentContext === 'artists-roster') {
-        await loadContentCoreContext('roster');
       } else if (snapshot.section === 'system' && typeof originalTech === 'function') {
         await originalTech.call(window,'system');
       } else {
@@ -380,34 +378,6 @@
     }
     restoreVisibleSection(snapshot.section);
     setTimeout(rebuildNavigation,0);
-  }
-
-  function contextBar(title, description, actions = []) {
-    const bar = document.createElement('div');
-    bar.className = 'ia-contextbar';
-    const copy = document.createElement('div');
-    copy.className = 'ia-contextbar-copy';
-    const strong = document.createElement('strong');
-    strong.textContent = title;
-    const span = document.createElement('span');
-    span.textContent = description;
-    copy.append(strong, span);
-    bar.appendChild(copy);
-
-    if (actions.length) {
-      const controls = document.createElement('div');
-      controls.className = 'ia-contextbar-actions';
-      actions.forEach(action => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = action.primary ? 'btn red' : 'btn ghost';
-        button.textContent = action.label;
-        button.addEventListener('click', action.onClick);
-        controls.appendChild(button);
-      });
-      bar.appendChild(controls);
-    }
-    return bar;
   }
 
   function simplifyEventEditor(root) {
@@ -478,7 +448,7 @@
     let result;
     try {
       if (section === 'events') {
-        const applied = await loadContentCoreContext('events');
+        const applied = await loadContentCoreContext();
         if (applied === false) {
           cancelWorkspaceNavigation(navigationOperation);
           return false;
