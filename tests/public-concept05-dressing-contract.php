@@ -169,8 +169,8 @@ dressing_assert(
     'Concept 05 shell assets must not duplicate on repeated calls'
 );
 dressing_assert(
-    substr_count($idempotent, 'c5-menu-nav') === 1
-        && substr_count($idempotent, 'c5-footer') === 1,
+    substr_count($idempotent, 'class="c5-menu-nav"') === 1
+        && substr_count($idempotent, '<footer class="footer scene c5-footer"') === 1,
     'authored menu/footer must not duplicate on repeated calls'
 );
 dressing_assert(
