@@ -46,6 +46,18 @@
 | CodeRabbit | 🚧 full review sobre HEAD final |
 | Production migration | 🚧 requiere control humano antes de cambiar schema productivo |
 
+## Flujo de entrega
+
+```mermaid
+flowchart LR
+ B["main v0.1.38 verde"] --> P["#611 · CI + Sonar + CodeRabbit"]
+ P --> G["STOP · autorización migración productiva"]
+ G --> D["Aplicar migration_media_content_hash_01.sql"]
+ D --> M["Squash merge v0.1.39"]
+ M --> X["Exact-main CI + Deploy Observer"]
+ X --> V["Validar dedup uploads en producción"]
+```
+
 ## Qué se hizo
 
 - Añadido `media.content_hash CHAR(64) NULL` con índice único explícito e idempotente.
