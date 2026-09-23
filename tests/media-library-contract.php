@@ -78,7 +78,10 @@ $uploadStart = strpos($api, "if (\$method === 'POST' && \$action === 'upload')")
 $registerStart = strpos($api, "if (\$method === 'POST' && \$action === 'register')");
 media_assert($uploadStart !== false && $registerStart !== false && $registerStart > $uploadStart, 'upload source block must remain discoverable');
 $uploadSource = substr($api, $uploadStart, $registerStart - $uploadStart);
-media_assert(str_contains($uploadSource, "\$st->execute([\$type, \$title, \$publicPath, \$mime, \$size, \$alt, 'draft']);"), 'new physical uploads must be persisted as draft');
+media_assert(
+    preg_match("/\\$st->execute\\(\\[\\$type, \\$title, \\$publicPath, \\$mime, \\$size, \\$contentHash, \\$alt, 'draft'\\]\\);/", $uploadSource) === 1,
+    'new physical uploads must be persisted as draft'
+);
 media_assert(!str_contains($uploadSource, "'published'"), 'upload path must not silently publish newly uploaded assets');
 media_assert(preg_match("/FROM media\\s+WHERE status='published'/", $publicApi) === 1, 'public Media must remain limited to explicitly published records');
 media_assert(str_contains($mediaConfig, "in_array(\$mime, ['image/jpeg', 'image/png'], true)"), 'JPEG and PNG uploads must generate a generic preserve-aspect WebP');
