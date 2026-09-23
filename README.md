@@ -67,20 +67,20 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `README.md`
-- `config/public_home.php`
-- `config/version.php`
-- `css/public-concept05-sound-memories.css`
-- `css/public-sets-library.css`
-- `index.php`
-- `js/app.js`
-- `js/public-concept05-sound-memories.js`
-- `js/public-media.js`
-- `js/public-sets-library.js`
-- `package.json`
-- `tests/e2e/public-concept05-sound-memories.spec.mjs`
-- `tests/e2e/public-sets-library-phase-c.spec.mjs`
-- `tests/public-concept05-dressing-contract.php`
+- `README.md` — snapshot exacto del deploy y gates.
+- `config/public_home.php` — carga assets authored de SOUND + MEMORIES.
+- `config/version.php` — versión pública 0.1.30.
+- `css/public-concept05-sound-memories.css` — geometría authored 1440/390 y estados fail-closed.
+- `css/public-sets-library.css` — artwork de Set opt-in fuera de Concept 05.
+- `index.php` — framing editorial 04 / SOUND y 05 / MEMORIES.
+- `js/app.js` — delegación a renderers canónicos y Memories curadas.
+- `js/public-concept05-sound-memories.js` — composición progresiva sin requests ni playback falso.
+- `js/public-media.js` — señal de render curado y fallo seguro del viewer.
+- `js/public-sets-library.js` — renderer SOUND reutilizable, artwork y URLs seguras.
+- `package.json` — sincronización de versión 0.1.30.
+- `tests/e2e/public-concept05-sound-memories.spec.mjs` — regresión 1440/390, URLs y media fallida.
+- `tests/e2e/public-sets-library-phase-c.spec.mjs` — contrato del renderer Sets reutilizable.
+- `tests/public-concept05-dressing-contract.php` — contrato de carga/idempotencia de assets Concept 05.
 
 ## Validación
 
