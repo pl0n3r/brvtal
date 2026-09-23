@@ -355,62 +355,100 @@
       if (logo) qsa('[data-site-logo]').forEach(img => { img.src = imgUrl(logo); });
     };
 
-    const renderEvents = (activeItems, archiveItems = []) => {
-      const track = qs('.events-track');
-      if (!track) return false;
-
-      const seen = new Set();
+    const canonicalEventList = (activeItems, archiveItems) => {
+      const active = Array.isArray(activeItems) ? activeItems : [];
+      const archive = Array.isArray(archiveItems) ? archiveItems : [];
       const source = [
-        ...(Array.isArray(activeItems) ? activeItems.map(event => ({ ...event, __brvtalArchive:false })) : []),
-        ...(Array.isArray(archiveItems) ? archiveItems.map(event => ({ ...event, __brvtalArchive:true })) : []),
+        ...active.map(event => ({ ...event, __brvtalArchive:false })),
+        ...archive.map(event => ({ ...event, __brvtalArchive:true })),
       ];
-      const items = source.filter(event => {
+      const seen = new Set();
+      return source.filter(event => {
         const key = String(event?.id ?? event?.slug ?? '').trim();
         if (!key || seen.has(key)) return false;
         seen.add(key);
         return true;
       });
+    };
+
+    const eventRecordUrl = event => {
+      const slug = String(pick(event,['slug'],'')).trim();
+      return slug ? `/events/${encodeURIComponent(slug)}` : '';
+    };
+
+    const eventTicketUrl = (event, status) => {
+      if (event.__brvtalArchive || status === 'SOLD_OUT') return '';
+
+      const direct = cleanUrl(pick(event,['ticket_url','ticketUrl'],''));
+      if (direct) return direct;
+
+      const ticketTypes = Array.isArray(event.ticket_types) ? event.ticket_types : [];
+      for (const ticketType of ticketTypes) {
+        if (String(ticketType?.status ?? '').toLowerCase() !== 'active') continue;
+        const url = cleanUrl(ticketType?.external_url ?? '');
+        if (url) return url;
+      }
+      return '';
+    };
+
+    const eventStatusLabel = (event, status, index) => {
+      if (event.__brvtalArchive) return 'ARCHIVE';
+      if (status !== 'PUBLISHED') return status;
+      return index === 0 ? 'NEXT EXPERIENCE' : 'ACTIVE';
+    };
+
+    const eventCardMarkup = (event, index) => {
+      const title = pick(event,['title','name'],'UNTITLED EVENT');
+      const image = imgUrl(pick(event,['cover_image','coverImage','image','photo','flyer'],''));
+      const date = formatDate(pick(event,['event_date','eventDate','date'],''));
+      const city = pick(event,['city'],'');
+      const venue = pick(event,['venue'],'');
+      const desc = pick(event,['description','tagline'],'BRVTAL');
+      const status = String(pick(event,['status'],'published')).toUpperCase();
+      const record = eventRecordUrl(event);
+      const ticket = eventTicketUrl(event, status);
+      const lifecycle = event.__brvtalArchive ? 'archive' : 'active';
+      const statusLabel = eventStatusLabel(event, status, index);
+
+      let className = 'event-card c5-night-card';
+      if (index === 0 && !event.__brvtalArchive) className += ' event-active';
+
+      let imageMarkup = '';
+      if (image) {
+        const loading = index === 0 ? 'eager' : 'lazy';
+        imageMarkup = `<img src="${esc(image)}" alt="${esc(title)}" loading="${loading}" decoding="async">`;
+      }
+
+      let recordAction = '';
+      if (record) {
+        recordAction = `<a class="event-record mono" href="${esc(record)}">VIEW RECORD ↗</a>`;
+      }
+
+      let ticketAction = '';
+      if (ticket) {
+        ticketAction = `<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">TICKETS ↗</a>`;
+      }
+
+      return `<article class="${className}" data-c5-night-card data-c5-lifecycle="${lifecycle}">
+        <div class="event-img" data-c5-night-media>${imageMarkup}</div>
+        <div class="event-info">
+          <span class="mono">${esc([date,city].filter(Boolean).join(' / '))}</span>
+          <h3>${esc(title)}</h3>
+          <p>${esc([venue,desc].filter(Boolean).join(' / '))}</p>
+          <span class="event-status">${esc(statusLabel)}</span>
+          <div class="c5-night-actions">${recordAction}${ticketAction}</div>
+        </div>
+      </article>`;
+    };
+
+    const renderEvents = (activeItems, archiveItems = []) => {
+      const track = qs('.events-track');
+      if (!track) return false;
+
+      const items = canonicalEventList(activeItems, archiveItems);
       if (!items.length) return false;
 
-      const cards = items.map((e, i) => {
-        const title = pick(e,['title','name'],'UNTITLED EVENT');
-        const image = imgUrl(pick(e,['cover_image','coverImage','image','photo','flyer'],''));
-        const date = formatDate(pick(e,['event_date','eventDate','date'],''));
-        const city = pick(e,['city'],'');
-        const venue = pick(e,['venue'],'');
-        const desc = pick(e,['description','tagline'],'BRVTAL');
-        const status = String(pick(e,['status'],'published')).toUpperCase();
-        const slug = String(pick(e,['slug'],'')).trim();
-        const record = slug ? `/events/${encodeURIComponent(slug)}` : '';
-        const ticketTypes = Array.isArray(e.ticket_types) ? e.ticket_types : [];
-        const typeTicket = ticketTypes.find(ticketType =>
-          String(ticketType?.status ?? '').toLowerCase() === 'active'
-          && cleanUrl(ticketType?.external_url ?? '')
-        );
-        const directTicket = cleanUrl(pick(e,['ticket_url','ticketUrl'],''));
-        const ticket = e.__brvtalArchive || status === 'SOLD_OUT'
-          ? ''
-          : (directTicket || cleanUrl(typeTicket?.external_url ?? ''));
-        const lifecycle = e.__brvtalArchive ? 'archive' : 'active';
-        const statusLabel = e.__brvtalArchive
-          ? 'ARCHIVE'
-          : (status === 'PUBLISHED' ? (i === 0 ? 'NEXT EXPERIENCE' : 'ACTIVE') : status);
-
-        return `<article class="event-card c5-night-card ${i===0 && !e.__brvtalArchive?'event-active':''}" data-c5-night-card data-c5-lifecycle="${lifecycle}">
-          <div class="event-img" data-c5-night-media>${image ? `<img src="${esc(image)}" alt="${esc(title)}" loading="${i?'lazy':'eager'}" decoding="async">` : ''}</div>
-          <div class="event-info">
-            <span class="mono">${esc([date,city].filter(Boolean).join(' / '))}</span>
-            <h3>${esc(title)}</h3>
-            <p>${esc([venue,desc].filter(Boolean).join(' / '))}</p>
-            <span class="event-status">${esc(statusLabel)}</span>
-            <div class="c5-night-actions">
-              ${record ? `<a class="event-record mono" href="${esc(record)}">VIEW RECORD ↗</a>` : ''}
-              ${ticket ? `<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">TICKETS ↗</a>` : ''}
-            </div>
-          </div>
-        </article>`;
-      }).join('');
-      track.innerHTML = cards;
+      track.innerHTML = items.map(eventCardMarkup).join('');
       return true;
     };
 
