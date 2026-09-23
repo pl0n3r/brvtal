@@ -191,6 +191,7 @@ const matrix = [
   { width:1920, height:1080 },
 ];
 
+/** Mount the deterministic integrated Concept 05 fixture at one target viewport. */
 async function mount(page, viewport) {
   await page.setViewportSize(viewport);
   await page.setContent(fixture, { waitUntil:'domcontentloaded' });
@@ -340,7 +341,10 @@ test('Concept 05 critical actions remain touch-safe and keyboard focus remains v
 test('Concept 05 integrated reduced-motion mode suppresses GSAP without removing content', async ({ page }) => {
   await page.emulateMedia({ reducedMotion:'reduce' });
   await mount(page, { width:1440, height:900 });
+  expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
   await page.evaluate(() => {
+    document.documentElement.classList.remove('c5-visual-test');
+    document.documentElement.removeAttribute('data-theme-motion');
     window.__c5MotionCalls = 0;
     window.ScrollTrigger = {};
     window.gsap = {
@@ -366,4 +370,65 @@ test('Concept 05 integrated reduced-motion mode suppresses GSAP without removing
   }));
   expect(transitions.ticket).toMatch(/^0s/);
   expect(transitions.bottom).toMatch(/^0s/);
+});
+
+test('Concept 05 motion foundation skips nonessential GSAP on coarse pointers', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion:'no-preference' });
+  await mount(page, { width:430, height:900 });
+  await page.evaluate(() => {
+    document.documentElement.classList.remove('c5-visual-test');
+    document.documentElement.removeAttribute('data-theme-motion');
+    const nativeMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = query => query === '(pointer: coarse)'
+      ? {
+          matches:true,
+          media:query,
+          onchange:null,
+          addListener:()=>{},
+          removeListener:()=>{},
+          addEventListener:()=>{},
+          removeEventListener:()=>{},
+          dispatchEvent:()=>false,
+        }
+      : nativeMatchMedia(query);
+    window.__c5MotionCalls = 0;
+    window.ScrollTrigger = {};
+    window.gsap = {
+      registerPlugin:() => { window.__c5MotionCalls += 1; },
+      from:() => { window.__c5MotionCalls += 1; },
+      timeline:() => {
+        window.__c5MotionCalls += 1;
+        return { fromTo:() => {} };
+      },
+    };
+  });
+  expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+  await page.addScriptTag({ content:motion });
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_MOTION_INIT());
+  expect(await page.evaluate(() => window.__c5MotionCalls)).toBe(0);
+});
+
+test('Concept 05 motion foundation still animates fine pointers when motion is allowed', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion:'no-preference' });
+  await mount(page, { width:1440, height:900 });
+  await page.evaluate(() => {
+    document.documentElement.classList.remove('c5-visual-test');
+    document.documentElement.removeAttribute('data-theme-motion');
+    window.__c5MotionCalls = 0;
+    window.ScrollTrigger = {};
+    window.gsap = {
+      registerPlugin:() => { window.__c5MotionCalls += 1; },
+      from:() => { window.__c5MotionCalls += 1; },
+      timeline:() => {
+        window.__c5MotionCalls += 1;
+        return {
+          fromTo:() => { window.__c5MotionCalls += 1; },
+        };
+      },
+    };
+  });
+  expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(false);
+  expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(false);
+  await page.addScriptTag({ content:motion });
+  expect(await page.evaluate(() => window.__c5MotionCalls)).toBeGreaterThan(0);
 });
