@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #610.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #612.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#610 · exact Media duplicate detection + canonical reuse** | child enfocado de #531 |
-| Base exacta | ✅ ~~main v0.1.38 exact-main CI + Sonar + Deploy Observer + Production Performance verdes~~ | `7e3c9dd2ff9bb94e909acfe757140339e9755974` |
-| Versión | 🚧 **0.1.39** | Media runtime/API/DB schema cambian |
-| Producción | 🚧 source aún no mergeado · uploads siguen compatibles antes de la migración | `migration_media_content_hash_01.sql` activa dedup |
+| Work line | 🚧 **#612 · deterministic Dashboard V2 authority test** | CI resilience follow-up after #611 |
+| Base exacta | 🚧 **main v0.1.39** · exact-main/deploy finishing | `554a98de681498067ba67b02ab1fc352ae0ef0d8` |
+| Versión | ✅ ~~0.1.39 sin bump~~ | cambio test-only; runtime intacto |
+| Producción | 🚧 v0.1.39 source en `main`; migración Media sigue explícitamente pendiente | #612 no toca runtime ni schema |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+664** | **−53** | **+611** |
+| **2** | **+51** | **−55** | **-4** |
 
 ## Calidad y entrega
 
@@ -36,77 +36,61 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #610 · `work/issue-610` · UUID `b606662f-5b0f-49c1-b33b-ff49653fa097` |
-| Exact dedup | 🚧 SHA-256 por bytes · mismo contenido/diferente filename → canonical reuse |
-| Legacy compatibility | 🚧 uploads legacy siguen operativos · al migrar: lazy backfill size+MIME y bounded hashing |
-| Concurrency | 🚧 unique `content_hash` + race winner lookup + orphan cleanup |
-| Migration safety | ✅ ~~aditiva, nullable, idempotente, jamás auto-run~~ |
-| Sonar | ✅ ~~Quality Gate · 0 new issues · 0 hotspots~~ |
-| CodeRabbit | 🚧 full review sobre HEAD final |
+| Gates | **preflight · coordination · fast[JS] · chromium** |
+| PR integrity | **PR + snapshot exacto** · Issue #612 · `work/issue-612` · UUID `876aed08-fc35-446c-9c22-bf0ab9ce859f` |
+| Flake removal | 🚧 overview response gated explicitly · no fixed timing race |
+| Runtime scope | ✅ ~~Dashboard V2 production JS unchanged~~ |
+| Regression proof | 🚧 same authority contract must pass without rerun dependence |
+| Media migration | 🚧 still explicit/manual; untouched by #612 |
+| Sonar | 🚧 analysis on stable HEAD |
+| CodeRabbit | 🚧 full review on stable HEAD |
 | CI del SHA exacto de main | 🚧 después del squash merge |
-| Production migration | 🚧 requiere control humano antes de cambiar schema productivo |
+| Production migration | 🚧 remains blocked on explicit human authorization |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.38 verde"] --> P["#611 · CI + Sonar + CodeRabbit"]
- P --> M["Squash merge v0.1.39"]
- M --> X["Exact-main CI + Deploy Observer"]
- X --> G["Uploads siguen legacy-compatible · dedup pendiente"]
- G --> A["STOP · autorización migración productiva"]
- A --> D["Aplicar migration_media_content_hash_01.sql"]
- D --> V["Validar dedup uploads en producción"]
+ B["main v0.1.39"] --> T["#612 deterministic authority gate"]
+ T --> P["PR · fast[JS] · Chromium · Sonar · review"]
+ P --> M["Squash merge"]
+ M --> X["Exact-main CI"]
+ X --> N["Resume #531 / Media rollout"]
 ```
 
 ## Qué se hizo
 
-- Añadido `media.content_hash CHAR(64) NULL` con índice único explícito e idempotente.
-- Upload calcula SHA-256 después de las validaciones actuales de tamaño/MIME/imagen.
-- Assets ya hasheados se reutilizan por índice sin escribir otro archivo ni modificar título/path/original/variants del canonical.
-- Legacy Media con hash NULL se inspecciona solo si coincide tamaño+MIME, con límite de candidatos y bytes hasheados; si el límite no permite demostrar ausencia de duplicado, el upload falla cerrado.
-- Missing/non-local legacy candidates se omiten sin bloquear una búsqueda que sí puede completarse.
-- Carrera concurrente: el índice único elige ganador; el request perdedor borra el archivo recién movido y devuelve el canonical ganador.
-- Con esquema legacy, Media Library y nuevos uploads siguen funcionando sin dedup y reportan explícitamente que la migración está pendiente; no hay ventana de outage entre deploy y schema rollout.
-- DISCADMIN selecciona el asset reutilizado, muestra `Duplicate detected — existing asset reused.` y expone SHA-256 como metadata de trazabilidad.
-- Pruebas nuevas cubren hash por bytes, migración idempotente, backfill legacy, bytes distintos, missing/non-local, race unique y UX de reuse.
+- Se identificó una carrera del **test**, no del runtime: el harness usaba `overviewDelay:200`, por lo que bajo carga el Dashboard V2 podía terminar un render válido antes de que el test cambiara `state.section`.
+- El mismo HEAD de #611 falló una vez por esa condición y pasó en el rerun aislado de Chromium, confirmando flakiness.
+- El test ahora usa una promesa/gate controlada: primero reserva el root, luego invalida la sección y solo después libera la respuesta de overview.
+- La aserción sigue probando exactamente el contrato original: un mount que se vuelve inválido antes de resolver debe liberar el root reservado y dejar Health/Activity recuperar ownership.
+- No se modificó `dashboard-v2.js`, navegación, API ni comportamiento productivo.
 
 ## Archivos modificados en este deploy
 
-- `api/media-library.php`
-- `config/media_dedup.php`
-- `config/version.php`
-- `database/migration_media_content_hash_01.sql`
-- `database/schema.sql`
-- `discadmin/media-library.js`
-- `package.json`
-- `tests/e2e/discadmin-media.spec.mjs`
-- `tests/integration/media-dedup.php`
-- `tests/media-dedup-contract.php`
-- `tests/media-library-contract.php`
-- `README.md`
+- `README.md` — snapshot exacto de #612 y gates test-only.
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — compuerta determinista para la invalidación de ownership.
 
 ## Validación
 
-- Base exacta `7e3c9dd2ff9bb94e909acfe757140339e9755974`: v0.1.38 con exact-main CI, Sonar, Deploy Observer y Production Performance verdes.
-- #610 está reservado por el coordinador; `work/issue-610` nació idéntica a esa base y no existe PR competidor.
-- El rollout no autoejecuta SQL. Aplicar la migración en producción es una acción separada y explícita.
-- Pendiente: revisión final, squash/exact-main/deploy seguro; después, detenerse antes de cualquier cambio de schema productivo.
+- Base exacta `554a98de681498067ba67b02ab1fc352ae0ef0d8`: source v0.1.39 ya integrado; la migración Media continúa como acción separada.
+- #612 está reservado por el coordinador en `work/issue-612`; no existe PR competidor.
+- El fallo que originó #612 ocurrió fuera del diff de #611 y desapareció en rerun sobre el mismo SHA, confirmando la carrera del harness.
+- Pendiente: ejecutar la suite test-only sin dependencia de rerun, revisión final, squash y exact-main.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#610](https://github.com/pl0n3r/brvtal/issues/610) · validar exact dedup y dejar v0.1.39 listo para rollout. |
-| **NEXT** | 🚧 merge/deploy/exact-main de v0.1.39; después aplicar la migración productiva únicamente con autorización explícita. |
-| **LATER** | 🚧 [#531](https://github.com/pl0n3r/brvtal/issues/531) · política/UX de optimización; [#398](https://github.com/pl0n3r/brvtal/issues/398) · archivo cultural conectado. |
-| **BLOCKED / EXTERNAL** | 🚧 producción: cambio de schema requiere control humano según AGENTS.md. |
+| **NOW** | 🚧 [#612](https://github.com/pl0n3r/brvtal/issues/612) · eliminar flake del authority test Dashboard V2. |
+| **NEXT** | 🚧 [#531](https://github.com/pl0n3r/brvtal/issues/531) · continuar Media optimization; migración #610 solo con autorización explícita. |
+| **LATER** | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398) · archivo cultural conectado; [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin. |
+| **BLOCKED / EXTERNAL** | 🚧 producción: `migration_media_content_hash_01.sql` requiere control humano. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Media exact dedup | 🚧 [#610](https://github.com/pl0n3r/brvtal/issues/610) |
+| **NOW** | 🚧 CI determinism | 🚧 [#612](https://github.com/pl0n3r/brvtal/issues/612) |
 | **NEXT** | 🚧 Media optimization / archive evolution | 🚧 [#531](https://github.com/pl0n3r/brvtal/issues/531), [#398](https://github.com/pl0n3r/brvtal/issues/398) |
 | **LATER** | 🚧 Admin resilience / SEO | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530), [#528](https://github.com/pl0n3r/brvtal/issues/528), [#390](https://github.com/pl0n3r/brvtal/issues/390) |
