@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **21** | **+1355** | **−68** | **+1287** |
+| **23** | **+1424** | **−72** | **+1352** |
 
 ## Calidad y entrega
 
@@ -73,6 +73,7 @@ flowchart LR
 - `README.md` — snapshot exacto del candidato y gates.
 - `api/public-preview.php` — creación autenticada/CSRF del snapshot.
 - `config/public_entity_delivery.php` — pipeline único de entrega de entidad.
+- `config/public_page.php` — cards de Ticket muestran precio + estado en el renderer canónico.
 - `config/public_preview.php` — snapshot, TTL, validación y composición de datos preview.
 - `config/version.php` — versión humana 0.1.37.
 - `discadmin/blog.js` — full public preview desde Blog.
@@ -90,6 +91,7 @@ flowchart LR
 - `tests/e2e/run-content-core-real-stack.sh` — incluye smoke real de preview.
 - `tests/public-entity-pages-contract.php` — contrato existente actualizado al pipeline compartido.
 - `tests/public-preview-contract.php` — invariantes de privacidad/renderer.
+- `tests/public-quick-wins-contract.php` — asset-versioning sigue el pipeline compartido.
 
 ## Validación
 
