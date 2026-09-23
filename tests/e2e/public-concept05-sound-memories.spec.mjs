@@ -97,7 +97,7 @@ const sets = [
     slug: 'genesis-closing-signal',
     platform: 'soundcloud',
     external_url: 'https://soundcloud.com/brvtal/signal',
-    cover_image: 'http://127.0.0.1:4173/media/sound-cover.svg',
+    cover_image: 'http://127.0.0.1:4173/uploads/sound-cover.svg',
     description: 'A real Set attached to the night.',
     artist_id: 10,
     artist_name: 'PL0N3R',
@@ -119,6 +119,22 @@ const sets = [
     event_id: null,
     event_title: null,
   },
+  {
+    id: 3,
+    title: 'UNSAFE JAVASCRIPT SIGNAL',
+    slug: 'unsafe-javascript-signal',
+    platform: 'web',
+    external_url: 'javascript:alert(1)',
+    cover_image: '',
+  },
+  {
+    id: 4,
+    title: 'UNSAFE DATA SIGNAL',
+    slug: 'unsafe-data-signal',
+    platform: 'web',
+    external_url: 'data:text/html,<script>alert(1)</script>',
+    cover_image: '',
+  },
 ];
 
 const memories = [
@@ -129,7 +145,7 @@ const memories = [
     title: 'WAREHOUSE PRESSURE',
     context: 'GENESIS / PEREIRA',
     alt_text: 'Crowd at GENESIS',
-    file_path: 'http://127.0.0.1:4173/media/memory-one.svg',
+    file_path: 'http://127.0.0.1:4173/uploads/memory-one.svg',
     relations: [{ related_type: 'event', related_id: 20, route_type: 'events', slug: 'genesis', label: 'GENESIS' }],
   },
   {
@@ -139,7 +155,7 @@ const memories = [
     title: 'RED AFTERIMAGE',
     context: '05:12 / LIGHTS ON',
     alt_text: 'Red light afterimage',
-    file_path: 'http://127.0.0.1:4173/media/memory-two.svg',
+    file_path: 'http://127.0.0.1:4173/uploads/memory-two.svg',
     relations: [],
   },
   {
@@ -148,7 +164,7 @@ const memories = [
     type: 'audio',
     title: 'ROOM TONE',
     context: 'AUDIO MEMORY',
-    file_path: 'http://127.0.0.1:4173/media/room-tone.mp3',
+    file_path: 'http://127.0.0.1:4173/uploads/room-tone.mp3',
     relations: [],
   },
 ];
@@ -160,11 +176,11 @@ async function mount(page, viewport = { width: 1440, height: 900 }) {
     contentType: 'application/json',
     body: JSON.stringify({ ok: true, data: {} }),
   }));
-  await page.route('**/media/*.svg', route => route.fulfill({
+  await page.route('**/uploads/*.svg', route => route.fulfill({
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="640"><rect width="800" height="640" fill="white"/></svg>',
   }));
-  await page.route('**/media/room-tone.mp3', route => route.fulfill({ contentType: 'audio/mpeg', body: '' }));
+  await page.route('**/uploads/room-tone.mp3', route => route.fulfill({ contentType: 'audio/mpeg', body: '' }));
   await page.goto(harness);
   await page.addScriptTag({ content: setsJs });
   await page.addScriptTag({ content: mediaJs });
@@ -183,11 +199,13 @@ async function mount(page, viewport = { width: 1440, height: 900 }) {
 test('Concept 05 desktop Sound uses canonical records while Memories keeps a curated contact-sheet rhythm', async ({ page }) => {
   await mount(page);
 
-  await expect(page.locator('.set-library-item')).toHaveCount(2);
+  await expect(page.locator('.set-library-item')).toHaveCount(4);
   await expect(page.locator('.set-library-item').first()).toHaveClass(/c5-sound-feature/);
   await expect(page.locator('.set-library-item').first().locator('.set-record-link')).toHaveAttribute('href', '/sets/genesis-closing-signal');
   await expect(page.locator('.set-library-item').first().locator('.set-listen-action')).toHaveAttribute('href', 'https://soundcloud.com/brvtal/signal');
   await expect(page.locator('.set-library-item').nth(1).locator('.set-listen-action')).toHaveCount(0);
+  await expect(page.locator('.set-library-item').nth(2).locator('.set-listen-action')).toHaveCount(0);
+  await expect(page.locator('.set-library-item').nth(3).locator('.set-listen-action')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'ARTIST / PL0N3R' })).toHaveAttribute('href', '/artists/pl0n3r');
   await expect(page.getByRole('link', { name: 'EVENT / GENESIS' })).toHaveAttribute('href', '/events/genesis');
   await expect(page.locator('.c5-sound-signal')).toHaveCount(1);
@@ -243,7 +261,7 @@ test('Concept 05 broken Sound artwork and Memory media fail closed without broke
     contentType: 'application/json',
     body: JSON.stringify({ ok: true, data: {} }),
   }));
-  await page.route('**/missing-*', route => route.fulfill({ status: 404, body: 'missing' }));
+  await page.route('**/uploads/missing-*', route => route.fulfill({ status: 404, body: 'missing' }));
   await page.goto(harness);
   await page.addScriptTag({ content: setsJs });
   await page.addScriptTag({ content: mediaJs });
@@ -253,14 +271,14 @@ test('Concept 05 broken Sound artwork and Memory media fail closed without broke
       id: 1,
       title: 'BROKEN COVER',
       slug: 'broken-cover',
-      cover_image: 'http://127.0.0.1:4173/missing-cover.jpg',
+      cover_image: 'http://127.0.0.1:4173/uploads/missing-cover.jpg',
     }]);
     window.BRVTALPublicMedia.render([{
       id: 2,
       media_id: 202,
       type: 'image',
       title: 'BROKEN MEMORY',
-      file_path: 'http://127.0.0.1:4173/missing-memory.jpg',
+      file_path: 'http://127.0.0.1:4173/uploads/missing-memory.jpg',
     }]);
     window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
   });
@@ -271,6 +289,40 @@ test('Concept 05 broken Sound artwork and Memory media fail closed without broke
   await expect(page.locator('.c5-memory-cell img')).toBeHidden();
   await expect(page.locator('[data-public-media-open]')).toBeDisabled();
   await expect(page.getByText('BROKEN MEMORY')).toBeVisible();
+});
+
+
+test('Concept 05 failed audio Memory disables its opener and replaces unusable viewer playback', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.route(harness, route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: markup() }));
+  await page.route('**/api/public-image-delivery.php', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: {} }),
+  }));
+  await page.route('**/uploads/broken-audio.mp3', route => route.fulfill({ status: 404, body: 'missing' }));
+  await page.goto(harness);
+  await page.addScriptTag({ content: setsJs });
+  await page.addScriptTag({ content: mediaJs });
+  await page.addScriptTag({ content: enhancerJs });
+  await page.evaluate(() => {
+    window.BRVTALPublicMedia.render([{
+      id: 33,
+      media_id: 303,
+      type: 'audio',
+      title: 'BROKEN AUDIO MEMORY',
+      file_path: '/uploads/broken-audio.mp3',
+    }]);
+    window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
+  });
+
+  const opener = page.getByRole('button', { name: 'Open BROKEN AUDIO MEMORY' });
+  await opener.click();
+  const viewerAudio = page.getByRole('dialog').locator('audio');
+  await expect(viewerAudio).toHaveCount(1);
+  await viewerAudio.evaluate(audio => audio.dispatchEvent(new Event('error')));
+  await expect(page.getByRole('dialog')).toContainText('MEDIA UNAVAILABLE');
+  await expect(opener).toBeDisabled();
+  await expect(page.locator('.c5-memory-cell')).toHaveClass(/is-media-missing/);
 });
 
 test('Concept 05 Sound and Memories motion is static for reduced-motion users', async ({ page }) => {
