@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · chromium · webkit** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR integrity | **PR + snapshot exacto** · Issue #182 · `work/issue-182` · UUID `f1bea9ba-90fc-429e-90fa-96e74b9467cb` |
 | Partial save | 🚧 contenido persistido + SEO fallido se reporta como parcial, nunca como éxito completo |
 | Duplicate prevention | 🚧 un POST ya persistido no puede repetirse mientras SEO siga pendiente |
