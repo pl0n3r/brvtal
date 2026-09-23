@@ -126,4 +126,57 @@ admin_read_expect(
     'Optimized read views must not leak into unrelated resources'
 );
 
+admin_read_expect(
+    brvtalAdminCollectionPagination('events', []) === null,
+    'Internal collection consumers must keep the legacy full response unless pagination is requested explicitly'
+);
+$pagination = brvtalAdminCollectionPagination('events', ['page'=>'1','page_size'=>'50']);
+admin_read_expect(
+    is_array($pagination)
+        && $pagination['page'] === 1
+        && $pagination['page_size'] === BRVTAL_ADMIN_COLLECTION_PAGE_SIZE
+        && $pagination['error'] === null,
+    'Canonical Admin lists must accept an explicit bounded first page'
+);
+$customPagination = brvtalAdminCollectionPagination('artists', ['page'=>'3','page_size'=>'25']);
+admin_read_expect(
+    ($customPagination['page'] ?? null) === 3 && ($customPagination['page_size'] ?? null) === 25,
+    'Admin collection pagination must accept bounded positive page parameters'
+);
+admin_read_expect(
+    (brvtalAdminCollectionPagination('events', ['page'=>'0'])['error'] ?? null) === 'INVALID_PAGE',
+    'Admin collection pagination must reject zero/negative page numbers'
+);
+admin_read_expect(
+    (brvtalAdminCollectionPagination('events', ['page_size'=>'101'])['error'] ?? null) === 'INVALID_PAGE_SIZE',
+    'Admin collection pagination must reject oversized pages'
+);
+$searchPagination = brvtalAdminCollectionPagination('events', ['page'=>'1','q'=>'Genesis_100%']);
+admin_read_expect(
+    ($searchPagination['query'] ?? null) === 'Genesis_100%'
+        && str_contains((string)($searchPagination['where_sql'] ?? ''), 'title')
+        && count($searchPagination['params'] ?? []) === 4
+        && str_contains((string)($searchPagination['where_sql'] ?? ''), "ESCAPE '!'")
+        && str_contains((string)($searchPagination['params'][0] ?? ''), '!_')
+        && str_contains((string)($searchPagination['params'][0] ?? ''), '!%'),
+    'Canonical list search must be server-side, resource-scoped and escape LIKE wildcards'
+);
+admin_read_expect(
+    (brvtalAdminCollectionPagination('events', ['q'=>[]])['error'] ?? null) === 'INVALID_QUERY',
+    'Array-shaped list search must fail closed'
+);
+admin_read_expect(
+    brvtalAdminCollectionPagination('settings', []) === null,
+    'Settings must preserve their specialized unpaginated configuration response'
+);
+$paginationMeta = brvtalAdminCollectionPaginationMeta(8, 50, 112);
+admin_read_expect(
+    $paginationMeta['page'] === 3
+        && $paginationMeta['pages'] === 3
+        && $paginationMeta['offset'] === 100
+        && $paginationMeta['has_previous'] === true
+        && $paginationMeta['has_next'] === false,
+    'Pagination metadata must clamp beyond-last-page requests to the final stable page'
+);
+
 fwrite(STDOUT, "Admin read-plan contract passed.\n");

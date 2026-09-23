@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/public_visibility.php';
+require_once __DIR__ . '/../config/schema_catalog.php';
 
 brvtal_admin_require();
 
@@ -19,18 +20,7 @@ function brvtal_dashboard_json(array $payload, int $status = 200): never
 
 function brvtal_dashboard_table_exists(PDO $pdo, string $table): bool
 {
-    $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
-    $st->execute([$table]);
-    return (int)$st->fetchColumn() > 0;
-}
-
-function brvtal_dashboard_count(PDO $pdo, string $table, string $where = '', array $params = []): int
-{
-    if (!brvtal_dashboard_table_exists($pdo, $table)) return 0;
-    $sql = 'SELECT COUNT(*) FROM `' . $table . '`' . ($where !== '' ? ' WHERE ' . $where : '');
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-    return (int)$st->fetchColumn();
+    return brvtalSchemaTableExists($pdo, $table);
 }
 
 function brvtal_dashboard_status_counts(PDO $pdo, string $table, array $publicStatuses = ['published']): array
@@ -39,16 +29,30 @@ function brvtal_dashboard_status_counts(PDO $pdo, string $table, array $publicSt
         return ['available'=>false,'total'=>0,'public'=>0,'draft'=>0,'archived'=>0];
     }
 
-    $total = brvtal_dashboard_count($pdo, $table);
-    $draft = brvtal_dashboard_count($pdo, $table, "status='draft'");
-    $public = 0;
-    if ($publicStatuses !== []) {
-        $placeholders = implode(',', array_fill(0, count($publicStatuses), '?'));
-        $public = brvtal_dashboard_count($pdo, $table, 'status IN (' . $placeholders . ')', $publicStatuses);
-    }
-    $archived = brvtal_dashboard_count($pdo, $table, "status IN ('archived','finished','cancelled')");
+    $placeholders = $publicStatuses === []
+        ? ''
+        : implode(',', array_fill(0, count($publicStatuses), '?'));
+    $publicExpression = $publicStatuses === []
+        ? '0'
+        : "COALESCE(SUM(status IN ({$placeholders})),0)";
 
-    return ['available'=>true,'total'=>$total,'public'=>$public,'draft'=>$draft,'archived'=>$archived];
+    $statement = $pdo->prepare(
+        "SELECT COUNT(*) total,
+                COALESCE(SUM(status='draft'),0) draft,
+                {$publicExpression} public,
+                COALESCE(SUM(status IN ('archived','finished','cancelled')),0) archived
+         FROM `{$table}`"
+    );
+    $statement->execute($publicStatuses);
+    $row = $statement->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    return [
+        'available' => true,
+        'total' => (int)($row['total'] ?? 0),
+        'public' => (int)($row['public'] ?? 0),
+        'draft' => (int)($row['draft'] ?? 0),
+        'archived' => (int)($row['archived'] ?? 0),
+    ];
 }
 
 function brvtal_dashboard_page_status_counts(PDO $pdo): array
@@ -57,12 +61,40 @@ function brvtal_dashboard_page_status_counts(PDO $pdo): array
         return ['available'=>false,'total'=>0,'public'=>0,'draft'=>0,'archived'=>0];
     }
 
+    $row = $pdo->query(
+        "SELECT COUNT(*) total,
+                COALESCE(SUM(status='published' AND locale='en'),0) public,
+                COALESCE(SUM(status='draft'),0) draft
+         FROM pages"
+    )->fetch(PDO::FETCH_ASSOC) ?: [];
+
     return [
         'available' => true,
-        'total' => brvtal_dashboard_count($pdo, 'pages'),
-        'public' => brvtal_dashboard_count($pdo, 'pages', "status='published' AND locale='en'"),
-        'draft' => brvtal_dashboard_count($pdo, 'pages', "status='draft'"),
+        'total' => (int)($row['total'] ?? 0),
+        'public' => (int)($row['public'] ?? 0),
+        'draft' => (int)($row['draft'] ?? 0),
         'archived' => 0,
+    ];
+}
+
+function brvtal_dashboard_media_counts(PDO $pdo): array
+{
+    if (!brvtal_dashboard_table_exists($pdo, 'media')) {
+        return ['available'=>false,'total'=>0,'images'=>0,'published'=>0];
+    }
+
+    $row = $pdo->query(
+        "SELECT COUNT(*) total,
+                COALESCE(SUM(type='image'),0) images,
+                COALESCE(SUM(status='published'),0) published
+         FROM media"
+    )->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    return [
+        'available' => true,
+        'total' => (int)($row['total'] ?? 0),
+        'images' => (int)($row['images'] ?? 0),
+        'published' => (int)($row['published'] ?? 0),
     ];
 }
 
@@ -76,6 +108,9 @@ try {
     $eventGroups = brvtal_public_event_statuses();
     $activeEventStatuses = $eventGroups['active'];
 
+    // Exactly one information_schema query per dashboard request.
+    brvtalSchemaTables($pdo);
+
     $content = [
         'events' => brvtal_dashboard_status_counts($pdo, 'events', $activeEventStatuses),
         'artists' => brvtal_dashboard_status_counts($pdo, 'artists'),
@@ -85,12 +120,7 @@ try {
         'blog' => brvtal_dashboard_status_counts($pdo, 'blog_posts'),
     ];
 
-    $media = [
-        'available' => brvtal_dashboard_table_exists($pdo, 'media'),
-        'total' => brvtal_dashboard_count($pdo, 'media'),
-        'images' => brvtal_dashboard_count($pdo, 'media', "type='image'"),
-        'published' => brvtal_dashboard_count($pdo, 'media', "status='published'"),
-    ];
+    $media = brvtal_dashboard_media_counts($pdo);
 
     $nextEvent = null;
     if (brvtal_dashboard_table_exists($pdo, 'events')) {

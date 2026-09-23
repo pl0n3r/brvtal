@@ -108,11 +108,11 @@
   }
 
   async function getCsrf() {
+    if (window.BRVTALAdminAuthBoundary?.csrfToken) {
+      return window.BRVTALAdminAuthBoundary.csrfToken();
+    }
     try { if (typeof csrf !== 'undefined' && csrf) return csrf; } catch (_) {}
-    const response = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store'});
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.authenticated || !payload.csrf) throw new Error('AUTH_REQUIRED');
-    return payload.csrf;
+    throw new Error('AUTH_REQUIRED');
   }
 
   async function open(module = currentModule(), initialIds = []) {

@@ -11,7 +11,6 @@ if (!in_array($method, ['GET','POST'], true)) {
     json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405, ['Allow'=>'GET, POST']);
 }
 
-brvtal_admin_session_start();
 $adminId = (int)($_SESSION['admin_id'] ?? 0);
 $module = strtolower(trim((string)($_GET['module'] ?? '')));
 if ($adminId < 1) {

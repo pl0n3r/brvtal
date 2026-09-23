@@ -171,7 +171,7 @@ require_once __DIR__ . '/../config/deployment.php';
   </div>
 </div>
 <script>
-const API='../api/index.php';let csrf='';let state={authed:false,section:'dashboard',rows:[],editing:null,events:[],artists:[],dashboard:{},recent:{events:[],artists:[],sets:[],media:[]},themeSettings:[],themeMedia:[],theme:{}};
+const API='../api/index.php';let csrf='';let state={authed:false,section:'dashboard',rows:[],pagination:null,search:'',editing:null,events:[],artists:[],dashboard:{},recent:{events:[],artists:[],sets:[],media:[]},themeSettings:[],themeMedia:[],theme:{}};
 async function req(u='',o={}){const h={'Content-Type':'application/json',...(o.headers||{})};if(csrf)h['X-CSRF-Token']=csrf;const r=await fetch(API+u,{...o,headers:h});let d={};try{d=await r.json()}catch(e){}if(r.status===401){state.authed=false;render();throw Error('AUTH_REQUIRED')}if(!r.ok)throw Error(d.error||'ERROR');return d}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function imgSrc(v){const s=String(v??'').trim();if(!s)return '';if(/^https?:\/\//i.test(s)||s.startsWith('/'))return s;return '/'+s.replace(/^\/+/, '')}
@@ -180,15 +180,32 @@ function pageImage(json){try{const o=typeof json==='string'?JSON.parse(json):jso
 
 function slug(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
 async function checkSystem(){const api=document.getElementById('st_api'),dbs=document.getElementById('st_db');if(!api||!dbs)return;try{const r=await fetch(API+'/health',{cache:'no-store'});const d=await r.json();if(r.ok&&d.ok){api.textContent='ONLINE';api.className='sysok';dbs.textContent=d.database==='connected'?'CONNECTED':'ERROR';dbs.className=d.database==='connected'?'sysok':'syserr';const da=document.getElementById('dash_api'),dd=document.getElementById('dash_db');if(da){da.textContent='ONLINE';da.className='sysok'}if(dd){dd.textContent=d.database==='connected'?'CONNECTED':'ERROR';dd.className=d.database==='connected'?'sysok':'syserr'}}else{api.textContent='ERROR';api.className='syserr';dbs.textContent='ERROR';dbs.className='syserr'}}catch(e){api.textContent='OFFLINE';api.className='syserr';dbs.textContent='UNKNOWN';dbs.className='syserr'}}
-async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
-async function restoreSession(){try{const d=await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
-async function logout(){try{await req('/auth',{method:'DELETE'})}catch(e){}csrf='';state.authed=false;render()}
+function nativeListUrl(module,page=1,query=''){
+ const params=new URLSearchParams({page:String(Math.max(1,Number(page)||1)),page_size:'50'});
+ const search=String(query||'').trim();if(search)params.set('q',search);
+ return '/'+module+'?'+params.toString();
+}
+async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
+async function restoreSession(){try{const d=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth({force:true}):await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
+async function logout(){try{await req('/auth',{method:'DELETE'})}catch(e){}window.BRVTALAdminAuthBoundary?.clearAuthCache?.();csrf='';state.authed=false;render()}
+let nativeListSeq=0;
+async function changeNativePage(page,query=state.search||''){
+ const module=state.section;
+ if(!['events','artists','sets','media','pages'].includes(module))return false;
+ const seq=++nativeListSeq;
+ const d=await req(nativeListUrl(module,page,query));
+ if(state.section!==module||seq!==nativeListSeq)return false;
+ state.rows=d.data||[];state.pagination=d.pagination||null;state.search=String(query||'');
+ if(!renderNativeDataGrid(state.search))render();return true;
+}
 async function go(s){
  const nativeSection=s==='events'||s==='artists'||s==='sets'||s==='media'||s==='pages'||s==='settings';
  if(nativeSection){
-  const d=await req('/'+s);
+  const d=s==='settings'?await req('/'+s):await req(nativeListUrl(s,1,''));
   state.section=s;
   state.rows=d.data||[];
+  state.pagination=d.pagination||null;
+  state.search='';
   render();
   return;
  }
@@ -199,6 +216,12 @@ async function go(s){
   return;
  }
  if(s==='dashboard'){
+  if(window.BRVTALDashboardV2){
+   state.dashboard={};state.rows=[];state.recent={events:[],artists:[],sets:[],media:[]};
+   render();
+   queueMicrotask(()=>window.BRVTALDashboardV2?.mount?.());
+   return;
+  }
   try{
    const d=await req('/dashboard');
    state.dashboard=d.data||{};
@@ -757,6 +780,7 @@ if(state.section==='settings')return settingsHome(state.rows||[]);
      class="search"
      data-admin-grid-search
      placeholder="Search ${state.section}..."
+     value="${esc(state.search||'')}"
      oninput="filterRows(this.value)"
     >
     ${button}
@@ -809,13 +833,28 @@ function renderNativeDataGrid(query=null){
  const host=document.getElementById('rows');
  if(!host||!window.BRVTALDataGrid)return false;
  const input=document.querySelector('[data-admin-grid-search]');
- const q=String(query??input?.value??'').trim().toLowerCase();
+ const q=String(query??input?.value??state.search??'').trim();
  const all=Array.isArray(state.rows)?state.rows:[];
- const rows=q?all.filter(row=>adminGridSearchText(row).includes(q)):all;
- return window.BRVTALDataGrid.render(module,host,rows,{allRows:all,orderingEnabled:q==='' });
+ const pages=Number(state.pagination?.pages||1);
+ return window.BRVTALDataGrid.render(module,host,all,{
+  allRows:all,
+  orderingEnabled:q===''&&pages<=1,
+  pagination:state.pagination,
+  onPageChange:page=>changeNativePage(page,q)
+ });
 }
+let nativeSearchTimer=0;
 function filterRows(q){
- if(renderNativeDataGrid(q))return;
+ if(['events','artists','sets','pages'].includes(state.section)){
+  const module=state.section,query=String(q??'').trim();
+  clearTimeout(nativeSearchTimer);
+  nativeSearchTimer=setTimeout(async()=>{
+   if(state.section!==module)return;
+   try{await changeNativePage(1,query)}
+   catch(error){window.BRVTALFeedback?.error?.('Records could not be searched.','admin-grid-search')}
+  },220);
+  return;
+ }
  const term=String(q??'').trim().toLowerCase();
  document.querySelectorAll('#rows .tr').forEach(row=>{
   row.style.display=!term||row.textContent.toLowerCase().includes(term)?'':'none';

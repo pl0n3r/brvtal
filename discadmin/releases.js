@@ -22,11 +22,11 @@ window.BRVTALReleases = (() => {
   }
 
   async function csrfToken() {
+    if (window.BRVTALAdminAuthBoundary?.csrfToken) {
+      return window.BRVTALAdminAuthBoundary.csrfToken();
+    }
     try { if (typeof csrf !== 'undefined' && csrf) return csrf; } catch (_) {}
-    const r = await fetch('/api/index.php/auth',{credentials:'same-origin',cache:'no-store'});
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.authenticated || !j.csrf) throw new Error('AUTH_REQUIRED');
-    return j.csrf;
+    throw new Error('AUTH_REQUIRED');
   }
 
   async function request(query = '', options = {}) {

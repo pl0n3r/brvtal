@@ -151,7 +151,9 @@ try {
 
         if($method==='GET') {
             $authenticated=brvtal_admin_is_authenticated();
-            json_response(['ok'=>true,'authenticated'=>$authenticated,'csrf'=>$authenticated?brvtal_admin_csrf_token():null]);
+            $csrfToken=$authenticated?brvtal_admin_csrf_token():null;
+            brvtal_admin_release_session();
+            json_response(['ok'=>true,'authenticated'=>$authenticated,'csrf'=>$csrfToken]);
         }
 
         if($method==='POST') {
@@ -250,6 +252,7 @@ try {
 
     $resources=['events','artists','sets','media','pages','ticket_types','settings']; if(!in_array($resource,$resources,true))json_response(['ok'=>false,'error'=>'NOT_FOUND'],404); $table=table_for($resource); if($method!=='GET')brvtal_admin_require_csrf(); $pdo=db();
     if ($method === 'GET') {
+        $pagination = null;
         $readPlan = brvtalAdminCollectionReadPlan($resource, $_GET);
         if ($readPlan !== null) {
             if ($readPlan['error'] !== null) {
@@ -276,15 +279,51 @@ try {
                 json_response(['ok' => false, 'error' => 'NOT_FOUND'], 404);
             }
         } else {
+            $pagePlan = brvtalAdminCollectionPagination($resource, $_GET);
             $orderBy = in_array($resource, ['artists','sets'], true)
                 ? 'sort_order ASC,id ASC'
                 : 'id DESC';
-            $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
+
+            if ($pagePlan !== null) {
+                if ($pagePlan['error'] !== null) {
+                    json_response(
+                        ['ok' => false, 'error' => $pagePlan['error']],
+                        $pagePlan['status']
+                    );
+                }
+                $whereSql = (string)$pagePlan['where_sql'];
+                $queryParams = $pagePlan['params'];
+
+                $countStatement = $pdo->prepare("SELECT COUNT(*) FROM {$table}{$whereSql}");
+                $countStatement->execute($queryParams);
+                $total = (int)$countStatement->fetchColumn();
+
+                $pagination = brvtalAdminCollectionPaginationMeta(
+                    (int)$pagePlan['page'],
+                    (int)$pagePlan['page_size'],
+                    $total
+                );
+                $pagination['query'] = (string)$pagePlan['query'];
+
+                $limit = (int)$pagination['page_size'];
+                $offset = (int)$pagination['offset'];
+                $statement = $pdo->prepare(
+                    "SELECT * FROM {$table}{$whereSql} ORDER BY {$orderBy} LIMIT {$limit} OFFSET {$offset}"
+                );
+                $statement->execute($queryParams);
+                $rows = $statement->fetchAll();
+            } else {
+                $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
+            }
         }
         if ($resource === 'artists' && is_array($rows)) {
             $rows = brvtalArtistCollectiveMembershipEnrichResult($rows);
         }
-        json_response(['ok' => true, 'data' => $rows]);
+        $response = ['ok' => true, 'data' => $rows];
+        if ($pagination !== null) {
+            $response['pagination'] = $pagination;
+        }
+        json_response($response);
     }
     if($method==='POST') {
         $d=input_json();

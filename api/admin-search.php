@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/admin_auth.php';
+require_once __DIR__ . '/../config/schema_catalog.php';
 
 brvtal_admin_require();
 
@@ -18,9 +19,7 @@ function brvtal_admin_search_json(array $payload, int $status = 200): never
 
 function brvtal_admin_search_table_exists(PDO $pdo, string $table): bool
 {
-    $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
-    $st->execute([$table]);
-    return (int)$st->fetchColumn() > 0;
+    return brvtalSchemaTableExists($pdo, $table);
 }
 
 function brvtal_admin_search_like(string $value): string

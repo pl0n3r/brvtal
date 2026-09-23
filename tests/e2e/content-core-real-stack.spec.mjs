@@ -379,12 +379,13 @@ test('Media remains mounted when a stale Dashboard navigation completes', async 
 
   await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
   await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
+  await expect(page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')).toBeVisible({timeout:10_000});
 
   let releaseStaleDashboard;
   let markStaleDashboardStarted;
   const staleDashboardStarted = new Promise(resolve => { markStaleDashboardStarted = resolve; });
   const staleDashboardRelease = new Promise(resolve => { releaseStaleDashboard = resolve; });
-  await page.route('**/api/index.php/dashboard', async route => {
+  await page.route('**/api/dashboard-overview.php', async route => {
     markStaleDashboardStarted();
     await staleDashboardRelease;
     await route.continue();
@@ -395,7 +396,9 @@ test('Media remains mounted when a stale Dashboard navigation completes', async 
   });
   await staleDashboardStarted;
 
-  await page.getByRole('button', {name:'MEDIA LIBRARY', exact:true}).click();
+  await page.evaluate(async () => {
+    await window.go('media');
+  });
   await expectMediaMounted(page);
   await expect(page.locator('#media-grid')).toBeVisible();
   await expect(page.getByRole('button', {name:/REGISTER EXTERNAL/i})).toHaveCount(0);
