@@ -6,21 +6,16 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #590.
-
-## Progress convention
-
-- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
-- 🚧 Normal text = pending or currently in progress.
+> **Development dashboard** · snapshot exclusivo del deploy actual para Issue #592.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#590 · Concept 05 Next Experience authored 1440/390** | parent #583 |
-| Base exacta | ✅ ~~main v0.1.27 validado y observado~~ | `7f74376689fca26fd66c16642aa7ee80839e841c` |
-| Versión | 🚧 **0.1.28** | cambio visible de producto/runtime público |
-| Producción | 🚧 pendiente de merge + observación | sin migración de esquema |
+| Work line | 🚧 **#592 · Concept 05 NIGHTS + ARTISTS authored 1440/390** | parent #583 |
+| Base exacta | ✅ ~~main v0.1.28 validado + desplegado + performance observado~~ | `409e544375104fc41aa83762187c30d26eefa3cb` |
+| Versión | 🚧 **0.1.29** | cambio visible de producto/runtime público |
+| Producción | 🚧 pendiente de PR → merge → exact-main | sin migración de esquema |
 
 ## Huella del cambio
 
@@ -28,7 +23,23 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+1148** | **−78** | **+1070** |
+| **13** | **+000** | **−000** | **+000** |
+
+Archivos del slice:
+
+- `README.md`
+- `config/public_home.php`
+- `config/version.php`
+- `css/public-concept05-nights-artists.css`
+- `index.php`
+- `js/app.js`
+- `js/public-concept05-nights-artists.js`
+- `js/public-home-visual.js`
+- `js/public-roster.js`
+- `package.json`
+- `tests/e2e/public-concept05-nights-artists.spec.mjs`
+- `tests/e2e/public-roster-phase-c.spec.mjs`
+- `tests/public-concept05-dressing-contract.php`
 
 ## Calidad y entrega
 
@@ -36,72 +47,35 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Reservation | Issue #590 · `work/issue-590` · UUID `5923f15a-d866-4b2a-a9af-c5096a382528` |
-| PR integrity | **PR + snapshot exacto + hidden reservation metadata** contra `main` |
-| Browser | 🚧 nueva geometría authored 1440/390 + long-copy/media failure coverage |
-| Sonar / CodeRabbit | 🚧 Sonar findings nuevos reformateados/renombrados; revisión del head final pendiente |
-| Exact-main | **CI del SHA exacto de main** después del squash merge |
-
-## Flujo de entrega
-
-```mermaid
-flowchart LR
- H["#586 Hero validado"] --> E["#590 Next Experience"]
- E --> D["Event + Ticket Types + lineup"]
- D --> V["1440 / 390 + failure states"]
- V --> P["PR · CI · Sonar · CodeRabbit"]
- P --> M["Squash merge"]
- M --> X["Exact-main + deploy observer"]
-```
+| preflight / coordination | 🚧 requeridos sobre head estable |
+| fast | 🚧 PHP 8.5 contracts + JS syntax + README exact snapshot |
+| database | 🚧 requerido por contratos públicos compartidos |
+| chromium | 🚧 geometría/behavior 1440 + 390 + payload real |
+| real-stack | 🚧 runtime público integrado |
+| webkit-totp | 🚧 compatibilidad browser/auth transversal |
+| Sonar | 🚧 Quality Gate sobre head estable |
+| CodeRabbit | 🚧 review final sobre head estable |
 
 ## Qué se hizo
 
-- NEXT EXPERIENCE pasa a ser el módulo dominante inmediatamente después del Hero; el manifesto heredado queda después del takeover.
-- Desktop 1440 usa composición editorial en dos campos: artwork documental enmarcado + bloque de información/evento con reglas físicas.
-- Mobile 390 es una composición propia vertical: artwork mayor, título integrado al límite visual, facts compactos, ticket state, lineup y CTAs en flujo.
-- El selector de Event existente sigue siendo la única fuente de verdad; no se creó un segundo selector frontend.
-- Ticket Types canónicos proyectan nombre, precio, moneda y sold-out state; hasta dos tiers pueden mostrar Preventa/Door sin inventar valores.
-- El CTA de compra solo aparece cuando existe una URL HTTP(S) pública válida y el Event/ticketing sigue elegible; sold-out no ofrece compra.
-- Lineup continúa viniendo de relaciones Event↔Artist publicadas y la nota editorial usa la descripción administrable del Event.
-- Artwork usa `cover_image` canónico y falla cerrado ante referencias rotas; cuando no hay media no se sustituye con contenido ficticio.
-- El CSS reutiliza tokens Theme Studio/Concept 05 y el runtime nuevo no toma ownership de GSAP; motion sigue centralizado y respeta visual-test/reduced motion.
-- Se añadió cobertura PHP y Playwright para orden Hero→Experience, proyección de datos, pricing, sold-out, 1440/390, long copy, no-overflow y broken media.
+- **02 / NIGHTS** deja de ser una card genérica: usa Events activos + `archive.events` reales del mismo payload público, deduplica por identidad y conserva navegación horizontal nativa.
+- Cada Night enlaza a `/events/{slug}` cuando existe slug; nunca inventa una ruta. Ticket CTA usa `ticket_url` o Ticket Type público activo y desaparece para archivo/sold-out.
+- **03 / ARTISTS** reutiliza `public-roster.js` como renderer canónico; perfiles permanecen en `/artists/{slug}` y Collective Status sigue gobernando orden/metadata.
+- Nueva composición Concept 05 separada para 1440/390: 3–4 Nights densas en desktop, swipe card ~84vw en mobile, Artists 4→2 columnas con retratos documentales.
+- Media de Nights/Artists falla cerrada; no aparece broken-image chrome y el contenido textual/canónico permanece usable.
+- El enhancer Concept 05 no hace requests: observa los renderers existentes y solo añade composición/media/CTA honestos.
+- Cobertura nueva para payload compartido, active+archive, dedupe, Event/Artist canonical links, Ticket Types, missing media, long copy, mobile overflow y reduced-motion/visual-test.
 
-## Archivos modificados en este deploy
+## Próximo paso
 
-- `README.md` — snapshot exacto de #590.
-- `config/public_home.php` — Event/Ticket Types/lineup projection, pricing, fail-safe CTA y orden Hero→Experience.
-- `config/version.php` — versión 0.1.28.
-- `css/public-concept05-experience.css` — composición authored desktop/mobile.
-- `js/public-concept05-experience.js` — media fail-closed sin duplicar motion.
-- `package.json` — versión 0.1.28.
-- `tests/e2e/public-concept05-experience.spec.mjs` — geometría y comportamiento real 1440/390.
-- `tests/public-concept05-dressing-contract.php` — assets/idempotencia Concept 05.
-- `tests/public-home-contract.php` — renderer, datos canónicos y orden documental.
-- `tests/public-home-phase-a-contract.php` — precios/ticketing/sold-out.
+1. Abrir PR de #592 desde el head estable.
+2. Ejecutar BRVTAL CI + Sonar + CodeRabbit en paralelo.
+3. Corregir findings válidos sin ampliar scope.
+4. Squash merge y validar el SHA exacto de `main`.
+5. Observar deploy/performance y continuar #583 con **04 / SOUND + 05 / MEMORIES**.
 
-## Validación
+## Panorama pendiente
 
-- Base exacta `7f74376689fca26fd66c16642aa7ee80839e841c`: BRVTAL CI completo, Production Deploy Observer y Production Performance verdes.
-- #586 está cerrado como `status: completed`; #590 fue reservado de forma atómica antes de modificar su rama.
-- No hay migraciones ni cambios de esquema en este slice.
-- La validación final se decide exclusivamente sobre el head estable del PR y se repite sobre exact-main después del merge.
-- Producción se observa por separado; CI verde no se presenta como prueba de deploy.
-
-## Qué sigue
-
-| Lane | Trabajo |
-| --- | --- |
-| **NOW** | 🚧 [#590](https://github.com/pl0n3r/brvtal/issues/590) · Next Experience authored 1440/390. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · continuar con 02 / NIGHTS + 03 / ARTISTS. |
-| **LATER** | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#351](https://github.com/pl0n3r/brvtal/issues/351), [#252](https://github.com/pl0n3r/brvtal/issues/252). |
-| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo activo para #590. |
-
-## Panorama general pendiente
-
-| Lane | Frente | Issues |
-| --- | --- | --- |
-| **NOW** | 🚧 Concept 05 event takeover | 🚧 [#590](https://github.com/pl0n3r/brvtal/issues/590) |
-| **NEXT** | 🚧 Concept 05 public fidelity | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583), [#398](https://github.com/pl0n3r/brvtal/issues/398) |
-| **LATER** | 🚧 customization / media trust | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351), [#252](https://github.com/pl0n3r/brvtal/issues/252), [#531](https://github.com/pl0n3r/brvtal/issues/531) |
+- #583: después de este slice quedan SOUND + MEMORIES, JOURNAL + CONNECTED, Footer y los slices administrables Theme Studio/Preview.
+- #398 sigue siendo la visión de producto; #583 manda sobre la fidelidad visual pública.
+- No iniciar slices dependientes mientras #592 no haya cerrado exact-main + deploy.
