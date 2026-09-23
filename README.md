@@ -99,7 +99,7 @@ flowchart LR
 | **NOW** | 🚧 [#599](https://github.com/pl0n3r/brvtal/issues/599) · cerrar public shell y validar exact-main. |
 | **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · evaluar cierre del contrato público y pendientes reales de fidelidad. |
 | **LATER** | 🚧 [#351](https://github.com/pl0n3r/brvtal/issues/351) Theme Studio + [#529](https://github.com/pl0n3r/brvtal/issues/529) Preview; luego #398. |
-| **BLOCKED / EXTERNAL** | — |
+| **BLOCKED / EXTERNAL** | 🚧 Sin bloqueos externos activos. |
 
 ## Panorama general pendiente
 
