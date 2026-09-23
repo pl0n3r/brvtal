@@ -106,6 +106,21 @@ dressing_assert(
     strpos($rendered, 'id="connected"') < strpos($rendered, '<footer class="footer scene"'),
     'Connected section must sit before the footer'
 );
+dressing_assert(
+    str_contains($rendered, 'data-connected-lines')
+        && str_contains($rendered, 'data-connected-ledger'),
+    'Connected must expose the verified edge drawing and ledger surfaces'
+);
+dressing_assert(
+    str_contains($rendered, 'data-connected-node="events"><a href="#events"')
+        && str_contains($rendered, 'data-connected-node="releases"><a href="/releases"'),
+    'Connected nodes must navigate only to existing canonical public surfaces'
+);
+dressing_assert(
+    strpos($rendered, 'id="media"') < strpos($rendered, 'id="transmissions"')
+        && strpos($rendered, 'id="transmissions"') < strpos($rendered, 'id="connected"'),
+    'Concept 05 Home must preserve the canonical MEMORIES → JOURNAL → CONNECTED order'
+);
 
 $idempotent = brvtal_public_home_concept05_dressing($rendered);
 $identityIdempotent = brvtal_public_home_identity($identity);
