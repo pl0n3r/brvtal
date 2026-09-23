@@ -5,6 +5,25 @@ import { join } from 'node:path';
 const bulkActionsJs = readFileSync(join(process.cwd(), 'discadmin/bulk-actions.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/bulk-actions-e2e.html';
 
+async function installHarness(page, csrfToken) {
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
+      <div class="nav"><button class="active" onclick="go('events')">EVENTS</button></div>
+      <div class="main"><div class="top"><div><div class="eyebrow">BRVTAL CMS</div><h1>EVENTS</h1></div><span class="status"><i></i>ONLINE</span></div></div>
+      <script>
+        let csrf = '${csrfToken}';
+        window.go = async section => { window.__bulkRoute = section; };
+        window.BRVTALFeedback = {
+          success: message => { window.__bulkSuccess = message; },
+          error: message => { window.__bulkError = message; }
+        };
+      </script>
+      <script>${bulkActionsJs}</script>
+    </body></html>`,
+  }));
+}
+
 test('bulk actions selects multiple events, confirms, sends CSRF and refreshes canonical module', async ({ page }) => {
   let mutation = null;
 
@@ -31,22 +50,7 @@ test('bulk actions selects multiple events, confirms, sends CSRF and refreshes c
     });
   });
 
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
-      <div class="nav"><button class="active" onclick="go('events')">EVENTS</button></div>
-      <div class="main"><div class="top"><div><div class="eyebrow">BRVTAL CMS</div><h1>EVENTS</h1></div><span class="status"><i></i>ONLINE</span></div></div>
-      <script>
-        let csrf = 'bulk-ci-token';
-        window.go = async section => { window.__bulkRoute = section; };
-        window.BRVTALFeedback = {
-          success: message => { window.__bulkSuccess = message; },
-          error: message => { window.__bulkError = message; }
-        };
-      </script>
-      <script>${bulkActionsJs}</script>
-    </body></html>`,
-  }));
+  await installHarness(page, 'bulk-ci-token');
 
   page.on('dialog', dialog => dialog.accept());
   await page.goto(harnessUrl);
@@ -84,22 +88,7 @@ async function openLargeCatalog(page, count) {
     contentType: 'application/json; charset=utf-8',
     body: JSON.stringify({ok:true,data:rows}),
   }));
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
-      <div class="nav"><button class="active" onclick="go('events')">EVENTS</button></div>
-      <div class="main"><div class="top"><h1>EVENTS</h1><span class="status">ONLINE</span></div></div>
-      <script>
-        let csrf = 'bulk-synthetic-token';
-        window.go = async section => { window.__bulkRoute = section; };
-        window.BRVTALFeedback = {
-          success: message => { window.__bulkSuccess = message; },
-          error: message => { window.__bulkError = message; }
-        };
-      </script>
-      <script>${bulkActionsJs}</script>
-    </body></html>`,
-  }));
+  await installHarness(page, 'bulk-synthetic-token');
   await page.goto(harnessUrl);
   await page.getByRole('button', { name: 'Open bulk actions for EVENTS' }).click();
   const dialog = page.getByRole('dialog');
