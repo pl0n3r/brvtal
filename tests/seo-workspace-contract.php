@@ -43,6 +43,28 @@ seo_workspace_assert(str_contains($api, 'brvtal_admin_require_csrf();'), 'worksp
 seo_workspace_assert(str_contains($api, 'brvtalSeoPersistOverrides'), 'entity writes must reuse the audited SEO persistence boundary');
 seo_workspace_assert(str_contains($api, 'brvtalSeoWorkspacePersistStatic'), 'static writes must use the allowlisted static persistence boundary');
 seo_workspace_assert(str_contains($api, 'brvtal_public_seo_document'), 'inventory previews must reuse the public server SEO renderer');
-seo_workspace_assert(!str_contains($api, "$_GET['table']"), 'workspace API must never accept arbitrary table names');
+seo_workspace_assert(!str_contains($api, "\$_GET['table']"), 'workspace API must never accept arbitrary table names');
 
-echo "BRVTAL centralized SEO workspace backend contract passed.\n";
+$module = (string)file_get_contents(__DIR__ . '/../discadmin/seo-workspace.php');
+$controller = (string)file_get_contents(__DIR__ . '/../discadmin/seo-workspace.js');
+$modules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
+$ia = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+$settings = (string)file_get_contents(__DIR__ . '/../discadmin/settings-v2.js');
+seo_workspace_assert(str_contains($module, 'data-admin-module="seo"'), 'SEO workspace must mount inside the canonical Admin module host');
+seo_workspace_assert(str_contains($controller, "'/api/seo-workspace.php'"), 'SEO workspace UI must use the compact protected endpoint');
+seo_workspace_assert(str_contains($controller, 'RESET TO AUTO'), 'SEO workspace must expose field-level reset-to-auto controls');
+seo_workspace_assert(str_contains($controller, 'SEO save failed:'), 'failed writes must remain visible and recoverable');
+seo_workspace_assert(str_contains($modules, "'/discadmin/seo-workspace.php'"), 'Admin module router must register the SEO destination');
+seo_workspace_assert(str_contains($ia, "'media','releases','blog','seo'"), 'SEO must participate in canonical dynamic navigation');
+seo_workspace_assert(!str_contains($ia, "'security','seo','backups'"), 'SEO must no longer be hidden from the canonical sidebar');
+seo_workspace_assert(str_contains($settings, 'OPEN SEO WORKSPACE'), 'Settings SEO must defer metadata editing to the canonical workspace');
+seo_workspace_assert(!str_contains($settings, 'data-settings-save="seo"'), 'Settings must not remain a second Home SEO write surface');
+
+$publicSeo = (string)file_get_contents(__DIR__ . '/../config/public_seo.php');
+$contactPage = (string)file_get_contents(__DIR__ . '/../config/public_contact_page.php');
+$publicIndex = (string)file_get_contents(__DIR__ . '/../index.php');
+seo_workspace_assert(str_contains($publicSeo, "brvtalSeoWorkspaceStaticValues(\$pdo, 'home')"), 'Home server-rendered SEO must use the static workspace source');
+seo_workspace_assert(str_contains($contactPage, "brvtalSeoWorkspaceStaticState(\$pdo, 'contact', \$base)"), 'Contact server-rendered SEO must use the static workspace source');
+seo_workspace_assert(str_contains($publicIndex, 'brvtal_public_contact_seo($baseUrl, db())'), 'Contact renderer must use database-backed static SEO');
+
+echo "BRVTAL centralized SEO workspace contract passed.\n";

@@ -295,7 +295,13 @@ try {
     if ($error->getMessage() === 'SEO_SETTING_INVALID') {
         brvtalSeoWorkspaceJson(['ok'=>false,'error'=>'SEO_SETTING_INVALID'], 503);
     }
-    throw $error;
+    if (function_exists('brvtal_log')) {
+        brvtal_log('SEO_WORKSPACE_RUNTIME_ERROR', 'SEO workspace runtime failure', [
+            'class'=>get_class($error),
+            'message'=>$error->getMessage(),
+        ]);
+    }
+    brvtalSeoWorkspaceJson(['ok'=>false,'error'=>'INTERNAL_ERROR'], 500);
 } catch (Throwable $error) {
     if (function_exists('brvtal_log')) {
         brvtal_log('SEO_WORKSPACE_ERROR', 'SEO workspace request failed', [

@@ -10,6 +10,7 @@ window.BRVTALSEOWorkspace = (() => {
     dirty:false,
     lastFocus:null,
     loading:false,
+    keyboardBound:false,
   };
 
   const warningLabels = {
@@ -358,13 +359,16 @@ window.BRVTALSEOWorkspace = (() => {
       });
     });
 
-    document.addEventListener('keydown', event => {
-      const overlay = editor();
-      if (event.key === 'Escape' && overlay && !overlay.hidden) {
-        event.preventDefault();
-        closeEditor(false);
-      }
-    });
+    if (!state.keyboardBound) {
+      state.keyboardBound = true;
+      document.addEventListener('keydown', event => {
+        const overlay = editor();
+        if (event.key === 'Escape' && overlay && !overlay.hidden) {
+          event.preventDefault();
+          closeEditor(false);
+        }
+      });
+    }
   }
 
   async function mount(root) {
