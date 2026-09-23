@@ -118,7 +118,12 @@ $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('class="artist" href="#"', 'class="artist" aria-disabled="true"', $html);
 $html = str_replace(
     '<div class="section-head"><span class="mono">ROSTER / 04</span><h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>',
-    '<div class="section-head"><span class="mono">BRVTAL ROSTER / 04</span><h2>ROSTER</h2><span class="mono">CORE / ALUMNI / ARTISTS</span></div>',
+    '<div class="section-head"><span class="mono">BRVTAL ARTISTS / 03</span><h2>ARTISTS</h2><span class="mono">CORE / ALUMNI / COLLABORATORS</span></div>',
+    $html
+);
+$html = str_replace(
+    '<div class="section-head"><span class="mono">EVENTS / 03</span><h2>EVENTS</h2><span class="mono">DRAG / SCROLL →</span></div>',
+    '<div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span><h2>NIGHTS</h2><span class="mono">DRAG / SWIPE →</span></div>',
     $html
 );
 $html = str_replace(
