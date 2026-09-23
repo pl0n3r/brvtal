@@ -301,6 +301,10 @@
     grid.classList.add('public-media-grid');
     grid.replaceChildren(...state.items.map(itemNode).filter(Boolean));
     applyFilters();
+    document.documentElement.dataset.publicMemories = 'curated';
+    window.dispatchEvent(new CustomEvent('brvtal:memories-rendered', {
+      detail: { count: state.items.length },
+    }));
     return true;
   }
 
