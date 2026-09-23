@@ -41,3 +41,5 @@ html[data-public-sets="library"] #sets .soundcloud-note{opacity:.7}
 @media(prefers-reduced-motion:reduce){
   #sets .sets-library-modes button,#sets .sets-library-options button,#sets .set-record-link h4{transition:none}
 }
+
+#sets .set-library-cover{display:none}
