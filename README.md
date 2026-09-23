@@ -23,7 +23,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+000** | **−000** | **+000** |
+| **13** | **+964** | **−92** | **+872** |
 
 Archivos del slice:
 
