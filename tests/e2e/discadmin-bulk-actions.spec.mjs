@@ -10,6 +10,18 @@ async function installHarness(page, csrfToken) {
   await page.route(harnessUrl, route => route.fulfill({contentType:'text/html; charset=utf-8', body}));
 }
 
+async function clickBulk(dialog, name) {
+  await dialog.getByRole('button', { name }).click();
+}
+
+async function expectBulkText(dialog, text) {
+  await expect(dialog.getByText(text, { exact:true })).toBeVisible();
+}
+
+async function expectBulkRows(dialog, count) {
+  await expect(dialog.locator('[data-bulk-row]')).toHaveCount(count);
+}
+
 test('bulk actions selects multiple events, confirms, sends CSRF and refreshes canonical module', async ({ page }) => {
   let mutation = null;
 
@@ -50,10 +62,10 @@ test('bulk actions selects multiple events, confirms, sends CSRF and refreshes c
   await expect(dialog.getByText('Genesis', { exact: true })).toBeVisible();
   await expect(dialog.getByText('BRVTAL Session', { exact: true })).toBeVisible();
 
-  await dialog.getByRole('button', { name: 'SELECT PAGE' }).click();
-  await expect(dialog.getByText('2 SELECTED', { exact: true })).toBeVisible();
+  await clickBulk(dialog, 'SELECT PAGE');
+  await expectBulkText(dialog, '2 SELECTED');
   await dialog.getByRole('combobox', { name: 'Bulk status action' }).selectOption('published');
-  await dialog.getByRole('button', { name: 'APPLY STATUS' }).click();
+  await clickBulk(dialog, 'APPLY STATUS');
 
   await expect.poll(() => mutation?.csrf).toBe('bulk-ci-token');
   expect(mutation.body).toEqual({action:'set_status',resource:'events',status:'published',ids:[11,12]});
@@ -78,7 +90,7 @@ async function openLargeCatalog(page, count) {
   await page.goto(harnessUrl);
   await page.getByRole('button', { name: 'Open bulk actions for EVENTS' }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.locator('[data-bulk-row]')).toHaveCount(Math.min(50, count));
+  await expectBulkRows(dialog, Math.min(50, count));
   return dialog;
 }
 
@@ -94,24 +106,24 @@ test('bulk actions searches the full catalog beyond 500 and mutates only explici
   page.on('dialog', dialog => dialog.accept());
 
   const dialog = await openLargeCatalog(page, 605);
-  await expect(dialog.getByText('PAGE 1/13 · 1–50 OF 605 TOTAL · SEARCH ALL RECORDS')).toBeVisible();
-  await dialog.getByRole('button', { name: 'NEXT' }).click();
-  await expect(dialog.getByText('PAGE 2/13 · 51–100 OF 605 TOTAL · SEARCH ALL RECORDS')).toBeVisible();
-  await expect(dialog.locator('[data-bulk-row]')).toHaveCount(50);
+  await expectBulkText(dialog, 'PAGE 1/13 · 1–50 OF 605 TOTAL · SEARCH ALL RECORDS');
+  await clickBulk(dialog, 'NEXT');
+  await expectBulkText(dialog, 'PAGE 2/13 · 51–100 OF 605 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkRows(dialog, 50);
   for (let pageNumber = 2; pageNumber < 11; pageNumber += 1) {
-    await dialog.getByRole('button', { name: 'NEXT' }).click();
+    await clickBulk(dialog, 'NEXT');
   }
-  await expect(dialog.getByText('PAGE 11/13 · 501–550 OF 605 TOTAL · SEARCH ALL RECORDS')).toBeVisible();
-  await expect(dialog.getByText('Event 501', { exact:true })).toBeVisible();
-  await expect(dialog.locator('[data-bulk-row]')).toHaveCount(50);
+  await expectBulkText(dialog, 'PAGE 11/13 · 501–550 OF 605 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'Event 501');
+  await expectBulkRows(dialog, 50);
 
   await dialog.getByRole('searchbox', { name: 'Filter bulk action items' }).fill('event-601');
-  await expect(dialog.getByText('PAGE 1/1 · 1–1 OF 1 MATCHES (605 TOTAL) · SEARCH ALL RECORDS')).toBeVisible();
-  await expect(dialog.getByText('Event 601', { exact:true })).toBeVisible();
+  await expectBulkText(dialog, 'PAGE 1/1 · 1–1 OF 1 MATCHES (605 TOTAL) · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'Event 601');
   await dialog.locator('[data-bulk-id="601"]').check();
-  await expect(dialog.getByText('1 SELECTED', { exact:true })).toBeVisible();
+  await expectBulkText(dialog, '1 SELECTED');
   await dialog.getByRole('combobox', { name: 'Bulk status action' }).selectOption('draft');
-  await dialog.getByRole('button', { name: 'APPLY STATUS' }).click();
+  await clickBulk(dialog, 'APPLY STATUS');
   await expect.poll(() => mutation).toEqual({
     action:'set_status',resource:'events',status:'draft',ids:[601],
   });
@@ -120,15 +132,15 @@ test('bulk actions searches the full catalog beyond 500 and mutates only explici
 
 test('bulk action pagination preserves selection across pages and never allows more than 100', async ({ page }) => {
   const dialog = await openLargeCatalog(page, 260);
-  await dialog.getByRole('button', { name: 'SELECT PAGE' }).click();
-  await expect(dialog.getByText('50 SELECTED', { exact:true })).toBeVisible();
-  await dialog.getByRole('button', { name: 'NEXT' }).click();
-  await dialog.getByRole('button', { name: 'SELECT PAGE' }).click();
-  await expect(dialog.getByText('100 SELECTED', { exact:true })).toBeVisible();
-  await dialog.getByRole('button', { name: 'NEXT' }).click();
-  await expect(dialog.getByText('PAGE 3/6 · 101–150 OF 260 TOTAL · SEARCH ALL RECORDS')).toBeVisible();
-  await dialog.getByRole('button', { name: 'SELECT PAGE' }).click();
-  await expect(dialog.getByText('100 SELECTED', { exact:true })).toBeVisible();
+  await clickBulk(dialog, 'SELECT PAGE');
+  await expectBulkText(dialog, '50 SELECTED');
+  await clickBulk(dialog, 'NEXT');
+  await clickBulk(dialog, 'SELECT PAGE');
+  await expectBulkText(dialog, '100 SELECTED');
+  await clickBulk(dialog, 'NEXT');
+  await expectBulkText(dialog, 'PAGE 3/6 · 101–150 OF 260 TOTAL · SEARCH ALL RECORDS');
+  await clickBulk(dialog, 'SELECT PAGE');
+  await expectBulkText(dialog, '100 SELECTED');
   await expect.poll(() => page.evaluate(() => window.__bulkError)).toContain('at most 100');
   await expect(dialog.locator('[data-bulk-id="101"]')).not.toBeChecked();
 
@@ -139,22 +151,22 @@ test('bulk action pagination preserves selection across pages and never allows m
     checkbox.dispatchEvent(new Event('change', {bubbles:true}));
   });
   await expect(dialog.locator('[data-bulk-id="101"]')).not.toBeChecked();
-  await expect(dialog.getByText('100 SELECTED', { exact:true })).toBeVisible();
-  await dialog.getByRole('button', { name: 'PREVIOUS' }).click();
+  await expectBulkText(dialog, '100 SELECTED');
+  await clickBulk(dialog, 'PREVIOUS');
   await expect(dialog.locator('[data-bulk-id="51"]')).toBeChecked();
-  await dialog.getByRole('button', { name: 'CLEAR PAGE' }).click();
-  await expect(dialog.getByText('50 SELECTED', { exact:true })).toBeVisible();
+  await clickBulk(dialog, 'CLEAR PAGE');
+  await expectBulkText(dialog, '50 SELECTED');
 });
 
 test('grid preselection can reference a record past page ten without losing its selection', async ({ page }) => {
   const dialog = await openLargeCatalog(page, 605);
   await page.evaluate(() => window.BRVTALBulkActions.open('events', [605, 605, 9999]));
-  await expect(dialog.getByText('1 SELECTED', { exact:true })).toBeVisible();
+  await expectBulkText(dialog, '1 SELECTED');
   await dialog.getByRole('searchbox', { name: 'Filter bulk action items' }).fill('event-605');
-  await expect(dialog.getByText('Event 605', { exact:true })).toBeVisible();
+  await expectBulkText(dialog, 'Event 605');
   await expect(dialog.locator('[data-bulk-id="605"]')).toBeChecked();
-  await dialog.getByRole('button', { name: 'CLEAR PAGE' }).click();
-  await expect(dialog.getByText('0 SELECTED', { exact:true })).toBeVisible();
+  await clickBulk(dialog, 'CLEAR PAGE');
+  await expectBulkText(dialog, '0 SELECTED');
 });
 
 test('bulk paging keeps the footer and controls reachable on narrow mobile screens', async ({ page }) => {
@@ -171,8 +183,8 @@ test('bulk paging keeps the footer and controls reachable on narrow mobile scree
     expect(layout.scrollWidth).toBeLessThanOrEqual(width);
     expect(layout.footBottom).toBeLessThanOrEqual(layout.height + 1);
   }
-  await dialog.getByRole('button', { name: 'NEXT' }).click();
-  await dialog.getByRole('button', { name: 'NEXT' }).click();
-  await expect(dialog.getByText('PAGE 3/3 · 101–121 OF 121 TOTAL · SEARCH ALL RECORDS')).toBeVisible();
-  await expect(dialog.locator('[data-bulk-row]')).toHaveCount(21);
+  await clickBulk(dialog, 'NEXT');
+  await clickBulk(dialog, 'NEXT');
+  await expectBulkText(dialog, 'PAGE 3/3 · 101–121 OF 121 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkRows(dialog, 21);
 });
