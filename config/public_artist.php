@@ -6,13 +6,13 @@ require_once __DIR__ . '/artist_collective_membership.php';
 /** Public framing reads the same canonical current-membership field as DISCADMIN. */
 function brvtal_public_artist_roster_status(array $artist): string
 {
-    return brvtal_artist_collective_membership_value($artist) ? 'member' : 'network';
+    return brvtalArtistCollectiveMembershipValue($artist) ? 'member' : 'network';
 }
 
 /** Public facts describe current membership only; historical periods remain internal audit data. */
 function brvtal_public_artist_membership_facts(array $artist): array
 {
-    return brvtal_artist_collective_membership_value($artist)
+    return brvtalArtistCollectiveMembershipValue($artist)
         ? ['BRVTAL' => 'COLLECTIVE MEMBER']
         : [];
 }
@@ -43,7 +43,7 @@ function brvtal_public_artist_enhance_page(PDO $pdo, array $page): array
     $id = (int)($page['entity']['id'] ?? 0);
     if ($id < 1) return $page;
 
-    $membership = brvtal_artist_collective_membership_sql($pdo);
+    $membership = brvtalArtistCollectiveMembershipSql($pdo);
     $detail = brvtal_page_row(
         $pdo,
         "SELECT {$membership} AS is_collective_member FROM artists WHERE id=? LIMIT 1",
