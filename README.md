@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #606.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #608.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#606 · Concept 05 cross-viewport fidelity QA** | child enfocado de #583 |
-| Base exacta | ✅ ~~main v0.1.37 exact-main CI + Sonar + deploy/performance verdes~~ | `463e45a1f2c4d85114f97dabf80a6a770a4dcaab` |
-| Versión | 🚧 **0.1.38** | QA + reducción de motion GSAP en coarse pointer |
-| Producción | 🚧 pendiente de merge → exact-main → Deploy Observer | runtime público modificado |
+| Work line | 🚧 **#608 · Concept 05 screenshot regression baselines** | último child de QA de #583 |
+| Base exacta | ✅ ~~main v0.1.38 exact-main CI + Sonar + Deploy Observer + Production Performance verdes~~ | `ac239e9e2af244f01ebf76032432384483965181` |
+| Versión | ✅ ~~0.1.38 sin bump~~ | test/QA únicamente |
+| Producción | ✅ ~~v0.1.38 observada y medida~~ | este slice no modifica runtime |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+476** | **−61** | **+415** |
+| **2** | **+164** | **−34** | **+130** |
 
 ## Calidad y entrega
 
@@ -36,10 +36,11 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #606 · `work/issue-606` · UUID `1dd29fe7-f1d7-4eec-a7a8-0087ae9413fd` |
-| Fidelity matrix | 🚧 390 · 430 · 768 · 1024 · 1280 · 1440 · 1728 · 1920 |
-| Accessibility | 🚧 keyboard focus · touch targets · reduced motion |
+| Gates | **preflight · coordination · fast[JS] · chromium** |
+| PR integrity | **PR + snapshot exacto** · Issue #608 · `work/issue-608` · UUID `711755a1-5912-432e-a15d-d6b77948e1ed` |
+| Canonical screenshots | ✅ ~~390×844 · 1440×900 calibrated~~ |
+| Baseline model | ✅ ~~screenshot real → dHash estructural + RGB grid cuantizado → aggregate SHA-256~~ |
+| Existing matrix | ✅ ~~390 · 430 · 768 · 1024 · 1280 · 1440 · 1728 · 1920~~ |
 | Sonar | 🚧 análisis del HEAD final |
 | CodeRabbit | 🚧 full review sobre HEAD final |
 | CI del SHA exacto de main | 🚧 después del squash merge |
@@ -48,46 +49,43 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.37 verde"] --> Q["#606 FIDELITY MATRIX"]
- Q --> P["PR · CI · Sonar · CodeRabbit"]
+ B["main v0.1.38 verde"] --> S["#608 SCREENSHOT BASELINES"]
+ S --> C["Calibration CI"]
+ C --> F["Commit approved 390 / 1440 fingerprints"]
+ F --> P["PR · CI · Sonar · CodeRabbit"]
  P --> M["Squash merge"]
  M --> X["Exact-main CI"]
- X --> D["Deploy Observer + Performance"]
- D --> C["Parent #583 closeout evidence"]
+ X --> V["Re-evaluate / close #583"]
 ```
 
 ## Qué se hizo
 
-- Se añadió una suite integrada Concept 05 que monta shell, Hero, Next Experience, Nights, Artists, Sound, Memories, Journal, Connected y footer con los CSS reales.
-- La matriz cubre **390 / 430 / 768 / 1024 / 1280 / 1440 / 1728 / 1920** y verifica contención del documento, geometría de bloques, títulos largos y colisiones del header.
-- 390 y 1440 tienen aserciones específicas para preservar composiciones authored distintas, no un simple escalado.
-- Se validan targets táctiles, foco visible y reduced-motion con GSAP/ScrollTrigger neutralizados.
-- El fixture es determinista y usa contenido largo deliberado para revelar regresiones sin inventar relaciones de producción.
-- Chromium expuso dos errores de modelado del test, corregidos sin tocar layout; CodeRabbit encontró además que el test reduced-motion estaba neutralizado por el hook visual determinista.
-- La motion foundation ahora omite el trabajo GSAP no esencial en coarse pointers, además de reduced-motion/theme-minimal; se añadió control positivo para confirmar que fine pointer mantiene motion cuando está permitido.
-- Ese ajuste de runtime convierte el slice en **v0.1.38 deploy-bound**.
+- Se reutiliza el fixture integrado Concept 05 ya validado por #606; no se creó otro renderer ni otra fuente de verdad.
+- Se capturan screenshots reales de Hero, Next Experience, Nights, Artists, Sound, Memories, Journal, Connected y footer.
+- Cada screenshot se reduce a una firma estructural perceptual y una rejilla RGB cuantizada para detectar cambios materiales sin depender del hash binario exacto del PNG.
+- Las firmas regionales se agregan por viewport en dos hashes compactos: **structure** y **color**.
+- La captura fuerza `animations: disabled`, oculta caret y conserva `c5-visual-test` para eliminar ruido deliberadamente no determinista.
+- La corrida de calibración produjo únicamente los dos fallos esperados de baseline pendiente; todos los tests Concept 05 existentes siguieron verdes.
+- Los fingerprints aprobados de 390/1440 quedaron committed y cualquier cambio visual exige refresh manual explícito + revisión.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto de #606 y gates seleccionados.
-- `config/version.php` — versión humana v0.1.38.
-- `js/public-concept05-motion.js` — reduced/coarse-pointer motion guard.
-- `package.json` — versión de producto v0.1.38.
-- `tests/e2e/public-concept05-fidelity-matrix.spec.mjs` — matriz integrada responsive/a11y/reduced-motion.
+- `README.md` — snapshot exacto de #608 y estrategia de baseline visual.
+- `tests/e2e/public-concept05-fidelity-matrix.spec.mjs` — fingerprints de screenshots 390/1440 sobre los módulos canónicos.
 
 ## Validación
 
-- Base exacta `463e45a1f2c4d85114f97dabf80a6a770a4dcaab`: v0.1.37 con BRVTAL CI/`validate`, Sonar y Deploy Observer verdes.
-- #606 está reservado por el coordinador; `work/issue-606` nació idéntica a esa base y no existe PR competidor.
-- #583 permanece abierto como contrato padre; este PR no debe cerrarlo.
-- Pendiente: revalidar la matriz y el runtime v0.1.38 en CI/Sonar/CodeRabbit, squash, exact-main y observación de producción.
+- Base exacta `ac239e9e2af244f01ebf76032432384483965181`: v0.1.38 con exact-main CI, Sonar, Deploy Observer y Production Performance verdes.
+- #608 está reservado por el coordinador; `work/issue-608` nació idéntica a esa base y no existe PR competidor.
+- #583 permanece abierto hasta que las dos baselines visuales queden calibradas y exact-main valide el child.
+- Pendiente: CI final sobre las baselines fijadas, full review, squash y exact-main.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#606](https://github.com/pl0n3r/brvtal/issues/606) · cerrar matriz transversal Concept 05. |
-| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · consolidar evidencia final del contrato visual sin PR monolítico. |
+| **NOW** | 🚧 [#608](https://github.com/pl0n3r/brvtal/issues/608) · fijar regresión visual canónica 390/1440. |
+| **NEXT** | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) · consolidar evidencia y cerrar el contrato Concept 05 si no quedan gaps. |
 | **LATER** | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398) · archivo cultural conectado; [#531](https://github.com/pl0n3r/brvtal/issues/531) · Media Library smarter. |
 | **BLOCKED / EXTERNAL** | 🚧 Sin bloqueos externos activos. |
 
@@ -95,6 +93,6 @@ flowchart LR
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Concept 05 fidelity closeout | 🚧 [#606](https://github.com/pl0n3r/brvtal/issues/606) |
+| **NOW** | 🚧 Visual regression closeout | 🚧 [#608](https://github.com/pl0n3r/brvtal/issues/608) |
 | **NEXT** | 🚧 Parent visual contract | 🚧 [#583](https://github.com/pl0n3r/brvtal/issues/583) |
 | **LATER** | 🚧 Public archive / media scale | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398), [#531](https://github.com/pl0n3r/brvtal/issues/531) |
