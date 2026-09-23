@@ -329,7 +329,7 @@ try {
   const matchingEvent = events.find(event => Number(event.id) === visibleDatedEvent.id);
   if (!matchingEvent) throw new Error('Native Events grid record was not returned by the authenticated Events API.');
   // Exercise the actual user's EDIT button, not the implementation helper.
-  await page.locator(`#rows button[onclick="openModal('events',${visibleDatedEvent.id})"]`).click();
+  await page.locator(`#rows [data-grid-action="edit"][data-grid-id="${visibleDatedEvent.id}"]`).click();
   await page.locator('#modal').waitFor({ state: 'visible', timeout: 10_000 });
   const gridDate = normalizeDatetimeLocal(visibleDatedEvent.event_date);
   const expectedDate = normalizeDatetimeLocal(matchingEvent.event_date);
