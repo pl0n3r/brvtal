@@ -238,6 +238,18 @@ Published Pages use canonical public entity delivery and SEO rules like the othe
 
 The Blog supports posts, drafts, publication/archive lifecycle, cover media, tags, SEO and relations to Events/Artists/Sets/Releases. Do not add unnecessary editorial automation.
 
+### Canonical public draft preview
+
+Events, Artists, Releases, Sets, Pages and Blog expose a **PUBLIC PREVIEW** action from create/edit without requiring Publish or an intermediate save.
+
+- Preview captures the current editor payload as a bounded, session-only snapshot; it does not insert/update public editorial records.
+- Snapshot creation is authenticated and CSRF-protected. Tokens are cryptographically random, session-bound and expire after 10 minutes.
+- Browser-visible preview responses are `no-store` and `noindex,nofollow`; a token without the originating authenticated Admin session is insufficient.
+- Production entity routes and preview render through the same `brvtal_public_entity_document()` delivery path. Preview may replace the data source, never the public component/template path.
+- The preview shell exposes the Concept 05 composition targets **1440 desktop** and **390 mobile**, so crop, wrapping, event accent, ticket state/price/CTA, artwork and section-density failures are visible before Publish.
+- Raw unsaved URLs, media references, accent values and event dates are validated before rendering. Invalid values fail explicitly rather than being silently persisted, published or rendered as invented data.
+- The lightweight Blog body-only preview remains an editing aid; it is not a substitute for this full canonical public-page preview.
+
 ## 21. Related content
 
 The platform models relations such as:
