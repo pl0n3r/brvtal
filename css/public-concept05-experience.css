@@ -92,6 +92,10 @@
   filter:grayscale(1) contrast(1.22) brightness(.78);
 }
 
+[data-concept="05"] .c5-experience-authored .c5-experience-artwork img[hidden]{
+  display:none;
+}
+
 [data-concept="05"] .c5-experience-authored .c5-experience-artwork.is-media-missing{
   min-height:clamp(420px,48vw,620px);
   background:
