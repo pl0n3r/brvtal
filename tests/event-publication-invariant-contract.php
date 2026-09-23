@@ -38,14 +38,16 @@ event_invariant_assert(
 
 $indexSource = (string)file_get_contents(__DIR__ . '/../api/index.php');
 $bulkSource = (string)file_get_contents(__DIR__ . '/../api/bulk-actions-lib.php');
+$indexCompact = preg_replace('/\s+/', '', $indexSource) ?? '';
+
 
 event_invariant_assert(
     substr_count($indexSource, 'brvtal_event_publication_error(') >= 2,
     'generic Event POST and PUT must enforce the shared invariant'
 );
 event_invariant_assert(
-    str_contains($indexSource, "array_replace(['status'=>'draft'],\$p)")
-        && str_contains($indexSource, 'array_replace($before,$p)'),
+    str_contains($indexCompact, "array_replace(['status'=>'draft'],\$p)")
+        && str_contains($indexCompact, 'array_replace($before,$p)'),
     'generic Event validation must use final state for create and update'
 );
 event_invariant_assert(
