@@ -79,6 +79,7 @@ flowchart LR
 - `js/public-sets-library.js` — renderer SOUND reutilizable, artwork y URLs seguras.
 - `package.json` — sincronización de versión 0.1.30.
 - `tests/e2e/public-concept05-sound-memories.spec.mjs` — regresión 1440/390, URLs y media fallida.
+- `tests/e2e/public-media.spec.mjs` — viewer multimedia con fixture de audio válido y regresión existente.
 - `tests/e2e/public-sets-library-phase-c.spec.mjs` — contrato del renderer Sets reutilizable.
 - `tests/public-concept05-dressing-contract.php` — contrato de carga/idempotencia de assets Concept 05.
 
