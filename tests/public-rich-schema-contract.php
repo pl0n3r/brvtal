@@ -43,6 +43,8 @@ rich_schema_expect($undated['schema']['@type'] === 'WebPage' && !isset($undated[
 $unlocated = brvtal_public_seo_document(array_replace($event, ['venue'=>'', 'city'=>'']), $base);
 rich_schema_expect($unlocated['schema']['@type'] === 'WebPage' && !isset($unlocated['schema']['location']), 'unlocated Event must degrade rather than invent a Place');
 rich_schema_expect(brvtal_public_schema_date('2026-02-30 25:61:00') === null, 'invalid SQL calendar values must fail closed');
+rich_schema_expect(brvtal_public_schema_date(['broken']) === null, 'invalid date field types must fail without PHP diagnostics');
+rich_schema_expect(brvtal_public_schema_external_url(['broken']) === null, 'invalid URL field types must fail without PHP diagnostics');
 rich_schema_expect(brvtal_public_schema_date('2026-10-14') === '2026-10-14', 'SQL DATE must not acquire a fake time');
 
 $blog = brvtal_public_seo_document([
