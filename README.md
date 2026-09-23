@@ -36,7 +36,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · validate** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR integrity | **PR + snapshot exacto** · Issue #610 · `work/issue-610` · UUID `b606662f-5b0f-49c1-b33b-ff49653fa097` |
 | Exact dedup | 🚧 SHA-256 por bytes · mismo contenido/diferente filename → canonical reuse |
 | Legacy compatibility | 🚧 lazy backfill solo size+MIME · bounded hashing · missing/non-local skip |
