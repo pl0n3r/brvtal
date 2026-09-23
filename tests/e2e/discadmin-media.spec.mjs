@@ -151,6 +151,32 @@ async function loadAdminHarness(page) {
   `);
 }
 
+test('duplicate upload reuses and selects the canonical Media asset with explicit feedback', async ({ page }) => {
+  await loadHarness(page, `<section data-admin-module="media"><input id="media-search"><select id="media-type-filter"><option value=""></option></select><select id="media-month-filter"></select><button id="media-upload"></button><input id="media-file" type="file"><button id="media-register"></button><div id="media-dropzone"></div><div id="media-status"></div><div id="media-summary"></div><div id="media-grid"></div><aside id="media-inspector"></aside></section><script>${mediaLibraryJs}</script><script>BRVTALMediaLibrary.mount(document.querySelector('[data-admin-module=media]'))</script>`);
+
+  await page.route('**/api/media-library.php?action=upload', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      duplicate: true,
+      reused: true,
+      dedupe_source: 'indexed',
+      data: { ...mediaItem, content_hash: 'a'.repeat(64) }
+    })
+  }));
+
+  await page.locator('#media-file').setInputFiles({
+    name: 'same-bytes-different-name.png',
+    mimeType: 'image/png',
+    buffer: onePixelPng
+  });
+
+  await expect(page.locator('#media-status')).toHaveText('Duplicate detected — existing asset reused.');
+  await expect(page.locator('.media-card.active')).toHaveAttribute('data-media-id', String(mediaItem.id));
+  await expect(page.locator('#media-inspector')).toContainText('SHA-256');
+  await expect(page.locator('#media-inspector')).toContainText('a'.repeat(64));
+});
+
 test('media picker normalizes paths, updates inputs/previews, and shows guidance', async ({ page }) => {
   await loadMediaLibraryHarness(page);
 

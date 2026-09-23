@@ -82,9 +82,11 @@ CREATE TABLE media (
   file_path VARCHAR(500) NOT NULL,
   mime_type VARCHAR(120) NULL,
   file_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  content_hash CHAR(64) NULL,
   alt_text VARCHAR(255) NULL,
   status ENUM('draft','published') NOT NULL DEFAULT 'published',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_media_content_hash (content_hash)
 ) ENGINE=InnoDB;
 
 CREATE TABLE memories (
