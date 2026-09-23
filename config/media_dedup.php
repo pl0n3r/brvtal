@@ -134,9 +134,16 @@ function brvtal_media_find_duplicate(
         ];
     }
 
-    $candidateLimit = 65;
+    $candidateLimit = 64;
     $maxHashedCandidates = 32;
     $maxHashBytes = 128 * 1024 * 1024;
+
+    $count = $pdo->prepare(
+        'SELECT COUNT(*) FROM media WHERE content_hash IS NULL AND file_size=? AND mime_type=?'
+    );
+    $count->execute([$fileSize, $mimeType]);
+    $candidateCount = (int)$count->fetchColumn();
+
     $sql = 'SELECT ' . brvtal_media_dedup_select_columns($pdo) .
         ' FROM media WHERE content_hash IS NULL AND file_size=? AND mime_type=? ' .
         'ORDER BY id ASC LIMIT ' . $candidateLimit;
@@ -144,10 +151,7 @@ function brvtal_media_find_duplicate(
     $st->execute([$fileSize, $mimeType]);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $hasMoreRows = count($rows) === $candidateLimit;
-    if ($hasMoreRows) {
-        array_pop($rows);
-    }
+    $hasMoreRows = $candidateCount > count($rows);
 
     $hashedCandidates = 0;
     $skippedCandidates = 0;
