@@ -1,0 +1,477 @@
+/*
+ * BRVTAL — Concept 05 / 02 NIGHTS + 03 ARTISTS (#592, parent #583).
+ * Dense editorial strips authored independently for 1440 and 390.
+ * Data remains owned by api/public.php, Events lifecycle and public-roster.js.
+ */
+
+[data-concept="05"] .events.c5-numbered,
+[data-concept="05"] .artists.c5-numbered{
+  min-height:auto;
+  overflow:hidden;
+  padding-top:calc(var(--c5-label-height) + clamp(18px,2vw,28px));
+  padding-bottom:clamp(54px,6vw,88px);
+}
+
+[data-concept="05"] .events .section-head,
+[data-concept="05"] .artists .section-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:end;
+  gap:12px;
+  min-height:0;
+  margin:0;
+  padding:0 0 clamp(14px,1.8vw,24px);
+  border-bottom:1px solid var(--c5-rule-color);
+}
+
+[data-concept="05"] .events .section-head > span:first-child,
+[data-concept="05"] .artists .section-head > span:first-child{
+  grid-column:1 / -1;
+  color:var(--c5-signal-green);
+  font-size:var(--c5-type-mono);
+  letter-spacing:.09em;
+}
+
+[data-concept="05"] .events .section-head h2,
+[data-concept="05"] .artists .section-head h2{
+  margin:0;
+  color:var(--c5-paper-dirty);
+  font-size:clamp(48px,6.4vw,92px);
+  line-height:.76;
+  letter-spacing:-.055em;
+  text-transform:uppercase;
+}
+
+[data-concept="05"] .events .section-head > span:last-child,
+[data-concept="05"] .artists .section-head > span:last-child{
+  align-self:center;
+  color:var(--c5-paper-muted);
+  font-size:var(--c5-type-mono);
+  letter-spacing:.08em;
+}
+
+[data-concept="05"] .c5-section-route{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  width:max-content;
+  margin:12px 0 0 auto;
+  padding:0 14px;
+  border:1px solid var(--c5-rule-color);
+  color:var(--c5-paper-dirty);
+  background:transparent;
+  text-decoration:none;
+  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+
+[data-concept="05"] .c5-section-route:hover,
+[data-concept="05"] .c5-section-route:focus-visible{
+  border-color:var(--c5-signal-green);
+  color:var(--c5-signal-green);
+  outline:none;
+}
+
+/* 02 / NIGHTS ------------------------------------------------------------ */
+
+[data-concept="05"] .events-track{
+  display:flex;
+  gap:clamp(10px,1vw,16px);
+  width:100%;
+  max-width:100%;
+  margin:0;
+  padding:clamp(18px,2vw,28px) 0 12px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-inline:contain;
+  scroll-snap-type:inline proximity;
+  scroll-padding-inline:0;
+  touch-action:pan-x pan-y;
+}
+
+[data-concept="05"] .event-card.c5-night-card{
+  position:relative;
+  flex:0 0 clamp(270px,23.2vw,342px);
+  width:clamp(270px,23.2vw,342px)!important;
+  min-width:0;
+  height:auto;
+  margin:0;
+  border:1px solid var(--c5-rule-color);
+  background:var(--c5-soft-black);
+  scroll-snap-align:start;
+  isolation:isolate;
+}
+
+[data-concept="05"] .event-card.c5-night-card::after{
+  content:attr(data-c5-lifecycle);
+  position:absolute;
+  top:9px;
+  right:9px;
+  z-index:4;
+  padding:5px 7px;
+  background:var(--c5-deep-black);
+  border:1px solid rgba(255,255,255,.22);
+  color:var(--c5-paper-muted);
+  font:700 9px/1 "Space Mono",monospace;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+[data-concept="05"] .event-card.c5-night-card[data-c5-lifecycle="active"]::after{
+  color:var(--c5-signal-green);
+  border-color:color-mix(in srgb,var(--c5-signal-green) 45%,transparent);
+}
+
+[data-concept="05"] .c5-night-card .event-img{
+  position:relative;
+  width:100%;
+  height:auto!important;
+  aspect-ratio:4 / 5;
+  overflow:hidden;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.035),transparent 36%),
+    repeating-linear-gradient(0deg,transparent 0 4px,rgba(255,255,255,.025) 5px 6px),
+    var(--c5-deep-black);
+}
+
+[data-concept="05"] .c5-night-card .event-img img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:grayscale(1) contrast(1.18) brightness(.82);
+  transition:filter .2s steps(2),transform .25s ease;
+}
+
+[data-concept="05"] .c5-night-card:hover .event-img img,
+[data-concept="05"] .c5-night-card:focus-within .event-img img{
+  filter:grayscale(.35) contrast(1.18) saturate(.72);
+  transform:scale(1.015);
+}
+
+[data-concept="05"] .c5-night-card .event-img.is-media-missing img,
+[data-concept="05"] .c5-night-card .event-img img[hidden]{
+  display:none!important;
+}
+
+[data-concept="05"] .c5-night-card .event-img.is-media-missing::before{
+  content:"NO IMAGE / EVENT RECORD";
+  position:absolute;
+  inset:auto 12px 12px;
+  color:var(--c5-paper-muted);
+  font:700 10px/1.2 "Space Mono",monospace;
+  letter-spacing:.08em;
+}
+
+[data-concept="05"] .c5-night-card .event-info{
+  display:grid;
+  gap:9px;
+  min-height:190px;
+  padding:14px;
+  background:var(--c5-soft-black);
+}
+
+[data-concept="05"] .c5-night-card .event-info > .mono{
+  color:var(--c5-paper-muted);
+  font-size:10px;
+  letter-spacing:.06em;
+}
+
+[data-concept="05"] .c5-night-card .event-info h3{
+  margin:0;
+  max-width:100%;
+  color:var(--c5-paper-dirty);
+  font-size:clamp(24px,2.5vw,36px);
+  line-height:.86;
+  overflow-wrap:anywhere;
+  text-transform:uppercase;
+}
+
+[data-concept="05"] .c5-night-card .event-info p{
+  margin:0;
+  color:var(--c5-paper-muted);
+  font-size:12px;
+  line-height:1.35;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+[data-concept="05"] .c5-night-card .event-status{
+  color:var(--c5-signal-green);
+  font:700 10px/1 "Space Mono",monospace;
+  letter-spacing:.08em;
+}
+
+[data-concept="05"] .c5-night-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:auto;
+}
+
+[data-concept="05"] .c5-night-actions a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  padding:0 11px;
+  text-decoration:none;
+  font-size:10px;
+  letter-spacing:.06em;
+}
+
+[data-concept="05"] .c5-night-actions .event-record{
+  border:1px solid var(--c5-rule-color);
+  color:var(--c5-paper-dirty);
+  background:transparent;
+}
+
+[data-concept="05"] .c5-night-actions .event-ticket{
+  border:1px solid var(--c5-signal-red);
+  background:var(--c5-signal-red);
+  color:var(--c5-paper-dirty);
+}
+
+/* 03 / ARTISTS ----------------------------------------------------------- */
+
+[data-concept="05"] .artists{
+  isolation:isolate;
+}
+
+[data-concept="05"] .artists .artist-preview,
+[data-concept="05"] .artists .artist-crosshair{
+  display:none;
+}
+
+[data-concept="05"] .artist-list{
+  display:block;
+  width:100%;
+  max-width:none;
+  margin:clamp(18px,2vw,30px) 0 0;
+}
+
+[data-concept="05"] .roster-group{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:clamp(9px,1vw,14px);
+  width:100%;
+  margin:0 0 clamp(24px,3vw,42px);
+}
+
+[data-concept="05"] .roster-group-head{
+  grid-column:1 / -1;
+  min-height:36px;
+  margin:0;
+  padding:0 0 8px;
+  border-bottom:1px solid var(--c5-rule-color);
+  color:var(--c5-paper-muted);
+}
+
+[data-concept="05"] .roster-group--active .roster-group-head{
+  color:var(--c5-signal-green);
+}
+
+[data-concept="05"] .artist.c5-artist-card{
+  position:relative;
+  display:grid;
+  grid-template-columns:1fr;
+  grid-template-rows:auto auto auto;
+  align-content:start;
+  gap:8px;
+  min-width:0;
+  min-height:0;
+  padding:0 0 12px;
+  border:1px solid var(--c5-rule-color);
+  background:var(--c5-soft-black);
+  color:var(--c5-paper-dirty);
+  text-decoration:none;
+  overflow:hidden;
+}
+
+[data-concept="05"] .artist.c5-artist-card:hover,
+[data-concept="05"] .artist.c5-artist-card:focus-visible{
+  padding-left:0;
+  border-color:var(--c5-signal-green);
+  box-shadow:none;
+  outline:none;
+}
+
+[data-concept="05"] .c5-artist-media{
+  position:relative;
+  display:block;
+  width:100%;
+  aspect-ratio:3 / 4;
+  overflow:hidden;
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.035),transparent 40%),
+    repeating-linear-gradient(90deg,transparent 0 8px,rgba(255,255,255,.025) 9px 10px),
+    var(--c5-deep-black);
+}
+
+[data-concept="05"] .c5-artist-media img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:grayscale(1) contrast(1.2) brightness(.8);
+  transition:filter .18s steps(2),transform .18s steps(2);
+}
+
+[data-concept="05"] .artist.c5-artist-card:hover .c5-artist-media img,
+[data-concept="05"] .artist.c5-artist-card:focus-visible .c5-artist-media img{
+  filter:grayscale(.15) sepia(.18) saturate(1.25) contrast(1.18);
+  transform:translate(1px,-1px);
+}
+
+[data-concept="05"] .c5-artist-media.is-media-missing img,
+[data-concept="05"] .c5-artist-media img[hidden]{
+  display:none!important;
+}
+
+[data-concept="05"] .c5-artist-media.is-media-missing::before{
+  content:"+";
+  position:absolute;
+  left:10px;
+  bottom:8px;
+  color:var(--c5-signal-red);
+  font:700 34px/1 "Space Mono",monospace;
+}
+
+[data-concept="05"] .artist.c5-artist-card .c5-artist-index{
+  position:absolute;
+  top:8px;
+  left:8px;
+  z-index:3;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:32px;
+  min-height:28px;
+  padding:0 5px;
+  background:var(--c5-deep-black);
+  border:1px solid rgba(255,255,255,.22);
+  color:var(--c5-signal-green);
+  font:700 10px/1 "Space Mono",monospace;
+}
+
+[data-concept="05"] .artist.c5-artist-card strong,
+[data-concept="05"] .artist.c5-artist-card i{
+  margin-left:12px;
+  margin-right:12px;
+}
+
+[data-concept="05"] .artist.c5-artist-card strong{
+  color:var(--c5-paper-dirty);
+  font-size:clamp(22px,2.2vw,32px);
+  line-height:.88;
+  overflow-wrap:anywhere;
+  text-transform:uppercase;
+}
+
+[data-concept="05"] .artist.c5-artist-card i{
+  color:var(--c5-paper-muted);
+  font:700 9px/1.35 "Space Mono",monospace;
+  letter-spacing:.04em;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+
+/* 390 authored composition ---------------------------------------------- */
+
+@media(max-width:900px){
+  [data-concept="05"] .events.c5-numbered,
+  [data-concept="05"] .artists.c5-numbered{
+    padding-left:14px;
+    padding-right:14px;
+    padding-bottom:calc(var(--c5-bottom-nav-h) + 34px);
+  }
+
+  [data-concept="05"] .events .section-head,
+  [data-concept="05"] .artists .section-head{
+    grid-template-columns:1fr;
+    gap:7px;
+  }
+
+  [data-concept="05"] .events .section-head h2,
+  [data-concept="05"] .artists .section-head h2{
+    font-size:clamp(54px,20vw,78px);
+    line-height:.76;
+  }
+
+  [data-concept="05"] .events .section-head > span:last-child,
+  [data-concept="05"] .artists .section-head > span:last-child{
+    display:block;
+  }
+
+  [data-concept="05"] .events-track{
+    width:calc(100% + 28px);
+    max-width:none;
+    margin-left:-14px;
+    padding:16px 14px 10px;
+    gap:10px;
+    scroll-padding-inline:14px;
+  }
+
+  [data-concept="05"] .event-card.c5-night-card{
+    flex-basis:min(84vw,338px);
+    width:min(84vw,338px)!important;
+  }
+
+  [data-concept="05"] .c5-night-card .event-info{
+    min-height:184px;
+  }
+
+  [data-concept="05"] .c5-night-card .event-info h3{
+    font-size:clamp(26px,9vw,38px);
+  }
+
+  [data-concept="05"] .c5-section-route{
+    margin-left:0;
+    margin-right:auto;
+  }
+
+  [data-concept="05"] .roster-group{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:9px;
+    margin-bottom:28px;
+  }
+
+  [data-concept="05"] .artist.c5-artist-card{
+    min-height:0;
+    padding:0 0 11px;
+  }
+
+  [data-concept="05"] .artist.c5-artist-card strong{
+    font-size:clamp(19px,7vw,28px);
+    line-height:.9;
+  }
+
+  [data-concept="05"] .artist.c5-artist-card i{
+    font-size:8px;
+  }
+}
+
+@media(max-width:420px){
+  [data-concept="05"] .roster-group{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  [data-concept="05"] .c5-night-card .event-img img,
+  [data-concept="05"] .c5-artist-media img,
+  [data-concept="05"] .c5-section-route{
+    transition:none!important;
+    transform:none!important;
+  }
+}
+
+html.c5-visual-test [data-concept="05"] .c5-night-card .event-img img,
+html.c5-visual-test [data-concept="05"] .c5-artist-media img{
+  transition:none!important;
+  transform:none!important;
+}
