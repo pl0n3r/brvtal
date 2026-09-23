@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **TBD** | **+TBD** | **−TBD** | **TBD** |
+| **11** | **+935** | **−133** | **+802** |
 
 ## Calidad y entrega
 
