@@ -44,7 +44,7 @@
 | Reproduction | ✅ ~~mismo fallo de Admin Activity reproducido en dos Chromium runs de #615~~ |
 | Sonar | 🚧 stable-head analysis |
 | CodeRabbit | 🚧 stable-head review |
-| Exact-main | 🚧 después del squash merge |
+| CI del SHA exacto de main | 🚧 después del squash merge |
 
 ## Flujo de entrega
 
