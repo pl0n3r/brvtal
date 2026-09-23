@@ -454,7 +454,7 @@
 
   function resetGroup(group) {
     const next = currentTheme();
-    const section = group === 'palette' ? 'colors' : group === 'type' ? 'typography' : '';
+    const section = { palette:'colors', type:'typography' }[group] || '';
     if (!section) return;
     applyConcept05Section(next, section);
     state.theme = next;
