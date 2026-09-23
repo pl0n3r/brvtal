@@ -28,12 +28,12 @@ function brvtalTicketRowValidation(row){
 
   const url=row.querySelector('[data-k="external_url"]');
   if(url?.value.trim()){
-    try{
-      const parsed=new URL(url.value.trim());
-      if(!['http:','https:'].includes(parsed.protocol)||url.value.trim().length>700){
-        return {field:url,message:'needs a valid http(s) purchase URL.'};
-      }
-    }catch(_){
+    const rawUrl=url.value.trim();
+    if(rawUrl.length>700||!URL.canParse(rawUrl)){
+      return {field:url,message:'needs a valid http(s) purchase URL.'};
+    }
+    const parsed=new URL(rawUrl);
+    if(!['http:','https:'].includes(parsed.protocol)){
       return {field:url,message:'needs a valid http(s) purchase URL.'};
     }
   }
