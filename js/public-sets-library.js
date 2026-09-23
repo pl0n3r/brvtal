@@ -147,6 +147,18 @@
       </article>`;
     }).join('') : emptyCopy;
 
+    list.querySelectorAll('[data-set-cover] img').forEach(image => {
+      const cover = image.closest('[data-set-cover]');
+      if (!cover) return;
+      const failCover = () => {
+        image.hidden = true;
+        cover.classList.add('set-library-cover--empty');
+        cover.setAttribute('aria-hidden', 'true');
+      };
+      image.addEventListener('error', failCover, {once:true});
+      if (image.complete && image.naturalWidth === 0) failCover();
+    });
+
     if (countRoot) countRoot.textContent = `${String(visible.length).padStart(2, '0')} / ${String(sets.length).padStart(2, '0')} RECORDS`;
     const sectionCount = section.querySelector('.section-head > span:first-child');
     const concept05 = document.querySelector('[data-concept="05"]');
