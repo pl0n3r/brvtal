@@ -21,6 +21,7 @@ RewriteRule ^sitemap\.xml$ sitemap.php [L,QSA]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^indexnow-[A-Za-z0-9][A-Za-z0-9-]{0,90}\.txt$ indexnow-key.php [L,QSA,NC]
 RewriteRule ^contact/?$ index.php?page=contact [L,QSA,NC]
+RewriteRule ^preview/([a-f0-9]{48})/?$ preview.php?token=$1 [L,QSA,NC]
 RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?type=$1&slug=$2 [L,QSA,NC]
 
 # Compress text responses at the web-server layer. LiteSpeed is Apache-compatible

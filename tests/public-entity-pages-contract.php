@@ -14,13 +14,15 @@ function public_pages_expect(bool $condition, string $message): void
 }
 
 $entry = (string)file_get_contents(__DIR__ . '/../index.php');
+$delivery = (string)file_get_contents(__DIR__ . '/../config/public_entity_delivery.php');
 $pages = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 $seo = (string)file_get_contents(__DIR__ . '/../config/public_seo.php');
 $pageContractUi = (string)file_get_contents(__DIR__ . '/../discadmin/pages-publication-contract.js');
 $unavailable = (string)file_get_contents(__DIR__ . '/../config/public_unavailable.php');
 $css = (string)file_get_contents(__DIR__ . '/../css/public-entity.css');
 
-public_pages_expect(str_contains($entry, 'brvtal_public_entity_page'), 'entity routes must use the dedicated public renderer');
+public_pages_expect(str_contains($entry, 'brvtalPublicEntityDocument('), 'entity routes must use the canonical delivery pipeline');
+public_pages_expect(str_contains($delivery, 'brvtal_public_entity_page('), 'canonical delivery must use the dedicated public renderer');
 foreach (['events','artists','releases','blog','pages'] as $type) {
     public_pages_expect(str_contains($pages, "\$type === '{$type}'"), "renderer must hydrate {$type}");
 }

@@ -310,3 +310,47 @@ test('Content Core supports direct clickable step navigation and a top save acti
   await expect.poll(() => posts.length).toBe(1);
   expect(posts[0].body.title).toBe('QA DIRECT NAV');
 });
+
+test('Content Core public preview uses current unsaved Event and Ticket values without saving', async ({ page }) => {
+  const eventPosts = [];
+  await installHarness(page, eventPosts);
+
+  await page.fill('#e_title', 'UNSAVED PREVIEW EVENT');
+  await page.fill('#e_slug', 'unsaved-preview-event');
+  await page.fill('#e_city', 'Pereira');
+  await page.fill('#e_venue', 'La Perla');
+  await page.fill('#e_event_date', '2026-10-31T22:30');
+  await page.evaluate(() => {
+    window.__publicPreviewCall = null;
+    window.BRVTALPublicPreview = {
+      open: async (type, payload) => {
+        window.__publicPreviewCall = {type, payload};
+        return {url:'/preview/test'};
+      }
+    };
+    window.BRVTALContentCore.addTicket();
+  });
+  await page.locator('#tickets [data-k="name"]').fill('PREVENTA');
+  await page.locator('#tickets [data-k="price"]').fill('20000');
+  await page.locator('#tickets [data-k="external_url"]').fill('https://tickets.example.test/genesis');
+
+  await page.evaluate(() => window.BRVTALContentCore.previewEvent());
+  const preview = await page.evaluate(() => window.__publicPreviewCall);
+
+  expect(eventPosts).toHaveLength(0);
+  expect(preview.type).toBe('events');
+  expect(preview.payload).toMatchObject({
+    title:'UNSAVED PREVIEW EVENT',
+    slug:'unsaved-preview-event',
+    city:'Pereira',
+    venue:'La Perla',
+    event_date:'2026-10-31 22:30',
+  });
+  expect(preview.payload.ticket_types).toHaveLength(1);
+  expect(preview.payload.ticket_types[0]).toMatchObject({
+    name:'PREVENTA',
+    price:'20000',
+    external_url:'https://tickets.example.test/genesis',
+  });
+  expect(preview.payload.lineup).toEqual([]);
+});

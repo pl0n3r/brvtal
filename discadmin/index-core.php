@@ -145,6 +145,7 @@ require_once __DIR__ . '/../config/deployment.php';
     <div class="modalfoot">
       <span class="helper">Cambios guardados directamente en MySQL.</span>
       <div class="footactions">
+        <button class="btn ghost" id="previewBtn" type="button" hidden>PUBLIC PREVIEW</button>
         <button class="btn ghost" onclick="closeModal()">CANCELAR</button>
         <button class="btn red" id="saveBtn">GUARDAR</button>
       </div>
@@ -208,6 +209,7 @@ async function go(s){
 function openModal(type,id=null){state.editing=id;document.getElementById('modal').classList.add('open');document.getElementById('notice').className='notice';document.getElementById('mtitle').textContent=(id?'EDIT ':'NEW ')+type.toUpperCase();document.getElementById('saveBtn').onclick=()=>save(type,id);let r=id?state.rows.find(x=>Number(x.id)===Number(id)):null;
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);
  replaceLegacySortOrderControl(type);
+ window.BRVTALPublicPreview?.bindLegacy(type,r||{});
 }
 function replaceLegacySortOrderControl(type){
  const control=document.getElementById('f_sort_order');
@@ -894,6 +896,7 @@ function render(){
 document.addEventListener('keydown',function(e){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(typeof state!=='undefined'&&state.authed)go('theme')}});
 scheduleTechRefresh();
 </script>
+<script src="/discadmin/public-preview.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/qrcode.min.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/content-core-lineup.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>
 <script src="/discadmin/content-core.js?v=<?= rawurlencode(brvtalDeploymentCacheKey()) ?>"></script>

@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_page.php';
 require_once __DIR__ . '/config/public_artist.php';
+require_once __DIR__ . '/config/public_entity_delivery.php';
 require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
@@ -51,9 +52,6 @@ $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtalDe
 if ($entity) {
     try {
         $page = brvtal_public_page_data(db(), $entity);
-        if (($entity['route_type'] ?? '') === 'artists') {
-            $page = brvtal_public_artist_enhance_page(db(), $page);
-        }
     } catch (Throwable $e) {
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_ENTITY_DATA_ERROR', 'Essential canonical entity data failed to load', [
@@ -81,17 +79,13 @@ if ($entity) {
     } else {
         header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     }
-    $entityHtml = brvtal_public_entity_page($page, $seo, $analytics);
-    $entityHtml = str_replace(
-        '</head>',
-        "  <link rel=\"stylesheet\" href=\"/css/public-controls.css\">\n  <link rel=\"stylesheet\" href=\"/css/public-legibility.css\">\n</head>",
-        $entityHtml
+    echo brvtalPublicEntityDocument(
+        db(),
+        $page,
+        $seo,
+        $analytics,
+        brvtalDeploymentCacheKey()
     );
-    if (($entity['route_type'] ?? '') === 'artists') {
-        $entityHtml = brvtal_public_artist_decorate_html($entityHtml, $page);
-    }
-    $entityHtml = brvtal_public_version_assets($entityHtml, brvtalDeploymentCacheKey());
-    echo $entityHtml;
     exit;
 }
 

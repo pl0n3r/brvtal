@@ -273,8 +273,13 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
                 ? '/' . rawurlencode((string)$item['route_type']) . '/' . rawurlencode((string)$item['slug'])
                 : ($safeInternalUrl($item['url'] ?? '') ?: $safeUrl($item['url'] ?? ''));
             $visual = !empty($item['image']) ? '<img src="' . $escape(brvtal_public_absolute_url(brvtal_public_media_variant((string)$item['image'], 'card'), $base)) . '" alt="" loading="lazy" decoding="async">' : '<span class="entity-card-mark">BRVTAL</span>';
-            $price = isset($item['price']) && $item['price'] !== null ? number_format((float)$item['price'], 0) . ' ' . $escape($item['currency'] ?? '') : '';
-            $content = $visual . '<span><small>' . $escape($item['meta'] ?? $price) . '</small><strong>' . $escape($item['title'] ?? '') . '</strong></span>';
+            $price = isset($item['price']) && $item['price'] !== null
+                ? number_format((float)$item['price'], 0) . ' ' . trim((string)($item['currency'] ?? ''))
+                : '';
+            $meta = trim((string)($item['meta'] ?? ''));
+            $cardMeta = implode(' / ', array_filter([$price, $meta]));
+            $content = $visual . '<span><small>' . $escape($cardMeta) . '</small><strong>'
+                . $escape($item['title'] ?? '') . '</strong></span>';
             $cards .= $href ? '<a class="entity-card" href="' . $href . '">' . $content . '</a>' : '<div class="entity-card">' . $content . '</div>';
         }
         $displayHeading = $isEvent && $recordState === 'historical' ? ($historicalHeadings[$heading] ?? $heading) : $heading;

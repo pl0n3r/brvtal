@@ -454,6 +454,15 @@ window.BRVTALBlog = (() => {
       }
     });
     saveButton.onclick=()=>save(id,record);
+    window.BRVTALPublicPreview?.bindButton(
+      document.getElementById('previewBtn'),
+      'blog',
+      () => ({
+        id:Number(record?.id||0),
+        published_at:String(record?.published_at||''),
+        ...payload(record?.relations||[],blogNextSortOrder(id))
+      })
+    );
   }
 
   async function openEditor(id=null){
