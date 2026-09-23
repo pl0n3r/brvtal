@@ -35,7 +35,7 @@ test('dynamic Home projects active + archived Nights and canonical Artist routes
       data: {
         events: [
           { id:1, title:'ACTIVE NIGHT', slug:'active-night', event_date:'2026-10-10 22:00:00', city:'Pereira', venue:'Warehouse', status:'upcoming', cover_image:'/media/active.jpg', ticket_url:'https://tickets.example/active' },
-          { id:2, title:'NO SLUG NIGHT', event_date:'2026-11-01 22:00:00', city:'Pereira', status:'published' },
+          { id:2, title:'NO SLUG NIGHT', event_date:'2026-11-01 22:00:00', city:'Pereira', status:'published', ticket_types:[{ status:'active', external_url:'https://tickets.example/type' }] },
         ],
         archive: {
           events: [
@@ -68,6 +68,8 @@ test('dynamic Home projects active + archived Nights and canonical Artist routes
   await expect(page.locator('.event-card').filter({ hasText:'PAST NIGHT' }).locator('.event-record')).toHaveAttribute('href', '/events/past-night');
   await expect(page.locator('.event-card').filter({ hasText:'ACTIVE NIGHT' }).locator('.event-record')).toHaveAttribute('href', '/events/active-night');
   await expect(page.locator('.event-card').filter({ hasText:'NO SLUG NIGHT' }).locator('.event-record')).toHaveCount(0);
+  await expect(page.locator('.event-card').filter({ hasText:'NO SLUG NIGHT' }).locator('.event-ticket')).toHaveAttribute('href', 'https://tickets.example/type');
+  await expect(page.locator('.event-card').filter({ hasText:'PAST NIGHT' }).locator('.event-ticket')).toHaveCount(0);
   await expect(page.locator('.event-card').filter({ hasText:'DUPLICATE SHOULD NOT RENDER' })).toHaveCount(0);
 
   await expect(page.locator('.artist-list .artist').first()).toHaveAttribute('href', '/artists/pl0n3r');
@@ -156,6 +158,7 @@ test('Concept 05 mobile Nights stays swipeable while Artists becomes an authored
   expect(track.touchAction).toContain('pan-y');
   expect(track.scrollWidth).toBeGreaterThan(track.clientWidth);
 
+  await page.evaluate(() => { document.documentElement.style.fontSize = '20px'; });
   const gridColumns = await page.locator('.roster-group').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   expect(gridColumns).toBe(2);
   await expect(page.locator('.event-record')).toHaveCSS('min-height', '44px');
@@ -172,4 +175,17 @@ test('Concept 05 failed Night artwork hides broken-image chrome and keeps the ca
   await expect(page.locator('.event-img')).toHaveClass(/is-media-missing/);
   await expect(page.locator('.event-img img')).toBeHidden();
   await expect(page.locator('.event-info h3')).toHaveText('STILL HERE');
+});
+
+test('Concept 05 strip motion stays static under reduced motion and visual-test mode', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion:'reduce' });
+  await mountVisual(page, { width:1440, height:900 });
+  await page.locator('html').evaluate(el => el.classList.add('c5-visual-test'));
+
+  const states = await page.evaluate(() => ({
+    nightTransition:getComputedStyle(document.querySelector('.event-img img')).transitionDuration,
+    artistTransition:getComputedStyle(document.querySelector('.c5-artist-media img')).transitionDuration,
+  }));
+  expect(states.nightTransition).toBe('0s');
+  expect(states.artistTransition).toBe('0s');
 });
