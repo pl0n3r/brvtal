@@ -454,6 +454,23 @@ test('Events is the single entry to the guided event editor', async ({ page }) =
   await expect.poll(() => page.evaluate(() => window.__legacyOpen.length)).toBe(0);
 });
 
+test('native Events EDIT uses the mounted guided editor without reloading navigation', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+  await page.evaluate(() => window.go('events'));
+  const baseline = await page.evaluate(() => ({
+    loads: window.__moduleLoadOptions.length,
+    native: window.__nativeGo.filter(section => section === 'events').length
+  }));
+  await page.evaluate(() => window.openModal('events', 42));
+  expect(await page.evaluate(() => window.__openedEvent)).toBe(42);
+  expect(await page.evaluate(() => ({
+    loads: window.__moduleLoadOptions.length,
+    native: window.__nativeGo.filter(section => section === 'events').length
+  }))).toEqual(baseline);
+  await expect(page.locator('#modal')).not.toHaveClass(/open/);
+});
+
 test('Artist membership remains inside the canonical Artists editor with no duplicate workflow', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);

@@ -330,13 +330,15 @@ try {
   if (!matchingEvent) throw new Error('Native Events grid record was not returned by the authenticated Events API.');
   // Exercise the actual user's EDIT button, not the implementation helper.
   await page.locator(`#rows [data-grid-action="edit"][data-grid-id="${visibleDatedEvent.id}"]`).click();
-  await page.locator('#modal').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.locator('#eventModal').waitFor({ state: 'visible', timeout: 10_000 });
+  const editorHeading = (await page.locator('#eventHeading').innerText()).trim();
+  if (editorHeading !== 'EDIT EVENT') throw new Error('Events EDIT opened a new record instead of the selected event.');
   const gridDate = normalizeDatetimeLocal(visibleDatedEvent.event_date);
   const expectedDate = normalizeDatetimeLocal(matchingEvent.event_date);
   if (!gridDate || !expectedDate || gridDate !== expectedDate) {
     throw new Error(`Event #${visibleDatedEvent.id} grid/API date mismatch (grid=${gridDate || '(empty)'}, API=${expectedDate || '(empty)'}).`);
   }
-  const renderedDate = await page.locator('#f_event_date').inputValue();
+  const renderedDate = await page.locator('#e_event_date').inputValue();
   if (renderedDate !== expectedDate) {
     throw new Error(`Event date reopen failed: Event #${visibleDatedEvent.id} expected ${expectedDate}, rendered ${renderedDate || '(empty)'}.`);
   }
@@ -347,7 +349,7 @@ try {
     rendered: renderedDate,
     pass: true
   };
-  await page.evaluate(() => window.closeModal());
+  await page.evaluate(() => window.BRVTALContentCore.closeEvent());
 
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   await navigate(page, 'SETS', 'sets');
