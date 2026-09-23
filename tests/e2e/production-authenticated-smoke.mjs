@@ -34,6 +34,10 @@ const evidence = {
   deploymentProbeErrors: [],
   authentication: { totp: false },
   checks: {
+    health: null,
+    home: null,
+    adminDocument: null,
+    dashboardLoad: null,
     adminVersion: null,
     eventsWorkspace: null,
     eventDate: null,
@@ -177,6 +181,32 @@ try {
     () => authenticate(context)
   );
 
+  // Assert source identity and database health directly, not solely from the
+  // deployment marker. Capture public home HTTP status without private data.
+  const healthResponse = await context.request.get(`${baseUrl}/api/health.php`, {
+    timeout: 12_000,
+    headers: { 'Cache-Control': 'no-cache' }
+  });
+  const health = await jsonOrThrow(healthResponse, 'Production health');
+  const deployment = health.deployment || {};
+  evidence.checks.health = {
+    httpStatus: healthResponse.status(),
+    database: health.database,
+    version: deployment.version,
+    commit: deployment.commit,
+    exact: deployment.exact === true,
+    pass: healthResponse.status() === 200 && health.ok === true
+      && health.database === 'connected' && deployment.exact === true
+      && deployment.version === expectedVersion && deployment.commit === expectedSha
+  };
+  writeEvidence();
+  if (!evidence.checks.health.pass) throw new Error('Production health/version/SHA/database does not match exact main.');
+
+  const homeResponse = await context.request.get(`${baseUrl}/`, { timeout: 12_000 });
+  evidence.checks.home = { httpStatus: homeResponse.status(), pass: homeResponse.status() === 200 };
+  writeEvidence();
+  if (!evidence.checks.home.pass) throw new Error(`Production home returned HTTP ${homeResponse.status()}.`);
+
   // From this point forward the browser is content-read-only. DISCADMIN performs
   // a media-permission repair POST during session bootstrap; fulfill that request
   // locally so the smoke never sends it to production. Any other browser mutation
@@ -203,8 +233,41 @@ try {
   });
 
   const page = await context.newPage();
-  await page.goto(`${baseUrl}/discadmin/`, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+  const serverErrors = [];
+  page.on('response', response => {
+    if (response.status() >= 500) {
+      const url = new URL(response.url());
+      if (url.origin === baseUrl) serverErrors.push({ path: url.pathname, status: response.status() });
+    }
+  });
+  const dashboardStarted = performance.now();
+  const adminResponse = await page.goto(`${baseUrl}/discadmin/`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20_000
+  });
+  evidence.checks.adminDocument = {
+    httpStatus: adminResponse?.status() ?? null,
+    pass: adminResponse?.status() === 200
+  };
+  writeEvidence();
+  if (!evidence.checks.adminDocument.pass) {
+    throw new Error(`Production DISCADMIN document returned HTTP ${adminResponse?.status() ?? 'none'}.`);
+  }
   await page.waitForFunction(() => typeof window.go === 'function' && document.querySelector('.shell'), null, { timeout: 15_000 });
+  await page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero').waitFor({
+    state: 'visible',
+    timeout: 20_000
+  });
+  evidence.checks.dashboardLoad = {
+    elapsedMs: Math.round(performance.now() - dashboardStarted),
+    visibleHero: true,
+    serverErrors,
+    pass: serverErrors.length === 0
+  };
+  writeEvidence();
+  if (serverErrors.length) {
+    throw new Error('Production dashboard returned HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+  }
 
   const expectedVersionText = `BRVTAL v${expectedVersion}`;
   const renderedVersion = (await page.getByTestId('admin-product-version').innerText()).trim();
@@ -231,44 +294,60 @@ try {
     throw new Error('Production needs at least one published Artist and one published Event to verify #124 without creating data.');
   }
 
-  // #123 — Events keeps its canonical list visible while Content Core remains
-  // mounted as an internal editor host. The host is intentionally not a visible
-  // workspace until its Event modal is opened.
-  await navigate(page, 'EVENTS', 'content-core');
-  const contentCore = page.locator('[data-admin-module="content-core"]');
-  await contentCore.waitFor({ state: 'attached', timeout: 15_000 });
+  // The canonical EVENTS sidebar opens the native Events grid. Content Core
+  // is a separate module; requiring its hidden host here is an obsolete smoke
+  // assumption and does not reflect the user's Events workspace.
+  await navigate(page, 'EVENTS', 'events');
+  await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('.main .toolbar .search:visible').waitFor({ state: 'visible', timeout: 15_000 });
   const eventsHeadingLocator = page.locator('.main .top h1');
   await eventsHeadingLocator.waitFor({ state: 'visible', timeout: 15_000 });
   const eventsHeading = (await eventsHeadingLocator.innerText()).trim().toUpperCase();
-  const internalWrap = contentCore.locator('.wrap');
-  await internalWrap.waitFor({ state: 'attached', timeout: 15_000 });
-  const internalWrapHidden = await internalWrap.isHidden();
+  await page.locator('#rows').getByRole('button', { name: /^EDIT$/i }).first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   evidence.checks.eventsWorkspace = {
     heading: eventsHeading,
     visibleSearch: true,
-    contentCoreAttached: true,
-    internalWrapHidden,
-    pass: eventsHeading === 'EVENTS' && internalWrapHidden
+    nativeEditVisible: true,
+    pass: eventsHeading === 'EVENTS'
   };
   writeEvidence();
-  if (eventsHeading !== 'EVENTS' || !internalWrapHidden) {
-    throw new Error('Canonical Events workspace or internal Content Core mount is inconsistent.');
+  if (eventsHeading !== 'EVENTS') {
+    throw new Error('Canonical Events workspace is inconsistent.');
   }
-  await page.evaluate(id => window.BRVTALContentCore.openEvent(id), Number(datedEvent.id));
-  await page.locator('#eventModal').waitFor({ state: 'visible', timeout: 10_000 });
-  const expectedDate = normalizeDatetimeLocal(datedEvent.event_date);
-  const renderedDate = await page.locator('#e_event_date').inputValue();
+
+  // Choose a dated record that was actually loaded into the native grid. This
+  // also works when the next Admin release enables opt-in server pagination.
+  const visibleDatedEvent = await page.evaluate(() => {
+    if (typeof state === 'undefined' || !Array.isArray(state.rows)) return null;
+    const row = state.rows.find(item => String(item.event_date || '').trim());
+    return row ? { id: Number(row.id), event_date: String(row.event_date) } : null;
+  });
+  if (!visibleDatedEvent) {
+    throw new Error('Native Events grid did not load a dated Event on its current page.');
+  }
+  const matchingEvent = events.find(event => Number(event.id) === visibleDatedEvent.id);
+  if (!matchingEvent) throw new Error('Native Events grid record was not returned by the authenticated Events API.');
+  // Exercise the actual user's EDIT button, not the implementation helper.
+  await page.locator(`#rows [data-grid-action="edit"][data-grid-id="${visibleDatedEvent.id}"]`).click();
+  await page.locator('#modal').waitFor({ state: 'visible', timeout: 10_000 });
+  const gridDate = normalizeDatetimeLocal(visibleDatedEvent.event_date);
+  const expectedDate = normalizeDatetimeLocal(matchingEvent.event_date);
+  if (!gridDate || !expectedDate || gridDate !== expectedDate) {
+    throw new Error(`Event #${visibleDatedEvent.id} grid/API date mismatch (grid=${gridDate || '(empty)'}, API=${expectedDate || '(empty)'}).`);
+  }
+  const renderedDate = await page.locator('#f_event_date').inputValue();
   if (renderedDate !== expectedDate) {
-    throw new Error(`#123 failed: Event #${datedEvent.id} expected ${expectedDate}, rendered ${renderedDate || '(empty)'}.`);
+    throw new Error(`Event date reopen failed: Event #${visibleDatedEvent.id} expected ${expectedDate}, rendered ${renderedDate || '(empty)'}.`);
   }
   evidence.checks.eventDate = {
-    eventId: Number(datedEvent.id),
+    eventId: visibleDatedEvent.id,
     expected: expectedDate,
+    grid: gridDate,
     rendered: renderedDate,
     pass: true
   };
-  await page.evaluate(() => window.BRVTALContentCore.closeEvent());
+  await page.evaluate(() => window.closeModal());
 
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   await navigate(page, 'SETS', 'sets');
@@ -304,6 +383,9 @@ try {
     }
   }
 
+  if (serverErrors.length) {
+    throw new Error('Authenticated DISCADMIN emitted HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+  }
   if (evidence.blockedMutations.length) {
     throw new Error(`Read-only guard blocked unexpected production mutations: ${evidence.blockedMutations.join(', ')}`);
   }
