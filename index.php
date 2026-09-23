@@ -142,6 +142,11 @@ $html = str_replace(
     '<span class="mono">BRVTAL MEMORIES / 05</span>',
     $html
 );
+$html = str_replace(
+    '<div class="section-head"><span class="mono">EDITORIAL SIGNAL / 06</span><h2>TRANSMISSIONS</h2><span class="mono" data-transmissions-count>SIGNAL ARCHIVE</span></div>',
+    '<div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span><h2>JOURNAL</h2><span class="mono" data-transmissions-count>SIGNAL ARCHIVE</span></div>',
+    $html
+);
 $html = preg_replace('/(<div class="set-main">.*?<p>).*?(<\/p><\/div>)/sU', '$1SET / ARCHIVE$2', $html) ?? $html;
 $html = str_replace(
     'href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic"',
