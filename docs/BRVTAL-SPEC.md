@@ -180,7 +180,7 @@ Do not collapse Releases back into generic pages or Sets.
 
 BRVTAL does not initially process full payments internally. Ticket types may direct users to external methods such as ticketing platforms, Nequi, QR or external links.
 
-Multiple ticket types are supported. A type may include name, price, state/availability and external purchase/payment information.
+Multiple ticket types are supported. The canonical DISCADMIN Event workflow exposes the same metadata already owned by `event_ticket_types`: name, description, price, ISO currency, lifecycle status, external purchase URL, payment instructions, QR image and optional `available_from` / `available_until` windows. Availability windows are validated chronologically and the per-ticket QR can be selected from Media Library without creating a second asset model.
 
 Do not store purchaser/attendee personal data in this phase.
 

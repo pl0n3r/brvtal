@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #614.
+> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #224.
 
 ## Progress convention
 
@@ -17,10 +17,10 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#614 · Media Engine v3 incremental + traceable** | PR #615 recuperado y rebasado sobre main limpio |
-| Base exacta | ✅ ~~main v0.1.39 exact-main CI verde~~ | `841919920f6e2b1ac5407813ccb199ea48891caf` |
-| Versión | 🚧 **0.1.40 candidate** | runtime/media deploy-bound |
-| Producción | 🚧 pendiente merge + exact-main + observación Hostinger | migración #610 sigue separada y manual |
+| Work line | 🚧 **#224 · Ticket Types metadata completa en DISCADMIN** | rama reservada `work/issue-224` |
+| Base exacta | ✅ ~~main v0.1.40 exact-main CI/deploy/performance verde~~ | `13cb2ab1d5efbf48c6ec278fde925b60b81206b2` |
+| Versión | 🚧 **0.1.41 candidate** | Events / Ticket Types deploy-bound |
+| Producción | 🚧 pendiente PR + merge + exact-main + observación Hostinger | sin migraciones ni mutaciones manuales de tickets reales |
 
 ## Huella del cambio
 
@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+935** | **−133** | **+802** |
+| **11** | **+256** | **−66** | **+190** |
 
 ## Calidad y entrega
 
@@ -37,74 +37,71 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR integrity | **PR + snapshot exacto** · Issue #614 · `work/issue-614` · UUID `24fceb63-6137-4181-bff4-a297e3030804` |
-| Incremental generation | 🚧 source/policy/focal-aware reuse · selective crops · missing derivative repair |
-| Physical dedup | 🚧 `w1920 → display` alias cuando el output es equivalente |
-| Atomicity | 🚧 staged variants + rollback + sidecar commit |
-| Transform serialization | 🚧 row lock `FOR UPDATE` durante generación/commit/cleanup |
-| Operator feedback | 🚧 decode/runtime causes separados · un solo aviso accesible por degradación |
-| Test isolation | 🚧 fixtures únicos + cleanup garantizado al salir |
+| PR integrity | **PR + snapshot exacto** · Issue #224 · `work/issue-224` · UUID `c42d756c-e6fa-4b88-85b6-3f21e1b2a60a` |
+| Metadata parity | 🚧 name · description · price · currency · status · external URL · payment instructions · QR · availability |
+| Availability | 🚧 datetime-local editable · chronological validation · canonical backend normalization |
+| Atomic workflow | 🚧 Event + Ticket Types + roster siguen guardándose en un solo workflow transaccional |
+| Media reuse | 🚧 QR por ticket reutiliza el Media Library picker existente |
+| Responsive Admin | 🚧 Ticket editor expandido sin romper desktop/mobile |
+| Durable coverage | 🚧 browser contract + real-stack round-trip de metadata |
 | Sonar | 🚧 stable-head analysis |
-| CodeRabbit | 🚧 stable-head review after addressed findings |
+| CodeRabbit | 🚧 stable-head review |
 | CI del SHA exacto de main | 🚧 después del squash merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.39 · 8419199"] --> R["#614 rebased + review fixes"]
- R --> P["PR #615 · full gates · Sonar · review"]
- P --> M["Squash merge v0.1.40"]
+ B["main v0.1.40 · 13cb2ab"] --> T["#224 · Ticket Type editor completo"]
+ T --> P["PR · full gates · Sonar · review"]
+ P --> M["Squash merge v0.1.41"]
  M --> X["Exact-main CI"]
  X --> D["Observe Hostinger deploy"]
 ```
 
 ## Qué se hizo
 
-- Media Engine v3 conserva el original como autoridad y decide por variante entre **reuse / repair / generate** según source hash, policy y focal point.
-- Los crops dependientes del focal se regeneran de forma selectiva; los preserve-aspect válidos se reutilizan.
-- `w1920` puede aliasar físicamente `display` sin romper las claves públicas lógicas.
-- Sidecar y derivados se preparan en staging, con rollback si la generación queda incompleta.
-- DISCADMIN expone estado de optimización, huella física/lógica y degradación sin presentar éxito falso.
-- La revisión detectó y se corrigió concurrencia entre transforms: la fila del asset queda bloqueada hasta terminar sidecar + cleanup.
-- Se separó `IMAGE_DECODE_FAILED` de `GD_WEBP_UNAVAILABLE`, se eliminó el toast duplicado y los fixtures de optimización quedaron aislados/autolimpiables.
-- #616 ya eliminó la carrera ajena al Media Engine que bloqueaba Chromium; #615 fue rebasado sobre ese `main` exacto.
+- El paso **TICKET TYPES** deja de ocultar capacidades ya soportadas por `event_ticket_types`.
+- Cada tipo permite editar nombre, descripción, precio, moneda ISO, estado, URL externa, instrucciones de pago, QR y ventana `available_from` / `available_until`.
+- El guardado atómico de Events transporta el contrato completo; no se creó un endpoint ni un source of truth paralelo.
+- Moneda y disponibilidad se validan en cliente y siguen siendo validadas/normalizadas por el backend.
+- El QR individual puede seleccionar una imagen desde el Media Library picker reutilizable.
+- Se amplió la cobertura real-stack para comprobar persistencia y round-trip de la metadata completa.
+- Se añadió un browser contract específico que impide enviar una ventana invertida y verifica el payload canónico.
 
 ## Archivos modificados en este deploy
 
 - `README.md`
-- `api/media-library.php`
-- `config/media.php`
 - `config/version.php`
-- `discadmin/media-library.css`
+- `discadmin/content-core.css`
+- `discadmin/content-core.js`
+- `discadmin/content-core.php`
+- `discadmin/event-workflow.js`
 - `discadmin/media-library.js`
 - `docs/BRVTAL-SPEC.md`
 - `package.json`
-- `tests/e2e/discadmin-media.spec.mjs`
-- `tests/media-library-contract.php`
-- `tests/media-optimization-contract.php`
+- `tests/e2e/content-core-real-stack.spec.mjs`
+- `tests/e2e/ticket-types-editor.spec.mjs`
 
 ## Validación
 
-- Base exacta `841919920f6e2b1ac5407813ccb199ea48891caf`: **BRVTAL CI success** (run 35858679073).
-- El mismo SHA: **Production Deploy Observer success** (35858679071) y **Production Performance success** (35858913918).
-- La reserva de #614 fue recuperada canónicamente; PR #615 quedó `behind_by=0` y mergeable antes del snapshot final.
-- Los cuatro hallazgos funcionales de CodeRabbit se verificaron contra el código y se corrigieron en el nuevo HEAD.
-- Pendiente: nueva matriz completa sobre HEAD estable, revisión final, squash merge, exact-main y observación de deploy.
+- Base exacta `13cb2ab1d5efbf48c6ec278fde925b60b81206b2`: **BRVTAL CI / validate success**, Production Deploy Observer success y Production Performance success.
+- #224 tiene reserva canónica activa y la rama partió idéntica a `main`.
+- Pendiente: PR, matriz completa sobre HEAD estable, Sonar, revisión, squash merge, exact-main y observación de deploy.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#614](https://github.com/pl0n3r/brvtal/issues/614) / PR #615 · cerrar gates y revisión de Media Engine v3. |
-| **NEXT** | 🚧 [#531](https://github.com/pl0n3r/brvtal/issues/531) · cerrar el frente Media Library smarter después de v0.1.40. |
-| **LATER** | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398) · archivo cultural conectado; [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin. |
-| **BLOCKED / EXTERNAL** | 🚧 `migration_media_content_hash_01.sql` requiere autorización explícita y no forma parte de #615. |
+| **NOW** | 🚧 [#224](https://github.com/pl0n3r/brvtal/issues/224) · cerrar metadata completa de Ticket Types. |
+| **NEXT** | 🚧 [#182](https://github.com/pl0n3r/brvtal/issues/182) · no perder metadata SEO ante guardado parcial. |
+| **LATER** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery; [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin. |
+| **BLOCKED / EXTERNAL** | 🚧 migraciones o mutaciones manuales de producción requieren autorización explícita. |
 
 ## Panorama general pendiente
 
 | Lane | Frente | Issues |
 | --- | --- | --- |
-| **NOW** | 🚧 Media Engine v3 | 🚧 [#614](https://github.com/pl0n3r/brvtal/issues/614), [#531](https://github.com/pl0n3r/brvtal/issues/531) |
-| **NEXT** | 🚧 Archive / public cultural graph | 🚧 [#398](https://github.com/pl0n3r/brvtal/issues/398) |
-| **LATER** | 🚧 Admin resilience / editorial debt | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
+| **NOW** | 🚧 Events / Ticket Types | 🚧 [#224](https://github.com/pl0n3r/brvtal/issues/224) |
+| **NEXT** | 🚧 SEO reliability / editorial recovery | 🚧 [#182](https://github.com/pl0n3r/brvtal/issues/182), [#528](https://github.com/pl0n3r/brvtal/issues/528) |
+| **LATER** | 🚧 Admin resilience | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530), [#232](https://github.com/pl0n3r/brvtal/issues/232) |
