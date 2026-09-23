@@ -20,6 +20,9 @@ foreach (['events','artists','sets','releases','pages','blog'] as $type) {
 health_assert(str_contains($api, "'score'"), 'Content Health must calculate a score');
 health_assert(str_contains($api, "'issues'"), 'Content Health must return actionable issues');
 health_assert(str_contains($api, "'seo_supported'"), 'Content Health must distinguish types that persist SEO metadata');
+health_assert(str_contains($api, 'brvtalMediaImageReferenceState'), 'Content Health must resolve visual references instead of trusting non-empty strings');
+health_assert(str_contains($api, 'Broken primary visual'), 'Content Health must distinguish a broken visual reference from a missing visual');
+health_assert(str_contains($api, "'image_reference_kind'"), 'Content Health must expose visual-reference diagnostics');
 health_assert(!preg_match('/\b(?:INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+|FROM\s+)?[`a-z_]/i', $api), 'Content Health API must not mutate database records');
 
 $controller = (string)file_get_contents(__DIR__ . '/../discadmin/content-health.js');
