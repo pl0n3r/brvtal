@@ -351,7 +351,7 @@
     window.BRVTALAdminModules?.cancel?.();
     try {
       if (snapshot.contentContext === 'events') {
-        await loadContentCoreContext('events');
+        await loadContentCoreContext();
       } else if (snapshot.contentContext === 'artists-roster') {
         await loadContentCoreContext('roster');
       } else if (snapshot.section === 'system' && typeof originalTech === 'function') {
@@ -430,30 +430,10 @@
     }
   }
 
-  function simplifyRoster(root) {
-    if (!root) return;
-    root.classList.add('ia-roster-workspace');
-    root.dataset.iaContext = 'artists-roster';
-    const rosterTab = root.querySelector('[data-tab="roster"]');
-    rosterTab?.click();
-    root.querySelector('#eventsTab')?.style.setProperty('display','none');
-    root.querySelector('#rosterTab')?.style.setProperty('display','block');
-    const wrap = root.querySelector('.wrap');
-    if (wrap && !wrap.querySelector('[data-ia-roster-intro]')) {
-      const intro = contextBar(
-        'COLLECTIVE STATUS',
-        'Manage active BRVTAL members, alumni and collective ordering without changing the artist profile.',
-        [{label:'← ARTIST PROFILES', onClick:() => window.go?.('artists')}]
-      );
-      intro.dataset.iaRosterIntro = '1';
-      wrap.prepend(intro);
-    }
-  }
-
-  async function loadContentCoreContext(context) {
+  async function loadContentCoreContext() {
     const token = ++routeToken;
     window.BRVTALAdminModules?.cancel?.();
-    const visibleSection = context === 'roster' ? 'artists' : 'events';
+    const visibleSection = 'events';
     const visibleApplied = await invokeOriginalGo(visibleSection, token);
     if (visibleApplied === false) return false;
     if (!visibleApplied || token !== routeToken) return undefined;
@@ -466,25 +446,10 @@
     const root = document.querySelector('#admin-module-host [data-admin-module="content-core"]');
     if (!root) throw new Error('DISCADMIN internal content workflow failed to mount');
 
-    if (context === 'roster') simplifyRoster(root);
-    else simplifyEventEditor(root);
+    simplifyEventEditor(root);
     rebuildNavigation();
     restoreVisibleSection(visibleSection);
     return true;
-  }
-
-  function enhanceArtistsList() {
-    if (typeof state === 'undefined' || state.section !== 'artists') return;
-    const toolbar = document.querySelector('.main .toolbar');
-    if (!toolbar || toolbar.querySelector('[data-ia-collective-roster]')) return;
-    const actions = toolbar.querySelector('.head-actions') || toolbar;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn ghost';
-    button.dataset.iaCollectiveRoster = '1';
-    button.textContent = 'COLLECTIVE STATUS';
-    button.addEventListener('click', () => loadContentCoreContext('roster'));
-    actions.appendChild(button);
   }
 
   window.go = async function(section) {
@@ -536,7 +501,6 @@
           return undefined;
         }
         result = true;
-        if (section === 'artists') setTimeout(enhanceArtistsList, 0);
         setTimeout(rebuildNavigation, 0);
       }
     } catch (error) {
@@ -599,7 +563,6 @@
     guardsUnsavedChanges:true,
     rebuildNavigation,
     openEvents:() => window.go('events'),
-    openCollectiveStatus:() => loadContentCoreContext('roster'),
     readRoute: routeFromUrl,
     applyRoute: applyUrlRoute
   };
