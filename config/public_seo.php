@@ -6,6 +6,7 @@ require_once __DIR__ . '/public_visibility.php';
 require_once __DIR__ . '/public_routes.php';
 require_once __DIR__ . '/page_content.php';
 require_once __DIR__ . '/public_settings.php';
+require_once __DIR__ . '/seo_workspace.php';
 
 function brvtal_public_base_url(array $config): string
 {
@@ -25,12 +26,12 @@ function brvtal_public_absolute_url(string $value, string $base): string
 /** @return array{site_title:string,description:string,share_image:string} */
 function brvtal_public_global_seo(PDO $pdo): array
 {
-    $setting = brvtal_config_setting_json($pdo, 'seo');
-    $title = brvtal_seo_truncate(brvtal_seo_plain_text($setting['site_title'] ?? ''), 190);
-    $description = brvtal_seo_truncate(brvtal_seo_plain_text($setting['description'] ?? ''), 320);
-    $shareImage = trim((string)($setting['share_image'] ?? $setting['og_image'] ?? ''));
-    if ($shareImage !== '' && !preg_match('#^(?:https?://|/)#i', $shareImage)) $shareImage = '';
-    return ['site_title'=>$title,'description'=>$description,'share_image'=>$shareImage];
+    $home = brvtalSeoWorkspaceStaticValues($pdo, 'home');
+    return [
+        'site_title'=>(string)$home['effective_title'],
+        'description'=>(string)$home['effective_description'],
+        'share_image'=>(string)$home['effective_image_source'],
+    ];
 }
 
 

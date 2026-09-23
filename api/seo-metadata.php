@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/seo_defaults.php';
 require_once __DIR__ . '/../config/seo_persistence.php';
+require_once __DIR__ . '/../config/seo_workspace.php';
 require_once __DIR__ . '/../config/indexnow.php';
 
 brvtal_admin_require();
@@ -47,12 +48,7 @@ try {
         brvtal_seo_json(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
     }
 
-    $resources = [
-        'events' => ['table'=>'events','title'=>'title','description'=>'description'],
-        'artists' => ['table'=>'artists','title'=>'name','description'=>'bio'],
-        'sets' => ['table'=>'sets_media','title'=>'title','description'=>'description'],
-        'releases' => ['table'=>'releases','title'=>'title','description'=>'description'],
-    ];
+    $resources = brvtalSeoWorkspaceEntityDefinitions();
 
     $resource = strtolower(trim((string)($_GET['resource'] ?? '')));
     $id = (int)($_GET['id'] ?? 0);
