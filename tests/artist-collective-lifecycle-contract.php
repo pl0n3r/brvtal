@@ -19,7 +19,7 @@ foreach ([
     ['1', 1],
     ['0', 0],
 ] as [$input, $expected]) {
-    $normalized = brvtal_artist_collective_normalize_payload(['is_collective_member' => $input]);
+    $normalized = brvtalArtistCollectiveNormalizePayload(['is_collective_member' => $input]);
     collective_expect($normalized['error'] === null, 'valid checkbox values must normalize');
     collective_expect(
         ($normalized['payload']['is_collective_member'] ?? null) === $expected,
@@ -27,25 +27,25 @@ foreach ([
     );
 }
 
-$invalid = brvtal_artist_collective_normalize_payload(['is_collective_member' => 'active']);
+$invalid = brvtalArtistCollectiveNormalizePayload(['is_collective_member' => 'active']);
 collective_expect(
     ($invalid['error']['error'] ?? '') === 'INVALID_COLLECTIVE_MEMBERSHIP',
     'status codes must not be accepted as current membership input'
 );
 collective_expect(
-    brvtal_artist_collective_membership_value(['is_collective_member'=>1]),
+    brvtalArtistCollectiveMembershipValue(['is_collective_member'=>1]),
     'canonical true membership must be recognized'
 );
 collective_expect(
-    !brvtal_artist_collective_membership_value(['is_collective_member'=>0,'collective_status'=>'active']),
+    !brvtalArtistCollectiveMembershipValue(['is_collective_member'=>0,'collective_status'=>'active']),
     'canonical boolean must override stale legacy state'
 );
 collective_expect(
-    brvtal_artist_collective_membership_value(['collective_status'=>'active']),
+    brvtalArtistCollectiveMembershipValue(['collective_status'=>'active']),
     'legacy active state must bridge to member before migration'
 );
 collective_expect(
-    !brvtal_artist_collective_membership_value(['collective_status'=>'alumni']),
+    !brvtalArtistCollectiveMembershipValue(['collective_status'=>'alumni']),
     'legacy alumni must map to not-current-member'
 );
 
