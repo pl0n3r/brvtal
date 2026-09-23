@@ -69,15 +69,21 @@ function brvtal_media_local_absolute(?string $publicPath): ?string
  */
 function brvtalMediaImageReferenceState(mixed $value): array
 {
+    static $cache = [];
+
     $reference = trim((string)$value);
+    if (isset($cache[$reference])) {
+        return $cache[$reference];
+    }
+
     if ($reference === '') {
-        return ['valid' => true, 'usable' => false, 'kind' => 'empty'];
+        return $cache[$reference] = ['valid' => true, 'usable' => false, 'kind' => 'empty'];
     }
 
     if (filter_var($reference, FILTER_VALIDATE_URL) !== false) {
         $scheme = strtolower((string)parse_url($reference, PHP_URL_SCHEME));
         $valid = in_array($scheme, ['http', 'https'], true);
-        return [
+        return $cache[$reference] = [
             'valid' => $valid,
             'usable' => $valid,
             'kind' => $valid ? 'external' : 'invalid',
@@ -87,19 +93,19 @@ function brvtalMediaImageReferenceState(mixed $value): array
     if (!str_starts_with($reference, '/uploads/')
         || str_contains($reference, '..')
         || str_contains($reference, "\0")) {
-        return ['valid' => false, 'usable' => false, 'kind' => 'invalid'];
+        return $cache[$reference] = ['valid' => false, 'usable' => false, 'kind' => 'invalid'];
     }
 
     $absolute = brvtal_media_local_absolute($reference);
     if ($absolute === null || !is_file($absolute)) {
-        return ['valid' => true, 'usable' => false, 'kind' => 'local_missing'];
+        return $cache[$reference] = ['valid' => true, 'usable' => false, 'kind' => 'local_missing'];
     }
 
     if (@getimagesize($absolute) === false) {
-        return ['valid' => true, 'usable' => false, 'kind' => 'local_not_image'];
+        return $cache[$reference] = ['valid' => true, 'usable' => false, 'kind' => 'local_not_image'];
     }
 
-    return ['valid' => true, 'usable' => true, 'kind' => 'local_image'];
+    return $cache[$reference] = ['valid' => true, 'usable' => true, 'kind' => 'local_image'];
 }
 
 /** Return whether one image reference is usable by public visual surfaces. */
