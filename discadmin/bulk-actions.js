@@ -140,7 +140,7 @@
       // Keep the complete collection searchable, render only one bounded DOM page.
       state.rows = payload.data;
       state.rowsModule = module;
-      const allowedIds = new Set(state.rows.map(row => Number(row.id || 0)).filter(Boolean));
+      const allowedIds = new Set(recordIds(state.rows));
       [...new Set((Array.isArray(initialIds) ? initialIds : []).map(Number))]
         .filter(id => allowedIds.has(id)).slice(0, MAX_SELECTED).forEach(id => state.selected.add(id));
       renderRows();
@@ -173,17 +173,28 @@
     return state.rows.filter(row => `${row[spec.title] || ''} ${row.slug || ''} ${row.status || ''}`.toLowerCase().includes(q));
   }
 
-  function pageRows() {
-    const rows = visibleRows();
-    const lastPage = Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1);
-    state.page = Math.min(state.page, lastPage);
-    return rows.slice(state.page * PAGE_SIZE, (state.page + 1) * PAGE_SIZE);
+  function recordIds(rows) {
+    return rows.map(row => Number(row.id || 0)).filter(Boolean);
+  }
+
+  function paginationState() {
+    const visible = visibleRows();
+    const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+    state.page = Math.min(state.page, pages - 1);
+    const offset = state.page * PAGE_SIZE;
+    return {
+      visible,
+      pages,
+      rows: visible.slice(offset, offset + PAGE_SIZE),
+      start: visible.length ? offset + 1 : 0,
+      end: Math.min(visible.length, offset + PAGE_SIZE),
+    };
   }
 
   function changePage(delta) {
     if (!state.open || state.rowsModule !== state.module) return;
-    const lastPage = Math.max(0, Math.ceil(visibleRows().length / PAGE_SIZE) - 1);
-    const next = Math.max(0, Math.min(lastPage, state.page + delta));
+    const pagination = paginationState();
+    const next = Math.max(0, Math.min(pagination.pages - 1, state.page + delta));
     if (next === state.page) return;
     state.page = next;
     renderRows();
@@ -195,7 +206,7 @@
     const host = document.querySelector('#brvtal-bulk-actions .brvtal-bulk-list');
     if (!host || !state.module) return;
     const spec = SPECS[state.module];
-    const rows = pageRows();
+    const rows = paginationState().rows;
     if (!rows.length) {
       host.innerHTML = '<div class="brvtal-bulk-empty">NO ITEMS IN THIS VIEW.</div>';
       updateControls(); return;
@@ -209,7 +220,7 @@
       const id = Number(input.dataset.bulkId || 0); if (!id) return;
       if (input.checked && !state.selected.has(id) && state.selected.size >= MAX_SELECTED) {
         input.checked = false;
-        window.BRVTALFeedback?.error?.('Select at most 100 records per bulk action.','bulk-actions');
+        selectionLimitError();
         return;
       }
       input.checked ? state.selected.add(id) : state.selected.delete(id); updateControls();
@@ -217,8 +228,12 @@
     updateControls();
   }
 
+  function selectionLimitError() {
+    window.BRVTALFeedback?.error?.('Select at most 100 records per bulk action.','bulk-actions');
+  }
+
   function selectAllVisible() {
-    const ids = pageRows().map(row => Number(row.id || 0)).filter(Boolean);
+    const ids = recordIds(paginationState().rows);
     const allSelected = ids.length > 0 && ids.every(id => state.selected.has(id));
     if (allSelected) {
       ids.forEach(id => state.selected.delete(id));
@@ -226,34 +241,33 @@
       const available = MAX_SELECTED - state.selected.size;
       ids.filter(id => !state.selected.has(id)).slice(0, available).forEach(id => state.selected.add(id));
       if (!ids.every(id => state.selected.has(id))) {
-        window.BRVTALFeedback?.error?.('Select at most 100 records per bulk action.','bulk-actions');
+        selectionLimitError();
       }
     }
     renderRows();
   }
 
-  function pageInfoText(catalogReady, visible, pages) {
+  function pageInfoText(catalogReady, pagination) {
     if (!catalogReady) return 'LOADING CONTENT…';
-    const start = visible.length ? state.page * PAGE_SIZE + 1 : 0;
-    const end = Math.min(visible.length, (state.page + 1) * PAGE_SIZE);
     const resultKind = state.query.trim()
       ? ' MATCHES (' + state.rows.length + ' TOTAL)'
       : ' TOTAL';
-    return `PAGE ${state.page + 1}/${pages} · ${start}–${end} OF ${visible.length}${resultKind} · SEARCH ALL RECORDS`;
+    return `PAGE ${state.page + 1}/${pagination.pages} · ${pagination.start}–${pagination.end} OF ${pagination.visible.length}${resultKind} · SEARCH ALL RECORDS`;
   }
 
   function updatePagingControls(overlay, catalogReady) {
-    const visible = catalogReady ? visibleRows() : [];
-    const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+    const pagination = catalogReady
+      ? paginationState()
+      : {visible:[],pages:1,rows:[],start:0,end:0};
     const pageInfo = overlay.querySelector('.brvtal-bulk-page-info');
-    if (pageInfo) pageInfo.textContent = pageInfoText(catalogReady, visible, pages);
+    if (pageInfo) pageInfo.textContent = pageInfoText(catalogReady, pagination);
 
     const prev = overlay.querySelector('.brvtal-bulk-prev');
     const next = overlay.querySelector('.brvtal-bulk-next');
     if (prev) prev.disabled = !catalogReady || state.page === 0;
-    if (next) next.disabled = !catalogReady || state.page >= pages - 1;
+    if (next) next.disabled = !catalogReady || state.page >= pagination.pages - 1;
 
-    const pageIds = pageRows().map(row => Number(row.id || 0)).filter(Boolean);
+    const pageIds = recordIds(pagination.rows);
     const allSelected = pageIds.length > 0 && pageIds.every(id => state.selected.has(id));
     const selectAll = overlay.querySelector('.brvtal-bulk-select-all');
     if (!selectAll) return;
@@ -282,7 +296,7 @@
     const overlay = ensureOverlay();
     const status = overlay.querySelector('.brvtal-bulk-status')?.value || '';
     const ids = [...state.selected];
-    const allowedIds = new Set(state.rows.map(row => Number(row.id || 0)).filter(Boolean));
+    const allowedIds = new Set(recordIds(state.rows));
     if (!status || !ids.length || ids.length > MAX_SELECTED) return;
     if (ids.some(id => !allowedIds.has(Number(id)))) {
       state.selected.clear(); updateControls();
