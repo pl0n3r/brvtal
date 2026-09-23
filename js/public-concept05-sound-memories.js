@@ -12,6 +12,12 @@
     if (!host) return;
     host.classList.add('is-media-missing');
     if (media) media.hidden = true;
+    var item = host.closest?.('[data-public-media-item]');
+    var trigger = item?.querySelector('[data-public-media-open]');
+    if (trigger) {
+      trigger.disabled = true;
+      trigger.setAttribute('aria-disabled', 'true');
+    }
   }
 
   function bindMedia(host, media) {
@@ -21,11 +27,6 @@
 
     media.addEventListener('error', function () {
       failMedia(host, media);
-      var trigger = host.closest('[data-public-media-item]')?.querySelector('[data-public-media-open]');
-      if (trigger) {
-        trigger.disabled = true;
-        trigger.setAttribute('aria-disabled', 'true');
-      }
     }, { once:true });
 
     if (media instanceof HTMLImageElement && media.complete && media.naturalWidth === 0) {
@@ -79,7 +80,7 @@
     item.classList.add('c5-memory-cell');
     var open = item.querySelector('.public-media-open');
     var media = open?.querySelector('img,video');
-    if (media) bindMedia(open, media);
+    if (media) bindMedia(item, media);
   }
 
   function hydrateMemories() {
