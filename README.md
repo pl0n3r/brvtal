@@ -66,13 +66,22 @@ Archivos del slice:
 - El enhancer Concept 05 no hace requests: observa los renderers existentes y solo añade composición/media/CTA honestos.
 - Cobertura nueva para payload compartido, active+archive, dedupe, Event/Artist canonical links, Ticket Types, missing media, long copy, mobile overflow y reduced-motion/visual-test.
 
+## Flujo de entrega
+
+1. Rama reservada desde el `main` exacto verde.
+2. Implementación + contratos durables + snapshot README exacto.
+3. PR estable con BRVTAL CI, Sonar y CodeRabbit en paralelo.
+4. Corrección de findings válidos sin ampliar alcance.
+5. Squash merge solo con `main` aún compatible.
+6. Validación del SHA exacto mergeado + Deploy Observer + Production Performance.
+7. Solo después se inicia el siguiente slice dependiente.
+
 ## Próximo paso
 
-1. Abrir PR de #592 desde el head estable.
-2. Ejecutar BRVTAL CI + Sonar + CodeRabbit en paralelo.
-3. Corregir findings válidos sin ampliar scope.
-4. Squash merge y validar el SHA exacto de `main`.
-5. Observar deploy/performance y continuar #583 con **04 / SOUND + 05 / MEMORIES**.
+1. Completar gates de PR #593 sobre el head estable.
+2. Corregir findings válidos sin ampliar scope.
+3. Squash merge y validar el SHA exacto de `main`.
+4. Observar deploy/performance y continuar #583 con **04 / SOUND + 05 / MEMORIES**.
 
 ## Panorama pendiente
 
