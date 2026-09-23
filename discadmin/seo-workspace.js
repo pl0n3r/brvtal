@@ -268,7 +268,7 @@ window.BRVTALSEOWorkspace = (() => {
 
   function closeEditor(force = false) {
     const overlay = editor();
-    if (!overlay || !overlay.hasAttribute('open')) return true;
+    if (!overlay?.hasAttribute('open')) return true;
     if (!force && state.dirty && !window.confirm('Discard unsaved SEO changes?')) return false;
     if (typeof overlay.close === 'function') overlay.close();
     else overlay.removeAttribute('open');
