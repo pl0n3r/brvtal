@@ -60,6 +60,12 @@ function brvtal_public_schema_external_url(mixed $value): ?string
     if (!preg_match('#^https?://#i', $url) || filter_var($url, FILTER_VALIDATE_URL) === false) return null;
     $parts = parse_url($url);
     if (!is_array($parts) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) return null;
+    $host = strtolower(trim((string)$parts['host'], '[]'));
+    if (!str_contains($host, '.') || str_ends_with($host, '.local') || str_ends_with($host, '.internal')) return null;
+    if (filter_var($host, FILTER_VALIDATE_IP) !== false
+        && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+        return null;
+    }
     return $url;
 }
 
