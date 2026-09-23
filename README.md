@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+1089** | **−75** | **+1014** |
+| **10** | **+1144** | **−78** | **+1066** |
 
 ## Calidad y entrega
 
@@ -40,7 +40,7 @@
 | Reservation | Issue #590 · `work/issue-590` · UUID `5923f15a-d866-4b2a-a9af-c5096a382528` |
 | PR integrity | **PR + snapshot exacto + hidden reservation metadata** contra `main` |
 | Browser | 🚧 nueva geometría authored 1440/390 + long-copy/media failure coverage |
-| Sonar / CodeRabbit | 🚧 pendientes sobre el head estable del PR |
+| Sonar / CodeRabbit | 🚧 Sonar findings nuevos reformateados/renombrados; revisión del head final pendiente |
 | Exact-main | **CI del SHA exacto de main** después del squash merge |
 
 ## Flujo de entrega
