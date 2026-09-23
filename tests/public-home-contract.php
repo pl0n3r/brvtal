@@ -60,6 +60,14 @@ public_home_expect(str_contains($section, 'PREVENTA') && str_contains($section, 
 public_home_expect(str_contains($section, 'DOOR') && str_contains($section, '60.000 COP'), 'A second canonical Ticket Type may provide the secondary Door price');
 public_home_expect(str_contains($section, 'href="https://tickets.example.com/tension"'), 'Valid canonical ticket URL must power the Tickets action');
 public_home_expect(str_contains($rendered, '<a href="#genesis"><span>02</span>TENSION &amp; NOISE</a>'), 'Navigation label must follow the selected event instead of staying on Genesis');
+$heroPos = strpos($rendered, '<section class="hero scene');
+$experiencePos = strpos($rendered, '<section class="genesis scene');
+$manifestoPos = strpos($rendered, '<section class="manifesto scene');
+public_home_expect(
+    $heroPos !== false && $experiencePos !== false && $manifestoPos !== false
+    && $heroPos < $experiencePos && $experiencePos < $manifestoPos,
+    'Next Experience must sit immediately after the Hero before the legacy manifesto section'
+);
 
 $unsafe = brvtal_public_render_next_experience($index, [
     'id'=>9,
