@@ -268,6 +268,7 @@
         settings: (root?.settings && typeof root.settings === 'object') ? root.settings : {},
         artists: arrayFrom(root, ['artists','artist']),
         sets: arrayFrom(root, ['sets','sets_media','audio','sound']),
+        memories: arrayFrom(root, ['memories','memory']),
         media: arrayFrom(root, ['media','gallery','images'])
       };
     };
@@ -480,6 +481,10 @@
     };
 
     const renderSets = (items) => {
+      if (!Array.isArray(items)) return false;
+      if (window.BRVTALPublicSetsLibrary?.render) {
+        return window.BRVTALPublicSetsLibrary.render(items);
+      }
       if (!items.length) return false;
       const list = qs('.set-list');
       if (!list) return false;
@@ -498,19 +503,14 @@
       return true;
     };
 
-    const renderMedia = (items) => {
-      if (!items.length) return false;
-      if (window.BRVTALPublicMedia?.render) return window.BRVTALPublicMedia.render(items);
-      const grid = qs('.media-grid');
-      if (!grid) return false;
-      const slots = ['m1','m2','m3','m4'];
-      grid.innerHTML = items.slice(0,8).map((m,i) => {
-        const image = imgUrl(pick(m,['file_path','filePath','image','url','cover_image'],''));
-        const title = pick(m,['title','name','alt_text'],'BRVTAL media');
-        if (!image) return '';
-        return `<figure class="m ${slots[i%slots.length]}"><img src="${esc(image)}" alt="${esc(title)}" loading="lazy"></figure>`;
-      }).join('');
-      return true;
+    const renderMemories = (items) => {
+      if (!Array.isArray(items)) return false;
+      if (window.BRVTALPublicMedia?.render) {
+        return window.BRVTALPublicMedia.render(items);
+      }
+      // If the curated Memories runtime is unavailable, preserve the authored
+      // static fallback instead of dumping raw Media Library records.
+      return false;
     };
 
     const bindCursorInteraction = (el) => {
@@ -601,7 +601,7 @@
         if (renderEvents(data.events, data.archiveEvents)) changed++;
         if (renderArtists(data.artists)) changed++;
         if (renderSets(data.sets)) changed++;
-        if (renderMedia(data.media)) changed++;
+        if (renderMemories(data.memories)) changed++;
         bindDynamicInteractions();
         refreshSceneAnimations();
         updateStatus(true, url);
@@ -615,7 +615,7 @@
       }
     };
 
-    return { init, normalize, renderEvents, renderArtists };
+    return { init, normalize, renderEvents, renderArtists, renderSets, renderMemories };
   })();
 
   window.BRVTALDynamicHome = Dynamic;
