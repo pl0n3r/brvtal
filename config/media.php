@@ -84,7 +84,9 @@ function brvtalMediaImageReferenceState(mixed $value): array
 
     if (filter_var($reference, FILTER_VALIDATE_URL) !== false) {
         $scheme = strtolower((string)parse_url($reference, PHP_URL_SCHEME));
-        $valid = in_array($scheme, ['http', 'https'], true);
+        $hasCredentials = parse_url($reference, PHP_URL_USER) !== null
+            || parse_url($reference, PHP_URL_PASS) !== null;
+        $valid = in_array($scheme, ['http', 'https'], true) && !$hasCredentials;
         $result = [
             'valid' => $valid,
             'usable' => $valid,
@@ -94,8 +96,11 @@ function brvtalMediaImageReferenceState(mixed $value): array
         return $result;
     }
 
+    $decodedReference = rawurldecode($reference);
     if (!str_starts_with($reference, '/uploads/')
-        || str_contains($reference, '..')
+        || !str_starts_with($decodedReference, '/uploads/')
+        || str_contains($decodedReference, '..')
+        || str_contains($reference, '\\')
         || str_contains($reference, "\0")) {
         $result = ['valid' => false, 'usable' => false, 'kind' => 'invalid'];
         $cache[$reference] = $result;

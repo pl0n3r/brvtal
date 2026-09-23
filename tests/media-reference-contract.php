@@ -35,6 +35,15 @@ try {
     $invalidScheme = brvtalMediaImageReferenceState('javascript:alert(1)');
     brvtal_media_reference_assert(!$invalidScheme['valid'] && !$invalidScheme['usable'], 'unsafe scheme must be invalid');
 
+    $credentialUrl = brvtalMediaImageReferenceState('https://user:pass@example.test/poster.jpg');
+    brvtal_media_reference_assert(!$credentialUrl['valid'], 'credential-bearing visual URL must be invalid');
+
+    $encodedTraversal = brvtalMediaImageReferenceState('/uploads/media/%2e%2e/secret.jpg');
+    brvtal_media_reference_assert(!$encodedTraversal['valid'], 'encoded upload traversal must be invalid');
+
+    $backslashPath = brvtalMediaImageReferenceState('/uploads/media\\poster.jpg');
+    brvtal_media_reference_assert(!$backslashPath['valid'], 'backslash upload path must be invalid');
+
     $invalidLocal = brvtalMediaImageReferenceState('/assets/poster.jpg');
     brvtal_media_reference_assert(!$invalidLocal['valid'], 'non-upload local path must be invalid');
 
