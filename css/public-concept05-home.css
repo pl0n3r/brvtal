@@ -17,7 +17,7 @@ body[data-concept="05"]{
   display:none;
   align-items:center;
   gap:clamp(14px,1.6vw,26px);
-  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   text-transform:uppercase;
 }
@@ -55,7 +55,7 @@ body[data-concept="05"]{
   display:flex;
   align-items:center;
   height:var(--c5-label-height);
-  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   text-transform:uppercase;
   color:var(--c5-paper-muted);
@@ -150,7 +150,7 @@ body[data-concept="05"]{
   min-height:44px;
   color:var(--c5-paper-muted);
   text-decoration:none;
-  font:700 10px/1 "Space Mono",monospace;
+  font:700 10px/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.06em;
   text-transform:uppercase;
 }
@@ -236,7 +236,7 @@ html[data-theme-glitch="0"] [data-concept="05"] .experience-actions .ticket-cta:
   box-shadow:0 0 0 3px var(--c5-deep-black);
 }
 [data-concept="05"] .c5-connected-nodes span.mono{
-  font:700 var(--c5-type-mono)/1 "Space Mono",monospace;
+  font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   color:var(--c5-paper-muted);
 }
