@@ -129,7 +129,7 @@ test('typed save preserves unknown sibling JSON keys', async ({ page }) => {
   expect(value.custom_keep).toBe('preserve-me');
 });
 
-test('typed save handlers preserve sibling data across Social, SEO, and Analytics', async ({ page }) => {
+test('typed saves preserve sibling data while SEO metadata delegates to the canonical workspace', async ({ page }) => {
   await open(page);
 
   await page.locator('[data-settings-tab="social"]').click();
@@ -138,15 +138,16 @@ test('typed save handlers preserve sibling data across Social, SEO, and Analytic
   await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(1);
 
   await page.locator('[data-settings-tab="seo"]').click();
-  await page.locator('#sv2_seo_title').fill('BRVTAL Archive');
-  await page.locator('#sv2_seo_share').fill('/uploads/share.webp');
-  await page.getByRole('button',{name:'SAVE SEO'}).click();
-  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(2);
+  await expect(page.locator('#sv2_seo_title')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'OPEN SEO WORKSPACE'})).toBeVisible();
+  await page.getByRole('button',{name:'OPEN SEO WORKSPACE'}).click();
+  await expect.poll(() => page.evaluate(() => window.__settingsRoutes)).toEqual([['go','seo']]);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(1);
 
   await page.locator('[data-settings-tab="analytics"]').click();
   await page.locator('#sv2_gtm_id').fill('gtm-abcd123');
   await page.getByRole('button',{name:'SAVE TAG MANAGER'}).click();
-  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(2);
 
   const posts = await page.evaluate(() => window.__posts.map(post => ({
     key:post.setting_key,
@@ -164,15 +165,11 @@ test('typed save handlers preserve sibling data across Social, SEO, and Analytic
       custom_keep:'social-preserve'
     }
   });
-  expect(posts[1].key).toBe('seo');
-  expect(posts[1].value.site_title).toBe('BRVTAL Archive');
-  expect(posts[1].value.share_image).toBe('/uploads/share.webp');
-  expect(posts[1].value.custom_keep).toBe('seo-preserve');
-  expect(posts[2].key).toBe('analytics');
-  expect(posts[2].value.gtm_id).toBe('GTM-ABCD123');
-  expect(posts[2].value.custom_keep).toBe('analytics-preserve');
+  expect(posts[1].key).toBe('analytics');
+  expect(posts[1].value.gtm_id).toBe('GTM-ABCD123');
+  expect(posts[1].value.custom_keep).toBe('analytics-preserve');
   for (const legacy of ['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']) {
-    expect(posts[2].value).not.toHaveProperty(legacy);
+    expect(posts[1].value).not.toHaveProperty(legacy);
   }
 });
 
@@ -192,11 +189,13 @@ test('typed save handlers keep validation failures from persisting invalid value
   expect(await page.evaluate(() => window.__posts.length)).toBe(0);
 });
 
-test('SEO and Analytics remain typed while Advanced avoids arbitrary record editing', async ({ page }) => {
+test('SEO delegates metadata to one workspace while Analytics remains typed', async ({ page }) => {
   await open(page);
   await page.locator('[data-settings-tab="seo"]').click();
-  await expect(page.locator('#sv2_seo_title')).toBeVisible();
-  await expect(page.getByRole('button',{name:'CHOOSE FROM MEDIA'})).toBeVisible();
+  await expect(page.locator('#sv2_seo_title')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'OPEN SEO WORKSPACE'})).toBeVisible();
+  await expect(page.getByText('SERVER-RENDERED',{exact:true})).toBeVisible();
+  await expect(page.getByTestId('indexnow-save')).toBeVisible();
 
   await page.locator('[data-settings-tab="analytics"]').click();
   await expect(page.locator('#sv2_gtm_id')).toBeVisible();

@@ -61,6 +61,7 @@ function harness(authed = true) {
         +navButton('SYSTEM STATUS',"tech('system')")
         +navButton('RELEASES',"go('releases')",'releases')
         +navButton('BLOG',"go('blog')",'blog')
+        +navButton('SEO',"go('seo')",'seo')
         +navButton('BANNERS',"go('hero-slider')",'hero-slider')
         +navButton('BACKUPS',"go('backups')",'backups')
         +navButton('ACTIVITY',"go('activity')",'activity')
@@ -68,7 +69,7 @@ function harness(authed = true) {
       document.querySelector('[data-new-event]')?.addEventListener('click',()=>window.openModal('events'));
     };
     window.go=async function(section){
-      if(['media','releases','blog'].includes(section)){
+      if(['media','releases','blog','seo'].includes(section)){
         const token=++window.__dynamicNavigationToken;
         await window.BRVTALAdminModules.waitForSection(section);
         if(token!==window.__dynamicNavigationToken)return;
@@ -99,7 +100,8 @@ function harness(authed = true) {
         const dependencies={
           media:['brvtal-media-library-script'],
           releases:['brvtal-media-library-script','brvtal-releases-script'],
-          blog:['brvtal-media-library-script','brvtal-blog-script']
+          blog:['brvtal-media-library-script','brvtal-blog-script'],
+          seo:['brvtal-seo-workspace-script']
         }[section]||[];
         await Promise.all(dependencies.map(id=>{
           const script=document.getElementById(id);
@@ -158,6 +160,7 @@ test('sidebar exposes the canonical editorial and configuration hierarchy', asyn
     'MEDIA',
     'PAGES',
     'BLOG',
+    'SEO',
     'SETTINGS',
     'SYSTEM STATUS'
   ]);

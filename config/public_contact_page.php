@@ -1,13 +1,16 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/seo_workspace.php';
+
 /** @return array{title:string,description:string,canonical:string,image:string,schema:array<string,mixed>} */
-function brvtal_public_contact_seo(string $base): array
+function brvtal_public_contact_seo(string $base, ?PDO $pdo = null): array // NOSONAR legacy public API name
 {
-    $canonical = rtrim($base, '/') . '/contact';
-    $title = 'Contact — BRVTAL';
-    $description = 'Contact BRVTAL for bookings, collaborations, events, media and general inquiries from Pereira, Colombia.';
-    $image = rtrim($base, '/') . '/assets/brvtal-logo.jpeg';
+    $state = brvtalSeoWorkspaceStaticState($pdo, 'contact', $base);
+    $canonical = (string)$state['canonical'];
+    $title = (string)$state['effective_title'];
+    $description = (string)$state['effective_description'];
+    $image = (string)$state['effective_image'];
     $schema = [
         '@context' => 'https://schema.org',
         '@type' => 'ContactPage',

@@ -45,7 +45,8 @@ releases_assert(str_contains($controller, "method:id ? 'PUT' : 'POST'"), 'releas
 
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 releases_assert(str_contains($adminModules, "releases: {url:'/discadmin/releases.php'"), 'canonical shell loader must register releases module');
-releases_assert(str_contains($adminModules, "section==='releases'"), 'canonical navigation must route releases through module workspace');
+releases_assert(str_contains($adminModules, "['releases', ['media','releases']]"), 'Releases must remain registered as a dynamic module dependency');
+releases_assert(str_contains($adminModules, 'sectionDependencies.has(section)'), 'canonical navigation must route dynamic modules through one workspace boundary');
 releases_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'shared dynamic navigation must inject Releases into the canonical sidebar');
 
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');

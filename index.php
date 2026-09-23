@@ -21,7 +21,7 @@ $entity = null;
 $baseUrl = brvtal_public_base_url($config);
 
 if ($pageRoute === 'contact') {
-    $seo = brvtal_public_contact_seo($baseUrl);
+    $seo = brvtal_public_contact_seo($baseUrl, db());
     $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtalDeploymentCacheKey());
     $contactHtml = brvtal_public_contact_page($seo, $analytics);
     $contactHtml = brvtal_public_optimize_font_stylesheet($contactHtml);

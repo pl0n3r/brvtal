@@ -53,7 +53,8 @@ blog_assert(!str_contains($controller, "split(',')"), 'ordinary blog saves must 
 
 $adminModules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 blog_assert(str_contains($adminModules, "blog: {url:'/discadmin/blog.php'"), 'canonical shell loader must register blog module');
-blog_assert(str_contains($adminModules, "section==='blog'"), 'canonical navigation must route blog through module workspace');
+blog_assert(str_contains($adminModules, "['blog', ['media','blog']]"), 'Blog must remain registered as a dynamic module dependency');
+blog_assert(str_contains($adminModules, 'sectionDependencies.has(section)'), 'canonical navigation must route dynamic modules through one workspace boundary');
 blog_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'dynamic navigation must support blog');
 
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');

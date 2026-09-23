@@ -277,6 +277,25 @@ Public Related Content foundation is implemented and must only resolve through e
 
 ## 22. SEO and Content Health
 
+### Canonical WEBSITE → SEO workspace
+
+DISCADMIN exposes one centralized **WEBSITE → SEO** workspace inside the existing shell. It is an inventory/editor over the same metadata already used by entity editors and the server-side public renderer; it is not a parallel SEO database.
+
+- The inventory covers Home, Contact, Pages, Events, Artists, Sets, Releases and Blog.
+- Home and Contact use an explicit allowlisted static-route registry stored under the existing JSON-backed `seo` setting. No arbitrary public URL can be registered through this editor.
+- Home remains backward-compatible with the legacy flat `seo.site_title`, `seo.description` and `seo.share_image` values. Once centrally edited, the nested Home route and legacy mirror move together so clearing an override cannot resurrect stale metadata.
+- Entity destinations reuse their existing `seo_title` / `seo_description` columns and the shared audited persistence boundary. Pages and Blog participate in the same registry as Events, Artists, Sets and Releases.
+- AUTO, MANUAL and MIXED describe stored override state. The workspace always shows the effective server-rendered title, description and social image as well as the fallback source.
+- Per-field reset clears the stored override and immediately returns that field to AUTO. A fallback must never be copied into storage merely because it is visible in preview.
+- Canonical URLs are derived from the allowlisted route/entity registry and are read-only in the editor.
+- Open Graph and Twitter/X currently inherit the same effective title, description and image used by the canonical server renderer. Do not expose distinct social overrides until the renderer supports them as real first-class values.
+- Index/follow remains a server publication/visibility policy, not an editable checkbox.
+- Search/filtering and health warnings operate on a compact inventory endpoint; the browser does not download full content bodies simply to render the SEO list.
+- Static social images accept existing `/uploads/` or `/assets/` paths and safe HTTP(S) URLs. Entity social images continue to inherit their canonical cover/photo/artwork source.
+- Settings → SEO defers metadata editing to this workspace and retains only indexing infrastructure such as IndexNow. Theme Studio preserves legacy `theme.seo` data without exposing it as a second authority.
+- SEO mutation failures stay visible with authored input intact for retry. Entity changes retain their existing activity history; static route changes preserve unrelated settings keys.
+- Public metadata remains server-rendered. Home, Contact, entity `<title>`, description, canonical, Open Graph, Twitter/X and structured data must continue to resolve before the HTML reaches crawlers.
+
 Support title, description, canonical, Open Graph/social previews, Google preview and structured data when appropriate.
 
 Public delivery uses server-rendered metadata for Home and published entity routes. Canonical route families are `/events/{slug}`, `/artists/{slug}`, `/sets/{slug}`, `/releases/{slug}`, `/blog/{slug}` and `/pages/{slug}`. The public sitemap contains published entities only; unknown, draft or private entity routes return `404` with `noindex`.

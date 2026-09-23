@@ -120,6 +120,7 @@ contact_assert(str_contains($body, 'Felipe Test') && str_contains($body, 'Bookin
 contact_assert(str_contains($headers, 'Reply-To: felipe@example.com'), 'validated sender becomes Reply-To without exposing destination in the frontend');
 
 $seo = brvtal_public_contact_seo('https://www.brvtal.com.co');
+contact_assert(brvtalSeoWorkspaceStaticDefinitions()['contact']['path'] === '/contact', 'Contact SEO belongs to the allowlisted static route registry');
 contact_assert($seo['canonical'] === 'https://www.brvtal.com.co/contact', 'Contact has its own canonical URL');
 contact_assert(($seo['schema']['@type'] ?? '') === 'ContactPage', 'Contact emits ContactPage structured data');
 $page = brvtal_public_contact_page($seo);

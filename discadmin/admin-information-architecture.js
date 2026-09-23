@@ -17,10 +17,10 @@
 
   const ROUTE_PARAM = 'module';
   const routeSections = new Set([
-    'dashboard','events','artists','releases','sets','blog','pages','media','hero-slider',
+    'dashboard','events','artists','releases','sets','blog','pages','media','seo','hero-slider',
     'theme','settings','security','system','backups','activity'
   ]);
-  const dynamicModuleSections = new Set(['media','releases','blog']);
+  const dynamicModuleSections = new Set(['media','releases','blog','seo']);
   const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
   const exactNavLabelKeys = new Map([
     ['DASHBOARD', 'dashboard'],
@@ -30,6 +30,7 @@
     ['SETS', 'sets'],
     ['BLOG', 'blog'],
     ['PAGES', 'pages'],
+    ['SEO', 'seo'],
     ['MEDIA', 'media'],
     ['MEDIA LIBRARY', 'media'],
     ['BANNERS', 'hero-slider'],
@@ -230,10 +231,10 @@
   }
 
   const groups = [
-    {label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','pages','blog']},
+    {label:'SITE / EDITORIAL', keys:['dashboard','hero-slider','events','artists','releases','sets','media','pages','blog','seo']},
     {label:'CONFIGURATION / TECHNICAL', keys:['settings','system']},
   ];
-  const hiddenNavigationKeys = new Set(['content-core','theme','security','seo','backups','activity']);
+  const hiddenNavigationKeys = new Set(['content-core','theme','security','backups','activity']);
 
   function observeNavigation() {
     navObserver?.observe(document.documentElement,{childList:true,subtree:true});
