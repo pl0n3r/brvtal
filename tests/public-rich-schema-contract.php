@@ -50,6 +50,7 @@ $blog = brvtal_public_seo_document([
     'description'=>'True editorial content','published_at'=>'2026-09-20 12:00:00',
     'updated_at'=>'2026-09-22 16:12:02',
 ], $base);
+rich_schema_expect($blog['schema']['headline'] === 'Real Post' && $blog['schema']['mainEntityOfPage'] === $base.'/blog/real-post', 'Blog headline and main entity must stay canonical');
 rich_schema_expect($blog['schema']['datePublished'] === '2026-09-20T12:00:00', 'Blog must publish its real timestamp');
 rich_schema_expect($blog['schema']['dateModified'] === '2026-09-22T16:12:02', 'Blog must publish its actual modification');
 rich_schema_expect($blog['schema']['publisher']['name'] === 'BRVTAL', 'Blog publisher must be the actual site brand');
@@ -62,11 +63,13 @@ $artists = [['name'=>'Actual Public Artist','slug'=>'public-artist']];
 $release = brvtal_public_seo_document([
     'route_type'=>'releases','slug'=>'actual-record','schema_type'=>'MusicAlbum',
     'title'=>'Actual Record','release_date'=>'2026-09-12','catalog_number'=>'BRVTAL-42',
+    'spotify_url'=>'https://open.spotify.com/album/real-record','bandcamp_url'=>'javascript:alert(1)',
     'schema_artists'=>$artists,
 ], $base);
 rich_schema_expect($release['schema']['@type'] === 'MusicAlbum', 'real record must retain MusicAlbum');
 rich_schema_expect($release['schema']['datePublished'] === '2026-09-12', 'release date must be real');
 rich_schema_expect($release['schema']['identifier'] === 'BRVTAL-42', 'catalog number must be preserved');
+rich_schema_expect($release['schema']['sameAs'] === ['https://open.spotify.com/album/real-record'], 'only safe real album destinations may be advertised');
 rich_schema_expect($release['schema']['byArtist'][0]['url'] === $base.'/artists/public-artist', 'album artist must resolve to canonical public route');
 
 $set = brvtal_public_seo_document([
