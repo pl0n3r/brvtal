@@ -136,7 +136,10 @@
     const media=viewerMediaNode(item); stage.replaceChildren(media); if (media instanceof HTMLImageElement) applyResponsiveImage(media,'viewer');
     const audio = media instanceof HTMLAudioElement ? media : media.querySelector?.('audio');
     if (audio) {
-      audio.addEventListener('error', () => markMemoryUnavailable(item, audio, stage), {once:true});
+      audio.addEventListener('error', () => {
+        if (!audio.isConnected || !stage.contains(audio)) return;
+        markMemoryUnavailable(item, audio, stage);
+      }, {once:true});
     }
     titleNode.textContent=String(title); context.textContent=String(item.context||'').trim(); context.hidden=context.textContent==='';
     position.textContent=`${type.toUpperCase()} / ${state.viewerIndex+1} OF ${state.viewerItems.length}`;
