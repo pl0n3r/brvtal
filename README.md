@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+611** | **−56** | **+555** |
+| **12** | **+615** | **−57** | **+558** |
 
 ## Calidad y entrega
 
@@ -42,7 +42,7 @@
 | Legacy compatibility | 🚧 lazy backfill solo size+MIME · bounded hashing · missing/non-local skip |
 | Concurrency | 🚧 unique `content_hash` + race winner lookup + orphan cleanup |
 | Migration safety | ✅ ~~aditiva, nullable, idempotente, jamás auto-run~~ |
-| Sonar | 🚧 análisis del HEAD final |
+| Sonar | ✅ ~~Quality Gate · 0 new issues · 0 hotspots~~ |
 | CodeRabbit | 🚧 full review sobre HEAD final |
 | Production migration | 🚧 requiere control humano antes de cambiar schema productivo |
 
