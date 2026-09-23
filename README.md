@@ -37,7 +37,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · validate** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR integrity | **PR + snapshot exacto** · Issue #592 · `work/issue-592` · UUID `7d174b8e-c33e-4dd9-a0cf-08e2702dc523` |
 | Browser | ✅ ~~Chromium behavior/geometry pasó en el head previo; se revalida en head final~~ |
 | Sonar | 🚧 último finding S6481 corregido; nuevo análisis pendiente sobre head final |
