@@ -28,7 +28,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **23** | **+1424** | **−72** | **+1352** |
+| **25** | **+1476** | **−74** | **+1402** |
 
 ## Calidad y entrega
 
@@ -86,12 +86,14 @@ flowchart LR
 - `index.php` — producción usa pipeline de entidad compartido.
 - `package.json` — versión 0.1.37.
 - `preview.php` — shell 1440/390 + render canónico privado.
+- `tests/e2e/content-core-drafts.spec.mjs` — Event preview browser con valores/tickets no guardados.
 - `tests/e2e/discadmin-public-preview.spec.mjs` — payload no guardado/browser.
 - `tests/e2e/public-preview-real-stack.spec.mjs` — privacidad y canonical rendering real-stack.
 - `tests/e2e/run-content-core-real-stack.sh` — incluye smoke real de preview.
 - `tests/public-entity-pages-contract.php` — contrato existente actualizado al pipeline compartido.
 - `tests/public-preview-contract.php` — invariantes de privacidad/renderer.
 - `tests/public-quick-wins-contract.php` — asset-versioning sigue el pipeline compartido.
+- `tests/public-roster-contract.php` — Artist enrichment sigue el pipeline compartido.
 
 ## Validación
 
