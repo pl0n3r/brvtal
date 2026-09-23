@@ -231,44 +231,54 @@ try {
     throw new Error('Production needs at least one published Artist and one published Event to verify #124 without creating data.');
   }
 
-  // #123 — Events keeps its canonical list visible while Content Core remains
-  // mounted as an internal editor host. The host is intentionally not a visible
-  // workspace until its Event modal is opened.
-  await navigate(page, 'EVENTS', 'content-core');
-  const contentCore = page.locator('[data-admin-module="content-core"]');
-  await contentCore.waitFor({ state: 'attached', timeout: 15_000 });
+  // The canonical EVENTS sidebar opens the native Events grid. Content Core
+  // is a separate module; requiring its hidden host here is an obsolete smoke
+  // assumption and does not reflect the user's Events workspace.
+  await navigate(page, 'EVENTS', 'events');
+  await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('.main .toolbar .search:visible').waitFor({ state: 'visible', timeout: 15_000 });
   const eventsHeadingLocator = page.locator('.main .top h1');
   await eventsHeadingLocator.waitFor({ state: 'visible', timeout: 15_000 });
   const eventsHeading = (await eventsHeadingLocator.innerText()).trim().toUpperCase();
-  const internalWrap = contentCore.locator('.wrap');
-  await internalWrap.waitFor({ state: 'attached', timeout: 15_000 });
-  const internalWrapHidden = await internalWrap.isHidden();
+  await page.locator('#rows').getByRole('button', { name: /^EDIT$/i }).first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   evidence.checks.eventsWorkspace = {
     heading: eventsHeading,
     visibleSearch: true,
-    contentCoreAttached: true,
-    internalWrapHidden,
-    pass: eventsHeading === 'EVENTS' && internalWrapHidden
+    nativeEditVisible: true,
+    pass: eventsHeading === 'EVENTS'
   };
   writeEvidence();
-  if (eventsHeading !== 'EVENTS' || !internalWrapHidden) {
-    throw new Error('Canonical Events workspace or internal Content Core mount is inconsistent.');
+  if (eventsHeading !== 'EVENTS') {
+    throw new Error('Canonical Events workspace is inconsistent.');
   }
-  await page.evaluate(id => window.BRVTALContentCore.openEvent(id), Number(datedEvent.id));
-  await page.locator('#eventModal').waitFor({ state: 'visible', timeout: 10_000 });
-  const expectedDate = normalizeDatetimeLocal(datedEvent.event_date);
-  const renderedDate = await page.locator('#e_event_date').inputValue();
+
+  // Choose a dated record that was actually loaded into the native grid. This
+  // also works when the next Admin release enables opt-in server pagination.
+  const visibleDatedEvent = await page.evaluate(() => {
+    if (typeof state === 'undefined' || !Array.isArray(state.rows)) return null;
+    const row = state.rows.find(item => String(item.event_date || '').trim());
+    return row ? { id: Number(row.id), event_date: String(row.event_date) } : null;
+  });
+  if (!visibleDatedEvent) {
+    throw new Error('Native Events grid did not load a dated Event on its current page.');
+  }
+  const matchingEvent = events.find(event => Number(event.id) === visibleDatedEvent.id);
+  if (!matchingEvent) throw new Error('Native Events grid record was not returned by the authenticated Events API.');
+  await page.evaluate(id => window.openModal('events', id), visibleDatedEvent.id);
+  await page.locator('#modal').waitFor({ state: 'visible', timeout: 10_000 });
+  const expectedDate = normalizeDatetimeLocal(matchingEvent.event_date);
+  const renderedDate = await page.locator('#f_event_date').inputValue();
   if (renderedDate !== expectedDate) {
-    throw new Error(`#123 failed: Event #${datedEvent.id} expected ${expectedDate}, rendered ${renderedDate || '(empty)'}.`);
+    throw new Error(`Event date reopen failed: Event #${visibleDatedEvent.id} expected ${expectedDate}, rendered ${renderedDate || '(empty)'}.`);
   }
   evidence.checks.eventDate = {
-    eventId: Number(datedEvent.id),
+    eventId: visibleDatedEvent.id,
     expected: expectedDate,
     rendered: renderedDate,
     pass: true
   };
-  await page.evaluate(() => window.BRVTALContentCore.closeEvent());
+  await page.evaluate(() => window.closeModal());
 
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   await navigate(page, 'SETS', 'sets');

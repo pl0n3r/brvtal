@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Development dashboard** · snapshot de **solo el deploy actual** para Issue #524.
+> **Production incident #631** · snapshot de **solo el deploy actual**: alinear el smoke autenticado con la ruta Events nativa de DISCADMIN; sin alterar datos productivos ni código del producto.
 
 ## Progress convention
 
@@ -17,122 +17,71 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#524 · Artist collective membership simplificada** | `work/issue-524` · PR #622 |
-| Base exacta | ✅ ~~main v0.1.44~~ | `14f5d3b5d9d53c259c29a6ef17905ada5c81e08c` |
-| Versión | 🚧 **0.1.45 candidate** | un booleano canónico `is_collective_member` |
-| Producción | 🚧 pendiente merge/deploy + migración explícita | migración aditiva, preserva legacy e historial |
+| Work line | 🚧 **#631 · smoke de Events desactualizado** | `work/issue-631`; reserva `5e23b6cc-22d7-4231-a6f9-88fb696e2fba` |
+| Base exacta | ✅ ~~main v0.1.45~~ | `3193dfae8d3debc7427e98d9dfa7e8db6d04660e` |
+| Versión | ✅ ~~v0.1.45 sin incremento~~ | cambio exclusivamente en pruebas/documentación |
+| CI del SHA exacto de main | ✅ ~~success~~ | [#35911623096](https://github.com/pl0n3r/brvtal/actions/runs/35911623096) sobre la base |
+| Deploy Observer base | ✅ ~~success~~ | [#35911623080](https://github.com/pl0n3r/brvtal/actions/runs/35911623080); smoke confirma SHA exacto |
+| Production Smoke base | ⛔ **failure** | [#35926109962](https://github.com/pl0n3r/brvtal/actions/runs/35926109962), espera un módulo ajeno a Events |
+| Entrega candidata | 🚧 pendiente gates, merge y smoke nuevo | No equivale a producción validada |
 
 ## Huella del cambio
 
 <!-- brvtal:git-delta -->
-
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **42** | **+997** | **−845** | **+152** |
+| **2** | **+67** | **−108** | **-41** |
 
 ## Calidad y entrega
 
 <!-- brvtal:gate-plan -->
-
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | PR #622 · Issue #524 · UUID `a04b7904-e12e-4f6e-bb18-7a03b7dacc6b` |
-| Autoridad única | 🚧 checkbox interno `is_collective_member` en Create/Edit Artist |
-| Migración | 🚧 `active → 1`; `alumni/none → 0`; legacy e historial no se borran |
-| Compatibilidad deploy | 🚧 pre-migration bridge mantiene lecturas/escrituras seguras |
-| Admin | 🚧 se elimina Collective Status separado; Artists muestra columna + filtro BRVTAL |
-| Público | 🚧 roster/perfil/event lineup leen la misma membresía canónica |
-| Cobertura | 🚧 contratos + browser + MariaDB migration + real-stack |
-| Sonar | 🚧 pendiente sobre head estable |
-| CodeRabbit | 🚧 pendiente revisión final |
-| CI del SHA exacto de main | 🚧 después del squash merge |
+| Gates | **preflight · coordination · fast[JS] · chromium** |
+| PR + snapshot exacto | Issue #631 · reserva `5e23b6cc-22d7-4231-a6f9-88fb696e2fba` |
+| Alcance | Smoke de Events `/discadmin/`; **sin** cambios en shell, sesión, DB o credenciales |
+| CodeRabbit / Sonar | 🚧 comprobar sobre HEAD final; no adelantar resultados |
+| Producción | 🚧 volver a ejecutar `/production-smoke` luego de validar nuevo `main` |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.44 · 14f5d3b"] --> S["#524 · Artist membership"]
- S --> P["PR #622 · CI · Sonar · review"]
- P --> M["Squash merge v0.1.45"]
- M --> X["Exact-main CI"]
- X --> D["Hostinger + migration + production validation"]
+ B["main v0.1.45 · 3193dfa"] --> I["#631 · corregir smoke Events"]
+ I --> P["PR + snapshot exacto · gates"]
+ P --> M["Squash merge"]
+ M --> C["CI exact-main"]
+ C --> O["Observer exact-main"]
+ O --> S["Smoke autenticado"]
 ```
 
 ## Qué se hizo
 
-- Artist tiene una sola autoridad de membresía actual: `is_collective_member`.
-- Create/Edit Artist expone el checkbox **BRVTAL artist / Member of collective**; los códigos `active/alumni/none` dejan de ser controles del administrador.
-- La pantalla/workflow separado **Collective Status** se elimina; el listado de Artists incorpora columna y filtro MEMBER / EXTERNAL.
-- La migración añade el booleano y mapea únicamente membresía vigente: legacy `active` queda marcado; `alumni` y `none` quedan desmarcados.
-- `artist_collective_history` se conserva como auditoría histórica y no vuelve a gobernar estado actual.
-- La API pública, roster, perfil Artist y participación de Events comparten el mismo campo canónico.
-- Existe puente de compatibilidad para desplegar código antes de ejecutar la migración sin romper Artists.
-- La regla operativa del proyecto reconoce producción como entorno mutable de desarrollo mientras BRVTAL siga en desarrollo, manteniendo trazabilidad y preservación de datos.
+- La versión desplegada `v0.1.45` y su SHA exacto están acreditados por el artefacto de smoke; la autenticación y versión DISCADMIN pasaron.
+- El smoke de 23/09/2026 falló porque buscaba `[data-admin-module="content-core"]` al abrir **EVENTS**, pero la ruta de usuario actual es `go('events')` y el formulario nativo es `#modal / #f_event_date`.
+- El contrato actualizado exige navegación real a Events, búsqueda visible y edición nativa, y vuelve a verificar una fecha existente sin guardar datos; los checks de Sets y Hero siguen intactos.
+- La PR #626 / Issue #623 de rendimiento se mantiene independiente: este cambio no toca sus archivos salvo el solapamiento de README autorizado.
 
 ## Archivos modificados en este deploy
 
-- `AGENTS.md`
-- `README.md`
-- `api/content-validation.php`
-- `api/index.php`
-- `api/public.php`
-- `config/admin_activity.php`
-- `config/admin_grid.php`
-- `config/artist_collective_lifecycle.php`
-- `config/artist_collective_membership.php`
-- `config/public_artist.php`
-- `config/version.php`
-- `css/public-roster.css`
-- `database/migration_artist_collective_membership_01.sql`
-- `database/schema.sql`
-- `discadmin/admin-data-grid.css`
-- `discadmin/admin-data-grid.js`
-- `discadmin/admin-information-architecture.js`
-- `discadmin/admin-modules.js`
-- `discadmin/content-core.js`
-- `discadmin/content-core.php`
-- `discadmin/index-core.php`
-- `docs/BRVTAL-SPEC.md`
-- `index.php`
-- `js/public-roster.js`
-- `package.json`
-- `tests/admin-data-grid-contract.php`
-- `tests/api-contract.php`
-- `tests/artist-collective-lifecycle-contract.php`
-- `tests/content-core-form-accessibility-contract.php`
-- `tests/content-ordering-contract.php`
-- `tests/content-validation-contract.php`
-- `tests/discadmin-editor-accessibility-contract.php`
-- `tests/event-publication-invariant-contract.php`
-- `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs`
-- `tests/e2e/discadmin-information-architecture.spec.mjs`
-- `tests/e2e/discadmin-data-grid.spec.mjs`
-- `tests/e2e/public-roster-phase-c.spec.mjs`
-- `tests/e2e/run-content-core-real-stack.sh`
-- `tests/integration/artist-collective-membership-migration.sh`
-- `tests/public-roster-contract.php`
-- `tests/set-publication-contract.php`
-- `tests/theme-active-reference-contract.php`
+- `README.md` — snapshot exacto del incidente, alcance, gates y estado de entrega.
+- `tests/e2e/production-authenticated-smoke.mjs` — comprobación de Events/editor nativos acorde con la ruta en producción.
 
 ## Validación
 
-- Rama reservada #524, 0 commits detrás de `main` al abrir PR #622.
-- Migración diseñada como aditiva/idempotente y sin DROP/DELETE de legacy o historial.
-- Cobertura dedicada verifica mapping legacy, rerun no destructivo, UI canónica, filtro de Artists y comportamiento público.
-- Pendiente: gates completos del PR, Sonar/CodeRabbit, squash merge, exact-main, deploy Hostinger, aplicación de migración y smoke de producción.
+- Línea independiente reservada con el coordinador; script JS sometido a `node --check` en `fast`.
+- CI, Sonar, CodeRabbit y merge **pendientes**; el smoke productivo debe repetirse sobre el nuevo SHA después del merge.
+- Ninguna modificación de credenciales, migración, consulta SQL destructiva o datos reales.
 
 ## Qué sigue
 
-| Lane | Trabajo |
-| --- | --- |
-| **NOW** | 🚧 [#524](https://github.com/pl0n3r/brvtal/issues/524) · cerrar PR #622 y entregar v0.1.45. |
-| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528) · autosave/recovery del editor. |
-| **LATER** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530) · recycle bin / safe restore y backlog según [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533). |
-| **BLOCKED / EXTERNAL** | 🚧 ninguno técnico conocido; producción se ejecuta tras merge con herramientas disponibles y rollback seguro. |
+- 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): reparar y acreditar el smoke sin ocultar fallos reales.
+- 🚧 [#623](https://github.com/pl0n3r/brvtal/issues/623): cerrar rendimiento DISCADMIN por la [PR #626](https://github.com/pl0n3r/brvtal/pull/626).
+- 🚧 [Roadmap #533](https://github.com/pl0n3r/brvtal/issues/533): declarar PRODUCTION GREEN solo con las cinco señales.
 
 ## Panorama general pendiente
 
-- 🚧 **Editorial resilience:** #528 autosave/recovery y #530 recycle bin.
-- 🚧 **Roadmap:** mantener #533 como fuente de orden/progreso y corregir estados al cerrar cada entrega.
-- 🚧 **Producción:** después del deploy v0.1.45 aplicar `migration_artist_collective_membership_01.sql` mediante el flujo explícito de migraciones y validar Artists/roster.
+- 🚧 **NOW:** smoke autenticado nativo #631 y rendimiento Admin #623.
+- 🚧 **NEXT:** exact-main, observación Hostinger, nueva medición Dashboard y smoke aprobado.
+- 🚧 **LATER:** backlog de producto tras GREEN, sin adelantar cambios.
+- 🚧 **BLOCKED / EXTERNAL:** comprobar comportamiento productivo tras merge; no extrapolar pruebas de CI.
