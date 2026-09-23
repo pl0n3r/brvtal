@@ -28,6 +28,8 @@ seo_workspace_assert(brvtalSeoWorkspaceImageValue('/assets/brvtal-logo.jpeg') ==
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('https://cdn.example.com/share.webp') === 'https://cdn.example.com/share.webp', 'HTTP(S) share images are valid');
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('javascript:alert(1)') === '', 'script URLs must be rejected');
 seo_workspace_assert(brvtalSeoWorkspaceImageValue('/private/secret.jpg') === '', 'arbitrary root paths must be rejected');
+seo_workspace_assert(brvtalSeoWorkspaceImageValue('/uploads/../config.php') === '', 'asset traversal paths must be rejected');
+seo_workspace_assert(brvtalSeoWorkspaceImageValue('/uploads/share.webp?x=1') === '', 'asset query strings must be rejected');
 
 $entities = brvtalSeoWorkspaceEntityDefinitions();
 seo_workspace_assert(
@@ -51,6 +53,7 @@ $modules = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js')
 $ia = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
 $settings = (string)file_get_contents(__DIR__ . '/../discadmin/settings-v2.js');
 seo_workspace_assert(str_contains($module, 'data-admin-module="seo"'), 'SEO workspace must mount inside the canonical Admin module host');
+seo_workspace_assert(str_contains($module, '<dialog'), 'SEO editor must use the native dialog element');
 seo_workspace_assert(str_contains($controller, "'/api/seo-workspace.php'"), 'SEO workspace UI must use the compact protected endpoint');
 seo_workspace_assert(str_contains($controller, 'RESET TO AUTO'), 'SEO workspace must expose field-level reset-to-auto controls');
 seo_workspace_assert(str_contains($controller, 'SEO save failed:'), 'failed writes must remain visible and recoverable');

@@ -15,7 +15,10 @@ brvtal_admin_require();
     <div>
       <div class="eyebrow">WEBSITE / SEARCH DISCOVERY</div>
       <h2>SEO</h2>
-      <p>One inventory for every public destination. Automatic fallbacks stay live; manual overrides remain explicit and reversible.</p>
+      <p>
+        One inventory for every public destination. Automatic fallbacks stay live;
+        manual overrides remain explicit and reversible.
+      </p>
     </div>
   </header>
 
@@ -29,7 +32,13 @@ brvtal_admin_require();
   <div class="seo-workspace-toolbar">
     <label>
       <span class="admin-sr-only">Search SEO destinations</span>
-      <input id="seo-workspace-search" class="search" type="search" placeholder="Search title, route or type…" autocomplete="off">
+      <input
+        id="seo-workspace-search"
+        class="search"
+        type="search"
+        placeholder="Search title, route or type…"
+        autocomplete="off"
+      >
     </label>
     <select id="seo-workspace-type" aria-label="Filter by content type">
       <option value="">ALL TYPES</option>
@@ -63,7 +72,11 @@ brvtal_admin_require();
   <output id="seo-workspace-status" class="seo-workspace-status" aria-live="polite"></output>
   <div id="seo-workspace-inventory" class="seo-workspace-inventory" aria-live="polite"></div>
 
-  <div id="seo-workspace-editor" class="seo-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="seo-editor-title" hidden>
+  <dialog
+    id="seo-workspace-editor"
+    class="seo-editor-overlay"
+    aria-labelledby="seo-editor-title"
+  >
     <div class="seo-editor">
       <header class="seo-editor-head">
         <div><span id="seo-editor-kicker">SEO / DESTINATION</span><h3 id="seo-editor-title">SEARCH METADATA</h3></div>
@@ -107,11 +120,17 @@ brvtal_admin_require();
           <code id="seo-editor-preview-url"></code>
           <strong id="seo-editor-preview-title"></strong>
           <p id="seo-editor-preview-description"></p>
-          <div class="seo-editor-preview-image"><img id="seo-editor-preview-image" alt="" hidden><span id="seo-editor-preview-image-label"></span></div>
+          <div class="seo-editor-preview-image">
+            <img id="seo-editor-preview-image" alt="" hidden>
+            <span id="seo-editor-preview-image-label"></span>
+          </div>
         </section>
 
         <div id="seo-editor-warnings" class="seo-editor-warnings" aria-live="polite"></div>
-        <p class="seo-editor-authority">Open Graph and Twitter/X inherit the same effective title, description and image from the server renderer. Canonical URLs are derived and are not editable here.</p>
+        <p class="seo-editor-authority">
+          Open Graph and Twitter/X inherit the same effective title, description and image
+          from the server renderer. Canonical URLs are derived and are not editable here.
+        </p>
 
         <div class="seo-editor-actions">
           <button type="button" class="btn ghost" data-seo-editor-close>CANCEL</button>
@@ -119,5 +138,5 @@ brvtal_admin_require();
         </div>
       </form>
     </div>
-  </div>
+  </dialog>
 </section>

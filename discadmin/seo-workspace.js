@@ -13,14 +13,6 @@ window.BRVTALSEOWorkspace = (() => {
     keyboardBound:false,
   };
 
-  const warningLabels = {
-    MISSING_TITLE:'MISSING TITLE',
-    MISSING_DESCRIPTION:'MISSING DESCRIPTION',
-    TITLE_LONG:'TITLE LONG',
-    DESCRIPTION_LONG:'DESCRIPTION LONG',
-    PRIVATE_WITH_OVERRIDE:'PRIVATE + MANUAL SEO',
-    DUPLICATE_CANONICAL:'DUPLICATE CANONICAL',
-  };
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({
@@ -189,42 +181,60 @@ window.BRVTALSEOWorkspace = (() => {
     return '';
   }
 
-  function updatePreview() {
-    const item = state.editing;
-    if (!item) return;
-    const values = editorValues();
-    const title = renderedTitle(item, values.title);
-    const description = values.description || String(item.automatic_description || '');
-    const image = previewImage(item, values.image);
+  function setText(id, value) {
+    const target = node(id);
+    if (target) target.textContent = value;
+  }
 
-    const titleNode = node('seo-editor-preview-title');
-    const descriptionNode = node('seo-editor-preview-description');
-    const modeNode = node('seo-editor-mode');
-    const titleCount = node('seo-editor-title-count');
-    const descriptionCount = node('seo-editor-description-count');
-    const imageNode = node('seo-editor-preview-image');
-    const imageLabel = node('seo-editor-preview-image-label');
-
-    if (titleNode) titleNode.textContent = title;
-    if (descriptionNode) descriptionNode.textContent = description;
-    if (modeNode) modeNode.textContent = formMode(item,values);
-    if (titleCount) titleCount.textContent = `${title.length}/60 recommended · ${values.title ? 'MANUAL' : item.fallback_title_source}`;
-    if (descriptionCount) descriptionCount.textContent = `${description.length}/160 recommended · ${values.description ? 'MANUAL' : item.fallback_description_source}`;
-    if (imageNode) {
-      imageNode.hidden = !image;
-      if (image) imageNode.src = image;
-    }
-    if (imageLabel) imageLabel.textContent = image || 'No effective social image';
-
+  function previewWarnings(title, description) {
     const warnings = [];
     if (!title) warnings.push('MISSING TITLE');
     if (!description) warnings.push('MISSING DESCRIPTION');
     if (title.length > 70) warnings.push('TITLE LONG');
     if (description.length > 180) warnings.push('DESCRIPTION LONG');
-    const warningsNode = node('seo-editor-warnings');
-    if (warningsNode) {
-      warningsNode.innerHTML = warnings.map(w => `<span class="seo-editor-warning">${esc(w)}</span>`).join('');
+    return warnings;
+  }
+
+  function renderPreviewImage(image) {
+    const imageNode = node('seo-editor-preview-image');
+    if (imageNode) {
+      imageNode.hidden = !image;
+      if (image) imageNode.src = image;
+      else imageNode.removeAttribute('src');
     }
+    setText('seo-editor-preview-image-label', image || 'No effective social image');
+  }
+
+  function renderPreviewWarnings(warnings) {
+    const target = node('seo-editor-warnings');
+    if (!target) return;
+    target.innerHTML = warnings
+      .map(warning => `<span class="seo-editor-warning">${esc(warning)}</span>`)
+      .join('');
+  }
+
+  function updatePreview() {
+    const item = state.editing;
+    if (!item) return;
+
+    const values = editorValues();
+    const title = renderedTitle(item, values.title);
+    const description = values.description || String(item.automatic_description || '');
+    const image = previewImage(item, values.image);
+
+    setText('seo-editor-preview-title', title);
+    setText('seo-editor-preview-description', description);
+    setText('seo-editor-mode', formMode(item,values));
+    setText(
+      'seo-editor-title-count',
+      `${title.length}/60 recommended · ${values.title ? 'MANUAL' : item.fallback_title_source}`
+    );
+    setText(
+      'seo-editor-description-count',
+      `${description.length}/160 recommended · ${values.description ? 'MANUAL' : item.fallback_description_source}`
+    );
+    renderPreviewImage(image);
+    renderPreviewWarnings(previewWarnings(title, description));
   }
 
   function openEditor(key, trigger = null) {
@@ -249,7 +259,8 @@ window.BRVTALSEOWorkspace = (() => {
     node('seo-editor-image-input').value = item.share_image || '';
     node('seo-editor-image-field').hidden = item.kind !== 'static';
     node('seo-editor-preview-url').textContent = item.canonical || item.path || '';
-    overlay.hidden = false;
+    if (typeof overlay.showModal === 'function') overlay.showModal();
+    else overlay.setAttribute('open','');
     document.body.classList.add('seo-editor-open');
     updatePreview();
     requestAnimationFrame(() => node('seo-editor-title-input')?.focus());
@@ -257,9 +268,10 @@ window.BRVTALSEOWorkspace = (() => {
 
   function closeEditor(force = false) {
     const overlay = editor();
-    if (!overlay || overlay.hidden) return true;
+    if (!overlay || !overlay.hasAttribute('open')) return true;
     if (!force && state.dirty && !window.confirm('Discard unsaved SEO changes?')) return false;
-    overlay.hidden = true;
+    if (typeof overlay.close === 'function') overlay.close();
+    else overlay.removeAttribute('open');
     document.body.classList.remove('seo-editor-open');
     state.editing = null;
     state.dirty = false;
@@ -352,6 +364,10 @@ window.BRVTALSEOWorkspace = (() => {
     });
 
     node('seo-workspace-form')?.addEventListener('submit',saveEditor);
+    editor()?.addEventListener('cancel', event => {
+      event.preventDefault();
+      closeEditor(false);
+    });
     ['seo-editor-title-input','seo-editor-description-input','seo-editor-image-input'].forEach(id => {
       node(id)?.addEventListener('input',() => {
         state.dirty = true;
@@ -363,7 +379,7 @@ window.BRVTALSEOWorkspace = (() => {
       state.keyboardBound = true;
       document.addEventListener('keydown', event => {
         const overlay = editor();
-        if (event.key === 'Escape' && overlay && !overlay.hidden) {
+        if (event.key === 'Escape' && overlay?.hasAttribute('open')) {
           event.preventDefault();
           closeEditor(false);
         }

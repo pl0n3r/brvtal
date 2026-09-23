@@ -23,7 +23,9 @@ function brvtalSeoWorkspaceStaticDefinitions(): array
             'label'=>'Home',
             'path'=>'/',
             'default_title'=>'BRVTAL — Rave till Grave',
-            'default_description'=>'BRVTAL — Rave till Grave. Underground electronic music, experiences and events from Colombia.',
+            'default_description'=>
+                'BRVTAL — Rave till Grave. Underground electronic music, '
+                . 'experiences and events from Colombia.',
             'default_image'=>'/assets/brvtal-logo.jpeg',
         ],
         'contact' => [
@@ -31,7 +33,9 @@ function brvtalSeoWorkspaceStaticDefinitions(): array
             'label'=>'Contact',
             'path'=>'/contact',
             'default_title'=>'Contact — BRVTAL',
-            'default_description'=>'Contact BRVTAL for bookings, collaborations, events, media and general inquiries from Pereira, Colombia.',
+            'default_description'=>
+                'Contact BRVTAL for bookings, collaborations, events, media '
+                . 'and general inquiries from Pereira, Colombia.',
             'default_image'=>'/assets/brvtal-logo.jpeg',
         ],
     ];
@@ -69,18 +73,40 @@ function brvtalSeoWorkspaceEntityDefinitions(): array
 function brvtalSeoWorkspaceImageValue(mixed $value): string
 {
     $value = trim((string)$value);
-    if ($value === '') return '';
+    if ($value === '') {
+        return '';
+    }
 
     if (preg_match('#^https?://#i', $value)) {
-        if (strlen($value) > 700 || filter_var($value, FILTER_VALIDATE_URL) === false) return '';
+        if (strlen($value) > 700 || filter_var($value, FILTER_VALIDATE_URL) === false) {
+            return '';
+        }
         $parts = parse_url($value);
-        if (!is_array($parts) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) return '';
+        if (
+            !is_array($parts)
+            || empty($parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+        ) {
+            return '';
+        }
         $scheme = strtolower((string)($parts['scheme'] ?? ''));
         return in_array($scheme, ['http','https'], true) ? $value : '';
     }
 
-    if (!str_starts_with($value, '/uploads/') && !str_starts_with($value, '/assets/')) return '';
-    if (str_contains($value, "\0") || str_contains($value, "\r") || str_contains($value, "\n")) return '';
+    if (!str_starts_with($value, '/uploads/') && !str_starts_with($value, '/assets/')) {
+        return '';
+    }
+    if (
+        str_contains($value, "\0")
+        || str_contains($value, "\r")
+        || str_contains($value, "\n")
+        || str_contains($value, '..')
+        || str_contains($value, '?')
+        || str_contains($value, '#')
+    ) {
+        return '';
+    }
     return mb_substr($value, 0, 700);
 }
 
@@ -163,7 +189,9 @@ function brvtalSeoWorkspaceStaticValues(?PDO $pdo, string $key): array
 
 function brvtalSeoWorkspaceAbsoluteUrl(string $source, string $base): string
 {
-    if (preg_match('#^https?://#i', $source)) return $source;
+    if (preg_match('#^https?://#i', $source)) {
+        return $source;
+    }
     return rtrim($base, '/') . '/' . ltrim($source, '/');
 }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/seo_workspace.php';
 
 /** @return array{title:string,description:string,canonical:string,image:string,schema:array<string,mixed>} */
-function brvtal_public_contact_seo(string $base, ?PDO $pdo = null): array
+function brvtal_public_contact_seo(string $base, ?PDO $pdo = null): array // NOSONAR legacy public API name
 {
     $state = brvtalSeoWorkspaceStaticState($pdo, 'contact', $base);
     $canonical = (string)$state['canonical'];

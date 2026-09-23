@@ -26,7 +26,9 @@ function brvtalSeoWorkspaceJson(array $payload, int $status = 200): never
 function brvtalSeoWorkspaceBody(): array
 {
     $raw = (string)file_get_contents('php://input');
-    if ($raw === '') return $_POST;
+    if ($raw === '') {
+        return $_POST;
+    }
     if (strlen($raw) > 64 * 1024) {
         brvtalSeoWorkspaceJson(['ok'=>false,'error'=>'PAYLOAD_TOO_LARGE'], 413);
     }
@@ -44,10 +46,18 @@ function brvtalSeoWorkspaceWarnings(array $item): array
     $title = trim((string)($item['effective_title'] ?? ''));
     $description = trim((string)($item['effective_description'] ?? ''));
 
-    if ($title === '') $warnings[] = 'MISSING_TITLE';
-    if ($description === '') $warnings[] = 'MISSING_DESCRIPTION';
-    if (mb_strlen($title) > 70) $warnings[] = 'TITLE_LONG';
-    if (mb_strlen($description) > 180) $warnings[] = 'DESCRIPTION_LONG';
+    if ($title === '') {
+        $warnings[] = 'MISSING_TITLE';
+    }
+    if ($description === '') {
+        $warnings[] = 'MISSING_DESCRIPTION';
+    }
+    if (mb_strlen($title) > 70) {
+        $warnings[] = 'TITLE_LONG';
+    }
+    if (mb_strlen($description) > 180) {
+        $warnings[] = 'DESCRIPTION_LONG';
+    }
     if (empty($item['public']) && ($item['mode'] ?? 'AUTO') !== 'AUTO') {
         $warnings[] = 'PRIVATE_WITH_OVERRIDE';
     }
@@ -56,7 +66,9 @@ function brvtalSeoWorkspaceWarnings(array $item): array
 
 function brvtalSeoWorkspaceEntityIsPublic(string $resource, array $row): bool
 {
-    if ($resource === 'events') return brvtal_public_event_is_visible($row);
+    if ($resource === 'events') {
+        return brvtal_public_event_is_visible($row);
+    }
     if ($resource === 'pages') {
         return ($row['status'] ?? '') === 'published' && ($row['locale'] ?? '') === 'en';
     }
@@ -116,7 +128,9 @@ function brvtalSeoWorkspaceEntityInventory(PDO $pdo, string $base): array
                 'schema_type'=>(string)$definition['schema_type'],
             ];
             foreach (['event_date','published_at','locale'] as $extra) {
-                if (array_key_exists($extra, $row)) $entity[$extra] = $row[$extra];
+                if (array_key_exists($extra, $row)) {
+                    $entity[$extra] = $row[$extra];
+                }
             }
 
             $effective = brvtal_public_seo_document($entity, $base, $homeDefaults);
@@ -202,11 +216,15 @@ function brvtalSeoWorkspaceInventory(PDO $pdo): array
     $paths = [];
     foreach ($items as $index => $item) {
         $path = (string)($item['path'] ?? '');
-        if ($path === '') continue;
+        if ($path === '') {
+            continue;
+        }
         $paths[$path][] = $index;
     }
     foreach ($paths as $indexes) {
-        if (count($indexes) < 2) continue;
+        if (count($indexes) < 2) {
+            continue;
+        }
         foreach ($indexes as $index) {
             $items[$index]['warnings'][] = 'DUPLICATE_CANONICAL';
         }
