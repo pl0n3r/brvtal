@@ -467,6 +467,28 @@ function brvtal_public_home_identity(string $html): string
     return $html;
 }
 
+function brvtal_public_home_place_next_experience_after_hero(string $html): string
+{
+    $experienceStart = strpos($html, '<section class="genesis scene');
+    if ($experienceStart === false) return $html;
+    $experienceEnd = strpos($html, '</section>', $experienceStart);
+    if ($experienceEnd === false) return $html;
+    $experienceEnd += strlen('</section>');
+    $experience = substr($html, $experienceStart, $experienceEnd - $experienceStart);
+
+    $withoutExperience = substr($html, 0, $experienceStart) . substr($html, $experienceEnd);
+    $heroStart = strpos($withoutExperience, '<section class="hero scene');
+    if ($heroStart === false) return $html;
+    $heroEnd = strpos($withoutExperience, '</section>', $heroStart);
+    if ($heroEnd === false) return $html;
+    $heroEnd += strlen('</section>');
+
+    return substr($withoutExperience, 0, $heroEnd)
+        . "\n\n    "
+        . $experience
+        . substr($withoutExperience, $heroEnd);
+}
+
 function brvtal_public_next_experience_lineup_markup(?array $event): string
 {
     $lineup = is_array($event['lineup'] ?? null) ? $event['lineup'] : [];
@@ -588,6 +610,7 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $section = str_replace('<div class="genesis-bg"></div>', $background, $section);
 
     $html = substr($html, 0, $sectionStart) . $section . substr($html, $sectionEnd);
+    $html = brvtal_public_home_place_next_experience_after_hero($html);
     $navLabel = $event ? $safeTitle : 'NEXT';
     $html = str_replace(
         '<a href="#genesis"><span>02</span>GENESIS</a>',
