@@ -200,6 +200,26 @@ test('v2 admin preserves dirty state when confirmed Banners reload fails', async
   await expect(page.locator('.hero-slider-error')).toContainText('SETTINGS_UNAVAILABLE');
 });
 
+test('v2 admin reopens Banners across repeated Dashboard cycles without sticking on loading', async ({ page }) => {
+  await openAdminUidHarness(page);
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await expect(page.locator('#hero-slider-root')).toBeVisible();
+    await expect(page.locator('.hero-manager')).toBeVisible();
+    await expect(page.locator('.hero-slider-loading')).toHaveCount(0);
+    await expect(page.locator('.hero-slider-error')).toHaveCount(0);
+
+    if (attempt < 3) {
+      expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+      expect(await page.evaluate(() => window.state.section)).toBe('dashboard');
+      expect(await page.evaluate(() => window.go('hero-slider'))).toBe(true);
+      expect(await page.evaluate(() => window.state.section)).toBe('hero-slider');
+    }
+  }
+
+  expect(await page.evaluate(() => window.__heroNativeGo)).toEqual(['dashboard','dashboard']);
+});
+
 test('v2 admin registers a beforeunload guard only while Banners is dirty', async ({ page }) => {
   await openAdminUidHarness(page);
 

@@ -575,13 +575,18 @@ try {
     return true;
   }));
 
-  // #125 — repeatedly open the manager; loading must settle and no error may remain.
+  // #125 — repeatedly open the manager; each real async navigation must settle
+  // before the next workspace assertion or transition begins.
   markStage('hero-slider');
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await runOperation(`hero-slider-open-${attempt}`, () => page.evaluate(() => {
-      window.go('hero-slider');
-      return true;
-    }));
+    const opened = await runOperation(
+      `hero-slider-open-${attempt}`,
+      () => page.evaluate(() => window.go('hero-slider')),
+      operationTimeoutMs
+    );
+    if (opened !== true) {
+      throw new Error(`#125 Hero Slider navigation ${attempt} did not commit (result=${String(opened)}).`);
+    }
     await runOperation(
       `hero-slider-ready-${attempt}`,
       () => Promise.all([
@@ -598,11 +603,19 @@ try {
     evidence.checks.heroSlider.push({ attempt, pass: true });
     writeEvidence();
     if (attempt < 3) {
-      await runOperation(`hero-slider-dashboard-${attempt}`, () => page.evaluate(() => {
-        window.go('dashboard');
-        return true;
-      }));
-      await new Promise(resolve => setTimeout(resolve, 250));
+      const dashboardOpened = await runOperation(
+        `hero-slider-dashboard-${attempt}`,
+        () => page.evaluate(() => window.go('dashboard')),
+        operationTimeoutMs
+      );
+      if (dashboardOpened !== true) {
+        throw new Error(`#125 Dashboard transition ${attempt} did not commit (result=${String(dashboardOpened)}).`);
+      }
+      await runOperation(
+        `hero-slider-dashboard-ready-${attempt}`,
+        () => page.locator('[data-admin-nav="dashboard"].active').waitFor({ state: 'visible', timeout: 8_000 }),
+        10_000
+      );
     }
   }
 
