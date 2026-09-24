@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+802** | **−34** | **+768** |
+| **14** | **+804** | **−37** | **+767** |
 
 ## Calidad y entrega
 
@@ -63,11 +63,13 @@ flowchart LR
 - Genera exactamente seis documentos desde Factory y conserva responsable/bases/consentimientos como `[COMPLETAR POR EL DUEÑO]` / `review_required`.
 - Añade callers mínimos, sin secretos, fijados a Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`.
 - El contrato reconstruye desde `datos.yml` las filas/bloques relevantes de política, aviso, registro y retención, además de congelar SHA-256.
+- Compacta `AGENTS.md` de 362 a 359 líneas sin eliminar reglas, restaurando el contrato heredado de máximo 360 líneas.
 
 ## Archivos modificados en este deploy
 
 - `.github/workflows/auditoria-privacidad.yml`
 - `.github/workflows/privacidad.yml`
+- `AGENTS.md`
 - `README.md`
 - `config/version.php`
 - `datos.yml`
