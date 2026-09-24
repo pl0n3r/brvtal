@@ -1,0 +1,229 @@
+{
+  "version": 1,
+  "project": "pl0n3r/brvtal",
+  "phase": "construccion",
+  "controller": {
+    "name": "[COMPLETAR POR EL DUEÑO]",
+    "identifier": "[COMPLETAR POR EL DUEÑO]",
+    "address": "[COMPLETAR POR EL DUEÑO]",
+    "rights_email": "[COMPLETAR POR EL DUEÑO]"
+  },
+  "treatments": [
+    {
+      "id": "admin_activity",
+      "category": "contact",
+      "fields": [
+        "admin_id",
+        "admin_name",
+        "admin_email",
+        "action",
+        "resource",
+        "resource_id",
+        "resource_label",
+        "changed_fields",
+        "before_json",
+        "after_json",
+        "meta_json",
+        "request_id",
+        "created_at"
+      ],
+      "purpose": "admin_activity_audit",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "admin_identity",
+      "category": "contact",
+      "fields": [
+        "email",
+        "name",
+        "is_active",
+        "last_login_at",
+        "created_at",
+        "updated_at"
+      ],
+      "purpose": "admin_access",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "admin_password",
+      "category": "authentication",
+      "fields": [
+        "password_hash"
+      ],
+      "purpose": "admin_authentication",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "admin_recovery_codes",
+      "category": "authentication",
+      "fields": [
+        "admin_id",
+        "code_hash",
+        "used_at",
+        "created_at"
+      ],
+      "purpose": "admin_account_recovery",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "admin_session",
+      "category": "authentication",
+      "fields": [
+        "admin_id",
+        "authenticated_at",
+        "issued_at",
+        "last_activity"
+      ],
+      "purpose": "admin_session",
+      "basis": "review_required",
+      "retention": "session_30d",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "admin_totp",
+      "category": "authentication",
+      "fields": [
+        "totp_enabled",
+        "totp_secret_enc",
+        "totp_confirmed_at"
+      ],
+      "purpose": "admin_mfa",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "admin_totp_pending",
+      "category": "authentication",
+      "fields": [
+        "totp_pending_admin_id",
+        "totp_pending_at",
+        "totp_pending_email"
+      ],
+      "purpose": "admin_mfa_challenge",
+      "basis": "review_required",
+      "retention": "pending_10m",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "auth_password_rate_limit",
+      "category": "usage",
+      "fields": [
+        "client_key_hash",
+        "attempts",
+        "blocked_until"
+      ],
+      "purpose": "auth_abuse_prevention",
+      "basis": "review_required",
+      "retention": "window_15m",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "auth_totp_rate_limit",
+      "category": "usage",
+      "fields": [
+        "client_key_hash",
+        "attempts",
+        "blocked_until"
+      ],
+      "purpose": "mfa_abuse_prevention",
+      "basis": "review_required",
+      "retention": "window_15m",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "contact_delivery",
+      "category": "contact",
+      "fields": [
+        "name",
+        "email",
+        "subject",
+        "message"
+      ],
+      "purpose": "contact_delivery",
+      "basis": "review_required",
+      "retention": "external_mailbox_review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "contact_rate_limit",
+      "category": "usage",
+      "fields": [
+        "client_key_hash",
+        "timestamps"
+      ],
+      "purpose": "contact_abuse_prevention",
+      "basis": "review_required",
+      "retention": "window_15m",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "internal_analytics_events",
+      "category": "usage",
+      "fields": [
+        "event_name",
+        "page_url",
+        "referrer",
+        "locale",
+        "user_agent",
+        "created_at"
+      ],
+      "purpose": "internal_usage_analytics",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
+      "id": "public_gtm_measurement",
+      "category": "usage",
+      "fields": [
+        "event_name",
+        "page_type",
+        "content_type",
+        "content_slug",
+        "content_title",
+        "section",
+        "action",
+        "destination",
+        "media_type",
+        "control",
+        "source",
+        "status",
+        "filter_type",
+        "relation_type",
+        "platform",
+        "result_state",
+        "content_id",
+        "position",
+        "depth"
+      ],
+      "purpose": "public_usage_measurement",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": [
+        "google_analytics"
+      ]
+    }
+  ]
+}
