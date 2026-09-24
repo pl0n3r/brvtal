@@ -92,8 +92,8 @@ async function runOperation(label, operation, timeoutMs = operationTimeoutMs) {
       })
     ]);
   } catch (error) {
-    evidence.execution.failureStage = evidence.execution.stage;
-    evidence.execution.failureOperation = label;
+    evidence.execution.failureStage ||= evidence.execution.stage;
+    evidence.execution.failureOperation ||= label;
     writeEvidence();
     throw error;
   } finally {
