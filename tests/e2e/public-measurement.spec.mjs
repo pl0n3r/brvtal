@@ -17,7 +17,7 @@ function harness() {
       <section class="hero scene" style="height:100vh">HERO</section>
       <section class="events scene" id="events" style="height:100vh">EVENTS</section>
       <section style="height:2400px">
-        <button id="declared" type="button" data-measure-event="brvtal_cta_click" data-measure-section="events" data-measure-action="open" data-measure-destination="/events" data-measure-content-title="GENESIS">OPEN</button>
+        <button id="declared" type="button" data-measure-event="brvtal_cta_click" data-measure-section="events" data-measure-action="open" data-measure-destination="/events" data-measure-content-title="GENESIS" data-measure-email="declared-secret@example.com">OPEN</button>
         <form id="privateForm">
           <input name="email" value="form-secret@example.com">
           <textarea name="notes">private-form-value</textarea>
@@ -90,7 +90,7 @@ test('public measurement emits normalized signals without query strings or form 
   expect(outbound.destination).toBe('https://soundcloud.com/brvtal/sets');
 
   const emitted = JSON.stringify(await measurementEvents(page));
-  for (const secret of ['query-secret', 'form-secret@example.com', 'private-form-value', 'outbound-query-secret']) {
+  for (const secret of ['query-secret', 'form-secret@example.com', 'private-form-value', 'outbound-query-secret', 'declared-secret@example.com']) {
     expect(emitted).not.toContain(secret);
   }
 

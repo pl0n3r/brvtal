@@ -116,7 +116,7 @@
       ],
       "purpose": "admin_mfa_challenge",
       "basis": "review_required",
-      "retention": "pending_10m",
+      "retention": "session_30d",
       "consent": "review_required",
       "providers": []
     },
@@ -130,7 +130,7 @@
       ],
       "purpose": "auth_abuse_prevention",
       "basis": "review_required",
-      "retention": "window_15m",
+      "retention": "review_required",
       "consent": "review_required",
       "providers": []
     },
@@ -144,7 +144,7 @@
       ],
       "purpose": "mfa_abuse_prevention",
       "basis": "review_required",
-      "retention": "window_15m",
+      "retention": "review_required",
       "consent": "review_required",
       "providers": []
     },
@@ -172,7 +172,7 @@
       ],
       "purpose": "contact_abuse_prevention",
       "basis": "review_required",
-      "retention": "window_15m",
+      "retention": "review_required",
       "consent": "review_required",
       "providers": []
     },

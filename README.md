@@ -17,7 +17,7 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#654 · privacy as code** | `work/issue-654`; reserva `310dd84e-7cba-4680-9e05-8ef20871ed0f` |
+| Work line | 🚧 **#654 · privacy as code** | `work/issue-654`; reserva `a84619b3-90b8-4847-8bfd-9f7c2d2597f7` |
 | Base exacta | ✅ ~~main v0.1.51~~ | `18fe7ef118645d791653916ca7d65e2699bb1435` |
 | Versión objetivo | 🚧 **v0.1.52** | `config/version.php` + `package.json` |
 | CI/Sonar/CodeRabbit | 🚧 pendiente | revalidar HEAD final |
@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+839** | **−47** | **+792** |
+| **17** | **+844** | **−47** | **+797** |
 
 ## Calidad y entrega
 
@@ -38,7 +38,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | Issue #654 · reserva `310dd84e-7cba-4680-9e05-8ef20871ed0f` |
+| PR + snapshot exacto | Issue #654 · reserva `a84619b3-90b8-4847-8bfd-9f7c2d2597f7` |
 | Privacy gate | Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`, seis documentos |
 | CodeRabbit / Sonar | 🚧 revisión del HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
@@ -57,15 +57,17 @@ flowchart LR
 
 - Documenta identidad/admin, contraseña, TOTP y recuperación sin secretos ni PII real.
 - Documenta contacto público como entrega transitoria; no afirma persistencia en la base BRVTAL.
-- Documenta rate limits mediante hashes derivados y ventanas técnicas observables, sin declarar IP cruda persistida.
+- Documenta rate limits mediante hashes derivados; la retención física queda `review_required` mientras las ventanas operativas de 15 minutos se verifican por contrato.
 - Declara Google Analytics solo para la capa pública GTM respaldada por código; configuración externa y retención siguen `review_required`.
 - Mantiene desconocido el proveedor real de correo/MTA en vez de inventarlo.
 - Genera exactamente seis documentos desde Factory y conserva responsable/bases/consentimientos como `[COMPLETAR POR EL DUEÑO]` / `review_required`.
 - Añade callers mínimos, sin secretos, fijados a Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`.
-- El contrato reconstruye desde `datos.yml` las filas/bloques relevantes de política, aviso, registro y retención, además de congelar SHA-256.
+- El contrato reconstruye desde `datos.yml` las filas/bloques relevantes de política, aviso, registro y retención, sin fijar snapshots SHA-256 permanentes.
 - Compacta `AGENTS.md` de 362 a 359 líneas sin eliminar reglas, restaurando el contrato heredado de máximo 360 líneas.
 - Asegura que cambios solo en `docs/privacidad/` ejecuten el contrato PHP y fija esa selección con una regresión de `ci-scope`.
 - Refuerza la exclusividad de Google Analytics: solo `public_gtm_measurement` puede declararlo como proveedor.
+- Separa retención física de expiración operativa: TOTP pendiente sigue utilizable 10 minutos pero vive como máximo con la sesión de 30 días; los archivos de rate-limit quedan `review_required` hasta existir una política de limpieza observable.
+- Restaura un señuelo `data-measure-email` y verifica por eventos reales que ningún valor declarativo, de formulario o query llegue al `dataLayer`.
 
 ## Archivos modificados en este deploy
 

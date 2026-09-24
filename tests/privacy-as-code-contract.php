@@ -88,6 +88,8 @@ $totp = privacy_treatment($data, 'admin_totp');
 privacy_expect($totp['fields'] === ['totp_enabled','totp_secret_enc','totp_confirmed_at'], 'TOTP treatment must describe encrypted-secret metadata');
 $recovery = privacy_treatment($data, 'admin_recovery_codes');
 privacy_expect($recovery['fields'] === ['admin_id','code_hash','used_at','created_at'], 'recovery treatment must describe hashed codes only');
+$pendingTotp = privacy_treatment($data, 'admin_totp_pending');
+privacy_expect($pendingTotp['retention'] === 'session_30d', 'pending TOTP storage retention must follow the admin session');
 
 $auth = privacy_text('config/admin_auth.php');
 $totpSource = privacy_text('config/totp_auth.php');
@@ -109,6 +111,7 @@ privacy_expect(str_contains($contactConfig, 'return @mail('), 'contact flow must
 
 $contactRate = privacy_treatment($data, 'contact_rate_limit');
 privacy_expect($contactRate['fields'] === ['client_key_hash','timestamps'], 'contact rate limit must document hash and timestamps only');
+privacy_expect($contactRate['retention'] === 'review_required', 'contact rate-limit storage retention must remain pending review');
 privacy_expect(!in_array('ip', $contactRate['fields'], true), 'raw contact IP must not be declared as persisted');
 privacy_expect(str_contains($contactConfig, "hash('sha256', brvtal_contact_resolve_client_ip"), 'contact rate-limit key must derive from an IP hash');
 privacy_expect(str_contains($contactConfig, 'int $windowSeconds = 900'), 'contact rate-limit window must remain 15 minutes');
@@ -118,7 +121,7 @@ $totpRate = privacy_text('config/totp_rate_limit.php');
 foreach (['auth_password_rate_limit','auth_totp_rate_limit'] as $id) {
     $row = privacy_treatment($data, $id);
     privacy_expect($row['fields'] === ['client_key_hash','attempts','blocked_until'], $id . ' must not declare raw IP/email persistence');
-    privacy_expect($row['retention'] === 'window_15m', $id . ' must document observed 15-minute window');
+    privacy_expect($row['retention'] === 'review_required', $id . ' storage retention must remain pending review');
 }
 privacy_expect(str_contains($passwordRate, 'BRVTAL_PASSWORD_RATE_LIMIT_WINDOW = 900'), 'password rate-limit window must remain 15 minutes');
 privacy_expect(str_contains($passwordRate, "hash('sha256'") && str_contains($passwordRate, 'strtolower(trim($email))'), 'password rate-limit filename must remain derived hash');

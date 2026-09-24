@@ -12,10 +12,10 @@ Producto: `pl0n3r/brvtal`
 | admin_recovery_codes | authentication | review_required | review_required |
 | admin_session | authentication | session_30d | review_required |
 | admin_totp | authentication | review_required | review_required |
-| admin_totp_pending | authentication | pending_10m | review_required |
-| auth_password_rate_limit | usage | window_15m | review_required |
-| auth_totp_rate_limit | usage | window_15m | review_required |
+| admin_totp_pending | authentication | session_30d | review_required |
+| auth_password_rate_limit | usage | review_required | review_required |
+| auth_totp_rate_limit | usage | review_required | review_required |
 | contact_delivery | contact | external_mailbox_review_required | review_required |
-| contact_rate_limit | usage | window_15m | review_required |
+| contact_rate_limit | usage | review_required | review_required |
 | internal_analytics_events | usage | review_required | review_required |
 | public_gtm_measurement | usage | review_required | review_required |

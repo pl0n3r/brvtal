@@ -72,7 +72,7 @@ Producto: `pl0n3r/brvtal`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
-- Retención: `pending_10m`
+- Retención: `session_30d`
 
 ## auth_password_rate_limit
 
@@ -82,7 +82,7 @@ Producto: `pl0n3r/brvtal`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
-- Retención: `window_15m`
+- Retención: `review_required`
 
 ## auth_totp_rate_limit
 
@@ -92,7 +92,7 @@ Producto: `pl0n3r/brvtal`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
-- Retención: `window_15m`
+- Retención: `review_required`
 
 ## contact_delivery
 
@@ -112,7 +112,7 @@ Producto: `pl0n3r/brvtal`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`
 - Proveedores: ninguno_declarado
-- Retención: `window_15m`
+- Retención: `review_required`
 
 ## internal_analytics_events
 
