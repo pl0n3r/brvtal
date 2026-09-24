@@ -232,10 +232,12 @@ const context = await browser.newContext({
 
 try {
   markStage('release-authentication');
-  await runOperation('release-authentication', () => observeBeforeAuthenticate(
-    () => observeProductionRelease(context.request),
-    () => authenticate(context)
-  ), Math.min(wholeSmokeTimeoutMs - 30_000, 420_000));
+  await runOperation('release-authentication', async () => {
+    await observeBeforeAuthenticate(
+      () => observeProductionRelease(context.request),
+      () => authenticate(context)
+    );
+  }, Math.min(wholeSmokeTimeoutMs - 30_000, 420_000));
 
   // Assert source identity and database health directly, not solely from the
   // deployment marker. Capture public home HTTP status without private data.
