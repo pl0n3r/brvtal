@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `aba76d019f3f80978d1b95524098b780d341cc96` tiene CI exact-main y Deploy Observer verdes. Smoke #35951788450 acreditó release/health/Home/Admin/dashboard/Events/date y volvió a fallar en `navigate:sets` aun observando correctamente el binding léxico; ahora se instrumenta API vs navegador antes de tocar runtime. **Engineering roles:** SRE / production incident responder, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `8be3689199538ac7e97335bde475ac0c99bb95f6` tiene CI exact-main y Deploy Observer verdes. Smoke #35952488785 demostró Sets API **66 ms** y browser HTTP **200 en 97 ms**, pero la UI quedó bloqueada >20 s. La causa es el `MutationObserver` de ordenamiento: la ayuda usa `data-order-resource`, se auto-clasifica como contenedor y genera una cadena recursiva de ayudas. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#631 · isolate Sets navigation latency** | `work/issue-631`; reserva `cf48a65c-13a2-49af-a53d-ec558c5dfbd9` |
-| Base exacta | ✅ ~~main v0.1.48~~ | `aba76d019f3f80978d1b95524098b780d341cc96` |
-| Versión | ✅ ~~v0.1.48 sin incremento~~ | solo pruebas/diagnóstico |
-| CI exact-main base | ✅ ~~success~~ | [#35951715579](https://github.com/pl0n3r/brvtal/actions/runs/35951715579) |
-| Deploy Observer base | ✅ ~~success~~ | [#35951715586](https://github.com/pl0n3r/brvtal/actions/runs/35951715586) |
-| Smoke base | ⛔ **failure / Sets transition >20 s** | [#35951788450](https://github.com/pl0n3r/brvtal/actions/runs/35951788450) · `navigate:sets` |
-| Entrega candidata | 🚧 diagnóstico API + navegador de Sets | GET read-only, sin runtime/version change |
+| Work line | 🚧 **#631 · stop ordering-help observer loop** | `work/issue-631`; reserva `e23ed40e-13b2-4d89-8556-ad7b090ba39e` |
+| Base exacta | ✅ ~~main v0.1.48~~ | `8be3689199538ac7e97335bde475ac0c99bb95f6` |
+| Versión | 🚧 **v0.1.49 candidate** | fix runtime DISCADMIN + regresión browser |
+| CI exact-main base | ✅ ~~success~~ | [#35952411201](https://github.com/pl0n3r/brvtal/actions/runs/35952411201) |
+| Deploy Observer base | ✅ ~~success~~ | [#35952411173](https://github.com/pl0n3r/brvtal/actions/runs/35952411173) |
+| Smoke base | ⛔ **failure / frontend observer loop** | [#35952488785](https://github.com/pl0n3r/brvtal/actions/runs/35952488785) · API 66 ms · browser 200/97 ms · UI >20 s |
+| Entrega candidata | 🚧 ayuda usa `data-order-help-resource` | observer real cubierto por E2E |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+100** | **−22** | **+78** |
+| **7** | **+83** | **−28** | **+55** |
 
 ## Calidad y entrega
 
@@ -39,8 +39,8 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium** |
-| PR + snapshot exacto | Issue #631 · reserva `cf48a65c-13a2-49af-a53d-ec558c5dfbd9` |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| PR + snapshot exacto | Issue #631 · reserva `e23ed40e-13b2-4d89-8556-ad7b090ba39e` |
 | CodeRabbit / Sonar | 🚧 HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
 | Producción | 🚧 smoke debe completar Sets/Hero además de lo ya acreditado |
@@ -49,30 +49,35 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.48 · aba76d0"] --> F["#631 · Sets API/browser diagnostics"]
+ B["main v0.1.48 · 8be3689"] --> F["#631 · observer-loop fix v0.1.49"]
  F --> P["PR · smoke contract"] --> M["Squash merge"]
  M --> C["CI exact-main + Deploy Observer"] --> S["Authenticated production smoke"]
 ```
 
 ## Qué se hizo
 
-- Smoke #35951788450 observó v0.1.48 / `aba76d01…` exactos.
-- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **882 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
-- El fallo quedó en `sets-relations / navigate:sets` después de 20 s, con cero 5xx y cero mutaciones bloqueadas.
-- El probe léxico ya es correcto; por tanto esta corrida sí demuestra que la transición real a Sets no terminó dentro del límite.
-- La candidata mide primero el GET autenticado `/api/index.php/sets?page=1&page_size=50` y luego registra request/response/fallo del mismo GET disparado por el click real.
-- No se aplica aún ninguna optimización de DB/API: la siguiente evidencia decidirá si el cuello está en API/DB o en el navegador/UI.
+- Smoke #35952488785 observó v0.1.48 / `8be36891…` exactos.
+- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **521 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
+- Sets API paginado respondió **200 en 66 ms** con 3/3 filas; el navegador recibió el mismo GET **200 en 97 ms**, sin request failure.
+- La transición siguió bloqueada >20 s después de recibir la respuesta, aislando el fallo en el frontend/main thread.
+- `content-ordering.js` asignaba `data-order-resource` también al bloque `.content-order-help`; su `MutationObserver` observa ese mismo selector, refresca la ayuda como si fuera contenedor y crea otra ayuda recursivamente.
+- La candidata cambia la ayuda a `data-order-help-resource`; el contenedor real conserva `data-order-resource`. El observer agrupa también el contenedor padre cuando aparece una fila hija, evitando loops y preservando el auto-enhancement de filas dinámicas.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto.
-- `tests/e2e/production-authenticated-smoke.mjs` — evidencia separada de Sets API y navegación browser.
-- `tests/production-smoke-contract.php` — contrato de diagnóstico read-only de Sets.
+- `config/version.php` — candidato v0.1.49.
+- `discadmin/content-ordering.js` — separa metadatos de ayuda y contenedor para cortar el loop.
+- `package.json` — versión v0.1.49.
+- `tests/content-ordering-contract.php` — contrato estático contra la colisión de dataset.
+- `tests/e2e/discadmin-content-ordering.spec.mjs` — regresión con `MutationObserver` real.
+- `tests/e2e/content-core-real-stack.spec.mjs` — regresión Dashboard→Events que exige el Content Core canónico.
 
 ## Validación
 
-- ✅ ~~Base v0.1.48: CI #35951715579 y Deploy Observer #35951715586 verdes.~~
-- ✅ ~~Smoke #35951788450 acreditó todo hasta Events/date y confirmó timeout real de la transición Sets; cero 5xx y mutaciones bloqueadas.~~
+- ✅ ~~Base v0.1.48: CI #35952411201 y Deploy Observer #35952411173 verdes.~~
+- ✅ ~~Smoke #35952488785 aisló DB/red vs UI: Sets API 66 ms, browser 200/97 ms, bloqueo posterior en frontend.~~
+- 🚧 La candidata añade regresión real-stack Dashboard→Events/Content Core para cerrar el requisito histórico de #631.
 - 🚧 PR CI/revisión, merge y smoke final pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue

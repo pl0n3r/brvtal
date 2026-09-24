@@ -27,6 +27,7 @@ $expect(!brvtalContentOrderMatches([1,2,4],[1,2,3]), 'foreign ID must be stale')
 
 $endpoint=(string)file_get_contents(__DIR__ . '/../api/reorder.php');
 $core=(string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
+$ordering=(string)file_get_contents(__DIR__ . '/../discadmin/content-ordering.js');
 $modules=(string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.js');
 $releases=(string)file_get_contents(__DIR__ . '/../discadmin/releases.js');
 $blog=(string)file_get_contents(__DIR__ . '/../discadmin/blog.js');
@@ -45,6 +46,9 @@ $expect(
         && str_contains($core,'setOrderRow'),
     'core must retain the runtime ordering renderer hooks covered by real-stack E2E'
 );
+$expect(str_contains($ordering,'help.dataset.orderHelpResource = resource'), 'ordering help must use a non-container dataset key');
+$expect(!str_contains($ordering,'help.dataset.orderResource = resource'), 'ordering help must never masquerade as an orderable container');
+$expect(str_contains($ordering,"node.closest('[data-order-resource]')"), 'ordering observer must refresh the existing parent container when a child row is inserted');
 $expect(str_contains($modules,'visualOrderValue'), 'create/edit must preserve hidden order');
 $expect(!str_contains($releases,'id="release_sort_order"'), 'Release numeric Sort Order must be removed');
 $expect(str_contains($blog,'replaceBlogSortOrderControl'), 'Blog numeric Sort Order must be replaced before the editor is shown');

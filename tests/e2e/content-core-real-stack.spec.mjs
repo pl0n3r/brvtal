@@ -17,6 +17,21 @@ async function login(page) {
   return payload;
 }
 
+test('Dashboard navigation mounts the canonical Events Content Core workspace', async ({ page }) => {
+  await login(page);
+  await page.goto(`${baseUrl}/discadmin/`, {waitUntil:'domcontentloaded'});
+  await expect(page.locator('.main .top h1')).toHaveText('DASHBOARD', {timeout:10_000});
+
+  await page.locator('[data-admin-nav="events"]').click();
+  await expect(page.locator('[data-admin-nav="events"].active')).toBeVisible({timeout:10_000});
+  await expect(page.locator('.main .top h1')).toHaveText('EVENTS', {timeout:10_000});
+
+  const core = page.locator('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]');
+  await expect(core).toBeAttached({timeout:10_000});
+  await expect(core.locator('.wrap')).toBeHidden({timeout:10_000});
+  await expect(page.locator('.main .toolbar .search:visible')).toHaveCount(1);
+});
+
 test('Content Core saves Event, Tickets, roster and SEO through one atomic workflow', async ({ page }, testInfo) => {
   const auth = await login(page);
   const runKey = `${Date.now().toString(36)}-${testInfo.workerIndex}`;

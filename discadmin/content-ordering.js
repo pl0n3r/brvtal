@@ -44,10 +44,10 @@
     const resource = container.dataset.orderResource;
     const anchor = container.closest('.table') || container;
     let help = anchor.previousElementSibling;
-    if (!help?.classList.contains('content-order-help') || help.dataset.orderResource !== resource) {
+    if (!help?.classList.contains('content-order-help') || help.dataset.orderHelpResource !== resource) {
       help = document.createElement('div');
       help.className = 'content-order-help';
-      help.dataset.orderResource = resource;
+      help.dataset.orderHelpResource = resource;
       help.innerHTML = '<span class="content-order-help-mark" aria-hidden="true">↕</span><span data-order-help-copy></span><span class="content-order-status" role="status" aria-live="polite"></span>';
       anchor.parentNode?.insertBefore(help, anchor);
     }
@@ -209,13 +209,18 @@
   document.addEventListener('pointerup', event => finishPointer(event,false));
   document.addEventListener('pointercancel', event => finishPointer(event,true));
   const observer = new MutationObserver(records => {
+    const containers = new Set();
     records.forEach(record => {
       record.addedNodes.forEach(node => {
         if (!(node instanceof Element)) return;
-        if (node.matches('[data-order-resource]')) refresh(node);
-        node.querySelectorAll('[data-order-resource]').forEach(refresh);
+        const parentContainer = node.matches('[data-order-resource]')
+          ? node
+          : node.closest('[data-order-resource]');
+        if (parentContainer) containers.add(parentContainer);
+        node.querySelectorAll('[data-order-resource]').forEach(container => containers.add(container));
       });
     });
+    containers.forEach(refresh);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
   window.BRVTALContentOrdering = {refresh,scan,applyOrder};
