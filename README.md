@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `0032d200a4c3b64c6bb8a4843b869a460c4acced` tiene CI y Deploy Observer verdes. Smoke #35948083433 acreditó release/health/Home/Admin/dashboard/Events/date y falló esperando Sets porque el helper no esperaba el `go(section)` asíncrono. **Engineering roles:** SRE / production incident responder, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `c8a725c266180087f6e7003cec2ccfa582d59877` tiene CI y Deploy Observer verdes. Smoke #35949810190 acreditó release/health/Home/Admin/dashboard/Events/date y falló en `navigate:sets` porque el smoke consultaba `window.state`, pero DISCADMIN declara `let state` como binding léxico. **Engineering roles:** SRE / production incident responder, QA automation engineer.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#631 · await async Admin navigation** | `work/issue-631`; reserva `0aa0b77e-45de-4ada-bf0a-24ff8d4d5fb8` |
-| Base exacta | ✅ ~~main v0.1.48~~ | `0032d200a4c3b64c6bb8a4843b869a460c4acced` |
+| Work line | 🚧 **#631 · lexical Admin state probe** | `work/issue-631`; reserva `afff06c5-1729-4da5-99aa-c11144b9714a` |
+| Base exacta | ✅ ~~main v0.1.48~~ | `c8a725c266180087f6e7003cec2ccfa582d59877` |
 | Versión | ✅ ~~v0.1.48 sin incremento~~ | solo pruebas/diagnóstico |
-| CI exact-main base | ✅ ~~success~~ | #35948009934 |
-| Deploy Observer base | ✅ ~~success~~ | #35948009896 |
-| Smoke base | ⛔ **failure / Sets navigation wait** | #35948083433 · `sets-workspace-ready` |
-| Entrega candidata | 🚧 click real + espera causal de `state.section` | timeout canónico 20 s |
+| CI exact-main base | ✅ ~~success~~ | [#35949759746](https://github.com/pl0n3r/brvtal/actions/runs/35949759746) |
+| Deploy Observer base | ✅ ~~success~~ | [#35949759721](https://github.com/pl0n3r/brvtal/actions/runs/35949759721) |
+| Smoke base | ⛔ **failure / false state probe** | [#35949810190](https://github.com/pl0n3r/brvtal/actions/runs/35949810190) · `navigate:sets` |
+| Entrega candidata | 🚧 observar binding léxico `state.section` | sin cambio de runtime ni versión |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+52** | **−42** | **+10** |
+| **3** | **+0** | **−0** | **0** |
 
 ## Calidad y entrega
 
@@ -40,7 +40,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium** |
-| PR + snapshot exacto | Issue #631 · reserva `0aa0b77e-45de-4ada-bf0a-24ff8d4d5fb8` |
+| PR + snapshot exacto | Issue #631 · reserva `afff06c5-1729-4da5-99aa-c11144b9714a` |
 | CodeRabbit / Sonar | 🚧 HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
 | Producción | 🚧 smoke debe completar Sets/Hero además de lo ya acreditado |
@@ -49,30 +49,30 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.48 · 0032d20"] --> F["#631 · await async go(section)"]
+ B["main v0.1.48 · c8a725c"] --> F["#631 · lexical state probe"]
  F --> P["PR · smoke contract"] --> M["Squash merge"]
  M --> C["CI exact-main + Deploy Observer"] --> S["Authenticated production smoke"]
 ```
 
 ## Qué se hizo
 
-- Smoke #35948083433 observó v0.1.48 / `0032d200…` exactos.
-- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **652 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
-- El fallo quedó en `sets-relations / sets-workspace-ready`, sin mutaciones bloqueadas.
-- `navigate()` esperaba solo el click; ahora el click sigue siendo real y la operación espera `window.state.section === section`.
-- Si la navegación real supera 20 s, el fallo queda etiquetado como `navigate:sets`.
-- Sin cambios de runtime, SQL ni datos productivos.
+- Smoke #35949810190 observó v0.1.48 / `c8a725c2…` exactos.
+- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **892 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
+- El fallo quedó en `sets-relations / navigate:sets`, sin 5xx ni mutaciones bloqueadas.
+- `navigate()` mantiene el click real y la espera causal, pero el probe usaba `window.state`; DISCADMIN declara `let state`, que no se refleja en `window`.
+- La candidata observa el binding léxico `state.section === target`, preservando el límite de 20 s.
+- Se descartó la optimización v0.1.49 no demostrada; sin cambios de runtime, SQL ni datos productivos.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto.
-- `tests/e2e/production-authenticated-smoke.mjs` — espera causal de navegación.
-- `tests/production-smoke-contract.php` — contrato de la espera asíncrona.
+- `tests/e2e/production-authenticated-smoke.mjs` — observa correctamente el binding léxico del estado Admin.
+- `tests/production-smoke-contract.php` — contrato contra regresión a `window.state`.
 
 ## Validación
 
-- ✅ ~~Base v0.1.48: CI #35948009934 y Deploy Observer #35948009896 verdes.~~
-- ✅ ~~Smoke #35948083433 acreditó todo hasta Events/date; cero 5xx y mutaciones bloqueadas.~~
+- ✅ ~~Base v0.1.48: CI #35949759746 y Deploy Observer #35949759721 verdes.~~
+- ✅ ~~Smoke #35949810190 acreditó todo hasta Events/date y expuso el falso probe `window.state`; cero 5xx y mutaciones bloqueadas.~~
 - 🚧 PR CI/revisión, merge y smoke final pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue
