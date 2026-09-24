@@ -11,6 +11,7 @@ function admin_quick_win_assert(bool $condition, string $message): void
 
 $index = (string)file_get_contents(__DIR__ . '/../discadmin/index.php');
 $auth = (string)file_get_contents(__DIR__ . '/../discadmin/admin-auth-boundary.js');
+$reliability = (string)file_get_contents(__DIR__ . '/../discadmin/admin-reliability.js');
 $hero = (string)file_get_contents(__DIR__ . '/../discadmin/hero-slider-accessibility.js');
 $storage = (string)file_get_contents(__DIR__ . '/../discadmin/system-status-storage.js');
 $backups = (string)file_get_contents(__DIR__ . '/../discadmin/backups.js');
@@ -27,6 +28,14 @@ admin_quick_win_assert(
         && str_contains($auth, "url.pathname.startsWith('/discadmin/')")
         && str_contains($auth, 'currentState.authed = false'),
     'same-origin admin 401 responses must invalidate the shell session'
+);
+
+admin_quick_win_assert(
+    str_contains($reliability, "boundedNativeReq('/artists')")
+        && str_contains($reliability, "boundedNativeReq('/events')")
+        && str_contains($reliability, "const result = await nativeGo(section);")
+        && str_contains($reliability, "if (section === 'sets') void hydrateSetRelations();"),
+    'Sets navigation must not wait for related collections and relation hydration must remain bounded'
 );
 
 admin_quick_win_assert(
