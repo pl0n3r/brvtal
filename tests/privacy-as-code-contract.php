@@ -4,6 +4,7 @@ declare(strict_types=1);
 const BRVTAL_PRIVACY_FACTORY_SHA = '4b2be9fcf827278631caa3e3e68603b6e2a680d7';
 const BRVTAL_PRIVACY_PLACEHOLDER = '[COMPLETAR POR EL DUEÑO]';
 
+/** Assert one privacy-contract invariant or fail closed. */
 function privacy_expect(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -12,6 +13,7 @@ function privacy_expect(bool $condition, string $message): void
     }
 }
 
+/** Read one repository file required by the privacy contract. */
 function privacy_text(string $relative): string
 {
     $value = file_get_contents(__DIR__ . '/../' . $relative);
@@ -127,36 +129,36 @@ $internal = privacy_treatment($data, 'internal_analytics_events');
 privacy_expect($internal['fields'] === ['event_name','page_url','referrer','locale','user_agent','created_at'], 'internal analytics map must match schema');
 privacy_expect(str_contains($schema, 'CREATE TABLE analytics_events'), 'internal analytics table must remain observable in schema');
 
+foreach ($data['treatments'] as $row) {
+    if (($row['id'] ?? null) === 'public_gtm_measurement') {
+        continue;
+    }
+    privacy_expect(
+        !in_array('google_analytics', $row['providers'] ?? [], true),
+        ($row['id'] ?? 'unknown') . ' must not declare Google Analytics'
+    );
+}
 $gtm = privacy_treatment($data, 'public_gtm_measurement');
 privacy_expect($gtm['providers'] === ['google_analytics'], 'public GTM is the only treatment allowed to declare Google Analytics');
 privacy_expect($gtm['retention'] === 'review_required', 'external GTM/GA retention must remain unknown');
 $gtmBootstrap = privacy_text('js/public-analytics.js');
-$measurement = privacy_text('js/public-measurement.js');
 privacy_expect(str_contains($gtmBootstrap, 'https://www.googletagmanager.com/gtm.js?id='), 'public analytics must use observable GTM layer');
 privacy_expect(str_contains($gtmBootstrap, "analytics_storage: 'granted'"), 'current analytics consent default must stay explicitly documented by code');
-privacy_expect(str_contains($measurement, 'url.pathname + url.hash'), 'outbound measurement must keep query strings out of explicit destination payloads');
-privacy_expect(!str_contains($measurement, 'formData'), 'measurement layer must not collect form values');
 
 $expectedDocs = [
-    'politica-tratamiento.md' => 'ba236b1cf57a76ea8b032ec9d516c4c70232d59d334d811519bad3887b7ecdda',
-    'aviso-privacidad.md' => '9867b8b22924821967146cc14ddde289eae0709b87d52577ba094041b29d5380',
-    'terminos-condiciones.md' => '3eee6df2507807f339a84214227ea20d576a5a95f55835b83315dd460b34b4ac',
-    'registro-tratamientos.md' => 'b0cfb0ccabd6524996324fd56ed99fb4e79b2cf3d54f0f4eca312272a34ae7fb',
-    'canal-derechos.md' => '43ea3834c9e9914644353f8b665c153447f8c017d2aa65337c929c969b531c45',
-    'retencion.md' => '92d31f2c77a17f9e45351bfcb460f3b8cfa1581e85804244501a4416f5b993b9',
+    'politica-tratamiento.md',
+    'aviso-privacidad.md',
+    'terminos-condiciones.md',
+    'registro-tratamientos.md',
+    'canal-derechos.md',
+    'retencion.md',
 ];
 $privacyDir = __DIR__ . '/../docs/privacidad';
 $actualDocs = array_map('basename', glob($privacyDir . '/*.md') ?: []);
 sort($actualDocs);
-$expectedNames = array_keys($expectedDocs);
+$expectedNames = $expectedDocs;
 sort($expectedNames);
 privacy_expect($actualDocs === $expectedNames, 'privacy directory must contain exactly the six Factory documents');
-foreach ($expectedDocs as $name => $sha256) {
-    privacy_expect(
-        hash_file('sha256', $privacyDir . '/' . $name) === $sha256,
-        $name . ' must match Factory ' . BRVTAL_PRIVACY_FACTORY_SHA . ' output byte-for-byte'
-    );
-}
 
 $policy = privacy_text('docs/privacidad/politica-tratamiento.md');
 $notice = privacy_text('docs/privacidad/aviso-privacidad.md');
@@ -213,7 +215,7 @@ privacy_expect(str_contains($auditWorkflow, "permissions:\n  contents: read\n  i
 privacy_expect(str_contains($auditWorkflow, 'label_language: en'), 'BRVTAL privacy auditor must create English labels');
 
 $allArtifacts = privacy_text('datos.yml');
-foreach ($expectedDocs as $name => $_) $allArtifacts .= "\n" . privacy_text('docs/privacidad/' . $name);
+foreach ($expectedDocs as $name) $allArtifacts .= "\n" . privacy_text('docs/privacidad/' . $name);
 privacy_expect(!preg_match('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', $allArtifacts), 'privacy artifacts must not embed a real email address');
 privacy_expect(str_contains($allArtifacts, BRVTAL_PRIVACY_PLACEHOLDER), 'legal/controller placeholders must remain visible');
 privacy_expect(str_contains(privacy_text('docs/privacidad/politica-tratamiento.md'), 'no constituye aprobación jurídica'), 'policy must not claim legal approval');

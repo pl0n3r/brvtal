@@ -29,7 +29,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **14** | **+804** | **−37** | **+767** |
+| **17** | **+839** | **−47** | **+792** |
 
 ## Calidad y entrega
 
@@ -37,7 +37,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | PR + snapshot exacto | Issue #654 · reserva `310dd84e-7cba-4680-9e05-8ef20871ed0f` |
 | Privacy gate | Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`, seis documentos |
 | CodeRabbit / Sonar | 🚧 revisión del HEAD estable |
@@ -64,6 +64,8 @@ flowchart LR
 - Añade callers mínimos, sin secretos, fijados a Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`.
 - El contrato reconstruye desde `datos.yml` las filas/bloques relevantes de política, aviso, registro y retención, además de congelar SHA-256.
 - Compacta `AGENTS.md` de 362 a 359 líneas sin eliminar reglas, restaurando el contrato heredado de máximo 360 líneas.
+- Asegura que cambios solo en `docs/privacidad/` ejecuten el contrato PHP y fija esa selección con una regresión de `ci-scope`.
+- Refuerza la exclusividad de Google Analytics: solo `public_gtm_measurement` puede declararlo como proveedor.
 
 ## Archivos modificados en este deploy
 
@@ -80,6 +82,9 @@ flowchart LR
 - `docs/privacidad/retencion.md`
 - `docs/privacidad/terminos-condiciones.md`
 - `package.json`
+- `scripts/ci-scope.sh`
+- `tests/ci-scope-contract.php`
+- `tests/e2e/public-measurement.spec.mjs`
 - `tests/privacy-as-code-contract.php`
 
 ## Validación
