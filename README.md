@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · el smoke real #35944835692 sobre exact `main` `c3879b6472a03d0fffc50ac25ac728a794e4b7e1` (v0.1.47) localizó el fallo en la navegación a Sets: `admin-reliability.js` esperaba la hidratación auxiliar Artists/Events antes de ejecutar el render nativo. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: el smoke real #35944835692 sobre exact `main` `c3879b6472a03d0fffc50ac25ac728a794e4b7e1` (v0.1.47) localizó el fallo en la navegación a Sets: `admin-reliability.js` esperaba la hidratación auxiliar Artists/Events antes de ejecutar el render nativo. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
 
 ## Progress convention
 
