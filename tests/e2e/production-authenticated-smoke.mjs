@@ -436,14 +436,28 @@ try {
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   markStage('sets-relations');
   await navigate(page, 'sets');
-  await page.waitForFunction(() => document.querySelector('.main')?.textContent?.toUpperCase().includes('SETS'), null, { timeout: 10_000 });
+  await runOperation(
+    'sets-workspace-ready',
+    () => page.waitForFunction(
+      () => document.querySelector('.main')?.textContent?.toUpperCase().includes('SETS'),
+      null,
+      { timeout: 10_000 }
+    ),
+    12_000
+  );
   await runOperation('sets-open-modal', () => page.evaluate(() => {
     window.openModal('sets');
     return true;
   }));
-  await page.locator('#modal').waitFor({ state: 'visible', timeout: 8_000 });
-  const artistOption = await page.locator(`#f_artist_id option[value="${Number(publishedArtist.id)}"]`).count();
-  const eventOption = await page.locator(`#f_event_id option[value="${Number(publishedEvent.id)}"]`).count();
+  await runOperation(
+    'sets-modal-visible',
+    () => page.locator('#modal').waitFor({ state: 'visible', timeout: 8_000 }),
+    10_000
+  );
+  const { artistOption, eventOption } = await runOperation('sets-relation-options', async () => ({
+    artistOption: await page.locator(`#f_artist_id option[value="${Number(publishedArtist.id)}"]`).count(),
+    eventOption: await page.locator(`#f_event_id option[value="${Number(publishedEvent.id)}"]`).count()
+  }));
   if (!artistOption || !eventOption) {
     throw new Error(`#124 failed: published relation options missing (artist=${Boolean(artistOption)}, event=${Boolean(eventOption)}).`);
   }
@@ -466,18 +480,27 @@ try {
       window.go('hero-slider');
       return true;
     }));
-    await page.locator('#hero-slider-root').waitFor({ state: 'visible', timeout: 8_000 });
-    await page.locator('.hero-manager').waitFor({ state: 'visible', timeout: 15_000 });
-    const loading = await page.locator('.hero-slider-loading').count();
-    const errors = await page.locator('.hero-slider-error').count();
+    await runOperation(
+      `hero-slider-ready-${attempt}`,
+      () => Promise.all([
+        page.locator('#hero-slider-root').waitFor({ state: 'visible', timeout: 8_000 }),
+        page.locator('.hero-manager').waitFor({ state: 'visible', timeout: 15_000 })
+      ]),
+      17_000
+    );
+    const { loading, errors } = await runOperation(`hero-slider-state-${attempt}`, async () => ({
+      loading: await page.locator('.hero-slider-loading').count(),
+      errors: await page.locator('.hero-slider-error').count()
+    }));
     if (loading || errors) throw new Error(`#125 failed on Hero Slider attempt ${attempt}: loading=${loading}, errors=${errors}.`);
     evidence.checks.heroSlider.push({ attempt, pass: true });
+    writeEvidence();
     if (attempt < 3) {
       await runOperation(`hero-slider-dashboard-${attempt}`, () => page.evaluate(() => {
         window.go('dashboard');
         return true;
       }));
-      await page.waitForTimeout(250);
+      await new Promise(resolve => setTimeout(resolve, 250));
     }
   }
 
