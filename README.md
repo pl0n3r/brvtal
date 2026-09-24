@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+181** | **−53** | **+128** |
+| **8** | **+185** | **−55** | **+130** |
 
 ## Calidad y entrega
 
@@ -73,6 +73,7 @@ flowchart LR
 - `discadmin/admin-reliability.js` — hidratación atómica, retry y fail-closed.
 - `package.json` — versión v0.1.50.
 - `tests/admin-reliability-quick-wins-contract.php` — contrato estático de atomicidad/retry.
+- `tests/discadmin-quick-wins-contract.php` — contrato de entrada directa New Set alineado al fail-closed.
 - `tests/e2e/admin-reliability-quick-wins.spec.mjs` — regresiones de retry y fallo agotado.
 - `tests/e2e/production-authenticated-smoke.mjs` — evidencia diagnóstica del catálogo de relaciones.
 
