@@ -51,6 +51,8 @@ const evidence = {
     adminVersion: null,
     eventsWorkspace: null,
     eventDate: null,
+    setsApiPage: null,
+    setsBrowserNavigation: null,
     setRelations: null,
     heroSlider: []
   },
@@ -459,9 +461,82 @@ try {
   }));
   await page.locator('#eventModal').waitFor({ state: 'hidden', timeout: 8_000 });
 
-  // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
+  // #124 — separate API latency from browser/navigation behavior before opening New Set.
   markStage('sets-relations');
-  await navigate(page, 'sets');
+  const setsApiStarted = performance.now();
+  const setsApiResponse = await runOperation(
+    'sets-api-page',
+    () => context.request.get(`${baseUrl}/api/index.php/sets?page=1&page_size=50`, {
+      headers: { 'Cache-Control': 'no-cache' },
+      timeout: 15_000
+    }),
+    17_000
+  );
+  const setsApiPayload = await runOperation(
+    'sets-api-json',
+    () => jsonOrThrow(setsApiResponse, 'Sets paginated read')
+  );
+  evidence.checks.setsApiPage = {
+    httpStatus: setsApiResponse.status(),
+    elapsedMs: Math.round(performance.now() - setsApiStarted),
+    rowCount: Array.isArray(setsApiPayload.data) ? setsApiPayload.data.length : null,
+    total: Number(setsApiPayload.pagination?.total ?? 0),
+    pageSize: Number(setsApiPayload.pagination?.page_size ?? 0),
+    pass: setsApiResponse.ok()
+      && Array.isArray(setsApiPayload.data)
+      && Number(setsApiPayload.pagination?.page_size ?? 0) === 50
+  };
+  writeEvidence();
+  if (!evidence.checks.setsApiPage.pass) {
+    throw new Error(`Sets paginated API check failed (HTTP ${setsApiResponse.status()}).`);
+  }
+
+  const setsBrowserStarted = performance.now();
+  const setsBrowserNavigation = {
+    requestSeen: false,
+    responseSeen: false,
+    responseStatus: null,
+    requestFailure: null,
+    elapsedMs: null
+  };
+  evidence.checks.setsBrowserNavigation = setsBrowserNavigation;
+  const isSetsListRequest = rawUrl => {
+    const url = new URL(rawUrl);
+    return url.origin === baseUrl
+      && url.pathname === '/api/index.php/sets'
+      && url.searchParams.get('page') === '1'
+      && url.searchParams.get('page_size') === '50';
+  };
+  const onSetsRequest = request => {
+    if (!isSetsListRequest(request.url())) return;
+    setsBrowserNavigation.requestSeen = true;
+    setsBrowserNavigation.elapsedMs = Math.round(performance.now() - setsBrowserStarted);
+    writeEvidence();
+  };
+  const onSetsResponse = response => {
+    if (!isSetsListRequest(response.url())) return;
+    setsBrowserNavigation.responseSeen = true;
+    setsBrowserNavigation.responseStatus = response.status();
+    setsBrowserNavigation.elapsedMs = Math.round(performance.now() - setsBrowserStarted);
+    writeEvidence();
+  };
+  const onSetsRequestFailed = request => {
+    if (!isSetsListRequest(request.url())) return;
+    setsBrowserNavigation.requestFailure = request.failure()?.errorText || 'REQUEST_FAILED';
+    setsBrowserNavigation.elapsedMs = Math.round(performance.now() - setsBrowserStarted);
+    writeEvidence();
+  };
+  page.on('request', onSetsRequest);
+  page.on('response', onSetsResponse);
+  page.on('requestfailed', onSetsRequestFailed);
+  try {
+    await navigate(page, 'sets');
+  } finally {
+    page.off('request', onSetsRequest);
+    page.off('response', onSetsResponse);
+    page.off('requestfailed', onSetsRequestFailed);
+    writeEvidence();
+  }
   await runOperation(
     'sets-workspace-ready',
     () => Promise.all([

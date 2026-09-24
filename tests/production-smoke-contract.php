@@ -77,6 +77,9 @@ $assert(str_contains($probe, "target => typeof state !== 'undefined' && state.se
 $assert(str_contains($probe, '`navigate:${section}`'), 'navigation wait must remain bounded and stage-labelled');
 $assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');
 $assert(str_contains($probe, 'published Artist and one published Event'), '#124 must use existing published relations rather than creating data');
+$assert(str_contains($probe, 'setsApiPage'), '#124 diagnostics must capture the direct paginated Sets API result');
+$assert(str_contains($probe, 'setsBrowserNavigation'), '#124 diagnostics must distinguish browser request/response progress from API latency');
+$assert(str_contains($probe, '/api/index.php/sets?page=1&page_size=50'), '#124 diagnostics must probe the same paginated Sets list used by native navigation');
 $assert(str_contains($probe, "window.go('hero-slider')"), '#125 must exercise the real Hero Slider manager');
 $assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
 $assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POST calls must be login and optional TOTP verification');
