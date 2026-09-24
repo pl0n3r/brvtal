@@ -79,8 +79,8 @@ flowchart LR
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 #631: validar, mergear y repetir smoke real. |
-| **NEXT** | 🚧 #533: publicar `🟢 PRODUCTION GREEN` con las cinco evidencias. |
+| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): validar, mergear y repetir smoke real. |
+| **NEXT** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): publicar `🟢 PRODUCTION GREEN` con las cinco evidencias. |
 | **LATER** | 🚧 detener BRVTAL después de GREEN mientras Tanda 1 global siga abierta. |
 | **BLOCKED / EXTERNAL** | 🚧 Condor/GrindFlow sin GREEN y factory `v1.0.0` ausente; no iniciar Tanda 2. |
 
