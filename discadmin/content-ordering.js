@@ -209,13 +209,18 @@
   document.addEventListener('pointerup', event => finishPointer(event,false));
   document.addEventListener('pointercancel', event => finishPointer(event,true));
   const observer = new MutationObserver(records => {
+    const containers = new Set();
     records.forEach(record => {
       record.addedNodes.forEach(node => {
         if (!(node instanceof Element)) return;
-        if (node.matches('[data-order-resource]')) refresh(node);
-        node.querySelectorAll('[data-order-resource]').forEach(refresh);
+        const parentContainer = node.matches('[data-order-resource]')
+          ? node
+          : node.closest('[data-order-resource]');
+        if (parentContainer) containers.add(parentContainer);
+        node.querySelectorAll('[data-order-resource]').forEach(container => containers.add(container));
       });
     });
+    containers.forEach(refresh);
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
   window.BRVTALContentOrdering = {refresh,scan,applyOrder};

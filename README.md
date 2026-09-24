@@ -39,7 +39,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | Issue #631 · reserva `e23ed40e-13b2-4d89-8556-ad7b090ba39e` |
 | CodeRabbit / Sonar | 🚧 HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
@@ -61,7 +61,7 @@ flowchart LR
 - Sets API paginado respondió **200 en 66 ms** con 3/3 filas; el navegador recibió el mismo GET **200 en 97 ms**, sin request failure.
 - La transición siguió bloqueada >20 s después de recibir la respuesta, aislando el fallo en el frontend/main thread.
 - `content-ordering.js` asignaba `data-order-resource` también al bloque `.content-order-help`; su `MutationObserver` observa ese mismo selector, refresca la ayuda como si fuera contenedor y crea otra ayuda recursivamente.
-- La candidata cambia la ayuda a `data-order-help-resource`; el contenedor real conserva `data-order-resource`. La regresión E2E ejecuta el `MutationObserver` nativo y exige una sola ayuda.
+- La candidata cambia la ayuda a `data-order-help-resource`; el contenedor real conserva `data-order-resource`. El observer agrupa también el contenedor padre cuando aparece una fila hija, evitando loops y preservando el auto-enhancement de filas dinámicas.
 
 ## Archivos modificados en este deploy
 
@@ -71,7 +71,6 @@ flowchart LR
 - `package.json` — versión v0.1.49.
 - `tests/content-ordering-contract.php` — contrato estático contra la colisión de dataset.
 - `tests/e2e/discadmin-content-ordering.spec.mjs` — regresión con `MutationObserver` real.
-- `README.md` — snapshot exacto del incidente y gates.
 
 ## Validación
 

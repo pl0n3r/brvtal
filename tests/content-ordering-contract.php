@@ -48,6 +48,7 @@ $expect(
 );
 $expect(str_contains($ordering,'help.dataset.orderHelpResource = resource'), 'ordering help must use a non-container dataset key');
 $expect(!str_contains($ordering,'help.dataset.orderResource = resource'), 'ordering help must never masquerade as an orderable container');
+$expect(str_contains($ordering,"node.closest('[data-order-resource]')"), 'ordering observer must refresh the existing parent container when a child row is inserted');
 $expect(str_contains($modules,'visualOrderValue'), 'create/edit must preserve hidden order');
 $expect(!str_contains($releases,'id="release_sort_order"'), 'Release numeric Sort Order must be removed');
 $expect(str_contains($blog,'replaceBlogSortOrderControl'), 'Blog numeric Sort Order must be replaced before the editor is shown');
