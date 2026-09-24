@@ -24,10 +24,12 @@ jobs:
        github.event.comment.author_association == 'OWNER' &&
        github.event.comment.body == '/production-smoke')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     environment: production-smoke
     env:
       BRVTAL_PROD_URL: https://www.brvtal.com.co
+      BRVTAL_PROD_SMOKE_TIMEOUT_MS: '720000'
+      BRVTAL_PROD_OPERATION_TIMEOUT_MS: '20000'
       BRVTAL_PROD_ADMIN_EMAIL: ${{ secrets.BRVTAL_PROD_ADMIN_EMAIL }}
       BRVTAL_PROD_ADMIN_PASSWORD: ${{ secrets.BRVTAL_PROD_ADMIN_PASSWORD }}
       BRVTAL_PROD_TOTP_SECRET: ${{ secrets.BRVTAL_PROD_TOTP_SECRET }}
@@ -100,7 +102,8 @@ jobs:
             echo "- Source SHA: \`${BRVTAL_EXPECTED_SHA}\`"
             echo "- Mode: **manual or owner command / authenticated / content-read-only**"
             echo "- Checks: deployed release identity, visible Admin product version, Event date reopen (#123), New Set relations (#124), repeated Hero Slider load (#125)"
-            echo "- Evidence: \`production-authenticated-smoke.json\` artifact"
+            echo "- Bounds: whole smoke 12m; browser/UI operations 20s unless explicitly narrower"
+            echo "- Evidence: \`production-authenticated-smoke.json\` artifact with current/failure stage + operation"
             echo
             echo "The smoke waits for the expected release before authentication; exact SHA is required only when the Hostinger runtime exposes an exact source. The browser guard stubs the DISCADMIN media-permission repair locally and blocks any other post-login POST/PUT/PATCH/DELETE request."
           } >> "$GITHUB_STEP_SUMMARY"
