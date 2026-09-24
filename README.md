@@ -39,7 +39,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium**; ampliar según classifier |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | Issue #631 · reserva `7b79ca5d-bd6a-45b4-b561-33a4528d8469` |
 | CodeRabbit / Sonar | 🚧 revisar HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
