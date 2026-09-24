@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · exact `main` v0.1.50 `ae7bfe551e4b754d29fc6170d17b5a7dda76cf0f` tiene CI exact-main y Deploy Observer verdes. Smoke #35956208496 pasó release/health/Home/Admin/Events/date/Sets relations y falló en Hero Slider intento 2: `window.go('hero-slider')` devolvió `false` sin 5xx. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: exact `main` v0.1.50 `ae7bfe551e4b754d29fc6170d17b5a7dda76cf0f` tiene CI exact-main y Deploy Observer verdes. Smoke #35956208496 pasó release/health/Home/Admin/Events/date/Sets relations y falló en Hero Slider intento 2: `window.go('hero-slider')` devolvió `false` sin 5xx. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
 
 ## Progress convention
 
