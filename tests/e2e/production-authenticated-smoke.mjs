@@ -507,6 +507,23 @@ try {
   writeEvidence();
   throw error;
 } finally {
-  clearTimeout(wholeSmokeTimer);
-  if (browser) await browser.close();
+  try {
+    if (browser) {
+      markStage('cleanup');
+      await runOperation('browser-close', () => browser.close(), Math.min(operationTimeoutMs, 10_000));
+    }
+  } catch (cleanupError) {
+    evidence.cleanupError = String(cleanupError?.message || cleanupError);
+    if (evidence.status !== 'failed') {
+      evidence.status = 'failed';
+      evidence.error = evidence.cleanupError;
+      evidence.execution.failureStage ||= 'cleanup';
+      evidence.execution.failureOperation ||= 'browser-close';
+    }
+    writeEvidence();
+    console.error(evidence.cleanupError);
+    process.exit(124);
+  } finally {
+    clearTimeout(wholeSmokeTimer);
+  }
 }
