@@ -71,11 +71,13 @@ flowchart LR
 - `package.json` — versión v0.1.49.
 - `tests/content-ordering-contract.php` — contrato estático contra la colisión de dataset.
 - `tests/e2e/discadmin-content-ordering.spec.mjs` — regresión con `MutationObserver` real.
+- `tests/e2e/content-core-real-stack.spec.mjs` — regresión Dashboard→Events que exige el Content Core canónico.
 
 ## Validación
 
 - ✅ ~~Base v0.1.48: CI #35952411201 y Deploy Observer #35952411173 verdes.~~
 - ✅ ~~Smoke #35952488785 aisló DB/red vs UI: Sets API 66 ms, browser 200/97 ms, bloqueo posterior en frontend.~~
+- 🚧 La candidata añade regresión real-stack Dashboard→Events/Content Core para cerrar el requisito histórico de #631.
 - 🚧 PR CI/revisión, merge y smoke final pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue
