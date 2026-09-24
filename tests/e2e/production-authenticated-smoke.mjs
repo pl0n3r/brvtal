@@ -228,7 +228,7 @@ async function navigate(page, section) {
       await button.waitFor({ state: 'visible', timeout: 8_000 });
       await button.click();
       await page.waitForFunction(
-        target => window.state?.section === target,
+        target => typeof state !== 'undefined' && state.section === target,
         section,
         { timeout: Math.max(1_000, operationTimeoutMs - 2_000) }
       );
