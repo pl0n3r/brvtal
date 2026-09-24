@@ -208,16 +208,9 @@ async function getAdminCollection(context, resource) {
   return payload.data;
 }
 
-async function navigate(page, label, section) {
-  const button = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first();
-  if (await button.count()) {
-    await runOperation(`navigate:${section}:button`, () => button.click());
-    return;
-  }
-  await runOperation(`navigate:${section}:fallback`, () => page.evaluate(target => {
-    window.go(target);
-    return true;
-  }, section));
+async function navigate(page, section) {
+  const button = page.locator(`[data-admin-nav="${section}"]`).first();
+  await runOperation(`navigate:${section}:button`, () => button.click());
 }
 
 let browser = null;
@@ -367,7 +360,7 @@ try {
   // the guided editor. Wait for the asynchronous host/simplifier to settle:
   // two temporarily visible search inputs are not a completed workspace.
   markStage('events-workspace');
-  await navigate(page, 'EVENTS', 'events');
+  await navigate(page, 'events');
   await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]')
     .waitFor({ state: 'attached', timeout: 15_000 });
@@ -442,7 +435,7 @@ try {
 
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   markStage('sets-relations');
-  await navigate(page, 'SETS', 'sets');
+  await navigate(page, 'sets');
   await page.waitForFunction(() => document.querySelector('.main')?.textContent?.toUpperCase().includes('SETS'), null, { timeout: 10_000 });
   await runOperation('sets-open-modal', () => page.evaluate(() => {
     window.openModal('sets');
