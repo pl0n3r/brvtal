@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · snapshot de **solo el deploy actual**: el smoke real #35944835692 sobre exact `main` `c3879b6472a03d0fffc50ac25ac728a794e4b7e1` (v0.1.47) localizó el fallo en la navegación a Sets: `admin-reliability.js` esperaba la hidratación auxiliar Artists/Events antes de ejecutar el render nativo. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `96572232ab697aa68dd2429e273af2554bbb10dc` tiene CI exact-main y Deploy Observer verdes, pero smoke #35946714877 falló antes de autenticarse porque el APIRequestContext no obtuvo identidad utilizable desde `/api/deployment.php`, aunque el observer por curl sí observó v0.1.48 tras 9 s. **Engineering roles:** SRE / production incident responder, QA automation engineer.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#631 · unblock Sets relation hydration** | `work/issue-631`; reserva `7b79ca5d-bd6a-45b4-b561-33a4528d8469` |
-| Base exacta | ✅ ~~main v0.1.47~~ | `c3879b6472a03d0fffc50ac25ac728a794e4b7e1` |
-| Versión | 🚧 **v0.1.48 candidate** | cambio runtime DISCADMIN + smoke/regresiones |
-| CI exact-main base | ✅ ~~success~~ | [#35944335454](https://github.com/pl0n3r/brvtal/actions/runs/35944335454) |
-| Deploy Observer base | ✅ ~~success~~ | [#35944335357](https://github.com/pl0n3r/brvtal/actions/runs/35944335357) |
-| Smoke base | ⛔ **failure / diagnostic** | [#35944835692](https://github.com/pl0n3r/brvtal/actions/runs/35944835692) · `sets-workspace-ready` timeout |
-| Entrega candidata | 🚧 navegación Sets no bloqueante + hidratación acotada | pendiente gates, merge y smoke fresco |
+| Work line | 🚧 **#631 · harden release identity observation** | `work/issue-631`; reserva `f2a302c6-0f95-4133-961c-6c3ffe3634ab` |
+| Base exacta | ✅ ~~main v0.1.48~~ | `96572232ab697aa68dd2429e273af2554bbb10dc` |
+| Versión | ✅ ~~v0.1.48 sin incremento~~ | cambio exclusivo de pruebas/observabilidad |
+| CI exact-main base | ✅ ~~success~~ | [#35946563066](https://github.com/pl0n3r/brvtal/actions/runs/35946563066) |
+| Deploy Observer base | ✅ ~~success~~ | [#35946563088](https://github.com/pl0n3r/brvtal/actions/runs/35946563088) · v0.1.48 observado tras 9 s |
+| Smoke base | ⛔ **failure / release observation** | [#35946714877](https://github.com/pl0n3r/brvtal/actions/runs/35946714877) · no llegó a auth/health/Admin |
+| Entrega candidata | 🚧 deployment probe primario + health fallback diagnóstico | exige versión/SHA exactos; sin mutaciones productivas |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+158** | **−67** | **+91** |
+| **5** | **+222** | **−80** | **+142** |
 
 ## Calidad y entrega
 
@@ -39,60 +39,58 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | Issue #631 · reserva `7b79ca5d-bd6a-45b4-b561-33a4528d8469` |
-| CodeRabbit / Sonar | 🚧 revisar HEAD estable; máximo 3 rondas automáticas |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium** |
+| PR + snapshot exacto | Issue #631 · reserva `f2a302c6-0f95-4133-961c-6c3ffe3634ab` |
+| CodeRabbit / Sonar | 🚧 validar HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
-| Producción | 🚧 smoke real debe acreditar Sets + Hero además de health/Home/Admin/Events/date |
+| Producción | 🚧 smoke nuevo debe completar release/auth/health/Home/Admin/Events/date/Sets/Hero |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.47 · c3879b6"] --> F["#631 · runtime Sets"]
- F --> P["PR v0.1.48 · tests + review"] --> M["Squash merge"]
+ B["main v0.1.48 · 9657223"] --> F["#631 · release observer fallback"]
+ F --> P["PR · tests + review"] --> M["Squash merge"]
  M --> C["CI exact-main + Deploy Observer"] --> S["Authenticated production smoke"]
 ```
 
 ## Qué se hizo
 
-- El artefacto del smoke #35944835692 acreditó release exacto v0.1.47 / `c3879b64…`, health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard visible en **873 ms** sin 5xx, versión Admin exacta, Events workspace PASS y Event #6 date PASS.
-- El fallo quedó etiquetado como `failureStage=sets-relations` / `failureOperation=sets-workspace-ready`; Sets/Hero no llegaron a acreditarse.
-- La causa runtime está en `admin-reliability.js`: `go('sets')` esperaba dos lecturas auxiliares de relaciones antes del `nativeGo('sets')`, por lo que una lectura lenta impedía montar el workspace.
-- La navegación ahora ejecuta primero el `nativeGo`; la hidratación Artists/Events corre después con `AbortController`, usa una sola promesa compartida y el modal reutiliza esa hidratación si sigue en curso.
-- El smoke espera el host canónico `[data-admin-grid-host="sets"]`, espera la promesa real de `openModal('sets')` y persiste evidencia de relaciones antes de pasar a Hero.
-- Se añadió regresión E2E que demuestra que Sets renderiza sin esperar la hidratación y que navegación/modal comparten las mismas dos lecturas acotadas.
-- Sin SQL, migraciones ni mutaciones de contenido productivo.
+- El deploy de v0.1.48 está demostrado: Deploy Observer #35946563088 pasó y vio la nueva versión a los **9 s**; exact-main CI #35946563066 también pasó.
+- Smoke #35946714877 falló en `release-authentication` antes de ejecutar las comprobaciones de health/Admin, con `observedDeployment.version=null` durante su ventana.
+- La sonda `/api/deployment.php` sigue siendo primaria. Solo si su respuesta es inutilizable se consulta `/api/health.php`, que expone la misma identidad canónica más estado de DB.
+- El fallback no relaja identidad: versión esperada y cualquier SHA exacto observado siguen verificándose; un SHA exacto distinto continúa fallando.
+- La evidencia del smoke ahora conserva sonda usada, HTTP/parse error y motivo del fallback.
+- Se añadieron contratos para fallback por JSON inválido, errores transitorios, mismatch exacto y orden observe-before-auth.
+- Sin cambios de producto, credenciales, SQL ni datos productivos.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto del incidente y gates.
-- `config/version.php` — candidato v0.1.48.
-- `discadmin/admin-reliability.js` — navegación Sets no bloqueante e hidratación acotada/compartida.
-- `package.json` — versión v0.1.48.
-- `tests/admin-reliability-quick-wins-contract.php` — contrato del flujo Sets.
-- `tests/e2e/admin-reliability-quick-wins.spec.mjs` — regresión de navegación/hidratación.
-- `tests/e2e/production-authenticated-smoke.mjs` — readiness/modal/evidencia de Sets.
+- `tests/e2e/production-authenticated-smoke.mjs` — evidencia diagnóstica de sonda/fallback.
+- `tests/e2e/production-release-observer-contract.mjs` — regresiones del observer.
+- `tests/e2e/production-release-observer.mjs` — fallback seguro a health cuando deployment es inutilizable.
+- `tests/production-smoke-contract.php` — contrato estático del fallback y su evidencia.
 
 ## Validación
 
-- ✅ ~~CI exact-main #35944335454 y Deploy Observer #35944335357 aprobaron la base `c3879b64…`.~~
-- ✅ ~~Smoke #35944835692 falló rápido y de forma diagnóstica en `sets-workspace-ready`, no por watchdog global.~~
-- ✅ ~~Artefacto: health/SHA/DB, Home/Admin/Dashboard y Events/date aprobados; cero mutaciones bloqueadas.~~
-- 🚧 Gates de la candidata v0.1.48, revisión, merge y smoke final pendientes; **no declarar PRODUCTION GREEN** antes.
+- ✅ ~~Base exacta: v0.1.48 / `96572232…`; CI #35946563066 y Deploy Observer #35946563088 verdes.~~
+- ✅ ~~Smoke #35946714877 demostró una divergencia entre curl observer y APIRequestContext antes de auth; no hubo mutación de producción.~~
+- ✅ ~~La corrección mantiene `deployment.php` primario y solo usa health para una respuesta primaria inutilizable.~~
+- 🚧 PR CI/revisión, merge y smoke productivo completo pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): validar v0.1.48, mergear y ejecutar smoke productivo completo. |
+| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): validar observer robusto, mergear y repetir smoke real. |
 | **NEXT** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): publicar `🟢 PRODUCTION GREEN` solo con las cinco evidencias. |
-| **LATER** | 🚧 retomar backlog únicamente después de GREEN y de la barrera global de Tanda 1. |
-| **BLOCKED / EXTERNAL** | 🚧 factory `v1.0.0` aún no existe; Tanda 2 permanece bloqueada. |
+| **LATER** | 🚧 detener BRVTAL después de GREEN mientras la Tanda 1 global siga abierta. |
+| **BLOCKED / EXTERNAL** | 🚧 Condor/GrindFlow aún no tienen GREEN y factory `v1.0.0` no existe; Tanda 2 no inicia. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: completar #631 con smoke real Sets/Hero.
-- 🚧 **NEXT**: cerrar incidente y registrar GREEN en #533.
-- 🚧 **LATER**: esperar finalización global de Tanda 1 antes del factory kit.
-- 🚧 **BLOCKED / EXTERNAL**: Tanda 2 no inicia mientras falte factory `v1.0.0` o GREEN en cualquiera de los tres repos.
+- 🚧 **NOW**: cerrar #631 con un smoke real completo.
+- 🚧 **NEXT**: verificar ausencia de incidentes/`[AUTO]` y registrar GREEN en #533.
+- 🚧 **LATER**: esperar la barrera global de Tanda 1.
+- 🚧 **BLOCKED / EXTERNAL**: no adoptar todavía el kit de factory.

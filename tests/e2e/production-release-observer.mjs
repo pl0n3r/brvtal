@@ -1,5 +1,70 @@
 const defaultSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+function normalizeDeployment(raw) {
+  return {
+    version: String(raw?.version || '').trim() || null,
+    commit: String(raw?.commit || '').trim().toLowerCase() || null,
+    source: raw?.source || null,
+    exact: raw?.exact === true
+  };
+}
+
+function responseStatus(response) {
+  try {
+    return typeof response?.status === 'function' ? response.status() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function probeJson({ request, url, requestTimeoutMs, extract }) {
+  let response = null;
+  try {
+    response = await request.get(url, {
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      timeout: requestTimeoutMs
+    });
+  } catch (error) {
+    return {
+      deployment: normalizeDeployment(null),
+      responseOk: false,
+      status: null,
+      error: String(error?.message || error),
+      parseError: null,
+      usable: false
+    };
+  }
+
+  let payload = null;
+  let parseError = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    parseError = String(error?.message || error);
+  }
+
+  const deployment = normalizeDeployment(extract(payload));
+  const responseOk = response.ok();
+  return {
+    deployment,
+    responseOk,
+    status: responseStatus(response),
+    error: null,
+    parseError,
+    usable: responseOk && Boolean(deployment.version)
+  };
+}
+
+function fallbackReason(probe, label) {
+  if (probe.error) return `${label} request failed: ${probe.error}`;
+  if (probe.parseError) return `${label} returned invalid JSON: ${probe.parseError}`;
+  if (!probe.responseOk) return `${label} returned HTTP ${probe.status ?? 'unknown'}`;
+  return `${label} returned no deployment version`;
+}
+
 export async function observeRelease({
   request,
   baseUrl,
@@ -21,35 +86,48 @@ export async function observeRelease({
   let lastRequestError = null;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    let response = null;
-    try {
-      response = await request.get(
-        `${baseUrl}/api/deployment.php?__deploy_check=${encodeURIComponent(`${expectedVersion}-${attempt}-${now()}`)}`,
-        {
-          headers: { 'Cache-Control': 'no-cache' },
-          timeout: requestTimeoutMs
-        }
-      );
-    } catch (error) {
-      lastRequestError = String(error?.message || error);
-      await onObservation({ attempt, deployment: null, error: lastRequestError, responseOk: false });
-      if (attempt < attempts) await sleep(sleepMs);
-      continue;
+    const token = encodeURIComponent(`${expectedVersion}-${attempt}-${now()}`);
+    const primary = await probeJson({
+      request,
+      url: `${baseUrl}/api/deployment.php?__deploy_check=${token}`,
+      requestTimeoutMs,
+      extract: payload => payload?.data || null
+    });
+
+    let selected = primary;
+    let probe = 'deployment';
+    let usedFallback = false;
+    let reason = null;
+
+    if (!primary.usable) {
+      usedFallback = true;
+      reason = fallbackReason(primary, 'deployment probe');
+      selected = await probeJson({
+        request,
+        url: `${baseUrl}/api/health.php?__deploy_health_check=${token}`,
+        requestTimeoutMs,
+        extract: payload => payload?.deployment || null
+      });
+      probe = 'health';
     }
 
-    let payload = null;
-    try { payload = await response.json(); } catch (_) {}
-    const raw = payload?.data || null;
-    const deployment = {
-      version: String(raw?.version || '').trim() || null,
-      commit: String(raw?.commit || '').trim().toLowerCase() || null,
-      source: raw?.source || null,
-      exact: raw?.exact === true
-    };
-    const responseOk = response.ok();
-    await onObservation({ attempt, deployment, error: null, responseOk });
+    const observationError = selected.error
+      || (!selected.usable && selected.parseError ? selected.parseError : null);
+    if (observationError) lastRequestError = observationError;
 
-    if (responseOk && deployment.version === expectedVersion) {
+    await onObservation({
+      attempt,
+      deployment: selected.deployment,
+      error: observationError,
+      responseOk: selected.responseOk,
+      status: selected.status,
+      probe,
+      fallbackReason: reason,
+      fallbackUsed: usedFallback
+    });
+
+    const deployment = selected.deployment;
+    if (selected.responseOk && deployment.version === expectedVersion) {
       versionMatched = true;
       if (deployment.exact && expectedSha && deployment.commit !== expectedSha.toLowerCase()) {
         lastExactMismatch = deployment;
@@ -60,7 +138,13 @@ export async function observeRelease({
         break;
       }
 
-      return { releaseObserved: true, deployment, attempt };
+      return {
+        releaseObserved: true,
+        deployment,
+        attempt,
+        probe,
+        fallbackUsed: usedFallback
+      };
     }
 
     if (attempt < attempts) await sleep(sleepMs);
