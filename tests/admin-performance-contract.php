@@ -47,6 +47,13 @@ admin_perf_expect(
     !str_contains($health, 'SELECT * FROM'),
     'Content Health must use explicit projections instead of full-row SELECT * scans'
 );
+$readPlan = (string)file_get_contents(__DIR__ . '/../api/admin-read-plan.php');
+admin_perf_expect(
+    str_contains($index, "if (\$resource === 'sets')")
+        && str_contains($readPlan, 'SELECT id FROM sets_media{$whereSql} ORDER BY sort_order ASC,id ASC')
+        && str_contains($readPlan, 'SELECT * FROM sets_media WHERE id IN'),
+    'Sets pagination must late-materialize wide rows after the canonical sort/limit'
+);
 
 $authBoundary = (string)file_get_contents(__DIR__ . '/../discadmin/admin-auth-boundary.js');
 admin_perf_expect(

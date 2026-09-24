@@ -179,4 +179,15 @@ admin_read_expect(
     'Pagination metadata must clamp beyond-last-page requests to the final stable page'
 );
 
+admin_read_expect(
+    function_exists('brvtalAdminFetchSetsPage'),
+    'Sets pagination must expose the late-materialization fetch helper'
+);
+$planSource = (string)file_get_contents(__DIR__ . '/../api/admin-read-plan.php');
+admin_read_expect(
+    str_contains($planSource, 'SELECT id FROM sets_media{$whereSql} ORDER BY sort_order ASC,id ASC')
+        && str_contains($planSource, 'SELECT * FROM sets_media WHERE id IN'),
+    'Sets pagination must sort narrow ids before materializing full rows'
+);
+
 fwrite(STDOUT, "Admin read-plan contract passed.\n");

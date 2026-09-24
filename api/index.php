@@ -307,11 +307,15 @@ try {
 
                 $limit = (int)$pagination['page_size'];
                 $offset = (int)$pagination['offset'];
-                $statement = $pdo->prepare(
-                    "SELECT * FROM {$table}{$whereSql} ORDER BY {$orderBy} LIMIT {$limit} OFFSET {$offset}"
-                );
-                $statement->execute($queryParams);
-                $rows = $statement->fetchAll();
+                if ($resource === 'sets') {
+                    $rows = brvtalAdminFetchSetsPage($pdo, $pagePlan, $pagination);
+                } else {
+                    $statement = $pdo->prepare(
+                        "SELECT * FROM {$table}{$whereSql} ORDER BY {$orderBy} LIMIT {$limit} OFFSET {$offset}"
+                    );
+                    $statement->execute($queryParams);
+                    $rows = $statement->fetchAll();
+                }
             } else {
                 $rows = $pdo->query("SELECT * FROM {$table} ORDER BY {$orderBy}")->fetchAll();
             }
