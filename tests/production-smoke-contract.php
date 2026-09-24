@@ -67,6 +67,9 @@ $assert(str_contains($probe, 'blockedMutations'), 'blocked mutations must be cap
 $assert(str_contains($probe, 'releaseObserved'), 'smoke must capture whether the expected production release was observed');
 $assert(str_contains($probe, 'observedDeployment'), 'smoke must capture runtime deployment identity evidence');
 $assert(str_contains($releaseObserver, '/api/deployment.php?__deploy_check='), 'smoke must wait on the canonical deployment endpoint before loading DISCADMIN');
+$assert(str_contains($releaseObserver, '/api/health.php?__deploy_health_check='), 'smoke must fall back to canonical health identity when the deployment probe is unusable');
+$assert(str_contains($releaseObserver, 'fallbackReason'), 'release observation must preserve why the health fallback was needed');
+$assert(str_contains($probe, 'deploymentProbeFallbacks'), 'smoke evidence must record deployment-probe fallback diagnostics');
 $assert(str_contains($probe, 'await observeBeforeAuthenticate('), 'smoke must use the tested observe-before-auth orchestration boundary');
 $assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
 $assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');

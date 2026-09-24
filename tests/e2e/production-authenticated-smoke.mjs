@@ -40,6 +40,8 @@ const evidence = {
   deploymentExact: null,
   observedDeployment: null,
   deploymentProbeErrors: [],
+  deploymentProbeFallbacks: [],
+  observedDeploymentProbe: null,
   authentication: { totp: false },
   checks: {
     health: null,
@@ -155,13 +157,22 @@ async function observeProductionRelease(request) {
     attempts: 36,
     requestTimeoutMs: 5_000,
     sleepMs: 10_000,
-    onObservation: ({ attempt, deployment, error }) => {
+    onObservation: ({ attempt, deployment, error, probe, fallbackReason, status }) => {
       if (deployment) {
         evidence.observedDeployment = deployment;
         evidence.deploymentExact = deployment.exact;
+        evidence.observedDeploymentProbe = probe || null;
       }
       if (error) {
-        evidence.deploymentProbeErrors.push({ attempt, error });
+        evidence.deploymentProbeErrors.push({ attempt, probe: probe || null, status: status ?? null, error });
+      }
+      if (fallbackReason) {
+        evidence.deploymentProbeFallbacks.push({
+          attempt,
+          probe: probe || null,
+          status: status ?? null,
+          reason: fallbackReason
+        });
       }
       writeEvidence();
     }
@@ -170,6 +181,7 @@ async function observeProductionRelease(request) {
   evidence.releaseObserved = result.releaseObserved;
   evidence.observedDeployment = result.deployment;
   evidence.deploymentExact = result.deployment.exact;
+  evidence.observedDeploymentProbe = result.probe || null;
   writeEvidence();
 }
 async function authenticate(context) {
