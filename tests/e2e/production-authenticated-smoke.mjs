@@ -232,10 +232,12 @@ const context = await browser.newContext({
 
 try {
   markStage('release-authentication');
-  await runOperation('release-authentication', () => observeBeforeAuthenticate(
-    () => observeProductionRelease(context.request),
-    () => authenticate(context)
-  ), Math.min(wholeSmokeTimeoutMs - 30_000, 420_000));
+  await runOperation('release-authentication', async () => {
+    await observeBeforeAuthenticate(
+      () => observeProductionRelease(context.request),
+      () => authenticate(context)
+    );
+  }, Math.min(wholeSmokeTimeoutMs - 30_000, 420_000));
 
   // Assert source identity and database health directly, not solely from the
   // deployment marker. Capture public home HTTP status without private data.
@@ -438,17 +440,17 @@ try {
   await navigate(page, 'sets');
   await runOperation(
     'sets-workspace-ready',
-    () => page.waitForFunction(
-      () => document.querySelector('.main')?.textContent?.toUpperCase().includes('SETS'),
-      null,
-      { timeout: 10_000 }
-    ),
+    () => Promise.all([
+      page.locator('[data-admin-nav="sets"].active').waitFor({ state: 'visible', timeout: 10_000 }),
+      page.locator('[data-admin-grid-host="sets"]').waitFor({ state: 'attached', timeout: 10_000 })
+    ]),
     12_000
   );
-  await runOperation('sets-open-modal', () => page.evaluate(() => {
-    window.openModal('sets');
-    return true;
-  }));
+  await runOperation(
+    'sets-open-modal',
+    () => page.evaluate(() => window.openModal('sets')),
+    15_000
+  );
   await runOperation(
     'sets-modal-visible',
     () => page.locator('#modal').waitFor({ state: 'visible', timeout: 8_000 }),
@@ -468,6 +470,7 @@ try {
     eventOptionPresent: true,
     pass: true
   };
+  writeEvidence();
   await runOperation('sets-close-modal', () => page.evaluate(() => {
     window.closeModal();
     return true;

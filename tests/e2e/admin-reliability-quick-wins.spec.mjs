@@ -134,6 +134,61 @@ test('logout refuses dependent render when the confirmed editor changes before c
   });
 });
 
+test('Sets navigation renders before relation hydration and reuses one bounded hydration', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><body>
+    <main id="main">DASHBOARD</main>
+    <script>
+      window.state={authed:true,artists:[],events:[]};
+      window.__relationCalls=[];
+      window.__relationResolvers=[];
+      window.__opened=null;
+      window.req=(path,options={})=>{
+        if (!['/artists','/events'].includes(path)) return Promise.resolve({data:[]});
+        window.__relationCalls.push({path,hasSignal:Boolean(options.signal)});
+        return new Promise(resolve=>window.__relationResolvers.push(() => resolve({
+          data:path==='/artists'?[{id:11,name:'Artist'}]:[{id:22,title:'Event'}]
+        })));
+      };
+      window.go=async section=>{
+        window.__navigated=section;
+        document.getElementById('main').textContent=String(section).toUpperCase();
+        return 'navigated';
+      };
+      window.openModal=(type,id)=>{window.__opened={type,id};return 'opened';};
+    </script>
+  </body></html>`);
+  await page.addScriptTag({content:adminReliability});
+
+  expect(await page.evaluate(() => window.go('sets'))).toBe('navigated');
+  expect(await page.locator('#main').innerText()).toBe('SETS');
+  expect(await page.evaluate(() => window.__relationCalls)).toEqual([
+    {path:'/artists',hasSignal:true},
+    {path:'/events',hasSignal:true}
+  ]);
+
+  const before = await page.evaluate(() => {
+    window.__modalPromise = window.openModal('sets', 7);
+    return {calls:window.__relationCalls.length,opened:window.__opened};
+  });
+  expect(before).toEqual({calls:2,opened:null});
+
+  await page.evaluate(() => window.__relationResolvers.splice(0).forEach(resolve => resolve()));
+  const after = await page.evaluate(async () => ({
+    result:await window.__modalPromise,
+    calls:window.__relationCalls.length,
+    opened:window.__opened,
+    artists:window.state.artists,
+    events:window.state.events
+  }));
+  expect(after).toEqual({
+    result:'opened',
+    calls:2,
+    opened:{type:'sets',id:7},
+    artists:[{id:11,name:'Artist'}],
+    events:[{id:22,title:'Event'}]
+  });
+});
+
 test('Hero Slider rows expose and execute keyboard reorder shortcuts', async ({ page }) => {
   await page.setContent(`<!doctype html><html><body>
     <button type="button" class="hero-slide-row" data-select-slide="slide-1">

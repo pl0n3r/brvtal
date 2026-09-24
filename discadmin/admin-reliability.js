@@ -19,19 +19,24 @@
     };
   }
 
+  async function boundedNativeReq(path, options = {}, timeoutMs = RELATED_LOAD_TIMEOUT_MS) {
+    if (typeof nativeReq !== 'function') throw new Error('REQUEST_UNAVAILABLE');
+    const bounded = withTimeoutSignal(options, timeoutMs);
+    try {
+      return await nativeReq(path, bounded.options);
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('REQUEST_TIMEOUT');
+      throw error;
+    } finally {
+      bounded.cancel();
+    }
+  }
+
   if (typeof nativeReq === 'function') {
     window.req = async function brvtalReliableReq(path = '', options = {}) {
       const shouldBoundWait = path === '/settings' || path === '/media';
       if (!shouldBoundWait) return nativeReq(path, options);
-      const bounded = withTimeoutSignal(options);
-      try {
-        return await nativeReq(path, bounded.options);
-      } catch (error) {
-        if (error?.name === 'AbortError') throw new Error('REQUEST_TIMEOUT');
-        throw error;
-      } finally {
-        bounded.cancel();
-      }
+      return boundedNativeReq(path, options);
     };
   }
 
@@ -127,20 +132,33 @@
     };
   }
 
+  let setRelationsPromise = null;
+
   async function hydrateSetRelations() {
     if (typeof nativeReq !== 'function') return;
-    const [artistsResult, eventsResult] = await Promise.allSettled([
-      nativeReq('/artists'),
-      nativeReq('/events')
-    ]);
-    if (artistsResult.status === 'fulfilled') window.state.artists = artistsResult.value.data || [];
-    if (eventsResult.status === 'fulfilled') window.state.events = eventsResult.value.data || [];
+    if (setRelationsPromise) return setRelationsPromise;
+
+    setRelationsPromise = (async () => {
+      const [artistsResult, eventsResult] = await Promise.allSettled([
+        boundedNativeReq('/artists'),
+        boundedNativeReq('/events')
+      ]);
+      if (artistsResult.status === 'fulfilled') window.state.artists = artistsResult.value.data || [];
+      if (eventsResult.status === 'fulfilled') window.state.events = eventsResult.value.data || [];
+    })();
+
+    try {
+      return await setRelationsPromise;
+    } finally {
+      setRelationsPromise = null;
+    }
   }
 
   if (typeof nativeGo === 'function') {
     window.go = async function brvtalReliableGo(section) {
-      if (section === 'sets') await hydrateSetRelations();
-      return nativeGo(section);
+      const result = await nativeGo(section);
+      if (section === 'sets') void hydrateSetRelations();
+      return result;
     };
   }
 
