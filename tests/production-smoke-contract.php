@@ -80,7 +80,9 @@ $assert(str_contains($probe, 'published Artist and one published Event'), '#124 
 $assert(str_contains($probe, 'setsApiPage'), '#124 diagnostics must capture the direct paginated Sets API result');
 $assert(str_contains($probe, 'setsBrowserNavigation'), '#124 diagnostics must distinguish browser request/response progress from API latency');
 $assert(str_contains($probe, '/api/index.php/sets?page=1&page_size=50'), '#124 diagnostics must probe the same paginated Sets list used by native navigation');
-$assert(str_contains($probe, "window.go('hero-slider')"), '#125 must exercise the real Hero Slider manager');
+$assert(str_contains($probe, "page.evaluate(() => window.go('hero-slider'))"), '#125 must await the real Hero Slider navigation promise');
+$assert(str_contains($probe, "page.evaluate(() => window.go('dashboard'))"), '#125 must await the Dashboard transition between Hero Slider attempts');
+$assert(str_contains($probe, 'opened !== true') && str_contains($probe, 'dashboardOpened !== true'), '#125 must fail when repeated workspace navigation does not commit');
 $assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
 $assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POST calls must be login and optional TOTP verification');
 $assert(!preg_match('/context\.request\.(?:put|patch|delete)\s*\(/i', $probe), 'probe must not directly mutate production content through APIRequestContext');
