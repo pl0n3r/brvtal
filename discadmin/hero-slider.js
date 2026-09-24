@@ -7,6 +7,8 @@
   const MEDIA_PICKER_PATH = '/media?view=hero-picker';
   const MAX_SLIDES = 20;
   const MAX_LAYERS = 12;
+  const SETTINGS_READ_ATTEMPTS = 2;
+  const SETTINGS_RETRY_DELAY_MS = 120;
   const layerTypes = ['text','image','logo','cta'];
   const animations = ['none','fade','slide-up','slide-left','zoom'];
   const defaultConfig = () => ({enabled:false,autoplay:true,interval:7000,slides:[]});
@@ -20,6 +22,7 @@
   let previewMode = 'desktop';
   let originalGo = null;
   let cleanConfigSnapshot = null;
+  let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:''};
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   let uidSequence = 0;
@@ -182,7 +185,34 @@
     return json;
   }
 
+  function retryableSettingsReadError(error) {
+    const code = String(error?.message || '');
+    return !['AUTH_REQUIRED','INVALID_CREDENTIALS','RATE_LIMITED'].includes(code);
+  }
+
+  async function readSettingsWithRetry(diagnostics) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= SETTINGS_READ_ATTEMPTS; attempt += 1) {
+      diagnostics.settingsAttempts = attempt;
+      try {
+        return await request(SETTINGS_READ_PATH,{cache:'no-store'});
+      } catch (error) {
+        lastError = error;
+        if (attempt >= SETTINGS_READ_ATTEMPTS || !retryableSettingsReadError(error)) break;
+        await new Promise(resolve => setTimeout(resolve, SETTINGS_RETRY_DELAY_MS));
+      }
+    }
+    throw lastError || new Error('SETTINGS_READ_FAILED');
+  }
+
   const root = () => document.getElementById('hero-slider-root');
+
+  function recoverWorkspaceHost(revision) {
+    if (revision !== loadRevision
+      || window.state?.section !== 'hero-slider'
+      || window.state?.authed === false) return null;
+    return root() || prepareWorkspace();
+  }
 
   function configSnapshot(value = config) {
     return JSON.stringify(normalizeConfig(value));
@@ -310,8 +340,13 @@
 
   async function load() {
     const host = root();
-    if (!host) return false;
+    if (!host) {
+      lastLoadDiagnostics = {status:'failed',reason:'host-missing-before-load',revision:loadRevision,settingsAttempts:0,hostRecovered:false,error:''};
+      return false;
+    }
     const revision = ++loadRevision;
+    const diagnostics = {status:'loading',reason:'',revision,settingsAttempts:0,hostRecovered:false,error:''};
+    lastLoadDiagnostics = diagnostics;
     host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
     media = [];
     mediaReady = false;
@@ -323,8 +358,22 @@
     );
 
     try {
-      const settingsResponse = await request(SETTINGS_READ_PATH,{cache:'no-store'});
-      if (revision !== loadRevision || !root()) return false;
+      const settingsResponse = await readSettingsWithRetry(diagnostics);
+      if (revision !== loadRevision) {
+        diagnostics.status = 'aborted';
+        diagnostics.reason = 'stale-revision';
+        return false;
+      }
+      let activeHost = root();
+      if (!activeHost) {
+        activeHost = recoverWorkspaceHost(revision);
+        diagnostics.hostRecovered = Boolean(activeHost);
+        if (!activeHost) {
+          diagnostics.status = 'aborted';
+          diagnostics.reason = 'host-missing-after-settings';
+          return false;
+        }
+      }
       const settings = Array.isArray(settingsResponse.data) ? settingsResponse.data : [];
       const record = settings.find(item => item.setting_key === KEY);
       let stored = record?.setting_value || null;
@@ -335,14 +384,22 @@
       const slide = selectedSlide();
       if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
       renderManager();
+      diagnostics.status = 'loaded';
+      diagnostics.reason = '';
       mediaPromise.then(result => applyMediaLoad(result, revision));
       return true;
     } catch (error) {
-      host.replaceChildren();
-      const errorNode = document.createElement('div');
-      errorNode.className = 'hero-slider-error';
-      errorNode.textContent = `Unable to load Banners: ${String(error?.message || 'Unknown error')}`;
-      host.appendChild(errorNode);
+      diagnostics.status = 'failed';
+      diagnostics.reason = 'settings-read-failed';
+      diagnostics.error = String(error?.message || 'Unknown error');
+      const errorHost = root() || recoverWorkspaceHost(revision);
+      if (errorHost) {
+        errorHost.replaceChildren();
+        const errorNode = document.createElement('div');
+        errorNode.className = 'hero-slider-error';
+        errorNode.textContent = `Unable to load Banners: ${diagnostics.error}`;
+        errorHost.appendChild(errorNode);
+      }
       mediaPromise.then(() => {});
       return false;
     }
@@ -749,6 +806,9 @@
     requestNavigation,
     commitNavigation,
     hasUnsavedChanges
+  };
+  window.BRVTALHeroSliderDiagnostics = {
+    lastLoad: () => ({...lastLoadDiagnostics})
   };
 
   function install() {

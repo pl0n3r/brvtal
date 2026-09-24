@@ -46,12 +46,17 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
     };
     window.__heroSavePayloads = [];
     window.__heroSettingsReadFailure = '';
+    window.__heroSettingsReadFailures = 0;
     window.req = async (path, options = {}) => {
       if (path === '/settings' && options.method === 'POST') {
         window.__heroSavePayloads.push(JSON.parse(options.body));
         return { data: [] };
       }
       if (path === '/settings?key=home.hero.slider') {
+        if (window.__heroSettingsReadFailures > 0) {
+          window.__heroSettingsReadFailures -= 1;
+          throw new Error(window.__heroSettingsReadFailure || 'SETTINGS_UNAVAILABLE');
+        }
         if (window.__heroSettingsReadFailure) throw new Error(window.__heroSettingsReadFailure);
         return { data: [] };
       }
@@ -218,6 +223,51 @@ test('v2 admin reopens Banners across repeated Dashboard cycles without sticking
   }
 
   expect(await page.evaluate(() => window.__heroNativeGo)).toEqual(['dashboard','dashboard']);
+});
+
+test('v2 admin retries one transient Settings read when reopening Banners', async ({ page }) => {
+  await openAdminUidHarness(page);
+
+  await page.evaluate(() => {
+    window.__heroSettingsReadFailure = 'TRANSIENT_SETTINGS';
+    window.__heroSettingsReadFailures = 1;
+  });
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  expect(await page.evaluate(() => window.go('hero-slider'))).toBe(true);
+
+  await expect(page.locator('.hero-manager')).toBeVisible();
+  expect(await page.evaluate(() => window.BRVTALHeroSliderDiagnostics.lastLoad())).toMatchObject({
+    status:'loaded',
+    settingsAttempts:2,
+    hostRecovered:false
+  });
+});
+
+test('v2 admin recreates a removed Hero host while Banners remains the active workspace', async ({ page }) => {
+  await openAdminUidHarness(page);
+
+  await page.evaluate(() => {
+    const nativeReq = window.req;
+    let removeHostOnce = true;
+    window.req = async (path, options = {}) => {
+      const result = await nativeReq(path, options);
+      if (path === '/settings?key=home.hero.slider' && removeHostOnce) {
+        removeHostOnce = false;
+        document.getElementById('hero-slider-root')?.remove();
+      }
+      return result;
+    };
+  });
+
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  expect(await page.evaluate(() => window.go('hero-slider'))).toBe(true);
+
+  await expect(page.locator('#hero-slider-root .hero-manager')).toBeVisible();
+  expect(await page.evaluate(() => window.BRVTALHeroSliderDiagnostics.lastLoad())).toMatchObject({
+    status:'loaded',
+    settingsAttempts:1,
+    hostRecovered:true
+  });
 });
 
 test('v2 admin registers a beforeunload guard only while Banners is dirty', async ({ page }) => {
