@@ -229,7 +229,6 @@ test('v2 admin retries one transient Settings read when reopening Banners', asyn
   await openAdminUidHarness(page);
 
   await page.evaluate(() => {
-    window.__heroSettingsReadFailure = 'TRANSIENT_SETTINGS';
     window.__heroSettingsReadFailures = 1;
   });
   expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
