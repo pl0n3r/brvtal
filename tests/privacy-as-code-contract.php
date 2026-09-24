@@ -152,7 +152,54 @@ $expectedNames = array_keys($expectedDocs);
 sort($expectedNames);
 privacy_expect($actualDocs === $expectedNames, 'privacy directory must contain exactly the six Factory documents');
 foreach ($expectedDocs as $name => $sha256) {
-    privacy_expect(hash_file('sha256', $privacyDir . '/' . $name) === $sha256, $name . ' must match Factory ' . BRVTAL_PRIVACY_FACTORY_SHA . ' output byte-for-byte');
+    privacy_expect(
+        hash_file('sha256', $privacyDir . '/' . $name) === $sha256,
+        $name . ' must match Factory ' . BRVTAL_PRIVACY_FACTORY_SHA . ' output byte-for-byte'
+    );
+}
+
+$policy = privacy_text('docs/privacidad/politica-tratamiento.md');
+$notice = privacy_text('docs/privacidad/aviso-privacidad.md');
+$register = privacy_text('docs/privacidad/registro-tratamientos.md');
+$retention = privacy_text('docs/privacidad/retencion.md');
+foreach ($data['treatments'] as $row) {
+    $providers = $row['providers'] === [] ? 'ninguno_declarado' : implode(', ', $row['providers']);
+    $tableRow = '| ' . implode(' | ', [
+        $row['id'],
+        $row['category'],
+        implode(', ', $row['fields']),
+        $row['purpose'],
+        $row['basis'],
+        $row['consent'],
+        $providers,
+        $row['retention'],
+    ]) . ' |';
+    privacy_expect(str_contains($policy, $tableRow), $row['id'] . ' must be derived into policy');
+    privacy_expect(str_contains($notice, $tableRow), $row['id'] . ' must be derived into privacy notice');
+
+    $quotedFields = implode(', ', array_map(
+        static fn(string $field): string => '`' . $field . '`',
+        $row['fields']
+    ));
+    $quotedProviders = $row['providers'] === []
+        ? 'ninguno_declarado'
+        : implode(', ', array_map(
+            static fn(string $provider): string => '`' . $provider . '`',
+            $row['providers']
+        ));
+    privacy_expect(
+        str_contains($register, '## ' . $row['id'])
+            && str_contains($register, '- Campos de software: ' . $quotedFields)
+            && str_contains($register, '- Proveedores: ' . $quotedProviders),
+        $row['id'] . ' must be derived into treatment register'
+    );
+
+    $retentionRow = '| ' . $row['id'] . ' | ' . $row['category'] . ' | '
+        . $row['retention'] . ' | review_required |';
+    privacy_expect(
+        str_contains($retention, $retentionRow),
+        $row['id'] . ' must be derived into retention table'
+    );
 }
 
 $privacyWorkflow = privacy_text('.github/workflows/privacidad.yml');
