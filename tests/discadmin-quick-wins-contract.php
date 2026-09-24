@@ -43,8 +43,10 @@ quick_win_assert(
 $reliability = (string)file_get_contents(__DIR__ . '/../discadmin/admin-reliability.js');
 quick_win_assert(
     str_contains($reliability, 'nativeOpenModal')
-        && str_contains($reliability, "if (type === 'sets') await hydrateSetRelations();"),
-    'direct Set editor entry must hydrate Artist/Event references first'
+        && str_contains($reliability, "if (type === 'sets') {")
+        && str_contains($reliability, "await hydrateSetRelations();")
+        && str_contains($reliability, "return false;"),
+    'direct Set editor entry must hydrate Artist/Event references first and fail closed when hydration fails'
 );
 quick_win_assert(
     str_contains($reliability, 'brvtalReliableLogout')

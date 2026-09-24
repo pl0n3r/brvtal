@@ -555,21 +555,31 @@ try {
     () => page.locator('#modal').waitFor({ state: 'visible', timeout: 8_000 }),
     10_000
   );
+  const relationState = await runOperation('sets-relation-state', () => page.evaluate(() => ({
+    artistIds: Array.isArray(window.state?.artists) ? window.state.artists.map(item => Number(item.id)).filter(Number.isFinite) : [],
+    eventIds: Array.isArray(window.state?.events) ? window.state.events.map(item => Number(item.id)).filter(Number.isFinite) : []
+  })));
   const { artistOption, eventOption } = await runOperation('sets-relation-options', async () => ({
     artistOption: await page.locator(`#f_artist_id option[value="${Number(publishedArtist.id)}"]`).count(),
     eventOption: await page.locator(`#f_event_id option[value="${Number(publishedEvent.id)}"]`).count()
   }));
-  if (!artistOption || !eventOption) {
-    throw new Error(`#124 failed: published relation options missing (artist=${Boolean(artistOption)}, event=${Boolean(eventOption)}).`);
-  }
   evidence.checks.setRelations = {
     publishedArtistId: Number(publishedArtist.id),
     publishedEventId: Number(publishedEvent.id),
-    artistOptionPresent: true,
-    eventOptionPresent: true,
-    pass: true
+    artistStateCount: relationState.artistIds.length,
+    eventStateCount: relationState.eventIds.length,
+    artistStateContainsExpected: relationState.artistIds.includes(Number(publishedArtist.id)),
+    eventStateContainsExpected: relationState.eventIds.includes(Number(publishedEvent.id)),
+    artistOptionPresent: Boolean(artistOption),
+    eventOptionPresent: Boolean(eventOption),
+    pass: Boolean(artistOption && eventOption)
   };
   writeEvidence();
+  if (!artistOption || !eventOption) {
+    throw new Error(
+      `#124 failed: published relation options missing (artist=${Boolean(artistOption)}, event=${Boolean(eventOption)}, artistState=${relationState.artistIds.length}, eventState=${relationState.eventIds.length}).`
+    );
+  }
   await runOperation('sets-close-modal', () => page.evaluate(() => {
     window.closeModal();
     return true;
