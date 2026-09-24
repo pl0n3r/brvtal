@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · exact `main` v0.1.49 `46308a18ce6da0df2e2a7f57a56128537e619772` tiene CI y Deploy Observer verdes, pero smoke #35954991161 falló en New Set: Artist esperado presente, Event esperado ausente. Sets API respondió **200 en 38 ms** y navegación browser **200 en 66 ms**. La causa estructural es que la hidratación de relaciones tolera fallos parciales y abre el modal con estado incompleto. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: exact `main` v0.1.49 `46308a18ce6da0df2e2a7f57a56128537e619772` tiene CI y Deploy Observer verdes, pero smoke #35954991161 falló en New Set: Artist esperado presente, Event esperado ausente. Sets API respondió **200 en 38 ms** y navegación browser **200 en 66 ms**. La causa estructural es que la hidratación de relaciones tolera fallos parciales y abre el modal con estado incompleto. **Engineering roles:** SRE / production incident responder, frontend reliability engineer, QA automation engineer.
 
 ## Progress convention
 
