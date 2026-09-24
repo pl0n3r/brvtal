@@ -222,7 +222,19 @@ async function getAdminCollection(context, resource) {
 
 async function navigate(page, section) {
   const button = page.locator(`[data-admin-nav="${section}"]`).first();
-  await runOperation(`navigate:${section}:button`, () => button.click());
+  await runOperation(
+    `navigate:${section}`,
+    async () => {
+      await button.waitFor({ state: 'visible', timeout: 8_000 });
+      await button.click();
+      await page.waitForFunction(
+        target => window.state?.section === target,
+        section,
+        { timeout: Math.max(1_000, operationTimeoutMs - 2_000) }
+      );
+    },
+    operationTimeoutMs
+  );
 }
 
 let browser = null;
@@ -453,10 +465,10 @@ try {
   await runOperation(
     'sets-workspace-ready',
     () => Promise.all([
-      page.locator('[data-admin-nav="sets"].active').waitFor({ state: 'visible', timeout: 10_000 }),
-      page.locator('[data-admin-grid-host="sets"]').waitFor({ state: 'attached', timeout: 10_000 })
+      page.locator('[data-admin-nav="sets"].active').waitFor({ state: 'visible', timeout: 5_000 }),
+      page.locator('[data-admin-grid-host="sets"]').waitFor({ state: 'attached', timeout: 5_000 })
     ]),
-    12_000
+    7_000
   );
   await runOperation(
     'sets-open-modal',
