@@ -105,3 +105,29 @@ test('applyOrder keeps module stores aligned with the persisted order', async ({
   const ordered=await page.evaluate(()=>window.BRVTALContentOrdering.applyOrder([{id:1,sort_order:9},{id:2,sort_order:8},{id:3,sort_order:7}],[3,1,2]));
   expect(ordered.map(record=>[record.id,record.sort_order])).toEqual([[3,0],[1,1],[2,2]]);
 });
+
+test('native MutationObserver does not recursively classify ordering help as a container', async ({page}) => {
+  await page.setContent('<!doctype html><html><body>' +
+    '<div class="table"><div id="rows" data-order-resource="sets" data-order-enabled="1">' +
+    '<div class="tr" data-order-id="1"><div class="title">Set One</div><div data-order-position></div></div>' +
+    '<div class="tr" data-order-id="2"><div class="title">Set Two</div><div data-order-position></div></div>' +
+    '</div></div></body></html>');
+  await page.evaluate(() => {
+    window.BRVTALFeedback={success(){},error(){}};
+  });
+  await page.evaluate(source => window.eval(source), orderingJs);
+
+  await expect(page.locator('.content-order-help')).toHaveCount(1);
+  await expect(page.locator('.content-order-help[data-order-resource]')).toHaveCount(0);
+  await expect(page.locator('.content-order-help[data-order-help-resource="sets"]')).toHaveCount(1);
+  await expect(page.locator('#rows > [data-order-id] .content-order-handle')).toHaveCount(2);
+
+  await page.locator('#rows').evaluate(node => {
+    node.appendChild(Object.assign(document.createElement('div'), {
+      className:'tr',
+      innerHTML:'<div class="title">Set Three</div><div data-order-position></div>'
+    })).dataset.orderId='3';
+  });
+  await expect(page.locator('#rows > [data-order-id] .content-order-handle')).toHaveCount(3);
+  await expect(page.locator('.content-order-help')).toHaveCount(1);
+});

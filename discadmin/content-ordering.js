@@ -44,10 +44,10 @@
     const resource = container.dataset.orderResource;
     const anchor = container.closest('.table') || container;
     let help = anchor.previousElementSibling;
-    if (!help?.classList.contains('content-order-help') || help.dataset.orderResource !== resource) {
+    if (!help?.classList.contains('content-order-help') || help.dataset.orderHelpResource !== resource) {
       help = document.createElement('div');
       help.className = 'content-order-help';
-      help.dataset.orderResource = resource;
+      help.dataset.orderHelpResource = resource;
       help.innerHTML = '<span class="content-order-help-mark" aria-hidden="true">↕</span><span data-order-help-copy></span><span class="content-order-status" role="status" aria-live="polite"></span>';
       anchor.parentNode?.insertBefore(help, anchor);
     }
