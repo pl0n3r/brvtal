@@ -92,8 +92,8 @@ async function runOperation(label, operation, timeoutMs = operationTimeoutMs) {
       })
     ]);
   } catch (error) {
-    evidence.execution.failureStage = evidence.execution.stage;
-    evidence.execution.failureOperation = label;
+    evidence.execution.failureStage ||= evidence.execution.stage;
+    evidence.execution.failureOperation ||= label;
     writeEvidence();
     throw error;
   } finally {
@@ -208,16 +208,9 @@ async function getAdminCollection(context, resource) {
   return payload.data;
 }
 
-async function navigate(page, label, section) {
-  const button = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first();
-  if (await button.count()) {
-    await runOperation(`navigate:${section}:button`, () => button.click());
-    return;
-  }
-  await runOperation(`navigate:${section}:fallback`, () => page.evaluate(target => {
-    window.go(target);
-    return true;
-  }, section));
+async function navigate(page, section) {
+  const button = page.locator(`[data-admin-nav="${section}"]`).first();
+  await runOperation(`navigate:${section}:button`, () => button.click());
 }
 
 let browser = null;
@@ -367,7 +360,7 @@ try {
   // the guided editor. Wait for the asynchronous host/simplifier to settle:
   // two temporarily visible search inputs are not a completed workspace.
   markStage('events-workspace');
-  await navigate(page, 'EVENTS', 'events');
+  await navigate(page, 'events');
   await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]')
     .waitFor({ state: 'attached', timeout: 15_000 });
@@ -442,7 +435,7 @@ try {
 
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   markStage('sets-relations');
-  await navigate(page, 'SETS', 'sets');
+  await navigate(page, 'sets');
   await page.waitForFunction(() => document.querySelector('.main')?.textContent?.toUpperCase().includes('SETS'), null, { timeout: 10_000 });
   await runOperation('sets-open-modal', () => page.evaluate(() => {
     window.openModal('sets');
@@ -507,6 +500,23 @@ try {
   writeEvidence();
   throw error;
 } finally {
-  clearTimeout(wholeSmokeTimer);
-  if (browser) await browser.close();
+  try {
+    if (browser) {
+      markStage('cleanup');
+      await runOperation('browser-close', () => browser.close(), Math.min(operationTimeoutMs, 10_000));
+    }
+  } catch (cleanupError) {
+    evidence.cleanupError = String(cleanupError?.message || cleanupError);
+    if (evidence.status !== 'failed') {
+      evidence.status = 'failed';
+      evidence.error = evidence.cleanupError;
+      evidence.execution.failureStage ||= 'cleanup';
+      evidence.execution.failureOperation ||= 'browser-close';
+    }
+    writeEvidence();
+    console.error(evidence.cleanupError);
+    process.exit(124);
+  } finally {
+    clearTimeout(wholeSmokeTimer);
+  }
 }
