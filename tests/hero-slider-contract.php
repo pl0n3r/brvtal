@@ -32,6 +32,9 @@ $assert(str_contains($admin, 'mobileSrc'), 'admin must support mobile media over
 $assert(str_contains($admin, 'data-add-layer'), 'admin must expose constrained visual layer creation');
 $assert(str_contains($admin, 'pointerdown'), 'admin preview must support direct pointer positioning');
 $assert(str_contains($admin, 'data-duplicate-slide'), 'admin must support safe slide duplication');
+$assert(str_contains($admin, 'SETTINGS_READ_ATTEMPTS = 2'), 'admin Banners settings read must use one bounded retry');
+$assert(str_contains($admin, 'recoverWorkspaceHost(revision)'), 'admin Banners load must recover its host only while the same navigation revision is active');
+$assert(str_contains($admin, 'BRVTALHeroSliderDiagnostics'), 'admin Banners load must expose bounded production diagnostics');
 $assert(str_contains($publicIndex, 'hero-slider-v2.css') && str_contains($publicIndex, 'data-hero-v2-public'), 'public wrapper must deliver v2 styles before runtime mount');
 $assert(str_contains($adminIndex, 'hero-slider-v2.css') && str_contains($adminIndex, 'data-hero-v2'), 'admin wrapper must deliver v2 styles before editor mount');
 $assert(str_contains($publicCss, 'min-height:44px') || str_contains($publicCss, 'height:44px'), 'public controls must preserve touch targets');

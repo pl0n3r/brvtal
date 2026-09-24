@@ -595,7 +595,15 @@ try {
       operationTimeoutMs
     );
     if (opened !== true) {
-      throw new Error(`#125 Hero Slider navigation ${attempt} did not commit (result=${String(opened)}).`);
+      const diagnostic = await runOperation(
+        `hero-slider-diagnostic-${attempt}`,
+        () => page.evaluate(() => window.BRVTALHeroSliderDiagnostics?.lastLoad?.() || null)
+      );
+      evidence.checks.heroSlider.push({ attempt, pass: false, diagnostic });
+      writeEvidence();
+      throw new Error(
+        `#125 Hero Slider navigation ${attempt} did not commit (result=${String(opened)}, reason=${diagnostic?.reason || 'unknown'}).`
+      );
     }
     await runOperation(
       `hero-slider-ready-${attempt}`,
