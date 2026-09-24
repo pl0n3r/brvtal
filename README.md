@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.47 exact `main` `6bea701a2f69501c61713a3d0ce95cd50a399f53` tiene CI exact-main y Deploy Observer verdes. Smoke autenticado #35940837144 fue ejecutado con watchdog acotado; la auditoría en vivo detectó que el cleanup podía desactivar el watchdog antes de `browser.close()`. **Engineering roles:** SRE / production incident responder, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.47 exact `main` `6bea701a2f69501c61713a3d0ce95cd50a399f53` tiene CI exact-main y Deploy Observer verdes. Smoke #35940837144 acreditó health/Home/Admin/dashboard/Events/date y agotó el watchdog en `sets-relations` con `failureOperation: null`; la auditoría detectó navegación previa sin bound y cleanup fuera del watchdog. **Engineering roles:** SRE / production incident responder, QA automation engineer.
 
 ## Progress convention
 
@@ -22,7 +22,7 @@
 | Versión | ✅ ~~v0.1.47 sin incremento~~ | mantenimiento exclusivo de prueba/documentación |
 | CI del SHA exacto de main | ✅ ~~success~~ | [#35940651923](https://github.com/pl0n3r/brvtal/actions/runs/35940651923) |
 | Deploy Observer base | ✅ ~~success~~ | [#35940651930](https://github.com/pl0n3r/brvtal/actions/runs/35940651930) |
-| Smoke autenticado base | 🚧 **executed / diagnostic** | [#35940837144](https://github.com/pl0n3r/brvtal/actions/runs/35940837144) · exact `6bea701a…`; cleanup sin bound efectivo detectado |
+| Smoke autenticado base | ⛔ **failure / diagnostic** | [#35940837144](https://github.com/pl0n3r/brvtal/actions/runs/35940837144) · eventDate PASS; timeout en `sets-relations`, operación aún no etiquetada |
 | Entrega candidata | 🚧 cleanup acotado | preservar fallo primario y terminar proceso si Chromium no cierra |
 
 ## Huella del cambio
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+49** | **−33** | **+16** |
+| **2** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 
@@ -56,6 +56,7 @@ flowchart LR
 
 ## Qué se hizo
 
+- Ejecutar la navegación de Admin únicamente por el selector canónico `[data-admin-nav]` y dentro de `runOperation`, eliminando el `button.count()` no acotado que dejó `failureOperation: null` al entrar a Sets.
 - Mantener activo el watchdog global durante el cierre de Chromium.
 - Tratar `browser.close()` como operación acotada de cleanup (máximo 10 s por defecto), persistiendo `cleanupError` si falla.
 - Preservar el error primario cuando ya existe; un fallo adicional de cleanup no borra la causa inicial.
@@ -70,8 +71,9 @@ flowchart LR
 ## Validación
 
 - ✅ ~~Base v0.1.47 exacta: CI #35940651923 y observer #35940651930 aprobaron sobre `6bea701a…`.~~
-- 🚧 Smoke #35940837144 se ejecutó sobre la base exacta; el resultado no constituye GREEN mientras el proceso no termine y el artefacto no acredite todas las aserciones.
-- ✅ ~~Auditoría estática: el watchdog anterior se limpiaba antes de `browser.close()`, dejando una ruta de hang fuera de su protección.~~
+- ⛔ Smoke #35940837144 terminó `failure`: release exacto, health 200/DB connected, Home/DISCADMIN 200, dashboard **433 ms** sin 5xx, versión Admin exacta, Events workspace y fecha de Event PASS; watchdog global cortó en `sets-relations`, antes de Sets/Hero.
+- ✅ ~~Artefacto real: `failureStage=sets-relations`, `failureOperation=null`; la navegación tenía un `button.count()` fuera de `runOperation`.~~
+- ✅ ~~Auditoría estática: el watchdog se limpiaba antes de `browser.close()`, dejando además una ruta de cleanup fuera de su protección.~~
 - 🚧 PR CI/Chromium, revisión, merge y smoke ejecutado final pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue
