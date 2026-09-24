@@ -11,6 +11,10 @@ if (!defined('BRVTAL_LOGGER_LOADED')) {
 }
 
 $BRVTAL_ROOT = dirname(__DIR__);
+
+if (is_file(__DIR__ . '/sentry.php')) {
+    require_once __DIR__ . '/sentry.php';
+}
 $BRVTAL_LOG_DIR = $BRVTAL_ROOT . '/storage/logs';
 $BRVTAL_LOG_FILE = $BRVTAL_LOG_DIR . '/brvtal.log';
 
@@ -74,6 +78,17 @@ function brvtal_log(string $level, string $message, array $context = []): void
         $line . PHP_EOL,
         FILE_APPEND | LOCK_EX
     );
+
+    $upper = strtoupper($level);
+    if (($upper === 'EXCEPTION' || $upper === 'FATAL') && function_exists('brvtal_sentry_capture')) {
+        brvtal_sentry_capture(
+            $upper,
+            $message,
+            (string)($context['class'] ?? ($upper === 'FATAL' ? 'FatalError' : 'Exception')),
+            (string)($context['file'] ?? ''),
+            (int)($context['line'] ?? 0)
+        );
+    }
 }
 
 set_error_handler(
