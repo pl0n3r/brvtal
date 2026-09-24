@@ -1,5 +1,7 @@
 # BRVTAL — Agent Operating Contract
 
+> **Before working, read and apply [PLAN-AGENTES.md](https://github.com/pl0n3r/factory/blob/main/PLAN-AGENTES.md)** (the factory's common protocol: priorities, limits, formats, roles and owner decisions). If it contradicts this file, the plan wins.
+
 > **CANONICAL BOOTSTRAP FOR CHATGPT, CODEX OR ANY CODING AGENT.**
 >
 > Read this file first. A new session must be able to continue BRVTAL from repository state alone; no previous chat, saved memory, prompt history or human recap is required.
