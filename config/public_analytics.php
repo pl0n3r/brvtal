@@ -49,8 +49,9 @@ function brvtal_public_gtm_id(PDO $pdo): string
 
 function brvtal_public_analytics_markup(string $id, string $version): string
 {
-    if ($id === '') return '';
+    $sentry = function_exists('brvtal_sentry_browser_markup') ? brvtal_sentry_browser_markup() : '';
+    if ($id === '') return $sentry;
     $version = rawurlencode($version);
-    return '<script defer src="/js/public-analytics.js?v=' . $version . '" data-gtm-id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n"
+    return $sentry . '<script defer src="/js/public-analytics.js?v=' . $version . '" data-gtm-id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n"
         . '<script defer src="/js/public-measurement.js?v=' . $version . '"></script>';
 }

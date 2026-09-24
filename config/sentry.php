@@ -98,3 +98,17 @@ function brvtal_sentry_capture(string $level, string $message, string $class = '
         // Observability must never become the failure.
     }
 }
+
+/*
+ * Browser errors: Sentry Loader for the same project, only on real production
+ * pages. The loader defaults to error capture without PII; Session Replay and
+ * tracing stay off unless enabled in the Sentry project settings.
+ */
+function brvtal_sentry_browser_markup(): string
+{
+    $endpoint = brvtal_sentry_endpoint();
+    if ($endpoint === null || !brvtal_sentry_enabled()) {
+        return '';
+    }
+    return '<script src="https://js.sentry-cdn.com/' . rawurlencode($endpoint['key']) . '.min.js" crossorigin="anonymous"></script>' . "\n";
+}

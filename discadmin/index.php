@@ -88,6 +88,10 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/dashboard-v2.js' . $suffix . '"></script>'
     . '<script data-admin-session-restore="1">restoreSession();</script>';
 
+if (function_exists('brvtal_sentry_browser_markup')) {
+    $appearanceBoot = brvtal_sentry_browser_markup() . $appearanceBoot;
+}
+
 if (str_contains($html, '</head>')) {
     $html = str_replace('</head>', $appearanceBoot . '</head>', $html);
 } else {
