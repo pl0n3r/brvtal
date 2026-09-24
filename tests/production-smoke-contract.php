@@ -73,7 +73,7 @@ $assert(str_contains($probe, 'deploymentProbeFallbacks'), 'smoke evidence must r
 $assert(str_contains($probe, 'await observeBeforeAuthenticate('), 'smoke must use the tested observe-before-auth orchestration boundary');
 $assert(str_contains($probe, 'adminVersion'), 'visible Admin product version must be captured in evidence');
 $assert(str_contains($probe, 'Admin product version mismatch'), 'production smoke must fail on visible release mismatch');
-$assert(str_contains($probe, 'target => window.state?.section === target'), 'sidebar navigation must await the real async section transition');
+$assert(str_contains($probe, "target => typeof state !== 'undefined' && state.section === target"), 'sidebar navigation must await the lexical Admin state transition');
 $assert(str_contains($probe, '`navigate:${section}`'), 'navigation wait must remain bounded and stage-labelled');
 $assert(str_contains($probe, 'Production has no dated Event available'), '#123 must use existing production data rather than creating an Event');
 $assert(str_contains($probe, 'published Artist and one published Event'), '#124 must use existing published relations rather than creating data');

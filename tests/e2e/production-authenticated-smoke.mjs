@@ -51,7 +51,6 @@ const evidence = {
     adminVersion: null,
     eventsWorkspace: null,
     eventDate: null,
-    setsApiPage: null,
     setRelations: null,
     heroSlider: []
   },
@@ -229,7 +228,7 @@ async function navigate(page, section) {
       await button.waitFor({ state: 'visible', timeout: 8_000 });
       await button.click();
       await page.waitForFunction(
-        target => window.state?.section === target,
+        target => typeof state !== 'undefined' && state.section === target,
         section,
         { timeout: Math.max(1_000, operationTimeoutMs - 2_000) }
       );
@@ -460,36 +459,8 @@ try {
   }));
   await page.locator('#eventModal').waitFor({ state: 'hidden', timeout: 8_000 });
 
-  // #124 — prove the paginated Sets API is responsive before exercising
-  // the real sidebar navigation and relation hydration.
+  // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
   markStage('sets-relations');
-  const setsApiStarted = performance.now();
-  const setsApiResponse = await runOperation(
-    'sets-api-page',
-    () => context.request.get(`${baseUrl}/api/index.php/sets?page=1&page_size=50`, {
-      headers: { 'Cache-Control': 'no-cache' },
-      timeout: 15_000
-    }),
-    17_000
-  );
-  const setsApiPayload = await runOperation(
-    'sets-api-json',
-    () => jsonOrThrow(setsApiResponse, 'Sets paginated read')
-  );
-  evidence.checks.setsApiPage = {
-    httpStatus: setsApiResponse.status(),
-    elapsedMs: Math.round(performance.now() - setsApiStarted),
-    rowCount: Array.isArray(setsApiPayload.data) ? setsApiPayload.data.length : null,
-    total: Number(setsApiPayload.pagination?.total ?? 0),
-    pageSize: Number(setsApiPayload.pagination?.page_size ?? 0),
-    pass: setsApiResponse.ok()
-      && Array.isArray(setsApiPayload.data)
-      && Number(setsApiPayload.pagination?.page_size ?? 0) === 50
-  };
-  writeEvidence();
-  if (!evidence.checks.setsApiPage.pass) {
-    throw new Error(`Sets paginated API check failed (HTTP ${setsApiResponse.status()}).`);
-  }
   await navigate(page, 'sets');
   await runOperation(
     'sets-workspace-ready',

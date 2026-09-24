@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `c8a725c266180087f6e7003cec2ccfa582d59877` tiene CI y Deploy Observer verdes. Smoke #35949810190 acreditó release/health/Home/Admin/dashboard/Events/date y demostró que la navegación real a Sets excede 20 s. **Engineering roles:** SRE / production incident responder, DBA, PHP backend performance engineer, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `0032d200a4c3b64c6bb8a4843b869a460c4acced` tiene CI y Deploy Observer verdes. Smoke #35948083433 acreditó release/health/Home/Admin/dashboard/Events/date y falló esperando Sets porque el helper no esperaba el `go(section)` asíncrono. **Engineering roles:** SRE / production incident responder, QA automation engineer.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#631 · optimize paginated Sets read** | `work/issue-631`; reserva `afff06c5-1729-4da5-99aa-c11144b9714a` |
-| Base exacta | ✅ ~~main v0.1.48~~ | `c8a725c266180087f6e7003cec2ccfa582d59877` |
-| Versión | 🚧 **v0.1.49 candidate** | optimización runtime del endpoint Sets |
-| CI exact-main base | ✅ ~~success~~ | [#35949759746](https://github.com/pl0n3r/brvtal/actions/runs/35949759746) |
-| Deploy Observer base | ✅ ~~success~~ | [#35949759721](https://github.com/pl0n3r/brvtal/actions/runs/35949759721) |
-| Smoke base | ⛔ **failure / real Sets navigation >20 s** | [#35949810190](https://github.com/pl0n3r/brvtal/actions/runs/35949810190) · `navigate:sets` |
-| Entrega candidata | 🚧 late materialization + API latency evidence | ordenar IDs primero; materializar solo la página seleccionada |
+| Work line | 🚧 **#631 · await async Admin navigation** | `work/issue-631`; reserva `0aa0b77e-45de-4ada-bf0a-24ff8d4d5fb8` |
+| Base exacta | ✅ ~~main v0.1.48~~ | `0032d200a4c3b64c6bb8a4843b869a460c4acced` |
+| Versión | ✅ ~~v0.1.48 sin incremento~~ | solo pruebas/diagnóstico |
+| CI exact-main base | ✅ ~~success~~ | #35948009934 |
+| Deploy Observer base | ✅ ~~success~~ | #35948009896 |
+| Smoke base | ⛔ **failure / Sets navigation wait** | #35948083433 · `sets-workspace-ready` |
+| Entrega candidata | 🚧 click real + espera causal de `state.section` | timeout canónico 20 s |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+230** | **−35** | **+195** |
+| **3** | **+52** | **−42** | **+10** |
 
 ## Calidad y entrega
 
@@ -39,55 +39,47 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | Issue #631 · reserva `afff06c5-1729-4da5-99aa-c11144b9714a` |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium** |
+| PR + snapshot exacto | Issue #631 · reserva `0aa0b77e-45de-4ada-bf0a-24ff8d4d5fb8` |
 | CodeRabbit / Sonar | 🚧 HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
-| Producción | 🚧 smoke debe medir GET paginado Sets y completar Sets/Hero |
+| Producción | 🚧 smoke debe completar Sets/Hero además de lo ya acreditado |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
- B["main v0.1.48 · c8a725c"] --> F["#631 · late materialize Sets"]
- F --> P["PR v0.1.49 · DB + browser gates"] --> M["Squash merge"]
+ B["main v0.1.48 · 0032d20"] --> F["#631 · await async go(section)"]
+ F --> P["PR · smoke contract"] --> M["Squash merge"]
  M --> C["CI exact-main + Deploy Observer"] --> S["Authenticated production smoke"]
 ```
 
 ## Qué se hizo
 
-- Smoke #35949810190 observó v0.1.48 / `c8a725c2…` exactos.
-- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **892 ms** sin 5xx, Admin version, Events y Event #6 date pasaron.
-- La espera causal confirmó el fallo real: `failureStage=sets-relations` / `failureOperation=navigate:sets` después de **20 s**; no hubo 5xx ni mutaciones bloqueadas.
-- La colección Sets usa `ORDER BY sort_order,id` sobre filas anchas con `TEXT`/URLs y no dispone de índice de ese orden.
-- v0.1.49 aplica **late materialization**: MariaDB ordena/pagina solo `id` y después carga los registros completos de los IDs seleccionados, preservando el orden canónico.
-- La integración MariaDB cubre 130 Sets con descripciones anchas, segunda página, orden estable y búsqueda.
-- El smoke medirá `setsApiPage` con HTTP, latencia, cantidad de filas, total y page size antes de ejercer la navegación real.
-- Sin SQL destructivo, migraciones ni mutaciones de contenido productivo.
+- Smoke #35948083433 observó v0.1.48 / `0032d200…` exactos.
+- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **652 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
+- El fallo quedó en `sets-relations / sets-workspace-ready`, sin mutaciones bloqueadas.
+- `navigate()` esperaba solo el click; ahora el click sigue siendo real y la operación espera `window.state.section === section`.
+- Si la navegación real supera 20 s, el fallo queda etiquetado como `navigate:sets`.
+- Sin cambios de runtime, SQL ni datos productivos.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del incidente.
-- `api/admin-read-plan.php` — late materialization de Sets.
-- `api/index.php` — usa el plan optimizado en páginas de Sets.
-- `config/version.php` — candidato v0.1.49.
-- `package.json` — versión e integración DB.
-- `tests/admin-performance-contract.php` — contrato de performance.
-- `tests/admin-read-plan-contract.php` — contrato del plan de lectura.
-- `tests/e2e/production-authenticated-smoke.mjs` — evidencia de latencia del GET Sets.
-- `tests/integration/admin-sets-pagination.php` — regresión MariaDB de filas anchas.
+- `README.md` — snapshot exacto.
+- `tests/e2e/production-authenticated-smoke.mjs` — espera causal de navegación.
+- `tests/production-smoke-contract.php` — contrato de la espera asíncrona.
 
 ## Validación
 
-- ✅ ~~Base v0.1.48: CI #35949759746 y Deploy Observer #35949759721 verdes.~~
-- ✅ ~~Smoke #35949810190 acreditó todo hasta Events/date y aisló Sets como único bloqueo.~~
+- ✅ ~~Base v0.1.48: CI #35948009934 y Deploy Observer #35948009896 verdes.~~
+- ✅ ~~Smoke #35948083433 acreditó todo hasta Events/date; cero 5xx y mutaciones bloqueadas.~~
 - 🚧 PR CI/revisión, merge y smoke final pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): validar v0.1.49, mergear y repetir smoke real. |
+| **NOW** | 🚧 [#631](https://github.com/pl0n3r/brvtal/issues/631): validar, mergear y repetir smoke real. |
 | **NEXT** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): publicar `🟢 PRODUCTION GREEN` con las cinco evidencias. |
 | **LATER** | 🚧 detener BRVTAL después de GREEN mientras Tanda 1 global siga abierta. |
 | **BLOCKED / EXTERNAL** | 🚧 Condor/GrindFlow sin GREEN y factory `v1.0.0` ausente; no iniciar Tanda 2. |
