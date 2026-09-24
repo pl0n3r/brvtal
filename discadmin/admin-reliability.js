@@ -132,19 +132,43 @@
     };
   }
 
+  const SET_RELATION_ATTEMPTS = 2;
+  const SET_RELATION_RETRY_DELAY_MS = 120;
   let setRelationsPromise = null;
+
+  function retryableSetRelationError(error) {
+    const code = String(error?.message || '');
+    return !['AUTH_REQUIRED','INVALID_CREDENTIALS','RATE_LIMITED'].includes(code);
+  }
+
+  async function loadSetRelationCollection(path) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= SET_RELATION_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await boundedNativeReq(path);
+        if (!Array.isArray(response?.data)) throw new Error('INVALID_RELATION_COLLECTION');
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        if (attempt >= SET_RELATION_ATTEMPTS || !retryableSetRelationError(error)) break;
+        await new Promise(resolve => setTimeout(resolve, SET_RELATION_RETRY_DELAY_MS));
+      }
+    }
+    throw lastError || new Error('RELATION_LOAD_FAILED');
+  }
 
   async function hydrateSetRelations() {
     if (typeof nativeReq !== 'function') return;
     if (setRelationsPromise) return setRelationsPromise;
 
     setRelationsPromise = (async () => {
-      const [artistsResult, eventsResult] = await Promise.allSettled([
-        boundedNativeReq('/artists'),
-        boundedNativeReq('/events')
+      const [artists, events] = await Promise.all([
+        loadSetRelationCollection('/artists'),
+        loadSetRelationCollection('/events')
       ]);
-      if (artistsResult.status === 'fulfilled') window.state.artists = artistsResult.value.data || [];
-      if (eventsResult.status === 'fulfilled') window.state.events = eventsResult.value.data || [];
+      window.state.artists = artists;
+      window.state.events = events;
+      return {artists, events};
     })();
 
     try {
@@ -157,14 +181,24 @@
   if (typeof nativeGo === 'function') {
     window.go = async function brvtalReliableGo(section) {
       const result = await nativeGo(section);
-      if (section === 'sets') void hydrateSetRelations();
+      if (section === 'sets') void hydrateSetRelations().catch(() => {});
       return result;
     };
   }
 
   if (typeof nativeOpenModal === 'function') {
     window.openModal = async function brvtalReliableOpenModal(type, id = null) {
-      if (type === 'sets') await hydrateSetRelations();
+      if (type === 'sets') {
+        try {
+          await hydrateSetRelations();
+        } catch (error) {
+          window.BRVTALFeedback?.error?.(
+            'Artist and Event options could not be loaded. Retry New Set.',
+            'set-relations'
+          );
+          return false;
+        }
+      }
       return nativeOpenModal.call(this, type, id);
     };
   }

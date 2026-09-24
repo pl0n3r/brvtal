@@ -189,6 +189,86 @@ test('Sets navigation renders before relation hydration and reuses one bounded h
   });
 });
 
+test('New Set retries one transient relation read and commits both catalogs atomically', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><body><script>
+    window.state={authed:true,artists:[{id:1,name:'Old Artist'}],events:[{id:2,title:'Old Event'}]};
+    window.__calls={artists:0,events:0};
+    window.__opened=null;
+    window.req=async path=>{
+      if (path==='/artists') {
+        window.__calls.artists++;
+        return {data:[{id:11,name:'Artist'}]};
+      }
+      if (path==='/events') {
+        window.__calls.events++;
+        if (window.__calls.events===1) throw new Error('NETWORK_GLITCH');
+        return {data:[{id:22,title:'Event'}]};
+      }
+      return {data:[]};
+    };
+    window.go=async()=>true;
+    window.openModal=(type,id)=>{window.__opened={type,id};return 'opened';};
+  </script></body></html>`);
+  await page.addScriptTag({content:adminReliability});
+
+  const result = await page.evaluate(async () => ({
+    modal:await window.openModal('sets',7),
+    calls:window.__calls,
+    opened:window.__opened,
+    artists:window.state.artists,
+    events:window.state.events
+  }));
+
+  expect(result).toEqual({
+    modal:'opened',
+    calls:{artists:1,events:2},
+    opened:{type:'sets',id:7},
+    artists:[{id:11,name:'Artist'}],
+    events:[{id:22,title:'Event'}]
+  });
+});
+
+test('New Set fails closed after relation retries and preserves the previous catalogs', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><body><script>
+    window.state={authed:true,artists:[{id:1,name:'Old Artist'}],events:[{id:2,title:'Old Event'}]};
+    window.__calls={artists:0,events:0};
+    window.__opened=null;
+    window.__feedback=[];
+    window.BRVTALFeedback={error:(message,key)=>window.__feedback.push({message,key})};
+    window.req=async path=>{
+      if (path==='/artists') {
+        window.__calls.artists++;
+        return {data:[{id:11,name:'Artist'}]};
+      }
+      if (path==='/events') {
+        window.__calls.events++;
+        throw new Error('NETWORK_DOWN');
+      }
+      return {data:[]};
+    };
+    window.go=async()=>true;
+    window.openModal=(type,id)=>{window.__opened={type,id};return 'opened';};
+  </script></body></html>`);
+  await page.addScriptTag({content:adminReliability});
+
+  const result = await page.evaluate(async () => ({
+    modal:await window.openModal('sets',7),
+    calls:window.__calls,
+    opened:window.__opened,
+    artists:window.state.artists,
+    events:window.state.events,
+    feedback:window.__feedback
+  }));
+
+  expect(result.modal).toBe(false);
+  expect(result.calls).toEqual({artists:1,events:2});
+  expect(result.opened).toBe(null);
+  expect(result.artists).toEqual([{id:1,name:'Old Artist'}]);
+  expect(result.events).toEqual([{id:2,title:'Old Event'}]);
+  expect(result.feedback).toHaveLength(1);
+  expect(result.feedback[0].key).toBe('set-relations');
+});
+
 test('Hero Slider rows expose and execute keyboard reorder shortcuts', async ({ page }) => {
   await page.setContent(`<!doctype html><html><body>
     <button type="button" class="hero-slide-row" data-select-slide="slide-1">

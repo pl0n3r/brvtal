@@ -31,11 +31,14 @@ admin_quick_win_assert(
 );
 
 admin_quick_win_assert(
-    str_contains($reliability, "boundedNativeReq('/artists')")
-        && str_contains($reliability, "boundedNativeReq('/events')")
-        && str_contains($reliability, "const result = await nativeGo(section);")
-        && str_contains($reliability, "if (section === 'sets') void hydrateSetRelations();"),
-    'Sets navigation must not wait for related collections and relation hydration must remain bounded'
+    str_contains($reliability, "loadSetRelationCollection('/artists')")
+        && str_contains($reliability, "loadSetRelationCollection('/events')")
+        && str_contains($reliability, 'SET_RELATION_ATTEMPTS = 2')
+        && str_contains($reliability, 'window.state.artists = artists;')
+        && str_contains($reliability, 'window.state.events = events;')
+        && str_contains($reliability, "if (section === 'sets') void hydrateSetRelations().catch(() => {});")
+        && str_contains($reliability, "'set-relations'"),
+    'Sets relation hydration must be bounded, retried once, committed atomically and fail closed'
 );
 
 admin_quick_win_assert(
