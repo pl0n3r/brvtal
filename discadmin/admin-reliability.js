@@ -133,10 +133,9 @@
   }
 
   let setRelationsPromise = null;
-  let setRelationsHydrated = false;
 
   async function hydrateSetRelations() {
-    if (typeof nativeReq !== 'function' || setRelationsHydrated) return;
+    if (typeof nativeReq !== 'function') return;
     if (setRelationsPromise) return setRelationsPromise;
 
     setRelationsPromise = (async () => {
@@ -146,7 +145,6 @@
       ]);
       if (artistsResult.status === 'fulfilled') window.state.artists = artistsResult.value.data || [];
       if (eventsResult.status === 'fulfilled') window.state.events = eventsResult.value.data || [];
-      setRelationsHydrated = artistsResult.status === 'fulfilled' && eventsResult.status === 'fulfilled';
     })();
 
     try {
