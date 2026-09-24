@@ -31,7 +31,6 @@ If code proves prose stale, correct the owning source in the same focused work l
 - If it answers **“what changed in this PR/deploy?”**, it belongs in `README.md`.
 
 Do not rebuild large product-state inventories or historical decision ledgers inside this file.
-
 ## 1. Start / resume protocol
 
 For every new session:
@@ -48,7 +47,6 @@ For every new session:
 10. Continue through implementation → tests → PR → gates → fixes → squash merge → exact-main validation without routine approval prompts.
 
 Use direct repository/GitHub tooling available to the agent. No ChatGPT Work workspace or previous conversation context is required.
-
 ## 2. Autonomy and maximum work per turn
 
 The default is **autonomous execution to the largest safe, useful stopping point**.
@@ -291,7 +289,6 @@ Routine steps do not require another user confirmation.
 - **VALIDATED IN PRODUCTION** — actual production behavior was checked.
 
 Deploy observation is never behavioral production validation.
-
 ## 10. Roadmap and progress ownership
 
 GitHub Issue **#533** is the canonical execution roadmap.

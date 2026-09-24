@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+/** Assert one CI-scope invariant or fail closed. */
 function ci_scope_expect(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -43,6 +44,7 @@ function ci_scope_run(array $files, string $event = 'pull_request'): array
     return $result;
 }
 
+/** Compare the selected CI-scope flags against an expected contract. */
 function ci_scope_expect_flags(array $actual, array $expected, string $label): void
 {
     foreach ($expected as $key => $value) {
@@ -115,6 +117,11 @@ ci_scope_expect_flags(ci_scope_run(['README.md', 'AGENTS.md']), [
     'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
     'run_php' => 'false', 'run_js' => 'false', 'deploy_bound' => 'false',
 ], 'docs only');
+
+ci_scope_expect_flags(ci_scope_run(['docs/privacidad/politica-tratamiento.md']), [
+    'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_php' => 'true', 'run_js' => 'false', 'deploy_bound' => 'false',
+], 'privacy docs run PHP contract');
 
 ci_scope_expect_flags(ci_scope_run(['robots.txt']), [
     'deploy_bound' => 'true',

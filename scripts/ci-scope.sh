@@ -115,7 +115,7 @@ brvtal_ci_classify_files() {
     case "$file" in
       config/version.php)
         ;;
-      *.php|database/*)
+      *.php|database/*|docs/privacidad/*)
         BRVTAL_SCOPE_RUN_PHP=true ;;
       package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
         BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true ;;
