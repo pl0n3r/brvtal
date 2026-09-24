@@ -10,6 +10,8 @@ const adminPassword = String(process.env.BRVTAL_PROD_ADMIN_PASSWORD || '');
 const totpSecret = String(process.env.BRVTAL_PROD_TOTP_SECRET || '').trim();
 const expectedSha = String(process.env.BRVTAL_EXPECTED_SHA || '').trim();
 const outputPath = String(process.env.BRVTAL_PROD_SMOKE_OUTPUT || 'artifacts/production-authenticated-smoke.json');
+const wholeSmokeTimeoutMs = Number.parseInt(String(process.env.BRVTAL_PROD_SMOKE_TIMEOUT_MS || '720000'), 10);
+const operationTimeoutMs = Number.parseInt(String(process.env.BRVTAL_PROD_OPERATION_TIMEOUT_MS || '20000'), 10);
 const versionSource = readFileSync(new URL('../../config/version.php', import.meta.url), 'utf8');
 const versionMatch = versionSource.match(/BRVTAL_APP_VERSION\s*=\s*'([^']+)'/);
 if (!versionMatch) throw new Error('Canonical BRVTAL_APP_VERSION could not be parsed.');
@@ -17,6 +19,12 @@ const expectedVersion = versionMatch[1];
 
 if (!adminEmail || !adminPassword) {
   throw new Error('BRVTAL_PROD_ADMIN_EMAIL and BRVTAL_PROD_ADMIN_PASSWORD are required.');
+}
+if (!Number.isFinite(wholeSmokeTimeoutMs) || wholeSmokeTimeoutMs < 60_000) {
+  throw new Error('BRVTAL_PROD_SMOKE_TIMEOUT_MS must be an integer >= 60000.');
+}
+if (!Number.isFinite(operationTimeoutMs) || operationTimeoutMs < 1_000) {
+  throw new Error('BRVTAL_PROD_OPERATION_TIMEOUT_MS must be an integer >= 1000.');
 }
 
 if (baseUrl !== 'https://www.brvtal.com.co') {
@@ -46,12 +54,52 @@ const evidence = {
   },
   localStubs: [],
   blockedMutations: [],
+  execution: {
+    startedAt: new Date().toISOString(),
+    wholeTimeoutMs: wholeSmokeTimeoutMs,
+    operationTimeoutMs,
+    stage: 'bootstrap',
+    operation: null,
+    failureStage: null,
+    failureOperation: null
+  },
   status: 'running'
 };
 
 function writeEvidence() {
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
+}
+
+function markStage(stage) {
+  evidence.execution.stage = stage;
+  evidence.execution.operation = null;
+  writeEvidence();
+}
+
+async function runOperation(label, operation, timeoutMs = operationTimeoutMs) {
+  evidence.execution.operation = label;
+  writeEvidence();
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${timeoutMs} ms.`)),
+          timeoutMs
+        );
+      })
+    ]);
+  } catch (error) {
+    evidence.execution.failureStage = evidence.execution.stage;
+    evidence.execution.failureOperation = label;
+    writeEvidence();
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+    evidence.execution.operation = null;
+  }
 }
 
 function decodeBase32(value) {
@@ -163,26 +211,42 @@ async function getAdminCollection(context, resource) {
 async function navigate(page, label, section) {
   const button = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first();
   if (await button.count()) {
-    await button.click();
+    await runOperation(`navigate:${section}:button`, () => button.click());
     return;
   }
-  await page.evaluate(target => window.go(target), section);
+  await runOperation(`navigate:${section}:fallback`, () => page.evaluate(target => {
+    window.go(target);
+    return true;
+  }, section));
 }
 
-const browser = await chromium.launch({ headless: true });
+let browser = null;
+const wholeSmokeTimer = setTimeout(() => {
+  evidence.status = 'failed';
+  evidence.error = `Whole production smoke timed out after ${wholeSmokeTimeoutMs} ms.`;
+  evidence.execution.failureStage = evidence.execution.stage;
+  evidence.execution.failureOperation = evidence.execution.operation;
+  writeEvidence();
+  console.error(evidence.error);
+  process.exit(124);
+}, wholeSmokeTimeoutMs);
+
+browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
   serviceWorkers: 'block'
 });
 
 try {
-  await observeBeforeAuthenticate(
+  markStage('release-authentication');
+  await runOperation('release-authentication', () => observeBeforeAuthenticate(
     () => observeProductionRelease(context.request),
     () => authenticate(context)
-  );
+  ), Math.min(wholeSmokeTimeoutMs - 30_000, 420_000));
 
   // Assert source identity and database health directly, not solely from the
   // deployment marker. Capture public home HTTP status without private data.
+  markStage('health');
   const healthResponse = await context.request.get(`${baseUrl}/api/health.php`, {
     timeout: 12_000,
     headers: { 'Cache-Control': 'no-cache' }
@@ -202,6 +266,7 @@ try {
   writeEvidence();
   if (!evidence.checks.health.pass) throw new Error('Production health/version/SHA/database does not match exact main.');
 
+  markStage('home');
   const homeResponse = await context.request.get(`${baseUrl}/`, { timeout: 12_000 });
   evidence.checks.home = { httpStatus: homeResponse.status(), pass: homeResponse.status() === 200 };
   writeEvidence();
@@ -233,6 +298,8 @@ try {
   });
 
   const page = await context.newPage();
+  page.setDefaultTimeout(operationTimeoutMs);
+  page.setDefaultNavigationTimeout(Math.max(operationTimeoutMs, 20_000));
   const serverErrors = [];
   page.on('response', response => {
     if (response.status() >= 500) {
@@ -240,6 +307,7 @@ try {
       if (url.origin === baseUrl) serverErrors.push({ path: url.pathname, status: response.status() });
     }
   });
+  markStage('dashboard');
   const dashboardStarted = performance.now();
   const adminResponse = await page.goto(`${baseUrl}/discadmin/`, {
     waitUntil: 'domcontentloaded',
@@ -282,6 +350,7 @@ try {
   }
 
 
+  markStage('production-fixtures');
   const [events, artists] = await Promise.all([
     getAdminCollection(context, 'events'),
     getAdminCollection(context, 'artists')
@@ -297,6 +366,7 @@ try {
   // Events uses the canonical native grid plus a hidden Content Core host for
   // the guided editor. Wait for the asynchronous host/simplifier to settle:
   // two temporarily visible search inputs are not a completed workspace.
+  markStage('events-workspace');
   await navigate(page, 'EVENTS', 'events');
   await page.locator('[data-admin-nav="events"].active').waitFor({ state: 'visible', timeout: 15_000 });
   await page.locator('#admin-module-host [data-admin-module="content-core"][data-ia-context="events"]')
@@ -328,18 +398,22 @@ try {
 
   // Choose a dated record that was actually loaded into the native grid. This
   // also works when the next Admin release enables opt-in server pagination.
-  const visibleDatedEvent = await page.evaluate(() => {
+  markStage('event-editor');
+  const visibleDatedEvent = await runOperation('events-grid-state', () => page.evaluate(() => {
     if (typeof state === 'undefined' || !Array.isArray(state.rows)) return null;
     const row = state.rows.find(item => String(item.event_date || '').trim());
     return row ? { id: Number(row.id), event_date: String(row.event_date) } : null;
-  });
+  }));
   if (!visibleDatedEvent) {
     throw new Error('Native Events grid did not load a dated Event on its current page.');
   }
   const matchingEvent = events.find(event => Number(event.id) === visibleDatedEvent.id);
   if (!matchingEvent) throw new Error('Native Events grid record was not returned by the authenticated Events API.');
   // Exercise the actual user's EDIT button, not the implementation helper.
-  await page.locator(`#rows [data-grid-action="edit"][data-grid-id="${visibleDatedEvent.id}"]`).click();
+  await runOperation(
+    'events-edit-click',
+    () => page.locator(`#rows [data-grid-action="edit"][data-grid-id="${visibleDatedEvent.id}"]`).click()
+  );
   await page.locator('#eventModal').waitFor({ state: 'visible', timeout: 10_000 });
   const editorHeading = (await page.locator('#eventHeading').innerText()).trim();
   if (editorHeading !== 'EDIT EVENT') throw new Error('Events EDIT opened a new record instead of the selected event.');
@@ -359,12 +433,21 @@ try {
     rendered: renderedDate,
     pass: true
   };
-  await page.evaluate(() => window.BRVTALContentCore.closeEvent());
+  writeEvidence();
+  await runOperation('events-close-editor', () => page.evaluate(() => {
+    window.BRVTALContentCore.closeEvent();
+    return true;
+  }));
+  await page.locator('#eventModal').waitFor({ state: 'hidden', timeout: 8_000 });
 
   // #124 — navigating to Sets must hydrate real Artist/Event relations before New Set opens.
+  markStage('sets-relations');
   await navigate(page, 'SETS', 'sets');
   await page.waitForFunction(() => document.querySelector('.main')?.textContent?.toUpperCase().includes('SETS'), null, { timeout: 10_000 });
-  await page.evaluate(() => window.openModal('sets'));
+  await runOperation('sets-open-modal', () => page.evaluate(() => {
+    window.openModal('sets');
+    return true;
+  }));
   await page.locator('#modal').waitFor({ state: 'visible', timeout: 8_000 });
   const artistOption = await page.locator(`#f_artist_id option[value="${Number(publishedArtist.id)}"]`).count();
   const eventOption = await page.locator(`#f_event_id option[value="${Number(publishedEvent.id)}"]`).count();
@@ -378,11 +461,18 @@ try {
     eventOptionPresent: true,
     pass: true
   };
-  await page.evaluate(() => window.closeModal());
+  await runOperation('sets-close-modal', () => page.evaluate(() => {
+    window.closeModal();
+    return true;
+  }));
 
   // #125 — repeatedly open the manager; loading must settle and no error may remain.
+  markStage('hero-slider');
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await page.evaluate(() => window.go('hero-slider'));
+    await runOperation(`hero-slider-open-${attempt}`, () => page.evaluate(() => {
+      window.go('hero-slider');
+      return true;
+    }));
     await page.locator('#hero-slider-root').waitFor({ state: 'visible', timeout: 8_000 });
     await page.locator('.hero-manager').waitFor({ state: 'visible', timeout: 15_000 });
     const loading = await page.locator('.hero-slider-loading').count();
@@ -390,11 +480,15 @@ try {
     if (loading || errors) throw new Error(`#125 failed on Hero Slider attempt ${attempt}: loading=${loading}, errors=${errors}.`);
     evidence.checks.heroSlider.push({ attempt, pass: true });
     if (attempt < 3) {
-      await page.evaluate(() => window.go('dashboard'));
+      await runOperation(`hero-slider-dashboard-${attempt}`, () => page.evaluate(() => {
+        window.go('dashboard');
+        return true;
+      }));
       await page.waitForTimeout(250);
     }
   }
 
+  markStage('final-guards');
   if (serverErrors.length) {
     throw new Error('Authenticated DISCADMIN emitted HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
   }
@@ -408,8 +502,11 @@ try {
 } catch (error) {
   evidence.status = 'failed';
   evidence.error = String(error?.message || error);
+  evidence.execution.failureStage ||= evidence.execution.stage;
+  evidence.execution.failureOperation ||= evidence.execution.operation;
   writeEvidence();
   throw error;
 } finally {
-  await browser.close();
+  clearTimeout(wholeSmokeTimer);
+  if (browser) await browser.close();
 }
