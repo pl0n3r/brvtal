@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `c8a725c266180087f6e7003cec2ccfa582d59877` tiene CI y Deploy Observer verdes. Smoke #35949810190 acreditó release/health/Home/Admin/dashboard/Events/date y falló en `navigate:sets` porque el smoke consultaba `window.state`, pero DISCADMIN declara `let state` como binding léxico. **Engineering roles:** SRE / production incident responder, QA automation engineer.
+> **Production incident #631** · snapshot de **solo el deploy actual**: v0.1.48 exact `main` `aba76d019f3f80978d1b95524098b780d341cc96` tiene CI exact-main y Deploy Observer verdes. Smoke #35951788450 acreditó release/health/Home/Admin/dashboard/Events/date y volvió a fallar en `navigate:sets` aun observando correctamente el binding léxico; ahora se instrumenta API vs navegador antes de tocar runtime. **Engineering roles:** SRE / production incident responder, QA automation engineer.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#631 · lexical Admin state probe** | `work/issue-631`; reserva `afff06c5-1729-4da5-99aa-c11144b9714a` |
-| Base exacta | ✅ ~~main v0.1.48~~ | `c8a725c266180087f6e7003cec2ccfa582d59877` |
+| Work line | 🚧 **#631 · isolate Sets navigation latency** | `work/issue-631`; reserva `cf48a65c-13a2-49af-a53d-ec558c5dfbd9` |
+| Base exacta | ✅ ~~main v0.1.48~~ | `aba76d019f3f80978d1b95524098b780d341cc96` |
 | Versión | ✅ ~~v0.1.48 sin incremento~~ | solo pruebas/diagnóstico |
-| CI exact-main base | ✅ ~~success~~ | [#35949759746](https://github.com/pl0n3r/brvtal/actions/runs/35949759746) |
-| Deploy Observer base | ✅ ~~success~~ | [#35949759721](https://github.com/pl0n3r/brvtal/actions/runs/35949759721) |
-| Smoke base | ⛔ **failure / false state probe** | [#35949810190](https://github.com/pl0n3r/brvtal/actions/runs/35949810190) · `navigate:sets` |
-| Entrega candidata | 🚧 observar binding léxico `state.section` | sin cambio de runtime ni versión |
+| CI exact-main base | ✅ ~~success~~ | [#35951715579](https://github.com/pl0n3r/brvtal/actions/runs/35951715579) |
+| Deploy Observer base | ✅ ~~success~~ | [#35951715586](https://github.com/pl0n3r/brvtal/actions/runs/35951715586) |
+| Smoke base | ⛔ **failure / Sets transition >20 s** | [#35951788450](https://github.com/pl0n3r/brvtal/actions/runs/35951788450) · `navigate:sets` |
+| Entrega candidata | 🚧 diagnóstico API + navegador de Sets | GET read-only, sin runtime/version change |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+22** | **−22** | **+0** |
+| **3** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 
@@ -40,7 +40,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · chromium** |
-| PR + snapshot exacto | Issue #631 · reserva `afff06c5-1729-4da5-99aa-c11144b9714a` |
+| PR + snapshot exacto | Issue #631 · reserva `cf48a65c-13a2-49af-a53d-ec558c5dfbd9` |
 | CodeRabbit / Sonar | 🚧 HEAD estable; máximo 3 rondas automáticas |
 | CI del SHA exacto de main | 🚧 después del merge |
 | Producción | 🚧 smoke debe completar Sets/Hero además de lo ya acreditado |
@@ -49,30 +49,30 @@
 
 ```mermaid
 flowchart LR
- B["main v0.1.48 · c8a725c"] --> F["#631 · lexical state probe"]
+ B["main v0.1.48 · aba76d0"] --> F["#631 · Sets API/browser diagnostics"]
  F --> P["PR · smoke contract"] --> M["Squash merge"]
  M --> C["CI exact-main + Deploy Observer"] --> S["Authenticated production smoke"]
 ```
 
 ## Qué se hizo
 
-- Smoke #35949810190 observó v0.1.48 / `c8a725c2…` exactos.
-- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **892 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
-- El fallo quedó en `sets-relations / navigate:sets`, sin 5xx ni mutaciones bloqueadas.
-- `navigate()` mantiene el click real y la espera causal, pero el probe usaba `window.state`; DISCADMIN declara `let state`, que no se refleja en `window`.
-- La candidata observa el binding léxico `state.section === target`, preservando el límite de 20 s.
-- Se descartó la optimización v0.1.49 no demostrada; sin cambios de runtime, SQL ni datos productivos.
+- Smoke #35951788450 observó v0.1.48 / `aba76d01…` exactos.
+- Health **200**, DB **connected**, Home **200**, DISCADMIN **200**, dashboard **882 ms** sin 5xx, versión Admin, Events y Event #6 date pasaron.
+- El fallo quedó en `sets-relations / navigate:sets` después de 20 s, con cero 5xx y cero mutaciones bloqueadas.
+- El probe léxico ya es correcto; por tanto esta corrida sí demuestra que la transición real a Sets no terminó dentro del límite.
+- La candidata mide primero el GET autenticado `/api/index.php/sets?page=1&page_size=50` y luego registra request/response/fallo del mismo GET disparado por el click real.
+- No se aplica aún ninguna optimización de DB/API: la siguiente evidencia decidirá si el cuello está en API/DB o en el navegador/UI.
 
 ## Archivos modificados en este deploy
 
 - `README.md` — snapshot exacto.
-- `tests/e2e/production-authenticated-smoke.mjs` — observa correctamente el binding léxico del estado Admin.
-- `tests/production-smoke-contract.php` — contrato contra regresión a `window.state`.
+- `tests/e2e/production-authenticated-smoke.mjs` — evidencia separada de Sets API y navegación browser.
+- `tests/production-smoke-contract.php` — contrato de diagnóstico read-only de Sets.
 
 ## Validación
 
-- ✅ ~~Base v0.1.48: CI #35949759746 y Deploy Observer #35949759721 verdes.~~
-- ✅ ~~Smoke #35949810190 acreditó todo hasta Events/date y expuso el falso probe `window.state`; cero 5xx y mutaciones bloqueadas.~~
+- ✅ ~~Base v0.1.48: CI #35951715579 y Deploy Observer #35951715586 verdes.~~
+- ✅ ~~Smoke #35951788450 acreditó todo hasta Events/date y confirmó timeout real de la transición Sets; cero 5xx y mutaciones bloqueadas.~~
 - 🚧 PR CI/revisión, merge y smoke final pendientes; **no declarar PRODUCTION GREEN** antes.
 
 ## Qué sigue
