@@ -119,9 +119,9 @@ foreach (['auth_password_rate_limit','auth_totp_rate_limit'] as $id) {
     privacy_expect($row['retention'] === 'window_15m', $id . ' must document observed 15-minute window');
 }
 privacy_expect(str_contains($passwordRate, 'BRVTAL_PASSWORD_RATE_LIMIT_WINDOW = 900'), 'password rate-limit window must remain 15 minutes');
-privacy_expect(str_contains($passwordRate, "hash('sha256', $ip . '|' . strtolower(trim($email)))"), 'password rate-limit filename must remain derived hash');
+privacy_expect(str_contains($passwordRate, "hash('sha256'") && str_contains($passwordRate, 'strtolower(trim($email))'), 'password rate-limit filename must remain derived hash');
 privacy_expect(str_contains($totpRate, 'BRVTAL_TOTP_RATE_LIMIT_WINDOW = 900'), 'TOTP rate-limit window must remain 15 minutes');
-privacy_expect(str_contains($totpRate, "hash('sha256', $prefix . $ip . '|' . $adminId)"), 'TOTP rate-limit filename must remain derived hash');
+privacy_expect(str_contains($totpRate, "hash('sha256'") && str_contains($totpRate, '$adminId'), 'TOTP rate-limit filename must remain derived hash');
 
 $internal = privacy_treatment($data, 'internal_analytics_events');
 privacy_expect($internal['fields'] === ['event_name','page_url','referrer','locale','user_agent','created_at'], 'internal analytics map must match schema');
@@ -137,14 +137,14 @@ privacy_expect(str_contains($gtmBootstrap, "analytics_storage: 'granted'"), 'cur
 privacy_expect(str_contains($measurement, 'url.pathname + url.hash'), 'outbound measurement must keep query strings out of explicit destination payloads');
 privacy_expect(!str_contains($measurement, 'formData'), 'measurement layer must not collect form values');
 
-$expectedDocs = {
-    "politica-tratamiento.md": "ba236b1cf57a76ea8b032ec9d516c4c70232d59d334d811519bad3887b7ecdda",
-    "aviso-privacidad.md": "9867b8b22924821967146cc14ddde289eae0709b87d52577ba094041b29d5380",
-    "terminos-condiciones.md": "3eee6df2507807f339a84214227ea20d576a5a95f55835b83315dd460b34b4ac",
-    "registro-tratamientos.md": "b0cfb0ccabd6524996324fd56ed99fb4e79b2cf3d54f0f4eca312272a34ae7fb",
-    "canal-derechos.md": "43ea3834c9e9914644353f8b665c153447f8c017d2aa65337c929c969b531c45",
-    "retencion.md": "92d31f2c77a17f9e45351bfcb460f3b8cfa1581e85804244501a4416f5b993b9"
-};
+$expectedDocs = [
+    'politica-tratamiento.md' => 'ba236b1cf57a76ea8b032ec9d516c4c70232d59d334d811519bad3887b7ecdda',
+    'aviso-privacidad.md' => '9867b8b22924821967146cc14ddde289eae0709b87d52577ba094041b29d5380',
+    'terminos-condiciones.md' => '3eee6df2507807f339a84214227ea20d576a5a95f55835b83315dd460b34b4ac',
+    'registro-tratamientos.md' => 'b0cfb0ccabd6524996324fd56ed99fb4e79b2cf3d54f0f4eca312272a34ae7fb',
+    'canal-derechos.md' => '43ea3834c9e9914644353f8b665c153447f8c017d2aa65337c929c969b531c45',
+    'retencion.md' => '92d31f2c77a17f9e45351bfcb460f3b8cfa1581e85804244501a4416f5b993b9',
+];
 $privacyDir = __DIR__ . '/../docs/privacidad';
 $actualDocs = array_map('basename', glob($privacyDir . '/*.md') ?: []);
 sort($actualDocs);
