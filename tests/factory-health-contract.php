@@ -28,7 +28,7 @@ $healthyStatus = $status([
 $healthy = brvtalFactoryReadinessState(true, $sha, $healthyStatus);
 factory_health_expect($healthy['ready'] === true, 'exact identity + clean schema must be ready');
 factory_health_expect($healthy['status'] === 'ok', 'ready state must expose Factory status=ok');
-factory_health_expect($healthy['health_status'] === 'healthy', 'ready state must preserve human healthy descriptor');
+factory_health_expect($healthy['readiness_status'] === 'ready', 'ready state must expose an operational readiness descriptor');
 factory_health_expect($healthy['release_sha'] === $sha, 'ready state must expose exact SHA');
 factory_health_expect($healthy['schema_up_to_date'] === true, 'clean schema must be up to date');
 
