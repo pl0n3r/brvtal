@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #672 añade el control plane para transferir de forma manual y reversible la autoridad de deploy de Hostinger Git al layout Factory. Este PR no ejecuta el cutover ni habilita deploy automático por `push`. Base exacta `main cf9d3b67c700b774f9ffbe959d84430f0307c6d8` / v0.1.53 GREEN.
+> Snapshot de **solo el deploy actual**: #674 elimina la selección manual de migraciones del adapter Factory y deriva el delta aditivo desde el release exacto servido hacia el candidato. Este PR no ejecuta el cutover ni habilita deploy automático por `push`. Base exacta `main 4b0e0c89ab09d80963af169aca18165fe9fbcd03` / v0.1.53 GREEN.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#672 · controlled Hostinger API cutover** | `work/issue-672`; reserva `277c92aa-213a-46df-ae19-f8cb7847e8d4` |
-| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `cf9d3b67c700b774f9ffbe959d84430f0307c6d8` |
-| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; `deploy_bound=false` |
-| Hostinger API | 🚧 **GET → disable → verify** | Bearer secret; settings exactos de BRVTAL |
-| Workflow | 🚧 **manual-only** | `workflow_dispatch` + `CUTOVER-BRVTAL`; sin `push` |
-| Orden de recovery | 🚧 **legacy dispatcher → Git permanece disabled** | la autoridad Git solo se reactiva manualmente tras verificar identidad exacta |
-| Producción | ✅ ~~sin writes remotos en este PR~~ | el workflow nuevo no se ejecuta durante entrega |
+| Work line | 🚧 **#674 · deterministic additive migration selection** | `work/issue-674`; reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
+| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `4b0e0c89ab09d80963af169aca18165fe9fbcd03` |
+| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; deploy automático sigue cerrado |
+| Selección | 🚧 **release servido → release candidato** | 0 nuevas = no-op; 1 = valida/aplica; >1 = fail-closed |
+| Historial | 🚧 **inmutable por nombre + checksum** | cambiar o retirar una migración previa aborta |
+| SQL aditivo | 🚧 **defense in depth** | DROP/TRUNCATE/DELETE/REPLACE/rename/change/modify se rechazan |
+| Producción | ✅ ~~sin writes remotos en este PR~~ | no cutover ni caller por `push` |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+509** | **−47** | **+462** |
+| **9** | **+305** | **−54** | **+251** |
 
 ## Calidad y entrega
 
@@ -40,12 +40,12 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · recovery** |
-| PR + snapshot exacto | Issue #672 · reserva `277c92aa-213a-46df-ae19-f8cb7847e8d4` |
+| PR + snapshot exacto | Issue #674 · reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
 | Roles | Infrastructure · SRE · Security · QA |
-| Secretos runtime | `HOSTINGER_API_TOKEN` · `DEPLOY_TOKEN` · `DEPLOY_SSH_KEY`; nunca se imprimen |
-| API confiable | endpoint Hostinger fijo; sin URL controlada por usuario ni shell |
-| Cutover | settings BRVTAL exactos → disable confirmado → bootstrap → revalidación API |
-| Recovery | bootstrap restaura layout; Git queda disabled hasta recuperación explícita con identidad exacta verificada |
+| Selección migración | `.factory-current` vs `factory-releases/<sha>`; sin variable manual |
+| Historial seguro | nombres + SHA-256 previos deben permanecer idénticos |
+| SQL seguro | la librería canónica rechaza marcadores no aditivos antes de `PDO::exec()` |
+| Rollback | solo artefacto; jamás restaura BD automáticamente |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
@@ -53,54 +53,59 @@
 
 ```mermaid
 flowchart LR
-  B["main v0.1.53 · GREEN"] --> G["GET Hostinger Git settings"]
-  G --> D["disable + confirm"]
-  D --> C["Factory bootstrap"]
-  C --> V["exact health + public/admin smoke"]
-  V -->|pass| F["Hostinger Git stays disabled"]
-  V -->|fail| R["restore legacy dispatcher"]
-  R --> A["keep Git disabled · explicit recovery"]
+  B["backup ready"] --> C["candidate exact SHA"]
+  C --> P["compare migration history"]
+  P -->|0 new| N["explicit no-op"]
+  P -->|1 new| S["validate additive SQL"]
+  P -->|>1 / changed / removed| F["fail closed"]
+  S --> M["apply one migration"]
+  N --> D["deploy may continue"]
+  M --> D
+  F --> X["no activation · no DB rollback"]
 ```
 
 ## Qué se hizo
 
-- Añade `ops/factory/hostinger_cutover.py`: cliente estándar `urllib`, endpoint oficial fijo, Bearer auth sanitizado y schema de settings fail-closed.
-- Valida que owner/repository/branch sean `pl0n3r/brvtal@main` y que el target sea el document root del sitio; el PUT reutiliza exactamente la configuración observada y solo cambia `is_enabled`.
-- Deshabilita auto-deploy, relee Hostinger y exige estado disabled **antes** de llamar el bootstrap reversible de #670.
-- En fallo posterior al bootstrap, verifica/restaura primero el dispatcher legacy y mantiene Hostinger Git apagado; reactivarlo con `is_enabled=true` dispara un deploy inmediato, así que la recuperación de autoridad queda explícita tras verificar identidad exacta.
-- Añade `.github/workflows/factory-hostinger-cutover.yml` con trigger exclusivamente manual, mínimo privilegio, timeout, concurrency serial y confirmación exacta `CUTOVER-BRVTAL`.
-- Integra `tests/test_hostinger_cutover.py` al suite canónico mediante `factory-hostinger-transport-contract.php`: éxito, idempotencia disabled, schema/settings inesperados, API 503 sanitizado, fallo bootstrap, fallo post-bootstrap y restore fail-closed.
-- No añade todavía el caller permanente `factory/deploy.yml@v1` y no ejecuta el cutover real en este slice.
+- Añade `ops/factory/migration-plan`: compara las migraciones del release servido con el candidato exacto y emite `__NONE__` o una única migración nueva.
+- Cambiar o retirar una migración histórica aborta por nombre/checksum; más de una migración nueva se considera ambigua y falla antes de activación.
+- `config/migrations.php` añade defensa en profundidad para rechazar SQL no aditivo antes de `PDO::exec()`.
+- `ops/factory/migrate` deja de depender de `BRVTAL_FACTORY_MIGRATION`; fixture y producción comparten el mismo contrato de selección.
+- El transporte remoto deriva el release previo desde `.factory-current`, confina ambos releases y aplica solo la migración seleccionada por el planner.
+- Los contratos cubren no-op, una migración, replay, múltiples, cambio/eliminación histórica y SQL destructivo; fake-SSH prueba la ruta remota no-op.
+- No ejecuta el cutover ni añade todavía el caller permanente `factory/deploy.yml@v1`.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/factory-hostinger-cutover.yml`
-- `tests/factory-hostinger-transport-contract.php`
-- `README.md`
-- `ops/factory/hostinger_cutover.py`
+- `config/migrations.php`
+- `ops/factory/build`
+- `ops/factory/migrate`
+- `ops/factory/migration-plan`
 - `ops/factory/transport.py`
-- `tests/test_hostinger_cutover.py`
+- `tests/factory-deploy-adapters-contract.php`
+- `tests/factory-hostinger-transport-contract.php`
+- `tests/migrations-contract.php`
+- `README.md`
 
 ## Validación
 
-- 🚧 `tests/test_hostinger_cutover.py` debe pasar dentro del gate `fast`.
-- 🚧 El suite canónico ejecuta el unittest del cutover sin modificar el workflow compartido; database/chromium/real-stack/webkit/recovery permanecen bajo el alcance normal del diff.
+- 🚧 `factory-deploy-adapters-contract.php`, `factory-hostinger-transport-contract.php` y `migrations-contract.php` deben pasar dentro del gate `fast`.
+- 🚧 Database/recovery siguen obligatorios porque se toca la frontera de migración/deploy.
 - 🚧 Factory CI/Policy/Privacy, Sonar y CodeQL deben pasar sobre el HEAD estable.
 - 🚧 CodeRabbit continúa advisory según AGENTS.md; solo hallazgos accionables bloquean.
-- ✅ ~~Producción permanece intacta~~: no existe trigger automático hacia el nuevo cutover.
+- ✅ ~~Producción permanece intacta~~: no se ejecuta migración remota ni cutover en este PR.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#672](https://github.com/pl0n3r/brvtal/issues/672): validar e integrar control API + workflow manual. |
+| **NOW** | 🚧 [#674](https://github.com/pl0n3r/brvtal/issues/674): cerrar selección determinista de migraciones para deploy reusable. |
 | **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): ejecutar el cutover controlado y, tras evidencia GREEN, añadir el caller Factory por `push`. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): reanudar roadmap tras cerrar TANDA 2. |
 | **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera paridad central de Factory. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: cerrar #672 sin tocar producción.
+- 🚧 **NOW**: cerrar #674 sin tocar producción.
 - 🚧 **NEXT**: ejecutar cutover manual desde exact main y probar rollback/health antes de habilitar push deploy.
 - 🚧 **LATER**: cerrar #630 con merge → producción validada o rollback automático.
 - 🚧 **BLOCKED / EXTERNAL**: #627 sigue fuera hasta paridad completa del kit.
