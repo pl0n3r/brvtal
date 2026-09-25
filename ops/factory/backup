@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/common.sh"
+
+case "$(factory_mode)" in
+  fixture)
+    factory_maybe_fail backup
+    root="$(factory_fixture_root)"
+    sha="$(factory_sha)"
+    [[ -f "$root/releases/$sha/release.env" ]] || factory_die "build artifact missing before backup"
+    mkdir -p -- "$root/backups"
+    factory_atomic_write "$root/backups/$sha.ok" "backup-ready"
+    printf 'Synthetic backup ready for %s\n' "$sha"
+    ;;
+  production)
+    factory_require_production_activation
+    factory_maybe_fail backup
+    cd "$BRVTAL_FACTORY_REPO_ROOT"
+    php -r '
+      require "config/bootstrap.php";
+      require "config/backups.php";
+      $manifest = brvtal_backup_create(db(), [
+        "include_media_archive" => false,
+        "created_by" => ["id" => 0, "name" => "Factory deploy"],
+      ]);
+      if (($manifest["status"] ?? "") !== "ready") {
+        fwrite(STDERR, "BRVTAL FACTORY ADAPTER: backup did not reach ready state\n");
+        exit(1);
+      }
+      fwrite(STDOUT, "Backup ready: " . (string)($manifest["id"] ?? "unknown") . "\n");
+    '
+    ;;
+  *)
+    factory_die "adapter mode disabled; remote activation is not enabled"
+    ;;
+esac
