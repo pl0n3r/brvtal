@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: trabajo repository-only de calidad para #685. Añade PHPStan incremental con baseline de hallazgos JSON derivada del SHA base exacto y Rector dry-run limitado a PHP cambiado. No modifica runtime, producto, Hostinger ni la versión v0.1.58. El incidente #681 continúa bloqueado por reconciliación externa de producción.
+> Snapshot de **solo el deploy actual**: recuperación operacional de #681. Expone en GitHub Actions la reconciliación Hostinger/DB ya implementada en `ops/factory/transport.py`; no añade SQL ni otro transporte y no cambia la versión de producto v0.1.58.
 
 ## Progress convention
 
@@ -18,12 +18,11 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#685 · PHP static-analysis gates** | `work/issue-685`; reservation `c99d7f2e-e19a-4d81-bb91-a17c96217711` |
-| Base exacta | ✅ **main v0.1.58** | `d4426f49c8e1b5df63cae8dd2afe5577baa88dc8` |
-| Versión de producto | ✅ **v0.1.58 sin cambio** | repository-only / no deploy-bound runtime |
-| PHPStan | 🚧 **snapshot exact-base → diff de hallazgos HEAD** | PHPStan 2.2.14 |
-| Rector | 🚧 **dry-run PHP cambiado** | Rector 2.6.7 · PHP 8.5 |
-| Production | ⛔ **#681 sigue bloqueado** | este PR no afirma GREEN ni toca DB/Hostinger |
+| Work line | 🚧 **#681 · migration registry parity** | `work/issue-681`; reservation `1acc1796-9048-4b25-abce-fba905c90964` |
+| Base exacta | ✅ **main v0.1.58** | `d183b748918f47b25bc7146b33cc952b49194c05` |
+| Versión de producto | ✅ **v0.1.58 sin cambio** | workflow operacional repository-only |
+| Producción | ⛔ **health 503** | smoke autenticado falla antes del login |
+| Recuperación | 🚧 **owner-only / fail-closed** | inspect → backup → reconcile → readiness → smoke |
 
 ## Huella del cambio
 
@@ -31,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+524** | **−35** | **+489** |
+| **3** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 
@@ -39,74 +38,61 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | **Issue #685 · PHPStan + Rector CI gates** |
-| Roles | **Infrastructure · Software Engineering · QA · Security** |
-| Trust boundary | baseline desde base SHA exacta; base y HEAD analizados en worktrees exactos; reportes pasan por stdin; sin secretos |
-| Permisos | contents: read; sin ampliación |
+| Gates esperados | **preflight · coordination · fast[docs-only]** |
+| PR + snapshot exacto | **Issue #681 · recovery workflow** |
+| Roles | **Infrastructure · SRE · Security · QA** |
+| Trust boundary | comando exacto del dueño; secretos solo server-side; transporte SSH existente |
+| Permisos | contents: read; actions: write solo para disparar el smoke posterior |
 | Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit |
 | CI del SHA exacto de main | 🚧 después del merge |
-| Production GREEN | 🚧 independiente; #681 permanece abierto |
+| Production GREEN | 🚧 solo después de health 200 + smoke autenticado |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  B["Exact base SHA"] --> BW["Detached base worktree"]
-  H["Exact head SHA"] --> HW["Detached HEAD worktree"]
-  BW --> BL["PHPStan JSON baseline"]
-  HW --> P["PHPStan HEAD analysis"]
-  BL --> C["Compare findings"]
-  P --> C
-  H --> D["Changed PHP diff"]
-  D --> R["Rector dry-run in HEAD worktree"]
-  C --> V["BRVTAL validate"]
-  R --> V
+  O["Owner command #681"] --> I["inspect-migrations"]
+  I --> B["backup ready"]
+  B --> R["reconcile-migrations"]
+  R --> H["exact readiness"]
+  H --> S["authenticated production smoke"]
 ```
 
 ## Qué se hizo
 
-- Fija PHPStan 2.2.14 y Rector 2.6.7 como tooling exclusivo de CI.
-- Genera una baseline de hallazgos PHPStan en JSON desde el SHA base exacto y compara el HEAD por archivo, regla y mensaje, preservando multiplicidad.
-- Rechaza SHAs no exactas o commits inexistentes antes del análisis y ejecuta PHPStan/Rector sobre worktrees exactos, no sobre el merge ref.
-- El comparador recibe los reportes por stdin; no abre rutas entregadas por argumentos CLI.
-- Ejecuta Rector solo sobre archivos PHP añadidos/modificados/renombrados presentes en HEAD.
-- Mantiene `phpstan.neon` y `rector.php` como configuración repository-only.
-- Añade contratos Python, prueba conductual con Git temporal y validación de sintaxis del script.
-- No cambia versión, runtime, base de datos, deploy ni Hostinger.
+- Añade un workflow operacional con comando exacto `/reconcile-production-migrations` restringido al dueño y al Issue #681.
+- Hace checkout explícito de `main` y resuelve SHA/versión exactos antes de tocar producción.
+- Reutiliza `transport.py inspect-migrations` para inspección acotada y `reconcile-migrations` para backup + escritura del registry + `verify-plan __NONE__` + readiness.
+- No expone secretos ni filas de aplicación; el resumen solo contiene conteos y booleanos estructurales saneados.
+- Tras éxito dispara el smoke autenticado existente; no duplica pruebas ni credenciales.
+- No cambia producto, versión, DNS, cutover Factory ni lógica SQL.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/update-release-metadata.yml` — instala herramientas fijadas y ejecuta el gate incremental.
-- `README.md` — snapshot exacto del trabajo repository-only.
-- `phpstan.neon` — alcance y nivel inicial de PHPStan.
-- `rector.php` — PHP 8.5 + niveles iniciales de dead code y code quality.
-- `scripts/ci-scope.sh` — clasifica configs de análisis como repository-only.
-- `scripts/php-static-analysis.sh` — ejecuta PHPStan en worktrees exactos de base/HEAD y Rector dry-run.
-- `scripts/phpstan_diff.py` — compara hallazgos recibidos por stdin y falla solo ante deuda nueva.
-- `tests/test_php_static_analysis_behavior.py` — prueba conductual con Git temporal y herramientas stub.
-- `tests/test_phpstan_diff.py` — regresiones del comparador incremental.
-- `tests/test_static_analysis_ci.py` — contratos de seguridad y CI.
+- `.github/workflows/production-migration-reconcile.yml` — ejecución owner-only de la recuperación ya implementada.
+- `README.md` — snapshot exacto del incidente.
+- `tests/test_production_migration_reconcile_workflow.py` — contrato de trigger, permisos y transporte.
 
 ## Validación
 
-- 🚧 Criterios de aceptación ejecutables deben pasar sobre el HEAD estable.
-- 🚧 BRVTAL CI / validate debe pasar con el gate plan exacto del diff.
-- 🚧 Factory Policy, Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sin hallazgos bloqueantes.
-- No se considera #681 resuelto ni producción GREEN por este cambio.
+- 🚧 Contrato Python del workflow.
+- 🚧 BRVTAL CI / validate sobre HEAD estable.
+- 🚧 Factory Policy, Privacy, Sonar/CodeQL y CodeRabbit.
+- 🚧 Tras merge: comando de reconciliación, health exacto y smoke autenticado.
+- No se declara #681 resuelto ni producción GREEN antes de esa evidencia.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#685](https://github.com/pl0n3r/brvtal/issues/685): integrar gates PHPStan/Rector. |
-| **NEXT** | 🚧 [#686](https://github.com/pl0n3r/brvtal/issues/686): aplicar el primer nivel acotado de Rector. |
-| **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): cerrar el épico tras ambos hijos y exact-main green. |
-| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): reconciliación Hostinger/DB requiere transporte autorizado y backup previo. |
+| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): ejecutar reconciliación productiva con backup y recuperar GREEN. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar adopción Factory v1 tras recuperar producción. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap normal después de TANDA 2. |
+| **BLOCKED / EXTERNAL** | 🚧 Ninguno nuevo; el transporte usa secretos ya contratados por BRVTAL. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW:** #685 estática PHP incremental sin deuda nueva.
-- 🚧 **NEXT:** #686 primera aplicación Rector acotada y revisable.
-- 🚧 **LATER:** #653 cierra cuando ambos hijos estén integrados y validados.
-- 🚧 **BLOCKED / EXTERNAL:** #681 requiere reconciliación productiva fuera de este PR.
+- 🚧 **NOW:** #681 health 503 / migration registry parity.
+- 🚧 **NEXT:** #630 adopción Factory v1.
+- 🚧 **LATER:** #533 desarrollo normal.
+- 🚧 **BLOCKED / EXTERNAL:** ninguno adicional para esta recuperación.

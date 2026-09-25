@@ -1,0 +1,82 @@
+name: Production Migration Reconcile
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: brvtal-production-migration-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: reconcile-production-migration-registry
+    if: >-
+      github.event.issue.number == 681 &&
+      github.event.comment.user.login == github.repository_owner &&
+      github.event.comment.author_association == 'OWNER' &&
+      github.event.comment.body == '/reconcile-production-migrations'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BRVTAL_ORIGIN: https://www.brvtal.com.co
+      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+
+    steps:
+      - name: Check out exact main source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve exact main identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          version="$(php -r "require 'config/version.php'; echo BRVTAL_APP_VERSION;")"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid main SHA"; exit 1; }
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid product version"; exit 1; }
+          echo "BRVTAL_EXPECTED_SHA=$sha" >> "$GITHUB_ENV"
+          echo "BRVTAL_EXPECTED_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Validate Hostinger transport contract
+        shell: bash
+        run: python3 ops/factory/transport.py validate
+
+      - name: Inspect migration reconciliation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/factory/transport.py inspect-migrations             --sha "$BRVTAL_EXPECTED_SHA"             --version "$BRVTAL_EXPECTED_VERSION"             --origin "$BRVTAL_ORIGIN"             > /tmp/migration-reconcile-plan.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          plan = json.loads(Path("/tmp/migration-reconcile-plan.json").read_text(encoding="utf-8"))
+          print("## Production migration reconciliation")
+          print()
+          print(f"- Registry exists: **{plan['registry_exists']}**")
+          print(f"- Registry migration record required: **{plan['record_registry_migration']}**")
+          print(f"- Pending migrations: **{len(plan['pending'])}**")
+          print(f"- Proven baseline candidates: **{len(plan['baseline'])}**")
+          print()
+          print("Only bounded structural proof metadata is shown; no application rows or secrets are emitted.")
+          PY
+
+      - name: Backup, reconcile registry and verify readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ops/factory/transport.py reconcile-migrations             --sha "$BRVTAL_EXPECTED_SHA"             --version "$BRVTAL_EXPECTED_VERSION"             --origin "$BRVTAL_ORIGIN"
+
+      - name: Dispatch authenticated production smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh workflow run production-authenticated-smoke.yml --ref main
