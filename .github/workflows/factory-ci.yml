@@ -1,0 +1,21 @@
+name: Factory CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  factory-ci:
+    uses: pl0n3r/factory/.github/workflows/ci.yml@v1
+    with:
+      stack: php
+      domain: https://www.brvtal.com.co
+      version_source: config/version.php
+      label_language: en
+      phase: live
+      php_version: '8.5'
+      node_enabled: false
+      working_directory: .
