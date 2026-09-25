@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/sentry.php';
+
 /*
  * BRVTAL LOGGER
  * Save as: /config/logger.php
@@ -12,7 +14,13 @@ if (!defined('BRVTAL_LOGGER_LOADED')) {
 
 $BRVTAL_ROOT = dirname(__DIR__);
 $BRVTAL_LOG_DIR = $BRVTAL_ROOT . '/storage/logs';
-$BRVTAL_LOG_FILE = $BRVTAL_LOG_DIR . '/brvtal.log';
+$BRVTAL_LOG_FILE = (
+    defined('BRVTAL_SENTRY_TESTING')
+    && BRVTAL_SENTRY_TESTING === true
+    && is_string($GLOBALS['brvtalSentryTestLogFile'] ?? null)
+)
+    ? $GLOBALS['brvtalSentryTestLogFile']
+    : $BRVTAL_LOG_DIR . '/brvtal.log';
 
 if (!is_dir($BRVTAL_LOG_DIR)) {
     @mkdir($BRVTAL_LOG_DIR, 0755, true);
@@ -101,6 +109,12 @@ set_exception_handler(
             'line' => $exception->getLine(),
             'trace' => $exception->getTraceAsString()
         ]);
+        brvtalSentryCaptureException(
+            $exception,
+            is_array($GLOBALS['config'] ?? null) ? $GLOBALS['config'] : [],
+            brvtalSentrySenderOverride(),
+            brvtalSentryResolverOverride()
+        );
 
         http_response_code(500);
 
@@ -137,6 +151,12 @@ register_shutdown_function(
                 'line' => $error['line'],
                 'type' => $error['type']
             ]);
+            brvtalSentryCaptureFatal(
+                $error,
+                is_array($GLOBALS['config'] ?? null) ? $GLOBALS['config'] : [],
+                brvtalSentrySenderOverride(),
+                brvtalSentryResolverOverride()
+            );
         }
     }
 );

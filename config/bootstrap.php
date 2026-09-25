@@ -11,9 +11,27 @@ if (!function_exists('brvtal_log')) {
     function brvtal_log(string $level, string $message, array $context = []): void {}
 }
 
-$configPath = __DIR__ . '/config.php';
+$configPath = (
+    defined('BRVTAL_SENTRY_TESTING')
+    && BRVTAL_SENTRY_TESTING === true
+    && is_string($GLOBALS['brvtalBootstrapConfigPath'] ?? null)
+)
+    ? $GLOBALS['brvtalBootstrapConfigPath']
+    : __DIR__ . '/config.php';
 if (!is_file($configPath)) {
     brvtal_log('FATAL', 'Missing config/config.php', ['expected' => $configPath]);
+    if (function_exists('brvtalSentryCaptureFatal')) {
+        brvtalSentryCaptureFatal(
+            [
+                'type' => E_USER_ERROR,
+                'file' => __FILE__,
+                'line' => __LINE__,
+            ],
+            [],
+            brvtalSentrySenderOverride(),
+            brvtalSentryResolverOverride()
+        );
+    }
     http_response_code(500);
     exit('BRVTAL: falta config/config.php.');
 }
@@ -24,6 +42,14 @@ try {
     date_default_timezone_set((string)($config['app']['timezone'] ?? 'America/Bogota'));
 } catch (Throwable $e) {
     brvtal_log('EXCEPTION', 'Configuration loading failed.', ['message' => $e->getMessage()]);
+    if (function_exists('brvtalSentryCaptureException')) {
+        brvtalSentryCaptureException(
+            $e,
+            [],
+            brvtalSentrySenderOverride(),
+            brvtalSentryResolverOverride()
+        );
+    }
     http_response_code(500);
     exit('BRVTAL: error de configuración.');
 }

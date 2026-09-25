@@ -28,6 +28,11 @@ return [
         // Keep empty on shared hosting unless the immediate proxy addresses/CIDRs are known.
         'trusted_proxies' => [],
     ],
+    'observability' => [
+        // Optional production error transport. Prefer BRVTAL_SENTRY_DSN at runtime.
+        // Keep this blank in source-controlled examples; no Composer SDK is required.
+        'sentry_dsn' => '',
+    ],
     'hosting' => [
         // Optional operational quota used by DISCADMIN System Status.
         // Production currently falls back safely to the known 25 GB Hostinger plan when omitted.
