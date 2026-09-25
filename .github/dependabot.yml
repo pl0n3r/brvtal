@@ -1,0 +1,29 @@
+version: 2
+# Grouped weekly updates: few PRs, so GitHub and agents are not overloaded.
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      npm-minor:
+        update-types: ["minor", "patch"]
+    labels:
+      - "type: enhancement"
+      - "priority: medium"
+      - "status: in review"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions-minor:
+        update-types: ["minor", "patch"]
+    labels:
+      - "type: enhancement"
+      - "priority: medium"
+      - "status: in review"
