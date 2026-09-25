@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: candidate v0.1.58 for incident #681. Production health is 503 because historical schema effects exist without complete migration-registry parity. This candidate adds controlled, backup-gated reconciliation; it does not perform destructive SQL or Factory cutover.
+> Snapshot de **solo el deploy actual**: trabajo repository-only de gobernanza para #627. Adopta el lifecycle central de etiquetas de Factory v1; no cambia runtime, producto, Hostinger ni la versión v0.1.58. El incidente #681 continúa bloqueado por reconciliación externa de producción.
 
 ## Progress convention
 
@@ -18,13 +18,11 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · migration registry reconciliation** | `work/issue-681`; reservation `3f02949d-e096-4a9e-922c-2ee2f8e9fd1f` |
-| Base exacta | ⛔ **main v0.1.57** | `f500ff862c8ffeea31bad19d2b2d24e29b65f326`; health incident open |
-| Versión objetivo | 🚧 **v0.1.58 deploy-bound** | patch 0.1.57 → 0.1.58 |
-| Reconciliation plan | ✅ **read-only / fail-closed** | information_schema proofs only |
-| Backup before writes | ✅ **required by transport + CLI** | backup status=ready + marker + env gate |
-| Historical SQL replay | ✅ **forbidden by this path** | proven effects are baselined only |
-| Production | ⛔ **not GREEN yet** | health must return 200 after deploy/reconcile |
+| Work line | 🚧 **#627 · Factory labels adoption** | `work/issue-627`; reservation `3ff8cec6-1268-4b52-bb00-9a6fb1a71975` |
+| Base exacta | ✅ **main v0.1.58** | `027421db0ba9c47e94dda6e6c73c3c8ef962fe33` |
+| Versión de producto | ✅ **v0.1.58 sin cambio** | repository-only / no deploy-bound runtime |
+| Factory labels | 🚧 **caller central @v1** | validate + sync + sweep, `language: en` |
+| Production | ⛔ **#681 sigue bloqueado** | este PR no afirma GREEN ni toca DB/Hostinger |
 
 ## Huella del cambio
 
@@ -32,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+822** | **−60** | **+762** |
+| **__FILES__** | **+__ADD__** | **−__DEL__** | **__NET__** |
 
 ## Calidad y entrega
 
@@ -40,69 +38,61 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | **Issue #681 · PR #682 · v0.1.58** |
-| Roles | **Infrastructure · SRE · Security · QA** |
-| Reconciliation | read-only proof → backup ready → controlled registry write → `verify-plan __NONE__` |
-| Production writes | baseline metadata only; no destructive SQL, no restore, no cutover |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
+| PR + snapshot exacto | **Issue #627 · Factory labels lifecycle** |
+| Roles | **Infrastructure · Security · QA** |
+| Trust boundary | metadata-only; no checkout ni ejecución de código del PR |
+| Permisos | contents: read · issues: write · pull-requests: read |
 | Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit |
 | CI del SHA exacto de main | 🚧 después del merge |
-| Production GREEN | 🚧 exact health + authenticated smoke required |
+| Production GREEN | 🚧 independiente; #681 permanece abierto |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  A["health 503 · registry parity"] --> P["read-only reconcile-plan"]
-  P --> X{"all structural proofs complete?"}
-  X -->|no| F["fail closed · zero registry writes"]
-  X -->|yes| B["backup status=ready"]
-  B --> R["baseline proven historical migrations"]
-  R --> V["verify-plan __NONE__"]
-  V --> M["merge / deploy"]
-  M --> H["exact health + authenticated smoke"]
+  E["Issue / PR metadata"] --> C["BRVTAL caller"]
+  C --> F["Factory etiquetas.yml@v1"]
+  F --> V["validate · Labels"]
+  F --> S["sync"]
+  F --> W["sweep"]
+  V --> G["BRVTAL gates"]
 ```
 
 ## Qué se hizo
 
-- Añade especificaciones explícitas de prueba estructural para migraciones históricas conocidas.
-- Consulta solo `information_schema`; no lee filas de negocio ni contenido privado.
-- Aborta ante proof faltante/incompleto, checksum mismatch, orphan records o estados ambiguos.
-- Añade `reconcile-plan` de solo lectura y `reconcile` protegido por gates de escritura y evidencia de backup.
-- El transporte SSH verifica el checkout legacy exacto antes de inspección/reconciliación.
-- Crea backup mediante la librería BRVTAL y exige `status=ready` antes de cualquier baseline.
-- Una reconciliación exitosa termina con `verify-plan __NONE__`; una prueba incompleta detiene el flujo antes del baseline y mantiene el incidente abierto.
+- Añade un único caller BRVTAL para el reusable central de Factory.
+- Usa `language: en` y delega `sync`, `validate` y `sweep`.
+- Mantiene el PR path metadata-only y sin `actions/checkout` local.
+- Limita permisos al mínimo requerido por el reusable.
+- Añade contrato Python que falla si se introduce lógica local divergente o permisos ampliados.
+- No cambia versión, runtime, base de datos, deploy ni Hostinger.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot exacto del incidente #681.
-- `config/migration_reconcile.php` — proofs y plan/reconciliación fail-closed.
-- `config/version.php` — versión v0.1.58.
-- `ops/factory/transport.py` — inspección y reconciliación remota controlada.
-- `package.json` — paridad de versión.
-- `scripts/migrations.php` — comandos reconcile-plan/reconcile.
-- `tests/factory-hostinger-transport-contract.php` — contrato del transport.
-- `tests/migrations-contract.php` — regresiones del reconciliador.
+- `.github/workflows/factory-labels.yml` — caller reusable de etiquetas Factory v1.
+- `README.md` — snapshot exacto del trabajo repository-only.
+- `tests/test_factory_labels_adoption.py` — contrato consumidor y regresiones de seguridad.
 
 ## Validación
 
-- 🚧 Los contratos PHP/transport deben pasar en BRVTAL CI sobre el HEAD estable.
-- 🚧 Sonar, CodeQL y CodeRabbit deben cerrar sin findings accionables.
-- 🚧 Tras merge, el transporte debe tomar backup antes de baselinear.
-- 🚧 Producción solo vuelve a GREEN con health 200 exacto y smoke autenticado success.
-- No se afirma que producción esté reparada antes de esas evidencias.
+- 🚧 Criterios de aceptación ejecutables deben pasar sobre el HEAD estable.
+- 🚧 BRVTAL CI / validate debe pasar con el gate plan exacto del diff.
+- 🚧 Factory Policy, Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sin hallazgos bloqueantes.
+- No se considera #681 resuelto ni producción GREEN por este cambio.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): recuperar health exacto sin replay histórico. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar TANDA 2 cuando GREEN vuelva. |
-| **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector. |
-| **BLOCKED / EXTERNAL** | 🚧 Hostinger write path requires configured transport credentials; never invent or commit them. |
+| **NOW** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): integrar lifecycle central de labels. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar TANDA 2 del kit Factory. |
+| **LATER** | 🚧 [#683](https://github.com/pl0n3r/brvtal/issues/683): staff API para ControlBot cuando sus dependencias estén listas. |
+| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): reconciliación Hostinger/DB requiere transporte autorizado y backup previo. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW:** #681 restore production GREEN with backup-gated migration reconciliation.
-- 🚧 **NEXT:** #630 complete Factory adoption after exact-main + production validation.
-- 🚧 **LATER:** #653 static-analysis uplift and remaining roadmap work.
+- 🚧 **NOW:** #627 consolidar gobernanza de etiquetas en Factory v1.
+- 🚧 **NEXT:** #630 continuar adopción común sin duplicación local.
+- 🚧 **LATER:** #653 y roadmap de producto tras prioridades Factory.
+- 🚧 **BLOCKED / EXTERNAL:** #681 requiere reconciliación productiva fuera de este PR.
