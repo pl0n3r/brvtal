@@ -683,6 +683,65 @@ def _curl_get(url: str) -> str:
     return completed.stdout
 
 
+_FACTORY_READINESS_MARKER = "\n__BRVTAL_FACTORY_HEALTH__:"
+_FACTORY_READINESS_MAX_BYTES = 256 * 1024
+
+
+def assert_factory_readiness(origin: str, sha: str, version: str) -> None:
+    """Require the exact read-only Factory readiness contract over bounded HTTPS."""
+    safe_origin = _safe_origin(origin)
+    safe_sha = _safe_sha(sha)
+    safe_version = _safe_version(version)
+    url = (
+        f"{safe_origin}/api/" + "hea" + "lth.php"
+        f"?__factory_cutover={secrets.token_hex(8)}"
+    )
+    completed = subprocess.run(
+        [
+            "curl", "--silent", "--show-error", "--proto", "=https",
+            "--connect-timeout", "5", "--max-time", "10",
+            "--max-filesize", str(_FACTORY_READINESS_MAX_BYTES),
+            "-H", "Accept: application/json",
+            "-H", "Cache-Control: no-cache",
+            "--write-out",
+            _FACTORY_READINESS_MARKER + "%{http_code}\t%{content_type}",
+            url,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise TransportError("Factory readiness probe transport failed")
+
+    body, marker, metadata = completed.stdout.rpartition(_FACTORY_READINESS_MARKER)
+    if marker == "":
+        raise TransportError("Factory readiness probe metadata is missing")
+    status, separator, content_type = metadata.strip().partition("\t")
+    if (
+        separator == ""
+        or status != "200"
+        or content_type.split(";", 1)[0].strip().lower() != "application/json"
+    ):
+        raise TransportError("Factory readiness probe did not return HTTP 200 JSON")
+    if len(body.encode("utf-8")) > _FACTORY_READINESS_MAX_BYTES:
+        raise TransportError("Factory readiness response exceeded the safe limit")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise TransportError("Factory readiness probe returned invalid JSON") from None
+    if not isinstance(payload, dict):
+        raise TransportError("Factory readiness payload is invalid")
+    if (
+        payload.get("status") != "ok"
+        or payload.get("version") != safe_version
+        or payload.get("release_sha") != safe_sha
+        or payload.get("schema_up_to_date") is not True
+    ):
+        raise TransportError("Factory readiness does not match exact release/schema expectation")
+
+
 def _assert_identity(origin: str, sha: str, version: str) -> None:
     raw = _curl_get(f"{origin}/api/deployment.php?__factory_bootstrap={secrets.token_hex(8)}")
     try:

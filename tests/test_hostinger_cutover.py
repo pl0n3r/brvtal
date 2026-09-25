@@ -1,5 +1,7 @@
 from __future__ import annotations
 import importlib.util, json, pathlib, sys, unittest, urllib.error
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FACTORY = ROOT / "ops" / "factory"
@@ -53,10 +55,19 @@ class FakeApi:
 
 
 class FakeTransport:
-    def __init__(self, fail=False, active_on_fail=False, restore_fails=False):
+    def __init__(
+        self, fail=False, active_on_fail=False, restore_fails=False,
+        readiness_fail_on=None
+    ):
         self.fail, self.active = fail, False
         self.active_on_fail, self.restore_fails = active_on_fail, restore_fails
-        self.bootstrap_calls, self.restore_calls = 0, 0
+        self.readiness_fail_on = readiness_fail_on
+        self.bootstrap_calls, self.restore_calls, self.readiness_calls = 0, 0, 0
+
+    def assert_factory_readiness(self, *_args):
+        self.readiness_calls += 1
+        if self.readiness_fail_on == self.readiness_calls:
+            raise cutover.transport.TransportError("Factory readiness probe failed")
 
     def bootstrap(self, *_args):
         self.bootstrap_calls += 1
@@ -99,7 +110,70 @@ class CutoverTests(unittest.TestCase):
                 self.assertFalse(self.execute_cutover(api, transport).is_enabled)
                 self.assertEqual(api.calls, expected_calls)
                 self.assertEqual(transport.bootstrap_calls, 1)
+                self.assertEqual(transport.readiness_calls, 2)
                 self.assertTrue(all(v == f"Bearer {self.token}" for v in api.auth))
+
+    def test_readiness_preflight_failure_does_not_mutate_authority_or_layout(self):
+        api = FakeApi()
+        transport = FakeTransport(readiness_fail_on=1)
+        with self.assertRaisesRegex(cutover.transport.TransportError, "readiness probe failed"):
+            self.execute_cutover(api, transport)
+        self.assertEqual(api.calls, ["GET"])
+        self.assertEqual(transport.bootstrap_calls, 0)
+        self.assertEqual(transport.restore_calls, 0)
+        self.assertTrue(api.state["is_enabled"])
+
+    def test_post_bootstrap_readiness_failure_restores_layout_and_keeps_git_disabled(self):
+        api = FakeApi()
+        transport = FakeTransport(readiness_fail_on=2)
+        with self.assertRaisesRegex(cutover.CutoverError, "Git remains disabled"):
+            self.execute_cutover(api, transport)
+        self.assertEqual(transport.readiness_calls, 2)
+        self.assertEqual(transport.bootstrap_calls, 1)
+        self.assertEqual(transport.restore_calls, 1)
+        self.assertFalse(transport.active)
+        self.assertFalse(api.state["is_enabled"])
+
+    def test_readiness_probe_requires_exact_contract_and_sanitizes_failures(self):
+        marker = cutover.transport._FACTORY_READINESS_MARKER
+        good_payload = json.dumps({
+            "status": "ok",
+            "version": self.version,
+            "release_sha": self.sha,
+            "schema_up_to_date": True,
+        })
+        good = SimpleNamespace(
+            returncode=0,
+            stdout=good_payload + marker + "200\tapplication/json",
+            stderr="",
+        )
+        with patch.object(cutover.transport.subprocess, "run", return_value=good) as runner:
+            cutover.transport.assert_factory_readiness(
+                "https://www.brvtal.com.co", self.sha, self.version
+            )
+        args = runner.call_args.args[0]
+        self.assertNotIn("--location", args)
+        self.assertIn("--max-filesize", args)
+        self.assertIn("=https", args)
+
+        bad_payload = json.dumps({
+            "status": "ok",
+            "version": self.version,
+            "release_sha": self.sha,
+            "schema_up_to_date": False,
+            "secret": "DO-NOT-LEAK",
+        })
+        bad = SimpleNamespace(
+            returncode=0,
+            stdout=bad_payload + marker + "200\tapplication/json; charset=utf-8",
+            stderr="DO-NOT-LEAK",
+        )
+        with patch.object(cutover.transport.subprocess, "run", return_value=bad):
+            with self.assertRaises(cutover.transport.TransportError) as raised:
+                cutover.transport.assert_factory_readiness(
+                    "https://www.brvtal.com.co", self.sha, self.version
+                )
+        self.assertNotIn("DO-NOT-LEAK", str(raised.exception))
 
     def test_unexpected_settings_fail_before_mutation(self):
         for change in (
