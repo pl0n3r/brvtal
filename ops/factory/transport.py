@@ -207,6 +207,10 @@ test -f "$shared/config/config.php" || exit 33
 test -d "$shared/uploads" || exit 34
 test -d "$shared/storage" || exit 35
 test -d "$shared/.private" || exit 36
+test -f "$shared/.private/.htaccess" || exit 37
+test -f "$shared/storage/.htaccess" || exit 38
+test -f "$shared/storage/backups/.htaccess" || exit 39
+test -f "$shared/uploads/.htaccess" || exit 40
 mkdir -p "$releases" "$state"
 
 if [ -d "$candidate" ]; then
@@ -222,8 +226,8 @@ trap 'rm -rf -- "$tmp"' EXIT
 tar -xzf "$archive" -C "$tmp"
 rm -f -- "$archive"
 
-test -f "$tmp/index.php" || exit 38
-test -f "$tmp/.htaccess" || exit 39
+test -f "$tmp/index.php" || exit 42
+test -f "$tmp/.htaccess" || exit 43
 mkdir -p "$tmp/.git" "$tmp/config"
 printf '%s\n' "$sha" > "$tmp/.git/HEAD"
 printf '%s\n' "$sha" > "$tmp/.factory-release-sha"

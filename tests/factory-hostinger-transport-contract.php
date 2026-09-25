@@ -100,12 +100,16 @@ $remote = $fixtureBase . '/hostinger-remote-' . bin2hex(random_bytes(4));
 $fakeBin = $fixtureBase . '/hostinger-bin-' . bin2hex(random_bytes(4));
 @mkdir($remote . '/factory-shared/config', 0700, true);
 @mkdir($remote . '/factory-shared/uploads', 0700, true);
-@mkdir($remote . '/factory-shared/storage', 0700, true);
+@mkdir($remote . '/factory-shared/storage/backups', 0700, true);
 @mkdir($remote . '/factory-shared/.private', 0700, true);
 @mkdir($remote . '/public_html', 0700, true);
 @mkdir($fakeBin, 0700, true);
 file_put_contents($remote . '/factory-shared/.prepared-v1', "prepared\n");
 file_put_contents($remote . '/factory-shared/config/config.php', "<?php return [];\n");
+copy($root . '/.private/.htaccess', $remote . '/factory-shared/.private/.htaccess');
+copy($root . '/storage/.htaccess', $remote . '/factory-shared/storage/.htaccess');
+copy($root . '/storage/backups/.htaccess', $remote . '/factory-shared/storage/backups/.htaccess');
+copy($root . '/uploads/.htaccess', $remote . '/factory-shared/uploads/.htaccess');
 copy($dispatcher, $remote . '/public_html/.htaccess');
 
 $previousSha = str_repeat('b', 40);
@@ -198,6 +202,8 @@ try {
     hostinger_expect(is_link($candidate . '/uploads') && readlink($candidate . '/uploads') === $remote . '/factory-shared/uploads', 'uploads must be shared between releases');
     hostinger_expect(is_link($candidate . '/storage') && readlink($candidate . '/storage') === $remote . '/factory-shared/storage', 'storage must be shared between releases');
     hostinger_expect(is_link($candidate . '/config/config.php') && readlink($candidate . '/config/config.php') === $remote . '/factory-shared/config/config.php', 'production config must be shared between releases');
+    hostinger_expect(is_file($remote . '/factory-shared/.private/.htaccess'), 'shared private state must retain a web deny rule');
+    hostinger_expect(is_file($remote . '/factory-shared/storage/backups/.htaccess'), 'shared backups must retain a web deny rule');
 
     $deploy = hostinger_run([$root . '/ops/factory/deploy'], $root, $remoteEnv);
     hostinger_expect($deploy['code'] === 0, 'fake-SSH activation must succeed: ' . trim($deploy['stderr']));
