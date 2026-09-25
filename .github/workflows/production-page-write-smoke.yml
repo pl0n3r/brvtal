@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: production-page-write-smoke-${{ github.run_id }}
           path: artifacts/production-page-write-smoke.json

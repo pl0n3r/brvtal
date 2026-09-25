@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload performance evidence
         if: always() && steps.connectivity.outputs.reachable == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: production-performance-${{ github.run_id }}
           path: artifacts/production-performance-*.json
