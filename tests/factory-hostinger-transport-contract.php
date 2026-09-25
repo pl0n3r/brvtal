@@ -205,6 +205,17 @@ try {
     hostinger_expect(is_file($remote . '/factory-shared/.private/.htaccess'), 'shared private state must retain a web deny rule');
     hostinger_expect(is_file($remote . '/factory-shared/storage/backups/.htaccess'), 'shared backups must retain a web deny rule');
 
+    @mkdir($remote . '/factory-releases/' . $previousSha . '/database', 0700, true);
+    foreach (glob($candidate . '/database/migration_*.sql') ?: [] as $migrationPath) {
+        copy($migrationPath, $remote . '/factory-releases/' . $previousSha . '/database/' . basename($migrationPath));
+    }
+    $migrationNoop = hostinger_run(
+        [$root . '/ops/factory/migrate'],
+        $root,
+        array_merge($remoteEnv, ['MIGRATION_MODE'=>'additive'])
+    );
+    hostinger_expect($migrationNoop['code'] === 0, 'fake-SSH deterministic no-op migration must succeed: ' . trim($migrationNoop['stderr']));
+
     $deploy = hostinger_run([$root . '/ops/factory/deploy'], $root, $remoteEnv);
     hostinger_expect($deploy['code'] === 0, 'fake-SSH activation must succeed: ' . trim($deploy['stderr']));
     hostinger_expect(readlink($remote . '/public_html/.factory-current') === $candidate, 'dispatcher pointer must switch atomically to candidate');

@@ -9,8 +9,9 @@ case "$(factory_mode)" in
     sha="$(factory_sha)"
     version="$(factory_version)"
     release="$root/releases/$sha"
-    mkdir -p -- "$release"
-    tmp="$release/release.env.tmp.$$"
+    mkdir -p -- "$release" "$release/database" "$release/config"
+    cp -- "$BRVTAL_FACTORY_REPO_ROOT/config/migrations.php" "$release/config/migrations.php"
+    tmp="$release/release.env.tmp.$"
     {
       printf 'version=%s\n' "$version"
       printf 'sha=%s\n' "$sha"

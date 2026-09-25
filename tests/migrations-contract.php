@@ -16,11 +16,12 @@ migrations_assert(str_contains($registrySql, 'checksum_sha256 CHAR(64) NOT NULL'
 migrations_assert(str_contains($registrySql, 'deploy_sha CHAR(40) NULL'), 'registry must retain deploy provenance when known');
 
 $library = (string)file_get_contents(__DIR__ . '/../config/migrations.php');
-foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file'] as $function) {
+foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtal_migration_assert_additive_sql'] as $function) {
     migrations_assert(str_contains($library, "function {$function}"), "migration library must expose {$function}");
 }
 migrations_assert(str_contains($library, 'MIGRATION_CHECKSUM_MISMATCH'), 'changed applied migrations must fail closed');
 migrations_assert(str_contains($library, 'MIGRATION_REGISTRY_MISSING'), 'writes must fail when registry state is unavailable');
+migrations_assert(str_contains($library, 'MIGRATION_NON_ADDITIVE_SQL'), 'automatic migration safety must reject destructive SQL');
 
 $cli = (string)file_get_contents(__DIR__ . '/../scripts/migrations.php');
 migrations_assert(str_contains($cli, "PHP_SAPI !== 'cli'"), 'migration tool must be CLI-only');

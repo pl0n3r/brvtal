@@ -556,9 +556,31 @@ _MIGRATE = r"""
 set -euo pipefail
 site_root="$1"
 sha="$2"
-migration="$3"
 release="$site_root/factory-releases/$sha"
+releases="$site_root/factory-releases"
+current="$site_root/public_html/.factory-current"
 test "$(cat "$release/.factory-release-sha" 2>/dev/null || true)" = "$sha" || exit 51
+test ! -L "$release"
+test -f "$release/ops/factory/migration-plan"
+test ! -L "$release/ops/factory/migration-plan"
+
+previous="__NONE__"
+if [ -L "$current" ]; then
+  previous="$(readlink "$current")"
+  case "$previous" in "$releases"/*) ;; *) exit 52 ;; esac
+  test -d "$previous" || exit 53
+elif [ -e "$current" ]; then
+  exit 54
+fi
+
+migration="$(bash "$release/ops/factory/migration-plan" "$release" "$previous")" || exit 55
+if [ "$migration" = "__NONE__" ]; then
+  exit 0
+fi
+case "$migration" in
+  migration_[a-z0-9_]*.sql) ;;
+  *) exit 56 ;;
+esac
 cd "$release"
 BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_ACTOR=factory-deploy \
   php scripts/migrations.php apply "$migration" --confirm
@@ -790,10 +812,7 @@ def main() -> int:
         elif args.command == "backup":
             ssh_script(config, _BACKUP, sha)
         elif args.command == "migrate":
-            migration = args.migration.strip()
-            if not _MIGRATION_RE.fullmatch(migration):
-                raise TransportError("migration must be one explicit migration_*.sql file")
-            ssh_script(config, _MIGRATE, sha, migration)
+            ssh_script(config, _MIGRATE, sha)
         elif args.command == "activate":
             ssh_script(config, _ACTIVATE, sha)
         elif args.command == "rollback":

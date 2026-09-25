@@ -40,6 +40,39 @@ function brvtal_migration_checksum(string $path): string
     return $checksum;
 }
 
+function brvtal_migration_assert_additive_sql(string $sql): void
+{
+    if (trim($sql) === '') {
+        throw new RuntimeException('MIGRATION_SQL_EMPTY');
+    }
+
+    $sanitized = preg_replace([
+        '~/\\*.*?\\*/~s',
+        '/--[^\\r\\n]*/',
+        '/#[^\\r\\n]*/',
+        "/'(?:''|[^'])*'/s",
+        '/"(?:""|[^"])*"/s',
+    ], ' ', $sql);
+    if (!is_string($sanitized)) {
+        throw new RuntimeException('MIGRATION_SQL_SCAN_FAILED');
+    }
+
+    $destructivePatterns = [
+        '/\\bDROP\\b/i',
+        '/\\bTRUNCATE\\b/i',
+        '/\\bDELETE\\s+FROM\\b/i',
+        '/\\bREPLACE\\s+INTO\\b/i',
+        '/\\bCREATE\\s+OR\\s+REPLACE\\b/i',
+        '/\\bRENAME\\s+TABLE\\b/i',
+        '/\\bALTER\\s+TABLE\\b[^;]*\\b(?:RENAME|CHANGE|MODIFY)\\b/is',
+    ];
+    foreach ($destructivePatterns as $pattern) {
+        if (preg_match($pattern, $sanitized) === 1) {
+            throw new RuntimeException('MIGRATION_NON_ADDITIVE_SQL');
+        }
+    }
+}
+
 function brvtal_migration_registry_exists(PDO $pdo): bool
 {
     $statement = $pdo->query(
@@ -183,6 +216,7 @@ function brvtal_migration_apply_file(
     if (!is_string($sql) || trim($sql) === '') {
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
     }
+    brvtal_migration_assert_additive_sql($sql);
 
     $pdo->exec($sql);
 
