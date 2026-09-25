@@ -71,9 +71,9 @@ $token = json_encode($descriptor, JSON_UNESCAPED_SLASHES);
 bootstrap_expect(is_string($token), 'descriptor must encode');
 $head = strtolower(trim((string)shell_exec('git rev-parse HEAD')));
 bootstrap_expect((bool)preg_match('/^[a-f0-9]{40}$/', $head), 'exact checkout SHA required');
-$versionSource = (string)file_get_contents($root . '/config/version.php');
-bootstrap_expect((bool)preg_match("/BRVTAL_APP_VERSION',\\s*'([^']+)'/", $versionSource, $match), 'version must be readable');
-$version = $match[1];
+require_once $root . '/config/version.php';
+$version = BRVTAL_APP_VERSION;
+bootstrap_expect((bool)preg_match('/^[0-9]+\\.[0-9]+\\.[0-9]+$/', $version), 'version must be semantic');
 
 $fixtureBase = $root . '/.factory-fixture';
 $remote = $fixtureBase . '/bootstrap-remote-' . bin2hex(random_bytes(4));
