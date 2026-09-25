@@ -6,10 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #662 ejecuta el CI reusable de `pl0n3r/factory@v1`
-> en paralelo al CI propio de BRVTAL. Base exacta `main 16faf1ef3ac4e3b8b08a268fe55ddfbc8dffccfa`
-> / v0.1.52, con BRVTAL CI, Deploy Observer y CodeQL verdes. Es CI/gobernanza:
-> no cambia runtime, datos ni versión de producto.
+> Snapshot de **solo el deploy actual**: #625 adopta `release.yml@v1` de Factory como único creador de tag/GitHub Release para cambios de versión. Base exacta `main 1971ee5a38e09d5e48634b517ee6ba3dab07c072` / v0.1.52; candidato deploy-bound **v0.1.53**.
 
 ## Progress convention
 
@@ -20,12 +17,12 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#662 · Factory CI paralelo** | `work/issue-662`; reserva `0be9f2a0-2cbd-47a5-864d-19536ce1820f` |
-| Base exacta | ✅ ~~main v0.1.52~~ | `16faf1ef3ac4e3b8b08a268fe55ddfbc8dffccfa` |
-| Versión producto | ✅ ~~v0.1.52 sin cambio~~ | repository-only; no deploy-bound |
-| Factory channel | ✅ ~~`@v1` publicado~~ | caller sin `kit_ref` dinámico |
-| CI/Sonar/CodeRabbit | 🚧 pendiente | revalidar HEAD final |
-| Producción | ✅ ~~sin cambio de runtime~~ | este slice no escribe producción |
+| Work line | 🚧 **#625 · Factory Release v1** | `work/issue-625`; reserva `0b0f011d-1a58-4dc3-bcb6-2a982824cfb9` |
+| Base exacta | ✅ ~~main v0.1.52~~ | `1971ee5a38e09d5e48634b517ee6ba3dab07c072`; BRVTAL CI + Deploy Observer success |
+| Candidato | 🚧 **v0.1.53** | `config/version.php` + `package.json` sincronizados |
+| Release Factory | 🚧 pendiente | solo `push main` cuando cambia `config/version.php` |
+| Tags / Releases actuales | ✅ ~~ninguno~~ | el primer tag se crea después del merge |
+| Producción | ✅ ~~v0.1.52 observada~~ | v0.1.53 se valida por separado después del merge |
 
 ## Huella del cambio
 
@@ -33,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+165** | **−42** | **+123** |
+| **5** | **+175** | **−41** | **+134** |
 
 ## Calidad y entrega
 
@@ -41,56 +38,61 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
-| PR + snapshot exacto | Issue #662 · reserva `0be9f2a0-2cbd-47a5-864d-19536ce1820f` |
-| Factory CI | `ci.yml@v1` · PHP 8.5 · phase live · Node genérico desactivado |
-| Existing gates | BRVTAL CI, Policy, Privacy, Sonar, CodeQL y CodeRabbit permanecen activos |
-| Equivalencia | Factory cubre baseline PHP/preflight; BRVTAL conserva JS, MariaDB, Chromium, real-stack, WebKit y recovery |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| PR + snapshot exacto | Issue #625 · reserva `0b0f011d-1a58-4dc3-bcb6-2a982824cfb9` |
+| Factory Release | `release.yml@v1` · `php-const` · `BRVTAL_APP_VERSION` · solo `contents: write` |
+| Trigger | `push` a `main` solo si cambia `config/version.php` |
+| Existing gates | BRVTAL CI, Factory CI, Policy, Privacy, Sonar, CodeQL y CodeRabbit permanecen activos |
 | CI del SHA exacto de main | 🚧 después del merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  B["main v0.1.52 · 16faf1e"] --> P["#662 · Factory CI @v1 paralelo"]
-  P --> G["Factory baseline + BRVTAL gates"]
-  G --> C["CI + Sonar + CodeQL + CodeRabbit"]
-  C --> M["Squash merge"] --> V["CI exact-main + Observer"]
+  B["main v0.1.52 · 1971ee5"] --> P["#625 · v0.1.53 + Factory Release @v1"]
+  P --> C["CI + review gates"] --> M["Squash merge"]
+  M --> R["tag v0.1.53 + GitHub Release"]
+  M --> O["Deploy Observer"]
+  R --> V["exact-main + producción"]
+  O --> V
 ```
 
 ## Qué se hizo
 
-- Añade `.github/workflows/factory-ci.yml` como caller PR-only y read-only de `pl0n3r/factory/.github/workflows/ci.yml@v1`.
-- Mapea BRVTAL a `stack: php`, PHP 8.5, dominio HTTPS, `config/version.php`, idioma `en` y fase `live`.
-- Mantiene `node_enabled: false`: el job Node genérico de Factory no modela los servicios MariaDB/Playwright que exige `npm test` en BRVTAL.
-- Añade contrato negativo contra `pull_request_target`, `workflow_dispatch`, `secrets: inherit`, permisos write y refs dinámicas.
-- No retira ni debilita ningún gate existente.
+- Añade `.github/workflows/factory-release.yml` como caller mínimo de `pl0n3r/factory/.github/workflows/release.yml@v1`.
+- El caller no corre en mantenimiento repository-only: solo responde a cambios de `config/version.php` en `main`.
+- Factory lee la versión sin ejecutar PHP con `version_format: php-const` y `version_key: BRVTAL_APP_VERSION`.
+- El único permiso de escritura es `contents: write`, necesario para tag anotado y GitHub Release; no hay secretos ni refs dinámicas.
+- Añade regresión contra triggers extra, dispatch manual, secretos, `kit_ref`, bootstrap y lógica local de `git tag`/`gh release`.
+- Sincroniza el candidato a **v0.1.53** en `config/version.php` y `package.json`.
+- `update-release-metadata.yml` sigue siendo BRVTAL CI; no crea tags ni Releases y no compite con Factory Release.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/factory-ci.yml`
+- `.github/workflows/factory-release.yml`
 - `README.md`
-- `tests/factory-ci-contract.php`
+- `config/version.php`
+- `package.json`
+- `tests/factory-release-contract.php`
 
 ## Validación
 
-- 🚧 Factory CI debe terminar en success sobre el mismo HEAD del PR.
-- 🚧 BRVTAL CI debe conservar `validate` verde; este diff selecciona `fast[PHP+JS]`.
-- 🚧 Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable antes del merge.
-- El gap de JS/DB/browser/recovery queda explícito; no se declara equivalencia total.
+- 🚧 BRVTAL CI debe validar la transición exacta v0.1.52 → v0.1.53 y la matriz seleccionada.
+- 🚧 Factory CI, Factory Policy, Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable.
+- 🚧 Tras merge: comprobar tag anotado `v0.1.53`, GitHub Release, exact-main CI, Deploy Observer y producción.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#662](https://github.com/pl0n3r/brvtal/issues/662): Factory CI reusable en paralelo. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): medir gaps y elegir siguiente reusable sin retirar gates. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
-| **BLOCKED / EXTERNAL** | 🚧 Factory v1.0.1 sigue owner-gated en factory#108; no bloquea este caller de CI. |
+| **NOW** | 🚧 [#625](https://github.com/pl0n3r/brvtal/issues/625): Factory Release v1 + primera evidencia real. |
+| **NEXT** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels Factory sin `pull_request_target`. |
+| **LATER** | 🚧 [#624](https://github.com/pl0n3r/brvtal/issues/624): coordinación/carga GitHub y cierre por kit. |
+| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo para este slice; [#630](https://github.com/pl0n3r/brvtal/issues/630) continúa TANDA 2. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: validar Factory CI y BRVTAL CI sobre el mismo HEAD.
-- 🚧 **NEXT**: documentar equivalencia observada/gaps en #630.
-- 🚧 **LATER**: avanzar #630 por slices pequeños hacia deploy/rollback.
-- 🚧 **BLOCKED / EXTERNAL**: catálogo nuevo de Factory espera v1.0.1 si un slice posterior lo requiere.
+- 🚧 **NOW**: demostrar Release Factory con v0.1.53.
+- 🚧 **NEXT**: adoptar gobierno de labels reusable.
+- 🚧 **LATER**: coordinación, observación/deploy con rollback, métricas y prueba end-to-end.
+- 🚧 **BLOCKED / EXTERNAL**: ninguna dependencia externa bloquea este slice.
