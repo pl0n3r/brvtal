@@ -207,7 +207,13 @@ def upload(config: Config, source: Path, remote_path: str) -> None:
 _PREPARE_UPLOAD = r"""
 set -euo pipefail
 site_root="$1"
-mkdir -p "$site_root/factory-artifacts"
+artifacts="$site_root/factory-artifacts"
+test ! -L "$artifacts"
+if [ -e "$artifacts" ]; then
+  test -d "$artifacts"
+else
+  mkdir -p -- "$artifacts"
+fi
 """
 
 
@@ -219,6 +225,8 @@ public="$site_root/public_html"
 candidate="$site_root/factory-releases/$sha"
 shared="$site_root/factory-shared"
 test -f "$shared/.prepared-v1"
+test ! -L "$shared/.prepared-v1"
+test ! -L "$candidate"
 test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
 test -L "$public/.factory-current"
 test "$(readlink "$public/.factory-current")" = "$candidate"
@@ -240,7 +248,9 @@ public="$site_root/public_html"
 target="$site_root/.factory-symlink-probe-$name.txt"
 link="$public/factory-symlink-probe-$name.txt"
 test ! -e "$target"
+test ! -L "$target"
 test ! -e "$link"
+test ! -L "$link"
 printf '%s' "$token" > "$target"
 ln -s -- "$target" "$link"
 """
@@ -280,7 +290,22 @@ test -f "$public/uploads/.htaccess"
 test -f "$dispatcher_upload"
 grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$dispatcher_upload"
 
-mkdir -p "$releases" "$shared/config" "$state"
+guard_dir() {
+  path="$1"
+  test ! -L "$path"
+  if [ -e "$path" ]; then
+    test -d "$path"
+  else
+    mkdir -p -- "$path"
+  fi
+}
+
+test ! -L "$public"
+guard_dir "$releases"
+guard_dir "$shared"
+guard_dir "$shared/config"
+guard_dir "$state"
+test ! -L "$candidate"
 
 link_exact() {
   source_path="$1"
@@ -302,6 +327,7 @@ test -f "$shared/storage/.htaccess"
 test -f "$shared/storage/backups/.htaccess"
 test -f "$shared/uploads/.htaccess"
 
+test ! -L "$shared/.prepared-v1"
 prepared_tmp="$shared/.prepared-v1.tmp.$BASHPID"
 printf 'prepared-v1\n' > "$prepared_tmp"
 mv -f -- "$prepared_tmp" "$shared/.prepared-v1"
@@ -334,6 +360,7 @@ else
 fi
 
 backup_marker="$state/bootstrap-backup-$sha.ok"
+test ! -L "$backup_marker"
 if [ ! -f "$backup_marker" ]; then
   (
     cd "$public"
@@ -358,6 +385,7 @@ PHP
 fi
 
 legacy="$state/legacy-public-htaccess"
+test ! -L "$legacy"
 if [ ! -f "$legacy" ]; then
   test ! -L "$public/.htaccess"
   cp -- "$public/.htaccess" "$legacy.tmp.$BASHPID"
@@ -366,6 +394,7 @@ fi
 grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$legacy" && exit 86
 
 dispatcher="$state/dispatcher-v1.htaccess"
+test ! -L "$dispatcher"
 cp -- "$dispatcher_upload" "$dispatcher.tmp.$BASHPID"
 mv -f -- "$dispatcher.tmp.$BASHPID" "$dispatcher"
 rm -f -- "$dispatcher_upload"
@@ -383,8 +412,12 @@ dispatcher="$state/dispatcher-v1.htaccess"
 legacy="$state/legacy-public-htaccess"
 
 test -f "$state/bootstrap-backup-$sha.ok"
+test ! -L "$state/bootstrap-backup-$sha.ok"
 test -f "$legacy"
+test ! -L "$legacy"
 test -f "$dispatcher"
+test ! -L "$dispatcher"
+test ! -L "$candidate"
 test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
 grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$dispatcher"
 
@@ -402,6 +435,17 @@ cp -- "$dispatcher" "$htaccess_tmp"
 mv -f -- "$htaccess_tmp" "$public/.htaccess"
 """
 
+_REMOVE_ARTIFACT = r"""
+set -euo pipefail
+site_root="$1"
+artifact="$2"
+case "$artifact" in
+  "$site_root/factory-artifacts/"*) ;;
+  *) exit 98 ;;
+esac
+rm -f -- "$artifact"
+"""
+
 _BOOTSTRAP_RESTORE = r"""
 set -euo pipefail
 site_root="$1"
@@ -412,7 +456,10 @@ legacy="$state/legacy-public-htaccess"
 current="$public/.factory-current"
 candidate="$site_root/factory-releases/$sha"
 
+test -d "$state"
+test ! -L "$state"
 test -f "$legacy"
+test ! -L "$legacy"
 if [ -f "$public/.htaccess" ] && grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$public/.htaccess"; then
   restore_tmp="$public/.htaccess.restore.$BASHPID"
   cp -- "$legacy" "$restore_tmp"
@@ -662,10 +709,20 @@ def bootstrap(config: Config, sha: str, version: str, origin: str) -> None:
 
     _probe_symlink(config, origin)
     dispatcher = Path(__file__).with_name("public_html-dispatcher.htaccess").resolve(strict=True)
-    remote_dispatcher = f"{config.site_root}/factory-artifacts/bootstrap-dispatcher-{sha}.htaccess"
+    remote_dispatcher = (
+        f"{config.site_root}/factory-artifacts/"
+        f"bootstrap-dispatcher-{sha}-{secrets.token_hex(8)}.htaccess"
+    )
     ssh_script(config, _PREPARE_UPLOAD)
-    upload(config, dispatcher, remote_dispatcher)
-    ssh_script(config, _BOOTSTRAP_PREPARE, sha, version, remote_dispatcher)
+    try:
+        upload(config, dispatcher, remote_dispatcher)
+        ssh_script(config, _BOOTSTRAP_PREPARE, sha, version, remote_dispatcher)
+    except Exception:
+        try:
+            ssh_script(config, _REMOVE_ARTIFACT, remote_dispatcher)
+        except TransportError:
+            pass
+        raise
 
     try:
         ssh_script(config, _BOOTSTRAP_ACTIVATE, sha)
@@ -684,7 +741,10 @@ def bootstrap(config: Config, sha: str, version: str, origin: str) -> None:
 def stage(config: Config, archive: Path, sha: str, version: str) -> None:
     if not archive.is_file() or archive.is_symlink():
         raise TransportError("release archive is missing or unsafe")
-    remote_archive = f"{config.site_root}/factory-artifacts/{sha}.tar.gz"
+    remote_archive = (
+        f"{config.site_root}/factory-artifacts/"
+        f"{sha}-{secrets.token_hex(8)}.tar.gz"
+    )
     ssh_script(config, _PREPARE_UPLOAD)
     upload(config, archive, remote_archive)
     ssh_script(config, _STAGE, sha, version, remote_archive)

@@ -217,6 +217,18 @@ try {
     bootstrap_expect($unsafe['code'] !== 0, 'missing deny guard must fail');
     bootstrap_expect(str_contains((string)file_get_contents($unsafeRemote . '/public_html/.htaccess'), 'legacy-dispatch'), 'unsafe state must preserve legacy dispatch');
     bootstrap_rm($unsafeRemote);
+
+    $escapeRemote = $fixtureBase . '/bootstrap-escape-' . bin2hex(random_bytes(4));
+    $outside = $fixtureBase . '/bootstrap-outside-' . bin2hex(random_bytes(4));
+    bootstrap_fixture($root, $escapeRemote);
+    @mkdir($outside, 0700, true);
+    @symlink($outside, $escapeRemote . '/factory-shared');
+    $escape = bootstrap_run([$bootstrap], $root, array_merge($baseEnv, ['BRVTAL_FAKE_REMOTE_ROOT'=>$escapeRemote]));
+    bootstrap_expect($escape['code'] !== 0, 'pre-existing shared-state symlink must fail closed');
+    bootstrap_expect((scandir($outside) ?: []) === ['.','..'], 'path confinement failure must not write outside site root');
+    bootstrap_expect(str_contains((string)file_get_contents($escapeRemote . '/public_html/.htaccess'), 'legacy-dispatch'), 'path confinement failure must preserve legacy dispatch');
+    bootstrap_rm($escapeRemote);
+    bootstrap_rm($outside);
 } finally {
     bootstrap_rm($remote);
     bootstrap_rm($fakeBin);
