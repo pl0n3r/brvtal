@@ -33,7 +33,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+156** | **−33** | **+123** |
+| **8** | **+185** | **−34** | **+151** |
 
 ## Calidad y entrega
 
@@ -64,6 +64,7 @@ flowchart LR
 - El caller no acepta `kit_ref`, no hereda secretos y no usa `pull_request_target` ni `workflow_dispatch`.
 - Añade contrato PHP que congela esquema, IDs de decisiones, límites de seguridad y frontera del caller.
 - Clasifica `decisiones.yml` como gobernanza no deploy-bound, pero ejecuta el contrato PHP cuando cambia.
+- El self-audit permite `@v1` únicamente para reusable workflows de `pl0n3r/factory/.github/workflows/`; cualquier otra acción mutable sigue fallando.
 - Mantiene intactos CI, Privacy, Sonar, CodeQL, CodeRabbit, runtime, datos y versión de producto.
 
 ## Archivos modificados en este deploy
@@ -72,7 +73,9 @@ flowchart LR
 - `README.md`
 - `decisiones.yml`
 - `scripts/ci-scope.sh`
+- `scripts/ci_self_audit.py`
 - `tests/ci-scope-contract.php`
+- `tests/ci-self-audit-contract.py`
 - `tests/factory-policy-contract.php`
 
 ## Validación
