@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+550** | **−53** | **+497** |
+| **8** | **+974** | **−55** | **+919** |
 
 ## Calidad y entrega
 
@@ -42,8 +42,8 @@
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | Issue #651 · reserva `2d507a05-8a19-4c09-afd5-b47489f4b7fa` |
 | Roles | Infrastructure · SRE · Security · QA |
-| DSN | HTTPS, host DNS, clave pública, project id numérico; password/query/fragment rechazados |
-| Transporte | best-effort · 1.2 s máximo · sin redirects · sin retry loop |
+| DSN | HTTPS; A/AAAA resueltos y todos públicos; destino pinneado; clave pública/project id válidos |
+| Transporte | best-effort · 1.2 s · DNS pinning · TLS por hostname · response body descartado · sin retry |
 | Payload | allowlist; mensaje raw y argumentos nunca salen del servidor |
 | Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
@@ -65,13 +65,13 @@ flowchart LR
 
 - Añade un transport PHP pequeño en `config/sentry.php`; no incorpora Composer ni SDK externo.
 - El DSN se lee primero desde `BRVTAL_SENTRY_DSN` y opcionalmente desde la configuración privada persistente.
-- El parser falla cerrado ante esquema no HTTPS, host inválido, password, query/fragment o project id no numérico.
+- El parser falla cerrado ante esquema no HTTPS, host inválido, password, query/fragment, project id inválido, fallo DNS o cualquier A/AAAA privada/reservada.
 - Los handlers existentes conservan el log local y añaden reporte remoto solo para excepción no capturada y fatal.
 - Los fallos durante carga de configuración también generan un evento mínimo cuando el DSN está disponible por entorno.
 - El evento remoto no incluye mensaje original, superglobals, request, identidad, variables locales ni argumentos.
 - Los paths se reducen a rutas relativas de la aplicación; paths externos se sustituyen por `[external]`.
-- El transporte usa timeout corto, TLS verificado, cero redirects y cero reintentos.
-- El contrato usa sender falso: CI nunca contacta al proveedor.
+- El transporte pinnea una IP pública ya validada para impedir DNS rebinding, mantiene TLS/SNI contra el hostname original, descarta el body de respuesta, usa timeout corto, cero redirects y cero reintentos.
+- El contrato usa resolver/sender falsos y subprocess fixtures para ejecutar realmente exception handler, fatal shutdown y bootstrap fallido; CI nunca contacta al proveedor.
 
 ## Archivos modificados en este deploy
 
@@ -82,7 +82,7 @@ flowchart LR
 - `config/sentry.php` — parser, evento allowlisted, envelope y envío best-effort.
 - `config/version.php` — versión de producto 0.1.57.
 - `package.json` — sincroniza versión 0.1.57.
-- `tests/sentry-contract.php` — DSN, PII, envelope, no-op y handlers deterministas.
+- `tests/sentry-contract.php` — DNS/SSRF, PII, envelope, no-op y handlers reales en subprocess deterministas.
 
 ## Validación
 
@@ -97,13 +97,13 @@ flowchart LR
 | Lane | Trabajo |
 | --- | --- |
 | **NOW** | 🚧 [#651](https://github.com/pl0n3r/brvtal/issues/651): integrar transporte y validar configuración runtime. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): publicar/adoptar Factory v1.0.3 y continuar TANDA 2. |
+| **NEXT** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): adoptar el lifecycle de labels ya publicado en Factory v1.0.3. |
 | **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector en CI. |
-| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): espera publicación del canal Factory v1.0.3. |
+| **BLOCKED / EXTERNAL** | 🚧 #651: DSN privado + evento sintético real requieren acceso al proveedor/hosting; el código permanece fail-closed sin DSN. |
 
 ## Panorama general pendiente
 
 - 🚧 **NOW**: [#651](https://github.com/pl0n3r/brvtal/issues/651) cerrar código + DSN + evidencia de evento sin PII.
-- 🚧 **NEXT**: [#630](https://github.com/pl0n3r/brvtal/issues/630) retomar adopción central tras la puerta de release Factory.
+- 🚧 **NEXT**: [#627](https://github.com/pl0n3r/brvtal/issues/627) consumir el lifecycle de labels ya disponible en `factory@v1.0.3`; luego continuar [#630](https://github.com/pl0n3r/brvtal/issues/630).
 - 🚧 **LATER**: [#653](https://github.com/pl0n3r/brvtal/issues/653) elevar análisis estático PHP sin ruido legacy.
-- 🚧 **BLOCKED / EXTERNAL**: [#627](https://github.com/pl0n3r/brvtal/issues/627) no duplica lifecycle de labels mientras `v1` siga atrás.
+- 🚧 **BLOCKED / EXTERNAL**: activación end-to-end de #651 requiere provisionar el DSN privado; no se versiona ni se inventa.
