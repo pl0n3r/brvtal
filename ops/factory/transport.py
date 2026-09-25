@@ -574,16 +574,20 @@ elif [ -e "$current" ]; then
 fi
 
 migration="$(bash "$release/ops/factory/migration-plan" "$release" "$previous")" || exit 55
+case "$migration" in
+  __NONE__|migration_[a-z0-9_]*.sql) ;;
+  *) exit 56 ;;
+esac
+
+cd "$release"
+php scripts/migrations.php verify-plan "$migration" >/dev/null || exit 57
 if [ "$migration" = "__NONE__" ]; then
   exit 0
 fi
-case "$migration" in
-  migration_[a-z0-9_]*.sql) ;;
-  *) exit 56 ;;
-esac
-cd "$release"
+
 BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_ACTOR=factory-deploy \
   php scripts/migrations.php apply "$migration" --confirm
+php scripts/migrations.php verify-plan __NONE__ >/dev/null || exit 58
 """
 
 _ACTIVATE = r"""
