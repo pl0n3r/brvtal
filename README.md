@@ -43,7 +43,7 @@
 | PR + snapshot exacto | Issue #674 · reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
 | Roles | Infrastructure · SRE · Security · QA |
 | Selección migración | `.factory-current` vs `factory-releases/<sha>`; sin variable manual |
-| Historial seguro | nombres + SHA-256 previos deben permanecer idénticos |
+| Historial seguro | nombres + SHA-256 previos deben permanecer idénticos; el registro BD debe coincidir con el plan |
 | SQL seguro | el planner automático ejecuta el scanner canónico antes de seleccionar la migración |
 | Rollback | solo artefacto; jamás restaura BD automáticamente |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
@@ -70,8 +70,8 @@ flowchart LR
 - Cambiar o retirar una migración histórica aborta por nombre/checksum; más de una migración nueva se considera ambigua y falla antes de activación.
 - `config/migrations.php` expone el scanner aditivo que el planner automático ejecuta antes de seleccionar una migración; la ruta manual histórica conserva su contrato explícito.
 - `ops/factory/migrate` deja de depender de `BRVTAL_FACTORY_MIGRATION`; fixture y producción comparten el mismo contrato de selección.
-- El transporte remoto deriva el release previo desde `.factory-current`, confina ambos releases y aplica solo la migración seleccionada por el planner.
-- Los contratos cubren no-op, una migración, replay, múltiples, cambio/eliminación histórica y SQL destructivo; fake-SSH prueba la ruta remota no-op.
+- El transporte remoto deriva el release previo desde `.factory-current`, confina ambos releases y exige que el registro de BD coincida con el plan antes de no-op/apply; tras aplicar vuelve a exigir cero pendientes.
+- Los contratos cubren no-op, una migración, replay, múltiples, cambio/eliminación histórica, SQL destructivo y deriva plan↔BD; fake-SSH prueba que una BD atrasada bloquea la ruta remota.
 - No ejecuta el cutover ni añade todavía el caller permanente `factory/deploy.yml@v1`.
 
 ## Archivos modificados en este deploy
@@ -81,8 +81,9 @@ flowchart LR
 - `ops/factory/build` — fixture de release y tempfile único por proceso.
 - `ops/factory/migrate` — selección automática sin variable manual.
 - `ops/factory/migration-plan` — delta determinista entre release servido y candidato.
-- `ops/factory/transport.py` — selección remota confinada al SHA exacto.
+- `ops/factory/transport.py` — selección remota confinada al SHA exacto y verificación plan↔BD.
 - `package.json` — versión de producto 0.1.54.
+- `scripts/migrations.php` — comando read-only `verify-plan` para validar el registro de BD.
 - `tests/factory-deploy-adapters-contract.php` — casos de selección/fallo y evidencia.
 - `tests/factory-hostinger-transport-contract.php` — no-op remoto por fake SSH.
 - `tests/migrations-contract.php` — pruebas ejecutables del scanner SQL.
