@@ -119,7 +119,11 @@ try {
 }
 
 deployment_expect(str_contains($endpoint, "'data' => brvtalDeploymentPublicData()"), 'deployment endpoint must publish the executable deployment data contract');
-deployment_expect(preg_match("/'deployment'\\s*=>\\s*\\[/", $health) === 1, 'health response must identify deployed source');
+deployment_expect(
+    str_contains($health, "'source' => brvtal_deployment_source()")
+        && str_contains($health, "'deployment' => $deployment"),
+    'health response must identify deployed source'
+);
 deployment_expect(is_array($package), 'package.json must remain valid JSON');
 deployment_expect(($package['version'] ?? null) === BRVTAL_APP_VERSION, 'package.json version must match canonical BRVTAL_APP_VERSION');
 deployment_expect(str_contains($admin, 'data-testid="admin-product-version"'), 'DISCADMIN must display the human product version');
