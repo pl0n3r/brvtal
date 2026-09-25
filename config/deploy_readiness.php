@@ -23,7 +23,7 @@ function brvtalFactoryReadinessState(bool $exact, ?string $releaseSha, array $mi
         brvtalMigrationVerifyPlanStatus($migrationStatus, '__NONE__');
         $schemaUpToDate = true;
     } catch (Throwable) {
-        // Health is observational and fail-closed; it never repairs schema state.
+        // Readiness is observational and fail-closed; it never repairs schema state.
     }
 
     $ready = $safeSha !== null && $schemaUpToDate;
@@ -31,7 +31,7 @@ function brvtalFactoryReadinessState(bool $exact, ?string $releaseSha, array $mi
     return [
         'ready' => $ready,
         'status' => $ready ? 'ok' : 'degraded',
-        'health_status' => $ready ? 'healthy' : 'degraded',
+        'readiness_status' => $ready ? 'ready' : 'degraded',
         'release_sha' => $safeSha,
         'schema_up_to_date' => $schemaUpToDate,
     ];
