@@ -9,182 +9,189 @@ declare(strict_types=1);
  * explicit proof specification.
  */
 
+function brvtalMigrationObjectRequirements(
+    string $table,
+    array $columns = [],
+    array $indexes = [],
+    bool $requireTable = false
+): array {
+    $requirements = $requireTable ? ['table:' . $table] : [];
+    foreach ($columns as $column) {
+        $requirements[] = 'column:' . $table . '.' . $column;
+    }
+    foreach ($indexes as $index) {
+        $requirements[] = 'index:' . $table . '.' . $index;
+    }
+    return $requirements;
+}
+
+function brvtalMigrationTriggerRequirements(array $triggers): array
+{
+    $requirements = [];
+    foreach ($triggers as $name => $bodyNeedle) {
+        $requirements[] = 'trigger:' . $name;
+        $requirements[] = 'trigger-body:' . $name . '=' . $bodyNeedle;
+    }
+    return $requirements;
+}
+
 function brvtalMigrationProofSpecifications(): array
 {
+    $releaseColumns = [
+        'release_type', 'catalog_number', 'release_date', 'description',
+        'seo_title', 'seo_description', 'artwork', 'spotify_url',
+        'soundcloud_url', 'bandcamp_url', 'youtube_url', 'beatport_url',
+        'status', 'featured', 'sort_order', 'published_at', 'created_at',
+        'updated_at',
+    ];
+    $releaseColumnTypes = [
+        "column-type:releases.release_type=enum('single','ep','album','compilation','other')",
+        'column-type:releases.catalog_number=varchar(80)',
+        'column-type:releases.release_date=date',
+        'column-type:releases.description=text',
+        'column-type:releases.artwork=varchar(500)',
+        'column-type:releases.spotify_url=varchar(700)',
+        'column-type:releases.soundcloud_url=varchar(700)',
+        'column-type:releases.bandcamp_url=varchar(700)',
+        'column-type:releases.youtube_url=varchar(700)',
+        'column-type:releases.beatport_url=varchar(700)',
+        "column-type:releases.status=enum('draft','published','archived')",
+        'column-type:releases.published_at=datetime',
+        'column-type:releases.created_at=datetime',
+        'column-type:releases.updated_at=datetime',
+        'column-type:release_artists.role=varchar(80)',
+    ];
+    $releaseIndexes = [
+        'uq_releases_slug', 'idx_releases_public', 'idx_releases_catalog',
+    ];
+    $mediaGuardTriggers = [
+        'brvtal_events_media_guard_bi' => 'new.cover_image',
+        'brvtal_events_media_guard_bu' => 'new.ticket_qr',
+        'brvtal_artists_media_guard_bi' => 'new.photo',
+        'brvtal_artists_media_guard_bu' => 'new.photo',
+        'brvtal_sets_media_guard_bi' => 'new.cover_image',
+        'brvtal_sets_media_guard_bu' => 'new.cover_image',
+        'brvtal_ticket_types_media_guard_bi' => 'new.qr_image',
+        'brvtal_ticket_types_media_guard_bu' => 'new.qr_image',
+        'brvtal_releases_media_guard_bi' => 'new.artwork',
+        'brvtal_releases_media_guard_bu' => 'new.artwork',
+        'brvtal_blog_media_guard_bi' => 'new.cover_image',
+        'brvtal_blog_media_guard_bu' => 'new.cover_image',
+        'brvtal_pages_media_guard_bi' => 'new.content_json',
+        'brvtal_pages_media_guard_bu' => 'new.content_json',
+        'brvtal_settings_media_guard_bi' => 'new.setting_value',
+        'brvtal_settings_media_guard_bu' => 'new.setting_value',
+        'brvtal_media_delete_guard_lock' => 'media_reference_mutex',
+        'brvtal_media_delete_guard_recheck' => 'old.file_path',
+        'brvtal_media_delete_guard_tombstone' => 'media_deleted_paths',
+    ];
+
     return [
-        'migration_admin_activity_01.sql' => [
-            'table:admin_activity_log',
-            'column:admin_activity_log.id',
-            'column:admin_activity_log.admin_id',
-            'column:admin_activity_log.action',
-            'column:admin_activity_log.resource',
-            'column:admin_activity_log.created_at',
-            'index:admin_activity_log.idx_admin_activity_created',
-            'index:admin_activity_log.idx_admin_activity_resource',
-            'index:admin_activity_log.idx_admin_activity_admin',
-        ],
-        'migration_artist_collective_membership_01.sql' => [
-            'column:artists.is_collective_member',
-            'index:artists.idx_artists_collective_member',
-        ],
-        'migration_blog_01.sql' => [
-            'table:blog_posts',
-            'table:blog_tags',
-            'table:blog_post_tags',
-            'table:blog_post_relations',
-            'index:blog_posts.uq_blog_posts_slug',
-            'index:blog_posts.idx_blog_posts_public',
-            'index:blog_posts.idx_blog_posts_featured',
-            'index:blog_tags.uq_blog_tags_slug',
-            'index:blog_post_tags.idx_blog_post_tags_tag',
-            'index:blog_post_relations.idx_blog_post_relations_target',
-        ],
-        'migration_content_core_01.sql' => [
-            'column:events.published_at',
-            'column:events.cancelled_at',
-            'column:events.finished_at',
-            'column:events.featured',
-            'column:events.ticket_instructions',
-            'column:events.ticket_qr',
-            'column:events.archive_year',
-            'table:event_ticket_types',
-            'column:artists.collective_status',
-            'column:artists.collective_order',
-            'column:artists.collective_joined_at',
-            'column:artists.collective_left_at',
-            'table:artist_collective_history',
-            'index:events.idx_events_city_date',
-            'index:artists.idx_artists_collective',
-        ],
-        'migration_media_content_hash_01.sql' => [
-            'column:media.content_hash',
-            'index:media.uq_media_content_hash',
-        ],
-        'migration_memories_01.sql' => [
-            'table:memories',
-            'column:memories.media_id',
-            'column:memories.status',
-            'index:memories.uniq_memories_media',
-            'index:memories.idx_memories_public',
-        ],
-        'migration_memory_relations_01.sql' => [
-            'table:memory_relations',
-            'column:memory_relations.related_type',
-            'column:memory_relations.related_id',
-            'index:memory_relations.idx_memory_relations_target',
-        ],
-        'migration_releases_01.sql' => [
-            'table:releases',
-            'table:release_artists',
-            'column:releases.slug',
-            'column:releases.status',
-            'column:release_artists.artist_id',
-            'index:releases.uq_releases_slug',
-            'index:releases.idx_releases_public',
-            'index:releases.idx_releases_catalog',
-            'index:release_artists.idx_release_artists_artist',
-        ],
-        'migration_releases_02.sql' => [
-            'column:releases.release_type',
-            'column:releases.catalog_number',
-            'column:releases.release_date',
-            'column:releases.description',
-            'column:releases.seo_title',
-            'column:releases.seo_description',
-            'column:releases.artwork',
-            'column:releases.spotify_url',
-            'column:releases.soundcloud_url',
-            'column:releases.bandcamp_url',
-            'column:releases.youtube_url',
-            'column:releases.beatport_url',
-            'column:releases.status',
-            'column:releases.featured',
-            'column:releases.sort_order',
-            'column:releases.published_at',
-            'column:releases.created_at',
-            'column:releases.updated_at',
-            'column:release_artists.role',
-            'column:release_artists.sort_order',
-            "column-type:releases.release_type=enum('single','ep','album','compilation','other')",
-            'column-type:releases.catalog_number=varchar(80)',
-            'column-type:releases.release_date=date',
-            'column-type:releases.description=text',
-            'column-type:releases.artwork=varchar(500)',
-            'column-type:releases.spotify_url=varchar(700)',
-            'column-type:releases.soundcloud_url=varchar(700)',
-            'column-type:releases.bandcamp_url=varchar(700)',
-            'column-type:releases.youtube_url=varchar(700)',
-            'column-type:releases.beatport_url=varchar(700)',
-            "column-type:releases.status=enum('draft','published','archived')",
-            'column-type:releases.published_at=datetime',
-            'column-type:releases.created_at=datetime',
-            'column-type:releases.updated_at=datetime',
-            'column-type:release_artists.role=varchar(80)',
-            'index:releases.uq_releases_slug',
-            'index:releases.idx_releases_public',
-            'index:releases.idx_releases_catalog',
-            'index:release_artists.idx_release_artists_artist',
-        ],
-        'migration_seo_01.sql' => [
-            'column:events.seo_title',
-            'column:events.seo_description',
-            'column:artists.seo_title',
-            'column:artists.seo_description',
-            'column:sets_media.seo_title',
-            'column:sets_media.seo_description',
-            'column:releases.seo_title',
-            'column:releases.seo_description',
-        ],
-        'migration_totp_foundation.sql' => [
-            'column:admins.totp_enabled',
-            'column:admins.totp_secret_enc',
-            'column:admins.totp_confirmed_at',
-            'table:admin_recovery_codes',
-            'index:admin_recovery_codes.uq_admin_recovery_code',
-            'index:admin_recovery_codes.idx_admin_recovery_admin',
-        ],
-        'migration_zz_media_reference_guard_01.sql' => [
-            'table:media_reference_mutex',
-            'table:media_deleted_paths',
-            'trigger:brvtal_events_media_guard_bi',
-            'trigger-body:brvtal_events_media_guard_bi=new.cover_image',
-            'trigger:brvtal_events_media_guard_bu',
-            'trigger-body:brvtal_events_media_guard_bu=new.ticket_qr',
-            'trigger:brvtal_artists_media_guard_bi',
-            'trigger-body:brvtal_artists_media_guard_bi=new.photo',
-            'trigger:brvtal_artists_media_guard_bu',
-            'trigger-body:brvtal_artists_media_guard_bu=new.photo',
-            'trigger:brvtal_sets_media_guard_bi',
-            'trigger-body:brvtal_sets_media_guard_bi=new.cover_image',
-            'trigger:brvtal_sets_media_guard_bu',
-            'trigger-body:brvtal_sets_media_guard_bu=new.cover_image',
-            'trigger:brvtal_ticket_types_media_guard_bi',
-            'trigger-body:brvtal_ticket_types_media_guard_bi=new.qr_image',
-            'trigger:brvtal_ticket_types_media_guard_bu',
-            'trigger-body:brvtal_ticket_types_media_guard_bu=new.qr_image',
-            'trigger:brvtal_releases_media_guard_bi',
-            'trigger-body:brvtal_releases_media_guard_bi=new.artwork',
-            'trigger:brvtal_releases_media_guard_bu',
-            'trigger-body:brvtal_releases_media_guard_bu=new.artwork',
-            'trigger:brvtal_blog_media_guard_bi',
-            'trigger-body:brvtal_blog_media_guard_bi=new.cover_image',
-            'trigger:brvtal_blog_media_guard_bu',
-            'trigger-body:brvtal_blog_media_guard_bu=new.cover_image',
-            'trigger:brvtal_pages_media_guard_bi',
-            'trigger-body:brvtal_pages_media_guard_bi=new.content_json',
-            'trigger:brvtal_pages_media_guard_bu',
-            'trigger-body:brvtal_pages_media_guard_bu=new.content_json',
-            'trigger:brvtal_settings_media_guard_bi',
-            'trigger-body:brvtal_settings_media_guard_bi=new.setting_value',
-            'trigger:brvtal_settings_media_guard_bu',
-            'trigger-body:brvtal_settings_media_guard_bu=new.setting_value',
-            'trigger:brvtal_media_delete_guard_lock',
-            'trigger-body:brvtal_media_delete_guard_lock=media_reference_mutex',
-            'trigger:brvtal_media_delete_guard_recheck',
-            'trigger-body:brvtal_media_delete_guard_recheck=old.file_path',
-            'trigger:brvtal_media_delete_guard_tombstone',
-            'trigger-body:brvtal_media_delete_guard_tombstone=media_deleted_paths',
-        ],
+        'migration_admin_activity_01.sql' => brvtalMigrationObjectRequirements(
+            'admin_activity_log',
+            ['id', 'admin_id', 'action', 'resource', 'created_at'],
+            ['idx_admin_activity_created', 'idx_admin_activity_resource', 'idx_admin_activity_admin'],
+            true
+        ),
+        'migration_artist_collective_membership_01.sql' => brvtalMigrationObjectRequirements(
+            'artists',
+            ['is_collective_member'],
+            ['idx_artists_collective_member']
+        ),
+        'migration_blog_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'blog_posts',
+                [],
+                ['uq_blog_posts_slug', 'idx_blog_posts_public', 'idx_blog_posts_featured'],
+                true
+            ),
+            brvtalMigrationObjectRequirements('blog_tags', [], ['uq_blog_tags_slug'], true),
+            brvtalMigrationObjectRequirements('blog_post_tags', [], ['idx_blog_post_tags_tag'], true),
+            brvtalMigrationObjectRequirements(
+                'blog_post_relations',
+                [],
+                ['idx_blog_post_relations_target'],
+                true
+            )
+        ),
+        'migration_content_core_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'events',
+                [
+                    'published_at', 'cancelled_at', 'finished_at', 'featured',
+                    'ticket_instructions', 'ticket_qr', 'archive_year',
+                ],
+                ['idx_events_city_date']
+            ),
+            brvtalMigrationObjectRequirements(
+                'artists',
+                ['collective_status', 'collective_order', 'collective_joined_at', 'collective_left_at'],
+                ['idx_artists_collective']
+            ),
+            ['table:event_ticket_types', 'table:artist_collective_history']
+        ),
+        'migration_media_content_hash_01.sql' => brvtalMigrationObjectRequirements(
+            'media',
+            ['content_hash'],
+            ['uq_media_content_hash']
+        ),
+        'migration_memories_01.sql' => brvtalMigrationObjectRequirements(
+            'memories',
+            ['media_id', 'status'],
+            ['uniq_memories_media', 'idx_memories_public'],
+            true
+        ),
+        'migration_memory_relations_01.sql' => brvtalMigrationObjectRequirements(
+            'memory_relations',
+            ['related_type', 'related_id'],
+            ['idx_memory_relations_target'],
+            true
+        ),
+        'migration_releases_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'releases',
+                ['slug', 'status'],
+                $releaseIndexes,
+                true
+            ),
+            brvtalMigrationObjectRequirements(
+                'release_artists',
+                ['artist_id'],
+                ['idx_release_artists_artist'],
+                true
+            )
+        ),
+        'migration_releases_02.sql' => array_merge(
+            brvtalMigrationObjectRequirements('releases', $releaseColumns, $releaseIndexes),
+            brvtalMigrationObjectRequirements(
+                'release_artists',
+                ['role', 'sort_order'],
+                ['idx_release_artists_artist']
+            ),
+            $releaseColumnTypes
+        ),
+        'migration_seo_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('events', ['seo_title', 'seo_description']),
+            brvtalMigrationObjectRequirements('artists', ['seo_title', 'seo_description']),
+            brvtalMigrationObjectRequirements('sets_media', ['seo_title', 'seo_description']),
+            brvtalMigrationObjectRequirements('releases', ['seo_title', 'seo_description'])
+        ),
+        'migration_totp_foundation.sql' => array_merge(
+            brvtalMigrationObjectRequirements(
+                'admins',
+                ['totp_enabled', 'totp_secret_enc', 'totp_confirmed_at']
+            ),
+            brvtalMigrationObjectRequirements(
+                'admin_recovery_codes',
+                [],
+                ['uq_admin_recovery_code', 'idx_admin_recovery_admin'],
+                true
+            )
+        ),
+        'migration_zz_media_reference_guard_01.sql' => array_merge(
+            ['table:media_reference_mutex', 'table:media_deleted_paths'],
+            brvtalMigrationTriggerRequirements($mediaGuardTriggers)
+        ),
     ];
 }
 
