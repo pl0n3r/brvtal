@@ -48,7 +48,7 @@ brvtal_ci_classify_files() {
     [[ -z "$file" ]] && continue
 
     case "$file" in
-      README.md|AGENTS.md|docs/*|tests/*|scripts/*|.github/*|.coderabbit.yaml|.sonarcloud.properties|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
+      README.md|AGENTS.md|docs/*|tests/*|scripts/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
         ;;
       *)
         BRVTAL_SCOPE_DEPLOY_BOUND=true
@@ -94,6 +94,8 @@ brvtal_ci_classify_files() {
         brvtal_ci_scope_add_area "CI/CD" ;;
       .coderabbit.yaml|.sonarcloud.properties)
         brvtal_ci_scope_add_area "Review/static analysis policy" ;;
+      decisiones.yml)
+        brvtal_ci_scope_add_area "Factory decisions policy" ;;
       scripts/*|tests/*.php)
         brvtal_ci_scope_add_area "Fast tests/tooling" ;;
       docs/*|README.md|AGENTS.md)
@@ -115,7 +117,7 @@ brvtal_ci_classify_files() {
     case "$file" in
       config/version.php)
         ;;
-      *.php|database/*|docs/privacidad/*)
+      *.php|database/*|docs/privacidad/*|decisiones.yml)
         BRVTAL_SCOPE_RUN_PHP=true ;;
       package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
         BRVTAL_SCOPE_RUN_PHP=true; BRVTAL_SCOPE_RUN_JS=true ;;
@@ -129,7 +131,7 @@ brvtal_ci_classify_files() {
     esac
 
     case "$file" in
-      README.md|AGENTS.md|docs/*|*.md|*.css|*.html|assets/*|uploads/*|.coderabbit.yaml|.sonarcloud.properties|.github/workflows/sonar-annotation-relay.yml|.github/workflows/production-*.yml)
+      README.md|AGENTS.md|docs/*|*.md|*.css|*.html|assets/*|uploads/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|.github/workflows/sonar-annotation-relay.yml|.github/workflows/production-*.yml)
         ;;
       *.php|*.js|*.mjs|database/*|package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
         ;;
