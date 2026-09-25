@@ -39,7 +39,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | Issue #676 · reserva `3bae3966-aadd-492b-8f1f-29e7a1c7d995` |
 | Roles | Infrastructure · SRE · Security · QA |
 | Health final | exact SHA + schema parity; cualquier deriva → HTTP 503 |
