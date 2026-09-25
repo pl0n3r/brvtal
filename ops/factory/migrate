@@ -10,18 +10,31 @@ case "$(factory_mode)" in
     root="$(factory_fixture_root)"
     sha="$(factory_sha)"
     [[ -f "$root/backups/$sha.ok" ]] || factory_die "backup marker missing before migration"
+    candidate="$root/releases/$sha"
+    [[ -d "$candidate" && ! -L "$candidate" ]] || factory_die "candidate release missing before migration"
+    current="$root/current"
+    previous="__NONE__"
+    if [[ -L "$current" ]]; then
+      previous="$(readlink -f "$current")"
+      case "$previous" in "$root"/releases/*) ;; *) factory_die "current release pointer escaped release root" ;; esac
+    elif [[ -e "$current" ]]; then
+      factory_die "current release pointer must be a symlink"
+    fi
+    migration="$(bash "$BRVTAL_FACTORY_REPO_ROOT/ops/factory/migration-plan" "$candidate" "$previous")"
     mkdir -p -- "$root/migrations"
-    factory_atomic_write "$root/migrations/$sha.ok" "additive-migration-ready"
-    printf 'Synthetic additive migration completed for %s\n' "$sha"
+    factory_atomic_write "$root/migrations/$sha.ok" "$migration"
+    if [[ "$migration" == "__NONE__" ]]; then
+      printf 'Synthetic additive migration no-op for %s\n' "$sha"
+    else
+      printf 'Synthetic additive migration selected for %s: %s\n' "$sha" "$migration"
+    fi
     ;;
   production)
     factory_require_production_activation
     factory_maybe_fail migrate
     sha="$(factory_sha)"
-    migration="${BRVTAL_FACTORY_MIGRATION:-}"
-    [[ "$migration" =~ ^migration_[a-z0-9_]+\.sql$ ]] || factory_die "BRVTAL_FACTORY_MIGRATION must name one explicit migration file"
-    factory_transport migrate --sha "$sha" --migration "$migration"
-    printf 'Remote additive migration completed for %s\n' "$sha"
+    factory_transport migrate --sha "$sha"
+    printf 'Remote additive migration stage completed for %s\n' "$sha"
     ;;
   *)
     factory_die "adapter mode disabled; deploy transport credentials are not configured"

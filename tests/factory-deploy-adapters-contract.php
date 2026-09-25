@@ -63,8 +63,9 @@ $rollbackSource = (string)file_get_contents($adapterDir . '/rollback');
 $commonSource = (string)file_get_contents($adapterDir . '/common.sh');
 
 factory_adapter_expect(str_contains($backupSource, 'factory_transport backup'), 'production backup must execute through the strict remote transport');
-factory_adapter_expect(str_contains($migrateSource, 'factory_transport migrate'), 'production migration must execute through the strict remote transport');
-factory_adapter_expect(str_contains($migrateSource, 'BRVTAL_FACTORY_MIGRATION'), 'production migration must name one explicit migration');
+factory_adapter_expect(str_contains($migrateSource, 'factory_transport migrate --sha'), 'production migration must execute through the strict remote transport');
+factory_adapter_expect(!str_contains($migrateSource, 'BRVTAL_FACTORY_MIGRATION'), 'production migration must not depend on one hidden migration environment variable');
+factory_adapter_expect(is_file($adapterDir . '/migration-plan'), 'deterministic migration planner must exist');
 factory_adapter_expect(!str_contains($migrateSource, 'DROP '), 'migration adapter must not contain destructive SQL');
 factory_adapter_expect(str_contains($rollbackSource, 'factory_transport rollback'), 'production rollback must use artifact release state through the strict transport');
 factory_adapter_expect(!str_contains($rollbackSource, 'mysql') && !str_contains($rollbackSource, 'database'), 'rollback must never restore database state');
@@ -86,7 +87,7 @@ $baseEnv = [
 ];
 
 try {
-    @mkdir($previous, 0700, true);
+    @mkdir($previous . '/database', 0700, true);
     file_put_contents($previous . '/release.env', "version=0.1.52\nsha=" . str_repeat('b', 40) . "\n");
     @symlink($previous, $fixture . '/current');
 
@@ -94,6 +95,91 @@ try {
         $result = factory_adapter_run($root, $stage, $baseEnv);
         factory_adapter_expect($result['code'] === 0, "{$stage} fixture adapter failed: " . trim($result['stderr']));
     }
+
+    factory_adapter_expect(
+        trim((string)file_get_contents($fixture . '/migrations/' . $sha . '.ok')) === '__NONE__',
+        'zero-new-migration deploy must record an explicit no-op'
+    );
+
+    $prepareMigrationCase = static function (
+        string $label,
+        array $previousMigrations,
+        array $candidateMigrations
+    ) use ($root, $baseEnv, $sha): array {
+        $caseRoot = $root . '/.factory-fixture/' . $label . '-' . bin2hex(random_bytes(4));
+        $previousSha = str_repeat('c', 40);
+        $previousRoot = $caseRoot . '/releases/' . $previousSha;
+        @mkdir($previousRoot . '/database', 0700, true);
+        foreach ($previousMigrations as $name => $sql) {
+            file_put_contents($previousRoot . '/database/' . $name, $sql);
+        }
+        @mkdir($caseRoot, 0700, true);
+        @symlink($previousRoot, $caseRoot . '/current');
+        $env = array_merge($baseEnv, ['BRVTAL_FACTORY_FIXTURE_ROOT' => $caseRoot]);
+        factory_adapter_expect(factory_adapter_run($root, 'build', $env)['code'] === 0, "$label build must succeed");
+        factory_adapter_expect(factory_adapter_run($root, 'backup', $env)['code'] === 0, "$label backup must succeed");
+        $candidateRoot = $caseRoot . '/releases/' . $sha;
+        foreach ($candidateMigrations as $name => $sql) {
+            file_put_contents($candidateRoot . '/database/' . $name, $sql);
+        }
+        return [$caseRoot, $env, $candidateRoot];
+    };
+
+    [$singleRoot, $singleEnv] = $prepareMigrationCase(
+        'migration-single',
+        [],
+        ['migration_factory_contract_01.sql' => "CREATE TABLE IF NOT EXISTS factory_contract_probe (id INT PRIMARY KEY);\n"]
+    );
+    $single = factory_adapter_run($root, 'migrate', $singleEnv);
+    factory_adapter_expect($single['code'] === 0, 'one additive migration must be selected deterministically: ' . trim($single['stderr']));
+    factory_adapter_expect(
+        trim((string)file_get_contents($singleRoot . '/migrations/' . $sha . '.ok')) === 'migration_factory_contract_01.sql',
+        'migration marker must record the selected migration'
+    );
+    factory_adapter_expect(factory_adapter_run($root, 'migrate', $singleEnv)['code'] === 0, 'migration selection replay must be idempotent');
+    factory_adapter_remove_tree($singleRoot);
+
+    [$ambiguousRoot, $ambiguousEnv] = $prepareMigrationCase(
+        'migration-ambiguous',
+        [],
+        [
+            'migration_factory_contract_01.sql' => "CREATE TABLE IF NOT EXISTS factory_contract_a (id INT);\n",
+            'migration_factory_contract_02.sql' => "CREATE TABLE IF NOT EXISTS factory_contract_b (id INT);\n",
+        ]
+    );
+    factory_adapter_expect(factory_adapter_run($root, 'migrate', $ambiguousEnv)['code'] !== 0, 'multiple new migrations must fail as ambiguous');
+    factory_adapter_expect(!is_file($ambiguousRoot . '/migrations/' . $sha . '.ok'), 'ambiguous migration plan must not write success evidence');
+    factory_adapter_remove_tree($ambiguousRoot);
+
+    [$changedRoot, $changedEnv] = $prepareMigrationCase(
+        'migration-changed',
+        ['migration_existing_01.sql' => "CREATE TABLE existing_probe (id INT);\n"],
+        ['migration_existing_01.sql' => "CREATE TABLE existing_probe (id BIGINT);\n"]
+    );
+    $changed = factory_adapter_run($root, 'migrate', $changedEnv);
+    factory_adapter_expect($changed['code'] !== 0 && str_contains($changed['stderr'], 'candidate changed existing migration'), 'changed historical migration must fail closed with expected reason');
+    factory_adapter_expect(!is_file($changedRoot . '/migrations/' . $sha . '.ok'), 'changed history must not write success evidence');
+    factory_adapter_remove_tree($changedRoot);
+
+    [$removedRoot, $removedEnv] = $prepareMigrationCase(
+        'migration-removed',
+        ['migration_existing_01.sql' => "CREATE TABLE existing_probe (id INT);\n"],
+        []
+    );
+    $removed = factory_adapter_run($root, 'migrate', $removedEnv);
+    factory_adapter_expect($removed['code'] !== 0 && str_contains($removed['stderr'], 'candidate removed existing migration'), 'removed historical migration must fail closed with expected reason');
+    factory_adapter_expect(!is_file($removedRoot . '/migrations/' . $sha . '.ok'), 'removed history must not write success evidence');
+    factory_adapter_remove_tree($removedRoot);
+
+    [$destructiveRoot, $destructiveEnv] = $prepareMigrationCase(
+        'migration-destructive',
+        [],
+        ['migration_factory_contract_01.sql' => "DROP TABLE users;\n"]
+    );
+    $destructive = factory_adapter_run($root, 'migrate', $destructiveEnv);
+    factory_adapter_expect($destructive['code'] !== 0 && str_contains($destructive['stderr'], 'selected migration is not additive'), 'destructive SQL must fail before activation with expected reason');
+    factory_adapter_expect(!is_file($destructiveRoot . '/migrations/' . $sha . '.ok'), 'destructive migration must not write success evidence');
+    factory_adapter_remove_tree($destructiveRoot);
 
     factory_adapter_expect(is_link($fixture . '/current'), 'deploy must leave an atomic current symlink');
     factory_adapter_expect(readlink($fixture . '/current') === realpath($fixture . '/releases/' . $sha), 'deploy must activate candidate release');

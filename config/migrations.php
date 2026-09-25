@@ -40,6 +40,86 @@ function brvtal_migration_checksum(string $path): string
     return $checksum;
 }
 
+function brvtalMigrationAssertAdditiveSql(string $sql): void
+{
+    if (trim($sql) === '') {
+        throw new RuntimeException('MIGRATION_SQL_EMPTY');
+    }
+
+    $sanitized = '';
+    $length = strlen($sql);
+    $index = 0;
+    while ($index < $length) {
+        $char = $sql[$index];
+        $next = $index + 1 < $length ? $sql[$index + 1] : '';
+
+        if ($char === '/' && $next === '*') {
+            $sanitized .= ' ';
+            $index += 2;
+            while ($index < $length && !($sql[$index] === '*' && $index + 1 < $length && $sql[$index + 1] === '/')) {
+                $sanitized .= ($sql[$index] === "\n" || $sql[$index] === "\r") ? $sql[$index] : ' ';
+                $index++;
+            }
+            $index = min($length, $index + 2);
+            continue;
+        }
+
+        if (($char === '-' && $next === '-') || $char === '#') {
+            $sanitized .= ' ';
+            $index += $char === '#' ? 1 : 2;
+            while ($index < $length && $sql[$index] !== "\n" && $sql[$index] !== "\r") {
+                $sanitized .= ' ';
+                $index++;
+            }
+            continue;
+        }
+
+        if ($char === "'" || $char === '"' || $char === '`') {
+            $quote = $char;
+            $sanitized .= ' ';
+            $index++;
+            while ($index < $length) {
+                $current = $sql[$index];
+                if ($current === '\\') {
+                    $sanitized .= ' ';
+                    $index += min(2, $length - $index);
+                    continue;
+                }
+                if ($current === $quote) {
+                    if ($index + 1 < $length && $sql[$index + 1] === $quote) {
+                        $sanitized .= '  ';
+                        $index += 2;
+                        continue;
+                    }
+                    $sanitized .= ' ';
+                    $index++;
+                    break;
+                }
+                $sanitized .= ($current === "\n" || $current === "\r") ? $current : ' ';
+                $index++;
+            }
+            continue;
+        }
+
+        $sanitized .= $char;
+        $index++;
+    }
+
+    $destructivePatterns = [
+        '/\\bDROP\\b/i',
+        '/\\bTRUNCATE\\b/i',
+        '/\\bDELETE\\b/i',
+        '/\\bREPLACE\\s+INTO\\b/i',
+        '/\\bCREATE\\s+OR\\s+REPLACE\\b/i',
+        '/\\bRENAME\\s+TABLE\\b/i',
+        '/\\bALTER\\s+TABLE\\b[^;]*\\b(?:RENAME|CHANGE|MODIFY)\\b/is',
+    ];
+    foreach ($destructivePatterns as $pattern) {
+        if (preg_match($pattern, $sanitized) === 1) {
+            throw new RuntimeException('MIGRATION_NON_ADDITIVE_SQL');
+        }
+    }
+}
 function brvtal_migration_registry_exists(PDO $pdo): bool
 {
     $statement = $pdo->query(
@@ -116,6 +196,66 @@ function brvtal_migration_status(PDO $pdo, string $directory): array
     ];
 }
 
+
+function brvtalMigrationVerifyPlanStatus(array $status, string $expected): void
+{
+    if ($expected !== '__NONE__' && !preg_match('/^migration_[a-z0-9_]+\\.sql$/', $expected)) {
+        throw new InvalidArgumentException('INVALID_MIGRATION_NAME');
+    }
+    if (($status['registry_exists'] ?? false) !== true) {
+        throw new RuntimeException('MIGRATION_REGISTRY_MISSING');
+    }
+    if (($status['orphaned_records'] ?? []) !== []) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+
+    $rows = $status['migrations'] ?? null;
+    if (!is_array($rows)) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+
+    $pending = [];
+    $expectedSeen = $expected === '__NONE__';
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+        }
+        $name = (string)($row['migration'] ?? '');
+        $state = (string)($row['state'] ?? '');
+        if (!preg_match('/^migration_[a-z0-9_]+\\.sql$/', $name)) {
+            throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+        }
+        if ($name === $expected) {
+            $expectedSeen = true;
+        }
+        if ($state === 'applied') {
+            continue;
+        }
+        if ($state === 'pending') {
+            $pending[] = $name;
+            continue;
+        }
+        if ($state === 'checksum_mismatch') {
+            throw new RuntimeException('MIGRATION_CHECKSUM_MISMATCH');
+        }
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+
+    if (!$expectedSeen) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+    if ($expected === '__NONE__') {
+        if ($pending !== []) {
+            throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+        }
+        return;
+    }
+
+    if ($pending !== [] && $pending !== [$expected]) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+}
+
 function brvtal_migration_record(
     PDO $pdo,
     string $migrationName,
@@ -183,7 +323,9 @@ function brvtal_migration_apply_file(
     if (!is_string($sql) || trim($sql) === '') {
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
     }
-
+    // Historical/manual migrations keep their explicit operator path. The
+    // automatic Factory planner invokes brvtalMigrationAssertAdditiveSql()
+    // before selecting any migration for unattended deployment.
     $pdo->exec($sql);
 
     if (!brvtal_migration_registry_exists($pdo)) {

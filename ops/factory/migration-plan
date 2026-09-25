@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() {
+  printf 'BRVTAL MIGRATION PLAN: %s\n' "$*" >&2
+  exit 64
+}
+
+candidate="${1:-}"
+previous="${2:-__NONE__}"
+
+[[ -n "$candidate" && "$candidate" == /* && "$candidate" != *"/../"* ]] || die "candidate release path is invalid"
+[[ -d "$candidate" && ! -L "$candidate" ]] || die "candidate release must be one real directory"
+[[ -d "$candidate/database" && ! -L "$candidate/database" ]] || die "candidate database directory is missing or unsafe"
+[[ -f "$candidate/config/migrations.php" && ! -L "$candidate/config/migrations.php" ]] || die "candidate migration library is missing or unsafe"
+
+if [[ "$previous" != "__NONE__" ]]; then
+  [[ "$previous" == /* && "$previous" != *"/../"* ]] || die "previous release path is invalid"
+  [[ -d "$previous" && ! -L "$previous" ]] || die "previous release must be one real directory"
+  [[ -d "$previous/database" && ! -L "$previous/database" ]] || die "previous database directory is missing or unsafe"
+fi
+
+collect_migrations() {
+  local directory="$1"
+  local output_name="$2"
+  local path name
+  local -n output="$output_name"
+  output=()
+  shopt -s nullglob
+  for path in "$directory"/migration_*.sql; do
+    [[ -f "$path" && ! -L "$path" ]] || die "migration path is not one regular file"
+    name="${path##*/}"
+    [[ "$name" =~ ^migration_[a-z0-9_]+\.sql$ ]] || die "migration filename is invalid"
+    output+=("$name")
+  done
+  shopt -u nullglob
+  if (("${#output[@]}" > 1)); then
+    mapfile -t output < <(printf '%s\n' "${output[@]}" | LC_ALL=C sort)
+  fi
+}
+
+checksum() {
+  php -r '$hash=hash_file("sha256",$argv[1]); if(!is_string($hash)){exit(2);} echo $hash;' "$1"
+}
+
+candidate_names=()
+previous_names=()
+collect_migrations "$candidate/database" candidate_names
+if [[ "$previous" != "__NONE__" ]]; then
+  collect_migrations "$previous/database" previous_names
+fi
+
+for name in "${previous_names[@]}"; do
+  candidate_path="$candidate/database/$name"
+  [[ -f "$candidate_path" && ! -L "$candidate_path" ]] || die "candidate removed existing migration: $name"
+  previous_hash="$(checksum "$previous/database/$name")" || die "could not checksum previous migration: $name"
+  candidate_hash="$(checksum "$candidate_path")" || die "could not checksum candidate migration: $name"
+  [[ "$previous_hash" == "$candidate_hash" ]] || die "candidate changed existing migration: $name"
+done
+
+new_migrations=()
+for name in "${candidate_names[@]}"; do
+  if [[ "$previous" == "__NONE__" || ! -e "$previous/database/$name" ]]; then
+    new_migrations+=("$name")
+  fi
+done
+
+if (("${#new_migrations[@]}" == 0)); then
+  printf '__NONE__\n'
+  exit 0
+fi
+if (("${#new_migrations[@]}" > 1)); then
+  die "multiple new migrations are ambiguous in one deploy"
+fi
+
+migration="${new_migrations[0]}"
+[[ "$migration" != "migration_schema_migrations_01.sql" ]] || die "registry migration cannot be auto-selected"
+if ! php -r '
+require $argv[1];
+$sql=file_get_contents($argv[2]);
+if(!is_string($sql)){exit(2);}
+brvtalMigrationAssertAdditiveSql($sql);
+' "$candidate/config/migrations.php" "$candidate/database/$migration" >/dev/null 2>&1; then
+  die "selected migration is not additive: $migration"
+fi
+
+printf '%s\n' "$migration"

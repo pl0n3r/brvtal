@@ -556,12 +556,38 @@ _MIGRATE = r"""
 set -euo pipefail
 site_root="$1"
 sha="$2"
-migration="$3"
 release="$site_root/factory-releases/$sha"
+releases="$site_root/factory-releases"
+current="$site_root/public_html/.factory-current"
 test "$(cat "$release/.factory-release-sha" 2>/dev/null || true)" = "$sha" || exit 51
+test ! -L "$release"
+test -f "$release/ops/factory/migration-plan"
+test ! -L "$release/ops/factory/migration-plan"
+
+previous="__NONE__"
+if [ -L "$current" ]; then
+  previous="$(readlink "$current")"
+  case "$previous" in "$releases"/*) ;; *) exit 52 ;; esac
+  test -d "$previous" || exit 53
+elif [ -e "$current" ]; then
+  exit 54
+fi
+
+migration="$(bash "$release/ops/factory/migration-plan" "$release" "$previous")" || exit 55
+case "$migration" in
+  __NONE__|migration_[a-z0-9_]*.sql) ;;
+  *) exit 56 ;;
+esac
+
 cd "$release"
+php scripts/migrations.php verify-plan "$migration" >/dev/null || exit 57
+if [ "$migration" = "__NONE__" ]; then
+  exit 0
+fi
+
 BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_ACTOR=factory-deploy \
   php scripts/migrations.php apply "$migration" --confirm
+php scripts/migrations.php verify-plan __NONE__ >/dev/null || exit 58
 """
 
 _ACTIVATE = r"""
@@ -767,7 +793,6 @@ def main() -> int:
     p_backup.add_argument("--sha", required=True)
     p_migrate = sub.add_parser("migrate")
     p_migrate.add_argument("--sha", required=True)
-    p_migrate.add_argument("--migration", required=True)
     p_activate = sub.add_parser("activate")
     p_activate.add_argument("--sha", required=True)
     p_rollback = sub.add_parser("rollback")
@@ -790,10 +815,7 @@ def main() -> int:
         elif args.command == "backup":
             ssh_script(config, _BACKUP, sha)
         elif args.command == "migrate":
-            migration = args.migration.strip()
-            if not _MIGRATION_RE.fullmatch(migration):
-                raise TransportError("migration must be one explicit migration_*.sql file")
-            ssh_script(config, _MIGRATE, sha, migration)
+            ssh_script(config, _MIGRATE, sha)
         elif args.command == "activate":
             ssh_script(config, _ACTIVATE, sha)
         elif args.command == "rollback":

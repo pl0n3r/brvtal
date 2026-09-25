@@ -53,6 +53,7 @@ hostinger_expect(str_contains($transportSource, 'os.chmod(key, 0o600)'), 'epheme
 hostinger_expect(str_contains($transportSource, '_ALLOWED_FIELDS'), 'descriptor must have an exact field allowlist');
 hostinger_expect(str_contains($transportSource, 'factory-releases') && str_contains($transportSource, 'factory-shared'), 'release layout must separate immutable and shared state');
 hostinger_expect(str_contains($transportSource, '.factory-release-sha'), 'staged artifact must expose exact SHA identity');
+hostinger_expect(str_contains($transportSource, 'verify-plan'), 'remote migration must verify the database registry against the deterministic plan');
 hostinger_expect(str_contains($dispatcherSource, '# BRVTAL FACTORY DISPATCHER v1'), 'dispatcher template must be versioned');
 hostinger_expect(str_contains($dispatcherSource, '.factory-current'), 'dispatcher must route through the bounded release pointer');
 
@@ -176,8 +177,20 @@ BASH;
 
 file_put_contents($fakeBin . '/ssh', $fakeSsh . "\n");
 file_put_contents($fakeBin . '/scp', $fakeScp . "\n");
+$realPhp = escapeshellarg(PHP_BINARY);
+$fakePhp = <<<BASH
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "scripts/migrations.php" && "\${2:-}" == "verify-plan" ]]; then
+  [[ "\${BRVTAL_FAKE_MIGRATION_VERIFY:-ok}" == "ok" ]] || exit 65
+  exit 0
+fi
+exec {$realPhp} "\$@"
+BASH;
+file_put_contents($fakeBin . '/php', $fakePhp . "\n");
 @chmod($fakeBin . '/ssh', 0700);
 @chmod($fakeBin . '/scp', 0700);
+@chmod($fakeBin . '/php', 0700);
 
 $head = strtolower(trim((string)shell_exec('git rev-parse HEAD')));
 hostinger_expect((bool)preg_match('/^[a-f0-9]{40}$/', $head), 'test checkout must expose an exact HEAD');
@@ -204,6 +217,27 @@ try {
     hostinger_expect(is_link($candidate . '/config/config.php') && readlink($candidate . '/config/config.php') === $remote . '/factory-shared/config/config.php', 'production config must be shared between releases');
     hostinger_expect(is_file($remote . '/factory-shared/.private/.htaccess'), 'shared private state must retain a web deny rule');
     hostinger_expect(is_file($remote . '/factory-shared/storage/backups/.htaccess'), 'shared backups must retain a web deny rule');
+
+    @mkdir($remote . '/factory-releases/' . $previousSha . '/database', 0700, true);
+    foreach (glob($candidate . '/database/migration_*.sql') ?: [] as $migrationPath) {
+        copy($migrationPath, $remote . '/factory-releases/' . $previousSha . '/database/' . basename($migrationPath));
+    }
+    $migrationNoop = hostinger_run(
+        [$root . '/ops/factory/migrate'],
+        $root,
+        array_merge($remoteEnv, ['MIGRATION_MODE'=>'additive'])
+    );
+    hostinger_expect($migrationNoop['code'] === 0, 'fake-SSH deterministic no-op migration must succeed: ' . trim($migrationNoop['stderr']));
+
+    $migrationDrift = hostinger_run(
+        [$root . '/ops/factory/migrate'],
+        $root,
+        array_merge($remoteEnv, [
+            'MIGRATION_MODE'=>'additive',
+            'BRVTAL_FAKE_MIGRATION_VERIFY'=>'fail',
+        ])
+    );
+    hostinger_expect($migrationDrift['code'] !== 0, 'fake-SSH migration must fail when database registry does not match the file plan');
 
     $deploy = hostinger_run([$root . '/ops/factory/deploy'], $root, $remoteEnv);
     hostinger_expect($deploy['code'] === 0, 'fake-SSH activation must succeed: ' . trim($deploy['stderr']));
