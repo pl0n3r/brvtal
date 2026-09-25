@@ -199,26 +199,23 @@ function brvtal_sentry_default_sender(
     if (function_exists('curl_init')) {
         $handle = curl_init($endpoint);
         if ($handle === false) return false;
-        try {
-            curl_setopt_array($handle, [
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $body,
-                CURLOPT_HTTPHEADER => $headers,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_CONNECTTIMEOUT_MS => 400,
-                CURLOPT_TIMEOUT_MS => (int)round($timeoutSeconds * 1000),
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
-                CURLOPT_NOSIGNAL => true,
-            ]);
-            $response = @curl_exec($handle);
-            $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-            return $response !== false && $status >= 200 && $status < 300;
-        } finally {
-            curl_close($handle);
-        }
+        curl_setopt_array($handle, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT_MS => 400,
+            CURLOPT_TIMEOUT_MS => (int)round($timeoutSeconds * 1000),
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_NOSIGNAL => true,
+        ]);
+        $response = @curl_exec($handle);
+        $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        unset($handle);
+        return $response !== false && $status >= 200 && $status < 300;
     }
 
     $context = stream_context_create([
@@ -237,17 +234,23 @@ function brvtal_sentry_default_sender(
             'allow_self_signed' => false,
         ],
     ]);
-    $response = @file_get_contents($endpoint, false, $context);
-    if ($response === false) return false;
+    $stream = @fopen($endpoint, 'rb', false, $context);
+    if ($stream === false) return false;
 
-    $responseHeaders = $http_response_header ?? [];
-    $status = 0;
-    if (is_array($responseHeaders) && isset($responseHeaders[0])) {
-        if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', (string)$responseHeaders[0], $match) === 1) {
-            $status = (int)$match[1];
+    try {
+        $response = stream_get_contents($stream);
+        $metadata = stream_get_meta_data($stream);
+        $responseHeaders = $metadata['wrapper_data'] ?? [];
+        $status = 0;
+        if (is_array($responseHeaders) && isset($responseHeaders[0])) {
+            if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', (string)$responseHeaders[0], $match) === 1) {
+                $status = (int)$match[1];
+            }
         }
+        return $response !== false && $status >= 200 && $status < 300;
+    } finally {
+        fclose($stream);
     }
-    return $status >= 200 && $status < 300;
 }
 
 /** @param array<string,mixed> $event */

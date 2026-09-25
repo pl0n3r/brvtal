@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/sentry.php';
 
+putenv('BRVTAL_SENTRY_DSN');
+
 function sentry_expect(bool $condition, string $message): void
 {
     if (!$condition) {
@@ -93,12 +95,24 @@ sentry_expect(
 );
 
 $source = (string)file_get_contents(__DIR__ . '/../config/sentry.php');
+sentry_expect(!str_contains($source, 'curl_close('), 'PHP 8.5-deprecated curl_close must not be used');
+sentry_expect(!str_contains($source, '$http_response_header'), 'PHP 8.5-deprecated response header variable must not be used');
 foreach ([
     '\$_SERVER', '\$_COOKIE', '\$_POST', '\$_GET', '\$_SESSION',
     'REMOTE_ADDR', 'REQUEST_URI', 'HTTP_USER_AGENT', 'HTTP_REFERER',
 ] as $forbidden) {
     sentry_expect(!str_contains($source, $forbidden), 'Sentry source must not inspect request identity: ' . $forbidden);
 }
+$bootstrap = (string)file_get_contents(__DIR__ . '/../config/bootstrap.php');
+sentry_expect(
+    str_contains($bootstrap, "function_exists('brvtal_sentry_capture_fatal')"),
+    'bootstrap must remain safe when optional logger transport is unavailable'
+);
+sentry_expect(
+    str_contains($bootstrap, "function_exists('brvtal_sentry_capture_exception')"),
+    'configuration failure path must guard optional transport'
+);
+
 $logger = (string)file_get_contents(__DIR__ . '/../config/logger.php');
 sentry_expect(str_contains($logger, 'brvtal_sentry_capture_exception('), 'uncaught exception handler must report remotely');
 sentry_expect(str_contains($logger, 'brvtal_sentry_capture_fatal('), 'fatal shutdown handler must report remotely');
