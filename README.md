@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+803** | **−143** | **+660** |
+| **11** | **+813** | **−143** | **+670** |
 
 ## Calidad y entrega
 
@@ -44,7 +44,7 @@
 | Roles | Infrastructure · SRE · Security · QA |
 | Transporte | `DEPLOY_TOKEN` JSON exacto + `DEPLOY_SSH_KEY`; sin secretos en logs |
 | Hostinger | `public_html` permanece document root fijo; release pointer interno |
-| Estado persistente | `config/config.php`, `uploads`, `storage`, `.private` viven en `factory-shared` |
+| Estado persistente | `config/config.php`, `uploads`, `storage`, `.private` viven en `factory-shared`; deny-rules obligatorias |
 | Review | BRVTAL CI + Factory gates + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
@@ -63,7 +63,7 @@ flowchart LR
 
 - Añade `ops/factory/transport.py` con descriptor cerrado `host/user/port/site_root/known_hosts`, key efímera 0600, `StrictHostKeyChecking=yes` y `UserKnownHostsFile` aislado.
 - Empaqueta únicamente contenido Git del SHA exacto y lo prepara en `factory-releases/<sha>`; un `.git/HEAD` mínimo preserva identidad exacta para `/api/health.php`.
-- Mantiene estado mutable fuera del artefacto: configuración productiva, uploads, storage y `.private` se enlazan desde `factory-shared`.
+- Mantiene estado mutable fuera del artefacto: configuración productiva, uploads, storage y `.private` se enlazan desde `factory-shared`; staging exige además los `.htaccess` protectores de private/storage/backups/uploads.
 - Añade un dispatcher estable para Hostinger: `public_html` no cambia de raíz y conmuta solo `.factory-current`.
 - Backup y migración productivos se ejecutan por SSH dentro del release remoto; rollback cambia solo el artefacto y nunca restaura la BD.
 - El modo producción se habilita únicamente cuando Factory entrega ambos secretos; sin ellos los adapters fallan cerrado.
