@@ -43,7 +43,7 @@
 | PR + snapshot exacto | Issue #676 · reserva `3bae3966-aadd-492b-8f1f-29e7a1c7d995` |
 | Roles | Infrastructure · SRE · Security · QA |
 | Health final | exact SHA + schema parity; cualquier deriva → HTTP 503 |
-| Compatibilidad | conserva `ok`, `app`, `database`, `deployment`, `time`, `latency_ms`; añade `health_status` |
+| Compatibilidad | conserva `ok`, `app`, `database`, `deployment`, `time`, `latency_ms`; añade `readiness_status` |
 | Escrituras | ninguna: health solo consulta DB/registro de migraciones |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
@@ -68,7 +68,7 @@ flowchart LR
 - Añade `config/deploy_readiness.php` con un modelo puro/fail-closed para readiness Factory y resumen acotado del registro de migraciones.
 - `/api/health.php` exige identidad exacta y reutiliza `brvtalMigrationVerifyPlanStatus(..., "__NONE__")` como única definición de schema listo.
 - El endpoint devuelve 200 únicamente con `status=ok`, versión canónica, SHA exacto y `schema_up_to_date=true`; cualquier drift o identidad no exacta devuelve 503.
-- Se preservan los diagnósticos operativos existentes y se añade `health_status=healthy|degraded` para el descriptor humano.
+- Se preservan los diagnósticos operativos existentes y se añade `readiness_status=ready|degraded` para el descriptor humano.
 - El health permanece estrictamente read-only: no activa gates de escritura, no aplica migraciones y no hace baseline/repair.
 - El contrato prueba identidad exacta/no exacta, registry ausente, pending, checksum mismatch, orphan records y resumen de schema.
 - No ejecuta el cutover Hostinger ni añade todavía el caller permanente `factory/deploy.yml@v1`.
@@ -79,6 +79,7 @@ flowchart LR
 - `config/deploy_readiness.php` — modelo puro de readiness y resumen de schema.
 - `config/version.php` — versión de producto 0.1.55.
 - `package.json` — versión de producto 0.1.55.
+- `tests/deployment-traceability-contract.php` — compatibilidad del diagnóstico de fuente desplegada.
 - `tests/factory-health-contract.php` — cobertura determinista de identidad/schema/read-only.
 - `README.md` — snapshot exacto del deploy.
 
