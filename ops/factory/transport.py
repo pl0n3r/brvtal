@@ -7,6 +7,7 @@ import contextlib
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -176,6 +177,26 @@ def ssh_script(config: Config, script: str, *arguments: str) -> None:
         _run(command, input_text=script, label="SSH command")
 
 
+def ssh_status(config: Config, script: str, *arguments: str) -> bool:
+    """Return whether one fixed remote predicate succeeds without exposing output."""
+    with credentials(config) as (key, hosts):
+        command = [
+            "ssh",
+            *_ssh_options(config, key, hosts),
+            f"{config.user}@{config.host}",
+            "bash", "-s", "--", config.site_root, *arguments,
+        ]
+        completed = subprocess.run(
+            command,
+            input=script,
+            text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return completed.returncode == 0
+
+
 def upload(config: Config, source: Path, remote_path: str) -> None:
     with credentials(config) as (key, hosts):
         target = f"{config.user}@{config.host}:{remote_path}"
@@ -187,6 +208,226 @@ _PREPARE_UPLOAD = r"""
 set -euo pipefail
 site_root="$1"
 mkdir -p "$site_root/factory-artifacts"
+"""
+
+
+_BOOTSTRAP_STATUS = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+candidate="$site_root/factory-releases/$sha"
+shared="$site_root/factory-shared"
+test -f "$shared/.prepared-v1"
+test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
+test -L "$public/.factory-current"
+test "$(readlink "$public/.factory-current")" = "$candidate"
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$public/.htaccess"
+"""
+
+_BOOTSTRAP_HAS_DISPATCHER = r"""
+set -euo pipefail
+site_root="$1"
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$site_root/public_html/.htaccess"
+"""
+
+_BOOTSTRAP_PROBE_CREATE = r"""
+set -euo pipefail
+site_root="$1"
+name="$2"
+token="$3"
+public="$site_root/public_html"
+probe_root="$site_root/factory-state/bootstrap-probes"
+mkdir -p "$probe_root"
+target="$probe_root/$name.txt"
+link="$public/factory-symlink-probe-$name.txt"
+test ! -e "$target"
+test ! -e "$link"
+printf '%s' "$token" > "$target"
+ln -s -- "$target" "$link"
+"""
+
+_BOOTSTRAP_PROBE_CLEANUP = r"""
+set -euo pipefail
+site_root="$1"
+name="$2"
+rm -f -- "$site_root/public_html/factory-symlink-probe-$name.txt"
+rm -f -- "$site_root/factory-state/bootstrap-probes/$name.txt"
+rmdir "$site_root/factory-state/bootstrap-probes" 2>/dev/null || true
+"""
+
+_BOOTSTRAP_PREPARE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+version="$3"
+dispatcher_upload="$4"
+public="$site_root/public_html"
+releases="$site_root/factory-releases"
+shared="$site_root/factory-shared"
+state="$site_root/factory-state"
+candidate="$releases/$sha"
+
+test -d "$public"
+test -f "$public/.htaccess"
+test -f "$public/config/config.php"
+test ! -L "$public/config/config.php"
+for path in uploads storage .private; do
+  test -d "$public/$path"
+  test ! -L "$public/$path"
+done
+test -f "$public/.private/.htaccess"
+test -f "$public/storage/.htaccess"
+test -f "$public/storage/backups/.htaccess"
+test -f "$public/uploads/.htaccess"
+test -f "$dispatcher_upload"
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$dispatcher_upload"
+
+mkdir -p "$releases" "$shared/config" "$state"
+
+link_exact() {
+  source_path="$1"
+  target_path="$2"
+  if [ -L "$target_path" ]; then
+    test "$(readlink "$target_path")" = "$source_path"
+    return
+  fi
+  test ! -e "$target_path"
+  ln -s -- "$source_path" "$target_path"
+}
+
+link_exact "$public/config/config.php" "$shared/config/config.php"
+link_exact "$public/uploads" "$shared/uploads"
+link_exact "$public/storage" "$shared/storage"
+link_exact "$public/.private" "$shared/.private"
+test -f "$shared/.private/.htaccess"
+test -f "$shared/storage/.htaccess"
+test -f "$shared/storage/backups/.htaccess"
+test -f "$shared/uploads/.htaccess"
+
+prepared_tmp="$shared/.prepared-v1.tmp.$"
+printf 'prepared-v1\n' > "$prepared_tmp"
+mv -f -- "$prepared_tmp" "$shared/.prepared-v1"
+
+if [ -d "$candidate" ]; then
+  test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
+  test "$(cat "$candidate/.factory-release-version" 2>/dev/null || true)" = "$version"
+else
+  tmp="$releases/.$sha.bootstrap.$"
+  rm -rf -- "$tmp"
+  mkdir -p -- "$tmp"
+  trap 'rm -rf -- "$tmp"' EXIT
+  (
+    cd "$public"
+    tar --exclude='./.git' --exclude='./.factory-current' --exclude='./.factory-current.*'       --exclude='./config/config.php' --exclude='./uploads' --exclude='./storage' --exclude='./.private'       -cf - .
+  ) | tar -xf - -C "$tmp"
+  test -f "$tmp/index.php"
+  test -f "$tmp/.htaccess"
+  mkdir -p "$tmp/.git" "$tmp/config"
+  printf '%s\n' "$sha" > "$tmp/.git/HEAD"
+  printf '%s\n' "$sha" > "$tmp/.factory-release-sha"
+  printf '%s\n' "$version" > "$tmp/.factory-release-version"
+  ln -s -- "$shared/config/config.php" "$tmp/config/config.php"
+  rm -rf -- "$tmp/uploads" "$tmp/storage" "$tmp/.private"
+  ln -s -- "$shared/uploads" "$tmp/uploads"
+  ln -s -- "$shared/storage" "$tmp/storage"
+  ln -s -- "$shared/.private" "$tmp/.private"
+  mv -- "$tmp" "$candidate"
+  trap - EXIT
+fi
+
+backup_marker="$state/bootstrap-backup-$sha.ok"
+if [ ! -f "$backup_marker" ]; then
+  (
+    cd "$public"
+    php <<'PHP'
+<?php
+declare(strict_types=1);
+require "config/bootstrap.php";
+require "config/backups.php";
+$manifest = brvtal_backup_create(db(), [
+    "include_media_archive" => false,
+    "created_by" => ["id" => 0, "name" => "Factory bootstrap"],
+]);
+if (($manifest["status"] ?? "") !== "ready") {
+    fwrite(STDERR, "bootstrap backup did not reach ready state\n");
+    exit(1);
+}
+PHP
+  )
+  marker_tmp="$backup_marker.tmp.$"
+  printf 'backup-ready\n' > "$marker_tmp"
+  mv -f -- "$marker_tmp" "$backup_marker"
+fi
+
+legacy="$state/legacy-public-htaccess"
+if [ ! -f "$legacy" ]; then
+  test ! -L "$public/.htaccess"
+  cp -- "$public/.htaccess" "$legacy.tmp.$"
+  mv -f -- "$legacy.tmp.$" "$legacy"
+fi
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$legacy" && exit 86
+
+dispatcher="$state/dispatcher-v1.htaccess"
+cp -- "$dispatcher_upload" "$dispatcher.tmp.$"
+mv -f -- "$dispatcher.tmp.$" "$dispatcher"
+rm -f -- "$dispatcher_upload"
+"""
+
+_BOOTSTRAP_ACTIVATE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+candidate="$site_root/factory-releases/$sha"
+state="$site_root/factory-state"
+current="$public/.factory-current"
+dispatcher="$state/dispatcher-v1.htaccess"
+legacy="$state/legacy-public-htaccess"
+
+test -f "$state/bootstrap-backup-$sha.ok"
+test -f "$legacy"
+test -f "$dispatcher"
+test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
+grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$dispatcher"
+
+if [ -e "$current" ] && [ ! -L "$current" ]; then exit 91; fi
+if [ -L "$current" ]; then
+  case "$(readlink "$current")" in "$site_root/factory-releases/"*) ;; *) exit 92 ;; esac
+fi
+
+pointer_tmp="$public/.factory-current.bootstrap.$"
+ln -s -- "$candidate" "$pointer_tmp"
+mv -Tf -- "$pointer_tmp" "$current"
+
+htaccess_tmp="$public/.htaccess.factory.$"
+cp -- "$dispatcher" "$htaccess_tmp"
+mv -f -- "$htaccess_tmp" "$public/.htaccess"
+"""
+
+_BOOTSTRAP_RESTORE = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+state="$site_root/factory-state"
+legacy="$state/legacy-public-htaccess"
+current="$public/.factory-current"
+candidate="$site_root/factory-releases/$sha"
+
+test -f "$legacy"
+if [ -f "$public/.htaccess" ] && grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$public/.htaccess"; then
+  restore_tmp="$public/.htaccess.restore.$"
+  cp -- "$legacy" "$restore_tmp"
+  mv -f -- "$restore_tmp" "$public/.htaccess"
+fi
+if [ -L "$current" ]; then
+  target="$(readlink "$current")"
+  case "$target" in "$site_root/factory-releases/"*) ;; *) exit 96 ;; esac
+  if [ "$target" = "$candidate" ] || [ -d "$target" ]; then rm -f -- "$current"; fi
+elif [ -e "$current" ]; then
+  exit 97
+fi
 """
 
 _STAGE = r"""
@@ -347,6 +588,102 @@ mv -Tf -- "$pointer_tmp" "$current"
 """
 
 
+
+def _safe_origin(value: str) -> str:
+    origin = value.strip().rstrip("/")
+    if not re.fullmatch(r"https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?", origin):
+        raise TransportError("origin must be one HTTPS origin without path, query or credentials")
+    return origin
+
+
+def _curl_get(url: str) -> str:
+    completed = subprocess.run(
+        [
+            "curl", "--fail", "--silent", "--show-error", "--proto", "=https",
+            "--connect-timeout", "5", "--max-time", "10",
+            "-H", "Cache-Control: no-cache", url,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise TransportError("HTTP bootstrap probe failed")
+    return completed.stdout
+
+
+def _assert_identity(origin: str, sha: str, version: str) -> None:
+    raw = _curl_get(f"{origin}/api/deployment.php?__factory_bootstrap={secrets.token_hex(8)}")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise TransportError("production identity endpoint returned invalid JSON") from exc
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        raise TransportError("production identity payload is missing")
+    if data.get("exact") is not True or data.get("commit") != sha or data.get("version") != version:
+        raise TransportError("production exact SHA/version do not match bootstrap expectation")
+
+
+def _assert_public_smoke(origin: str) -> None:
+    _curl_get(f"{origin}/")
+    _curl_get(f"{origin}/discadmin")
+
+
+def _probe_symlink(config: Config, origin: str) -> None:
+    name = secrets.token_hex(8)
+    token = "brvtal-symlink-" + secrets.token_hex(16)
+    ssh_script(config, _BOOTSTRAP_PROBE_CREATE, name, token)
+    try:
+        if _curl_get(f"{origin}/factory-symlink-probe-{name}.txt") != token:
+            raise TransportError("Hostinger HTTP symlink probe did not resolve exact target")
+    finally:
+        try:
+            ssh_script(config, _BOOTSTRAP_PROBE_CLEANUP, name)
+        except TransportError:
+            pass
+
+
+def restore_bootstrap(config: Config, sha: str) -> None:
+    ssh_script(config, _BOOTSTRAP_RESTORE, sha)
+
+
+def bootstrap(config: Config, sha: str, version: str, origin: str) -> None:
+    if os.environ.get("BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED") != "1":
+        raise TransportError("Hostinger Git auto-deploy must be disabled before bootstrap")
+    origin = _safe_origin(origin)
+    _assert_identity(origin, sha, version)
+
+    if ssh_status(config, _BOOTSTRAP_STATUS, sha):
+        _assert_public_smoke(origin)
+        return
+
+    if ssh_status(config, _BOOTSTRAP_HAS_DISPATCHER):
+        restore_bootstrap(config, sha)
+        _assert_identity(origin, sha, version)
+
+    _probe_symlink(config, origin)
+    dispatcher = Path(__file__).with_name("public_html-dispatcher.htaccess").resolve(strict=True)
+    remote_dispatcher = f"{config.site_root}/factory-artifacts/bootstrap-dispatcher-{sha}.htaccess"
+    ssh_script(config, _PREPARE_UPLOAD)
+    upload(config, dispatcher, remote_dispatcher)
+    ssh_script(config, _BOOTSTRAP_PREPARE, sha, version, remote_dispatcher)
+
+    try:
+        ssh_script(config, _BOOTSTRAP_ACTIVATE, sha)
+        _assert_identity(origin, sha, version)
+        _assert_public_smoke(origin)
+        if not ssh_status(config, _BOOTSTRAP_STATUS, sha):
+            raise TransportError("bootstrap remote state is incomplete after activation")
+    except Exception:
+        try:
+            restore_bootstrap(config, sha)
+        except TransportError as rollback_error:
+            raise TransportError("bootstrap validation failed and legacy dispatcher restore also failed") from rollback_error
+        raise
+
+
 def stage(config: Config, archive: Path, sha: str, version: str) -> None:
     if not archive.is_file() or archive.is_symlink():
         raise TransportError("release archive is missing or unsafe")
@@ -373,6 +710,12 @@ def main() -> int:
     p_activate.add_argument("--sha", required=True)
     p_rollback = sub.add_parser("rollback")
     p_rollback.add_argument("--sha", required=True)
+    p_bootstrap = sub.add_parser("bootstrap")
+    p_bootstrap.add_argument("--sha", required=True)
+    p_bootstrap.add_argument("--version", required=True)
+    p_bootstrap.add_argument("--origin", required=True)
+    p_restore_bootstrap = sub.add_parser("restore-bootstrap")
+    p_restore_bootstrap.add_argument("--sha", required=True)
     args = parser.parse_args()
 
     try:
@@ -393,6 +736,10 @@ def main() -> int:
             ssh_script(config, _ACTIVATE, sha)
         elif args.command == "rollback":
             ssh_script(config, _ROLLBACK, sha)
+        elif args.command == "bootstrap":
+            bootstrap(config, sha, _safe_version(args.version), args.origin)
+        elif args.command == "restore-bootstrap":
+            restore_bootstrap(config, sha)
         return 0
     except (TransportError, OSError) as exc:
         print(f"BRVTAL FACTORY TRANSPORT: {exc}", file=sys.stderr)
