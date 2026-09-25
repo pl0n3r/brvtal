@@ -48,7 +48,8 @@ function brvtalMigrationAssertAdditiveSql(string $sql): void
 
     $sanitized = '';
     $length = strlen($sql);
-    for ($index = 0; $index < $length; ) {
+    $index = 0;
+    while ($index < $length) {
         $char = $sql[$index];
         $next = $index + 1 < $length ? $sql[$index + 1] : '';
 
@@ -196,7 +197,7 @@ function brvtal_migration_status(PDO $pdo, string $directory): array
 }
 
 
-function brvtal_migration_verify_plan_status(array $status, string $expected): void
+function brvtalMigrationVerifyPlanStatus(array $status, string $expected): void
 {
     if ($expected !== '__NONE__' && !preg_match('/^migration_[a-z0-9_]+\\.sql$/', $expected)) {
         throw new InvalidArgumentException('INVALID_MIGRATION_NAME');
