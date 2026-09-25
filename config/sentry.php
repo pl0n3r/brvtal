@@ -13,22 +13,22 @@ function brvtalSentryResolveHost(string $host): array
         return [];
     }
 
-    $addresses = [];
+    $resolvedIpes = [];
     foreach ($records as $record) {
         if (!is_array($record)) {
             continue;
         }
         if (($record['type'] ?? '') === 'A' && is_string($record['ip'] ?? null)) {
-            $addresses[] = $record['ip'];
+            $resolvedIpes[] = $record['ip'];
         }
         if (($record['type'] ?? '') === 'AAAA' && is_string($record['ipv6'] ?? null)) {
-            $addresses[] = $record['ipv6'];
+            $resolvedIpes[] = $record['ipv6'];
         }
     }
 
-    $addresses = array_values(array_unique($addresses));
-    sort($addresses, SORT_STRING);
-    return $addresses;
+    $resolvedIpes = array_values(array_unique($resolvedIpes));
+    sort($resolvedIpes, SORT_STRING);
+    return $resolvedIpes;
 }
 
 /** @return list<string> */
@@ -45,26 +45,26 @@ function brvtalSentryPublicAddresses(string $host, ?callable $resolver = null): 
         return [];
     }
 
-    $addresses = [];
-    foreach ($resolved as $address) {
-        if (!is_string($address)) {
+    $resolvedIpes = [];
+    foreach ($resolved as $resolvedIp) {
+        if (!is_string($resolvedIp)) {
             return [];
         }
-        $address = trim($address);
+        $resolvedIp = trim($resolvedIp);
         $public = filter_var(
-            $address,
+            $resolvedIp,
             FILTER_VALIDATE_IP,
             FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
         );
         if ($public === false) {
             return [];
         }
-        $addresses[] = $address;
+        $resolvedIpes[] = $resolvedIp;
     }
 
-    $addresses = array_values(array_unique($addresses));
-    sort($addresses, SORT_STRING);
-    return $addresses;
+    $resolvedIpes = array_values(array_unique($resolvedIpes));
+    sort($resolvedIpes, SORT_STRING);
+    return $resolvedIpes;
 }
 
 /**
@@ -115,8 +115,8 @@ function brvtalSentryParseDsn(string $dsn, ?callable $resolver = null): ?array
         return null;
     }
 
-    $addresses = brvtalSentryPublicAddresses($host, $resolver);
-    if ($addresses === []) {
+    $resolvedIpes = brvtalSentryPublicAddresses($host, $resolver);
+    if ($resolvedIpes === []) {
         return null;
     }
 
@@ -128,7 +128,7 @@ function brvtalSentryParseDsn(string $dsn, ?callable $resolver = null): ?array
         'host' => $host,
         'public_key' => $publicKey,
         'project_id' => $projectId,
-        'addresses' => $addresses,
+        'addresses' => $resolvedIpes,
     ];
 }
 
@@ -338,31 +338,31 @@ function brvtalSentryEnvelope(array $event, array $runtime): string
  */
 function brvtalSentryPinnedAddress(array $runtime): string
 {
-    $address = (string)($runtime['addresses'][0] ?? '');
+    $resolvedIp = (string)($runtime['addresses'][0] ?? '');
     $public = filter_var(
-        $address,
+        $resolvedIp,
         FILTER_VALIDATE_IP,
         FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
     );
     if ($public === false) {
-        throw new RuntimeException('Sentry destination address is not public.');
+        throw new RuntimeException('Sentry destination IP is not public.');
     }
-    return $address;
+    return $resolvedIp;
 }
 
 /** @param array{host:string,addresses:list<string>} $runtime */
 function brvtalSentryCurlResolveEntry(array $runtime): string
 {
-    $address = brvtalSentryPinnedAddress($runtime);
-    $formatted = str_contains($address, ':') ? '[' . $address . ']' : $address;
+    $resolvedIp = brvtalSentryPinnedAddress($runtime);
+    $formatted = str_contains($resolvedIp, ':') ? '[' . $resolvedIp . ']' : $resolvedIp;
     return $runtime['host'] . ':443:' . $formatted;
 }
 
 /** @param array{endpoint_path:string,addresses:list<string>} $runtime */
 function brvtalSentryPinnedEndpoint(array $runtime): string
 {
-    $address = brvtalSentryPinnedAddress($runtime);
-    $authority = str_contains($address, ':') ? '[' . $address . ']' : $address;
+    $resolvedIp = brvtalSentryPinnedAddress($runtime);
+    $authority = str_contains($resolvedIp, ':') ? '[' . $resolvedIp . ']' : $resolvedIp;
     return 'https://' . $authority . $runtime['endpoint_path'];
 }
 
