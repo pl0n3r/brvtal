@@ -40,7 +40,7 @@ function brvtal_migration_checksum(string $path): string
     return $checksum;
 }
 
-function brvtal_migration_assert_additive_sql(string $sql): void
+function brvtalMigrationAssertAdditiveSql(string $sql): void
 {
     if (trim($sql) === '') {
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
@@ -216,7 +216,7 @@ function brvtal_migration_apply_file(
     if (!is_string($sql) || trim($sql) === '') {
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
     }
-    brvtal_migration_assert_additive_sql($sql);
+    brvtalMigrationAssertAdditiveSql($sql);
 
     $pdo->exec($sql);
 

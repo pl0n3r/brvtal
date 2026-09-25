@@ -79,7 +79,7 @@ if ! php -r '
 require $argv[1];
 $sql=file_get_contents($argv[2]);
 if(!is_string($sql)){exit(2);}
-brvtal_migration_assert_additive_sql($sql);
+brvtalMigrationAssertAdditiveSql($sql);
 ' "$candidate/config/migrations.php" "$candidate/database/$migration" >/dev/null 2>&1; then
   die "selected migration is not additive: $migration"
 fi
