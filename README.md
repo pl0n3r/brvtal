@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #624 reduce amplificación de GitHub sin tocar runtime. Base exacta `main 6c1c2f1cd4cffc1c422d512d79e746463597c246` / v0.1.53, con BRVTAL CI, Factory Release, Deploy Observer y Production Performance verdes.
+> Snapshot de **solo el deploy actual**: #666 prepara adapters reversibles para Factory v1 sin activar transporte remoto ni escribir producción. Base exacta `main 61af00a5daf973c3bef04651eab50fc7a3e6c003` / v0.1.53 GREEN.
 
 ## Progress convention
 
@@ -17,12 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#624 · GitHub load reduction** | `work/issue-624`; reserva `923585d4-919f-4bf1-a78c-4f3ae85e78c0` |
-| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `6c1c2f1cd4cffc1c422d512d79e746463597c246` |
-| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; no deploy-bound |
-| Telemetría CI | 🚧 **horaria/manual** | se elimina el trigger `workflow_run` por cada BRVTAL CI |
-| Coordinación | ✅ ~~filtro por comando preservado~~ | comentarios normales no ejecutan runner/API |
-| Producción | ✅ ~~sin cambio de runtime~~ | 0 incidentes / 0 `[AUTO]` al iniciar el slice |
+| Work line | 🚧 **#666 · reversible Factory deploy adapters** | `work/issue-666`; reserva `2285b2e3-89dd-4347-aa7e-fcac66e5d43b` |
+| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `61af00a5daf973c3bef04651eab50fc7a3e6c003` |
+| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; adapters aún no activan deploy remoto |
+| Backup | 🚧 **reutiliza engine canónico** | `config/backups.php`; fail-closed antes de migrate/deploy |
+| Migración | 🚧 **aditiva + explícita** | un único `migration_*.sql`; sin apply-all implícito |
+| Rollback | 🚧 **solo artefacto** | puntero `current`; nunca restaura/borrar BD |
+| Producción | ✅ ~~sin writes en este slice~~ | activación remota permanece cerrada |
 
 ## Huella del cambio
 
@@ -30,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+221** | **−62** | **+159** |
+| **10** | **+360** | **−2** | **+358** |
 
 ## Calidad y entrega
 
@@ -38,61 +39,68 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
-| PR + snapshot exacto | Issue #624 · reserva `923585d4-919f-4bf1-a78c-4f3ae85e78c0` |
-| Telemetría | cron `17 * * * *` + dispatch manual; máximo una muestra reciente por ventana horaria |
-| Seguridad | reporter desde `main` confiable, checkout SHA-pinned, credenciales no persistidas, permisos `actions: read` + `contents: read` |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| PR + snapshot exacto | Issue #666 · reserva `2285b2e3-89dd-4347-aa7e-fcac66e5d43b` |
+| Roles | Infrastructure · SRE · Security · DBA · QA |
+| Seguridad | fixture confinado a `.factory-fixture/`; remote activation falla cerrado |
+| Datos | backup canónico; rollback de artefacto no ejecuta restore SQL |
 | Review | Sonar, CodeQL y CodeRabbit permanecen activos sobre el HEAD estable |
-| Agentes | un solo frente de implementación por repo; lecturas independientes sí pueden paralelizarse |
 | CI del SHA exacto de main | 🚧 después del merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  B["main v0.1.53 · GREEN"] --> P["#624 · sample telemetry hourly"]
-  P --> G["BRVTAL + Factory gates"] --> M["Squash merge"]
+  B["main v0.1.53 · GREEN"] --> A["#666 · adapters fixture/prod fail-closed"]
+  A --> T["full BRVTAL CI + recovery"]
+  T --> M["squash merge"]
   M --> V["exact-main CI + Observer"]
+  V --> N["#630 · remote activation slice"]
 ```
 
 ## Qué se hizo
 
-- Sustituye telemetría `workflow_run` por muestreo horario y `workflow_dispatch` opcional sobre un run de BRVTAL CI.
-- El muestreo automático ignora un CI completado hace más de una hora y serializa por repositorio.
-- Mantiene la evidencia JSON/summary existente y consulta los jobs solo cuando hay una muestra útil; el reporter se ejecuta desde `main`, nunca desde el SHA observado.
-- Conserva coordinación por `issue_comment`, pero el job sigue filtrado a comandos reales y bots quedan excluidos.
-- Alinea `AGENTS.md` con Factory: un solo frente de implementación por repo, push agrupado y prohibición explícita de polling en bucle.
-- Añade contratos fail-closed para evitar regresar a telemetría por cada CI, ampliar silenciosamente la coordinación o ejecutar el reporter desde el SHA observado.
-- Incorpora en este workflow los pins v7 de `checkout` y `upload-artifact`; Dependabot #657/#659 conserva sus demás upgrades sin colisionar con #624.
-- `ci_retry.py` ya tenía backoff acotado para fallos transitorios; no se modifica.
+- Añade `ops/factory/{build,backup,migrate,deploy,rollback}` como superficie local esperada por `factory/deploy.yml@v1`.
+- El modo fixture modela build → backup → migración aditiva → cambio atómico de `current` → rollback del artefacto.
+- Backup productivo reutiliza `brvtal_backup_create()`; migración productiva reutiliza `scripts/migrations.php apply` y exige un archivo explícito.
+- El modo producción queda bloqueado por `BRVTAL_FACTORY_REMOTE_ACTIVATION=1`; este slice no lo habilita ni añade caller remoto.
+- El deploy fixture exige evidencia previa de backup y, en modo additive, evidencia de migración.
+- Rollback solo restaura el puntero del release anterior; no contiene operaciones de DB.
+- El contrato dinámico cubre rutas fuera del repo, backup fallido, migración fallida, deploy sin evidencia y rollback exitoso.
+- `ci-scope.sh` trata `ops/factory/` como mantenimiento repository-only y activa DB/recovery; al modificarse el clasificador, este PR corre la matriz completa.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/ci-throughput-telemetry.yml`
-- `AGENTS.md`
+- `.gitignore`
 - `README.md`
-- `tests/ci-throughput-report-contract.php`
-- `tests/github-load-contract.php`
-- `tests/project-operations-contract.php`
+- `ops/factory/backup`
+- `ops/factory/build`
+- `ops/factory/common.sh`
+- `ops/factory/deploy`
+- `ops/factory/migrate`
+- `ops/factory/rollback`
+- `scripts/ci-scope.sh`
+- `tests/factory-deploy-adapters-contract.php`
 
 ## Validación
 
-- ✅ BRVTAL CI alcanzó los contratos nuevos; el único fallo determinista encontrado fue una aserción legacy de 4 work lines y quedó alineada al límite Factory de un solo frente de implementación.
-- 🚧 Factory CI/Policy/Privacy, Sonar, CodeQL y revisión final deben cerrar sobre el HEAD estable.
-- 🚧 Tras merge: exact-main BRVTAL CI + Deploy Observer deben seguir verdes; este slice no exige nueva versión ni release.
+- 🚧 Contrato PHP debe probar los cinco adapters y los fallos parciales.
+- 🚧 Recovery aislado debe permanecer verde; producción no participa.
+- 🚧 Factory CI/Policy/Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable.
+- 🚧 Tras merge: BRVTAL CI exact-main + Deploy Observer deben mantener GREEN.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#624](https://github.com/pl0n3r/brvtal/issues/624): reducir amplificación GitHub. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): siguiente slice compatible de Factory. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
-| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): Factory v1 aún carece del contrato completo de labels requerido. |
+| **NOW** | 🚧 [#666](https://github.com/pl0n3r/brvtal/issues/666): adapters reversibles Factory v1. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): activar transporte remoto + caller Factory solo con interfaz Hostinger demostrada. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): reanudar roadmap tras cerrar TANDA 2. |
+| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera equivalencia central del kit. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: validar #624 y medir reducción estructural de una corrida por CI a una muestra por hora.
-- 🚧 **NEXT**: continuar #630 sin duplicar #627 bloqueado.
-- 🚧 **LATER**: adoptar coordinación/deploy/rollback/observación del kit cuando exista equivalencia demostrada.
-- 🚧 **BLOCKED / EXTERNAL**: #627 espera capacidades centrales adicionales de Factory.
+- 🚧 **NOW**: validar #666 sin producción writes.
+- 🚧 **NEXT**: conectar Factory deploy al transporte Hostinger con rollback real de artefacto.
+- 🚧 **LATER**: cerrar #630 con PR de prueba end-to-end y GREEN posterior.
+- 🚧 **BLOCKED / EXTERNAL**: #627 permanece fuera hasta que Factory cubra su contrato completo.
