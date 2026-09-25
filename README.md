@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+494** | **−49** | **+445** |
+| **6** | **+498** | **−47** | **+451** |
 
 ## Calidad y entrega
 
@@ -69,13 +69,13 @@ flowchart LR
 - Deshabilita auto-deploy, relee Hostinger y exige estado disabled **antes** de llamar el bootstrap reversible de #670.
 - En fallo posterior al bootstrap, verifica/restaura primero el dispatcher legacy; solo entonces devuelve la configuración Git original. Si no puede probar el layout, deja Git apagado.
 - Añade `.github/workflows/factory-hostinger-cutover.yml` con trigger exclusivamente manual, mínimo privilegio, timeout, concurrency serial y confirmación exacta `CUTOVER-BRVTAL`.
-- Integra `tests/test_hostinger_cutover.py` en el gate `fast`: éxito, idempotencia disabled, schema/settings inesperados, API 503 sanitizado, fallo bootstrap, fallo post-bootstrap y restore fail-closed.
+- Integra `tests/test_hostinger_cutover.py` al suite canónico mediante `factory-hostinger-transport-contract.php`: éxito, idempotencia disabled, schema/settings inesperados, API 503 sanitizado, fallo bootstrap, fallo post-bootstrap y restore fail-closed.
 - No añade todavía el caller permanente `factory/deploy.yml@v1` y no ejecuta el cutover real en este slice.
 
 ## Archivos modificados en este deploy
 
 - `.github/workflows/factory-hostinger-cutover.yml`
-- `.github/workflows/update-release-metadata.yml`
+- `tests/factory-hostinger-transport-contract.php`
 - `README.md`
 - `ops/factory/hostinger_cutover.py`
 - `ops/factory/transport.py`
@@ -84,7 +84,7 @@ flowchart LR
 ## Validación
 
 - 🚧 `tests/test_hostinger_cutover.py` debe pasar dentro del gate `fast`.
-- 🚧 La modificación del CI canónico activa database/chromium/real-stack/webkit/recovery además de PHP+JS.
+- 🚧 El suite canónico ejecuta el unittest del cutover sin modificar el workflow compartido; database/chromium/real-stack/webkit/recovery permanecen bajo el alcance normal del diff.
 - 🚧 Factory CI/Policy/Privacy, Sonar y CodeQL deben pasar sobre el HEAD estable.
 - 🚧 CodeRabbit continúa advisory según AGENTS.md; solo hallazgos accionables bloquean.
 - ✅ ~~Producción permanece intacta~~: no existe trigger automático hacia el nuevo cutover.
