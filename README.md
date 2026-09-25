@@ -30,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+0** | **−0** | **+0** |
+| **3** | **+162** | **−54** | **+108** |
 
 ## Calidad y entrega
 
@@ -38,7 +38,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[docs-only]** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
 | PR + snapshot exacto | **Issue #681 · recovery workflow** |
 | Roles | **Infrastructure · SRE · Security · QA** |
 | Trust boundary | comando exacto del dueño; secretos solo server-side; transporte SSH existente |
