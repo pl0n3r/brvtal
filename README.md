@@ -18,7 +18,7 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · migration registry reconciliation** | `work/issue-681`; reservation `bf5dd92b-4b1d-4172-a0c2-3b9f6c7e3fbe` |
+| Work line | 🚧 **#681 · migration registry reconciliation** | `work/issue-681`; reservation `3f02949d-e096-4a9e-922c-2ee2f8e9fd1f` |
 | Base exacta | ⛔ **main v0.1.57** | `f500ff862c8ffeea31bad19d2b2d24e29b65f326`; health incident open |
 | Versión objetivo | 🚧 **v0.1.58 deploy-bound** | patch 0.1.57 → 0.1.58 |
 | Reconciliation plan | ✅ **read-only / fail-closed** | information_schema proofs only |
@@ -32,7 +32,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+815** | **−60** | **+755** |
+| **8** | **+822** | **−60** | **+762** |
 
 ## Calidad y entrega
 
@@ -40,7 +40,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast · database · chromium · real-stack · webkit · recovery-rehearsal** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | PR + snapshot exacto | **Issue #681 · PR #682 · v0.1.58** |
 | Roles | **Infrastructure · SRE · Security · QA** |
 | Reconciliation | read-only proof → backup ready → controlled registry write → `verify-plan __NONE__` |
