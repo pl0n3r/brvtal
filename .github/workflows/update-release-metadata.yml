@@ -291,8 +291,8 @@ jobs:
       - name: Test CI resilience tooling
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py
-          python3 -m unittest tests/test_ci_retry.py
+          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py ops/factory/hostinger_cutover.py
+          python3 -m unittest tests/test_ci_retry.py tests/test_hostinger_cutover.py
           python3 tests/ci-self-audit-contract.py
 
       - name: Verify README matches this deploy exactly
