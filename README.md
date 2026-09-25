@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+489** | **−49** | **+440** |
+| **6** | **+494** | **−49** | **+445** |
 
 ## Calidad y entrega
 
