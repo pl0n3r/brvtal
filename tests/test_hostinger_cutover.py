@@ -84,7 +84,7 @@ class CutoverTests(unittest.TestCase):
     def client(self, api):
         return cutover.HostingerGitClient(self.token, Config.user, opener=api)
 
-    def run(self, api, transport):
+    def execute_cutover(self, api, transport):
         return cutover.run_cutover(
             self.client(api), Config(), self.sha, self.version, transport_api=transport
         )
@@ -96,7 +96,7 @@ class CutoverTests(unittest.TestCase):
         ):
             with self.subTest(enabled=enabled):
                 api, transport = FakeApi(settings(is_enabled=enabled)), FakeTransport()
-                self.assertFalse(self.run(api, transport).is_enabled)
+                self.assertFalse(self.execute_cutover(api, transport).is_enabled)
                 self.assertEqual(api.calls, expected_calls)
                 self.assertEqual(transport.bootstrap_calls, 1)
                 self.assertTrue(all(v == f"Bearer {self.token}" for v in api.auth))
@@ -110,14 +110,14 @@ class CutoverTests(unittest.TestCase):
                 api = FakeApi(settings(**change))
                 transport = FakeTransport()
                 with self.assertRaises(cutover.CutoverError):
-                    self.run(api, transport)
+                    self.execute_cutover(api, transport)
                 self.assertEqual(api.calls, ["GET"])
 
     def test_api_error_is_sanitized(self):
         api = FakeApi(fail=("GET", 1))
         transport = FakeTransport()
         with self.assertRaises(cutover.CutoverError) as raised:
-            self.run(api, transport)
+            self.execute_cutover(api, transport)
         self.assertIn("HTTP 503", str(raised.exception))
         self.assertNotIn(self.token, str(raised.exception))
 
@@ -125,14 +125,14 @@ class CutoverTests(unittest.TestCase):
         api = FakeApi()
         transport = FakeTransport(fail=True, active_on_fail=True)
         with self.assertRaisesRegex(cutover.CutoverError, "authority was restored"):
-            self.run(api, transport)
+            self.execute_cutover(api, transport)
         self.assertEqual(transport.restore_calls, 1)
         self.assertTrue(api.state["is_enabled"])
 
     def test_post_bootstrap_api_failure_restores_both(self):
         api, transport = FakeApi(fail=("GET", 3)), FakeTransport()
         with self.assertRaisesRegex(cutover.CutoverError, "authority was restored"):
-            self.run(api, transport)
+            self.execute_cutover(api, transport)
         self.assertEqual(transport.restore_calls, 1)
         self.assertFalse(transport.active)
         self.assertTrue(api.state["is_enabled"])
@@ -141,7 +141,7 @@ class CutoverTests(unittest.TestCase):
         api = FakeApi()
         transport = FakeTransport(fail=True, active_on_fail=True, restore_fails=True)
         with self.assertRaisesRegex(cutover.CutoverError, "Git remains disabled"):
-            self.run(api, transport)
+            self.execute_cutover(api, transport)
         self.assertFalse(api.state["is_enabled"])
 
     def test_schema_drift_and_disable_failure_fail_closed(self):
@@ -152,7 +152,7 @@ class CutoverTests(unittest.TestCase):
             drift_client.get()
         api, transport = FakeApi(fail=("PUT", 1)), FakeTransport()
         with self.assertRaises(cutover.CutoverError):
-            self.run(api, transport)
+            self.execute_cutover(api, transport)
         self.assertEqual(transport.bootstrap_calls, 0)
 
 
