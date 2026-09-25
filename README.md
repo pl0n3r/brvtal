@@ -44,7 +44,7 @@
 | Roles | Infrastructure · SRE · Security · QA |
 | Selección migración | `.factory-current` vs `factory-releases/<sha>`; sin variable manual |
 | Historial seguro | nombres + SHA-256 previos deben permanecer idénticos |
-| SQL seguro | la librería canónica rechaza marcadores no aditivos antes de `PDO::exec()` |
+| SQL seguro | el planner automático ejecuta el scanner canónico antes de seleccionar la migración |
 | Rollback | solo artefacto; jamás restaura BD automáticamente |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
@@ -68,7 +68,7 @@ flowchart LR
 
 - Añade `ops/factory/migration-plan`: compara las migraciones del release servido con el candidato exacto y emite `__NONE__` o una única migración nueva.
 - Cambiar o retirar una migración histórica aborta por nombre/checksum; más de una migración nueva se considera ambigua y falla antes de activación.
-- `config/migrations.php` añade defensa en profundidad para rechazar SQL no aditivo antes de `PDO::exec()`.
+- `config/migrations.php` expone el scanner aditivo que el planner automático ejecuta antes de seleccionar una migración; la ruta manual histórica conserva su contrato explícito.
 - `ops/factory/migrate` deja de depender de `BRVTAL_FACTORY_MIGRATION`; fixture y producción comparten el mismo contrato de selección.
 - El transporte remoto deriva el release previo desde `.factory-current`, confina ambos releases y aplica solo la migración seleccionada por el planner.
 - Los contratos cubren no-op, una migración, replay, múltiples, cambio/eliminación histórica y SQL destructivo; fake-SSH prueba la ruta remota no-op.
@@ -76,15 +76,17 @@ flowchart LR
 
 ## Archivos modificados en este deploy
 
-- `config/migrations.php`
-- `ops/factory/build`
-- `ops/factory/migrate`
-- `ops/factory/migration-plan`
-- `ops/factory/transport.py`
-- `tests/factory-deploy-adapters-contract.php`
-- `tests/factory-hostinger-transport-contract.php`
-- `tests/migrations-contract.php`
-- `README.md`
+- `config/migrations.php` — scanner SQL aditivo usado por el planner automático.
+- `config/version.php` — versión de producto 0.1.54.
+- `ops/factory/build` — fixture de release y tempfile único por proceso.
+- `ops/factory/migrate` — selección automática sin variable manual.
+- `ops/factory/migration-plan` — delta determinista entre release servido y candidato.
+- `ops/factory/transport.py` — selección remota confinada al SHA exacto.
+- `package.json` — versión de producto 0.1.54.
+- `tests/factory-deploy-adapters-contract.php` — casos de selección/fallo y evidencia.
+- `tests/factory-hostinger-transport-contract.php` — no-op remoto por fake SSH.
+- `tests/migrations-contract.php` — pruebas ejecutables del scanner SQL.
+- `README.md` — snapshot exacto del deploy.
 
 ## Validación
 
