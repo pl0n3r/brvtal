@@ -156,7 +156,9 @@ try {
         ['migration_existing_01.sql' => "CREATE TABLE existing_probe (id INT);\n"],
         ['migration_existing_01.sql' => "CREATE TABLE existing_probe (id BIGINT);\n"]
     );
-    factory_adapter_expect(factory_adapter_run($root, 'migrate', $changedEnv)['code'] !== 0, 'changed historical migration must fail closed');
+    $changed = factory_adapter_run($root, 'migrate', $changedEnv);
+    factory_adapter_expect($changed['code'] !== 0 && str_contains($changed['stderr'], 'candidate changed existing migration'), 'changed historical migration must fail closed with expected reason');
+    factory_adapter_expect(!is_file($changedRoot . '/migrations/' . $sha . '.ok'), 'changed history must not write success evidence');
     factory_adapter_remove_tree($changedRoot);
 
     [$removedRoot, $removedEnv] = $prepareMigrationCase(
@@ -164,7 +166,9 @@ try {
         ['migration_existing_01.sql' => "CREATE TABLE existing_probe (id INT);\n"],
         []
     );
-    factory_adapter_expect(factory_adapter_run($root, 'migrate', $removedEnv)['code'] !== 0, 'removed historical migration must fail closed');
+    $removed = factory_adapter_run($root, 'migrate', $removedEnv);
+    factory_adapter_expect($removed['code'] !== 0 && str_contains($removed['stderr'], 'candidate removed existing migration'), 'removed historical migration must fail closed with expected reason');
+    factory_adapter_expect(!is_file($removedRoot . '/migrations/' . $sha . '.ok'), 'removed history must not write success evidence');
     factory_adapter_remove_tree($removedRoot);
 
     [$destructiveRoot, $destructiveEnv] = $prepareMigrationCase(
@@ -172,7 +176,9 @@ try {
         [],
         ['migration_factory_contract_01.sql' => "DROP TABLE users;\n"]
     );
-    factory_adapter_expect(factory_adapter_run($root, 'migrate', $destructiveEnv)['code'] !== 0, 'destructive SQL must fail before activation');
+    $destructive = factory_adapter_run($root, 'migrate', $destructiveEnv);
+    factory_adapter_expect($destructive['code'] !== 0 && str_contains($destructive['stderr'], 'selected migration is not additive'), 'destructive SQL must fail before activation with expected reason');
+    factory_adapter_expect(!is_file($destructiveRoot . '/migrations/' . $sha . '.ok'), 'destructive migration must not write success evidence');
     factory_adapter_remove_tree($destructiveRoot);
 
     factory_adapter_expect(is_link($fixture . '/current'), 'deploy must leave an atomic current symlink');
