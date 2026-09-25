@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+804** | **−143** | **+661** |
+| **11** | **+803** | **−143** | **+660** |
 
 ## Calidad y entrega
 
@@ -67,7 +67,7 @@ flowchart LR
 - Añade un dispatcher estable para Hostinger: `public_html` no cambia de raíz y conmuta solo `.factory-current`.
 - Backup y migración productivos se ejecutan por SSH dentro del release remoto; rollback cambia solo el artefacto y nunca restaura la BD.
 - El modo producción se habilita únicamente cuando Factory entrega ambos secretos; sin ellos los adapters fallan cerrado.
-- Los contratos cubren descriptor inválido, traversal, host-key incorrecta, campos extra, key ausente, staging SHA-scoped, shared state y switch/rollback mediante fake SSH local.
+- Los contratos cubren descriptor inválido, IPv4 numérica fuera de rango, traversal, host-key incorrecta, campos extra, key ausente, staging SHA-scoped, shared state y switch/rollback mediante fake SSH local.
 - Este slice no instala el dispatcher en Hostinger, no prepara `factory-shared` real y no añade `factory/deploy.yml@v1`; esas acciones pertenecen al slice de activación/e2e.
 
 ## Archivos modificados en este deploy
