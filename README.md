@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #666 prepara adapters reversibles para Factory v1 sin activar transporte remoto ni escribir producción. Base exacta `main 61af00a5daf973c3bef04651eab50fc7a3e6c003` / v0.1.53 GREEN.
+> Snapshot de **solo el deploy actual**: #668 implementa el contrato de transporte SSH/dispatcher para Factory v1 sin añadir caller productivo ni ejecutar writes remotos reales. Base exacta `main 57109d727850b5ef431c1c3698ded2a1d11bbaf4` / v0.1.53 GREEN.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#666 · reversible Factory deploy adapters** | `work/issue-666`; reserva `2285b2e3-89dd-4347-aa7e-fcac66e5d43b` |
-| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `61af00a5daf973c3bef04651eab50fc7a3e6c003` |
-| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; adapters aún no activan deploy remoto |
-| Backup | 🚧 **reutiliza engine canónico** | `config/backups.php`; fail-closed antes de migrate/deploy |
-| Migración | 🚧 **aditiva + explícita** | un único `migration_*.sql`; sin apply-all implícito |
-| Rollback | 🚧 **solo artefacto** | puntero `current`; nunca restaura/borrar BD |
-| Producción | ✅ ~~sin writes en este slice~~ | activación remota permanece cerrada |
+| Work line | 🚧 **#668 · Hostinger SSH transport + dispatcher** | `work/issue-668`; reserva `b36e02c1-e4f8-490c-8ac2-437266e608c6` |
+| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `57109d727850b5ef431c1c3698ded2a1d11bbaf4` |
+| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; no caller de producción |
+| Release layout | 🚧 **SHA-scoped + shared state** | `factory-releases/<sha>` + `factory-shared` |
+| Dispatcher | 🚧 **public_html estable** | switch atómico de `.factory-current` |
+| Seguridad SSH | 🚧 **strict host key + key efímera 0600** | descriptor JSON cerrado + `known_hosts` pin |
+| Producción | ✅ ~~sin writes en este slice~~ | no workflow invoca todavía el transporte |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+407** | **−41** | **+366** |
+| **11** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 
@@ -39,68 +39,70 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | Issue #666 · reserva `2285b2e3-89dd-4347-aa7e-fcac66e5d43b` |
-| Roles | Infrastructure · SRE · Security · DBA · QA |
-| Seguridad | fixture confinado a `.factory-fixture/`; remote activation falla cerrado |
-| Datos | backup canónico; rollback de artefacto no ejecuta restore SQL |
-| Review | Sonar, CodeQL y CodeRabbit permanecen activos sobre el HEAD estable |
+| Gates esperados | **preflight · coordination · fast[PHP] · database · recovery** |
+| PR + snapshot exacto | Issue #668 · reserva `b36e02c1-e4f8-490c-8ac2-437266e608c6` |
+| Roles | Infrastructure · SRE · Security · QA |
+| Transporte | `DEPLOY_TOKEN` JSON exacto + `DEPLOY_SSH_KEY`; sin secretos en logs |
+| Hostinger | `public_html` permanece document root fijo; release pointer interno |
+| Estado persistente | `config/config.php`, `uploads`, `storage`, `.private` viven en `factory-shared` |
+| Review | BRVTAL CI + Factory gates + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  B["main v0.1.53 · GREEN"] --> A["#666 · adapters fixture/prod fail-closed"]
-  A --> T["full BRVTAL CI + recovery"]
-  T --> M["squash merge"]
+  B["main v0.1.53 · GREEN"] --> T["#668 · strict SSH transport"]
+  T --> F["fake SSH + negative contracts"]
+  F --> P["PR gates"]
+  P --> M["merge"]
   M --> V["exact-main CI + Observer"]
-  V --> N["#630 · remote activation slice"]
 ```
 
 ## Qué se hizo
 
-- Añade `ops/factory/{build,backup,migrate,deploy,rollback}` como superficie local esperada por `factory/deploy.yml@v1`.
-- El modo fixture modela build → backup → migración aditiva → cambio atómico de `current` → rollback del artefacto.
-- Backup productivo reutiliza `brvtal_backup_create()`; migración productiva reutiliza `scripts/migrations.php apply` y exige un archivo explícito.
-- El modo producción queda bloqueado por `BRVTAL_FACTORY_REMOTE_ACTIVATION=1`; este slice no lo habilita ni añade caller remoto.
-- El deploy fixture exige evidencia previa de backup y, en modo additive, evidencia de migración.
-- Rollback solo restaura el puntero del release anterior; no contiene operaciones de DB.
-- El contrato dinámico cubre rutas fuera del repo, backup fallido, migración fallida, deploy sin evidencia y rollback exitoso.
-- `ci-scope.sh` trata `ops/factory/` como mantenimiento repository-only y activa DB/recovery; al modificarse el clasificador, este PR corre la matriz completa.
+- Añade `ops/factory/transport.py` con descriptor cerrado `host/user/port/site_root/known_hosts`, key efímera 0600, `StrictHostKeyChecking=yes` y `UserKnownHostsFile` aislado.
+- Empaqueta únicamente contenido Git del SHA exacto y lo prepara en `factory-releases/<sha>`; un `.git/HEAD` mínimo preserva identidad exacta para `/api/health.php`.
+- Mantiene estado mutable fuera del artefacto: configuración productiva, uploads, storage y `.private` se enlazan desde `factory-shared`.
+- Añade un dispatcher estable para Hostinger: `public_html` no cambia de raíz y conmuta solo `.factory-current`.
+- Backup y migración productivos se ejecutan por SSH dentro del release remoto; rollback cambia solo el artefacto y nunca restaura la BD.
+- El modo producción se habilita únicamente cuando Factory entrega ambos secretos; sin ellos los adapters fallan cerrado.
+- Los contratos cubren descriptor inválido, traversal, host-key incorrecta, campos extra, key ausente, staging SHA-scoped, shared state y switch/rollback mediante fake SSH local.
+- Este slice no instala el dispatcher en Hostinger, no prepara `factory-shared` real y no añade `factory/deploy.yml@v1`; esas acciones pertenecen al slice de activación/e2e.
 
 ## Archivos modificados en este deploy
 
-- `.gitignore`
 - `README.md`
 - `ops/factory/backup`
 - `ops/factory/build`
 - `ops/factory/common.sh`
 - `ops/factory/deploy`
 - `ops/factory/migrate`
+- `ops/factory/public_html-dispatcher.htaccess`
 - `ops/factory/rollback`
-- `scripts/ci-scope.sh`
+- `ops/factory/transport.py`
 - `tests/factory-deploy-adapters-contract.php`
+- `tests/factory-hostinger-transport-contract.php`
 
 ## Validación
 
-- 🚧 Contrato PHP debe probar los cinco adapters y los fallos parciales.
-- 🚧 Recovery aislado debe permanecer verde; producción no participa.
+- 🚧 El contrato PHP debe probar fixture legacy + descriptor estricto + fake SSH staging/activate/rollback.
+- 🚧 Database/recovery deben permanecer verdes porque el slice toca la superficie de deploy.
 - 🚧 Factory CI/Policy/Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable.
-- 🚧 Tras merge: BRVTAL CI exact-main + Deploy Observer deben mantener GREEN.
+- 🚧 Tras merge: exact-main BRVTAL CI + Deploy Observer + Production Performance deben mantener GREEN.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#666](https://github.com/pl0n3r/brvtal/issues/666): adapters reversibles Factory v1. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): activar transporte remoto + caller Factory solo con interfaz Hostinger demostrada. |
+| **NOW** | 🚧 [#668](https://github.com/pl0n3r/brvtal/issues/668): validar transporte Hostinger sin writes remotos. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): preparar shared state/dispatcher real y activar caller Factory con rollback e2e. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): reanudar roadmap tras cerrar TANDA 2. |
-| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera equivalencia central del kit. |
+| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera paridad central de Factory. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: validar #666 sin producción writes.
-- 🚧 **NEXT**: conectar Factory deploy al transporte Hostinger con rollback real de artefacto.
-- 🚧 **LATER**: cerrar #630 con PR de prueba end-to-end y GREEN posterior.
+- 🚧 **NOW**: cerrar #668 con evidencia reproducible y producción intacta.
+- 🚧 **NEXT**: activar Factory deploy solo después de preparar `factory-shared` y el dispatcher en Hostinger con rollback probado.
+- 🚧 **LATER**: cerrar #630 con un merge→producción validada o rollback automático.
 - 🚧 **BLOCKED / EXTERNAL**: #627 permanece fuera hasta que Factory cubra su contrato completo.
