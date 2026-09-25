@@ -5,8 +5,80 @@ require_once __DIR__ . '/deployment.php';
 
 const BRVTAL_SENTRY_TIMEOUT_SECONDS = 1.2;
 
-/** @return array{dsn:string,endpoint:string,public_key:string,project_id:string}|null */
-function brvtalSentryParseDsn(string $dsn): ?array
+/** @return list<string> */
+function brvtalSentryResolveHost(string $host): array
+{
+    $records = @dns_get_record($host, DNS_A | DNS_AAAA);
+    if ($records === false) {
+        return [];
+    }
+
+    $addresses = [];
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        if (($record['type'] ?? '') === 'A' && is_string($record['ip'] ?? null)) {
+            $addresses[] = $record['ip'];
+        }
+        if (($record['type'] ?? '') === 'AAAA' && is_string($record['ipv6'] ?? null)) {
+            $addresses[] = $record['ipv6'];
+        }
+    }
+
+    $addresses = array_values(array_unique($addresses));
+    sort($addresses, SORT_STRING);
+    return $addresses;
+}
+
+/** @return list<string> */
+function brvtalSentryPublicAddresses(string $host, ?callable $resolver = null): array
+{
+    try {
+        $resolve = $resolver ?? 'brvtalSentryResolveHost';
+        $resolved = $resolve($host);
+    } catch (Throwable) {
+        return [];
+    }
+
+    if (!is_array($resolved) || $resolved === []) {
+        return [];
+    }
+
+    $addresses = [];
+    foreach ($resolved as $address) {
+        if (!is_string($address)) {
+            return [];
+        }
+        $address = trim($address);
+        $public = filter_var(
+            $address,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        );
+        if ($public === false) {
+            return [];
+        }
+        $addresses[] = $address;
+    }
+
+    $addresses = array_values(array_unique($addresses));
+    sort($addresses, SORT_STRING);
+    return $addresses;
+}
+
+/**
+ * @return array{
+ *   dsn:string,
+ *   endpoint:string,
+ *   endpoint_path:string,
+ *   host:string,
+ *   public_key:string,
+ *   project_id:string,
+ *   addresses:list<string>
+ * }|null
+ */
+function brvtalSentryParseDsn(string $dsn, ?callable $resolver = null): ?array
 {
     $dsn = trim($dsn);
     if ($dsn === '' || strlen($dsn) > 2048) {
@@ -43,16 +115,35 @@ function brvtalSentryParseDsn(string $dsn): ?array
         return null;
     }
 
+    $addresses = brvtalSentryPublicAddresses($host, $resolver);
+    if ($addresses === []) {
+        return null;
+    }
+
+    $endpointPath = '/api/' . $projectId . '/envelope/';
     return [
         'dsn' => $dsn,
-        'endpoint' => 'https://' . $host . '/api/' . $projectId . '/envelope/',
+        'endpoint' => 'https://' . $host . $endpointPath,
+        'endpoint_path' => $endpointPath,
+        'host' => $host,
         'public_key' => $publicKey,
         'project_id' => $projectId,
+        'addresses' => $addresses,
     ];
 }
 
-/** @return array{dsn:string,endpoint:string,public_key:string,project_id:string}|null */
-function brvtalSentryRuntimeConfig(array $config = []): ?array
+/**
+ * @return array{
+ *   dsn:string,
+ *   endpoint:string,
+ *   endpoint_path:string,
+ *   host:string,
+ *   public_key:string,
+ *   project_id:string,
+ *   addresses:list<string>
+ * }|null
+ */
+function brvtalSentryRuntimeConfig(array $config = [], ?callable $resolver = null): ?array
 {
     if (strtoupper(BRVTAL_APP_ENV) !== 'PRODUCTION') {
         return null;
@@ -64,7 +155,25 @@ function brvtalSentryRuntimeConfig(array $config = []): ?array
         $dsn = is_array($observability) ? trim((string)($observability['sentry_dsn'] ?? '')) : '';
     }
 
-    return brvtalSentryParseDsn($dsn);
+    return brvtalSentryParseDsn($dsn, $resolver);
+}
+
+function brvtalSentrySenderOverride(): ?callable
+{
+    if (!defined('BRVTAL_SENTRY_TESTING') || BRVTAL_SENTRY_TESTING !== true) {
+        return null;
+    }
+    $sender = $GLOBALS['brvtalSentryTestSender'] ?? null;
+    return is_callable($sender) ? $sender : null;
+}
+
+function brvtalSentryResolverOverride(): ?callable
+{
+    if (!defined('BRVTAL_SENTRY_TESTING') || BRVTAL_SENTRY_TESTING !== true) {
+        return null;
+    }
+    $resolver = $GLOBALS['brvtalSentryTestResolver'] ?? null;
+    return is_callable($resolver) ? $resolver : null;
 }
 
 function brvtalSentryRelativeFile(string $file): string
@@ -219,15 +328,61 @@ function brvtalSentryEnvelope(array $event, array $runtime): string
     return $header . "\n" . $item . "\n" . $eventJson . "\n";
 }
 
-/** @param list<string> $headers */
+/**
+ * @param array{
+ *   endpoint:string,
+ *   endpoint_path:string,
+ *   host:string,
+ *   addresses:list<string>
+ * } $runtime
+ */
+function brvtalSentryPinnedAddress(array $runtime): string
+{
+    $address = (string)($runtime['addresses'][0] ?? '');
+    $public = filter_var(
+        $address,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+    );
+    if ($public === false) {
+        throw new RuntimeException('Sentry destination address is not public.');
+    }
+    return $address;
+}
+
+/** @param array{host:string,addresses:list<string>} $runtime */
+function brvtalSentryCurlResolveEntry(array $runtime): string
+{
+    $address = brvtalSentryPinnedAddress($runtime);
+    $formatted = str_contains($address, ':') ? '[' . $address . ']' : $address;
+    return $runtime['host'] . ':443:' . $formatted;
+}
+
+/** @param array{endpoint_path:string,addresses:list<string>} $runtime */
+function brvtalSentryPinnedEndpoint(array $runtime): string
+{
+    $address = brvtalSentryPinnedAddress($runtime);
+    $authority = str_contains($address, ':') ? '[' . $address . ']' : $address;
+    return 'https://' . $authority . $runtime['endpoint_path'];
+}
+
+/**
+ * @param array{
+ *   endpoint:string,
+ *   endpoint_path:string,
+ *   host:string,
+ *   addresses:list<string>
+ * } $runtime
+ * @param list<string> $headers
+ */
 function brvtalSentryDefaultSender(
-    string $endpoint,
+    array $runtime,
     array $headers,
     string $body,
     float $timeoutSeconds
 ): bool {
     if (function_exists('curl_init')) {
-        $handle = curl_init($endpoint);
+        $handle = curl_init($runtime['endpoint']);
         if ($handle === false) {
             return false;
         }
@@ -235,25 +390,30 @@ function brvtalSentryDefaultSender(
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk): int {
+                return strlen($chunk);
+            },
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT_MS => 400,
             CURLOPT_TIMEOUT_MS => (int)round($timeoutSeconds * 1000),
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_RESOLVE => [brvtalSentryCurlResolveEntry($runtime)],
             CURLOPT_NOSIGNAL => true,
         ]);
-        $response = @curl_exec($handle);
+        $ok = @curl_exec($handle);
         $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
         unset($handle);
-        return $response !== false && $status >= 200 && $status < 300;
+        return $ok === true && $status >= 200 && $status < 300;
     }
 
+    $streamHeaders = array_merge(['Host: ' . $runtime['host']], $headers);
     $context = stream_context_create([
         'http' => [
             'method' => 'POST',
-            'header' => implode("\r\n", $headers),
+            'header' => implode("\r\n", $streamHeaders),
             'content' => $body,
             'timeout' => $timeoutSeconds,
             'ignore_errors' => true,
@@ -264,15 +424,17 @@ function brvtalSentryDefaultSender(
             'verify_peer' => true,
             'verify_peer_name' => true,
             'allow_self_signed' => false,
+            'peer_name' => $runtime['host'],
+            'SNI_enabled' => true,
+            'SNI_server_name' => $runtime['host'],
         ],
     ]);
-    $stream = @fopen($endpoint, 'rb', false, $context);
+    $stream = @fopen(brvtalSentryPinnedEndpoint($runtime), 'rb', false, $context);
     if ($stream === false) {
         return false;
     }
 
     try {
-        $response = stream_get_contents($stream);
         $metadata = stream_get_meta_data($stream);
         $responseHeaders = $metadata['wrapper_data'] ?? [];
         $status = 0;
@@ -281,17 +443,21 @@ function brvtalSentryDefaultSender(
                 $status = (int)$match[1];
             }
         }
-        return $response !== false && $status >= 200 && $status < 300;
+        return $status >= 200 && $status < 300;
     } finally {
         fclose($stream);
     }
 }
 
 /** @param array<string,mixed> $event */
-function brvtalSentrySendEvent(array $event, array $config = [], ?callable $sender = null): bool
-{
+function brvtalSentrySendEvent(
+    array $event,
+    array $config = [],
+    ?callable $sender = null,
+    ?callable $resolver = null
+): bool {
     try {
-        $runtime = brvtalSentryRuntimeConfig($config);
+        $runtime = brvtalSentryRuntimeConfig($config, $resolver);
         if ($runtime === null) {
             return false;
         }
@@ -304,7 +470,7 @@ function brvtalSentrySendEvent(array $event, array $config = [], ?callable $send
         ];
         $send = $sender ?? 'brvtalSentryDefaultSender';
         return (bool)$send(
-            $runtime['endpoint'],
+            $runtime,
             $headers,
             $body,
             BRVTAL_SENTRY_TIMEOUT_SECONDS
@@ -317,10 +483,16 @@ function brvtalSentrySendEvent(array $event, array $config = [], ?callable $send
 function brvtalSentryCaptureException(
     Throwable $exception,
     array $config = [],
-    ?callable $sender = null
+    ?callable $sender = null,
+    ?callable $resolver = null
 ): bool {
     try {
-        return brvtalSentrySendEvent(brvtalSentryExceptionEvent($exception), $config, $sender);
+        return brvtalSentrySendEvent(
+            brvtalSentryExceptionEvent($exception),
+            $config,
+            $sender,
+            $resolver
+        );
     } catch (Throwable) {
         return false;
     }
@@ -330,14 +502,20 @@ function brvtalSentryCaptureException(
 function brvtalSentryCaptureFatal(
     array $error,
     array $config = [],
-    ?callable $sender = null
+    ?callable $sender = null,
+    ?callable $resolver = null
 ): bool {
     $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
     if (!in_array((int)($error['type'] ?? 0), $fatalTypes, true)) {
         return false;
     }
     try {
-        return brvtalSentrySendEvent(brvtalSentryFatalEvent($error), $config, $sender);
+        return brvtalSentrySendEvent(
+            brvtalSentryFatalEvent($error),
+            $config,
+            $sender,
+            $resolver
+        );
     } catch (Throwable) {
         return false;
     }
