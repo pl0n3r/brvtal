@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: trabajo repository-only de gobernanza para #627. Adopta el lifecycle central de etiquetas de Factory v1; no cambia runtime, producto, Hostinger ni la versión v0.1.58. El incidente #681 continúa bloqueado por reconciliación externa de producción.
+> Snapshot de **solo el deploy actual**: trabajo repository-only de calidad para #685. Añade PHPStan incremental con baseline de hallazgos JSON derivada del SHA base exacto y Rector dry-run limitado a PHP cambiado. No modifica runtime, producto, Hostinger ni la versión v0.1.58. El incidente #681 continúa bloqueado por reconciliación externa de producción.
 
 ## Progress convention
 
@@ -18,10 +18,11 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#627 · Factory labels adoption** | `work/issue-627`; reservation `3ff8cec6-1268-4b52-bb00-9a6fb1a71975` |
-| Base exacta | ✅ **main v0.1.58** | `027421db0ba9c47e94dda6e6c73c3c8ef962fe33` |
+| Work line | 🚧 **#685 · PHP static-analysis gates** | `work/issue-685`; reservation `c99d7f2e-e19a-4d81-bb91-a17c96217711` |
+| Base exacta | ✅ **main v0.1.58** | `d4426f49c8e1b5df63cae8dd2afe5577baa88dc8` |
 | Versión de producto | ✅ **v0.1.58 sin cambio** | repository-only / no deploy-bound runtime |
-| Factory labels | 🚧 **caller central @v1** | validate + sync + sweep, `language: en` |
+| PHPStan | 🚧 **snapshot exact-base → diff de hallazgos HEAD** | PHPStan 2.2.14 |
+| Rector | 🚧 **dry-run PHP cambiado** | Rector 2.6.7 · PHP 8.5 |
 | Production | ⛔ **#681 sigue bloqueado** | este PR no afirma GREEN ni toca DB/Hostinger |
 
 ## Huella del cambio
@@ -30,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+176** | **−50** | **+126** |
+| **10** | **+524** | **−35** | **+489** |
 
 ## Calidad y entrega
 
@@ -38,11 +39,11 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
-| PR + snapshot exacto | **Issue #627 · Factory labels lifecycle** |
-| Roles | **Infrastructure · Security · QA** |
-| Trust boundary | metadata-only; no checkout ni ejecución de código del PR |
-| Permisos | contents: read · issues: write · pull-requests: read |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| PR + snapshot exacto | **Issue #685 · PHPStan + Rector CI gates** |
+| Roles | **Infrastructure · Software Engineering · QA · Security** |
+| Trust boundary | baseline desde base SHA exacta; base y HEAD analizados en worktrees exactos; reportes pasan por stdin; sin secretos |
+| Permisos | contents: read; sin ampliación |
 | Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit |
 | CI del SHA exacto de main | 🚧 después del merge |
 | Production GREEN | 🚧 independiente; #681 permanece abierto |
@@ -51,28 +52,41 @@
 
 ```mermaid
 flowchart LR
-  E["Issue / PR metadata"] --> C["BRVTAL caller"]
-  C --> F["Factory etiquetas.yml@v1"]
-  F --> V["validate · Labels"]
-  F --> S["sync"]
-  F --> W["sweep"]
-  V --> G["BRVTAL gates"]
+  B["Exact base SHA"] --> BW["Detached base worktree"]
+  H["Exact head SHA"] --> HW["Detached HEAD worktree"]
+  BW --> BL["PHPStan JSON baseline"]
+  HW --> P["PHPStan HEAD analysis"]
+  BL --> C["Compare findings"]
+  P --> C
+  H --> D["Changed PHP diff"]
+  D --> R["Rector dry-run in HEAD worktree"]
+  C --> V["BRVTAL validate"]
+  R --> V
 ```
 
 ## Qué se hizo
 
-- Añade un único caller BRVTAL para el reusable central de Factory.
-- Usa `language: en` y delega `sync`, `validate` y `sweep`.
-- Mantiene el PR path metadata-only y sin `actions/checkout` local.
-- Limita permisos al mínimo requerido por el reusable.
-- Añade contrato Python que falla si se introduce lógica local divergente o permisos ampliados.
+- Fija PHPStan 2.2.14 y Rector 2.6.7 como tooling exclusivo de CI.
+- Genera una baseline de hallazgos PHPStan en JSON desde el SHA base exacto y compara el HEAD por archivo, regla y mensaje, preservando multiplicidad.
+- Rechaza SHAs no exactas o commits inexistentes antes del análisis y ejecuta PHPStan/Rector sobre worktrees exactos, no sobre el merge ref.
+- El comparador recibe los reportes por stdin; no abre rutas entregadas por argumentos CLI.
+- Ejecuta Rector solo sobre archivos PHP añadidos/modificados/renombrados presentes en HEAD.
+- Mantiene `phpstan.neon` y `rector.php` como configuración repository-only.
+- Añade contratos Python, prueba conductual con Git temporal y validación de sintaxis del script.
 - No cambia versión, runtime, base de datos, deploy ni Hostinger.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/factory-labels.yml` — caller reusable de etiquetas Factory v1.
+- `.github/workflows/update-release-metadata.yml` — instala herramientas fijadas y ejecuta el gate incremental.
 - `README.md` — snapshot exacto del trabajo repository-only.
-- `tests/test_factory_labels_adoption.py` — contrato consumidor y regresiones de seguridad.
+- `phpstan.neon` — alcance y nivel inicial de PHPStan.
+- `rector.php` — PHP 8.5 + niveles iniciales de dead code y code quality.
+- `scripts/ci-scope.sh` — clasifica configs de análisis como repository-only.
+- `scripts/php-static-analysis.sh` — ejecuta PHPStan en worktrees exactos de base/HEAD y Rector dry-run.
+- `scripts/phpstan_diff.py` — compara hallazgos recibidos por stdin y falla solo ante deuda nueva.
+- `tests/test_php_static_analysis_behavior.py` — prueba conductual con Git temporal y herramientas stub.
+- `tests/test_phpstan_diff.py` — regresiones del comparador incremental.
+- `tests/test_static_analysis_ci.py` — contratos de seguridad y CI.
 
 ## Validación
 
@@ -85,14 +99,14 @@ flowchart LR
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): integrar lifecycle central de labels. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar TANDA 2 del kit Factory. |
-| **LATER** | 🚧 [#683](https://github.com/pl0n3r/brvtal/issues/683): staff API para ControlBot cuando sus dependencias estén listas. |
+| **NOW** | 🚧 [#685](https://github.com/pl0n3r/brvtal/issues/685): integrar gates PHPStan/Rector. |
+| **NEXT** | 🚧 [#686](https://github.com/pl0n3r/brvtal/issues/686): aplicar el primer nivel acotado de Rector. |
+| **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): cerrar el épico tras ambos hijos y exact-main green. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): reconciliación Hostinger/DB requiere transporte autorizado y backup previo. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW:** #627 consolidar gobernanza de etiquetas en Factory v1.
-- 🚧 **NEXT:** #630 continuar adopción común sin duplicación local.
-- 🚧 **LATER:** #653 y roadmap de producto tras prioridades Factory.
+- 🚧 **NOW:** #685 estática PHP incremental sin deuda nueva.
+- 🚧 **NEXT:** #686 primera aplicación Rector acotada y revisable.
+- 🚧 **LATER:** #653 cierra cuando ambos hijos estén integrados y validados.
 - 🚧 **BLOCKED / EXTERNAL:** #681 requiere reconciliación productiva fuera de este PR.

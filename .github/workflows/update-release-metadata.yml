@@ -248,6 +248,7 @@ jobs:
           php-version: '8.5'
           coverage: none
           ini-file: production
+          tools: phpstan:2.2.14, rector:2.6.7
 
       - name: Validate Sonar Python runtime contract
         shell: bash
@@ -284,6 +285,27 @@ jobs:
         if: needs.preflight.outputs.run_php == 'true'
         run: bash scripts/php85-compatibility.sh
 
+      - name: Run incremental PHPStan and Rector dry-run
+        if: needs.preflight.outputs.run_php == 'true'
+        shell: bash
+        env:
+          BRVTAL_EVENT: ${{ github.event_name }}
+          BRVTAL_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BRVTAL_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRVTAL_BEFORE: ${{ github.event.before }}
+          BRVTAL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          base_sha="$BRVTAL_BEFORE"
+          head_sha="$BRVTAL_SHA"
+          if [[ "$BRVTAL_EVENT" == "pull_request" ]]; then
+            base_sha="$BRVTAL_PR_BASE_SHA"
+            head_sha="$BRVTAL_PR_HEAD_SHA"
+          elif [[ ! "$base_sha" =~ ^[0-9a-fA-F]{40}$ || "$base_sha" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          bash scripts/php-static-analysis.sh "$base_sha" "$head_sha"
+
       - name: Validate JavaScript syntax
         if: needs.preflight.outputs.run_js == 'true'
         run: find discadmin js tests/e2e \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -r -n1 -P 4 node --check
@@ -291,8 +313,9 @@ jobs:
       - name: Test CI resilience tooling
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py
-          python3 -m unittest tests/test_ci_retry.py
+          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py scripts/phpstan_diff.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py
+          bash -n scripts/php-static-analysis.sh
+          python3 -m unittest tests/test_ci_retry.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py
           python3 tests/ci-self-audit-contract.py
 
       - name: Verify README matches this deploy exactly
