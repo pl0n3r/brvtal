@@ -6,9 +6,10 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #649 recupera la configuración agrupada de Dependabot
-> sobre `main` v0.1.52 `61af0df4ca4d6bdbe3dd7a04500fdf2278b2105b`. Es mantenimiento
-> de repositorio: no cambia runtime ni incrementa la versión de producto.
+> Snapshot de **solo el deploy actual**: #660 inicia TANDA 2 adoptando decisiones como código y
+> el gate de política publicado por `pl0n3r/factory@v1`. Base exacta
+> `main 9a6b065db608de1a53a09a98d415a2cb7bd18a95` / v0.1.52, con exact-main CI,
+> Deploy Observer y CodeQL verdes. Es gobernanza/CI: no cambia runtime ni versión de producto.
 
 ## Progress convention
 
@@ -19,11 +20,12 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#649 · grouped Dependabot** | `work/issue-649`; reserva `1ba2e6a3-8658-4061-ab01-d88d20ef2bab` |
-| Base exacta | ✅ ~~main v0.1.52~~ | `61af0df4ca4d6bdbe3dd7a04500fdf2278b2105b` |
-| Versión producto | ✅ ~~v0.1.52 sin cambio~~ | mantenimiento de repositorio; no deploy-bound |
+| Work line | 🚧 **#660 · Factory policy** | `work/issue-660`; reserva `213940b9-aa7e-4833-9def-2c23887865e5` |
+| Base exacta | ✅ ~~main v0.1.52~~ | `9a6b065db608de1a53a09a98d415a2cb7bd18a95` |
+| Versión producto | ✅ ~~v0.1.52 sin cambio~~ | gobernanza/CI; no deploy-bound |
+| Factory channel | ✅ ~~`@v1` publicado~~ | caller usa el canal mayor protegido; sin `kit_ref` dinámico |
 | CI/Sonar/CodeRabbit | 🚧 pendiente | revalidar HEAD final |
-| Producción | ✅ ~~sin cambio de runtime~~ | no modifica superficie productiva |
+| Producción | ✅ ~~sin cambio de runtime~~ | Observer base verde; este slice no escribe producción |
 
 ## Huella del cambio
 
@@ -31,7 +33,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+59** | **−54** | **+5** |
+| **8** | **+185** | **−34** | **+151** |
 
 ## Calidad y entrega
 
@@ -39,51 +41,62 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
-| PR + snapshot exacto | Issue #649 · reserva `1ba2e6a3-8658-4061-ab01-d88d20ef2bab` |
-| CodeRabbit / Sonar | 🚧 revisión del HEAD estable |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| PR + snapshot exacto | Issue #660 · reserva `213940b9-aa7e-4833-9def-2c23887865e5` |
+| Factory policy | `decisiones.yml` schema v1 · review rounds ≤ 3 · caller `politica.yml@v1` |
+| Existing gates | BRVTAL CI, Privacy, Sonar, CodeQL y CodeRabbit permanecen activos |
 | CI del SHA exacto de main | 🚧 después del merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  B["main v0.1.52 · 61af0df"] --> P["#649 · Dependabot agrupado"]
-  P --> C["BRVTAL CI + Sonar + CodeRabbit"]
-  C --> M["Squash merge"] --> V["CI exact-main"]
+  B["main v0.1.52 · 9a6b065"] --> P["#660 · decisiones + policy @v1"]
+  P --> G["Factory policy + BRVTAL gates"]
+  G --> C["full CI + Sonar + CodeQL + CodeRabbit"]
+  C --> M["Squash merge"] --> V["CI exact-main + Observer"]
 ```
 
 ## Qué se hizo
 
-- Programa actualizaciones semanales para npm y GitHub Actions.
-- Agrupa actualizaciones minor/patch y limita a tres PR abiertos por ecosistema.
-- Aplica etiquetas canónicas de tipo, prioridad y revisión a los PR de Dependabot.
-- Deja listo el canal para futuras propuestas de versiones `pl0n3r/factory@vN` una vez aparezcan referencias consumidas.
-- No cambia código de aplicación, base de datos, secretos, permisos ni versión de producto.
+- Añade `decisiones.yml` con las cinco decisiones compartidas ya publicadas por Factory y límite de tres rondas automáticas.
+- Añade caller read-only para `pl0n3r/factory/.github/workflows/politica.yml@v1` usando el número real del PR.
+- El caller no acepta `kit_ref`, no hereda secretos y no usa `pull_request_target` ni `workflow_dispatch`.
+- Añade contrato PHP que congela esquema, IDs de decisiones, límites de seguridad y frontera del caller.
+- Clasifica `decisiones.yml` como gobernanza no deploy-bound, pero ejecuta el contrato PHP cuando cambia.
+- El self-audit permite `@v1` únicamente para reusable workflows de `pl0n3r/factory/.github/workflows/`; cualquier otra acción mutable sigue fallando.
+- Mantiene intactos CI, Privacy, Sonar, CodeQL, CodeRabbit, runtime, datos y versión de producto.
 
 ## Archivos modificados en este deploy
 
-- `.github/dependabot.yml`
+- `.github/workflows/factory-policy.yml`
 - `README.md`
+- `decisiones.yml`
+- `scripts/ci-scope.sh`
+- `scripts/ci_self_audit.py`
+- `tests/ci-scope-contract.php`
+- `tests/ci-self-audit-contract.py`
+- `tests/factory-policy-contract.php`
 
 ## Validación
 
-- 🚧 BRVTAL CI debe validar coordinación, contratos rápidos y snapshot exacto.
-- 🚧 Sonar y CodeRabbit deben terminar sobre el HEAD estable antes del merge.
-- El cambio no requiere escritura productiva ni migración.
+- 🚧 BRVTAL CI debe ejecutar matriz completa porque cambia el clasificador `scripts/ci-scope.sh`.
+- 🚧 El workflow Factory Policy debe validar `decisiones.yml` y el límite observado de reviews en el PR real.
+- 🚧 Sonar, CodeQL y CodeRabbit deben terminar sobre el HEAD estable antes del merge.
+- No se retira ningún gate existente ni se realiza escritura productiva.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#649](https://github.com/pl0n3r/brvtal/issues/649): integrar Dependabot agrupado. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): iniciar TANDA 2 del kit Factory. |
+| **NOW** | 🚧 [#660](https://github.com/pl0n3r/brvtal/issues/660): decisiones como código + policy Factory v1. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): siguiente slice reusable del kit tras exact-main. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
-| **BLOCKED / EXTERNAL** | 🚧 Factory v1.0.1 permanece owner-gated y separado de este PR. |
+| **BLOCKED / EXTERNAL** | 🚧 Factory v1.0.1 sigue owner-gated en factory#108; no bloquea este policy slice. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: cerrar #649 con gates verdes.
-- 🚧 **NEXT**: reservar el primer slice de #630 cuando este PR libere el repo.
-- 🚧 **LATER**: continuar #533 sin duplicar trabajo de otros agentes.
-- 🚧 **BLOCKED / EXTERNAL**: publicación Factory v1.0.1 requiere la puerta humana #108.
+- 🚧 **NOW**: validar #660 con política reusable y matriz completa.
+- 🚧 **NEXT**: elegir el siguiente componente Factory sin retirar gates BRVTAL antes de evidencia equivalente.
+- 🚧 **LATER**: avanzar #630 por PRs pequeños hasta prueba end-to-end/rollback.
+- 🚧 **BLOCKED / EXTERNAL**: catálogo nuevo de Factory espera publicación v1.0.1 si el siguiente slice lo requiere.
