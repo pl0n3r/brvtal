@@ -39,7 +39,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · recovery** |
 | PR + snapshot exacto | Issue #672 · reserva `277c92aa-213a-46df-ae19-f8cb7847e8d4` |
 | Roles | Infrastructure · SRE · Security · QA |
 | Secretos runtime | `HOSTINGER_API_TOKEN` · `DEPLOY_TOKEN` · `DEPLOY_SSH_KEY`; nunca se imprimen |
