@@ -20,7 +20,7 @@ ORIGIN = "https://www.brvtal.com.co"
 EXPECTED_OWNER = "pl0n3r"
 EXPECTED_REPOSITORY = "brvtal"
 EXPECTED_BRANCH = "main"
-_ALLOWED_DIRECTORIES = {"", "public_html"}
+_ALLOWED_DIRECTORIES = {""}
 _ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,160}$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
@@ -153,8 +153,8 @@ def run_cutover(
 ) -> GitSettings:
     original = client.get()
     disabled = replace(original, is_enabled=False)
-    authority_may_have_changed = original.is_enabled
     bootstrap_started = False
+    disabled_confirmed = False
     previous_gate = os.environ.get("BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED")
     try:
         if original.is_enabled:
@@ -162,6 +162,7 @@ def run_cutover(
         observed = client.get()
         if observed != disabled:
             raise CutoverError("Hostinger Git auto-deploy did not reach disabled state")
+        disabled_confirmed = True
         os.environ["BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED"] = "1"
         bootstrap_started = True
         transport_api.bootstrap(config, sha, version, ORIGIN)
@@ -181,17 +182,18 @@ def run_cutover(
                     "cutover failed and legacy dispatcher restore could not be proven; "
                     "Hostinger Git remains disabled"
                 ) from None
-        if authority_may_have_changed:
-            try:
-                client.put(original)
-                if client.get() != original:
-                    raise CutoverError("restored Hostinger Git settings do not match snapshot")
-            except Exception:
-                raise CutoverError(
-                    "cutover failed and prior Hostinger Git authority could not be restored"
-                ) from None
+        # Re-enabling Hostinger Git uses PUT with is_enabled=true, which immediately
+        # redeploys PHP/static sites. Never do that automatically during recovery:
+        # main may have advanced after this workflow started.
+        if original.is_enabled and disabled_confirmed:
             raise CutoverError(
-                "cutover failed; prior Hostinger Git authority was restored"
+                "cutover failed after Hostinger Git was disabled; legacy dispatcher "
+                "was restored when needed and Git remains disabled for explicit recovery"
+            ) from cutover_error
+        if original.is_enabled and not disabled_confirmed:
+            raise CutoverError(
+                "cutover failed before disabled Hostinger Git state could be confirmed; "
+                "authority state is unknown and must be inspected before retry"
             ) from cutover_error
         if isinstance(cutover_error, CutoverError):
             raise

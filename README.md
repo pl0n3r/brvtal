@@ -22,7 +22,7 @@
 | Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; `deploy_bound=false` |
 | Hostinger API | 🚧 **GET → disable → verify** | Bearer secret; settings exactos de BRVTAL |
 | Workflow | 🚧 **manual-only** | `workflow_dispatch` + `CUTOVER-BRVTAL`; sin `push` |
-| Orden de recovery | 🚧 **legacy dispatcher → Git authority** | Git no se reactiva si el layout no puede restaurarse |
+| Orden de recovery | 🚧 **legacy dispatcher → Git permanece disabled** | la autoridad Git solo se reactiva manualmente tras verificar identidad exacta |
 | Producción | ✅ ~~sin writes remotos en este PR~~ | el workflow nuevo no se ejecuta durante entrega |
 
 ## Huella del cambio
@@ -45,7 +45,7 @@
 | Secretos runtime | `HOSTINGER_API_TOKEN` · `DEPLOY_TOKEN` · `DEPLOY_SSH_KEY`; nunca se imprimen |
 | API confiable | endpoint Hostinger fijo; sin URL controlada por usuario ni shell |
 | Cutover | settings BRVTAL exactos → disable confirmado → bootstrap → revalidación API |
-| Recovery | bootstrap restaura layout; solo después se restaura la configuración Git previa |
+| Recovery | bootstrap restaura layout; Git queda disabled hasta recuperación explícita con identidad exacta verificada |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
@@ -59,7 +59,7 @@ flowchart LR
   C --> V["exact health + public/admin smoke"]
   V -->|pass| F["Hostinger Git stays disabled"]
   V -->|fail| R["restore legacy dispatcher"]
-  R --> A["restore prior Git authority"]
+  R --> A["keep Git disabled · explicit recovery"]
 ```
 
 ## Qué se hizo
@@ -67,7 +67,7 @@ flowchart LR
 - Añade `ops/factory/hostinger_cutover.py`: cliente estándar `urllib`, endpoint oficial fijo, Bearer auth sanitizado y schema de settings fail-closed.
 - Valida que owner/repository/branch sean `pl0n3r/brvtal@main` y que el target sea el document root del sitio; el PUT reutiliza exactamente la configuración observada y solo cambia `is_enabled`.
 - Deshabilita auto-deploy, relee Hostinger y exige estado disabled **antes** de llamar el bootstrap reversible de #670.
-- En fallo posterior al bootstrap, verifica/restaura primero el dispatcher legacy; solo entonces devuelve la configuración Git original. Si no puede probar el layout, deja Git apagado.
+- En fallo posterior al bootstrap, verifica/restaura primero el dispatcher legacy y mantiene Hostinger Git apagado; reactivarlo con `is_enabled=true` dispara un deploy inmediato, así que la recuperación de autoridad queda explícita tras verificar identidad exacta.
 - Añade `.github/workflows/factory-hostinger-cutover.yml` con trigger exclusivamente manual, mínimo privilegio, timeout, concurrency serial y confirmación exacta `CUTOVER-BRVTAL`.
 - Integra `tests/test_hostinger_cutover.py` al suite canónico mediante `factory-hostinger-transport-contract.php`: éxito, idempotencia disabled, schema/settings inesperados, API 503 sanitizado, fallo bootstrap, fallo post-bootstrap y restore fail-closed.
 - No añade todavía el caller permanente `factory/deploy.yml@v1` y no ejecuta el cutover real en este slice.

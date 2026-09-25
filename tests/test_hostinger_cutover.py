@@ -104,7 +104,7 @@ class CutoverTests(unittest.TestCase):
     def test_unexpected_settings_fail_before_mutation(self):
         for change in (
             dict(owner="other"), dict(repository="other"),
-            dict(branch="dev"), dict(directory="../escape"),
+            dict(branch="dev"), dict(directory="../escape"), dict(directory="public_html"),
         ):
             with self.subTest(change=change):
                 api = FakeApi(settings(**change))
@@ -121,21 +121,29 @@ class CutoverTests(unittest.TestCase):
         self.assertIn("HTTP 503", str(raised.exception))
         self.assertNotIn(self.token, str(raised.exception))
 
-    def test_bootstrap_failure_restores_layout_then_git(self):
+    def test_bootstrap_failure_restores_layout_and_keeps_git_disabled(self):
         api = FakeApi()
         transport = FakeTransport(fail=True, active_on_fail=True)
-        with self.assertRaisesRegex(cutover.CutoverError, "authority was restored"):
+        with self.assertRaisesRegex(cutover.CutoverError, "Git remains disabled"):
             self.execute_cutover(api, transport)
         self.assertEqual(transport.restore_calls, 1)
-        self.assertTrue(api.state["is_enabled"])
+        self.assertFalse(api.state["is_enabled"])
 
-    def test_post_bootstrap_api_failure_restores_both(self):
+    def test_post_bootstrap_api_failure_restores_layout_and_keeps_git_disabled(self):
         api, transport = FakeApi(fail=("GET", 3)), FakeTransport()
-        with self.assertRaisesRegex(cutover.CutoverError, "authority was restored"):
+        with self.assertRaisesRegex(cutover.CutoverError, "Git remains disabled"):
             self.execute_cutover(api, transport)
         self.assertEqual(transport.restore_calls, 1)
         self.assertFalse(transport.active)
-        self.assertTrue(api.state["is_enabled"])
+        self.assertFalse(api.state["is_enabled"])
+
+    def test_disable_confirmation_failure_never_reenables_git(self):
+        api, transport = FakeApi(fail=("GET", 2)), FakeTransport()
+        with self.assertRaisesRegex(cutover.CutoverError, "authority state is unknown"):
+            self.execute_cutover(api, transport)
+        self.assertEqual(api.calls, ["GET", "PUT", "GET"])
+        self.assertFalse(api.state["is_enabled"])
+        self.assertEqual(transport.bootstrap_calls, 0)
 
     def test_failed_layout_restore_keeps_git_disabled(self):
         api = FakeApi()
@@ -151,8 +159,9 @@ class CutoverTests(unittest.TestCase):
         with self.assertRaisesRegex(cutover.CutoverError, "schema is unexpected"):
             drift_client.get()
         api, transport = FakeApi(fail=("PUT", 1)), FakeTransport()
-        with self.assertRaises(cutover.CutoverError):
+        with self.assertRaisesRegex(cutover.CutoverError, "authority state is unknown"):
             self.execute_cutover(api, transport)
+        self.assertTrue(api.state["is_enabled"])
         self.assertEqual(transport.bootstrap_calls, 0)
 
 
