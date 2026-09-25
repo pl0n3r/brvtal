@@ -6,24 +6,25 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #651 añade reporte de EXCEPTION/FATAL de producción hacia Sentry sin SDK Composer y con un evento remoto deliberadamente libre de PII. Base exacta `main 969dcef8d7595ad0fedf98eb63cbd8eec0aeebcd` / v0.1.56 GREEN.
+> Snapshot de **solo el deploy actual**: candidate v0.1.58 for incident #681. Production health is 503 because historical schema effects exist without complete migration-registry parity. This candidate adds controlled, backup-gated reconciliation; it does not perform destructive SQL or Factory cutover.
 
 ## Progress convention
 
 - ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
 - 🚧 Normal text = pending or currently in progress.
+- ⛔ = active production blocker.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#651 · production error observability** | `work/issue-651`; reserva `2d507a05-8a19-4c09-afd5-b47489f4b7fa` |
-| Base exacta | ✅ ~~main v0.1.56 GREEN~~ | `969dcef8d7595ad0fedf98eb63cbd8eec0aeebcd` |
-| Versión producto | 🚧 **v0.1.57 deploy-bound** | patch 0.1.56 → 0.1.57 |
-| Local logging | ✅ ~~preservado~~ | mismos handlers y respuestas existentes |
-| Remote error event | 🚧 **allowlist mínima** | clase/tipo, archivo relativo, línea, stack acotado, release |
-| PII remoto | ✅ ~~excluido por diseño~~ | sin request, identidad, body, cookies ni argumentos |
-| Producción | 🚧 **requiere DSN runtime** | no se versiona una credencial/DSN real en Git |
+| Work line | 🚧 **#681 · migration registry reconciliation** | `work/issue-681`; reservation `bf5dd92b-4b1d-4172-a0c2-3b9f6c7e3fbe` |
+| Base exacta | ⛔ **main v0.1.57** | `f500ff862c8ffeea31bad19d2b2d24e29b65f326`; health incident open |
+| Versión objetivo | 🚧 **v0.1.58 deploy-bound** | patch 0.1.57 → 0.1.58 |
+| Reconciliation plan | ✅ **read-only / fail-closed** | information_schema proofs only |
+| Backup before writes | ✅ **required by transport + CLI** | backup status=ready + marker + env gate |
+| Historical SQL replay | ✅ **forbidden by this path** | proven effects are baselined only |
+| Production | ⛔ **not GREEN yet** | health must return 200 after deploy/reconcile |
 
 ## Huella del cambio
 
@@ -31,7 +32,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+974** | **−55** | **+919** |
+| **8** | **+815** | **−60** | **+755** |
 
 ## Calidad y entrega
 
@@ -39,71 +40,69 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | Issue #651 · reserva `2d507a05-8a19-4c09-afd5-b47489f4b7fa` |
-| Roles | Infrastructure · SRE · Security · QA |
-| DSN | HTTPS; A/AAAA resueltos y todos públicos; destino pinneado; clave pública/project id válidos |
-| Transporte | best-effort · 1.2 s · DNS pinning · TLS por hostname · response body descartado · sin retry |
-| Payload | allowlist; mensaje raw y argumentos nunca salen del servidor |
-| Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
+| Gates esperados | **preflight · coordination · fast · database · chromium · real-stack · webkit · recovery-rehearsal** |
+| PR + snapshot exacto | **Issue #681 · PR #682 · v0.1.58** |
+| Roles | **Infrastructure · SRE · Security · QA** |
+| Reconciliation | read-only proof → backup ready → controlled registry write → `verify-plan __NONE__` |
+| Production writes | baseline metadata only; no destructive SQL, no restore, no cutover |
+| Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit |
 | CI del SHA exacto de main | 🚧 después del merge |
+| Production GREEN | 🚧 exact health + authenticated smoke required |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  E["uncaught EXCEPTION / FATAL"] --> L["local log"]
-  L --> A["PII-free allowlist event"]
-  A --> D{"valid runtime DSN?"}
-  D -->|no| N["remote no-op"]
-  D -->|yes| S["bounded HTTPS envelope"]
-  S -->|provider unavailable| K["request continues · no retry"]
-  S -->|accepted| O["central error observability"]
+  A["health 503 · registry parity"] --> P["read-only reconcile-plan"]
+  P --> X{"all structural proofs complete?"}
+  X -->|no| F["fail closed · zero registry writes"]
+  X -->|yes| B["backup status=ready"]
+  B --> R["baseline proven historical migrations"]
+  R --> V["verify-plan __NONE__"]
+  V --> M["merge / deploy"]
+  M --> H["exact health + authenticated smoke"]
 ```
 
 ## Qué se hizo
 
-- Añade un transport PHP pequeño en `config/sentry.php`; no incorpora Composer ni SDK externo.
-- El DSN se lee primero desde `BRVTAL_SENTRY_DSN` y opcionalmente desde la configuración privada persistente.
-- El parser falla cerrado ante esquema no HTTPS, host inválido, password, query/fragment, project id inválido, fallo DNS o cualquier A/AAAA privada/reservada.
-- Los handlers existentes conservan el log local y añaden reporte remoto solo para excepción no capturada y fatal.
-- Los fallos durante carga de configuración también generan un evento mínimo cuando el DSN está disponible por entorno.
-- El evento remoto no incluye mensaje original, superglobals, request, identidad, variables locales ni argumentos.
-- Los paths se reducen a rutas relativas de la aplicación; paths externos se sustituyen por `[external]`.
-- El transporte pinnea una IP pública ya validada para impedir DNS rebinding, mantiene TLS/SNI contra el hostname original, descarta el body de respuesta, usa timeout corto, cero redirects y cero reintentos.
-- El contrato usa resolver/sender falsos y subprocess fixtures para ejecutar realmente exception handler, fatal shutdown y bootstrap fallido; CI nunca contacta al proveedor.
+- Añade especificaciones explícitas de prueba estructural para migraciones históricas conocidas.
+- Consulta solo `information_schema`; no lee filas de negocio ni contenido privado.
+- Aborta ante proof faltante/incompleto, checksum mismatch, orphan records o estados ambiguos.
+- Añade `reconcile-plan` de solo lectura y `reconcile` protegido por gates de escritura y evidencia de backup.
+- El transporte SSH verifica el checkout legacy exacto antes de inspección/reconciliación.
+- Crea backup mediante la librería BRVTAL y exige `status=ready` antes de cualquier baseline.
+- Una reconciliación exitosa termina con `verify-plan __NONE__`; una prueba incompleta detiene el flujo antes del baseline y mantiene el incidente abierto.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot operacional de #651.
-- `config/bootstrap.php` — captura fallos severos de carga sin alterar la respuesta.
-- `config/config.example.php` — documenta DSN runtime opcional sin valor real.
-- `config/logger.php` — conecta exception/fatal con el transport remoto.
-- `config/sentry.php` — parser, evento allowlisted, envelope y envío best-effort.
-- `config/version.php` — versión de producto 0.1.57.
-- `package.json` — sincroniza versión 0.1.57.
-- `tests/sentry-contract.php` — DNS/SSRF, PII, envelope, no-op y handlers reales en subprocess deterministas.
+- `README.md` — snapshot exacto del incidente #681.
+- `config/migration_reconcile.php` — proofs y plan/reconciliación fail-closed.
+- `config/version.php` — versión v0.1.58.
+- `ops/factory/transport.py` — inspección y reconciliación remota controlada.
+- `package.json` — paridad de versión.
+- `scripts/migrations.php` — comandos reconcile-plan/reconcile.
+- `tests/factory-hostinger-transport-contract.php` — contrato del transport.
+- `tests/migrations-contract.php` — regresiones del reconciliador.
 
 ## Validación
 
-- 🚧 PHP 8.5 debe lintar y ejecutar el contrato Sentry sin warnings/deprecations.
-- 🚧 Privacy debe confirmar que el código no introduce señales personales ni un provider asociado a tratamiento personal.
-- 🚧 Factory Policy, Sonar, CodeQL y CodeRabbit deben revisar el HEAD estable.
-- 🚧 Producción debe conservar health/login/home sin 5xx tras el deploy.
-- 🚧 Para cerrar la observabilidad end-to-end falta provisionar el DSN privado y observar un evento sintético controlado.
+- 🚧 Los contratos PHP/transport deben pasar en BRVTAL CI sobre el HEAD estable.
+- 🚧 Sonar, CodeQL y CodeRabbit deben cerrar sin findings accionables.
+- 🚧 Tras merge, el transporte debe tomar backup antes de baselinear.
+- 🚧 Producción solo vuelve a GREEN con health 200 exacto y smoke autenticado success.
+- No se afirma que producción esté reparada antes de esas evidencias.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#651](https://github.com/pl0n3r/brvtal/issues/651): integrar transporte y validar configuración runtime. |
-| **NEXT** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): adoptar el lifecycle de labels ya publicado en Factory v1.0.3. |
-| **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector en CI. |
-| **BLOCKED / EXTERNAL** | 🚧 #651: DSN privado + evento sintético real requieren acceso al proveedor/hosting; el código permanece fail-closed sin DSN. |
+| **NOW** | ⛔ [#681](https://github.com/pl0n3r/brvtal/issues/681): recuperar health exacto sin replay histórico. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar TANDA 2 cuando GREEN vuelva. |
+| **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector. |
+| **BLOCKED / EXTERNAL** | Hostinger write path requires configured transport credentials; never invent or commit them. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: [#651](https://github.com/pl0n3r/brvtal/issues/651) cerrar código + DSN + evidencia de evento sin PII.
-- 🚧 **NEXT**: [#627](https://github.com/pl0n3r/brvtal/issues/627) consumir el lifecycle de labels ya disponible en `factory@v1.0.3`; luego continuar [#630](https://github.com/pl0n3r/brvtal/issues/630).
-- 🚧 **LATER**: [#653](https://github.com/pl0n3r/brvtal/issues/653) elevar análisis estático PHP sin ruido legacy.
-- 🚧 **BLOCKED / EXTERNAL**: activación end-to-end de #651 requiere provisionar el DSN privado; no se versiona ni se inventa.
+- ⛔ **NOW:** #681 restore production GREEN with backup-gated migration reconciliation.
+- 🚧 **NEXT:** #630 complete Factory adoption after exact-main + production validation.
+- 🚧 **LATER:** #653 static-analysis uplift and remaining roadmap work.

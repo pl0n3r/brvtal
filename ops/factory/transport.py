@@ -197,6 +197,31 @@ def ssh_status(config: Config, script: str, *arguments: str) -> bool:
         return completed.returncode == 0
 
 
+def ssh_capture(config: Config, script: str, *arguments: str, max_bytes: int = 65536) -> str:
+    """Capture one bounded, fixed-command stdout payload while suppressing remote stderr."""
+    with credentials(config) as (key, hosts):
+        command = [
+            "ssh",
+            *_ssh_options(config, key, hosts),
+            f"{config.user}@{config.host}",
+            "bash", "-s", "--", config.site_root, *arguments,
+        ]
+        completed = subprocess.run(
+            command,
+            input=script,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise TransportError(f"SSH inspection failed with exit code {completed.returncode}")
+        payload = completed.stdout
+        if len(payload.encode("utf-8")) > max_bytes:
+            raise TransportError("SSH inspection response exceeded the safe limit")
+        return payload
+
+
 def upload(config: Config, source: Path, remote_path: str) -> None:
     with credentials(config) as (key, hosts):
         target = f"{config.user}@{config.host}:{remote_path}"
@@ -400,6 +425,63 @@ mv -f -- "$dispatcher.tmp.$BASHPID" "$dispatcher"
 rm -f -- "$dispatcher_upload"
 """
 
+_BOOTSTRAP_INSPECT_MIGRATIONS = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+test -d "$public"
+test ! -L "$public"
+observed="$(git -C "$public" rev-parse HEAD 2>/dev/null || true)"
+test "$observed" = "$sha"
+cd "$public"
+php scripts/migrations.php reconcile-plan --json
+"""
+
+
+_RECONCILE_MIGRATIONS = r"""
+set -euo pipefail
+site_root="$1"
+sha="$2"
+public="$site_root/public_html"
+state="$site_root/factory-state"
+test -d "$public"
+test ! -L "$public"
+observed="$(git -C "$public" rev-parse HEAD 2>/dev/null || true)"
+test "$observed" = "$sha"
+mkdir -p -- "$state"
+test ! -L "$state"
+
+cd "$public"
+php scripts/migrations.php reconcile-plan --json >/dev/null
+
+php <<'PHP'
+<?php
+declare(strict_types=1);
+require "config/bootstrap.php";
+require "config/backups.php";
+$manifest = brvtal_backup_create(db(), [
+    "include_media_archive" => false,
+    "created_by" => ["id" => 0, "name" => "Factory migration reconcile"],
+]);
+if (($manifest["status"] ?? "") !== "ready") {
+    fwrite(STDERR, "migration reconciliation backup did not reach ready state\n");
+    exit(1);
+}
+PHP
+
+marker="$state/migration-reconcile-backup-$sha.ok"
+test ! -L "$marker"
+marker_tmp="$marker.tmp.$BASHPID"
+printf 'backup-ready\n' > "$marker_tmp"
+mv -f -- "$marker_tmp" "$marker"
+
+BRVTAL_MIGRATIONS_ALLOW_WRITE=1 BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1 BRVTAL_MIGRATION_ACTOR=factory-reconcile php scripts/migrations.php reconcile --confirm --json >/dev/null
+
+php scripts/migrations.php verify-plan __NONE__ >/dev/null
+"""
+
+
 _BOOTSTRAP_ACTIVATE = r"""
 set -euo pipefail
 site_root="$1"
@@ -517,7 +599,6 @@ mkdir -p "$tmp/.git" "$tmp/config"
 printf '%s\n' "$sha" > "$tmp/.git/HEAD"
 printf '%s\n' "$sha" > "$tmp/.factory-release-sha"
 printf '%s\n' "$version" > "$tmp/.factory-release-version"
-
 rm -f -- "$tmp/config/config.php"
 ln -s -- "$shared/config/config.php" "$tmp/config/config.php"
 rm -rf -- "$tmp/uploads" "$tmp/storage" "$tmp/.private"
@@ -742,6 +823,84 @@ def assert_factory_readiness(origin: str, sha: str, version: str) -> None:
         raise TransportError("Factory readiness does not match exact release/schema expectation")
 
 
+def _sanitize_reconciliation_plan(payload: object) -> dict[str, object]:
+    if not isinstance(payload, dict):
+        raise TransportError("migration inspection payload must be an object")
+    expected = {"registry_exists", "record_registry_migration", "pending", "baseline", "proofs"}
+    if set(payload) != expected:
+        raise TransportError("migration inspection payload has unexpected fields")
+    if not isinstance(payload["registry_exists"], bool) or not isinstance(payload["record_registry_migration"], bool):
+        raise TransportError("migration inspection booleans are invalid")
+
+    def safe_names(value: object) -> list[str]:
+        if not isinstance(value, list) or len(value) > 200:
+            raise TransportError("migration inspection names are invalid")
+        names: list[str] = []
+        for item in value:
+            if not isinstance(item, str) or not _MIGRATION_RE.fullmatch(item):
+                raise TransportError("migration inspection contains an invalid migration name")
+            names.append(item)
+        return names
+
+    pending = safe_names(payload["pending"])
+    baseline = safe_names(payload["baseline"])
+    raw_proofs = payload["proofs"]
+    if not isinstance(raw_proofs, dict) or len(raw_proofs) > 200:
+        raise TransportError("migration inspection proofs are invalid")
+    proofs: dict[str, object] = {}
+    for name, proof in raw_proofs.items():
+        if not isinstance(name, str) or not _MIGRATION_RE.fullmatch(name) or not isinstance(proof, dict):
+            raise TransportError("migration inspection proof entry is invalid")
+        if set(proof) != {"complete", "checks"} or proof.get("complete") is not True:
+            raise TransportError("migration inspection contains an incomplete proof")
+        checks = proof.get("checks")
+        if not isinstance(checks, dict) or not checks or len(checks) > 200:
+            raise TransportError("migration inspection checks are invalid")
+        sanitized_checks: dict[str, bool] = {}
+        for requirement, present in checks.items():
+            if (
+                not isinstance(requirement, str)
+                or len(requirement) > 180
+                or not isinstance(present, bool)
+            ):
+                raise TransportError("migration inspection check is invalid")
+            sanitized_checks[requirement] = present
+        if not all(sanitized_checks.values()):
+            raise TransportError("migration inspection contains a failed structural check")
+        proofs[name] = {"complete": True, "checks": sanitized_checks}
+
+    return {
+        "registry_exists": payload["registry_exists"],
+        "record_registry_migration": payload["record_registry_migration"],
+        "pending": pending,
+        "baseline": baseline,
+        "proofs": proofs,
+    }
+
+
+def inspect_migrations(config: Config, sha: str, version: str, origin: str) -> dict[str, object]:
+    safe_sha = _safe_sha(sha)
+    safe_version = _safe_version(version)
+    safe_origin = _safe_origin(origin)
+    _assert_identity(safe_origin, safe_sha, safe_version)
+    raw = ssh_capture(config, _BOOTSTRAP_INSPECT_MIGRATIONS, safe_sha)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        raise TransportError("migration inspection returned invalid JSON") from None
+    return _sanitize_reconciliation_plan(payload)
+
+
+def reconcile_migrations(config: Config, sha: str, version: str, origin: str) -> None:
+    safe_sha = _safe_sha(sha)
+    safe_version = _safe_version(version)
+    safe_origin = _safe_origin(origin)
+    _assert_identity(safe_origin, safe_sha, safe_version)
+    ssh_script(config, _RECONCILE_MIGRATIONS, safe_sha)
+    assert_factory_readiness(safe_origin, safe_sha, safe_version)
+    _assert_public_smoke(safe_origin)
+
+
 def _assert_identity(origin: str, sha: str, version: str) -> None:
     raw = _curl_get(f"{origin}/api/deployment.php?__factory_bootstrap={secrets.token_hex(8)}")
     try:
@@ -776,7 +935,6 @@ def _probe_symlink(config: Config, origin: str) -> None:
 
 def restore_bootstrap(config: Config, sha: str) -> None:
     ssh_script(config, _BOOTSTRAP_RESTORE, sha)
-
 
 def bootstrap_dispatcher_active(config: Config) -> bool:
     """Return whether the Factory dispatcher is currently installed remotely."""
@@ -862,6 +1020,14 @@ def main() -> int:
     p_bootstrap.add_argument("--origin", required=True)
     p_restore_bootstrap = sub.add_parser("restore-bootstrap")
     p_restore_bootstrap.add_argument("--sha", required=True)
+    p_inspect = sub.add_parser("inspect-migrations")
+    p_inspect.add_argument("--sha", required=True)
+    p_inspect.add_argument("--version", required=True)
+    p_inspect.add_argument("--origin", required=True)
+    p_reconcile = sub.add_parser("reconcile-migrations")
+    p_reconcile.add_argument("--sha", required=True)
+    p_reconcile.add_argument("--version", required=True)
+    p_reconcile.add_argument("--origin", required=True)
     args = parser.parse_args()
 
     try:
@@ -883,6 +1049,11 @@ def main() -> int:
             bootstrap(config, sha, _safe_version(args.version), args.origin)
         elif args.command == "restore-bootstrap":
             restore_bootstrap(config, sha)
+        elif args.command == "inspect-migrations":
+            plan = inspect_migrations(config, sha, _safe_version(args.version), args.origin)
+            print(json.dumps(plan, sort_keys=True, separators=(",", ":")))
+        elif args.command == "reconcile-migrations":
+            reconcile_migrations(config, sha, _safe_version(args.version), args.origin)
         return 0
     except (TransportError, OSError) as exc:
         print(f"BRVTAL FACTORY TRANSPORT: {exc}", file=sys.stderr)
