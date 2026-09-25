@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #674 elimina la selección manual de migraciones del adapter Factory y deriva el delta aditivo desde el release exacto servido hacia el candidato. Este PR no ejecuta el cutover ni habilita deploy automático por `push`. Base exacta `main 4b0e0c89ab09d80963af169aca18165fe9fbcd03` / v0.1.53 GREEN.
+> Snapshot de **solo el deploy actual**: #676 adapta `/api/health.php` al contrato exacto de Factory y prueba readiness por identidad + estado real del registro de migraciones. Este PR no ejecuta el cutover ni habilita deploy automático por `push`. Base exacta `main a6cfd5ac357842a1e4797ae548850af25965903d` / v0.1.54 GREEN.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#674 · deterministic additive migration selection** | `work/issue-674`; reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
-| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `4b0e0c89ab09d80963af169aca18165fe9fbcd03` |
-| Versión producto | 🚧 **v0.1.54 deploy-bound** | patch obligatorio 0.1.53 → 0.1.54; cutover/push siguen cerrados |
-| Selección | 🚧 **release servido → release candidato** | 0 nuevas = no-op; 1 = valida/aplica; >1 = fail-closed |
-| Historial | 🚧 **inmutable por nombre + checksum** | cambiar o retirar una migración previa aborta |
-| SQL aditivo | 🚧 **defense in depth** | DROP/TRUNCATE/DELETE/REPLACE/rename/change/modify se rechazan |
-| Producción | ✅ ~~sin writes remotos en este PR~~ | no cutover ni caller por `push` |
+| Work line | 🚧 **#676 · Factory-compatible exact health** | `work/issue-676`; reserva `3bae3966-aadd-492b-8f1f-29e7a1c7d995` |
+| Base exacta | ✅ ~~main v0.1.54 GREEN~~ | `a6cfd5ac357842a1e4797ae548850af25965903d` |
+| Versión producto | 🚧 **v0.1.55 deploy-bound** | patch 0.1.54 → 0.1.55 |
+| Identidad | 🚧 **SHA exacto obligatorio** | runtime no exacto → 503; nunca inventa `release_sha` |
+| Schema | 🚧 **registro real, read-only** | registry + checksums + pendientes + orphans deben estar limpios |
+| Factory health | 🚧 **200 solo cuando ready** | `status=ok`, `version`, `release_sha`, `schema_up_to_date=true` |
+| Producción | ✅ ~~sin cutover/caller en este PR~~ | Hostinger Git sigue siendo autoridad durante este slice |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+541** | **−62** | **+479** |
+| **6** | **+251** | **−66** | **+185** |
 
 ## Calidad y entrega
 
@@ -40,12 +40,11 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | Issue #674 · reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
+| PR + snapshot exacto | Issue #676 · reserva `3bae3966-aadd-492b-8f1f-29e7a1c7d995` |
 | Roles | Infrastructure · SRE · Security · QA |
-| Selección migración | `.factory-current` vs `factory-releases/<sha>`; sin variable manual |
-| Historial seguro | nombres + SHA-256 previos deben permanecer idénticos; el registro BD debe coincidir con el plan |
-| SQL seguro | el planner automático ejecuta el scanner canónico antes de seleccionar la migración |
-| Rollback | solo artefacto; jamás restaura BD automáticamente |
+| Health final | exact SHA + schema parity; cualquier deriva → HTTP 503 |
+| Compatibilidad | conserva `ok`, `app`, `database`, `deployment`, `time`, `latency_ms`; añade `health_status` |
+| Escrituras | ninguna: health solo consulta DB/registro de migraciones |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
@@ -53,62 +52,56 @@
 
 ```mermaid
 flowchart LR
-  B["backup ready"] --> C["candidate exact SHA"]
-  C --> P["compare migration history"]
-  P -->|0 new| N["explicit no-op"]
-  P -->|1 new| S["validate additive SQL"]
-  P -->|>1 / changed / removed| F["fail closed"]
-  S --> M["apply one migration"]
-  N --> D["deploy may continue"]
-  M --> D
-  F --> X["no activation · no DB rollback"]
+  R["runtime identity"] --> I{"exact 40-char SHA?"}
+  D["DB connected"] --> S["migration status"]
+  S --> P{"registry parity?"}
+  I -->|no| F["503 degraded"]
+  P -->|no| F
+  I -->|yes| O{"schema ready?"}
+  P -->|yes| O
+  O -->|yes| H["200 · status=ok"]
+  O -->|no| F
 ```
 
 ## Qué se hizo
 
-- Añade `ops/factory/migration-plan`: compara las migraciones del release servido con el candidato exacto y emite `__NONE__` o una única migración nueva.
-- Cambiar o retirar una migración histórica aborta por nombre/checksum; más de una migración nueva se considera ambigua y falla antes de activación.
-- `config/migrations.php` expone el scanner aditivo que el planner automático ejecuta antes de seleccionar una migración; la ruta manual histórica conserva su contrato explícito.
-- `ops/factory/migrate` deja de depender de `BRVTAL_FACTORY_MIGRATION`; fixture y producción comparten el mismo contrato de selección.
-- El transporte remoto deriva el release previo desde `.factory-current`, confina ambos releases y exige que el registro de BD coincida con el plan antes de no-op/apply; tras aplicar vuelve a exigir cero pendientes.
-- Los contratos cubren no-op, una migración, replay, múltiples, cambio/eliminación histórica, SQL destructivo y deriva plan↔BD; fake-SSH prueba que una BD atrasada bloquea la ruta remota.
-- No ejecuta el cutover ni añade todavía el caller permanente `factory/deploy.yml@v1`.
+- Añade `config/health.php` con un modelo puro/fail-closed para readiness Factory y resumen acotado del registro de migraciones.
+- `/api/health.php` exige identidad exacta y reutiliza `brvtalMigrationVerifyPlanStatus(..., "__NONE__")` como única definición de schema listo.
+- El endpoint devuelve 200 únicamente con `status=ok`, versión canónica, SHA exacto y `schema_up_to_date=true`; cualquier drift o identidad no exacta devuelve 503.
+- Se preservan los diagnósticos operativos existentes y se añade `health_status=healthy|degraded` para el descriptor humano.
+- El health permanece estrictamente read-only: no activa gates de escritura, no aplica migraciones y no hace baseline/repair.
+- El contrato prueba identidad exacta/no exacta, registry ausente, pending, checksum mismatch, orphan records y resumen de schema.
+- No ejecuta el cutover Hostinger ni añade todavía el caller permanente `factory/deploy.yml@v1`.
 
 ## Archivos modificados en este deploy
 
-- `config/migrations.php` — scanner SQL aditivo usado por el planner automático.
-- `config/version.php` — versión de producto 0.1.54.
-- `ops/factory/build` — fixture de release y tempfile único por proceso.
-- `ops/factory/migrate` — selección automática sin variable manual.
-- `ops/factory/migration-plan` — delta determinista entre release servido y candidato.
-- `ops/factory/transport.py` — selección remota confinada al SHA exacto y verificación plan↔BD.
-- `package.json` — versión de producto 0.1.54.
-- `scripts/migrations.php` — comando read-only `verify-plan` para validar el registro de BD.
-- `tests/factory-deploy-adapters-contract.php` — casos de selección/fallo y evidencia.
-- `tests/factory-hostinger-transport-contract.php` — no-op remoto por fake SSH.
-- `tests/migrations-contract.php` — pruebas ejecutables del scanner SQL.
+- `api/health.php` — contrato Factory exacto + respuesta fail-closed.
+- `config/health.php` — modelo puro de readiness y resumen de schema.
+- `config/version.php` — versión de producto 0.1.55.
+- `package.json` — versión de producto 0.1.55.
+- `tests/factory-health-contract.php` — cobertura determinista de identidad/schema/read-only.
 - `README.md` — snapshot exacto del deploy.
 
 ## Validación
 
-- 🚧 `factory-deploy-adapters-contract.php`, `factory-hostinger-transport-contract.php` y `migrations-contract.php` deben pasar dentro del gate `fast`.
-- 🚧 Database/recovery siguen obligatorios porque se toca la frontera de migración/deploy.
+- 🚧 `factory-health-contract.php` debe pasar dentro del gate `fast` junto al suite PHP 8.5 completo.
+- 🚧 Database/recovery/real-stack siguen obligatorios porque el health consulta el estado canónico de migraciones.
 - 🚧 Factory CI/Policy/Privacy, Sonar y CodeQL deben pasar sobre el HEAD estable.
 - 🚧 CodeRabbit continúa advisory según AGENTS.md; solo hallazgos accionables bloquean.
-- ✅ ~~Producción permanece intacta~~: no se ejecuta migración remota ni cutover en este PR.
+- ✅ ~~Producción no cambia de autoridad~~: Hostinger Git continúa hasta el cutover manual posterior.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#674](https://github.com/pl0n3r/brvtal/issues/674): cerrar selección determinista de migraciones para deploy reusable. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): ejecutar el cutover controlado y, tras evidencia GREEN, añadir el caller Factory por `push`. |
+| **NOW** | 🚧 [#676](https://github.com/pl0n3r/brvtal/issues/676): cerrar health exacto Factory y revalidar producción. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): ejecutar cutover manual controlado; después añadir caller Factory por `push`. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): reanudar roadmap tras cerrar TANDA 2. |
 | **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera paridad central de Factory. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: cerrar #674 sin tocar producción.
-- 🚧 **NEXT**: ejecutar cutover manual desde exact main y probar rollback/health antes de habilitar push deploy.
-- 🚧 **LATER**: cerrar #630 con merge → producción validada o rollback automático.
+- 🚧 **NOW**: integrar #676 con exact-main + producción GREEN.
+- 🚧 **NEXT**: ejecutar cutover manual desde exact main; Hostinger Git queda disabled y Factory dispatcher activo.
+- 🚧 **THEN**: integrar el caller permanente `factory/deploy.yml@v1` con rollback/health e2e.
 - 🚧 **BLOCKED / EXTERNAL**: #627 sigue fuera hasta paridad completa del kit.
