@@ -237,9 +237,7 @@ site_root="$1"
 name="$2"
 token="$3"
 public="$site_root/public_html"
-probe_root="$site_root/factory-state/bootstrap-probes"
-mkdir -p "$probe_root"
-target="$probe_root/$name.txt"
+target="$site_root/.factory-symlink-probe-$name.txt"
 link="$public/factory-symlink-probe-$name.txt"
 test ! -e "$target"
 test ! -e "$link"
@@ -252,8 +250,7 @@ set -euo pipefail
 site_root="$1"
 name="$2"
 rm -f -- "$site_root/public_html/factory-symlink-probe-$name.txt"
-rm -f -- "$site_root/factory-state/bootstrap-probes/$name.txt"
-rmdir "$site_root/factory-state/bootstrap-probes" 2>/dev/null || true
+rm -f -- "$site_root/.factory-symlink-probe-$name.txt"
 """
 
 _BOOTSTRAP_PREPARE = r"""
@@ -305,7 +302,7 @@ test -f "$shared/storage/.htaccess"
 test -f "$shared/storage/backups/.htaccess"
 test -f "$shared/uploads/.htaccess"
 
-prepared_tmp="$shared/.prepared-v1.tmp.$"
+prepared_tmp="$shared/.prepared-v1.tmp.$BASHPID"
 printf 'prepared-v1\n' > "$prepared_tmp"
 mv -f -- "$prepared_tmp" "$shared/.prepared-v1"
 
@@ -313,7 +310,7 @@ if [ -d "$candidate" ]; then
   test "$(cat "$candidate/.factory-release-sha" 2>/dev/null || true)" = "$sha"
   test "$(cat "$candidate/.factory-release-version" 2>/dev/null || true)" = "$version"
 else
-  tmp="$releases/.$sha.bootstrap.$"
+  tmp="$releases/.$sha.bootstrap.$BASHPID"
   rm -rf -- "$tmp"
   mkdir -p -- "$tmp"
   trap 'rm -rf -- "$tmp"' EXIT
@@ -355,7 +352,7 @@ if (($manifest["status"] ?? "") !== "ready") {
 }
 PHP
   )
-  marker_tmp="$backup_marker.tmp.$"
+  marker_tmp="$backup_marker.tmp.$BASHPID"
   printf 'backup-ready\n' > "$marker_tmp"
   mv -f -- "$marker_tmp" "$backup_marker"
 fi
@@ -363,14 +360,14 @@ fi
 legacy="$state/legacy-public-htaccess"
 if [ ! -f "$legacy" ]; then
   test ! -L "$public/.htaccess"
-  cp -- "$public/.htaccess" "$legacy.tmp.$"
-  mv -f -- "$legacy.tmp.$" "$legacy"
+  cp -- "$public/.htaccess" "$legacy.tmp.$BASHPID"
+  mv -f -- "$legacy.tmp.$BASHPID" "$legacy"
 fi
 grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$legacy" && exit 86
 
 dispatcher="$state/dispatcher-v1.htaccess"
-cp -- "$dispatcher_upload" "$dispatcher.tmp.$"
-mv -f -- "$dispatcher.tmp.$" "$dispatcher"
+cp -- "$dispatcher_upload" "$dispatcher.tmp.$BASHPID"
+mv -f -- "$dispatcher.tmp.$BASHPID" "$dispatcher"
 rm -f -- "$dispatcher_upload"
 """
 
@@ -396,11 +393,11 @@ if [ -L "$current" ]; then
   case "$(readlink "$current")" in "$site_root/factory-releases/"*) ;; *) exit 92 ;; esac
 fi
 
-pointer_tmp="$public/.factory-current.bootstrap.$"
+pointer_tmp="$public/.factory-current.bootstrap.$BASHPID"
 ln -s -- "$candidate" "$pointer_tmp"
 mv -Tf -- "$pointer_tmp" "$current"
 
-htaccess_tmp="$public/.htaccess.factory.$"
+htaccess_tmp="$public/.htaccess.factory.$BASHPID"
 cp -- "$dispatcher" "$htaccess_tmp"
 mv -f -- "$htaccess_tmp" "$public/.htaccess"
 """
@@ -417,7 +414,7 @@ candidate="$site_root/factory-releases/$sha"
 
 test -f "$legacy"
 if [ -f "$public/.htaccess" ] && grep -Fq '# BRVTAL FACTORY DISPATCHER v1' "$public/.htaccess"; then
-  restore_tmp="$public/.htaccess.restore.$"
+  restore_tmp="$public/.htaccess.restore.$BASHPID"
   cp -- "$legacy" "$restore_tmp"
   mv -f -- "$restore_tmp" "$public/.htaccess"
 fi
@@ -634,8 +631,8 @@ def _assert_public_smoke(origin: str) -> None:
 def _probe_symlink(config: Config, origin: str) -> None:
     name = secrets.token_hex(8)
     token = "brvtal-symlink-" + secrets.token_hex(16)
-    ssh_script(config, _BOOTSTRAP_PROBE_CREATE, name, token)
     try:
+        ssh_script(config, _BOOTSTRAP_PROBE_CREATE, name, token)
         if _curl_get(f"{origin}/factory-symlink-probe-{name}.txt") != token:
             raise TransportError("Hostinger HTTP symlink probe did not resolve exact target")
     finally:

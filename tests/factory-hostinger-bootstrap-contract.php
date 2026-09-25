@@ -182,6 +182,7 @@ try {
     $noSymlink = bootstrap_run([$bootstrap], $root, array_merge($baseEnv, ['BRVTAL_FAKE_DISABLE_SYMLINK'=>'1']));
     bootstrap_expect($noSymlink['code'] !== 0, 'no-symlink environment must fail');
     bootstrap_expect(str_contains((string)file_get_contents($remote . '/public_html/.htaccess'), 'legacy-dispatch'), 'failed probe must preserve legacy dispatch');
+    bootstrap_expect(!glob($remote . '/.factory-symlink-probe-*'), 'failed probe must clean temporary target');
 
     $success = bootstrap_run([$bootstrap], $root, $baseEnv);
     bootstrap_expect($success['code'] === 0, 'happy bootstrap failed: ' . trim($success['stderr']));
