@@ -789,7 +789,6 @@ def main() -> int:
     p_backup.add_argument("--sha", required=True)
     p_migrate = sub.add_parser("migrate")
     p_migrate.add_argument("--sha", required=True)
-    p_migrate.add_argument("--migration", required=True)
     p_activate = sub.add_parser("activate")
     p_activate.add_argument("--sha", required=True)
     p_rollback = sub.add_parser("rollback")
