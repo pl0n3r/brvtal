@@ -97,11 +97,11 @@ try {
     }
 
     factory_adapter_expect(is_link($fixture . '/current'), 'deploy must leave an atomic current symlink');
-    factory_adapter_expect(realpath($fixture . '/current') === realpath($fixture . '/releases/' . $sha), 'deploy must activate candidate release');
+    factory_adapter_expect(readlink($fixture . '/current') === realpath($fixture . '/releases/' . $sha), 'deploy must activate candidate release');
 
     $rollback = factory_adapter_run($root, 'rollback', $baseEnv);
     factory_adapter_expect($rollback['code'] === 0, 'rollback fixture adapter must succeed');
-    factory_adapter_expect(realpath($fixture . '/current') === realpath($previous), 'rollback must restore previous artifact pointer');
+    factory_adapter_expect(readlink($fixture . '/current') === realpath($previous), 'rollback must restore previous artifact pointer');
 
     $outside = factory_adapter_run($root, 'build', array_merge($baseEnv, [
         'BRVTAL_FACTORY_FIXTURE_ROOT' => sys_get_temp_dir() . '/brvtal-factory-outside',
