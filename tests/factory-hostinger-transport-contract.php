@@ -217,4 +217,10 @@ try {
     hostinger_remove_tree($fakeBin);
 }
 
+$cutoverUnit = hostinger_run(['python3','-m','unittest','tests/test_hostinger_cutover.py'], $root, []);
+hostinger_expect(
+    $cutoverUnit['code'] === 0,
+    'Hostinger cutover unittest failed: ' . trim($cutoverUnit['stderr'])
+);
+
 echo "BRVTAL Hostinger SSH transport contract passed.\n";

@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #670 prepara el bootstrap reversible del layout Hostinger previo al cutover Factory. No instala el caller productivo ni ejecuta writes remotos desde CI. Base exacta `main 9b4bab13a8b8750db9e7fa3440a2879dbb9de03d` / v0.1.53 GREEN.
+> Snapshot de **solo el deploy actual**: #672 añade el control plane para transferir de forma manual y reversible la autoridad de deploy de Hostinger Git al layout Factory. Este PR no ejecuta el cutover ni habilita deploy automático por `push`. Base exacta `main cf9d3b67c700b774f9ffbe959d84430f0307c6d8` / v0.1.53 GREEN.
 
 ## Progress convention
 
@@ -17,16 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#670 · Hostinger reversible bootstrap** | `work/issue-670`; reserva `b0fe3d30-2402-4a9d-b55a-e07a2cd7b8c3` |
-| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `9b4bab13a8b8750db9e7fa3440a2879dbb9de03d` |
-| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; el caller productivo sigue ausente |
-| Identidad previa | 🚧 **SHA + versión exactos obligatorios** | `/api/deployment.php` antes de cualquier cutover |
-| Symlinks Hostinger | 🚧 **prueba HTTP temporal obligatoria** | el probe se elimina incluso cuando falla |
-| Estado persistente | 🚧 **aliases, no copia/move** | config, uploads, storage y .private permanecen en el árbol existente |
-| Backup | 🚧 **ready antes del dispatcher** | motor canónico `brvtal_backup_create()` |
-| Rollback | 🚧 **solo dispatcher/artefacto** | restaura `.htaccess`; nunca restaura BD |
-| Auto-deploy Hostinger | 🚧 **debe estar deshabilitado** | gate `BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED=1` |
-| Producción | ✅ ~~sin writes remotos en este PR~~ | no workflow invoca `ops/factory/bootstrap` |
+| Work line | 🚧 **#672 · controlled Hostinger API cutover** | `work/issue-672`; reserva `277c92aa-213a-46df-ae19-f8cb7847e8d4` |
+| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `cf9d3b67c700b774f9ffbe959d84430f0307c6d8` |
+| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; `deploy_bound=false` |
+| Hostinger API | 🚧 **GET → disable → verify** | Bearer secret; settings exactos de BRVTAL |
+| Workflow | 🚧 **manual-only** | `workflow_dispatch` + `CUTOVER-BRVTAL`; sin `push` |
+| Orden de recovery | 🚧 **legacy dispatcher → Git permanece disabled** | la autoridad Git solo se reactiva manualmente tras verificar identidad exacta |
+| Producción | ✅ ~~sin writes remotos en este PR~~ | el workflow nuevo no se ejecuta durante entrega |
 
 ## Huella del cambio
 
@@ -34,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **4** | **+699** | **−46** | **+653** |
+| **6** | **+509** | **−47** | **+462** |
 
 ## Calidad y entrega
 
@@ -42,13 +39,13 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP] · database · recovery** |
-| PR + snapshot exacto | Issue #670 · reserva `b0fe3d30-2402-4a9d-b55a-e07a2cd7b8c3` |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · recovery** |
+| PR + snapshot exacto | Issue #672 · reserva `277c92aa-213a-46df-ae19-f8cb7847e8d4` |
 | Roles | Infrastructure · SRE · Security · QA |
-| Transporte | `DEPLOY_TOKEN` + `DEPLOY_SSH_KEY`; host key estricto; sin secretos en logs |
-| Preflight | exact SHA/version → HTTP symlink proof → snapshot/shared state → backup |
-| Cutover | `.factory-current` primero; dispatcher v1 después; validación final obligatoria |
-| Fallo | restaura legacy `.htaccess` y elimina pointer; DB permanece intacta |
+| Secretos runtime | `HOSTINGER_API_TOKEN` · `DEPLOY_TOKEN` · `DEPLOY_SSH_KEY`; nunca se imprimen |
+| API confiable | endpoint Hostinger fijo; sin URL controlada por usuario ni shell |
+| Cutover | settings BRVTAL exactos → disable confirmado → bootstrap → revalidación API |
+| Recovery | bootstrap restaura layout; Git queda disabled hasta recuperación explícita con identidad exacta verificada |
 | Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
@@ -56,53 +53,54 @@
 
 ```mermaid
 flowchart LR
-  B["main v0.1.53 · GREEN"] --> I["exact identity"]
-  I --> S["HTTP symlink proof"]
-  S --> P["snapshot + shared aliases + backup"]
-  P --> C["dispatcher cutover"]
-  C --> V["identity + public/admin smoke"]
-  V -->|fail| R["restore legacy .htaccess"]
-  V -->|pass| M["ready for Factory caller slice"]
+  B["main v0.1.53 · GREEN"] --> G["GET Hostinger Git settings"]
+  G --> D["disable + confirm"]
+  D --> C["Factory bootstrap"]
+  C --> V["exact health + public/admin smoke"]
+  V -->|pass| F["Hostinger Git stays disabled"]
+  V -->|fail| R["restore legacy dispatcher"]
+  R --> A["keep Git disabled · explicit recovery"]
 ```
 
 ## Qué se hizo
 
-- Añade `ops/factory/bootstrap`, cerrado por credenciales completas y por la confirmación explícita de que Hostinger Git auto-deploy está deshabilitado.
-- Extiende `transport.py` con preflight de identidad exacta, prueba HTTP real de symlink, preparación idempotente, activación y restore.
-- El snapshot inicial queda en `factory-releases/<sha>` con identidad exacta; excluye `.git` y todo estado mutable.
-- `factory-shared` enlaza el config/uploads/storage/.private existentes sin mover, borrar ni duplicar datos de usuario.
-- Antes del dispatcher se exige backup canónico en estado `ready` y se conserva el legacy `.htaccess`.
-- La activación conmuta `.factory-current` y después instala el dispatcher; cualquier fallo de identidad o smoke restaura la ruta legacy sin rollback de BD.
-- El contrato local usa fake SSH/HTTP y cubre auto-deploy activo, identity mismatch, symlink no soportado, deny guard ausente, happy path, idempotencia y rollback por smoke fallido.
-- Este slice no ejecuta bootstrap remoto y no añade todavía `factory/deploy.yml@v1`.
+- Añade `ops/factory/hostinger_cutover.py`: cliente estándar `urllib`, endpoint oficial fijo, Bearer auth sanitizado y schema de settings fail-closed.
+- Valida que owner/repository/branch sean `pl0n3r/brvtal@main` y que el target sea el document root del sitio; el PUT reutiliza exactamente la configuración observada y solo cambia `is_enabled`.
+- Deshabilita auto-deploy, relee Hostinger y exige estado disabled **antes** de llamar el bootstrap reversible de #670.
+- En fallo posterior al bootstrap, verifica/restaura primero el dispatcher legacy y mantiene Hostinger Git apagado; reactivarlo con `is_enabled=true` dispara un deploy inmediato, así que la recuperación de autoridad queda explícita tras verificar identidad exacta.
+- Añade `.github/workflows/factory-hostinger-cutover.yml` con trigger exclusivamente manual, mínimo privilegio, timeout, concurrency serial y confirmación exacta `CUTOVER-BRVTAL`.
+- Integra `tests/test_hostinger_cutover.py` al suite canónico mediante `factory-hostinger-transport-contract.php`: éxito, idempotencia disabled, schema/settings inesperados, API 503 sanitizado, fallo bootstrap, fallo post-bootstrap y restore fail-closed.
+- No añade todavía el caller permanente `factory/deploy.yml@v1` y no ejecuta el cutover real en este slice.
 
 ## Archivos modificados en este deploy
 
+- `.github/workflows/factory-hostinger-cutover.yml`
+- `tests/factory-hostinger-transport-contract.php`
 - `README.md`
-- `ops/factory/bootstrap`
+- `ops/factory/hostinger_cutover.py`
 - `ops/factory/transport.py`
-- `tests/factory-hostinger-bootstrap-contract.php`
+- `tests/test_hostinger_cutover.py`
 
 ## Validación
 
-- 🚧 El contrato PHP debe pasar bajo PHP 8.5 sin warnings/deprecations.
-- 🚧 Database/recovery permanecen obligatorios por tocar la superficie de backup/deploy.
-- 🚧 Factory CI/Policy/Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable.
-- 🚧 No se considera producción migrada: el auto-deploy de Hostinger sigue siendo autoridad hasta un cutover explícito posterior.
-- 🚧 Tras merge: exact-main BRVTAL CI + Deploy Observer + Production Performance deben mantener GREEN.
+- 🚧 `tests/test_hostinger_cutover.py` debe pasar dentro del gate `fast`.
+- 🚧 El suite canónico ejecuta el unittest del cutover sin modificar el workflow compartido; database/chromium/real-stack/webkit/recovery permanecen bajo el alcance normal del diff.
+- 🚧 Factory CI/Policy/Privacy, Sonar y CodeQL deben pasar sobre el HEAD estable.
+- 🚧 CodeRabbit continúa advisory según AGENTS.md; solo hallazgos accionables bloquean.
+- ✅ ~~Producción permanece intacta~~: no existe trigger automático hacia el nuevo cutover.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#670](https://github.com/pl0n3r/brvtal/issues/670): cerrar bootstrap reversible con evidencia reproducible y cero writes remotos. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): ejecutar cutover controlado y adoptar `factory/deploy.yml@v1` con rollback e2e. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): reanudar roadmap de producto tras cerrar TANDA 2. |
+| **NOW** | 🚧 [#672](https://github.com/pl0n3r/brvtal/issues/672): validar e integrar control API + workflow manual. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): ejecutar el cutover controlado y, tras evidencia GREEN, añadir el caller Factory por `push`. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): reanudar roadmap tras cerrar TANDA 2. |
 | **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera paridad central de Factory. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: validar #670 y mantener producción intacta.
-- 🚧 **NEXT**: deshabilitar Hostinger Git auto-deploy durante un cutover reversible y luego habilitar el caller Factory.
-- 🚧 **LATER**: cerrar #630 con una entrega main→producción validada o rollback automático demostrado.
-- 🚧 **BLOCKED / EXTERNAL**: #627 permanece fuera hasta que Factory cubra su contrato completo.
+- 🚧 **NOW**: cerrar #672 sin tocar producción.
+- 🚧 **NEXT**: ejecutar cutover manual desde exact main y probar rollback/health antes de habilitar push deploy.
+- 🚧 **LATER**: cerrar #630 con merge → producción validada o rollback automático.
+- 🚧 **BLOCKED / EXTERNAL**: #627 sigue fuera hasta paridad completa del kit.

@@ -1,0 +1,54 @@
+name: Factory Hostinger Cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type CUTOVER-BRVTAL to perform the one-time Hostinger authority cutover'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brvtal-factory-hostinger-cutover
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    name: Controlled Hostinger cutover
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate trusted manual context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          [[ "$EVENT_NAME" == "workflow_dispatch" ]] || { echo "::error::Manual dispatch required"; exit 1; }
+          [[ "$REF_NAME" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo "::error::Cutover only accepts the default branch"; exit 1; }
+          [[ "$CONFIRM" == "CUTOVER-BRVTAL" ]] || { echo "::error::Explicit CUTOVER-BRVTAL confirmation required"; exit 1; }
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve exact product version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(php -r "require 'config/version.php'; echo BRVTAL_APP_VERSION;")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid product version"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Cut over Hostinger Git authority and bootstrap Factory layout
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: python3 ops/factory/hostinger_cutover.py --confirm CUTOVER-BRVTAL
