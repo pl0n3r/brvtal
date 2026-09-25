@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+// Rector probe #686; removed before merge.
 
 /**
  * Return a stable validation error when a Set is not safe to publish.

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+// Rector probe #686; removed before merge.
 
 function brvtal_public_health_request(string $requestUri): bool
 {

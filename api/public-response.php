@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+// Rector probe #686; removed before merge.
 
 function brvtal_public_envelope(mixed $data, int $status = 200): array
 {
