@@ -62,14 +62,13 @@ $deploySource = (string)file_get_contents($adapterDir . '/deploy');
 $rollbackSource = (string)file_get_contents($adapterDir . '/rollback');
 $commonSource = (string)file_get_contents($adapterDir . '/common.sh');
 
-factory_adapter_expect(str_contains($backupSource, 'config/backups.php'), 'production backup must reuse canonical backup engine');
-factory_adapter_expect(str_contains($backupSource, 'brvtal_backup_create(db()'), 'production backup must call canonical backup creation');
-factory_adapter_expect(str_contains($migrateSource, 'scripts/migrations.php apply'), 'production migration must reuse canonical migration CLI');
+factory_adapter_expect(str_contains($backupSource, 'factory_transport backup'), 'production backup must execute through the strict remote transport');
+factory_adapter_expect(str_contains($migrateSource, 'factory_transport migrate'), 'production migration must execute through the strict remote transport');
 factory_adapter_expect(str_contains($migrateSource, 'BRVTAL_FACTORY_MIGRATION'), 'production migration must name one explicit migration');
 factory_adapter_expect(!str_contains($migrateSource, 'DROP '), 'migration adapter must not contain destructive SQL');
-factory_adapter_expect(str_contains($rollbackSource, 'previous-release'), 'rollback must use artifact release state');
+factory_adapter_expect(str_contains($rollbackSource, 'factory_transport rollback'), 'production rollback must use artifact release state through the strict transport');
 factory_adapter_expect(!str_contains($rollbackSource, 'mysql') && !str_contains($rollbackSource, 'database'), 'rollback must never restore database state');
-factory_adapter_expect(str_contains($commonSource, 'remote activation is not enabled'), 'remote mode must fail closed until a later slice');
+factory_adapter_expect(str_contains($commonSource, 'DEPLOY_TOKEN') && str_contains($commonSource, 'DEPLOY_SSH_KEY'), 'remote mode must require both Factory secret channels');
 factory_adapter_expect(str_contains($commonSource, '/.factory-fixture/'), 'fixture writes must stay inside repository guard');
 factory_adapter_expect(str_contains($deploySource, 'backup marker missing before deploy'), 'deploy must require backup evidence');
 factory_adapter_expect(str_contains($deploySource, 'migration marker missing before deploy'), 'additive deploy must require migration evidence');
@@ -126,7 +125,7 @@ try {
     factory_adapter_remove_tree($migrationFailureRoot);
 
     $disabled = factory_adapter_run($root, 'deploy', array_merge($baseEnv, ['BRVTAL_FACTORY_ADAPTER_MODE' => 'disabled']));
-    factory_adapter_expect($disabled['code'] !== 0, 'remote deploy must stay disabled in this slice');
+    factory_adapter_expect($disabled['code'] !== 0, 'remote deploy must stay disabled without configured transport');
 } finally {
     factory_adapter_remove_tree($fixture);
 }
