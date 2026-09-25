@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #678 endurece el cutover manual de Hostinger para exigir el contrato Factory de readiness exacta antes de tocar autoridad y después de activar el dispatcher. Este PR no ejecuta el cutover ni habilita deploy automático por `push`. Base exacta `main 042643bbb11f14d174c14b85daa43cf57a8493a9` / v0.1.55 GREEN.
+> Snapshot de **solo el deploy actual**: #651 añade reporte de EXCEPTION/FATAL de producción hacia Sentry sin SDK Composer y con un evento remoto deliberadamente libre de PII. Base exacta `main 969dcef8d7595ad0fedf98eb63cbd8eec0aeebcd` / v0.1.56 GREEN.
 
 ## Progress convention
 
@@ -17,13 +17,13 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#678 · cutover readiness gate** | `work/issue-678`; reserva `25cb7c14-808d-42d4-a1ce-b408392e1ddb` |
-| Base exacta | ✅ ~~main v0.1.55 GREEN~~ | `042643bbb11f14d174c14b85daa43cf57a8493a9` |
-| Versión producto | 🚧 **v0.1.56 deploy-bound** | patch 0.1.55 → 0.1.56 |
-| Preflight | 🚧 **read-only antes de PUT** | 200 JSON + versión/SHA exactos + schema ready |
-| Postflight | 🚧 **readiness tras dispatcher** | mismo contrato antes de declarar éxito |
-| Recovery | 🚧 **legacy restore + Git disabled** | nunca reactiva auto-deploy de forma implícita |
-| Producción | ✅ ~~sin cutover en este PR~~ | Hostinger Git conserva autoridad durante este slice |
+| Work line | 🚧 **#651 · production error observability** | `work/issue-651`; reserva `2d507a05-8a19-4c09-afd5-b47489f4b7fa` |
+| Base exacta | ✅ ~~main v0.1.56 GREEN~~ | `969dcef8d7595ad0fedf98eb63cbd8eec0aeebcd` |
+| Versión producto | 🚧 **v0.1.57 deploy-bound** | patch 0.1.56 → 0.1.57 |
+| Local logging | ✅ ~~preservado~~ | mismos handlers y respuestas existentes |
+| Remote error event | 🚧 **allowlist mínima** | clase/tipo, archivo relativo, línea, stack acotado, release |
+| PII remoto | ✅ ~~excluido por diseño~~ | sin request, identidad, body, cookies ni argumentos |
+| Producción | 🚧 **requiere DSN runtime** | no se versiona una credencial/DSN real en Git |
 
 ## Huella del cambio
 
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+184** | **−50** | **+134** |
+| **8** | **+0000** | **−0000** | **+0000** |
 
 ## Calidad y entrega
 
@@ -39,69 +39,71 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | Issue #678 · reserva `25cb7c14-808d-42d4-a1ce-b408392e1ddb` |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| PR + snapshot exacto | Issue #651 · reserva `2d507a05-8a19-4c09-afd5-b47489f4b7fa` |
 | Roles | Infrastructure · SRE · Security · QA |
-| Readiness HTTP | HTTPS bounded, sin redirects, HTTP 200 JSON exacto |
-| Mutación | ningún PUT/bootstrap si falla el preflight |
-| Recovery | fallo post-bootstrap restaura dispatcher legacy cuando puede y deja Git disabled |
-| Review | BRVTAL CI + Factory gates + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
+| DSN | HTTPS, host DNS, clave pública, project id numérico; password/query/fragment rechazados |
+| Transporte | best-effort · 1.2 s máximo · sin redirects · sin retry loop |
+| Payload | allowlist; mensaje raw y argumentos nunca salen del servidor |
+| Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit sobre HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  H["production readiness"] --> P{"exact + schema ready?"}
-  P -->|no| X["abort · zero authority mutation"]
-  P -->|yes| G["disable Hostinger Git"]
-  G --> B["bootstrap Factory dispatcher"]
-  B --> V{"readiness still exact?"}
-  V -->|yes| S["cutover validated"]
-  V -->|no| R["restore legacy dispatcher"]
-  R --> D["Git remains disabled · explicit recovery"]
+  E["uncaught EXCEPTION / FATAL"] --> L["local log"]
+  L --> A["PII-free allowlist event"]
+  A --> D{"valid runtime DSN?"}
+  D -->|no| N["remote no-op"]
+  D -->|yes| S["bounded HTTPS envelope"]
+  S -->|provider unavailable| K["request continues · no retry"]
+  S -->|accepted| O["central error observability"]
 ```
 
 ## Qué se hizo
 
-- Añade una sonda Factory de readiness acotada: HTTPS, sin redirects, tamaño limitado, HTTP 200 y JSON.
-- Exige `status=ok`, versión canónica, SHA exacto de 40 caracteres y `schema_up_to_date=true`.
-- El cutover ejecuta esa sonda antes de cualquier PUT de Hostinger; un fallo deja autoridad y layout intactos.
-- Tras bootstrap/dispatcher, exige nuevamente el mismo contrato antes de declarar éxito.
-- Un fallo post-bootstrap reutiliza el recovery existente: restaura el dispatcher legacy cuando es demostrable y mantiene Hostinger Git disabled.
-- Los errores de la sonda son sanitizados: no incorporan body ni stderr remoto.
-- Los tests cubren éxito, preflight sin mutación, postflight con recovery y contrato HTTP/JSON.
-- No inicializa, baselinea ni aplica migraciones automáticamente y no añade aún el caller permanente `factory/deploy.yml@v1`.
+- Añade un transport PHP pequeño en `config/sentry.php`; no incorpora Composer ni SDK externo.
+- El DSN se lee primero desde `BRVTAL_SENTRY_DSN` y opcionalmente desde la configuración privada persistente.
+- El parser falla cerrado ante esquema no HTTPS, host inválido, password, query/fragment o project id no numérico.
+- Los handlers existentes conservan el log local y añaden reporte remoto solo para excepción no capturada y fatal.
+- Los fallos durante carga de configuración también generan un evento mínimo cuando el DSN está disponible por entorno.
+- El evento remoto no incluye mensaje original, superglobals, request, identidad, variables locales ni argumentos.
+- Los paths se reducen a rutas relativas de la aplicación; paths externos se sustituyen por `[external]`.
+- El transporte usa timeout corto, TLS verificado, cero redirects y cero reintentos.
+- El contrato usa sender falso: CI nunca contacta al proveedor.
 
 ## Archivos modificados en este deploy
 
-- `README.md` — snapshot operacional de #678.
-- `config/version.php` — versión de producto 0.1.56.
-- `ops/factory/hostinger_cutover.py` — gates de readiness pre/post cutover.
-- `ops/factory/transport.py` — sonda HTTPS/JSON exacta y sanitizada.
-- `package.json` — versión de producto 0.1.56.
-- `tests/test_hostinger_cutover.py` — cobertura determinista de readiness y recovery.
+- `README.md` — snapshot operacional de #651.
+- `config/bootstrap.php` — captura fallos severos de carga sin alterar la respuesta.
+- `config/config.example.php` — documenta DSN runtime opcional sin valor real.
+- `config/logger.php` — conecta exception/fatal con el transport remoto.
+- `config/sentry.php` — parser, evento allowlisted, envelope y envío best-effort.
+- `config/version.php` — versión de producto 0.1.57.
+- `package.json` — sincroniza versión 0.1.57.
+- `tests/sentry-contract.php` — DSN, PII, envelope, no-op y handlers deterministas.
 
 ## Validación
 
-- 🚧 Unit/contract de Hostinger debe probar dos sondas exitosas y ambos fallos cerrados.
-- 🚧 Recovery es obligatorio porque cambia la frontera de transferencia de autoridad.
-- 🚧 Factory CI/Policy/Privacy, Sonar y CodeQL deben pasar sobre el HEAD estable.
-- 🚧 CodeRabbit continúa advisory según AGENTS.md; solo hallazgos accionables bloquean.
-- ✅ ~~Producción permanece intacta~~: este PR no ejecuta el workflow manual de cutover.
+- 🚧 PHP 8.5 debe lintar y ejecutar el contrato Sentry sin warnings/deprecations.
+- 🚧 Privacy debe confirmar que el código no introduce señales personales ni un provider asociado a tratamiento personal.
+- 🚧 Factory Policy, Sonar, CodeQL y CodeRabbit deben revisar el HEAD estable.
+- 🚧 Producción debe conservar health/login/home sin 5xx tras el deploy.
+- 🚧 Para cerrar la observabilidad end-to-end falta provisionar el DSN privado y observar un evento sintético controlado.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#678](https://github.com/pl0n3r/brvtal/issues/678): cerrar readiness pre/post del cutover. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): ejecutar el cutover manual desde exact-main GREEN y probar recovery/health. |
-| **LATER** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): integrar el caller permanente `factory/deploy.yml@v1` tras cutover probado. |
-| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels espera paridad central de Factory. |
+| **NOW** | 🚧 [#651](https://github.com/pl0n3r/brvtal/issues/651): integrar transporte y validar configuración runtime. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): publicar/adoptar Factory v1.0.3 y continuar TANDA 2. |
+| **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector en CI. |
+| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): espera publicación del canal Factory v1.0.3. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: integrar #678 sin tocar autoridad de producción.
-- 🚧 **NEXT**: ejecutar cutover manual solo con exact-main + readiness GREEN.
-- 🚧 **LATER**: cerrar #630 con Factory como autoridad de deploy y rollback/health e2e.
-- 🚧 **BLOCKED / EXTERNAL**: #627 sigue fuera hasta paridad completa del kit.
+- 🚧 **NOW**: [#651](https://github.com/pl0n3r/brvtal/issues/651) cerrar código + DSN + evidencia de evento sin PII.
+- 🚧 **NEXT**: [#630](https://github.com/pl0n3r/brvtal/issues/630) retomar adopción central tras la puerta de release Factory.
+- 🚧 **LATER**: [#653](https://github.com/pl0n3r/brvtal/issues/653) elevar análisis estático PHP sin ruido legacy.
+- 🚧 **BLOCKED / EXTERNAL**: [#627](https://github.com/pl0n3r/brvtal/issues/627) no duplica lifecycle de labels mientras `v1` siga atrás.
