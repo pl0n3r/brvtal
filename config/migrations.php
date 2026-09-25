@@ -48,7 +48,7 @@ function brvtalMigrationAssertAdditiveSql(string $sql): void
 
     $sanitized = '';
     $length = strlen($sql);
-    for ($index = 0; $index < $length;) {
+    for ($index = 0; $index < $length; ) {
         $char = $sql[$index];
         $next = $index + 1 < $length ? $sql[$index + 1] : '';
 
@@ -193,6 +193,66 @@ function brvtal_migration_status(PDO $pdo, string $directory): array
         'migrations' => $rows,
         'orphaned_records' => $orphaned,
     ];
+}
+
+
+function brvtal_migration_verify_plan_status(array $status, string $expected): void
+{
+    if ($expected !== '__NONE__' && !preg_match('/^migration_[a-z0-9_]+\\.sql$/', $expected)) {
+        throw new InvalidArgumentException('INVALID_MIGRATION_NAME');
+    }
+    if (($status['registry_exists'] ?? false) !== true) {
+        throw new RuntimeException('MIGRATION_REGISTRY_MISSING');
+    }
+    if (($status['orphaned_records'] ?? []) !== []) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+
+    $rows = $status['migrations'] ?? null;
+    if (!is_array($rows)) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+
+    $pending = [];
+    $expectedSeen = $expected === '__NONE__';
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+        }
+        $name = (string)($row['migration'] ?? '');
+        $state = (string)($row['state'] ?? '');
+        if (!preg_match('/^migration_[a-z0-9_]+\\.sql$/', $name)) {
+            throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+        }
+        if ($name === $expected) {
+            $expectedSeen = true;
+        }
+        if ($state === 'applied') {
+            continue;
+        }
+        if ($state === 'pending') {
+            $pending[] = $name;
+            continue;
+        }
+        if ($state === 'checksum_mismatch') {
+            throw new RuntimeException('MIGRATION_CHECKSUM_MISMATCH');
+        }
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+
+    if (!$expectedSeen) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
+    if ($expected === '__NONE__') {
+        if ($pending !== []) {
+            throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+        }
+        return;
+    }
+
+    if ($pending !== [] && $pending !== [$expected]) {
+        throw new RuntimeException('MIGRATION_PLAN_DB_DRIFT');
+    }
 }
 
 function brvtal_migration_record(
