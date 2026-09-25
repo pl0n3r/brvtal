@@ -26,6 +26,11 @@
       "id": "D-058",
       "status": "active",
       "text": "Cada tarea declara y aplica los roles profesionales que exige; la automatización no genera trabajo manual para el dueño."
+    },
+    {
+      "id": "D-059",
+      "status": "active",
+      "text": "Hostinger: mirar y diagnosticar es libre; cambiar DNS, bases de datos, cron o despliegues exige backup previo y dejarlo registrado en el Issue; borrar sitios, bases de datos o archivos requiere autorización explícita del dueño; ningún agente compra, renueva o cambia planes/pagos."
     }
   ]
 }
