@@ -96,13 +96,13 @@ flowchart LR
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | ⛔ [#681](https://github.com/pl0n3r/brvtal/issues/681): recuperar health exacto sin replay histórico. |
+| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): recuperar health exacto sin replay histórico. |
 | **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar TANDA 2 cuando GREEN vuelva. |
 | **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector. |
 | **BLOCKED / EXTERNAL** | Hostinger write path requires configured transport credentials; never invent or commit them. |
 
 ## Panorama general pendiente
 
-- ⛔ **NOW:** #681 restore production GREEN with backup-gated migration reconciliation.
+- 🚧 **NOW:** #681 restore production GREEN with backup-gated migration reconciliation.
 - 🚧 **NEXT:** #630 complete Factory adoption after exact-main + production validation.
 - 🚧 **LATER:** #653 static-analysis uplift and remaining roadmap work.
