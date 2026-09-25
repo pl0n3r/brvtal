@@ -2,31 +2,36 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-factory_require_fixture
-factory_maybe_fail rollback
-root="$(factory_fixture_root)"
-state="$root/state/previous-release"
-[[ -f "$state" ]] || factory_die "previous release state missing"
-previous="$(cat "$state")"
-current="$root/current"
-
-if [[ "$previous" == "__NONE__" ]]; then
-  if [[ -e "$current" && ! -L "$current" ]]; then
-    factory_die "current release pointer must be a symlink"
-  fi
-  rm -f -- "$current"
-  printf 'Synthetic rollback removed first release pointer\n'
-  exit 0
-fi
-
-[[ -e "$previous" ]] || factory_die "previous release target no longer exists"
-resolved="$(readlink -f "$previous")"
-case "$resolved" in
-  "$root"/releases/*) ;;
-  *) factory_die "previous release target escaped release root" ;;
+case "$(factory_mode)" in
+  fixture)
+    factory_maybe_fail rollback
+    root="$(factory_fixture_root)"
+    state="$root/state/previous-release"
+    [[ -f "$state" ]] || factory_die "previous release state missing"
+    previous="$(cat "$state")"
+    current="$root/current"
+    if [[ "$previous" == "__NONE__" ]]; then
+      if [[ -e "$current" && ! -L "$current" ]]; then factory_die "current release pointer must be a symlink"; fi
+      rm -f -- "$current"
+      printf 'Synthetic rollback removed first release pointer\n'
+      exit 0
+    fi
+    [[ -e "$previous" ]] || factory_die "previous release target no longer exists"
+    resolved="$(readlink -f "$previous")"
+    case "$resolved" in "$root"/releases/*) ;; *) factory_die "previous release target escaped release root" ;; esac
+    tmp="$root/.current.rollback.$$"
+    ln -s -- "$resolved" "$tmp"
+    mv -Tf -- "$tmp" "$current"
+    printf 'Synthetic artifact rollback completed\n'
+    ;;
+  production)
+    factory_require_production_activation
+    factory_maybe_fail rollback
+    sha="$(factory_sha)"
+    factory_transport rollback --sha "$sha"
+    printf 'Production artifact rollback completed\n'
+    ;;
+  *)
+    factory_die "adapter mode disabled; deploy transport credentials are not configured"
+    ;;
 esac
-
-tmp="$root/.current.rollback.$$"
-ln -s -- "$resolved" "$tmp"
-mv -Tf -- "$tmp" "$current"
-printf 'Synthetic artifact rollback completed\n'

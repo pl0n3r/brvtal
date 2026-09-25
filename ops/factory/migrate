@@ -17,14 +17,13 @@ case "$(factory_mode)" in
   production)
     factory_require_production_activation
     factory_maybe_fail migrate
+    sha="$(factory_sha)"
     migration="${BRVTAL_FACTORY_MIGRATION:-}"
     [[ "$migration" =~ ^migration_[a-z0-9_]+\.sql$ ]] || factory_die "BRVTAL_FACTORY_MIGRATION must name one explicit migration file"
-    cd "$BRVTAL_FACTORY_REPO_ROOT"
-    BRVTAL_MIGRATIONS_ALLOW_WRITE=1 \
-    BRVTAL_MIGRATION_ACTOR=factory-deploy \
-      php scripts/migrations.php apply "$migration" --confirm
+    factory_transport migrate --sha "$sha" --migration "$migration"
+    printf 'Remote additive migration completed for %s\n' "$sha"
     ;;
   *)
-    factory_die "adapter mode disabled; remote activation is not enabled"
+    factory_die "adapter mode disabled; deploy transport credentials are not configured"
     ;;
 esac
