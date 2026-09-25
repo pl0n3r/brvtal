@@ -33,7 +33,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+108** | **−42** | **+66** |
+| **3** | **+165** | **−42** | **+123** |
 
 ## Calidad y entrega
 
@@ -75,7 +75,7 @@ flowchart LR
 ## Validación
 
 - 🚧 Factory CI debe terminar en success sobre el mismo HEAD del PR.
-- 🚧 BRVTAL CI debe conservar `validate` verde; este diff selecciona `fast[PHP]`.
+- 🚧 BRVTAL CI debe conservar `validate` verde; este diff selecciona `fast[PHP+JS]`.
 - 🚧 Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable antes del merge.
 - El gap de JS/DB/browser/recovery queda explícito; no se declara equivalencia total.
 
