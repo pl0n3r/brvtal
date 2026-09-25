@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/deployment.php';
-require_once __DIR__ . '/../config/health.php';
+require_once __DIR__ . '/../config/deploy_readiness.php';
 
 $started = microtime(true);
 $exact = brvtalDeploymentIsExact();
@@ -25,26 +25,26 @@ try {
     $pdo = db();
     $pdo->query('SELECT 1');
     $migrationStatus = brvtal_migration_status($pdo, dirname(__DIR__) . '/database');
-    $factoryHealth = brvtalFactoryHealthState($exact, $resolvedSha, $migrationStatus);
-    $statusCode = $factoryHealth['ready'] ? 200 : 503;
+    $readiness = brvtalFactoryReadinessState($exact, $resolvedSha, $migrationStatus);
+    $statusCode = $readiness['ready'] ? 200 : 503;
 
     json_response([
-        'ok' => $factoryHealth['ready'],
+        'ok' => $readiness['ready'],
         'app' => 'BRVTAL',
-        'status' => $factoryHealth['status'],
-        'health_status' => $factoryHealth['health_status'],
+        'status' => $readiness['status'],
+        'health_status' => $readiness['health_status'],
         'database' => 'connected',
         'version' => BRVTAL_APP_VERSION,
-        'release_sha' => $factoryHealth['release_sha'],
-        'schema_up_to_date' => $factoryHealth['schema_up_to_date'],
-        'schema' => brvtalMigrationHealthSummary($migrationStatus),
+        'release_sha' => $readiness['release_sha'],
+        'schema_up_to_date' => $readiness['schema_up_to_date'],
+        'schema' => brvtalMigrationReadinessSummary($migrationStatus),
         'deployment' => $deployment,
         'time' => date(DATE_ATOM),
         'latency_ms' => round((microtime(true) - $started) * 1000, 2),
     ], $statusCode);
 } catch (Throwable $e) {
     brvtal_log('HEALTH_ERROR', 'Standalone health check failed', ['message' => $e->getMessage()]);
-    $factoryHealth = brvtalFactoryHealthState($exact, $resolvedSha, [
+    $readiness = brvtalFactoryReadinessState($exact, $resolvedSha, [
         'registry_exists' => false,
         'migrations' => [],
         'orphaned_records' => [],
@@ -57,7 +57,7 @@ try {
         'health_status' => 'degraded',
         'database' => 'error',
         'version' => BRVTAL_APP_VERSION,
-        'release_sha' => $factoryHealth['release_sha'],
+        'release_sha' => $readiness['release_sha'],
         'schema_up_to_date' => false,
         'deployment' => $deployment,
         'time' => date(DATE_ATOM),
