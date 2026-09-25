@@ -30,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **__FILES__** | **+__ADD__** | **−__DEL__** | **__NET__** |
+| **3** | **+176** | **−50** | **+126** |
 
 ## Calidad y entrega
 
