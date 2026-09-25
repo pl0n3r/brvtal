@@ -99,7 +99,7 @@ flowchart LR
 | **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): recuperar health exacto sin replay histórico. |
 | **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar TANDA 2 cuando GREEN vuelva. |
 | **LATER** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan + Rector. |
-| **BLOCKED / EXTERNAL** | Hostinger write path requires configured transport credentials; never invent or commit them. |
+| **BLOCKED / EXTERNAL** | 🚧 Hostinger write path requires configured transport credentials; never invent or commit them. |
 
 ## Panorama general pendiente
 
