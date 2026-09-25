@@ -15,22 +15,11 @@ case "$(factory_mode)" in
   production)
     factory_require_production_activation
     factory_maybe_fail backup
-    cd "$BRVTAL_FACTORY_REPO_ROOT"
-    php -r '
-      require "config/bootstrap.php";
-      require "config/backups.php";
-      $manifest = brvtal_backup_create(db(), [
-        "include_media_archive" => false,
-        "created_by" => ["id" => 0, "name" => "Factory deploy"],
-      ]);
-      if (($manifest["status"] ?? "") !== "ready") {
-        fwrite(STDERR, "BRVTAL FACTORY ADAPTER: backup did not reach ready state\n");
-        exit(1);
-      }
-      fwrite(STDOUT, "Backup ready: " . (string)($manifest["id"] ?? "unknown") . "\n");
-    '
+    sha="$(factory_sha)"
+    factory_transport backup --sha "$sha"
+    printf 'Remote backup completed for %s\n' "$sha"
     ;;
   *)
-    factory_die "adapter mode disabled; remote activation is not enabled"
+    factory_die "adapter mode disabled; deploy transport credentials are not configured"
     ;;
 esac

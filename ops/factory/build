@@ -2,17 +2,37 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-factory_require_fixture
-factory_maybe_fail build
-root="$(factory_fixture_root)"
-sha="$(factory_sha)"
-version="$(factory_version)"
-release="$root/releases/$sha"
-mkdir -p -- "$release"
-tmp="$release/release.env.tmp.$$"
-{
-  printf 'version=%s\n' "$version"
-  printf 'sha=%s\n' "$sha"
-} > "$tmp"
-mv -f -- "$tmp" "$release/release.env"
-printf 'Built synthetic release %s\n' "$sha"
+case "$(factory_mode)" in
+  fixture)
+    factory_maybe_fail build
+    root="$(factory_fixture_root)"
+    sha="$(factory_sha)"
+    version="$(factory_version)"
+    release="$root/releases/$sha"
+    mkdir -p -- "$release"
+    tmp="$release/release.env.tmp.$$"
+    {
+      printf 'version=%s\n' "$version"
+      printf 'sha=%s\n' "$sha"
+    } > "$tmp"
+    mv -f -- "$tmp" "$release/release.env"
+    printf 'Built synthetic release %s\n' "$sha"
+    ;;
+  production)
+    factory_require_production_activation
+    factory_maybe_fail build
+    sha="$(factory_sha)"
+    version="$(factory_version)"
+    cd "$BRVTAL_FACTORY_REPO_ROOT"
+    head_sha="$(git rev-parse HEAD)"
+    [[ "${head_sha,,}" == "$sha" ]] || factory_die "checkout HEAD must match GITHUB_SHA before packaging"
+    archive="$(mktemp "${TMPDIR:-/tmp}/brvtal-factory-release.XXXXXX")"
+    trap 'rm -f -- "$archive"' EXIT
+    git archive --format=tar "$sha" | gzip -n > "$archive"
+    factory_transport stage --archive "$archive" --sha "$sha" --version "$version"
+    printf 'Production release staged: %s\n' "$sha"
+    ;;
+  *)
+    factory_die "adapter mode disabled; deploy transport credentials are not configured"
+    ;;
+esac

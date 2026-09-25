@@ -9,16 +9,30 @@ factory_die() {
 }
 
 factory_mode() {
-  printf '%s' "${BRVTAL_FACTORY_ADAPTER_MODE:-disabled}"
+  local explicit="${BRVTAL_FACTORY_ADAPTER_MODE:-}"
+  if [[ -n "$explicit" ]]; then
+    case "$explicit" in fixture|production|disabled) printf '%s' "$explicit" ;; *) factory_die "invalid adapter mode" ;; esac
+    return
+  fi
+  if [[ -n "${DEPLOY_TOKEN:-}" || -n "${DEPLOY_SSH_KEY:-}" ]]; then
+    [[ -n "${DEPLOY_TOKEN:-}" && -n "${DEPLOY_SSH_KEY:-}" ]] || factory_die "remote deploy credentials are incomplete"
+    printf 'production'
+    return
+  fi
+  printf 'disabled'
 }
 
 factory_require_fixture() {
-  [[ "$(factory_mode)" == "fixture" ]] || factory_die "fixture mode required; remote activation is disabled in this slice"
+  [[ "$(factory_mode)" == "fixture" ]] || factory_die "fixture mode required"
+}
+
+factory_transport() {
+  python3 "$BRVTAL_FACTORY_REPO_ROOT/ops/factory/transport.py" "$@"
 }
 
 factory_require_production_activation() {
   [[ "$(factory_mode)" == "production" ]] || factory_die "production adapter mode required"
-  [[ "${BRVTAL_FACTORY_REMOTE_ACTIVATION:-0}" == "1" ]] || factory_die "remote activation is not enabled"
+  factory_transport validate >/dev/null
 }
 
 factory_sha() {
