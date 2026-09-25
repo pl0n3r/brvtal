@@ -57,14 +57,26 @@ class FakeApi:
 
 
 class FakeTransport:
-    def __init__(self, *, fail=False):
+    def __init__(self, *, fail=False, active_after_failure=False):
         self.fail = fail
+        self.active = False
+        self.active_after_failure = active_after_failure
         self.calls = []
+        self.restore_calls = 0
 
     def bootstrap(self, config, sha, version, origin):
         self.calls.append((config.user, sha, version, origin))
         if self.fail:
+            self.active = self.active_after_failure
             raise cutover.transport.TransportError("simulated bootstrap failure")
+        self.active = True
+
+    def bootstrap_dispatcher_active(self, _config):
+        return self.active
+
+    def restore_bootstrap(self, _config, _sha):
+        self.restore_calls += 1
+        self.active = False
 
 
 class Config:
@@ -114,11 +126,13 @@ class HostingerCutoverTests(unittest.TestCase):
 
     def test_bootstrap_failure_restores_previous_git_authority(self):
         api = FakeApi(settings())
+        transport = FakeTransport(fail=True, active_after_failure=True)
         with self.assertRaisesRegex(cutover.CutoverError, "authority was restored"):
             cutover.run_cutover(
                 self.client(api), Config(), self.sha, self.version,
-                transport_api=FakeTransport(fail=True),
+                transport_api=transport,
             )
+        self.assertEqual(transport.restore_calls, 1)
         self.assertTrue(api.settings["is_enabled"])
         self.assertEqual(api.calls, ["GET", "PUT", "GET", "PUT", "GET"])
 
@@ -178,6 +192,46 @@ class HostingerCutoverTests(unittest.TestCase):
                 self.client(api), Config(), self.sha, self.version,
                 transport_api=FakeTransport(fail=True),
             )
+
+    def test_post_bootstrap_api_failure_restores_layout_before_git_authority(self):
+        class FailFinalGet(FakeApi):
+            def __init__(self):
+                super().__init__(settings())
+                self.gets = 0
+
+            def __call__(self, request, timeout=0):
+                if request.get_method() == "GET":
+                    self.gets += 1
+                    if self.gets == 3:
+                        raise urllib.error.HTTPError(
+                            request.full_url, 503, "nope", {}, None
+                        )
+                return super().__call__(request, timeout)
+
+        api = FailFinalGet()
+        transport = FakeTransport()
+        with self.assertRaisesRegex(cutover.CutoverError, "authority was restored"):
+            cutover.run_cutover(
+                self.client(api), Config(), self.sha, self.version,
+                transport_api=transport,
+            )
+        self.assertEqual(transport.restore_calls, 1)
+        self.assertFalse(transport.active)
+        self.assertTrue(api.settings["is_enabled"])
+
+    def test_failed_layout_restore_keeps_git_disabled(self):
+        class BrokenRestore(FakeTransport):
+            def restore_bootstrap(self, _config, _sha):
+                raise cutover.transport.TransportError("restore failed")
+
+        api = FakeApi(settings())
+        transport = BrokenRestore(fail=True, active_after_failure=True)
+        with self.assertRaisesRegex(cutover.CutoverError, "Git remains disabled"):
+            cutover.run_cutover(
+                self.client(api), Config(), self.sha, self.version,
+                transport_api=transport,
+            )
+        self.assertFalse(api.settings["is_enabled"])
 
     def test_schema_drift_fails_closed(self):
         raw = settings()

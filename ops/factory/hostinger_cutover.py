@@ -153,22 +153,35 @@ def run_cutover(
 ) -> GitSettings:
     original = client.get()
     disabled = replace(original, is_enabled=False)
-    disabled_confirmed = False
+    authority_may_have_changed = original.is_enabled
+    bootstrap_started = False
+    previous_gate = os.environ.get("BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED")
     try:
         if original.is_enabled:
             client.put(disabled)
         observed = client.get()
         if observed != disabled:
             raise CutoverError("Hostinger Git auto-deploy did not reach disabled state")
-        disabled_confirmed = True
         os.environ["BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED"] = "1"
+        bootstrap_started = True
         transport_api.bootstrap(config, sha, version, ORIGIN)
         final = client.get()
         if final != disabled:
             raise CutoverError("Hostinger Git auto-deploy changed during bootstrap")
         return final
     except Exception as cutover_error:
-        if disabled_confirmed:
+        if bootstrap_started:
+            try:
+                if transport_api.bootstrap_dispatcher_active(config):
+                    transport_api.restore_bootstrap(config, sha)
+                if transport_api.bootstrap_dispatcher_active(config):
+                    raise CutoverError("legacy dispatcher restore did not remove Factory dispatcher")
+            except Exception:
+                raise CutoverError(
+                    "cutover failed and legacy dispatcher restore could not be proven; "
+                    "Hostinger Git remains disabled"
+                ) from None
+        if authority_may_have_changed:
             try:
                 client.put(original)
                 if client.get() != original:
@@ -182,7 +195,12 @@ def run_cutover(
             ) from cutover_error
         if isinstance(cutover_error, CutoverError):
             raise
-        raise CutoverError("cutover failed before Hostinger Git disable was confirmed") from cutover_error
+        raise CutoverError("cutover failed while Hostinger Git was already disabled") from cutover_error
+    finally:
+        if previous_gate is None:
+            os.environ.pop("BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED", None)
+        else:
+            os.environ["BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED"] = previous_gate
 
 
 def main() -> int:

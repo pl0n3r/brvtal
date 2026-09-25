@@ -693,6 +693,11 @@ def restore_bootstrap(config: Config, sha: str) -> None:
     ssh_script(config, _BOOTSTRAP_RESTORE, sha)
 
 
+def bootstrap_dispatcher_active(config: Config) -> bool:
+    """Return whether the Factory dispatcher is currently installed remotely."""
+    return ssh_status(config, _BOOTSTRAP_HAS_DISPATCHER)
+
+
 def bootstrap(config: Config, sha: str, version: str, origin: str) -> None:
     if os.environ.get("BRVTAL_HOSTINGER_GIT_AUTODEPLOY_DISABLED") != "1":
         raise TransportError("Hostinger Git auto-deploy must be disabled before bootstrap")
