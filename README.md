@@ -41,7 +41,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP]** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
 | PR + snapshot exacto | Issue #662 · reserva `0be9f2a0-2cbd-47a5-864d-19536ce1820f` |
 | Factory CI | `ci.yml@v1` · PHP 8.5 · phase live · Node genérico desactivado |
 | Existing gates | BRVTAL CI, Policy, Privacy, Sonar, CodeQL y CodeRabbit permanecen activos |
