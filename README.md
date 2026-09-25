@@ -33,7 +33,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+0** | **−0** | **+0** |
+| **3** | **+108** | **−42** | **+66** |
 
 ## Calidad y entrega
 
