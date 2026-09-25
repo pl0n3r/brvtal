@@ -60,7 +60,7 @@ jobs:
           node-version: '24'
 
       - name: Cache npm downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.npm
           key: ${{ runner.os }}-production-auth-smoke-npm-${{ hashFiles('package.json') }}
@@ -73,7 +73,7 @@ jobs:
 
       - name: Cache Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-production-auth-smoke-chromium-${{ hashFiles('package.json') }}
