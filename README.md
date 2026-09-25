@@ -86,7 +86,7 @@ flowchart LR
 ## Validación
 
 - 🚧 `factory-health-contract.php` debe pasar dentro del gate `fast` junto al suite PHP 8.5 completo.
-- 🚧 Database/recovery/real-stack siguen obligatorios porque el health consulta el estado canónico de migraciones.
+- 🚧 Database/real-stack siguen obligatorios porque el health consulta el estado canónico de migraciones; `recovery` no aplica a este diff según la matriz de CI.
 - 🚧 Factory CI/Policy/Privacy, Sonar y CodeQL deben pasar sobre el HEAD estable.
 - 🚧 CodeRabbit continúa advisory según AGENTS.md; solo hallazgos accionables bloquean.
 - ✅ ~~Producción no cambia de autoridad~~: Hostinger Git continúa hasta el cutover manual posterior.
