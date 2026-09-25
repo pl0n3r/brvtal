@@ -103,7 +103,7 @@ set_exception_handler(
             'line' => $exception->getLine(),
             'trace' => $exception->getTraceAsString()
         ]);
-        brvtal_sentry_capture_exception(
+        brvtalSentryCaptureException(
             $exception,
             is_array($GLOBALS['config'] ?? null) ? $GLOBALS['config'] : []
         );
@@ -143,7 +143,7 @@ register_shutdown_function(
                 'line' => $error['line'],
                 'type' => $error['type']
             ]);
-            brvtal_sentry_capture_fatal(
+            brvtalSentryCaptureFatal(
                 $error,
                 is_array($GLOBALS['config'] ?? null) ? $GLOBALS['config'] : []
             );

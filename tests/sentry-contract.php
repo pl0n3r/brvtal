@@ -13,7 +13,7 @@ function sentry_expect(bool $condition, string $message): void
     }
 }
 
-$valid = brvtal_sentry_parse_dsn('https://public123@ingest.example.invalid/42');
+$valid = brvtalSentryParseDsn('https://public123@ingest.example.invalid/42');
 sentry_expect(is_array($valid), 'valid HTTPS DSN must parse');
 sentry_expect($valid['endpoint'] === 'https://ingest.example.invalid/api/42/envelope/', 'endpoint must derive from DSN');
 sentry_expect($valid['public_key'] === 'public123', 'public key must derive from DSN');
@@ -26,12 +26,12 @@ foreach ([
     'https://short@ingest.example.invalid/42',
     'https://public123@ingest.example.invalid/42?debug=1',
 ] as $invalid) {
-    sentry_expect(brvtal_sentry_parse_dsn($invalid) === null, 'invalid DSN must fail closed');
+    sentry_expect(brvtalSentryParseDsn($invalid) === null, 'invalid DSN must fail closed');
 }
 
 $secretMessage = 'person@example.test 203.0.113.7 token=secret-value';
 $exception = new RuntimeException($secretMessage);
-$event = brvtal_sentry_exception_event($exception);
+$event = brvtalSentryExceptionEvent($exception);
 $encoded = json_encode($event, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
 sentry_expect(preg_match('/^[0-9a-f]{32}$/', (string)$event['event_id']) === 1, 'event id must be 32 hex chars');
 sentry_expect(($event['environment'] ?? null) === 'production', 'environment must be production');
@@ -54,7 +54,7 @@ foreach ($frames as $frame) {
     sentry_expect($filename === '[external]' || !str_starts_with($filename, '/'), 'stack file must never expose absolute server path');
 }
 
-$fatal = brvtal_sentry_fatal_event([
+$fatal = brvtalSentryFatalEvent([
     'type' => E_ERROR,
     'message' => $secretMessage,
     'file' => __FILE__,
@@ -75,7 +75,7 @@ $sender = static function (
     return true;
 };
 $config = ['observability' => ['sentry_dsn' => 'https://public123@ingest.example.invalid/42']];
-sentry_expect(brvtal_sentry_capture_exception($exception, $config, $sender), 'fake transport must report success');
+sentry_expect(brvtalSentryCaptureException($exception, $config, $sender), 'fake transport must report success');
 sentry_expect(($captured['endpoint'] ?? null) === 'https://ingest.example.invalid/api/42/envelope/', 'transport endpoint must be bounded to DSN');
 sentry_expect(($captured['timeout'] ?? 99) <= 1.2, 'transport timeout must remain short');
 $headers = implode("\n", $captured['headers'] ?? []);
@@ -87,10 +87,10 @@ $never = static function () use (&$called): bool {
     $called = true;
     return true;
 };
-sentry_expect(!brvtal_sentry_capture_exception($exception, [], $never), 'missing DSN must disable remote transport');
+sentry_expect(!brvtalSentryCaptureException($exception, [], $never), 'missing DSN must disable remote transport');
 sentry_expect($called === false, 'disabled transport must not invoke sender');
 sentry_expect(
-    !brvtal_sentry_capture_fatal(['type' => E_WARNING, 'file' => __FILE__, 'line' => __LINE__], $config, $sender),
+    !brvtalSentryCaptureFatal(['type' => E_WARNING, 'file' => __FILE__, 'line' => __LINE__], $config, $sender),
     'non-fatal PHP errors must not be sent'
 );
 
@@ -105,19 +105,19 @@ foreach ([
 }
 $bootstrap = (string)file_get_contents(__DIR__ . '/../config/bootstrap.php');
 sentry_expect(
-    str_contains($bootstrap, "function_exists('brvtal_sentry_capture_fatal')"),
+    str_contains($bootstrap, "function_exists('brvtalSentryCaptureFatal')"),
     'bootstrap must remain safe when optional logger transport is unavailable'
 );
 sentry_expect(
-    str_contains($bootstrap, "function_exists('brvtal_sentry_capture_exception')"),
+    str_contains($bootstrap, "function_exists('brvtalSentryCaptureException')"),
     'configuration failure path must guard optional transport'
 );
 
 $logger = (string)file_get_contents(__DIR__ . '/../config/logger.php');
-sentry_expect(str_contains($logger, 'brvtal_sentry_capture_exception('), 'uncaught exception handler must report remotely');
-sentry_expect(str_contains($logger, 'brvtal_sentry_capture_fatal('), 'fatal shutdown handler must report remotely');
-sentry_expect(substr_count($logger, 'brvtal_sentry_capture_exception(') === 1, 'exception reporting must not duplicate');
-sentry_expect(substr_count($logger, 'brvtal_sentry_capture_fatal(') === 1, 'fatal reporting must not duplicate');
+sentry_expect(str_contains($logger, 'brvtalSentryCaptureException('), 'uncaught exception handler must report remotely');
+sentry_expect(str_contains($logger, 'brvtalSentryCaptureFatal('), 'fatal shutdown handler must report remotely');
+sentry_expect(substr_count($logger, 'brvtalSentryCaptureException(') === 1, 'exception reporting must not duplicate');
+sentry_expect(substr_count($logger, 'brvtalSentryCaptureFatal(') === 1, 'fatal reporting must not duplicate');
 
 $example = (string)file_get_contents(__DIR__ . '/../config/config.example.php');
 sentry_expect(str_contains($example, 'BRVTAL_SENTRY_DSN'), 'runtime DSN override must be documented');
