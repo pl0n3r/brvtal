@@ -9,6 +9,7 @@ if (PHP_SAPI !== 'cli') {
 require_once dirname(__DIR__) . '/config/bootstrap.php';
 require_once dirname(__DIR__) . '/config/deployment.php';
 require_once dirname(__DIR__) . '/config/migrations.php';
+require_once dirname(__DIR__) . '/config/migration_reconcile.php';
 
 $root = dirname(__DIR__);
 $directory = $root . '/database';
@@ -79,6 +80,34 @@ try {
         exit($hasMismatch ? 2 : 0);
     }
 
+    if ($command === 'reconcile-plan') {
+        $plan = brvtalMigrationReconciliationPlan($pdo, $directory);
+        if ($json) {
+            echo json_encode($plan, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        } else {
+            echo 'Registry: ' . ($plan['registry_exists'] ? 'present' : 'missing') . PHP_EOL;
+            echo 'Registry record: ' . ($plan['record_registry_migration'] ? 'required' : 'current') . PHP_EOL;
+            foreach ($plan['baseline'] as $name) {
+                echo 'BASELINEABLE ' . $name . PHP_EOL;
+            }
+        }
+        exit(0);
+    }
+
+    if ($command === 'reconcile') {
+        migration_cli_require_write($writeAllowed, $confirmed);
+        if ((string)getenv('BRVTAL_MIGRATION_RECONCILE_BACKUP_READY') !== '1') {
+            migration_cli_fail('reconcile requires BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1');
+        }
+        $result = brvtalMigrationReconcileHistorical($pdo, $directory, $actor, $deploySha);
+        if ($json) {
+            echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+        } else {
+            echo 'RECONCILED ' . count($result['baselined']) . ' historical migrations' . PHP_EOL;
+        }
+        exit(0);
+    }
+
     if ($command === 'verify-plan') {
         $expected = (string)($argv[2] ?? '');
         if ($expected === '') {
@@ -129,8 +158,8 @@ try {
     }
 
     migration_cli_fail(
-        'supported commands: status [--json], verify-plan <name|__NONE__>, ' .
-        'init --confirm, apply <name> --confirm, baseline <name> --confirm'
+        'supported commands: status [--json], reconcile-plan [--json], reconcile --confirm [--json], ' .
+        'verify-plan <name|__NONE__>, init --confirm, apply <name> --confirm, baseline <name> --confirm'
     );
 } catch (Throwable $exception) {
     brvtal_log('MIGRATION_ERROR', 'Migration command failed.', [

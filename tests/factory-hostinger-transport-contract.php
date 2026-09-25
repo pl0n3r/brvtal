@@ -54,6 +54,21 @@ hostinger_expect(str_contains($transportSource, '_ALLOWED_FIELDS'), 'descriptor 
 hostinger_expect(str_contains($transportSource, 'factory-releases') && str_contains($transportSource, 'factory-shared'), 'release layout must separate immutable and shared state');
 hostinger_expect(str_contains($transportSource, '.factory-release-sha'), 'staged artifact must expose exact SHA identity');
 hostinger_expect(str_contains($transportSource, 'verify-plan'), 'remote migration must verify the database registry against the deterministic plan');
+hostinger_expect(str_contains($transportSource, 'inspect-migrations'), 'transport must expose bounded read-only migration inspection');
+hostinger_expect(str_contains($transportSource, 'reconcile-migrations'), 'transport must expose controlled migration reconciliation');
+hostinger_expect(str_contains($transportSource, 'migration-reconcile-backup-'), 'reconciliation must record backup evidence before registry writes');
+hostinger_expect(str_contains($transportSource, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1'), 'reconciliation must pass explicit backup evidence to the CLI');
+
+preg_match_all('/ssh_(?:script|status|capture)\\(config,\\s*(_[A-Z_]+)/', $transportSource, $scriptRefs);
+preg_match_all('/^(_[A-Z_]+) = r"""/m', $transportSource, $scriptDefs);
+$definedScripts = array_count_values($scriptDefs[1] ?? []);
+foreach (array_unique($scriptRefs[1] ?? []) as $scriptRef) {
+    hostinger_expect(($definedScripts[$scriptRef] ?? 0) === 1, "transport script {$scriptRef} must be defined exactly once");
+}
+foreach ($definedScripts as $scriptName => $count) {
+    hostinger_expect($count === 1, "transport script {$scriptName} must not be redefined");
+}
+
 hostinger_expect(str_contains($dispatcherSource, '# BRVTAL FACTORY DISPATCHER v1'), 'dispatcher template must be versioned');
 hostinger_expect(str_contains($dispatcherSource, '.factory-current'), 'dispatcher must route through the bounded release pointer');
 

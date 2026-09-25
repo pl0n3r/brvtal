@@ -16,7 +16,9 @@ migrations_assert(str_contains($registrySql, 'checksum_sha256 CHAR(64) NOT NULL'
 migrations_assert(str_contains($registrySql, 'deploy_sha CHAR(40) NULL'), 'registry must retain deploy provenance when known');
 
 $library = (string)file_get_contents(__DIR__ . '/../config/migrations.php');
+$reconcileLibrary = (string)file_get_contents(__DIR__ . '/../config/migration_reconcile.php');
 require_once __DIR__ . '/../config/migrations.php';
+require_once __DIR__ . '/../config/migration_reconcile.php';
 
 $rejectsNonAdditive = static function (string $sql): bool {
     try {
@@ -46,6 +48,25 @@ $planStatus = static fn(array $rows, bool $registry = true, array $orphans = [])
     'migrations' => $rows,
     'orphaned_records' => $orphans,
 ];
+
+$expectReconciliationFailure = static function (
+    array $status,
+    array $proofs,
+    string $expected,
+    string $message
+): void {
+    try {
+        brvtalMigrationBuildReconciliationPlan($status, $proofs);
+    } catch (RuntimeException $exception) {
+        migrations_assert(
+            $exception->getMessage() === $expected
+                || str_starts_with($exception->getMessage(), $expected),
+            $message
+        );
+        return;
+    }
+    migrations_assert(false, $message);
+};
 
 brvtalMigrationVerifyPlanStatus(
     $planStatus([$applied('migration_schema_migrations_01.sql'), $applied('migration_existing_01.sql')]),
@@ -101,5 +122,116 @@ migrations_assert(str_contains($cli, "if (\$command === 'verify-plan')"), 'tool 
 migrations_assert(str_contains($cli, "if (\$command === 'apply')"), 'tool must support explicit one-migration apply');
 migrations_assert(!str_contains($cli, 'apply-all'), 'tool must not provide automatic apply-all behavior');
 migrations_assert(str_contains($cli, "if (\$command === 'baseline')"), 'existing environments need an explicit baseline operation');
+migrations_assert(str_contains($cli, "if (\$command === 'reconcile-plan')"), 'tool must expose one read-only historical reconciliation plan');
+migrations_assert(str_contains($cli, "if (\$command === 'reconcile')"), 'tool must expose one controlled reconciliation command');
+migrations_assert(str_contains($cli, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY'), 'historical reconciliation writes must require backup evidence');
+
+$specifications = brvtalMigrationProofSpecifications();
+$diskMigrations = array_map('basename', glob(__DIR__ . '/../database/migration_*.sql') ?: []);
+sort($diskMigrations);
+$proofMigrations = array_keys($specifications);
+$expectedHistorical = array_values(array_filter(
+    $diskMigrations,
+    static fn(string $name): bool => $name !== 'migration_schema_migrations_01.sql'
+));
+sort($expectedHistorical);
+sort($proofMigrations);
+migrations_assert($proofMigrations === $expectedHistorical, 'every historical migration must have an explicit proof specification');
+
+$proofAll = brvtalMigrationEvaluateRequirements(
+    ['table:alpha', 'column:alpha.beta'],
+    static fn(string $requirement): bool => true
+);
+migrations_assert(($proofAll['complete'] ?? false) === true, 'all structural proof requirements true must be complete');
+$proofPartial = brvtalMigrationEvaluateRequirements(
+    ['table:alpha', 'column:alpha.beta'],
+    static fn(string $requirement): bool => $requirement === 'table:alpha'
+);
+migrations_assert(($proofPartial['complete'] ?? true) === false, 'one missing structural proof must fail closed');
+
+$pendingHistorical = 'migration_blog_01.sql';
+$plan = brvtalMigrationBuildReconciliationPlan(
+    [
+        'registry_exists' => false,
+        'migrations' => [
+            $pending('migration_schema_migrations_01.sql'),
+            $pending($pendingHistorical),
+        ],
+        'orphaned_records' => [],
+    ],
+    [
+        $pendingHistorical => ['complete' => true, 'checks' => ['table:blog_posts' => true]],
+    ]
+);
+migrations_assert($plan['record_registry_migration'] === true, 'missing registry must require registry recording');
+migrations_assert($plan['baseline'] === [$pendingHistorical], 'only structurally proven pending history may be baselined');
+
+$expectReconciliationFailure(
+    $planStatus(
+        [$pending('migration_schema_migrations_01.sql'), $pending($pendingHistorical)],
+        false
+    ),
+    [$pendingHistorical => ['complete' => false, 'checks' => ['table:blog_posts' => false]]],
+    'MIGRATION_SCHEMA_PROOF_FAILED:',
+    'ambiguous or missing structural state must abort reconciliation'
+);
+$expectReconciliationFailure(
+    $planStatus(
+        [$applied('migration_schema_migrations_01.sql')],
+        true,
+        [['migration' => 'migration_orphan_01.sql']]
+    ),
+    [],
+    'MIGRATION_RECONCILIATION_ORPHAN',
+    'orphan registry records must abort reconciliation'
+);
+$expectReconciliationFailure(
+    $planStatus([
+        $applied('migration_schema_migrations_01.sql'),
+        ['migration' => $pendingHistorical, 'state' => 'checksum_mismatch'],
+    ]),
+    [],
+    'MIGRATION_CHECKSUM_MISMATCH',
+    'checksum mismatch must abort reconciliation'
+);
+$expectReconciliationFailure(
+    $planStatus([
+        $applied('migration_schema_migrations_01.sql'),
+        $pending($pendingHistorical),
+    ]),
+    [],
+    'MIGRATION_SCHEMA_PROOF_FAILED:' . $pendingHistorical,
+    'pending historical migration without proof must abort'
+);
+$expectReconciliationFailure(
+    $planStatus([
+        $applied('migration_schema_migrations_01.sql'),
+        $pending($pendingHistorical),
+    ]),
+    [$pendingHistorical => ['complete' => true, 'checks' => ['table:blog_posts' => false]]],
+    'MIGRATION_SCHEMA_PROOF_FAILED:' . $pendingHistorical,
+    'complete proof with a false structural check must abort'
+);
+
+$registryAppliedPlan = brvtalMigrationBuildReconciliationPlan(
+    [
+        'registry_exists' => true,
+        'migrations' => [
+            $applied('migration_schema_migrations_01.sql'),
+            $applied($pendingHistorical),
+        ],
+        'orphaned_records' => [],
+    ],
+    []
+);
+migrations_assert($registryAppliedPlan['record_registry_migration'] === false, 'applied registry migration must not be recorded again');
+
+migrations_assert(str_contains($reconcileLibrary, 'information_schema.TABLES'), 'proofs must use structural metadata');
+migrations_assert(str_contains($reconcileLibrary, 'information_schema.COLUMNS'), 'proofs must inspect columns');
+migrations_assert(str_contains($reconcileLibrary, 'COLUMN_TYPE'), 'column proofs must verify stable definitions when declared');
+migrations_assert(str_contains($reconcileLibrary, 'information_schema.STATISTICS'), 'proofs must inspect indexes');
+migrations_assert(str_contains($reconcileLibrary, 'information_schema.TRIGGERS'), 'proofs must inspect triggers');
+migrations_assert(str_contains($reconcileLibrary, 'ACTION_STATEMENT'), 'trigger proofs must verify body semantics when declared');
+migrations_assert(!str_contains($reconcileLibrary, 'SELECT * FROM'), 'proofs must never inspect application rows');
 
 echo "BRVTAL migration-state contract tests passed.\n";
