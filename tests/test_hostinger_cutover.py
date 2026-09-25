@@ -5,7 +5,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 FACTORY = ROOT / "ops" / "factory"
 sys.path.insert(0, str(FACTORY))
 SPEC = importlib.util.spec_from_file_location("hostinger_cutover", FACTORY / "hostinger_cutover.py")
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 cutover = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = cutover
 SPEC.loader.exec_module(cutover)
@@ -107,14 +108,16 @@ class CutoverTests(unittest.TestCase):
         ):
             with self.subTest(change=change):
                 api = FakeApi(settings(**change))
+                transport = FakeTransport()
                 with self.assertRaises(cutover.CutoverError):
-                    self.run(api, FakeTransport())
+                    self.run(api, transport)
                 self.assertEqual(api.calls, ["GET"])
 
     def test_api_error_is_sanitized(self):
         api = FakeApi(fail=("GET", 1))
+        transport = FakeTransport()
         with self.assertRaises(cutover.CutoverError) as raised:
-            self.run(api, FakeTransport())
+            self.run(api, transport)
         self.assertIn("HTTP 503", str(raised.exception))
         self.assertNotIn(self.token, str(raised.exception))
 
@@ -143,8 +146,10 @@ class CutoverTests(unittest.TestCase):
 
     def test_schema_drift_and_disable_failure_fail_closed(self):
         drift = settings(extra="unexpected")
+        drift_api = FakeApi(drift)
+        drift_client = self.client(drift_api)
         with self.assertRaisesRegex(cutover.CutoverError, "schema is unexpected"):
-            self.client(FakeApi(drift)).get()
+            drift_client.get()
         api, transport = FakeApi(fail=("PUT", 1)), FakeTransport()
         with self.assertRaises(cutover.CutoverError):
             self.run(api, transport)
