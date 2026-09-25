@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | Work line | 🚧 **#674 · deterministic additive migration selection** | `work/issue-674`; reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
 | Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `4b0e0c89ab09d80963af169aca18165fe9fbcd03` |
-| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; deploy automático sigue cerrado |
+| Versión producto | 🚧 **v0.1.54 deploy-bound** | patch obligatorio 0.1.53 → 0.1.54; cutover/push siguen cerrados |
 | Selección | 🚧 **release servido → release candidato** | 0 nuevas = no-op; 1 = valida/aplica; >1 = fail-closed |
 | Historial | 🚧 **inmutable por nombre + checksum** | cambiar o retirar una migración previa aborta |
 | SQL aditivo | 🚧 **defense in depth** | DROP/TRUNCATE/DELETE/REPLACE/rename/change/modify se rechazan |
@@ -31,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+309** | **−58** | **+251** |
+| **10** | **+307** | **−56** | **+251** |
 
 ## Calidad y entrega
 
