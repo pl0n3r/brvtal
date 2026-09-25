@@ -16,6 +16,22 @@ migrations_assert(str_contains($registrySql, 'checksum_sha256 CHAR(64) NOT NULL'
 migrations_assert(str_contains($registrySql, 'deploy_sha CHAR(40) NULL'), 'registry must retain deploy provenance when known');
 
 $library = (string)file_get_contents(__DIR__ . '/../config/migrations.php');
+require_once __DIR__ . '/../config/migrations.php';
+
+$rejectsNonAdditive = static function (string $sql): bool {
+    try {
+        brvtalMigrationAssertAdditiveSql($sql);
+        return false;
+    } catch (RuntimeException $exception) {
+        return $exception->getMessage() === 'MIGRATION_NON_ADDITIVE_SQL';
+    }
+};
+
+migrations_assert(!$rejectsNonAdditive("CREATE TABLE IF NOT EXISTS additive_probe (id INT);"), 'additive DDL must pass the automatic scanner');
+migrations_assert(!$rejectsNonAdditive("-- DROP TABLE ignored_probe\nCREATE TABLE additive_probe_2 (id INT);"), 'commented destructive tokens must be ignored');
+migrations_assert($rejectsNonAdditive("DROP TABLE users;"), 'DROP must be rejected');
+migrations_assert($rejectsNonAdditive("INSERT INTO swatches VALUES ('#fff'); DROP TABLE users;"), 'string literals containing # must not mask later destructive SQL');
+migrations_assert($rejectsNonAdditive("DELETE IGNORE FROM users;"), 'DELETE modifiers must be rejected');
 foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtalMigrationAssertAdditiveSql'] as $function) {
     migrations_assert(str_contains($library, "function {$function}"), "migration library must expose {$function}");
 }
