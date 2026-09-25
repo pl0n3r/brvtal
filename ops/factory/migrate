@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/common.sh"
+
+[[ "${MIGRATION_MODE:-none}" == "additive" ]] || factory_die "migrate adapter only accepts MIGRATION_MODE=additive"
+
+case "$(factory_mode)" in
+  fixture)
+    factory_maybe_fail migrate
+    root="$(factory_fixture_root)"
+    sha="$(factory_sha)"
+    [[ -f "$root/backups/$sha.ok" ]] || factory_die "backup marker missing before migration"
+    mkdir -p -- "$root/migrations"
+    factory_atomic_write "$root/migrations/$sha.ok" "additive-migration-ready"
+    printf 'Synthetic additive migration completed for %s\n' "$sha"
+    ;;
+  production)
+    factory_require_production_activation
+    factory_maybe_fail migrate
+    migration="${BRVTAL_FACTORY_MIGRATION:-}"
+    [[ "$migration" =~ ^migration_[a-z0-9_]+\.sql$ ]] || factory_die "BRVTAL_FACTORY_MIGRATION must name one explicit migration file"
+    cd "$BRVTAL_FACTORY_REPO_ROOT"
+    BRVTAL_MIGRATIONS_ALLOW_WRITE=1 \
+    BRVTAL_MIGRATION_ACTOR=factory-deploy \
+      php scripts/migrations.php apply "$migration" --confirm
+    ;;
+  *)
+    factory_die "adapter mode disabled; remote activation is not enabled"
+    ;;
+esac
