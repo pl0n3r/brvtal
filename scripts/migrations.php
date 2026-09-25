@@ -85,7 +85,7 @@ try {
             migration_cli_fail('usage: verify-plan <migration_name.sql|__NONE__>');
         }
         $status = brvtal_migration_status($pdo, $directory);
-        brvtal_migration_verify_plan_status($status, $expected);
+        brvtalMigrationVerifyPlanStatus($status, $expected);
         echo "VERIFIED {$expected}" . PHP_EOL;
         exit(0);
     }
@@ -128,7 +128,10 @@ try {
         exit(0);
     }
 
-    migration_cli_fail('supported commands: status [--json], verify-plan <name|__NONE__>, init --confirm, apply <name> --confirm, baseline <name> --confirm');
+    migration_cli_fail(
+        'supported commands: status [--json], verify-plan <name|__NONE__>, ' .
+        'init --confirm, apply <name> --confirm, baseline <name> --confirm'
+    );
 } catch (Throwable $exception) {
     brvtal_log('MIGRATION_ERROR', 'Migration command failed.', [
         'command' => $command,
