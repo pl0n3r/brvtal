@@ -121,7 +121,7 @@ try {
 deployment_expect(str_contains($endpoint, "'data' => brvtalDeploymentPublicData()"), 'deployment endpoint must publish the executable deployment data contract');
 deployment_expect(
     str_contains($health, "'source' => brvtal_deployment_source()")
-        && str_contains($health, "'deployment' => $deployment"),
+        && str_contains($health, "'deployment' => \$deployment"),
     'health response must identify deployed source'
 );
 deployment_expect(is_array($package), 'package.json must remain valid JSON');
