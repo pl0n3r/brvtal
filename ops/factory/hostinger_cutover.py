@@ -152,7 +152,7 @@ def run_cutover(
     transport_api: Any = transport,
 ) -> GitSettings:
     original = client.get()
-    transport_api.assert_factory_health(ORIGIN, sha, version)
+    transport_api.assert_factory_readiness(ORIGIN, sha, version)
     disabled = replace(original, is_enabled=False)
     bootstrap_started = False
     disabled_confirmed = False
@@ -170,7 +170,7 @@ def run_cutover(
         final = client.get()
         if final != disabled:
             raise CutoverError("Hostinger Git auto-deploy changed during bootstrap")
-        transport_api.assert_factory_health(ORIGIN, sha, version)
+        transport_api.assert_factory_readiness(ORIGIN, sha, version)
         return final
     except Exception as cutover_error:
         if bootstrap_started:
