@@ -65,7 +65,7 @@ flowchart LR
 
 ## Qué se hizo
 
-- Añade `config/health.php` con un modelo puro/fail-closed para readiness Factory y resumen acotado del registro de migraciones.
+- Añade `config/deploy_readiness.php` con un modelo puro/fail-closed para readiness Factory y resumen acotado del registro de migraciones.
 - `/api/health.php` exige identidad exacta y reutiliza `brvtalMigrationVerifyPlanStatus(..., "__NONE__")` como única definición de schema listo.
 - El endpoint devuelve 200 únicamente con `status=ok`, versión canónica, SHA exacto y `schema_up_to_date=true`; cualquier drift o identidad no exacta devuelve 503.
 - Se preservan los diagnósticos operativos existentes y se añade `health_status=healthy|degraded` para el descriptor humano.
@@ -76,7 +76,7 @@ flowchart LR
 ## Archivos modificados en este deploy
 
 - `api/health.php` — contrato Factory exacto + respuesta fail-closed.
-- `config/health.php` — modelo puro de readiness y resumen de schema.
+- `config/deploy_readiness.php` — modelo puro de readiness y resumen de schema.
 - `config/version.php` — versión de producto 0.1.55.
 - `package.json` — versión de producto 0.1.55.
 - `tests/factory-health-contract.php` — cobertura determinista de identidad/schema/read-only.
