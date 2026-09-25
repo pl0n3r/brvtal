@@ -6,7 +6,9 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #654 adopta privacidad como código de Factory con seis documentos canónicos. Base exacta `main` v0.1.51 `18fe7ef118645d791653916ca7d65e2699bb1435`; candidata **v0.1.52**.
+> Snapshot de **solo el deploy actual**: #649 recupera la configuración agrupada de Dependabot
+> sobre `main` v0.1.52 `61af0df4ca4d6bdbe3dd7a04500fdf2278b2105b`. Es mantenimiento
+> de repositorio: no cambia runtime ni incrementa la versión de producto.
 
 ## Progress convention
 
@@ -17,11 +19,11 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#654 · privacy as code** | `work/issue-654`; reserva `a84619b3-90b8-4847-8bfd-9f7c2d2597f7` |
-| Base exacta | ✅ ~~main v0.1.51~~ | `18fe7ef118645d791653916ca7d65e2699bb1435` |
-| Versión objetivo | 🚧 **v0.1.52** | `config/version.php` + `package.json` |
+| Work line | 🚧 **#649 · grouped Dependabot** | `work/issue-649`; reserva `1ba2e6a3-8658-4061-ab01-d88d20ef2bab` |
+| Base exacta | ✅ ~~main v0.1.52~~ | `61af0df4ca4d6bdbe3dd7a04500fdf2278b2105b` |
+| Versión producto | ✅ ~~v0.1.52 sin cambio~~ | mantenimiento de repositorio; no deploy-bound |
 | CI/Sonar/CodeRabbit | 🚧 pendiente | revalidar HEAD final |
-| Producción | 🚧 pendiente | merge → exact-main → observer → validación |
+| Producción | ✅ ~~sin cambio de runtime~~ | no modifica superficie productiva |
 
 ## Huella del cambio
 
@@ -29,7 +31,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+844** | **−47** | **+797** |
+| **2** | **+59** | **−54** | **+5** |
 
 ## Calidad y entrega
 
@@ -37,9 +39,8 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| PR + snapshot exacto | Issue #654 · reserva `a84619b3-90b8-4847-8bfd-9f7c2d2597f7` |
-| Privacy gate | Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`, seis documentos |
+| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
+| PR + snapshot exacto | Issue #649 · reserva `1ba2e6a3-8658-4061-ab01-d88d20ef2bab` |
 | CodeRabbit / Sonar | 🚧 revisión del HEAD estable |
 | CI del SHA exacto de main | 🚧 después del merge |
 
@@ -47,67 +48,42 @@
 
 ```mermaid
 flowchart LR
-  B["main v0.1.51 · 18fe7ef"] --> P["#654 · datos.yml + 6 docs"]
-  P --> G["privacy gate + contracts"]
-  G --> C["BRVTAL CI + Sonar + CodeRabbit"]
-  C --> M["Squash merge"] --> V["CI exact-main + observer"]
+  B["main v0.1.52 · 61af0df"] --> P["#649 · Dependabot agrupado"]
+  P --> C["BRVTAL CI + Sonar + CodeRabbit"]
+  C --> M["Squash merge"] --> V["CI exact-main"]
 ```
 
 ## Qué se hizo
 
-- Documenta identidad/admin, contraseña, TOTP y recuperación sin secretos ni PII real.
-- Documenta contacto público como entrega transitoria; no afirma persistencia en la base BRVTAL.
-- Documenta rate limits mediante hashes derivados; la retención física queda `review_required` mientras las ventanas operativas de 15 minutos se verifican por contrato.
-- Declara Google Analytics solo para la capa pública GTM respaldada por código; configuración externa y retención siguen `review_required`.
-- Mantiene desconocido el proveedor real de correo/MTA en vez de inventarlo.
-- Genera exactamente seis documentos desde Factory y conserva responsable/bases/consentimientos como `[COMPLETAR POR EL DUEÑO]` / `review_required`.
-- Añade callers mínimos, sin secretos, fijados a Factory `4b2be9fcf827278631caa3e3e68603b6e2a680d7`.
-- El contrato reconstruye desde `datos.yml` las filas/bloques relevantes de política, aviso, registro y retención, sin fijar snapshots SHA-256 permanentes.
-- Compacta `AGENTS.md` de 362 a 359 líneas sin eliminar reglas, restaurando el contrato heredado de máximo 360 líneas.
-- Asegura que cambios solo en `docs/privacidad/` ejecuten el contrato PHP y fija esa selección con una regresión de `ci-scope`.
-- Refuerza la exclusividad de Google Analytics: solo `public_gtm_measurement` puede declararlo como proveedor.
-- Separa retención física de expiración operativa: TOTP pendiente sigue utilizable 10 minutos pero vive como máximo con la sesión de 30 días; los archivos de rate-limit quedan `review_required` hasta existir una política de limpieza observable.
-- Restaura un señuelo `data-measure-email` y verifica por eventos reales que ningún valor declarativo, de formulario o query llegue al `dataLayer`.
+- Programa actualizaciones semanales para npm y GitHub Actions.
+- Agrupa actualizaciones minor/patch y limita a tres PR abiertos por ecosistema.
+- Aplica etiquetas canónicas de tipo, prioridad y revisión a los PR de Dependabot.
+- Deja listo el canal para futuras propuestas de versiones `pl0n3r/factory@vN` una vez aparezcan referencias consumidas.
+- No cambia código de aplicación, base de datos, secretos, permisos ni versión de producto.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/auditoria-privacidad.yml`
-- `.github/workflows/privacidad.yml`
-- `AGENTS.md`
+- `.github/dependabot.yml`
 - `README.md`
-- `config/version.php`
-- `datos.yml`
-- `docs/privacidad/aviso-privacidad.md`
-- `docs/privacidad/canal-derechos.md`
-- `docs/privacidad/politica-tratamiento.md`
-- `docs/privacidad/registro-tratamientos.md`
-- `docs/privacidad/retencion.md`
-- `docs/privacidad/terminos-condiciones.md`
-- `package.json`
-- `scripts/ci-scope.sh`
-- `tests/ci-scope-contract.php`
-- `tests/e2e/public-measurement.spec.mjs`
-- `tests/privacy-as-code-contract.php`
 
 ## Validación
 
-- 🚧 BRVTAL CI debe validar contratos PHP/JS, MariaDB, Chromium, real-stack y WebKit sobre el HEAD final.
-- 🚧 Privacy reusable debe comparar `datos.yml` y los seis documentos contra Factory.
-- 🚧 Sonar y CodeRabbit deben revisar el HEAD estable antes del merge.
-- La revisión jurídica humana permanece separada; estos documentos no declaran cumplimiento legal.
+- 🚧 BRVTAL CI debe validar coordinación, contratos rápidos y snapshot exacto.
+- 🚧 Sonar y CodeRabbit deben terminar sobre el HEAD estable antes del merge.
+- El cambio no requiere escritura productiva ni migración.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#654](https://github.com/pl0n3r/brvtal/issues/654): cerrar privacidad como código con gates verdes. |
-| **NEXT** | 🚧 [Factory #54](https://github.com/pl0n3r/factory/issues/54): revalidar adopciones Condor/GrindFlow/BRVTAL. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar Roadmap tras TANDA 1. |
-| **BLOCKED / EXTERNAL** | 🚧 revisión jurídica material y Factory `v1.0.0` permanecen separados del merge técnico. |
+| **NOW** | 🚧 [#649](https://github.com/pl0n3r/brvtal/issues/649): integrar Dependabot agrupado. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): iniciar TANDA 2 del kit Factory. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
+| **BLOCKED / EXTERNAL** | 🚧 Factory v1.0.1 permanece owner-gated y separado de este PR. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: integrar #654 sin inventar proveedor de correo ni configuración GTM externa.
-- 🚧 **NEXT**: aportar evidencia de BRVTAL a Factory #54.
-- 🚧 **LATER**: mantener producción verde durante el cierre de TANDA 1.
-- 🚧 **BLOCKED / EXTERNAL**: TANDA 2 sigue prohibida hasta Factory `v1.0.0`.
+- 🚧 **NOW**: cerrar #649 con gates verdes.
+- 🚧 **NEXT**: reservar el primer slice de #630 cuando este PR libere el repo.
+- 🚧 **LATER**: continuar #533 sin duplicar trabajo de otros agentes.
+- 🚧 **BLOCKED / EXTERNAL**: publicación Factory v1.0.1 requiere la puerta humana #108.
