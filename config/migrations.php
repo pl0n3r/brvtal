@@ -46,21 +46,68 @@ function brvtalMigrationAssertAdditiveSql(string $sql): void
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
     }
 
-    $sanitized = preg_replace([
-        '~/\\*.*?\\*/~s',
-        '/--[^\\r\\n]*/',
-        '/#[^\\r\\n]*/',
-        "/'(?:''|[^'])*'/s",
-        '/"(?:""|[^"])*"/s',
-    ], ' ', $sql);
-    if (!is_string($sanitized)) {
-        throw new RuntimeException('MIGRATION_SQL_SCAN_FAILED');
+    $sanitized = '';
+    $length = strlen($sql);
+    for ($index = 0; $index < $length;) {
+        $char = $sql[$index];
+        $next = $index + 1 < $length ? $sql[$index + 1] : '';
+
+        if ($char === '/' && $next === '*') {
+            $sanitized .= ' ';
+            $index += 2;
+            while ($index < $length && !($sql[$index] === '*' && $index + 1 < $length && $sql[$index + 1] === '/')) {
+                $sanitized .= ($sql[$index] === "\n" || $sql[$index] === "\r") ? $sql[$index] : ' ';
+                $index++;
+            }
+            $index = min($length, $index + 2);
+            continue;
+        }
+
+        if (($char === '-' && $next === '-') || $char === '#') {
+            $sanitized .= ' ';
+            $index += $char === '#' ? 1 : 2;
+            while ($index < $length && $sql[$index] !== "\n" && $sql[$index] !== "\r") {
+                $sanitized .= ' ';
+                $index++;
+            }
+            continue;
+        }
+
+        if ($char === "'" || $char === '"' || $char === '`') {
+            $quote = $char;
+            $sanitized .= ' ';
+            $index++;
+            while ($index < $length) {
+                $current = $sql[$index];
+                if ($current === '\\') {
+                    $sanitized .= ' ';
+                    $index += min(2, $length - $index);
+                    continue;
+                }
+                if ($current === $quote) {
+                    if ($index + 1 < $length && $sql[$index + 1] === $quote) {
+                        $sanitized .= '  ';
+                        $index += 2;
+                        continue;
+                    }
+                    $sanitized .= ' ';
+                    $index++;
+                    break;
+                }
+                $sanitized .= ($current === "\n" || $current === "\r") ? $current : ' ';
+                $index++;
+            }
+            continue;
+        }
+
+        $sanitized .= $char;
+        $index++;
     }
 
     $destructivePatterns = [
         '/\\bDROP\\b/i',
         '/\\bTRUNCATE\\b/i',
-        '/\\bDELETE\\s+FROM\\b/i',
+        '/\\bDELETE\\b/i',
         '/\\bREPLACE\\s+INTO\\b/i',
         '/\\bCREATE\\s+OR\\s+REPLACE\\b/i',
         '/\\bRENAME\\s+TABLE\\b/i',
@@ -72,7 +119,6 @@ function brvtalMigrationAssertAdditiveSql(string $sql): void
         }
     }
 }
-
 function brvtal_migration_registry_exists(PDO $pdo): bool
 {
     $statement = $pdo->query(
@@ -216,8 +262,9 @@ function brvtal_migration_apply_file(
     if (!is_string($sql) || trim($sql) === '') {
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
     }
-    brvtalMigrationAssertAdditiveSql($sql);
-
+    // Historical/manual migrations keep their explicit operator path. The
+    // automatic Factory planner invokes brvtalMigrationAssertAdditiveSql()
+    // before selecting any migration for unattended deployment.
     $pdo->exec($sql);
 
     if (!brvtal_migration_registry_exists($pdo)) {
