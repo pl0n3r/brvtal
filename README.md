@@ -1,17 +1,28 @@
 # BRVTAL — Último deploy
 
-> Snapshot actual: #625 adopta `release.yml@v1` como único creador de tag/GitHub Release para cambios de versión. Base exacta `main 1971ee5a38e09d5e48634b517ee6ba3dab07c072` / v0.1.52; candidato deploy-bound **v0.1.53**.
+<p align="center">
+  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml"><img alt="BRVTAL CI" src="https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg?branch=main"></a>
+  <a href="https://sonarcloud.io/dashboard?id=pl0n3r_brvtal"><img alt="Sonar Quality Gate" src="https://sonarcloud.io/api/project_badges/measure?project=pl0n3r_brvtal&metric=alert_status"></a>
+  <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
+</p>
+
+> Snapshot de **solo el deploy actual**: #625 adopta `release.yml@v1` de Factory como único creador de tag/GitHub Release para cambios de versión. Base exacta `main 1971ee5a38e09d5e48634b517ee6ba3dab07c072` / v0.1.52; candidato deploy-bound **v0.1.53**.
+
+## Progress convention
+
+- ✅ ~~Struck through~~ = completed and verified through the required delivery gates.
+- 🚧 Normal text = pending or currently in progress.
 
 ## Estado del deploy
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
 | Work line | 🚧 **#625 · Factory Release v1** | `work/issue-625`; reserva `0b0f011d-1a58-4dc3-bcb6-2a982824cfb9` |
-| Base exacta | ✅ **v0.1.52 GREEN** | `1971ee5a38e09d5e48634b517ee6ba3dab07c072`; BRVTAL CI + Deploy Observer success |
+| Base exacta | ✅ ~~main v0.1.52~~ | `1971ee5a38e09d5e48634b517ee6ba3dab07c072`; BRVTAL CI + Deploy Observer success |
 | Candidato | 🚧 **v0.1.53** | `config/version.php` + `package.json` sincronizados |
 | Release Factory | 🚧 pendiente | solo `push main` cuando cambia `config/version.php` |
-| Tags / Releases actuales | ✅ **ninguno** | el primer tag se crea después del merge |
-| Producción | ✅ **v0.1.52 observada** | v0.1.53 se valida por separado después del merge |
+| Tags / Releases actuales | ✅ ~~ninguno~~ | el primer tag se crea después del merge |
+| Producción | ✅ ~~v0.1.52 observada~~ | v0.1.53 se valida por separado después del merge |
 
 ## Huella del cambio
 
@@ -28,11 +39,13 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| PR + snapshot exacto | Issue #625 · reserva `0b0f011d-1a58-4dc3-bcb6-2a982824cfb9` |
 | Factory Release | `release.yml@v1` · `php-const` · `BRVTAL_APP_VERSION` · solo `contents: write` |
 | Trigger | `push` a `main` solo si cambia `config/version.php` |
 | Existing gates | BRVTAL CI, Factory CI, Policy, Privacy, Sonar, CodeQL y CodeRabbit permanecen activos |
+| CI del SHA exacto de main | 🚧 después del merge |
 
-## Flujo
+## Flujo de entrega
 
 ```mermaid
 flowchart LR
@@ -51,10 +64,10 @@ flowchart LR
 - Factory lee la versión sin ejecutar PHP con `version_format: php-const` y `version_key: BRVTAL_APP_VERSION`.
 - El único permiso de escritura es `contents: write`, necesario para tag anotado y GitHub Release; no hay secretos ni refs dinámicas.
 - Añade regresión contra triggers extra, dispatch manual, secretos, `kit_ref`, bootstrap y lógica local de `git tag`/`gh release`.
-- Sincroniza el candidato a **v0.1.53** en PHP y `package.json`.
+- Sincroniza el candidato a **v0.1.53** en `config/version.php` y `package.json`.
 - `update-release-metadata.yml` sigue siendo BRVTAL CI; no crea tags ni Releases y no compite con Factory Release.
 
-## Archivos modificados
+## Archivos modificados en este deploy
 
 - `.github/workflows/factory-release.yml`
 - `README.md`
@@ -72,10 +85,10 @@ flowchart LR
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 #625 — Factory Release v1 + primera evidencia real. |
-| **NEXT** | 🚧 #627 — labels Factory sin `pull_request_target`. |
-| **LATER** | 🚧 #624 — coordinación/carga GitHub y cierre por kit. |
-| **EPIC** | 🚧 #630 — continuar TANDA 2 hacia deploy/rollback. |
+| **NOW** | 🚧 [#625](https://github.com/pl0n3r/brvtal/issues/625): Factory Release v1 + primera evidencia real. |
+| **NEXT** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels Factory sin `pull_request_target`. |
+| **LATER** | 🚧 [#624](https://github.com/pl0n3r/brvtal/issues/624): coordinación/carga GitHub y cierre por kit. |
+| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo para este slice; [#630](https://github.com/pl0n3r/brvtal/issues/630) continúa TANDA 2. |
 
 ## Panorama general pendiente
 
