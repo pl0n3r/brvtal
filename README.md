@@ -39,7 +39,7 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · recovery** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | PR + snapshot exacto | Issue #674 · reserva `d57afba2-2309-4ecd-8a84-2c79bc389739` |
 | Roles | Infrastructure · SRE · Security · QA |
 | Selección migración | `.factory-current` vs `factory-releases/<sha>`; sin variable manual |
