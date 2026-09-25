@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^@\s]+)@([^\s#]+)")
+FACTORY_V1_WORKFLOW = re.compile(r"^pl0n3r/factory/\.github/workflows/[A-Za-z0-9._-]+\.yml$")
 JOB = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 
 
@@ -56,7 +57,8 @@ def audit_workflow(path: Path) -> list[str]:
         if not match:
             continue
         action, ref = match.groups()
-        if not action.startswith("./") and not SHA.fullmatch(ref):
+        trusted_factory_channel = ref == "v1" and FACTORY_V1_WORKFLOW.fullmatch(action) is not None
+        if not action.startswith("./") and not SHA.fullmatch(ref) and not trusted_factory_channel:
             findings.append(f"{label}: unpinned action {action}@{ref}")
         if action == "actions/checkout":
             following = "\n".join(lines[index + 1:index + 8])
