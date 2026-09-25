@@ -16,7 +16,8 @@ $expect(is_file($script), 'report processor must exist');
 $expect(str_contains($workflow, 'python scripts/ci-throughput-report.py report'), 'telemetry workflow must use the tested report processor');
 $expect(str_contains($workflow, 'python scripts/ci-throughput-report.py summary'), 'telemetry workflow must generate the Job Summary through the same processor');
 $expect(str_contains($workflow, 'artifacts/ci-throughput-summary.md'), 'telemetry workflow must publish the generated browser/setup summary');
-$expect(str_contains($workflow, 'ref: ${{ github.event.workflow_run.head_sha }}'), 'telemetry must execute the processor from the observed exact source SHA');
+$expect(str_contains($workflow, 'ref: ${{ github.event.repository.default_branch }}'), 'telemetry processor must execute from the trusted default branch');
+$expect(!str_contains($workflow, 'ref: ${{ steps.source.outputs.head_sha }}'), 'telemetry must not execute processor code from the observed CI head');
 $expect(str_contains($workflow, 'jobs?per_page=100') && str_contains($workflow, '--paginate'), 'telemetry must preserve paginated GitHub job collection');
 $expect(!str_contains($workflow, 'sleep '), 'post-CI telemetry must not add polling or serialization delays');
 

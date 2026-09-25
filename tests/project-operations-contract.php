@@ -63,7 +63,8 @@ $assert(str_contains($agents, '## 2. Autonomy and maximum work per turn'), 'AGEN
 $assert(str_contains($agents, 'A progress update is not itself a reason to return control.'), 'AGENTS must not stop on micro-progress');
 $assert(str_contains($agents, 'Is there still a useful, safe, authorized and compatible action I can execute now?'), 'AGENTS must require a final useful-work check before returning control');
 $assert(str_contains($agents, '## 3. Parallel execution'), 'AGENTS must keep safe parallelization as a first-class operating rule');
-$assert(str_contains($agents, 'Use up to **4 concurrent work lines**'), 'AGENTS must preserve the bounded parallel work-line rule');
+$assert(str_contains($agents, 'Keep exactly **one active implementation work line per repository**'), 'AGENTS must enforce the Factory single-implementation-agent rule');
+$assert(str_contains($agents, 'Parallelize independent read-only inspection'), 'AGENTS must preserve safe read-only parallelism');
 $assert(str_contains($agents, '**Merges to `main` are always serialized.**'), 'AGENTS must keep main merges serialized');
 $assert(str_contains($agents, '## 6. Compact BRVTAL invariants'), 'AGENTS must retain only compact execution-critical product invariants');
 $assert(str_contains($agents, 'ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE'), 'AGENTS must preserve canonical DISCADMIN architecture');
