@@ -72,6 +72,7 @@ hostinger_expect(!str_contains($valid['stdout'] . $valid['stderr'], 'TEST-ONLY-K
 
 $invalid = [
     array_merge($descriptor, ['host'=>'bad;host']),
+    array_merge($descriptor, ['host'=>'999.0.0.1']),
     array_merge($descriptor, ['site_root'=>'/home/u123456789/domains/../escape']),
     array_merge($descriptor, ['site_root'=>'/home/u123456789/domains/brvtal.com.co/public_html']),
     array_merge($descriptor, ['known_hosts'=>'other.example ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTONLYHOSTKEY']),

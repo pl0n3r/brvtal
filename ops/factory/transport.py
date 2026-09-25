@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import ipaddress
 import json
 import os
 import re
@@ -41,11 +40,10 @@ def _validate_host(value: object) -> str:
     host = str(value or "").strip()
     if not host or host.startswith("-") or not _HOST_RE.fullmatch(host):
         raise TransportError("DEPLOY_TOKEN.host is invalid")
-    try:
-        ipaddress.ip_address(host)
+    if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host):
+        if any(int(part) > 255 for part in host.split(".")):
+            raise TransportError("DEPLOY_TOKEN.host is invalid")
         return host
-    except ValueError:
-        pass
     labels = host.split(".")
     if any(not label or len(label) > 63 or label.startswith("-") or label.endswith("-") for label in labels):
         raise TransportError("DEPLOY_TOKEN.host is invalid")
