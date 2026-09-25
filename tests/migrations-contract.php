@@ -32,7 +32,7 @@ migrations_assert(!$rejectsNonAdditive("-- DROP TABLE ignored_probe\nCREATE TABL
 migrations_assert($rejectsNonAdditive("DROP TABLE users;"), 'DROP must be rejected');
 migrations_assert($rejectsNonAdditive("INSERT INTO swatches VALUES ('#fff'); DROP TABLE users;"), 'string literals containing # must not mask later destructive SQL');
 migrations_assert($rejectsNonAdditive("DELETE IGNORE FROM users;"), 'DELETE modifiers must be rejected');
-foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtalMigrationAssertAdditiveSql', 'brvtal_migration_verify_plan_status'] as $function) {
+foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtalMigrationAssertAdditiveSql', 'brvtalMigrationVerifyPlanStatus'] as $function) {
     migrations_assert(str_contains($library, "function {$function}"), "migration library must expose {$function}");
 }
 migrations_assert(str_contains($library, 'MIGRATION_CHECKSUM_MISMATCH'), 'changed applied migrations must fail closed');
@@ -47,22 +47,22 @@ $planStatus = static fn(array $rows, bool $registry = true, array $orphans = [])
     'orphaned_records' => $orphans,
 ];
 
-brvtal_migration_verify_plan_status(
+brvtalMigrationVerifyPlanStatus(
     $planStatus([$applied('migration_schema_migrations_01.sql'), $applied('migration_existing_01.sql')]),
     '__NONE__'
 );
-brvtal_migration_verify_plan_status(
+brvtalMigrationVerifyPlanStatus(
     $planStatus([$applied('migration_schema_migrations_01.sql'), $pending('migration_new_01.sql')]),
     'migration_new_01.sql'
 );
-brvtal_migration_verify_plan_status(
+brvtalMigrationVerifyPlanStatus(
     $planStatus([$applied('migration_schema_migrations_01.sql'), $applied('migration_new_01.sql')]),
     'migration_new_01.sql'
 );
 
 $expectPlanFailure = static function (array $status, string $expected, string $error): bool {
     try {
-        brvtal_migration_verify_plan_status($status, $expected);
+        brvtalMigrationVerifyPlanStatus($status, $expected);
         return false;
     } catch (RuntimeException $exception) {
         return $exception->getMessage() === $error;
