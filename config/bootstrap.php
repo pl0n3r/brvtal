@@ -14,6 +14,11 @@ if (!function_exists('brvtal_log')) {
 $configPath = __DIR__ . '/config.php';
 if (!is_file($configPath)) {
     brvtal_log('FATAL', 'Missing config/config.php', ['expected' => $configPath]);
+    brvtal_sentry_capture_fatal([
+        'type' => E_USER_ERROR,
+        'file' => __FILE__,
+        'line' => __LINE__,
+    ]);
     http_response_code(500);
     exit('BRVTAL: falta config/config.php.');
 }
@@ -24,6 +29,7 @@ try {
     date_default_timezone_set((string)($config['app']['timezone'] ?? 'America/Bogota'));
 } catch (Throwable $e) {
     brvtal_log('EXCEPTION', 'Configuration loading failed.', ['message' => $e->getMessage()]);
+    brvtal_sentry_capture_exception($e);
     http_response_code(500);
     exit('BRVTAL: error de configuración.');
 }

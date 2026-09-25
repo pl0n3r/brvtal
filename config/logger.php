@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/sentry.php';
+
 /*
  * BRVTAL LOGGER
  * Save as: /config/logger.php
@@ -101,6 +103,10 @@ set_exception_handler(
             'line' => $exception->getLine(),
             'trace' => $exception->getTraceAsString()
         ]);
+        brvtal_sentry_capture_exception(
+            $exception,
+            is_array($GLOBALS['config'] ?? null) ? $GLOBALS['config'] : []
+        );
 
         http_response_code(500);
 
@@ -137,6 +143,10 @@ register_shutdown_function(
                 'line' => $error['line'],
                 'type' => $error['type']
             ]);
+            brvtal_sentry_capture_fatal(
+                $error,
+                is_array($GLOBALS['config'] ?? null) ? $GLOBALS['config'] : []
+            );
         }
     }
 );
