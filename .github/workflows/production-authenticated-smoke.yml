@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Check out exact main source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: main
 
