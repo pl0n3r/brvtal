@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: #625 adopta `release.yml@v1` de Factory como único creador de tag/GitHub Release para cambios de versión. Base exacta `main 1971ee5a38e09d5e48634b517ee6ba3dab07c072` / v0.1.52; candidato deploy-bound **v0.1.53**.
+> Snapshot de **solo el deploy actual**: #624 reduce amplificación de GitHub sin tocar runtime. Base exacta `main 6c1c2f1cd4cffc1c422d512d79e746463597c246` / v0.1.53, con BRVTAL CI, Factory Release, Deploy Observer y Production Performance verdes.
 
 ## Progress convention
 
@@ -17,12 +17,12 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#625 · Factory Release v1** | `work/issue-625`; reserva `0b0f011d-1a58-4dc3-bcb6-2a982824cfb9` |
-| Base exacta | ✅ ~~main v0.1.52~~ | `1971ee5a38e09d5e48634b517ee6ba3dab07c072`; BRVTAL CI + Deploy Observer success |
-| Candidato | 🚧 **v0.1.53** | `config/version.php` + `package.json` sincronizados |
-| Release Factory | 🚧 pendiente | solo `push main` cuando cambia `config/version.php` |
-| Tags / Releases actuales | ✅ ~~ninguno~~ | el primer tag se crea después del merge |
-| Producción | ✅ ~~v0.1.52 observada~~ | v0.1.53 se valida por separado después del merge |
+| Work line | 🚧 **#624 · GitHub load reduction** | `work/issue-624`; reserva `923585d4-919f-4bf1-a78c-4f3ae85e78c0` |
+| Base exacta | ✅ ~~main v0.1.53 GREEN~~ | `6c1c2f1cd4cffc1c422d512d79e746463597c246` |
+| Versión producto | ✅ ~~v0.1.53 sin cambio~~ | repository-only; no deploy-bound |
+| Telemetría CI | 🚧 **horaria/manual** | se elimina el trigger `workflow_run` por cada BRVTAL CI |
+| Coordinación | ✅ ~~filtro por comando preservado~~ | comentarios normales no ejecutan runner/API |
+| Producción | ✅ ~~sin cambio de runtime~~ | 0 incidentes / 0 `[AUTO]` al iniciar el slice |
 
 ## Huella del cambio
 
@@ -30,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+175** | **−41** | **+134** |
+| **6** | **+221** | **−62** | **+159** |
 
 ## Calidad y entrega
 
@@ -38,61 +38,61 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | Issue #625 · reserva `0b0f011d-1a58-4dc3-bcb6-2a982824cfb9` |
-| Factory Release | `release.yml@v1` · `php-const` · `BRVTAL_APP_VERSION` · solo `contents: write` |
-| Trigger | `push` a `main` solo si cambia `config/version.php` |
-| Existing gates | BRVTAL CI, Factory CI, Policy, Privacy, Sonar, CodeQL y CodeRabbit permanecen activos |
+| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
+| PR + snapshot exacto | Issue #624 · reserva `923585d4-919f-4bf1-a78c-4f3ae85e78c0` |
+| Telemetría | cron `17 * * * *` + dispatch manual; máximo una muestra reciente por ventana horaria |
+| Seguridad | reporter desde `main` confiable, checkout SHA-pinned, credenciales no persistidas, permisos `actions: read` + `contents: read` |
+| Review | Sonar, CodeQL y CodeRabbit permanecen activos sobre el HEAD estable |
+| Agentes | un solo frente de implementación por repo; lecturas independientes sí pueden paralelizarse |
 | CI del SHA exacto de main | 🚧 después del merge |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  B["main v0.1.52 · 1971ee5"] --> P["#625 · v0.1.53 + Factory Release @v1"]
-  P --> C["CI + review gates"] --> M["Squash merge"]
-  M --> R["tag v0.1.53 + GitHub Release"]
-  M --> O["Deploy Observer"]
-  R --> V["exact-main + producción"]
-  O --> V
+  B["main v0.1.53 · GREEN"] --> P["#624 · sample telemetry hourly"]
+  P --> G["BRVTAL + Factory gates"] --> M["Squash merge"]
+  M --> V["exact-main CI + Observer"]
 ```
 
 ## Qué se hizo
 
-- Añade `.github/workflows/factory-release.yml` como caller mínimo de `pl0n3r/factory/.github/workflows/release.yml@v1`.
-- El caller no corre en mantenimiento repository-only: solo responde a cambios de `config/version.php` en `main`.
-- Factory lee la versión sin ejecutar PHP con `version_format: php-const` y `version_key: BRVTAL_APP_VERSION`.
-- El único permiso de escritura es `contents: write`, necesario para tag anotado y GitHub Release; no hay secretos ni refs dinámicas.
-- Añade regresión contra triggers extra, dispatch manual, secretos, `kit_ref`, bootstrap y lógica local de `git tag`/`gh release`.
-- Sincroniza el candidato a **v0.1.53** en `config/version.php` y `package.json`.
-- `update-release-metadata.yml` sigue siendo BRVTAL CI; no crea tags ni Releases y no compite con Factory Release.
+- Sustituye telemetría `workflow_run` por muestreo horario y `workflow_dispatch` opcional sobre un run de BRVTAL CI.
+- El muestreo automático ignora un CI completado hace más de una hora y serializa por repositorio.
+- Mantiene la evidencia JSON/summary existente y consulta los jobs solo cuando hay una muestra útil; el reporter se ejecuta desde `main`, nunca desde el SHA observado.
+- Conserva coordinación por `issue_comment`, pero el job sigue filtrado a comandos reales y bots quedan excluidos.
+- Alinea `AGENTS.md` con Factory: un solo frente de implementación por repo, push agrupado y prohibición explícita de polling en bucle.
+- Añade contratos fail-closed para evitar regresar a telemetría por cada CI, ampliar silenciosamente la coordinación o ejecutar el reporter desde el SHA observado.
+- Incorpora en este workflow los pins v7 de `checkout` y `upload-artifact`; Dependabot #657/#659 conserva sus demás upgrades sin colisionar con #624.
+- `ci_retry.py` ya tenía backoff acotado para fallos transitorios; no se modifica.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/factory-release.yml`
+- `.github/workflows/ci-throughput-telemetry.yml`
+- `AGENTS.md`
 - `README.md`
-- `config/version.php`
-- `package.json`
-- `tests/factory-release-contract.php`
+- `tests/ci-throughput-report-contract.php`
+- `tests/github-load-contract.php`
+- `tests/project-operations-contract.php`
 
 ## Validación
 
-- 🚧 BRVTAL CI debe validar la transición exacta v0.1.52 → v0.1.53 y la matriz seleccionada.
-- 🚧 Factory CI, Factory Policy, Privacy, Sonar, CodeQL y CodeRabbit deben cerrar sobre el HEAD estable.
-- 🚧 Tras merge: comprobar tag anotado `v0.1.53`, GitHub Release, exact-main CI, Deploy Observer y producción.
+- ✅ BRVTAL CI alcanzó los contratos nuevos; el único fallo determinista encontrado fue una aserción legacy de 4 work lines y quedó alineada al límite Factory de un solo frente de implementación.
+- 🚧 Factory CI/Policy/Privacy, Sonar, CodeQL y revisión final deben cerrar sobre el HEAD estable.
+- 🚧 Tras merge: exact-main BRVTAL CI + Deploy Observer deben seguir verdes; este slice no exige nueva versión ni release.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#625](https://github.com/pl0n3r/brvtal/issues/625): Factory Release v1 + primera evidencia real. |
-| **NEXT** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): labels Factory sin `pull_request_target`. |
-| **LATER** | 🚧 [#624](https://github.com/pl0n3r/brvtal/issues/624): coordinación/carga GitHub y cierre por kit. |
-| **BLOCKED / EXTERNAL** | 🚧 Ningún bloqueo externo para este slice; [#630](https://github.com/pl0n3r/brvtal/issues/630) continúa TANDA 2. |
+| **NOW** | 🚧 [#624](https://github.com/pl0n3r/brvtal/issues/624): reducir amplificación GitHub. |
+| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): siguiente slice compatible de Factory. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
+| **BLOCKED / EXTERNAL** | 🚧 [#627](https://github.com/pl0n3r/brvtal/issues/627): Factory v1 aún carece del contrato completo de labels requerido. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW**: demostrar Release Factory con v0.1.53.
-- 🚧 **NEXT**: adoptar gobierno de labels reusable.
-- 🚧 **LATER**: coordinación, observación/deploy con rollback, métricas y prueba end-to-end.
-- 🚧 **BLOCKED / EXTERNAL**: ninguna dependencia externa bloquea este slice.
+- 🚧 **NOW**: validar #624 y medir reducción estructural de una corrida por CI a una muestra por hora.
+- 🚧 **NEXT**: continuar #630 sin duplicar #627 bloqueado.
+- 🚧 **LATER**: adoptar coordinación/deploy/rollback/observación del kit cuando exista equivalencia demostrada.
+- 🚧 **BLOCKED / EXTERNAL**: #627 espera capacidades centrales adicionales de Factory.

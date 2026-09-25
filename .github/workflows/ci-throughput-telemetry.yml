@@ -1,37 +1,118 @@
 name: CI Throughput Telemetry
 
 on:
-  workflow_run:
-    workflows: ["BRVTAL CI"]
-    types: [completed]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Optional completed BRVTAL CI run ID; empty selects the latest completed run
+        required: false
+        type: string
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: ci-throughput-${{ github.event.workflow_run.id }}
+  group: ci-throughput-${{ github.repository }}
   cancel-in-progress: true
 
 jobs:
   report:
+    name: Sample latest completed BRVTAL CI
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
-      - name: Check out observed source
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Collect critical-path telemetry
+      - name: Resolve one completed CI run
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
-          SOURCE_EVENT: ${{ github.event.workflow_run.event }}
-          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          SOURCE_STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
-          SOURCE_UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
+          REQUESTED_RUN_ID: ${{ inputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${REQUESTED_RUN_ID:-}" ]]; then
+            [[ "$REQUESTED_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
+              echo "::error::run_id must be a positive integer."
+              exit 1
+            }
+            gh api "repos/$GH_REPO/actions/runs/$REQUESTED_RUN_ID" > /tmp/source-run.json
+          else
+            gh api "repos/$GH_REPO/actions/workflows/update-release-metadata.yml/runs?status=completed&per_page=1" \
+              --jq '.workflow_runs[0] // {}' > /tmp/source-run.json
+          fi
+
+          python3 - <<'PY' > /tmp/source.env
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          with open("/tmp/source-run.json", encoding="utf-8") as handle:
+              run = json.load(handle)
+
+          if not run:
+              print("ready=false")
+              print("reason=no-completed-ci")
+              raise SystemExit(0)
+
+          if run.get("name") != "BRVTAL CI":
+              raise SystemExit("Selected run is not BRVTAL CI.")
+          if run.get("status") != "completed":
+              raise SystemExit("Selected BRVTAL CI run is not completed.")
+
+          requested = bool(os.environ.get("REQUESTED_RUN_ID", "").strip())
+          updated = str(run.get("updated_at") or "")
+          fresh = True
+          if not requested:
+              when = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+              age = (datetime.now(timezone.utc) - when).total_seconds()
+              fresh = 0 <= age <= 3600
+
+          print(f"ready={'true' if fresh else 'false'}")
+          print(f"reason={'selected' if fresh else 'stale-scheduled-sample'}")
+          print(f"run_id={run['id']}")
+          print(f"head_sha={run['head_sha']}")
+          print(f"source_event={run['event']}")
+          print(f"conclusion={run.get('conclusion') or ''}")
+          print(f"started_at={run.get('run_started_at') or run.get('created_at') or ''}")
+          print(f"updated_at={updated}")
+          PY
+
+          cat /tmp/source.env >> "$GITHUB_OUTPUT"
+
+          reason="$(grep '^reason=' /tmp/source.env | cut -d= -f2-)"
+          ready="$(grep '^ready=' /tmp/source.env | cut -d= -f2-)"
+          {
+            echo "## CI throughput sampler"
+            echo
+            echo "- Decision: $reason"
+            echo "- Ready: $ready"
+            if grep -q '^run_id=' /tmp/source.env; then
+              echo "- Selected run: $(grep '^run_id=' /tmp/source.env | cut -d= -f2-)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check out trusted reporter
+        if: steps.source.outputs.ready == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Collect critical-path telemetry
+        if: steps.source.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+          SOURCE_SHA: ${{ steps.source.outputs.head_sha }}
+          SOURCE_EVENT: ${{ steps.source.outputs.source_event }}
+          SOURCE_CONCLUSION: ${{ steps.source.outputs.conclusion }}
+          SOURCE_STARTED_AT: ${{ steps.source.outputs.started_at }}
+          SOURCE_UPDATED_AT: ${{ steps.source.outputs.updated_at }}
         shell: bash
         run: |
           set -euo pipefail
@@ -46,11 +127,12 @@ jobs:
             --updated-at "$SOURCE_UPDATED_AT" \
             < artifacts/job-pages.json > artifacts/ci-throughput.json
           python scripts/ci-throughput-report.py summary \
-            < artifacts/ci-throughput.json > artifacts/ci-throughput-summary.md
-          cat artifacts/ci-throughput-summary.md >> "$GITHUB_STEP_SUMMARY"
+            < artifacts/ci-throughput.json > artifacts/ci-throughput-summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload throughput evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.source.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: ci-throughput-${{ github.event.workflow_run.id }}
+          name: ci-throughput-${{ steps.source.outputs.run_id }}
           path: artifacts/ci-throughput.json
           retention-days: 30

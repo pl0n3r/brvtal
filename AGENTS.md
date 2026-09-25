@@ -87,6 +87,7 @@ Prioritize execution over narration.
 - Report consolidated milestones, meaningful failures, real blockers and exact validation state.
 - Distinguish code validation, deploy observation and production validation.
 - Never claim work is finished merely because CI started or one reviewer is processing.
+- Never poll CI/checks/reviews/comments in a loop; inspect them once on the stable milestone head or after independent work has materially advanced.
 
 ## 3. Parallel execution
 
@@ -94,8 +95,8 @@ Parallelization is the default whenever operations are independent and safe.
 
 - Batch independent read-only GitHub/repository operations rather than serializing them.
 - Fan out PR state, CI/checks, Sonar and CodeRabbit inspection when independent.
-- Use up to **4 concurrent work lines** when Issues/files/state do not overlap.
-- While CI/review/deploy observation runs, advance independent read-only or separately reserved work.
+- Keep exactly **one active implementation work line per repository**. Parallelize independent read-only inspection, not separate implementation reservations.
+- While CI/review/deploy observation runs, advance compatible read-only analysis; do not open another implementation reservation in this repository.
 - Batch related multi-file writes into one logical Git tree/commit/push when possible; avoid commit storms that restart CI/review repeatedly.
 - Same-file writes, shared mutable state, dependent branches and merges remain serialized.
 - **Merges to `main` are always serialized.**
