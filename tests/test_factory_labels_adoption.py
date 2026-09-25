@@ -63,7 +63,7 @@ class FactoryLabelsAdoptionTests(unittest.TestCase):
         for labels in fixtures:
             for name, pattern in dimensions.items():
                 matches = [label for label in labels if pattern.match(label)]
-                self.assertEqual(matches and len(matches), 1, (name, labels))
+                self.assertEqual(len(matches), 1, (name, labels))
 
 
 if __name__ == "__main__":
