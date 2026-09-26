@@ -26,7 +26,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+287** | **−66** | **+221** |
+| **9** | **+288** | **−67** | **+221** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -75,7 +75,7 @@ flowchart LR
 | Lane | Trabajo |
 | --- | --- |
 | **NOW** | 🚧 [#195](https://github.com/pl0n3r/brvtal/issues/195): cerrar CI y revisión de Admin Activity. |
-| **NEXT** | 🚧 [#212](https://github.com/pl0n3r/brvtal/issues/212): selector público ES/EN cuando #195 cierre. |
+| **NEXT** | 🚧 [#232](https://github.com/pl0n3r/brvtal/issues/232): paginación de Admin Activity / Version History cuando #195 cierre; #212 sigue documentado pero no autorizado para implementación. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN por registry de migraciones. |
 
