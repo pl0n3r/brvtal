@@ -16,7 +16,7 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#653 · primer refactor real Rector** | `work/issue-653` · reserva `bf7b8aa7-b120-4b3a-a8f9-305f4b4a6252` |
+| Work line | 🚧 **#653 · primer refactor real Rector** | `work/issue-653` · reserva `eee625a1-71ee-451a-aa8a-156757b17657` |
 | Base exacta | ✅ **main v0.1.58** | `4295b6f21dd535d03df0843eb527c5829c54d21c` |
 | Versión candidata | 🚧 **v0.1.59** | `config/version.php` + `package.json`; no desplegada |
 | Producción | ⛔ **NO GREEN · #681** | fuera de alcance de este PR |
@@ -33,7 +33,7 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#653 · refactor Rector v0.1.59** |
+| PR + snapshot exacto | **#697 · refactor Rector v0.1.59** |
 | Roles | **Software Engineering · QA · Security** |
 | Rector | ✅ dry-run `9488cde` emitió 3 cambios exactos; formato final corrige la línea >120 de Sonar |
 | Review | BRVTAL CI / validate + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
