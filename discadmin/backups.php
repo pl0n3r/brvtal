@@ -86,29 +86,39 @@ if ($method === 'GET' && $action === 'automation') {
 if ($method === 'POST' && $action === 'automation') {
     brvtal_admin_require_csrf();
     $input = input_json();
+    $previous = brvtal_backup_automation_read();
     try {
         $state = brvtal_backup_automation_save_config(is_array($input) ? $input : []);
         $public = brvtal_backup_automation_public_state($state);
-        brvtal_activity_record(
-            $pdo,
-            'update',
-            'backup_automation',
-            null,
-            null,
-            null,
-            [
-                'enabled'=>$public['config']['enabled'],
-                'cadence'=>$public['config']['cadence'],
-                'scope'=>$public['config']['scope'],
-                'retention_local'=>$public['config']['retention_local'],
-                'drive_enabled'=>$public['config']['drive']['enabled'],
-                'drive_folder_configured'=>$public['config']['drive']['folder'] !== null,
-            ],
-            'BACKUP AUTOMATION'
-        );
+        try {
+            brvtal_activity_record(
+                $pdo,
+                'update',
+                'backup_automation',
+                null,
+                null,
+                null,
+                [
+                    'enabled'=>$public['config']['enabled'],
+                    'cadence'=>$public['config']['cadence'],
+                    'scope'=>$public['config']['scope'],
+                    'retention_local'=>$public['config']['retention_local'],
+                    'drive_enabled'=>$public['config']['drive']['enabled'],
+                    'drive_folder_configured'=>$public['config']['drive']['folder'] !== null,
+                ],
+                'BACKUP AUTOMATION'
+            );
+        } catch (Throwable $auditError) {
+            brvtal_backup_automation_write($previous);
+            throw $auditError;
+        }
         json_response(['ok'=>true,'data'=>$public], 200, ['Cache-Control'=>'no-store']);
     } catch (InvalidArgumentException $error) {
         json_response(['ok'=>false,'error'=>$error->getMessage()], 422, ['Cache-Control'=>'no-store']);
+    } catch (RuntimeException $error) {
+        $code = $error->getMessage() === 'BACKUP_SCHEDULER_BUSY' ? 409 : 500;
+        brvtal_log('BACKUP_AUTOMATION_ERROR', 'Backup automation update failed.', ['message'=>$error->getMessage()]);
+        json_response(['ok'=>false,'error'=>$error->getMessage() === 'BACKUP_SCHEDULER_BUSY' ? 'BACKUP_SCHEDULER_BUSY' : 'BACKUP_AUTOMATION_UPDATE_FAILED'], $code, ['Cache-Control'=>'no-store']);
     } catch (Throwable $error) {
         brvtal_log('BACKUP_AUTOMATION_ERROR', 'Backup automation update failed.', ['message'=>$error->getMessage()]);
         json_response(['ok'=>false,'error'=>'BACKUP_AUTOMATION_UPDATE_FAILED'], 500, ['Cache-Control'=>'no-store']);
