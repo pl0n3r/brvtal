@@ -69,6 +69,7 @@ $enhancements = '<link rel="stylesheet" href="/discadmin/system-status-v2.css' .
     . '<script src="/discadmin/admin-modal-accessibility.js' . $suffix . '"></script>'
     . '<script src="/discadmin/admin-record-lists.js' . $suffix . '"></script>'
     . '<script src="/discadmin/content-ordering.js' . $suffix . '" data-content-ordering-script="1"></script>'
+    . '<script src="/discadmin/editor-drafts.js' . $suffix . '" data-editor-drafts-script="1"></script>'
     . '<script src="/discadmin/admin-unsaved-changes.js' . $suffix . '" data-unsaved-changes-script="1"></script>'
     . '<script src="/discadmin/admin-form-dialogs.js' . $suffix . '"></script>'
     . '<script src="/discadmin/pages-publication-contract.js' . $suffix . '"></script>'

@@ -17,6 +17,10 @@ window.BRVTALBlog = (() => {
   };
   let editorLoadId = 0;
   let editorController = null;
+  let draftTimer = 0;
+  let draftContext = null;
+  let draftBindController = null;
+  const BLOG_DRAFT_DEBOUNCE_MS = 650;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const normalizeMediaPath = value => {
     const raw = String(value || '').trim();
@@ -419,9 +423,174 @@ window.BRVTALBlog = (() => {
     return '<img class="thumb lg" src="'+esc(path)+'" alt="'+esc(record.title||'Cover')+'">';
   }
 
+
+  function blogDraftIdentity(id) {
+    return id ? String(Number(id)) : 'new';
+  }
+
+  function blogDraftRevision(record = {}) {
+    return String(record?.updated_at || '');
+  }
+
+  function setBlogDraftState(message, state = '') {
+    const el = document.getElementById('blog-draft-state');
+    if (!el) return;
+    el.textContent = message;
+    el.dataset.state = state;
+  }
+
+  function stopBlogDraftTimer() {
+    if (!draftTimer) return;
+    clearTimeout(draftTimer);
+    draftTimer = 0;
+  }
+
+  function blogDraftData(context = draftContext) {
+    if (!context) return null;
+    return payload(context.record?.relations || [], blogNextSortOrder(context.id));
+  }
+
+  function persistBlogDraft({announce = true} = {}) {
+    const context = draftContext;
+    const storage = window.BRVTALDrafts;
+    if (!context || !storage) return false;
+
+    stopBlogDraftTimer();
+    if (announce) setBlogDraftState('Saving draft…', 'saving');
+    try {
+      storage.save('blog', context.identity, {
+        base_revision: context.baseRevision,
+        data: blogDraftData(context)
+      });
+      if (announce) setBlogDraftState('Draft saved locally', 'saved');
+      return true;
+    } catch (_) {
+      setBlogDraftState('Save failed · changes remain in this editor', 'error');
+      return false;
+    }
+  }
+
+  function scheduleBlogDraft() {
+    if (!draftContext) return;
+    setBlogDraftState('Unsaved', 'unsaved');
+    stopBlogDraftTimer();
+    draftTimer = setTimeout(() => persistBlogDraft(), BLOG_DRAFT_DEBOUNCE_MS);
+  }
+
+  function clearBlogDraft(identity = draftContext?.identity) {
+    stopBlogDraftTimer();
+    if (!identity || !window.BRVTALDrafts) return;
+    try {
+      window.BRVTALDrafts.remove('blog', identity);
+    } catch (_) {}
+  }
+
+  function applyBlogDraft(draft) {
+    const data = draft?.data;
+    if (!data || typeof data !== 'object') return false;
+
+    const values = {
+      blog_title: data.title,
+      blog_slug: data.slug,
+      blog_excerpt: data.excerpt,
+      blog_cover_image: data.cover_image,
+      blog_seo_title: data.seo_title,
+      blog_seo_description: data.seo_description,
+      blog_status_field: data.status
+    };
+    Object.entries(values).forEach(([id, next]) => {
+      const control = input(id);
+      if (control && next !== undefined && next !== null) control.value = String(next);
+    });
+
+    const featured = input('blog_featured');
+    if (featured) featured.checked = Number(data.featured) === 1;
+
+    const source = input('blog_body');
+    if (source) {
+      source.value = String(data.body || '');
+      syncBodySourceToVisual();
+    }
+
+    const selected = new Set((Array.isArray(data.relations) ? data.relations : []).map(relationKey));
+    document.querySelectorAll('[data-blog-related-type][data-blog-related-id]').forEach(control => {
+      const relation = {
+        related_type: String(control.dataset.blogRelatedType || ''),
+        related_id: Number(control.dataset.blogRelatedId)
+      };
+      control.checked = selected.has(relationKey(relation));
+    });
+
+    window.BRVTALUnsavedChanges?.touch?.(document.getElementById('modal'));
+    setBlogDraftState('Unsaved · restored locally', 'unsaved');
+    return true;
+  }
+
+  function showBlogDraftRecovery(record) {
+    const storage = window.BRVTALDrafts;
+    const recovery = document.getElementById('blog-draft-recovery');
+    const message = recovery?.querySelector('[data-blog-draft-message]');
+    const restore = recovery?.querySelector('[data-blog-draft-restore]');
+    const discard = recovery?.querySelector('[data-blog-draft-discard]');
+    if (!storage || !recovery || !message || !restore || !discard || !draftContext) return;
+
+    const draft = storage.load('blog', draftContext.identity);
+    if (!draft) {
+      recovery.hidden = true;
+      return;
+    }
+
+    const conflict = !storage.sameRevision(draft, blogDraftRevision(record));
+    recovery.hidden = false;
+    recovery.dataset.conflict = conflict ? '1' : '0';
+    message.textContent = conflict
+      ? 'SERVER CHANGED SINCE THIS DRAFT · Restore only to review locally before an explicit Save.'
+      : 'A recoverable local draft exists for this editor.';
+
+    restore.onclick = () => {
+      if (!applyBlogDraft(draft)) return;
+      recovery.hidden = true;
+    };
+    discard.onclick = () => {
+      clearBlogDraft(draftContext.identity);
+      recovery.hidden = true;
+      setBlogDraftState('Saved to server', 'server');
+    };
+  }
+
+  function bindBlogDrafts(id, record, content) {
+    stopBlogDraftTimer();
+    draftBindController?.abort();
+    draftBindController = new AbortController();
+    draftContext = {
+      id: id ? Number(id) : null,
+      identity: blogDraftIdentity(id),
+      baseRevision: blogDraftRevision(record),
+      record
+    };
+
+    setBlogDraftState('Saved to server', 'server');
+    content.addEventListener('input', scheduleBlogDraft, {capture:true, signal:draftBindController.signal});
+    content.addEventListener('change', scheduleBlogDraft, {capture:true, signal:draftBindController.signal});
+    showBlogDraftRecovery(record);
+  }
+
+  function markBlogDraftServerSaved(id, record) {
+    const oldIdentity = draftContext?.identity || blogDraftIdentity(id);
+    clearBlogDraft(oldIdentity);
+    draftContext = {
+      id: id ? Number(id) : null,
+      identity: blogDraftIdentity(id),
+      baseRevision: blogDraftRevision(record),
+      record
+    };
+    setBlogDraftState('Saved to server', 'server');
+    window.BRVTALUnsavedChanges?.markClean?.(document.getElementById('modal'));
+  }
+
   function blogPostEditorMarkup(record){
     const cover=blogEditorCoverMarkup(record);
-    return `<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="grid2"><div class="field"><label for="blog_title">Title *</label><input id="blog_title" value="${esc(record.title||'')}"></div><div class="field"><label for="blog_slug">Slug *</label><input id="blog_slug" value="${esc(record.slug||'')}"></div><div class="field full"><label for="blog_excerpt">Excerpt</label><textarea id="blog_excerpt">${esc(record.excerpt||'')}</textarea></div>${bodyEditorMarkup(record.body||'')}<div class="field full"><label for="blog_cover_image">Cover image</label><div class="blog-editor-cover thumbcell">${cover}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(record.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label for="blog_status_field">Status</label><select id="blog_status_field"><option value="draft" ${record.status==='draft'||!record.status?'selected':''}>Draft</option><option value="published" ${record.status==='published'?'selected':''}>Published</option><option value="archived" ${record.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label for="blog_sort_order">Sort order</label><input id="blog_sort_order" type="number" value="${Number(record.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(record.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(record)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label for="blog_seo_title">SEO title</label><input id="blog_seo_title" value="${esc(record.seo_title||'')}"></div><div class="field"><label for="blog_seo_description">SEO description</label><textarea id="blog_seo_description">${esc(record.seo_description||'')}</textarea></div></div></div></div>`;
+    return `<div class="form"><div class="section"><div class="sectionhead"><strong>EDITORIAL</strong><span class="helper">Drafts are first-class. Publishing is explicit.</span></div><div class="blog-draft-strip"><div id="blog-draft-state" role="status" aria-live="polite" data-state="server">Saved to server</div><div id="blog-draft-recovery" role="alert" hidden><span data-blog-draft-message></span><span class="blog-draft-actions"><button class="iconbtn" type="button" data-blog-draft-restore>RESTORE DRAFT</button><button class="iconbtn" type="button" data-blog-draft-discard>DISCARD DRAFT</button></span></div></div><div class="grid2"><div class="field"><label for="blog_title">Title *</label><input id="blog_title" value="${esc(record.title||'')}"></div><div class="field"><label for="blog_slug">Slug *</label><input id="blog_slug" value="${esc(record.slug||'')}"></div><div class="field full"><label for="blog_excerpt">Excerpt</label><textarea id="blog_excerpt">${esc(record.excerpt||'')}</textarea></div>${bodyEditorMarkup(record.body||'')}<div class="field full"><label for="blog_cover_image">Cover image</label><div class="blog-editor-cover thumbcell">${cover}<div><input id="blog_cover_image" value="${esc(normalizeMediaPath(record.cover_image||''))}"><button class="media-picker-btn" id="blog-cover-picker" type="button">SELECT MEDIA</button></div></div></div><div class="field"><label for="blog_status_field">Status</label><select id="blog_status_field"><option value="draft" ${record.status==='draft'||!record.status?'selected':''}>Draft</option><option value="published" ${record.status==='published'?'selected':''}>Published</option><option value="archived" ${record.status==='archived'?'selected':''}>Archived</option></select></div><div class="field"><label for="blog_sort_order">Sort order</label><input id="blog_sort_order" type="number" value="${Number(record.sort_order||0)}"></div><label class="blog-featured full"><input id="blog_featured" type="checkbox" ${Number(record.featured)===1?'checked':''}><span><b>FEATURED POST</b><span class="meta">Prioritize on public editorial surfaces.</span></span></label></div></div><div class="section"><div class="sectionhead"><strong>RELATED CONTENT</strong><span class="helper">Connect the story to existing BRVTAL content.</span></div>${relationBoxes(record)}</div><div class="section"><div class="sectionhead"><strong>SEO</strong><span class="helper">Search and social metadata</span></div><div class="grid2"><div class="field"><label for="blog_seo_title">SEO title</label><input id="blog_seo_title" value="${esc(record.seo_title||'')}"></div><div class="field"><label for="blog_seo_description">SEO description</label><textarea id="blog_seo_description">${esc(record.seo_description||'')}</textarea></div></div></div></div>`;
   }
 
   async function loadBlogEditorRecord(id,base,controller,loadId){
@@ -488,6 +657,8 @@ window.BRVTALBlog = (() => {
     initBodyEditor(record.body||'');
     bindBlogEditorFields(record,id,saveButton);
     modal.classList.add('open');
+    window.BRVTALUnsavedChanges?.syncRoots?.();
+    bindBlogDrafts(id,record,content);
   }
 
   function payload(existingRelations = [], sortOrder = 0) {
@@ -577,6 +748,8 @@ window.BRVTALBlog = (() => {
     try{
       const data=blogSavePayload(id,record);
       const result=await blogSaveRequest(id,data);
+      const savedId = Number(result?.data?.id || id || 0) || null;
+      markBlogDraftServerSaved(savedId, result?.data || record);
       const warnings=Array.isArray(result?.warnings)
         ? result.warnings.filter(Boolean)
         : [];
@@ -597,7 +770,9 @@ window.BRVTALBlog = (() => {
       await refresh();
       setStatus('Post saved.','ok');
     }catch(error){
+      persistBlogDraft({announce:false});
       reportBlogSaveError(error);
+      setBlogDraftState('Save failed · local draft kept', 'error');
     }finally{
       setBlogSaveButtonBusy(button,false);
     }
