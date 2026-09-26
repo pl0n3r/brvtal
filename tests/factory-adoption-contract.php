@@ -19,7 +19,7 @@ function factory_adoption_json(string $path): array
 }
 
 $root = dirname(__DIR__);
-$status = factory_adoption_json($root . '/config/factory-adoption.json');
+$status = factory_adoption_json($root . '/docs/factory-adoption.json');
 
 factory_adoption_expect(
     array_keys($status) === [
