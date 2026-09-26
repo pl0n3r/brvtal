@@ -37,7 +37,7 @@ const overview = {
 const managedStorage = {
   ok:true,
   scope:'brvtal_managed_data',
-  quota_source:'hostinger_plan_fallback',
+  quota_source:'environment',
   quota_bytes:26843545600,
   quota:'25.00 GB',
   used_bytes:536870912,
@@ -155,4 +155,91 @@ test('healthy platform stays healthy with a non-empty GitHub backlog and remains
   expect(linkHeight).toBeGreaterThanOrEqual(44);
   const dimensions = await page.evaluate(() => ({viewport:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth}));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.viewport);
+});
+
+
+test('System Status layout persists per admin and storage stays invariant across appearance modes', async ({ page }) => {
+  let preferences = {modules:[
+    {id:'services',width:4,height:1,visible:true},{id:'storage',width:2,height:1,visible:true},
+    {id:'database',width:2,height:1,visible:true},{id:'repository',width:2,height:1,visible:true},
+    {id:'editorial',width:2,height:1,visible:true},{id:'runtime',width:2,height:1,visible:true},
+    {id:'attention',width:2,height:1,visible:true},{id:'activity',width:4,height:1,visible:true},
+  ]};
+  const saved = [];
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:shellMarkup(`<script>window.BRVTALAdminAuthBoundary={csrfToken:async()=> 'status-csrf'};</script><script>${storageScript}</script>`)
+  }));
+  await routeStatusSources(page);
+  await page.route('**/discadmin/storage-metrics.php*', route => route.fulfill({contentType:'application/json',body:JSON.stringify(managedStorage)}));
+  await page.route('**/api/admin-dashboard-preferences.php?workspace=system_status', async route => {
+    if (route.request().method() === 'POST') {
+      expect(route.request().headers()['x-csrf-token']).toBe('status-csrf');
+      preferences = route.request().postDataJSON();
+      saved.push(structuredClone(preferences));
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:preferences})});
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:preferences})});
+  });
+
+  await page.goto(harness);
+  const root = page.locator('#system-status-v2');
+  await expect(root.locator('[data-system-module]')).toHaveCount(8);
+  await root.locator('[data-system-module="storage"] [data-system-resize="wider"]').click();
+  await expect(root.locator('[data-system-module="storage"]')).toHaveAttribute('data-system-width','3');
+  await expect.poll(() => saved.length).toBeGreaterThan(0);
+  expect(saved.at(-1).modules.find(item => item.id === 'storage').width).toBe(3);
+
+  const savesBeforeHide = saved.length;
+  await root.locator('[data-system-module="editorial"] [data-system-hide]').click();
+  await expect(root.getByRole('button',{name:/EDITORIAL/})).toBeVisible();
+  await expect.poll(() => saved.length).toBeGreaterThan(savesBeforeHide);
+  expect(saved.at(-1).modules.find(item => item.id === 'editorial').visible).toBe(false);
+
+  const storage = root.locator('.ssv2-panel.storage');
+  await expect(storage).toContainText('512.00 MB / 25.00 GB');
+  const values = [];
+  for (const appearance of ['dark','light','glass']) {
+    await page.evaluate(mode => { document.documentElement.dataset.discadminAppearance = mode; }, appearance);
+    values.push(await storage.locator('.ssv2-storage-copy').innerText());
+  }
+  expect(new Set(values).size).toBe(1);
+  expect(values[0]).toContain('512.00 MB / 25.00 GB');
+
+  const savesBeforeReset = saved.length;
+  await root.locator('[data-system-reset]').click();
+  await expect(root.locator('[data-system-module="storage"]')).toHaveAttribute('data-system-width','2');
+  await expect(root.locator('[data-system-module="editorial"]')).toBeVisible();
+  await expect.poll(() => saved.length).toBeGreaterThan(savesBeforeReset);
+  expect(saved.at(-1).modules.find(item => item.id === 'storage').width).toBe(2);
+  expect(saved.at(-1).modules.find(item => item.id === 'editorial').visible).toBe(true);
+
+  await page.reload();
+  const reloaded = page.locator('#system-status-v2');
+  await expect(reloaded.locator('[data-system-module="storage"]')).toHaveAttribute('data-system-width','2');
+  await expect(reloaded.locator('[data-system-module="editorial"]')).toBeVisible();
+});
+
+test('System Status never renders host filesystem capacity as the managed quota before canonical metrics arrive', async ({ page }) => {
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:shellMarkup(`<script>${storageScript}</script>`)
+  }));
+  const unavailableOverview = structuredClone(overview);
+  unavailableOverview.storage = {available:false,source:'managed_storage_endpoint'};
+  unavailableOverview.host_filesystem = {total:'6.93 TB',free:'1.79 TB',diagnostic_only:true};
+  await routeStatusSources(page, unavailableOverview);
+  await page.route('**/discadmin/storage-metrics.php*', route => route.fulfill({
+    status:503,contentType:'application/json',body:JSON.stringify({ok:false,error:'STORAGE_QUOTA_NOT_CONFIGURED'})
+  }));
+  await page.route('**/api/admin-dashboard-preferences.php?workspace=system_status', route => route.fulfill({
+    contentType:'application/json',body:JSON.stringify({ok:true,data:{modules:[]}})
+  }));
+
+  await page.goto(harness);
+  const storage = page.locator('.ssv2-panel.storage');
+  await expect(storage).toHaveAttribute('data-storage-scope','unavailable');
+  await expect(storage).toContainText('MANAGED STORAGE UNAVAILABLE');
+  await expect(storage).not.toContainText('6.93 TB');
+  await expect(storage).not.toContainText('1.79 TB');
 });

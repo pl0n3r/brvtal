@@ -57,12 +57,20 @@ system_status_expect(str_contains($shell, 'system-status-v2.css'), 'shell must l
 system_status_expect(str_contains($shell, 'system-status-v2.js'), 'shell must load System Status enhancement');
 
 system_status_expect(str_contains($storageEndpoint, 'brvtal_admin_require();'), 'managed storage metrics must remain admin protected');
-system_status_expect(str_contains($storageEndpoint, '25 * 1024 * 1024 * 1024'), 'managed storage must have the known 25 GB operational fallback');
+system_status_expect(!str_contains($storageEndpoint, '25 * 1024 * 1024 * 1024'), 'managed storage must never invent a hosting quota');
+system_status_expect(str_contains($storageEndpoint, 'STORAGE_QUOTA_NOT_CONFIGURED'), 'missing verified quota must fail closed as unavailable');
+system_status_expect(str_contains($storageEndpoint, "'quota_source' => \$quotaSource"), 'managed storage must expose its configured source');
 system_status_expect(str_contains($storageEndpoint, "'/uploads'"), 'managed storage must scan uploads');
 system_status_expect(str_contains($storageEndpoint, "'/storage'"), 'managed storage must scan private application storage');
 system_status_expect(str_contains($storageEndpoint, "'diagnostic_only' => true"), 'host filesystem capacity must be explicitly diagnostic only');
 system_status_expect(str_contains($storageScript, "'/discadmin/storage-metrics.php'"), 'visual storage block must use managed storage metrics');
 system_status_expect(str_contains($storageScript, 'BRVTAL DATA'), 'visual storage block must identify BRVTAL-managed data');
 system_status_expect(str_contains($shell, 'system-status-storage.js'), 'shell must load managed storage enhancement');
+system_status_expect(str_contains($technical, "'source'=>'managed_storage_endpoint'"), 'overview must not reuse host filesystem capacity as application quota');
+system_status_expect(str_contains($technical, "'diagnostic_only'=>true"), 'host filesystem capacity must remain diagnostic only');
+system_status_expect(str_contains($script, 'workspace=system_status'), 'System Status must persist layout through the shared workspace preference endpoint');
+system_status_expect(str_contains($script, 'data-system-module'), 'System Status must expose configurable module wrappers');
+system_status_expect(str_contains($script, 'RESET TO DEFAULT'), 'System Status must expose reset to default');
+system_status_expect(str_contains($styles, 'ssv2-config-grid'), 'System Status must use a responsive configurable grid');
 
 echo "BRVTAL System Status v2 contract tests passed.\n";

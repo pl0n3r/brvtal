@@ -101,14 +101,13 @@ $githubRequest = static function (string $url): ?array {
     $raw = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $headerSize = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-    curl_close($ch);
     if (!is_string($raw) || $status < 200 || $status >= 300) return null;
     $headerText = substr($raw, 0, $headerSize);
     $bodyText = substr($raw, $headerSize);
     $headers = [];
     foreach (preg_split('/\r?\n/', $headerText) ?: [] as $line) {
         if (!str_contains($line, ':')) continue;
-        [$key, $value] = array_map('trim', explode(':', $line, 2));
+        [$key, $value] = array_map(trim(...), explode(':', $line, 2));
         $headers[strtolower($key)] = $value;
     }
     $body = json_decode($bodyText, true);
@@ -217,10 +216,8 @@ try {
                 : 0;
         }
 
-        $total = @disk_total_space($root);
-        $free = @disk_free_space($root);
-        $used = ($total !== false && $free !== false) ? max(0, $total - $free) : null;
-        $usedPercent = ($total && $used !== null) ? round(($used / $total) * 100, 1) : null;
+        $hostTotal = @disk_total_space($root);
+        $hostFree = @disk_free_space($root);
 
         $requiredExtensions = ['PDO','pdo_mysql','mbstring','json','curl','fileinfo','openssl','iconv'];
         $extensions = [];
@@ -260,10 +257,6 @@ try {
         foreach ($checks as $check) {
             if ($check['status'] !== 'ok') $issues[] = ['severity'=>'error','title'=>$check['label'],'detail'=>$check['value'] . ' — review this service.'];
         }
-        if ($total && $free !== false && ($free / $total) < 0.15) {
-            $issues[] = ['severity'=>'warning','title'=>'LOW STORAGE','detail'=>'Less than 15% disk space remains.'];
-        }
-
         $github = $githubMetrics();
         $repositoryDiagnostics = [];
         if (!$github['ok']) {
@@ -280,12 +273,15 @@ try {
             'health' => ['score'=>$score, 'status'=>$healthStatus, 'checks_ok'=>$okCount, 'checks_total'=>count($checks)],
             'checks' => $checks,
             'storage' => [
-                'total_bytes'=>$total === false ? null : (int)$total,
-                'used_bytes'=>$used === null ? null : (int)$used,
-                'free_bytes'=>$free === false ? null : (int)$free,
-                'total'=>$bytes($total), 'used'=>$bytes($used), 'free'=>$bytes($free),
-                'used_percent'=>$usedPercent,
-                'uploads_items'=>is_dir($root . '/uploads') ? count(array_diff(scandir($root . '/uploads'), ['.','..'])) : 0,
+                'available'=>false,
+                'source'=>'managed_storage_endpoint',
+            ],
+            'host_filesystem' => [
+                'total_bytes'=>$hostTotal === false ? null : (int)$hostTotal,
+                'free_bytes'=>$hostFree === false ? null : (int)$hostFree,
+                'total'=>$bytes($hostTotal),
+                'free'=>$bytes($hostFree),
+                'diagnostic_only'=>true,
             ],
             'database' => [
                 'driver'=>$pdo->getAttribute(PDO::ATTR_DRIVER_NAME),
@@ -379,7 +375,7 @@ try {
 
     echo json_encode(['ok'=>false,'error'=>'UNKNOWN_ACTION'],JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
-    brvtal_log('TECH_ERROR','Technical endpoint failed.',['action'=>$action,'class'=>get_class($e)]);
+    brvtal_log('TECH_ERROR','Technical endpoint failed.',['action'=>$action,'class'=>$e::class]);
     http_response_code(500);
     echo json_encode(['ok'=>false,'error'=>'TECH_ERROR']);
 }
