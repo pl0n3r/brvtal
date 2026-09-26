@@ -70,7 +70,37 @@ function brvtal_activity_allowed_fields(string $resource): array
         'releases' => ['id','title','slug','release_type','catalog_number','release_date','description','seo_title','seo_description','artwork','spotify_url','soundcloud_url','bandcamp_url','youtube_url','beatport_url','status','featured','sort_order','published_at','artists'],
         'blog' => ['id','title','slug','excerpt','body','cover_image','seo_title','seo_description','status','featured','published_at','sort_order','tags','relations'],
         'event_lineup' => ['event_id','lineup'],
+        'media' => ['id','type','title','file_path','mime_type','file_size','alt_text','status'],
+        'settings' => ['setting_key','is_json'],
     ][$resource] ?? [];
+}
+
+function brvtalActivitySettingKeyAuditable(string $key): bool
+{
+    $normalized = strtolower(trim($key));
+    if ($normalized === '' || brvtal_activity_is_sensitive_key($normalized)) {
+        return false;
+    }
+
+    if ($normalized === 'theme.active') {
+        return true;
+    }
+    if (preg_match('/^theme\.[a-z0-9_-]{1,80}$/D', $normalized) === 1) {
+        return true;
+    }
+
+    return in_array($normalized, [
+        'site.name',
+        'site.tagline',
+        'site.locale',
+        'site.timezone',
+        'seo.default_title',
+        'seo.default_description',
+        'public.hero_slider',
+        'public.contact_email',
+        'public.instagram_url',
+        'public.soundcloud_url',
+    ], true);
 }
 
 function brvtal_activity_is_sensitive_key(string $key): bool
@@ -107,7 +137,7 @@ function brvtal_activity_snapshot(string $resource, ?array $row): ?array
 
     $snapshot = [];
     foreach ($allowed as $field) {
-        if (array_key_exists($field, $row)) {
+        if (array_key_exists((string) $field, $row)) {
             $snapshot[$field] = brvtal_activity_sanitize_value($row[$field]);
         }
     }

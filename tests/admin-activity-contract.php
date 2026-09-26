@@ -36,7 +36,8 @@ foreach (['password','secret','token','csrf','recovery','session','credential','
 foreach (['events','artists','sets','pages','ticket_types','releases','blog','event_lineup'] as $resource) {
     activity_assert(str_contains($helper, "'{$resource}' =>"), "activity snapshots must explicitly allowlist {$resource}");
 }
-activity_assert(!str_contains($helper, "'settings' =>"), 'raw Settings values must remain outside the audit snapshot allowlist');
+activity_assert(str_contains($helper, "'settings' => ['setting_key','is_json']"), 'Settings audit snapshots must expose only safe key metadata');
+activity_assert(!str_contains($helper, "'settings' => ['setting_key','setting_value'"), 'raw Settings values must remain outside the audit snapshot allowlist');
 activity_assert(str_contains($helper, 'admin_name'), 'activity rows must preserve an actor name snapshot');
 activity_assert(str_contains($helper, 'admin_email'), 'activity rows must preserve an actor email snapshot');
 activity_assert(str_contains($helper, 'request_id'), 'activity rows must include a request correlation id');
@@ -58,6 +59,9 @@ activity_assert(str_contains($blog, "'blog'"), 'blog mutations must write activi
 activity_assert(str_contains($seo, 'brvtalSeoPersistOverrides'), 'SEO endpoint must delegate persistence through the audited boundary');
 activity_assert(str_contains($seoPersistence, "'seo_update'"), 'SEO metadata changes must be audited by the persistence boundary');
 activity_assert(str_contains($bulk, "'bulk_status'"), 'bulk status changes must be audited');
+activity_assert(str_contains($core, 'LIMIT 1 FOR UPDATE'), 'Settings delete audit snapshot must be locked inside the transaction');
+activity_assert(str_contains((string)file_get_contents($root . '/config/media_integrity.php'), 'function brvtal_media_cleanup_failed_upload'), 'failed Media uploads must have private recovery cleanup');
+activity_assert(str_contains((string)file_get_contents($root . '/config/media_integrity.php'), 'MEDIA_RESTORE_PENDING'), 'staged Media restore failures must be visible');
 
 activity_assert(str_contains($shell, '/discadmin/admin-activity.js'), 'canonical DISCADMIN shell must load the activity panel');
 activity_assert(str_contains($ui, 'ADMIN ACTIVITY'), 'Dashboard UI must expose Admin Activity');

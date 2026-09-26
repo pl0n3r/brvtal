@@ -206,22 +206,107 @@ function brvtal_media_stage_delete(array $media, ?callable $renamer = null): arr
     return ['ok'=>true, 'staged'=>$staged, 'failed'=>null, 'trash_dir'=>$trashDir];
 }
 
-/** Restore staged files when the database delete cannot commit. */
-function brvtal_media_restore_staged_delete(array $stage): void
+/**
+ * Restore staged files when the database delete cannot commit.
+ *
+ * @param callable(string,string):bool|null $renamer
+ * @return array{restored:array<int,string>,restore_failed:array<int,array{label:string,source:string,private:string}>}
+ */
+function brvtal_media_restore_staged_delete(array $stage, ?callable $renamer = null): array
 {
+    $move = $renamer ?? static fn(string $source, string $target): bool => @rename($source, $target);
     $staged = is_array($stage['staged'] ?? null) ? $stage['staged'] : [];
+    $restored = [];
+    $failed = [];
     for ($index = count($staged) - 1; $index >= 0; $index--) {
         $entry = $staged[$index];
+        $label = (string)($entry['label'] ?? '');
         $source = (string)($entry['source'] ?? '');
         $private = (string)($entry['private'] ?? '');
-        if ($source !== '' && $private !== '' && is_file($private)) {
-            @rename($private, $source);
+        if ($source === '' || $private === '' || !is_file($private)) {
+            continue;
         }
+        if ($move($private, $source)) {
+            $restored[] = $label;
+            continue;
+        }
+        $failed[] = ['label'=>$label, 'source'=>$source, 'private'=>$private];
     }
+
     $trashDir = (string)($stage['trash_dir'] ?? '');
-    if ($trashDir !== '') {
+    if ($trashDir !== '' && $failed === []) {
         @rmdir($trashDir);
     }
+    if ($failed !== [] && function_exists('brvtal_log')) {
+        brvtal_log('MEDIA_RESTORE_PENDING', 'Media rollback has private staged files pending restore', [
+            'labels'=>array_values(array_filter(array_map(
+                static fn(array $entry): string => (string)($entry['label'] ?? ''),
+                $failed
+            ))),
+            'private_paths'=>array_values(array_map(
+                static fn(array $entry): string => (string)($entry['private'] ?? ''),
+                $failed
+            )),
+            'trash_dir'=>$trashDir,
+        ]);
+    }
+
+    return ['restored'=>$restored, 'restore_failed'=>$failed];
+}
+
+/**
+ * Remove a failed upload or quarantine it below the denied private tree.
+ *
+ * @param callable(string):bool|null $unlinker
+ * @param callable(string,string):bool|null $renamer
+ * @return array{removed:bool,quarantined:bool,recovery_path:?string}
+ */
+function brvtal_media_cleanup_failed_upload(
+    string $absolute,
+    ?string $recoveryRoot = null,
+    ?callable $unlinker = null,
+    ?callable $renamer = null
+): array {
+    if ($absolute === '' || !is_file($absolute)) {
+        return ['removed'=>true, 'quarantined'=>false, 'recovery_path'=>null];
+    }
+
+    $unlink = $unlinker ?? static fn(string $path): bool => @unlink($path);
+    if ($unlink($absolute) || !is_file($absolute)) {
+        return ['removed'=>true, 'quarantined'=>false, 'recovery_path'=>null];
+    }
+
+    $root = $recoveryRoot !== null && trim($recoveryRoot) !== ''
+        ? rtrim($recoveryRoot, DIRECTORY_SEPARATOR)
+        : dirname(__DIR__) . '/.private/media-recovery';
+    if (!is_dir($root) && !@mkdir($root, 0700, true) && !is_dir($root)) {
+        if (function_exists('brvtal_log')) {
+            brvtal_log('MEDIA_UPLOAD_RECOVERY_FAILED', 'Failed upload could not be removed or quarantined', [
+                'file'=>basename($absolute),
+            ]);
+        }
+        return ['removed'=>false, 'quarantined'=>false, 'recovery_path'=>$absolute];
+    }
+    @chmod($root, 0700);
+
+    $target = $root . DIRECTORY_SEPARATOR . bin2hex(random_bytes(12)) . '-' . basename($absolute);
+    $move = $renamer ?? static fn(string $source, string $target): bool => @rename($source, $target);
+    if (!$move($absolute, $target)) {
+        if (function_exists('brvtal_log')) {
+            brvtal_log('MEDIA_UPLOAD_RECOVERY_FAILED', 'Failed upload could not be removed or quarantined', [
+                'file'=>basename($absolute),
+            ]);
+        }
+        return ['removed'=>false, 'quarantined'=>false, 'recovery_path'=>$absolute];
+    }
+
+    if (function_exists('brvtal_log')) {
+        brvtal_log('MEDIA_UPLOAD_QUARANTINED', 'Failed upload moved to private recovery storage', [
+            'file'=>basename($absolute),
+            'recovery_file'=>basename($target),
+        ]);
+    }
+    return ['removed'=>false, 'quarantined'=>true, 'recovery_path'=>$target];
 }
 
 /**

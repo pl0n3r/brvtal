@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/admin_activity.php';
+require_once __DIR__ . '/../../config/media_integrity.php';
 
 function activity_it_expect(bool $condition, string $message): void
 {
@@ -112,6 +113,191 @@ $pdo->prepare('DELETE FROM admins WHERE id=?')->execute([$adminId]);
 $preserved = $pdo->query('SELECT admin_id,admin_name,admin_email FROM admin_activity_log WHERE id=' . (int)$activityId)->fetch();
 activity_it_expect($preserved['admin_id'] === null, 'deleting an admin must null the FK instead of deleting history');
 activity_it_expect($preserved['admin_name'] === 'Activity CI Admin' && $preserved['admin_email'] === 'activity-ci@brvtal.test', 'actor snapshot must survive admin deletion');
+
+
+$mediaSnapshot = brvtal_activity_snapshot('media', [
+    'id' => 12,
+    'type' => 'image',
+    'title' => 'Hero',
+    'file_path' => '/uploads/media/hero.webp',
+    'mime_type' => 'image/webp',
+    'file_size' => 1024,
+    'content_hash' => 'must-not-be-stored',
+    'alt_text' => 'Hero',
+    'status' => 'published',
+]);
+activity_it_expect(is_array($mediaSnapshot), 'media snapshot must be supported');
+activity_it_expect(($mediaSnapshot['title'] ?? null) === 'Hero', 'media metadata must remain attributable');
+activity_it_expect(!array_key_exists('content_hash', $mediaSnapshot), 'media content hashes must not enter activity snapshots');
+
+activity_it_expect(brvtalActivitySettingKeyAuditable('theme.active'), 'theme.active must be auditable');
+activity_it_expect(brvtalActivitySettingKeyAuditable('theme.neon'), 'theme definitions must be auditable by key');
+activity_it_expect(brvtalActivitySettingKeyAuditable('site.name'), 'safe public settings must be auditable');
+foreach ([
+    'security.totp_encryption_key',
+    'theme.private_key',
+    'site.api_token',
+    'credential.rotation',
+    'password.reset',
+] as $sensitiveSetting) {
+    activity_it_expect(
+        !brvtalActivitySettingKeyAuditable($sensitiveSetting),
+        'sensitive setting keys must never be audited: ' . $sensitiveSetting
+    );
+}
+
+$settingSnapshot = brvtal_activity_snapshot('settings', [
+    'setting_key' => 'theme.neon',
+    'setting_value' => '{"secret":"must-not-be-stored"}',
+    'is_json' => 1,
+]);
+activity_it_expect($settingSnapshot === ['setting_key' => 'theme.neon', 'is_json' => 1], 'settings snapshot must exclude setting_value');
+
+$themeActivityId = brvtal_activity_record(
+    $pdo,
+    'setting_update',
+    'settings',
+    null,
+    ['setting_key' => 'theme.neon', 'is_json' => 1, 'setting_value' => 'old-secret'],
+    ['setting_key' => 'theme.neon', 'is_json' => 1, 'setting_value' => 'new-secret'],
+    [
+        'source' => 'theme_studio',
+        'setting_key' => 'theme.neon',
+        'value_changed' => true,
+        'theme_mutation' => true,
+        'api_token' => 'must-not-be-stored',
+    ],
+    'theme.neon'
+);
+activity_it_expect(is_int($themeActivityId) && $themeActivityId > 0, 'theme setting mutation must create activity');
+$themeRow = $pdo->query('SELECT * FROM admin_activity_log WHERE id=' . (int)$themeActivityId)->fetch();
+activity_it_expect(is_array($themeRow), 'theme activity row must persist');
+activity_it_expect($themeRow['resource'] === 'settings' && $themeRow['action'] === 'setting_update', 'theme activity must be attributable');
+activity_it_expect(!str_contains((string)$themeRow['before_json'], 'old-secret'), 'theme before snapshot must not contain setting value');
+activity_it_expect(!str_contains((string)$themeRow['after_json'], 'new-secret'), 'theme after snapshot must not contain setting value');
+activity_it_expect(!str_contains((string)$themeRow['meta_json'], 'must-not-be-stored'), 'theme metadata must sanitize tokens');
+
+
+$themeDeleteActivityId = brvtal_activity_record(
+    $pdo,
+    'setting_delete',
+    'settings',
+    null,
+    ['setting_key' => 'theme.neon', 'is_json' => 1, 'setting_value' => 'delete-secret'],
+    null,
+    [
+        'source' => 'theme_studio',
+        'setting_key' => 'theme.neon',
+        'theme_mutation' => true,
+    ],
+    'theme.neon'
+);
+activity_it_expect(is_int($themeDeleteActivityId) && $themeDeleteActivityId > 0, 'theme delete must create activity');
+$themeDeleteRow = $pdo->query('SELECT * FROM admin_activity_log WHERE id=' . (int)$themeDeleteActivityId)->fetch();
+activity_it_expect(!str_contains((string)$themeDeleteRow['before_json'], 'delete-secret'), 'theme delete snapshot must not contain setting value');
+
+
+// Executable rollback regression: a failed audit must roll back the Settings write.
+$pdo->exec("CREATE TABLE IF NOT EXISTS settings (
+    setting_key VARCHAR(120) PRIMARY KEY,
+    setting_value LONGTEXT NULL,
+    is_json TINYINT(1) NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB");
+$settingKey = 'site.audit_atomicity_ci';
+$pdo->prepare('DELETE FROM settings WHERE setting_key=?')->execute([$settingKey]);
+$pdo->prepare('INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,0)')
+    ->execute([$settingKey, 'before']);
+$pdo->exec('DROP TRIGGER IF EXISTS admin_activity_force_fail');
+$pdo->exec(<<<'SQL_WRAP'
+CREATE TRIGGER admin_activity_force_fail
+BEFORE INSERT ON admin_activity_log
+FOR EACH ROW
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced activity failure'
+SQL_WRAP);
+$settingsRolledBack = false;
+try {
+    $pdo->beginTransaction();
+    $lock = $pdo->prepare('SELECT is_json FROM settings WHERE setting_key=? LIMIT 1 FOR UPDATE');
+    $lock->execute([$settingKey]);
+    $beforeSetting = $lock->fetch(PDO::FETCH_ASSOC) ?: ['setting_key'=>$settingKey,'is_json'=>0];
+    $pdo->prepare('UPDATE settings SET setting_value=? WHERE setting_key=?')->execute(['after', $settingKey]);
+    brvtal_activity_record(
+        $pdo,
+        'setting_update',
+        'settings',
+        null,
+        ['setting_key'=>$settingKey,'is_json'=>(int)($beforeSetting['is_json'] ?? 0)],
+        ['setting_key'=>$settingKey,'is_json'=>(int)($beforeSetting['is_json'] ?? 0)],
+        ['source'=>'integration'],
+        $settingKey
+    );
+    $pdo->commit();
+} catch (Throwable) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    $settingsRolledBack = true;
+}
+$pdo->exec('DROP TRIGGER IF EXISTS admin_activity_force_fail');
+activity_it_expect($settingsRolledBack, 'forced Settings audit failure must surface');
+$settingValue = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key=?');
+$settingValue->execute([$settingKey]);
+activity_it_expect($settingValue->fetchColumn() === 'before', 'Settings mutation must roll back when audit insert fails');
+$pdo->prepare('DELETE FROM settings WHERE setting_key=?')->execute([$settingKey]);
+
+// Executable filesystem rollback regressions for Media.
+$tmpMediaRoot = sys_get_temp_dir() . '/brvtal-activity-media-' . bin2hex(random_bytes(5));
+@mkdir($tmpMediaRoot, 0700, true);
+$publicFile = $tmpMediaRoot . '/public-upload.bin';
+file_put_contents($publicFile, 'fixture');
+$recoveryRoot = $tmpMediaRoot . '/private-recovery';
+$cleanup = brvtal_media_cleanup_failed_upload(
+    $publicFile,
+    $recoveryRoot,
+    static fn(string $path): bool => false,
+    static fn(string $source, string $target): bool => @rename($source, $target)
+);
+activity_it_expect(($cleanup['quarantined'] ?? false) === true, 'failed upload cleanup must quarantine when unlink fails');
+activity_it_expect(!is_file($publicFile), 'quarantined failed upload must leave no public orphan');
+activity_it_expect(is_file((string)($cleanup['recovery_path'] ?? '')), 'quarantined upload must retain a recoverable private path');
+
+$restoreSource = $tmpMediaRoot . '/restore-target.bin';
+$trashDir = $tmpMediaRoot . '/trash';
+@mkdir($trashDir, 0700, true);
+$restorePrivate = $trashDir . '/staged.bin';
+file_put_contents($restorePrivate, 'staged');
+$stage = [
+    'ok'=>true,
+    'staged'=>[[
+        'label'=>'fixture',
+        'source'=>$restoreSource,
+        'private'=>$restorePrivate,
+    ]],
+    'failed'=>null,
+    'trash_dir'=>$trashDir,
+];
+$failedRestore = brvtal_media_restore_staged_delete(
+    $stage,
+    static fn(string $source, string $target): bool => false
+);
+activity_it_expect(count($failedRestore['restore_failed'] ?? []) === 1, 'failed staged restore must be reported');
+activity_it_expect(is_file($restorePrivate), 'failed staged restore must retain the private file for recovery');
+
+$successfulRestore = brvtal_media_restore_staged_delete(
+    $stage,
+    static fn(string $source, string $target): bool => @rename($source, $target)
+);
+activity_it_expect(($successfulRestore['restore_failed'] ?? []) === [], 'successful staged restore must clear recovery debt');
+activity_it_expect(is_file($restoreSource), 'successful staged restore must restore the public source path');
+
+foreach (glob($recoveryRoot . '/*') ?: [] as $recoveryFile) {
+    @unlink($recoveryFile);
+}
+@unlink($restoreSource);
+@rmdir($recoveryRoot);
+@rmdir($trashDir);
+@rmdir($tmpMediaRoot);
 
 $pdo->exec('DROP TABLE admin_activity_log');
 

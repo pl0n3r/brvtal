@@ -494,9 +494,8 @@ try {
             }
 
             try {
+                $pdo->beginTransaction();
                 if ($themeMutation) {
-                    $pdo->beginTransaction();
-
                     $activeTheme = $pdo->query(
                         "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
                     )->fetchColumn();
@@ -537,7 +536,7 @@ try {
                     }
                 );
                 if ($themeReferenceError !== null) {
-                    if ($themeMutation && $pdo->inTransaction()) {
+                    if ($pdo->inTransaction()) {
                         $pdo->rollBack();
                     }
                     if ($themeMutation) {
@@ -559,9 +558,28 @@ try {
                 );
                 $st->execute([$key, $value, $isJson]);
 
-                if ($themeMutation) {
-                    $pdo->commit();
+                if ($settingChanged && brvtalActivitySettingKeyAuditable($key)) {
+                    $beforeSettingAudit = is_array($previousSetting)
+                        ? ['setting_key' => $key, 'is_json' => (int)($previousSetting['is_json'] ?? 0)]
+                        : null;
+                    $afterSettingAudit = ['setting_key' => $key, 'is_json' => $isJson];
+                    brvtal_activity_record(
+                        $pdo,
+                        'setting_update',
+                        'settings',
+                        null,
+                        $beforeSettingAudit,
+                        $afterSettingAudit,
+                        [
+                            'source' => $themeMutation ? 'theme_studio' : 'settings_api',
+                            'setting_key' => $key,
+                            'value_changed' => true,
+                            'theme_mutation' => $themeMutation,
+                        ],
+                        $key
+                    );
                 }
+                $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
@@ -778,15 +796,21 @@ try {
             json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
         }
 
+        $previousSettingDelete = null;
         $themeMutation = str_starts_with($key, 'theme.');
         if ($themeMutation) {
             brvtalAcquireThemeReferenceMutex($pdo);
         }
 
         try {
-            if ($themeMutation) {
-                $pdo->beginTransaction();
+            $pdo->beginTransaction();
+            $previousSettingDeleteSt = $pdo->prepare(
+                'SELECT is_json FROM settings WHERE setting_key=? LIMIT 1 FOR UPDATE'
+            );
+            $previousSettingDeleteSt->execute([$key]);
+            $previousSettingDelete = $previousSettingDeleteSt->fetch(PDO::FETCH_ASSOC);
 
+            if ($themeMutation) {
                 $activeTheme = $pdo->query(
                     "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
                 )->fetchColumn();
@@ -808,9 +832,25 @@ try {
             $st->execute([$key]);
             $deleted = (int)$st->rowCount();
 
-            if ($themeMutation) {
-                $pdo->commit();
+            if ($deleted > 0 && brvtalActivitySettingKeyAuditable($key)) {
+                brvtal_activity_record(
+                    $pdo,
+                    'setting_delete',
+                    'settings',
+                    null,
+                    is_array($previousSettingDelete)
+                        ? ['setting_key' => $key, 'is_json' => (int)($previousSettingDelete['is_json'] ?? 0)]
+                        : ['setting_key' => $key, 'is_json' => 0],
+                    null,
+                    [
+                        'source' => $themeMutation ? 'theme_studio' : 'settings_api',
+                        'setting_key' => $key,
+                        'theme_mutation' => $themeMutation,
+                    ],
+                    $key
+                );
             }
+            $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
