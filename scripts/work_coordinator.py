@@ -38,6 +38,10 @@ STATUS_COMPLETED = "status: completed"
 STATUS_CANCELLED = "status: cancelled"
 STATUS_BLOCKED = "status: blocked"
 
+TAKE_NONE = "none"
+TAKE_RECOVERED = "recovered"
+TAKE_BLOCKED = "blocked"
+
 STATUS_LABELS: dict[str, tuple[str, str]] = {
     STATUS_AVAILABLE: ("2DA44E", "Work is available for reservation."),
     STATUS_RESERVED: ("FBCA04", "Work is reserved by a session or agent."),
@@ -665,6 +669,17 @@ def reserve_work(
     labels = label_names(issue)
     if labels & {STATUS_BLOCKED, STATUS_REVIEW, STATUS_COMPLETED, STATUS_CANCELLED}:
         return None
+
+    other_active = [
+        number
+        for number, _reservation, _started_at, _comments in active_reservation_records(api)
+        if number != issue_number
+    ]
+    if other_active:
+        rendered = ", ".join(f"#{number}" for number in sorted(other_active))
+        raise CoordinationError(
+            f"Cannot reserve Issue #{issue_number}: active reservation already exists on {rendered}."
+        )
 
     branch = f"work/issue-{issue_number}"
     main_sha = api.branch_sha("main")
@@ -1494,40 +1509,120 @@ def inactive_recovery_candidate(
     return started_at, number, str(reservation["reservation_id"])
 
 
+def active_reservation_records(
+    api: GitHub,
+) -> list[tuple[int, dict[str, Any], datetime | None, list[dict[str, Any]]]]:
+    """Return every trusted active reservation on an open Issue."""
+    records: list[
+        tuple[int, dict[str, Any], datetime | None, list[dict[str, Any]]]
+    ] = []
+    for issue in api.open_issues():
+        number = issue.get("number")
+        if not isinstance(number, int):
+            continue
+        comments = api.issue_comments(number)
+        record = latest_reservation_record(comments)
+        if record is None:
+            continue
+        reservation, started_at = record
+        if reservation["active"]:
+            records.append((number, reservation, started_at, comments))
+    return records
+
+
 def recover_oldest_inactive_before_take(
     api: GitHub,
     actor: str,
     association: str,
-) -> bool:
-    """Recover the oldest compatible inactive reservation before opening new work."""
-    candidates = [
-        candidate
-        for issue in api.open_issues()
-        if (candidate := inactive_recovery_candidate(api, issue)) is not None
-    ]
-    for _started_at, issue_number, reservation_id in sorted(candidates):
+) -> str:
+    """Recover one stale line, block on owned work, or permit a new reservation."""
+    active = active_reservation_records(api)
+    if not active:
+        return TAKE_NONE
+
+    stale: list[tuple[datetime, int, str]] = []
+    for issue_number, reservation, started_at, comments in active:
+        issue = api.issue(issue_number)
+        branch = f"work/issue-{issue_number}"
+        labels = label_names(issue)
+
+        if (
+            reservation["branch"] != branch
+            or not ({STATUS_RESERVED, STATUS_REVIEW} & labels)
+            or api.branch_sha(branch) is None
+        ):
+            print(
+                f"Active reservation on Issue #{issue_number} is inconsistent; "
+                "new work is blocked.",
+                file=sys.stderr,
+            )
+            return TAKE_BLOCKED
+
         try:
-            recovered = recover_work(
+            inactive = reservation_is_inactive(
                 api,
                 issue_number,
-                actor,
-                association,
-                reservation_id,
+                branch,
+                comments,
+                started_at,
             )
         except CoordinationError as exc:
             print(
-                f"Skipping inactive Issue #{issue_number}: {exc}",
+                f"Cannot prove reservation state for Issue #{issue_number}: {exc}",
                 file=sys.stderr,
             )
-            continue
-        if recovered is not None:
-            print(
-                f"Recovery-first selected inactive Issue #{issue_number} "
-                f"before reserving new work."
-            )
-            return True
-    return False
+            return TAKE_BLOCKED
 
+        if not inactive:
+            print(
+                f"Active reservation on Issue #{issue_number} blocks new work.",
+                file=sys.stderr,
+            )
+            return TAKE_BLOCKED
+
+        assert started_at is not None
+        stale.append(
+            (started_at, issue_number, str(reservation["reservation_id"]))
+        )
+
+    if len(stale) > 1:
+        rendered = ", ".join(f"#{number}" for _started, number, _rid in sorted(stale))
+        print(
+            f"Multiple stale active reservations exist ({rendered}); "
+            "new work is blocked until authority is reconciled.",
+            file=sys.stderr,
+        )
+        return TAKE_BLOCKED
+
+    started_at, issue_number, reservation_id = stale[0]
+    _ = started_at
+    try:
+        recovered = recover_work(
+            api,
+            issue_number,
+            actor,
+            association,
+            reservation_id,
+        )
+    except CoordinationError as exc:
+        print(
+            f"Cannot safely recover inactive Issue #{issue_number}: {exc}",
+            file=sys.stderr,
+        )
+        return TAKE_BLOCKED
+
+    if recovered is None:
+        print(
+            f"Inactive Issue #{issue_number} still owns work but could not be recovered.",
+            file=sys.stderr,
+        )
+        return TAKE_BLOCKED
+
+    print(
+        f"Recovery-first selected inactive Issue #{issue_number} "
+        "before reserving new work."
+    )
+    return TAKE_RECOVERED
 
 def parse_comment_command(body: str) -> tuple[str, str | None]:
     """BRVTAL work-coordination helper."""
@@ -1562,8 +1657,13 @@ def process_comment(
     """BRVTAL work-coordination helper."""
     command, reservation_id = parse_comment_command(body)
     if command == "take":
-        if not recover_oldest_inactive_before_take(api, actor, association):
+        take_result = recover_oldest_inactive_before_take(api, actor, association)
+        if take_result == TAKE_NONE:
             reserve_work(api, issue_number, actor, association)
+        elif take_result == TAKE_BLOCKED:
+            raise CoordinationError(
+                "Cannot reserve new work while another active or unsafe reservation exists."
+            )
     elif command == "release":
         release_work(
             api,
