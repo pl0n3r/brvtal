@@ -65,29 +65,16 @@
     }).join('');
   }
 
-  function render(panel, payload) {
-    const data = payload?.data || {};
-    const items = Array.isArray(data.items) ? data.items : [];
-    const latest = items[0] || null;
-    const zipAvailable = !!data.capabilities?.media_archive;
+  function automationMarkup(data, zipAvailable) {
     const automation = data.automation || {};
     const schedule = automation.config || {};
     const cadence = schedule.cadence || {type:'daily',interval:1,time:'03:00'};
     const drive = schedule.drive || {enabled:false,folder:null};
+    const nextRun = automation.next_run_at ? dateLabel(automation.next_run_at) : 'PAUSED';
+    const lastRun = automation.last_run_at ? dateLabel(automation.last_run_at) : 'NEVER';
+    const lastResult = automation.last_result?.status?.toUpperCase() || 'NONE';
 
-    panel.innerHTML = `
-      <div class="ssv2-panel-head"><span>BACKUPS</span><b>PRIVATE / AUTOMATED</b></div>
-      <div class="backup-summary">
-        <div><strong>${items.length}</strong><span>BACKUPS</span></div>
-        <div><strong>${esc(latest?.status?.toUpperCase() || 'NONE')}</strong><span>LATEST STATUS</span></div>
-        <div><strong>${esc(schedule.enabled ? 'ON' : 'OFF')}</strong><span>AUTOMATION</span></div>
-        <div><strong>${esc(automation.next_run_at ? dateLabel(automation.next_run_at) : 'PAUSED')}</strong><span>NEXT RUN</span></div>
-      </div>
-      <div class="backup-actions">
-        <div><button type="button" class="backup-create" data-media="0">CREATE BACKUP</button><span>Database SQL + media inventory manifest.</span></div>
-        <div><button type="button" class="backup-create ghost" data-media="1" ${zipAvailable ? '' : 'disabled'}>CREATE + MEDIA ZIP</button><span>${zipAvailable ? 'Also archive current uploads. Can take longer.' : 'ZipArchive unavailable on this runtime.'}</span></div>
-        <button type="button" class="backup-refresh">REFRESH</button>
-      </div>
+    return `
       <section class="backup-automation" aria-label="Backup automation">
         <div class="backup-section-head"><div><strong>AUTOMATION</strong><span>Server-side · America/Bogota · Hostinger Cron compatible</span></div><b>${schedule.enabled ? 'ENABLED' : 'PAUSED'}</b></div>
         <div class="backup-grid">
@@ -110,7 +97,7 @@
           <label class="backup-check"><input type="checkbox" data-backup-media-zip ${schedule.include_media_archive?'checked':''}> INCLUDE MEDIA ZIP</label>
           <button type="button" class="backup-save">SAVE AUTOMATION</button>
         </div>
-        <div class="backup-last">LAST RESULT · ${esc(automation.last_result?.status?.toUpperCase() || 'NONE')} · ${esc(automation.last_run_at ? dateLabel(automation.last_run_at) : 'NEVER')}</div>
+        <div class="backup-last">LAST RESULT · ${esc(lastResult)} · ${esc(lastRun)}</div>
       </section>
       <section class="backup-offsite" aria-label="Google Drive off-site backup">
         <div class="backup-section-head"><div><strong>OFF-SITE / GOOGLE DRIVE</strong><span>Local backup remains authoritative if Drive delivery fails.</span></div><b>${automation.drive?.connected ? 'CONNECTED' : 'AUTH REQUIRED'}</b></div>
@@ -119,7 +106,31 @@
           <label><span>TARGET FOLDER</span><input type="text" maxlength="160" value="${esc(drive.folder || '')}" placeholder="BRVTAL Backups" data-drive-folder></label>
         </div>
         <div class="backup-drive-note">OAuth tokens are not stored in this form or returned to the browser. Connection credentials require the protected server-side authorization flow before Drive delivery can succeed.</div>
-      </section>
+      </section>`;
+  }
+
+  function render(panel, payload) {
+    const data = payload?.data || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    const latest = items[0] || null;
+    const zipAvailable = !!data.capabilities?.media_archive;
+    const scheduleEnabled = !!data.automation?.config?.enabled;
+    const nextRun = data.automation?.next_run_at ? dateLabel(data.automation.next_run_at) : 'PAUSED';
+
+    panel.innerHTML = `
+      <div class="ssv2-panel-head"><span>BACKUPS</span><b>PRIVATE / AUTOMATED</b></div>
+      <div class="backup-summary">
+        <div><strong>${items.length}</strong><span>BACKUPS</span></div>
+        <div><strong>${esc(latest?.status?.toUpperCase() || 'NONE')}</strong><span>LATEST STATUS</span></div>
+        <div><strong>${esc(scheduleEnabled ? 'ON' : 'OFF')}</strong><span>AUTOMATION</span></div>
+        <div><strong>${esc(nextRun)}</strong><span>NEXT RUN</span></div>
+      </div>
+      <div class="backup-actions">
+        <div><button type="button" class="backup-create" data-media="0">CREATE BACKUP</button><span>Database SQL + media inventory manifest.</span></div>
+        <div><button type="button" class="backup-create ghost" data-media="1" ${zipAvailable ? '' : 'disabled'}>CREATE + MEDIA ZIP</button><span>${zipAvailable ? 'Also archive current uploads. Can take longer.' : 'ZipArchive unavailable on this runtime.'}</span></div>
+        <button type="button" class="backup-refresh">REFRESH</button>
+      </div>
+      ${automationMarkup(data, zipAvailable)}
       <div class="backup-warning"><i></i><span>Backups contain sensitive database state. Files are stored in private server storage and downloads require an authenticated admin session. Store downloaded copies securely.</span></div>
       <div class="backup-list">${backupRows(items)}</div>
       <div class="backup-foot"><span>NO AUTOMATIC RESTORE</span><span>${data.private_storage ? 'PRIVATE STORAGE VERIFIED' : 'CHECK STORAGE PRIVACY'}</span></div>`;
