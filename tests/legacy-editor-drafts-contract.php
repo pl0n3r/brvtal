@@ -34,7 +34,21 @@ $expect(
 );
 $expect(
     str_contains($drafts, "['pages', {"),
-    'first rollout slice must be Pages only'
+    'legacy draft adapter must keep the validated Pages contract'
+);
+$expect(
+    str_contains($drafts, "['artists', {"),
+    'Artists rollout must reuse the legacy draft adapter'
+);
+$expect(
+    str_contains($drafts, "is_collective_member")
+        && str_contains($drafts, "instagram_url")
+        && str_contains($drafts, "soundcloud_url"),
+    'Artists draft contract must cover membership and social fields'
+);
+$expect(
+    str_contains($drafts, 'Object.entries(left).every'),
+    'save comparison must ignore non-editable payload metadata such as visual sort_order'
 );
 $expect(
     !str_contains($drafts, 'fetch(') && !str_contains($drafts, 'XMLHttpRequest'),
