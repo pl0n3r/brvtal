@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/set_publication.php';
 require_once __DIR__ . '/../config/totp_auth.php';
 require_once __DIR__ . '/../config/password_rate_limit.php';
+require_once __DIR__ . '/../config/admin_password_security.php';
 require_once __DIR__ . '/../config/indexnow.php';
 require_once __DIR__ . '/../config/hero_slider_integrity.php';
 require_once __DIR__ . '/admin-read-plan.php';
@@ -159,6 +160,54 @@ try {
         if($method==='POST') {
             $d=$GLOBALS['brvtal_auth_input'] ?? input_json();
             unset($GLOBALS['brvtal_auth_input']);
+
+            $authAction = (string)($d['action'] ?? '');
+            if ($authAction === 'forgot_password') {
+                $baseUrl = (string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co');
+                brvtal_admin_password_forgot(db(), (string)($d['email'] ?? ''), $baseUrl);
+                json_response([
+                    'ok' => true,
+                    'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
+                ]);
+            }
+            if ($authAction === 'reset_password') {
+                $token = trim((string)($d['token'] ?? ''));
+                $newPassword = (string)($d['new_password'] ?? '');
+                if ($token === '' || $newPassword === '') {
+                    json_response(['ok'=>false,'error'=>'RESET_INPUT_REQUIRED'],422);
+                }
+                try {
+                    brvtal_admin_password_reset_consume(
+                        db(),
+                        $token,
+                        $newPassword,
+                        (string)($d['totp_code'] ?? '')
+                    );
+                } catch (DomainException $e) {
+                    json_response(['ok'=>false,'error'=>$e->getMessage()],422);
+                }
+                brvtal_admin_logout();
+                json_response(['ok'=>true]);
+            }
+            if ($authAction === 'change_password') {
+                if (!brvtal_admin_is_authenticated()) {
+                    json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
+                }
+                brvtal_admin_require_csrf((string)($d['csrf'] ?? ''));
+                $adminId = (int)($_SESSION['admin_id'] ?? 0);
+                try {
+                    brvtal_admin_password_change_authenticated(
+                        db(),
+                        $adminId,
+                        (string)($d['current_password'] ?? ''),
+                        (string)($d['new_password'] ?? '')
+                    );
+                } catch (DomainException $e) {
+                    json_response(['ok'=>false,'error'=>$e->getMessage()],422);
+                }
+                brvtal_admin_login_session($adminId);
+                json_response(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);
+            }
             if(($d['action'] ?? '') === 'totp_verify') {
                 $pendingId=brvtal_totp_pending_admin_id();
                 if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);

@@ -2,20 +2,22 @@
 declare(strict_types=1);
 
 /**
- * Return whether an administrator still exists and is active.
+ * Return the current administrator authentication state.
  *
- * This helper is deliberately PDO-only so the account-state policy can be
- * exercised independently from PHP session globals. Callers decide how to
- * handle database unavailability; the authentication boundary must fail closed.
+ * The credential epoch is incremented whenever a password credential changes.
+ * Sessions pin the epoch observed at login and fail closed when it changes.
+ *
+ * @return array{active:bool,credential_epoch:int}|null
  */
-/** @return array{is_active:bool,credential_epoch:int}|null */
-function brvtal_admin_account_session_state(PDO $pdo, int $adminId): ?array
+function brvtal_admin_account_state(PDO $pdo, int $adminId): ?array
 {
     if ($adminId < 1) {
         return null;
     }
 
-    $st = $pdo->prepare('SELECT is_active,credential_epoch FROM admins WHERE id=? LIMIT 1');
+    $st = $pdo->prepare(
+        'SELECT is_active, credential_epoch FROM admins WHERE id=? LIMIT 1'
+    );
     $st->execute([$adminId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) {
@@ -23,13 +25,13 @@ function brvtal_admin_account_session_state(PDO $pdo, int $adminId): ?array
     }
 
     return [
-        'is_active' => (int)($row['is_active'] ?? 0) === 1,
-        'credential_epoch' => max(1, (int)($row['credential_epoch'] ?? 0)),
+        'active' => (int)($row['is_active'] ?? 0) === 1,
+        'credential_epoch' => max(1, (int)($row['credential_epoch'] ?? 1)),
     ];
 }
 
 function brvtal_admin_account_is_active(PDO $pdo, int $adminId): bool
 {
-    $state = brvtal_admin_account_session_state($pdo, $adminId);
-    return $state !== null && $state['is_active'];
+    $state = brvtal_admin_account_state($pdo, $adminId);
+    return $state !== null && $state['active'];
 }
