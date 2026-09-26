@@ -32,7 +32,7 @@
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS]** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
 | PR + snapshot exacto | **Issue #695 · mismo runtime/versionado** |
 | Roles | **Software Engineering · QA · Security** |
 | Trust boundary | solo PHPStan JSON; ningún secreto o dato personal |
