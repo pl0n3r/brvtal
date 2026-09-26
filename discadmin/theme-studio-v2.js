@@ -1,12 +1,21 @@
 (() => {
   'use strict';
 
+  const DRAFT_SCOPE = 'theme-studio';
+  const DRAFT_DEBOUNCE_MS = 650;
   const V2 = {
     editingSlug: '',
     baseline: '',
     previewMode: 'desktop',
     pickerField: '',
     lastFocus: null,
+    draftTimer: null,
+    draftRecovery: null,
+    draftBaseRevision: '',
+    draftState: { label:'Saved to server', kind:'server' },
+    saveInFlight: false,
+    suppressDraftSchedule: false,
+    authInvalidated: false,
   };
 
   const clone = value => JSON.parse(JSON.stringify(value ?? {}));
@@ -64,6 +73,159 @@
   };
   const value = id => document.getElementById('th_' + id)?.value ?? '';
   const checked = id => Boolean(document.getElementById('th_' + id)?.checked);
+
+  const draftApi = () => window.BRVTALDrafts || null;
+
+  function canonicalValue(input) {
+    if (Array.isArray(input)) return input.map(canonicalValue);
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.keys(input)
+          .sort((left, right) => left.localeCompare(right))
+          .map(key => [key, canonicalValue(input[key])])
+      );
+    }
+    return input;
+  }
+
+  function canonicalSnapshot(input) {
+    try { return JSON.stringify(canonicalValue(input)); }
+    catch (_) { return ''; }
+  }
+
+  function rawThemeSetting(slug) {
+    const key = 'theme.' + safeSlug(slug);
+    const row = (state.themeSettings || []).find(item => item.setting_key === key);
+    if (!row) return null;
+    let raw = row.setting_value;
+    try { if (typeof raw === 'string') raw = JSON.parse(raw); } catch (_) {}
+    return raw;
+  }
+
+  function themeRevision(slug, fallback = null) {
+    return canonicalSnapshot(rawThemeSetting(slug) ?? fallback ?? {});
+  }
+
+  function draftIdentity(slug = V2.editingSlug) {
+    return safeSlug(slug || currentTheme()?.slug || 'theme') || 'theme';
+  }
+
+  function clearDraftTimer() {
+    if (!V2.draftTimer) return;
+    window.clearTimeout(V2.draftTimer);
+    V2.draftTimer = null;
+  }
+
+  function setDraftState(label, kind = 'server') {
+    V2.draftState = { label, kind };
+    const node = document.querySelector('[data-theme-draft-state]');
+    if (!node) return;
+    node.textContent = label;
+    node.dataset.kind = kind;
+  }
+
+  function draftStatusMarkup() {
+    return `<div class="tsv2-draft-status" aria-live="polite"><span data-theme-draft-state data-kind="${escapeHtml(V2.draftState.kind)}">${escapeHtml(V2.draftState.label)}</span><small>Local recovery only · Save Draft and Save & Activate remain explicit.</small></div>`;
+  }
+
+  function draftConflict() {
+    const api = draftApi();
+    return Boolean(V2.draftRecovery && api && !api.sameRevision(V2.draftRecovery, V2.draftBaseRevision));
+  }
+
+  function draftRecoveryMarkup() {
+    if (!V2.draftRecovery) return '';
+    const conflict = draftConflict();
+    const savedAt = V2.draftRecovery.saved_at ? new Date(V2.draftRecovery.saved_at).toLocaleString() : 'recently';
+    return `<div class="tsv2-draft-recovery" data-theme-draft-recovery data-conflict="${conflict ? '1' : '0'}" role="region" aria-label="Recover local Theme Studio draft"><div><strong>LOCAL THEME DRAFT AVAILABLE${conflict ? ' · SERVER CHANGED' : ''}</strong><small>Saved ${escapeHtml(savedAt)}. Restore changes only this editor; it never activates a theme.</small></div><div class="tsv2-draft-recovery-actions"><button type="button" class="btn ghost" data-theme-draft-discard>DISCARD</button><button type="button" class="btn ghost" data-theme-draft-restore>RESTORE</button></div></div>`;
+  }
+
+  async function persistLocalDraft() {
+    if (V2.authInvalidated) return false;
+    clearDraftTimer();
+    const api = draftApi();
+    if (!api) {
+      setDraftState('Save failed · local recovery unavailable', 'error');
+      return false;
+    }
+    const data = clone(currentTheme());
+    const submitted = snapshot(data);
+    if (submitted === V2.baseline) {
+      await removeLocalDraft();
+      V2.draftRecovery = null;
+      setDraftState('Saved to server', 'server');
+      return true;
+    }
+    setDraftState('Saving', 'saving');
+    try {
+      await api.save(DRAFT_SCOPE, draftIdentity(), {
+        base_revision: V2.draftBaseRevision,
+        data
+      });
+      if (snapshot() !== submitted) {
+        setDraftState('Unsaved', 'unsaved');
+        if (!V2.saveInFlight && !V2.suppressDraftSchedule) {
+          V2.draftTimer = window.setTimeout(() => { void persistLocalDraft(); }, DRAFT_DEBOUNCE_MS);
+        }
+      } else {
+        setDraftState('Draft saved locally', 'saved');
+      }
+      return true;
+    } catch (error) {
+      if (error?.name === 'AbortError') return false;
+      setDraftState('Save failed · keep this workspace open', 'error');
+      return false;
+    }
+  }
+
+  function markDraftDirty() {
+    if (V2.authInvalidated) return;
+    setDraftState('Unsaved', 'unsaved');
+    clearDraftTimer();
+    if (V2.saveInFlight || V2.suppressDraftSchedule) return;
+    V2.draftTimer = window.setTimeout(() => { void persistLocalDraft(); }, DRAFT_DEBOUNCE_MS);
+  }
+
+  async function removeLocalDraft(identity = draftIdentity()) {
+    const api = draftApi();
+    if (!api) return;
+    try { await api.remove(DRAFT_SCOPE, identity); } catch (_) {}
+  }
+
+  async function loadDraftRecovery(slug, serverTheme) {
+    clearDraftTimer();
+    V2.draftRecovery = null;
+    V2.draftBaseRevision = themeRevision(slug, serverTheme);
+    setDraftState('Saved to server', 'server');
+    const api = draftApi();
+    if (!api) return;
+    const draft = await api.load(DRAFT_SCOPE, draftIdentity(slug));
+    if (!draft) return;
+    if (canonicalSnapshot(draft.data) === canonicalSnapshot(serverTheme)) {
+      await removeLocalDraft(draftIdentity(slug));
+      return;
+    }
+    V2.draftRecovery = draft;
+    setDraftState('Draft saved locally', 'saved');
+  }
+
+  function restoreDraft() {
+    if (V2.authInvalidated || !V2.draftRecovery) return;
+    const recovered = mergeTheme(V2.draftRecovery.data);
+    V2.draftRecovery = null;
+    V2.suppressDraftSchedule = true;
+    render(recovered);
+    V2.suppressDraftSchedule = false;
+    setDraftState('Draft saved locally', 'saved');
+  }
+
+  async function discardDraft() {
+    if (V2.authInvalidated) return;
+    await removeLocalDraft();
+    V2.draftRecovery = null;
+    setDraftState('Saved to server', 'server');
+    render(state.theme);
+  }
 
   function themeRows() {
     return (state.themeSettings || [])
@@ -172,6 +334,8 @@
       </header>
 
       <div class="tsv2-statusbar"><span id="tsv2-dirty-state" class="clean">SAVED</span><span>Save stores a draft. Activate publishes this theme to the public site.</span></div>
+      ${draftStatusMarkup()}
+      ${draftRecoveryMarkup()}
 
       <div class="tsv2-layout">
         <aside class="tsv2-tabs" aria-label="Theme Studio sections">
@@ -327,6 +491,12 @@
     if (stateEl) { stateEl.textContent = dirty ? 'UNSAVED CHANGES' : 'SAVED'; stateEl.className = dirty ? 'dirty' : 'clean'; }
     if (footer) footer.textContent = dirty ? 'UNSAVED CHANGES' : 'NO UNSAVED CHANGES';
     document.querySelector('[data-theme-studio-v2]')?.toggleAttribute('data-dirty', dirty);
+    if (dirty) markDraftDirty();
+    else if (!V2.draftRecovery) {
+      clearDraftTimer();
+      void removeLocalDraft();
+      setDraftState('Saved to server', 'server');
+    }
     return dirty;
   }
 
@@ -341,6 +511,8 @@
   }
 
   async function loadThemeStudioV2(preferred = '') {
+    V2.authInvalidated = false;
+    V2.suppressDraftSchedule = false;
     try {
       const [settingsResponse, mediaResponse] = await Promise.all([req('/settings'), req('/media')]);
       state.themeSettings = settingsResponse.data || [];
@@ -356,29 +528,79 @@
     const theme = findTheme(V2.editingSlug) || mergeTheme(typeof THEME_DEFAULT !== 'undefined' ? THEME_DEFAULT : {});
     state.theme = theme;
     V2.baseline = snapshot(theme);
+    await loadDraftRecovery(V2.editingSlug, theme);
     render(theme);
   }
 
+  async function preserveNewerEdits(theme, submittedSnapshot, originalIdentity = '') {
+    if (V2.authInvalidated) return true;
+    if (snapshot() === submittedSnapshot) return false;
+    const newerTheme = currentTheme();
+    V2.editingSlug = newerTheme.slug;
+    V2.draftBaseRevision = canonicalSnapshot(theme);
+    V2.saveInFlight = false;
+    const nextIdentity = draftIdentity(newerTheme.slug);
+    if (originalIdentity && originalIdentity !== nextIdentity) await removeLocalDraft(originalIdentity);
+    const persisted = await persistLocalDraft();
+    setDraftState(
+      persisted ? 'Draft saved locally · newer edits remain unsaved' : 'Save failed · newer edits are not stored locally',
+      persisted ? 'saved' : 'error'
+    );
+    if (window.BRVTALFeedback) BRVTALFeedback.success('Theme saved; newer edits remain local.', 'theme-studio-save');
+    return true;
+  }
+
+  async function finishPersist(theme, submittedSnapshot, originalIdentity, activate) {
+    if (V2.authInvalidated) return;
+    V2.editingSlug = theme.slug;
+    V2.draftBaseRevision = canonicalSnapshot(theme);
+    if (await preserveNewerEdits(theme, submittedSnapshot, originalIdentity)) return;
+
+    V2.baseline = submittedSnapshot;
+    clearDraftTimer();
+    await removeLocalDraft(originalIdentity);
+    if (originalIdentity !== draftIdentity(theme.slug)) await removeLocalDraft(draftIdentity(theme.slug));
+    if (await preserveNewerEdits(theme, submittedSnapshot, originalIdentity)) return;
+
+    V2.draftRecovery = null;
+    setDraftState('Saved to server', 'server');
+    if (window.BRVTALFeedback) BRVTALFeedback.success(activate ? 'Theme saved and activated.' : 'Theme draft saved.', 'theme-studio-save');
+    await loadThemeStudioV2(theme.slug);
+  }
+
   async function persist(activate = false) {
+    if (V2.authInvalidated) return;
     const theme = currentTheme();
     if (!theme.slug) return;
+    const submittedSnapshot = snapshot(theme);
+    const originalIdentity = draftIdentity();
     const action = activate ? 'Activating theme…' : 'Saving theme draft…';
+    clearDraftTimer();
+    V2.saveInFlight = true;
     if (window.BRVTALFeedback) BRVTALFeedback.progress(action, 'theme-studio-save');
     try {
       await req('/settings', { method:'POST', body:JSON.stringify({ setting_key:'theme.' + theme.slug, setting_value:JSON.stringify(theme), is_json:1 }) });
+      if (V2.authInvalidated) return;
       if (activate) {
         await req('/settings', { method:'POST', body:JSON.stringify({ setting_key:'theme.active', setting_value:theme.slug, is_json:0 }) });
       }
-      V2.editingSlug = theme.slug;
-      if (window.BRVTALFeedback) BRVTALFeedback.success(activate ? 'Theme saved and activated.' : 'Theme draft saved.', 'theme-studio-save');
-      await loadThemeStudioV2(theme.slug);
+      if (V2.authInvalidated) return;
+      await finishPersist(theme, submittedSnapshot, originalIdentity, activate);
     } catch (error) {
+      V2.saveInFlight = false;
+      const persisted = await persistLocalDraft();
+      setDraftState(
+        persisted ? 'Save failed · draft kept locally' : 'Save failed · latest changes not stored locally; keep this workspace open',
+        'error'
+      );
       if (window.BRVTALFeedback) BRVTALFeedback.error(error?.message || 'Theme save failed.', 'theme-studio-save');
       else if (typeof showThemeNotice === 'function') showThemeNotice('ERROR · ' + (error?.message || 'SAVE FAILED'), true);
+    } finally {
+      V2.saveInFlight = false;
     }
   }
 
-  function switchTheme(slug) {
+  async function switchTheme(slug) {
     const next = safeSlug(slug);
     if (!next || next === V2.editingSlug) return;
     if (updateDirty() && !window.confirm('Discard unsaved Theme Studio changes?')) {
@@ -391,6 +613,7 @@
     V2.editingSlug = next;
     state.theme = theme;
     V2.baseline = snapshot(theme);
+    await loadDraftRecovery(next, theme);
     render(theme);
   }
 
@@ -480,6 +703,8 @@
     state.theme = next;
     V2.editingSlug = next.slug;
     V2.baseline = '';
+    V2.draftBaseRevision = '';
+    V2.draftRecovery = null;
     render(next);
   }
 
@@ -510,6 +735,8 @@
       if (action === 'duplicate') duplicate();
       if (action === 'preset-concept05') preset('concept05');
     }));
+    root.querySelector('[data-theme-draft-restore]')?.addEventListener('click', restoreDraft);
+    root.querySelector('[data-theme-draft-discard]')?.addEventListener('click', () => { void discardDraft(); });
     root.addEventListener('input', event => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
@@ -535,6 +762,11 @@
     openMediaPicker:openPicker,
     closeMediaPicker:closePicker,
     currentTheme,
+    draft:() => ({
+      base_revision:V2.draftBaseRevision,
+      has_recovery:Boolean(V2.draftRecovery),
+      state:{...V2.draftState}
+    }),
   };
 
   // Replace the legacy Theme Studio entry points while preserving the same single-shell route.
@@ -543,6 +775,15 @@
   window.activateTheme = () => persist(true);
   window.duplicateTheme = duplicate;
   window.loadThemePreset = preset;
+
+  window.addEventListener('brvtal:auth-required', () => {
+    V2.authInvalidated = true;
+    clearDraftTimer();
+    V2.draftRecovery = null;
+    V2.draftBaseRevision = '';
+    V2.suppressDraftSchedule = true;
+    if (state.theme) render(state.theme);
+  });
 
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && document.getElementById('tsv2-media-picker')) closePicker();
