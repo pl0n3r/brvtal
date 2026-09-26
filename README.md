@@ -20,19 +20,19 @@
 | Base exacta | ✅ **main** | `e264ded7147b4ef230876d890828bc7723631768` |
 | Versión de producto | 🚧 **v0.1.62** | `config/version.php` + `package.json` |
 | Producción | ⛔ **NO GREEN · #681** | recuperación de migraciones pendiente |
-| PR | 🚧 **#703 draft** | branch mergeable |
+| PR | 🚧 **#703 ready** | branch mergeable |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+406** | **−64** | **+342** |
+| **9** | **+405** | **−63** | **+342** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | **#703 · #232 audit history pagination** |
 | Roles | **Software Engineering · QA** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
@@ -64,6 +64,7 @@ flowchart LR
 - `discadmin/admin-activity.js`
 - `package.json`
 - `tests/admin-activity-contract.php`
+- `tests/e2e/discadmin-admin-activity.spec.mjs`
 - `tests/integration/admin-activity.php`
 
 ## Validación

@@ -139,7 +139,8 @@
     diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
   }
 
-  function renderHistoryTimeline(timeline, count, loadMore, diff, items, total, nextCursor, selectedIndex = 0) {
+  function renderHistoryTimeline(timeline, count, loadMore, diff, items, pagination, selectedIndex = 0) {
+    const {total, nextCursor} = pagination;
     timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===selectedIndex?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
     count.textContent = `${items.length} of ${total} versions`;
     loadMore.hidden = !nextCursor;
@@ -180,12 +181,10 @@
         loadMore,
         diff,
         items,
-        total,
-        nextCursor
+        {total, nextCursor}
       );
       loadMore.addEventListener('click', async () => {
         if (!nextCursor || loadMore.disabled) return;
-        const selectedIndex = Number(timeline.querySelector('.is-active')?.dataset.historyIndex || 0);
         const pageController = new AbortController();
         detailController?.abort();
         detailController = pageController;
@@ -196,14 +195,14 @@
           items.push(...(Array.isArray(more?.items) ? more.items : []));
           nextCursor = more?.next_cursor || null;
           total = Number(more?.total || items.length);
+          const selectedIndex = Number(timeline.querySelector('.is-active')?.dataset.historyIndex || 0);
           renderHistoryTimeline(
             timeline,
             count,
             loadMore,
             diff,
             items,
-            total,
-            nextCursor,
+            {total, nextCursor},
             selectedIndex
           );
         } catch (error) {
@@ -270,6 +269,7 @@
         if (loadId !== listLoadId) return;
         render({...more,items:[...items,...(Array.isArray(more?.items)?more.items:[])]}, selectedResource, loadId);
       } catch (error) {
+        if (loadId !== listLoadId) return;
         button.disabled = false;
         window.BRVTALFeedback?.error?.('Admin Activity unavailable: ' + (error?.message || error),'admin-activity');
       }

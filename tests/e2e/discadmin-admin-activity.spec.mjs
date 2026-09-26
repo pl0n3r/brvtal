@@ -104,6 +104,7 @@ test('Dashboard activity panel filters history, opens detail and opens the audit
   await page.locator('[data-activity-filter]').selectOption('artists');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');
   await expect(page.locator('#brvtal-admin-activity')).not.toContainText('GENESIS');
+  await expect.poll(() => page.evaluate(() => window.__feedback ?? null)).toBe(null);
 
   await page.locator('[data-activity-filter]').selectOption('');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('GENESIS');
@@ -162,10 +163,7 @@ test('Admin Activity discards stale pages and History preserves the selected ver
 
     if (cursor) {
       await new Promise(resolve => setTimeout(resolve, 80));
-      return route.fulfill({
-        contentType: 'application/json; charset=utf-8',
-        body: JSON.stringify({ok:true,data:{items:[earlierEventItem],total:3,limit:12,next_cursor:null,has_more:false,read_only:true}}),
-      });
+      return route.abort('failed');
     }
 
     return route.fulfill({
@@ -199,8 +197,9 @@ test('Admin Activity discards stale pages and History preserves the selected ver
   await page.getByRole('button', { name: 'HISTORY' }).click();
   await page.locator('[data-history-index="1"]').click();
   await expect(page.locator('[data-history-index="1"]')).toHaveClass(/is-active/);
-  await page.getByRole('button', { name: 'LOAD MORE' }).click();
+  await page.getByRole('dialog', { name: 'Editorial version history' }).getByRole('button', { name: 'LOAD MORE' }).click();
+  await page.locator('[data-history-index="0"]').click();
   await expect(page.locator('[data-history-count]')).toHaveText('3 of 4 versions');
-  await expect(page.locator('[data-history-index="1"]')).toHaveClass(/is-active/);
-  await expect(page.locator('[data-history-diff]')).toContainText('GENESIS');
+  await expect(page.locator('[data-history-index="0"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-history-diff]')).toContainText('New copy');
 });
