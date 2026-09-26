@@ -475,6 +475,82 @@ class CoordinationTests(unittest.TestCase):
         self.assertEqual(api.assignees_by_issue[13], set())
         self.assertIsNotNone(active_reservation(api, 12))
 
+    def test_label_reserved_preserves_completed_closed_issue(self) -> None:
+        """A manual label cannot reopen a completed Issue."""
+        api = FakeGitHub()
+        api.issue_data["state"] = "closed"
+        api.issue_data["state_reason"] = "completed"
+        api.issue_data["labels"] = [
+            {"name": STATUS_COMPLETED},
+            {"name": STATUS_RESERVED},
+        ]
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_COMPLETED)
+
+    def test_label_reserved_preserves_cancelled_closed_issue(self) -> None:
+        """A manual label cannot reopen an Issue closed as not planned."""
+        api = FakeGitHub()
+        api.issue_data["state"] = "closed"
+        api.issue_data["state_reason"] = "not_planned"
+        api.issue_data["labels"] = [
+            {"name": STATUS_CANCELLED},
+            {"name": STATUS_RESERVED},
+        ]
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_CANCELLED)
+
+    def test_label_reserved_tracks_draft_pr_as_reserved(self) -> None:
+        """A trusted draft PR keeps the visible work line reserved."""
+        api = FakeGitHub()
+        add_active_reservation(api, age_minutes=5)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": True,
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+            "base": {"ref": "main"},
+        }
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+
+    def test_label_reserved_tracks_ready_pr_as_in_review(self) -> None:
+        """A trusted ready PR cannot be degraded to reserved by a manual label."""
+        api = FakeGitHub()
+        add_active_reservation(api, age_minutes=5)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+            "base": {"ref": "main"},
+        }
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_REVIEW)
+
+    def test_label_reserved_fails_closed_on_multiple_open_prs(self) -> None:
+        """Ambiguous authority must stay visible as an error, never guessed."""
+        api = FakeGitHub()
+        add_active_reservation(api, age_minutes=5)
+        for number in (15, 16):
+            api.pulls[number] = {
+                "number": number,
+                "state": "open",
+                "draft": False,
+                "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+                "base": {"ref": "main"},
+            }
+
+        with self.assertRaises(CoordinationError):
+            update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
     def test_label_available_cannot_release_another_session(self) -> None:
         """BRVTAL work-coordination helper."""
         api = FakeGitHub()

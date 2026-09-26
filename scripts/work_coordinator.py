@@ -1270,33 +1270,53 @@ def update_pr_state(api: GitHub, pr_number: int, action: str) -> None:
         current,
     )
 
+def canonical_visible_status(api: GitHub, issue_number: int) -> str:
+    """Derive visible coordination state only from trusted repository authority."""
+    issue = api.issue(issue_number)
+    if issue.get("state") != "open":
+        return (
+            STATUS_CANCELLED
+            if issue.get("state_reason") == "not_planned"
+            else STATUS_COMPLETED
+        )
+
+    labels = label_names(issue)
+    if STATUS_BLOCKED in labels:
+        return STATUS_BLOCKED
+
+    branch = f"work/issue-{issue_number}"
+    reservation = active_reservation(api, issue_number)
+    if (
+        reservation is None
+        or reservation.get("branch") != branch
+        or api.branch_sha(branch) is None
+    ):
+        return STATUS_AVAILABLE
+
+    pulls = open_pulls_for_branch(api, branch)
+    if len(pulls) > 1:
+        raise CoordinationError(
+            f"Issue #{issue_number} has multiple open PRs for its canonical branch."
+        )
+    if len(pulls) == 1:
+        pull = api.pull(pulls[0])
+        return STATUS_RESERVED if pull.get("draft") else STATUS_REVIEW
+    return STATUS_RESERVED
+
+
 def update_issue_label_state(
     api: GitHub,
     issue_number: int,
     actor: str,
     label: str,
 ) -> None:
-    """Synchronize the visible reserved label without creating authority."""
+    """Synchronize a manual reserved label from existing trusted authority."""
     if actor == TRUSTED_MARKER_LOGIN or label != STATUS_RESERVED:
         return
 
-    branch = f"work/issue-{issue_number}"
-    reservation = active_reservation(api, issue_number)
-    if (
-        reservation is not None
-        and reservation.get("branch") == branch
-        and api.branch_sha(branch) is not None
-    ):
-        api.set_status(issue_number, STATUS_RESERVED)
-        return
-
-    # A human-applied label is not an authorization primitive. Only explicit
+    # A human-applied label is never an authorization primitive. Only explicit
     # coordination commands may create/rotate a trusted marker, branch or owner.
-    labels = label_names(api.issue(issue_number))
-    api.set_status(
-        issue_number,
-        STATUS_BLOCKED if STATUS_BLOCKED in labels else STATUS_AVAILABLE,
-    )
+    api.set_status(issue_number, canonical_visible_status(api, issue_number))
 
 def update_issue_state(api: GitHub, issue_number: int, action: str) -> None:
     """BRVTAL work-coordination helper."""
