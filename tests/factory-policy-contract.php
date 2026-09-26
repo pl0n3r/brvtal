@@ -19,8 +19,8 @@ factory_policy_expect(($policy['version'] ?? null) === 1, 'policy version must r
 factory_policy_expect(($policy['review_round_limit'] ?? null) === 3, 'automated review round limit must remain 3');
 
 $decisions = $policy['decisions'] ?? null;
-factory_policy_expect(is_array($decisions) && count($decisions) === 5, 'shared owner decision set must contain exactly five adopted decisions');
-$expectedIds = ['D-054', 'D-055', 'D-056', 'D-057', 'D-058'];
+factory_policy_expect(is_array($decisions) && count($decisions) === 6, 'shared owner decision set must contain exactly six adopted decisions');
+$expectedIds = ['D-054', 'D-055', 'D-056', 'D-057', 'D-058', 'D-059'];
 $ids = [];
 foreach ($decisions as $decision) {
     factory_policy_expect(is_array($decision), 'every decision must be an object');
@@ -40,6 +40,7 @@ factory_policy_expect(str_contains($byId['D-055'], 'destructivo') && str_contain
 factory_policy_expect(str_contains($byId['D-056'], 'versión/SHA exactos'), 'D-056 must preserve exact release identity');
 factory_policy_expect(str_contains($byId['D-057'], 'exactamente una etiqueta'), 'D-057 must preserve one-label-per-dimension governance');
 factory_policy_expect(str_contains($byId['D-058'], 'roles profesionales'), 'D-058 must preserve professional-role requirement');
+factory_policy_expect(str_contains($byId['D-059'], 'Hostinger') && str_contains($byId['D-059'], 'backup previo') && str_contains($byId['D-059'], 'borrar sitios, bases de datos o archivos') && str_contains($byId['D-059'], 'autorización explícita del dueño') && str_contains($byId['D-059'], 'ningún agente compra, renueva o cambia planes/pagos'), 'D-059 must preserve Hostinger safety, deletion approval and payment prohibition');
 
 $workflow = (string)file_get_contents($root . '/.github/workflows/factory-policy.yml');
 factory_policy_expect(str_contains($workflow, 'pull_request:'), 'policy caller must run on pull requests');
