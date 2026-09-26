@@ -29,6 +29,7 @@
       .activity-actor{font-size:9px;color:#9aa1a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.activity-time{font:700 8px/1.35 monospace;color:#737b81}
       .activity-actions{display:flex;gap:6px;justify-content:flex-end}.activity-btn{border:1px solid #34393e;background:#101214;color:#fff;padding:7px 9px;font:800 8px/1 monospace;letter-spacing:.8px}.activity-btn:hover{border-color:#fff}
       .activity-note{font-size:9px;color:#747c82;line-height:1.5;margin-top:12px}
+      .activity-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font:800 9px/1 monospace;color:#858d93}
       .activity-modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.86);backdrop-filter:blur(8px);display:grid;place-items:center;padding:18px}.activity-modal[hidden]{display:none}.activity-modal-card{width:min(1100px,96vw);max-height:92vh;overflow:auto;border:1px solid #34393e;background:#080909}.activity-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:18px;border-bottom:1px solid #24282c}.activity-modal-head h3{margin:3px 0 0;font-size:22px}.activity-modal-body{padding:18px}.activity-diff{display:grid;grid-template-columns:1fr 1fr;gap:10px}.activity-diff section{min-width:0}.activity-diff h4{font:900 9px/1 monospace;letter-spacing:1.5px;color:#8a9298}.activity-diff pre{margin:8px 0 0;max-height:48vh;overflow:auto;white-space:pre-wrap;word-break:break-word;background:#030404;border:1px solid #22272b;padding:13px;font:10px/1.5 monospace;color:#b7bdc2}.activity-fields{font-size:10px;color:#939ba1;margin-bottom:12px}
       .history-layout{display:grid;grid-template-columns:minmax(230px,32%) 1fr;gap:14px}.history-timeline{border:1px solid #22272b;max-height:62vh;overflow:auto}.history-version{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #22272b;background:#070808;color:#fff;padding:13px;cursor:pointer}.history-version:hover,.history-version.is-active{background:#131516}.history-version b{display:block;font:900 9px/1.3 monospace;letter-spacing:1px}.history-version span{display:block;margin-top:6px;font-size:9px;color:#858d93}.history-summary{margin-bottom:12px;font-size:10px;color:#a4abb0}.history-field{border:1px solid #24282c;margin-bottom:8px}.history-field h4{margin:0;padding:9px 11px;background:#111315;font:900 9px/1 monospace;letter-spacing:1px}.history-values{display:grid;grid-template-columns:1fr 1fr}.history-value{min-width:0;padding:10px 11px;white-space:pre-wrap;word-break:break-word;font:10px/1.45 monospace;color:#c0c5c9}.history-value+ .history-value{border-left:1px solid #24282c}.history-value small{display:block;color:#686f75;margin-bottom:6px}
       @media(max-width:850px){.activity-row{grid-template-columns:78px minmax(0,1fr) auto}.activity-actor,.activity-time{grid-column:2/3}.activity-actions{grid-column:3;grid-row:1/4;flex-direction:column}.activity-diff,.history-layout,.history-values{grid-template-columns:1fr}.history-value+ .history-value{border-left:0;border-top:1px solid #24282c}.activity-head{flex-direction:column}}
@@ -50,9 +51,10 @@
     return payload.data;
   }
 
-  async function fetchList(resource = '') {
+  async function fetchList(resource = '', cursor = null) {
     const query = new URLSearchParams({limit:'12'});
     if (resource) query.set('resource', resource);
+    if (cursor) query.set('cursor', String(cursor));
     return fetchJson(`${ENDPOINT}?${query}`);
   }
 
@@ -60,8 +62,9 @@
     return fetchJson(`${ENDPOINT}?id=${encodeURIComponent(id)}`, options);
   }
 
-  async function fetchHistory(resource, resourceId, options = {}) {
+  async function fetchHistory(resource, resourceId, cursor = null, options = {}) {
     const query = new URLSearchParams({history:'1',resource,resource_id:String(resourceId),limit:'50'});
+    if (cursor) query.set('cursor', String(cursor));
     return fetchJson(`${ENDPOINT}?${query}`, options);
   }
 
@@ -130,24 +133,49 @@
   async function openHistory(resource, resourceId, label = '') {
     const {loadId,controller} = beginDetailLoad();
     try {
-      const data = await fetchHistory(resource, resourceId,{signal:controller.signal});
+      const data = await fetchHistory(resource, resourceId, null, {signal:controller.signal});
       if (loadId !== detailLoadId) return;
-      const items = Array.isArray(data?.items) ? data.items : [];
+      const items = Array.isArray(data?.items) ? [...data.items] : [];
+      let nextCursor = data?.next_cursor || null;
+      const total = Number(data?.total || items.length);
       removeDetailModal();
       const modal = document.createElement('div');
       modal.id = 'brvtal-activity-modal';
       modal.className = 'activity-modal';
       modal.innerHTML = `<div class="activity-modal-card" role="dialog" aria-modal="true" aria-label="Editorial version history">
         <div class="activity-modal-head"><div><div class="eyebrow">EDITORIAL VERSION HISTORY</div><h3>${esc(label || `${resource} #${resourceId}`)}</h3><div class="helper">${items.length} recorded version${items.length===1?'':'s'} · read-only</div></div><button type="button" class="activity-btn" data-activity-close>CLOSE</button></div>
-        <div class="activity-modal-body"><div class="history-layout"><nav class="history-timeline" aria-label="Recorded versions">${items.map((item,index) => `<button type="button" class="history-version${index===0?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>'}</nav><div data-history-diff>${items.length ? `<div class="history-summary">Changed in this version: ${esc((items[0].changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(items[0])}` : ''}</div></div></div>
+        <div class="activity-modal-body"><div class="history-layout"><div><nav class="history-timeline" data-history-timeline aria-label="Recorded versions"></nav><div class="activity-pagination"><span data-history-count></span><button type="button" class="activity-btn" data-history-load-more>LOAD MORE</button></div></div><div data-history-diff>${items.length ? `<div class="history-summary">Changed in this version: ${esc((items[0].changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(items[0])}` : ''}</div></div></div>
       </div>`;
       document.body.appendChild(modal);
       const diff = modal.querySelector('[data-history-diff]');
-      modal.querySelectorAll('[data-history-index]').forEach(button => button.addEventListener('click', () => {
-        const item = items[Number(button.dataset.historyIndex) || 0];
-        modal.querySelectorAll('[data-history-index]').forEach(entry => entry.classList.toggle('is-active', entry === button));
-        diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
-      }));
+      const timeline = modal.querySelector('[data-history-timeline]');
+      const count = modal.querySelector('[data-history-count]');
+      const loadMore = modal.querySelector('[data-history-load-more]');
+      const renderTimeline = () => {
+        timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===0?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
+        count.textContent = `${items.length} of ${total} versions`;
+        loadMore.hidden = !nextCursor;
+        timeline.querySelectorAll('[data-history-index]').forEach(button => button.addEventListener('click', () => {
+          const item = items[Number(button.dataset.historyIndex) || 0];
+          timeline.querySelectorAll('[data-history-index]').forEach(entry => entry.classList.toggle('is-active', entry === button));
+          diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
+        }));
+      };
+      renderTimeline();
+      loadMore.addEventListener('click', async () => {
+        if (!nextCursor || loadMore.disabled) return;
+        loadMore.disabled = true;
+        try {
+          const more = await fetchHistory(resource, resourceId, nextCursor);
+          items.push(...(Array.isArray(more?.items) ? more.items : []));
+          nextCursor = more?.next_cursor || null;
+          renderTimeline();
+        } catch (error) {
+          window.BRVTALFeedback?.error?.('Version history unavailable: ' + (error?.message || error),'editorial-version-history');
+        } finally {
+          loadMore.disabled = false;
+        }
+      });
       modal.querySelector('[data-activity-close]').addEventListener('click', closeDetail);
       modal.addEventListener('click', event => { if (event.target === modal) closeDetail(); });
     } catch (error) {
@@ -187,11 +215,24 @@
         <div class="activity-tools"><select class="activity-filter" data-activity-filter>${resources.map(resource => `<option value="${esc(resource)}"${resource===selectedResource?' selected':''}>${esc(resource ? resource.toUpperCase().replaceAll('_',' ') : 'ALL CONTENT')}</option>`).join('')}</select><button type="button" class="activity-btn" data-activity-refresh>REFRESH</button></div>
       </div>
       <div class="activity-list">${items.length ? items.map(rowHtml).join('') : '<div class="empty">No activity recorded for this filter.</div>'}</div>
+      <div class="activity-pagination"><span>${items.length} of ${Number(data?.total || items.length)} records</span><button type="button" class="activity-btn" data-activity-load-more${data?.has_more ? '' : ' hidden'}>LOAD MORE</button></div>
       <div class="activity-note">Read-only. This log does not expose passwords, TOTP secrets, recovery codes, sessions or raw Settings values. Restore/revert actions are intentionally not available in v1.</div>`;
     main.appendChild(panel);
 
     panel.querySelector('[data-activity-filter]')?.addEventListener('change', event => mount(String(event.target.value || '')));
     panel.querySelector('[data-activity-refresh]')?.addEventListener('click', () => mount(selectedResource));
+    panel.querySelector('[data-activity-load-more]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      if (!data?.next_cursor || button.disabled) return;
+      button.disabled = true;
+      try {
+        const more = await fetchList(selectedResource, data.next_cursor);
+        render({...more,total:data.total,items:[...items,...(Array.isArray(more?.items)?more.items:[])]}, selectedResource);
+      } catch (error) {
+        button.disabled = false;
+        window.BRVTALFeedback?.error?.('Admin Activity unavailable: ' + (error?.message || error),'admin-activity');
+      }
+    });
     panel.querySelectorAll('[data-activity-view]').forEach(button => button.addEventListener('click', () => openDetail(button.dataset.activityView)));
     panel.querySelectorAll('[data-activity-history]').forEach(button => button.addEventListener('click', () => openHistory(button.dataset.activityResource, button.dataset.activityHistory, button.dataset.activityLabel)));
     panel.querySelectorAll('[data-activity-open]').forEach(button => button.addEventListener('click', () => window.go?.(button.dataset.activityOpen)));

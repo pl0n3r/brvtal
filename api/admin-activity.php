@@ -85,19 +85,22 @@ try {
     }
 
     $limit = max(1, min(100, (int)($_GET['limit'] ?? ($history ? 50 : 20))));
-    $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    $cursorRaw = trim((string)($_GET['cursor'] ?? ''));
+    $cursor = null;
+    if ($cursorRaw !== '') {
+        if (!ctype_digit($cursorRaw) || (int)$cursorRaw < 1) {
+            brvtal_activity_json(['ok'=>false,'error'=>'INVALID_CURSOR'], 422);
+        }
+        $cursor = (int)$cursorRaw;
+    }
 
-    $count = $pdo->prepare('SELECT COUNT(*) FROM admin_activity_log' . $whereSql);
-    $count->execute($params);
-    $total = (int)$count->fetchColumn();
-
-    $snapshotColumns = $history ? ',before_json,after_json' : '';
-    $st = $pdo->prepare(
-        'SELECT id,admin_id,admin_name,admin_email,action,resource,resource_id,resource_label,changed_fields,request_id,created_at' . $snapshotColumns . '
-         FROM admin_activity_log' . $whereSql . ' ORDER BY id DESC LIMIT ' . $limit
-    );
-    $st->execute($params);
-    $items = $st->fetchAll(PDO::FETCH_ASSOC);
+    $filters = [];
+    if ($resource !== '') $filters['resource'] = $resource;
+    if ($resourceId > 0) $filters['resource_id'] = $resourceId;
+    if ($action !== '') $filters['action'] = $action;
+    if ($adminId > 0) $filters['admin_id'] = $adminId;
+    $page = brvtal_activity_page($pdo, $filters, $limit, $cursor, $history);
+    $items = $page['items'];
     foreach ($items as &$row) {
         $row['id'] = (int)$row['id'];
         $row['admin_id'] = $row['admin_id'] !== null ? (int)$row['admin_id'] : null;
@@ -115,8 +118,11 @@ try {
         'ok'=>true,
         'data'=>[
             'items'=>$items,
-            'total'=>$total,
-            'limit'=>$limit,
+            'total'=>$page['total'],
+            'limit'=>$page['limit'],
+            'returned'=>$page['returned'],
+            'has_more'=>$page['has_more'],
+            'next_cursor'=>$page['next_cursor'],
             'read_only'=>true,
             'mode'=>$history ? 'content_history' : 'activity',
         ],

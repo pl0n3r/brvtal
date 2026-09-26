@@ -299,6 +299,80 @@ foreach (glob($recoveryRoot . '/*') ?: [] as $recoveryFile) {
 @rmdir($trashDir);
 @rmdir($tmpMediaRoot);
 
+
+// Cursor pagination must remain stable if newer audit rows arrive between pages.
+$paginationAdminId = 900002;
+$pdo->prepare('DELETE FROM admins WHERE id=?')->execute([$paginationAdminId]);
+$pdo->prepare('INSERT INTO admins(id,email,password_hash,name,is_active) VALUES(?,?,?,?,1)')->execute([
+    $paginationAdminId,
+    'pagination-ci@brvtal.test',
+    password_hash('not-a-real-password', PASSWORD_DEFAULT),
+    'Pagination CI Admin',
+]);
+$seed = $pdo->prepare(
+    'INSERT INTO admin_activity_log(admin_id,admin_name,admin_email,action,resource,resource_id,resource_label,changed_fields,before_json,after_json,meta_json,request_id) '
+    . 'VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'
+);
+for ($index = 1; $index <= 7; ++$index) {
+    $seed->execute([
+        $paginationAdminId,
+        'Pagination CI Admin',
+        'pagination-ci@brvtal.test',
+        'update',
+        'events',
+        991,
+        'Cursor fixture',
+        '["description"]',
+        json_encode(['description'=>'before-' . $index], JSON_THROW_ON_ERROR),
+        json_encode(['description'=>'after-' . $index], JSON_THROW_ON_ERROR),
+        '{"source":"pagination"}',
+        str_pad(dechex($index), 32, '0', STR_PAD_LEFT),
+    ]);
+}
+$firstPage = brvtal_activity_page(
+    $pdo,
+    ['resource'=>'events','resource_id'=>991,'action'=>'update','admin_id'=>$paginationAdminId],
+    3,
+    null,
+    true
+);
+activity_it_expect($firstPage['total'] === 7, 'first cursor page must report filtered total without cursor');
+activity_it_expect($firstPage['returned'] === 3 && $firstPage['has_more'] === true, 'first cursor page must return limit rows plus continuation');
+activity_it_expect(is_int($firstPage['next_cursor']) && $firstPage['next_cursor'] > 0, 'first cursor page must expose next cursor');
+$firstIds = array_map(static fn(array $row): int => (int)$row['id'], $firstPage['items']);
+$sortedFirstIds = $firstIds;
+rsort($sortedFirstIds, SORT_NUMERIC);
+activity_it_expect($firstIds === $sortedFirstIds, 'cursor page must be strictly descending by id');
+activity_it_expect(array_key_exists('before_json', $firstPage['items'][0]) && array_key_exists('after_json', $firstPage['items'][0]), 'history pages must preserve before/after snapshots');
+
+$seed->execute([
+    $paginationAdminId,
+    'Pagination CI Admin',
+    'pagination-ci@brvtal.test',
+    'update',
+    'events',
+    991,
+    'Inserted after page one',
+    '["description"]',
+    '{"description":"new-before"}',
+    '{"description":"new-after"}',
+    '{"source":"pagination"}',
+    str_repeat('f', 32),
+]);
+$secondPage = brvtal_activity_page(
+    $pdo,
+    ['resource'=>'events','resource_id'=>991,'action'=>'update','admin_id'=>$paginationAdminId],
+    3,
+    $firstPage['next_cursor'],
+    true
+);
+$secondIds = array_map(static fn(array $row): int => (int)$row['id'], $secondPage['items']);
+activity_it_expect(array_intersect($firstIds, $secondIds) === [], 'cursor pages must never overlap');
+activity_it_expect(max($secondIds) < min($firstIds), 'new rows inserted between pages must not shift the cursor window');
+activity_it_expect($secondPage['total'] === 8, 'filtered total must remain independent from cursor position');
+activity_it_expect(count($secondIds) === 3, 'second cursor page must continue through older records');
+$pdo->prepare('DELETE FROM admins WHERE id=?')->execute([$paginationAdminId]);
+
 $pdo->exec('DROP TABLE admin_activity_log');
 
 echo "BRVTAL Admin Activity MariaDB integration tests passed.\n";
