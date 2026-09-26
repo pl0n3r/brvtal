@@ -9,6 +9,7 @@ declare(strict_types=1);
  *
  * @return array{active:list<string>,historical:list<string>}
  */
+// TEMPORARY RECTOR DIAGNOSTIC #653: discard probe marker before any merge.
 function brvtal_public_event_statuses(): array
 {
     return [
