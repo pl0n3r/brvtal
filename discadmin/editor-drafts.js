@@ -52,7 +52,9 @@
       const draft = normalize(JSON.parse(raw));
       if (!draft) localStorage.removeItem(draftKey);
       return draft;
-    } catch (_) {
+    } catch (error) {
+      document.documentElement.dataset.brvtalDraftStorage =
+        error instanceof SyntaxError ? 'invalid' : 'unavailable';
       return null;
     }
   }

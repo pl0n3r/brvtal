@@ -464,8 +464,11 @@ window.BRVTALBlog = (() => {
       });
       if (announce) setBlogDraftState('Draft saved locally', 'saved');
       return true;
-    } catch (_) {
-      setBlogDraftState('Save failed · changes remain in this editor', 'error');
+    } catch (error) {
+      const reason = error instanceof DOMException && error.name === 'QuotaExceededError'
+        ? 'storage full'
+        : 'storage unavailable';
+      setBlogDraftState(`Save failed · ${reason} · changes remain in this editor`, 'error');
       return false;
     }
   }
@@ -479,10 +482,17 @@ window.BRVTALBlog = (() => {
 
   async function clearBlogDraft(identity = draftContext?.identity) {
     stopBlogDraftTimer();
-    if (!identity || !window.BRVTALDrafts) return;
+    if (!identity || !window.BRVTALDrafts) return true;
     try {
       await window.BRVTALDrafts.remove('blog', identity);
-    } catch (_) {}
+      return true;
+    } catch (error) {
+      const reason = error instanceof DOMException && error.name === 'QuotaExceededError'
+        ? 'storage full'
+        : 'storage unavailable';
+      setBlogDraftState(`Draft cleanup failed · ${reason}`, 'error');
+      return false;
+    }
   }
 
   function applyBlogDraft(draft) {
@@ -552,7 +562,8 @@ window.BRVTALBlog = (() => {
       recovery.hidden = true;
     };
     discard.onclick = async () => {
-      await clearBlogDraft(draftContext.identity);
+      const cleared = await clearBlogDraft(draftContext.identity);
+      if (!cleared) return;
       recovery.hidden = true;
       setBlogDraftState(draftContext.id ? 'Saved to server' : 'Unsaved new post', draftContext.id ? 'server' : 'unsaved');
     };
@@ -577,14 +588,17 @@ window.BRVTALBlog = (() => {
 
   async function markBlogDraftServerSaved(id, record) {
     const oldIdentity = draftContext?.identity || blogDraftIdentity(id);
-    await clearBlogDraft(oldIdentity);
+    const cleared = await clearBlogDraft(oldIdentity);
     draftContext = {
       id: id ? Number(id) : null,
       identity: blogDraftIdentity(id),
       baseRevision: blogDraftRevision(record),
       record
     };
-    setBlogDraftState('Saved to server', 'server');
+    setBlogDraftState(
+      cleared ? 'Saved to server' : 'Saved to server · local draft cleanup failed',
+      cleared ? 'server' : 'error'
+    );
     window.BRVTALUnsavedChanges?.markClean?.(document.getElementById('modal'));
   }
 
