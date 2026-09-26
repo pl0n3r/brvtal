@@ -4,6 +4,7 @@
   const PREFIX = 'brvtal.discadmin.draft.v1';
   let namespaceToken = '';
   let namespacePromise = null;
+  let writeGeneration = 0;
 
   function segment(value) {
     return encodeURIComponent(String(value ?? '').trim().toLowerCase());
@@ -25,7 +26,13 @@
       .forEach(current => localStorage.removeItem(current));
   }
 
+  function invalidateWrites() {
+    writeGeneration += 1;
+    return writeGeneration;
+  }
+
   function clearAll() {
+    invalidateWrites();
     draftKeys().forEach(current => localStorage.removeItem(current));
     namespaceToken = '';
     namespacePromise = null;
@@ -86,6 +93,7 @@
   }
 
   async function save(scope, identity, payload = {}) {
+    const generation = writeGeneration;
     const draft = normalize({
       version: 1,
       base_revision: String(payload.base_revision ?? ''),
@@ -93,7 +101,9 @@
       data: payload.data
     });
     if (!draft) throw new Error('INVALID_DRAFT');
-    localStorage.setItem(await key(scope, identity), JSON.stringify(draft));
+    const draftKey = await key(scope, identity);
+    if (generation !== writeGeneration) throw new DOMException('Draft write invalidated','AbortError');
+    localStorage.setItem(draftKey, JSON.stringify(draft));
     return draft;
   }
 
@@ -113,5 +123,5 @@
     }
   });
 
-  window.BRVTALDrafts = {key, load, save, remove, sameRevision, clearAll};
+  window.BRVTALDrafts = {key, load, save, remove, sameRevision, clearAll, invalidateWrites};
 })();

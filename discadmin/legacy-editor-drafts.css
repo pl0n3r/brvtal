@@ -1,0 +1,12 @@
+/* Shared recovery UI for legacy DISCADMIN editors. */
+.legacy-draft-strip{display:grid;gap:8px;margin:0 0 12px;padding:10px 12px;border:1px solid #272c30;background:#070808}
+[data-legacy-draft-state]{font:800 9px/1.4 monospace;letter-spacing:.06em;color:#8f979d}
+[data-legacy-draft-state][data-state="unsaved"]{color:#ffd166}
+[data-legacy-draft-state][data-state="saving"]{color:#8bbcff}
+[data-legacy-draft-state][data-state="saved"]{color:#7fdc9d}
+[data-legacy-draft-state][data-state="error"]{color:#ff7777}
+[data-legacy-draft-recovery]{display:flex;justify-content:space-between;gap:12px;align-items:center;padding-top:8px;border-top:1px solid #25292d;font:9px/1.45 monospace;color:#d6d9db}
+[data-legacy-draft-recovery][hidden]{display:none}
+[data-legacy-draft-recovery][data-conflict="1"]{color:#ffc56c}
+.legacy-draft-actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:700px){[data-legacy-draft-recovery]{display:grid}.legacy-draft-actions{width:100%}.legacy-draft-actions .iconbtn{flex:1}}

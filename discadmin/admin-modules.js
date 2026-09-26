@@ -424,15 +424,31 @@ window.BRVTALAdminModules = (() => {
     if (orderValue !== null) payload.sort_order = orderValue;
     try {
       if (typeof req !== 'function') throw new Error('ADMIN_REQUEST_UNAVAILABLE');
+      let result;
       if (type === 'settings') {
-        await req('/settings',{method:'POST',body:JSON.stringify(payload)});
+        result = await req('/settings',{method:'POST',body:JSON.stringify(payload)});
       } else {
         const path = '/' + type + (id !== null && id !== '' ? '/' + encodeURIComponent(id) : '');
-        await req(path,{method:id !== null && id !== '' ? 'PUT' : 'POST',body:JSON.stringify(payload)});
+        result = await req(path,{method:id !== null && id !== '' ? 'PUT' : 'POST',body:JSON.stringify(payload)});
       }
+
+      const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
+        type,id,payload,result
+      });
+      if (draftState?.keepOpen) {
+        const savedId = draftState.id ?? id;
+        if (savedId !== null && savedId !== '' && Number(savedId) > 0) {
+          state.editing = Number(savedId);
+          if (saveBtn?.isConnected) saveBtn.onclick = () => window.save(type,Number(savedId));
+        }
+        Feedback.info('Server save completed; newer edits remain in the local draft.','legacy-draft');
+        return;
+      }
+
       if (typeof closeModal === 'function') closeModal(true);
       if (typeof go === 'function') await go(type);
     } catch (error) {
+      await window.BRVTALLegacyDrafts?.saveFailed?.({type,id,payload});
       if (typeof show === 'function') show(error?.message || 'SAVE_FAILED');
       if (!document.querySelector('.brvtal-feedback.error')) Feedback.error(readableError({error:error?.message || 'SAVE_FAILED'},500),'mutation');
     } finally {
