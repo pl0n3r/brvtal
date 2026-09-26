@@ -310,7 +310,7 @@ function brvtalActivityPage(
         array_pop($items);
     }
     $nextCursor = $hasMore && $items !== []
-        ? (int)$items[array_key_last($items)]['id']
+        ? (int)array_last($items)['id']
         : null;
 
     return [
