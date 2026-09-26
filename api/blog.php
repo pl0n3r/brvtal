@@ -121,7 +121,7 @@ function brvtal_blog_payload(array $input): array
 function brvtal_blog_sync_tags(PDO $pdo, int $postId, array $tags): void
 {
     $pdo->prepare('DELETE FROM blog_post_tags WHERE post_id=?')->execute([$postId]);
-    if (!$tags) return;
+    if ($tags === []) return;
     $upsert = $pdo->prepare('INSERT INTO blog_tags(name,slug) VALUES(?,?) ON DUPLICATE KEY UPDATE name=VALUES(name)');
     $find = $pdo->prepare('SELECT id FROM blog_tags WHERE slug=? LIMIT 1');
     $link = $pdo->prepare('INSERT IGNORE INTO blog_post_tags(post_id,tag_id) VALUES(?,?)');
@@ -136,7 +136,7 @@ function brvtal_blog_sync_tags(PDO $pdo, int $postId, array $tags): void
 function brvtal_blog_sync_relations(PDO $pdo, int $postId, array $relations): void
 {
     $pdo->prepare('DELETE FROM blog_post_relations WHERE post_id=?')->execute([$postId]);
-    if (!$relations) return;
+    if ($relations === []) return;
     $st = $pdo->prepare('INSERT INTO blog_post_relations(post_id,related_type,related_id,sort_order) VALUES(?,?,?,?)');
     foreach ($relations as $relation) {
         $st->execute([$postId,$relation['related_type'],$relation['related_id'],$relation['sort_order']]);
@@ -285,6 +285,11 @@ try {
     $status = $e->getCode() >= 400 && $e->getCode() <= 599 ? $e->getCode() : 500;
     brvtal_blog_json(['ok'=>false,'error'=>$e->getMessage()],$status);
 } catch (Throwable $e) {
-    if (function_exists('brvtal_log')) brvtal_log('BLOG_API_ERROR','Blog API failure',['class'=>get_class($e),'message'=>$e->getMessage()]);
+    if (function_exists('brvtal_log')) {
+        brvtal_log('BLOG_API_ERROR', 'Blog API failure', [
+            'class' => $e::class,
+            'message' => $e->getMessage(),
+        ]);
+    }
     brvtal_blog_json(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
 }

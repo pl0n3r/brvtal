@@ -110,6 +110,21 @@ test('Blog rejects dangling related content without partially updating the post'
     const afterExplicitClear = await readPost(postId);
     expect(afterExplicitClear.tags).toEqual([]);
 
+    const explicitRelationsClear = await page.request.put(`${baseUrl}/api/blog.php?id=${postId}`, {
+      headers,
+      data: {
+        title: originalTitle,
+        slug: originalSlug,
+        body: 'Explicit relations clear.',
+        status: 'draft',
+        relations: [],
+      },
+    });
+    expect(explicitRelationsClear.ok()).toBeTruthy();
+    const afterRelationsClear = await readPost(postId);
+    expect(afterRelationsClear.tags).toEqual([]);
+    expect(afterRelationsClear.relations).toEqual([]);
+
     const danglingSlug = `ci-dangling-blog-${runKey}`;
     const invalidCreate = await page.request.post(`${baseUrl}/api/blog.php`, {
       headers,

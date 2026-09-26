@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** y del cambio repository-only #695: preserva errores globales duplicados en PHPStan incremental. Sin cambios de producto, versión, Hostinger, DB o producción.
+> Snapshot de **solo el deploy actual** para #653: primer refactor real emitido por Rector 2.6.7, con comportamiento preservado y sin tocar producción.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,63 +16,66 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#695 · PHPStan multiset** | `work/issue-695` · reserva `db81cf2a-7c97-4065-a488-d5fe145133b0` |
-| Base exacta | ✅ **main v0.1.58** | `10e4c827ccfda4db92aa7e9119fb7b803fb6879d` |
-| Versión de producto | ✅ **v0.1.58 sin cambio** | repository-only |
-| Producción | ⛔ **NO GREEN · #681** | health 503; registry de migraciones |
+| Work line | 🚧 **#653 · primer refactor real Rector** | `work/issue-653` · reserva `eee625a1-71ee-451a-aa8a-156757b17657` |
+| Base exacta | ✅ **main v0.1.58** | `4295b6f21dd535d03df0843eb527c5829c54d21c` |
+| Versión candidata | 🚧 **v0.1.59** | `config/version.php` + `package.json`; no desplegada |
+| Producción | ⛔ **NO GREEN · #681** | fuera de alcance de este PR |
 | Factory labels | ⛔ **#694** | pendiente Factory v1.0.5 |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+59** | **−64** | **-5** |
+| **5** | **+59** | **−36** | **+23** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
-| PR + snapshot exacto | **Issue #695 · mismo runtime/versionado** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| PR + snapshot exacto | **#697 · refactor Rector v0.1.59** |
 | Roles | **Software Engineering · QA · Security** |
-| Trust boundary | solo PHPStan JSON; ningún secreto o dato personal |
-| Review | BRVTAL CI / validate + Sonar/CodeQL/CodeRabbit |
-| CI del SHA exacto de main | 🚧 verificar en entrega |
-| Production GREEN | ⛔ bloqueado por #681 y #694; fuera de alcance |
+| Rector | ✅ dry-run `9488cde` emitió 3 cambios exactos; formato final corrige la línea >120 de Sonar |
+| Review | BRVTAL CI / validate + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
+| CI del SHA exacto de main | 🚧 validar HEAD final antes de merge |
+| Production GREEN | ⛔ no se reclama ni se altera |
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  B["base=1"] --> H["HEAD=2"]
-  H --> D["delta=1"]
-  D --> C["CI falla cerrado"]
+  P["probe acotado"] --> R["Rector dry-run"]
+  R --> D["3 cambios emitidos"]
+  D --> T["real-stack"]
+  T --> V["gates exact-head"]
 ```
 
 ## Qué se hizo
-- Cuenta globales repetidos con un Counter de iterable, no un dict que los colapsa.
-- Regresión base=1/HEAD=2; duplicados heredados o reducidos no introducen deuda.
-- Preserva matching por archivo, normalización de rutas y códigos CLI.
-- Sin dependencias, permisos, cambios productivos ni SQL.
+- Rector convirtió `!$tags` y `!$relations` a comparaciones explícitas `=== []`.
+- El set PHP 8.5 convirtió `get_class($e)` a `$e::class`.
+- Se retiraron marker y regla temporal; `rector.php` vuelve al contrato canónico.
+- Real-stack cubre tags y relaciones vacías además de los casos no vacíos.
 
 ## Archivos modificados en este deploy
 - `README.md`
-- `scripts/phpstan_diff.py`
-- `tests/test_phpstan_diff.py`
+- `api/blog.php`
+- `config/version.php`
+- `package.json`
+- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs`
 
 ## Validación
-- 🚧 `python3 -m unittest tests.test_phpstan_diff` y gates exact-head.
-- 🚧 README exacto y revisión de seguridad antes del merge.
+- ✅ Rector real documentado desde el log del HEAD de probe `9488cde817d181ed0b45f5d67f2878234e064951`.
+- 🚧 Gates exact-head del candidato final y revisión terminal antes del merge.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#695](https://github.com/pl0n3r/brvtal/issues/695): validar multiset. |
-| **NEXT** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): PHPStan/Rector. |
-| **LATER** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): adopción Factory. |
-| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) recovery · [#694](https://github.com/pl0n3r/brvtal/issues/694) Factory @v1. |
+| **NOW** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): validar y fusionar el primer refactor Rector. |
+| **NEXT** | 🚧 [#698](https://github.com/pl0n3r/brvtal/issues/698): impedir reservas activas concurrentes. |
+| **LATER** | 🚧 [#629](https://github.com/pl0n3r/brvtal/issues/629): recuperación admin. |
+| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) producción · [#694](https://github.com/pl0n3r/brvtal/issues/694) Factory @v1. |
 
 ## Panorama general pendiente
-- 🚧 **NOW:** #695 regresión PHPStan.
-- 🚧 **NEXT:** #653 análisis incremental.
-- 🚧 **LATER:** #630 adopción Factory.
-- 🚧 **BLOCKED / EXTERNAL:** #681 health 503; #694 Factory Labels.
+- 🚧 **NOW:** #653 Rector.
+- 🚧 **NEXT:** #698 coordinación.
+- 🚧 **LATER:** #629 seguridad admin.
+- 🚧 **BLOCKED / EXTERNAL:** #681 producción; #694 Factory Labels.
