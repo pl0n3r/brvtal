@@ -285,6 +285,11 @@ try {
     $status = $e->getCode() >= 400 && $e->getCode() <= 599 ? $e->getCode() : 500;
     brvtal_blog_json(['ok'=>false,'error'=>$e->getMessage()],$status);
 } catch (Throwable $e) {
-    if (function_exists('brvtal_log')) brvtal_log('BLOG_API_ERROR','Blog API failure',['class'=>$e::class,'message'=>$e->getMessage()]);
+    if (function_exists('brvtal_log')) {
+        brvtal_log('BLOG_API_ERROR', 'Blog API failure', [
+            'class' => $e::class,
+            'message' => $e->getMessage(),
+        ]);
+    }
     brvtal_blog_json(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
 }

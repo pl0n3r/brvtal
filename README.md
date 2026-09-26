@@ -26,7 +26,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+54** | **−36** | **+18** |
+| **5** | **+59** | **−36** | **+23** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -35,7 +35,7 @@
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | **#653 · refactor Rector v0.1.59** |
 | Roles | **Software Engineering · QA · Security** |
-| Rector | ✅ dry-run `9488cde` emitió 3 cambios exactos; aplicados sin ampliar reglas |
+| Rector | ✅ dry-run `9488cde` emitió 3 cambios exactos; formato final corrige la línea >120 de Sonar |
 | Review | BRVTAL CI / validate + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
 | CI del SHA exacto de main | 🚧 validar HEAD final antes de merge |
 | Production GREEN | ⛔ no se reclama ni se altera |
