@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #232 / PR #703: paginación estable de Admin Activity y Editorial Version History. No declara producción GREEN.
+> Snapshot de **solo el deploy actual** para #389 / PR #704: backups automáticos server-side, scopes seleccionables, retención segura y boundary off-site para Google Drive. No declara producción GREEN.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,72 +16,68 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#232 · audit history pagination** | `work/issue-232` · reserva `0976b7af-24ae-47fd-94c8-81e12aaa4f66` |
-| Base exacta | ✅ **main** | `e264ded7147b4ef230876d890828bc7723631768` |
-| Versión de producto | 🚧 **v0.1.62** | `config/version.php` + `package.json` |
-| Producción | ⛔ **NO GREEN · #681** | recuperación de migraciones pendiente |
-| PR | 🚧 **#703 ready** | branch mergeable |
+| Work line | 🚧 **#389 · backup automation** | `work/issue-389` · reserva `c6d63ab6-3a05-4897-a5a0-d065f880314c` |
+| Base exacta | ✅ **main** | `d9cca3a738650e7ae7d6f3fcafe95c7859b75362` |
+| Versión de producto | 🚧 **v0.1.63** | `config/version.php` + `package.json` |
+| Producción | ⛔ **NO GREEN · #681** | recovery de migraciones sigue bloqueado |
+| Factory Labels | ⛔ **#694** | Factory `@v1` todavía falla por alias/canónica |
+| PR | 🚧 **#704** | exact-head gates obligatorios |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+405** | **−63** | **+342** |
+| **PENDING** | **PENDING** | **PENDING** | **PENDING** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#703 · #232 audit history pagination** |
-| Roles | **Software Engineering · QA** |
+| PR + snapshot exacto | **#704 · #389 backup automation** |
+| Roles | **Infrastructure · Software Engineering · Security · QA** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
 | CI del SHA exacto de main | 🚧 obligatorio después del merge |
 | Production GREEN | ⛔ fuera de alcance mientras #681 siga abierto |
 
-## Flujo de entrega
-```mermaid
-flowchart LR
-  A["append-only audit log"] --> C["cursor id DESC"]
-  C --> U["LOAD MORE"]
-  U --> G["exact-head gates"]
-  G --> M["merge"]
-```
-
 ## Qué se hizo
-- Admin Activity acepta cursor descendente por `id`, sin `OFFSET`.
-- La API consulta `limit + 1` y expone `next_cursor`, `has_more` y `returned`.
-- `total` permanece filtrado pero independiente de la posición del cursor.
-- Activity y History cargan páginas antiguas mediante **LOAD MORE** sin recargar la aplicación.
-- History conserva snapshots `before/after` en páginas posteriores.
-- MariaDB prueba páginas no solapadas y estabilidad ante una inserción nueva entre páginas.
+- Scheduler CLI compatible con Hostinger Cron, sin daemon ni browser abierto.
+- Cadencias every N hours, every N days y daily a hora local en `America/Bogota`.
+- Scopes canónicos `FULL`, `DATABASE` y `MEDIA`, sin segundo motor de backup.
+- Lock no bloqueante para impedir ejecuciones simultáneas.
+- Idempotencia por occurrence: una corrida recuperada no duplica un backup ya finalizado.
+- Retención local limitada exclusivamente a backups `trigger=scheduled`; manuales no se eliminan.
+- Estado privado y atómico bajo `storage/backups/.automation`.
+- DISCADMIN muestra configuración, next run, last result, scope y retención.
+- Boundary Google Drive testeable mediante transporte inyectable; tokens OAuth no se persisten ni viajan al frontend.
+- Fallo de Drive queda separado de éxito local.
+- Restore automático sigue explícitamente fuera de alcance.
 
-## Archivos modificados en este deploy
-- `README.md`
-- `api/admin-activity.php`
-- `config/admin_activity.php`
+## Archivos del deploy
+- `config/backup_automation.php`
+- `config/backups.php`
 - `config/version.php`
-- `discadmin/admin-activity.js`
+- `discadmin/backups.css`
+- `discadmin/backups.js`
+- `discadmin/backups.php`
 - `package.json`
-- `tests/admin-activity-contract.php`
-- `tests/e2e/discadmin-admin-activity.spec.mjs`
-- `tests/integration/admin-activity.php`
+- `scripts/backup-scheduler.php`
+- `tests/backups-automation-contract.php`
+- `tests/backups-contract.php`
+- `tests/e2e/discadmin-backups.spec.mjs`
+- `tests/integration/backups.php`
+- `README.md`
 
 ## Validación
-- 🚧 BRVTAL CI sobre el HEAD exacto de PR #703.
+- 🚧 BRVTAL CI sobre HEAD exacto de PR #704.
 - 🚧 Factory Policy/Privacy y Sonar/CodeRabbit terminales antes de merge.
 - 🚧 Validación exact-main obligatoria tras integración.
+- Google OAuth real requiere credenciales/autoridad externa y no se simula como conectado.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#232](https://github.com/pl0n3r/brvtal/issues/232): cerrar cursor pagination y gates. |
-| **NEXT** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530): recycle bin/restauración segura, sujeto a dispatcher. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
-| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN por registry de migraciones. |
-
-## Panorama general pendiente
-- 🚧 **NOW:** #232 audit history pagination.
-- 🚧 **NEXT:** siguiente Issue disponible por dispatcher.
-- 🚧 **LATER:** #533 roadmap canónico.
-- 🚧 **BLOCKED / EXTERNAL:** #681 producción.
+| **NOW** | 🚧 [#389](https://github.com/pl0n3r/brvtal/issues/389): cerrar gates de backup automation. |
+| **NEXT** | 🚧 siguiente Issue disponible por dispatcher. |
+| **BLOCKED / EXTERNAL** | ⛔ [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN. |
+| **BLOCKED / FACTORY** | ⛔ [#694](https://github.com/pl0n3r/brvtal/issues/694): Factory Labels `@v1`. |
