@@ -35,6 +35,25 @@ function reset_login_rate_limit(string $email): void {
     brvtal_password_rate_limit_reset($email);
 }
 
+function brvtal_auth_password_error_status(Throwable $e): ?array
+{
+    $known = [
+        'INVALID_CREDENTIALS',
+        'PASSWORD_TOO_SHORT',
+        'PASSWORD_TOO_LONG',
+        'PASSWORD_REUSED',
+        'PASSWORD_COMMON',
+        'PASSWORD_HASH_FAILED',
+        'RESET_TOKEN_INVALID',
+        'SECOND_FACTOR_REQUIRED',
+        'PASSWORD_CHANGE_CONFLICT',
+    ];
+    $code = $e->getMessage();
+    return in_array($code, $known, true)
+        ? ['error' => $code, 'status' => 422]
+        : null;
+}
+
 function method_not_allowed(): never { json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST, PUT, DELETE']); }
 function ensure_string(array &$d, string $key, int $max): void { if (array_key_exists($key,$d)) $d[$key] = mb_substr(trim((string)$d[$key]),0,$max); }
 function sanitize_payload(string $resource, array $d): array {
@@ -194,8 +213,12 @@ try {
                         $newPassword,
                         (string)($d['totp_code'] ?? '')
                     );
-                } catch (DomainException $e) {
-                    json_response(['ok'=>false,'error'=>$e->getMessage()],422);
+                } catch (Throwable $e) {
+                    $mapped = brvtal_auth_password_error_status($e);
+                    if ($mapped !== null) {
+                        json_response(['ok'=>false,'error'=>$mapped['error']],$mapped['status']);
+                    }
+                    throw $e;
                 }
                 brvtal_admin_logout();
                 json_response(['ok'=>true]);
@@ -213,8 +236,12 @@ try {
                         (string)($d['current_password'] ?? ''),
                         (string)($d['new_password'] ?? '')
                     );
-                } catch (DomainException $e) {
-                    json_response(['ok'=>false,'error'=>$e->getMessage()],422);
+                } catch (Throwable $e) {
+                    $mapped = brvtal_auth_password_error_status($e);
+                    if ($mapped !== null) {
+                        json_response(['ok'=>false,'error'=>$mapped['error']],$mapped['status']);
+                    }
+                    throw $e;
                 }
                 brvtal_admin_login_session($adminId);
                 json_response(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);
