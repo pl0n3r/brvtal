@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "epic_issue": 630,
+  "production_green": false,
+  "epic_close_allowed": false,
+  "consumed": {
+    "ci": {
+      "workflow": ".github/workflows/factory-ci.yml",
+      "reusable": "pl0n3r/factory/.github/workflows/ci.yml@v1"
+    },
+    "policy": {
+      "workflow": ".github/workflows/factory-policy.yml",
+      "reusable": "pl0n3r/factory/.github/workflows/politica.yml@v1"
+    },
+    "release": {
+      "workflow": ".github/workflows/factory-release.yml",
+      "reusable": "pl0n3r/factory/.github/workflows/release.yml@v1"
+    },
+    "labels": {
+      "workflow": ".github/workflows/factory-labels.yml",
+      "reusable": "pl0n3r/factory/.github/workflows/etiquetas.yml@v1"
+    }
+  },
+  "external_blockers": [
+    {
+      "issue": 681,
+      "code": "production-migration-reconcile-credentials",
+      "requires": [
+        "DEPLOY_TOKEN",
+        "DEPLOY_SSH_KEY"
+      ]
+    },
+    {
+      "issue": 689,
+      "code": "observer-push-trigger-parity",
+      "requires": [
+        "factory-observer-push-main"
+      ]
+    }
+  ],
+  "pending_adoptions": [
+    {
+      "issue": 692,
+      "capability": "coordination",
+      "reusable": "pl0n3r/factory/.github/workflows/coordinacion.yml@v1",
+      "required_for_epic_close": true
+    }
+  ]
+}
