@@ -56,6 +56,25 @@ class PhpstanDiffTests(unittest.TestCase):
         delta = introduced(base, head, Path("/base"), Path("/head"))
         self.assertEqual(delta, Counter({("<global>", "", "new global error"): 1}))
 
+    def test_new_duplicate_global_error_is_new(self) -> None:
+        """A new identical global message is one introduced finding."""
+        base = {"files": {}, "errors": ["config warning"]}
+        head = {"files": {}, "errors": ["config warning", "config warning"]}
+        self.assertEqual(introduced(base, head, Path("/base"), Path("/head")),
+                         Counter({("<global>", "", "config warning"): 1}))
+
+    def test_inherited_global_duplicates_are_not_new(self) -> None:
+        """Inherited identical globals do not create new debt."""
+        base = {"files": {}, "errors": ["config warning", "config warning"]}
+        head = {"files": {}, "errors": ["config warning", "config warning"]}
+        self.assertEqual(introduced(base, head, Path("/base"), Path("/head")), Counter())
+
+    def test_removed_global_duplicates_are_not_new(self) -> None:
+        """Removing a duplicate cannot introduce debt."""
+        base = {"files": {}, "errors": ["config warning", "config warning"]}
+        head = {"files": {}, "errors": ["config warning"]}
+        self.assertEqual(introduced(base, head, Path("/base"), Path("/head")), Counter())
+
     def test_payload_is_read_from_stdin_envelope(self) -> None:
         """Parse base/head reports from data rather than user-supplied file paths."""
         payload = {"base": {"files": {}, "errors": []}, "head": {"files": {}, "errors": []}}
