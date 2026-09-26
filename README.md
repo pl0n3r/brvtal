@@ -23,7 +23,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **PENDING** | **PENDING** | **PENDING** | **PENDING** |
+| **8** | **+440** | **−81** | **+359** |
 
 ## Qué cambia
 
