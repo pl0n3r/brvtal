@@ -433,6 +433,28 @@ class CoordinationTests(unittest.TestCase):
 
         self.assertEqual(api.status_history[-1], STATUS_RESERVED)
 
+    def test_label_reserved_restores_available_when_other_issue_is_active(self) -> None:
+        """A rejected manual reservation must not leave a phantom reserved status."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a", age_minutes=5)
+        api.issues[13] = {
+            "number": 13,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[13] = []
+        api.assignees_by_issue[13] = set()
+
+        with self.assertRaises(CoordinationError):
+            update_issue_label_state(api, 13, "pl0n3r", STATUS_RESERVED)
+
+        self.assertIn(STATUS_AVAILABLE, label_names(api.issues[13]))
+        self.assertNotIn(STATUS_RESERVED, label_names(api.issues[13]))
+        self.assertNotIn("work/issue-13", api.branches)
+        self.assertIsNotNone(active_reservation(api, 12))
+
     def test_label_available_cannot_release_another_session(self) -> None:
         """BRVTAL work-coordination helper."""
         api = FakeGitHub()
@@ -837,6 +859,7 @@ class CoordinationTests(unittest.TestCase):
         )
         self.assertIn("group: brvtal-work-coordination", workflow)
         self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("queue: max", workflow)
         self.assertNotIn("github.event.issue.number &&", workflow)
         self.assertNotIn("github.event.pull_request.head.ref", workflow)
 
