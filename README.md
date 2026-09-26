@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> **BORRADOR DIAGNÓSTICO #653: NO FUSIONAR.** Probe temporal de Rector 2.6.7 con `withCodeQualityLevel(10)` sobre un PHP real, para comprobar si el nivel conservador 0 carecía de transformaciones aplicables. No se ha ejecutado ninguna mutación de producción.
+> Snapshot de **solo el deploy actual**. **BORRADOR DIAGNÓSTICO #653: NO FUSIONAR.** Probe temporal de Rector 2.6.7 con `withCodeQualityLevel(10)` sobre un PHP real, para comprobar si el nivel conservador 0 carecía de transformaciones aplicables. No se ha ejecutado ninguna mutación de producción.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
