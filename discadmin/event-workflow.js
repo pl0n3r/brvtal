@@ -155,13 +155,7 @@
     const originalOpenEvent = core.openEvent;
     core.openEvent = function(id = null) {
       activeEventId = Number(id || 0) || null;
-      const result = originalOpenEvent.apply(this, arguments);
-      void window.BRVTALLegacyDrafts?.bind?.(
-        'events',
-        activeEventId || null,
-        core.getCurrentEvent?.() || {id:activeEventId || null}
-      );
-      return result;
+      return originalOpenEvent.apply(this, arguments);
     };
 
     const atomicSave = async function() {
@@ -169,7 +163,6 @@
       const labels = buttons.map(button => button.textContent);
       buttons.forEach(button => { button.disabled = true; button.textContent = 'SAVING…'; });
 
-      const submittedDraft = window.BRVTALLegacyDrafts?.snapshot?.('events');
       try {
         if (activeEventId) {
           const ticketsState = root.querySelector('#tickets')?.dataset.loadState;
@@ -196,31 +189,11 @@
         const eventId = Number(payload.data?.event?.id || 0);
         if (!eventId) throw new Error('EVENT_ID_MISSING');
         activeEventId = eventId;
-
-        const draftPayload = submittedDraft || {...event,tickets,lineup};
-        const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
-          type:'events',
-          id:eventId,
-          payload:draftPayload,
-          result:{id:eventId,data:payload.data?.event || {id:eventId}}
-        });
-
         await core.loadEvents();
-        if (!draftState?.keepOpen) core.openEvent(eventId);
-
-        notice(
-          root,
-          draftState?.keepOpen
-            ? 'Server save completed; newer edits remain in the local draft.'
-            : 'Event, tickets and roster saved together.'
-        );
+        core.openEvent(eventId);
+        notice(root, 'Event, tickets and roster saved together.');
         return true;
       } catch (error) {
-        await window.BRVTALLegacyDrafts?.saveFailed?.({
-          type:'events',
-          id:activeEventId || null,
-          payload:submittedDraft || {}
-        });
         const code = error?.message || 'EVENT_WORKFLOW_FAILED';
         const message = code === 'TICKETS_NOT_READY'
           ? 'Wait for ticket types to load before saving this Event.'
@@ -237,7 +210,6 @@
         });
       }
     };
-
     atomicSave.__brvtalAtomicWorkflow = true;
     core.saveEvent = atomicSave;
   }
