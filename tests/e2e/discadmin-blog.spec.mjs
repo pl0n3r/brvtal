@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const blogJs = readFileSync(join(process.cwd(), 'discadmin/blog.js'), 'utf8');
 const mediaLibraryJs = readFileSync(join(process.cwd(), 'discadmin/media-library.js'), 'utf8');
+const editorDraftsJs = readFileSync(join(process.cwd(), 'discadmin/editor-drafts.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/blog-e2e.html';
 
 const mediaItem = {
@@ -32,6 +33,7 @@ const seedPost = {
   featured: 1,
   sort_order: 0,
   published_at: '2026-09-11 20:30:00',
+  updated_at: '2026-09-11 20:31:00',
   tags: [{ id: 1, name: 'Hard Techno', slug: 'hard-techno' }],
   relations: [{ related_type: 'artist', related_id: 7, sort_order: 0 }]
 };
@@ -76,6 +78,14 @@ async function mockApi(page, options = {}) {
       window.__blogMutations = [...(window.__blogMutations || []), current];
     }, mutation);
 
+    if (options.delayMutationMs) {
+      await new Promise(resolve => setTimeout(resolve, Number(options.delayMutationMs)));
+    }
+
+    if (options.failMutation) {
+      return route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({ok:false,error:'SAVE_FAILED'})});
+    }
+
     const warningCreate = Boolean(options.warningOnCreate)
       && req.method() === 'POST'
       && mutationCount === 1;
@@ -111,6 +121,7 @@ async function loadHarness(page, options = {}) {
       <div class="modal" id="modal"><div><h2 id="mtitle"></h2><div id="notice" class="notice"></div><div id="mcontent"></div><button id="saveBtn">GUARDAR</button></div></div>
       <script>window.csrf='csrf-token';window.closeModal=()=>document.getElementById('modal').classList.remove('open');window.confirm=()=>true;</script>
       <script>${mediaLibraryJs}</script>
+      <script>${editorDraftsJs}</script>
       <script>${blogJs}</script>
       <script>window.BRVTALBlog.mount(document.querySelector('[data-admin-module="blog"]'));</script>
     </body></html>`
@@ -300,4 +311,122 @@ test('warning-aware create save rebinds the open editor to PUT', async ({ page }
   expect(mutations.map(item => item.method)).toEqual(['POST', 'PUT']);
   expect(mutations[1].url).toContain('id=10');
   await expect(page.locator('#modal')).not.toHaveClass(/open/);
+});
+
+
+test('blog autosaves a local draft without a server mutation and restores after reload', async ({ page }) => {
+  await loadHarness(page);
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await expect(page.locator('#blog-draft-recovery')).toBeHidden();
+  await page.locator('#blog_excerpt').fill('Recovered local draft.');
+
+  await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
+  expect(await page.evaluate(() => window.__blogMutations?.length || 0)).toBe(0);
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('blog','9'))?.data?.excerpt)).toBe('Recovered local draft.');
+
+  await page.reload();
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await expect(page.locator('#blog-draft-recovery')).toBeVisible();
+  await page.locator('[data-blog-draft-restore]').click();
+
+  await expect(page.locator('#blog_excerpt')).toHaveValue('Recovered local draft.');
+  await expect(page.locator('#blog-draft-state')).toContainText('Unsaved');
+  expect(await page.evaluate(() => window.__blogMutations?.length || 0)).toBe(0);
+});
+
+test('blog recovery reports a server revision conflict before restoring', async ({ page }) => {
+  await loadHarness(page);
+  await page.evaluate(async () => {
+    return BRVTALDrafts.save('blog','9',{
+      base_revision:'2026-09-10 10:00:00',
+      data:{
+        title:'Local conflicting title',
+        slug:'local-conflicting-title',
+        excerpt:'Local copy',
+        body:'<p>Local body</p>',
+        cover_image:'',
+        seo_title:'',
+        seo_description:'',
+        status:'draft',
+        featured:0,
+        relations:[]
+      }
+    });
+  });
+
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  const recovery = page.locator('#blog-draft-recovery');
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toHaveAttribute('data-conflict','1');
+  await expect(recovery).toContainText('SERVER CHANGED');
+  await expect(page.locator('#blog_title')).toHaveValue('BRVTAL Journal 001');
+
+  await page.locator('[data-blog-draft-restore]').click();
+  await expect(page.locator('#blog_title')).toHaveValue('Local conflicting title');
+  expect(await page.evaluate(() => window.__blogMutations?.length || 0)).toBe(0);
+});
+
+test('manual Blog save clears a local draft while failed save keeps it recoverable', async ({ page }) => {
+  await loadHarness(page);
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await page.locator('#blog_excerpt').fill('Saved server copy.');
+  await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__blogMutations?.length || 0)).toBe(1);
+  await expect.poll(() => page.evaluate(() => BRVTALDrafts.load('blog','9'))).toBe(null);
+
+  await page.reload();
+  await page.unroute('**/api/blog.php**');
+  await mockApi(page,{failMutation:true});
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await page.locator('#blog_excerpt').fill('Keep after failed save.');
+  await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
+  await page.locator('#saveBtn').click();
+  await expect(page.locator('#blog-draft-state')).toContainText('Save failed');
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('blog','9'))?.data?.excerpt)).toBe('Keep after failed save.');
+  await expect(page.locator('#modal')).toHaveClass(/open/);
+});
+
+
+test('Blog save keeps edits made while the server request is in flight', async ({ page }) => {
+  await loadHarness(page, { delayMutationMs:180 });
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await page.locator('#blog_excerpt').fill('Submitted server copy.');
+  await page.locator('#saveBtn').click();
+
+  await expect.poll(() => page.evaluate(() => window.__blogMutations?.length || 0)).toBe(1);
+  await page.locator('#blog_excerpt').fill('Newer unsaved edit.');
+
+  await expect(page.locator('#blog-draft-state')).toContainText('newer edits remain unsaved');
+  await expect(page.locator('#modal')).toHaveClass(/open/);
+  await expect.poll(() => page.evaluate(async () => (await BRVTALDrafts.load('blog','9'))?.data?.excerpt))
+    .toBe('Newer unsaved edit.');
+});
+
+test('Blog drafts are cleared when the admin session expires', async ({ page }) => {
+  await loadHarness(page);
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await page.locator('#blog_excerpt').fill('Session-bound local draft.');
+  await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:auth-required')));
+  await expect.poll(() => page.evaluate(() => BRVTALDrafts.load('blog','9'))).toBe(null);
+});
+
+test('Blog draft autosave surfaces local storage failure without losing visible input', async ({ page }) => {
+  await loadHarness(page, { failMutation:true });
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await page.evaluate(() => {
+    Storage.prototype.__brvtalOriginalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => { throw new DOMException('Quota exceeded','QuotaExceededError'); };
+  });
+
+  await page.locator('#blog_excerpt').fill('Still visible after quota error.');
+  await expect(page.locator('#blog-draft-state')).toContainText('Save failed');
+  await expect(page.locator('#blog_excerpt')).toHaveValue('Still visible after quota error.');
+  expect(await page.evaluate(() => window.__blogMutations?.length || 0)).toBe(0);
+
+  await page.locator('#saveBtn').click();
+  await expect(page.locator('#blog-draft-state')).toContainText('latest changes not stored locally; keep this editor open');
+  await expect(page.locator('#modal')).toHaveClass(/open/);
 });

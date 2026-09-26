@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #515: System Status confiable y configurable por administrador. No declara producción GREEN.
+> Snapshot de **solo el deploy actual** para #528: drafts recuperables de Blog. No declara producción GREEN.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,91 +16,89 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#515 · trustworthy configurable System Status** | `work/issue-515` · reserva `a76f7def-8b57-4098-a4d5-f9f2a4306597` |
-| Base exacta | ✅ **main** | `506e5bf63045cbd9970bf90394bbd49d896f9450` |
-| Versión de producto | 🚧 **v0.1.65** | `config/version.php` + `package.json` |
-| Producción | 🚧 **NO GREEN · #681** | recovery de migration registry sigue bloqueado por autoridad/transporte |
-| Factory Labels | 🚧 **#694** | Factory `@v1` todavía falla por alias/canónica |
-| PR | 🚧 **#706** | exact-head gates obligatorios |
+| Work line | 🚧 **#528 · recoverable Blog drafts** | `work/issue-528` · reserva `0f1759ee-d30a-4993-9c7e-08b6bb4f074f` |
+| Base | ✅ **main** | `4eef787234ab31c8d0901653ece6388a5f5a90c1` |
+| Versión | 🚧 **v0.1.66** | `config/version.php` + `package.json` |
+| PR | 🚧 **#707** | exact-head gates obligatorios |
+| Producción | 🚧 **NO GREEN · #681** | migration registry recovery sin autoridad/transporte |
+| Continuidad | ✅ **#708** | rollout restante preservado |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+633** | **−105** | **+528** |
+| **8** | **+555** | **−62** | **+493** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#706 · #515 System Status reliable/configurable** |
-| Roles | **Software Engineering · Frontend · UX · QA · Security · SRE** |
-| Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
-| CI del SHA exacto de main | 🚧 obligatorio después del merge |
-| Production GREEN | 🚧 fuera de alcance mientras #681 siga abierto |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Factory | Policy · Privacy · Labels |
+| Snapshot | PR + snapshot exacto |
+| Main | CI del SHA exacto de main |
+| Review | Sonar + CodeRabbit |
+| Seguridad | sin endpoint, permiso, proveedor ni migración nuevos |
+| Producción | #681 permanece fuera de alcance; no se declara GREEN |
 
 ## Flujo de entrega
-
 ```mermaid
 flowchart LR
-  T["technical overview"] --> D["host filesystem: diagnostic only"]
-  Q["configured/env quota"] --> S["managed storage endpoint"]
-  S --> U["truthful storage card"]
-  P["private per-admin settings"] --> N["shared workspace normalization"]
-  N --> G["System Status 4-column grid"]
-  G --> C["drag + keyboard/touch controls"]
-  G --> A["Dark / Light / Glass invariant data"]
+  E["Blog editor"] --> U["Unsaved"]
+  U --> D["650 ms debounce"]
+  D --> L["local draft / session namespace"]
+  L --> R["reopen"]
+  R --> C{"updated_at changed?"}
+  C -- no --> X["Restore / Discard"]
+  C -- yes --> W["Conflict warning"]
+  W --> X
+  X --> F["form only"]
+  F --> S["explicit Save"]
+  S --> A["server + append-only audit"]
 ```
 
 ## Qué se hizo
-- Eliminada la doble fuente visual de storage: `technical.php` ya no presenta el filesystem del host como cuota de aplicación.
-- El filesystem del host permanece visible únicamente como diagnóstico raw, marcado `diagnostic_only`.
-- `storage-metrics.php` acepta cuota solo desde configuración o `BRVTAL_STORAGE_QUOTA_BYTES`; sin fuente verificable responde **STORAGE_QUOTA_NOT_CONFIGURED**.
-- Eliminado el fallback hardcodeado de 25 GB: **Unavailable** es preferible a una capacidad inventada.
-- Dashboard y System Status comparten el mismo contrato server-side de orden, visibilidad, spans y aislamiento por administrador.
-- System Status persiste en `admin.dashboard.<admin_id>.system_status_layout`, protegido por el namespace privado existente.
-- Ocho módulos configurables: services, storage, database, repository, editorial, runtime, attention y activity.
-- Reordenamiento por drag-and-drop con fallback de botones para teclado/touch.
-- Resize en spans validados 1–4 × 1–2, hide/show y **Reset to default**.
-- Layout responsive 4/2/1 columnas y controles táctiles de al menos 44 px en móvil.
-- Cambiar Dark/Light/Glass no altera la fuente ni los valores de storage.
-- Contratos negativos cubren spans/visibilidad inválidos, catálogo desconocido y al menos un módulo visible.
-- E2E cubre persistencia, resize, hide/show/reset, invariancia de apariencia y ausencia de valores TB del host en la cuota administrada.
+- Nuevo `editor-drafts.js`: storage same-origin, versionado y reusable.
+- Namespace derivado con SHA-256 del CSRF de sesión; el token no se persiste.
+- Blog autosave local con debounce; no hace POST/PUT ni publica.
+- Estados accesibles: Unsaved, Saving, Draft saved, Save failed y Saved to server.
+- Reopen ofrece Restore/Discard y muestra conflicto si cambió `updated_at`.
+- Restore repone formulario/SEO/body/relaciones; el body vuelve a pasar por sanitización cliente.
+- Save manual exitoso limpia el draft solo si no hubo ediciones nuevas en vuelo; fallo HTTP conserva recovery.
+- Fallo de storage queda visible y no borra el input; expiración de sesión purga drafts locales.
+- Version History sigue append-only/read-only.
+- #708 conserva Events, Artists, Releases, Sets, Pages y evaluación Hero/Theme.
 
 ## Archivos modificados en este deploy
-- `api/admin-dashboard-preferences.php`
-- `config/admin_dashboard.php`
+- `discadmin/editor-drafts.js`
+- `discadmin/blog.js`
+- `discadmin/blog.css`
+- `discadmin/index.php`
+- `tests/e2e/discadmin-blog.spec.mjs`
 - `config/version.php`
-- `discadmin/storage-metrics.php`
-- `discadmin/system-status-v2.css`
-- `discadmin/system-status-v2.js`
-- `discadmin/technical.php`
 - `package.json`
-- `tests/dashboard-v2-contract.php`
-- `tests/e2e/discadmin-system-status-v2.spec.mjs`
-- `tests/system-status-contract.php`
-- `tests/system-status-preferences-contract.php`
 - `README.md`
 
 ## Validación
-- 🚧 BRVTAL CI sobre HEAD exacto del PR #706.
-- 🚧 Factory Policy/Privacy y Sonar/CodeRabbit terminales antes de merge.
-- 🚧 Validación exact-main obligatoria tras integración.
-- Host filesystem no se usa como cuota administrada ni afecta la semántica operativa de storage.
-- No se amplían permisos, no hay migración de DB y no se ejecutan writes productivos desde este PR.
+- E2E: debounce sin mutación de servidor.
+- E2E: reload + Restore/Discard.
+- E2E: conflicto por revisión.
+- E2E: Save exitoso limpia; Save fallido conserva.
+- E2E: localStorage degradado conserva input.
+- No cambia `datos.yml`: no añade campo personal, proveedor ni transferencia a tercero.
+- Sin SQL, migración, Hostinger write ni cambios de readiness.
+- 🚧 Gates exact-head del HEAD final de #707 deben cerrar antes de merge.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#515](https://github.com/pl0n3r/brvtal/issues/515): cerrar gates del System Status confiable/configurable. |
-| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528): autosave y drafts/versiones recuperables, si sigue disponible al redespachar. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap canónico. |
-| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN. |
-| **BLOCKED / FACTORY** | 🚧 [#694](https://github.com/pl0n3r/brvtal/issues/694): Factory Labels `@v1`. |
+| **NOW** | 🚧 #528 / PR #707: cerrar gates del fundamento + Blog. |
+| **NEXT** | 🚧 #708: rollout del contrato a otros editores · https://github.com/pl0n3r/brvtal/issues/708 |
+| **LATER** | 🚧 #533: roadmap canónico. |
+| **BLOCKED / EXTERNAL** | 🚧 #681: migration registry parity / producción NO GREEN · https://github.com/pl0n3r/brvtal/issues/681 |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: [#515](https://github.com/pl0n3r/brvtal/issues/515) cerrar System Status confiable/configurable y gates exact-head.
-- 🚧 **NEXT**: [#528](https://github.com/pl0n3r/brvtal/issues/528) si continúa libre después del merge.
-- 🚧 **LATER**: [#533](https://github.com/pl0n3r/brvtal/issues/533) continuar el roadmap.
-- 🚧 **BLOCKED / EXTERNAL**: [#681](https://github.com/pl0n3r/brvtal/issues/681) mantiene producción NO GREEN.
+- 🚧 **NOW**: #707 exact-head y merge serial.
+- 🚧 **NEXT**: #708, solo después de exact-main del fundamento.
+- 🚧 **LATER**: continuar #533 según prioridad real.
+- 🚧 **BLOCKED / EXTERNAL**: #681 conserva el recovery productivo fail-closed.
