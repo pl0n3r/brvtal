@@ -16,7 +16,7 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#698 · coordinación exclusiva** | `work/issue-698` · reserva `37420d44-b8ed-40ed-87c2-3832c759a794` |
+| Work line | 🚧 **#698 · coordinación exclusiva** | `work/issue-698` · reserva `cb0a557f-3782-45df-8246-573d4a6805e0` |
 | Base exacta | ✅ **main v0.1.59** | `f5a5f1b687d9972a9d898e9da6a618f85cf5cf08` |
 | Versión de producto | ✅ **v0.1.59 sin cambio** | repository-only |
 | Producción | ⛔ **NO GREEN · #681** | registry de migraciones pendiente |
@@ -26,7 +26,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+289** | **−59** | **+230** |
+| **5** | **+461** | **−88** | **+373** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -49,11 +49,11 @@ flowchart LR
 ```
 
 ## Qué se hizo
-- `Work Coordination` usa una concurrency group fija del repositorio y `cancel-in-progress: false`.
+- `Work Coordination` serializa el repositorio con `cancel-in-progress: false` y `queue: max`.
 - `/take` distingue `none / recovered / blocked` y nunca cae a una segunda reserva ante autoridad activa o incompatible.
 - `reserve_work()` aplica el mismo guard como defensa para callers internos.
-- El contrato operativo deja de proteger la antigua concurrency key por Issue y exige exclusión mutua repository-wide.
-- Regresiones cubren reserva reciente, stale recuperable, stale incompatible, release→take y caller interno.
+- `status: reserved` es estado derivado: un label manual nunca crea branch, assignee ni marker trusted.
+- Regresiones cubren recovery, autoridad global, labels manuales, Issues cerrados y PR draft/ready.
 - No hay cambios de runtime, DB, Hostinger, migraciones, secretos o deploy.
 
 ## Archivos modificados en este deploy
