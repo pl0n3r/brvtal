@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**. **BORRADOR DIAGNÓSTICO #653: NO FUSIONAR.** Probe temporal de Rector 2.6.7 con `withCodeQualityLevel(10)` sobre un PHP real, para comprobar si el nivel conservador 0 carecía de transformaciones aplicables. No se ha ejecutado ninguna mutación de producción.
+> Snapshot de **solo el deploy actual** para #653: primer refactor real emitido por Rector 2.6.7, con comportamiento preservado y sin tocar producción.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,64 +16,66 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#653 · primer refactor real Rector** | `work/issue-653` · reserva `4989a45d-67cd-4fd4-92c8-c9fbc72c96f0` |
+| Work line | 🚧 **#653 · primer refactor real Rector** | `work/issue-653` · reserva `bf7b8aa7-b120-4b3a-a8f9-305f4b4a6252` |
 | Base exacta | ✅ **main v0.1.58** | `4295b6f21dd535d03df0843eb527c5829c54d21c` |
-| Versión candidata | 🚧 **v0.1.59 (solo diagnóstico; no desplegada)** | config/version.php y package.json |
-| Producción | ⛔ **NO GREEN · #681** | /api/health.php HTTP 503 |
-| Factory Labels | ⛔ **#694** | Factory @v1 antiguo |
+| Versión candidata | 🚧 **v0.1.59** | `config/version.php` + `package.json`; no desplegada |
+| Producción | ⛔ **NO GREEN · #681** | fuera de alcance de este PR |
+| Factory labels | ⛔ **#694** | pendiente Factory v1.0.5 |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+35** | **−33** | **+2** |
+| **5** | **+54** | **−36** | **+18** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#653 · borrador sin autorización de merge** |
+| PR + snapshot exacto | **#653 · refactor Rector v0.1.59** |
 | Roles | **Software Engineering · QA · Security** |
-| Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL + CodeRabbit |
-| Rector | 🚧 ejecutar 2.6.7 con config de prueba; capturar diff real |
-| CI del SHA exacto de main | ✅ base validada; PR provisional pendiente |\n| Production GREEN | ⛔ no se reclama ni se altera |
+| Rector | ✅ dry-run `9488cde` emitió 3 cambios exactos; aplicados sin ampliar reglas |
+| Review | BRVTAL CI / validate + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
+| CI del SHA exacto de main | 🚧 validar HEAD final antes de merge |
+| Production GREEN | ⛔ no se reclama ni se altera |
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  A["nivel 0 sin diff"] --> P["probe 10"]
-  P --> D["Rector dry-run"]
-  D --> C["solo cambios generados"]
-  C --> V["CI exact-head"]
+  P["probe acotado"] --> R["Rector dry-run"]
+  R --> D["3 cambios emitidos"]
+  D --> T["real-stack"]
+  T --> V["gates exact-head"]
 ```
 
 ## Qué se hizo
-- Amplía temporalmente CodeQualityLevel de 0 a 10 para probar una nueva hipótesis después de #686, donde nivel 0 no emitió refactors.
-- Marca un solo PHP real como changed para que el gate dry-run ejecute Rector.
-- Prohíbe integrar la marca o la ampliación de nivel hasta revisar la salida real de Rector y acotar el cambio.
+- Rector convirtió `!$tags` y `!$relations` a comparaciones explícitas `=== []`.
+- El set PHP 8.5 convirtió `get_class($e)` a `$e::class`.
+- Se retiraron marker y regla temporal; `rector.php` vuelve al contrato canónico.
+- Real-stack cubre tags y relaciones vacías además de los casos no vacíos.
 
 ## Archivos modificados en este deploy
 - `README.md`
-- `rector.php`
-- `config/public_visibility.php` — marca temporal
-- `config/version.php` — versión temporal
-- `package.json` — versión temporal
+- `api/blog.php`
+- `config/version.php`
+- `package.json`
+- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs`
 
 ## Validación
-- 🚧 Esperando evidencia de Rector; un run que no genera refactors no satisface #653.
-- ⛔ No fusionar ningún probe temporal.
+- ✅ Rector real documentado desde el log del HEAD de probe `9488cde817d181ed0b45f5d67f2878234e064951`.
+- 🚧 Gates exact-head del candidato final y revisión terminal antes del merge.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): obtener diff real y limpiar marcadores. |
-| **NEXT** | 🚧 [#629](https://github.com/pl0n3r/brvtal/issues/629): recuperación admin. |
-| **LATER** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): adopción Factory. |
-| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) recovery · [#694](https://github.com/pl0n3r/brvtal/issues/694) Factory @v1. |
+| **NOW** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): validar y fusionar el primer refactor Rector. |
+| **NEXT** | 🚧 [#698](https://github.com/pl0n3r/brvtal/issues/698): impedir reservas activas concurrentes. |
+| **LATER** | 🚧 [#629](https://github.com/pl0n3r/brvtal/issues/629): recuperación admin. |
+| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) producción · [#694](https://github.com/pl0n3r/brvtal/issues/694) Factory @v1. |
 
 ## Panorama general pendiente
-- 🚧 **NOW:** #653 calidad PHP.
-- 🚧 **NEXT:** #629 seguridad del admin.
-- 🚧 **LATER:** #630 Factory.
-- 🚧 **BLOCKED / EXTERNAL:** #681 health 503; #694 etiquetas Factory.
+- 🚧 **NOW:** #653 Rector.
+- 🚧 **NEXT:** #698 coordinación.
+- 🚧 **LATER:** #629 seguridad admin.
+- 🚧 **BLOCKED / EXTERNAL:** #681 producción; #694 Factory Labels.
