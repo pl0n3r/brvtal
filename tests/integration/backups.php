@@ -111,6 +111,32 @@ try {
     brvtal_backup_cleanup($manifest, $backupDir);
     backups_integration_expect(brvtal_backup_list($backupDir) === [], 'test cleanup must remove backup artifacts');
 
+    $databaseOnly = brvtal_backup_create($pdo, [
+        'base_dir'=>$backupDir,
+        'uploads_dir'=>$uploadsDir,
+        'scope'=>'database',
+        'trigger'=>'scheduled',
+        'scheduled_for'=>'2026-09-26T08:00:00+00:00',
+        'deployment'=>['commit'=>str_repeat('b',40),'short_commit'=>'bbbbbbb','source'=>'integration_test','version'=>'0.1.0-test','environment'=>'CI'],
+    ]);
+    backups_integration_expect(($databaseOnly['scope'] ?? null) === 'database', 'database-only backup must record scope');
+    backups_integration_expect(($databaseOnly['trigger'] ?? null) === 'scheduled', 'scheduled backup must record trigger');
+    backups_integration_expect(($databaseOnly['components']['database']['status'] ?? null) === 'ready', 'database-only backup must export database');
+    backups_integration_expect(($databaseOnly['components']['media_manifest']['status'] ?? null) === 'not_requested', 'database-only backup must skip media');
+    brvtal_backup_cleanup($databaseOnly, $backupDir);
+
+    $mediaOnly = brvtal_backup_create($pdo, [
+        'base_dir'=>$backupDir,
+        'uploads_dir'=>$uploadsDir,
+        'scope'=>'media',
+        'include_media_archive'=>false,
+        'deployment'=>['commit'=>str_repeat('c',40),'short_commit'=>'ccccccc','source'=>'integration_test','version'=>'0.1.0-test','environment'=>'CI'],
+    ]);
+    backups_integration_expect(($mediaOnly['scope'] ?? null) === 'media', 'media-only backup must record scope');
+    backups_integration_expect(($mediaOnly['components']['database']['status'] ?? null) === 'not_requested', 'media-only backup must skip database');
+    backups_integration_expect(($mediaOnly['components']['media_manifest']['status'] ?? null) === 'ready', 'media-only backup must inventory media');
+    brvtal_backup_cleanup($mediaOnly, $backupDir);
+
     fwrite(STDOUT, "BRVTAL backups MariaDB integration passed.\n");
 } finally {
     $pdo->exec('DROP TABLE IF EXISTS backup_fixture');
