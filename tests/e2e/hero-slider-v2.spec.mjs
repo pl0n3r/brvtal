@@ -6,8 +6,10 @@ const publicScript = readFileSync(join(process.cwd(), 'js/hero-slider.js'), 'utf
 const publicCss = readFileSync(join(process.cwd(), 'css/hero-slider.css'), 'utf8');
 const publicV2Css = readFileSync(join(process.cwd(), 'css/hero-slider-v2.css'), 'utf8');
 const adminScript = readFileSync(join(process.cwd(), 'discadmin/hero-slider.js'), 'utf8');
+const editorDraftsScript = readFileSync(join(process.cwd(), 'discadmin/editor-drafts.js'), 'utf8');
 const endpoint = readFileSync(join(process.cwd(), 'api/hero-slider.php'), 'utf8');
 const harness = 'http://127.0.0.1:4173/hero-slider-v2-harness.html';
+const adminHarness = 'http://127.0.0.1:4173/discadmin/hero-slider-admin-harness.html';
 
 async function openHarness(page, data) {
   await page.route(harness, route => route.fulfill({
@@ -25,13 +27,25 @@ async function openHarness(page, data) {
 /**
  * Mounts the real Hero Slider admin runtime with optional Web Crypto removal.
  */
-async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [] } = {}) {
-  await page.setContent(`<!doctype html><html><head></head><body>
-    <nav class="nav"><button type="button">EVENTS</button></nav>
-    <main class="main"><div class="top"><span class="eyebrow"></span><h1></h1></div></main>
-  </body></html>`);
+async function openAdminUidHarness(page, {
+  disableCrypto = false,
+  mediaItems = [],
+  serverConfig = null,
+  failSave = false,
+  saveDelayMs = 0,
+  holdSave = false,
+} = {}) {
+  await page.route(adminHarness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:`<!doctype html><html><head></head><body>
+      <nav class="nav"><button type="button">EVENTS</button></nav>
+      <main class="main"><div class="top"><span class="eyebrow"></span><h1></h1></div></main>
+    </body></html>`
+  }));
+  await page.goto(adminHarness);
 
-  await page.evaluate(({ disableCrypto, mediaItems }) => {
+  await page.evaluate(({ disableCrypto, mediaItems, serverConfig, failSave, saveDelayMs, holdSave }) => {
+    window.csrf = 'hero-draft-test-csrf';
     window.state = { section: 'dashboard' };
     window.render = () => {};
     window.__heroNativeGo = [];
@@ -45,11 +59,29 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
       return true;
     };
     window.__heroSavePayloads = [];
+    window.__heroSaveStarted = 0;
+    window.__heroSaveFailure = failSave;
+    window.__heroSaveDelayMs = saveDelayMs;
+    window.__heroHoldSave = holdSave;
+    window.__heroReleaseSave = null;
+    window.__heroSettingsConfig = serverConfig;
     window.__heroSettingsReadFailure = '';
     window.__heroSettingsReadFailures = 0;
     window.req = async (path, options = {}) => {
       if (path === '/settings' && options.method === 'POST') {
-        window.__heroSavePayloads.push(JSON.parse(options.body));
+        window.__heroSaveStarted += 1;
+        if (window.__heroHoldSave) {
+          await new Promise(resolve => {
+            window.__heroReleaseSave = resolve;
+          });
+        }
+        if (window.__heroSaveDelayMs) {
+          await new Promise(resolve => setTimeout(resolve, window.__heroSaveDelayMs));
+        }
+        if (window.__heroSaveFailure) throw new Error('SETTINGS_SAVE_FAILED');
+        const payload = JSON.parse(options.body);
+        window.__heroSavePayloads.push(payload);
+        window.__heroSettingsConfig = JSON.parse(payload.setting_value);
         return { data: [] };
       }
       if (path === '/settings?key=home.hero.slider') {
@@ -58,7 +90,15 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
           throw new Error(window.__heroSettingsReadFailure || 'SETTINGS_UNAVAILABLE');
         }
         if (window.__heroSettingsReadFailure) throw new Error(window.__heroSettingsReadFailure);
-        return { data: [] };
+        return {
+          data: window.__heroSettingsConfig
+            ? [{
+              setting_key:'home.hero.slider',
+              setting_value:JSON.stringify(window.__heroSettingsConfig),
+              is_json:1,
+            }]
+            : []
+        };
       }
       if (path === '/media?view=hero-picker') return { data: mediaItems };
       return { data: [] };
@@ -69,8 +109,9 @@ async function openAdminUidHarness(page, { disableCrypto = false, mediaItems = [
         value: undefined,
       });
     }
-  }, { disableCrypto, mediaItems });
+  }, { disableCrypto, mediaItems, serverConfig, failSave, saveDelayMs, holdSave });
 
+  await page.addScriptTag({ content: editorDraftsScript });
   await page.addScriptTag({ content: adminScript });
   await page.evaluate(() => window.go('hero-slider'));
 }
@@ -167,7 +208,7 @@ test('v2 admin clears dirty state only after save or successful confirmed naviga
 
   await page.locator('[data-save-slider]').click();
   await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);
-  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(false);
+  await expect.poll(() => page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(false);
 
   await page.locator('[data-field="name"]').fill('Changed again');
   expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
@@ -364,4 +405,152 @@ test('v2 admin bindings preserve preview, config, save and deletion behavior', a
 
   await page.locator('[data-delete-slide]').click();
   await expect(page.locator('[data-select-slide]')).toHaveCount(0);
+});
+
+
+const heroDraftServerConfig = {
+  enabled:false,
+  autoplay:true,
+  interval:7000,
+  slides:[{
+    id:'draft-slide',
+    enabled:false,
+    name:'Server banner',
+    mediaType:'image',
+    desktopSrc:'',
+    mobileSrc:'',
+    poster:'',
+    kicker:'',
+    title:'',
+    body:'',
+    ctaLabel:'',
+    ctaUrl:'',
+    contentAlign:'left',
+    overlay:35,
+    transition:'fade',
+    layers:[],
+  }],
+};
+
+test('v2 admin autosaves Hero changes locally without a server mutation and restores explicitly', async ({ page }) => {
+  await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig });
+  await page.locator('[data-field="name"]').fill('Local recovery banner');
+
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+  expect(await page.evaluate(() => window.__heroSavePayloads.length)).toBe(0);
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('hero-slider','home.hero.slider'))?.data?.slides?.[0]?.name))
+    .toBe('Local recovery banner');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.evaluate(() => window.go('dashboard'));
+  await page.evaluate(() => window.go('hero-slider'));
+
+  await expect(page.locator('[data-hero-draft-recovery]')).toBeVisible();
+  await expect(page.locator('[data-field="name"]')).toHaveValue('Server banner');
+  await page.locator('[data-hero-draft-restore]').click();
+  await expect(page.locator('[data-field="name"]')).toHaveValue('Local recovery banner');
+  expect(await page.evaluate(() => window.BRVTALHeroSliderGuard.hasUnsavedChanges())).toBe(true);
+});
+
+test('v2 admin warns when the server snapshot changed before local draft restore', async ({ page }) => {
+  await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig });
+  await page.locator('[data-field="name"]').fill('Local conflicting banner');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.evaluate(() => window.go('dashboard'));
+  await page.evaluate(() => {
+    window.__heroSettingsConfig = {
+      ...window.__heroSettingsConfig,
+      slides:[{...window.__heroSettingsConfig.slides[0],name:'Server changed banner'}],
+    };
+  });
+  await page.evaluate(() => window.go('hero-slider'));
+
+  const recovery = page.locator('[data-hero-draft-recovery]');
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toHaveAttribute('data-conflict','1');
+  await expect(recovery).toContainText('SERVER CHANGED');
+  await expect(page.locator('[data-field="name"]')).toHaveValue('Server changed banner');
+});
+
+test('v2 admin keeps a recoverable local draft when explicit Save fails', async ({ page }) => {
+  await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig, failSave:true });
+  await page.locator('[data-field="name"]').fill('Retry this banner');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+
+  await page.locator('[data-save-slider]').click();
+  await expect.poll(() => page.evaluate(() => window.__heroSaveStarted)).toBe(1);
+  await expect(page.locator('[data-hero-draft-state]')).toContainText('Save failed');
+  await expect(page.locator('[data-field="name"]')).toHaveValue('Retry this banner');
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('hero-slider','home.hero.slider'))?.data?.slides?.[0]?.name))
+    .toBe('Retry this banner');
+});
+
+test('v2 admin preserves edits made while the server Save request is in flight', async ({ page }) => {
+  await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig, holdSave:true });
+  await page.locator('[data-field="name"]').fill('Submitted banner');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+
+  await page.locator('[data-save-slider]').click();
+  await expect.poll(() => page.evaluate(() => window.__heroSaveStarted)).toBe(1);
+  await expect.poll(() => page.evaluate(() => typeof window.__heroReleaseSave === 'function')).toBe(true);
+  await page.locator('[data-field="name"]').fill('Newer local banner');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Unsaved');
+
+  await page.evaluate(() => window.__heroReleaseSave());
+  await expect.poll(() => page.evaluate(() => window.__heroSavePayloads.length)).toBe(1);
+  await expect(page.locator('[data-field="name"]')).toHaveValue('Newer local banner');
+  await expect(page.locator('[data-hero-draft-state]')).toContainText('newer edits remain unsaved');
+  expect(await page.evaluate(() => window.__heroSettingsConfig.slides[0].name)).toBe('Submitted banner');
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('hero-slider','home.hero.slider'))?.data?.slides?.[0]?.name))
+    .toBe('Newer local banner');
+});
+
+test('v2 admin clears Hero recovery at the auth session boundary', async ({ page }) => {
+  await openAdminUidHarness(page, { serverConfig:heroDraftServerConfig });
+  await page.locator('[data-field="name"]').fill('Session-bound banner');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('brvtal:auth-required')));
+  await expect.poll(() => page.evaluate(() => BRVTALDrafts.load('hero-slider','home.hero.slider'))).toBe(null);
+});
+
+
+test('v2 admin keeps the recovery revision stable for legacy server configs without generated IDs', async ({ page }) => {
+  const legacyConfig = {
+    enabled:false,
+    autoplay:true,
+    interval:7000,
+    slides:[{
+      enabled:false,
+      name:'Legacy banner',
+      mediaType:'image',
+      desktopSrc:'',
+      mobileSrc:'',
+      poster:'',
+      kicker:'',
+      title:'',
+      body:'',
+      ctaLabel:'',
+      ctaUrl:'',
+      contentAlign:'left',
+      overlay:35,
+      transition:'fade',
+      layers:[],
+    }],
+  };
+
+  await openAdminUidHarness(page, { serverConfig:legacyConfig });
+  await page.locator('[data-field="name"]').fill('Recovered legacy banner');
+  await expect(page.locator('[data-hero-draft-state]')).toHaveText('Draft saved locally');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.evaluate(() => window.go('dashboard'));
+  await page.evaluate(() => window.go('hero-slider'));
+
+  const recovery = page.locator('[data-hero-draft-recovery]');
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toHaveAttribute('data-conflict','0');
+  await expect(recovery).not.toContainText('SERVER CHANGED');
 });
