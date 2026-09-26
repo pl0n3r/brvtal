@@ -6,7 +6,8 @@
     content:'/api/content-health.php',
     health:'/api/index.php/health',
     storage:'/discadmin/storage-metrics.php',
-    activity:'/api/admin-activity.php?limit=4'
+    activity:'/api/admin-activity.php?limit=5',
+    preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
   let mounting = false;
@@ -199,19 +200,106 @@
     if (!activity) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(activityError)}</section>`;
     const items = Array.isArray(activity.items) ? activity.items : [];
     const rows = items.length ? items.map(activityRow).join('') : '<div class="dashboard-v2-empty">No recorded activity yet.</div>';
-    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Latest entries from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list">${rows}</div></section>`;
+    const more = activity.has_more
+      ? `<button class="dashboard-v2-button dashboard-v2-more" type="button" data-dashboard-activity-more data-dashboard-cursor="${esc(activity.next_cursor || '')}">VIEW MORE</button>`
+      : '';
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Five records at a time from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list" data-dashboard-activity-list>${rows}</div>${more}</section>`;
   }
 
   function actionsPanel() {
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">SECONDARY</div><h2>QUICK CREATE</h2><p>Shortcuts stay available without dominating the Dashboard.</p></div></div><div class="dashboard-v2-actions"><button class="dashboard-v2-button accent" type="button" data-dashboard-create="events">+ EVENT</button><button class="dashboard-v2-button" type="button" data-dashboard-create="artists">+ ARTIST</button><button class="dashboard-v2-button" type="button" data-dashboard-create="sets">+ SET</button><button class="dashboard-v2-button" type="button" data-dashboard-go="media">MEDIA LIBRARY</button></div></section>`;
   }
 
-  function bind(root) {
+  function defaultLayout() {
+    return {
+      modules:[
+        {id:'next_event',width:2,height:1,visible:true},
+        {id:'attention',width:2,height:1,visible:true},
+        {id:'drafts',width:2,height:1,visible:true},
+        {id:'operations',width:2,height:1,visible:true},
+        {id:'activity',width:2,height:1,visible:true},
+        {id:'quick_create',width:2,height:1,visible:true}
+      ]
+    };
+  }
+
+  function normalizeLayout(value) {
+    const defaults = defaultLayout();
+    const source = Array.isArray(value?.modules) ? value.modules : defaults.modules;
+    const allowed = new Map(defaults.modules.map(item => [item.id,item]));
+    const seen = new Set();
+    const modules = [];
+    source.forEach(item => {
+      const id = String(item?.id || '');
+      if (!allowed.has(id) || seen.has(id)) return;
+      seen.add(id);
+      modules.push({
+        id,
+        width:Math.max(1,Math.min(4,Number(item.width || allowed.get(id).width))),
+        height:Math.max(1,Math.min(2,Number(item.height || allowed.get(id).height))),
+        visible:item.visible !== false
+      });
+    });
+    defaults.modules.forEach(item => { if (!seen.has(item.id)) modules.push({...item}); });
+    if (!modules.some(item => item.visible)) modules[0].visible = true;
+    return {modules};
+  }
+
+  async function saveLayout(layout) {
+    const response = await fetch(ENDPOINTS.preferences,{
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':String(globalThis.csrf || '')},
+      body:JSON.stringify(layout)
+    });
+    const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || 'DASHBOARD_PREFERENCES_SAVE_FAILED');
+    return normalizeLayout(payload.data);
+  }
+
+  function moduleControls(item) {
+    return `<div class="dashboard-v2-module-controls" aria-label="Dashboard module controls">
+      <button type="button" data-dashboard-move="up" aria-label="Move module earlier">↑</button>
+      <button type="button" data-dashboard-move="down" aria-label="Move module later">↓</button>
+      <button type="button" data-dashboard-resize="narrower" aria-label="Make module narrower">−W</button>
+      <button type="button" data-dashboard-resize="wider" aria-label="Make module wider">+W</button>
+      <button type="button" data-dashboard-resize="shorter" aria-label="Make module shorter">−H</button>
+      <button type="button" data-dashboard-resize="taller" aria-label="Make module taller">+H</button>
+      <button type="button" data-dashboard-hide aria-label="Hide module">HIDE</button>
+    </div>`;
+  }
+
+  function moduleShell(item, markup) {
+    return `<div class="dashboard-v2-module" draggable="true" data-dashboard-module="${esc(item.id)}" data-dashboard-width="${item.width}" data-dashboard-height="${item.height}" style="--dashboard-col-span:${item.width};--dashboard-row-span:${item.height}">${moduleControls(item)}${markup}</div>`;
+  }
+
+  function customizationPanel(layout) {
+    const hidden = layout.modules.filter(item => !item.visible);
+    return `<section class="dashboard-v2-customize" aria-label="Dashboard customization">
+      <div><strong>LAYOUT</strong><span>Drag modules or use keyboard/touch controls. Sizes snap to grid cells.</span></div>
+      <div class="dashboard-v2-customize-actions">
+        ${hidden.map(item => `<button type="button" class="dashboard-v2-button" data-dashboard-show="${esc(item.id)}">+ ${esc(item.id.replaceAll('_',' ').toUpperCase())}</button>`).join('')}
+        <button type="button" class="dashboard-v2-button" data-dashboard-reset>RESET TO DEFAULT</button>
+      </div>
+    </section>`;
+  }
+
+  function reorder(layout, id, delta) {
+    const index = layout.modules.findIndex(item => item.id === id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= layout.modules.length) return false;
+    const [item] = layout.modules.splice(index,1);
+    layout.modules.splice(target,0,item);
+    return true;
+  }
+
+  function bindNavigation(root) {
     root.querySelectorAll('[data-dashboard-go]').forEach(button => button.addEventListener('click', () => {
       const id = Number(button.dataset.dashboardId ?? 0);
       const resource = button.dataset.dashboardResource ?? '';
       if (id > 0 && resource && typeof globalThis.BRVTALAdminRecordNavigation?.open === 'function') {
-        globalThis.BRVTALAdminRecordNavigation.open(resource, id, {section:button.dataset.dashboardGo})
+        globalThis.BRVTALAdminRecordNavigation.open(resource,id,{section:button.dataset.dashboardGo})
           .catch(error => globalThis.BRVTALFeedback?.error?.('Unable to open record: ' + (error?.message || error),'dashboard-record-navigation'));
         return;
       }
@@ -219,6 +307,96 @@
     }));
     root.querySelectorAll('[data-dashboard-create]').forEach(button => button.addEventListener('click', () => window.openModal?.(button.dataset.dashboardCreate)));
     root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
+  }
+
+  function bindActivityMore(root) {
+    root.querySelector('[data-dashboard-activity-more]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const cursor = String(button.dataset.dashboardCursor || '');
+      if (!cursor) return;
+      button.disabled = true;
+      try {
+        const next = await fetchData(ENDPOINTS.activity + '&cursor=' + encodeURIComponent(cursor));
+        const list = root.querySelector('[data-dashboard-activity-list]');
+        (next.items || []).forEach(item => list?.insertAdjacentHTML('beforeend',activityRow(item)));
+        if (next.has_more && next.next_cursor) {
+          button.dataset.dashboardCursor = String(next.next_cursor);
+          button.disabled = false;
+        } else {
+          button.remove();
+        }
+        bindNavigation(root);
+      } catch (error) {
+        button.disabled = false;
+        globalThis.BRVTALFeedback?.error?.('Recent Changes could not load more records.','dashboard-activity');
+      }
+    });
+  }
+
+  function bindCustomization(root, layout, results, serial) {
+    let dragged = '';
+    const persist = async () => {
+      try {
+        const saved = await saveLayout(layout);
+        results[5] = {status:'fulfilled',value:saved};
+        render(results,serial);
+      } catch (error) {
+        globalThis.BRVTALFeedback?.error?.('Dashboard layout could not be saved.','dashboard-layout');
+      }
+    };
+
+    root.querySelectorAll('[data-dashboard-module]').forEach(module => {
+      module.addEventListener('dragstart',() => { dragged = module.dataset.dashboardModule || ''; });
+      module.addEventListener('dragover',event => event.preventDefault());
+      module.addEventListener('drop',event => {
+        event.preventDefault();
+        const target = module.dataset.dashboardModule || '';
+        if (!dragged || dragged === target) return;
+        const from = layout.modules.findIndex(item => item.id === dragged);
+        const to = layout.modules.findIndex(item => item.id === target);
+        if (from < 0 || to < 0) return;
+        const [item] = layout.modules.splice(from,1);
+        layout.modules.splice(to,0,item);
+        persist();
+      });
+      module.querySelectorAll('[data-dashboard-move]').forEach(button => button.addEventListener('click',() => {
+        if (reorder(layout,module.dataset.dashboardModule,button.dataset.dashboardMove === 'up' ? -1 : 1)) persist();
+      }));
+      module.querySelectorAll('[data-dashboard-resize]').forEach(button => button.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
+        if (!item) return;
+        const action = button.dataset.dashboardResize;
+        if (action === 'narrower') item.width = Math.max(1,item.width - 1);
+        if (action === 'wider') item.width = Math.min(4,item.width + 1);
+        if (action === 'shorter') item.height = Math.max(1,item.height - 1);
+        if (action === 'taller') item.height = Math.min(2,item.height + 1);
+        persist();
+      }));
+      module.querySelector('[data-dashboard-hide]')?.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
+        if (!item) return;
+        if (layout.modules.filter(entry => entry.visible).length <= 1) return;
+        item.visible = false;
+        persist();
+      });
+    });
+
+    root.querySelectorAll('[data-dashboard-show]').forEach(button => button.addEventListener('click',() => {
+      const item = layout.modules.find(entry => entry.id === button.dataset.dashboardShow);
+      if (!item) return;
+      item.visible = true;
+      persist();
+    }));
+    root.querySelector('[data-dashboard-reset]')?.addEventListener('click',() => {
+      layout.modules = defaultLayout().modules.map(item => ({...item}));
+      persist();
+    });
+  }
+
+  function bind(root, layout, results, serial) {
+    bindNavigation(root);
+    bindActivityMore(root);
+    bindCustomization(root,layout,results,serial);
   }
 
   function render(results, serial) {
@@ -229,14 +407,29 @@
     const root = ensureDashboardRoot(main);
     clearLegacyDashboard(main);
 
-    const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
+    const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4], preferenceResult = results[5];
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
+    const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
+
+    const modules = {
+      next_event:nextEventPanel(overview,resultError(overviewResult)),
+      attention:attentionPanel(content,resultError(contentResult)),
+      drafts:draftsPanel(content,resultError(contentResult)),
+      operations:systemPanel(health,resultError(healthResult),storage,resultError(storageResult)),
+      activity:activityPanel(activity,resultError(activityResult)),
+      quick_create:actionsPanel()
+    };
+    const visibleModules = layout.modules
+      .filter(item => item.visible && modules[item.id])
+      .map(item => moduleShell(item,modules[item.id]))
+      .join('');
 
     root.innerHTML = `
       <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—')}</div></section>
-      <div class="dashboard-v2-grid"><div class="dashboard-v2-stack">${nextEventPanel(overview,resultError(overviewResult))}${attentionPanel(content,resultError(contentResult))}${draftsPanel(content,resultError(contentResult))}</div><div class="dashboard-v2-stack">${systemPanel(health,resultError(healthResult),storage,resultError(storageResult))}${activityPanel(activity,resultError(activityResult))}${actionsPanel()}</div></div>`;
-    bind(root);
+      ${customizationPanel(layout)}
+      <div class="dashboard-v2-grid dashboard-v2-grid-configurable" data-dashboard-grid>${visibleModules}</div>`;
+    bind(root,layout,results,serial);
 
     if (!overview || !health || health.database !== 'connected') setShellStatus(!health ? 'offline' : 'degraded', !health ? 'OFFLINE / CHECK' : 'DEGRADED');
     else setShellStatus('ok','ONLINE');
@@ -260,7 +453,8 @@
         fetchData(ENDPOINTS.content),
         fetchData(ENDPOINTS.health),
         fetchData(ENDPOINTS.storage),
-        fetchData(ENDPOINTS.activity)
+        fetchData(ENDPOINTS.activity),
+        fetchData(ENDPOINTS.preferences)
       ]);
       rendered = render(results,serial);
     } finally {

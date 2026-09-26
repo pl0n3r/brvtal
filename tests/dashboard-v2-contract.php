@@ -29,7 +29,7 @@ $controller = (string)file_get_contents(__DIR__ . '/../discadmin/dashboard-v2.js
 dashboard_v2_assert(str_contains($controller, "overview:'/api/dashboard-overview.php'"), 'Dashboard V2 must read the dedicated overview source');
 dashboard_v2_assert(str_contains($controller, "content:'/api/content-health.php'"), 'Dashboard V2 must integrate Content Health');
 dashboard_v2_assert(str_contains($controller, "storage:'/discadmin/storage-metrics.php'"), 'Dashboard V2 must use managed storage metrics');
-dashboard_v2_assert(str_contains($controller, "activity:'/api/admin-activity.php?limit=4'"), 'Dashboard V2 must surface recent Admin Activity');
+dashboard_v2_assert(str_contains($controller, "activity:'/api/admin-activity.php?limit=5'"), 'Dashboard V2 must load Recent Changes five at a time');
 dashboard_v2_assert(str_contains($controller, 'Promise.allSettled'), 'independent source failures must not collapse the full Dashboard');
 dashboard_v2_assert(str_contains($controller, 'SOURCE UNAVAILABLE'), 'source failures must stay explicit instead of becoming zero');
 dashboard_v2_assert(str_contains($controller, "data-dashboard-go=\"media\""), 'Media shortcut must route to canonical Media Library');
@@ -70,3 +70,23 @@ dashboard_v2_assert(
 );
 
 echo "BRVTAL Dashboard V2 contract tests passed.\n";
+
+$dashboardPreferences = (string)file_get_contents(__DIR__ . '/../config/admin_dashboard.php');
+$dashboardPreferencesApi = (string)file_get_contents(__DIR__ . '/../api/admin-dashboard-preferences.php');
+dashboard_v2_assert(str_contains($dashboardPreferences, "admin.dashboard."), 'Dashboard preferences must be namespaced per administrator');
+dashboard_v2_assert(str_contains($dashboardPreferences, "'width'=>max(1, min(4"), 'Dashboard spans must be server-validated to four columns');
+dashboard_v2_assert(str_contains($dashboardPreferences, "'height'=>max(1, min(2"), 'Dashboard height spans must be server-validated');
+dashboard_v2_assert(str_contains($dashboardPreferencesApi, 'brvtal_admin_require();'), 'Dashboard preferences must require authentication');
+dashboard_v2_assert(str_contains($dashboardPreferencesApi, 'brvtal_admin_require_csrf();'), 'Dashboard preference mutation must retain CSRF');
+dashboard_v2_assert(str_contains($controller, "preferences:'/api/admin-dashboard-preferences.php'"), 'Dashboard must load private per-admin layout preferences');
+dashboard_v2_assert(str_contains($controller, 'data-dashboard-reset'), 'Dashboard must expose Reset to default');
+dashboard_v2_assert(str_contains($controller, 'data-dashboard-hide') && str_contains($controller, 'data-dashboard-show'), 'Dashboard module library must support hide/show');
+dashboard_v2_assert(str_contains($controller, 'data-dashboard-move="up"') && str_contains($controller, 'data-dashboard-move="down"'), 'Dashboard must expose keyboard/touch reorder controls');
+dashboard_v2_assert(str_contains($controller, 'draggable="true"'), 'Dashboard must expose drag reordering');
+dashboard_v2_assert(str_contains($controller, 'data-dashboard-resize="wider"') && str_contains($controller, 'data-dashboard-resize="taller"'), 'Dashboard must expose snap-grid resize controls');
+dashboard_v2_assert(str_contains($controller, 'data-dashboard-activity-more'), 'Recent Changes must expose progressive View more');
+dashboard_v2_assert(str_contains($css, 'repeat(4,minmax(0,1fr))'), 'Dashboard grid must support up to four desktop columns');
+dashboard_v2_assert(str_contains($css, '.dashboard-v2-module-controls'), 'Dashboard module controls must be styled');
+$genericSettingsApi = (string)file_get_contents(__DIR__ . '/../api/index.php');
+dashboard_v2_assert(str_contains($genericSettingsApi, "setting_key NOT LIKE 'admin.dashboard.%'"), 'generic Settings listing must hide private Dashboard preferences');
+dashboard_v2_assert(substr_count($genericSettingsApi, "str_starts_with($key, 'admin.dashboard.')") >= 2, 'generic Settings mutations must protect private Dashboard preferences');
