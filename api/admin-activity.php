@@ -138,7 +138,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('ADMIN_ACTIVITY_ERROR', 'Admin activity request failed', [
-            'class'=>get_class($e),
+            'class'=>$e::class,
             'message'=>$e->getMessage(),
         ]);
     }
