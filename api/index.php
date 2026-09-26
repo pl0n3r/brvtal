@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/set_publication.php';
 require_once __DIR__ . '/../config/totp_auth.php';
 require_once __DIR__ . '/../config/password_rate_limit.php';
+require_once __DIR__ . '/../config/admin_password_security.php';
 require_once __DIR__ . '/../config/indexnow.php';
 require_once __DIR__ . '/../config/hero_slider_integrity.php';
 require_once __DIR__ . '/admin-read-plan.php';
@@ -32,6 +33,28 @@ function rate_limit_login(string $email, bool $recordFailure = false): void {
 
 function reset_login_rate_limit(string $email): void {
     brvtal_password_rate_limit_reset($email);
+}
+
+function brvtal_auth_password_error_status(Throwable $e): ?array
+{
+    if ($e->getMessage() === 'RATE_LIMITED') {
+        return ['error' => 'RATE_LIMITED', 'status' => 429];
+    }
+    $known = [
+        'INVALID_CREDENTIALS',
+        'PASSWORD_TOO_SHORT',
+        'PASSWORD_TOO_LONG',
+        'PASSWORD_REUSED',
+        'PASSWORD_COMMON',
+        'PASSWORD_HASH_FAILED',
+        'RESET_TOKEN_INVALID',
+        'SECOND_FACTOR_REQUIRED',
+        'PASSWORD_CHANGE_CONFLICT',
+    ];
+    $code = $e->getMessage();
+    return in_array($code, $known, true)
+        ? ['error' => $code, 'status' => 422]
+        : null;
 }
 
 function method_not_allowed(): never { json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST, PUT, DELETE']); }
@@ -107,14 +130,14 @@ function brvtalReleaseThemeReferenceMutex(PDO $pdo): void
         $st->fetchColumn();
     } catch (Throwable $e) {
         brvtal_log('THEME_SETTINGS_LOCK_RELEASE_FAILED', 'Could not release Theme settings mutex', [
-            'class' => get_class($e),
+            'class' => $e::class,
         ]);
     }
 }
 
 function handle_exception(Throwable $e): never {
     if($e instanceof RuntimeException && $e->getMessage()==='ACTIVITY_SCHEMA_MISSING') json_response(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'],503);
-    brvtal_log('API_ERROR','Unhandled API exception',['class'=>get_class($e),'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
+    brvtal_log('API_ERROR','Unhandled API exception',['class'=>$e::class,'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
 }
 
 try {
@@ -159,6 +182,75 @@ try {
         if($method==='POST') {
             $d=$GLOBALS['brvtal_auth_input'] ?? input_json();
             unset($GLOBALS['brvtal_auth_input']);
+
+            $authAction = (string)($d['action'] ?? '');
+            if ($authAction === 'forgot_password') {
+                $baseUrl = (string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co');
+                try {
+                    brvtal_admin_password_forgot(db(), (string)($d['email'] ?? ''), $baseUrl);
+                } catch (DomainException $e) {
+                    if ($e->getMessage() === 'RATE_LIMITED') {
+                        json_response([
+                            'ok' => false,
+                            'error' => 'RATE_LIMITED',
+                            'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
+                        ], 429);
+                    }
+                    throw $e;
+                }
+                json_response([
+                    'ok' => true,
+                    'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
+                ]);
+            }
+            if ($authAction === 'reset_password') {
+                $token = trim((string)($d['token'] ?? ''));
+                $newPassword = (string)($d['new_password'] ?? '');
+                if ($token === '' || $newPassword === '') {
+                    json_response(['ok'=>false,'error'=>'RESET_INPUT_REQUIRED'],422);
+                }
+                try {
+                    $resetResult = brvtal_password_reset_consume(
+                        db(),
+                        $token,
+                        $newPassword,
+                        (string)($d['totp_code'] ?? '')
+                    );
+                } catch (Throwable $e) {
+                    $mapped = brvtal_auth_password_error_status($e);
+                    if ($mapped !== null) {
+                        json_response(['ok'=>false,'error'=>$mapped['error']],$mapped['status']);
+                    }
+                    throw $e;
+                }
+                brvtalAdminPasswordNotifyChanged((string)$resetResult['email'], 'recovery');
+                brvtal_admin_logout();
+                json_response(['ok'=>true]);
+            }
+            if ($authAction === 'change_password') {
+                if (!brvtal_admin_is_authenticated()) {
+                    json_response(['ok'=>false,'error'=>'AUTH_REQUIRED'],401);
+                }
+                brvtal_admin_require_csrf((string)($d['csrf'] ?? ''));
+                $adminId = (int)($_SESSION['admin_id'] ?? 0);
+                try {
+                    $changeResult = brvtal_admin_change_password(
+                        db(),
+                        $adminId,
+                        (string)($d['current_password'] ?? ''),
+                        (string)($d['new_password'] ?? '')
+                    );
+                } catch (Throwable $e) {
+                    $mapped = brvtal_auth_password_error_status($e);
+                    if ($mapped !== null) {
+                        json_response(['ok'=>false,'error'=>$mapped['error']],$mapped['status']);
+                    }
+                    throw $e;
+                }
+                brvtal_admin_login_session($adminId);
+                brvtalAdminPasswordNotifyChanged((string)$changeResult['email'], 'authenticated');
+                json_response(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);
+            }
             if(($d['action'] ?? '') === 'totp_verify') {
                 $pendingId=brvtal_totp_pending_admin_id();
                 if($pendingId===null) json_response(['ok'=>false,'error'=>'TOTP_CHALLENGE_EXPIRED'],401);
@@ -240,7 +332,7 @@ try {
         if($method!=='POST')method_not_allowed(); brvtal_admin_require_csrf();
         if(empty($_FILES['file'])||$_FILES['file']['error']!==UPLOAD_ERR_OK)json_response(['ok'=>false,'error'=>'UPLOAD_REQUIRED'],422);
         $f=$_FILES['file']; if(!is_uploaded_file($f['tmp_name']))json_response(['ok'=>false,'error'=>'INVALID_UPLOAD'],422); $max=25*1024*1024; if((int)$f['size']<=0||$f['size']>$max)json_response(['ok'=>false,'error'=>'FILE_TOO_LARGE'],422);
-        $mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
+        $mime=new finfo(FILEINFO_MIME_TYPE)->file($f['tmp_name']);
         $allowed=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','image/gif'=>'gif','video/mp4'=>'mp4','audio/mpeg'=>'mp3','audio/wav'=>'wav','application/pdf'=>'pdf'];
         if(!isset($allowed[$mime]))json_response(['ok'=>false,'error'=>'FILE_TYPE_NOT_ALLOWED'],422);
         if(str_starts_with($mime,'image/') && @getimagesize($f['tmp_name'])===false)json_response(['ok'=>false,'error'=>'INVALID_IMAGE'],422);
@@ -492,7 +584,7 @@ try {
         $allowed = allowed_fields($resource);
         $p = [];
         foreach ($allowed as $f) {
-            if (array_key_exists($f, $d)) {
+            if (array_key_exists((string) $f, $d)) {
                 $p[$f] = $d[$f];
             }
         }
@@ -625,7 +717,7 @@ try {
         $allowed = allowed_fields($resource);
         $p = [];
         foreach ($allowed as $f) {
-            if (array_key_exists($f, $d)) {
+            if (array_key_exists((string) $f, $d)) {
                 $p[$f] = $d[$f];
             }
         }

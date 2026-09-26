@@ -1,0 +1,19 @@
+{
+  "name": "pl0n3r/brvtal",
+  "description": "BRVTAL production runtime dependencies",
+  "type": "project",
+  "require": {
+    "php": ">=8.5",
+    "ext-ctype": "*",
+    "ext-filter": "*",
+    "ext-hash": "*",
+    "ext-openssl": "*",
+    "phpmailer/phpmailer": "^7.1"
+  },
+  "config": {
+    "allow-plugins": false,
+    "preferred-install": "dist",
+    "sort-packages": true
+  },
+  "license": "proprietary"
+}

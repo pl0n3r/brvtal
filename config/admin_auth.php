@@ -94,8 +94,14 @@ function brvtal_admin_session_regenerate(): void
 
 function brvtal_admin_login_session(int $adminId): void
 {
+    $state = brvtal_admin_account_session_state(db(), $adminId);
+    if ($state === null || !$state['is_active']) {
+        throw new RuntimeException('ADMIN_SESSION_STATE_UNAVAILABLE');
+    }
+
     brvtal_admin_session_regenerate();
     $_SESSION['admin_id'] = $adminId;
+    $_SESSION['credential_epoch'] = $state['credential_epoch'];
     $_SESSION['authenticated_at'] = time();
 }
 
@@ -145,17 +151,19 @@ function brvtal_admin_is_authenticated(): bool
     }
 
     try {
-        $active = brvtal_admin_account_is_active(db(), $adminId);
+        $state = brvtal_admin_account_session_state(db(), $adminId);
     } catch (Throwable $e) {
         brvtal_log('AUTH_REVALIDATION_ERROR', 'Admin session could not be revalidated', [
             'admin_id' => $adminId,
-            'class' => get_class($e),
+            'class' => $e::class,
         ]);
         return false;
     }
 
-    if (!$active) {
-        brvtal_log('SECURITY', 'Admin session revoked because account is inactive or missing', [
+    $sessionEpoch = (int)($_SESSION['credential_epoch'] ?? 0);
+    if ($state === null || !$state['is_active'] || $sessionEpoch < 1
+        || !hash_equals((string)$state['credential_epoch'], (string)$sessionEpoch)) {
+        brvtal_log('SECURITY', 'Admin session revoked because account or credential epoch changed', [
             'admin_id' => $adminId,
         ]);
         brvtal_admin_logout();

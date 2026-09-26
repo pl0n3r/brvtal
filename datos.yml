@@ -63,6 +63,23 @@
       "providers": []
     },
     {
+      "id": "admin_password_reset",
+      "category": "authentication",
+      "fields": [
+        "admin_id",
+        "token_hash",
+        "expires_at",
+        "consumed_at",
+        "revoked_at",
+        "created_at"
+      ],
+      "purpose": "admin_password_recovery",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
       "id": "admin_recovery_codes",
       "category": "authentication",
       "fields": [
@@ -78,13 +95,30 @@
       "providers": []
     },
     {
+      "id": "admin_recovery_delivery",
+      "category": "contact",
+      "fields": [
+        "email",
+        "recovery_link",
+        "security_notification"
+      ],
+      "purpose": "admin_account_recovery_delivery",
+      "basis": "review_required",
+      "retention": "external_mailbox_review_required",
+      "consent": "review_required",
+      "providers": [
+        "smtp_mail_provider"
+      ]
+    },
+    {
       "id": "admin_session",
       "category": "authentication",
       "fields": [
         "admin_id",
         "authenticated_at",
         "issued_at",
-        "last_activity"
+        "last_activity",
+        "credential_epoch"
       ],
       "purpose": "admin_session",
       "basis": "review_required",

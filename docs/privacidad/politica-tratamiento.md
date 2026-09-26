@@ -20,8 +20,10 @@
 | admin_activity | contact | admin_id, admin_name, admin_email, action, resource, resource_id, resource_label, changed_fields, before_json, after_json, meta_json, request_id, created_at | admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | admin_identity | contact | email, name, is_active, last_login_at, created_at, updated_at | admin_access | review_required | review_required | ninguno_declarado | review_required |
 | admin_password | authentication | password_hash | admin_authentication | review_required | review_required | ninguno_declarado | review_required |
+| admin_password_reset | authentication | admin_id, token_hash, expires_at, consumed_at, revoked_at, created_at | admin_password_recovery | review_required | review_required | ninguno_declarado | review_required |
 | admin_recovery_codes | authentication | admin_id, code_hash, used_at, created_at | admin_account_recovery | review_required | review_required | ninguno_declarado | review_required |
-| admin_session | authentication | admin_id, authenticated_at, issued_at, last_activity | admin_session | review_required | review_required | ninguno_declarado | session_30d |
+| admin_recovery_delivery | contact | email, recovery_link, security_notification | admin_account_recovery_delivery | review_required | review_required | smtp_mail_provider | external_mailbox_review_required |
+| admin_session | authentication | admin_id, authenticated_at, issued_at, last_activity, credential_epoch | admin_session | review_required | review_required | ninguno_declarado | session_30d |
 | admin_totp | authentication | totp_enabled, totp_secret_enc, totp_confirmed_at | admin_mfa | review_required | review_required | ninguno_declarado | review_required |
 | admin_totp_pending | authentication | totp_pending_admin_id, totp_pending_at, totp_pending_email | admin_mfa_challenge | review_required | review_required | ninguno_declarado | session_30d |
 | auth_password_rate_limit | usage | client_key_hash, attempts, blocked_until | auth_abuse_prevention | review_required | review_required | ninguno_declarado | review_required |

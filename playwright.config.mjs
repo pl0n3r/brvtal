@@ -13,6 +13,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /discadmin-password-recovery-real-stack\.spec\.mjs/,
       use: { ...devices['Desktop Chrome'] }
     },
     {

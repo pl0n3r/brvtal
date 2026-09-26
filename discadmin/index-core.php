@@ -894,6 +894,7 @@ function render(){
   <label class="eyebrow" for="admin-login-password">PASSWORD</label>
   <input id="admin-login-password" name="password" type="password" required>
   <button class="btn" type="submit" style="width:100%">ENTER</button>
+  <a class="login-recovery" href="/discadmin/forgot-password.php">¿OLVIDASTE TU CONTRASEÑA?</a>
   <div class="error"></div>
  </form>
 </div>`;

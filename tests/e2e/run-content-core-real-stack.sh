@@ -14,11 +14,14 @@ DB_PASS="${BRVTAL_TEST_DB_PASS:-brvtal_root}"
 BASE_URL="${BRVTAL_REAL_STACK_URL:-http://127.0.0.1:4174}"
 ADMIN_EMAIL="${BRVTAL_REAL_STACK_ADMIN_EMAIL:-ci-admin@brvtal.test}"
 ADMIN_PASSWORD="${BRVTAL_REAL_STACK_ADMIN_PASSWORD:-brvtal-ci-password}"
+RECOVERY_ADMIN_EMAIL="${BRVTAL_REAL_STACK_RECOVERY_ADMIN_EMAIL:-ci-recovery@brvtal.test}"
 PHP_LOG="${RUNNER_TEMP:-/tmp}/brvtal-real-stack-php.log"
 INDEXNOW_STUB_PORT="${BRVTAL_INDEXNOW_STUB_PORT:-4175}"
 INDEXNOW_STUB_ORIGIN="http://127.0.0.1:${INDEXNOW_STUB_PORT}"
 INDEXNOW_STUB_URL="${INDEXNOW_STUB_ORIGIN}/indexnow"
 INDEXNOW_STUB_LOG="${RUNNER_TEMP:-/tmp}/brvtal-indexnow-stub.log"
+MAIL_CAPTURE="${RUNNER_TEMP:-/tmp}/brvtal-password-mail.jsonl"
+rm -f "$MAIL_CAPTURE"
 
 if [[ ! "$DB_NAME" =~ ^brvtal_test[a-zA-Z0-9_]*$ ]]; then
   echo "Refusing to run real-stack smoke against non-test database: $DB_NAME" >&2
@@ -58,7 +61,7 @@ sed \
 "${mysql_db[@]}" < database/migration_memory_relations_01.sql
 
 ADMIN_HASH="$(php -r 'echo password_hash(getenv("BRVTAL_REAL_STACK_ADMIN_PASSWORD") ?: "brvtal-ci-password", PASSWORD_DEFAULT);')"
-"${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0);"
+"${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0),('$RECOVERY_ADMIN_EMAIL','$ADMIN_HASH','CI Recovery Admin',1,0);"
 "${mysql_db[@]}" -e "INSERT INTO artists(name,slug,bio,status,is_collective_member,sort_order) VALUES ('PL0N3R SMOKE','pl0n3r-smoke','Real-stack smoke artist','published',1,1),('DNL5 SMOKE','dnl5-smoke','Secondary smoke artist','published',1,2);"
 
 mkdir -p storage/logs storage/rate_limits uploads/ci
@@ -102,7 +105,8 @@ cleanup() {
   local status=$?
   if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
-  rm -f config/config.php uploads/ci/hero-integrity.jpg
+  if [[ -n "${PASSWORD_WORKER_PID:-}" ]]; then kill "$PASSWORD_WORKER_PID" >/dev/null 2>&1 || true; fi
+  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE"
   if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
     echo "--- PHP server log ---" >&2
     cat "$PHP_LOG" >&2 || true
@@ -135,7 +139,7 @@ if [[ "$stub_ready" != "1" ]]; then
   exit 1
 fi
 
-PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
+BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
 PHP_PID=$!
 
 ready=0
@@ -156,10 +160,22 @@ if [[ "$ready" != "1" ]]; then
   exit 1
 fi
 
+password_worker() {
+  while kill -0 "$PHP_PID" >/dev/null 2>&1; do
+    BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" \
+      php ops/admin-password-mail-worker.php --once >/dev/null 2>&1 || true
+    sleep 0.2
+  done
+}
+password_worker &
+PASSWORD_WORKER_PID=$!
+
 export BRVTAL_REAL_STACK_URL="$BASE_URL"
 export BRVTAL_REAL_STACK_ADMIN_EMAIL="$ADMIN_EMAIL"
 export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+export BRVTAL_REAL_STACK_RECOVERY_ADMIN_EMAIL="$RECOVERY_ADMIN_EMAIL"
 export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
+export BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE"
 npx playwright test \
   tests/e2e/discadmin-premium-real-stack.spec.mjs \
   tests/e2e/admin-performance-real-stack.spec.mjs \
@@ -171,4 +187,5 @@ npx playwright test \
   tests/e2e/memory-relations-real-stack.spec.mjs \
   tests/e2e/hero-slider-integrity-real-stack.spec.mjs \
   tests/e2e/indexnow-real-stack.spec.mjs \
+  tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
   --project=chromium

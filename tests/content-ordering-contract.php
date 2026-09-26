@@ -15,11 +15,11 @@ $expect(brvtalContentOrderResource(' RELEASES ') === $resources['releases'], 're
 $expect(brvtalContentOrderResource('events') === null, 'non-approved resources must fail closed');
 $expect(brvtalContentOrderIds([3,'2',1]) === [3,2,1], 'valid IDs preserve submitted order');
 foreach ([[],[1,1],[0,1],[-1,2],['1x',2],[1.5,2]] as $invalid) {
-    $failed=false; try { brvtalContentOrderIds($invalid); } catch (InvalidArgumentException $e) { $failed=true; }
+    $failed=false; try { brvtalContentOrderIds($invalid); } catch (InvalidArgumentException) { $failed=true; }
     $expect($failed, 'invalid or duplicate IDs must fail');
 }
 $oversized = range(1,501);
-$failed=false; try { brvtalContentOrderIds($oversized); } catch (InvalidArgumentException $e) { $failed=true; }
+$failed=false; try { brvtalContentOrderIds($oversized); } catch (InvalidArgumentException) { $failed=true; }
 $expect($failed, 'oversized order payload must fail');
 $expect(brvtalContentOrderMatches([3,1,2],[1,2,3]), 'exact ID sets may arrive in different order');
 $expect(!brvtalContentOrderMatches([1,2],[1,2,3]), 'partial set must be stale');
@@ -152,7 +152,8 @@ CREATE TABLE admins (
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin',
-  is_active TINYINT(1) NOT NULL DEFAULT 1
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  credential_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE sets_media (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -171,7 +172,7 @@ $insertSet = $pdo->prepare('INSERT INTO sets_media(title,sort_order) VALUES(?,?)
 foreach ([['Ordering A',0],['Ordering B',1],['Ordering C',2]] as [$title,$position]) {
     $insertSet->execute([$title,$position]);
 }
-$ids = array_map('intval', $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
+$ids = array_map(intval(...), $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
 $expect(count($ids) === 3, 'ordering fixture must create three records');
 
 $copies = [
@@ -223,6 +224,7 @@ $router = "<?php\n"
     . "    \$_SESSION['admin_id'] = {$adminId};\n"
     . "    \$_SESSION['issued_at'] = time();\n"
     . "    \$_SESSION['last_activity'] = time();\n"
+    . "    \$_SESSION['credential_epoch'] = 1;\n"
     . "    header('Content-Type: application/json; charset=utf-8');\n"
     . "    echo json_encode(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);\n"
     . "    return true;\n"

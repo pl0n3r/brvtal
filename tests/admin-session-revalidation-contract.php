@@ -16,11 +16,12 @@ admin_session_contract_assert(
     'admin auth must load the account-state revalidation policy'
 );
 admin_session_contract_assert(
-    str_contains($revalidation, 'SELECT is_active FROM admins WHERE id=? LIMIT 1'),
+    str_contains($revalidation, 'SELECT is_active,credential_epoch FROM admins WHERE id=? LIMIT 1'),
     'account-state helper must query the canonical admins row by primary key'
 );
 admin_session_contract_assert(
-    str_contains($revalidation, '$active !== false && (int)$active === 1'),
+    str_contains($revalidation, '\'is_active\' => (int)($row[\'is_active\'] ?? 0) === 1')
+        && str_contains($revalidation, '\'credential_epoch\' => max(1'),
     'missing and inactive admins must both fail revalidation'
 );
 admin_session_contract_assert(
@@ -28,7 +29,8 @@ admin_session_contract_assert(
     'session authorization must normalize the current admin id before revalidation'
 );
 admin_session_contract_assert(
-    str_contains($auth, 'brvtal_admin_account_is_active(db(), $adminId)'),
+    str_contains($auth, 'brvtal_admin_account_session_state(db(), $adminId)')
+        && str_contains($auth, '$_SESSION[\'credential_epoch\'] = $state[\'credential_epoch\'];'),
     'every authenticated session check must consult current admin state'
 );
 admin_session_contract_assert(
@@ -40,15 +42,21 @@ admin_session_contract_assert(
     'database revalidation failures must fail closed instead of authorizing the session'
 );
 admin_session_contract_assert(
-    str_contains($auth, "brvtal_log('SECURITY', 'Admin session revoked because account is inactive or missing'"),
+    str_contains($auth, "brvtal_log('SECURITY', 'Admin session revoked because account or credential epoch changed'"),
     'inactive or deleted account revocation must be security-auditable'
 );
-$inactiveBlock = strpos($auth, 'if (!$active)');
-admin_session_contract_assert($inactiveBlock !== false, 'inactive-account branch must remain explicit');
+$authCheck = strpos($auth, 'function brvtal_admin_is_authenticated(): bool');
+admin_session_contract_assert($authCheck !== false, 'authenticated-session boundary must remain explicit');
+$inactiveBlock = strpos(
+    $auth,
+    'if ($state === null || !$state[\'is_active\']',
+    $authCheck
+);
+admin_session_contract_assert($inactiveBlock !== false, 'inactive/epoch branch must remain explicit');
 $inactiveSource = substr($auth, $inactiveBlock, 500);
 admin_session_contract_assert(
     str_contains($inactiveSource, 'brvtal_admin_logout();') && str_contains($inactiveSource, 'return false;'),
-    'inactive or deleted admins must have their PHP session destroyed and authorization denied'
+    'inactive, deleted or stale-epoch sessions must be destroyed and denied'
 );
 
 admin_session_contract_assert(

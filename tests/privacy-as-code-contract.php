@@ -60,7 +60,9 @@ $expectedIds = [
     'admin_activity',
     'admin_identity',
     'admin_password',
+    'admin_password_reset',
     'admin_recovery_codes',
+    'admin_recovery_delivery',
     'admin_session',
     'admin_totp',
     'admin_totp_pending',
@@ -90,6 +92,13 @@ $recovery = privacy_treatment($data, 'admin_recovery_codes');
 privacy_expect($recovery['fields'] === ['admin_id','code_hash','used_at','created_at'], 'recovery treatment must describe hashed codes only');
 $pendingTotp = privacy_treatment($data, 'admin_totp_pending');
 privacy_expect($pendingTotp['retention'] === 'session_30d', 'pending TOTP storage retention must follow the admin session');
+$session = privacy_treatment($data, 'admin_session');
+privacy_expect(in_array('credential_epoch', $session['fields'], true), 'admin session map must include credential epoch');
+$passwordReset = privacy_treatment($data, 'admin_password_reset');
+privacy_expect($passwordReset['fields'] === ['admin_id','token_hash','expires_at','consumed_at','revoked_at','created_at'], 'password reset registry must document hash-only token state');
+$recoveryDelivery = privacy_treatment($data, 'admin_recovery_delivery');
+privacy_expect($recoveryDelivery['providers'] === ['smtp_mail_provider'], 'recovery delivery must expose SMTP processing');
+privacy_expect($recoveryDelivery['retention'] === 'external_mailbox_review_required', 'recovery delivery retention must remain pending provider review');
 
 $auth = privacy_text('config/admin_auth.php');
 $totpSource = privacy_text('config/totp_auth.php');
@@ -157,7 +166,7 @@ $expectedDocs = [
     'retencion.md',
 ];
 $privacyDir = __DIR__ . '/../docs/privacidad';
-$actualDocs = array_map('basename', glob($privacyDir . '/*.md') ?: []);
+$actualDocs = array_map(basename(...), glob($privacyDir . '/*.md') ?: []);
 sort($actualDocs);
 $expectedNames = $expectedDocs;
 sort($expectedNames);
