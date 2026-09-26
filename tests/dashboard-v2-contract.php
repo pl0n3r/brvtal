@@ -69,7 +69,7 @@ dashboard_v2_assert(
     'Dashboard navigation must skip the redundant legacy dashboard data load when V2 owns the workspace'
 );
 
-echo "BRVTAL Dashboard V2 contract tests passed.\n";
+
 
 $dashboardPreferences = (string)file_get_contents(__DIR__ . '/../config/admin_dashboard.php');
 $dashboardPreferencesApi = (string)file_get_contents(__DIR__ . '/../api/admin-dashboard-preferences.php');
@@ -90,3 +90,10 @@ dashboard_v2_assert(str_contains($css, '.dashboard-v2-module-controls'), 'Dashbo
 $genericSettingsApi = (string)file_get_contents(__DIR__ . '/../api/index.php');
 dashboard_v2_assert(str_contains($genericSettingsApi, "setting_key NOT LIKE 'admin.dashboard.%'"), 'generic Settings listing must hide private Dashboard preferences');
 dashboard_v2_assert(substr_count($genericSettingsApi, "str_starts_with($key, 'admin.dashboard.')") >= 2, 'generic Settings mutations must protect private Dashboard preferences');
+
+dashboard_v2_assert(str_contains($controller, 'function analyticsPanel()'), 'Dashboard module library must include Analytics');
+dashboard_v2_assert(str_contains($controller, 'DATA UNAVAILABLE') && str_contains($controller, 'does not invent GA4'), 'Analytics must fail closed when no admin-safe source exists');
+dashboard_v2_assert(str_contains($controller, "summaryCard('Active events'") && str_contains($controller, "'events')"), 'Active Events summary must navigate to Events');
+dashboard_v2_assert(str_contains($controller, "summaryCard('Media assets'") && str_contains($controller, "'media')"), 'Media Assets summary must navigate to Media Library');
+
+echo "BRVTAL Dashboard V2 contract tests passed.\n";

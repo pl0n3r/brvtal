@@ -76,8 +76,9 @@
     return root;
   }
 
-  function summaryCard(label, value) {
-    return `<div class="dashboard-v2-summary-card"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+  function summaryCard(label, value, destination = '') {
+    if (!destination) return `<div class="dashboard-v2-summary-card"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+    return `<button type="button" class="dashboard-v2-summary-card dashboard-v2-summary-action" data-dashboard-go="${esc(destination)}"><span>${esc(label)}</span><b>${esc(value)}</b><small>OPEN</small></button>`;
   }
 
   function sourceError(message) {
@@ -206,6 +207,10 @@
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Five records at a time from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list" data-dashboard-activity-list>${rows}</div>${more}</section>`;
   }
 
+  function analyticsPanel() {
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>PERFORMANCE</h2><p>Admin-safe analytics source required before metrics or visualizations can be configured.</p></div><span class="dashboard-v2-state muted">NOT CONFIGURED</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · BRVTAL does not invent GA4 or client-side metrics.</div></section>`;
+  }
+
   function actionsPanel() {
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">SECONDARY</div><h2>QUICK CREATE</h2><p>Shortcuts stay available without dominating the Dashboard.</p></div></div><div class="dashboard-v2-actions"><button class="dashboard-v2-button accent" type="button" data-dashboard-create="events">+ EVENT</button><button class="dashboard-v2-button" type="button" data-dashboard-create="artists">+ ARTIST</button><button class="dashboard-v2-button" type="button" data-dashboard-create="sets">+ SET</button><button class="dashboard-v2-button" type="button" data-dashboard-go="media">MEDIA LIBRARY</button></div></section>`;
   }
@@ -218,7 +223,8 @@
         {id:'drafts',width:2,height:1,visible:true},
         {id:'operations',width:2,height:1,visible:true},
         {id:'activity',width:2,height:1,visible:true},
-        {id:'quick_create',width:2,height:1,visible:true}
+        {id:'quick_create',width:2,height:1,visible:true},
+        {id:'analytics',width:2,height:1,visible:false}
       ]
     };
   }
@@ -295,7 +301,9 @@
   }
 
   function bindNavigation(root) {
-    root.querySelectorAll('[data-dashboard-go]').forEach(button => button.addEventListener('click', () => {
+    root.querySelectorAll('[data-dashboard-go]:not([data-dashboard-bound])').forEach(button => {
+      button.dataset.dashboardBound = '1';
+      button.addEventListener('click', () => {
       const id = Number(button.dataset.dashboardId ?? 0);
       const resource = button.dataset.dashboardResource ?? '';
       if (id > 0 && resource && typeof globalThis.BRVTALAdminRecordNavigation?.open === 'function') {
@@ -304,7 +312,8 @@
         return;
       }
       globalThis.go?.(button.dataset.dashboardGo);
-    }));
+      });
+    });
     root.querySelectorAll('[data-dashboard-create]').forEach(button => button.addEventListener('click', () => window.openModal?.(button.dataset.dashboardCreate)));
     root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
   }
@@ -325,7 +334,16 @@
         } else {
           button.remove();
         }
-        bindNavigation(root);
+        list?.querySelectorAll('[data-dashboard-go]:not([data-dashboard-bound])').forEach(button => {
+          button.dataset.dashboardBound = '1';
+          button.addEventListener('click', () => {
+            const id = Number(button.dataset.dashboardId ?? 0);
+            const resource = button.dataset.dashboardResource ?? '';
+            if (id > 0 && resource && typeof globalThis.BRVTALAdminRecordNavigation?.open === 'function') {
+              globalThis.BRVTALAdminRecordNavigation.open(resource,id,{section:button.dataset.dashboardGo});
+            } else globalThis.go?.(button.dataset.dashboardGo);
+          });
+        });
       } catch (error) {
         button.disabled = false;
         globalThis.BRVTALFeedback?.error?.('Recent Changes could not load more records.','dashboard-activity');
@@ -418,7 +436,8 @@
       drafts:draftsPanel(content,resultError(contentResult)),
       operations:systemPanel(health,resultError(healthResult),storage,resultError(storageResult)),
       activity:activityPanel(activity,resultError(activityResult)),
-      quick_create:actionsPanel()
+      quick_create:actionsPanel(),
+      analytics:analyticsPanel()
     };
     const visibleModules = layout.modules
       .filter(item => item.visible && modules[item.id])
@@ -426,7 +445,7 @@
       .join('');
 
     root.innerHTML = `
-      <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—')}</div></section>
+      <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—','events')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—','media')}</div></section>
       ${customizationPanel(layout)}
       <div class="dashboard-v2-grid dashboard-v2-grid-configurable" data-dashboard-grid>${visibleModules}</div>`;
     bind(root,layout,results,serial);

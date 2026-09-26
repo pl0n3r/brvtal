@@ -18,6 +18,7 @@ function brvtalAdminDashboardCatalog(): array
         'operations' => ['id'=>'operations','width'=>2,'height'=>1,'visible'=>true],
         'activity' => ['id'=>'activity','width'=>2,'height'=>1,'visible'=>true],
         'quick_create' => ['id'=>'quick_create','width'=>2,'height'=>1,'visible'=>true],
+        'analytics' => ['id'=>'analytics','width'=>2,'height'=>1,'visible'=>false],
     ];
 }
 
