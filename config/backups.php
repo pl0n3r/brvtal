@@ -45,6 +45,16 @@ function brvtal_backup_valid_id(string $id): bool
     return (bool)preg_match('/^brvtal-\d{8}T\d{6}Z-[a-f0-9]{8}$/', $id);
 }
 
+function brvtal_backup_normalize_scope(mixed $scope): string
+{
+    $normalized = strtolower(trim((string)($scope ?? 'full')));
+    if ($normalized === 'complete') $normalized = 'full';
+    if (!in_array($normalized, ['full', 'database', 'media'], true)) {
+        throw new InvalidArgumentException('BACKUP_SCOPE_INVALID');
+    }
+    return $normalized;
+}
+
 function brvtal_backup_identifier(string $name): string
 {
     return '`' . str_replace('`', '``', $name) . '`';
@@ -295,7 +305,15 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
     $uploadsDir = isset($options['uploads_dir'])
         ? rtrim((string)$options['uploads_dir'], DIRECTORY_SEPARATOR)
         : dirname(__DIR__) . '/uploads';
-    $includeMediaArchive = !empty($options['include_media_archive']);
+    $scope = brvtal_backup_normalize_scope($options['scope'] ?? 'full');
+    $includeDatabase = $scope !== 'media';
+    $includeMedia = $scope !== 'database';
+    $includeMediaArchive = $includeMedia && !empty($options['include_media_archive']);
+    $trigger = strtolower(trim((string)($options['trigger'] ?? 'manual')));
+    if (!in_array($trigger, ['manual', 'scheduled'], true)) throw new InvalidArgumentException('BACKUP_TRIGGER_INVALID');
+    $scheduledFor = isset($options['scheduled_for']) ? trim((string)$options['scheduled_for']) : null;
+    if ($trigger !== 'scheduled') $scheduledFor = null;
+
     $maxMediaBytes = (int)($config['backups']['media_archive_max_bytes'] ?? 2 * 1024 * 1024 * 1024);
     if ($maxMediaBytes < 1) $maxMediaBytes = 2 * 1024 * 1024 * 1024;
 
@@ -308,35 +326,43 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
     $createdFiles = [];
 
     try {
-        $database = brvtal_backup_export_database($pdo, $databasePath);
-        @chmod($databasePath, 0600);
-        $createdFiles[] = $databasePath;
+        $database = ['status'=>'not_requested'];
+        if ($includeDatabase) {
+            $database = brvtal_backup_export_database($pdo, $databasePath);
+            $database['status'] = 'ready';
+            @chmod($databasePath, 0600);
+            $createdFiles[] = $databasePath;
+        }
 
-        $inventory = brvtal_backup_inventory($uploadsDir, 'uploads');
-        $mediaInventoryPayload = [
-            'version' => 1,
-            'backup_id' => $id,
-            'created_at' => gmdate(DATE_ATOM),
-            'root' => 'uploads',
-            'files' => (int)$inventory['files'],
-            'bytes' => (int)$inventory['bytes'],
-            'size' => (string)$inventory['size'],
-            'entries' => array_map(static fn(array $entry): array => [
-                'path' => $entry['path'],
-                'bytes' => $entry['bytes'],
-                'modified_at' => $entry['modified_at'],
-            ], $inventory['entries']),
-        ];
-        $mediaManifest = brvtal_backup_write_json($mediaManifestPath, $mediaInventoryPayload);
-        $mediaManifest['files'] = (int)$inventory['files'];
-        $mediaManifest['source_bytes'] = (int)$inventory['bytes'];
-        $mediaManifest['source_size'] = (string)$inventory['size'];
-        $createdFiles[] = $mediaManifestPath;
-
+        $mediaManifest = ['status'=>'not_requested'];
         $mediaArchive = ['status'=>'not_requested'];
-        if ($includeMediaArchive) {
-            $mediaArchive = brvtal_backup_create_media_archive($uploadsDir, $inventory, $mediaArchivePath, $maxMediaBytes);
-            if (($mediaArchive['status'] ?? '') === 'ready' && !empty($mediaArchive['file'])) $createdFiles[] = $mediaArchivePath;
+        if ($includeMedia) {
+            $inventory = brvtal_backup_inventory($uploadsDir, 'uploads');
+            $mediaInventoryPayload = [
+                'version' => 1,
+                'backup_id' => $id,
+                'created_at' => gmdate(DATE_ATOM),
+                'root' => 'uploads',
+                'files' => (int)$inventory['files'],
+                'bytes' => (int)$inventory['bytes'],
+                'size' => (string)$inventory['size'],
+                'entries' => array_map(static fn(array $entry): array => [
+                    'path' => $entry['path'],
+                    'bytes' => $entry['bytes'],
+                    'modified_at' => $entry['modified_at'],
+                ], $inventory['entries']),
+            ];
+            $mediaManifest = brvtal_backup_write_json($mediaManifestPath, $mediaInventoryPayload);
+            $mediaManifest['status'] = 'ready';
+            $mediaManifest['files'] = (int)$inventory['files'];
+            $mediaManifest['source_bytes'] = (int)$inventory['bytes'];
+            $mediaManifest['source_size'] = (string)$inventory['size'];
+            $createdFiles[] = $mediaManifestPath;
+
+            if ($includeMediaArchive) {
+                $mediaArchive = brvtal_backup_create_media_archive($uploadsDir, $inventory, $mediaArchivePath, $maxMediaBytes);
+                if (($mediaArchive['status'] ?? '') === 'ready' && !empty($mediaArchive['file'])) $createdFiles[] = $mediaArchivePath;
+            }
         }
 
         $status = $includeMediaArchive && ($mediaArchive['status'] ?? '') !== 'ready' ? 'partial' : 'ready';
@@ -349,11 +375,14 @@ function brvtal_backup_create(PDO $pdo, array $options = []): array
             'environment' => defined('BRVTAL_APP_ENV') ? BRVTAL_APP_ENV : null,
         ];
 
-        $artifactsBytes = (int)$database['bytes'] + (int)$mediaManifest['bytes'] + (int)($mediaArchive['bytes'] ?? 0);
+        $artifactsBytes = (int)($database['bytes'] ?? 0) + (int)($mediaManifest['bytes'] ?? 0) + (int)($mediaArchive['bytes'] ?? 0);
         $manifest = [
             'version' => 1,
             'id' => $id,
             'status' => $status,
+            'scope' => $scope,
+            'trigger' => $trigger,
+            'scheduled_for' => $scheduledFor,
             'created_at' => gmdate(DATE_ATOM),
             'created_by' => [
                 'id' => isset($createdBy['id']) ? (int)$createdBy['id'] : null,
