@@ -12,13 +12,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    work-coordination-${{
-      github.event.issue.number && format('work/issue-{0}', github.event.issue.number)
-      || github.event.pull_request.head.ref
-      || github.run_id
-    }}
+  group: brvtal-work-coordination
   cancel-in-progress: false
+  queue: max
 
 jobs:
   command:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 from scripts.work_coordinator import (
@@ -21,6 +22,7 @@ from scripts.work_coordinator import (
     closing_issues,
     file_overlaps,
     issue_from_branch,
+    label_names,
     latest_reservation,
     parse_comment_command,
     process_comment,
@@ -395,21 +397,22 @@ class CoordinationTests(unittest.TestCase):
         self.assertTrue(api.comments[0]["body"].startswith("<!-- brvtal-work-reservation "))
         self.assertNotIn("Work is reserved", api.comments[0]["body"])
 
-    def test_label_reserved_creates_silent_reservation(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_label_reserved_without_marker_does_not_create_authority(self) -> None:
+        """A manual label must never mint a branch, assignee or trusted marker."""
         api = FakeGitHub()
         api.issue_data["labels"].append({"name": STATUS_RESERVED})
 
         update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
 
-        self.assertIn("work/issue-12", api.branches)
-        self.assertEqual(len(api.comments), 1)
-        self.assertTrue(api.comments[0]["body"].startswith("<!-- brvtal-work-reservation "))
-        reservation = active_reservation(api, 12)
-        self.assertIsNotNone(reservation)
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.comments, [])
+        self.assertEqual(api.assignees, set())
+        self.assertIsNone(active_reservation(api, 12))
+        self.assertIn(STATUS_AVAILABLE, label_names(api.issue_data))
+        self.assertNotIn(STATUS_RESERVED, label_names(api.issue_data))
 
-    def test_label_reserved_restores_blocked_state_if_rejected(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_label_reserved_restores_blocked_state_without_authority(self) -> None:
+        """A blocked Issue remains blocked when reserved is applied manually."""
         api = FakeGitHub()
         api.issue_data["labels"] = [
             {"name": STATUS_BLOCKED},
@@ -420,16 +423,133 @@ class CoordinationTests(unittest.TestCase):
 
         self.assertNotIn("work/issue-12", api.branches)
         self.assertEqual(api.status_history[-1], STATUS_BLOCKED)
+        self.assertEqual(api.comments, [])
 
-    def test_label_reserved_keeps_concurrent_winner_reserved(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_label_reserved_keeps_trusted_existing_reservation_visible(self) -> None:
+        """A trusted marker plus canonical branch may synchronize its visible label."""
         api = FakeGitHub()
-        api.issue_data["labels"].append({"name": STATUS_RESERVED})
-        api.branches["work/issue-12"] = "winner-sha"
+        add_active_reservation(api, owner="agent-a", age_minutes=5)
+        reservation = active_reservation(api, 12)
+        self.assertIsNotNone(reservation)
+        assert reservation is not None
 
         update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
 
         self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+        self.assertEqual(active_reservation(api, 12)["reservation_id"], reservation["reservation_id"])
+        self.assertEqual(len(api.comments), 1)
+
+    def test_label_reserved_branch_without_marker_does_not_grant_authority(self) -> None:
+        """An orphan branch alone is never enough to trust a manual reserved label."""
+        api = FakeGitHub()
+        api.issue_data["labels"].append({"name": STATUS_RESERVED})
+        api.branches["work/issue-12"] = "orphan-sha"
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertIn("work/issue-12", api.branches)
+        self.assertIsNone(active_reservation(api, 12))
+        self.assertIn(STATUS_AVAILABLE, label_names(api.issue_data))
+        self.assertNotIn(STATUS_RESERVED, label_names(api.issue_data))
+
+    def test_label_reserved_restores_available_when_other_issue_is_active(self) -> None:
+        """A manual label cannot create a second repository work line."""
+        api = FakeGitHub()
+        add_active_reservation(api, owner="agent-a", age_minutes=5)
+        api.issues[13] = {
+            "number": 13,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[13] = []
+        api.assignees_by_issue[13] = set()
+
+        update_issue_label_state(api, 13, "pl0n3r", STATUS_RESERVED)
+
+        self.assertIn(STATUS_AVAILABLE, label_names(api.issues[13]))
+        self.assertNotIn(STATUS_RESERVED, label_names(api.issues[13]))
+        self.assertNotIn("work/issue-13", api.branches)
+        self.assertEqual(api.comments_by_issue[13], [])
+        self.assertEqual(api.assignees_by_issue[13], set())
+        self.assertIsNotNone(active_reservation(api, 12))
+
+    def test_label_reserved_preserves_completed_closed_issue(self) -> None:
+        """A manual label cannot reopen a completed Issue."""
+        api = FakeGitHub()
+        api.issue_data["state"] = "closed"
+        api.issue_data["state_reason"] = "completed"
+        api.issue_data["labels"] = [
+            {"name": STATUS_COMPLETED},
+            {"name": STATUS_RESERVED},
+        ]
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_COMPLETED)
+
+    def test_label_reserved_preserves_cancelled_closed_issue(self) -> None:
+        """A manual label cannot reopen an Issue closed as not planned."""
+        api = FakeGitHub()
+        api.issue_data["state"] = "closed"
+        api.issue_data["state_reason"] = "not_planned"
+        api.issue_data["labels"] = [
+            {"name": STATUS_CANCELLED},
+            {"name": STATUS_RESERVED},
+        ]
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_CANCELLED)
+
+    def test_label_reserved_tracks_draft_pr_as_reserved(self) -> None:
+        """A trusted draft PR keeps the visible work line reserved."""
+        api = FakeGitHub()
+        add_active_reservation(api, age_minutes=5)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": True,
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+            "base": {"ref": "main"},
+        }
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+
+    def test_label_reserved_tracks_ready_pr_as_in_review(self) -> None:
+        """A trusted ready PR cannot be degraded to reserved by a manual label."""
+        api = FakeGitHub()
+        add_active_reservation(api, age_minutes=5)
+        api.pulls[15] = {
+            "number": 15,
+            "state": "open",
+            "draft": False,
+            "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+            "base": {"ref": "main"},
+        }
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertEqual(api.status_history[-1], STATUS_REVIEW)
+
+    def test_label_reserved_fails_closed_on_multiple_open_prs(self) -> None:
+        """Ambiguous authority must stay visible as an error, never guessed."""
+        api = FakeGitHub()
+        add_active_reservation(api, age_minutes=5)
+        for number in (15, 16):
+            api.pulls[number] = {
+                "number": number,
+                "state": "open",
+                "draft": False,
+                "head": {"ref": "work/issue-12", "repo": {"full_name": "pl0n3r/brvtal"}},
+                "base": {"ref": "main"},
+            }
+
+        with self.assertRaises(CoordinationError):
+            update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
 
     def test_label_available_cannot_release_another_session(self) -> None:
         """BRVTAL work-coordination helper."""
@@ -711,6 +831,133 @@ class CoordinationTests(unittest.TestCase):
         self.assertNotEqual(recovered["reservation_id"], SESSION_A)
         self.assertIn("pl0n3r", api.assignees_by_issue[20])
         self.assertNotIn("agent-a", api.assignees_by_issue[20])
+
+    def test_take_blocks_when_another_recent_reservation_is_active(self) -> None:
+        """A healthy active line must block a second repository reservation."""
+        api = FakeGitHub()
+        api.issues[20] = {
+            "number": 20,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[20] = []
+        api.assignees_by_issue[20] = set()
+        add_active_reservation(
+            api,
+            owner="agent-a",
+            issue_number=20,
+            branch_sha="recent20",
+            age_minutes=5,
+        )
+
+        with self.assertRaisesRegex(CoordinationError, "active or unsafe reservation"):
+            process_comment(api, 12, "pl0n3r", "OWNER", "/take")
+
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(label_names(api.issue(12)), {STATUS_AVAILABLE})
+
+    def test_take_blocks_when_stale_reservation_is_incompatible(self) -> None:
+        """Unsafe stale authority cannot fall through into a second line."""
+        api = FakeGitHub()
+        api.issues[20] = {
+            "number": 20,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[20] = []
+        api.assignees_by_issue[20] = set()
+        add_active_reservation(
+            api,
+            owner="agent-a",
+            issue_number=20,
+            branch_sha="stale20",
+            age_minutes=90,
+        )
+        api.pulls[25] = {
+            "number": 25,
+            "state": "open",
+            "body": (
+                f"Closes #20\nReservation: {SESSION_A}\n"
+                f"<!-- brvtal-reservation-id: {SESSION_A} -->"
+            ),
+            "head": {
+                "ref": "work/issue-20",
+                "repo": {"full_name": "pl0n3r/brvtal"},
+            },
+            "base": {"ref": "release"},
+        }
+
+        with self.assertRaisesRegex(CoordinationError, "active or unsafe reservation"):
+            process_comment(api, 12, "pl0n3r", "OWNER", "/take")
+
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertIsNotNone(active_reservation(api, 20))
+
+    def test_released_reservation_allows_next_issue_take(self) -> None:
+        """Once the previous line is released, the next Issue may reserve."""
+        api = FakeGitHub()
+        api.issues[20] = {
+            "number": 20,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[20] = []
+        api.assignees_by_issue[20] = set()
+        add_active_reservation(
+            api,
+            owner="pl0n3r",
+            issue_number=20,
+            branch_sha="line20",
+            age_minutes=5,
+        )
+        release_work(api, 20, "pl0n3r", "OWNER", SESSION_A, False)
+
+        process_comment(api, 12, "pl0n3r", "OWNER", "/take")
+
+        self.assertIn("work/issue-12", api.branches)
+        self.assertIsNotNone(active_reservation(api, 12))
+
+    def test_reserve_work_direct_call_blocks_other_active_issue(self) -> None:
+        """Internal callers cannot bypass the repository-wide ownership guard."""
+        api = FakeGitHub()
+        api.issues[20] = {
+            "number": 20,
+            "state": "open",
+            "state_reason": None,
+            "labels": [{"name": STATUS_RESERVED}],
+            "assignees": [],
+        }
+        api.comments_by_issue[20] = []
+        api.assignees_by_issue[20] = set()
+        add_active_reservation(
+            api,
+            owner="agent-a",
+            issue_number=20,
+            branch_sha="recent20",
+            age_minutes=5,
+        )
+
+        with self.assertRaisesRegex(CoordinationError, "active reservation already exists"):
+            reserve_work(api, 12, "pl0n3r", "OWNER")
+
+        self.assertNotIn("work/issue-12", api.branches)
+
+    def test_workflow_serializes_all_coordination_mutations_repository_wide(self) -> None:
+        """Workflow concurrency must not vary by Issue or Pull Request."""
+        workflow = Path(".github/workflows/work-coordination.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("group: brvtal-work-coordination", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("queue: max", workflow)
+        self.assertNotIn("github.event.issue.number &&", workflow)
+        self.assertNotIn("github.event.pull_request.head.ref", workflow)
 
     def test_recover_work_rotates_same_owner_session_when_stale(self) -> None:
         """Recovery also serves a new agent session using the same GitHub actor."""
