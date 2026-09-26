@@ -301,14 +301,14 @@ foreach (glob($recoveryRoot . '/*') ?: [] as $recoveryFile) {
 
 
 // Cursor pagination must remain stable if newer audit rows arrive between pages.
-$paginationAdminId = 900002;
-$pdo->prepare('DELETE FROM admins WHERE id=?')->execute([$paginationAdminId]);
-$pdo->prepare('INSERT INTO admins(id,email,password_hash,name,is_active) VALUES(?,?,?,?,1)')->execute([
-    $paginationAdminId,
-    'pagination-ci@brvtal.test',
+$paginationSuffix = bin2hex(random_bytes(6));
+$paginationEmail = 'pagination-ci-' . $paginationSuffix . '@brvtal.test';
+$pdo->prepare('INSERT INTO admins(email,password_hash,name,is_active) VALUES(?,?,?,1)')->execute([
+    $paginationEmail,
     password_hash('not-a-real-password', PASSWORD_DEFAULT),
-    'Pagination CI Admin',
+    'Pagination CI Admin ' . $paginationSuffix,
 ]);
+$paginationAdminId = (int)$pdo->lastInsertId();
 $seed = $pdo->prepare(
     'INSERT INTO admin_activity_log(admin_id,admin_name,admin_email,action,resource,resource_id,resource_label,changed_fields,before_json,after_json,meta_json,request_id) '
     . 'VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'
@@ -317,7 +317,7 @@ for ($index = 1; $index <= 7; ++$index) {
     $seed->execute([
         $paginationAdminId,
         'Pagination CI Admin',
-        'pagination-ci@brvtal.test',
+        $paginationEmail,
         'update',
         'events',
         991,
@@ -326,7 +326,7 @@ for ($index = 1; $index <= 7; ++$index) {
         json_encode(['description'=>'before-' . $index], JSON_THROW_ON_ERROR),
         json_encode(['description'=>'after-' . $index], JSON_THROW_ON_ERROR),
         '{"source":"pagination"}',
-        str_pad(dechex($index), 32, '0', STR_PAD_LEFT),
+        hash('md5', $paginationEmail . ':' . $index),
     ]);
 }
 $firstPage = brvtalActivityPage(
@@ -348,7 +348,7 @@ activity_it_expect(array_key_exists('before_json', $firstPage['items'][0]) && ar
 $seed->execute([
     $paginationAdminId,
     'Pagination CI Admin',
-    'pagination-ci@brvtal.test',
+    $paginationEmail,
     'update',
     'events',
     991,
@@ -357,7 +357,7 @@ $seed->execute([
     '{"description":"new-before"}',
     '{"description":"new-after"}',
     '{"source":"pagination"}',
-    str_repeat('f', 32),
+    hash('md5', $paginationEmail . ':inserted-after-page-one'),
 ]);
 $secondPage = brvtalActivityPage(
     $pdo,
@@ -371,6 +371,7 @@ activity_it_expect(array_intersect($firstIds, $secondIds) === [], 'cursor pages 
 activity_it_expect(max($secondIds) < min($firstIds), 'new rows inserted between pages must not shift the cursor window');
 activity_it_expect($secondPage['total'] === 8, 'filtered total must remain independent from cursor position');
 activity_it_expect(count($secondIds) === 3, 'second cursor page must continue through older records');
+$pdo->prepare('DELETE FROM admin_activity_log WHERE admin_id=?')->execute([$paginationAdminId]);
 $pdo->prepare('DELETE FROM admins WHERE id=?')->execute([$paginationAdminId]);
 
 $pdo->exec('DROP TABLE admin_activity_log');
