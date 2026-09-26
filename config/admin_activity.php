@@ -137,7 +137,7 @@ function brvtal_activity_snapshot(string $resource, ?array $row): ?array
 
     $snapshot = [];
     foreach ($allowed as $field) {
-        if (array_key_exists($field, $row)) {
+        if (array_key_exists((string) $field, $row)) {
             $snapshot[$field] = brvtal_activity_sanitize_value($row[$field]);
         }
     }

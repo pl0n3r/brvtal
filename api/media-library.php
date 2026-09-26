@@ -64,7 +64,7 @@ try {
             'SELECT ' . brvtalMediaDedupSelectColumns($pdo) . ' FROM media ORDER BY created_at DESC,id DESC'
         )->fetchAll();
         $dedupSchema = brvtalMediaDedupSchemaState($pdo);
-        $data = array_map('brvtal_media_asset_payload', $rows ?: []);
+        $data = array_map(brvtal_media_asset_payload(...), $rows ?: []);
         brvtal_media_json_response([
             'ok' => true,
             'data' => $data,
@@ -110,7 +110,7 @@ try {
             brvtal_media_json_response(['ok' => false, 'error' => 'FILE_TOO_LARGE'], 422);
         }
 
-        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: '';
+        $mime = new finfo(FILEINFO_MIME_TYPE)->file($tmp) ?: '';
         $allowed = [
             'image/jpeg' => ['image', 'jpg'],
             'image/png' => ['image', 'png'],
@@ -275,7 +275,7 @@ try {
                 ], 409);
             }
 
-            $detectedMime = (new finfo(FILEINFO_MIME_TYPE))->file($absolute) ?: '';
+            $detectedMime = new finfo(FILEINFO_MIME_TYPE)->file($absolute) ?: '';
             $detectedType = match ($detectedMime) {
                 'image/jpeg', 'image/png', 'image/webp', 'image/gif' => 'image',
                 'video/mp4' => 'video',
@@ -510,7 +510,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('MEDIA_LIBRARY_ERROR', 'Media Library request failed', [
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $e->getMessage(),
         ]);
     }
