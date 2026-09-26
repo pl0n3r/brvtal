@@ -425,7 +425,8 @@
     const root = ensureDashboardRoot(main);
     clearLegacyDashboard(main);
 
-    const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4], preferenceResult = results[5];
+    const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
+    const preferenceResult = results[5];
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
@@ -434,7 +435,7 @@
       next_event:nextEventPanel(overview,resultError(overviewResult)),
       attention:attentionPanel(content,resultError(contentResult)),
       drafts:draftsPanel(content,resultError(contentResult)),
-      operations:systemPanel(health,resultError(healthResult),storage,resultError(storageResult)),
+      operations:systemPanel(resultValue(results[2]),resultError(results[2]),storage,resultError(storageResult)),
       activity:activityPanel(activity,resultError(activityResult)),
       quick_create:actionsPanel(),
       analytics:analyticsPanel()
