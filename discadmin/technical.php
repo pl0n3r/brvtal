@@ -375,7 +375,7 @@ try {
 
     echo json_encode(['ok'=>false,'error'=>'UNKNOWN_ACTION'],JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
-    brvtal_log('TECH_ERROR','Technical endpoint failed.',['action'=>$action,'class'=>$e::class]);
+    brvtal_log('TECH_ERROR', 'Technical endpoint failed.', ['action'=>$action, 'class'=>$e::class]);
     http_response_code(500);
     echo json_encode(['ok'=>false,'error'=>'TECH_ERROR']);
 }
