@@ -36,6 +36,7 @@ async function openStudio(page, { failSave=false, holdSave=false } = {}) {
     window.deepMergeTheme = (base,extra) => {
       const out = JSON.parse(JSON.stringify(base || {}));
       const merge = (left,right) => Object.keys(right || {}).forEach(key => {
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') return;
         if (right[key] && typeof right[key] === 'object' && !Array.isArray(right[key]) && left[key] && typeof left[key] === 'object') merge(left[key],right[key]);
         else Object.defineProperty(left, key, {value:right[key], writable:true, enumerable:true, configurable:true});
       });
