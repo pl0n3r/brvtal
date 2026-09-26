@@ -56,7 +56,7 @@ activity_assert(str_contains($helper, '$limit + 1'), 'cursor pagination must fet
 activity_assert(str_contains($endpoint, "'next_cursor'"), 'activity endpoint must expose next_cursor');
 activity_assert(str_contains($endpoint, "'has_more'"), 'activity endpoint must expose has_more');
 activity_assert(str_contains($endpoint, "'returned'"), 'activity endpoint must expose returned count');
-activity_assert(str_contains($endpoint, '$page = brvtal_activity_page'), 'endpoint and integration must share the canonical page query');
+activity_assert(str_contains($endpoint, '$page = brvtalActivityPage'), 'endpoint and integration must share the canonical page query');
 
 activity_assert(str_contains($core, "'lineup_update'"), 'event lineup changes must be audited');
 activity_assert(str_contains($core, "['events','artists','sets','pages','ticket_types']"), 'core editorial resources must be audited');

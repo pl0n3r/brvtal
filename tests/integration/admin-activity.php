@@ -329,7 +329,7 @@ for ($index = 1; $index <= 7; ++$index) {
         str_pad(dechex($index), 32, '0', STR_PAD_LEFT),
     ]);
 }
-$firstPage = brvtal_activity_page(
+$firstPage = brvtalActivityPage(
     $pdo,
     ['resource'=>'events','resource_id'=>991,'action'=>'update','admin_id'=>$paginationAdminId],
     3,
@@ -359,7 +359,7 @@ $seed->execute([
     '{"source":"pagination"}',
     str_repeat('f', 32),
 ]);
-$secondPage = brvtal_activity_page(
+$secondPage = brvtalActivityPage(
     $pdo,
     ['resource'=>'events','resource_id'=>991,'action'=>'update','admin_id'=>$paginationAdminId],
     3,

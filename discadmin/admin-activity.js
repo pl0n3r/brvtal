@@ -130,6 +130,28 @@
     return fields.map(field => `<section class="history-field"><h4>${esc(field.replaceAll('_',' ').toUpperCase())}</h4><div class="history-values"><div class="history-value"><small>BEFORE</small>${esc(displayValue(item.before?.[field]))}</div><div class="history-value"><small>AFTER</small>${esc(displayValue(item.after?.[field]))}</div></div></section>`).join('');
   }
 
+  function selectHistoryVersion(timeline, diff, items, button) {
+    const item = items[Number(button.dataset.historyIndex) || 0];
+    timeline.querySelectorAll('[data-history-index]').forEach(entry => {
+      entry.classList.toggle('is-active', entry === button);
+    });
+    diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
+  }
+
+  function renderHistoryTimeline(timeline, count, loadMore, diff, items, total, nextCursor) {
+    timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===0?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
+    count.textContent = `${items.length} of ${total} versions`;
+    loadMore.hidden = !nextCursor;
+    timeline.querySelectorAll('[data-history-index]').forEach(button => {
+      button.addEventListener('click', () => selectHistoryVersion(
+        timeline,
+        diff,
+        items,
+        button
+      ));
+    });
+  }
+
   async function openHistory(resource, resourceId, label = '') {
     const {loadId,controller} = beginDetailLoad();
     try {
@@ -151,17 +173,15 @@
       const timeline = modal.querySelector('[data-history-timeline]');
       const count = modal.querySelector('[data-history-count]');
       const loadMore = modal.querySelector('[data-history-load-more]');
-      const renderTimeline = () => {
-        timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===0?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
-        count.textContent = `${items.length} of ${total} versions`;
-        loadMore.hidden = !nextCursor;
-        timeline.querySelectorAll('[data-history-index]').forEach(button => button.addEventListener('click', () => {
-          const item = items[Number(button.dataset.historyIndex) || 0];
-          timeline.querySelectorAll('[data-history-index]').forEach(entry => entry.classList.toggle('is-active', entry === button));
-          diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
-        }));
-      };
-      renderTimeline();
+      renderHistoryTimeline(
+        timeline,
+        count,
+        loadMore,
+        diff,
+        items,
+        total,
+        nextCursor
+      );
       loadMore.addEventListener('click', async () => {
         if (!nextCursor || loadMore.disabled) return;
         loadMore.disabled = true;
@@ -169,7 +189,15 @@
           const more = await fetchHistory(resource, resourceId, nextCursor);
           items.push(...(Array.isArray(more?.items) ? more.items : []));
           nextCursor = more?.next_cursor || null;
-          renderTimeline();
+          renderHistoryTimeline(
+            timeline,
+            count,
+            loadMore,
+            diff,
+            items,
+            total,
+            nextCursor
+          );
         } catch (error) {
           window.BRVTALFeedback?.error?.('Version history unavailable: ' + (error?.message || error),'editorial-version-history');
         } finally {

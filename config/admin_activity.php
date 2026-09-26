@@ -251,7 +251,7 @@ function brvtal_activity_record(
  * @param array{resource?:string,resource_id?:int,action?:string,admin_id?:int} $filters
  * @return array{items:array<int,array<string,mixed>>,total:int,limit:int,returned:int,has_more:bool,next_cursor:?int}
  */
-function brvtal_activity_page(
+function brvtalActivityPage(
     PDO $pdo,
     array $filters,
     int $limit,
@@ -295,7 +295,8 @@ function brvtal_activity_page(
     $snapshotColumns = $history ? ',before_json,after_json' : '';
     $fetchLimit = $limit + 1;
     $statement = $pdo->prepare(
-        'SELECT id,admin_id,admin_name,admin_email,action,resource,resource_id,resource_label,changed_fields,request_id,created_at'
+        'SELECT id,admin_id,admin_name,admin_email,action,resource,resource_id,'
+        . 'resource_label,changed_fields,request_id,created_at'
         . $snapshotColumns
         . ' FROM admin_activity_log'
         . $pageWhereSql

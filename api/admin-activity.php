@@ -95,11 +95,19 @@ try {
     }
 
     $filters = [];
-    if ($resource !== '') $filters['resource'] = $resource;
-    if ($resourceId > 0) $filters['resource_id'] = $resourceId;
-    if ($action !== '') $filters['action'] = $action;
-    if ($adminId > 0) $filters['admin_id'] = $adminId;
-    $page = brvtal_activity_page($pdo, $filters, $limit, $cursor, $history);
+    if ($resource !== '') {
+        $filters['resource'] = $resource;
+    }
+    if ($resourceId > 0) {
+        $filters['resource_id'] = $resourceId;
+    }
+    if ($action !== '') {
+        $filters['action'] = $action;
+    }
+    if ($adminId > 0) {
+        $filters['admin_id'] = $adminId;
+    }
+    $page = brvtalActivityPage($pdo, $filters, $limit, $cursor, $history);
     $items = $page['items'];
     foreach ($items as &$row) {
         $row['id'] = (int)$row['id'];
