@@ -256,6 +256,7 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
     });
     return payload.sort((a,b)=>a.lineup_order-b.lineup_order||a.artist_id-b.artist_id);
   }
+  let eventEditorReady=Promise.resolve(null);
   openEvent=function(id=null){
     const modal=$('#eventModal');
     modal.querySelector('[data-seo-editor="content-core"]')?.remove();
@@ -267,25 +268,28 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
     const request=++ticketRequest;
     ticketState=id?'loading':'ready';
     $('#tickets').dataset.loadState=ticketState;
+    const loads=[];
     if(id){
       $('#tickets').innerHTML='<div class="empty">Loading ticket types…</div>';
-      refreshTickets(Number(id),request).catch(e=>{
+      loads.push(refreshTickets(Number(id),request).catch(e=>{
         if(request!==ticketRequest)return;
         ticketState='error';
         $('#tickets').dataset.loadState='error';
         $('#tickets').innerHTML='<div class="empty">Ticket types could not be loaded.</div>';
         msg('Could not load ticket types: '+e.message,false,'eventNotice');
-      });
+      }));
       if(canLoadLineup()){
-        refreshLineup(Number(id),lineupRequestId).catch(e=>{
+        loads.push(refreshLineup(Number(id),lineupRequestId).catch(e=>{
           if(lineupRequestId!==lineupRequest||Number(currentEvent?.id)!==Number(id))return;
           lineupState='error';
           $('#eventArtists').dataset.loadState='error';
           $('#eventArtists').innerHTML='<div class="empty">Event participation could not be loaded.</div>';
           msg('Could not load event roster: '+e.message,false,'eventNotice');
-        });
+        }));
       }
     }
+    eventEditorReady=Promise.all(loads).then(()=>currentEvent);
+    return eventEditorReady;
   };
   saveEvent=async function(){
     if(currentEvent&&window.BRVTALSEOMetadata&&!$('#eventModal [data-seo-editor="content-core"]')){
@@ -315,6 +319,6 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
   };
 })();
 
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,previewEvent});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady});
 return ready;
 }};
