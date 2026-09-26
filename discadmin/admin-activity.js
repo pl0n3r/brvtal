@@ -5,6 +5,7 @@
   const sectionFor = resource => ({events:'events',artists:'artists',sets:'sets',pages:'pages',releases:'releases',blog:'blog',ticket_types:'events',event_lineup:'events'})[resource] || 'dashboard';
   const resources = ['','events','artists','sets','releases','blog','pages','ticket_types','event_lineup'];
   let loading = false;
+  let listLoadId = 0;
   let detailLoadId = 0;
   let detailController = null;
 
@@ -138,8 +139,8 @@
     diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
   }
 
-  function renderHistoryTimeline(timeline, count, loadMore, diff, items, total, nextCursor) {
-    timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===0?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
+  function renderHistoryTimeline(timeline, count, loadMore, diff, items, total, nextCursor, selectedIndex = 0) {
+    timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===selectedIndex?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
     count.textContent = `${items.length} of ${total} versions`;
     loadMore.hidden = !nextCursor;
     timeline.querySelectorAll('[data-history-index]').forEach(button => {
@@ -159,7 +160,7 @@
       if (loadId !== detailLoadId) return;
       const items = Array.isArray(data?.items) ? [...data.items] : [];
       let nextCursor = data?.next_cursor || null;
-      const total = Number(data?.total || items.length);
+      let total = Number(data?.total || items.length);
       removeDetailModal();
       const modal = document.createElement('div');
       modal.id = 'brvtal-activity-modal';
@@ -184,11 +185,17 @@
       );
       loadMore.addEventListener('click', async () => {
         if (!nextCursor || loadMore.disabled) return;
+        const selectedIndex = Number(timeline.querySelector('.is-active')?.dataset.historyIndex || 0);
+        const pageController = new AbortController();
+        detailController?.abort();
+        detailController = pageController;
         loadMore.disabled = true;
         try {
-          const more = await fetchHistory(resource, resourceId, nextCursor);
+          const more = await fetchHistory(resource, resourceId, nextCursor, {signal:pageController.signal});
+          if (loadId !== detailLoadId || !modal.isConnected) return;
           items.push(...(Array.isArray(more?.items) ? more.items : []));
           nextCursor = more?.next_cursor || null;
+          total = Number(more?.total || items.length);
           renderHistoryTimeline(
             timeline,
             count,
@@ -196,12 +203,17 @@
             diff,
             items,
             total,
-            nextCursor
+            nextCursor,
+            selectedIndex
           );
         } catch (error) {
+          if (error?.name === 'AbortError' || loadId !== detailLoadId) return;
           window.BRVTALFeedback?.error?.('Version history unavailable: ' + (error?.message || error),'editorial-version-history');
         } finally {
-          loadMore.disabled = false;
+          if (loadId === detailLoadId) {
+            loadMore.disabled = false;
+            if (detailController === pageController) detailController = null;
+          }
         }
       });
       modal.querySelector('[data-activity-close]').addEventListener('click', closeDetail);
@@ -228,7 +240,7 @@
     </div>`;
   }
 
-  function render(data, selectedResource = '') {
+  function render(data, selectedResource = '', loadId = listLoadId) {
     const main = document.querySelector('.main');
     if (!main || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
     document.getElementById('brvtal-admin-activity')?.remove();
@@ -255,7 +267,8 @@
       button.disabled = true;
       try {
         const more = await fetchList(selectedResource, data.next_cursor);
-        render({...more,total:data.total,items:[...items,...(Array.isArray(more?.items)?more.items:[])]}, selectedResource);
+        if (loadId !== listLoadId) return;
+        render({...more,items:[...items,...(Array.isArray(more?.items)?more.items:[])]}, selectedResource, loadId);
       } catch (error) {
         button.disabled = false;
         window.BRVTALFeedback?.error?.('Admin Activity unavailable: ' + (error?.message || error),'admin-activity');
@@ -267,18 +280,19 @@
   }
 
   async function mount(resource = '') {
-    if (loading || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
+    if (typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
+    const loadId = ++listLoadId;
     loading = true;
     try {
       ensureStyle();
       const activity = await fetchList(resource);
-      if (document.getElementById('brvtal-dashboard-v2')) return;
-      render(activity, resource);
+      if (loadId !== listLoadId || document.getElementById('brvtal-dashboard-v2')) return;
+      render(activity, resource, loadId);
     } catch (error) {
-      if (error?.message === 'ACTIVITY_SCHEMA_MISSING') return;
+      if (loadId !== listLoadId || error?.message === 'ACTIVITY_SCHEMA_MISSING') return;
       window.BRVTALFeedback?.error?.('Admin Activity unavailable: ' + (error?.message || error),'admin-activity');
     } finally {
-      loading = false;
+      if (loadId === listLoadId) loading = false;
     }
   }
 
