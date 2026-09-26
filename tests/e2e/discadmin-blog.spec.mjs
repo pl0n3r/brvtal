@@ -317,7 +317,7 @@ test('blog autosaves a local draft without a server mutation and restores after 
 
   await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
   expect(await page.evaluate(() => window.__blogMutations?.length || 0)).toBe(0);
-  expect(await page.evaluate(() => BRVTALDrafts.load('blog','9')?.data?.excerpt)).toBe('Recovered local draft.');
+  expect(await page.evaluate(() => await BRVTALDrafts.load('blog','9')?.data?.excerpt)).toBe('Recovered local draft.');
 
   await page.reload();
   await page.getByRole('button', { name: 'EDIT' }).click();
@@ -331,8 +331,8 @@ test('blog autosaves a local draft without a server mutation and restores after 
 
 test('blog recovery reports a server revision conflict before restoring', async ({ page }) => {
   await loadHarness(page);
-  await page.evaluate(() => {
-    BRVTALDrafts.save('blog','9',{
+  await page.evaluate(async () => {
+    return BRVTALDrafts.save('blog','9',{
       base_revision:'2026-09-10 10:00:00',
       data:{
         title:'Local conflicting title',
@@ -368,7 +368,7 @@ test('manual Blog save clears a local draft while failed save keeps it recoverab
   await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
   await page.locator('#saveBtn').click();
   await expect.poll(() => page.evaluate(() => window.__blogMutations?.length || 0)).toBe(1);
-  expect(await page.evaluate(() => BRVTALDrafts.load('blog','9'))).toBe(null);
+  expect(await page.evaluate(() => await BRVTALDrafts.load('blog','9'))).toBe(null);
 
   await page.reload();
   await page.unroute('**/api/blog.php**');
@@ -378,6 +378,21 @@ test('manual Blog save clears a local draft while failed save keeps it recoverab
   await expect(page.locator('#blog-draft-state')).toContainText('Draft saved locally');
   await page.locator('#saveBtn').click();
   await expect(page.locator('#blog-draft-state')).toContainText('Save failed');
-  expect(await page.evaluate(() => BRVTALDrafts.load('blog','9')?.data?.excerpt)).toBe('Keep after failed save.');
+  expect(await page.evaluate(() => await BRVTALDrafts.load('blog','9')?.data?.excerpt)).toBe('Keep after failed save.');
   await expect(page.locator('#modal')).toHaveClass(/open/);
+});
+
+
+test('Blog draft autosave surfaces local storage failure without losing visible input', async ({ page }) => {
+  await loadHarness(page);
+  await page.getByRole('button', { name: 'EDIT' }).click();
+  await page.evaluate(() => {
+    Storage.prototype.__brvtalOriginalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => { throw new DOMException('Quota exceeded','QuotaExceededError'); };
+  });
+
+  await page.locator('#blog_excerpt').fill('Still visible after quota error.');
+  await expect(page.locator('#blog-draft-state')).toContainText('Save failed');
+  await expect(page.locator('#blog_excerpt')).toHaveValue('Still visible after quota error.');
+  expect(await page.evaluate(() => window.__blogMutations?.length || 0)).toBe(0);
 });

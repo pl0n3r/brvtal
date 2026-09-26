@@ -2,16 +2,35 @@
   'use strict';
 
   const PREFIX = 'brvtal.discadmin.draft.v1';
+  let namespaceToken = '';
+  let namespacePromise = null;
 
   function segment(value) {
     return encodeURIComponent(String(value ?? '').trim().toLowerCase());
   }
 
-  function key(scope, identity) {
+  async function sessionNamespace() {
+    const token = String(window.csrf || '');
+    if (!token) throw new Error('DRAFT_SESSION_REQUIRED');
+    if (namespacePromise && namespaceToken === token) return namespacePromise;
+
+    namespaceToken = token;
+    namespacePromise = crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(token)
+    ).then(buffer => [...new Uint8Array(buffer)]
+      .map(value => value.toString(16).padStart(2,'0'))
+      .join('')
+      .slice(0,32));
+    return namespacePromise;
+  }
+
+  async function key(scope, identity) {
     const safeScope = segment(scope);
     const safeIdentity = segment(identity);
     if (!safeScope || !safeIdentity) throw new Error('DRAFT_ID_REQUIRED');
-    return `${PREFIX}:${safeScope}:${safeIdentity}`;
+    const session = await sessionNamespace();
+    return `${PREFIX}:${session}:${safeScope}:${safeIdentity}`;
   }
 
   function normalize(value) {
@@ -25,19 +44,20 @@
     };
   }
 
-  function load(scope, identity) {
+  async function load(scope, identity) {
     try {
-      const raw = localStorage.getItem(key(scope, identity));
+      const draftKey = await key(scope, identity);
+      const raw = localStorage.getItem(draftKey);
       if (!raw) return null;
       const draft = normalize(JSON.parse(raw));
-      if (!draft) localStorage.removeItem(key(scope, identity));
+      if (!draft) localStorage.removeItem(draftKey);
       return draft;
     } catch (_) {
       return null;
     }
   }
 
-  function save(scope, identity, payload = {}) {
+  async function save(scope, identity, payload = {}) {
     const draft = normalize({
       version: 1,
       base_revision: String(payload.base_revision ?? ''),
@@ -45,12 +65,12 @@
       data: payload.data
     });
     if (!draft) throw new Error('INVALID_DRAFT');
-    localStorage.setItem(key(scope, identity), JSON.stringify(draft));
+    localStorage.setItem(await key(scope, identity), JSON.stringify(draft));
     return draft;
   }
 
-  function remove(scope, identity) {
-    localStorage.removeItem(key(scope, identity));
+  async function remove(scope, identity) {
+    localStorage.removeItem(await key(scope, identity));
   }
 
   function sameRevision(draft, revision) {

@@ -450,7 +450,7 @@ window.BRVTALBlog = (() => {
     return payload(context.record?.relations || [], blogNextSortOrder(context.id));
   }
 
-  function persistBlogDraft({announce = true} = {}) {
+  async function persistBlogDraft({announce = true} = {}) {
     const context = draftContext;
     const storage = window.BRVTALDrafts;
     if (!context || !storage) return false;
@@ -458,7 +458,7 @@ window.BRVTALBlog = (() => {
     stopBlogDraftTimer();
     if (announce) setBlogDraftState('Saving draft…', 'saving');
     try {
-      storage.save('blog', context.identity, {
+      await storage.save('blog', context.identity, {
         base_revision: context.baseRevision,
         data: blogDraftData(context)
       });
@@ -474,14 +474,14 @@ window.BRVTALBlog = (() => {
     if (!draftContext) return;
     setBlogDraftState('Unsaved', 'unsaved');
     stopBlogDraftTimer();
-    draftTimer = setTimeout(() => persistBlogDraft(), BLOG_DRAFT_DEBOUNCE_MS);
+    draftTimer = setTimeout(() => { void persistBlogDraft(); }, BLOG_DRAFT_DEBOUNCE_MS);
   }
 
-  function clearBlogDraft(identity = draftContext?.identity) {
+  async function clearBlogDraft(identity = draftContext?.identity) {
     stopBlogDraftTimer();
     if (!identity || !window.BRVTALDrafts) return;
     try {
-      window.BRVTALDrafts.remove('blog', identity);
+      await window.BRVTALDrafts.remove('blog', identity);
     } catch (_) {}
   }
 
@@ -526,7 +526,7 @@ window.BRVTALBlog = (() => {
     return true;
   }
 
-  function showBlogDraftRecovery(record) {
+  async function showBlogDraftRecovery(record) {
     const storage = window.BRVTALDrafts;
     const recovery = document.getElementById('blog-draft-recovery');
     const message = recovery?.querySelector('[data-blog-draft-message]');
@@ -534,7 +534,7 @@ window.BRVTALBlog = (() => {
     const discard = recovery?.querySelector('[data-blog-draft-discard]');
     if (!storage || !recovery || !message || !restore || !discard || !draftContext) return;
 
-    const draft = storage.load('blog', draftContext.identity);
+    const draft = await storage.load('blog', draftContext.identity);
     if (!draft) {
       recovery.hidden = true;
       return;
@@ -551,14 +551,14 @@ window.BRVTALBlog = (() => {
       if (!applyBlogDraft(draft)) return;
       recovery.hidden = true;
     };
-    discard.onclick = () => {
-      clearBlogDraft(draftContext.identity);
+    discard.onclick = async () => {
+      await clearBlogDraft(draftContext.identity);
       recovery.hidden = true;
-      setBlogDraftState('Saved to server', 'server');
+      setBlogDraftState(draftContext.id ? 'Saved to server' : 'Unsaved new post', draftContext.id ? 'server' : 'unsaved');
     };
   }
 
-  function bindBlogDrafts(id, record, content) {
+  async function bindBlogDrafts(id, record, content) {
     stopBlogDraftTimer();
     draftBindController?.abort();
     draftBindController = new AbortController();
@@ -569,15 +569,15 @@ window.BRVTALBlog = (() => {
       record
     };
 
-    setBlogDraftState('Saved to server', 'server');
+    setBlogDraftState(id ? 'Saved to server' : 'Unsaved new post', id ? 'server' : 'unsaved');
     content.addEventListener('input', scheduleBlogDraft, {capture:true, signal:draftBindController.signal});
     content.addEventListener('change', scheduleBlogDraft, {capture:true, signal:draftBindController.signal});
-    showBlogDraftRecovery(record);
+    await showBlogDraftRecovery(record);
   }
 
-  function markBlogDraftServerSaved(id, record) {
+  async function markBlogDraftServerSaved(id, record) {
     const oldIdentity = draftContext?.identity || blogDraftIdentity(id);
-    clearBlogDraft(oldIdentity);
+    await clearBlogDraft(oldIdentity);
     draftContext = {
       id: id ? Number(id) : null,
       identity: blogDraftIdentity(id),
@@ -658,7 +658,7 @@ window.BRVTALBlog = (() => {
     bindBlogEditorFields(record,id,saveButton);
     modal.classList.add('open');
     window.BRVTALUnsavedChanges?.syncRoots?.();
-    bindBlogDrafts(id,record,content);
+    await bindBlogDrafts(id,record,content);
   }
 
   function payload(existingRelations = [], sortOrder = 0) {
@@ -749,7 +749,7 @@ window.BRVTALBlog = (() => {
       const data=blogSavePayload(id,record);
       const result=await blogSaveRequest(id,data);
       const savedId = Number(result?.data?.id || id || 0) || null;
-      markBlogDraftServerSaved(savedId, result?.data || record);
+      await markBlogDraftServerSaved(savedId, result?.data || record);
       const warnings=Array.isArray(result?.warnings)
         ? result.warnings.filter(Boolean)
         : [];
@@ -770,7 +770,7 @@ window.BRVTALBlog = (() => {
       await refresh();
       setStatus('Post saved.','ok');
     }catch(error){
-      persistBlogDraft({announce:false});
+      await persistBlogDraft({announce:false});
       reportBlogSaveError(error);
       setBlogDraftState('Save failed · local draft kept', 'error');
     }finally{
