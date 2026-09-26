@@ -9,6 +9,9 @@
   const MAX_LAYERS = 12;
   const SETTINGS_READ_ATTEMPTS = 2;
   const SETTINGS_RETRY_DELAY_MS = 120;
+  const DRAFT_SCOPE = 'hero-slider';
+  const DRAFT_ID = KEY;
+  const DRAFT_DEBOUNCE_MS = 650;
   const layerTypes = ['text','image','logo','cta'];
   const animations = ['none','fade','slide-up','slide-left','zoom'];
   const defaultConfig = () => ({enabled:false,autoplay:true,interval:7000,slides:[]});
@@ -22,6 +25,11 @@
   let previewMode = 'desktop';
   let originalGo = null;
   let cleanConfigSnapshot = null;
+  let heroDraftTimer = null;
+  let heroSaveInFlight = false;
+  let heroDraftBaseRevision = '';
+  let heroDraftRecovery = null;
+  let heroDraftState = {label:'Saved to server',kind:'server'};
   let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:''};
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -218,12 +226,147 @@
     return JSON.stringify(normalizeConfig(value));
   }
 
-  function markConfigClean() {
-    cleanConfigSnapshot = configSnapshot();
+  function markConfigClean(value = config) {
+    cleanConfigSnapshot = configSnapshot(value);
   }
 
   function hasUnsavedChanges() {
     return cleanConfigSnapshot !== null && configSnapshot() !== cleanConfigSnapshot;
+  }
+
+  function draftApi() {
+    const api = window.BRVTALDrafts;
+    return api && typeof api.save === 'function' && typeof api.load === 'function' ? api : null;
+  }
+
+  function canonicalRevisionValue(value) {
+    if (value === undefined) return 'null';
+    if (Array.isArray(value)) return '[' + value.map(canonicalRevisionValue).join(',') + ']';
+    if (value && typeof value === 'object') {
+      return '{' + Object.keys(value).sort((a, b) => a.localeCompare(b)).map(key =>
+        JSON.stringify(key) + ':' + canonicalRevisionValue(value[key])
+      ).join(',') + '}';
+    }
+    return JSON.stringify(value) ?? 'null';
+  }
+
+  async function configRevision(value = defaultConfig()) {
+    const snapshot = canonicalRevisionValue(value ?? defaultConfig());
+    if (!globalThis.crypto?.subtle || typeof TextEncoder !== 'function') return snapshot;
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(snapshot));
+    return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2,'0')).join('');
+  }
+
+  function setHeroDraftState(label, kind = 'unsaved') {
+    heroDraftState = {label:String(label || ''),kind:String(kind || 'unsaved')};
+    const node = root()?.querySelector('[data-hero-draft-state]');
+    if (!node) return;
+    node.textContent = heroDraftState.label;
+    node.dataset.kind = heroDraftState.kind;
+  }
+
+  function clearHeroDraftTimer() {
+    if (heroDraftTimer !== null) window.clearTimeout(heroDraftTimer);
+    heroDraftTimer = null;
+  }
+
+  function heroDraftStatusMarkup() {
+    return `<div class="hero-draft-status" role="status" aria-live="polite"><span data-hero-draft-state data-kind="${esc(heroDraftState.kind)}">${esc(heroDraftState.label)}</span><small>Local recovery only · server Save remains explicit.</small></div>`;
+  }
+
+  function heroDraftConflict() {
+    const api = draftApi();
+    return Boolean(heroDraftRecovery && api && !api.sameRevision(heroDraftRecovery, heroDraftBaseRevision));
+  }
+
+  function heroDraftRecoveryMarkup() {
+    if (!heroDraftRecovery) return '';
+    const conflict = heroDraftConflict();
+    const savedAt = heroDraftRecovery.saved_at ? new Date(heroDraftRecovery.saved_at).toLocaleString() : 'recently';
+    return `<div class="hero-draft-recovery" data-hero-draft-recovery data-conflict="${conflict ? '1' : '0'}" role="region" aria-label="Recover local Hero Slider draft"><div><strong>LOCAL DRAFT AVAILABLE${conflict ? ' · SERVER CHANGED' : ''}</strong><small>Saved ${esc(savedAt)}. Restore changes only this editor; nothing is published until Save.</small></div><div class="hero-draft-recovery-actions"><button type="button" class="btn ghost" data-hero-draft-discard>DISCARD</button><button type="button" class="btn ghost" data-hero-draft-restore>RESTORE</button></div></div>`;
+  }
+
+  async function persistHeroDraft() {
+    clearHeroDraftTimer();
+    const api = draftApi();
+    if (!api) {
+      setHeroDraftState('Save failed · local recovery unavailable', 'error');
+      return false;
+    }
+    const payload = normalizeConfig(config);
+    const submittedSnapshot = configSnapshot(payload);
+    if (cleanConfigSnapshot !== null && submittedSnapshot === cleanConfigSnapshot) {
+      setHeroDraftState('Saved to server', 'server');
+      return true;
+    }
+    setHeroDraftState('Saving', 'saving');
+    try {
+      await api.save(DRAFT_SCOPE, DRAFT_ID, {
+        base_revision: heroDraftBaseRevision,
+        data: payload
+      });
+      if (configSnapshot() !== submittedSnapshot) {
+        setHeroDraftState('Unsaved', 'unsaved');
+        heroDraftTimer = window.setTimeout(() => { void persistHeroDraft(); }, DRAFT_DEBOUNCE_MS);
+      } else {
+        setHeroDraftState('Draft saved locally', 'saved');
+      }
+      return true;
+    } catch (error) {
+      if (error?.name === 'AbortError') return false;
+      setHeroDraftState('Save failed · keep this workspace open', 'error');
+      return false;
+    }
+  }
+
+  function markHeroDraftDirty() {
+    setHeroDraftState('Unsaved', 'unsaved');
+    clearHeroDraftTimer();
+    if (heroSaveInFlight) return;
+    heroDraftTimer = window.setTimeout(() => { void persistHeroDraft(); }, DRAFT_DEBOUNCE_MS);
+  }
+
+  async function loadHeroDraftRecovery(serverRevisionSource = config) {
+    clearHeroDraftTimer();
+    heroDraftRecovery = null;
+    setHeroDraftState('Saved to server', 'server');
+    heroDraftBaseRevision = await configRevision(serverRevisionSource);
+    const api = draftApi();
+    if (!api) return;
+    const draft = await api.load(DRAFT_SCOPE, DRAFT_ID);
+    if (!draft) return;
+    if (configSnapshot(draft.data) === configSnapshot(config)) {
+      try { await api.remove(DRAFT_SCOPE, DRAFT_ID); } catch (_) {}
+      return;
+    }
+    heroDraftRecovery = draft;
+    setHeroDraftState('Draft saved locally', 'saved');
+  }
+
+  function normalizeSelection() {
+    if (!config.slides.some(slide => slide.id === selectedId)) selectedId = config.slides[0]?.id || '';
+    const slide = selectedSlide();
+    if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
+  }
+
+  function restoreHeroDraft() {
+    if (!heroDraftRecovery) return;
+    config = normalizeConfig(heroDraftRecovery.data);
+    heroDraftRecovery = null;
+    normalizeSelection();
+    setHeroDraftState('Draft saved locally', 'saved');
+    renderManager();
+  }
+
+  async function discardHeroDraft() {
+    clearHeroDraftTimer();
+    const api = draftApi();
+    if (api) {
+      try { await api.remove(DRAFT_SCOPE, DRAFT_ID); } catch (_) {}
+    }
+    heroDraftRecovery = null;
+    setHeroDraftState('Saved to server', 'server');
+    renderManager();
   }
 
   function bannersWorkspaceActive() {
@@ -378,11 +521,11 @@
       const record = settings.find(item => item.setting_key === KEY);
       let stored = record?.setting_value || null;
       if (typeof stored === 'string') { try { stored = JSON.parse(stored); } catch (_) { stored = null; } }
+      const serverRevisionSource = stored && typeof stored === 'object' ? stored : defaultConfig();
       config = normalizeConfig(stored);
-      markConfigClean();
-      if (!config.slides.some(slide => slide.id === selectedId)) selectedId = config.slides[0]?.id || '';
-      const slide = selectedSlide();
-      if (!slide?.layers.some(layer => layer.id === selectedLayerId)) selectedLayerId = slide?.layers[0]?.id || '';
+      markConfigClean(config);
+      normalizeSelection();
+      await loadHeroDraftRecovery(serverRevisionSource);
       renderManager();
       diagnostics.status = 'loaded';
       diagnostics.reason = '';
@@ -577,6 +720,8 @@
     if (!host) return;
     const slide = selectedSlide();
     host.innerHTML = `<section class="hero-manager"><div class="hero-manager-toolbar"><div><span class="hero-kicker">HOME / HERO</span><h2>SLIDER MANAGER V2</h2><p>LayerSlider-inspired visual layers with safe mobile overrides.</p></div><div class="hero-manager-actions"><label class="hero-switch"><input type="checkbox" data-config-field="enabled" ${config.enabled?'checked':''}><span>Publish slider</span></label><button type="button" class="btn ghost" data-add-slide>+ ADD SLIDE</button><button type="button" class="btn red" data-save-slider ${mediaReady?'':'disabled'}>${mediaSaveLabel()}</button></div></div><div class="hero-manager-global"><label class="hero-switch"><input type="checkbox" data-config-field="autoplay" ${config.autoplay?'checked':''}><span>Autoplay</span></label><label><span>Slide duration</span><select data-config-field="interval">${intervalOptions()}</select></label><span class="hero-manager-fallback">SAFE FALLBACK · original BRVTAL hero remains if managed content is unavailable.</span></div><div class="hero-manager-grid"><aside class="hero-slide-list"><div class="hero-slide-list-head"><strong>SLIDES</strong><span>${config.slides.length}/${MAX_SLIDES}</span></div>${slideList()}</aside><section class="hero-slide-editor">${legacyEditor(slide)}</section><section class="hero-preview-panel"><div class="hero-preview-head"><strong>LIVE PREVIEW · drag selected layers</strong><div><button type="button" data-preview="desktop" class="${previewMode==='desktop'?'active':''}">DESKTOP</button><button type="button" data-preview="mobile" class="${previewMode==='mobile'?'active':''}">MOBILE</button></div></div><div class="hero-preview-frame ${previewMode === 'mobile' ? 'mobile' : 'desktop'}"></div></section></div></section>`;
+    const draftAnchor = host.querySelector('.hero-manager-global');
+    draftAnchor?.insertAdjacentHTML('beforebegin', heroDraftStatusMarkup() + heroDraftRecoveryMarkup());
     syncMediaControls(host);
     renderPreview(host.querySelector('.hero-preview-frame'), slide);
     bind();
@@ -589,10 +734,28 @@
     bindPreviewDrag();
   }
 
+  function slideFieldValue(target, field) {
+    if (target.type === 'checkbox') return target.checked;
+    if (field === 'overlay') return clamp(target.value,0,85);
+    return target.value;
+  }
+
+  function layerFieldValue(target, field) {
+    if (target.type === 'checkbox') return target.checked;
+    if (['x','y','width','mobileX','mobileY','mobileWidth','delay','duration'].includes(field)) {
+      if (target.value === '') return null;
+      return Number(target.value);
+    }
+    return target.value;
+  }
+
   function updateSlide(target) {
     const slide = selectedSlide(); if (!slide) return;
     const field = target.dataset.field; if (!field) return;
-    slide[field] = target.type === 'checkbox' ? target.checked : field === 'overlay' ? clamp(target.value,0,85) : target.value;
+    const nextValue = slideFieldValue(target, field);
+    if (slide[field] === nextValue) return;
+    slide[field] = nextValue;
+    markHeroDraftDirty();
     if (field === 'overlay') document.querySelector('[data-overlay-value]') && (document.querySelector('[data-overlay-value]').textContent = slide.overlay + '%');
     if (field === 'mediaType') renderManager(); else refreshPreview();
   }
@@ -600,16 +763,19 @@
   function updateLayer(target) {
     const layer = selectedLayer(); if (!layer) return;
     const field = target.dataset.layerField; if (!field) return;
-    if (target.type === 'checkbox') layer[field] = target.checked;
-    else if (['x','y','width','mobileX','mobileY','mobileWidth','delay','duration'].includes(field)) layer[field] = target.value === '' ? null : Number(target.value);
-    else layer[field] = target.value;
+    const nextValue = layerFieldValue(target, field);
+    if (layer[field] === nextValue) return;
+    layer[field] = nextValue;
+    markHeroDraftDirty();
     refreshPreview();
   }
 
   function moveSlide(id,direction) {
     const index = config.slides.findIndex(slide=>slide.id===id); if (index<0) return;
     const next = direction==='up'?index-1:index+1; if (next<0||next>=config.slides.length) return;
-    [config.slides[index],config.slides[next]]=[config.slides[next],config.slides[index]]; renderManager();
+    [config.slides[index],config.slides[next]]=[config.slides[next],config.slides[index]];
+    markHeroDraftDirty();
+    renderManager();
   }
 
   function bindPreviewDrag() {
@@ -628,7 +794,12 @@
           else { layer.x = Math.round(x); layer.y = Math.round(y); }
           node.style.left = x + '%'; node.style.top = y + '%';
         };
-        const up = () => { window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); renderManager(); };
+        const up = () => {
+          window.removeEventListener('pointermove',move);
+          window.removeEventListener('pointerup',up);
+          markHeroDraftDirty();
+          renderManager();
+        };
         window.addEventListener('pointermove',move); window.addEventListener('pointerup',up,{once:true});
       });
       node.addEventListener('click', () => { selectedLayerId = node.dataset.previewLayer; renderManager(); });
@@ -648,6 +819,7 @@
     config.slides.push(slide);
     selectedId = slide.id;
     selectedLayerId = '';
+    markHeroDraftDirty();
     renderManager();
   }
 
@@ -661,6 +833,7 @@
     config.slides.splice(config.slides.indexOf(slide) + 1, 0, copy);
     selectedId = copy.id;
     selectedLayerId = copy.layers[0]?.id || '';
+    markHeroDraftDirty();
     renderManager();
   }
 
@@ -670,6 +843,7 @@
     config.slides.splice(index, 1);
     selectedId = config.slides[Math.min(index, config.slides.length - 1)]?.id || '';
     selectedLayerId = '';
+    markHeroDraftDirty();
     renderManager();
   }
 
@@ -680,6 +854,7 @@
     const layer = normalizeLayer({ type, text });
     slide.layers.push(layer);
     selectedLayerId = layer.id;
+    markHeroDraftDirty();
     renderManager();
   }
 
@@ -690,6 +865,7 @@
     if (index < 0) return;
     slide.layers.splice(index, 1);
     selectedLayerId = slide.layers[Math.min(index, slide.layers.length - 1)]?.id || '';
+    markHeroDraftDirty();
     renderManager();
   }
 
@@ -710,6 +886,7 @@
       : field === 'interval'
         ? clamp(input.value, 2500, 30000)
         : input.value;
+    markHeroDraftDirty();
   }
 
   function bindSlideControls(host) {
@@ -773,6 +950,8 @@
       })
     );
     host.querySelector('[data-save-slider]')?.addEventListener('click', save);
+    host.querySelector('[data-hero-draft-restore]')?.addEventListener('click', restoreHeroDraft);
+    host.querySelector('[data-hero-draft-discard]')?.addEventListener('click', () => { void discardHeroDraft(); });
   }
 
   function bind() {
@@ -785,20 +964,74 @@
     bindPreviewDrag();
   }
 
-  async function save() {
-    const button=root()?.querySelector('[data-save-slider]');if(button){button.disabled=true;button.textContent='SAVING…';}
-    try {
-      const payload=normalizeConfig(config);
-      const integrityError=configMediaError(payload);
-      if(integrityError) throw new Error(integrityError);
-      await request('/settings',{method:'POST',body:JSON.stringify({setting_key:KEY,setting_value:JSON.stringify(payload),is_json:1})});
-      config=payload;
-      markConfigClean();
+  async function removeHeroDraft() {
+    const api = draftApi();
+    if (!api) return;
+    try { await api.remove(DRAFT_SCOPE, DRAFT_ID); } catch (_) {}
+  }
+
+  async function finishHeroSave(payload, submittedSnapshot) {
+    markConfigClean(payload);
+    heroDraftBaseRevision = await configRevision(payload);
+
+    if (configSnapshot() === submittedSnapshot) {
+      config = payload;
+      clearHeroDraftTimer();
+      await removeHeroDraft();
+      if (configSnapshot() !== submittedSnapshot) {
+        heroSaveInFlight = false;
+        markHeroDraftDirty();
+        renderManager();
+        return;
+      }
+      heroDraftRecovery = null;
+      setHeroDraftState('Saved to server', 'server');
       window.BRVTALFeedback?.success?.('Hero Slider saved. Public fallback remains protected.','hero-slider-save');
       renderManager();
-    } catch(error) {
-      window.BRVTALFeedback?.error?.('Hero Slider save failed: '+error.message,'hero-slider-save');
-      if(button){button.disabled=false;button.textContent='SAVE';}
+      return;
+    }
+
+    const persisted = await persistHeroDraft();
+    setHeroDraftState(
+      persisted ? 'Draft saved locally · newer edits remain unsaved' : 'Save failed · newer edits are not stored locally',
+      persisted ? 'saved' : 'error'
+    );
+    window.BRVTALFeedback?.success?.('Hero Slider saved; newer edits remain local.','hero-slider-save');
+    renderManager();
+  }
+
+  async function failHeroSave(error, button) {
+    const persisted = await persistHeroDraft();
+    setHeroDraftState(
+      persisted ? 'Save failed · draft kept locally' : 'Save failed · latest changes not stored locally; keep this workspace open',
+      'error'
+    );
+    window.BRVTALFeedback?.error?.('Hero Slider save failed: '+error.message,'hero-slider-save');
+    if (button) {
+      button.disabled = false;
+      button.textContent = mediaSaveLabel();
+    }
+  }
+
+  async function save() {
+    const button = root()?.querySelector('[data-save-slider]');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'SAVING…';
+    }
+    clearHeroDraftTimer();
+    heroSaveInFlight = true;
+    const payload = normalizeConfig(config);
+    const submittedSnapshot = configSnapshot(payload);
+    try {
+      const integrityError = configMediaError(payload);
+      if (integrityError) throw new Error(integrityError);
+      await request('/settings',{method:'POST',body:JSON.stringify({setting_key:KEY,setting_value:JSON.stringify(payload),is_json:1})});
+      await finishHeroSave(payload, submittedSnapshot);
+    } catch (error) {
+      await failHeroSave(error, button);
+    } finally {
+      heroSaveInFlight = false;
     }
   }
 
@@ -808,7 +1041,12 @@
     hasUnsavedChanges
   };
   window.BRVTALHeroSliderDiagnostics = {
-    lastLoad: () => ({...lastLoadDiagnostics})
+    lastLoad: () => ({...lastLoadDiagnostics}),
+    draft: () => ({
+      base_revision:heroDraftBaseRevision,
+      has_recovery:Boolean(heroDraftRecovery),
+      state:{...heroDraftState}
+    })
   };
 
   function install() {
