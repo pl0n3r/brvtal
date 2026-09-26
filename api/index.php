@@ -494,9 +494,8 @@ try {
             }
 
             try {
+                $pdo->beginTransaction();
                 if ($themeMutation) {
-                    $pdo->beginTransaction();
-
                     $activeTheme = $pdo->query(
                         "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
                     )->fetchColumn();
@@ -537,7 +536,7 @@ try {
                     }
                 );
                 if ($themeReferenceError !== null) {
-                    if ($themeMutation && $pdo->inTransaction()) {
+                    if ($pdo->inTransaction()) {
                         $pdo->rollBack();
                     }
                     if ($themeMutation) {
@@ -559,25 +558,7 @@ try {
                 );
                 $st->execute([$key, $value, $isJson]);
 
-                if ($themeMutation) {
-                    $pdo->commit();
-                }
-            } catch (Throwable $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-                if ($themeMutation) {
-                    brvtalReleaseThemeReferenceMutex($pdo);
-                }
-                throw $e;
-            }
-
-            if ($themeMutation) {
-                brvtalReleaseThemeReferenceMutex($pdo);
-            }
-            if ($settingChanged) {
-                brvtalIndexNowNotifySetting($pdo, $key);
-                if (brvtalActivitySettingKeyAuditable($key)) {
+                if ($settingChanged && brvtalActivitySettingKeyAuditable($key)) {
                     $beforeSettingAudit = is_array($previousSetting)
                         ? ['setting_key' => $key, 'is_json' => (int)($previousSetting['is_json'] ?? 0)]
                         : null;
@@ -598,6 +579,22 @@ try {
                         $key
                     );
                 }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                if ($themeMutation) {
+                    brvtalReleaseThemeReferenceMutex($pdo);
+                }
+                throw $e;
+            }
+
+            if ($themeMutation) {
+                brvtalReleaseThemeReferenceMutex($pdo);
+            }
+            if ($settingChanged) {
+                brvtalIndexNowNotifySetting($pdo, $key);
             }
             json_response(['ok' => true]);
         }
@@ -811,9 +808,8 @@ try {
         }
 
         try {
+            $pdo->beginTransaction();
             if ($themeMutation) {
-                $pdo->beginTransaction();
-
                 $activeTheme = $pdo->query(
                     "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"
                 )->fetchColumn();
@@ -835,25 +831,7 @@ try {
             $st->execute([$key]);
             $deleted = (int)$st->rowCount();
 
-            if ($themeMutation) {
-                $pdo->commit();
-            }
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            if ($themeMutation) {
-                brvtalReleaseThemeReferenceMutex($pdo);
-            }
-            throw $e;
-        }
-
-        if ($themeMutation) {
-            brvtalReleaseThemeReferenceMutex($pdo);
-        }
-        if ($deleted > 0) {
-            brvtalIndexNowNotifySetting($pdo, $key);
-            if (brvtalActivitySettingKeyAuditable($key)) {
+            if ($deleted > 0 && brvtalActivitySettingKeyAuditable($key)) {
                 brvtal_activity_record(
                     $pdo,
                     'setting_delete',
@@ -871,6 +849,22 @@ try {
                     $key
                 );
             }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($themeMutation) {
+                brvtalReleaseThemeReferenceMutex($pdo);
+            }
+            throw $e;
+        }
+
+        if ($themeMutation) {
+            brvtalReleaseThemeReferenceMutex($pdo);
+        }
+        if ($deleted > 0) {
+            brvtalIndexNowNotifySetting($pdo, $key);
         }
         json_response(['ok' => true, 'deleted' => $deleted]);
     }
