@@ -56,9 +56,9 @@ flowchart LR
 ## Archivos modificados en este deploy
 - `README.md`
 - `rector.php`
-- `config/public_visibility.php` (marca temporal)
-- `config/version.php` (versión temporal)
-- `package.json` (versión temporal)
+- `config/public_visibility.php` — marca temporal
+- `config/version.php` — versión temporal
+- `package.json` — versión temporal
 
 ## Validación
 - 🚧 Esperando evidencia de Rector; un run que no genera refactors no satisface #653.
