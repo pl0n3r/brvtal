@@ -187,7 +187,16 @@ function nativeListUrl(module,page=1,query=''){
 }
 async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
 async function restoreSession(){try{const d=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth({force:true}):await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
-async function logout(){try{await req('/auth',{method:'DELETE'})}catch(e){}window.BRVTALAdminAuthBoundary?.clearAuthCache?.();csrf='';state.authed=false;render()}
+async function logout(){
+ try{await req('/auth',{method:'DELETE'})}
+ catch(error){/* Local logout continues if the server session is already unavailable. */}
+ try{window.BRVTALDrafts?.clearAll?.()}
+ catch(error){document.documentElement.dataset.brvtalDraftStorage='unavailable'}
+ window.BRVTALAdminAuthBoundary?.clearAuthCache?.();
+ csrf='';
+ state.authed=false;
+ render();
+}
 let nativeListSeq=0;
 async function changeNativePage(page,query=state.search||''){
  const module=state.section;
@@ -251,6 +260,7 @@ function openModal(type,id=null){state.editing=id;document.getElementById('modal
  if(type==='events')eventForm(r);else if(type==='artists')artistForm(r);else if(type==='sets')setForm(r);else if(type==='media')mediaForm(r);else if(type==='pages')pageForm(r);else settingsForm(r);
  replaceLegacySortOrderControl(type);
  window.BRVTALPublicPreview?.bindLegacy(type,r||{});
+ void window.BRVTALLegacyDrafts?.bind?.(type,id,r||{});
 }
 function replaceLegacySortOrderControl(type){
  const control=document.getElementById('f_sort_order');

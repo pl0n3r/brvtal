@@ -101,6 +101,11 @@
           window.BRVTALAdminAuthBoundary?.preserveUnsavedAuthState?.();
           return false;
         }
+        try {
+          window.BRVTALDrafts?.clearAll?.();
+        } catch (_) {
+          document.documentElement.dataset.brvtalDraftStorage = 'unavailable';
+        }
         hero?.commitNavigation?.('logout');
         window.BRVTALAdminAuthBoundary?.clearDeferredAuthState?.();
         render();
