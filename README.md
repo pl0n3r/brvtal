@@ -27,14 +27,16 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+439** | **−62** | **+377** |
+| **8** | **+441** | **−62** | **+379** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | **preflight · coordination · fast · database · chromium · real-stack · webkit · validate** |
+| Gates | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Factory | Policy · Privacy · Labels |
+| Snapshot | PR + snapshot exacto |
+| Main | CI del SHA exacto de main |
 | Review | Sonar + CodeRabbit |
 | Seguridad | sin endpoint, permiso, proveedor ni migración nuevos |
 | Producción | #681 permanece fuera de alcance; no se declara GREEN |
@@ -91,9 +93,9 @@ flowchart LR
 | Lane | Trabajo |
 | --- | --- |
 | **NOW** | 🚧 #528 / PR #707: cerrar gates del fundamento + Blog. |
-| **NEXT** | 🚧 #708: rollout del contrato a otros editores. |
+| **NEXT** | 🚧 #708: rollout del contrato a otros editores · https://github.com/pl0n3r/brvtal/issues/708 |
 | **LATER** | 🚧 #533: roadmap canónico. |
-| **BLOCKED / EXTERNAL** | 🚧 #681: migration registry parity / producción NO GREEN. |
+| **BLOCKED / EXTERNAL** | 🚧 #681: migration registry parity / producción NO GREEN · https://github.com/pl0n3r/brvtal/issues/681 |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #707 exact-head y merge serial.
