@@ -27,7 +27,12 @@ function listPayload(items) {
     data:{
       items,
       total:items.length,
-      capabilities:{manual_create:true,media_archive:false,download:true,restore:false,delete:false},
+      capabilities:{manual_create:true,media_archive:false,download:true,restore:false,delete:false,automation:true,drive_oauth:false},
+      automation:{
+        config:{enabled:false,timezone:'America/Bogota',cadence:{type:'daily',interval:1,time:'03:00'},scope:'full',include_media_archive:false,retention_local:7,drive:{enabled:false,folder:null}},
+        next_run_at:null,last_run_at:null,last_success_at:null,last_result:null,last_duration_ms:null,
+        drive:{connected:false,last_success_at:null,last_error:null},
+      },
       private_storage:true,
     },
   };
@@ -37,6 +42,7 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   let items = [item('brvtal-20260912T070000Z-abcdef12')];
   let postBody = null;
   let postCsrf = null;
+  let automationBody = null;
 
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
@@ -52,6 +58,11 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
 
   await page.route('**/discadmin/backups.php*', async route => {
     const request = route.request();
+    if (request.method() === 'POST' && request.url().includes('action=automation')) {
+      postCsrf = request.headers()['x-csrf-token'] || null;
+      automationBody = request.postDataJSON();
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:listPayload(items).data.automation})});
+    }
     if (request.method() === 'POST') {
       postCsrf = request.headers()['x-csrf-token'] || null;
       postBody = request.postDataJSON();
@@ -85,7 +96,24 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   await backups.locator('button', {hasText:'CREATE BACKUP'}).click();
 
   await expect.poll(() => postCsrf).toBe('csrf-test-token');
-  expect(postBody).toEqual({include_media_archive:false});
+  expect(postBody).toEqual({include_media_archive:false,scope:'full'});
   await expect(backups).toContainText('2');
   await expect(backups).toContainText('brvtal-20260912T071500Z-fedcba98');
+  await expect(backups).toContainText('AUTOMATION');
+  await expect(backups).toContainText('America/Bogota');
+  await expect(backups).toContainText('OFF-SITE / GOOGLE DRIVE');
+  await expect(backups).toContainText('AUTH REQUIRED');
+
+  await backups.locator('[data-backup-enabled]').check();
+  await backups.locator('[data-backup-cadence]').selectOption('hours');
+  await backups.locator('[data-backup-interval]').fill('6');
+  await backups.locator('[data-backup-scope]').selectOption('database');
+  await backups.locator('[data-backup-retention]').fill('5');
+  await backups.locator('.backup-save').click();
+  await expect.poll(() => automationBody).not.toBeNull();
+  expect(automationBody.enabled).toBe(true);
+  expect(automationBody.cadence.type).toBe('hours');
+  expect(automationBody.cadence.interval).toBe(6);
+  expect(automationBody.scope).toBe('database');
+  expect(automationBody.retention_local).toBe(5);
 });
