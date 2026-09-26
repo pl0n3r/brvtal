@@ -129,9 +129,9 @@ activity_it_expect(is_array($mediaSnapshot), 'media snapshot must be supported')
 activity_it_expect(($mediaSnapshot['title'] ?? null) === 'Hero', 'media metadata must remain attributable');
 activity_it_expect(!array_key_exists('content_hash', $mediaSnapshot), 'media content hashes must not enter activity snapshots');
 
-activity_it_expect(brvtal_activity_setting_key_auditable('theme.active'), 'theme.active must be auditable');
-activity_it_expect(brvtal_activity_setting_key_auditable('theme.neon'), 'theme definitions must be auditable by key');
-activity_it_expect(brvtal_activity_setting_key_auditable('site.name'), 'safe public settings must be auditable');
+activity_it_expect(brvtalActivitySettingKeyAuditable('theme.active'), 'theme.active must be auditable');
+activity_it_expect(brvtalActivitySettingKeyAuditable('theme.neon'), 'theme definitions must be auditable by key');
+activity_it_expect(brvtalActivitySettingKeyAuditable('site.name'), 'safe public settings must be auditable');
 foreach ([
     'security.totp_encryption_key',
     'theme.private_key',
@@ -140,7 +140,7 @@ foreach ([
     'password.reset',
 ] as $sensitiveSetting) {
     activity_it_expect(
-        !brvtal_activity_setting_key_auditable($sensitiveSetting),
+        !brvtalActivitySettingKeyAuditable($sensitiveSetting),
         'sensitive setting keys must never be audited: ' . $sensitiveSetting
     );
 }
