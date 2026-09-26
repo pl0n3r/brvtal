@@ -20,7 +20,8 @@ admin_session_contract_assert(
     'account-state helper must query the canonical admins row by primary key'
 );
 admin_session_contract_assert(
-    str_contains($revalidation, "'is_active' => (int)($row['is_active'] ?? 0) === 1") && str_contains($revalidation, "'credential_epoch' => max(1"),
+    str_contains($revalidation, '\'is_active\' => (int)($row[\'is_active\'] ?? 0) === 1')
+        && str_contains($revalidation, '\'credential_epoch\' => max(1'),
     'missing and inactive admins must both fail revalidation'
 );
 admin_session_contract_assert(
@@ -28,7 +29,8 @@ admin_session_contract_assert(
     'session authorization must normalize the current admin id before revalidation'
 );
 admin_session_contract_assert(
-    str_contains($auth, 'brvtal_admin_account_session_state(db(), $adminId)') && str_contains($auth, "$_SESSION['credential_epoch'] = $state['credential_epoch'];"),
+    str_contains($auth, 'brvtal_admin_account_session_state(db(), $adminId)')
+        && str_contains($auth, '$_SESSION[\'credential_epoch\'] = $state[\'credential_epoch\'];'),
     'every authenticated session check must consult current admin state'
 );
 admin_session_contract_assert(
@@ -43,7 +45,7 @@ admin_session_contract_assert(
     str_contains($auth, "brvtal_log('SECURITY', 'Admin session revoked because account or credential epoch changed'"),
     'inactive or deleted account revocation must be security-auditable'
 );
-$inactiveBlock = strpos($auth, "if ($state === null || !$state['is_active']");
+$inactiveBlock = strpos($auth, 'if ($state === null || !$state[\'is_active\']');
 admin_session_contract_assert($inactiveBlock !== false, 'inactive/epoch branch must remain explicit');
 $inactiveSource = substr($auth, $inactiveBlock, 500);
 admin_session_contract_assert(
