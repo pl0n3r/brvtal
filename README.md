@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+742** | **−83** | **+659** |
+| **13** | **+750** | **−78** | **+672** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -39,6 +39,19 @@
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
 | CI del SHA exacto de main | 🚧 obligatorio después del merge |
 | Production GREEN | ⛔ fuera de alcance mientras #681 siga abierto |
+
+## Flujo de entrega
+
+```mermaid
+flowchart LR
+  C["DISCADMIN config"] --> S["private scheduler state"]
+  S --> R["Hostinger Cron / CLI runner"]
+  R --> L["non-blocking lock"]
+  L --> B["canonical backup engine"]
+  B --> T["bounded automatic retention"]
+  B --> D["optional Drive delivery boundary"]
+  D --> H["history: local + off-site result"]
+```
 
 ## Qué se hizo
 - Scheduler CLI compatible con Hostinger Cron, sin daemon ni browser abierto.
