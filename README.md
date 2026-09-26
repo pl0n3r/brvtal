@@ -6,7 +6,7 @@
   <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual**: recuperación operacional de #681. Expone en GitHub Actions la reconciliación Hostinger/DB ya implementada en `ops/factory/transport.py`; no añade SQL ni otro transporte y no cambia la versión de producto v0.1.58.
+> Snapshot de **solo el deploy actual** más el cambio repository-only de #691. Este slice hace ejecutable el estado de adopción Factory v1 y adopta D-059; no cambia producto, versión, Hostinger, base de datos ni producción.
 
 ## Progress convention
 
@@ -18,11 +18,11 @@
 
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · migration registry parity** | `work/issue-681`; reservation `1acc1796-9048-4b25-abce-fba905c90964` |
-| Base exacta | ✅ **main v0.1.58** | `d183b748918f47b25bc7146b33cc952b49194c05` |
-| Versión de producto | ✅ **v0.1.58 sin cambio** | workflow operacional repository-only |
-| Producción | ⛔ **health 503** | smoke autenticado falla antes del login |
-| Recuperación | 🚧 **owner-only / fail-closed** | inspect → backup → reconcile → readiness → smoke |
+| Work line | 🚧 **#691 · Factory adoption closure state** | `work/issue-691`; reservation `9460b640-2a39-4467-b4a2-96129fd354b6` |
+| Base exacta | ✅ **main v0.1.58** | `3227ac7176486f66fb199719f068dfe08a489591` |
+| Versión de producto | ✅ **v0.1.58 sin cambio** | cambio repository-only |
+| Producción | ⛔ **NO GREEN · #681** | faltan `DEPLOY_TOKEN` + `DEPLOY_SSH_KEY`; recovery falla cerrado antes de escribir |
+| Factory adoption | 🚧 **cierre bloqueado** | #681 + #689 externos; #692 coordinación pendiente |
 
 ## Huella del cambio
 
@@ -30,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+162** | **−54** | **+108** |
+| **5** | **+TBD** | **−TBD** | **TBD** |
 
 ## Calidad y entrega
 
@@ -38,61 +38,65 @@
 
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
-| PR + snapshot exacto | **Issue #681 · recovery workflow** |
-| Roles | **Infrastructure · SRE · Security · QA** |
-| Trust boundary | comando exacto del dueño; secretos solo server-side; transporte SSH existente |
-| Permisos | contents: read; actions: write solo para disparar el smoke posterior |
+| Gates esperados | **preflight · coordination · fast[PHP]** |
+| PR + snapshot exacto | **Issue #691 · repository-only Factory governance** |
+| Roles | **Architecture · Software Engineering · Infrastructure · SRE · Security · QA** |
+| Trust boundary | estado machine-readable sin secretos; claims GREEN/closure fallan cerrado |
+| Permisos | sin nuevos permisos; no Hostinger/DB/Actions secrets |
 | Review | BRVTAL CI + Factory Policy + Privacy + Sonar/CodeQL/CodeRabbit |
 | CI del SHA exacto de main | 🚧 después del merge |
-| Production GREEN | 🚧 solo después de health 200 + smoke autenticado |
+| Production GREEN | ⛔ bloqueado por #681; este PR no intenta recuperarlo |
 
 ## Flujo de entrega
 
 ```mermaid
 flowchart LR
-  O["Owner command #681"] --> I["inspect-migrations"]
-  I --> B["backup ready"]
-  B --> R["reconcile-migrations"]
-  R --> H["exact readiness"]
-  H --> S["authenticated production smoke"]
+  D["D-059"] --> S["factory-adoption.json"]
+  S --> C["PHP contract"]
+  C --> B["2 blockers reales"]
+  C --> P["#692 pending adoption"]
+  B --> G["epic_close=false / production_green=false"]
+  P --> G
 ```
 
 ## Qué se hizo
 
-- Añade un workflow operacional con comando exacto `/reconcile-production-migrations` restringido al dueño y al Issue #681.
-- Hace checkout explícito de `main` y resuelve SHA/versión exactos antes de tocar producción.
-- Reutiliza `transport.py inspect-migrations` para inspección acotada y `reconcile-migrations` para backup + escritura del registry + `verify-plan __NONE__` + readiness.
-- No expone secretos ni filas de aplicación; el resumen solo contiene conteos y booleanos estructurales saneados.
-- Tras éxito dispara el smoke autenticado existente; no duplica pruebas ni credenciales.
-- No cambia producto, versión, DNS, cutover Factory ni lógica SQL.
+- Adopta D-059 y protege backup previo, autorización de borrados y prohibición de planes/pagos.
+- Añade `docs/factory-adoption.json` como estado canónico legible por máquina para #630.
+- Registra exactamente dos blockers externos: #681 credenciales de recovery y #689 paridad `push` del observer.
+- Corrige una deriva histórica: Factory `coordinacion.yml@v1` ya es reusable; por eso coordinación no se declara blocker externo.
+- Abre #692 como leaf ejecutable para adoptar coordinación reusable con paridad.
+- Añade contrato PHP auto-descubierto que exige CI/policy/release/labels `@v1` y prohíbe falso GREEN/cierre mientras existan blockers o adopciones obligatorias.
+- No reemplaza observer/coordinación, no crea secretos y no muta producción.
 
 ## Archivos modificados en este deploy
 
-- `.github/workflows/production-migration-reconcile.yml` — ejecución owner-only de la recuperación ya implementada.
-- `README.md` — snapshot exacto del incidente.
-- `tests/test_production_migration_reconcile_workflow.py` — contrato de trigger, permisos y transporte.
+- `README.md` — snapshot exacto del slice #691.
+- `decisiones.yml` — decisión D-059 activa.
+- `docs/factory-adoption.json` — estado machine-readable de TANDA 2.
+- `tests/factory-adoption-contract.php` — cierre/adopción fail-closed y consumidores Factory v1.
+- `tests/factory-policy-contract.php` — regresión de D-059.
 
 ## Validación
 
-- 🚧 Contrato Python del workflow.
+- 🚧 `factory-policy-contract.php` y `factory-adoption-contract.php` auto-descubiertos por PHP 8.5 compatibility suite.
 - 🚧 BRVTAL CI / validate sobre HEAD estable.
 - 🚧 Factory Policy, Privacy, Sonar/CodeQL y CodeRabbit.
-- 🚧 Tras merge: comando de reconciliación, health exacto y smoke autenticado.
-- No se declara #681 resuelto ni producción GREEN antes de esa evidencia.
+- No se declara #630 cerrado ni producción GREEN.
+- No se repite recovery #681 hasta que existan los dos secrets requeridos.
 
 ## Qué sigue
 
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): ejecutar reconciliación productiva con backup y recuperar GREEN. |
-| **NEXT** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar adopción Factory v1 tras recuperar producción. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap normal después de TANDA 2. |
-| **BLOCKED / EXTERNAL** | 🚧 Ninguno nuevo; el transporte usa secretos ya contratados por BRVTAL. |
+| **NOW** | 🚧 [#691](https://github.com/pl0n3r/brvtal/issues/691): integrar estado ejecutable de adopción sin false GREEN. |
+| **NEXT** | 🚧 [#692](https://github.com/pl0n3r/brvtal/issues/692): adoptar coordinación reusable Factory v1 con paridad. |
+| **LATER** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): cerrar TANDA 2 solo cuando todos los requisitos sean reales. |
+| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) secrets Hostinger · [#689](https://github.com/pl0n3r/brvtal/issues/689) observer push parity. |
 
 ## Panorama general pendiente
 
-- 🚧 **NOW:** #681 health 503 / migration registry parity.
-- 🚧 **NEXT:** #630 adopción Factory v1.
-- 🚧 **LATER:** #533 desarrollo normal.
-- 🚧 **BLOCKED / EXTERNAL:** ninguno adicional para esta recuperación.
+- 🚧 **NOW:** #691 estado ejecutable de adopción.
+- 🚧 **NEXT:** #692 coordinación reusable.
+- 🚧 **LATER:** #630 cierre de TANDA 2.
+- 🚧 **BLOCKED / EXTERNAL:** #681 credenciales de recovery y #689 paridad del observer.
