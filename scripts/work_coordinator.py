@@ -1280,11 +1280,17 @@ def update_issue_label_state(
     if actor == TRUSTED_MARKER_LOGIN or label != STATUS_RESERVED:
         return
 
-    reservation_id = reserve_work(api, issue_number, actor, "OWNER")
+    try:
+        reservation_id = reserve_work(api, issue_number, actor, "OWNER")
+    except CoordinationError:
+        labels = label_names(api.issue(issue_number))
+        api.set_status(
+            issue_number,
+            STATUS_BLOCKED if STATUS_BLOCKED in labels else STATUS_AVAILABLE,
+        )
+        raise
     if reservation_id is not None:
         return
-
-
 
     branch = f"work/issue-{issue_number}"
     if api.branch_sha(branch) or active_reservation(api, issue_number):
