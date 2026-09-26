@@ -155,7 +155,7 @@ function brvtal_admin_is_authenticated(): bool
     } catch (Throwable $e) {
         brvtal_log('AUTH_REVALIDATION_ERROR', 'Admin session could not be revalidated', [
             'admin_id' => $adminId,
-            'class' => get_class($e),
+            'class' => $e::class,
         ]);
         return false;
     }

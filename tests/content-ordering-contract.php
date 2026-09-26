@@ -152,7 +152,8 @@ CREATE TABLE admins (
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin',
-  is_active TINYINT(1) NOT NULL DEFAULT 1
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  credential_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE sets_media (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -223,6 +224,7 @@ $router = "<?php\n"
     . "    \$_SESSION['admin_id'] = {$adminId};\n"
     . "    \$_SESSION['issued_at'] = time();\n"
     . "    \$_SESSION['last_activity'] = time();\n"
+    . "    \$_SESSION['credential_epoch'] = 1;\n"
     . "    header('Content-Type: application/json; charset=utf-8');\n"
     . "    echo json_encode(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);\n"
     . "    return true;\n"

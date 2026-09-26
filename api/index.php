@@ -127,14 +127,14 @@ function brvtalReleaseThemeReferenceMutex(PDO $pdo): void
         $st->fetchColumn();
     } catch (Throwable $e) {
         brvtal_log('THEME_SETTINGS_LOCK_RELEASE_FAILED', 'Could not release Theme settings mutex', [
-            'class' => get_class($e),
+            'class' => $e::class,
         ]);
     }
 }
 
 function handle_exception(Throwable $e): never {
     if($e instanceof RuntimeException && $e->getMessage()==='ACTIVITY_SCHEMA_MISSING') json_response(['ok'=>false,'error'=>'ACTIVITY_SCHEMA_MISSING'],503);
-    brvtal_log('API_ERROR','Unhandled API exception',['class'=>get_class($e),'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
+    brvtal_log('API_ERROR','Unhandled API exception',['class'=>$e::class,'message'=>$e->getMessage(),'line'=>$e->getLine()]); json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'],500);
 }
 
 try {
