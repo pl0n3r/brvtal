@@ -37,6 +37,25 @@ git worktree add --detach "$base_tree" "$base_sha" >/dev/null
 git worktree add --detach "$head_tree" "$head_sha" >/dev/null
 cp "$head_tree/phpstan.neon" "$base_tree/phpstan.neon"
 
+install_composer_dependencies() {
+  local tree="$1"
+  [[ -f "$tree/composer.json" ]] || return 0
+  command -v composer >/dev/null 2>&1 || {
+    echo "Composer is required when the analyzed tree declares composer.json." >&2
+    exit 2
+  }
+  (
+    cd "$tree"
+    COMPOSER_ALLOW_SUPERUSER=1 composer install       --no-dev --prefer-dist --no-interaction --no-progress       --no-scripts --no-plugins
+  )
+}
+
+# Worktrees are detached snapshots and do not inherit vendor/. Materialize the
+# declared runtime dependencies before PHPStan so class resolution matches the
+# candidate being analyzed instead of reporting dependency classes as unknown.
+install_composer_dependencies "$base_tree"
+install_composer_dependencies "$head_tree"
+
 run_phpstan_json() {
   local tree="$1"
   local output="$2"

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 const baseUrl=process.env.BRVTAL_REAL_STACK_URL||'http://127.0.0.1:4174';
-const adminEmail=process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL||'ci-admin@brvtal.test';
+const adminEmail=process.env.BRVTAL_REAL_STACK_RECOVERY_ADMIN_EMAIL||'ci-recovery@brvtal.test';
 const capture=process.env.BRVTAL_MAIL_CAPTURE_FILE||'';
 const recoveredPassword='BRVTAL-CI-Recovered-2026!', changedPassword='BRVTAL-CI-Changed-2026!';
 function messages(){if(!capture||!existsSync(capture))return[];return readFileSync(capture,'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}

@@ -72,7 +72,8 @@ class AdminPasswordSecurityTests(unittest.TestCase):
         self.assertNotRegex(migration.upper(), r"\b(DROP|TRUNCATE|DELETE)\b")
         build=self.read("ops/factory/build")
         composer=self.read("composer.json")
-        self.assertIn('"phpmailer/phpmailer": "7.1.1"', composer)
+        self.assertIn('"phpmailer/phpmailer": "^7.1"', composer)
+        self.assertIn('"license": "proprietary"', composer)
         self.assertLess(build.index('composer --working-dir="$stage_root" install'), build.index("factory_transport stage --archive"))
 
 if __name__ == "__main__":

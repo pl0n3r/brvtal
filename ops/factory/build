@@ -33,7 +33,7 @@ case "$(factory_mode)" in
     git archive --format=tar "$sha" | tar -xf - -C "$stage_root"
     command -v composer >/dev/null 2>&1 || factory_die "composer is required to build the production release"
     COMPOSER_ALLOW_SUPERUSER=1 composer --working-dir="$stage_root" install \
-      --no-dev --prefer-dist --no-interaction --no-progress --no-audit \
+      --no-dev --prefer-dist --no-interaction --no-progress \
       --optimize-autoloader --no-scripts --no-plugins
     [[ -f "$stage_root/vendor/autoload.php" ]] || factory_die "composer vendor autoload missing from candidate release"
     tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \

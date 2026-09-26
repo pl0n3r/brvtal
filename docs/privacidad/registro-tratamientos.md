@@ -34,6 +34,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## admin_password_reset
+
+- Categoría: `authentication`
+- Campos de software: `admin_id`, `token_hash`, `expires_at`, `consumed_at`, `revoked_at`, `created_at`
+- Finalidad: `admin_password_recovery`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
 ## admin_recovery_codes
 
 - Categoría: `authentication`
@@ -44,10 +54,20 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## admin_recovery_delivery
+
+- Categoría: `contact`
+- Campos de software: `email`, `recovery_link`, `security_notification`
+- Finalidad: `admin_account_recovery_delivery`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: `smtp_mail_provider`
+- Retención: `external_mailbox_review_required`
+
 ## admin_session
 
 - Categoría: `authentication`
-- Campos de software: `admin_id`, `authenticated_at`, `issued_at`, `last_activity`
+- Campos de software: `admin_id`, `authenticated_at`, `issued_at`, `last_activity`, `credential_epoch`
 - Finalidad: `admin_session`
 - Base documentada: `review_required` (revisión jurídica requerida)
 - Consentimiento: `review_required`

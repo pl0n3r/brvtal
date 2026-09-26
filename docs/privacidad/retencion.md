@@ -9,7 +9,9 @@ Producto: `pl0n3r/brvtal`
 | admin_activity | contact | review_required | review_required |
 | admin_identity | contact | review_required | review_required |
 | admin_password | authentication | review_required | review_required |
+| admin_password_reset | authentication | review_required | review_required |
 | admin_recovery_codes | authentication | review_required | review_required |
+| admin_recovery_delivery | contact | external_mailbox_review_required | review_required |
 | admin_session | authentication | session_30d | review_required |
 | admin_totp | authentication | review_required | review_required |
 | admin_totp_pending | authentication | session_30d | review_required |

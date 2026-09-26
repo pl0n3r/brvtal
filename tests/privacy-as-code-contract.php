@@ -166,7 +166,7 @@ $expectedDocs = [
     'retencion.md',
 ];
 $privacyDir = __DIR__ . '/../docs/privacidad';
-$actualDocs = array_map('basename', glob($privacyDir . '/*.md') ?: []);
+$actualDocs = array_map(basename(...), glob($privacyDir . '/*.md') ?: []);
 sort($actualDocs);
 $expectedNames = $expectedDocs;
 sort($expectedNames);

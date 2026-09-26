@@ -75,6 +75,21 @@ function brvtal_password_reset_token_hash(string $token): string
     return hash('sha256', $token);
 }
 
+function brvtal_password_transaction(PDO $pdo, callable $operation): mixed
+{
+    $pdo->beginTransaction();
+    try {
+        $result = $operation($pdo);
+        $pdo->commit();
+        return $result;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
 /** @return array{token:string,expires_at:string} */
 function brvtal_password_reset_issue(PDO $pdo, int $adminId, ?int $now = null): array
 {
@@ -87,8 +102,7 @@ function brvtal_password_reset_issue(PDO $pdo, int $adminId, ?int $now = null): 
     $hash = brvtal_password_reset_token_hash($token);
     $expiresAt = date('Y-m-d H:i:s', $now + BRVTAL_PASSWORD_RESET_TTL_SECONDS);
 
-    $pdo->beginTransaction();
-    try {
+    brvtal_password_transaction($pdo, static function (PDO $pdo) use ($adminId, $hash, $expiresAt): void {
         $admin = $pdo->prepare('SELECT id FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
         $admin->execute([$adminId]);
         if ($admin->fetchColumn() === false) {
@@ -105,13 +119,7 @@ function brvtal_password_reset_issue(PDO $pdo, int $adminId, ?int $now = null): 
             'INSERT INTO admin_password_reset_tokens (admin_id,token_hash,expires_at) VALUES (?,?,?)'
         );
         $insert->execute([$adminId, $hash, $expiresAt]);
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $e;
-    }
+    });
 
     return ['token' => $token, 'expires_at' => $expiresAt];
 }
@@ -138,8 +146,7 @@ function brvtal_admin_change_password(
     }
 
     brvtalAdminPasswordRateLimit('password_change', (string)$adminId);
-    $pdo->beginTransaction();
-    try {
+    return brvtal_password_transaction($pdo, static function (PDO $pdo) use ($adminId, $currentPassword, $newPassword) {
         $statement = $pdo->prepare(
             'SELECT email,password_hash,credential_epoch FROM admins WHERE id=? AND is_active=1 FOR UPDATE'
         );
@@ -186,14 +193,8 @@ function brvtal_admin_change_password(
                 'Admin security'
             );
         }
-        $pdo->commit();
         return ['admin_id' => $adminId, 'credential_epoch' => $epoch, 'email' => (string)$admin['email']];
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $e;
-    }
+    });
 }
 
 /** @return array{admin_id:int,credential_epoch:int,email:string} */
@@ -211,8 +212,7 @@ function brvtal_password_reset_consume(
     $now ??= time();
     $tokenHash = brvtal_password_reset_token_hash($token);
     brvtalAdminPasswordRateLimit('password_reset', $tokenHash);
-    $pdo->beginTransaction();
-    try {
+    return brvtal_password_transaction($pdo, static function (PDO $pdo) use ($tokenHash, $newPassword, $secondFactorCode, $now) {
         $statement = $pdo->prepare(
             'SELECT r.id,r.admin_id,r.expires_at,r.consumed_at,r.revoked_at,a.email,a.password_hash,a.credential_epoch,a.is_active,a.totp_enabled,a.totp_secret_enc ' .
             'FROM admin_password_reset_tokens r JOIN admins a ON a.id=r.admin_id ' .
@@ -285,16 +285,107 @@ function brvtal_password_reset_consume(
                 'Admin security'
             );
         }
-        $pdo->commit();
         return ['admin_id' => (int)$row['admin_id'], 'credential_epoch' => $epoch, 'email' => (string)$row['email']];
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $e;
-    }
+    });
 }
 
+
+function brvtal_password_recovery_enqueue(PDO $pdo, int $adminId): void
+{
+    if ($adminId < 1) {
+        throw new InvalidArgumentException('INVALID_ADMIN_ID');
+    }
+    $statement = $pdo->prepare(
+        "INSERT INTO admin_password_mail_outbox " .
+        "(admin_id,kind,available_at,claimed_at,delivered_at,attempts,last_error_code,created_at,updated_at) " .
+        "VALUES (?,'reset',NOW(),NULL,NULL,0,NULL,NOW(),NOW()) " .
+        "ON DUPLICATE KEY UPDATE available_at=VALUES(available_at),claimed_at=NULL," .
+        "delivered_at=NULL,attempts=0,last_error_code=NULL,updated_at=NOW()"
+    );
+    $statement->execute([$adminId]);
+}
+
+/** @return array{id:int,admin_id:int}|null */
+function brvtal_password_recovery_claim(PDO $pdo): ?array
+{
+    return brvtal_password_transaction($pdo, static function (PDO $pdo) {
+        $statement = $pdo->query(
+            "SELECT id,admin_id FROM admin_password_mail_outbox " .
+            "WHERE kind='reset' AND delivered_at IS NULL AND available_at<=NOW() " .
+            "AND (claimed_at IS NULL OR claimed_at<DATE_SUB(NOW(), INTERVAL 5 MINUTE)) " .
+            "ORDER BY id LIMIT 1 FOR UPDATE"
+        );
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+                return null;
+        }
+        $claim = $pdo->prepare(
+            "UPDATE admin_password_mail_outbox SET claimed_at=NOW(),attempts=attempts+1,updated_at=NOW() WHERE id=?"
+        );
+        $claim->execute([(int)$row['id']]);
+        return ['id' => (int)$row['id'], 'admin_id' => (int)$row['admin_id']];
+    });
+}
+
+/** @return 'idle'|'delivered'|'retry'|'skipped' */
+function brvtal_password_recovery_deliver_one(PDO $pdo, string $baseUrl): string
+{
+    $job = brvtal_password_recovery_claim($pdo);
+    if ($job === null) {
+        return 'idle';
+    }
+
+    $admin = $pdo->prepare('SELECT email FROM admins WHERE id=? AND is_active=1 LIMIT 1');
+    $admin->execute([$job['admin_id']]);
+    $email = $admin->fetchColumn();
+    if (!is_string($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $done = $pdo->prepare(
+            "UPDATE admin_password_mail_outbox SET delivered_at=NOW(),claimed_at=NULL,last_error_code='admin_unavailable',updated_at=NOW() WHERE id=?"
+        );
+        $done->execute([$job['id']]);
+        return 'skipped';
+    }
+
+    $issued = null;
+    try {
+        $issued = brvtal_password_reset_issue($pdo, $job['admin_id']);
+        $link = rtrim($baseUrl, '/') . '/discadmin/reset-password.php#token='
+            . rawurlencode($issued['token']);
+        $delivered = brvtalAdminMailSend(
+            $email,
+            'Recupera tu acceso a BRVTAL',
+            "Solicitaste recuperar tu acceso a BRVTAL.\n\n"
+                . $link
+                . "\n\nEste enlace vence en 60 minutos y solo puede usarse una vez.",
+            'password_recovery'
+        );
+    } catch (Throwable $e) {
+        $delivered = false;
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PASSWORD_RECOVERY_WORKER_FAILED', 'Password recovery delivery failed', [
+                'class' => $e::class,
+            ]);
+        }
+    }
+
+    if ($delivered) {
+        $done = $pdo->prepare(
+            'UPDATE admin_password_mail_outbox SET delivered_at=NOW(),claimed_at=NULL,last_error_code=NULL,updated_at=NOW() WHERE id=?'
+        );
+        $done->execute([$job['id']]);
+        return 'delivered';
+    }
+
+    if (is_array($issued) && isset($issued['token'])) {
+        brvtal_password_reset_revoke_token($pdo, (string)$issued['token']);
+    }
+    $retry = $pdo->prepare(
+        "UPDATE admin_password_mail_outbox SET claimed_at=NULL,available_at=DATE_ADD(NOW(), INTERVAL 60 SECOND)," .
+        "last_error_code='delivery_failed',updated_at=NOW() WHERE id=?"
+    );
+    $retry->execute([$job['id']]);
+    return 'retry';
+}
 
 function brvtal_admin_password_forgot(PDO $pdo, string $email, string $baseUrl): void
 {
@@ -302,40 +393,30 @@ function brvtal_admin_password_forgot(PDO $pdo, string $email, string $baseUrl):
     $normalized = strtolower(trim($email));
     brvtalAdminPasswordRateLimit('password_forgot', $normalized);
 
-    $admin = null;
-    if (filter_var($normalized, FILTER_VALIDATE_EMAIL) && strlen($normalized) <= 190) {
-        $st = $pdo->prepare('SELECT id,email FROM admins WHERE email=? AND is_active=1 LIMIT 1');
-        $st->execute([$normalized]);
-        $row = $st->fetch(PDO::FETCH_ASSOC);
-        $admin = is_array($row) ? $row : null;
-    }
-
-    if ($admin !== null) {
-        $issued = brvtal_password_reset_issue($pdo, (int)$admin['id']);
-        $link = rtrim($baseUrl, '/') . '/discadmin/reset-password.php#token='
-            . rawurlencode($issued['token']);
-        if (!brvtalAdminMailSend(
-            (string)$admin['email'],
-            'Recupera tu acceso a BRVTAL',
-            "Solicitaste recuperar tu acceso a BRVTAL.\n\n"
-                . $link
-                . "\n\nEste enlace vence en 60 minutos y solo puede usarse una vez.",
-            'password_recovery'
-        )) {
-            brvtal_password_reset_revoke_token($pdo, $issued['token']);
-            brvtal_log(
-                'PASSWORD_RECOVERY_DELIVERY_FAILED',
-                'Password recovery mail was not delivered',
-                ['admin_id' => (int)$admin['id']]
-            );
+    try {
+        $admin = null;
+        if (filter_var($normalized, FILTER_VALIDATE_EMAIL) && strlen($normalized) <= 190) {
+            $st = $pdo->prepare('SELECT id FROM admins WHERE email=? AND is_active=1 LIMIT 1');
+            $st->execute([$normalized]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            $admin = is_array($row) ? $row : null;
         }
-    } else {
-        hash('sha256', random_bytes(32));
-    }
 
-    $elapsedNs = hrtime(true) - $started;
-    $floorNs = BRVTAL_PASSWORD_RESPONSE_FLOOR_NS;
-    if ($elapsedNs < $floorNs) {
-        usleep((int)(($floorNs - $elapsedNs) / 1000));
+        if ($admin !== null) {
+            brvtal_password_recovery_enqueue($pdo, (int)$admin['id']);
+        } else {
+            hash('sha256', random_bytes(32));
+        }
+    } catch (Throwable $e) {
+        if (function_exists('brvtal_log')) {
+            brvtal_log('PASSWORD_RECOVERY_FAILED', 'Password recovery could not be processed', [
+                'class' => $e::class,
+            ]);
+        }
+    } finally {
+        $elapsedNs = hrtime(true) - $started;
+        if ($elapsedNs < BRVTAL_PASSWORD_RESPONSE_FLOOR_NS) {
+            usleep((int)((BRVTAL_PASSWORD_RESPONSE_FLOOR_NS - $elapsedNs) / 1000));
+        }
     }
 }

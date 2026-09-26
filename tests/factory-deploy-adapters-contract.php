@@ -56,6 +56,7 @@ foreach (['build', 'backup', 'migrate', 'deploy', 'rollback'] as $adapter) {
 }
 factory_adapter_expect(is_file($adapterDir . '/common.sh'), 'common adapter library must exist');
 
+$buildSource = (string)file_get_contents($adapterDir . '/build');
 $backupSource = (string)file_get_contents($adapterDir . '/backup');
 $migrateSource = (string)file_get_contents($adapterDir . '/migrate');
 $deploySource = (string)file_get_contents($adapterDir . '/deploy');
@@ -217,7 +218,7 @@ try {
 }
 
 $composer = (string)file_get_contents($root . '/composer.json');
-factory_adapter_expect(str_contains($composer, '"phpmailer/phpmailer": "7.1.1"'), 'production mail dependency must pin PHPMailer exactly');
+factory_adapter_expect(str_contains($composer, '"phpmailer/phpmailer": "^7.1"'), 'production mail dependency must use the supported PHPMailer 7.1 semver line');
 $composerInstall = strpos($buildSource, 'composer --working-dir="$stage_root" install');
 $transportStage = strpos($buildSource, 'factory_transport stage --archive');
 factory_adapter_expect($composerInstall !== false && $transportStage !== false && $composerInstall < $transportStage, 'Composer dependencies must be installed in the candidate before transport staging');

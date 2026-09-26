@@ -38,14 +38,15 @@
     }
     document.getElementById('reset-form')?.addEventListener('submit', async event => {
       event.preventDefault();
+      const form = event.currentTarget;
       const password = document.getElementById('new-password').value;
       if (password !== document.getElementById('confirm-password').value) {
         show('Las contraseñas no coinciden.', 'error'); return;
       }
-      const button = event.currentTarget.querySelector('button'); button.disabled = true;
+      const button = form.querySelector('button'); button.disabled = true;
       try {
         await post({action:'reset_password',token,new_password:password,totp_code:document.getElementById('second-factor').value});
-        event.currentTarget.reset(); show('Contraseña actualizada. Ya puedes iniciar sesión.');
+        form.reset(); show('Contraseña actualizada. Ya puedes iniciar sesión.');
         document.getElementById('back-login')?.removeAttribute('hidden');
       } catch (error) {
         const messages={SECOND_FACTOR_REQUIRED:'Ingresa tu código 2FA o un código de recuperación válido.',RESET_TOKEN_INVALID:'El enlace expiró, ya fue usado o fue revocado.',RATE_LIMITED:'Demasiados intentos. Inténtalo más tarde.',PASSWORD_TOO_SHORT:'La nueva contraseña debe tener al menos 12 caracteres.',PASSWORD_REUSED:'La nueva contraseña debe ser diferente a la anterior.',PASSWORD_COMMON:'Elige una contraseña menos común.'};

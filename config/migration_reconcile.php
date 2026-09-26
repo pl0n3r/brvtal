@@ -100,6 +100,12 @@ function brvtalMigrationProofSpecifications(): array
                 ['admin_id', 'token_hash', 'expires_at', 'consumed_at', 'revoked_at', 'created_at'],
                 ['uq_admin_password_reset_hash', 'idx_admin_password_reset_admin_active'],
                 true
+            ),
+            brvtalMigrationObjectRequirements(
+                'admin_password_mail_outbox',
+                ['admin_id', 'kind', 'available_at', 'claimed_at', 'delivered_at', 'attempts', 'last_error_code'],
+                ['uq_admin_password_mail_kind', 'idx_admin_password_mail_ready'],
+                true
             )
         ),
         'migration_artist_collective_membership_01.sql' => brvtalMigrationObjectRequirements(

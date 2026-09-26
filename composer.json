@@ -8,11 +8,12 @@
     "ext-filter": "*",
     "ext-hash": "*",
     "ext-openssl": "*",
-    "phpmailer/phpmailer": "7.1.1"
+    "phpmailer/phpmailer": "^7.1"
   },
   "config": {
     "allow-plugins": false,
     "preferred-install": "dist",
     "sort-packages": true
-  }
+  },
+  "license": "proprietary"
 }
