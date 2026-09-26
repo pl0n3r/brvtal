@@ -164,7 +164,18 @@ try {
             $authAction = (string)($d['action'] ?? '');
             if ($authAction === 'forgot_password') {
                 $baseUrl = (string)($config['app']['base_url'] ?? 'https://www.brvtal.com.co');
-                brvtal_admin_password_forgot(db(), (string)($d['email'] ?? ''), $baseUrl);
+                try {
+                    brvtal_admin_password_forgot(db(), (string)($d['email'] ?? ''), $baseUrl);
+                } catch (DomainException $e) {
+                    if ($e->getMessage() === 'RATE_LIMITED') {
+                        json_response([
+                            'ok' => false,
+                            'error' => 'RATE_LIMITED',
+                            'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
+                        ], 429);
+                    }
+                    throw $e;
+                }
                 json_response([
                     'ok' => true,
                     'message' => 'Si la cuenta existe, enviaremos instrucciones de recuperación.',
@@ -177,7 +188,7 @@ try {
                     json_response(['ok'=>false,'error'=>'RESET_INPUT_REQUIRED'],422);
                 }
                 try {
-                    brvtal_admin_password_reset_consume(
+                    brvtal_password_reset_consume(
                         db(),
                         $token,
                         $newPassword,
@@ -196,7 +207,7 @@ try {
                 brvtal_admin_require_csrf((string)($d['csrf'] ?? ''));
                 $adminId = (int)($_SESSION['admin_id'] ?? 0);
                 try {
-                    brvtal_admin_password_change_authenticated(
+                    brvtal_admin_change_password(
                         db(),
                         $adminId,
                         (string)($d['current_password'] ?? ''),
