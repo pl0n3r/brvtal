@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/admin_activity.php';
 require_once __DIR__ . '/../config/backups.php';
+require_once __DIR__ . '/../config/backup_automation.php';
 
 brvtal_admin_require();
 
@@ -33,6 +34,9 @@ function brvtal_backup_public_item(array $manifest): array
     return [
         'id' => (string)($manifest['id'] ?? ''),
         'status' => (string)($manifest['status'] ?? 'unknown'),
+        'scope' => (string)($manifest['scope'] ?? 'full'),
+        'trigger' => (string)($manifest['trigger'] ?? 'manual'),
+        'scheduled_for' => isset($manifest['scheduled_for']) ? (string)$manifest['scheduled_for'] : null,
         'created_at' => (string)($manifest['created_at'] ?? ''),
         'created_by' => [
             'id' => isset($manifest['created_by']['id']) ? (int)$manifest['created_by']['id'] : null,
@@ -51,7 +55,7 @@ function brvtal_backup_public_item(array $manifest): array
 }
 
 if ($method === 'GET' && $action === 'list') {
-    $items = array_map('brvtal_backup_public_item', brvtal_backup_list());
+    $items = array_map(brvtal_backup_public_item(...), brvtal_backup_list());
     json_response([
         'ok' => true,
         'data' => [
@@ -63,16 +67,91 @@ if ($method === 'GET' && $action === 'list') {
                 'download' => true,
                 'restore' => false,
                 'delete' => false,
+                'automation' => true,
+                'drive_oauth' => false,
             ],
+            'automation' => brvtal_backup_automation_public_state(brvtal_backup_automation_read()),
             'private_storage' => true,
         ],
     ], 200, ['Cache-Control'=>'no-store, no-cache, must-revalidate, max-age=0']);
+}
+
+if ($method === 'GET' && $action === 'automation') {
+    json_response([
+        'ok'=>true,
+        'data'=>brvtal_backup_automation_public_state(brvtal_backup_automation_read()),
+    ], 200, ['Cache-Control'=>'no-store, no-cache, must-revalidate, max-age=0']);
+}
+
+if ($method === 'POST' && $action === 'automation') {
+    brvtal_admin_require_csrf();
+    $input = input_json();
+    try {
+        $public = brvtal_backup_automation_with_lock(function () use ($input, $pdo): array {
+            $previous = brvtal_backup_automation_read();
+            $state = brvtal_backup_automation_save_config_locked(is_array($input) ? $input : []);
+            $public = brvtal_backup_automation_public_state($state);
+            try {
+                brvtal_activity_record(
+                    $pdo,
+                    'update',
+                    'backup_automation',
+                    null,
+                    is_array($previous['config'] ?? null) ? $previous['config'] : null,
+                    is_array($state['config'] ?? null) ? $state['config'] : null,
+                    [
+                        'enabled'=>$public['config']['enabled'],
+                        'cadence'=>$public['config']['cadence'],
+                        'scope'=>$public['config']['scope'],
+                        'retention_local'=>$public['config']['retention_local'],
+                        'drive_enabled'=>$public['config']['drive']['enabled'],
+                        'drive_folder_configured'=>$public['config']['drive']['folder'] !== null,
+                    ],
+                    'BACKUP AUTOMATION'
+                );
+            } catch (Throwable $auditError) {
+                try {
+                    brvtal_backup_automation_write($previous);
+                } catch (Throwable $rollbackError) {
+                    brvtal_log(
+                        'BACKUP_AUTOMATION_ROLLBACK_ERROR',
+                        'Backup automation rollback failed after audit error.',
+                        ['message'=>$rollbackError->getMessage()]
+                    );
+                }
+                throw $auditError;
+            }
+            return $public;
+        });
+        if (($public['status'] ?? null) === 'busy') {
+            throw new RuntimeException('BACKUP_SCHEDULER_BUSY');
+        }
+        json_response(['ok'=>true,'data'=>$public], 200, ['Cache-Control'=>'no-store']);
+    } catch (InvalidArgumentException $error) {
+        json_response(['ok'=>false,'error'=>$error->getMessage()], 422, ['Cache-Control'=>'no-store']);
+    } catch (RuntimeException $error) {
+        $busy = $error->getMessage() === 'BACKUP_SCHEDULER_BUSY';
+        brvtal_log('BACKUP_AUTOMATION_ERROR', 'Backup automation update failed.', ['message'=>$error->getMessage()]);
+        json_response(
+            ['ok'=>false,'error'=>$busy ? 'BACKUP_SCHEDULER_BUSY' : 'BACKUP_AUTOMATION_UPDATE_FAILED'],
+            $busy ? 409 : 500,
+            ['Cache-Control'=>'no-store']
+        );
+    } catch (Throwable $error) {
+        brvtal_log('BACKUP_AUTOMATION_ERROR', 'Backup automation update failed.', ['message'=>$error->getMessage()]);
+        json_response(['ok'=>false,'error'=>'BACKUP_AUTOMATION_UPDATE_FAILED'], 500, ['Cache-Control'=>'no-store']);
+    }
 }
 
 if ($method === 'POST' && $action === 'create') {
     brvtal_admin_require_csrf();
     $input = input_json();
     $includeMediaArchive = !empty($input['include_media_archive']);
+    try {
+        $scope = brvtal_backup_normalize_scope($input['scope'] ?? 'full');
+    } catch (InvalidArgumentException $error) {
+        json_response(['ok'=>false,'error'=>$error->getMessage()], 422, ['Cache-Control'=>'no-store']);
+    }
 
     @set_time_limit(180);
     @ignore_user_abort(true);
@@ -82,6 +161,8 @@ if ($method === 'POST' && $action === 'create') {
     try {
         $manifest = brvtal_backup_create($pdo, [
             'include_media_archive' => $includeMediaArchive,
+            'scope' => $scope,
+            'trigger' => 'manual',
             'created_by' => ['id'=>$actor['id'], 'name'=>$actor['name']],
         ]);
 
@@ -97,6 +178,8 @@ if ($method === 'POST' && $action === 'create') {
                 'status' => $manifest['status'] ?? null,
                 'artifacts_bytes' => $manifest['artifacts_bytes'] ?? null,
                 'include_media_archive' => $includeMediaArchive,
+                'scope' => $scope,
+                'trigger' => 'manual',
                 'deployment' => $manifest['deployment']['short_commit'] ?? null,
             ],
             'BACKUP ' . (string)($manifest['id'] ?? '')

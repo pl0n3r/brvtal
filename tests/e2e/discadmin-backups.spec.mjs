@@ -21,13 +21,18 @@ const item = (id, status='ready') => ({
   },
 });
 
-function listPayload(items) {
+function listPayload(items, automationState=null) {
   return {
     ok:true,
     data:{
       items,
       total:items.length,
-      capabilities:{manual_create:true,media_archive:false,download:true,restore:false,delete:false},
+      capabilities:{manual_create:true,media_archive:false,download:true,restore:false,delete:false,automation:true,drive_oauth:false},
+      automation:automationState || {
+        config:{enabled:false,timezone:'America/Bogota',cadence:{type:'daily',interval:1,time:'03:00'},scope:'full',include_media_archive:false,retention_local:7,drive:{enabled:false,folder:null}},
+        next_run_at:null,last_run_at:null,last_success_at:null,last_result:null,last_duration_ms:null,
+        drive:{connected:false,last_success_at:null,last_error:null},
+      },
       private_storage:true,
     },
   };
@@ -37,6 +42,8 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   let items = [item('brvtal-20260912T070000Z-abcdef12')];
   let postBody = null;
   let postCsrf = null;
+  let automationBody = null;
+  let automationState = listPayload(items).data.automation;
 
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
@@ -52,6 +59,20 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
 
   await page.route('**/discadmin/backups.php*', async route => {
     const request = route.request();
+    if (request.method() === 'POST' && request.url().includes('action=automation')) {
+      postCsrf = request.headers()['x-csrf-token'] || null;
+      automationBody = request.postDataJSON();
+      automationState = {
+        ...automationState,
+        config:{
+          ...automationState.config,
+          ...automationBody,
+          cadence:{...automationState.config.cadence,...automationBody.cadence},
+          drive:{...automationState.config.drive,...automationBody.drive},
+        },
+      };
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:automationState})});
+    }
     if (request.method() === 'POST') {
       postCsrf = request.headers()['x-csrf-token'] || null;
       postBody = request.postDataJSON();
@@ -59,7 +80,7 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
       items = [created, ...items];
       return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({ok:true,data:created})});
     }
-    return route.fulfill({contentType:'application/json',body:JSON.stringify(listPayload(items))});
+    return route.fulfill({contentType:'application/json',body:JSON.stringify(listPayload(items, automationState))});
   });
 
   await page.goto(harness);
@@ -67,12 +88,12 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   const backups = page.locator('#ssv2-backups');
   await expect(backups).toBeVisible();
   await expect(backups).toContainText('BACKUPS');
-  await expect(backups).toContainText('PRIVATE / MANUAL');
+  await expect(backups).toContainText('PRIVATE / AUTOMATED');
   await expect(backups).toContainText('1');
   await expect(backups).toContainText('READY');
   await expect(backups).toContainText('RESTORE');
   await expect(backups).toContainText('OFF');
-  await expect(backups).toContainText('NO DELETE / NO RESTORE IN V1');
+  await expect(backups).toContainText('NO AUTOMATIC RESTORE');
   await expect(backups).toContainText('PRIVATE STORAGE VERIFIED');
 
   const dbLink = backups.locator('a', {hasText:'DATABASE SQL'}).first();
@@ -85,7 +106,29 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   await backups.locator('button', {hasText:'CREATE BACKUP'}).click();
 
   await expect.poll(() => postCsrf).toBe('csrf-test-token');
-  expect(postBody).toEqual({include_media_archive:false});
+  expect(postBody).toEqual({include_media_archive:false,scope:'full'});
   await expect(backups).toContainText('2');
   await expect(backups).toContainText('brvtal-20260912T071500Z-fedcba98');
+  await expect(backups).toContainText('AUTOMATION');
+  await expect(backups).toContainText('America/Bogota');
+  await expect(backups).toContainText('OFF-SITE / GOOGLE DRIVE');
+  await expect(backups).toContainText('AUTH REQUIRED');
+
+  await backups.locator('[data-backup-enabled]').check();
+  await backups.locator('[data-backup-cadence]').selectOption('hours');
+  await backups.locator('[data-backup-interval]').fill('6');
+  await backups.locator('[data-backup-scope]').selectOption('database');
+  await backups.locator('[data-backup-retention]').fill('5');
+  await backups.locator('.backup-save').click();
+  await expect.poll(() => automationBody).not.toBeNull();
+  expect(automationBody.enabled).toBe(true);
+  expect(automationBody.cadence.type).toBe('hours');
+  expect(automationBody.cadence.interval).toBe(6);
+  expect(automationBody.scope).toBe('database');
+  expect(automationBody.retention_local).toBe(5);
+  await expect(backups.locator('[data-backup-enabled]')).toBeChecked();
+  await expect(backups.locator('[data-backup-cadence]')).toHaveValue('hours');
+  await expect(backups.locator('[data-backup-interval]')).toHaveValue('6');
+  await expect(backups.locator('[data-backup-scope]')).toHaveValue('database');
+  await expect(backups.locator('[data-backup-retention]')).toHaveValue('5');
 });

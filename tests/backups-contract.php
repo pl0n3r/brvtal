@@ -28,6 +28,12 @@ backups_expect(str_contains($endpoint, 'brvtal_activity_record('), 'backup creat
 backups_expect(str_contains($endpoint, "'X-Robots-Tag: noindex, nofollow'"), 'downloads must be noindex/nofollow');
 backups_expect(str_contains($endpoint, "'Cache-Control'=>'no-store"), 'backup JSON responses must be no-store');
 
+backups_expect(str_contains($endpoint, "\$action === 'automation'"), 'backup automation endpoint must exist');
+backups_expect(str_contains($endpoint, 'brvtal_backup_automation_save_config'), 'automation updates must use canonical scheduler config');
+backups_expect(str_contains($script, 'SAVE AUTOMATION'), 'automation UI must expose explicit save control');
+backups_expect(str_contains($script, 'America/Bogota'), 'automation UI must expose canonical timezone');
+backups_expect(str_contains($script, 'OFF-SITE / GOOGLE DRIVE'), 'off-site Drive boundary must be visible');
+
 backups_expect(str_contains($engine, "SHOW FULL TABLES"), 'database backup must enumerate schema');
 backups_expect(str_contains($engine, "SHOW CREATE TABLE"), 'database backup must preserve CREATE TABLE statements');
 backups_expect(str_contains($engine, 'REPEATABLE READ'), 'database backup must use a consistent transaction isolation level');
@@ -54,7 +60,7 @@ backups_expect(str_contains($script, "'/discadmin/backups.php'"), 'System Status
 backups_expect(str_contains($script, 'X-CSRF-Token'), 'browser backup creation must send CSRF');
 backups_expect(str_contains($script, 'CREATE BACKUP'), 'manual backup creation control must exist');
 backups_expect(str_contains($script, 'CREATE + MEDIA ZIP'), 'optional media ZIP control must exist');
-backups_expect(str_contains($script, 'NO DELETE / NO RESTORE IN V1'), 'v1 safety boundary must be visible');
+backups_expect(str_contains($script, 'NO AUTOMATIC RESTORE'), 'restore safety boundary must remain visible');
 backups_expect(str_contains($script, "document.getElementById('system-status-v2')"), 'backup UI must mount inside canonical System Status');
 backups_expect(str_contains($styles, '.backup-summary'), 'backup UI must include visual summary styles');
 backups_expect(str_contains($shell, 'backups.css'), 'canonical shell must load backup styles');

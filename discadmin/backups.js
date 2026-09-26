@@ -32,10 +32,12 @@
     return data;
   }
 
-  function dateLabel(value) {
+  function dateLabel(value, timeZone=null) {
     const date = new Date(value || '');
     if (!Number.isFinite(date.getTime())) return String(value || 'UNKNOWN');
-    return date.toLocaleString([], {year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const options = {year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'};
+    if (timeZone) options.timeZone = timeZone;
+    return date.toLocaleString([], options);
   }
 
   function downloadLink(item, component, label) {
@@ -54,7 +56,7 @@
       const status = String(item.status || 'unknown').toLowerCase();
       return `<div class="backup-row" data-status="${esc(status)}">
         <div class="backup-state"><i></i><div><strong>${esc(status.toUpperCase())}</strong><span>${esc(dateLabel(item.created_at))}</span></div></div>
-        <div class="backup-id"><strong>${esc(item.id)}</strong><span>DEPLOY ${esc(item.deployment?.short_commit || '—')} · ${esc(item.artifacts_size || '0 B')}</span></div>
+        <div class="backup-id"><strong>${esc(item.id)}</strong><span>${esc(String(item.trigger || 'manual').toUpperCase())} · ${esc(String(item.scope || 'full').toUpperCase())} · DEPLOY ${esc(item.deployment?.short_commit || '—')} · ${esc(item.artifacts_size || '0 B')}</span></div>
         <div class="backup-components">
           ${downloadLink(item,'database','DATABASE SQL')}
           ${downloadLink(item,'media_manifest','MEDIA MANIFEST')}
@@ -65,31 +67,84 @@
     }).join('');
   }
 
+  function automationMarkup(data, zipAvailable) {
+    const automation = data.automation || {};
+    const schedule = automation.config || {};
+    const cadence = schedule.cadence || {type:'daily',interval:1,time:'03:00'};
+    const drive = schedule.drive || {enabled:false,folder:null};
+    const nextRun = automation.next_run_at ? dateLabel(automation.next_run_at, 'America/Bogota') : 'PAUSED';
+    const lastRun = automation.last_run_at ? dateLabel(automation.last_run_at, 'America/Bogota') : 'NEVER';
+    const lastResult = automation.last_result?.status?.toUpperCase() || 'NONE';
+    const driveResult = automation.last_result?.drive?.toUpperCase() || 'NONE';
+    const driveError = automation.drive?.last_error ? ` · ${esc(automation.drive.last_error)}` : '';
+
+    return `
+      <section class="backup-automation" aria-label="Backup automation">
+        <div class="backup-section-head"><div><strong>AUTOMATION</strong><span>Server-side · America/Bogota · Hostinger Cron compatible</span></div><b>${schedule.enabled ? 'ENABLED' : 'PAUSED'}</b></div>
+        <div class="backup-grid">
+          <label><span>ENABLED</span><input type="checkbox" data-backup-enabled ${schedule.enabled ? 'checked' : ''}></label>
+          <label><span>CADENCE</span><select data-backup-cadence>
+            <option value="hours" ${cadence.type==='hours'?'selected':''}>EVERY N HOURS</option>
+            <option value="days" ${cadence.type==='days'?'selected':''}>EVERY N DAYS</option>
+            <option value="daily" ${cadence.type==='daily'?'selected':''}>DAILY</option>
+          </select></label>
+          <label><span>INTERVAL</span><input type="number" min="1" max="168" value="${esc(cadence.interval || 1)}" data-backup-interval></label>
+          <label><span>LOCAL TIME</span><input type="time" value="${esc(cadence.time || '03:00')}" data-backup-time></label>
+          <label><span>SCOPE</span><select data-backup-scope>
+            <option value="full" ${schedule.scope==='full'?'selected':''}>FULL</option>
+            <option value="database" ${schedule.scope==='database'?'selected':''}>DATABASE ONLY</option>
+            <option value="media" ${schedule.scope==='media'?'selected':''}>MEDIA ONLY</option>
+          </select></label>
+          <label><span>KEEP AUTO BACKUPS</span><input type="number" min="1" max="90" value="${esc(schedule.retention_local || 7)}" data-backup-retention></label>
+        </div>
+        <div class="backup-automation-actions">
+          <label class="backup-check"><input type="checkbox" data-backup-media-zip ${schedule.include_media_archive?'checked':''}> INCLUDE MEDIA ZIP</label>
+          <button type="button" class="backup-save">SAVE AUTOMATION</button>
+        </div>
+        <div class="backup-last">LOCAL RESULT · ${esc(lastResult)} · ${esc(lastRun)}</div>
+        <div class="backup-last">DRIVE RESULT · ${esc(driveResult)}${driveError}</div>
+      </section>
+      <section class="backup-offsite" aria-label="Google Drive off-site backup">
+        <div class="backup-section-head"><div><strong>OFF-SITE / GOOGLE DRIVE</strong><span>Local backup remains authoritative if Drive delivery fails.</span></div><b>${automation.drive?.connected ? 'CONNECTED' : 'AUTH REQUIRED'}</b></div>
+        <div class="backup-grid backup-grid-drive">
+          <label><span>UPLOAD ENABLED</span><input type="checkbox" data-drive-enabled ${drive.enabled?'checked':''}></label>
+          <label><span>TARGET FOLDER</span><input type="text" maxlength="160" value="${esc(drive.folder || '')}" placeholder="BRVTAL Backups" data-drive-folder></label>
+        </div>
+        <div class="backup-drive-note">OAuth tokens are not stored in this form or returned to the browser. Connection credentials require the protected server-side authorization flow before Drive delivery can succeed.</div>
+      </section>`;
+  }
+
   function render(panel, payload) {
     const data = payload?.data || {};
     const items = Array.isArray(data.items) ? data.items : [];
     const latest = items[0] || null;
     const zipAvailable = !!data.capabilities?.media_archive;
+    const scheduleEnabled = !!data.automation?.config?.enabled;
+    const nextRun = data.automation?.next_run_at ? dateLabel(data.automation.next_run_at, 'America/Bogota') : 'PAUSED';
 
     panel.innerHTML = `
-      <div class="ssv2-panel-head"><span>BACKUPS</span><b>PRIVATE / MANUAL</b></div>
+      <div class="ssv2-panel-head"><span>BACKUPS</span><b>PRIVATE / AUTOMATED</b></div>
       <div class="backup-summary">
         <div><strong>${items.length}</strong><span>BACKUPS</span></div>
         <div><strong>${esc(latest?.status?.toUpperCase() || 'NONE')}</strong><span>LATEST STATUS</span></div>
-        <div><strong>${esc(latest?.artifacts_size || '0 B')}</strong><span>LATEST SIZE</span></div>
-        <div><strong>OFF</strong><span>RESTORE</span></div>
+        <div><strong>${esc(scheduleEnabled ? 'ON' : 'OFF')}</strong><span>AUTOMATION</span></div>
+        <div><strong>${esc(nextRun)}</strong><span>NEXT RUN</span></div>
       </div>
       <div class="backup-actions">
         <div><button type="button" class="backup-create" data-media="0">CREATE BACKUP</button><span>Database SQL + media inventory manifest.</span></div>
         <div><button type="button" class="backup-create ghost" data-media="1" ${zipAvailable ? '' : 'disabled'}>CREATE + MEDIA ZIP</button><span>${zipAvailable ? 'Also archive current uploads. Can take longer.' : 'ZipArchive unavailable on this runtime.'}</span></div>
         <button type="button" class="backup-refresh">REFRESH</button>
       </div>
+      ${automationMarkup(data, zipAvailable)}
       <div class="backup-warning"><i></i><span>Backups contain sensitive database state. Files are stored in private server storage and downloads require an authenticated admin session. Store downloaded copies securely.</span></div>
       <div class="backup-list">${backupRows(items)}</div>
-      <div class="backup-foot"><span>NO DELETE / NO RESTORE IN V1</span><span>${data.private_storage ? 'PRIVATE STORAGE VERIFIED' : 'CHECK STORAGE PRIVACY'}</span></div>`;
+      <div class="backup-foot"><span>NO AUTOMATIC RESTORE</span><span>${data.private_storage ? 'PRIVATE STORAGE VERIFIED' : 'CHECK STORAGE PRIVACY'}</span></div>`;
 
     panel.querySelectorAll('.backup-create').forEach(button => button.addEventListener('click', () => createBackup(panel, button.dataset.media === '1')));
     panel.querySelector('.backup-refresh')?.addEventListener('click', () => load(panel));
+    panel.querySelector('.backup-save')?.addEventListener('click', () => {
+      saveAutomation(panel).catch(error => window.alert(`BACKUP AUTOMATION ERROR · ${error.message}`));
+    });
   }
 
   async function load(panel) {
@@ -108,6 +163,31 @@
     }
   }
 
+  async function saveAutomation(panel) {
+    const token = await ensureCsrf();
+    const body = {
+      enabled: !!panel.querySelector('[data-backup-enabled]')?.checked,
+      cadence: {
+        type: panel.querySelector('[data-backup-cadence]')?.value || 'daily',
+        interval: Number(panel.querySelector('[data-backup-interval]')?.value || 1),
+        time: panel.querySelector('[data-backup-time]')?.value || '03:00',
+      },
+      scope: panel.querySelector('[data-backup-scope]')?.value || 'full',
+      include_media_archive: !!panel.querySelector('[data-backup-media-zip]')?.checked,
+      retention_local: Number(panel.querySelector('[data-backup-retention]')?.value || 7),
+      drive: {
+        enabled: !!panel.querySelector('[data-drive-enabled]')?.checked,
+        folder: panel.querySelector('[data-drive-folder]')?.value || null,
+      },
+    };
+    await fetchJson(`${ENDPOINT}?action=automation`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':token},
+      body:JSON.stringify(body),
+    });
+    await load(panel);
+  }
+
   async function createBackup(panel, includeMedia) {
     const message = includeMedia
       ? 'Create a private database backup, media inventory and media ZIP now? This may take longer and consume additional hosting storage.'
@@ -122,7 +202,7 @@
       await fetchJson(`${ENDPOINT}?action=create`, {
         method:'POST',
         headers:{'Content-Type':'application/json','X-CSRF-Token':token},
-        body:JSON.stringify({include_media_archive:includeMedia}),
+        body:JSON.stringify({include_media_archive:includeMedia,scope:'full'}),
       });
       await load(panel);
     } catch (error) {

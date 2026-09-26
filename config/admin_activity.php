@@ -72,6 +72,7 @@ function brvtal_activity_allowed_fields(string $resource): array
         'event_lineup' => ['event_id','lineup'],
         'media' => ['id','type','title','file_path','mime_type','file_size','alt_text','status'],
         'settings' => ['setting_key','is_json'],
+        'backup_automation' => ['enabled','timezone','cadence','scope','include_media_archive','retention_local','drive'],
     ][$resource] ?? [];
 }
 
