@@ -44,7 +44,7 @@ def global_findings(report: dict[str, Any]) -> Counter[Finding]:
     errors = report.get("errors", [])
     if not isinstance(errors, list):
         raise ValueError("PHPStan report errors must be a list")
-    return Counter({("<global>", "", str(item)): 1 for item in errors})
+    return Counter(("<global>", "", str(item)) for item in errors)
 
 
 def message_finding(relative: str, raw_path: str, message: Any) -> Finding:
