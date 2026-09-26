@@ -75,7 +75,7 @@ function brvtal_activity_allowed_fields(string $resource): array
     ][$resource] ?? [];
 }
 
-function brvtal_activity_setting_key_auditable(string $key): bool
+function brvtalActivitySettingKeyAuditable(string $key): bool
 {
     $normalized = strtolower(trim($key));
     if ($normalized === '' || brvtal_activity_is_sensitive_key($normalized)) {

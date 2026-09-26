@@ -16,9 +16,9 @@ class AdminActivityAuditCoverageTests(unittest.TestCase):
     def test_settings_audit_uses_explicit_safe_allowlist(self):
         activity = (ROOT / "config/admin_activity.php").read_text()
         api = (ROOT / "api/index.php").read_text()
-        self.assertIn("function brvtal_activity_setting_key_auditable", activity)
+        self.assertIn("function brvtalActivitySettingKeyAuditable", activity)
         self.assertIn("'settings' => ['setting_key','is_json']", activity)
-        self.assertIn("brvtal_activity_setting_key_auditable($key)", api)
+        self.assertIn("brvtalActivitySettingKeyAuditable($key)", api)
         self.assertNotIn("'settings' => ['setting_key','setting_value'", activity)
 
     def test_theme_settings_flow_is_audited(self):

@@ -577,7 +577,7 @@ try {
             }
             if ($settingChanged) {
                 brvtalIndexNowNotifySetting($pdo, $key);
-                if (brvtal_activity_setting_key_auditable($key)) {
+                if (brvtalActivitySettingKeyAuditable($key)) {
                     $beforeSettingAudit = is_array($previousSetting)
                         ? ['setting_key' => $key, 'is_json' => (int)($previousSetting['is_json'] ?? 0)]
                         : null;
@@ -853,7 +853,7 @@ try {
         }
         if ($deleted > 0) {
             brvtalIndexNowNotifySetting($pdo, $key);
-            if (brvtal_activity_setting_key_auditable($key)) {
+            if (brvtalActivitySettingKeyAuditable($key)) {
                 brvtal_activity_record(
                     $pdo,
                     'setting_delete',
