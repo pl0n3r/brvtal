@@ -50,7 +50,7 @@ async function mount(page, {
   await page.route('**/api/content-health.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:content})}));
   await page.route('**/api/index.php/health', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,database:'connected',php:'8.5',driver:'mysql'})}));
   await page.route('**/discadmin/storage-metrics.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{used:'1 MB',quota:'1 GB',used_percent:1,managed_files:2}})}));
-  await page.route('**/api/admin-activity.php?limit=4', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:activity})}));
+  await page.route('**/api/admin-activity.php?limit=5', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:activity})}));
   await page.route('**/api/admin-activity.php?limit=12', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:activity})}));
   await page.goto(harness);
   if (waitForRender) await expect(page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')).toBeVisible();

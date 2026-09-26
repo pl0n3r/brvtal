@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+628** | **−64** | **+564** |
+| **13** | **+630** | **−65** | **+565** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -78,6 +78,7 @@ flowchart LR
 - `tests/admin-dashboard-preferences-contract.php`
 - `tests/dashboard-v2-contract.php`
 - `tests/e2e/discadmin-dashboard-config.spec.mjs`
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs`
 - `tests/integration/admin-dashboard-preferences.php`
 - `README.md`
 

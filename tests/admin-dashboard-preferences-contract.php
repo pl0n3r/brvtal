@@ -17,8 +17,9 @@ dashboard_pref_assert(
 );
 $defaults = brvtalAdminDashboardDefaultPreferences();
 dashboard_pref_assert(count($defaults['modules']) === 7, 'catalog must include six core modules plus Analytics');
+$lastDefault = $defaults['modules'][count($defaults['modules']) - 1];
 dashboard_pref_assert(
-    end($defaults['modules'])['id'] === 'analytics' && end($defaults['modules'])['visible'] === false,
+    $lastDefault['id'] === 'analytics' && $lastDefault['visible'] === false,
     'Analytics must be available but hidden by default until configured'
 );
 
