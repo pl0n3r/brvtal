@@ -4,6 +4,7 @@
   const DEBOUNCE_MS = 650;
   const configs = new Map([
     ['pages', {
+      label:'page',
       read() {
         const value = id => document.getElementById('f_' + id)?.value ?? '';
         return {
@@ -30,6 +31,43 @@
           const control = document.getElementById('f_' + name);
           if (control && next !== undefined && next !== null) control.value = String(next);
         });
+      }
+    }],
+    ['artists', {
+      label:'artist',
+      read() {
+        const value = id => document.getElementById('f_' + id)?.value ?? '';
+        return {
+          name:value('name'),
+          slug:value('slug'),
+          bio:value('bio'),
+          photo:value('photo'),
+          instagram_url:value('instagram_url'),
+          soundcloud_url:value('soundcloud_url'),
+          website_url:value('website_url'),
+          is_collective_member:Boolean(document.getElementById('f_is_collective_member')?.checked),
+          status:value('status') || 'draft'
+        };
+      },
+      apply(data) {
+        const values = {
+          name:data.name,
+          slug:data.slug,
+          bio:data.bio,
+          photo:data.photo,
+          instagram_url:data.instagram_url,
+          soundcloud_url:data.soundcloud_url,
+          website_url:data.website_url,
+          status:data.status
+        };
+        Object.entries(values).forEach(([name,next]) => {
+          const control = document.getElementById('f_' + name);
+          if (control && next !== undefined && next !== null) control.value = String(next);
+        });
+        const membership = document.getElementById('f_is_collective_member');
+        if (membership && data.is_collective_member !== undefined) {
+          membership.checked = Boolean(data.is_collective_member);
+        }
       }
     }]
   ]);
@@ -58,7 +96,16 @@
   }
 
   function sameData(left, right) {
-    return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+    if (!left || typeof left !== 'object' || Array.isArray(left)) {
+      return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+    }
+    return Object.entries(left).every(
+      ([key,value]) => JSON.stringify(value) === JSON.stringify(right?.[key])
+    );
+  }
+
+  function editorLabel(type) {
+    return String(configs.get(String(type || ''))?.label || 'item');
   }
 
   function stopTimer() {
@@ -193,7 +240,7 @@
     recovery.querySelector('[data-legacy-draft-discard]')?.addEventListener('click', async () => {
       if (!await removeDraft(active.type, active.identity)) return;
       recovery.hidden = true;
-      setState(active.id ? 'Saved to server' : 'Unsaved new page', active.id ? 'server' : 'unsaved');
+      setState(active.id ? 'Saved to server' : `Unsaved new ${editorLabel(active.type)}`, active.id ? 'server' : 'unsaved');
     }, {once:true});
   }
 
@@ -216,7 +263,7 @@
     const content = document.getElementById('mcontent');
     content?.addEventListener('input', schedule, {capture:true,signal:bindController.signal});
     content?.addEventListener('change', schedule, {capture:true,signal:bindController.signal});
-    setState(context.id ? 'Saved to server' : 'Unsaved new page', context.id ? 'server' : 'unsaved');
+    setState(context.id ? 'Saved to server' : `Unsaved new ${editorLabel(context.type)}`, context.id ? 'server' : 'unsaved');
     await showRecovery();
     return true;
   }
