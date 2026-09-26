@@ -360,7 +360,7 @@ try {
             $rows = $pdo->query(
                 "SELECT * FROM settings "
                 . "WHERE setting_key<>'security.totp_encryption_key' "
-                . "AND setting_key NOT LIKE 'admin.grid.%' "
+                . "AND setting_key NOT LIKE 'admin.grid.%' AND setting_key NOT LIKE 'admin.dashboard.%' "
                 . "ORDER BY setting_key"
             )->fetchAll();
         } elseif ($id !== null) {
@@ -432,7 +432,7 @@ try {
             if ($key === '' || strlen($key) > 120) {
                 json_response(['ok' => false, 'error' => 'KEY_REQUIRED'], 422);
             }
-            if ($key === 'security.totp_encryption_key' || str_starts_with($key, 'admin.grid.')) {
+            if ($key === 'security.totp_encryption_key' || (str_starts_with($key, 'admin.grid.') || str_starts_with($key, 'admin.dashboard.'))) {
                 json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
             }
 
@@ -792,7 +792,7 @@ try {
         if ($key === '') {
             json_response(['ok' => false, 'error' => 'KEY_REQUIRED'], 422);
         }
-        if ($key === 'security.totp_encryption_key' || str_starts_with($key, 'admin.grid.')) {
+        if ($key === 'security.totp_encryption_key' || (str_starts_with($key, 'admin.grid.') || str_starts_with($key, 'admin.dashboard.'))) {
             json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
         }
 

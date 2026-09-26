@@ -6,11 +6,14 @@
     content:'/api/content-health.php',
     health:'/api/index.php/health',
     storage:'/discadmin/storage-metrics.php',
-    activity:'/api/admin-activity.php?limit=4'
+    activity:'/api/admin-activity.php?limit=5',
+    preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
   let mounting = false;
   let mountSerial = 0;
+  let layoutSaveSerial = 0;
+  let layoutSaveChain = Promise.resolve();
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -75,8 +78,9 @@
     return root;
   }
 
-  function summaryCard(label, value) {
-    return `<div class="dashboard-v2-summary-card"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+  function summaryCard(label, value, destination = '') {
+    if (!destination) return `<div class="dashboard-v2-summary-card"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+    return `<button type="button" class="dashboard-v2-summary-card dashboard-v2-summary-action" data-dashboard-go="${esc(destination)}"><span>${esc(label)}</span><b>${esc(value)}</b><small>OPEN</small></button>`;
   }
 
   function sourceError(message) {
@@ -199,26 +203,259 @@
     if (!activity) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(activityError)}</section>`;
     const items = Array.isArray(activity.items) ? activity.items : [];
     const rows = items.length ? items.map(activityRow).join('') : '<div class="dashboard-v2-empty">No recorded activity yet.</div>';
-    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Latest entries from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list">${rows}</div></section>`;
+    const more = activity.has_more
+      ? `<button class="dashboard-v2-button dashboard-v2-more" type="button" data-dashboard-activity-more data-dashboard-cursor="${esc(activity.next_cursor || '')}">VIEW MORE</button>`
+      : '';
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Five records at a time from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list" data-dashboard-activity-list>${rows}</div>${more}</section>`;
+  }
+
+  function analyticsPanel() {
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>PERFORMANCE</h2><p>Admin-safe analytics source required before metrics or visualizations can be configured.</p></div><span class="dashboard-v2-state muted">NOT CONFIGURED</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · BRVTAL does not invent GA4 or client-side metrics.</div></section>`;
   }
 
   function actionsPanel() {
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">SECONDARY</div><h2>QUICK CREATE</h2><p>Shortcuts stay available without dominating the Dashboard.</p></div></div><div class="dashboard-v2-actions"><button class="dashboard-v2-button accent" type="button" data-dashboard-create="events">+ EVENT</button><button class="dashboard-v2-button" type="button" data-dashboard-create="artists">+ ARTIST</button><button class="dashboard-v2-button" type="button" data-dashboard-create="sets">+ SET</button><button class="dashboard-v2-button" type="button" data-dashboard-go="media">MEDIA LIBRARY</button></div></section>`;
   }
 
-  function bind(root) {
-    root.querySelectorAll('[data-dashboard-go]').forEach(button => button.addEventListener('click', () => {
+  function defaultLayout() {
+    return {
+      modules:[
+        {id:'next_event',width:2,height:1,visible:true},
+        {id:'attention',width:2,height:1,visible:true},
+        {id:'drafts',width:2,height:1,visible:true},
+        {id:'operations',width:2,height:1,visible:true},
+        {id:'activity',width:2,height:1,visible:true},
+        {id:'quick_create',width:2,height:1,visible:true},
+        {id:'analytics',width:2,height:1,visible:false}
+      ]
+    };
+  }
+
+  function normalizeLayout(value) {
+    const defaults = defaultLayout();
+    const source = Array.isArray(value?.modules) ? value.modules : defaults.modules;
+    const allowed = new Map(defaults.modules.map(item => [item.id,item]));
+    const seen = new Set();
+    const modules = [];
+    source.forEach(item => {
+      const id = String(item?.id || '');
+      if (!allowed.has(id) || seen.has(id)) return;
+      seen.add(id);
+      modules.push({
+        id,
+        width:Math.max(1,Math.min(4,Number(item.width || allowed.get(id).width))),
+        height:Math.max(1,Math.min(2,Number(item.height || allowed.get(id).height))),
+        visible:item.visible !== false
+      });
+    });
+    defaults.modules.forEach(item => { if (!seen.has(item.id)) modules.push({...item}); });
+    if (!modules.some(item => item.visible)) modules[0].visible = true;
+    return {modules};
+  }
+
+  async function dashboardCsrfToken() {
+    if (globalThis.BRVTALAdminAuthBoundary?.csrfToken) {
+      return globalThis.BRVTALAdminAuthBoundary.csrfToken();
+    }
+    try { if (globalThis.csrf) return globalThis.csrf; } catch (_) {}
+    throw new Error('AUTH_REQUIRED');
+  }
+
+  async function saveLayout(layout) {
+    const token = await dashboardCsrfToken();
+    const response = await fetch(ENDPOINTS.preferences,{
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':String(token)},
+      body:JSON.stringify(layout)
+    });
+    const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || 'DASHBOARD_PREFERENCES_SAVE_FAILED');
+    return normalizeLayout(payload.data);
+  }
+
+  function moduleControls(item) {
+    return `<div class="dashboard-v2-module-controls" aria-label="Dashboard module controls">
+      <button type="button" data-dashboard-move="up" aria-label="Move module earlier">↑</button>
+      <button type="button" data-dashboard-move="down" aria-label="Move module later">↓</button>
+      <button type="button" data-dashboard-resize="narrower" aria-label="Make module narrower">−W</button>
+      <button type="button" data-dashboard-resize="wider" aria-label="Make module wider">+W</button>
+      <button type="button" data-dashboard-resize="shorter" aria-label="Make module shorter">−H</button>
+      <button type="button" data-dashboard-resize="taller" aria-label="Make module taller">+H</button>
+      <button type="button" data-dashboard-hide aria-label="Hide module">HIDE</button>
+    </div>`;
+  }
+
+  function moduleShell(item, markup) {
+    return `<div class="dashboard-v2-module" draggable="true" data-dashboard-module="${esc(item.id)}" data-dashboard-width="${item.width}" data-dashboard-height="${item.height}" style="--dashboard-col-span:${item.width};--dashboard-row-span:${item.height}">${moduleControls(item)}${markup}</div>`;
+  }
+
+  function customizationPanel(layout) {
+    const hidden = layout.modules.filter(item => !item.visible);
+    return `<section class="dashboard-v2-customize" aria-label="Dashboard customization">
+      <div><strong>LAYOUT</strong><span>Drag modules or use keyboard/touch controls. Sizes snap to grid cells.</span></div>
+      <div class="dashboard-v2-customize-actions">
+        ${hidden.map(item => `<button type="button" class="dashboard-v2-button" data-dashboard-show="${esc(item.id)}">+ ${esc(item.id.replaceAll('_',' ').toUpperCase())}</button>`).join('')}
+        <button type="button" class="dashboard-v2-button" data-dashboard-reset>RESET TO DEFAULT</button>
+      </div>
+    </section>`;
+  }
+
+  function reorder(layout, id, delta) {
+    const index = layout.modules.findIndex(item => item.id === id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= layout.modules.length) return false;
+    const [item] = layout.modules.splice(index,1);
+    layout.modules.splice(target,0,item);
+    return true;
+  }
+
+  function bindNavigation(root) {
+    root.querySelectorAll('[data-dashboard-go]:not([data-dashboard-bound])').forEach(button => {
+      button.dataset.dashboardBound = '1';
+      button.addEventListener('click', () => {
       const id = Number(button.dataset.dashboardId ?? 0);
       const resource = button.dataset.dashboardResource ?? '';
       if (id > 0 && resource && typeof globalThis.BRVTALAdminRecordNavigation?.open === 'function') {
-        globalThis.BRVTALAdminRecordNavigation.open(resource, id, {section:button.dataset.dashboardGo})
+        globalThis.BRVTALAdminRecordNavigation.open(resource,id,{section:button.dataset.dashboardGo})
           .catch(error => globalThis.BRVTALFeedback?.error?.('Unable to open record: ' + (error?.message || error),'dashboard-record-navigation'));
         return;
       }
       globalThis.go?.(button.dataset.dashboardGo);
-    }));
+      });
+    });
     root.querySelectorAll('[data-dashboard-create]').forEach(button => button.addEventListener('click', () => window.openModal?.(button.dataset.dashboardCreate)));
     root.querySelector('[data-dashboard-system]')?.addEventListener('click', () => window.tech?.('system'));
+  }
+
+  function bindActivityMore(root) {
+    root.querySelector('[data-dashboard-activity-more]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const cursor = String(button.dataset.dashboardCursor || '');
+      if (!cursor) return;
+      button.disabled = true;
+      try {
+        const next = await fetchData(ENDPOINTS.activity + '&cursor=' + encodeURIComponent(cursor));
+        const list = root.querySelector('[data-dashboard-activity-list]');
+        (next.items || []).forEach(item => list?.insertAdjacentHTML('beforeend',activityRow(item)));
+        if (next.has_more && next.next_cursor) {
+          button.dataset.dashboardCursor = String(next.next_cursor);
+          button.disabled = false;
+        } else {
+          button.remove();
+        }
+        list?.querySelectorAll('[data-dashboard-go]:not([data-dashboard-bound])').forEach(button => {
+          button.dataset.dashboardBound = '1';
+          button.addEventListener('click', () => {
+            const id = Number(button.dataset.dashboardId ?? 0);
+            const resource = button.dataset.dashboardResource ?? '';
+            if (id > 0 && resource && typeof globalThis.BRVTALAdminRecordNavigation?.open === 'function') {
+              globalThis.BRVTALAdminRecordNavigation.open(resource,id,{section:button.dataset.dashboardGo});
+            } else globalThis.go?.(button.dataset.dashboardGo);
+          });
+        });
+      } catch (error) {
+        button.disabled = false;
+        globalThis.BRVTALFeedback?.error?.('Recent Changes could not load more records.','dashboard-activity');
+      }
+    });
+  }
+
+  function persistDashboardLayout(layout, results, serial) {
+    const snapshot = normalizeLayout({
+      modules:layout.modules.map(item => ({...item}))
+    });
+    const saveSerial = ++layoutSaveSerial;
+    layoutSaveChain = layoutSaveChain
+      .catch(() => undefined)
+      .then(() => saveLayout(snapshot))
+      .then(saved => {
+        if (saveSerial !== layoutSaveSerial) return saved;
+        results[5] = {status:'fulfilled',value:saved};
+        render(results,serial);
+        return saved;
+      })
+      .catch(() => {
+        if (saveSerial === layoutSaveSerial) {
+          globalThis.BRVTALFeedback?.error?.('Dashboard layout could not be saved.','dashboard-layout');
+        }
+        return null;
+      });
+    return layoutSaveChain;
+  }
+
+  function bindDashboardModule(module, layout, persist, dragState) {
+    module.addEventListener('dragstart',() => {
+      dragState.current = module.dataset.dashboardModule || '';
+    });
+    module.addEventListener('dragover',event => event.preventDefault());
+    module.addEventListener('drop',event => {
+      event.preventDefault();
+      const target = module.dataset.dashboardModule || '';
+      if (!dragState.current || dragState.current === target) return;
+      const from = layout.modules.findIndex(item => item.id === dragState.current);
+      const to = layout.modules.findIndex(item => item.id === target);
+      if (from < 0 || to < 0) return;
+      const [item] = layout.modules.splice(from,1);
+      layout.modules.splice(to,0,item);
+      persist();
+    });
+
+    module.querySelectorAll('[data-dashboard-move]').forEach(button => {
+      button.addEventListener('click',() => {
+        if (reorder(layout,module.dataset.dashboardModule,button.dataset.dashboardMove === 'up' ? -1 : 1)) persist();
+      });
+    });
+
+    module.querySelectorAll('[data-dashboard-resize]').forEach(button => {
+      button.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
+        if (!item) return;
+        const action = button.dataset.dashboardResize;
+        if (action === 'narrower') item.width = Math.max(1,item.width - 1);
+        if (action === 'wider') item.width = Math.min(4,item.width + 1);
+        if (action === 'shorter') item.height = Math.max(1,item.height - 1);
+        if (action === 'taller') item.height = Math.min(2,item.height + 1);
+        persist();
+      });
+    });
+
+    module.querySelector('[data-dashboard-hide]')?.addEventListener('click',() => {
+      const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
+      if (!item || layout.modules.filter(entry => entry.visible).length <= 1) return;
+      item.visible = false;
+      persist();
+    });
+  }
+
+  function bindCustomization(root, layout, results, serial) {
+    const dragState = {current:''};
+    const persist = () => persistDashboardLayout(layout,results,serial);
+
+    root.querySelectorAll('[data-dashboard-module]').forEach(module => {
+      bindDashboardModule(module,layout,persist,dragState);
+    });
+
+    root.querySelectorAll('[data-dashboard-show]').forEach(button => {
+      button.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === button.dataset.dashboardShow);
+        if (!item) return;
+        item.visible = true;
+        persist();
+      });
+    });
+
+    root.querySelector('[data-dashboard-reset]')?.addEventListener('click',() => {
+      layout.modules = defaultLayout().modules.map(item => ({...item}));
+      persist();
+    });
+  }
+
+  function bind(root, layout, results, serial) {
+    bindNavigation(root);
+    bindActivityMore(root);
+    bindCustomization(root,layout,results,serial);
   }
 
   function render(results, serial) {
@@ -230,13 +467,30 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
+    const preferenceResult = results[5];
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
+    const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
 
+    const modules = {
+      next_event:nextEventPanel(overview,resultError(overviewResult)),
+      attention:attentionPanel(content,resultError(contentResult)),
+      drafts:draftsPanel(content,resultError(contentResult)),
+      operations:systemPanel(resultValue(results[2]),resultError(results[2]),storage,resultError(storageResult)),
+      activity:activityPanel(activity,resultError(activityResult)),
+      quick_create:actionsPanel(),
+      analytics:analyticsPanel()
+    };
+    const visibleModules = layout.modules
+      .filter(item => item.visible && modules[item.id])
+      .map(item => moduleShell(item,modules[item.id]))
+      .join('');
+
     root.innerHTML = `
-      <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—')}</div></section>
-      <div class="dashboard-v2-grid"><div class="dashboard-v2-stack">${nextEventPanel(overview,resultError(overviewResult))}${attentionPanel(content,resultError(contentResult))}${draftsPanel(content,resultError(contentResult))}</div><div class="dashboard-v2-stack">${systemPanel(health,resultError(healthResult),storage,resultError(storageResult))}${activityPanel(activity,resultError(activityResult))}${actionsPanel()}</div></div>`;
-    bind(root);
+      <section class="dashboard-v2-hero"><div><div class="dashboard-v2-kicker">BRVTAL / COMMAND OVERVIEW</div><h2 class="dashboard-v2-title">WHAT NEEDS<br>ATTENTION NOW</h2><div class="dashboard-v2-sub">Operational and editorial signals first. Counts are derived from active data sources; unavailable sources stay explicit instead of becoming misleading zeroes.</div></div><div class="dashboard-v2-summary">${summaryCard('Public records', overview ? Number(summary.public_records || 0) : '—')}${summaryCard('Draft backlog', overview ? Number(summary.draft_records || 0) : '—')}${summaryCard('Active events', overview ? Number(summary.active_events || 0) : '—','events')}${summaryCard('Media assets', overview ? Number(summary.media_assets || 0) : '—','media')}</div></section>
+      ${customizationPanel(layout)}
+      <div class="dashboard-v2-grid dashboard-v2-grid-configurable" data-dashboard-grid>${visibleModules}</div>`;
+    bind(root,layout,results,serial);
 
     if (!overview || !health || health.database !== 'connected') setShellStatus(!health ? 'offline' : 'degraded', !health ? 'OFFLINE / CHECK' : 'DEGRADED');
     else setShellStatus('ok','ONLINE');
@@ -260,7 +514,8 @@
         fetchData(ENDPOINTS.content),
         fetchData(ENDPOINTS.health),
         fetchData(ENDPOINTS.storage),
-        fetchData(ENDPOINTS.activity)
+        fetchData(ENDPOINTS.activity),
+        fetchData(ENDPOINTS.preferences)
       ]);
       rendered = render(results,serial);
     } finally {
