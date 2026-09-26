@@ -586,20 +586,49 @@ window.BRVTALBlog = (() => {
     await showBlogDraftRecovery(record);
   }
 
-  async function markBlogDraftServerSaved(id, record) {
-    const oldIdentity = draftContext?.identity || blogDraftIdentity(id);
-    const cleared = await clearBlogDraft(oldIdentity);
+  function sameBlogDraftData(left, right) {
+    return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+  }
+
+  async function markBlogDraftServerSaved(id, record, submittedData) {
+    const previousContext = draftContext;
+    const oldIdentity = previousContext?.identity || blogDraftIdentity(id);
+    const currentData = blogDraftData(previousContext);
+    const hasNewerEdits = Boolean(
+      currentData
+      && submittedData
+      && !sameBlogDraftData(currentData, submittedData)
+    );
+
     draftContext = {
       id: id ? Number(id) : null,
       identity: blogDraftIdentity(id),
       baseRevision: blogDraftRevision(record),
       record
     };
+
+    if (hasNewerEdits) {
+      if (oldIdentity !== draftContext.identity) {
+        await clearBlogDraft(oldIdentity);
+      }
+      const retained = await persistBlogDraft({announce:false});
+      window.BRVTALUnsavedChanges?.touch?.(document.getElementById('modal'));
+      setBlogDraftState(
+        retained
+          ? 'Draft saved locally · newer edits remain unsaved'
+          : 'Save succeeded · newer edits are not stored locally; keep this editor open',
+        retained ? 'saved' : 'error'
+      );
+      return false;
+    }
+
+    const cleared = await clearBlogDraft(oldIdentity);
     setBlogDraftState(
       cleared ? 'Saved to server' : 'Saved to server · local draft cleanup failed',
       cleared ? 'server' : 'error'
     );
     window.BRVTALUnsavedChanges?.markClean?.(document.getElementById('modal'));
+    return true;
   }
 
   function blogPostEditorMarkup(record){
@@ -763,7 +792,12 @@ window.BRVTALBlog = (() => {
       const data=blogSavePayload(id,record);
       const result=await blogSaveRequest(id,data);
       const savedId = Number(result?.data?.id || id || 0) || null;
-      await markBlogDraftServerSaved(savedId, result?.data || record);
+      rebindCreatedBlogWarningSave(button,id,record,result);
+      const editorClean = await markBlogDraftServerSaved(
+        savedId,
+        result?.data || record,
+        data
+      );
       const warnings=Array.isArray(result?.warnings)
         ? result.warnings.filter(Boolean)
         : [];
@@ -780,13 +814,24 @@ window.BRVTALBlog = (() => {
         return;
       }
 
+      if (!editorClean) {
+        await refresh();
+        setStatus('Post saved; newer edits remain in the editor.','ok');
+        return;
+      }
+
       if(typeof closeModal==='function')closeModal(true);
       await refresh();
       setStatus('Post saved.','ok');
     }catch(error){
-      await persistBlogDraft({announce:false});
+      const draftRetained = await persistBlogDraft({announce:false});
       reportBlogSaveError(error);
-      setBlogDraftState('Save failed · local draft kept', 'error');
+      setBlogDraftState(
+        draftRetained
+          ? 'Save failed · local draft kept'
+          : 'Save failed · latest changes not stored locally; keep this editor open',
+        'error'
+      );
     }finally{
       setBlogSaveButtonBusy(button,false);
     }

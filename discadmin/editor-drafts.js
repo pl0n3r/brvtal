@@ -9,6 +9,28 @@
     return encodeURIComponent(String(value ?? '').trim().toLowerCase());
   }
 
+  function draftKeys() {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const current = localStorage.key(index);
+      if (current?.startsWith(`${PREFIX}:`)) keys.push(current);
+    }
+    return keys;
+  }
+
+  function clearOtherSessions(session) {
+    const currentPrefix = `${PREFIX}:${session}:`;
+    draftKeys()
+      .filter(current => !current.startsWith(currentPrefix))
+      .forEach(current => localStorage.removeItem(current));
+  }
+
+  function clearAll() {
+    draftKeys().forEach(current => localStorage.removeItem(current));
+    namespaceToken = '';
+    namespacePromise = null;
+  }
+
   async function sessionNamespace() {
     const token = String(window.csrf || '');
     if (!token) throw new Error('DRAFT_SESSION_REQUIRED');
@@ -21,7 +43,11 @@
     ).then(buffer => [...new Uint8Array(buffer)]
       .map(value => value.toString(16).padStart(2,'0'))
       .join('')
-      .slice(0,32));
+      .slice(0,32))
+      .then(session => {
+        clearOtherSessions(session);
+        return session;
+      });
     return namespacePromise;
   }
 
@@ -79,5 +105,13 @@
     return String(draft?.base_revision ?? '') === String(revision ?? '');
   }
 
-  window.BRVTALDrafts = {key, load, save, remove, sameRevision};
+  window.addEventListener('brvtal:auth-required', () => {
+    try {
+      clearAll();
+    } catch (_) {
+      document.documentElement.dataset.brvtalDraftStorage = 'unavailable';
+    }
+  });
+
+  window.BRVTALDrafts = {key, load, save, remove, sameRevision, clearAll};
 })();
