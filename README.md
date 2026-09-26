@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+441** | **−62** | **+379** |
+| **8** | **+555** | **−62** | **+493** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -64,8 +64,8 @@ flowchart LR
 - Estados accesibles: Unsaved, Saving, Draft saved, Save failed y Saved to server.
 - Reopen ofrece Restore/Discard y muestra conflicto si cambió `updated_at`.
 - Restore repone formulario/SEO/body/relaciones; el body vuelve a pasar por sanitización cliente.
-- Save manual exitoso limpia el draft; fallo HTTP conserva recovery.
-- Fallo de storage queda visible y no borra el input.
+- Save manual exitoso limpia el draft solo si no hubo ediciones nuevas en vuelo; fallo HTTP conserva recovery.
+- Fallo de storage queda visible y no borra el input; expiración de sesión purga drafts locales.
 - Version History sigue append-only/read-only.
 - #708 conserva Events, Artists, Releases, Sets, Pages y evaluación Hero/Theme.
 
@@ -87,7 +87,7 @@ flowchart LR
 - E2E: localStorage degradado conserva input.
 - No cambia `datos.yml`: no añade campo personal, proveedor ni transferencia a tercero.
 - Sin SQL, migración, Hostinger write ni cambios de readiness.
-- 🚧 Gates exact-head de #707 deben cerrar antes de merge.
+- 🚧 Gates exact-head del HEAD final de #707 deben cerrar antes de merge.
 
 ## Qué sigue
 | Lane | Trabajo |
