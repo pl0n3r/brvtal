@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+1051** | **−114** | **+937** |
+| **12** | **+1055** | **−115** | **+940** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -77,6 +77,7 @@ flowchart LR
 - `discadmin/legacy-editor-drafts.js`
 - `discadmin/releases.js`
 - `package.json`
+- `tests/e2e/discadmin-content-core-lineup-integrity.spec.mjs`
 - `tests/e2e/discadmin-event-drafts.spec.mjs`
 - `tests/e2e/discadmin-release-drafts.spec.mjs`
 - `tests/e2e/discadmin-set-drafts.spec.mjs`

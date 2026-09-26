@@ -23,7 +23,7 @@ const seedSet = {
 };
 
 function harness(record = seedSet) {
-  return `<!doctype html><html><body>
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body>
     <div class="modal open" id="modal">
       <div id="mcontent"><div class="form"><div class="section"><div class="grid2">
         <input id="f_title" value="${record.title}">

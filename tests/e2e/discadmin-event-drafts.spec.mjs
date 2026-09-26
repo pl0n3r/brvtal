@@ -26,7 +26,7 @@ const seedEvent = {
 };
 
 function harness(record = seedEvent) {
-  return `<!doctype html><html><body>
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body>
     <div class="modal open" id="eventModal">
       <form id="eventForm">
         <input id="e_title" value="${record.title}">

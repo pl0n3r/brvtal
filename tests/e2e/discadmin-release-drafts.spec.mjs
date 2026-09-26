@@ -29,7 +29,7 @@ const seedRelease = {
 };
 
 function harness(record = seedRelease) {
-  return `<!doctype html><html><body>
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body>
     <div class="modal open" id="modal"><div id="mcontent"><div class="form">
       <div id="releaseFields">
         <input id="release_title" value="${record.title}">
