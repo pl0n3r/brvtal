@@ -69,6 +69,185 @@
           membership.checked = Boolean(data.is_collective_member);
         }
       }
+    }],
+    ['sets', {
+      label:'set',
+      read() {
+        const value = id => document.getElementById('f_' + id)?.value ?? '';
+        return {
+          title:value('title'),
+          slug:value('slug'),
+          platform:value('platform') || 'soundcloud',
+          external_url:value('external_url'),
+          embed_url:value('embed_url'),
+          cover_image:value('cover_image'),
+          artist_id:value('artist_id') ? Number(value('artist_id')) : null,
+          event_id:value('event_id') ? Number(value('event_id')) : null,
+          status:value('status') || 'draft',
+          description:value('description')
+        };
+      },
+      apply(data) {
+        const values = {
+          title:data.title,
+          slug:data.slug,
+          platform:data.platform,
+          external_url:data.external_url,
+          embed_url:data.embed_url,
+          cover_image:data.cover_image,
+          artist_id:data.artist_id,
+          event_id:data.event_id,
+          status:data.status,
+          description:data.description
+        };
+        Object.entries(values).forEach(([name,next]) => {
+          const control = document.getElementById('f_' + name);
+          if (control && next !== undefined && next !== null) control.value = String(next);
+        });
+      }
+    }],
+    ['releases', {
+      label:'release',
+      read() {
+        const value = id => document.getElementById('release_' + id)?.value ?? '';
+        const artists = [...document.querySelectorAll('[data-release-artist]:checked')].map((checkbox,index) => {
+          const artistId = Number(checkbox.dataset.releaseArtist);
+          return {
+            artist_id:artistId,
+            role:document.querySelector('[data-release-role="' + artistId + '"]')?.value?.trim() || 'Primary',
+            sort_order:index
+          };
+        });
+        return {
+          title:value('title'),
+          slug:value('slug'),
+          release_type:value('type') || 'single',
+          catalog_number:value('catalog'),
+          release_date:value('date'),
+          description:value('description'),
+          artwork:typeof window.BRVTALReleases?.normalizeMediaPath === 'function'
+            ? window.BRVTALReleases.normalizeMediaPath(value('artwork'))
+            : value('artwork'),
+          spotify_url:value('spotify'),
+          soundcloud_url:value('soundcloud'),
+          bandcamp_url:value('bandcamp'),
+          youtube_url:value('youtube'),
+          beatport_url:value('beatport'),
+          status:value('status_field') || 'draft',
+          featured:document.getElementById('release_featured')?.checked ? 1 : 0,
+          artists
+        };
+      },
+      apply(data) {
+        const values = {
+          title:data.title,
+          slug:data.slug,
+          type:data.release_type,
+          catalog:data.catalog_number,
+          date:data.release_date,
+          description:data.description,
+          artwork:data.artwork,
+          spotify:data.spotify_url,
+          soundcloud:data.soundcloud_url,
+          bandcamp:data.bandcamp_url,
+          youtube:data.youtube_url,
+          beatport:data.beatport_url,
+          status_field:data.status
+        };
+        Object.entries(values).forEach(([name,next]) => {
+          const control=document.getElementById('release_' + name);
+          if (control && next !== undefined && next !== null) control.value=String(next);
+        });
+        const selected=new Map((Array.isArray(data.artists)?data.artists:[]).map(item => [Number(item.artist_id),item]));
+        document.querySelectorAll('[data-release-artist]').forEach(input => {
+          input.checked=selected.has(Number(input.dataset.releaseArtist));
+        });
+        document.querySelectorAll('[data-release-role]').forEach(input => {
+          const item=selected.get(Number(input.dataset.releaseRole));
+          if (item) input.value=String(item.role || 'Primary');
+        });
+        const featured=document.getElementById('release_featured');
+        if (featured && data.featured !== undefined) featured.checked=Boolean(data.featured);
+      }
+    }],
+    ['events', {
+      label:'event',
+      read() {
+        const value = id => document.getElementById('e_' + id)?.value ?? '';
+        const tickets = [...document.querySelectorAll('#tickets .ticket-row')].map((row,index) => {
+          const read = key => row.querySelector('[data-k="' + key + '"]')?.value ?? '';
+          const item = {
+            name:read('name'),
+            description:read('description'),
+            price:read('price'),
+            currency:read('currency'),
+            status:read('status'),
+            external_url:read('external_url'),
+            payment_instructions:read('payment_instructions'),
+            qr_image:read('qr_image'),
+            available_from:read('available_from'),
+            available_until:read('available_until'),
+            sort_order:index
+          };
+          const id = Number(row.dataset.id || 0);
+          if (id > 0) item.id = id;
+          return item;
+        });
+        const lineup = [...document.querySelectorAll('#eventArtists [data-artist]:checked')]
+          .map(input => ({artist_id:Number(input.dataset.artist || 0)}))
+          .filter(item => item.artist_id > 0);
+        return {
+          title:value('title'),
+          slug:value('slug'),
+          description:value('description'),
+          cover_image:value('cover_image'),
+          accent:value('accent'),
+          featured:Number(value('featured')) || 0,
+          event_date:value('event_date'),
+          city:value('city'),
+          venue:value('venue'),
+          archive_year:value('archive_year') ? Number(value('archive_year')) : null,
+          status:value('status') || 'draft',
+          ticket_instructions:value('ticket_instructions'),
+          ticket_qr:value('ticket_qr'),
+          ticket_url:value('ticket_url'),
+          tickets,
+          lineup
+        };
+      },
+      apply(data) {
+        const values = {
+          title:data.title,
+          slug:data.slug,
+          description:data.description,
+          cover_image:data.cover_image,
+          accent:data.accent,
+          featured:data.featured,
+          event_date:data.event_date,
+          city:data.city,
+          venue:data.venue,
+          archive_year:data.archive_year,
+          status:data.status,
+          ticket_instructions:data.ticket_instructions,
+          ticket_qr:data.ticket_qr,
+          ticket_url:data.ticket_url
+        };
+        Object.entries(values).forEach(([name,next]) => {
+          const control = document.getElementById('e_' + name);
+          if (control && next !== undefined && next !== null) control.value = String(next);
+        });
+        const ticketsHost = document.getElementById('tickets');
+        if (ticketsHost && window.BRVTALContentCore?.addTicket && Array.isArray(data.tickets)) {
+          ticketsHost.innerHTML = '';
+          data.tickets.forEach(ticket => window.BRVTALContentCore.addTicket(ticket));
+          ticketsHost.dataset.loadState = 'ready';
+        }
+        const selected = new Set((data.lineup || []).map(item => Number(item.artist_id)).filter(Boolean));
+        document.querySelectorAll('#eventArtists [data-artist]').forEach(input => {
+          input.checked = selected.has(Number(input.dataset.artist));
+        });
+        window.BRVTALAdminColorField?.sync?.(document.getElementById('e_accent'));
+      }
     }]
   ]);
 
@@ -114,12 +293,18 @@
     timer = 0;
   }
 
+  function editorRoot(type) {
+    return String(type || '') === 'events'
+      ? document.getElementById('eventModal')
+      : document.getElementById('modal');
+  }
+
   function stateNode() {
-    return document.querySelector('[data-legacy-draft-state]');
+    return context?.root?.querySelector('[data-legacy-draft-state]') || null;
   }
 
   function recoveryNode() {
-    return document.querySelector('[data-legacy-draft-recovery]');
+    return context?.root?.querySelector('[data-legacy-draft-recovery]') || null;
   }
 
   function setState(message, state = '') {
@@ -129,8 +314,9 @@
     node.dataset.state = state;
   }
 
-  function ensureUi() {
-    const form = document.querySelector('#mcontent .form');
+  function ensureUi(root) {
+    if (!root) return false;
+    const form = root.querySelector('#eventForm') || root.querySelector('#mcontent .form') || root.querySelector('.form');
     if (!form) return false;
     let strip = form.querySelector('.legacy-draft-strip');
     if (!strip) {
@@ -153,6 +339,20 @@
   function currentData() {
     if (!context) return null;
     return configs.get(context.type)?.read?.() || null;
+  }
+
+  function snapshot(type = '') {
+    if (!context) return null;
+    const expected = String(type || '');
+    if (expected && context.type !== expected) return null;
+    return currentData();
+  }
+
+  function resultRevision(result, fallback = '') {
+    const candidate = result?.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data
+      : result;
+    return String(candidate?.updated_at || result?.updated_at || fallback || '');
   }
 
   async function persist({announce = true} = {}) {
@@ -203,7 +403,7 @@
   function applyDraft(draft) {
     if (!context || !draft?.data) return false;
     configs.get(context.type)?.apply?.(draft.data);
-    window.BRVTALUnsavedChanges?.touch?.(document.getElementById('modal'));
+    window.BRVTALUnsavedChanges?.touch?.(context.root);
     setState('Unsaved · restored locally', 'unsaved');
     return true;
   }
@@ -250,19 +450,25 @@
     bindController?.abort();
     bindController = null;
     context = null;
-    if (!supported(type) || !ensureUi()) return false;
+    if (!supported(type)) return false;
 
-    bindController = new AbortController();
+    const root = editorRoot(type);
     context = {
       type:String(type),
       id:id !== null && id !== '' ? Number(id) : null,
       identity:identity(id),
-      baseRevision:revision(record)
+      baseRevision:revision(record),
+      root
     };
+    if (!ensureUi(root)) {
+      context = null;
+      return false;
+    }
 
-    const content = document.getElementById('mcontent');
-    content?.addEventListener('input', schedule, {capture:true,signal:bindController.signal});
-    content?.addEventListener('change', schedule, {capture:true,signal:bindController.signal});
+    bindController = new AbortController();
+    const content = root.querySelector('#mcontent') || root;
+    content.addEventListener('input', schedule, {capture:true,signal:bindController.signal});
+    content.addEventListener('change', schedule, {capture:true,signal:bindController.signal});
     setState(context.id ? 'Saved to server' : `Unsaved new ${editorLabel(context.type)}`, context.id ? 'server' : 'unsaved');
     await showRecovery();
     return true;
@@ -277,17 +483,18 @@
 
     stopTimer();
     const current = currentData();
-    const savedId = Number(result?.id || id || active.id || 0) || active.id || null;
+    const savedId = Number(result?.data?.id || result?.id || id || active.id || 0) || active.id || null;
     const oldIdentity = active.identity;
     const newerEdits = Boolean(current && payload && !sameData(current, payload));
 
     active.id = savedId;
     active.identity = identity(savedId);
+    active.baseRevision = resultRevision(result, active.baseRevision);
 
     if (newerEdits) {
       if (oldIdentity !== active.identity) await removeDraft(active.type, oldIdentity);
       const retained = await persist({announce:false});
-      window.BRVTALUnsavedChanges?.touch?.(document.getElementById('modal'));
+      window.BRVTALUnsavedChanges?.touch?.(active.root);
       setState(
         retained
           ? 'Draft saved locally · newer edits remain unsaved'
@@ -299,7 +506,7 @@
 
     const cleared = await removeDraft(active.type, oldIdentity);
     if (oldIdentity !== active.identity) await removeDraft(active.type, active.identity);
-    window.BRVTALUnsavedChanges?.markClean?.(document.getElementById('modal'));
+    window.BRVTALUnsavedChanges?.markClean?.(active.root);
     setState(
       cleared ? 'Saved to server' : 'Saved to server · local draft cleanup failed',
       cleared ? 'server' : 'error'
@@ -327,5 +534,5 @@
     context = null;
   });
 
-  window.BRVTALLegacyDrafts = {bind,serverSaved,saveFailed,supported};
+  window.BRVTALLegacyDrafts = {bind,serverSaved,saveFailed,supported,snapshot};
 })();

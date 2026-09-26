@@ -148,6 +148,62 @@
     return selected;
   }
 
+  function draftPayloadForEvent(eventData,tickets,lineup) {
+    return {
+      title:eventData.title,
+      slug:eventData.slug,
+      description:eventData.description,
+      cover_image:eventData.cover_image,
+      accent:eventData.accent,
+      featured:eventData.featured,
+      event_date:eventData.event_date,
+      city:eventData.city,
+      venue:eventData.venue,
+      archive_year:eventData.archive_year,
+      status:eventData.status,
+      ticket_instructions:eventData.ticket_instructions,
+      ticket_qr:eventData.ticket_qr,
+      ticket_url:eventData.ticket_url,
+      tickets,
+      lineup:lineup.map(item => ({artist_id:Number(item.artist_id)}))
+    };
+  }
+
+  async function submitEventWorkflow(eventData,tickets,lineup) {
+    const token = await csrfToken();
+    const response = await fetch('/api/event-workflow.php', {
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':token},
+      body:JSON.stringify({event:eventData, ticket_types:tickets, lineup})
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || ('HTTP_' + response.status));
+    }
+    const eventId = Number(result.data?.event?.id || 0);
+    if (!eventId) throw new Error('EVENT_ID_MISSING');
+    return {eventId,result};
+  }
+
+  function eventSaveFailureMessage(error) {
+    const code = error?.message || 'EVENT_WORKFLOW_FAILED';
+    const loadingMessages = {
+      TICKETS_NOT_READY:'Wait for ticket types to load before saving this Event.',
+      LINEUP_NOT_READY:'Wait for event participation to load before saving this Event.'
+    };
+    return loadingMessages[code] || errorMessage(code);
+  }
+
+  function restoreSaveButtons(buttons,labels) {
+    buttons.forEach((button,index) => {
+      if (!button.isConnected) return;
+      button.disabled = false;
+      button.textContent = labels[index] || 'SAVE';
+    });
+  }
+
   function install(root) {
     if (!root || core.saveEvent?.__brvtalAtomicWorkflow) return;
 
@@ -155,59 +211,70 @@
     const originalOpenEvent = core.openEvent;
     core.openEvent = function(id = null) {
       activeEventId = Number(id || 0) || null;
-      return originalOpenEvent.apply(this, arguments);
+      const result = originalOpenEvent.apply(this, arguments);
+      Promise.resolve(result).then(() => window.BRVTALLegacyDrafts?.bind?.(
+        'events',
+        activeEventId,
+        core.getCurrentEvent?.() || {id:activeEventId}
+      )).catch(() => {});
+      return result;
     };
+
+    function requireLoadedEventRelations() {
+      if (!activeEventId) return;
+      const ticketsState = root.querySelector('#tickets')?.dataset.loadState;
+      const lineupState = root.querySelector('#eventArtists')?.dataset.loadState;
+      if (ticketsState && ticketsState !== 'ready') throw new Error('TICKETS_NOT_READY');
+      if (lineupState && lineupState !== 'ready') throw new Error('LINEUP_NOT_READY');
+    }
+
+    async function finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,result) {
+      activeEventId = eventId;
+      const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
+        type:'events',
+        id:eventId,
+        payload:submittedDraft || draftPayloadForEvent(eventData,tickets,lineup),
+        result:{id:eventId,data:result.data?.event || {id:eventId}}
+      });
+      const refreshed = await core.loadEvents();
+      if (!draftState?.keepOpen && refreshed) core.openEvent(eventId);
+      if (!refreshed) {
+        notice(root,'Event saved; Events list could not refresh. Current editor remains open.',false);
+        return;
+      }
+      notice(
+        root,
+        draftState?.keepOpen
+          ? 'Server save completed; newer edits remain in the local draft.'
+          : 'Event, tickets and roster saved together.'
+      );
+    }
 
     const atomicSave = async function() {
       const buttons = [field(root,'cc-saveBtn'), field(root,'cc-top-saveBtn')].filter(Boolean);
       const labels = buttons.map(button => button.textContent);
       buttons.forEach(button => { button.disabled = true; button.textContent = 'SAVING…'; });
 
+      const submittedDraft = window.BRVTALLegacyDrafts?.snapshot?.('events');
       try {
-        if (activeEventId) {
-          const ticketsState = root.querySelector('#tickets')?.dataset.loadState;
-          const lineupState = root.querySelector('#eventArtists')?.dataset.loadState;
-          if (ticketsState && ticketsState !== 'ready') throw new Error('TICKETS_NOT_READY');
-          if (lineupState && lineupState !== 'ready') throw new Error('LINEUP_NOT_READY');
-        }
-
-        const event = eventPayload(root, activeEventId);
+        requireLoadedEventRelations();
+        const eventData = eventPayload(root,activeEventId);
         const tickets = ticketPayloads(root);
         const beforeLineup = await existingLineup(activeEventId);
-        const lineup = lineupPayload(root, beforeLineup);
-        const token = await csrfToken();
-        const response = await fetch('/api/event-workflow.php', {
-          method:'POST',
-          credentials:'same-origin',
-          cache:'no-store',
-          headers:{'Content-Type':'application/json','X-CSRF-Token':token},
-          body:JSON.stringify({event, ticket_types:tickets, lineup})
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
-
-        const eventId = Number(payload.data?.event?.id || 0);
-        if (!eventId) throw new Error('EVENT_ID_MISSING');
-        activeEventId = eventId;
-        await core.loadEvents();
-        core.openEvent(eventId);
-        notice(root, 'Event, tickets and roster saved together.');
+        const lineup = lineupPayload(root,beforeLineup);
+        const {eventId,result} = await submitEventWorkflow(eventData,tickets,lineup);
+        await finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,result);
         return true;
       } catch (error) {
-        const code = error?.message || 'EVENT_WORKFLOW_FAILED';
-        const message = code === 'TICKETS_NOT_READY'
-          ? 'Wait for ticket types to load before saving this Event.'
-          : code === 'LINEUP_NOT_READY'
-            ? 'Wait for event participation to load before saving this Event.'
-            : errorMessage(code);
-        notice(root, message, false);
+        await window.BRVTALLegacyDrafts?.saveFailed?.({
+          type:'events',
+          id:activeEventId,
+          payload:submittedDraft || {}
+        });
+        notice(root,eventSaveFailureMessage(error),false);
         return false;
       } finally {
-        buttons.forEach((button, index) => {
-          if (!button.isConnected) return;
-          button.disabled = false;
-          button.textContent = labels[index] || 'SAVE';
-        });
+        restoreSaveButtons(buttons,labels);
       }
     };
     atomicSave.__brvtalAtomicWorkflow = true;

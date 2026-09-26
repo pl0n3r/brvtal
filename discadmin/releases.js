@@ -230,6 +230,7 @@ window.BRVTALReleases = (() => {
       }
     );
     modal.classList.add('open');
+    void window.BRVTALLegacyDrafts?.bind?.('releases',id,r);
   }
 
   function payload(sortOrder = 0) {
@@ -261,31 +262,71 @@ window.BRVTALReleases = (() => {
     };
   }
 
+  function releaseSortOrder(id) {
+    const current = id ? store.releases.find(record => Number(record.id) === Number(id)) : null;
+    if (current) return Number(current.sort_order || 0);
+    return store.releases.reduce(
+      (max,record) => Math.max(max,Number(record.sort_order ?? -1)),
+      -1
+    ) + 1;
+  }
+
+  function releasePayloadForSave(id) {
+    const data = payload(releaseSortOrder(id));
+    if (!data.title) throw new Error('TITLE_REQUIRED');
+    if (!data.slug) data.slug = slugify(data.title);
+    return data;
+  }
+
+  function rememberSavedRelease(record) {
+    const savedId = Number(record?.id || 0);
+    if (!savedId) return;
+    const index = store.releases.findIndex(item => Number(item.id) === savedId);
+    if (index >= 0) store.releases[index] = record;
+    else store.releases.push(record);
+  }
+
+  async function finishReleaseSave(id,data,result,button) {
+    const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
+      type:'releases',
+      id,
+      payload:data,
+      result
+    });
+    if (!draftState?.keepOpen) return false;
+
+    rememberSavedRelease(result?.data);
+    saveButtonForRelease(button,Number(draftState.id || id || 0));
+    setStatus('Server save completed; newer edits remain in the local draft.', 'ok');
+    return true;
+  }
+
   async function save(id = null) {
     const button = document.getElementById('saveBtn');
     if (button) { button.disabled = true; button.textContent = 'SAVING…'; }
     try {
-      const current = id ? store.releases.find(record => Number(record.id) === Number(id)) : null;
-      const nextOrder = current
-        ? Number(current.sort_order || 0)
-        : store.releases.reduce((max,record) => Math.max(max,Number(record.sort_order ?? -1)), -1) + 1;
-      const data = payload(nextOrder);
-      if (!data.title) throw new Error('TITLE_REQUIRED');
-      if (!data.slug) data.slug = slugify(data.title);
-      await request(id ? '?id=' + encodeURIComponent(id) : '', {
+      const data = releasePayloadForSave(id);
+      const result = await request(id ? '?id=' + encodeURIComponent(id) : '', {
         method:id ? 'PUT' : 'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(data),
       });
+      if (await finishReleaseSave(id,data,result,button)) return;
       if (typeof closeModal === 'function') closeModal(true);
       await refresh();
       setStatus('Release saved.', 'ok');
     } catch (error) {
+      await window.BRVTALLegacyDrafts?.saveFailed?.({type:'releases',id});
       setStatus('Could not save release: ' + (error?.message || 'UNKNOWN_ERROR'), 'err');
       window.BRVTALFeedback?.error?.((error?.message || 'Release save failed').replace(/_/g,' '),'release-save');
     } finally {
       if (button?.isConnected) { button.disabled = false; button.textContent = 'GUARDAR'; }
     }
+  }
+
+  function saveButtonForRelease(button, id) {
+    if (!button?.isConnected) return;
+    button.onclick = () => save(id);
   }
 
   async function remove(id) {
