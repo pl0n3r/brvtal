@@ -81,7 +81,7 @@ test('existing Event blocks save until lineup hydration and preserves role plus 
 
   await page.goto(harness);
   await expect(page.locator('#eventsTable')).toContainText('NIGHT 42');
-  await page.evaluate(() => window.BRVTALContentCore.openEvent(42));
+  await page.evaluate(() => { window.BRVTALContentCore.openEvent(42); });
   await expect(page.locator('#tickets')).toHaveAttribute('data-load-state','ready');
   await expect(page.locator('#eventArtists')).toHaveAttribute('data-load-state','loading');
 

@@ -51,7 +51,7 @@ function harness(record = seedEvent) {
       </form>
     </div>
     <script>
-      window.__touches=0;window.__clean=0;
+      window.__touches=0;window.__clean=0;window.csrf='event-drafts-csrf';
       window.BRVTALUnsavedChanges={
         touch(){window.__touches+=1},
         markClean(){window.__clean+=1}
