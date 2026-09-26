@@ -10,11 +10,10 @@ header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');
 
 $root = dirname(__DIR__);
-$defaultQuota = 25 * 1024 * 1024 * 1024;
 $configuredQuota = (int)($config['hosting']['storage_quota_bytes'] ?? 0);
 $envQuota = (int)(getenv('BRVTAL_STORAGE_QUOTA_BYTES') ?: 0);
-$quota = $configuredQuota > 0 ? $configuredQuota : ($envQuota > 0 ? $envQuota : $defaultQuota);
-$quotaSource = $configuredQuota > 0 ? 'config' : ($envQuota > 0 ? 'environment' : 'hostinger_plan_fallback');
+$quota = $configuredQuota > 0 ? $configuredQuota : $envQuota;
+$quotaSource = $configuredQuota > 0 ? 'config' : ($envQuota > 0 ? 'environment' : 'unavailable');
 
 $formatBytes = static function (int $bytes): string {
     $units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -26,6 +25,28 @@ $formatBytes = static function (int $bytes): string {
     }
     return number_format($value, $i === 0 ? 0 : 2) . ' ' . $units[$i];
 };
+
+$hostTotal = @disk_total_space($root);
+$hostFree = @disk_free_space($root);
+$hostDiagnostic = [
+    'total_bytes' => $hostTotal === false ? null : (int)$hostTotal,
+    'free_bytes' => $hostFree === false ? null : (int)$hostFree,
+    'total' => $hostTotal === false ? 'N/A' : $formatBytes((int)$hostTotal),
+    'free' => $hostFree === false ? 'N/A' : $formatBytes((int)$hostFree),
+    'diagnostic_only' => true,
+];
+
+if ($quota <= 0) {
+    http_response_code(503);
+    echo json_encode([
+        'ok' => false,
+        'scope' => 'brvtal_managed_data',
+        'error' => 'STORAGE_QUOTA_NOT_CONFIGURED',
+        'quota_source' => $quotaSource,
+        'host_filesystem' => $hostDiagnostic,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
 
 $scanDirectory = static function (string $path): array {
     if (!is_dir($path)) return ['bytes'=>0, 'files'=>0];
@@ -51,7 +72,9 @@ $cacheTtl = 30;
 $cached = null;
 if (!$forceRefresh && is_file($cachePath) && (time() - (int)@filemtime($cachePath)) < $cacheTtl) {
     $decoded = json_decode((string)@file_get_contents($cachePath), true);
-    if (is_array($decoded)) $cached = $decoded;
+    if (is_array($decoded) && (int)($decoded['quota_bytes'] ?? 0) === $quota) {
+        $cached = $decoded;
+    }
 }
 
 if (is_array($cached)) {
@@ -64,10 +87,7 @@ $uploads = $scanDirectory($root . '/uploads');
 $storage = $scanDirectory($root . '/storage');
 $used = (int)$uploads['bytes'] + (int)$storage['bytes'];
 $free = max(0, $quota - $used);
-$usedPercent = $quota > 0 ? round(min(100, ($used / $quota) * 100), 2) : 0.0;
-
-$hostTotal = @disk_total_space($root);
-$hostFree = @disk_free_space($root);
+$usedPercent = round(min(100, ($used / $quota) * 100), 2);
 
 $payload = [
     'ok' => true,
@@ -85,13 +105,7 @@ $payload = [
         'uploads' => ['bytes'=>(int)$uploads['bytes'], 'size'=>$formatBytes((int)$uploads['bytes']), 'files'=>(int)$uploads['files']],
         'storage' => ['bytes'=>(int)$storage['bytes'], 'size'=>$formatBytes((int)$storage['bytes']), 'files'=>(int)$storage['files']],
     ],
-    'host_filesystem' => [
-        'total_bytes' => $hostTotal === false ? null : (int)$hostTotal,
-        'free_bytes' => $hostFree === false ? null : (int)$hostFree,
-        'total' => $hostTotal === false ? 'N/A' : $formatBytes((int)$hostTotal),
-        'free' => $hostFree === false ? 'N/A' : $formatBytes((int)$hostFree),
-        'diagnostic_only' => true,
-    ],
+    'host_filesystem' => $hostDiagnostic,
     'cache' => 'refreshed',
     'generated_at' => date(DATE_ATOM),
 ];

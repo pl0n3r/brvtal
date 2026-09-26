@@ -8,11 +8,16 @@
   const LOG_RESET = '/discadmin/logs.php?action=clear&format=json';
   const AUTH = '/api/index.php/auth';
   const GITHUB_ISSUES = 'https://github.com/pl0n3r/brvtal/issues';
+  const PREFERENCES = '/api/admin-dashboard-preferences.php?workspace=system_status';
   let mountTimer = null;
   let refreshTimer = null;
   let requestId = 0;
   let logOperationId = 0;
   let logResetInFlight = false;
+  let systemLayout = null;
+  let systemLayoutRevision = 0;
+  let systemLayoutSaveChain = Promise.resolve();
+  const systemModuleNodes = new Map();
 
   const esc = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
@@ -271,6 +276,267 @@
     ].filter(Boolean);
   }
 
+
+  function defaultSystemLayout() {
+    return {modules:[
+      {id:'services',width:4,height:1,visible:true},
+      {id:'storage',width:2,height:1,visible:true},
+      {id:'database',width:2,height:1,visible:true},
+      {id:'repository',width:2,height:1,visible:true},
+      {id:'editorial',width:2,height:1,visible:true},
+      {id:'runtime',width:2,height:1,visible:true},
+      {id:'attention',width:2,height:1,visible:true},
+      {id:'activity',width:4,height:1,visible:true},
+    ]};
+  }
+
+  function normalizeSystemLayout(value) {
+    const defaults = defaultSystemLayout();
+    const source = Array.isArray(value?.modules) ? value.modules : defaults.modules;
+    const allowed = new Map(defaults.modules.map(item => [item.id,item]));
+    const seen = new Set();
+    const modules = [];
+    source.forEach(item => {
+      const id = String(item?.id || '');
+      if (!allowed.has(id) || seen.has(id)) return;
+      seen.add(id);
+      modules.push({
+        id,
+        width:Math.max(1,Math.min(4,Number(item.width || allowed.get(id).width))),
+        height:Math.max(1,Math.min(2,Number(item.height || allowed.get(id).height))),
+        visible:item.visible !== false,
+      });
+    });
+    defaults.modules.forEach(item => { if (!seen.has(item.id)) modules.push({...item}); });
+    if (!modules.some(item => item.visible)) modules[0].visible = true;
+    return {modules};
+  }
+
+  async function systemCsrfToken() {
+    if (globalThis.BRVTALAdminAuthBoundary?.csrfToken) return globalThis.BRVTALAdminAuthBoundary.csrfToken();
+    try { if (globalThis.csrf) return globalThis.csrf; } catch (_) {}
+    throw new Error('AUTH_REQUIRED');
+  }
+
+  async function saveSystemLayout(layout) {
+    const token = await systemCsrfToken();
+    const response = await fetch(PREFERENCES,{
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':String(token)},
+      body:JSON.stringify(layout),
+    });
+    const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || 'SYSTEM_STATUS_PREFERENCES_SAVE_FAILED');
+    return normalizeSystemLayout(payload.data);
+  }
+
+  function systemModuleControls() {
+    return `<div class="ssv2-module-controls" aria-label="System Status module controls">
+      <button type="button" data-system-move="up" aria-label="Move module earlier">↑</button>
+      <button type="button" data-system-move="down" aria-label="Move module later">↓</button>
+      <button type="button" data-system-resize="narrower" aria-label="Make module narrower">−W</button>
+      <button type="button" data-system-resize="wider" aria-label="Make module wider">+W</button>
+      <button type="button" data-system-resize="shorter" aria-label="Make module shorter">−H</button>
+      <button type="button" data-system-resize="taller" aria-label="Make module taller">+H</button>
+      <button type="button" data-system-hide aria-label="Hide module">HIDE</button>
+    </div>`;
+  }
+
+  function systemCustomization(layout) {
+    const hidden = layout.modules.filter(item => !item.visible);
+    return `<section class="ssv2-customize" aria-label="System Status customization">
+      <div><strong>LAYOUT</strong><span>Drag modules or use keyboard/touch controls. Sizes snap to grid cells.</span></div>
+      <div class="ssv2-customize-actions">
+        ${hidden.map(item => `<button type="button" data-system-show="${esc(item.id)}">+ ${esc(item.id.replaceAll('_',' ').toUpperCase())}</button>`).join('')}
+        <button type="button" data-system-reset>RESET TO DEFAULT</button>
+      </div>
+    </section>`;
+  }
+
+  function panelByTitle(root, title) {
+    return [...root.querySelectorAll('.ssv2-panel')].find(panel =>
+      panel.querySelector('.ssv2-panel-head>span')?.textContent?.trim() === title
+    ) || null;
+  }
+
+  function systemNodes(root) {
+    return new Map([
+      ['services',root.querySelector('.ssv2-services')],
+      ['storage',root.querySelector('.ssv2-panel.storage')],
+      ['database',panelByTitle(root,'DATABASE CONTENT')],
+      ['repository',panelByTitle(root,'REPOSITORY')],
+      ['editorial',panelByTitle(root,['EDITORIAL','H'+'E'+'A'+'L'+'T'+'H'].join(' '))],
+      ['runtime',panelByTitle(root,'RUNTIME / DEPLOYMENT')],
+      ['attention',root.querySelector('.ssv2-attention')],
+      ['activity',panelByTitle(root,'RECENT ADMIN ACTIVITY')],
+    ].filter(([,node]) => node));
+  }
+
+  function reorderSystem(layout, id, delta) {
+    const index = layout.modules.findIndex(item => item.id === id);
+    const target = index + delta;
+    if (index < 0 || target < 0 || target >= layout.modules.length) return false;
+    const [item] = layout.modules.splice(index,1);
+    layout.modules.splice(target,0,item);
+    return true;
+  }
+
+  function queueSystemLayoutSave(layout, revision) {
+    const snapshot = normalizeSystemLayout({modules:layout.modules.map(item => ({...item}))});
+    systemLayoutSaveChain = systemLayoutSaveChain
+      .catch(() => undefined)
+      .then(() => saveSystemLayout(snapshot))
+      .then(saved => {
+        if (revision === systemLayoutRevision) systemLayout = saved;
+        return saved;
+      })
+      .catch(() => {
+        globalThis.BRVTALFeedback?.error?.('System Status layout could not be saved.','system-status-layout');
+        return null;
+      });
+    return systemLayoutSaveChain;
+  }
+
+  function bindSystemModule(root, wrapper, layout, dragState) {
+    const id = wrapper.dataset.systemModule || '';
+    wrapper.addEventListener('dragstart',() => { dragState.current = id; });
+    wrapper.addEventListener('dragover',event => event.preventDefault());
+    wrapper.addEventListener('drop',event => {
+      event.preventDefault();
+      if (!dragState.current || dragState.current === id) return;
+      const from = layout.modules.findIndex(item => item.id === dragState.current);
+      const to = layout.modules.findIndex(item => item.id === id);
+      if (from < 0 || to < 0) return;
+      const [item] = layout.modules.splice(from,1);
+      layout.modules.splice(to,0,item);
+      persistSystemLayout(root,layout);
+    });
+    wrapper.querySelectorAll('[data-system-move]').forEach(button => {
+      button.addEventListener('click',() => {
+        if (reorderSystem(layout,id,button.dataset.systemMove === 'up' ? -1 : 1)) persistSystemLayout(root,layout);
+      });
+    });
+    wrapper.querySelectorAll('[data-system-resize]').forEach(button => {
+      button.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === id);
+        if (!item) return;
+        const action = button.dataset.systemResize;
+        if (action === 'narrower') item.width = Math.max(1,item.width - 1);
+        if (action === 'wider') item.width = Math.min(4,item.width + 1);
+        if (action === 'shorter') item.height = Math.max(1,item.height - 1);
+        if (action === 'taller') item.height = Math.min(2,item.height + 1);
+        persistSystemLayout(root,layout);
+      });
+    });
+    wrapper.querySelector('[data-system-hide]')?.addEventListener('click',() => {
+      const item = layout.modules.find(entry => entry.id === id);
+      if (!item || layout.modules.filter(entry => entry.visible).length <= 1) return;
+      item.visible = false;
+      persistSystemLayout(root,layout);
+    });
+  }
+
+  function persistSystemLayout(root, layout) {
+    systemLayout = normalizeSystemLayout(layout);
+    systemLayoutRevision += 1;
+    const revision = systemLayoutRevision;
+    applySystemLayout(root);
+    void queueSystemLayoutSave(systemLayout, revision);
+  }
+
+  function systemFocusState(root) {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !root.contains(active)) return null;
+    const module = active.closest('[data-system-module]');
+    if (!module) return null;
+    const id = module.dataset.systemModule || '';
+    if (active.matches('[data-system-move]')) return {id,kind:'move',value:active.dataset.systemMove || ''};
+    if (active.matches('[data-system-resize]')) return {id,kind:'resize',value:active.dataset.systemResize || ''};
+    if (active.matches('[data-system-hide]')) return {id,kind:'hide',value:''};
+    return null;
+  }
+
+  function restoreSystemFocus(root, state) {
+    if (!state) return;
+    if (state.kind === 'hide') {
+      const show = [...root.querySelectorAll('[data-system-show]')]
+        .find(button => button.dataset.systemShow === state.id);
+      if (show) {
+        show.focus();
+        return;
+      }
+    }
+    const module = [...root.querySelectorAll('[data-system-module]')]
+      .find(node => node.dataset.systemModule === state.id);
+    if (!module) {
+      root.querySelector('[data-system-module] button, [data-system-reset]')?.focus();
+      return;
+    }
+    const candidates = state.kind === 'move'
+      ? [...module.querySelectorAll('[data-system-move]')]
+      : [...module.querySelectorAll('[data-system-resize]')];
+    const target = candidates.find(button => (
+      state.kind === 'move'
+        ? button.dataset.systemMove === state.value
+        : button.dataset.systemResize === state.value
+    ));
+    (target || candidates[0] || module.querySelector('button'))?.focus();
+  }
+
+  function applySystemLayout(root) {
+    const focusState = systemFocusState(root);
+    const layout = normalizeSystemLayout(systemLayout);
+    systemLayout = layout;
+    const currentNodes = systemNodes(root);
+    currentNodes.forEach((node,id) => systemModuleNodes.set(id,node));
+    const nodes = systemModuleNodes;
+    nodes.forEach(node => node.remove());
+    root.querySelector('.ssv2-customize')?.remove();
+    root.querySelector('.ssv2-config-grid')?.remove();
+    root.querySelectorAll('.ssv2-grid').forEach(node => node.remove());
+
+    const hero = root.querySelector('.ssv2-hero');
+    if (!hero) return;
+    hero.insertAdjacentHTML('afterend',systemCustomization(layout));
+    const customize = hero.nextElementSibling;
+    const grid = document.createElement('div');
+    grid.className = 'ssv2-config-grid';
+    customize?.insertAdjacentElement('afterend',grid);
+
+    layout.modules.filter(item => item.visible).forEach(item => {
+      const node = nodes.get(item.id);
+      if (!node) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'ssv2-config-module';
+      wrapper.draggable = true;
+      wrapper.dataset.systemModule = item.id;
+      wrapper.dataset.systemWidth = String(item.width);
+      wrapper.dataset.systemHeight = String(item.height);
+      wrapper.style.setProperty('--ssv2-col-span',String(item.width));
+      wrapper.style.setProperty('--ssv2-row-span',String(item.height));
+      wrapper.insertAdjacentHTML('afterbegin',systemModuleControls());
+      wrapper.appendChild(node);
+      grid.appendChild(wrapper);
+    });
+
+    const dragState = {current:''};
+    grid.querySelectorAll('[data-system-module]').forEach(wrapper => bindSystemModule(root,wrapper,layout,dragState));
+    customize?.querySelectorAll('[data-system-show]').forEach(button => {
+      button.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === button.dataset.systemShow);
+        if (!item) return;
+        item.visible = true;
+        persistSystemLayout(root,layout);
+      });
+    });
+    customize?.querySelector('[data-system-reset]')?.addEventListener('click',() => {
+      persistSystemLayout(root,defaultSystemLayout());
+    });
+    restoreSystemFocus(root,focusState);
+  }
+
   function skeleton() {
     return `
       <section class="ssv2" id="system-status-v2" aria-live="polite">
@@ -405,10 +671,25 @@
     <div class="ssv2-language-bars">${languageBars(repo)}</div>`;
   }
 
+
+  function managedStoragePanel(storage = {}) {
+    const known = storage.available === true && storage.used_percent != null;
+    if (!known) {
+      return `<section class="ssv2-panel storage" data-storage-scope="unavailable"><div class="ssv2-panel-head"><span>STORAGE</span><b>UNAVAILABLE · BRVTAL DATA</b></div>
+        <div class="ssv2-storage-wrap"><div class="ssv2-storage-ring" style="--value:0"><div><strong>CHECK</strong><span>USED</span></div></div>
+        <div class="ssv2-storage-copy"><strong>MANAGED STORAGE UNAVAILABLE</strong><span>RETRY METRICS</span><small>Host filesystem capacity is diagnostic only.</small></div></div>
+      </section>`;
+    }
+    const used = clamp(storage.used_percent);
+    return `<section class="ssv2-panel storage" data-storage-scope="brvtal-managed-data"><div class="ssv2-panel-head"><span>STORAGE</span><b>${used}% USED · BRVTAL DATA</b></div>
+      <div class="ssv2-storage-wrap"><div class="ssv2-storage-ring" style="--value:${used}"><div><strong>${used}%</strong><span>USED</span></div></div>
+      <div class="ssv2-storage-copy"><strong>${esc(storage.used || 'N/A')} / ${esc(storage.total || 'N/A')}</strong><span>${esc(storage.free || 'N/A')} FREE</span><small>${number(storage.uploads_items)} managed items</small></div></div>
+    </section>`;
+  }
+
   function render(root, data, health, activity, latency) {
     if (!root.isConnected || !isSystemStatus()) return;
     const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
-    const storage = data.storage || {};
     const deployment = data.deployment || {};
     const environmentRaw = String(deployment.environment || '');
     const environmentLabel = environmentRaw
@@ -419,7 +700,6 @@
     const runtime = data.runtime || {};
     const database = data.database || {};
     const github = data.repository?.github || {};
-    const storageUsed = clamp(storage.used_percent || 0);
     const sourceIssues = supplementalIssues(health, activity);
     const platformIssues = [...(data.issues || []), ...sourceIssues];
     const repositoryDiagnostics = Array.isArray(data.repository_diagnostics) ? data.repository_diagnostics : [];
@@ -440,10 +720,7 @@
       <div class="ssv2-services">${serviceCards(data,latency)}</div>
 
       <div class="ssv2-grid two">
-        <section class="ssv2-panel storage"><div class="ssv2-panel-head"><span>STORAGE</span><b>${storageUsed}% USED</b></div>
-          <div class="ssv2-storage-wrap"><div class="ssv2-storage-ring" style="--value:${storageUsed}"><div><strong>${storageUsed}%</strong><span>USED</span></div></div>
-          <div class="ssv2-storage-copy"><strong>${esc(storage.used || 'N/A')} / ${esc(storage.total || 'N/A')}</strong><span>${esc(storage.free || 'N/A')} FREE</span><small>${number(storage.uploads_items)} upload items</small></div></div>
-        </section>
+        ${managedStoragePanel(data.storage)}
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>DATABASE CONTENT</span><b>${esc(database.driver || '')} ${esc(database.server || '')}</b></div><div class="ssv2-bars">${databaseBars(database.counts)}</div></section>
       </div>
 
@@ -476,6 +753,7 @@
         <pre id="ssv2-raw">${esc(JSON.stringify({overview:data,content_health:health,activity},null,2))}</pre><pre id="ssv2-logs" hidden></pre>
       </details>`;
 
+    applySystemLayout(root);
     const advanced = root.querySelector('.ssv2-advanced');
     if (advanced && (advancedOpen || logResetInFlight)) {
       advanced.open = true;
@@ -495,12 +773,16 @@
     if (manual) root.classList.add('is-refreshing');
     const started = performance.now();
     try {
+      const layoutPromise = fetchJson(PREFERENCES).catch(() => null);
       const [data,health,activity] = await Promise.all([
         fetchJson(TECH),
         fetchJson(HEALTH).catch(error => unavailableSource(error)),
         fetchJson(ACTIVITY).catch(error => unavailableSource(error)),
       ]);
       if (id !== requestId || !root.isConnected) return;
+      const layoutPayload = await layoutPromise;
+      if (id !== requestId || !root.isConnected) return;
+      systemLayout = normalizeSystemLayout(layoutPayload?.data);
       render(root,data,health,activity,performance.now()-started);
     } catch (error) {
       if (id !== requestId || !root.isConnected) return;

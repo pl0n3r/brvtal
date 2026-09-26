@@ -74,8 +74,8 @@ dashboard_v2_assert(
 $dashboardPreferences = (string)file_get_contents(__DIR__ . '/../config/admin_dashboard.php');
 $dashboardPreferencesApi = (string)file_get_contents(__DIR__ . '/../api/admin-dashboard-preferences.php');
 dashboard_v2_assert(str_contains($dashboardPreferences, "admin.dashboard."), 'Dashboard preferences must be namespaced per administrator');
-dashboard_v2_assert(str_contains($dashboardPreferences, 'INVALID_DASHBOARD_WIDTH'), 'Dashboard width spans must be strictly validated');
-dashboard_v2_assert(str_contains($dashboardPreferences, 'INVALID_DASHBOARD_HEIGHT'), 'Dashboard height spans must be strictly validated');
+dashboard_v2_assert(str_contains($dashboardPreferences, "'INVALID_' . \$prefix . '_WIDTH'"), 'Dashboard width spans must be strictly validated through the shared workspace contract');
+dashboard_v2_assert(str_contains($dashboardPreferences, "'INVALID_' . \$prefix . '_HEIGHT'"), 'Dashboard height spans must be strictly validated through the shared workspace contract');
 dashboard_v2_assert(str_contains($dashboardPreferencesApi, 'brvtal_admin_require();'), 'Dashboard preferences must require authentication');
 dashboard_v2_assert(str_contains($dashboardPreferencesApi, 'brvtal_admin_require_csrf();'), 'Dashboard preference mutation must retain CSRF');
 dashboard_v2_assert(str_contains($controller, "preferences:'/api/admin-dashboard-preferences.php'"), 'Dashboard must load private per-admin layout preferences');

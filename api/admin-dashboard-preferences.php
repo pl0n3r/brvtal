@@ -17,7 +17,8 @@ if ($adminId < 1) {
 }
 
 try {
-    $key = brvtalAdminDashboardSettingKey($adminId);
+    $workspace = strtolower(trim((string)($_GET['workspace'] ?? 'dashboard')));
+    $key = brvtalAdminWorkspaceSettingKey($adminId, $workspace);
     $pdo = db();
 
     if ($method === 'GET') {
@@ -25,13 +26,13 @@ try {
         $st->execute([$key]);
         $raw = $st->fetchColumn();
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
-        $preferences = brvtalAdminDashboardNormalizePreferences(is_array($decoded) ? $decoded : []);
+        $preferences = brvtalAdminWorkspaceNormalizePreferences(is_array($decoded) ? $decoded : [], $workspace);
         json_response(['ok'=>true,'data'=>$preferences], 200, ['Cache-Control'=>'no-store']);
     }
 
     brvtal_admin_require_csrf();
     $input = input_json();
-    $preferences = brvtalAdminDashboardNormalizePreferences(is_array($input) ? $input : []);
+    $preferences = brvtalAdminWorkspaceNormalizePreferences(is_array($input) ? $input : [], $workspace);
     $encoded = json_encode($preferences, JSON_UNESCAPED_SLASHES);
     if (!is_string($encoded)) throw new RuntimeException('DASHBOARD_PREFERENCE_ENCODING_FAILED');
 
@@ -45,8 +46,9 @@ try {
 } catch (InvalidArgumentException $e) {
     json_response(['ok'=>false,'error'=>$e->getMessage()], 422, ['Cache-Control'=>'no-store']);
 } catch (Throwable $e) {
-    brvtal_log('ADMIN_DASHBOARD_PREFERENCES_ERROR', 'Admin Dashboard preferences failed', [
+    brvtal_log('ADMIN_DASHBOARD_PREFERENCES_ERROR', 'Admin configurable workspace preferences failed', [
         'admin_id'=>$adminId,
+        'workspace'=>$workspace ?? 'invalid',
         'class'=>$e::class,
     ]);
     json_response(['ok'=>false,'error'=>'INTERNAL_ERROR'], 500, ['Cache-Control'=>'no-store']);

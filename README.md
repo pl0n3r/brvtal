@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #513: Dashboard modular y configurable por administrador dentro del shell canónico. No declara producción GREEN.
+> Snapshot de **solo el deploy actual** para #515: System Status confiable y configurable por administrador. No declara producción GREEN.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,26 +16,26 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#513 · configurable Dashboard** | `work/issue-513` · reserva `09c602e1-8b7c-4c6e-a0c8-fd625b526ec3` |
-| Base exacta | ✅ **main** | `d5f10842843fb17d58e53fddcddbcf71d07f6120` |
-| Versión de producto | 🚧 **v0.1.64** | `config/version.php` + `package.json` |
-| Producción | 🚧 **NO GREEN · #681** | recovery de migraciones sigue bloqueado |
+| Work line | 🚧 **#515 · trustworthy configurable System Status** | `work/issue-515` · reserva `a76f7def-8b57-4098-a4d5-f9f2a4306597` |
+| Base exacta | ✅ **main** | `506e5bf63045cbd9970bf90394bbd49d896f9450` |
+| Versión de producto | 🚧 **v0.1.65** | `config/version.php` + `package.json` |
+| Producción | 🚧 **NO GREEN · #681** | recovery de migration registry sigue bloqueado por autoridad/transporte |
 | Factory Labels | 🚧 **#694** | Factory `@v1` todavía falla por alias/canónica |
-| PR | 🚧 **#705** | exact-head gates obligatorios |
+| PR | 🚧 **#706** | exact-head gates obligatorios |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+739** | **−65** | **+674** |
+| **13** | **+633** | **−105** | **+528** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#705 · #513 Dashboard modular/configurable** |
-| Roles | **Software Engineering · Frontend · UX · QA · Security** |
+| PR + snapshot exacto | **#706 · #515 System Status reliable/configurable** |
+| Roles | **Software Engineering · Frontend · UX · QA · Security · SRE** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
 | CI del SHA exacto de main | 🚧 obligatorio después del merge |
 | Production GREEN | 🚧 fuera de alcance mientras #681 siga abierto |
@@ -44,63 +44,63 @@
 
 ```mermaid
 flowchart LR
-  A["authenticated admin"] --> P["private per-admin layout preference"]
-  P --> N["server-side allowlist / span normalization"]
-  N --> D["Dashboard V2 module catalog"]
-  D --> G["4-column snap grid"]
+  T["technical overview"] --> D["host filesystem: diagnostic only"]
+  Q["configured/env quota"] --> S["managed storage endpoint"]
+  S --> U["truthful storage card"]
+  P["private per-admin settings"] --> N["shared workspace normalization"]
+  N --> G["System Status 4-column grid"]
   G --> C["drag + keyboard/touch controls"]
-  D --> F["Recent Changes 5-at-a-time"]
-  D --> X["Analytics unavailable until real source exists"]
+  G --> A["Dark / Light / Glass invariant data"]
 ```
 
 ## Qué se hizo
-- Preferencias privadas `admin.dashboard.<admin_id>.layout`, reutilizando la tabla `settings` sin migración.
-- Endpoint dedicado con autenticación + CSRF; las claves privadas quedan fuera del Settings genérico.
-- Catálogo canónico de módulos con orden, visibilidad, ancho 1–4 y alto 1–2 validados en servidor.
-- Dashboard V2 conserva **WHAT NEEDS ATTENTION NOW** y el shell único.
-- Reordenamiento por drag-and-drop y fallback de botones para teclado/touch.
-- Resize por spans de grid, sin posicionamiento libre por píxeles.
-- Add/remove mediante biblioteca de módulos y **Reset to default**.
-- Recent Changes carga 5 registros iniciales y **View more** agrega los siguientes 5 mediante cursor.
-- Active Events y Media Assets son contadores accionables hacia destinos reales.
-- Analytics se ofrece como módulo opcional, oculto por defecto y fail-closed: **DATA UNAVAILABLE** sin métricas inventadas.
-- Persistencia y aislamiento por administrador cubiertos por contratos e integración.
-- E2E cubre persistencia, hide/show, reorder, resize, reset, navegación y feed progresivo.
-- Mutaciones de layout reutilizan el boundary CSRF canónico, se serializan y aplican render latest-wins para evitar retrocesos por respuestas fuera de orden.
-- Spans y visibilidad fallan cerrado ante valores fuera de contrato; no se aceptan casts permisivos.
+- Eliminada la doble fuente visual de storage: `technical.php` ya no presenta el filesystem del host como cuota de aplicación.
+- El filesystem del host permanece visible únicamente como diagnóstico raw, marcado `diagnostic_only`.
+- `storage-metrics.php` acepta cuota solo desde configuración o `BRVTAL_STORAGE_QUOTA_BYTES`; sin fuente verificable responde **STORAGE_QUOTA_NOT_CONFIGURED**.
+- Eliminado el fallback hardcodeado de 25 GB: **Unavailable** es preferible a una capacidad inventada.
+- Dashboard y System Status comparten el mismo contrato server-side de orden, visibilidad, spans y aislamiento por administrador.
+- System Status persiste en `admin.dashboard.<admin_id>.system_status_layout`, protegido por el namespace privado existente.
+- Ocho módulos configurables: services, storage, database, repository, editorial, runtime, attention y activity.
+- Reordenamiento por drag-and-drop con fallback de botones para teclado/touch.
+- Resize en spans validados 1–4 × 1–2, hide/show y **Reset to default**.
+- Layout responsive 4/2/1 columnas y controles táctiles de al menos 44 px en móvil.
+- Cambiar Dark/Light/Glass no altera la fuente ni los valores de storage.
+- Contratos negativos cubren spans/visibilidad inválidos, catálogo desconocido y al menos un módulo visible.
+- E2E cubre persistencia, resize, hide/show/reset, invariancia de apariencia y ausencia de valores TB del host en la cuota administrada.
 
 ## Archivos modificados en este deploy
 - `api/admin-dashboard-preferences.php`
-- `api/index.php`
 - `config/admin_dashboard.php`
 - `config/version.php`
-- `discadmin/dashboard-v2.css`
-- `discadmin/dashboard-v2.js`
+- `discadmin/storage-metrics.php`
+- `discadmin/system-status-v2.css`
+- `discadmin/system-status-v2.js`
+- `discadmin/technical.php`
 - `package.json`
-- `tests/admin-dashboard-preferences-contract.php`
 - `tests/dashboard-v2-contract.php`
-- `tests/e2e/discadmin-dashboard-config.spec.mjs`
-- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs`
-- `tests/integration/admin-dashboard-preferences.php`
+- `tests/e2e/discadmin-system-status-v2.spec.mjs`
+- `tests/system-status-contract.php`
+- `tests/system-status-preferences-contract.php`
 - `README.md`
 
 ## Validación
-- 🚧 BRVTAL CI sobre HEAD exacto del PR.
+- 🚧 BRVTAL CI sobre HEAD exacto del PR #706.
 - 🚧 Factory Policy/Privacy y Sonar/CodeRabbit terminales antes de merge.
 - 🚧 Validación exact-main obligatoria tras integración.
-- No se inventan métricas Analytics ni se amplían permisos/autorización.
+- Host filesystem no se usa como cuota administrada ni afecta la semántica operativa de storage.
+- No se amplían permisos, no hay migración de DB y no se ejecutan writes productivos desde este PR.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#513](https://github.com/pl0n3r/brvtal/issues/513): cerrar gates del Dashboard configurable. |
-| **NEXT** | 🚧 [#515](https://github.com/pl0n3r/brvtal/issues/515): System Status configurable/reliable sobre primitives reutilizables. |
+| **NOW** | 🚧 [#515](https://github.com/pl0n3r/brvtal/issues/515): cerrar gates del System Status confiable/configurable. |
+| **NEXT** | 🚧 [#528](https://github.com/pl0n3r/brvtal/issues/528): autosave y drafts/versiones recuperables, si sigue disponible al redespachar. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap canónico. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN. |
 | **BLOCKED / FACTORY** | 🚧 [#694](https://github.com/pl0n3r/brvtal/issues/694): Factory Labels `@v1`. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: [#513](https://github.com/pl0n3r/brvtal/issues/513) cerrar Dashboard modular/configurable y gates exact-head.
-- 🚧 **NEXT**: [#515](https://github.com/pl0n3r/brvtal/issues/515) reutilizar la base de configuración en System Status.
+- 🚧 **NOW**: [#515](https://github.com/pl0n3r/brvtal/issues/515) cerrar System Status confiable/configurable y gates exact-head.
+- 🚧 **NEXT**: [#528](https://github.com/pl0n3r/brvtal/issues/528) si continúa libre después del merge.
 - 🚧 **LATER**: [#533](https://github.com/pl0n3r/brvtal/issues/533) continuar el roadmap.
 - 🚧 **BLOCKED / EXTERNAL**: [#681](https://github.com/pl0n3r/brvtal/issues/681) mantiene producción NO GREEN.
