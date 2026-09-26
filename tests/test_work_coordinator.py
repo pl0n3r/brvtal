@@ -397,21 +397,22 @@ class CoordinationTests(unittest.TestCase):
         self.assertTrue(api.comments[0]["body"].startswith("<!-- brvtal-work-reservation "))
         self.assertNotIn("Work is reserved", api.comments[0]["body"])
 
-    def test_label_reserved_creates_silent_reservation(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_label_reserved_without_marker_does_not_create_authority(self) -> None:
+        """A manual label must never mint a branch, assignee or trusted marker."""
         api = FakeGitHub()
         api.issue_data["labels"].append({"name": STATUS_RESERVED})
 
         update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
 
-        self.assertIn("work/issue-12", api.branches)
-        self.assertEqual(len(api.comments), 1)
-        self.assertTrue(api.comments[0]["body"].startswith("<!-- brvtal-work-reservation "))
-        reservation = active_reservation(api, 12)
-        self.assertIsNotNone(reservation)
+        self.assertNotIn("work/issue-12", api.branches)
+        self.assertEqual(api.comments, [])
+        self.assertEqual(api.assignees, set())
+        self.assertIsNone(active_reservation(api, 12))
+        self.assertIn(STATUS_AVAILABLE, label_names(api.issue_data))
+        self.assertNotIn(STATUS_RESERVED, label_names(api.issue_data))
 
-    def test_label_reserved_restores_blocked_state_if_rejected(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_label_reserved_restores_blocked_state_without_authority(self) -> None:
+        """A blocked Issue remains blocked when reserved is applied manually."""
         api = FakeGitHub()
         api.issue_data["labels"] = [
             {"name": STATUS_BLOCKED},
@@ -422,19 +423,37 @@ class CoordinationTests(unittest.TestCase):
 
         self.assertNotIn("work/issue-12", api.branches)
         self.assertEqual(api.status_history[-1], STATUS_BLOCKED)
+        self.assertEqual(api.comments, [])
 
-    def test_label_reserved_keeps_concurrent_winner_reserved(self) -> None:
-        """BRVTAL work-coordination helper."""
+    def test_label_reserved_keeps_trusted_existing_reservation_visible(self) -> None:
+        """A trusted marker plus canonical branch may synchronize its visible label."""
         api = FakeGitHub()
-        api.issue_data["labels"].append({"name": STATUS_RESERVED})
-        api.branches["work/issue-12"] = "winner-sha"
+        add_active_reservation(api, owner="agent-a", age_minutes=5)
+        reservation = active_reservation(api, 12)
+        self.assertIsNotNone(reservation)
+        assert reservation is not None
 
         update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
 
         self.assertEqual(api.status_history[-1], STATUS_RESERVED)
+        self.assertEqual(active_reservation(api, 12)["reservation_id"], reservation["reservation_id"])
+        self.assertEqual(len(api.comments), 1)
+
+    def test_label_reserved_branch_without_marker_does_not_grant_authority(self) -> None:
+        """An orphan branch alone is never enough to trust a manual reserved label."""
+        api = FakeGitHub()
+        api.issue_data["labels"].append({"name": STATUS_RESERVED})
+        api.branches["work/issue-12"] = "orphan-sha"
+
+        update_issue_label_state(api, 12, "pl0n3r", STATUS_RESERVED)
+
+        self.assertIn("work/issue-12", api.branches)
+        self.assertIsNone(active_reservation(api, 12))
+        self.assertIn(STATUS_AVAILABLE, label_names(api.issue_data))
+        self.assertNotIn(STATUS_RESERVED, label_names(api.issue_data))
 
     def test_label_reserved_restores_available_when_other_issue_is_active(self) -> None:
-        """A rejected manual reservation must not leave a phantom reserved status."""
+        """A manual label cannot create a second repository work line."""
         api = FakeGitHub()
         add_active_reservation(api, owner="agent-a", age_minutes=5)
         api.issues[13] = {
@@ -447,12 +466,13 @@ class CoordinationTests(unittest.TestCase):
         api.comments_by_issue[13] = []
         api.assignees_by_issue[13] = set()
 
-        with self.assertRaises(CoordinationError):
-            update_issue_label_state(api, 13, "pl0n3r", STATUS_RESERVED)
+        update_issue_label_state(api, 13, "pl0n3r", STATUS_RESERVED)
 
         self.assertIn(STATUS_AVAILABLE, label_names(api.issues[13]))
         self.assertNotIn(STATUS_RESERVED, label_names(api.issues[13]))
         self.assertNotIn("work/issue-13", api.branches)
+        self.assertEqual(api.comments_by_issue[13], [])
+        self.assertEqual(api.assignees_by_issue[13], set())
         self.assertIsNotNone(active_reservation(api, 12))
 
     def test_label_available_cannot_release_another_session(self) -> None:

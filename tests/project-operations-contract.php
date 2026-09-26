@@ -93,6 +93,7 @@ $assert(str_contains($coordinationWorkflow, 'name: Work Coordination'), 'work-co
 $assert(str_contains($coordinationWorkflow, 'issue_comment:') && str_contains($coordinationWorkflow, 'pull_request:'), 'work-coordination workflow must synchronize commands and PR state');
 $assert(str_contains($workCoordinator, 'BRVTAL_TRUSTED_MARKER_LOGIN'), 'coordinator must trust only the configured bot identity');
 $assert(str_contains($workCoordinator, 'Collision with PR #'), 'coordinator must fail closed on changed-file collisions');
+$assert(!str_contains($workCoordinator, 'reserve_work(api, issue_number, actor, "OWNER")'), 'label events must never fabricate OWNER authority');
 $assert(str_contains($workCoordinator, 'NON_BLOCKING_SHARED_FILES = {"README.md"}'), 'README must be the only explicit non-blocking shared PR snapshot');
 $assert(str_contains($workCoordinatorTests, 'test_readme_only_overlap_is_non_blocking'), 'coordination tests must prove README-only overlap remains parallel-safe');
 $assert(str_contains($workCoordinator, 'Deploy-bound PR titles must end with (vX.Y.Z).'), 'coordinator must enforce prospective deploy version titles');
