@@ -154,6 +154,10 @@ try {
             }
         }
 
+        if (!brvtal_activity_schema_ready($pdo)) {
+            throw new RuntimeException('ACTIVITY_SCHEMA_MISSING');
+        }
+
         $year = date('Y');
         $month = date('m');
         $directory = dirname(__DIR__) . '/uploads/media/' . $year . '/' . $month;
@@ -177,6 +181,8 @@ try {
         }
         $alt = brvtal_media_safe_text($_POST['alt_text'] ?? '', 255);
 
+        $metadata = null;
+        $pdo->beginTransaction();
         try {
             if ($contentHash !== null) {
                 $st = $pdo->prepare(
@@ -192,6 +198,9 @@ try {
             }
             $mediaId = (int)$pdo->lastInsertId();
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             @unlink($absolute);
             if ($contentHash !== null && brvtalMediaIsUniqueHashConflict($e)) {
                 $winner = brvtalMediaFindByContentHash($pdo, $contentHash);
@@ -201,6 +210,9 @@ try {
             }
             throw $e;
         } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             @unlink($absolute);
             throw $e;
         }
@@ -215,16 +227,25 @@ try {
             }
         }
 
-        $row = brvtal_media_find($pdo, $mediaId);
-        brvtal_activity_record(
-            $pdo,
-            'upload',
-            'media',
-            $mediaId,
-            null,
-            $row,
-            ['source' => 'media_library']
-        );
+        try {
+            $row = brvtal_media_find($pdo, $mediaId);
+            brvtal_activity_record(
+                $pdo,
+                'upload',
+                'media',
+                $mediaId,
+                null,
+                $row,
+                ['source' => 'media_library']
+            );
+            $pdo->commit();
+        } catch (Throwable $auditError) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            @unlink($absolute);
+            throw $auditError;
+        }
         brvtal_media_json_response([
             'ok' => true,
             'duplicate' => false,
@@ -297,23 +318,35 @@ try {
             $size = max(0, (int)(@filesize($absolute) ?: 0));
         }
 
+        if (!brvtal_activity_schema_ready($pdo)) {
+            throw new RuntimeException('ACTIVITY_SCHEMA_MISSING');
+        }
         $alt = brvtal_media_safe_text($data['alt_text'] ?? '', 255);
         $status = ($data['status'] ?? 'published') === 'draft' ? 'draft' : 'published';
-        $st = $pdo->prepare(
-            'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
-        );
-        $st->execute([$type, $title, $path, $mime, $size, $alt, $status]);
-        $mediaId = (int)$pdo->lastInsertId();
-        $row = brvtal_media_find($pdo, $mediaId);
-        brvtal_activity_record(
-            $pdo,
-            'register',
-            'media',
-            $mediaId,
-            null,
-            $row,
-            ['source' => 'media_library']
-        );
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare(
+                'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
+            );
+            $st->execute([$type, $title, $path, $mime, $size, $alt, $status]);
+            $mediaId = (int)$pdo->lastInsertId();
+            $row = brvtal_media_find($pdo, $mediaId);
+            brvtal_activity_record(
+                $pdo,
+                'register',
+                'media',
+                $mediaId,
+                null,
+                $row,
+                ['source' => 'media_library']
+            );
+            $pdo->commit();
+        } catch (Throwable $registerError) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $registerError;
+        }
         brvtal_media_json_response(['ok' => true, 'data' => brvtal_media_asset_payload($row ?: [])], 201);
     }
 
@@ -327,6 +360,9 @@ try {
             brvtal_media_json_response(['ok'=>false,'error'=>'INVALID_FOCAL_POINT'], 422);
         }
 
+        if (!brvtal_activity_schema_ready($pdo)) {
+            throw new RuntimeException('ACTIVITY_SCHEMA_MISSING');
+        }
         $pdo->beginTransaction();
         try {
             $row = brvtal_media_find($pdo, $id, true);
@@ -365,6 +401,20 @@ try {
                 $metadata['variants'],
                 is_array($previousSidecar) ? $previousSidecar : null
             );
+            brvtal_activity_record(
+                $pdo,
+                'transform',
+                'media',
+                $id,
+                $row,
+                $row,
+                [
+                    'source' => 'media_library',
+                    'transform' => 'focal_point',
+                    'focal_x' => $x,
+                    'focal_y' => $y,
+                ]
+            );
             $pdo->commit();
         } catch (Throwable $transformError) {
             if ($pdo->inTransaction()) {
@@ -373,20 +423,6 @@ try {
             throw $transformError;
         }
 
-        brvtal_activity_record(
-            $pdo,
-            'transform',
-            'media',
-            $id,
-            $row,
-            $row,
-            [
-                'source' => 'media_library',
-                'transform' => 'focal_point',
-                'focal_x' => $x,
-                'focal_y' => $y,
-            ]
-        );
         $asset = brvtal_media_asset_payload($row);
         $asset['usage'] = brvtal_media_integrity_usage($pdo, $row);
         brvtal_media_json_response(['ok'=>true,'data'=>$asset]);
