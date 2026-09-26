@@ -102,6 +102,7 @@ $assert(str_contains($workflow, "  coordination:\n"), 'BRVTAL CI must expose the
 $assert(str_contains($workflow, 'COORDINATION_RESULT: ${{ needs.coordination.result }}'), 'validation summary must publish the coordination result');
 $assert(str_contains($coordinationWorkflow, 'group: brvtal-work-coordination'), 'coordination workflow must serialize mutation events repository-wide');
 $assert(str_contains($coordinationWorkflow, 'cancel-in-progress: false'), 'coordination workflow must queue instead of cancelling the active mutation');
+$assert(str_contains($coordinationWorkflow, 'queue: max'), 'coordination workflow must preserve all pending mutation events');
 $assert(!str_contains($coordinationWorkflow, "format('work/issue-{0}', github.event.issue.number)"), 'coordination workflow concurrency must not vary by Issue');
 $assert(!str_contains($coordinationWorkflow, 'github.event.pull_request.head.ref'), 'coordination workflow concurrency must not vary by PR branch');
 $assert(str_contains($workCoordinatorTests, 'test_workflow_serializes_all_coordination_mutations_repository_wide'), 'coordination tests must prove repository-wide workflow serialization');
