@@ -45,6 +45,15 @@ function brvtal_media_safe_text(mixed $value, int $max): string
     return mb_substr(trim((string)$value), 0, $max);
 }
 
+function brvtalMediaCleanupFailedUploadOrThrow(string $absolute, Throwable $cause): void
+{
+    $cleanup = brvtal_media_cleanup_failed_upload($absolute);
+    if (($cleanup['removed'] ?? false) || ($cleanup['quarantined'] ?? false)) {
+        return;
+    }
+    throw new RuntimeException('MEDIA_UPLOAD_ROLLBACK_FILE_FAILED', 0, $cause);
+}
+
 function brvtalMediaReuseUpload(PDO $pdo, array $row, string $contentHash, string $source): never
 {
     $fresh = brvtal_media_find($pdo, (int)($row['id'] ?? 0)) ?? $row;
@@ -201,7 +210,7 @@ try {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            @unlink($absolute);
+            brvtalMediaCleanupFailedUploadOrThrow($absolute, $e);
             if ($contentHash !== null && brvtalMediaIsUniqueHashConflict($e)) {
                 $winner = brvtalMediaFindByContentHash($pdo, $contentHash);
                 if ($winner !== null) {
@@ -213,7 +222,7 @@ try {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            @unlink($absolute);
+            brvtalMediaCleanupFailedUploadOrThrow($absolute, $e);
             throw $e;
         }
 
@@ -243,7 +252,7 @@ try {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            @unlink($absolute);
+            brvtalMediaCleanupFailedUploadOrThrow($absolute, $auditError);
             throw $auditError;
         }
         brvtal_media_json_response([
@@ -507,8 +516,15 @@ try {
             $st = $pdo->prepare('DELETE FROM media WHERE id=?');
             $st->execute([$id]);
             if ((int)$st->rowCount() !== 1) {
-                brvtal_media_restore_staged_delete($stage);
                 $pdo->rollBack();
+                $restore = brvtal_media_restore_staged_delete($stage);
+                if (($restore['restore_failed'] ?? []) !== []) {
+                    brvtal_media_json_response([
+                        'ok'=>false,
+                        'error'=>'MEDIA_FILE_RESTORE_FAILED',
+                        'recovery_pending'=>count($restore['restore_failed']),
+                    ], 500);
+                }
                 brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_DELETE_CONFLICT'], 409);
             }
 
@@ -528,7 +544,10 @@ try {
                 $pdo->rollBack();
             }
             if (!$committed && is_array($stage) && ($stage['ok'] ?? false) === true) {
-                brvtal_media_restore_staged_delete($stage);
+                $restore = brvtal_media_restore_staged_delete($stage);
+                if (($restore['restore_failed'] ?? []) !== []) {
+                    throw new RuntimeException('MEDIA_FILE_RESTORE_FAILED', 0, $deleteError);
+                }
             }
             throw $deleteError;
         }

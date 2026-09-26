@@ -796,12 +796,7 @@ try {
             json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
         }
 
-        $previousSettingDeleteSt = $pdo->prepare(
-            'SELECT is_json FROM settings WHERE setting_key=? LIMIT 1'
-        );
-        $previousSettingDeleteSt->execute([$key]);
-        $previousSettingDelete = $previousSettingDeleteSt->fetch(PDO::FETCH_ASSOC);
-
+        $previousSettingDelete = null;
         $themeMutation = str_starts_with($key, 'theme.');
         if ($themeMutation) {
             brvtalAcquireThemeReferenceMutex($pdo);
@@ -809,6 +804,12 @@ try {
 
         try {
             $pdo->beginTransaction();
+            $previousSettingDeleteSt = $pdo->prepare(
+                'SELECT is_json FROM settings WHERE setting_key=? LIMIT 1 FOR UPDATE'
+            );
+            $previousSettingDeleteSt->execute([$key]);
+            $previousSettingDelete = $previousSettingDeleteSt->fetch(PDO::FETCH_ASSOC);
+
             if ($themeMutation) {
                 $activeTheme = $pdo->query(
                     "SELECT setting_value FROM settings WHERE setting_key='theme.active' LIMIT 1 FOR UPDATE"

@@ -20,13 +20,13 @@
 | Base exacta | ✅ **main** | `a22388e321a969d18f6ae6059628236c86b311af` |
 | Versión de producto | 🚧 **v0.1.61** | `config/version.php` + `package.json` |
 | Producción | ⛔ **NO GREEN · #681** | recuperación de migraciones pendiente |
-| PR | 🚧 **#701 draft** | 1 commit · branch mergeable |
+| PR | 🚧 **#701 draft** | 10 commits · branch mergeable |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **9** | **+288** | **−67** | **+221** |
+| **11** | **+563** | **−96** | **+467** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -61,9 +61,12 @@ flowchart LR
 - `api/index.php`
 - `api/media-library.php`
 - `config/admin_activity.php`
+- `config/media_integrity.php`
 - `config/version.php`
 - `package.json`
+- `tests/admin-activity-contract.php`
 - `tests/integration/admin-activity.php`
+- `tests/media-dedup-contract.php`
 - `tests/test_admin_activity_audit_coverage.py`
 
 ## Validación
@@ -81,6 +84,6 @@ flowchart LR
 
 ## Panorama general pendiente
 - 🚧 **NOW:** #195 Admin Activity Media/Settings/Theme.
-- 🚧 **NEXT:** #212 selector público ES/EN.
+- 🚧 **NEXT:** #232 paginación de Admin Activity / Version History.
 - 🚧 **LATER:** #533 roadmap canónico.
 - 🚧 **BLOCKED / EXTERNAL:** #681 producción.
