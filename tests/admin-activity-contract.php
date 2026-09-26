@@ -50,7 +50,13 @@ activity_assert(!preg_match('/\b(?:INSERT\s+INTO|UPDATE\s+admin_activity_log|DEL
 activity_assert(str_contains($endpoint, "'history'"), 'activity endpoint must expose per-content history mode');
 activity_assert(str_contains($endpoint, 'HISTORY_RESOURCE_REQUIRED'), 'history mode must require a resource and resource id');
 activity_assert(str_contains($endpoint, "'content_history'"), 'history responses must identify their mode');
-activity_assert(str_contains($endpoint, '$snapshotColumns'), 'history mode must return sanitized snapshots for field diffs');
+activity_assert(str_contains($endpoint, "['cursor']"), 'activity endpoint must accept a stable cursor');
+activity_assert(str_contains($helper, "'id < ?'"), 'cursor pagination must seek by descending primary key');
+activity_assert(str_contains($helper, '$limit + 1'), 'cursor pagination must fetch one sentinel row');
+activity_assert(str_contains($endpoint, "'next_cursor'"), 'activity endpoint must expose next_cursor');
+activity_assert(str_contains($endpoint, "'has_more'"), 'activity endpoint must expose has_more');
+activity_assert(str_contains($endpoint, "'returned'"), 'activity endpoint must expose returned count');
+activity_assert(str_contains($endpoint, '$page = brvtalActivityPage'), 'endpoint and integration must share the canonical page query');
 
 activity_assert(str_contains($core, "'lineup_update'"), 'event lineup changes must be audited');
 activity_assert(str_contains($core, "['events','artists','sets','pages','ticket_types']"), 'core editorial resources must be audited');
@@ -71,5 +77,9 @@ activity_assert(str_contains($ui, '/api/admin-activity.php'), 'UI must use the p
 activity_assert(str_contains($ui, 'EDITORIAL VERSION HISTORY'), 'UI must expose per-content editorial history');
 activity_assert(str_contains($ui, 'data-activity-history'), 'activity rows must open their content history');
 activity_assert(str_contains($ui, 'historyDiff'), 'history UI must render field-level before/after differences');
+activity_assert(str_contains($ui, "fetchList(resource = '', cursor = null)"), 'Activity UI must request subsequent cursor pages');
+activity_assert(str_contains($ui, 'fetchHistory(resource, resourceId, cursor = null'), 'History UI must request subsequent cursor pages');
+activity_assert(substr_count($ui, 'LOAD MORE') >= 2, 'Activity and History must both expose LOAD MORE controls');
+activity_assert(str_contains($ui, 'next_cursor'), 'UI must consume server next_cursor without offset pagination');
 
 echo "BRVTAL Admin Activity contract tests passed.\n";

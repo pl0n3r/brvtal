@@ -245,3 +245,80 @@ function brvtal_activity_record(
 
     return (int)$pdo->lastInsertId();
 }
+
+
+/**
+ * @param array{resource?:string,resource_id?:int,action?:string,admin_id?:int} $filters
+ * @return array{items:array<int,array<string,mixed>>,total:int,limit:int,returned:int,has_more:bool,next_cursor:?int}
+ */
+function brvtalActivityPage(
+    PDO $pdo,
+    array $filters,
+    int $limit,
+    ?int $cursor = null,
+    bool $history = false
+): array {
+    $limit = max(1, min(100, $limit));
+    if ($cursor !== null && $cursor < 1) {
+        throw new InvalidArgumentException('INVALID_CURSOR');
+    }
+
+    $where = [];
+    $params = [];
+    foreach ([
+        'resource' => 'resource',
+        'resource_id' => 'resource_id',
+        'action' => 'action',
+        'admin_id' => 'admin_id',
+    ] as $filter => $column) {
+        if (!array_key_exists($filter, $filters)) {
+            continue;
+        }
+        $value = $filters[$filter];
+        if ($value === '' || $value === null || $value === 0) {
+            continue;
+        }
+        $where[] = $column . '=?';
+        $params[] = $value;
+    }
+
+    $baseWhereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    $count = $pdo->prepare('SELECT COUNT(*) FROM admin_activity_log' . $baseWhereSql);
+    $count->execute($params);
+    $total = (int)$count->fetchColumn();
+
+    if ($cursor !== null) {
+        $where[] = 'id < ?';
+        $params[] = $cursor;
+    }
+    $pageWhereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    $snapshotColumns = $history ? ',before_json,after_json' : '';
+    $fetchLimit = $limit + 1;
+    $statement = $pdo->prepare(
+        'SELECT id,admin_id,admin_name,admin_email,action,resource,resource_id,'
+        . 'resource_label,changed_fields,request_id,created_at'
+        . $snapshotColumns
+        . ' FROM admin_activity_log'
+        . $pageWhereSql
+        . ' ORDER BY id DESC LIMIT '
+        . $fetchLimit
+    );
+    $statement->execute($params);
+    $items = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $hasMore = count($items) > $limit;
+    if ($hasMore) {
+        array_pop($items);
+    }
+    $nextCursor = $hasMore && $items !== []
+        ? (int)array_last($items)['id']
+        : null;
+
+    return [
+        'items' => $items,
+        'total' => $total,
+        'limit' => $limit,
+        'returned' => count($items),
+        'has_more' => $hasMore,
+        'next_cursor' => $nextCursor,
+    ];
+}

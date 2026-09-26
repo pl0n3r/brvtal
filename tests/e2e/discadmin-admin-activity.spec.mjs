@@ -104,6 +104,7 @@ test('Dashboard activity panel filters history, opens detail and opens the audit
   await page.locator('[data-activity-filter]').selectOption('artists');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');
   await expect(page.locator('#brvtal-admin-activity')).not.toContainText('GENESIS');
+  await expect.poll(() => page.evaluate(() => window.__feedback ?? null)).toBe(null);
 
   await page.locator('[data-activity-filter]').selectOption('');
   await expect(page.locator('#brvtal-admin-activity')).toContainText('GENESIS');
@@ -117,4 +118,88 @@ test('Dashboard activity panel filters history, opens detail and opens the audit
   await page.getByRole('button', { name: 'OPEN' }).click();
   await expect.poll(() => page.evaluate(() => window.__went)).toBe('events');
   await expect.poll(() => page.evaluate(() => window.__openedRecordId)).toBe(9);
+});
+
+
+test('Admin Activity discards stale pages and History preserves the selected version', async ({ page }) => {
+  const thirdHistoryItem = {
+    ...earlierEventItem,
+    id: 39,
+    action: 'update',
+    changed_fields: ['title'],
+    created_at: '2026-09-10 20:00:00',
+    before: {title:'OLD GENESIS'},
+    after: {title:'GENESIS'},
+  };
+
+  await page.route('**/api/admin-activity.php*', async route => {
+    const url = new URL(route.request().url());
+    const resource = url.searchParams.get('resource') || '';
+    const cursor = url.searchParams.get('cursor');
+
+    if (url.searchParams.get('history') === '1') {
+      if (cursor) {
+        await new Promise(resolve => setTimeout(resolve, 40));
+        return route.fulfill({
+          contentType: 'application/json; charset=utf-8',
+          body: JSON.stringify({ok:true,data:{items:[thirdHistoryItem],total:4,limit:50,next_cursor:null,has_more:false,read_only:true,mode:'content_history'}}),
+        });
+      }
+      return route.fulfill({
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ok:true,data:{items:[
+          {...eventItem,before:{description:'Old copy',status:'draft'},after:{description:'New copy',status:'published'}},
+          {...earlierEventItem,before:null,after:{title:'GENESIS',status:'draft'}},
+        ],total:3,limit:50,next_cursor:40,has_more:true,read_only:true,mode:'content_history'}}),
+      });
+    }
+
+    if (resource === 'artists') {
+      return route.fulfill({
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({ok:true,data:{items:[artistItem],total:1,limit:12,next_cursor:null,has_more:false,read_only:true}}),
+      });
+    }
+
+    if (cursor) {
+      await new Promise(resolve => setTimeout(resolve, 80));
+      return route.abort('failed');
+    }
+
+    return route.fulfill({
+      contentType: 'application/json; charset=utf-8',
+      body: JSON.stringify({ok:true,data:{items:[eventItem],total:2,limit:12,next_cursor:41,has_more:true,read_only:true}}),
+    });
+  });
+
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
+      <main class="main"><div class="top"><h1>DASHBOARD</h1></div></main>
+      <script>
+        var state={authed:true,section:'dashboard'};
+        window.go=async function(section){state.section=section;return section;};
+        window.BRVTALFeedback={error:function(message){window.__feedback=message;}};
+      </script>
+      <script>${activityJs}</script>
+    </body></html>`,
+  }));
+
+  await page.goto(harnessUrl);
+  await page.getByRole('button', { name: 'LOAD MORE' }).click();
+  await page.locator('[data-activity-filter]').selectOption('artists');
+  await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');
+  await page.waitForTimeout(120);
+  await expect(page.locator('#brvtal-admin-activity')).toContainText('PL0N3R');
+  await expect(page.locator('#brvtal-admin-activity')).not.toContainText('GENESIS');
+
+  await page.locator('[data-activity-filter]').selectOption('');
+  await page.getByRole('button', { name: 'HISTORY' }).click();
+  await page.locator('[data-history-index="1"]').click();
+  await expect(page.locator('[data-history-index="1"]')).toHaveClass(/is-active/);
+  await page.getByRole('dialog', { name: 'Editorial version history' }).getByRole('button', { name: 'LOAD MORE' }).click();
+  await page.locator('[data-history-index="0"]').click();
+  await expect(page.locator('[data-history-count]')).toHaveText('3 of 4 versions');
+  await expect(page.locator('[data-history-index="0"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-history-diff]')).toContainText('New copy');
 });

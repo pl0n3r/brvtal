@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #195: cobertura segura de Admin Activity en Media Library y Settings/Theme. No declara producción GREEN.
+> Snapshot de **solo el deploy actual** para #232 / PR #703: paginación estable de Admin Activity y Editorial Version History. No declara producción GREEN.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,25 +16,25 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#195 · Admin Activity coverage** | `work/issue-195` · reserva `98c351ec-12b7-493e-a3ee-df3c1d8be2f6` |
-| Base exacta | ✅ **main** | `a22388e321a969d18f6ae6059628236c86b311af` |
-| Versión de producto | 🚧 **v0.1.61** | `config/version.php` + `package.json` |
+| Work line | 🚧 **#232 · audit history pagination** | `work/issue-232` · reserva `0976b7af-24ae-47fd-94c8-81e12aaa4f66` |
+| Base exacta | ✅ **main** | `e264ded7147b4ef230876d890828bc7723631768` |
+| Versión de producto | 🚧 **v0.1.62** | `config/version.php` + `package.json` |
 | Producción | ⛔ **NO GREEN · #681** | recuperación de migraciones pendiente |
-| PR | 🚧 **#701 draft** | 10 commits · branch mergeable |
+| PR | 🚧 **#703 ready** | branch mergeable |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+563** | **−96** | **+467** |
+| **9** | **+405** | **−63** | **+342** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#195 · Admin Activity Media/Settings/Theme** |
-| Roles | **Software Engineering · Security · QA** |
+| PR + snapshot exacto | **#703 · #232 audit history pagination** |
+| Roles | **Software Engineering · QA** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
 | CI del SHA exacto de main | 🚧 obligatorio después del merge |
 | Production GREEN | ⛔ fuera de alcance mientras #681 siga abierto |
@@ -42,48 +42,46 @@
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  M["Media / Settings mutation"] --> A["safe Admin Activity"]
-  A --> G["exact-head gates"]
-  G --> R["review"]
-  R --> P["merge + exact-main validation"]
+  A["append-only audit log"] --> C["cursor id DESC"]
+  C --> U["LOAD MORE"]
+  U --> G["exact-head gates"]
+  G --> M["merge"]
 ```
 
 ## Qué se hizo
-- Media Library registra upload/register/update/transform/delete con identidad y metadatos permitidos.
-- Snapshots de Media excluyen contenido y `content_hash`.
-- Settings/Theme registran solo `setting_key`, `is_json` y metadatos booleanos seguros.
-- Claves sensibles quedan fuera mediante filtro + allowlist explícita.
-- Theme save/activation/delete queda atribuible por el mismo path de Settings.
-- Se añadieron regresiones de integración y contrato AC-01..AC-04.
+- Admin Activity acepta cursor descendente por `id`, sin `OFFSET`.
+- La API consulta `limit + 1` y expone `next_cursor`, `has_more` y `returned`.
+- `total` permanece filtrado pero independiente de la posición del cursor.
+- Activity y History cargan páginas antiguas mediante **LOAD MORE** sin recargar la aplicación.
+- History conserva snapshots `before/after` en páginas posteriores.
+- MariaDB prueba páginas no solapadas y estabilidad ante una inserción nueva entre páginas.
 
 ## Archivos modificados en este deploy
 - `README.md`
-- `api/index.php`
-- `api/media-library.php`
+- `api/admin-activity.php`
 - `config/admin_activity.php`
-- `config/media_integrity.php`
 - `config/version.php`
+- `discadmin/admin-activity.js`
 - `package.json`
 - `tests/admin-activity-contract.php`
+- `tests/e2e/discadmin-admin-activity.spec.mjs`
 - `tests/integration/admin-activity.php`
-- `tests/media-dedup-contract.php`
-- `tests/test_admin_activity_audit_coverage.py`
 
 ## Validación
-- 🚧 BRVTAL CI sobre el HEAD estable de PR #701.
-- 🚧 Sonar/CodeRabbit terminales requeridos antes de merge.
+- 🚧 BRVTAL CI sobre el HEAD exacto de PR #703.
+- 🚧 Factory Policy/Privacy y Sonar/CodeRabbit terminales antes de merge.
 - 🚧 Validación exact-main obligatoria tras integración.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#195](https://github.com/pl0n3r/brvtal/issues/195): cerrar CI y revisión de Admin Activity. |
-| **NEXT** | 🚧 [#232](https://github.com/pl0n3r/brvtal/issues/232): paginación de Admin Activity / Version History cuando #195 cierre; #212 sigue documentado pero no autorizado para implementación. |
+| **NOW** | 🚧 [#232](https://github.com/pl0n3r/brvtal/issues/232): cerrar cursor pagination y gates. |
+| **NEXT** | 🚧 [#530](https://github.com/pl0n3r/brvtal/issues/530): recycle bin/restauración segura, sujeto a dispatcher. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): continuar roadmap canónico. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN por registry de migraciones. |
 
 ## Panorama general pendiente
-- 🚧 **NOW:** #195 Admin Activity Media/Settings/Theme.
-- 🚧 **NEXT:** #232 paginación de Admin Activity / Version History.
+- 🚧 **NOW:** #232 audit history pagination.
+- 🚧 **NEXT:** siguiente Issue disponible por dispatcher.
 - 🚧 **LATER:** #533 roadmap canónico.
 - 🚧 **BLOCKED / EXTERNAL:** #681 producción.
