@@ -230,7 +230,6 @@ window.BRVTALReleases = (() => {
       }
     );
     modal.classList.add('open');
-    void window.BRVTALLegacyDrafts?.bind?.('releases',id,r);
   }
 
   function payload(sortOrder = 0) {
@@ -265,57 +264,29 @@ window.BRVTALReleases = (() => {
   async function save(id = null) {
     const button = document.getElementById('saveBtn');
     if (button) { button.disabled = true; button.textContent = 'SAVING…'; }
-    let editorId = id;
-    let submittedPayload = null;
     try {
-      const current = editorId ? store.releases.find(record => Number(record.id) === Number(editorId)) : null;
+      const current = id ? store.releases.find(record => Number(record.id) === Number(id)) : null;
       const nextOrder = current
         ? Number(current.sort_order || 0)
         : store.releases.reduce((max,record) => Math.max(max,Number(record.sort_order ?? -1)), -1) + 1;
       const data = payload(nextOrder);
-      submittedPayload = data;
       if (!data.title) throw new Error('TITLE_REQUIRED');
       if (!data.slug) data.slug = slugify(data.title);
-
-      const result = await request(editorId ? '?id=' + encodeURIComponent(editorId) : '', {
-        method:editorId ? 'PUT' : 'POST',
+      await request(id ? '?id=' + encodeURIComponent(id) : '', {
+        method:id ? 'PUT' : 'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(data),
       });
-
-      const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
-        type:'releases',
-        id:editorId,
-        payload:data,
-        result
-      });
-
-      if (draftState?.keepOpen) {
-        const savedId = draftState.id ?? editorId;
-        if (savedId !== null && savedId !== '' && Number(savedId) > 0) {
-          editorId = Number(savedId);
-          if (button?.isConnected) button.onclick = () => save(editorId);
-        }
-        window.BRVTALFeedback?.info?.('Server save completed; newer edits remain in the local draft.','legacy-draft');
-        return;
-      }
-
       if (typeof closeModal === 'function') closeModal(true);
       await refresh();
       setStatus('Release saved.', 'ok');
     } catch (error) {
-      await window.BRVTALLegacyDrafts?.saveFailed?.({
-        type:'releases',
-        id:editorId,
-        payload:submittedPayload || {}
-      });
       setStatus('Could not save release: ' + (error?.message || 'UNKNOWN_ERROR'), 'err');
       window.BRVTALFeedback?.error?.((error?.message || 'Release save failed').replace(/_/g,' '),'release-save');
     } finally {
       if (button?.isConnected) { button.disabled = false; button.textContent = 'GUARDAR'; }
     }
   }
-
 
   async function remove(id) {
     const release = store.releases.find(x => Number(x.id) === Number(id));
