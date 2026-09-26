@@ -139,9 +139,9 @@ function brvtal_backup_export_database(PDO $pdo, string $target): array
             $count = (int)$pdo->query("SELECT COUNT(*) FROM {$quotedTable}")->fetchColumn();
             $rowsTotal += $count;
             $chunk = 250;
-            $columnSql = implode(',', array_map('brvtal_backup_identifier', $columnNames));
+            $columnSql = implode(',', array_map(brvtal_backup_identifier(...), $columnNames));
             $orderColumns = brvtal_backup_order_columns($pdo, $quotedTable, $columnNames);
-            $orderSql = implode(',', array_map('brvtal_backup_identifier', $orderColumns));
+            $orderSql = implode(',', array_map(brvtal_backup_identifier(...), $orderColumns));
 
             for ($offset = 0; $offset < $count; $offset += $chunk) {
                 $rows = $pdo->query("SELECT * FROM {$quotedTable} ORDER BY {$orderSql} LIMIT {$chunk} OFFSET {$offset}")->fetchAll(PDO::FETCH_ASSOC);

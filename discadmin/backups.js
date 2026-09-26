@@ -32,10 +32,12 @@
     return data;
   }
 
-  function dateLabel(value) {
+  function dateLabel(value, timeZone=null) {
     const date = new Date(value || '');
     if (!Number.isFinite(date.getTime())) return String(value || 'UNKNOWN');
-    return date.toLocaleString([], {year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const options = {year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'};
+    if (timeZone) options.timeZone = timeZone;
+    return date.toLocaleString([], options);
   }
 
   function downloadLink(item, component, label) {
@@ -70,9 +72,11 @@
     const schedule = automation.config || {};
     const cadence = schedule.cadence || {type:'daily',interval:1,time:'03:00'};
     const drive = schedule.drive || {enabled:false,folder:null};
-    const nextRun = automation.next_run_at ? dateLabel(automation.next_run_at) : 'PAUSED';
-    const lastRun = automation.last_run_at ? dateLabel(automation.last_run_at) : 'NEVER';
+    const nextRun = automation.next_run_at ? dateLabel(automation.next_run_at, 'America/Bogota') : 'PAUSED';
+    const lastRun = automation.last_run_at ? dateLabel(automation.last_run_at, 'America/Bogota') : 'NEVER';
     const lastResult = automation.last_result?.status?.toUpperCase() || 'NONE';
+    const driveResult = automation.last_result?.drive?.toUpperCase() || 'NONE';
+    const driveError = automation.drive?.last_error ? ` · ${esc(automation.drive.last_error)}` : '';
 
     return `
       <section class="backup-automation" aria-label="Backup automation">
@@ -97,7 +101,8 @@
           <label class="backup-check"><input type="checkbox" data-backup-media-zip ${schedule.include_media_archive?'checked':''}> INCLUDE MEDIA ZIP</label>
           <button type="button" class="backup-save">SAVE AUTOMATION</button>
         </div>
-        <div class="backup-last">LAST RESULT · ${esc(lastResult)} · ${esc(lastRun)}</div>
+        <div class="backup-last">LOCAL RESULT · ${esc(lastResult)} · ${esc(lastRun)}</div>
+        <div class="backup-last">DRIVE RESULT · ${esc(driveResult)}${driveError}</div>
       </section>
       <section class="backup-offsite" aria-label="Google Drive off-site backup">
         <div class="backup-section-head"><div><strong>OFF-SITE / GOOGLE DRIVE</strong><span>Local backup remains authoritative if Drive delivery fails.</span></div><b>${automation.drive?.connected ? 'CONNECTED' : 'AUTH REQUIRED'}</b></div>
@@ -115,7 +120,7 @@
     const latest = items[0] || null;
     const zipAvailable = !!data.capabilities?.media_archive;
     const scheduleEnabled = !!data.automation?.config?.enabled;
-    const nextRun = data.automation?.next_run_at ? dateLabel(data.automation.next_run_at) : 'PAUSED';
+    const nextRun = data.automation?.next_run_at ? dateLabel(data.automation.next_run_at, 'America/Bogota') : 'PAUSED';
 
     panel.innerHTML = `
       <div class="ssv2-panel-head"><span>BACKUPS</span><b>PRIVATE / AUTOMATED</b></div>
@@ -137,7 +142,9 @@
 
     panel.querySelectorAll('.backup-create').forEach(button => button.addEventListener('click', () => createBackup(panel, button.dataset.media === '1')));
     panel.querySelector('.backup-refresh')?.addEventListener('click', () => load(panel));
-    panel.querySelector('.backup-save')?.addEventListener('click', () => saveAutomation(panel));
+    panel.querySelector('.backup-save')?.addEventListener('click', () => {
+      saveAutomation(panel).catch(error => window.alert(`BACKUP AUTOMATION ERROR · ${error.message}`));
+    });
   }
 
   async function load(panel) {

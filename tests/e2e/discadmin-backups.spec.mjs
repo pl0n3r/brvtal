@@ -21,14 +21,14 @@ const item = (id, status='ready') => ({
   },
 });
 
-function listPayload(items) {
+function listPayload(items, automationState=null) {
   return {
     ok:true,
     data:{
       items,
       total:items.length,
       capabilities:{manual_create:true,media_archive:false,download:true,restore:false,delete:false,automation:true,drive_oauth:false},
-      automation:{
+      automation:automationState || {
         config:{enabled:false,timezone:'America/Bogota',cadence:{type:'daily',interval:1,time:'03:00'},scope:'full',include_media_archive:false,retention_local:7,drive:{enabled:false,folder:null}},
         next_run_at:null,last_run_at:null,last_success_at:null,last_result:null,last_duration_ms:null,
         drive:{connected:false,last_success_at:null,last_error:null},
@@ -43,6 +43,7 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   let postBody = null;
   let postCsrf = null;
   let automationBody = null;
+  let automationState = listPayload(items).data.automation;
 
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
@@ -61,7 +62,16 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
     if (request.method() === 'POST' && request.url().includes('action=automation')) {
       postCsrf = request.headers()['x-csrf-token'] || null;
       automationBody = request.postDataJSON();
-      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:listPayload(items).data.automation})});
+      automationState = {
+        ...automationState,
+        config:{
+          ...automationState.config,
+          ...automationBody,
+          cadence:{...automationState.config.cadence,...automationBody.cadence},
+          drive:{...automationState.config.drive,...automationBody.drive},
+        },
+      };
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:automationState})});
     }
     if (request.method() === 'POST') {
       postCsrf = request.headers()['x-csrf-token'] || null;
@@ -70,7 +80,7 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
       items = [created, ...items];
       return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({ok:true,data:created})});
     }
-    return route.fulfill({contentType:'application/json',body:JSON.stringify(listPayload(items))});
+    return route.fulfill({contentType:'application/json',body:JSON.stringify(listPayload(items, automationState))});
   });
 
   await page.goto(harness);
@@ -78,12 +88,12 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   const backups = page.locator('#ssv2-backups');
   await expect(backups).toBeVisible();
   await expect(backups).toContainText('BACKUPS');
-  await expect(backups).toContainText('PRIVATE / MANUAL');
+  await expect(backups).toContainText('PRIVATE / AUTOMATED');
   await expect(backups).toContainText('1');
   await expect(backups).toContainText('READY');
   await expect(backups).toContainText('RESTORE');
   await expect(backups).toContainText('OFF');
-  await expect(backups).toContainText('NO DELETE / NO RESTORE IN V1');
+  await expect(backups).toContainText('NO AUTOMATIC RESTORE');
   await expect(backups).toContainText('PRIVATE STORAGE VERIFIED');
 
   const dbLink = backups.locator('a', {hasText:'DATABASE SQL'}).first();
@@ -116,4 +126,9 @@ test('Backups Foundation mounts inside System Status and creates an audited manu
   expect(automationBody.cadence.interval).toBe(6);
   expect(automationBody.scope).toBe('database');
   expect(automationBody.retention_local).toBe(5);
+  await expect(backups.locator('[data-backup-enabled]')).toBeChecked();
+  await expect(backups.locator('[data-backup-cadence]')).toHaveValue('hours');
+  await expect(backups.locator('[data-backup-interval]')).toHaveValue('6');
+  await expect(backups.locator('[data-backup-scope]')).toHaveValue('database');
+  await expect(backups.locator('[data-backup-retention]')).toHaveValue('5');
 });

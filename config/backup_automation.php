@@ -78,7 +78,7 @@ function brvtal_backup_automation_next_run(array $config, ?DateTimeImmutable $af
         return $after->modify('+' . (int)$cadence['interval'] . ' hours')->setTimezone($utc)->format(DATE_ATOM);
     }
 
-    [$hour, $minute] = array_map('intval', explode(':', (string)$cadence['time']));
+    [$hour, $minute] = array_map(intval(...), explode(':', (string)$cadence['time']));
     $candidate = $after->setTime($hour, $minute, 0);
     if ($cadence['type'] === 'daily') {
         if ($candidate <= $after) $candidate = $candidate->modify('+1 day');
@@ -126,16 +126,32 @@ function brvtal_backup_automation_write(array $state, ?string $baseDir = null): 
     return $state;
 }
 
-function brvtal_backup_automation_save_config(array $input, ?string $baseDir = null, ?DateTimeImmutable $now = null): array
-{
-    $result = brvtal_backup_automation_with_lock(function () use ($input, $baseDir, $now): array {
-        $state = brvtal_backup_automation_read($baseDir);
-        $state['config'] = brvtal_backup_automation_normalize_config($input);
-        $state['next_run_at'] = $state['config']['enabled'] ? brvtal_backup_automation_next_run($state['config'], $now) : null;
-        $state['in_progress'] = null;
-        return brvtal_backup_automation_write($state, $baseDir);
-    }, $baseDir);
-    if (($result['status'] ?? null) === 'busy') throw new RuntimeException('BACKUP_SCHEDULER_BUSY');
+function brvtal_backup_automation_save_config_locked(
+    array $input,
+    ?string $baseDir = null,
+    ?DateTimeImmutable $now = null
+): array {
+    $state = brvtal_backup_automation_read($baseDir);
+    $state['config'] = brvtal_backup_automation_normalize_config($input);
+    $state['next_run_at'] = $state['config']['enabled']
+        ? brvtal_backup_automation_next_run($state['config'], $now)
+        : null;
+    $state['in_progress'] = null;
+    return brvtal_backup_automation_write($state, $baseDir);
+}
+
+function brvtal_backup_automation_save_config(
+    array $input,
+    ?string $baseDir = null,
+    ?DateTimeImmutable $now = null
+): array {
+    $result = brvtal_backup_automation_with_lock(
+        static fn(): array => brvtal_backup_automation_save_config_locked($input, $baseDir, $now),
+        $baseDir
+    );
+    if (($result['status'] ?? null) === 'busy') {
+        throw new RuntimeException('BACKUP_SCHEDULER_BUSY');
+    }
     return $result;
 }
 
@@ -157,6 +173,19 @@ function brvtal_backup_automation_with_lock(callable $callback, ?string $baseDir
         @flock($handle, LOCK_UN);
         fclose($handle);
     }
+}
+
+function brvtal_backup_automation_next_after_now(
+    array $config,
+    DateTimeImmutable $due,
+    DateTimeImmutable $now
+): string {
+    $next = brvtal_backup_automation_next_run($config, $due);
+    $nextDate = new DateTimeImmutable($next)->setTimezone(new DateTimeZone('UTC'));
+    if ($nextDate <= $now) {
+        return brvtal_backup_automation_next_run($config, $now);
+    }
+    return $next;
 }
 
 function brvtal_backup_automation_existing_occurrence(string $scheduledFor, ?string $baseDir = null): ?array
@@ -226,7 +255,7 @@ function brvtal_backup_automation_run(PDO $pdo, array $options = []): array
         }
 
         try {
-            $due = (new DateTimeImmutable((string)$state['next_run_at']))->setTimezone(new DateTimeZone('UTC'));
+            $due = new DateTimeImmutable((string)$state['next_run_at'])->setTimezone(new DateTimeZone('UTC'));
         } catch (Throwable) {
             $due = $now;
         }
@@ -239,7 +268,7 @@ function brvtal_backup_automation_run(PDO $pdo, array $options = []): array
             $state['last_success_at'] = $now->format(DATE_ATOM);
             $state['last_result'] = ['status'=>'success','backup_id'=>$existing['id'] ?? null,'local'=>'success','drive'=>'unknown','recovered'=>true];
             $state['last_duration_ms'] = 0;
-            $state['next_run_at'] = brvtal_backup_automation_next_run($config, $due);
+            $state['next_run_at'] = brvtal_backup_automation_next_after_now($config, $due, $now);
             $state['in_progress'] = null;
             brvtal_backup_automation_prune((int)$config['retention_local'], $baseDir);
             brvtal_backup_automation_write($state, $baseDir);
@@ -275,7 +304,7 @@ function brvtal_backup_automation_run(PDO $pdo, array $options = []): array
                 $state['drive']['last_error'] = $drive['error'] ?? 'DRIVE_UPLOAD_FAILED';
             }
             $state['last_duration_ms'] = (int)round((microtime(true) - $started) * 1000);
-            $state['next_run_at'] = brvtal_backup_automation_next_run($config, $due);
+            $state['next_run_at'] = brvtal_backup_automation_next_after_now($config, $due, $now);
             $state['in_progress'] = null;
             $removed = brvtal_backup_automation_prune((int)$config['retention_local'], $baseDir);
             brvtal_backup_automation_write($state, $baseDir);
@@ -285,7 +314,7 @@ function brvtal_backup_automation_run(PDO $pdo, array $options = []): array
             $state['last_run_at'] = $finished->format(DATE_ATOM);
             $state['last_result'] = ['status'=>'failed','local'=>'failed','drive'=>'skipped','error'=>'BACKUP_CREATE_FAILED'];
             $state['last_duration_ms'] = (int)round((microtime(true) - $started) * 1000);
-            $state['next_run_at'] = brvtal_backup_automation_next_run($config, $due);
+            $state['next_run_at'] = brvtal_backup_automation_next_after_now($config, $due, $now);
             $state['in_progress'] = null;
             brvtal_backup_automation_write($state, $baseDir);
             return ['status'=>'failed','error'=>'BACKUP_CREATE_FAILED','next_run_at'=>$state['next_run_at']];

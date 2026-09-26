@@ -11,7 +11,7 @@
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
 - 🚧 Normal text = pending/in progress.
-- ⛔ = active production blocker.
+- 🚧 = active production blocker.
 
 ## Estado del deploy
 | Señal | Estado | Evidencia |
@@ -19,26 +19,26 @@
 | Work line | 🚧 **#389 · backup automation** | `work/issue-389` · reserva `c6d63ab6-3a05-4897-a5a0-d065f880314c` |
 | Base exacta | ✅ **main** | `d9cca3a738650e7ae7d6f3fcafe95c7859b75362` |
 | Versión de producto | 🚧 **v0.1.63** | `config/version.php` + `package.json` |
-| Producción | ⛔ **NO GREEN · #681** | recovery de migraciones sigue bloqueado |
-| Factory Labels | ⛔ **#694** | Factory `@v1` todavía falla por alias/canónica |
+| Producción | 🚧 **NO GREEN · #681** | recovery de migraciones sigue bloqueado |
+| Factory Labels | 🚧 **#694** | Factory `@v1` todavía falla por alias/canónica |
 | PR | 🚧 **#704** | exact-head gates obligatorios |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+750** | **−78** | **+672** |
+| **14** | **+852** | **−86** | **+766** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | PR + snapshot exacto | **#704 · #389 backup automation** |
 | Roles | **Infrastructure · Software Engineering · Security · QA** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
 | CI del SHA exacto de main | 🚧 obligatorio después del merge |
-| Production GREEN | ⛔ fuera de alcance mientras #681 siga abierto |
+| Production GREEN | 🚧 fuera de alcance mientras #681 siga abierto |
 
 ## Flujo de entrega
 
@@ -66,7 +66,8 @@ flowchart LR
 - Fallo de Drive queda separado de éxito local.
 - Restore automático sigue explícitamente fuera de alcance.
 
-## Archivos del deploy
+## Archivos modificados en este deploy
+- `config/admin_activity.php`
 - `config/backup_automation.php`
 - `config/backups.php`
 - `config/version.php`
@@ -92,5 +93,12 @@ flowchart LR
 | --- | --- |
 | **NOW** | 🚧 [#389](https://github.com/pl0n3r/brvtal/issues/389): cerrar gates de backup automation. |
 | **NEXT** | 🚧 siguiente Issue disponible por dispatcher. |
-| **BLOCKED / EXTERNAL** | ⛔ [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN. |
-| **BLOCKED / FACTORY** | ⛔ [#694](https://github.com/pl0n3r/brvtal/issues/694): Factory Labels `@v1`. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap canónico tras cerrar la línea inmediata. |
+| **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): producción no GREEN. |
+| **BLOCKED / FACTORY** | 🚧 [#694](https://github.com/pl0n3r/brvtal/issues/694): Factory Labels `@v1`. |
+
+## Panorama general pendiente
+- 🚧 **NOW**: [#389](https://github.com/pl0n3r/brvtal/issues/389) cerrar backup automation y gates exact-head.
+- 🚧 **NEXT**: siguiente Issue elegible por el dispatcher central.
+- 🚧 **LATER**: [#533](https://github.com/pl0n3r/brvtal/issues/533) continuar el roadmap canónico.
+- 🚧 **BLOCKED / EXTERNAL**: [#681](https://github.com/pl0n3r/brvtal/issues/681) mantiene producción NO GREEN.

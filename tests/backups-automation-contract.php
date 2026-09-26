@@ -38,6 +38,22 @@ $hourly = brvtal_backup_automation_normalize_config([
 ]);
 backup_auto_expect(brvtal_backup_automation_next_run($hourly, new DateTimeImmutable('2026-09-26T12:00:00Z')) === '2026-09-26T18:00:00+00:00', 'hour cadence must advance');
 
+$missedHourly = brvtal_backup_automation_normalize_config([
+    'enabled'=>true,
+    'cadence'=>['type'=>'hours','interval'=>1,'time'=>'03:00'],
+    'scope'=>'database',
+    'retention_local'=>3,
+]);
+$collapsed = brvtal_backup_automation_next_after_now(
+    $missedHourly,
+    new DateTimeImmutable('2026-09-23T12:00:00Z'),
+    new DateTimeImmutable('2026-09-26T12:00:00Z')
+);
+backup_auto_expect(
+    $collapsed === '2026-09-26T13:00:00+00:00',
+    'missed hourly occurrences must collapse into one future run'
+);
+
 $invalid = false;
 try {
     brvtal_backup_automation_normalize_config(['cadence'=>['type'=>'hours','interval'=>0,'time'=>'03:00']]);
