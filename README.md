@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **13** | **+630** | **−65** | **+565** |
+| **13** | **+738** | **−64** | **+674** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -66,6 +66,8 @@ flowchart LR
 - Analytics se ofrece como módulo opcional, oculto por defecto y fail-closed: **DATA UNAVAILABLE** sin métricas inventadas.
 - Persistencia y aislamiento por administrador cubiertos por contratos e integración.
 - E2E cubre persistencia, hide/show, reorder, resize, reset, navegación y feed progresivo.
+- Mutaciones de layout reutilizan el boundary CSRF canónico, se serializan y aplican render latest-wins para evitar retrocesos por respuestas fuera de orden.
+- Spans y visibilidad fallan cerrado ante valores fuera de contrato; no se aceptan casts permisivos.
 
 ## Archivos modificados en este deploy
 - `api/admin-dashboard-preferences.php`
