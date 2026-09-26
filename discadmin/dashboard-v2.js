@@ -12,6 +12,8 @@
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
   let mounting = false;
   let mountSerial = 0;
+  let layoutSaveSerial = 0;
+  let layoutSaveChain = Promise.resolve();
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -251,12 +253,21 @@
     return {modules};
   }
 
+  async function dashboardCsrfToken() {
+    if (globalThis.BRVTALAdminAuthBoundary?.csrfToken) {
+      return globalThis.BRVTALAdminAuthBoundary.csrfToken();
+    }
+    try { if (globalThis.csrf) return globalThis.csrf; } catch (_) {}
+    throw new Error('AUTH_REQUIRED');
+  }
+
   async function saveLayout(layout) {
+    const token = await dashboardCsrfToken();
     const response = await fetch(ENDPOINTS.preferences,{
       method:'POST',
       credentials:'same-origin',
       cache:'no-store',
-      headers:{'Content-Type':'application/json','X-CSRF-Token':String(globalThis.csrf || '')},
+      headers:{'Content-Type':'application/json','X-CSRF-Token':String(token)},
       body:JSON.stringify(layout)
     });
     const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
@@ -352,14 +363,26 @@
   }
 
   function persistDashboardLayout(layout, results, serial) {
-    return saveLayout(layout)
+    const snapshot = normalizeLayout({
+      modules:layout.modules.map(item => ({...item}))
+    });
+    const saveSerial = ++layoutSaveSerial;
+    layoutSaveChain = layoutSaveChain
+      .catch(() => undefined)
+      .then(() => saveLayout(snapshot))
       .then(saved => {
+        if (saveSerial !== layoutSaveSerial) return saved;
         results[5] = {status:'fulfilled',value:saved};
         render(results,serial);
+        return saved;
       })
       .catch(() => {
-        globalThis.BRVTALFeedback?.error?.('Dashboard layout could not be saved.','dashboard-layout');
+        if (saveSerial === layoutSaveSerial) {
+          globalThis.BRVTALFeedback?.error?.('Dashboard layout could not be saved.','dashboard-layout');
+        }
+        return null;
       });
+    return layoutSaveChain;
   }
 
   function bindDashboardModule(module, layout, persist, dragState) {

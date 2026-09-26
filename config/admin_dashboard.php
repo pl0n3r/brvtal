@@ -36,6 +36,31 @@ function brvtalAdminDashboardDefaultPreferences(): array
     return ['modules'=>array_values(brvtalAdminDashboardCatalog())];
 }
 
+function brvtalAdminDashboardNormalizeSpan(mixed $value, int $default, array $allowed, string $error): int
+{
+    if ($value === null) return $default;
+    if (is_int($value)) {
+        $normalized = $value;
+    } elseif (is_string($value) && ctype_digit($value)) {
+        $normalized = (int)$value;
+    } else {
+        throw new InvalidArgumentException($error);
+    }
+    if (!in_array($normalized, $allowed, true)) {
+        throw new InvalidArgumentException($error);
+    }
+    return $normalized;
+}
+
+function brvtalAdminDashboardNormalizeVisible(mixed $value, bool $default): bool
+{
+    if ($value === null) return $default;
+    if (!is_bool($value)) {
+        throw new InvalidArgumentException('INVALID_DASHBOARD_VISIBILITY');
+    }
+    return $value;
+}
+
 /**
  * @param array<string,mixed> $input
  * @return array{modules:array<int,array{id:string,width:int,height:int,visible:bool}>}
@@ -60,9 +85,22 @@ function brvtalAdminDashboardNormalizePreferences(array $input): array
         $seen[$id] = true;
         $modules[] = [
             'id'=>$id,
-            'width'=>max(1, min(4, (int)($item['width'] ?? $catalog[$id]['width']))),
-            'height'=>max(1, min(2, (int)($item['height'] ?? $catalog[$id]['height']))),
-            'visible'=>array_key_exists('visible', $item) ? (bool)$item['visible'] : true,
+            'width'=>brvtalAdminDashboardNormalizeSpan(
+                $item['width'] ?? null,
+                $catalog[$id]['width'],
+                [1,2,3,4],
+                'INVALID_DASHBOARD_WIDTH'
+            ),
+            'height'=>brvtalAdminDashboardNormalizeSpan(
+                $item['height'] ?? null,
+                $catalog[$id]['height'],
+                [1,2],
+                'INVALID_DASHBOARD_HEIGHT'
+            ),
+            'visible'=>brvtalAdminDashboardNormalizeVisible(
+                $item['visible'] ?? null,
+                $catalog[$id]['visible']
+            ),
         ];
     }
 

@@ -74,11 +74,13 @@ dashboard_v2_assert(
 $dashboardPreferences = (string)file_get_contents(__DIR__ . '/../config/admin_dashboard.php');
 $dashboardPreferencesApi = (string)file_get_contents(__DIR__ . '/../api/admin-dashboard-preferences.php');
 dashboard_v2_assert(str_contains($dashboardPreferences, "admin.dashboard."), 'Dashboard preferences must be namespaced per administrator');
-dashboard_v2_assert(str_contains($dashboardPreferences, "'width'=>max(1, min(4"), 'Dashboard spans must be server-validated to four columns');
-dashboard_v2_assert(str_contains($dashboardPreferences, "'height'=>max(1, min(2"), 'Dashboard height spans must be server-validated');
+dashboard_v2_assert(str_contains($dashboardPreferences, 'INVALID_DASHBOARD_WIDTH'), 'Dashboard width spans must be strictly validated');
+dashboard_v2_assert(str_contains($dashboardPreferences, 'INVALID_DASHBOARD_HEIGHT'), 'Dashboard height spans must be strictly validated');
 dashboard_v2_assert(str_contains($dashboardPreferencesApi, 'brvtal_admin_require();'), 'Dashboard preferences must require authentication');
 dashboard_v2_assert(str_contains($dashboardPreferencesApi, 'brvtal_admin_require_csrf();'), 'Dashboard preference mutation must retain CSRF');
 dashboard_v2_assert(str_contains($controller, "preferences:'/api/admin-dashboard-preferences.php'"), 'Dashboard must load private per-admin layout preferences');
+dashboard_v2_assert(str_contains($controller, 'BRVTALAdminAuthBoundary?.csrfToken'), 'Dashboard mutation must reuse the canonical admin auth boundary');
+dashboard_v2_assert(str_contains($controller, 'layoutSaveChain') && str_contains($controller, 'layoutSaveSerial'), 'Dashboard mutations must serialize and render latest-wins');
 dashboard_v2_assert(str_contains($controller, 'data-dashboard-reset'), 'Dashboard must expose Reset to default');
 dashboard_v2_assert(str_contains($controller, 'data-dashboard-hide') && str_contains($controller, 'data-dashboard-show'), 'Dashboard module library must support hide/show');
 dashboard_v2_assert(str_contains($controller, 'data-dashboard-move="up"') && str_contains($controller, 'data-dashboard-move="down"'), 'Dashboard must expose keyboard/touch reorder controls');
@@ -89,7 +91,7 @@ dashboard_v2_assert(str_contains($css, 'repeat(4,minmax(0,1fr))'), 'Dashboard gr
 dashboard_v2_assert(str_contains($css, '.dashboard-v2-module-controls'), 'Dashboard module controls must be styled');
 $genericSettingsApi = (string)file_get_contents(__DIR__ . '/../api/index.php');
 dashboard_v2_assert(str_contains($genericSettingsApi, "setting_key NOT LIKE 'admin.dashboard.%'"), 'generic Settings listing must hide private Dashboard preferences');
-dashboard_v2_assert(substr_count($genericSettingsApi, "str_starts_with($key, 'admin.dashboard.')") >= 2, 'generic Settings mutations must protect private Dashboard preferences');
+dashboard_v2_assert(substr_count($genericSettingsApi, "str_starts_with(\$key, 'admin.dashboard.')") >= 2, 'generic Settings mutations must protect private Dashboard preferences');
 
 dashboard_v2_assert(str_contains($controller, 'function analyticsPanel()'), 'Dashboard module library must include Analytics');
 dashboard_v2_assert(str_contains($controller, 'DATA UNAVAILABLE') && str_contains($controller, 'does not invent GA4'), 'Analytics must fail closed when no admin-safe source exists');

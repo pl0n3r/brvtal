@@ -20,10 +20,12 @@ const defaults = {
 test('Dashboard persists layout controls and loads Recent Changes five at a time', async ({page}) => {
   let preferences=structuredClone(defaults);
   const saved=[];
+  let activePosts=0;
+  let maxConcurrentPosts=0;
   await page.route(harness,route=>route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html><body><main class="main"><div class="top"><span class="status"></span></div></main>
-      <script>var csrf='csrf';var state={authed:true,section:'dashboard'};window.go=s=>{window.__went=s};window.tech=()=>{};window.openModal=()=>{};</script>
+      <script>var state={authed:true,section:'dashboard'};window.BRVTALAdminAuthBoundary={csrfToken:async()=>{window.__csrfCalls=(window.__csrfCalls||0)+1;return 'boundary-csrf'}};window.go=s=>{window.__went=s};window.tech=()=>{};window.openModal=()=>{};</script>
       <script>${dashboardJs}</script></body></html>`,
   }));
   await page.route('**/api/dashboard-overview.php',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{summary:{public_records:7,draft_records:2,active_events:3,media_assets:9},next_event:null}})}));
@@ -33,8 +35,15 @@ test('Dashboard persists layout controls and loads Recent Changes five at a time
   await page.route('**/api/admin-dashboard-preferences.php',async route=>{
     const request=route.request();
     if(request.method()==='POST'){
-      preferences=request.postDataJSON();
-      saved.push(structuredClone(preferences));
+      expect(request.headers()['x-csrf-token']).toBe('boundary-csrf');
+      activePosts+=1;
+      maxConcurrentPosts=Math.max(maxConcurrentPosts,activePosts);
+      const submitted=request.postDataJSON();
+      saved.push(structuredClone(submitted));
+      await new Promise(resolve=>setTimeout(resolve,saved.length===1?120:10));
+      preferences=structuredClone(submitted);
+      activePosts-=1;
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:preferences})});
     }
     await route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:preferences})});
   });
@@ -55,12 +64,14 @@ test('Dashboard persists layout controls and loads Recent Changes five at a time
 
   const next=root.locator('[data-dashboard-module="next_event"]');
   await next.locator('[data-dashboard-resize="wider"]').click();
-  await expect(root.locator('[data-dashboard-module="next_event"]')).toHaveAttribute('data-dashboard-width','3');
-  expect(saved.at(-1).modules.find(item=>item.id==='next_event').width).toBe(3);
-
   await root.locator('[data-dashboard-module="quick_create"] [data-dashboard-hide]').click();
+  await expect(root.locator('[data-dashboard-module="next_event"]')).toHaveAttribute('data-dashboard-width','3');
   await expect(root.getByRole('button',{name:/QUICK CREATE/})).toBeVisible();
+  await expect.poll(()=>saved.length).toBeGreaterThanOrEqual(2);
+  expect(saved.at(-1).modules.find(item=>item.id==='next_event').width).toBe(3);
   expect(saved.at(-1).modules.find(item=>item.id==='quick_create').visible).toBe(false);
+  expect(maxConcurrentPosts).toBe(1);
+  expect(await page.evaluate(()=>window.__csrfCalls)).toBeGreaterThanOrEqual(2);
 
   await root.locator('[data-dashboard-module="activity"] [data-dashboard-move="up"]').click();
   expect(saved.at(-1).modules.findIndex(item=>item.id==='activity')).toBe(3);

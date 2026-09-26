@@ -25,7 +25,7 @@ dashboard_pref_assert(
 
 $normalized = brvtalAdminDashboardNormalizePreferences([
     'modules'=>[
-        ['id'=>'activity','width'=>99,'height'=>99,'visible'=>true],
+        ['id'=>'activity','width'=>4,'height'=>2,'visible'=>true],
         ['id'=>'activity','width'=>1,'height'=>1,'visible'=>false],
         ['id'=>'not-real','width'=>2,'height'=>1,'visible'=>true],
         ['id'=>'operations','width'=>1,'height'=>2,'visible'=>false],
@@ -33,11 +33,24 @@ $normalized = brvtalAdminDashboardNormalizePreferences([
 ]);
 dashboard_pref_assert($normalized['modules'][0] === [
     'id'=>'activity','width'=>4,'height'=>2,'visible'=>true,
-], 'normalization must keep first valid module and clamp spans');
+], 'normalization must keep the first valid canonical module');
 dashboard_pref_assert($normalized['modules'][1] === [
     'id'=>'operations','width'=>1,'height'=>2,'visible'=>false,
 ], 'normalization must preserve validated visibility and spans');
 dashboard_pref_assert(count($normalized['modules']) === 7, 'missing canonical modules must be restored');
+
+foreach ([
+    [['id'=>'activity','width'=>99,'height'=>1,'visible'=>true], 'INVALID_DASHBOARD_WIDTH'],
+    [['id'=>'activity','width'=>2,'height'=>99,'visible'=>true], 'INVALID_DASHBOARD_HEIGHT'],
+    [['id'=>'activity','width'=>2,'height'=>1,'visible'=>'false'], 'INVALID_DASHBOARD_VISIBILITY'],
+] as [$invalidModule, $expectedError]) {
+    try {
+        brvtalAdminDashboardNormalizePreferences(['modules'=>[$invalidModule]]);
+        dashboard_pref_assert(false, $expectedError . ' must fail closed');
+    } catch (InvalidArgumentException $error) {
+        dashboard_pref_assert($error->getMessage() === $expectedError, $expectedError . ' must be explicit');
+    }
+}
 
 $allHidden = brvtalAdminDashboardNormalizePreferences([
     'modules'=>array_map(
