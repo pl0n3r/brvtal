@@ -33,7 +33,7 @@
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | PR + snapshot exacto | **#705 · #513 Dashboard modular/configurable** |
 | Roles | **Software Engineering · Frontend · UX · QA · Security** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeRabbit |
