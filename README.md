@@ -30,7 +30,7 @@
 
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+TBD** | **−TBD** | **TBD** |
+| **5** | **+227** | **−40** | **+187** |
 
 ## Calidad y entrega
 
