@@ -36,7 +36,8 @@ foreach (['password','secret','token','csrf','recovery','session','credential','
 foreach (['events','artists','sets','pages','ticket_types','releases','blog','event_lineup'] as $resource) {
     activity_assert(str_contains($helper, "'{$resource}' =>"), "activity snapshots must explicitly allowlist {$resource}");
 }
-activity_assert(str_contains($helper, "'settings' => ['setting_key','is_json']"), 'Settings audit snapshots must expose only safe key metadata');\nactivity_assert(!str_contains($helper, "'settings' => ['setting_key','setting_value'"), 'raw Settings values must remain outside the audit snapshot allowlist');
+activity_assert(str_contains($helper, "'settings' => ['setting_key','is_json']"), 'Settings audit snapshots must expose only safe key metadata');
+activity_assert(!str_contains($helper, "'settings' => ['setting_key','setting_value'"), 'raw Settings values must remain outside the audit snapshot allowlist');
 activity_assert(str_contains($helper, 'admin_name'), 'activity rows must preserve an actor name snapshot');
 activity_assert(str_contains($helper, 'admin_email'), 'activity rows must preserve an actor email snapshot');
 activity_assert(str_contains($helper, 'request_id'), 'activity rows must include a request correlation id');
