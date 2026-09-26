@@ -121,6 +121,7 @@ function brvtal_blog_payload(array $input): array
 function brvtal_blog_sync_tags(PDO $pdo, int $postId, array $tags): void
 {
     $pdo->prepare('DELETE FROM blog_post_tags WHERE post_id=?')->execute([$postId]);
+    // TEMPORARY RECTOR DIAGNOSTIC #653: discard trigger before any merge.
     if (!$tags) return;
     $upsert = $pdo->prepare('INSERT INTO blog_tags(name,slug) VALUES(?,?) ON DUPLICATE KEY UPDATE name=VALUES(name)');
     $find = $pdo->prepare('SELECT id FROM blog_tags WHERE slug=? LIMIT 1');
