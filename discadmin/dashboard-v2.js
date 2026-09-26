@@ -351,36 +351,42 @@
     });
   }
 
-  function bindCustomization(root, layout, results, serial) {
-    let dragged = '';
-    const persist = async () => {
-      try {
-        const saved = await saveLayout(layout);
+  function persistDashboardLayout(layout, results, serial) {
+    return saveLayout(layout)
+      .then(saved => {
         results[5] = {status:'fulfilled',value:saved};
         render(results,serial);
-      } catch (error) {
+      })
+      .catch(() => {
         globalThis.BRVTALFeedback?.error?.('Dashboard layout could not be saved.','dashboard-layout');
-      }
-    };
-
-    root.querySelectorAll('[data-dashboard-module]').forEach(module => {
-      module.addEventListener('dragstart',() => { dragged = module.dataset.dashboardModule || ''; });
-      module.addEventListener('dragover',event => event.preventDefault());
-      module.addEventListener('drop',event => {
-        event.preventDefault();
-        const target = module.dataset.dashboardModule || '';
-        if (!dragged || dragged === target) return;
-        const from = layout.modules.findIndex(item => item.id === dragged);
-        const to = layout.modules.findIndex(item => item.id === target);
-        if (from < 0 || to < 0) return;
-        const [item] = layout.modules.splice(from,1);
-        layout.modules.splice(to,0,item);
-        persist();
       });
-      module.querySelectorAll('[data-dashboard-move]').forEach(button => button.addEventListener('click',() => {
+  }
+
+  function bindDashboardModule(module, layout, persist, dragState) {
+    module.addEventListener('dragstart',() => {
+      dragState.current = module.dataset.dashboardModule || '';
+    });
+    module.addEventListener('dragover',event => event.preventDefault());
+    module.addEventListener('drop',event => {
+      event.preventDefault();
+      const target = module.dataset.dashboardModule || '';
+      if (!dragState.current || dragState.current === target) return;
+      const from = layout.modules.findIndex(item => item.id === dragState.current);
+      const to = layout.modules.findIndex(item => item.id === target);
+      if (from < 0 || to < 0) return;
+      const [item] = layout.modules.splice(from,1);
+      layout.modules.splice(to,0,item);
+      persist();
+    });
+
+    module.querySelectorAll('[data-dashboard-move]').forEach(button => {
+      button.addEventListener('click',() => {
         if (reorder(layout,module.dataset.dashboardModule,button.dataset.dashboardMove === 'up' ? -1 : 1)) persist();
-      }));
-      module.querySelectorAll('[data-dashboard-resize]').forEach(button => button.addEventListener('click',() => {
+      });
+    });
+
+    module.querySelectorAll('[data-dashboard-resize]').forEach(button => {
+      button.addEventListener('click',() => {
         const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
         if (!item) return;
         const action = button.dataset.dashboardResize;
@@ -389,22 +395,34 @@
         if (action === 'shorter') item.height = Math.max(1,item.height - 1);
         if (action === 'taller') item.height = Math.min(2,item.height + 1);
         persist();
-      }));
-      module.querySelector('[data-dashboard-hide]')?.addEventListener('click',() => {
-        const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
+      });
+    });
+
+    module.querySelector('[data-dashboard-hide]')?.addEventListener('click',() => {
+      const item = layout.modules.find(entry => entry.id === module.dataset.dashboardModule);
+      if (!item || layout.modules.filter(entry => entry.visible).length <= 1) return;
+      item.visible = false;
+      persist();
+    });
+  }
+
+  function bindCustomization(root, layout, results, serial) {
+    const dragState = {current:''};
+    const persist = () => persistDashboardLayout(layout,results,serial);
+
+    root.querySelectorAll('[data-dashboard-module]').forEach(module => {
+      bindDashboardModule(module,layout,persist,dragState);
+    });
+
+    root.querySelectorAll('[data-dashboard-show]').forEach(button => {
+      button.addEventListener('click',() => {
+        const item = layout.modules.find(entry => entry.id === button.dataset.dashboardShow);
         if (!item) return;
-        if (layout.modules.filter(entry => entry.visible).length <= 1) return;
-        item.visible = false;
+        item.visible = true;
         persist();
       });
     });
 
-    root.querySelectorAll('[data-dashboard-show]').forEach(button => button.addEventListener('click',() => {
-      const item = layout.modules.find(entry => entry.id === button.dataset.dashboardShow);
-      if (!item) return;
-      item.visible = true;
-      persist();
-    }));
     root.querySelector('[data-dashboard-reset]')?.addEventListener('click',() => {
       layout.modules = defaultLayout().modules.map(item => ({...item}));
       persist();
