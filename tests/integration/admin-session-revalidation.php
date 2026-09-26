@@ -61,7 +61,8 @@ CREATE TABLE admins (
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin',
-  is_active TINYINT(1) NOT NULL DEFAULT 1
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  credential_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1
 ) ENGINE=InnoDB;
 SQL);
 
@@ -77,6 +78,12 @@ admin_session_assert(!brvtal_admin_account_is_active($pdo, $adminId), 'disabled 
 
 $pdo->prepare('UPDATE admins SET is_active=1 WHERE id=?')->execute([$adminId]);
 admin_session_assert(brvtal_admin_account_is_active($pdo, $adminId), 'reactivated admin must pass current-state revalidation');
+
+$state = brvtal_admin_account_session_state($pdo, $adminId);
+admin_session_assert(is_array($state) && $state['credential_epoch'] === 1, 'fixture epoch must start at one');
+$pdo->prepare('UPDATE admins SET credential_epoch=credential_epoch+1 WHERE id=?')->execute([$adminId]);
+$rotated = brvtal_admin_account_session_state($pdo, $adminId);
+admin_session_assert(is_array($rotated) && $rotated['credential_epoch'] === 2, 'credential changes must be visible to session revalidation');
 
 $pdo->prepare('DELETE FROM admins WHERE id=?')->execute([$adminId]);
 admin_session_assert(!brvtal_admin_account_is_active($pdo, $adminId), 'deleted admin must fail revalidation');

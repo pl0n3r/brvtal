@@ -47,7 +47,7 @@ admin_session_contract_assert(
 );
 $inactiveBlock = strpos($auth, 'if ($state === null || !$state[\'is_active\']');
 admin_session_contract_assert($inactiveBlock !== false, 'inactive/epoch branch must remain explicit');
-$inactiveSource = substr($auth, $inactiveBlock, 500);
+$inactiveSource = substr($auth, $inactiveBlock, 900);
 admin_session_contract_assert(
     str_contains($inactiveSource, 'brvtal_admin_logout();') && str_contains($inactiveSource, 'return false;'),
     'inactive, deleted or stale-epoch sessions must be destroyed and denied'
