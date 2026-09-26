@@ -19,6 +19,8 @@ INDEXNOW_STUB_PORT="${BRVTAL_INDEXNOW_STUB_PORT:-4175}"
 INDEXNOW_STUB_ORIGIN="http://127.0.0.1:${INDEXNOW_STUB_PORT}"
 INDEXNOW_STUB_URL="${INDEXNOW_STUB_ORIGIN}/indexnow"
 INDEXNOW_STUB_LOG="${RUNNER_TEMP:-/tmp}/brvtal-indexnow-stub.log"
+MAIL_CAPTURE="${RUNNER_TEMP:-/tmp}/brvtal-password-mail.jsonl"
+rm -f "$MAIL_CAPTURE"
 
 if [[ ! "$DB_NAME" =~ ^brvtal_test[a-zA-Z0-9_]*$ ]]; then
   echo "Refusing to run real-stack smoke against non-test database: $DB_NAME" >&2
@@ -102,7 +104,7 @@ cleanup() {
   local status=$?
   if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
-  rm -f config/config.php uploads/ci/hero-integrity.jpg
+  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE"
   if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
     echo "--- PHP server log ---" >&2
     cat "$PHP_LOG" >&2 || true
@@ -135,7 +137,7 @@ if [[ "$stub_ready" != "1" ]]; then
   exit 1
 fi
 
-PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
+BRVTAL_MAIL_TESTING=1 BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE" PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}" php -S 127.0.0.1:4174 -t . >"$PHP_LOG" 2>&1 &
 PHP_PID=$!
 
 ready=0
@@ -160,6 +162,7 @@ export BRVTAL_REAL_STACK_URL="$BASE_URL"
 export BRVTAL_REAL_STACK_ADMIN_EMAIL="$ADMIN_EMAIL"
 export BRVTAL_REAL_STACK_ADMIN_PASSWORD="$ADMIN_PASSWORD"
 export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
+export BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE"
 npx playwright test \
   tests/e2e/discadmin-premium-real-stack.spec.mjs \
   tests/e2e/admin-performance-real-stack.spec.mjs \
@@ -171,4 +174,5 @@ npx playwright test \
   tests/e2e/memory-relations-real-stack.spec.mjs \
   tests/e2e/hero-slider-integrity-real-stack.spec.mjs \
   tests/e2e/indexnow-real-stack.spec.mjs \
+  tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
   --project=chromium

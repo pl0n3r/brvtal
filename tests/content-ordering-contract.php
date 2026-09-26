@@ -15,11 +15,11 @@ $expect(brvtalContentOrderResource(' RELEASES ') === $resources['releases'], 're
 $expect(brvtalContentOrderResource('events') === null, 'non-approved resources must fail closed');
 $expect(brvtalContentOrderIds([3,'2',1]) === [3,2,1], 'valid IDs preserve submitted order');
 foreach ([[],[1,1],[0,1],[-1,2],['1x',2],[1.5,2]] as $invalid) {
-    $failed=false; try { brvtalContentOrderIds($invalid); } catch (InvalidArgumentException $e) { $failed=true; }
+    $failed=false; try { brvtalContentOrderIds($invalid); } catch (InvalidArgumentException) { $failed=true; }
     $expect($failed, 'invalid or duplicate IDs must fail');
 }
 $oversized = range(1,501);
-$failed=false; try { brvtalContentOrderIds($oversized); } catch (InvalidArgumentException $e) { $failed=true; }
+$failed=false; try { brvtalContentOrderIds($oversized); } catch (InvalidArgumentException) { $failed=true; }
 $expect($failed, 'oversized order payload must fail');
 $expect(brvtalContentOrderMatches([3,1,2],[1,2,3]), 'exact ID sets may arrive in different order');
 $expect(!brvtalContentOrderMatches([1,2],[1,2,3]), 'partial set must be stale');
@@ -172,7 +172,7 @@ $insertSet = $pdo->prepare('INSERT INTO sets_media(title,sort_order) VALUES(?,?)
 foreach ([['Ordering A',0],['Ordering B',1],['Ordering C',2]] as [$title,$position]) {
     $insertSet->execute([$title,$position]);
 }
-$ids = array_map('intval', $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
+$ids = array_map(intval(...), $pdo->query('SELECT id FROM sets_media ORDER BY sort_order,id')->fetchAll(PDO::FETCH_COLUMN));
 $expect(count($ids) === 3, 'ordering fixture must create three records');
 
 $copies = [

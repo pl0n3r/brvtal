@@ -28,8 +28,16 @@ case "$(factory_mode)" in
     head_sha="$(git rev-parse HEAD)"
     [[ "${head_sha,,}" == "$sha" ]] || factory_die "checkout HEAD must match GITHUB_SHA before packaging"
     archive="$(mktemp "${TMPDIR:-/tmp}/brvtal-factory-release.XXXXXX")"
-    trap 'rm -f -- "$archive"' EXIT
-    git archive --format=tar "$sha" | gzip -n > "$archive"
+    stage_root="$(mktemp -d "${TMPDIR:-/tmp}/brvtal-factory-stage.XXXXXX")"
+    trap 'rm -rf -- "$stage_root"; rm -f -- "$archive"' EXIT
+    git archive --format=tar "$sha" | tar -xf - -C "$stage_root"
+    command -v composer >/dev/null 2>&1 || factory_die "composer is required to build the production release"
+    COMPOSER_ALLOW_SUPERUSER=1 composer --working-dir="$stage_root" install \
+      --no-dev --prefer-dist --no-interaction --no-progress --no-audit \
+      --optimize-autoloader --no-scripts --no-plugins
+    [[ -f "$stage_root/vendor/autoload.php" ]] || factory_die "composer vendor autoload missing from candidate release"
+    tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+      -C "$stage_root" -cf - . | gzip -n > "$archive"
     factory_transport stage --archive "$archive" --sha "$sha" --version "$version"
     printf 'Production release staged: %s\n' "$sha"
     ;;

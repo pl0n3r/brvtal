@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/totp.php';
 require_once __DIR__ . '/totp_auth.php';
 require_once __DIR__ . '/password_rate_limit.php';
+require_once __DIR__ . '/admin_mailer.php';
 
 /**
  * Password change/reset primitives for DISCADMIN.
@@ -13,6 +14,38 @@ require_once __DIR__ . '/password_rate_limit.php';
  * every pre-existing authenticated PHP session fails its next revalidation.
  */
 const BRVTAL_PASSWORD_RESET_TTL_SECONDS = 3600;
+const BRVTAL_PASSWORD_RESPONSE_FLOOR_NS = 2500000000;
+
+
+function brvtalAdminPasswordRateLimit(string $scope, string $subject): void
+{
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $ipState = brvtal_password_rate_limit_failure('__' . $scope . '_ip__', null, null, $ip);
+    $subjectState = brvtal_password_rate_limit_failure(
+        '__' . $scope . '_subject__' . strtolower(trim($subject)),
+        null,
+        null,
+        '__account__'
+    );
+    if ($ipState['limited'] || $subjectState['limited']) {
+        throw new DomainException('RATE_LIMITED');
+    }
+}
+
+function brvtalAdminPasswordNotifyChanged(string $email, string $channel): void
+{
+    $delivered = brvtalAdminMailSend(
+        $email,
+        'Tu contraseña de BRVTAL cambió',
+        "La contraseña de tu cuenta BRVTAL acaba de cambiar.\n\nSi no fuiste tú, contacta de inmediato al administrador del sitio.",
+        'password_changed_' . $channel
+    );
+    if (!$delivered && function_exists('brvtal_log')) {
+        brvtal_log('PASSWORD_CHANGE_NOTICE_FAILED', 'Password change confirmation was not delivered', [
+            'channel' => $channel,
+        ]);
+    }
+}
 
 function brvtal_admin_password_error(string $password, string $currentHash = ''): ?string
 {
@@ -93,7 +126,7 @@ function brvtal_password_reset_revoke_token(PDO $pdo, string $token): void
     $statement->execute([$hash]);
 }
 
-/** @return array{admin_id:int,credential_epoch:int} */
+/** @return array{admin_id:int,credential_epoch:int,email:string} */
 function brvtal_admin_change_password(
     PDO $pdo,
     int $adminId,
@@ -104,10 +137,11 @@ function brvtal_admin_change_password(
         throw new RuntimeException('INVALID_CREDENTIALS');
     }
 
+    brvtalAdminPasswordRateLimit('password_change', (string)$adminId);
     $pdo->beginTransaction();
     try {
         $statement = $pdo->prepare(
-            'SELECT password_hash,credential_epoch FROM admins WHERE id=? AND is_active=1 FOR UPDATE'
+            'SELECT email,password_hash,credential_epoch FROM admins WHERE id=? AND is_active=1 FOR UPDATE'
         );
         $statement->execute([$adminId]);
         $admin = $statement->fetch(PDO::FETCH_ASSOC);
@@ -153,7 +187,7 @@ function brvtal_admin_change_password(
             );
         }
         $pdo->commit();
-        return ['admin_id' => $adminId, 'credential_epoch' => $epoch];
+        return ['admin_id' => $adminId, 'credential_epoch' => $epoch, 'email' => (string)$admin['email']];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -162,7 +196,7 @@ function brvtal_admin_change_password(
     }
 }
 
-/** @return array{admin_id:int,credential_epoch:int} */
+/** @return array{admin_id:int,credential_epoch:int,email:string} */
 function brvtal_password_reset_consume(
     PDO $pdo,
     string $token,
@@ -176,10 +210,11 @@ function brvtal_password_reset_consume(
 
     $now ??= time();
     $tokenHash = brvtal_password_reset_token_hash($token);
+    brvtalAdminPasswordRateLimit('password_reset', $tokenHash);
     $pdo->beginTransaction();
     try {
         $statement = $pdo->prepare(
-            'SELECT r.id,r.admin_id,r.expires_at,r.consumed_at,r.revoked_at,a.password_hash,a.credential_epoch,a.is_active,a.totp_enabled,a.totp_secret_enc ' .
+            'SELECT r.id,r.admin_id,r.expires_at,r.consumed_at,r.revoked_at,a.email,a.password_hash,a.credential_epoch,a.is_active,a.totp_enabled,a.totp_secret_enc ' .
             'FROM admin_password_reset_tokens r JOIN admins a ON a.id=r.admin_id ' .
             'WHERE r.token_hash=? LIMIT 1 FOR UPDATE'
         );
@@ -251,7 +286,7 @@ function brvtal_password_reset_consume(
             );
         }
         $pdo->commit();
-        return ['admin_id' => (int)$row['admin_id'], 'credential_epoch' => $epoch];
+        return ['admin_id' => (int)$row['admin_id'], 'credential_epoch' => $epoch, 'email' => (string)$row['email']];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -261,20 +296,11 @@ function brvtal_password_reset_consume(
 }
 
 
-function brvtal_admin_password_send_mail(string $email, string $subject, string $body): bool
-{
-    $transport = $GLOBALS['brvtal_password_mail_transport'] ?? null;
-    return is_callable($transport) && (bool)$transport($email, $subject, $body);
-}
-
 function brvtal_admin_password_forgot(PDO $pdo, string $email, string $baseUrl): void
 {
     $started = hrtime(true);
     $normalized = strtolower(trim($email));
-    $limit = brvtal_password_rate_limit_failure($normalized);
-    if ($limit['limited']) {
-        throw new DomainException('RATE_LIMITED');
-    }
+    brvtalAdminPasswordRateLimit('password_forgot', $normalized);
 
     $admin = null;
     if (filter_var($normalized, FILTER_VALIDATE_EMAIL) && strlen($normalized) <= 190) {
@@ -288,12 +314,13 @@ function brvtal_admin_password_forgot(PDO $pdo, string $email, string $baseUrl):
         $issued = brvtal_password_reset_issue($pdo, (int)$admin['id']);
         $link = rtrim($baseUrl, '/') . '/discadmin/reset-password.php#token='
             . rawurlencode($issued['token']);
-        if (!brvtal_admin_password_send_mail(
+        if (!brvtalAdminMailSend(
             (string)$admin['email'],
             'Recupera tu acceso a BRVTAL',
             "Solicitaste recuperar tu acceso a BRVTAL.\n\n"
                 . $link
-                . "\n\nEste enlace vence en 60 minutos y solo puede usarse una vez."
+                . "\n\nEste enlace vence en 60 minutos y solo puede usarse una vez.",
+            'password_recovery'
         )) {
             brvtal_password_reset_revoke_token($pdo, $issued['token']);
             brvtal_log(
@@ -307,7 +334,7 @@ function brvtal_admin_password_forgot(PDO $pdo, string $email, string $baseUrl):
     }
 
     $elapsedNs = hrtime(true) - $started;
-    $floorNs = 150_000_000;
+    $floorNs = BRVTAL_PASSWORD_RESPONSE_FLOOR_NS;
     if ($elapsedNs < $floorNs) {
         usleep((int)(($floorNs - $elapsedNs) / 1000));
     }

@@ -26,6 +26,31 @@
     return element;
   }
 
+  function passwordInput(id, label, autocomplete) {
+    const element = document.createElement('input');
+    element.id = id;
+    element.type = 'password';
+    element.autocomplete = autocomplete;
+    element.maxLength = 4096;
+    element.setAttribute('aria-label', label);
+    return element;
+  }
+
+  function passwordControls(card) {
+    card.id = 'passwordChangeCard';
+    card.append(
+      node('h2', '', 'Change password'),
+      node('p', 'muted', 'Changing your password revokes every other active DISCADMIN session.'),
+      passwordInput('currentPassword', 'Current password', 'current-password'),
+      passwordInput('newPassword', 'New password', 'new-password'),
+      passwordInput('confirmPassword', 'Confirm new password', 'new-password'),
+      button('changePassword', 'CHANGE PASSWORD')
+    );
+    const message = node('div');
+    message.id = 'passwordMessage';
+    card.append(message);
+  }
+
   function statusRow(enabled, emailValue) {
     const row = node('div', 'row');
     const status = node('span', enabled ? 'status on' : 'status');
@@ -102,7 +127,9 @@
     );
     if (enabled) enabledControls(card);
     else disabledControls(card);
-    wrap.append(card);
+    const passwordCard = node('div', 'card');
+    passwordControls(passwordCard);
+    wrap.append(card, passwordCard);
     section.append(wrap);
     host.replaceChildren(section);
     mount(section);
@@ -112,9 +139,14 @@
   function mount(root) {
     if (!root) return;
     root.dataset.securityMounted = '1';
-    const csrf = root.dataset.csrf || '';
+    let csrf = root.dataset.csrf || '';
     const setup = root.querySelector('#setup');
     const msg = root.querySelector('#message');
+    if (!root.querySelector('#passwordChangeCard')) {
+      const passwordCard = node('div', 'card');
+      passwordControls(passwordCard);
+      root.querySelector('.wrap')?.append(passwordCard);
+    }
 
     const post = async (action, data = {}) => {
       const response = await fetch('/discadmin/totp-api.php?action=' + encodeURIComponent(action), {
@@ -193,6 +225,45 @@
       } catch (error) {
         disableConfirm.disabled = false;
         say(error.message, 'error');
+      }
+    };
+
+    const changePassword = root.querySelector('#changePassword');
+    if (changePassword) changePassword.onclick = async () => {
+      const currentPassword = root.querySelector('#currentPassword')?.value || '';
+      const newPassword = root.querySelector('#newPassword')?.value || '';
+      const confirmation = root.querySelector('#confirmPassword')?.value || '';
+      const passwordMessage = root.querySelector('#passwordMessage');
+      if (newPassword !== confirmation) {
+        passwordMessage.className = 'error';
+        passwordMessage.textContent = 'The new passwords do not match.';
+        return;
+      }
+      changePassword.disabled = true;
+      try {
+        const response = await fetch('/api/index.php/auth', {
+          method:'POST',
+          credentials:'same-origin',
+          headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
+          body:JSON.stringify({action:'change_password',csrf,current_password:currentPassword,new_password:newPassword})
+        });
+        const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
+        if (!response.ok || !payload.ok) throw new Error(payload.error || 'PASSWORD_CHANGE_FAILED');
+        csrf = String(payload.csrf || '');
+        root.dataset.csrf = csrf;
+        window.csrf = csrf;
+        window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});
+        for (const id of ['currentPassword','newPassword','confirmPassword']) {
+          const field = root.querySelector('#' + id);
+          if (field) field.value = '';
+        }
+        passwordMessage.className = 'success';
+        passwordMessage.textContent = 'Password changed. Other sessions were revoked.';
+      } catch (error) {
+        passwordMessage.className = 'error';
+        passwordMessage.textContent = String(error?.message || 'PASSWORD_CHANGE_FAILED').replaceAll('_',' ');
+      } finally {
+        changePassword.disabled = false;
       }
     };
   }

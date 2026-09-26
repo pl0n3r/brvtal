@@ -37,6 +37,9 @@ function reset_login_rate_limit(string $email): void {
 
 function brvtal_auth_password_error_status(Throwable $e): ?array
 {
+    if ($e->getMessage() === 'RATE_LIMITED') {
+        return ['error' => 'RATE_LIMITED', 'status' => 429];
+    }
     $known = [
         'INVALID_CREDENTIALS',
         'PASSWORD_TOO_SHORT',
@@ -207,7 +210,7 @@ try {
                     json_response(['ok'=>false,'error'=>'RESET_INPUT_REQUIRED'],422);
                 }
                 try {
-                    brvtal_password_reset_consume(
+                    $resetResult = brvtal_password_reset_consume(
                         db(),
                         $token,
                         $newPassword,
@@ -220,6 +223,7 @@ try {
                     }
                     throw $e;
                 }
+                brvtalAdminPasswordNotifyChanged((string)$resetResult['email'], 'recovery');
                 brvtal_admin_logout();
                 json_response(['ok'=>true]);
             }
@@ -230,7 +234,7 @@ try {
                 brvtal_admin_require_csrf((string)($d['csrf'] ?? ''));
                 $adminId = (int)($_SESSION['admin_id'] ?? 0);
                 try {
-                    brvtal_admin_change_password(
+                    $changeResult = brvtal_admin_change_password(
                         db(),
                         $adminId,
                         (string)($d['current_password'] ?? ''),
@@ -244,6 +248,7 @@ try {
                     throw $e;
                 }
                 brvtal_admin_login_session($adminId);
+                brvtalAdminPasswordNotifyChanged((string)$changeResult['email'], 'authenticated');
                 json_response(['ok'=>true,'csrf'=>brvtal_admin_csrf_token()]);
             }
             if(($d['action'] ?? '') === 'totp_verify') {
@@ -327,7 +332,7 @@ try {
         if($method!=='POST')method_not_allowed(); brvtal_admin_require_csrf();
         if(empty($_FILES['file'])||$_FILES['file']['error']!==UPLOAD_ERR_OK)json_response(['ok'=>false,'error'=>'UPLOAD_REQUIRED'],422);
         $f=$_FILES['file']; if(!is_uploaded_file($f['tmp_name']))json_response(['ok'=>false,'error'=>'INVALID_UPLOAD'],422); $max=25*1024*1024; if((int)$f['size']<=0||$f['size']>$max)json_response(['ok'=>false,'error'=>'FILE_TOO_LARGE'],422);
-        $mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
+        $mime=new finfo(FILEINFO_MIME_TYPE)->file($f['tmp_name']);
         $allowed=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','image/gif'=>'gif','video/mp4'=>'mp4','audio/mpeg'=>'mp3','audio/wav'=>'wav','application/pdf'=>'pdf'];
         if(!isset($allowed[$mime]))json_response(['ok'=>false,'error'=>'FILE_TYPE_NOT_ALLOWED'],422);
         if(str_starts_with($mime,'image/') && @getimagesize($f['tmp_name'])===false)json_response(['ok'=>false,'error'=>'INVALID_IMAGE'],422);
@@ -579,7 +584,7 @@ try {
         $allowed = allowed_fields($resource);
         $p = [];
         foreach ($allowed as $f) {
-            if (array_key_exists($f, $d)) {
+            if (array_key_exists((string) $f, $d)) {
                 $p[$f] = $d[$f];
             }
         }
@@ -712,7 +717,7 @@ try {
         $allowed = allowed_fields($resource);
         $p = [];
         foreach ($allowed as $f) {
-            if (array_key_exists($f, $d)) {
+            if (array_key_exists((string) $f, $d)) {
                 $p[$f] = $d[$f];
             }
         }

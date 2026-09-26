@@ -3,3 +3,6 @@
 
 [data-admin-module="security"]>.wrap{padding:0}
 [data-admin-module="security"] .notice{display:block}
+
+[data-admin-module="security"] #passwordChangeCard{display:grid;gap:12px}[data-admin-module="security"] #passwordChangeCard input[type="password"]{width:min(100%,420px);letter-spacing:normal}[data-admin-module="security"] #passwordChangeCard button{width:max-content}
+.login-recovery{display:block;margin:12px 0 4px;color:#bbb;text-align:center;font:12px monospace;letter-spacing:.08em;text-decoration:none}.login-recovery:hover,.login-recovery:focus{color:#fff;text-decoration:underline}
