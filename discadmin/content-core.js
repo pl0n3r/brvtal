@@ -315,6 +315,6 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
   };
 })();
 
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,previewEvent});
 return ready;
 }};
