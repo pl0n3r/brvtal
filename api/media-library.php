@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/admin_auth.php';
 require_once __DIR__ . '/../config/media.php';
 require_once __DIR__ . '/../config/media_integrity.php';
 require_once __DIR__ . '/../config/media_dedup.php';
+require_once __DIR__ . '/../config/admin_activity.php';
 
 brvtal_admin_require();
 header('X-Content-Type-Options: nosniff');
@@ -215,6 +216,15 @@ try {
         }
 
         $row = brvtal_media_find($pdo, $mediaId);
+        brvtal_activity_record(
+            $pdo,
+            'upload',
+            'media',
+            $mediaId,
+            null,
+            $row,
+            ['source' => 'media_library']
+        );
         brvtal_media_json_response([
             'ok' => true,
             'duplicate' => false,
@@ -293,7 +303,17 @@ try {
             'INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES(?,?,?,?,?,?,?)'
         );
         $st->execute([$type, $title, $path, $mime, $size, $alt, $status]);
-        $row = brvtal_media_find($pdo, (int)$pdo->lastInsertId());
+        $mediaId = (int)$pdo->lastInsertId();
+        $row = brvtal_media_find($pdo, $mediaId);
+        brvtal_activity_record(
+            $pdo,
+            'register',
+            'media',
+            $mediaId,
+            null,
+            $row,
+            ['source' => 'media_library']
+        );
         brvtal_media_json_response(['ok' => true, 'data' => brvtal_media_asset_payload($row ?: [])], 201);
     }
 
@@ -353,6 +373,20 @@ try {
             throw $transformError;
         }
 
+        brvtal_activity_record(
+            $pdo,
+            'transform',
+            'media',
+            $id,
+            $row,
+            $row,
+            [
+                'source' => 'media_library',
+                'transform' => 'focal_point',
+                'focal_x' => $x,
+                'focal_y' => $y,
+            ]
+        );
         $asset = brvtal_media_asset_payload($row);
         $asset['usage'] = brvtal_media_integrity_usage($pdo, $row);
         brvtal_media_json_response(['ok'=>true,'data'=>$asset]);
@@ -363,13 +397,16 @@ try {
         if (!$id) {
             brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_ID_REQUIRED'], 422);
         }
-        $row = brvtal_media_find($pdo, $id);
+        $pdo->beginTransaction();
+        $row = brvtal_media_find($pdo, $id, true);
         if (!$row) {
+            $pdo->rollBack();
             brvtal_media_json_response(['ok' => false, 'error' => 'MEDIA_NOT_FOUND'], 404);
         }
         $data = brvtal_media_input_json();
         $title = brvtal_media_safe_text($data['title'] ?? $row['title'], 180);
         if ($title === '') {
+            $pdo->rollBack();
             brvtal_media_json_response(['ok' => false, 'error' => 'TITLE_REQUIRED'], 422);
         }
         $alt = brvtal_media_safe_text($data['alt_text'] ?? $row['alt_text'], 255);
@@ -377,6 +414,16 @@ try {
         $st = $pdo->prepare('UPDATE media SET title=?,alt_text=?,status=? WHERE id=?');
         $st->execute([$title, $alt, $status, $id]);
         $updated = brvtal_media_find($pdo, $id);
+        brvtal_activity_record(
+            $pdo,
+            'update',
+            'media',
+            $id,
+            $row,
+            $updated,
+            ['source' => 'media_library']
+        );
+        $pdo->commit();
         $asset = brvtal_media_asset_payload($updated ?: $row);
         $asset['usage'] = brvtal_media_integrity_usage($pdo, $updated ?: $row);
         $asset['usage_count'] = count($asset['usage']);
@@ -429,6 +476,15 @@ try {
                 brvtal_media_json_response(['ok'=>false,'error'=>'MEDIA_DELETE_CONFLICT'], 409);
             }
 
+            brvtal_activity_record(
+                $pdo,
+                'delete',
+                'media',
+                $id,
+                $row,
+                null,
+                ['source' => 'media_library']
+            );
             $pdo->commit();
             $committed = true;
         } catch (Throwable $deleteError) {

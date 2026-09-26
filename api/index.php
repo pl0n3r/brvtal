@@ -577,6 +577,27 @@ try {
             }
             if ($settingChanged) {
                 brvtalIndexNowNotifySetting($pdo, $key);
+                if (brvtal_activity_setting_key_auditable($key)) {
+                    $beforeSettingAudit = is_array($previousSetting)
+                        ? ['setting_key' => $key, 'is_json' => (int)($previousSetting['is_json'] ?? 0)]
+                        : null;
+                    $afterSettingAudit = ['setting_key' => $key, 'is_json' => $isJson];
+                    brvtal_activity_record(
+                        $pdo,
+                        'setting_update',
+                        'settings',
+                        null,
+                        $beforeSettingAudit,
+                        $afterSettingAudit,
+                        [
+                            'source' => $themeMutation ? 'theme_studio' : 'settings_api',
+                            'setting_key' => $key,
+                            'value_changed' => true,
+                            'theme_mutation' => $themeMutation,
+                        ],
+                        $key
+                    );
+                }
             }
             json_response(['ok' => true]);
         }
@@ -778,6 +799,12 @@ try {
             json_response(['ok' => false, 'error' => 'PROTECTED_SETTING'], 403);
         }
 
+        $previousSettingDeleteSt = $pdo->prepare(
+            'SELECT is_json FROM settings WHERE setting_key=? LIMIT 1'
+        );
+        $previousSettingDeleteSt->execute([$key]);
+        $previousSettingDelete = $previousSettingDeleteSt->fetch(PDO::FETCH_ASSOC);
+
         $themeMutation = str_starts_with($key, 'theme.');
         if ($themeMutation) {
             brvtalAcquireThemeReferenceMutex($pdo);
@@ -826,6 +853,24 @@ try {
         }
         if ($deleted > 0) {
             brvtalIndexNowNotifySetting($pdo, $key);
+            if (brvtal_activity_setting_key_auditable($key)) {
+                brvtal_activity_record(
+                    $pdo,
+                    'setting_delete',
+                    'settings',
+                    null,
+                    is_array($previousSettingDelete)
+                        ? ['setting_key' => $key, 'is_json' => (int)($previousSettingDelete['is_json'] ?? 0)]
+                        : ['setting_key' => $key, 'is_json' => 0],
+                    null,
+                    [
+                        'source' => $themeMutation ? 'theme_studio' : 'settings_api',
+                        'setting_key' => $key,
+                        'theme_mutation' => $themeMutation,
+                    ],
+                    $key
+                );
+            }
         }
         json_response(['ok' => true, 'deleted' => $deleted]);
     }

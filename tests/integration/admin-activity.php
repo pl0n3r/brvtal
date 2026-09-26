@@ -113,6 +113,88 @@ $preserved = $pdo->query('SELECT admin_id,admin_name,admin_email FROM admin_acti
 activity_it_expect($preserved['admin_id'] === null, 'deleting an admin must null the FK instead of deleting history');
 activity_it_expect($preserved['admin_name'] === 'Activity CI Admin' && $preserved['admin_email'] === 'activity-ci@brvtal.test', 'actor snapshot must survive admin deletion');
 
+
+$mediaSnapshot = brvtal_activity_snapshot('media', [
+    'id' => 12,
+    'type' => 'image',
+    'title' => 'Hero',
+    'file_path' => '/uploads/media/hero.webp',
+    'mime_type' => 'image/webp',
+    'file_size' => 1024,
+    'content_hash' => 'must-not-be-stored',
+    'alt_text' => 'Hero',
+    'status' => 'published',
+]);
+activity_it_expect(is_array($mediaSnapshot), 'media snapshot must be supported');
+activity_it_expect(($mediaSnapshot['title'] ?? null) === 'Hero', 'media metadata must remain attributable');
+activity_it_expect(!array_key_exists('content_hash', $mediaSnapshot), 'media content hashes must not enter activity snapshots');
+
+activity_it_expect(brvtal_activity_setting_key_auditable('theme.active'), 'theme.active must be auditable');
+activity_it_expect(brvtal_activity_setting_key_auditable('theme.neon'), 'theme definitions must be auditable by key');
+activity_it_expect(brvtal_activity_setting_key_auditable('site.name'), 'safe public settings must be auditable');
+foreach ([
+    'security.totp_encryption_key',
+    'theme.private_key',
+    'site.api_token',
+    'credential.rotation',
+    'password.reset',
+] as $sensitiveSetting) {
+    activity_it_expect(
+        !brvtal_activity_setting_key_auditable($sensitiveSetting),
+        'sensitive setting keys must never be audited: ' . $sensitiveSetting
+    );
+}
+
+$settingSnapshot = brvtal_activity_snapshot('settings', [
+    'setting_key' => 'theme.neon',
+    'setting_value' => '{"secret":"must-not-be-stored"}',
+    'is_json' => 1,
+]);
+activity_it_expect($settingSnapshot === ['setting_key' => 'theme.neon', 'is_json' => 1], 'settings snapshot must exclude setting_value');
+
+$themeActivityId = brvtal_activity_record(
+    $pdo,
+    'setting_update',
+    'settings',
+    null,
+    ['setting_key' => 'theme.neon', 'is_json' => 1, 'setting_value' => 'old-secret'],
+    ['setting_key' => 'theme.neon', 'is_json' => 1, 'setting_value' => 'new-secret'],
+    [
+        'source' => 'theme_studio',
+        'setting_key' => 'theme.neon',
+        'value_changed' => true,
+        'theme_mutation' => true,
+        'api_token' => 'must-not-be-stored',
+    ],
+    'theme.neon'
+);
+activity_it_expect(is_int($themeActivityId) && $themeActivityId > 0, 'theme setting mutation must create activity');
+$themeRow = $pdo->query('SELECT * FROM admin_activity_log WHERE id=' . (int)$themeActivityId)->fetch();
+activity_it_expect(is_array($themeRow), 'theme activity row must persist');
+activity_it_expect($themeRow['resource'] === 'settings' && $themeRow['action'] === 'setting_update', 'theme activity must be attributable');
+activity_it_expect(!str_contains((string)$themeRow['before_json'], 'old-secret'), 'theme before snapshot must not contain setting value');
+activity_it_expect(!str_contains((string)$themeRow['after_json'], 'new-secret'), 'theme after snapshot must not contain setting value');
+activity_it_expect(!str_contains((string)$themeRow['meta_json'], 'must-not-be-stored'), 'theme metadata must sanitize tokens');
+
+
+$themeDeleteActivityId = brvtal_activity_record(
+    $pdo,
+    'setting_delete',
+    'settings',
+    null,
+    ['setting_key' => 'theme.neon', 'is_json' => 1, 'setting_value' => 'delete-secret'],
+    null,
+    [
+        'source' => 'theme_studio',
+        'setting_key' => 'theme.neon',
+        'theme_mutation' => true,
+    ],
+    'theme.neon'
+);
+activity_it_expect(is_int($themeDeleteActivityId) && $themeDeleteActivityId > 0, 'theme delete must create activity');
+$themeDeleteRow = $pdo->query('SELECT * FROM admin_activity_log WHERE id=' . (int)$themeDeleteActivityId)->fetch();
+activity_it_expect(!str_contains((string)$themeDeleteRow['before_json'], 'delete-secret'), 'theme delete snapshot must not contain setting value');
+
 $pdo->exec('DROP TABLE admin_activity_log');
 
 echo "BRVTAL Admin Activity MariaDB integration tests passed.\n";
