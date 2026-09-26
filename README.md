@@ -6,7 +6,12 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot repository-only para #698 / PR #699: coordinación fail-closed con una sola línea activa por repositorio. No modifica producto ni producción.
+> Snapshot de **solo el deploy actual** para #698 / PR #699: coordinación repository-only, fail-closed y con una sola línea activa por repositorio. No modifica producto ni producción.
+
+## Progress convention
+- ✅ ~~Struck through~~ = completed and verified through required gates.
+- 🚧 Normal text = pending/in progress.
+- ⛔ = active production blocker.
 
 ## Estado del deploy
 | Señal | Estado | Evidencia |
@@ -21,24 +26,48 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **4** | **+271** | **-80** | **+191** |
-
-## Qué se hizo
-- `Work Coordination` usa una concurrency group fija del repositorio y `cancel-in-progress: false`.
-- `/take` distingue `none / recovered / blocked` y nunca cae a una segunda reserva ante autoridad activa/incompatible.
-- `reserve_work()` aplica el mismo guard como defensa para callers internos.
-- Se cubren reserva reciente, stale recuperable, stale incompatible, release→take y el contrato de serialización del workflow.
-- No hay cambios de runtime, DB, Hostinger, migraciones, secretos o deploy.
+| **5** | **+289** | **−59** | **+230** |
 
 ## Calidad y entrega
+<!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
 | Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
 | PR + snapshot exacto | **#699 · coordinación repository-wide** |
 | Roles | **Infrastructure · Software Engineering · QA · Security** |
 | Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
-| CI exact-head | 🚧 pendiente sobre HEAD estable |
+| CI del SHA exacto de main | 🚧 validar HEAD final antes de merge |
 | Production GREEN | ⛔ fuera de alcance de este PR |
+
+## Flujo de entrega
+```mermaid
+flowchart LR
+  T["/take"] --> R["recovery-first"]
+  R --> G["repo-wide guard"]
+  G --> L["single active line"]
+  L --> V["gates exact-head"]
+```
+
+## Qué se hizo
+- `Work Coordination` usa una concurrency group fija del repositorio y `cancel-in-progress: false`.
+- `/take` distingue `none / recovered / blocked` y nunca cae a una segunda reserva ante autoridad activa o incompatible.
+- `reserve_work()` aplica el mismo guard como defensa para callers internos.
+- El contrato operativo deja de proteger la antigua concurrency key por Issue y exige exclusión mutua repository-wide.
+- Regresiones cubren reserva reciente, stale recuperable, stale incompatible, release→take y caller interno.
+- No hay cambios de runtime, DB, Hostinger, migraciones, secretos o deploy.
+
+## Archivos modificados en este deploy
+- `.github/workflows/work-coordination.yml`
+- `README.md`
+- `scripts/work_coordinator.py`
+- `tests/project-operations-contract.php`
+- `tests/test_work_coordinator.py`
+
+## Validación
+- ✅ Factory CI, Policy, Privacy, Sonar y CodeQL ya validaron el diseño previo del HEAD.
+- ✅ Gate `coordination` confirmó la reserva y contrato de PR.
+- 🚧 `fast` debe revalidar README + project-operations con la nueva exclusión mutua.
+- 🚧 BRVTAL CI exact-head y CodeRabbit terminal antes del merge.
 
 ## Qué sigue
 | Lane | Trabajo |
@@ -47,3 +76,9 @@
 | **NEXT** | 🚧 [#629](https://github.com/pl0n3r/brvtal/issues/629): recuperación segura DISCADMIN. |
 | **LATER** | 🚧 [#683](https://github.com/pl0n3r/brvtal/issues/683): staff API D-060. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) producción · [#694](https://github.com/pl0n3r/brvtal/issues/694) Factory @v1. |
+
+## Panorama general pendiente
+- 🚧 **NOW:** #698 coordinación repository-wide.
+- 🚧 **NEXT:** #629 recuperación segura DISCADMIN.
+- 🚧 **LATER:** #683 staff API D-060.
+- 🚧 **BLOCKED / EXTERNAL:** #681 producción; #694 Factory Labels.

@@ -100,7 +100,11 @@ $assert(str_contains($workCoordinatorTests, 'test_second_reservation_cannot_win_
 $assert(str_contains($workCoordinatorTests, 'test_validate_pull_rejects_open_pr_overlap'), 'coordination tests must cover open-PR file collisions');
 $assert(str_contains($workflow, "  coordination:\n"), 'BRVTAL CI must expose the coordination gate');
 $assert(str_contains($workflow, 'COORDINATION_RESULT: ${{ needs.coordination.result }}'), 'validation summary must publish the coordination result');
-$assert(str_contains($coordinationWorkflow, "format('work/issue-{0}', github.event.issue.number)"), 'coordination workflow must serialize events by canonical Issue key');
+$assert(str_contains($coordinationWorkflow, 'group: brvtal-work-coordination'), 'coordination workflow must serialize mutation events repository-wide');
+$assert(str_contains($coordinationWorkflow, 'cancel-in-progress: false'), 'coordination workflow must queue instead of cancelling the active mutation');
+$assert(!str_contains($coordinationWorkflow, "format('work/issue-{0}', github.event.issue.number)"), 'coordination workflow concurrency must not vary by Issue');
+$assert(!str_contains($coordinationWorkflow, 'github.event.pull_request.head.ref'), 'coordination workflow concurrency must not vary by PR branch');
+$assert(str_contains($workCoordinatorTests, 'test_workflow_serializes_all_coordination_mutations_repository_wide'), 'coordination tests must prove repository-wide workflow serialization');
 $assert(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate coordination with existing gates');
 
 // CI/deployment observability, consolidated fast gate and metadata safety contract.
