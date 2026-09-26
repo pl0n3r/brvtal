@@ -6,76 +6,44 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #653: primer refactor real emitido por Rector 2.6.7, con comportamiento preservado y sin tocar producción.
-
-## Progress convention
-- ✅ ~~Struck through~~ = completed and verified through required gates.
-- 🚧 Normal text = pending/in progress.
-- ⛔ = active production blocker.
+> Snapshot repository-only para #698 / PR #699: coordinación fail-closed con una sola línea activa por repositorio. No modifica producto ni producción.
 
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#653 · primer refactor real Rector** | `work/issue-653` · reserva `eee625a1-71ee-451a-aa8a-156757b17657` |
-| Base exacta | ✅ **main v0.1.58** | `4295b6f21dd535d03df0843eb527c5829c54d21c` |
-| Versión candidata | 🚧 **v0.1.59** | `config/version.php` + `package.json`; no desplegada |
-| Producción | ⛔ **NO GREEN · #681** | fuera de alcance de este PR |
+| Work line | 🚧 **#698 · coordinación exclusiva** | `work/issue-698` · reserva `37420d44-b8ed-40ed-87c2-3832c759a794` |
+| Base exacta | ✅ **main v0.1.59** | `f5a5f1b687d9972a9d898e9da6a618f85cf5cf08` |
+| Versión de producto | ✅ **v0.1.59 sin cambio** | repository-only |
+| Producción | ⛔ **NO GREEN · #681** | registry de migraciones pendiente |
 | Factory labels | ⛔ **#694** | pendiente Factory v1.0.5 |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+59** | **−36** | **+23** |
-
-## Calidad y entrega
-<!-- brvtal:gate-plan -->
-| Control | Estado / contrato |
-| --- | --- |
-| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| PR + snapshot exacto | **#697 · refactor Rector v0.1.59** |
-| Roles | **Software Engineering · QA · Security** |
-| Rector | ✅ dry-run `9488cde` emitió 3 cambios exactos; formato final corrige la línea >120 de Sonar |
-| Review | BRVTAL CI / validate + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
-| CI del SHA exacto de main | 🚧 validar HEAD final antes de merge |
-| Production GREEN | ⛔ no se reclama ni se altera |
-
-## Flujo de entrega
-```mermaid
-flowchart LR
-  P["probe acotado"] --> R["Rector dry-run"]
-  R --> D["3 cambios emitidos"]
-  D --> T["real-stack"]
-  T --> V["gates exact-head"]
-```
+| **4** | **+271** | **-80** | **+191** |
 
 ## Qué se hizo
-- Rector convirtió `!$tags` y `!$relations` a comparaciones explícitas `=== []`.
-- El set PHP 8.5 convirtió `get_class($e)` a `$e::class`.
-- Se retiraron marker y regla temporal; `rector.php` vuelve al contrato canónico.
-- Real-stack cubre tags y relaciones vacías además de los casos no vacíos.
+- `Work Coordination` usa una concurrency group fija del repositorio y `cancel-in-progress: false`.
+- `/take` distingue `none / recovered / blocked` y nunca cae a una segunda reserva ante autoridad activa/incompatible.
+- `reserve_work()` aplica el mismo guard como defensa para callers internos.
+- Se cubren reserva reciente, stale recuperable, stale incompatible, release→take y el contrato de serialización del workflow.
+- No hay cambios de runtime, DB, Hostinger, migraciones, secretos o deploy.
 
-## Archivos modificados en este deploy
-- `README.md`
-- `api/blog.php`
-- `config/version.php`
-- `package.json`
-- `tests/e2e/blog-relation-integrity-real-stack.spec.mjs`
-
-## Validación
-- ✅ Rector real documentado desde el log del HEAD de probe `9488cde817d181ed0b45f5d67f2878234e064951`.
-- 🚧 Gates exact-head del candidato final y revisión terminal antes del merge.
+## Calidad y entrega
+| Control | Estado / contrato |
+| --- | --- |
+| Gates esperados | **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
+| PR + snapshot exacto | **#699 · coordinación repository-wide** |
+| Roles | **Infrastructure · Software Engineering · QA · Security** |
+| Review | BRVTAL CI + Factory Policy/Privacy + Sonar/CodeQL/CodeRabbit |
+| CI exact-head | 🚧 pendiente sobre HEAD estable |
+| Production GREEN | ⛔ fuera de alcance de este PR |
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#653](https://github.com/pl0n3r/brvtal/issues/653): validar y fusionar el primer refactor Rector. |
-| **NEXT** | 🚧 [#698](https://github.com/pl0n3r/brvtal/issues/698): impedir reservas activas concurrentes. |
-| **LATER** | 🚧 [#629](https://github.com/pl0n3r/brvtal/issues/629): recuperación admin. |
+| **NOW** | 🚧 [#698](https://github.com/pl0n3r/brvtal/issues/698): validar y fusionar exclusión mutua de coordinación. |
+| **NEXT** | 🚧 [#629](https://github.com/pl0n3r/brvtal/issues/629): recuperación segura DISCADMIN. |
+| **LATER** | 🚧 [#683](https://github.com/pl0n3r/brvtal/issues/683): staff API D-060. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681) producción · [#694](https://github.com/pl0n3r/brvtal/issues/694) Factory @v1. |
-
-## Panorama general pendiente
-- 🚧 **NOW:** #653 Rector.
-- 🚧 **NEXT:** #698 coordinación.
-- 🚧 **LATER:** #629 seguridad admin.
-- 🚧 **BLOCKED / EXTERNAL:** #681 producción; #694 Factory Labels.
