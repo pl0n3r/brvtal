@@ -93,6 +93,15 @@ function brvtalMigrationProofSpecifications(): array
             ['idx_admin_activity_created', 'idx_admin_activity_resource', 'idx_admin_activity_admin'],
             true
         ),
+        'migration_admin_password_security_01.sql' => array_merge(
+            brvtalMigrationObjectRequirements('admins', ['credential_epoch']),
+            brvtalMigrationObjectRequirements(
+                'admin_password_reset_tokens',
+                ['admin_id', 'token_hash', 'expires_at', 'consumed_at', 'revoked_at', 'created_at'],
+                ['uq_admin_password_reset_hash', 'idx_admin_password_reset_admin_active'],
+                true
+            )
+        ),
         'migration_artist_collective_membership_01.sql' => brvtalMigrationObjectRequirements(
             'artists',
             ['is_collective_member'],
