@@ -453,7 +453,16 @@ mkdir -p -- "$state"
 test ! -L "$state"
 
 cd "$public"
-php scripts/migrations.php reconcile-plan --json >/dev/null
+plan="$(php scripts/migrations.php reconcile-plan --json)"
+printf '%s' "$plan" | php -r '
+$plan = json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR);
+if (!is_array($plan) || !isset($plan["blocked"]) || !is_array($plan["blocked"])) {
+    exit(85);
+}
+if ($plan["blocked"] !== []) {
+    exit(86);
+}
+'
 
 php <<'PHP'
 <?php
@@ -826,7 +835,16 @@ def assert_factory_readiness(origin: str, sha: str, version: str) -> None:
 def _sanitize_reconciliation_plan(payload: object) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise TransportError("migration inspection payload must be an object")
-    expected = {"registry_exists", "record_registry_migration", "pending", "baseline", "proofs"}
+    expected = {
+        "registry_exists",
+        "record_registry_migration",
+        "pending",
+        "baseline",
+        "apply",
+        "blocked",
+        "actions",
+        "proofs",
+    }
     if set(payload) != expected:
         raise TransportError("migration inspection payload has unexpected fields")
     if not isinstance(payload["registry_exists"], bool) or not isinstance(payload["record_registry_migration"], bool):
@@ -840,19 +858,60 @@ def _sanitize_reconciliation_plan(payload: object) -> dict[str, object]:
             if not isinstance(item, str) or not _MIGRATION_RE.fullmatch(item):
                 raise TransportError("migration inspection contains an invalid migration name")
             names.append(item)
+        if len(set(names)) != len(names):
+            raise TransportError("migration inspection contains duplicate migration names")
         return names
 
     pending = safe_names(payload["pending"])
     baseline = safe_names(payload["baseline"])
+    apply = safe_names(payload["apply"])
+    blocked = safe_names(payload["blocked"])
+    registry_name = "migration_schema_migrations_01.sql"
+    classified = baseline + apply + blocked
+    non_registry_pending = [name for name in pending if name != registry_name]
+    if len(set(classified)) != len(classified) or set(classified) != set(non_registry_pending):
+        raise TransportError("migration inspection classification is inconsistent")
+
+    raw_actions = payload["actions"]
+    if not isinstance(raw_actions, list) or len(raw_actions) > 200:
+        raise TransportError("migration inspection actions are invalid")
+    actions: list[dict[str, str]] = []
+    for action in raw_actions:
+        if not isinstance(action, dict) or set(action) != {"migration", "action"}:
+            raise TransportError("migration inspection action is invalid")
+        migration = action.get("migration")
+        kind = action.get("action")
+        if (
+            not isinstance(migration, str)
+            or not _MIGRATION_RE.fullmatch(migration)
+            or kind not in {"baseline", "apply"}
+        ):
+            raise TransportError("migration inspection action is invalid")
+        actions.append({"migration": migration, "action": str(kind)})
+    expected_action_order = [
+        name for name in pending if name in set(baseline) | set(apply)
+    ]
+    if [action["migration"] for action in actions] != expected_action_order:
+        raise TransportError("migration inspection action order is inconsistent")
+    if {
+        action["migration"]: action["action"] for action in actions
+    } != {
+        **{name: "baseline" for name in baseline},
+        **{name: "apply" for name in apply},
+    }:
+        raise TransportError("migration inspection action classification is inconsistent")
+
     raw_proofs = payload["proofs"]
     if not isinstance(raw_proofs, dict) or len(raw_proofs) > 200:
         raise TransportError("migration inspection proofs are invalid")
+    if set(raw_proofs) != set(non_registry_pending):
+        raise TransportError("migration inspection proof coverage is incomplete")
     proofs: dict[str, object] = {}
     for name, proof in raw_proofs.items():
         if not isinstance(name, str) or not _MIGRATION_RE.fullmatch(name) or not isinstance(proof, dict):
             raise TransportError("migration inspection proof entry is invalid")
-        if set(proof) != {"complete", "checks"} or proof.get("complete") is not True:
-            raise TransportError("migration inspection contains an incomplete proof")
+        if set(proof) != {"complete", "checks"} or not isinstance(proof.get("complete"), bool):
+            raise TransportError("migration inspection proof is invalid")
         checks = proof.get("checks")
         if not isinstance(checks, dict) or not checks or len(checks) > 200:
             raise TransportError("migration inspection checks are invalid")
@@ -865,18 +924,23 @@ def _sanitize_reconciliation_plan(payload: object) -> dict[str, object]:
             ):
                 raise TransportError("migration inspection check is invalid")
             sanitized_checks[requirement] = present
-        if not all(sanitized_checks.values()):
-            raise TransportError("migration inspection contains a failed structural check")
-        proofs[name] = {"complete": True, "checks": sanitized_checks}
+        if bool(proof["complete"]) != all(sanitized_checks.values()):
+            raise TransportError("migration inspection proof completeness is inconsistent")
+        proofs[name] = {
+            "complete": bool(proof["complete"]),
+            "checks": sanitized_checks,
+        }
 
     return {
         "registry_exists": payload["registry_exists"],
         "record_registry_migration": payload["record_registry_migration"],
         "pending": pending,
         "baseline": baseline,
+        "apply": apply,
+        "blocked": blocked,
+        "actions": actions,
         "proofs": proofs,
     }
-
 
 def inspect_migrations(config: Config, sha: str, version: str, origin: str) -> dict[str, object]:
     safe_sha = _safe_sha(sha)

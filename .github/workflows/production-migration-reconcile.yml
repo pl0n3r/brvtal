@@ -65,8 +65,13 @@ jobs:
           print(f"- Registry migration record required: **{plan['record_registry_migration']}**")
           print(f"- Pending migrations: **{len(plan['pending'])}**")
           print(f"- Proven baseline candidates: **{len(plan['baseline'])}**")
+          print(f"- Proven additive apply candidates: **{len(plan['apply'])}**")
+          print(f"- Blocked / ambiguous candidates: **{len(plan['blocked'])}**")
           print()
           print("Only bounded structural proof metadata is shown; no application rows or secrets are emitted.")
+          if plan["blocked"]:
+              print("::error::Ambiguous migration schema state: " + ", ".join(plan["blocked"]))
+              raise SystemExit(1)
           PY
 
       - name: Backup, reconcile registry and verify readiness
