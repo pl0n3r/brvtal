@@ -37,9 +37,9 @@ $hostDiagnostic = [
 ];
 
 if ($quota <= 0) {
-    http_response_code(503);
     echo json_encode([
         'ok' => false,
+        'available' => false,
         'scope' => 'brvtal_managed_data',
         'error' => 'STORAGE_QUOTA_NOT_CONFIGURED',
         'quota_source' => $quotaSource,

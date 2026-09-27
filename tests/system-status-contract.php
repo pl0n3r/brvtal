@@ -59,6 +59,8 @@ system_status_expect(str_contains($shell, 'system-status-v2.js'), 'shell must lo
 system_status_expect(str_contains($storageEndpoint, 'brvtal_admin_require();'), 'managed storage metrics must remain admin protected');
 system_status_expect(!str_contains($storageEndpoint, '25 * 1024 * 1024 * 1024'), 'managed storage must never invent a hosting quota');
 system_status_expect(str_contains($storageEndpoint, 'STORAGE_QUOTA_NOT_CONFIGURED'), 'missing verified quota must fail closed as unavailable');
+system_status_expect(str_contains($storageEndpoint, "'available' => false"), 'missing quota must be an explicit unavailable state');
+system_status_expect(!str_contains($storageEndpoint, 'http_response_code(503)'), 'missing optional storage quota must not emit a dashboard-breaking 5xx');
 system_status_expect(str_contains($storageEndpoint, "'quota_source' => \$quotaSource"), 'managed storage must expose its configured source');
 system_status_expect(str_contains($storageEndpoint, "'/uploads'"), 'managed storage must scan uploads');
 system_status_expect(str_contains($storageEndpoint, "'/storage'"), 'managed storage must scan private application storage');
