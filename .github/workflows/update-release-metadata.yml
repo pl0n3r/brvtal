@@ -234,11 +234,15 @@ jobs:
     name: coordination
     needs: preflight
     if: github.event_name == 'pull_request' && needs.preflight.result == 'success'
+    # Factory v1 declares this maximum workflow_call envelope. GitHub rejects
+    # callers with a narrower envelope before its read-only validate job can run.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       checks: write
+    # Use the Factory Kit's protected major channel by contract; @v1 promotion is
+    # exact-SHA gated in Factory rather than replaced by a consumer-local pin.
     uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
     with:
       operation: validate
