@@ -5,12 +5,12 @@ import { join } from 'node:path';
 const authBoundaryJs = readFileSync(join(process.cwd(),'discadmin/admin-auth-boundary.js'),'utf8');
 
 async function setSameOriginContent(page) {
-  await page.route('http://brvtal.test/**', route => route.fulfill({
+  await page.route('http://127.0.0.1:4173/**', route => route.fulfill({
     status:200,
     contentType:'text/html',
     body:'<!doctype html><html><body></body></html>'
   }));
-  await page.goto('http://brvtal.test/discadmin');
+  await page.goto('/discadmin');
 }
 
 test('shared admin auth memoizes concurrent auth/CSRF reads into one request', async ({page}) => {
@@ -112,6 +112,7 @@ test('same-origin admin GET revalidates once after transient 401 and retries exa
     };
   });
   await page.evaluate(source => window.eval(source),authBoundaryJs);
+  expect(await page.evaluate(() => window.BRVTALAdminAuthBoundary.isAdminRequest('/api/index.php/settings?key=home.hero.slider'))).toBe(true);
 
   const result=await page.evaluate(async () => {
     const response=await window.fetch('/api/index.php/settings?key=home.hero.slider',{
