@@ -26,7 +26,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+230** | **−3120** | **−2890** |
+| **7** | **+238** | **−3121** | **−2883** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -54,6 +54,7 @@ flowchart LR
 - Los callers conceden el envelope requerido por `workflow_call`; Factory restringe permisos efectivos dentro de cada operación.
 - Se elimina `scripts/work_coordinator.py` y su suite legacy para evitar doble autoridad.
 - El contrato nuevo bloquea `pull_request_target`, exige comandos EN y conserva serialización y recuperación stale.
+- PR #728 usa una excepción bootstrap autoacotada para su marker legacy v1; todos los PR posteriores exigen fingerprint Factory.
 
 ## Archivos modificados en este deploy
 - `.github/workflows/update-release-metadata.yml` — validación PR delegada a Factory v1 y gate de contrato local.
@@ -61,6 +62,7 @@ flowchart LR
 - `README.md` — snapshot operativo exacto de #692.
 - `scripts/work_coordinator.py` — eliminado; autoridad trasladada a Factory v1.
 - `tests/test_factory_coordination_adoption.py` — regresiones de paridad, permisos y autoridad única.
+- `tests/ci-scope-contract.php` — contrato actualizado para agregar `coordination-pr` al gate canónico.
 - `tests/test_work_coordinator.py` — eliminado junto con la implementación local.
 
 ## Validación
