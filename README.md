@@ -18,7 +18,7 @@
 | Work line | 🚧 **#692 · Factory v1 coordination parity** | `work/issue-692` · reserva `f3f8870f-19b2-49a6-93d2-243aa7a114cd` |
 | Base | ✅ **main** | `f49173254ae1eae5b332b2074aee7f48a97b3825` · v0.1.78 source |
 | Versión | ✅ **v0.1.78** | mantenimiento de repositorio; sin cambio de runtime |
-| PR | 🚧 **#728 draft** | `work/issue-692` → `main` |
+| PR | 🚧 **#728 en revisión** | `work/issue-692` → `main` |
 | Main | 🚧 **pending** | CI del SHA exacto de main tras merge |
 | Producción | 🚧 **sin cambio por este PR** | no toca runtime, DB, Hostinger ni datos |
 
@@ -26,13 +26,13 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+240** | **−3121** | **−2881** |
+| **10** | **+331** | **−3184** | **−2853** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates | 🚧 **preflight · coordination · coordination-pr · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Factory | 🚧 Policy · Privacy · Labels |
 | Snapshot | 🚧 PR + snapshot exacto |
 | Main | 🚧 CI del SHA exacto de main tras merge |
@@ -60,9 +60,12 @@ flowchart LR
 - `.github/workflows/update-release-metadata.yml` — validación PR delegada a Factory v1 y gate de contrato local.
 - `.github/workflows/work-coordination.yml` — callers comment/label/pr/issue/sweep con perfil EN.
 - `README.md` — snapshot operativo exacto de #692.
+- `docs/factory-adoption.json` — coordinación movida a `consumed`; #681 retirado y #689 conservado como blocker real.
 - `scripts/work_coordinator.py` — eliminado; autoridad trasladada a Factory v1.
 - `tests/test_factory_coordination_adoption.py` — regresiones de paridad, permisos y autoridad única.
 - `tests/ci-scope-contract.php` — contrato actualizado para agregar `coordination-pr` al gate canónico.
+- `tests/factory-adoption-contract.php` — estado ejecutable de adopción actualizado a Factory v1 coordination.
+- `tests/project-operations-contract.php` — contrato operacional migrado desde autoridad local a evidencia Factory v1.
 - `tests/test_work_coordinator.py` — eliminado junto con la implementación local.
 
 ## Validación
@@ -70,6 +73,7 @@ flowchart LR
 - La fuente ejecutada por coordinación privilegiada es Factory v1, no código no confiable del PR.
 - `/take`, `/recover`, `/release`, `/transfer` y `/force-release` siguen en el perfil EN publicado.
 - `sweep` horario conserva la recuperación de reservas inactivas sin liberar autoridad silenciosamente.
+- BRVTAL CI ejecuta casos de comportamiento directamente desde el `Factory@v1` publicado para lock, stale recovery, UUID/owner, validación y colisiones.
 - El cierre exige BRVTAL CI, Factory Policy, Privacy, Sonar y CodeRabbit verdes sobre el HEAD exacto.
 
 ## Qué sigue
@@ -78,7 +82,7 @@ flowchart LR
 | **NOW** | 🚧 [#692](https://github.com/pl0n3r/brvtal/issues/692): validar y fusionar adopción Factory v1. |
 | **NEXT** | 🚧 Verificar BRVTAL CI sobre el SHA exacto de `main` tras merge. |
 | **LATER** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar cierre de Tanda 2 del kit. |
-| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo conocido para este slice.~~ |
+| **BLOCKED / EXTERNAL** | 🚧 #689 sigue siendo el blocker externo restante del épico #630; no bloquea este slice de coordinación. |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #692, retirar definitivamente la autoridad local de coordinación.
