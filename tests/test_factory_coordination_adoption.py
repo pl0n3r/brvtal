@@ -91,9 +91,12 @@ class FactoryCoordinationAdoptionTests(unittest.TestCase):
         )
         self.assertIsNotNone(validate_block)
         assert validate_block is not None
-        self.assertIn("contents: read", validate_block.group(0))
-        self.assertIn("issues: read", validate_block.group(0))
-        self.assertIn("pull-requests: read", validate_block.group(0))
+        # Factory v1 must receive its declared maximum workflow_call envelope.
+        # Effective permissions remain narrowed inside the selected reusable job.
+        self.assertIn("contents: write", validate_block.group(0))
+        self.assertIn("issues: write", validate_block.group(0))
+        self.assertIn("pull-requests: write", validate_block.group(0))
+        self.assertIn("checks: write", validate_block.group(0))
 
     def test_no_local_duplicate_authority_remains(self) -> None:
         self.assertFalse(
