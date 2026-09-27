@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #713: recovery local del Hero Slider/Banners sobre su state model propio y `BRVTALDrafts`. No declara producción GREEN.
+> Snapshot de **solo el deploy actual** para #714: recovery local de Theme Studio preservando Save Draft vs Save & Activate. No declara producción GREEN.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,18 +16,18 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#713 · Hero Slider recoverable drafts** | `work/issue-713` · reserva `c9542f71-1811-40e0-9f60-3ba875268d2d` |
-| Base | ✅ **main** | `6f1fa6e85d2a88a1627af253ba7645cf4e0fa790` |
-| Versión | 🚧 **v0.1.70** | `config/version.php` + `package.json` |
-| PR | 🚧 **delivery de #713** | exact-head gates obligatorios antes de merge |
+| Work line | 🚧 **#714 · Theme Studio recoverable drafts** | `work/issue-714` · reserva `eda50974-7d35-41fe-a5b5-df7667166383` |
+| Base | ✅ **main** | `a143a9e68626cf87b8a0d4e3d3f98c1bc66e14a0` |
+| Versión | 🚧 **v0.1.71** | `config/version.php` + `package.json` |
+| PR | 🚧 **delivery de #714** | exact-head gates obligatorios antes de merge |
 | Producción | 🚧 **NO GREEN · #681** | migration registry parity sigue bloqueado externamente |
-| Continuidad | ✅ **separada** | #714 Theme Studio · #715 SEO E2E flake |
+| Continuidad | ✅ **separada** | #715 SEO E2E flake · #533 roadmap |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+514** | **−78** | **+436** |
+| **6** | **+637** | **−50** | **+587** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -44,63 +44,71 @@
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  H["Hero Slider state"] --> U["Unsaved"]
+  T["Theme Studio state"] --> U["Unsaved"]
   U --> D["650 ms debounce"]
   D --> L["BRVTALDrafts / session namespace"]
-  L --> R["reopen Banners"]
+  L --> R["reopen Theme Studio"]
   R --> C{"server snapshot changed?"}
   C -- no --> X["Restore / Discard"]
   C -- yes --> W["Conflict warning"]
   W --> X
   X --> F["local editor only"]
-  F --> S["explicit Save"]
-  S --> M["Media validation + settings API"]
+  F --> S["SAVE DRAFT"]
+  F --> A["SAVE & ACTIVATE"]
+  S --> P["theme.<slug> only"]
+  A --> P
+  A --> Q["theme.active"]
 ```
 
 ## Qué se hizo
-- Hero Slider reutiliza `BRVTALDrafts` directamente; no fuerza el adapter legacy.
-- Autosave local persiste la configuración normalizada con debounce y **no hace POST/PUT**.
-- El recovery ofrece Restore / Discard y deriva una revisión estable serializando canónicamente el snapshot server-side crudo, antes de cualquier normalización que genere IDs.
-- Restore modifica solo el editor; no publica ni evita la validación de Media.
-- `save()` sigue siendo la única autoridad de Media validation + escritura en `/settings`.
-- Un Save exitoso limpia recovery solo si el editor sigue igual al payload enviado.
-- Ediciones hechas mientras el Save está en vuelo quedan `Unsaved` sin arrancar un debounce paralelo; eventos `input/change` duplicados son idempotentes y al resolver el Save se persisten una sola vez sobre la nueva revisión server.
-- Fallos de Save conservan recovery cuando storage está disponible.
-- Expiración de sesión purga drafts mediante el boundary compartido.
-- Guards de navegación y `beforeunload` siguen activos.
+- Theme Studio reutiliza `BRVTALDrafts` directamente; no usa el adapter legacy.
+- Autosave local persiste `currentTheme()` con debounce y **no hace POST/PUT**.
+- Recovery se identifica por slug y usa una revisión estable derivada de serialización canónica del setting server-side crudo.
+- Restore cambia únicamente el editor local; nunca llama Activate ni escribe `theme.active`.
+- Save Draft y Save & Activate mantienen rutas explícitas separadas.
+- Save exitoso limpia recovery solo si el editor sigue igual al payload enviado.
+- Ediciones durante Save y durante el reload post-Save quedan en recovery local sobre la nueva revisión server.
+- Mientras un recovery está pendiente de Restore/Discard, nuevas ediciones no sobrescriben ese recovery.
+- Los cambios rápidos entre temas usan generation tokens para impedir renders/recovery stale.
+- Auth expiry invalida generaciones pendientes y cancela continuaciones async antes de renderizar.
+- Failed Save conserva draft local cuando storage está disponible.
+- Session boundary compartido elimina recovery, incluida la recuperación ya montada en el workspace.
+- Media Library availability/retry, valores legacy ocultos y guards existentes permanecen intactos.
 - Sin SQL, migración, Hostinger write ni cambios de readiness.
 
 ## Archivos modificados en este deploy
 - `README.md`
 - `config/version.php`
-- `discadmin/hero-slider-v2.css`
-- `discadmin/hero-slider.js`
+- `discadmin/theme-studio-v2.css`
+- `discadmin/theme-studio-v2.js`
 - `package.json`
-- `tests/e2e/hero-slider-v2.spec.mjs`
+- `tests/e2e/theme-studio-drafts.spec.mjs`
 
 ## Validación
-- Sintaxis JS del runtime y E2E validada antes de PR.
-- E2E nuevo: autosave local sin mutación server + Restore explícito.
-- E2E nuevo: conflicto cuando cambia el snapshot server.
-- E2E nuevo: failed Save conserva input + draft local.
-- E2E nuevo: Save race conserva ediciones posteriores con una barrera explícita de solicitud, sin sleeps arbitrarios.
-- E2E nuevo: session boundary elimina recovery.
-- Harness admin corre bajo origen HTTP same-origin para probar localStorage de forma realista.
+- E2E: autosave local + Restore sin mutación server ni activación.
+- E2E: conflicto cuando cambia el setting server-side.
+- E2E: failed Save conserva recovery.
+- E2E: Save race conserva ediciones posteriores.
+- E2E: cambio de slug durante Save conserva recovery bajo la nueva identidad.
+- E2E: Restore nunca activa y Save & Activate conserva su semántica explícita.
+- E2E: auth session boundary elimina recovery y cancela cargas pendientes.
+- E2E: recovery pendiente sobrevive ediciones antes de Restore/Discard.
+- E2E: post-Save reload conserva ediciones hechas durante requests async.
+- E2E: switch concurrente ignora la carga stale al volver al tema actual.
+- Harness usa origen HTTP same-origin para localStorage realista.
 - No cambia `datos.yml`: sin nuevo dato personal, proveedor ni transferencia.
-- 🚧 La evidencia de CI/Sonar/CodeRabbit se registra solo después de ejecutar los gates del HEAD exacto.
+- 🚧 Evidencia CI/Sonar/CodeRabbit se registra solo después de gates del HEAD exacto.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#713](https://github.com/pl0n3r/brvtal/issues/713): cerrar exact-head gates y merge. |
-| **NEXT** | 🚧 [#714](https://github.com/pl0n3r/brvtal/issues/714): recovery de Theme Studio sin activar el tema implícitamente. |
-| **CI DEBT** | 🚧 [#715](https://github.com/pl0n3r/brvtal/issues/715): SEO failed-save E2E. |
+| **NOW** | 🚧 [#714](https://github.com/pl0n3r/brvtal/issues/714): cerrar exact-head gates y merge. |
+| **NEXT** | 🚧 [#715](https://github.com/pl0n3r/brvtal/issues/715): SEO failed-save E2E. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap canónico. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): migration registry parity / producción NO GREEN. |
 | **BLOCKED BY #681** | 🚧 #530: Recycle Bin requiere metadata durable/migración segura. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #713 / v0.1.70.
-- 🚧 **NEXT**: #714.
-- 🚧 **CI DEBT**: #715.
+- 🚧 **NOW**: #714 / v0.1.71.
+- 🚧 **NEXT**: #715.
 - 🚧 **BLOCKED / EXTERNAL**: #681 permanece fail-closed; no se ejecuta reconcile sin backup/autoridad verificable.
