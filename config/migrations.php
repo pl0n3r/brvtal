@@ -40,8 +40,10 @@ function brvtal_migration_checksum(string $path): string
     return $checksum;
 }
 
-function brvtalMigrationAssertAdditiveSql(string $sql): void
-{
+function brvtalMigrationAssertAdditiveSql(
+    string $sql,
+    bool $allowCanonicalMediaGuardBootstrap = false
+): void {
     if (trim($sql) === '') {
         throw new RuntimeException('MIGRATION_SQL_EMPTY');
     }
@@ -108,6 +110,15 @@ function brvtalMigrationAssertAdditiveSql(string $sql): void
     $normalized = preg_replace('/\\s+/', ' ', $sanitized);
     if (!is_string($normalized)) {
         throw new RuntimeException('MIGRATION_SQL_SCAN_FAILED');
+    }
+
+    if ($allowCanonicalMediaGuardBootstrap) {
+        $canonicalBlob = '415d3ead6244a2b56ebae150fdeaa1b27d7c29e4';
+        $observedBlob = sha1('blob ' . strlen($sql) . "\0" . $sql);
+        if (!hash_equals($canonicalBlob, $observedBlob)) {
+            throw new RuntimeException('MIGRATION_MEDIA_GUARD_BOOTSTRAP_MISMATCH');
+        }
+        return;
     }
 
     $destructivePatterns = [

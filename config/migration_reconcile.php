@@ -306,6 +306,32 @@ function brvtalMigrationSchemaProof(PDO $pdo, string $migrationName): array
     );
 }
 
+function brvtalMigrationProofIsFullyAbsent(array $proof): bool
+{
+    if (($proof['complete'] ?? null) !== false) {
+        return false;
+    }
+    $checks = $proof['checks'] ?? null;
+    if (!is_array($checks) || $checks === []) {
+        return false;
+    }
+    return array_all(
+        $checks,
+        static fn($present): bool => $present === false
+    );
+}
+
+function brvtalMigrationAssertReconciliationSql(
+    string $migrationName,
+    string $sql,
+    array $proof
+): void {
+    $mediaGuard = 'migration_zz_media_reference_guard_01.sql';
+    $allowCanonicalBootstrap = $migrationName === $mediaGuard
+        && brvtalMigrationProofIsFullyAbsent($proof);
+    brvtalMigrationAssertAdditiveSql($sql, $allowCanonicalBootstrap);
+}
+
 function brvtalMigrationProofDisposition(string $migrationName, array $proof): string
 {
     $complete = $proof['complete'] ?? null;
@@ -456,7 +482,7 @@ function brvtalMigrationReconciliationPlan(PDO $pdo, string $directory): array
             throw new RuntimeException('MIGRATION_SQL_READ_FAILED:' . $name);
         }
         try {
-            brvtalMigrationAssertAdditiveSql($sql);
+            brvtalMigrationAssertReconciliationSql($name, $sql, $proof);
             $safeApply[$name] = true;
         } catch (RuntimeException $exception) {
             if ($exception->getMessage() !== 'MIGRATION_NON_ADDITIVE_SQL') {
@@ -517,7 +543,11 @@ function brvtalMigrationReconcileHistorical(
         if (!is_string($sql)) {
             throw new RuntimeException('MIGRATION_SQL_READ_FAILED:' . $name);
         }
-        brvtalMigrationAssertAdditiveSql($sql);
+        $executionProof = brvtalMigrationSchemaProof($pdo, $name);
+        if (brvtalMigrationProofDisposition($name, $executionProof) !== 'apply') {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_STALE:' . $name);
+        }
+        brvtalMigrationAssertReconciliationSql($name, $sql, $executionProof);
         $pdo->exec($sql);
         $postApplyProof = brvtalMigrationSchemaProof($pdo, $name);
         if (brvtalMigrationProofDisposition($name, $postApplyProof) !== 'baseline') {

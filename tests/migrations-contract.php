@@ -51,6 +51,70 @@ migrations_assert(
 );
 migrations_assert($rejectsNonAdditive("UPDATE users SET active=0;"), 'automatic reconciliation must reject UPDATE data writes');
 migrations_assert($rejectsNonAdditive("DELETE IGNORE FROM users;"), 'DELETE modifiers must be rejected');
+
+$mediaGuardSql = (string)file_get_contents(__DIR__ . '/../database/migration_zz_media_reference_guard_01.sql');
+$mediaGuardProofChecks = array_fill_keys(
+    brvtalMigrationProofSpecifications()['migration_zz_media_reference_guard_01.sql'],
+    false
+);
+$fullyAbsentMediaGuardProof = [
+    'complete' => false,
+    'checks' => $mediaGuardProofChecks,
+];
+migrations_assert(
+    $rejectsNonAdditive($mediaGuardSql),
+    'canonical media guard must remain non-additive under the strict default scanner'
+);
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_zz_media_reference_guard_01.sql',
+        $mediaGuardSql,
+        $fullyAbsentMediaGuardProof
+    );
+} catch (RuntimeException $exception) {
+    migrations_assert(false, 'exact media guard may bootstrap only when its proof is fully absent');
+}
+$partialMediaGuardProof = $fullyAbsentMediaGuardProof;
+$partialMediaGuardProof['checks']['table:media_reference_mutex'] = true;
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_zz_media_reference_guard_01.sql',
+        $mediaGuardSql,
+        $partialMediaGuardProof
+    );
+    migrations_assert(false, 'partial media guard state must remain blocked');
+} catch (RuntimeException $exception) {
+    migrations_assert(
+        $exception->getMessage() === 'MIGRATION_NON_ADDITIVE_SQL',
+        'partial media guard state must fail through the strict scanner'
+    );
+}
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_zz_media_reference_guard_01.sql',
+        $mediaGuardSql . "\nDROP TABLE users;\n",
+        $fullyAbsentMediaGuardProof
+    );
+    migrations_assert(false, 'modified media guard SQL must never inherit the canonical exception');
+} catch (RuntimeException $exception) {
+    migrations_assert(
+        $exception->getMessage() === 'MIGRATION_MEDIA_GUARD_BOOTSTRAP_MISMATCH',
+        'modified media guard SQL must fail exact-blob validation'
+    );
+}
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_other.sql',
+        $mediaGuardSql,
+        $fullyAbsentMediaGuardProof
+    );
+    migrations_assert(false, 'canonical exception must not transfer to another migration name');
+} catch (RuntimeException $exception) {
+    migrations_assert(
+        $exception->getMessage() === 'MIGRATION_NON_ADDITIVE_SQL',
+        'other migration names must retain the strict scanner'
+    );
+}
 foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtalMigrationAssertAdditiveSql', 'brvtalMigrationVerifyPlanStatus'] as $function) {
     migrations_assert(str_contains($library, "function {$function}"), "migration library must expose {$function}");
 }
@@ -61,16 +125,45 @@ $reconcileApply = substr(
     $reconcileLibrary,
     (int)strpos($reconcileLibrary, 'function brvtalMigrationReconcileHistorical')
 );
-$execPosition = strpos($reconcileApply, '$pdo->exec($sql);');
-$proofPosition = strpos($reconcileApply, 'brvtalMigrationSchemaProof($pdo, $name)', $execPosition === false ? 0 : $execPosition);
-$recordPosition = strpos($reconcileApply, 'brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha)', $proofPosition === false ? 0 : $proofPosition);
+$executionProofPosition = strpos($reconcileApply, 'brvtalMigrationSchemaProof($pdo, $name)');
+$executionDispositionPosition = strpos(
+    $reconcileApply,
+    'brvtalMigrationProofDisposition($name, $executionProof)',
+    $executionProofPosition === false ? 0 : $executionProofPosition
+);
+$executionAssertPosition = strpos(
+    $reconcileApply,
+    'brvtalMigrationAssertReconciliationSql($name, $sql, $executionProof)',
+    $executionDispositionPosition === false ? 0 : $executionDispositionPosition
+);
+$execPosition = strpos(
+    $reconcileApply,
+    '$pdo->exec($sql);',
+    $executionAssertPosition === false ? 0 : $executionAssertPosition
+);
+$postProofPosition = strpos(
+    $reconcileApply,
+    'brvtalMigrationSchemaProof($pdo, $name)',
+    $execPosition === false ? 0 : $execPosition
+);
+$recordPosition = strpos(
+    $reconcileApply,
+    'brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha)',
+    $postProofPosition === false ? 0 : $postProofPosition
+);
 migrations_assert(
-    $execPosition !== false
-        && $proofPosition !== false
+    $executionProofPosition !== false
+        && $executionDispositionPosition !== false
+        && $executionAssertPosition !== false
+        && $execPosition !== false
+        && $postProofPosition !== false
         && $recordPosition !== false
-        && $execPosition < $proofPosition
-        && $proofPosition < $recordPosition,
-    'automatic apply must prove schema before recording the migration'
+        && $executionProofPosition < $executionDispositionPosition
+        && $executionDispositionPosition < $executionAssertPosition
+        && $executionAssertPosition < $execPosition
+        && $execPosition < $postProofPosition
+        && $postProofPosition < $recordPosition,
+    'automatic apply must re-probe fully absent schema before SQL and verify baseline before recording'
 );
 
 
