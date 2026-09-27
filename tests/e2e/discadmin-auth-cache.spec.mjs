@@ -4,6 +4,15 @@ import { join } from 'node:path';
 
 const authBoundaryJs = readFileSync(join(process.cwd(),'discadmin/admin-auth-boundary.js'),'utf8');
 
+async function setSameOriginContent(page) {
+  await page.route('http://brvtal.test/**', route => route.fulfill({
+    status:200,
+    contentType:'text/html',
+    body:'<!doctype html><html><body></body></html>'
+  }));
+  await page.goto('http://brvtal.test/discadmin');
+}
+
 test('shared admin auth memoizes concurrent auth/CSRF reads into one request', async ({page}) => {
   await page.setContent('<!doctype html><html><body></body></html>');
   await page.evaluate(() => {
@@ -74,7 +83,7 @@ test('expired auth clears memoized CSRF before the next protected action', async
 
 
 test('same-origin admin GET revalidates once after transient 401 and retries exactly once', async ({page}) => {
-  await page.setContent('<!doctype html><html><body></body></html>');
+  await setSameOriginContent(page);
   await page.evaluate(() => {
     window.state={authed:true};
     window.csrf='stale-csrf';
@@ -127,7 +136,7 @@ test('same-origin admin GET revalidates once after transient 401 and retries exa
 });
 
 test('admin mutation 401 is never revalidated or retried', async ({page}) => {
-  await page.setContent('<!doctype html><html><body></body></html>');
+  await setSameOriginContent(page);
   await page.evaluate(() => {
     window.state={authed:true};
     window.csrf='csrf';
@@ -177,7 +186,7 @@ test('admin mutation 401 is never revalidated or retried', async ({page}) => {
 
 
 test('pending forced auth cannot restore CSRF after a concurrent mutation expires the session', async ({page}) => {
-  await page.setContent('<!doctype html><html><body></body></html>');
+  await setSameOriginContent(page);
   await page.evaluate(() => {
     window.state={authed:true};
     window.csrf='stale-csrf';
