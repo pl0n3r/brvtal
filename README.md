@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **2** | **+39** | **−64** | **-25** |
+| **2** | **+41** | **−64** | **-23** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -75,10 +75,12 @@ flowchart LR
 | Lane | Trabajo |
 | --- | --- |
 | **NOW** | 🚧 [#715](https://github.com/pl0n3r/brvtal/issues/715): validar Chromium y merge. |
+| **NEXT** | 🚧 Revalidar la cola canónica tras exact-main; no abrir otra línea antes del merge. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): roadmap canónico. |
 | **BLOCKED / EXTERNAL** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): migration registry parity / producción NO GREEN. |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #715, estabilización test-only del failed-save SEO.
+- 🚧 **NEXT**: revalidar prioridades y reservas después de exact-main.
 - 🚧 **LATER**: #533 roadmap canónico.
 - 🚧 **BLOCKED / EXTERNAL**: #681 permanece fail-closed; sin backup/autoridad verificable no hay reconcile.
