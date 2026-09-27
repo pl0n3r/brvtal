@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #681: desbloqueo estrecho del media-reference guard después de prueba estructural de ausencia total.
+> Snapshot de **solo el deploy actual** para #681: compatibilidad del reconciliador con el runtime PHP real de Hostinger.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,18 +16,18 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `af8c4b97-779a-4bb0-8551-8799edf6632c` |
-| Base | ✅ **main** | `971172164768204bd65fc773f78361f841392e52` |
-| Versión | 🚧 **v0.1.73** | patch deploy-bound |
-| PR | 🚧 **#721** | `work/issue-681` → `main` |
-| Main | 🚧 **post-merge** | CI del SHA exacto de main |
+| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `7b4511c3-b2ba-4f1f-ac96-be1202298d12` |
+| Base | ✅ **main** | `b79f9257795d980bdaa4a18fb25dc898e7f18642` · v0.1.73 |
+| Versión | 🚧 **v0.1.74** | patch deploy-bound |
+| PR | 🚧 **pending** | `work/issue-681` → `main` |
+| Main | 🚧 **pending** | CI del SHA exacto tras merge |
 | Producción | 🚧 **NO GREEN** | reconcile → health → authenticated smoke pendientes |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+173** | **−51** | **+122** |
+| **6** | **+66** | **−44** | **+22** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -40,53 +40,53 @@
 | Review | 🚧 Sonar + CodeRabbit |
 | Producción | 🚧 backup → reconcile → verify-plan → health → authenticated smoke |
 
+
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  I["inspect schema proof"] --> C{"classification"}
-  C -->|complete| B["baseline"]
-  C -->|fully absent + additive| A["apply"]
-  C -->|partial / unsafe| X["fail closed"]
-  B --> K["backup required"]
-  A --> K
-  K --> R["ordered reconcile"]
-  R --> V["verify-plan __NONE__"]
-  V --> H["health exact SHA/version"]
+  C["compatibilidad PHP 8.2"] --> G["PR + gates"]
+  G --> M["squash merge"]
+  M --> E["CI exact-main + Deploy Observer"]
+  E --> R["reconcile owner-only"]
+  R --> B["backup-before-write"]
+  B --> V["verify-plan __NONE__"]
+  V --> H["health exact SHA/version/schema"]
   H --> S["authenticated smoke"]
 ```
 
 ## Qué se hizo
-- El diagnóstico read-only sobre producción v0.1.72 clasificó 14 migraciones pendientes: **1 registry**, **8 baseline**, **4 apply** y **1 blocked**.
-- El único bloqueador es `migration_zz_media_reference_guard_01.sql`; su proof muestra **todos** los objetos requeridos ausentes, no un estado parcial.
-- El bloqueo provenía del scanner genérico: el SQL histórico define triggers con DML, usa `DROP TRIGGER IF EXISTS` idempotente y siembra el mutex controlado.
-- El scanner estricto **no cambia por defecto**: `DROP`, `INSERT`, `UPDATE`, `DELETE`, `REPLACE`, `LOAD DATA` y DDL destructivo arbitrarios siguen rechazados.
-- La excepción de reconcile exige simultáneamente el nombre exacto de la migración, proof completamente ausente y el blob Git histórico exacto `415d3ead6244a2b56ebae150fdeaa1b27d7c29e4`.
-- Si cambia un byte del SQL, si aparece un solo objeto del proof o si se intenta reutilizar la excepción para otra migración, el flujo vuelve a fallar cerrado.
+- v0.1.73 quedó desplegada exactamente en producción y CI/Deploy Observer están verdes.
+- El reconcile owner-only falló **antes del backup y antes de cualquier escritura** durante `reconcile-plan`.
+- Diagnóstico read-only probado contra el mismo SHA desplegado: Hostinger ejecuta **PHP 8.2.33** y el transporte SSH funciona.
+- La causa exacta es `array_all()` en `brvtalMigrationProofIsFullyAbsent()`; esa función no existe en PHP 8.2.
+- Se reemplaza por un recorrido equivalente y fail-closed: solo devuelve true cuando cada requisito es exactamente `false`.
+- La regresión impide reintroducir `array_all(` en el reconciliador y verifica fully-absent vs mixed.
+- Rector queda excluido solo para `config/migration_reconcile.php`; PHPStan y los contract tests permanecen activos.
+- El workflow diagnóstico temporal **no forma parte del diff final**.
+
 ## Archivos modificados en este deploy
-- `README.md` — snapshot exacto de la recuperación v0.1.73.
-- `config/migration_reconcile.php` — habilitación estrecha solo con proof totalmente ausente.
-- `config/migrations.php` — validación del blob histórico exacto sin relajar el scanner por defecto.
-- `config/version.php` — versión v0.1.73.
-- `package.json` — versión de runtime sincronizada.
-- `tests/migrations-contract.php` — regresiones positivas/negativas del bootstrap exacto.
+- `README.md` — snapshot exacto de recuperación v0.1.74.
+- `config/migration_reconcile.php` — compatibilidad PHP 8.2 sin cambiar la semántica de proof.
+- `config/version.php` — versión v0.1.74.
+- `package.json` — versión sincronizada.
+- `rector.php` — protege el reconciliador runtime PHP 8.2 de autofixes PHP 8.4+.
+- `tests/migrations-contract.php` — regresión PHP 8.2 + fail-closed.
 
 ## Validación
-- El SQL canónico del media guard debe seguir siendo rechazado por el scanner estricto normal.
-- Solo el helper de reconciliación puede aceptarlo con proof totalmente ausente + blob exacto.
-- Proof parcial, nombre distinto o SQL modificado deben fallar cerrado.
-- MariaDB, real-stack, recovery, Sonar y CodeRabbit deben pasar sobre el HEAD final.
-- Tras merge: CI exact-main → deploy observer → reconcile canónico con backup → `verify-plan __NONE__` → health 200 exacto → authenticated smoke PASS.
+- El proof fully absent debe seguir habilitando solo la ruta ya protegida del media guard.
+- Proof mixto debe devolver false y mantener el reconcile bloqueado.
+- No se relaja el scanner SQL ni se cambia backup-before-write.
+- Tras merge: CI exact-main → Deploy Observer → reconcile canónico → `verify-plan __NONE__` → health 200 exacto → authenticated smoke PASS.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): validar V0.1.73 y cerrar el único bloqueo del reconcile. |
-| **NEXT** | 🚧 Revalidar producción exact-main y cerrar el incidente solo con health + authenticated smoke PASS. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap canónico cuando producción vuelva a GREEN. |
-| **BLOCKED / EXTERNAL** | ✅ ~~[#719](https://github.com/pl0n3r/brvtal/issues/719): credenciales de transporte provisionadas y verificadas.~~ |
+| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): integrar v0.1.74 y repetir reconcile seguro. |
+| **NEXT** | 🚧 Cerrar #681 solo con backup/reconcile + health + authenticated smoke exactos. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap cuando producción vuelva a GREEN. |
+| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo adicional; transporte SSH provisionado.~~ |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #681, restaurar migration registry parity con backup-before-write.
 - 🚧 **NEXT**: declarar GREEN únicamente con exact SHA/version/schema + smoke autenticado.
 - 🚧 **LATER**: #533 roadmap canónico.
-- ✅ ~~**BLOCKED / EXTERNAL**: #719 resuelto; GitHub Actions ya autentica por SSH.~~
