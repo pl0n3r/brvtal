@@ -622,7 +622,11 @@
 
   async function switchTheme(slug) {
     const next = safeSlug(slug);
-    if (!next || next === V2.editingSlug) return;
+    if (!next) return;
+    if (next === V2.editingSlug) {
+      V2.loadGeneration += 1;
+      return;
+    }
     if (updateDirty() && !window.confirm('Discard unsaved Theme Studio changes?')) {
       const select = document.getElementById('tsv2-theme-select');
       if (select) select.value = V2.editingSlug;
@@ -632,10 +636,10 @@
     if (!theme) return;
     const generation = ++V2.loadGeneration;
     const isCurrent = () => generation === V2.loadGeneration && !V2.authInvalidated;
-    V2.editingSlug = next;
-    V2.baseline = snapshot(theme);
     const recoveryLoaded = await loadDraftRecovery(next, theme, isCurrent);
     if (!recoveryLoaded || !isCurrent()) return;
+    V2.editingSlug = next;
+    V2.baseline = snapshot(theme);
     render(theme);
   }
 
