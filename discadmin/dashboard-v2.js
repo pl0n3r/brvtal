@@ -11,6 +11,7 @@
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
   let mounting = false;
+  let mountPromise = null;
   let mountSerial = 0;
   let layoutSaveSerial = 0;
   let layoutSaveChain = Promise.resolve();
@@ -497,12 +498,12 @@
     return true;
   }
 
-  async function mount(force = false) {
-    if (mounting || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return;
+  async function runMount(force = false) {
+    if (mounting || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return false;
     const existingRoot = document.getElementById('brvtal-dashboard-v2');
-    if (!force && existingRoot) return;
+    if (!force && existingRoot) return true;
     const main = document.querySelector('.main');
-    if (!main) return;
+    if (!main) return false;
 
     const reservedRoot = existingRoot || ensureDashboardRoot(main);
     mounting = true;
@@ -522,6 +523,16 @@
       if (!rendered && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
       if (serial === mountSerial) mounting = false;
     }
+    return rendered;
+  }
+
+  function mount(force = false) {
+    if (mountPromise) return mountPromise;
+    const tracked = Promise.resolve(runMount(force)).finally(() => {
+      if (mountPromise === tracked) mountPromise = null;
+    });
+    mountPromise = tracked;
+    return tracked;
   }
 
   const observer = new MutationObserver(() => {

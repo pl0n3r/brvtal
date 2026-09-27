@@ -247,7 +247,7 @@ async function go(s){
   if(window.BRVTALDashboardV2){
    state.dashboard={};state.rows=[];state.recent={events:[],artists:[],sets:[],media:[]};
    render();
-   queueMicrotask(()=>window.BRVTALDashboardV2?.mount?.());
+   await window.BRVTALDashboardV2.mount();
    return;
   }
   try{

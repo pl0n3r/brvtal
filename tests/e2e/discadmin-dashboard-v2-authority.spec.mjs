@@ -67,6 +67,28 @@ test('Dashboard V2 reserves ownership while slow data is still loading', async (
   await expect(page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')).toBeVisible();
 });
 
+test('Dashboard V2 mount promise settles only after protected sources finish', async ({page}) => {
+  let releaseOverview;
+  const overviewGate = {
+    promise:new Promise(resolve => { releaseOverview = resolve; }),
+  };
+  await mount(page, {overviewGate, waitForRender:false});
+
+  const pending = page.evaluate(async () => {
+    window.__dashboardMountSettled=false;
+    const result=await window.BRVTALDashboardV2.mount();
+    window.__dashboardMountSettled=true;
+    return result;
+  });
+
+  await page.waitForTimeout(80);
+  expect(await page.evaluate(() => window.__dashboardMountSettled)).toBe(false);
+  releaseOverview();
+  expect(await pending).toBe(true);
+  expect(await page.evaluate(() => window.__dashboardMountSettled)).toBe(true);
+  await expect(page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')).toBeVisible();
+});
+
 test('Dashboard V2 releases reserved ownership when render becomes invalid', async ({page}) => {
   let releaseOverview;
   const overviewGate = {

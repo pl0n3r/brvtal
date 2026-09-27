@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #692: adoptar Factory v1 como autoridad única de coordinación BRVTAL con paridad fail-closed.
+> Snapshot de **solo el deploy actual** para #729: eliminar la carrera autenticada Dashboard → Hero Slider observada por production smoke.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -15,76 +15,79 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#692 · Factory v1 coordination parity** | `work/issue-692` · reserva `f3f8870f-19b2-49a6-93d2-243aa7a114cd` |
-| Base | ✅ **main** | `f49173254ae1eae5b332b2074aee7f48a97b3825` · v0.1.78 source |
-| Versión | ✅ **v0.1.78** | mantenimiento de repositorio; sin cambio de runtime |
-| PR | 🚧 **#728 en revisión** | `work/issue-692` → `main` |
-| Main | 🚧 **pending** | CI del SHA exacto de main tras merge |
-| Producción | 🚧 **sin cambio por este PR** | no toca runtime, DB, Hostinger ni datos |
+| Work line | 🚧 **#729 · Hero auth race** | `work/issue-729` · reserva `8641deaa-e514-4047-8a17-384000a6b4a3` |
+| Base | ✅ **main** | `0b01f86b8fc429f95d30859b2081ac79fe177403` · v0.1.78 |
+| Versión | 🚧 **v0.1.79** | patch deploy-bound |
+| PR | 🚧 **#730 en revisión** | `work/issue-729` → `main` |
+| Main | 🚧 **pending** | exact-main tras merge |
+| Producción | 🚧 **pending** | observer + authenticated smoke exactos |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **10** | **+362** | **−3185** | **-2823** |
+| **12** | **+258** | **−69** | **+189** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
-| Factory | 🚧 Policy · Privacy · Labels |
-| Snapshot | 🚧 PR + snapshot exacto |
-| Main | 🚧 CI del SHA exacto de main tras merge |
-| Review | 🚧 Sonar + CodeRabbit |
-| Producción | ✅ ~~No deployment required by this repository-only change.~~ |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Snapshot | 🚧 **PR + snapshot exacto** · Factory CI · Policy · Privacy · Labels |
+| Acceptance | 🚧 AC-01..04 Python contract · AC-05 BRVTAL CI · AC-06 Deploy Observer · AC-07 Authenticated Smoke |
+| Review | 🚧 Sonar · CodeQL · CodeRabbit |
+| Main | 🚧 **CI del SHA exacto de main** · exact version/SHA/schema + 3 ciclos Dashboard ↔ Hero |
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  E["BRVTAL coordination events"] --> F["Factory v1 · profile en"]
-  C["BRVTAL CI PR validation"] --> F
-  F --> R["status:* · work/issue-N · reservations · recovery"]
-  R --> G["PR gates → merge → exact-main validation"]
+  A["#729 · auth race"] --> B["PR #730 · v0.1.79"]
+  B --> C["BRVTAL CI + Factory + review"]
+  C --> D["merge → exact main"]
+  D --> E["Production Deploy Observer"]
+  E --> F["Authenticated Production Smoke · 3 Hero cycles"]
 ```
 
 ## Qué se hizo
-- `Factory@v1` pasa a ser la autoridad única para comment, label, PR, Issue, validate y sweep con `profile: en`.
-- BRVTAL CI valida reserva, rama canónica y colisiones mediante el reusable publicado, no mediante código local.
-- Los callers conceden el envelope requerido por `workflow_call`; Factory restringe permisos efectivos dentro de cada operación.
-- Se elimina `scripts/work_coordinator.py` y su suite legacy para evitar doble autoridad.
-- El contrato nuevo bloquea `pull_request_target`, exige comandos EN y conserva serialización y recuperación stale.
-- PR #728 usa una excepción bootstrap autoacotada para su marker legacy v1; todos los PR posteriores exigen fingerprint Factory.
+- `admin-auth-boundary.js`: `force:true` omite el snapshot, pero comparte cualquier `/auth` ya en vuelo.
+- Diagnóstico seguro separa revalidaciones intentadas, exitosas y fallidas sin secretos ni PII.
+- Dashboard V2 expone una promesa real de mount y comparte el mount activo.
+- `go('dashboard')` espera el mount protegido antes de permitir la siguiente navegación.
+- Hero conserva retry solo para transporte/5xx; auth/rate-limit/aplicación continúan fail-closed.
+- Mutaciones 401 siguen sin revalidación ni retry.
+- Contratos legacy de Dashboard ahora fijan explícitamente el mount esperado, sin reactivar el preload `/dashboard`.
 
 ## Archivos modificados en este deploy
-- `.github/workflows/update-release-metadata.yml` — validación PR delegada a Factory v1 y gate de contrato local.
-- `.github/workflows/work-coordination.yml` — callers comment/label/pr/issue/sweep con perfil EN.
-- `README.md` — snapshot operativo exacto de #692.
-- `docs/factory-adoption.json` — coordinación movida a `consumed`; #681 retirado y #689 conservado como blocker real.
-- `scripts/work_coordinator.py` — eliminado; autoridad trasladada a Factory v1.
-- `tests/test_factory_coordination_adoption.py` — regresiones de paridad, permisos y autoridad única.
-- `tests/ci-scope-contract.php` — contrato actualizado para agregar `coordination-pr` al gate canónico.
-- `tests/factory-adoption-contract.php` — estado ejecutable de adopción actualizado a Factory v1 coordination.
-- `tests/project-operations-contract.php` — contrato operacional migrado desde autoridad local a evidencia Factory v1.
-- `tests/test_work_coordinator.py` — eliminado junto con la implementación local.
+- `README.md`
+- `config/version.php`
+- `discadmin/admin-auth-boundary.js`
+- `discadmin/dashboard-v2.js`
+- `discadmin/hero-slider.js`
+- `discadmin/index-core.php`
+- `package.json`
+- `tests/admin-performance-contract.php`
+- `tests/dashboard-v2-contract.php`
+- `tests/e2e/discadmin-auth-cache.spec.mjs`
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs`
+- `tests/test_hero_auth_race.py`
 
 ## Validación
-- No cambia producto, versión runtime, DB, migraciones, Hostinger ni producción.
-- La fuente ejecutada por coordinación privilegiada es Factory v1, no código no confiable del PR.
-- `/take`, `/recover`, `/release`, `/transfer` y `/force-release` siguen en el perfil EN publicado.
-- `sweep` horario conserva la recuperación de reservas inactivas sin liberar autoridad silenciosamente.
-- BRVTAL CI ejecuta casos de comportamiento directamente desde el `Factory@v1` publicado para lock, stale recovery, UUID/owner, validación y colisiones.
-- El cierre exige BRVTAL CI, Factory Policy, Privacy, Sonar y CodeRabbit verdes sobre el HEAD exacto.
+- Dos GET protegidos con 401 en paralelo comparten una sola llamada `/auth`.
+- Dashboard V2 no resuelve `mount()` hasta terminar sus fuentes protegidas.
+- `tests/test_hero_auth_race.py` fija AC-01..04 para Factory v1.
+- #125 conserva tres ciclos reales Dashboard ↔ Hero; no se incrementan retries.
+- Sin migraciones, cambios de esquema ni mutaciones de datos por este deploy.
+- Rollback: revert normal de v0.1.79 a v0.1.78.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#692](https://github.com/pl0n3r/brvtal/issues/692): validar y fusionar adopción Factory v1. |
-| **NEXT** | 🚧 Verificar BRVTAL CI sobre el SHA exacto de `main` tras merge. |
-| **LATER** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): continuar cierre de Tanda 2 del kit. |
-| **BLOCKED / EXTERNAL** | 🚧 #689 sigue siendo el blocker externo restante del épico #630; no bloquea este slice de coordinación. |
+| **NOW** | 🚧 [#729](https://github.com/pl0n3r/brvtal/issues/729) · PR #730: cerrar gates sobre HEAD exacto y fusionar. |
+| **NEXT** | 🚧 Exact-main BRVTAL CI + Production Deploy Observer. |
+| **LATER** | 🚧 Authenticated Production Smoke fresco con los 3 ciclos Hero Slider. |
+| **BLOCKED / EXTERNAL** | 🚧 Ningún blocker externo conocido para este slice; no se declara completado hasta AC-07. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #692, retirar definitivamente la autoridad local de coordinación.
-- 🚧 **NEXT**: exact-main verde y evidencia en el épico #630.
-- 🚧 **LATER**: #533 roadmap de producto cuando Tanda 2 lo permita.
+- 🚧 **NOW**: #729 / PR #730, cerrar la carrera de sesión Dashboard → Hero.
+- 🚧 **NEXT**: demostrar v0.1.79 desplegado con SHA/version/schema exactos.
+- 🚧 **LATER**: continuar #533 cuando la reparación de salud quede cerrada.
