@@ -33,7 +33,7 @@
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · chromium** |
+| Gates | 🚧 **preflight · coordination · fast[JS] · chromium** |
 | Factory | 🚧 Policy · Privacy · Labels |
 | Snapshot | 🚧 PR + snapshot exacto |
 | Main | 🚧 CI del SHA exacto de main tras merge |
