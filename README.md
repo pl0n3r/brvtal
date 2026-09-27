@@ -40,6 +40,20 @@
 | Review | 🚧 Sonar + CodeRabbit |
 | Producción | 🚧 backup → reconcile → verify-plan → health → authenticated smoke |
 
+
+## Flujo de entrega
+```mermaid
+flowchart LR
+  C["compatibilidad PHP 8.2"] --> G["PR + gates"]
+  G --> M["squash merge"]
+  M --> E["CI exact-main + Deploy Observer"]
+  E --> R["reconcile owner-only"]
+  R --> B["backup-before-write"]
+  B --> V["verify-plan __NONE__"]
+  V --> H["health exact SHA/version/schema"]
+  H --> S["authenticated smoke"]
+```
+
 ## Qué se hizo
 - v0.1.73 quedó desplegada exactamente en producción y CI/Deploy Observer están verdes.
 - El reconcile owner-only falló **antes del backup y antes de cualquier escritura** durante `reconcile-plan`.
@@ -68,6 +82,7 @@
 | **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): integrar v0.1.74 y repetir reconcile seguro. |
 | **NEXT** | 🚧 Cerrar #681 solo con backup/reconcile + health + authenticated smoke exactos. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap cuando producción vuelva a GREEN. |
+| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo adicional; transporte SSH provisionado.~~ |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #681, restaurar migration registry parity con backup-before-write.
