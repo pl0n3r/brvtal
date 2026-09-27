@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+487** | **−44** | **+443** |
+| **6** | **+631** | **−50** | **+581** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -67,7 +67,10 @@ flowchart LR
 - Restore cambia únicamente el editor local; nunca llama Activate ni escribe `theme.active`.
 - Save Draft y Save & Activate mantienen rutas explícitas separadas.
 - Save exitoso limpia recovery solo si el editor sigue igual al payload enviado.
-- Ediciones durante Save quedan en recovery local sobre la nueva revisión server.
+- Ediciones durante Save y durante el reload post-Save quedan en recovery local sobre la nueva revisión server.
+- Mientras un recovery está pendiente de Restore/Discard, nuevas ediciones no sobrescriben ese recovery.
+- Los cambios rápidos entre temas usan generation tokens para impedir renders/recovery stale.
+- Auth expiry invalida generaciones pendientes y cancela continuaciones async antes de renderizar.
 - Failed Save conserva draft local cuando storage está disponible.
 - Session boundary compartido elimina recovery, incluida la recuperación ya montada en el workspace.
 - Media Library availability/retry, valores legacy ocultos y guards existentes permanecen intactos.
@@ -88,7 +91,10 @@ flowchart LR
 - E2E: Save race conserva ediciones posteriores.
 - E2E: cambio de slug durante Save conserva recovery bajo la nueva identidad.
 - E2E: Restore nunca activa y Save & Activate conserva su semántica explícita.
-- E2E: auth session boundary elimina recovery.
+- E2E: auth session boundary elimina recovery y cancela cargas pendientes.
+- E2E: recovery pendiente sobrevive ediciones antes de Restore/Discard.
+- E2E: post-Save reload conserva ediciones hechas durante requests async.
+- E2E: switch concurrente ignora la carga stale al volver al tema actual.
 - Harness usa origen HTTP same-origin para localStorage realista.
 - No cambia `datos.yml`: sin nuevo dato personal, proveedor ni transferencia.
 - 🚧 Evidencia CI/Sonar/CodeRabbit se registra solo después de gates del HEAD exacto.
