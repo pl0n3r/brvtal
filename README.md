@@ -16,7 +16,7 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `109ff86e-b4a6-47ce-a833-cbc00158b82c` |
+| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `af8c4b97-779a-4bb0-8551-8799edf6632c` |
 | Base | ✅ **main** | `971172164768204bd65fc773f78361f841392e52` |
 | Versión | 🚧 **v0.1.73** | patch deploy-bound |
 | PR | 🚧 **#721** | `work/issue-681` → `main` |
@@ -56,13 +56,13 @@ flowchart LR
 ```
 
 ## Qué se hizo
-- El diagnóstico read-only sobre producción v0.1.72 clasificó 14 migraciones pendientes: **8 baseline**, **4 apply** y **1 blocked**.
+- El diagnóstico read-only sobre producción v0.1.72 clasificó 14 migraciones pendientes: **1 registry**, **8 baseline**, **4 apply** y **1 blocked**.
 - El único bloqueador es `migration_zz_media_reference_guard_01.sql`; su proof muestra **todos** los objetos requeridos ausentes, no un estado parcial.
 - El bloqueo provenía del scanner genérico: el SQL histórico define triggers con DML, usa `DROP TRIGGER IF EXISTS` idempotente y siembra el mutex controlado.
 - El scanner estricto **no cambia por defecto**: `DROP`, `INSERT`, `UPDATE`, `DELETE`, `REPLACE`, `LOAD DATA` y DDL destructivo arbitrarios siguen rechazados.
 - La excepción de reconcile exige simultáneamente el nombre exacto de la migración, proof completamente ausente y el blob Git histórico exacto `415d3ead6244a2b56ebae150fdeaa1b27d7c29e4`.
 - Si cambia un byte del SQL, si aparece un solo objeto del proof o si se intenta reutilizar la excepción para otra migración, el flujo vuelve a fallar cerrado.
-- El workflow ## Archivos modificados en este deploy
+## Archivos modificados en este deploy
 - `README.md` — snapshot exacto de la recuperación v0.1.73.
 - `config/migration_reconcile.php` — habilitación estrecha solo con proof totalmente ausente.
 - `config/migrations.php` — validación del blob histórico exacto sin relajar el scanner por defecto.

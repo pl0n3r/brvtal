@@ -543,11 +543,11 @@ function brvtalMigrationReconcileHistorical(
         if (!is_string($sql)) {
             throw new RuntimeException('MIGRATION_SQL_READ_FAILED:' . $name);
         }
-        $proof = $plan['proofs'][$name] ?? null;
-        if (!is_array($proof)) {
-            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_MISSING:' . $name);
+        $executionProof = brvtalMigrationSchemaProof($pdo, $name);
+        if (brvtalMigrationProofDisposition($name, $executionProof) !== 'apply') {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_STALE:' . $name);
         }
-        brvtalMigrationAssertReconciliationSql($name, $sql, $proof);
+        brvtalMigrationAssertReconciliationSql($name, $sql, $executionProof);
         $pdo->exec($sql);
         $postApplyProof = brvtalMigrationSchemaProof($pdo, $name);
         if (brvtalMigrationProofDisposition($name, $postApplyProof) !== 'baseline') {
