@@ -16,6 +16,7 @@
     saveInFlight: false,
     suppressDraftSchedule: false,
     authInvalidated: false,
+    loadGeneration: 0,
   };
 
   const clone = value => JSON.parse(JSON.stringify(value ?? {}));
@@ -182,7 +183,7 @@
     if (V2.authInvalidated) return;
     setDraftState('Unsaved', 'unsaved');
     clearDraftTimer();
-    if (V2.saveInFlight || V2.suppressDraftSchedule) return;
+    if (V2.saveInFlight || V2.suppressDraftSchedule || V2.draftRecovery) return;
     V2.draftTimer = window.setTimeout(() => { void persistLocalDraft(); }, DRAFT_DEBOUNCE_MS);
   }
 
@@ -192,21 +193,26 @@
     try { await api.remove(DRAFT_SCOPE, identity); } catch (_) {}
   }
 
-  async function loadDraftRecovery(slug, serverTheme) {
+  async function loadDraftRecovery(slug, serverTheme, isCurrent = () => true) {
+    const identity = draftIdentity(slug);
+    const baseRevision = themeRevision(slug, serverTheme);
+    const api = draftApi();
+    const draft = api ? await api.load(DRAFT_SCOPE, identity) : null;
+    if (V2.authInvalidated || !isCurrent()) return false;
+
     clearDraftTimer();
     V2.draftRecovery = null;
-    V2.draftBaseRevision = themeRevision(slug, serverTheme);
+    V2.draftBaseRevision = baseRevision;
     setDraftState('Saved to server', 'server');
-    const api = draftApi();
-    if (!api) return;
-    const draft = await api.load(DRAFT_SCOPE, draftIdentity(slug));
-    if (!draft) return;
+    if (!draft) return true;
     if (canonicalSnapshot(draft.data) === canonicalSnapshot(serverTheme)) {
-      await removeLocalDraft(draftIdentity(slug));
-      return;
+      await removeLocalDraft(identity);
+      return !V2.authInvalidated && isCurrent();
     }
+    if (V2.authInvalidated || !isCurrent()) return false;
     V2.draftRecovery = draft;
     setDraftState('Draft saved locally', 'saved');
+    return true;
   }
 
   function restoreDraft() {
@@ -510,26 +516,40 @@
     updateDirty();
   }
 
-  async function loadThemeStudioV2(preferred = '') {
+  async function loadThemeStudioV2(preferred = '', submittedSnapshot = '', originalIdentity = '') {
     V2.authInvalidated = false;
     V2.suppressDraftSchedule = false;
+    const generation = ++V2.loadGeneration;
+    const isCurrent = () => generation === V2.loadGeneration && !V2.authInvalidated;
     try {
       const [settingsResponse, mediaResponse] = await Promise.all([req('/settings'), req('/media')]);
+      if (!isCurrent()) return false;
       state.themeSettings = settingsResponse.data || [];
       state.themeMedia = mediaResponse.data || [];
     } catch (error) {
+      if (!isCurrent()) return false;
       state.themeSettings = [];
       state.themeMedia = [];
       if (window.BRVTALFeedback) BRVTALFeedback.error('Theme Studio could not load: ' + (error?.message || 'ERROR'), 'theme-studio');
     }
+    if (!isCurrent()) return false;
     const active = activeSlug();
     const candidate = safeSlug(preferred || V2.editingSlug || active) || active;
-    V2.editingSlug = findTheme(candidate) ? candidate : active;
-    const theme = findTheme(V2.editingSlug) || mergeTheme(typeof THEME_DEFAULT !== 'undefined' ? THEME_DEFAULT : {});
-    state.theme = theme;
+    const editingSlug = findTheme(candidate) ? candidate : active;
+    const theme = findTheme(editingSlug) || mergeTheme(typeof THEME_DEFAULT !== 'undefined' ? THEME_DEFAULT : {});
+
+    if (submittedSnapshot && snapshot() !== submittedSnapshot) {
+      V2.draftBaseRevision = canonicalSnapshot(theme);
+      await preserveNewerEdits(theme, submittedSnapshot, originalIdentity);
+      return false;
+    }
+
+    V2.editingSlug = editingSlug;
     V2.baseline = snapshot(theme);
-    await loadDraftRecovery(V2.editingSlug, theme);
+    const recoveryLoaded = await loadDraftRecovery(editingSlug, theme, isCurrent);
+    if (!recoveryLoaded || !isCurrent()) return false;
     render(theme);
+    return true;
   }
 
   async function preserveNewerEdits(theme, submittedSnapshot, originalIdentity = '') {
@@ -565,7 +585,7 @@
     V2.draftRecovery = null;
     setDraftState('Saved to server', 'server');
     if (window.BRVTALFeedback) BRVTALFeedback.success(activate ? 'Theme saved and activated.' : 'Theme draft saved.', 'theme-studio-save');
-    await loadThemeStudioV2(theme.slug);
+    await loadThemeStudioV2(theme.slug, submittedSnapshot, originalIdentity);
   }
 
   async function persist(activate = false) {
@@ -610,10 +630,12 @@
     }
     const theme = findTheme(next);
     if (!theme) return;
+    const generation = ++V2.loadGeneration;
+    const isCurrent = () => generation === V2.loadGeneration && !V2.authInvalidated;
     V2.editingSlug = next;
-    state.theme = theme;
     V2.baseline = snapshot(theme);
-    await loadDraftRecovery(next, theme);
+    const recoveryLoaded = await loadDraftRecovery(next, theme, isCurrent);
+    if (!recoveryLoaded || !isCurrent()) return;
     render(theme);
   }
 
@@ -778,6 +800,7 @@
 
   window.addEventListener('brvtal:auth-required', () => {
     V2.authInvalidated = true;
+    V2.loadGeneration += 1;
     clearDraftTimer();
     V2.draftRecovery = null;
     V2.draftBaseRevision = '';
