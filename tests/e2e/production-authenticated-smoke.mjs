@@ -618,7 +618,11 @@ try {
       errors: await page.locator('.hero-slider-error').count()
     }));
     if (loading || errors) throw new Error(`#125 failed on Hero Slider attempt ${attempt}: loading=${loading}, errors=${errors}.`);
-    evidence.checks.heroSlider.push({ attempt, pass: true });
+    const diagnostic = await runOperation(
+      `hero-slider-diagnostic-success-${attempt}`,
+      () => page.evaluate(() => window.BRVTALHeroSliderDiagnostics?.lastLoad?.() || null)
+    );
+    evidence.checks.heroSlider.push({ attempt, pass: true, diagnostic });
     writeEvidence();
     if (attempt < 3) {
       const dashboardOpened = await runOperation(

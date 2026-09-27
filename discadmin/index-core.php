@@ -172,7 +172,26 @@ require_once __DIR__ . '/../config/deployment.php';
 </div>
 <script>
 const API='../api/index.php';let csrf='';let state={authed:false,section:'dashboard',rows:[],pagination:null,search:'',editing:null,events:[],artists:[],dashboard:{},recent:{events:[],artists:[],sets:[],media:[]},themeSettings:[],themeMedia:[],theme:{}};
-async function req(u='',o={}){const h={'Content-Type':'application/json',...(o.headers||{})};if(csrf)h['X-CSRF-Token']=csrf;const r=await fetch(API+u,{...o,headers:h});let d={};try{d=await r.json()}catch(e){}if(r.status===401){state.authed=false;render();throw Error('AUTH_REQUIRED')}if(!r.ok)throw Error(d.error||'ERROR');return d}
+function reqError(code,status){
+ const e=Error(code);
+ e.code=String(code||'ERROR');
+ e.status=Number(status||0);
+ return e;
+}
+async function req(u='',o={}){
+ const h={'Content-Type':'application/json',...(o.headers||{})};
+ if(csrf)h['X-CSRF-Token']=csrf;
+ const r=await fetch(API+u,{...o,headers:h});
+ let d={};
+ try{d=await r.json()}catch(e){}
+ if(r.status===401){
+  state.authed=false;
+  render();
+  throw reqError('AUTH_REQUIRED',401);
+ }
+ if(!r.ok)throw reqError(d.error||'ERROR',r.status);
+ return d;
+}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function imgSrc(v){const s=String(v??'').trim();if(!s)return '';if(/^https?:\/\//i.test(s)||s.startsWith('/'))return s;return '/'+s.replace(/^\/+/, '')}
 function thumb(v,label='NO IMAGE',large=false){const u=imgSrc(v);return u?`<img class="thumb ${large?'lg':''}" src="${esc(u)}" alt="${esc(label)}" loading="lazy" onerror="this.outerHTML='<div class=\'thumbph\'>NO IMAGE</div>'">`:`<div class="${large?'thumb lg':'thumbph'}">${large?'NO IMAGE':'NO IMG'}</div>`}

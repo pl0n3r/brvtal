@@ -30,7 +30,7 @@
   let heroDraftBaseRevision = '';
   let heroDraftRecovery = null;
   let heroDraftState = {label:'Saved to server',kind:'server'};
-  let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:''};
+  let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false};
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   let uidSequence = 0;
@@ -188,24 +188,52 @@
     const json = await response.json().catch(() => ({}));
     if (!response.ok) {
       const field = json.field ? ` · ${json.field}` : '';
-      throw new Error((json.error || 'REQUEST_FAILED') + field);
+      const code = String(json.error || 'REQUEST_FAILED');
+      const error = new Error(code + field);
+      error.code = code;
+      error.status = response.status;
+      throw error;
     }
     return json;
   }
 
+  function safeSettingsError(error) {
+    const message = String(error?.message || 'SETTINGS_READ_FAILED');
+    const code = String(error?.code || message.split(' · ')[0] || 'SETTINGS_READ_FAILED');
+    const status = Number(error?.status || 0);
+    if (status === 401 || ['AUTH_REQUIRED','INVALID_CREDENTIALS'].includes(code)) {
+      return { failureClass:'auth', httpStatus:status || 401, code };
+    }
+    if (status === 429 || code === 'RATE_LIMITED') {
+      return { failureClass:'rate-limit', httpStatus:status || 429, code };
+    }
+    if (status >= 500 || ['SETTINGS_UNAVAILABLE','NETWORK_ERROR','FETCH_FAILED'].includes(code) || error?.name === 'TypeError') {
+      return { failureClass:status >= 500 ? 'application-transient' : 'transport', httpStatus:status, code };
+    }
+    return { failureClass:'application', httpStatus:status, code };
+  }
+
   function retryableSettingsReadError(error) {
-    const code = String(error?.message || '');
-    return !['AUTH_REQUIRED','INVALID_CREDENTIALS','RATE_LIMITED'].includes(code);
+    const failure = safeSettingsError(error);
+    return failure.failureClass === 'transport' || failure.failureClass === 'application-transient';
   }
 
   async function readSettingsWithRetry(diagnostics) {
     let lastError = null;
+    const authBefore = Number(window.BRVTALAdminAuthBoundary?.diagnostics?.().revalidationCount || 0);
     for (let attempt = 1; attempt <= SETTINGS_READ_ATTEMPTS; attempt += 1) {
       diagnostics.settingsAttempts = attempt;
       try {
-        return await request(SETTINGS_READ_PATH,{cache:'no-store'});
+        const response = await request(SETTINGS_READ_PATH,{cache:'no-store'});
+        diagnostics.authRevalidated = Number(window.BRVTALAdminAuthBoundary?.diagnostics?.().revalidationCount || 0) > authBefore;
+        return response;
       } catch (error) {
         lastError = error;
+        const failure = safeSettingsError(error);
+        diagnostics.failureClass = failure.failureClass;
+        diagnostics.httpStatus = failure.httpStatus;
+        diagnostics.code = failure.code;
+        diagnostics.authRevalidated = Number(window.BRVTALAdminAuthBoundary?.diagnostics?.().revalidationCount || 0) > authBefore;
         if (attempt >= SETTINGS_READ_ATTEMPTS || !retryableSettingsReadError(error)) break;
         await new Promise(resolve => setTimeout(resolve, SETTINGS_RETRY_DELAY_MS));
       }
@@ -484,11 +512,11 @@
   async function load() {
     const host = root();
     if (!host) {
-      lastLoadDiagnostics = {status:'failed',reason:'host-missing-before-load',revision:loadRevision,settingsAttempts:0,hostRecovered:false,error:''};
+      lastLoadDiagnostics = {status:'failed',reason:'host-missing-before-load',revision:loadRevision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'application',httpStatus:0,code:'HOST_MISSING',authRevalidated:false};
       return false;
     }
     const revision = ++loadRevision;
-    const diagnostics = {status:'loading',reason:'',revision,settingsAttempts:0,hostRecovered:false,error:''};
+    const diagnostics = {status:'loading',reason:'',revision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false};
     lastLoadDiagnostics = diagnostics;
     host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
     media = [];

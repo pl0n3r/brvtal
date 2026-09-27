@@ -84,6 +84,8 @@ $assert(str_contains($probe, "page.evaluate(() => window.go('hero-slider'))"), '
 $assert(str_contains($probe, "page.evaluate(() => window.go('dashboard'))"), '#125 must await the Dashboard transition between Hero Slider attempts');
 $assert(str_contains($probe, 'opened !== true') && str_contains($probe, 'dashboardOpened !== true'), '#125 must fail when repeated workspace navigation does not commit');
 $assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
+$assert(str_contains($probe, 'hero-slider-diagnostic-success-'), '#125 successful attempts must retain Hero Slider diagnostics');
+$assert(str_contains($probe, 'BRVTALHeroSliderDiagnostics?.lastLoad?.()'), '#125 evidence must read the safe Hero Slider diagnostic object');
 $assert(substr_count($probe, 'context.request.post') === 2, 'the only direct POST calls must be login and optional TOTP verification');
 $assert(!preg_match('/context\.request\.(?:put|patch|delete)\s*\(/i', $probe), 'probe must not directly mutate production content through APIRequestContext');
 $assert(!preg_match('/page\.request\.(?:post|put|patch|delete)\s*\(/i', $probe), 'probe must not mutate production content through page.request');
