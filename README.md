@@ -75,7 +75,7 @@ flowchart LR
 | Lane | Trabajo |
 | --- | --- |
 | **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): publicar v0.1.77 y repetir smoke autenticado. |
-| **NEXT** | 🚧 Cerrar #681 únicamente con health + authenticated smoke exactos. |
+| **NEXT** | 🚧 Cerrar #681 solo con evidencia de reconcile/backup/`verify-plan __NONE__`, health exacto y authenticated smoke sobre el `main` resultante. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap cuando producción vuelva a GREEN. |
 | **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo adicional.~~ |
 
