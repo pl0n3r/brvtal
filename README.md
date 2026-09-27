@@ -6,28 +6,27 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #681: recuperar de forma fail-closed un 401 transitorio en GET admin mediante revalidación canónica de sesión.
+> Snapshot de **solo el deploy actual** para #726: hacer determinista y diagnosticable la lectura repetida de Hero Slider sin debilitar el smoke autenticado.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
 - 🚧 Normal text = pending/in progress.
-- 🚧 = active production blocker.
 
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · Hero Slider / authenticated smoke** | `work/issue-681` · reserva `54a2a330-b566-47f6-b7a4-7eadcf11b27b` |
-| Base | ✅ **main** | `7db6e2c1de3ccbd4e0bd85157e387bfdcd21904f` · v0.1.76 |
-| Versión | 🚧 **v0.1.77** | patch deploy-bound |
-| PR | 🚧 **pending** | `work/issue-681` → `main` |
+| Work line | 🚧 **#726 · Hero Slider settings-read reliability** | `work/issue-726` · reserva `18ce95aa-1881-498f-b6f8-9d0492c08227` |
+| Base | ✅ **main** | `26cbc5474388bb1e0362d99c31e8fc04038042c7` · v0.1.77 |
+| Versión | 🚧 **v0.1.78** | patch deploy-bound |
+| PR | 🚧 **pending** | `work/issue-726` → `main` |
 | Main | 🚧 **pending** | CI del SHA exacto de main tras merge |
-| Producción | 🚧 **NO GREEN** | v0.1.76 health/schema/reconcile exactos GREEN; smoke falla solo en Hero Slider intento 2 con `AUTH_REQUIRED` |
+| Producción | ✅ **GREEN v0.1.77** | health + smoke recuperado; #726 corrige flakiness observada |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+258** | **−43** | **+215** |
+| **10** | **+161** | **−49** | **+112** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -38,48 +37,53 @@
 | Snapshot | 🚧 PR + snapshot exacto |
 | Main | 🚧 CI del SHA exacto de main tras merge |
 | Review | 🚧 Sonar + CodeRabbit |
-| Producción | ✅ v0.1.76 health/schema/reconcile exactos · 🚧 authenticated smoke |
+| Producción | 🚧 authenticated smoke fresco sobre SHA exacto desplegado |
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  A["admin GET returns 401"] --> R["forced canonical /auth revalidation"]
-  R -->|session alive| G["retry GET once"]
-  R -->|expired| X["expire session fail-closed"]
-  G --> M["PR + gates → deploy"]
-  M --> S["authenticated smoke PASS"]
+  A["Hero Slider GET settings"] --> C["classify safe failure"]
+  C -->|transport / 5xx transient| R["retry once"]
+  C -->|auth / rate-limit / app| F["fail closed"]
+  R --> D["retain attempts + class + status/code + auth revalidation"]
+  D --> P["PR + gates → deploy → authenticated smoke"]
 ```
 
 ## Qué se hizo
-- v0.1.77 añade una revalidación canónica y acotada para un 401 transitorio de GET admin same-origin: si la sesión sigue válida, el GET se repite exactamente una vez.
-- Las mutaciones nunca se revalidan ni se reintentan; un 401 de POST/PUT/PATCH/DELETE expira la sesión de forma fail-closed.
-- La generación de autenticación invalida cualquier /auth pendiente cuando la sesión expira, evitando que una respuesta tardía restaure CSRF o habilite un retry después del logout lógico.
-- Las regresiones Playwright cubren recuperación GET, mutación 401 y la carrera GET-revalidation vs. mutación-expiry.
+- La lectura de Settings ya no reintenta casi cualquier error: solo transporte explícito y fallos 5xx transitorios tienen un segundo intento acotado.
+- Los fallos de autenticación, rate-limit y aplicación quedan fail-closed sin retry adicional.
+- El diagnóstico seguro conserva `settingsAttempts`, `failureClass`, `httpStatus`, `code` y si el GET atravesó revalidación canónica de sesión; el helper `req()` canónico ya no descarta esa metadata HTTP.
+- El smoke autenticado conserva el diagnóstico Hero Slider tanto en intento fallido como exitoso.
+- Las mutaciones de Settings siguen usando una sola solicitud y no heredan la política de retry de lectura.
 
 ## Archivos modificados en este deploy
-- `README.md` — snapshot operativo v0.1.77.
-- `config/version.php` — versión v0.1.77.
-- `discadmin/admin-auth-boundary.js` — revalidación acotada de 401 para GET admin same-origin y expiración inmediata para mutaciones.
-- `package.json` — versión runtime sincronizada en v0.1.77.
-- `tests/e2e/discadmin-auth-cache.spec.mjs` — regresiones de GET 401 transitorio y mutation 401 fail-closed.
+- `README.md` — snapshot operativo v0.1.78.
+- `config/version.php` — versión v0.1.78.
+- `discadmin/admin-auth-boundary.js` — contador seguro de revalidaciones GET.
+- `discadmin/hero-slider.js` — clasificación, metadata HTTP y retry acotado de Settings.
+- `discadmin/index-core.php` — propaga status/code seguros desde el request helper canónico.
+- `package.json` — versión runtime sincronizada.
+- `tests/e2e/hero-slider-v2.spec.mjs` — regresiones de retry y clases fail-closed.
+- `tests/e2e/production-authenticated-smoke.mjs` — evidencia diagnóstica en intentos exitosos.
+- `tests/hero-slider-contract.php` — contrato de propagación de metadata HTTP segura.
+- `tests/production-smoke-contract.php` — contrato de diagnóstico #125.
 
 ## Validación
-- No cambia DB, migraciones, storage ni permisos.
-- Solo GET admin same-origin puede revalidarse y repetirse una vez.
-- POST/PUT/PATCH/DELETE con 401 no se revalidan ni reintentan y expiran inmediatamente la sesión local.
-- Una expiración incrementa la generación de auth; cualquier revalidación pendiente queda obsoleta antes de poder restaurar CSRF.
-- Para cerrar #681 deben quedar registradas las pruebas de reconciliación del registry, backup previo a cualquier escritura de DB que haya sido necesaria, `scripts/migrations.php verify-plan __NONE__` exitoso, health HTTP 200 con `schema_up_to_date=true` y versión/SHA exactos, además del authenticated smoke sobre el `main` resultante.
-- Este PR no agrega migraciones; no se repite reconcile salvo que exact-main revele un delta de migración.
+- No cambia DB, migraciones, permisos ni esquema.
+- Solo las lecturas GET de Hero Slider tienen recuperación transitoria acotada; las escrituras siguen fail-closed y no se reintentan.
+- Rate-limit, auth y errores de aplicación no se convierten en falsos éxitos.
+- El smoke conserva tres ciclos Dashboard ↔ Hero Slider obligatorios y registra evidencia segura por intento.
+- El cierre de #726 exige BRVTAL CI, Privacy, Policy, Sonar y CodeQL verdes, deploy observado y authenticated smoke fresco sobre el SHA exacto resultante.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): publicar v0.1.77 y repetir smoke autenticado. |
-| **NEXT** | 🚧 Cerrar #681 solo con evidencia de reconcile/backup/`verify-plan __NONE__`, health exacto y authenticated smoke sobre el `main` resultante. |
-| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap cuando producción vuelva a GREEN. |
-| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo adicional.~~ |
+| **NOW** | 🚧 [#726](https://github.com/pl0n3r/brvtal/issues/726): validar v0.1.78 y desplegar. |
+| **NEXT** | 🚧 Ejecutar authenticated smoke fresco y confirmar health/schema sin regresión. |
+| **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap canónico. |
+| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo conocido.~~ |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #681, revalidar una sola vez GET admin 401 antes de expirar el shell; mutaciones siguen sin retry.
-- 🚧 **NEXT**: declarar GREEN solo con smoke autenticado PASS.
+- 🚧 **NOW**: #726, cerrar flakiness del Hero Slider con evidencia.
+- 🚧 **NEXT**: declarar producción validada solo tras smoke fresco.
 - 🚧 **LATER**: #533 roadmap canónico.

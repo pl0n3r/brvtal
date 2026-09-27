@@ -67,6 +67,7 @@ async function openAdminUidHarness(page, {
     window.__heroSettingsConfig = serverConfig;
     window.__heroSettingsReadFailure = '';
     window.__heroSettingsReadFailures = 0;
+    window.__heroSettingsReadStatus = 0;
     window.req = async (path, options = {}) => {
       if (path === '/settings' && options.method === 'POST') {
         window.__heroSaveStarted += 1;
@@ -87,9 +88,17 @@ async function openAdminUidHarness(page, {
       if (path === '/settings?key=home.hero.slider') {
         if (window.__heroSettingsReadFailures > 0) {
           window.__heroSettingsReadFailures -= 1;
-          throw new Error(window.__heroSettingsReadFailure || 'SETTINGS_UNAVAILABLE');
+          const error = new Error(window.__heroSettingsReadFailure || 'SETTINGS_UNAVAILABLE');
+          error.code = window.__heroSettingsReadFailure || 'SETTINGS_UNAVAILABLE';
+          error.status = Number(window.__heroSettingsReadStatus || 0);
+          throw error;
         }
-        if (window.__heroSettingsReadFailure) throw new Error(window.__heroSettingsReadFailure);
+        if (window.__heroSettingsReadFailure) {
+          const error = new Error(window.__heroSettingsReadFailure);
+          error.code = window.__heroSettingsReadFailure;
+          error.status = Number(window.__heroSettingsReadStatus || 0);
+          throw error;
+        }
         return {
           data: window.__heroSettingsConfig
             ? [{
@@ -280,6 +289,46 @@ test('v2 admin retries one transient Settings read when reopening Banners', asyn
     status:'loaded',
     settingsAttempts:2,
     hostRecovered:false
+  });
+});
+
+test('v2 admin does not retry rate-limited or application Settings failures', async ({ page }) => {
+  await openAdminUidHarness(page);
+
+  for (const code of ['RATE_LIMITED','INVALID_SETTING']) {
+    await page.evaluate(value => {
+      window.__heroSettingsReadFailure = value;
+    }, code);
+    expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+    expect(await page.evaluate(() => window.go('hero-slider'))).toBe(false);
+
+    const diagnostic = await page.evaluate(() => window.BRVTALHeroSliderDiagnostics.lastLoad());
+    expect(diagnostic.settingsAttempts).toBe(1);
+    expect(diagnostic.code).toBe(code);
+    expect(diagnostic.failureClass).toBe(code === 'RATE_LIMITED' ? 'rate-limit' : 'application');
+
+    await page.evaluate(() => {
+      window.__heroSettingsReadFailure = '';
+    });
+  }
+});
+
+test('v2 admin keeps explicit diagnostics after a transient Settings recovery', async ({ page }) => {
+  await openAdminUidHarness(page);
+  await page.evaluate(() => {
+    window.__heroSettingsReadFailures = 1;
+    window.__heroSettingsReadStatus = 503;
+  });
+
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  expect(await page.evaluate(() => window.go('hero-slider'))).toBe(true);
+
+  expect(await page.evaluate(() => window.BRVTALHeroSliderDiagnostics.lastLoad())).toMatchObject({
+    status:'loaded',
+    settingsAttempts:2,
+    failureClass:'application-transient',
+    httpStatus:503,
+    code:'SETTINGS_UNAVAILABLE'
   });
 });
 

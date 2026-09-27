@@ -6,6 +6,7 @@ $public = file_get_contents(__DIR__ . '/../js/hero-slider.js');
 $admin = file_get_contents(__DIR__ . '/../discadmin/hero-slider.js');
 $publicIndex = file_get_contents(__DIR__ . '/../index.php');
 $adminIndex = file_get_contents(__DIR__ . '/../discadmin/index.php');
+$adminCore = file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 $publicCss = file_get_contents(__DIR__ . '/../css/hero-slider.css');
 $publicV2Css = file_get_contents(__DIR__ . '/../css/hero-slider-v2.css');
 $adminCss = file_get_contents(__DIR__ . '/../discadmin/hero-slider.css');
@@ -35,6 +36,8 @@ $assert(str_contains($admin, 'data-duplicate-slide'), 'admin must support safe s
 $assert(str_contains($admin, 'SETTINGS_READ_ATTEMPTS = 2'), 'admin Banners settings read must use one bounded retry');
 $assert(str_contains($admin, 'recoverWorkspaceHost(revision)'), 'admin Banners load must recover its host only while the same navigation revision is active');
 $assert(str_contains($admin, 'BRVTALHeroSliderDiagnostics'), 'admin Banners load must expose bounded production diagnostics');
+$assert(str_contains($adminCore, 'e.status=Number(status||0)') && str_contains($adminCore, 'e.code=String(code||\'ERROR\')'), 'canonical admin request errors must retain safe HTTP status and code metadata');
+$assert(str_contains($admin, 'error.status = response.status') && str_contains($admin, 'error.code = code'), 'Hero fallback request errors must retain the same safe metadata');
 $assert(str_contains($publicIndex, 'hero-slider-v2.css') && str_contains($publicIndex, 'data-hero-v2-public'), 'public wrapper must deliver v2 styles before runtime mount');
 $assert(str_contains($adminIndex, 'hero-slider-v2.css') && str_contains($adminIndex, 'data-hero-v2'), 'admin wrapper must deliver v2 styles before editor mount');
 $assert(str_contains($publicCss, 'min-height:44px') || str_contains($publicCss, 'height:44px'), 'public controls must preserve touch targets');

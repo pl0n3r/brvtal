@@ -8,6 +8,7 @@
   let authPromise = null;
   let authSnapshot = null;
   let authGeneration = 0;
+  let revalidationCount = 0;
 
   function adminState() {
     return window.state && typeof window.state === 'object' ? window.state : null;
@@ -170,6 +171,7 @@
       return response;
     }
 
+    revalidationCount += 1;
     const snapshot = await auth({force:true}).catch(() => {
       window.dispatchEvent(new Event('brvtal:auth-revalidation-failed'));
       return null;
@@ -200,6 +202,7 @@
     auth,
     csrfToken,
     rememberAuth,
-    clearAuthCache
+    clearAuthCache,
+    diagnostics: () => ({ revalidationCount })
   };
 })();
