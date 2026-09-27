@@ -196,13 +196,18 @@ test('failed save remains visible and preserves authored input for retry', async
   await open(page);
   await page.locator('[data-seo-open="blog:7"]').click();
   await page.locator('#seo-editor-description-input').fill('Unsaved retry description.');
+  await expect(page.locator('#seo-editor-preview-description')).toHaveText('Unsaved retry description.');
+
   await page.evaluate(() => { window.__seoFail = true; });
   await page.locator('#seo-workspace-form').evaluate(form => form.requestSubmit());
 
+  await expect.poll(() => page.evaluate(() => window.__seoWrites.at(-1)?.body?.seo_description))
+    .toBe('Unsaved retry description.');
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1)))
+    .toEqual(['error','SEO save failed: SEO_WRITE_FAILED']);
+  await expect(page.locator('#seo-workspace-status')).toContainText('SEO_WRITE_FAILED');
   await expect(page.locator('#seo-workspace-editor')).toBeVisible();
   await expect(page.locator('#seo-editor-description-input')).toHaveValue('Unsaved retry description.');
-  await expect(page.locator('#seo-workspace-status')).toContainText('SEO_WRITE_FAILED');
-  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual(['error','SEO save failed: SEO_WRITE_FAILED']);
 });
 
 test('SEO workspace remains usable at 390px without horizontal overflow', async ({ page }) => {
