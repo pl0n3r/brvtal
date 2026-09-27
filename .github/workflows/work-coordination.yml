@@ -31,11 +31,16 @@ jobs:
        startsWith(github.event.comment.body, '/release ') ||
        startsWith(github.event.comment.body, '/transfer ') ||
        startsWith(github.event.comment.body, '/recover '))
+    # Factory v1 declares this maximum workflow_call envelope. GitHub validates
+    # the caller against that envelope before selecting the operation-specific job;
+    # the reusable narrows effective permissions internally per operation.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       checks: write
+    # Factory Kit consumers intentionally follow the protected major channel @v1;
+    # promotion of that channel is governed by Factory's exact-SHA release gate.
     uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
     with:
       operation: comment
@@ -53,11 +58,16 @@ jobs:
       github.event.issue.pull_request == null &&
       github.event.sender.login != 'github-actions[bot]' &&
       github.event.label.name == 'status: reserved'
+    # Factory v1 declares this maximum workflow_call envelope. GitHub validates
+    # the caller against that envelope before selecting the operation-specific job;
+    # the reusable narrows effective permissions internally per operation.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       checks: write
+    # Factory Kit consumers intentionally follow the protected major channel @v1;
+    # promotion of that channel is governed by Factory's exact-SHA release gate.
     uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
     with:
       operation: label
@@ -69,11 +79,16 @@ jobs:
   pull-request-state:
     name: Synchronize Pull Request state
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Factory v1 declares this maximum workflow_call envelope. GitHub validates
+    # the caller against that envelope before selecting the operation-specific job;
+    # the reusable narrows effective permissions internally per operation.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       checks: write
+    # Factory Kit consumers intentionally follow the protected major channel @v1;
+    # promotion of that channel is governed by Factory's exact-SHA release gate.
     uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
     with:
       operation: pr
@@ -84,11 +99,16 @@ jobs:
   issue-state:
     name: Synchronize Issue state
     if: github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'closed' || github.event.action == 'reopened')
+    # Factory v1 declares this maximum workflow_call envelope. GitHub validates
+    # the caller against that envelope before selecting the operation-specific job;
+    # the reusable narrows effective permissions internally per operation.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       checks: write
+    # Factory Kit consumers intentionally follow the protected major channel @v1;
+    # promotion of that channel is governed by Factory's exact-SHA release gate.
     uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
     with:
       operation: issue
@@ -99,11 +119,16 @@ jobs:
   sweep:
     name: Mark recoverable reservations
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Factory v1 declares this maximum workflow_call envelope. GitHub validates
+    # the caller against that envelope before selecting the operation-specific job;
+    # the reusable narrows effective permissions internally per operation.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       checks: write
+    # Factory Kit consumers intentionally follow the protected major channel @v1;
+    # promotion of that channel is governed by Factory's exact-SHA release gate.
     uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
     with:
       operation: sweep
