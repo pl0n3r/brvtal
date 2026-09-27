@@ -1,4 +1,5 @@
 import pathlib
+import runpy
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -38,6 +39,38 @@ class ProductionMigrationReconcileWorkflowTests(unittest.TestCase):
     def test_success_dispatches_existing_authenticated_smoke(self):
         self.assertIn("gh workflow run production-authenticated-smoke.yml --ref main", self.text)
         self.assertLess(self.text.index("reconcile-migrations"), self.text.index("gh workflow run production-authenticated-smoke.yml"))
+
+    def test_empty_reconciled_plan_normalizes_php_empty_proofs_array(self):
+        namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
+        sanitize = namespace["_sanitize_reconciliation_plan"]
+        plan = sanitize({
+            "registry_exists": True,
+            "record_registry_migration": False,
+            "pending": [],
+            "baseline": [],
+            "apply": [],
+            "blocked": [],
+            "actions": [],
+            "proofs": [],
+        })
+        self.assertEqual(plan["proofs"], {})
+
+    def test_empty_proofs_array_still_fails_closed_with_pending_migration(self):
+        namespace = runpy.run_path(str(ROOT / "ops/factory/transport.py"))
+        sanitize = namespace["_sanitize_reconciliation_plan"]
+        error = namespace["TransportError"]
+        payload = {
+            "registry_exists": True,
+            "record_registry_migration": False,
+            "pending": ["migration_blog_01.sql"],
+            "baseline": ["migration_blog_01.sql"],
+            "apply": [],
+            "blocked": [],
+            "actions": [{"migration": "migration_blog_01.sql", "action": "baseline"}],
+            "proofs": [],
+        }
+        with self.assertRaisesRegex(error, "proofs are invalid"):
+            sanitize(payload)
 
 if __name__ == "__main__":
     unittest.main()
