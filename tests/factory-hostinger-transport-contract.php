@@ -58,6 +58,8 @@ hostinger_expect(str_contains($transportSource, 'inspect-migrations'), 'transpor
 hostinger_expect(str_contains($transportSource, 'reconcile-migrations'), 'transport must expose controlled migration reconciliation');
 hostinger_expect(str_contains($transportSource, 'migration-reconcile-backup-'), 'reconciliation must record backup evidence before registry writes');
 hostinger_expect(str_contains($transportSource, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY=1'), 'reconciliation must pass explicit backup evidence to the CLI');
+$reconcileTransport = strstr($transportSource, '_RECONCILE_MIGRATIONS =');
+hostinger_expect(is_string($reconcileTransport) && str_contains($reconcileTransport, '$plan["blocked"] !== []') && strpos($reconcileTransport, '$plan["blocked"] !== []') < strpos($reconcileTransport, 'brvtal_backup_create'), 'blocked-schema guard must execute before reconciliation backup/write');
 
 preg_match_all('/ssh_(?:script|status|capture)\\(config,\\s*(_[A-Z_]+)/', $transportSource, $scriptRefs);
 preg_match_all('/^(_[A-Z_]+) = r"""/m', $transportSource, $scriptDefs);

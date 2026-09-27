@@ -105,17 +105,25 @@ function brvtalMigrationAssertAdditiveSql(string $sql): void
         $index++;
     }
 
+    $normalized = preg_replace('/\\s+/', ' ', $sanitized);
+    if (!is_string($normalized)) {
+        throw new RuntimeException('MIGRATION_SQL_SCAN_FAILED');
+    }
+
     $destructivePatterns = [
         '/\\bDROP\\b/i',
         '/\\bTRUNCATE\\b/i',
-        '/\\bDELETE\\b/i',
-        '/\\bREPLACE\\s+INTO\\b/i',
+        '/(?<!ON )\\bDELETE\\b/i',
+        '/(?<!ON )\\bUPDATE\\b/i',
+        '/(?<!BEFORE )(?<!AFTER )\\bINSERT\\b/i',
+        '/\\bREPLACE\\b/i',
+        '/\\bLOAD\\s+DATA\\b/i',
         '/\\bCREATE\\s+OR\\s+REPLACE\\b/i',
         '/\\bRENAME\\s+TABLE\\b/i',
         '/\\bALTER\\s+TABLE\\b[^;]*\\b(?:RENAME|CHANGE|MODIFY)\\b/is',
     ];
     foreach ($destructivePatterns as $pattern) {
-        if (preg_match($pattern, $sanitized) === 1) {
+        if (preg_match($pattern, $normalized) === 1) {
             throw new RuntimeException('MIGRATION_NON_ADDITIVE_SQL');
         }
     }

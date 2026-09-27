@@ -306,8 +306,39 @@ function brvtalMigrationSchemaProof(PDO $pdo, string $migrationName): array
     );
 }
 
-function brvtalMigrationBuildReconciliationPlan(array $status, array $proofs): array
+function brvtalMigrationProofDisposition(string $migrationName, array $proof): string
 {
+    $complete = $proof['complete'] ?? null;
+    $checks = $proof['checks'] ?? null;
+    if (!is_bool($complete) || !is_array($checks) || $checks === []) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_INVALID:' . $migrationName);
+    }
+    foreach ($checks as $present) {
+        if (!is_bool($present)) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_INVALID:' . $migrationName);
+        }
+    }
+
+    $hasTrue = in_array(true, $checks, true);
+    $hasFalse = in_array(false, $checks, true);
+    $derivedComplete = !$hasFalse;
+    if ($complete !== $derivedComplete) {
+        throw new RuntimeException('MIGRATION_SCHEMA_PROOF_INVALID:' . $migrationName);
+    }
+    if ($derivedComplete) {
+        return 'baseline';
+    }
+    if (!$hasTrue) {
+        return 'apply';
+    }
+    return 'blocked';
+}
+
+function brvtalMigrationBuildReconciliationPlan(
+    array $status,
+    array $proofs,
+    array $safeApply = []
+): array {
     $rows = $status['migrations'] ?? null;
     if (!is_array($rows) || !is_array($status['orphaned_records'] ?? null)) {
         throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
@@ -319,6 +350,9 @@ function brvtalMigrationBuildReconciliationPlan(array $status, array $proofs): a
     $registryExists = ($status['registry_exists'] ?? false) === true;
     $registryState = null;
     $baseline = [];
+    $apply = [];
+    $blocked = [];
+    $actions = [];
     $pending = [];
     $usedProofs = [];
 
@@ -328,7 +362,7 @@ function brvtalMigrationBuildReconciliationPlan(array $status, array $proofs): a
         }
         $name = (string)($row['migration'] ?? '');
         $state = (string)($row['state'] ?? '');
-        if (!preg_match('/^migration_[a-z0-9_]+\.sql$/', $name)) {
+        if (!preg_match('/^migration_[a-z0-9_]+\\.sql$/', $name)) {
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
         if ($state === 'checksum_mismatch') {
@@ -353,14 +387,23 @@ function brvtalMigrationBuildReconciliationPlan(array $status, array $proofs): a
 
         $pending[] = $name;
         $proof = $proofs[$name] ?? null;
-        if (!is_array($proof) || ($proof['complete'] ?? null) !== true || !is_array($proof['checks'] ?? null)) {
-            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FAILED:' . $name);
-        }
-        if (in_array(false, $proof['checks'], true)) {
-            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FAILED:' . $name);
+        if (!is_array($proof)) {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_MISSING:' . $name);
         }
         $usedProofs[$name] = $proof;
-        $baseline[] = $name;
+        $disposition = brvtalMigrationProofDisposition($name, $proof);
+
+        if ($disposition === 'baseline') {
+            $baseline[] = $name;
+            $actions[] = ['migration' => $name, 'action' => 'baseline'];
+            continue;
+        }
+        if ($disposition === 'apply' && ($safeApply[$name] ?? false) === true) {
+            $apply[] = $name;
+            $actions[] = ['migration' => $name, 'action' => 'apply'];
+            continue;
+        }
+        $blocked[] = $name;
     }
 
     if ($registryState === null) {
@@ -375,6 +418,9 @@ function brvtalMigrationBuildReconciliationPlan(array $status, array $proofs): a
         'record_registry_migration' => $registryState !== 'applied',
         'pending' => $pending,
         'baseline' => $baseline,
+        'apply' => $apply,
+        'blocked' => $blocked,
+        'actions' => $actions,
         'proofs' => $usedProofs,
     ];
 }
@@ -382,7 +428,10 @@ function brvtalMigrationBuildReconciliationPlan(array $status, array $proofs): a
 function brvtalMigrationReconciliationPlan(PDO $pdo, string $directory): array
 {
     $status = brvtal_migration_status($pdo, $directory);
+    $files = brvtal_migrations_discover($directory);
     $proofs = [];
+    $safeApply = [];
+
     foreach ($status['migrations'] ?? [] as $row) {
         if (!is_array($row) || ($row['state'] ?? '') !== 'pending') {
             continue;
@@ -391,9 +440,33 @@ function brvtalMigrationReconciliationPlan(PDO $pdo, string $directory): array
         if ($name === 'migration_schema_migrations_01.sql') {
             continue;
         }
-        $proofs[$name] = brvtalMigrationSchemaProof($pdo, $name);
+
+        $proof = brvtalMigrationSchemaProof($pdo, $name);
+        $proofs[$name] = $proof;
+        if (brvtalMigrationProofDisposition($name, $proof) !== 'apply') {
+            continue;
+        }
+
+        $path = $files[$name] ?? null;
+        if (!is_string($path) || !is_file($path)) {
+            throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+        }
+        $sql = file_get_contents($path);
+        if (!is_string($sql)) {
+            throw new RuntimeException('MIGRATION_SQL_READ_FAILED:' . $name);
+        }
+        try {
+            brvtalMigrationAssertAdditiveSql($sql);
+            $safeApply[$name] = true;
+        } catch (RuntimeException $exception) {
+            if ($exception->getMessage() !== 'MIGRATION_NON_ADDITIVE_SQL') {
+                throw $exception;
+            }
+            $safeApply[$name] = false;
+        }
     }
-    return brvtalMigrationBuildReconciliationPlan($status, $proofs);
+
+    return brvtalMigrationBuildReconciliationPlan($status, $proofs, $safeApply);
 }
 
 function brvtalMigrationReconcileHistorical(
@@ -403,8 +476,13 @@ function brvtalMigrationReconcileHistorical(
     ?string $deploySha
 ): array {
     $plan = brvtalMigrationReconciliationPlan($pdo, $directory);
-    $files = brvtal_migrations_discover($directory);
+    if ($plan['blocked'] !== []) {
+        throw new RuntimeException(
+            'MIGRATION_RECONCILIATION_BLOCKED:' . implode(',', $plan['blocked'])
+        );
+    }
 
+    $files = brvtal_migrations_discover($directory);
     if ($plan['record_registry_migration']) {
         $registry = $files['migration_schema_migrations_01.sql'] ?? null;
         if (!is_string($registry)) {
@@ -413,19 +491,48 @@ function brvtalMigrationReconcileHistorical(
         brvtal_migration_apply_file($pdo, $registry, $actor, $deploySha);
     }
 
-    foreach ($plan['baseline'] as $name) {
+    $baselined = [];
+    $applied = [];
+    foreach ($plan['actions'] as $action) {
+        if (!is_array($action)) {
+            throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+        }
+        $name = (string)($action['migration'] ?? '');
+        $kind = (string)($action['action'] ?? '');
         $path = $files[$name] ?? null;
         if (!is_string($path)) {
             throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
         }
+
+        if ($kind === 'baseline') {
+            brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
+            $baselined[] = $name;
+            continue;
+        }
+        if ($kind !== 'apply') {
+            throw new RuntimeException('MIGRATION_RECONCILIATION_DRIFT');
+        }
+
+        $sql = file_get_contents($path);
+        if (!is_string($sql)) {
+            throw new RuntimeException('MIGRATION_SQL_READ_FAILED:' . $name);
+        }
+        brvtalMigrationAssertAdditiveSql($sql);
+        $pdo->exec($sql);
+        $postApplyProof = brvtalMigrationSchemaProof($pdo, $name);
+        if (brvtalMigrationProofDisposition($name, $postApplyProof) !== 'baseline') {
+            throw new RuntimeException('MIGRATION_SCHEMA_PROOF_FAILED_AFTER_APPLY:' . $name);
+        }
         brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha);
+        $applied[] = $name;
     }
 
     $final = brvtal_migration_status($pdo, $directory);
     brvtalMigrationVerifyPlanStatus($final, '__NONE__');
     return [
         'registry_recorded' => (bool)$plan['record_registry_migration'],
-        'baselined' => $plan['baseline'],
+        'baselined' => $baselined,
+        'applied' => $applied,
         'verified' => true,
     ];
 }

@@ -31,8 +31,25 @@ $rejectsNonAdditive = static function (string $sql): bool {
 
 migrations_assert(!$rejectsNonAdditive("CREATE TABLE IF NOT EXISTS additive_probe (id INT);"), 'additive DDL must pass the automatic scanner');
 migrations_assert(!$rejectsNonAdditive("-- DROP TABLE ignored_probe\nCREATE TABLE additive_probe_2 (id INT);"), 'commented destructive tokens must be ignored');
+migrations_assert(
+    !$rejectsNonAdditive("CREATE TABLE child (id INT, parent_id INT, CONSTRAINT fk_child_parent FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE);"),
+    'foreign-key ON DELETE clauses are additive and must not be treated as DELETE statements'
+);
+migrations_assert(
+    !$rejectsNonAdditive("CREATE TABLE timestamps_probe (updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);"),
+    'ON UPDATE timestamp clauses are additive and must not be treated as UPDATE statements'
+);
 migrations_assert($rejectsNonAdditive("DROP TABLE users;"), 'DROP must be rejected');
-migrations_assert($rejectsNonAdditive("INSERT INTO swatches VALUES ('#fff'); DROP TABLE users;"), 'string literals containing # must not mask later destructive SQL');
+migrations_assert($rejectsNonAdditive("INSERT INTO swatches VALUES ('#fff');"), 'automatic reconciliation must reject INSERT data writes');
+migrations_assert($rejectsNonAdditive("INSERT users VALUES (1);"), 'INSERT without INTO must be rejected');
+migrations_assert($rejectsNonAdditive("INSERT LOW_PRIORITY INTO users VALUES (1);"), 'INSERT modifiers must be rejected');
+migrations_assert($rejectsNonAdditive("REPLACE users VALUES (1);"), 'REPLACE without INTO must be rejected');
+migrations_assert($rejectsNonAdditive("LOAD DATA INFILE '/tmp/users.csv' INTO TABLE users;"), 'LOAD DATA must be rejected');
+migrations_assert(
+    !$rejectsNonAdditive("CREATE TRIGGER users_before_insert BEFORE INSERT ON users FOR EACH ROW SET NEW.created_at = CURRENT_TIMESTAMP;"),
+    'BEFORE INSERT trigger events must not be confused with INSERT data writes'
+);
+migrations_assert($rejectsNonAdditive("UPDATE users SET active=0;"), 'automatic reconciliation must reject UPDATE data writes');
 migrations_assert($rejectsNonAdditive("DELETE IGNORE FROM users;"), 'DELETE modifiers must be rejected');
 foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtalMigrationAssertAdditiveSql', 'brvtalMigrationVerifyPlanStatus'] as $function) {
     migrations_assert(str_contains($library, "function {$function}"), "migration library must expose {$function}");
@@ -40,6 +57,22 @@ foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migra
 migrations_assert(str_contains($library, 'MIGRATION_CHECKSUM_MISMATCH'), 'changed applied migrations must fail closed');
 migrations_assert(str_contains($library, 'MIGRATION_REGISTRY_MISSING'), 'writes must fail when registry state is unavailable');
 migrations_assert(str_contains($library, 'MIGRATION_NON_ADDITIVE_SQL'), 'automatic migration safety must reject destructive SQL');
+$reconcileApply = substr(
+    $reconcileLibrary,
+    (int)strpos($reconcileLibrary, 'function brvtalMigrationReconcileHistorical')
+);
+$execPosition = strpos($reconcileApply, '$pdo->exec($sql);');
+$proofPosition = strpos($reconcileApply, 'brvtalMigrationSchemaProof($pdo, $name)', $execPosition === false ? 0 : $execPosition);
+$recordPosition = strpos($reconcileApply, 'brvtal_migration_baseline_file($pdo, $path, $actor, $deploySha)', $proofPosition === false ? 0 : $proofPosition);
+migrations_assert(
+    $execPosition !== false
+        && $proofPosition !== false
+        && $recordPosition !== false
+        && $execPosition < $proofPosition
+        && $proofPosition < $recordPosition,
+    'automatic apply must prove schema before recording the migration'
+);
+
 
 $applied = static fn(string $name): array => ['migration' => $name, 'state' => 'applied'];
 $pending = static fn(string $name): array => ['migration' => $name, 'state' => 'pending'];
@@ -127,7 +160,7 @@ migrations_assert(str_contains($cli, "if (\$command === 'reconcile')"), 'tool mu
 migrations_assert(str_contains($cli, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY'), 'historical reconciliation writes must require backup evidence');
 
 $specifications = brvtalMigrationProofSpecifications();
-$diskMigrations = array_map('basename', glob(__DIR__ . '/../database/migration_*.sql') ?: []);
+$diskMigrations = array_map(basename(...), glob(__DIR__ . '/../database/migration_*.sql') ?: []);
 sort($diskMigrations);
 $proofMigrations = array_keys($specifications);
 $expectedHistorical = array_values(array_filter(
@@ -165,15 +198,56 @@ $plan = brvtalMigrationBuildReconciliationPlan(
 );
 migrations_assert($plan['record_registry_migration'] === true, 'missing registry must require registry recording');
 migrations_assert($plan['baseline'] === [$pendingHistorical], 'only structurally proven pending history may be baselined');
+migrations_assert($plan['apply'] === [], 'fully represented history must not be applied');
+migrations_assert($plan['blocked'] === [], 'fully represented history must not be blocked');
+migrations_assert(
+    $plan['actions'] === [['migration' => $pendingHistorical, 'action' => 'baseline']],
+    'reconciliation actions must preserve canonical migration order'
+);
 
-$expectReconciliationFailure(
+$absentPlan = brvtalMigrationBuildReconciliationPlan(
     $planStatus(
         [$pending('migration_schema_migrations_01.sql'), $pending($pendingHistorical)],
         false
     ),
     [$pendingHistorical => ['complete' => false, 'checks' => ['table:blog_posts' => false]]],
-    'MIGRATION_SCHEMA_PROOF_FAILED:',
-    'ambiguous or missing structural state must abort reconciliation'
+    [$pendingHistorical => true]
+);
+migrations_assert($absentPlan['baseline'] === [], 'fully absent schema must not be baselined');
+migrations_assert($absentPlan['apply'] === [$pendingHistorical], 'fully absent additive schema may be applied after backup');
+migrations_assert($absentPlan['blocked'] === [], 'verified additive absence must be executable');
+migrations_assert(
+    $absentPlan['actions'] === [['migration' => $pendingHistorical, 'action' => 'apply']],
+    'additive apply action must be explicit'
+);
+
+$unsafeAbsentPlan = brvtalMigrationBuildReconciliationPlan(
+    $planStatus(
+        [$pending('migration_schema_migrations_01.sql'), $pending($pendingHistorical)],
+        false
+    ),
+    [$pendingHistorical => ['complete' => false, 'checks' => ['table:blog_posts' => false]]],
+    [$pendingHistorical => false]
+);
+migrations_assert(
+    $unsafeAbsentPlan['blocked'] === [$pendingHistorical],
+    'fully absent schema with unsafe SQL must remain blocked before backup/write'
+);
+
+$partialPlan = brvtalMigrationBuildReconciliationPlan(
+    $planStatus(
+        [$pending('migration_schema_migrations_01.sql'), $pending($pendingHistorical)],
+        false
+    ),
+    [$pendingHistorical => [
+        'complete' => false,
+        'checks' => ['table:blog_posts' => true, 'index:blog_posts.idx_blog_posts_public' => false],
+    ]],
+    [$pendingHistorical => true]
+);
+migrations_assert(
+    $partialPlan['blocked'] === [$pendingHistorical],
+    'partially represented schema must remain blocked even when SQL is additive'
 );
 $expectReconciliationFailure(
     $planStatus(
@@ -200,8 +274,8 @@ $expectReconciliationFailure(
         $pending($pendingHistorical),
     ]),
     [],
-    'MIGRATION_SCHEMA_PROOF_FAILED:' . $pendingHistorical,
-    'pending historical migration without proof must abort'
+    'MIGRATION_SCHEMA_PROOF_MISSING:' . $pendingHistorical,
+    'pending migration without proof must abort'
 );
 $expectReconciliationFailure(
     $planStatus([
@@ -209,8 +283,8 @@ $expectReconciliationFailure(
         $pending($pendingHistorical),
     ]),
     [$pendingHistorical => ['complete' => true, 'checks' => ['table:blog_posts' => false]]],
-    'MIGRATION_SCHEMA_PROOF_FAILED:' . $pendingHistorical,
-    'complete proof with a false structural check must abort'
+    'MIGRATION_SCHEMA_PROOF_INVALID:' . $pendingHistorical,
+    'inconsistent proof completeness must abort'
 );
 
 $registryAppliedPlan = brvtalMigrationBuildReconciliationPlan(

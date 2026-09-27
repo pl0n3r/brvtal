@@ -103,7 +103,8 @@ try {
         if ($json) {
             echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
         } else {
-            echo 'RECONCILED ' . count($result['baselined']) . ' historical migrations' . PHP_EOL;
+            echo 'RECONCILED ' . count($result['baselined']) . ' baselined, ' .
+                count($result['applied']) . ' additive migrations applied' . PHP_EOL;
         }
         exit(0);
     }
