@@ -17,12 +17,15 @@ LEGACY_TESTS = ROOT / "tests/test_work_coordinator.py"
 
 class FactoryCoordinationAdoptionTests(unittest.TestCase):
     def workflow_text(self) -> str:
+        """Return the repository coordination workflow as contract text."""
         return WORKFLOW.read_text(encoding="utf-8")
 
     def ci_text(self) -> str:
+        """Return the main BRVTAL CI workflow as contract text."""
         return CI.read_text(encoding="utf-8")
 
     def test_all_operations_use_factory_v1(self) -> None:
+        """All coordination entry points must resolve through Factory v1."""
         workflow = self.workflow_text()
         ci = self.ci_text()
 
@@ -46,6 +49,7 @@ class FactoryCoordinationAdoptionTests(unittest.TestCase):
         self.assertIn("profile: en", ci)
 
     def test_recovery_and_validation_semantics_are_preserved(self) -> None:
+        """CI must execute published Factory behaviors for recovery and validation."""
         workflow = self.workflow_text()
         ci = self.ci_text()
 
@@ -69,7 +73,20 @@ class FactoryCoordinationAdoptionTests(unittest.TestCase):
         self.assertNotIn("require_reservation: false", ci)
         self.assertIn("Bootstrap-only exception: PR #728", ci)
 
+        self.assertIn("Checkout published Factory v1 behavior harness", ci)
+        for behavior in (
+            "test_reserve_work_creates_atomic_lock_and_session",
+            "test_stale_reservation_reuses_existing_branch_and_pr",
+            "test_validate_pull_checks_active_session",
+            "test_validate_pull_rejects_open_pr_overlap",
+            "test_english_profile_supports_brvtal_coordination_contract",
+            "test_english_profile_reads_brvtal_legacy_reservations",
+            "test_profiles_fail_closed_on_authority_and_collision_errors",
+        ):
+            self.assertIn(behavior, ci)
+
     def test_events_and_permissions_are_bounded(self) -> None:
+        """Callers must preserve event bounds and the reusable permission envelope."""
         workflow = self.workflow_text()
         ci = self.ci_text()
 
@@ -104,6 +121,7 @@ class FactoryCoordinationAdoptionTests(unittest.TestCase):
         self.assertIn("checks: write", validate_block.group(0))
 
     def test_no_local_duplicate_authority_remains(self) -> None:
+        """Local coordinator code must disappear once published parity is proven."""
         self.assertFalse(
             LOCAL_COORDINATOR.exists(),
             "local coordinator must be removed after Factory v1 parity",
