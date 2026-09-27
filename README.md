@@ -27,13 +27,13 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **5** | **+37** | **−42** | **-5** |
+| **9** | **+76** | **−45** | **+31** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Factory | 🚧 Policy · Privacy · Labels |
 | Snapshot | 🚧 PR + snapshot exacto |
 | Main | 🚧 CI del SHA exacto de main tras merge |
@@ -61,8 +61,12 @@ flowchart LR
 - `README.md` — snapshot v0.1.76 del incidente.
 - `config/version.php` — versión v0.1.76.
 - `discadmin/admin-reliability.js` — usa el binding léxico canónico de estado.
+- `ops/factory/transport.py` — normaliza `proofs=[]` solo con cero migraciones pendientes.
 - `package.json` — versión sincronizada.
+- `tests/admin-reliability-quick-wins-contract.php` — contrato de reliability léxica.
+- `tests/admin-runtime-globals-contract.php` — contrato de globals runtime.
 - `tests/e2e/admin-reliability-quick-wins.spec.mjs` — regresión con `let state`.
+- `tests/test_production_migration_reconcile_workflow.py` — regresiones del reconcile sin pendientes.
 
 ## Validación
 - No cambia DB, migraciones, storage ni permisos.
