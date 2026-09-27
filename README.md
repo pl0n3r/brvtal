@@ -60,8 +60,8 @@ flowchart LR
 - No se añaden sleeps arbitrarios ni cambios de API, DB, permisos o producción.
 
 ## Archivos modificados en este deploy
-- `README.md`
-- `tests/e2e/discadmin-seo-workspace.spec.mjs`
+- `README.md` — actualiza el snapshot del deploy y la evidencia de #715.
+- `tests/e2e/discadmin-seo-workspace.spec.mjs` — sincroniza el failed-save sobre señales explícitas y verifica input authored para retry.
 
 ## Validación
 - Chromium debe ejecutar el caso failed-save sobre señales UI/network/state explícitas.
