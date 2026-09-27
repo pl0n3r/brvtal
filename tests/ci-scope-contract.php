@@ -15,7 +15,7 @@ function ci_scope_run(array $files, string $event = 'pull_request'): array
 {
     $script = realpath(__DIR__ . '/../scripts/ci-scope.sh');
     ci_scope_expect(is_string($script) && $script !== '', 'shared CI scope classifier must exist');
-    $payload = implode("\n", array_map('strval', $files));
+    $payload = implode("\n", array_map(strval(...), $files));
     $command = [
         'bash',
         '-c',
