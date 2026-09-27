@@ -6,8 +6,7 @@ $readme = (string) file_get_contents($root . '/README.md');
 $readmeDashboardValidator = $root . '/scripts/readme-dashboard.py';
 $workflow = (string) file_get_contents($root . '/.github/workflows/update-release-metadata.yml');
 $coordinationWorkflow = (string) file_get_contents($root . '/.github/workflows/work-coordination.yml');
-$workCoordinator = (string) file_get_contents($root . '/scripts/work_coordinator.py');
-$workCoordinatorTests = (string) file_get_contents($root . '/tests/test_work_coordinator.py');
+$factoryCoordinationAdoption = (string) file_get_contents($root . '/tests/test_factory_coordination_adoption.py');
 $performanceWorkflow = (string) file_get_contents($root . '/.github/workflows/production-performance.yml');
 $performancePrerequisite = (string) file_get_contents($root . '/scripts/production-performance-prerequisite.py');
 $performanceProbe = (string) file_get_contents($root . '/tests/e2e/production-performance-probe.mjs');
@@ -91,23 +90,34 @@ $assert(str_contains($agents, '## 4. Multi-agent work coordination'), 'AGENTS mu
 $assert(str_contains($agents, 'work/issue-N') && str_contains($agents, '/take'), 'AGENTS must document reservation branch and command');
 $assert(str_contains($coordinationWorkflow, 'name: Work Coordination'), 'work-coordination workflow must exist');
 $assert(str_contains($coordinationWorkflow, 'issue_comment:') && str_contains($coordinationWorkflow, 'pull_request:'), 'work-coordination workflow must synchronize commands and PR state');
-$assert(str_contains($workCoordinator, 'BRVTAL_TRUSTED_MARKER_LOGIN'), 'coordinator must trust only the configured bot identity');
-$assert(str_contains($workCoordinator, 'Collision with PR #'), 'coordinator must fail closed on changed-file collisions');
-$assert(!str_contains($workCoordinator, 'reserve_work(api, issue_number, actor, "OWNER")'), 'label events must never fabricate OWNER authority');
-$assert(str_contains($workCoordinator, 'NON_BLOCKING_SHARED_FILES = {"README.md"}'), 'README must be the only explicit non-blocking shared PR snapshot');
-$assert(str_contains($workCoordinatorTests, 'test_readme_only_overlap_is_non_blocking'), 'coordination tests must prove README-only overlap remains parallel-safe');
-$assert(str_contains($workCoordinator, 'Deploy-bound PR titles must end with (vX.Y.Z).'), 'coordinator must enforce prospective deploy version titles');
-$assert(str_contains($workCoordinatorTests, 'test_second_reservation_cannot_win_same_branch'), 'coordination tests must cover the atomic branch lock');
-$assert(str_contains($workCoordinatorTests, 'test_validate_pull_rejects_open_pr_overlap'), 'coordination tests must cover open-PR file collisions');
-$assert(str_contains($workflow, "  coordination:\n"), 'BRVTAL CI must expose the coordination gate');
-$assert(str_contains($workflow, 'COORDINATION_RESULT: ${{ needs.coordination.result }}'), 'validation summary must publish the coordination result');
+$assert(str_contains($coordinationWorkflow, 'pl0n3r/factory/.github/workflows/coordinacion.yml@v1'), 'coordination events must use the published Factory v1 authority');
+$assert(str_contains($coordinationWorkflow, 'profile: en'), 'BRVTAL coordination must use the Factory English profile');
+$assert(str_contains($coordinationWorkflow, 'operation: sweep'), 'Factory coordination must preserve stale-reservation sweep');
+$assert(!is_file($root . '/scripts/work_coordinator.py'), 'repository-local coordinator must be removed after Factory parity');
+$assert(!is_file($root . '/tests/test_work_coordinator.py'), 'legacy coordinator tests must be removed with local authority');
+$assert(str_contains($factoryCoordinationAdoption, 'test_recovery_and_validation_semantics_are_preserved'), 'adoption tests must retain recovery and validation contract coverage');
+$assert(str_contains($workflow, 'Checkout published Factory v1 behavior harness'), 'BRVTAL CI must execute the published Factory v1 behavior harness');
+foreach ([
+    'test_reserve_work_creates_atomic_lock_and_session',
+    'test_stale_reservation_reuses_existing_branch_and_pr',
+    'test_validate_pull_checks_active_session',
+    'test_validate_pull_rejects_open_pr_overlap',
+    'test_english_profile_supports_brvtal_coordination_contract',
+    'test_english_profile_reads_brvtal_legacy_reservations',
+    'test_profiles_fail_closed_on_authority_and_collision_errors',
+] as $factoryParityTest) {
+    $assert(str_contains($workflow, $factoryParityTest), "Factory parity harness must execute {$factoryParityTest}");
+}
+$assert(str_contains($workflow, "  coordination:\n"), 'BRVTAL CI must expose the local adoption-contract gate');
+$assert(str_contains($workflow, "  coordination-pr:\n"), 'BRVTAL CI must expose Factory reusable PR validation');
+$assert(str_contains($workflow, 'COORDINATION_RESULT: ${{ needs.coordination.result }}'), 'validation summary must publish the coordination contract result');
+$assert(str_contains($workflow, 'COORDINATION_PR_RESULT: ${{ needs.coordination-pr.result }}'), 'validation summary must publish Factory PR validation');
 $assert(str_contains($coordinationWorkflow, 'group: brvtal-work-coordination'), 'coordination workflow must serialize mutation events repository-wide');
 $assert(str_contains($coordinationWorkflow, 'cancel-in-progress: false'), 'coordination workflow must queue instead of cancelling the active mutation');
 $assert(str_contains($coordinationWorkflow, 'queue: max'), 'coordination workflow must preserve all pending mutation events');
 $assert(!str_contains($coordinationWorkflow, "format('work/issue-{0}', github.event.issue.number)"), 'coordination workflow concurrency must not vary by Issue');
 $assert(!str_contains($coordinationWorkflow, 'github.event.pull_request.head.ref'), 'coordination workflow concurrency must not vary by PR branch');
-$assert(str_contains($workCoordinatorTests, 'test_workflow_serializes_all_coordination_mutations_repository_wide'), 'coordination tests must prove repository-wide workflow serialization');
-$assert(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate coordination with existing gates');
+$assert(str_contains($workflow, 'needs: [preflight, coordination, coordination-pr, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate Factory coordination with every canonical gate');
 
 // CI/deployment observability, consolidated fast gate and metadata safety contract.
 $assert(str_contains($workflow, 'GITHUB_STEP_SUMMARY'), 'BRVTAL CI must publish GitHub Actions job summaries');
@@ -124,7 +134,7 @@ $assert(str_contains($workflow, "  database:\n") && str_contains($workflow, "  b
 $assert(str_contains($workflow, "  realstack:\n") && str_contains($workflow, "  webkit:\n"), 'CI must keep real-stack and targeted WebKit validation independent');
 $assert(str_contains($workflow, "  recovery:\n"), 'CI must keep isolated backup recovery as a path-aware job');
 $assert(str_contains($workflow, "  validate:\n"), 'CI must preserve a final validate check for branch-protection compatibility');
-$assert(str_contains($workflow, 'needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
+$assert(str_contains($workflow, 'needs: [preflight, coordination, coordination-pr, fast, database, browser, realstack, webkit, recovery]'), 'final validate must aggregate every validation layer');
 $assert(str_contains($workflow, 'run_recovery'), 'CI must make recovery path-aware');
 $assert(str_contains($workflow, 'Pull requests and exact') && str_contains($workflow, 'pushes use the same diff-aware gates'), 'exact main must use the same diff-aware scope instead of forcing every expensive job');
 $assert(str_contains($workflow, 'actions/cache@v4'), 'browser/npm setup must use reusable Actions caches');
