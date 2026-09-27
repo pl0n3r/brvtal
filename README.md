@@ -61,6 +61,7 @@ flowchart LR
 - La causa exacta es `array_all()` en `brvtalMigrationProofIsFullyAbsent()`; esa función no existe en PHP 8.2.
 - Se reemplaza por un recorrido equivalente y fail-closed: solo devuelve true cuando cada requisito es exactamente `false`.
 - La regresión impide reintroducir `array_all(` en el reconciliador y verifica fully-absent vs mixed.
+- Rector queda excluido solo para `config/migration_reconcile.php`; PHPStan y los contract tests permanecen activos.
 - El workflow diagnóstico temporal **no forma parte del diff final**.
 
 ## Archivos modificados en este deploy
@@ -68,6 +69,7 @@ flowchart LR
 - `config/migration_reconcile.php` — compatibilidad PHP 8.2 sin cambiar la semántica de proof.
 - `config/version.php` — versión v0.1.74.
 - `package.json` — versión sincronizada.
+- `rector.php` — protege el reconciliador runtime PHP 8.2 de autofixes PHP 8.4+.
 - `tests/migrations-contract.php` — regresión PHP 8.2 + fail-closed.
 
 ## Validación
