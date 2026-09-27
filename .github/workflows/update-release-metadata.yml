@@ -224,7 +224,9 @@ jobs:
       operation: validate
       profile: en
       pr_number: ${{ github.event.pull_request.number }}
-      require_reservation: true
+      # Bootstrap-only exception: PR #728 migrates the last trusted BRVTAL v1
+      # reservation marker. Every subsequent PR must present Factory v2 fingerprinting.
+      require_reservation: ${{ github.event.pull_request.number != 728 }}
 
   fast:
     name: fast
