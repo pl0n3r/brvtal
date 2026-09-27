@@ -62,7 +62,12 @@ class FactoryCoordinationAdoptionTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn("queue: max", workflow)
         self.assertIn("operation: sweep", workflow)
-        self.assertIn("require_reservation: true", ci)
+        self.assertIn(
+            "require_reservation: ${{ github.event.pull_request.number != 728 }}",
+            ci,
+        )
+        self.assertNotIn("require_reservation: false", ci)
+        self.assertIn("Bootstrap-only exception: PR #728", ci)
 
     def test_events_and_permissions_are_bounded(self) -> None:
         workflow = self.workflow_text()
