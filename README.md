@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #681: recuperación fail-closed del migration registry y aplicación controlada de migraciones aditivas realmente ausentes.
+> Snapshot de **solo el deploy actual** para #681: desbloqueo estrecho del media-reference guard después de prueba estructural de ausencia total.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,10 +16,10 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `6ba1abcd-5c7a-4b59-8a25-3a6c4efcdfa8` |
-| Base | ✅ **main** | `59d1b9355077c958ddbc5f9e49915bf82d09ffb2` |
-| Versión | 🚧 **v0.1.72** | patch deploy-bound |
-| PR | 🚧 **delivery de #681** | PR + snapshot exacto |
+| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `109ff86e-b4a6-47ce-a833-cbc00158b82c` |
+| Base | ✅ **main** | `971172164768204bd65fc773f78361f841392e52` |
+| Versión | 🚧 **v0.1.73** | patch deploy-bound |
+| PR | 🚧 **#721** | `work/issue-681` → `main` |
 | Main | 🚧 **post-merge** | CI del SHA exacto de main |
 | Producción | 🚧 **NO GREEN** | reconcile → health → authenticated smoke pendientes |
 
@@ -27,13 +27,13 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **11** | **+352** | **−70** | **+282** |
+| **6** | **+141** | **−44** | **+97** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Factory | 🚧 Policy · Privacy · Labels |
 | Snapshot | 🚧 PR + snapshot exacto |
 | Main | 🚧 CI del SHA exacto de main tras merge |
@@ -56,43 +56,31 @@ flowchart LR
 ```
 
 ## Qué se hizo
-- El proof estructural distingue esquema completo, totalmente ausente y parcial/ambiguo.
-- Solo el esquema completo puede baselinearse.
-- Un esquema totalmente ausente solo puede aplicarse si el SQL pasa el guard automático aditivo.
-- El guard permite cláusulas DDL legítimas `ON DELETE` / `ON UPDATE` y eventos `BEFORE/AFTER INSERT`, pero rechaza DML `INSERT`, `REPLACE`, `LOAD DATA`, `DELETE`, `UPDATE`, además de `DROP` y otras operaciones no aditivas.
-- Las acciones `baseline` / `apply` conservan el orden canónico de migraciones.
-- Un estado parcial o SQL inseguro queda `blocked` antes del backup y de cualquier write.
-- El reconcile vuelve a validar el plan, exige backup, ejecuta SQL aditivo, prueba el schema y solo entonces registra la migración antes de aceptar `verify-plan __NONE__`.
-- El transporte solo expone metadata estructural acotada; no filas de aplicación ni secretos.
-- Health permanece fail-closed; no se cambia el contrato de readiness.
-
-## Archivos modificados en este deploy
-- `.github/workflows/production-migration-reconcile.yml` — muestra baseline/apply/blocked y corta antes de writes si hay ambigüedad.
-- `README.md` — snapshot operativo V0.1.72.
-- `config/migration_reconcile.php` — clasificación y ejecución ordenada baseline/apply/blocked.
-- `config/migrations.php` — guard aditivo más preciso y sin DML automático.
-- `config/version.php` — versión V0.1.72.
-- `ops/factory/transport.py` — valida el nuevo contrato del plan y revalida blocked antes del backup.
-- `package.json` — sincroniza la versión de runtime con V0.1.72.
-- `scripts/migrations.php` — evidencia separada de baseline y apply.
-- `tests/factory-hostinger-transport-contract.php` — regresión backup/write fail-closed.
-- `tests/migrations-contract.php` — clasificación, SQL aditivo y estados ambiguos.
-- `tests/test_production_migration_reconcile_workflow.py` — contrato del workflow de recuperación.
+- El diagnóstico read-only sobre producción v0.1.72 clasificó 14 migraciones pendientes: **8 baseline**, **4 apply** y **1 blocked**.
+- El único bloqueador es `migration_zz_media_reference_guard_01.sql`; su proof muestra **todos** los objetos requeridos ausentes, no un estado parcial.
+- El bloqueo provenía del scanner genérico: el SQL histórico define triggers con DML, usa `DROP TRIGGER IF EXISTS` idempotente y siembra el mutex controlado.
+- El scanner estricto **no cambia por defecto**: `DROP`, `INSERT`, `UPDATE`, `DELETE`, `REPLACE`, `LOAD DATA` y DDL destructivo arbitrarios siguen rechazados.
+- La excepción de reconcile exige simultáneamente el nombre exacto de la migración, proof completamente ausente y el blob Git histórico exacto `415d3ead6244a2b56ebae150fdeaa1b27d7c29e4`.
+- Si cambia un byte del SQL, si aparece un solo objeto del proof o si se intenta reutilizar la excepción para otra migración, el flujo vuelve a fallar cerrado.
+- El workflow ## Archivos modificados en este deploy
+- `README.md` — snapshot exacto de la recuperación v0.1.73.
+- `config/migration_reconcile.php` — habilitación estrecha solo con proof totalmente ausente.
+- `config/migrations.php` — validación del blob histórico exacto sin relajar el scanner por defecto.
+- `config/version.php` — versión v0.1.73.
+- `package.json` — versión de runtime sincronizada.
+- `tests/migrations-contract.php` — regresiones positivas/negativas del bootstrap exacto.
 
 ## Validación
-- El planner debe clasificar `migration_admin_password_security_01.sql` como apply solo cuando todos sus requisitos estén ausentes.
-- Estados parciales deben abortar antes de cualquier write.
-- SQL con DML/destrucción debe permanecer bloqueado.
-- MariaDB, real-stack y recovery rehearsal deben pasar.
-- Sonar exact-head debe permanecer sin issues/hotspots nuevos.
-- CodeRabbit no debe dejar findings accionables.
-- Work Coordination y Factory gates deben pasar.
-- Tras merge, producción debe probar backup registrado, `verify-plan __NONE__`, health 200 exacto y authenticated smoke PASS.
+- El SQL canónico del media guard debe seguir siendo rechazado por el scanner estricto normal.
+- Solo el helper de reconciliación puede aceptarlo con proof totalmente ausente + blob exacto.
+- Proof parcial, nombre distinto o SQL modificado deben fallar cerrado.
+- MariaDB, real-stack, recovery, Sonar y CodeRabbit deben pasar sobre el HEAD final.
+- Tras merge: CI exact-main → deploy observer → reconcile canónico con backup → `verify-plan __NONE__` → health 200 exacto → authenticated smoke PASS.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): integrar V0.1.72 y ejecutar reconcile canónico. |
+| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): validar V0.1.73 y cerrar el único bloqueo del reconcile. |
 | **NEXT** | 🚧 Revalidar producción exact-main y cerrar el incidente solo con health + authenticated smoke PASS. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap canónico cuando producción vuelva a GREEN. |
 | **BLOCKED / EXTERNAL** | ✅ ~~[#719](https://github.com/pl0n3r/brvtal/issues/719): credenciales de transporte provisionadas y verificadas.~~ |

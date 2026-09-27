@@ -51,6 +51,74 @@ migrations_assert(
 );
 migrations_assert($rejectsNonAdditive("UPDATE users SET active=0;"), 'automatic reconciliation must reject UPDATE data writes');
 migrations_assert($rejectsNonAdditive("DELETE IGNORE FROM users;"), 'DELETE modifiers must be rejected');
+
+$mediaGuardSql = (string)file_get_contents(__DIR__ . '/../database/migration_zz_media_reference_guard_01.sql');
+$fullyAbsentMediaGuardProof = [
+    'complete' => false,
+    'checks' => [
+        'table:media_reference_mutex' => false,
+        'trigger:brvtal_events_media_guard_bi' => false,
+    ],
+];
+migrations_assert(
+    $rejectsNonAdditive($mediaGuardSql),
+    'canonical media guard must remain non-additive under the strict default scanner'
+);
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_zz_media_reference_guard_01.sql',
+        $mediaGuardSql,
+        $fullyAbsentMediaGuardProof
+    );
+} catch (RuntimeException $exception) {
+    migrations_assert(false, 'exact media guard may bootstrap only when its proof is fully absent');
+}
+$partialMediaGuardProof = [
+    'complete' => false,
+    'checks' => [
+        'table:media_reference_mutex' => true,
+        'trigger:brvtal_events_media_guard_bi' => false,
+    ],
+];
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_zz_media_reference_guard_01.sql',
+        $mediaGuardSql,
+        $partialMediaGuardProof
+    );
+    migrations_assert(false, 'partial media guard state must remain blocked');
+} catch (RuntimeException $exception) {
+    migrations_assert(
+        $exception->getMessage() === 'MIGRATION_NON_ADDITIVE_SQL',
+        'partial media guard state must fail through the strict scanner'
+    );
+}
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_zz_media_reference_guard_01.sql',
+        $mediaGuardSql . "\nDROP TABLE users;\n",
+        $fullyAbsentMediaGuardProof
+    );
+    migrations_assert(false, 'modified media guard SQL must never inherit the canonical exception');
+} catch (RuntimeException $exception) {
+    migrations_assert(
+        $exception->getMessage() === 'MIGRATION_MEDIA_GUARD_BOOTSTRAP_MISMATCH',
+        'modified media guard SQL must fail exact-blob validation'
+    );
+}
+try {
+    brvtalMigrationAssertReconciliationSql(
+        'migration_other.sql',
+        $mediaGuardSql,
+        $fullyAbsentMediaGuardProof
+    );
+    migrations_assert(false, 'canonical exception must not transfer to another migration name');
+} catch (RuntimeException $exception) {
+    migrations_assert(
+        $exception->getMessage() === 'MIGRATION_NON_ADDITIVE_SQL',
+        'other migration names must retain the strict scanner'
+    );
+}
 foreach (['brvtal_migrations_discover', 'brvtal_migration_status', 'brvtal_migration_apply_file', 'brvtal_migration_baseline_file', 'brvtalMigrationAssertAdditiveSql', 'brvtalMigrationVerifyPlanStatus'] as $function) {
     migrations_assert(str_contains($library, "function {$function}"), "migration library must expose {$function}");
 }
