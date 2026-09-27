@@ -315,10 +315,12 @@ function brvtalMigrationProofIsFullyAbsent(array $proof): bool
     if (!is_array($checks) || $checks === []) {
         return false;
     }
-    return array_all(
-        $checks,
-        static fn($present): bool => $present === false
-    );
+    foreach ($checks as $present) {
+        if ($present !== false) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function brvtalMigrationAssertReconciliationSql(
