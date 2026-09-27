@@ -196,38 +196,35 @@ jobs:
           fi
 
   coordination:
-    name: coordination
+    name: coordination-contract
     needs: preflight
     if: always() && needs.preflight.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Prove Factory v1 coordination adoption contract
+        run: python3 -m unittest tests/test_factory_coordination_adoption.py
+
+  coordination-pr:
+    name: coordination
+    needs: preflight
+    if: github.event_name == 'pull_request' && needs.preflight.result == 'success'
     permissions:
       contents: read
       issues: read
       pull-requests: read
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Run work-coordination unit tests
-        run: python3 -m unittest tests/test_work_coordinator.py
-      - name: Validate reservation, canonical branch and PR collisions
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          args=()
-          if git cat-file -e "$BASE_SHA:scripts/work_coordinator.py" 2>/dev/null; then
-            args+=(--require-reservation)
-          else
-            echo "Bootstrap: base main does not contain work coordination yet; validating branch, Issue and collisions without a reservation marker."
-          fi
-          python3 scripts/work_coordinator.py validate-pr --repo "$REPOSITORY" --pr "$PR" "${args[@]}"
+      checks: write
+    uses: pl0n3r/factory/.github/workflows/coordinacion.yml@v1
+    with:
+      operation: validate
+      profile: en
+      pr_number: ${{ github.event.pull_request.number }}
+      require_reservation: true
 
   fast:
     name: fast
@@ -598,7 +595,7 @@ jobs:
   validate:
     name: validate
     if: always()
-    needs: [preflight, coordination, fast, database, browser, realstack, webkit, recovery]
+    needs: [preflight, coordination, coordination-pr, fast, database, browser, realstack, webkit, recovery]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -607,6 +604,8 @@ jobs:
         env:
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           COORDINATION_RESULT: ${{ needs.coordination.result }}
+          COORDINATION_PR_RESULT: ${{ needs.coordination-pr.result }}
+          EXPECT_COORDINATION_PR: ${{ github.event_name == 'pull_request' }}
           FAST_RESULT: ${{ needs.fast.result }}
           DB_RESULT: ${{ needs.database.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
@@ -640,7 +639,8 @@ jobs:
           }
 
           require_success preflight "$PREFLIGHT_RESULT"
-          require_success coordination "$COORDINATION_RESULT"
+          require_success coordination-contract "$COORDINATION_RESULT"
+          require_optional coordination-pr "$EXPECT_COORDINATION_PR" "$COORDINATION_PR_RESULT"
           require_success fast "$FAST_RESULT"
           require_optional database "$RUN_DB" "$DB_RESULT"
           require_optional chromium "$RUN_BROWSER" "$BROWSER_RESULT"
@@ -658,6 +658,7 @@ jobs:
           BRVTAL_REF: ${{ github.ref_name }}
           PREFLIGHT_RESULT: ${{ needs.preflight.result }}
           COORDINATION_RESULT: ${{ needs.coordination.result }}
+          COORDINATION_PR_RESULT: ${{ needs.coordination-pr.result }}
           FAST_RESULT: ${{ needs.fast.result }}
           DB_RESULT: ${{ needs.database.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
@@ -677,7 +678,8 @@ jobs:
             echo "| Gate | Result |"
             echo "|---|---|"
             echo "| Preflight / scope | **$PREFLIGHT_RESULT** |"
-            echo "| Coordination | **$COORDINATION_RESULT** |"
+            echo "| Coordination contract | **$COORDINATION_RESULT** |"
+            echo "| Coordination PR / Factory v1 | **$COORDINATION_PR_RESULT** |"
             echo "| Fast contracts / syntax | **$FAST_RESULT** |"
             echo "| MariaDB | **$DB_RESULT** |"
             echo "| Chromium | **$BROWSER_RESULT** |"
