@@ -26,7 +26,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **12** | **+305** | **−72** | **+233** |
+| **12** | **+306** | **−72** | **+234** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->

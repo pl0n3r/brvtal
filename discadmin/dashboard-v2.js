@@ -539,6 +539,7 @@
     mountSerial += 1;
     mountPromise = null;
     mounting = false;
+    document.getElementById('brvtal-dashboard-v2')?.remove();
   }
 
   const observer = new MutationObserver(() => {
