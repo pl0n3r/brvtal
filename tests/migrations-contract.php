@@ -17,6 +17,7 @@ migrations_assert(str_contains($registrySql, 'deploy_sha CHAR(40) NULL'), 'regis
 
 $library = (string)file_get_contents(__DIR__ . '/../config/migrations.php');
 $reconcileLibrary = (string)file_get_contents(__DIR__ . '/../config/migration_reconcile.php');
+$rectorConfig = (string)file_get_contents(__DIR__ . '/../rector.php');
 require_once __DIR__ . '/../config/migrations.php';
 require_once __DIR__ . '/../config/migration_reconcile.php';
 
@@ -403,6 +404,10 @@ migrations_assert(!str_contains($reconcileLibrary, 'SELECT * FROM'), 'proofs mus
 migrations_assert(
     !str_contains($reconcileLibrary, 'array_all('),
     'migration reconciliation must stay compatible with production PHP 8.2'
+);
+migrations_assert(
+    str_contains($rectorConfig, "__DIR__ . '/config/migration_reconcile.php'"),
+    'Rector must not upgrade the production reconcile runtime beyond PHP 8.2'
 );
 migrations_assert(
     brvtalMigrationProofIsFullyAbsent(['complete' => false, 'checks' => ['table:x' => false]]) === true,
