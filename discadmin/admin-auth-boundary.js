@@ -7,6 +7,7 @@
   let expiring = false;
   let authPromise = null;
   let authSnapshot = null;
+  let authGeneration = 0;
 
   function adminState() {
     return window.state && typeof window.state === 'object' ? window.state : null;
@@ -26,6 +27,7 @@
   }
 
   function clearAuthCache() {
+    authGeneration += 1;
     authPromise = null;
     authSnapshot = null;
   }
@@ -121,7 +123,8 @@
     }
     if (!force && authPromise) return authPromise;
 
-    authPromise = (async () => {
+    const generation = authGeneration;
+    const pending = (async () => {
       const response = await originalFetch('/api/index.php/auth', {
         method:'GET',
         credentials:'same-origin',
@@ -132,12 +135,16 @@
         if (response.status === 401) expireSession();
         throw new Error(payload.error || 'AUTH_REQUIRED');
       }
+      if (generation !== authGeneration) throw new Error('AUTH_REVALIDATION_STALE');
       return rememberAuth(payload);
-    })().finally(() => {
-      authPromise = null;
-    });
+    })();
 
-    return authPromise;
+    authPromise = pending;
+    try {
+      return await pending;
+    } finally {
+      if (authPromise === pending) authPromise = null;
+    }
   }
 
   async function csrfToken() {
@@ -149,10 +156,37 @@
     return String(payload.csrf);
   }
 
+  function requestMethod(input, init) {
+    const explicit = String(init?.method || '').trim();
+    if (explicit) return explicit.toUpperCase();
+    if (input && typeof input.method === 'string') return input.method.toUpperCase();
+    return 'GET';
+  }
+
+  async function revalidateAdminGet(input, init, response) {
+    if (response.status !== 401 || !isAdminRequest(input)) return response;
+    if (requestMethod(input, init) !== 'GET') {
+      expireSession();
+      return response;
+    }
+
+    const snapshot = await auth({force:true}).catch(() => {
+      window.dispatchEvent(new Event('brvtal:auth-revalidation-failed'));
+      return null;
+    });
+    if (snapshot?.authenticated !== true || !snapshot?.csrf || adminState()?.authed === false) {
+      expireSession();
+      return response;
+    }
+
+    const retry = await originalFetch(input, init);
+    if (retry.status === 401) expireSession();
+    return retry;
+  }
+
   const guardedFetch = async function(input, init) {
     const response = await originalFetch(input, init);
-    if (response.status === 401 && isAdminRequest(input)) expireSession();
-    return response;
+    return revalidateAdminGet(input, init, response);
   };
   guardedFetch.__brvtalAuthBoundary = true;
   guardedFetch.__brvtalOriginalFetch = originalFetch;
