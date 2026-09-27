@@ -520,7 +520,7 @@
       ]);
       rendered = render(results,serial);
     } finally {
-      if (!rendered && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
+      if (!rendered && serial === mountSerial && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
       if (serial === mountSerial) mounting = false;
     }
     return rendered;
@@ -535,6 +535,12 @@
     return tracked;
   }
 
+  function invalidate() {
+    mountSerial += 1;
+    mountPromise = null;
+    mounting = false;
+  }
+
   const observer = new MutationObserver(() => {
     if (typeof state === 'undefined' || !state.authed || state.section !== 'dashboard' || document.getElementById('brvtal-dashboard-v2')) return;
     clearTimeout(observer._timer);
@@ -543,5 +549,5 @@
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
   setTimeout(() => mount(),0);
-  window.BRVTALDashboardV2 = {mount:() => mount(true)};
+  window.BRVTALDashboardV2 = {mount:() => mount(true),invalidate};
 })();

@@ -204,7 +204,7 @@ function nativeListUrl(module,page=1,query=''){
  const search=String(query||'').trim();if(search)params.set('q',search);
  return '/'+module+'?'+params.toString();
 }
-async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
+async function login(e){e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit],button');btn.disabled=true;btn.textContent='AUTHENTICATING...';try{const d=await req('/auth',{method:'POST',body:JSON.stringify({email:f.get('email'),password:f.get('password')})});csrf=d.csrf||'';window.BRVTALAdminAuthBoundary?.rememberAuth?.({authenticated:true,csrf});window.BRVTALDashboardV2?.invalidate?.();state.authed=true;await go('dashboard')}catch(x){const er=document.querySelector('.error');if(er)er.textContent=x.message==='AUTH_REQUIRED'?'Sesión no válida.':'Credenciales inválidas o error de servidor.';btn.disabled=false;btn.textContent='ENTER'}}
 async function restoreSession(){try{const d=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth({force:true}):await req('/auth',{method:'GET'});if(d.authenticated){csrf=d.csrf||'';state.authed=true;await go(BRVTALAdminModules.initialSection());return true}}catch(e){}render();return false}
 async function logout(){
  try{await req('/auth',{method:'DELETE'})}
@@ -212,6 +212,7 @@ async function logout(){
  try{window.BRVTALDrafts?.clearAll?.()}
  catch(error){document.documentElement.dataset.brvtalDraftStorage='unavailable'}
  window.BRVTALAdminAuthBoundary?.clearAuthCache?.();
+ window.BRVTALDashboardV2?.invalidate?.();
  csrf='';
  state.authed=false;
  render();

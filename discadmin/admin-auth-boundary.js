@@ -88,6 +88,7 @@
       if (currentState) currentState.authed = false;
       clearCsrf();
       clearAuthCache();
+      window.BRVTALDashboardV2?.invalidate?.();
 
       const preserveUnsaved = hasUnsavedChanges();
       applyExpiredSessionState(preserveUnsaved);

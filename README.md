@@ -58,18 +58,18 @@ flowchart LR
 - Contratos legacy de Dashboard ahora fijan explícitamente el mount esperado, sin reactivar el preload `/dashboard`.
 
 ## Archivos modificados en este deploy
-- `README.md`
-- `config/version.php`
-- `discadmin/admin-auth-boundary.js`
-- `discadmin/dashboard-v2.js`
-- `discadmin/hero-slider.js`
-- `discadmin/index-core.php`
-- `package.json`
-- `tests/admin-performance-contract.php`
-- `tests/dashboard-v2-contract.php`
-- `tests/e2e/discadmin-auth-cache.spec.mjs`
-- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs`
-- `tests/test_hero_auth_race.py`
+- `README.md` — snapshot operativo, evidencia, huella y alcance exacto del deploy.
+- `config/version.php` — versión deploy-bound v0.1.79.
+- `discadmin/admin-auth-boundary.js` — revalidación single-flight y expiración de sesión que invalida mounts pendientes.
+- `discadmin/dashboard-v2.js` — promesa compartida de mount, invalidación por sesión y limpieza protegida por serial.
+- `discadmin/hero-slider.js` — diagnóstico seguro de revalidación y política fail-closed de lectura protegida.
+- `discadmin/index-core.php` — navegación espera Dashboard V2 e invalida mounts en login/logout.
+- `package.json` — scripts de regresión del candidato.
+- `tests/admin-performance-contract.php` — contrato legacy alineado con la carga actual del Dashboard.
+- `tests/dashboard-v2-contract.php` — contrato del mount Dashboard V2.
+- `tests/e2e/discadmin-auth-cache.spec.mjs` — regresiones de revalidación concurrente y mutaciones 401.
+- `tests/e2e/discadmin-dashboard-v2-authority.spec.mjs` — regresiones ejecutables de mount pendiente, ownership e invalidación entre sesiones.
+- `tests/test_hero_auth_race.py` — contrato Factory AC-01..04 y presencia de las regresiones críticas.
 
 ## Validación
 - Dos GET protegidos con 401 en paralelo comparten una sola llamada `/auth`.

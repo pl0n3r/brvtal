@@ -20,6 +20,12 @@ class HeroAuthRaceTests(unittest.TestCase):
         self.assertIn("await window.BRVTALDashboardV2.mount();", self.index_core)
         self.assertIn("if (mountPromise) return mountPromise;", self.dashboard)
         self.assertIn("return pending;", self.dashboard)
+        self.assertIn("function invalidate()", self.dashboard)
+        self.assertIn("window.BRVTALDashboardV2?.invalidate?.();", self.index_core)
+        self.assertIn(
+            "Dashboard V2 invalidates a pending mount across an auth session boundary",
+            self.dashboard_e2e,
+        )
         self.assertIn(
             "Dashboard V2 mount promise settles only after protected sources finish",
             self.dashboard_e2e,
