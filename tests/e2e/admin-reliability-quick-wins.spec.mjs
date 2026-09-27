@@ -138,7 +138,8 @@ test('Sets navigation renders before relation hydration and reuses one bounded h
   await page.setContent(`<!doctype html><html><body>
     <main id="main">DASHBOARD</main>
     <script>
-      window.state={authed:true,artists:[],events:[]};
+      let state={authed:true,artists:[],events:[]};
+      window.__stateSnapshot=()=>({artists:[...state.artists],events:[...state.events]});
       window.__relationCalls=[];
       window.__relationResolvers=[];
       window.__opened=null;
@@ -159,6 +160,8 @@ test('Sets navigation renders before relation hydration and reuses one bounded h
   </body></html>`);
   await page.addScriptTag({content:adminReliability});
 
+  expect(adminReliability).not.toContain('window.state.');
+  expect(await page.evaluate(() => Object.prototype.hasOwnProperty.call(window,'state'))).toBe(false);
   expect(await page.evaluate(() => window.go('sets'))).toBe('navigated');
   expect(await page.locator('#main').innerText()).toBe('SETS');
   expect(await page.evaluate(() => window.__relationCalls)).toEqual([
@@ -177,8 +180,7 @@ test('Sets navigation renders before relation hydration and reuses one bounded h
     result:await window.__modalPromise,
     calls:window.__relationCalls.length,
     opened:window.__opened,
-    artists:window.state.artists,
-    events:window.state.events
+    ...window.__stateSnapshot()
   }));
   expect(after).toEqual({
     result:'opened',

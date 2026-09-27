@@ -902,6 +902,8 @@ def _sanitize_reconciliation_plan(payload: object) -> dict[str, object]:
         raise TransportError("migration inspection action classification is inconsistent")
 
     raw_proofs = payload["proofs"]
+    if raw_proofs == [] and not non_registry_pending:
+        raw_proofs = {}
     if not isinstance(raw_proofs, dict) or len(raw_proofs) > 200:
         raise TransportError("migration inspection proofs are invalid")
     if set(raw_proofs) != set(non_registry_pending):

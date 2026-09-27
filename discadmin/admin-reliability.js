@@ -65,7 +65,7 @@
           body: JSON.stringify({email:data.get('email'),password:data.get('password')})
         });
         window.csrf = response.csrf || '';
-        window.state.authed = true;
+        state.authed = true;
         await window.go('dashboard');
       } catch (error) {
         const output = document.querySelector('.error');
@@ -93,7 +93,7 @@
 
       const finalizeLogout = () => {
         window.csrf = '';
-        window.state.authed = false;
+        state.authed = false;
         const committed = typeof unsaved?.commitNavigation === 'function'
           ? unsaved.commitNavigation(unsavedToken)
           : true;
@@ -171,8 +171,8 @@
         loadSetRelationCollection('/artists'),
         loadSetRelationCollection('/events')
       ]);
-      window.state.artists = artists;
-      window.state.events = events;
+      state.artists = artists;
+      state.events = events;
       return {artists, events};
     })();
 
