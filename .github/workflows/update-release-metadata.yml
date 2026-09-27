@@ -207,8 +207,28 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+      - name: Checkout published Factory v1 behavior harness
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: pl0n3r/factory
+          ref: v1
+          path: .factory
+          persist-credentials: false
       - name: Prove Factory v1 coordination adoption contract
-        run: python3 -m unittest tests/test_factory_coordination_adoption.py
+        run: |
+          set -euo pipefail
+          python3 -m unittest tests/test_factory_coordination_adoption.py
+          (
+            cd .factory
+            python3 -m unittest \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_reserve_work_creates_atomic_lock_and_session \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_stale_reservation_reuses_existing_branch_and_pr \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_validate_pull_checks_active_session \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_validate_pull_rejects_open_pr_overlap \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_english_profile_supports_brvtal_coordination_contract \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_english_profile_reads_brvtal_legacy_reservations \
+              tests.test_coordinar_trabajo.CoordinacionTests.test_profiles_fail_closed_on_authority_and_collision_errors
+          )
 
   coordination-pr:
     name: coordination
