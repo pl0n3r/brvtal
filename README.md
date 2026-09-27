@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #681: compatibilidad del reconciliador con el runtime PHP real de Hostinger.
+> Snapshot de **solo el deploy actual** para #681: degradación segura de storage administrado cuando la cuota no está configurada.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -16,18 +16,18 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#681 · production migration registry parity** | `work/issue-681` · reserva `7b4511c3-b2ba-4f1f-ac96-be1202298d12` |
-| Base | ✅ **main** | `b79f9257795d980bdaa4a18fb25dc898e7f18642` · v0.1.73 |
-| Versión | 🚧 **v0.1.74** | patch deploy-bound |
+| Work line | 🚧 **#681 · authenticated production smoke** | `work/issue-681` · reserva `2ec41f28-2ffe-4b87-a9e3-bc51fa3233b8` |
+| Base | ✅ **main** | `7ca6e2f70e8f1ce2feda3a1761c854ee66a020f9` · v0.1.74 |
+| Versión | 🚧 **v0.1.75** | patch deploy-bound |
 | PR | 🚧 **pending** | `work/issue-681` → `main` |
 | Main | 🚧 **pending** | CI del SHA exacto tras merge |
-| Producción | 🚧 **NO GREEN** | reconcile → health → authenticated smoke pendientes |
+| Producción | 🚧 **NO GREEN** | health exacto GREEN; smoke falla solo por storage-metrics 503 |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+66** | **−44** | **+22** |
+| **6** | **+44** | **−40** | **+4** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -38,55 +38,55 @@
 | Snapshot | 🚧 PR + snapshot exacto |
 | Main | 🚧 CI del SHA exacto de main tras merge |
 | Review | 🚧 Sonar + CodeRabbit |
-| Producción | 🚧 backup → reconcile → verify-plan → health → authenticated smoke |
-
+| Producción | ✅ reconcile + health exactos · 🚧 authenticated smoke |
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  C["compatibilidad PHP 8.2"] --> G["PR + gates"]
+  F["storage unavailable sin 5xx"] --> G["PR + gates"]
   G --> M["squash merge"]
   M --> E["CI exact-main + Deploy Observer"]
-  E --> R["reconcile owner-only"]
-  R --> B["backup-before-write"]
-  B --> V["verify-plan __NONE__"]
-  V --> H["health exact SHA/version/schema"]
-  H --> S["authenticated smoke"]
+  E --> H["health exact SHA/version/schema"]
+  H --> S["authenticated smoke PASS"]
 ```
 
 ## Qué se hizo
-- v0.1.73 quedó desplegada exactamente en producción y CI/Deploy Observer están verdes.
-- El reconcile owner-only falló **antes del backup y antes de cualquier escritura** durante `reconcile-plan`.
-- Diagnóstico read-only probado contra el mismo SHA desplegado: Hostinger ejecuta **PHP 8.2.33** y el transporte SSH funciona.
-- La causa exacta es `array_all()` en `brvtalMigrationProofIsFullyAbsent()`; esa función no existe en PHP 8.2.
-- Se reemplaza por un recorrido equivalente y fail-closed: solo devuelve true cuando cada requisito es exactamente `false`.
-- La regresión impide reintroducir `array_all(` en el reconciliador y verifica fully-absent vs mixed.
-- Rector queda excluido solo para `config/migration_reconcile.php`; PHPStan y los contract tests permanecen activos.
-- El workflow diagnóstico temporal **no forma parte del diff final**.
+- Deploy Observer confirmó `v0.1.74` y SHA exacto `7ca6e2f70e8f1ce2feda3a1761c854ee66a020f9`.
+- Reconcile owner-only completó inspect → backup-before-write → reconcile → `verify-plan __NONE__`.
+- `/api/health.php` devuelve 200, DB conectada, `schema_up_to_date=true`, 14 migraciones aplicadas y 0 pendientes.
+- Authenticated Production Smoke `36327134844` autentica, valida health/home/admin, pero falla porque `/discadmin/storage-metrics.php` devuelve 503 cuando la cuota administrada no está configurada.
+- La UI ya representa ese caso como `UNAVAILABLE · BRVTAL DATA`; no existe motivo para convertir una métrica opcional no configurada en un 5xx del dashboard.
+
+### Cambio v0.1.75
+- `storage-metrics.php` mantiene `ok:false`, añade `available:false` y conserva `STORAGE_QUOTA_NOT_CONFIGURED`.
+- El estado no configurado usa respuesta HTTP normal; no inventa una cuota y no reutiliza el filesystem del host como cuota de BRVTAL.
+- La UI existente sigue degradando a `MANAGED STORAGE UNAVAILABLE`.
+- Regresiones de contrato y Playwright fijan que la ausencia de cuota no vuelve a producir un 5xx semántico.
 
 ## Archivos modificados en este deploy
-- `README.md` — snapshot exacto de recuperación v0.1.74.
-- `config/migration_reconcile.php` — compatibilidad PHP 8.2 sin cambiar la semántica de proof.
-- `config/version.php` — versión v0.1.74.
+- `README.md` — snapshot v0.1.75 del incidente.
+- `config/version.php` — versión v0.1.75.
 - `package.json` — versión sincronizada.
-- `rector.php` — protege el reconciliador runtime PHP 8.2 de autofixes PHP 8.4+.
-- `tests/migrations-contract.php` — regresión PHP 8.2 + fail-closed.
+- `discadmin/storage-metrics.php` — unavailable semántico sin HTTP 5xx.
+- `tests/system-status-contract.php` — contrato no-5xx y `available:false`.
+- `tests/e2e/discadmin-system-status-v2.spec.mjs` — degradación visual con respuesta HTTP 200.
 
 ## Validación
-- El proof fully absent debe seguir habilitando solo la ruta ya protegida del media guard.
-- Proof mixto debe devolver false y mantener el reconcile bloqueado.
-- No se relaja el scanner SQL ni se cambia backup-before-write.
-- Tras merge: CI exact-main → Deploy Observer → reconcile canónico → `verify-plan __NONE__` → health 200 exacto → authenticated smoke PASS.
+- No se configura ni adivina `BRVTAL_STORAGE_QUOTA_BYTES`.
+- Host filesystem sigue siendo `diagnostic_only`.
+- Una cuota real configurada conserva el payload de uso/cuota existente.
+- Tras merge: CI exact-main → Deploy Observer → health exacto → authenticated smoke PASS.
+- #681 solo se cierra cuando el smoke autenticado pase sobre el SHA desplegado de v0.1.75.
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): integrar v0.1.74 y repetir reconcile seguro. |
-| **NEXT** | 🚧 Cerrar #681 solo con backup/reconcile + health + authenticated smoke exactos. |
+| **NOW** | 🚧 [#681](https://github.com/pl0n3r/brvtal/issues/681): integrar v0.1.75 y repetir smoke autenticado. |
+| **NEXT** | 🚧 Cerrar #681 únicamente con health + authenticated smoke exactos. |
 | **LATER** | 🚧 [#533](https://github.com/pl0n3r/brvtal/issues/533): retomar roadmap cuando producción vuelva a GREEN. |
-| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo adicional; transporte SSH provisionado.~~ |
+| **BLOCKED / EXTERNAL** | ✅ ~~Sin bloqueo externo adicional.~~ |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #681, restaurar migration registry parity con backup-before-write.
-- 🚧 **NEXT**: declarar GREEN únicamente con exact SHA/version/schema + smoke autenticado.
+- 🚧 **NOW**: #681, retirar el falso 5xx de storage no configurado.
+- 🚧 **NEXT**: declarar GREEN solo con smoke autenticado PASS.
 - 🚧 **LATER**: #533 roadmap canónico.

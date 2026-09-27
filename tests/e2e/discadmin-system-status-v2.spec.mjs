@@ -230,7 +230,9 @@ test('System Status never renders host filesystem capacity as the managed quota 
   unavailableOverview.host_filesystem = {total:'6.93 TB',free:'1.79 TB',diagnostic_only:true};
   await routeStatusSources(page, unavailableOverview);
   await page.route('**/discadmin/storage-metrics.php*', route => route.fulfill({
-    status:503,contentType:'application/json',body:JSON.stringify({ok:false,error:'STORAGE_QUOTA_NOT_CONFIGURED'})
+    status:200,
+    contentType:'application/json',
+    body:JSON.stringify({ok:false,available:false,error:'STORAGE_QUOTA_NOT_CONFIGURED'})
   }));
   await page.route('**/api/admin-dashboard-preferences.php?workspace=system_status', route => route.fulfill({
     contentType:'application/json',body:JSON.stringify({ok:true,data:{modules:[]}})
