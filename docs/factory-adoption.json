@@ -19,17 +19,13 @@
     "labels": {
       "workflow": ".github/workflows/factory-labels.yml",
       "reusable": "pl0n3r/factory/.github/workflows/etiquetas.yml@v1"
+    },
+    "coordination": {
+      "workflow": ".github/workflows/work-coordination.yml",
+      "reusable": "pl0n3r/factory/.github/workflows/coordinacion.yml@v1"
     }
   },
   "external_blockers": [
-    {
-      "issue": 681,
-      "code": "production-migration-reconcile-credentials",
-      "requires": [
-        "DEPLOY_TOKEN",
-        "DEPLOY_SSH_KEY"
-      ]
-    },
     {
       "issue": 689,
       "code": "observer-push-trigger-parity",
@@ -38,12 +34,5 @@
       ]
     }
   ],
-  "pending_adoptions": [
-    {
-      "issue": 692,
-      "capability": "coordination",
-      "reusable": "pl0n3r/factory/.github/workflows/coordinacion.yml@v1",
-      "required_for_epic_close": true
-    }
-  ]
+  "pending_adoptions": []
 }
