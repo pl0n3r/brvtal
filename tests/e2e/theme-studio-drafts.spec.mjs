@@ -18,7 +18,7 @@ const baseTheme = {
   seo:{siteTitle:'LEGACY SEO',description:'KEEP ME',ogImage:'/legacy-og.png'}
 };
 
-async function openStudio(page, { failSave=false, holdSave=false } = {}) {
+async function openStudio(page, { failSave=false, holdSave=false, holdReload=false } = {}) {
   await page.route('https://fonts.googleapis.com/**', route => route.fulfill({status:200,contentType:'text/css',body:''}));
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
@@ -26,12 +26,17 @@ async function openStudio(page, { failSave=false, holdSave=false } = {}) {
   }));
   await page.goto(harness);
 
-  await page.evaluate(({ baseTheme, failSave, holdSave }) => {
+  await page.evaluate(({ baseTheme, failSave, holdSave, holdReload }) => {
     window.csrf = 'theme-draft-session';
     window.THEME_DEFAULT = JSON.parse(JSON.stringify(baseTheme));
+    const altTheme = JSON.parse(JSON.stringify(baseTheme));
+    altTheme.name = 'ALT THEME';
+    altTheme.slug = 'alt';
+    altTheme.branding.siteName = 'ALT BRVTAL';
     window.state = { theme:null, themeSettings:[
       {setting_key:'theme.active',setting_value:'core',is_json:0},
-      {setting_key:'theme.core',setting_value:JSON.stringify(baseTheme),is_json:1}
+      {setting_key:'theme.core',setting_value:JSON.stringify(baseTheme),is_json:1},
+      {setting_key:'theme.alt',setting_value:JSON.stringify(altTheme),is_json:1}
     ], themeMedia:[] };
     window.deepMergeTheme = (base,extra) => {
       const out = JSON.parse(JSON.stringify(base || {}));
@@ -49,10 +54,18 @@ async function openStudio(page, { failSave=false, holdSave=false } = {}) {
     window.__themeFailSave = failSave;
     window.__themeHoldSave = holdSave;
     window.__releaseThemeSave = null;
+    window.__themeHoldReload = holdReload;
+    window.__themeReloadStarted = 0;
+    window.__releaseThemeReload = null;
     window.BRVTALFeedback = {progress(){},success(){},error(){}};
     window.req = async (path, options={}) => {
       const method = String(options.method || 'GET').toUpperCase();
       if (method === 'GET' && path === '/settings') {
+        if (window.__themeHoldReload && window.__themeSavePayloads.length > 0) {
+          window.__themeReloadStarted += 1;
+          await new Promise(resolve => { window.__releaseThemeReload = resolve; });
+          window.__themeHoldReload = false;
+        }
         return {data:JSON.parse(JSON.stringify(window.state.themeSettings))};
       }
       if (method === 'GET' && path === '/media') return {data:[]};
@@ -77,7 +90,7 @@ async function openStudio(page, { failSave=false, holdSave=false } = {}) {
       }
       throw new Error('unexpected request ' + method + ' ' + path);
     };
-  }, { baseTheme, failSave, holdSave });
+  }, { baseTheme, failSave, holdSave, holdReload });
 
   await page.addScriptTag({content:draftsJs});
   await page.addScriptTag({content:studioJs});
@@ -184,4 +197,102 @@ test('Theme Studio local recovery is cleared at the auth session boundary', asyn
   await expect(page.locator('[data-theme-draft-recovery]')).toHaveCount(0);
   await expect(page.locator('#th_siteName')).toHaveValue('CUSTOM BRVTAL');
   await expect.poll(() => page.evaluate(() => BRVTALDrafts.load('theme-studio','core'))).toBe(null);
+});
+
+
+test('Theme Studio preserves a pending recovery draft while the user edits before Restore or Discard', async ({page}) => {
+  await openStudio(page);
+  await page.locator('#th_siteName').fill('ORIGINAL RECOVERY');
+  await expect(page.locator('[data-theme-draft-state]')).toHaveText('Draft saved locally');
+
+  await page.evaluate(() => {
+    const row = window.state.themeSettings.find(item => item.setting_key === 'theme.core');
+    const changed = JSON.parse(row.setting_value);
+    changed.branding.siteName = 'SERVER AFTER RECOVERY';
+    row.setting_value = JSON.stringify(changed);
+  });
+  await page.evaluate(() => window.BRVTALThemeStudioV2.load('core'));
+  await expect(page.locator('[data-theme-draft-recovery]')).toHaveAttribute('data-conflict','1');
+
+  await page.locator('#th_siteName').fill('SERVER EDIT WHILE RECOVERY PENDING');
+  await page.waitForTimeout(750);
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('theme-studio','core'))?.data?.branding?.siteName))
+    .toBe('ORIGINAL RECOVERY');
+
+  await page.evaluate(() => window.BRVTALThemeStudioV2.load('core'));
+  await expect(page.locator('[data-theme-draft-recovery]')).toBeVisible();
+  await page.locator('[data-theme-draft-restore]').click();
+  await expect(page.locator('#th_siteName')).toHaveValue('ORIGINAL RECOVERY');
+});
+
+test('Theme Studio preserves edits made during the post-save reload', async ({page}) => {
+  await openStudio(page, {holdReload:true});
+  await page.locator('#th_siteName').fill('SUBMITTED BEFORE RELOAD');
+  await expect(page.locator('[data-theme-draft-state]')).toHaveText('Draft saved locally');
+
+  await page.getByRole('button',{name:'SAVE DRAFT'}).click();
+  await expect.poll(() => page.evaluate(() => window.__themeReloadStarted)).toBe(1);
+
+  await page.locator('#th_siteName').fill('EDIT DURING RELOAD');
+  await page.evaluate(() => window.__releaseThemeReload?.());
+
+  await expect(page.locator('#th_siteName')).toHaveValue('EDIT DURING RELOAD');
+  await expect(page.locator('[data-theme-draft-state]')).toContainText('newer edits remain unsaved');
+  expect(await page.evaluate(async () => (await BRVTALDrafts.load('theme-studio','core'))?.data?.branding?.siteName))
+    .toBe('EDIT DURING RELOAD');
+});
+
+test('Theme Studio ignores a stale async theme switch when the user returns to the current theme', async ({page}) => {
+  await openStudio(page);
+  await page.evaluate(() => {
+    const originalLoad = BRVTALDrafts.load.bind(BRVTALDrafts);
+    window.__altDraftLoadStarted = 0;
+    window.__releaseAltDraftLoad = null;
+    BRVTALDrafts.load = async (scope, id) => {
+      if (scope === 'theme-studio' && id === 'alt') {
+        window.__altDraftLoadStarted += 1;
+        await new Promise(resolve => { window.__releaseAltDraftLoad = resolve; });
+      }
+      return originalLoad(scope, id);
+    };
+  });
+
+  await page.locator('#tsv2-theme-select').selectOption('alt');
+  await expect.poll(() => page.evaluate(() => window.__altDraftLoadStarted)).toBe(1);
+  await page.locator('#tsv2-theme-select').selectOption('core');
+  await page.evaluate(() => window.__releaseAltDraftLoad?.());
+
+  await expect(page.locator('#th_siteName')).toHaveValue('CUSTOM BRVTAL');
+  await expect(page.locator('#tsv2-theme-select')).toHaveValue('core');
+});
+
+test('Theme Studio cancels an async recovery continuation after auth expires', async ({page}) => {
+  await openStudio(page);
+  await page.locator('#th_siteName').fill('AUTH RECOVERY');
+  await expect(page.locator('[data-theme-draft-state]')).toHaveText('Draft saved locally');
+
+  await page.evaluate(() => {
+    const originalLoad = BRVTALDrafts.load.bind(BRVTALDrafts);
+    window.__authDraftLoadStarted = 0;
+    window.__releaseAuthDraftLoad = null;
+    BRVTALDrafts.load = async (scope, id) => {
+      if (scope === 'theme-studio' && id === 'core') {
+        window.__authDraftLoadStarted += 1;
+        await new Promise(resolve => { window.__releaseAuthDraftLoad = resolve; });
+      }
+      return originalLoad(scope, id);
+    };
+    window.__pendingThemeLoad = BRVTALThemeStudioV2.load('core');
+  });
+
+  await expect.poll(() => page.evaluate(() => window.__authDraftLoadStarted)).toBe(1);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('brvtal:auth-required'));
+    document.getElementById('theme-root').innerHTML = '<div data-auth-cleared>AUTH CLEARED</div>';
+    window.__releaseAuthDraftLoad?.();
+  });
+  await page.evaluate(() => window.__pendingThemeLoad);
+
+  await expect(page.locator('[data-auth-cleared]')).toHaveText('AUTH CLEARED');
+  await expect(page.locator('[data-theme-studio-v2]')).toHaveCount(0);
 });
