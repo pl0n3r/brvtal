@@ -40,7 +40,7 @@ foreach ([
 }
 
 $expect(str_contains($authBoundary, "window.csrf = '';"), 'Auth boundary must clear the explicit CSRF property');
-$expect(str_contains($reliability, 'window.state.authed = true;'), 'Reliable login must update explicit shell auth state');
+$expect(str_contains($reliability, 'state.authed = true;'), 'Reliable login must update the canonical shell auth state binding');
 $expect(str_contains($reliability, "window.csrf = response.csrf || '';"), 'Reliable login must update explicit shell CSRF');
 $expect(str_contains($totp, 'window.BRVTALAdminModules && window.state'), 'TOTP override must require the canonical explicit state surface');
 $expect(str_contains($totp, "window.csrf = d.csrf || '';"), 'TOTP restore must update explicit shell CSRF');
