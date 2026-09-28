@@ -25,13 +25,13 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **6** | **+173** | **−192** | **-19** |
+| **7** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack** |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
 | Acceptance | 🚧 **AC-01 caller v1 · AC-02 SHA/version + lifecycle EN · AC-03 permisos/triggers · AC-04 sin observer duplicado** |
 | Factory | 🚧 Factory CI · Policy · Privacy · Labels |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
@@ -47,6 +47,7 @@
 
 ## Archivos modificados en este deploy
 - `.github/workflows/production-deploy-observer.yml` — caller mínimo del observer Factory v1.
+- `.github/workflows/update-release-metadata.yml` — ejecuta el contrato Python de adopción del observer en CI.
 - `README.md` — snapshot exacto de #689 / PR #738.
 - `docs/factory-adoption.json` — observer registrado como consumido; validación exact-main queda pendiente.
 - `tests/ci-scope-contract.php` — contrato global actualizado al observer reusable.
@@ -57,6 +58,7 @@
 - Base de implementación: `main@f936dc5869dedef75b9c9c82008a7467a907acbc`.
 - Factory v1 valida contexto confiable antes del checkout y conserva versión/SHA exactos.
 - `factory-adoption.json` ya no declara un blocker externo; mantiene #689 pendiente solo de la observación exact-main post-merge.
+- BRVTAL CI ejecuta explícitamente `tests/test_factory_observer_adoption.py` junto al tooling de resiliencia.
 - Sonar y CodeQL se validan sobre el HEAD estable del PR.
 - La prueba decisiva ocurre tras merge: el push exacto de `main` debe ejecutar el reusable y observar producción sin crear un incidente.
 
