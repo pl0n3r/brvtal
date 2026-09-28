@@ -65,8 +65,10 @@ dashboard_v2_assert(
 $core = (string)file_get_contents(__DIR__ . '/../discadmin/index-core.php');
 dashboard_v2_assert(
     str_contains($core, 'if(window.BRVTALDashboardV2)')
-        && str_contains($core, 'await window.BRVTALDashboardV2.mount()'),
-    'Dashboard navigation must skip the redundant legacy dashboard data load and await V2 when it owns the workspace'
+        && str_contains($core, 'const mounted=await window.BRVTALDashboardV2.mount();')
+        && str_contains($core, 'if(mounted!==true)return false;')
+        && str_contains($core, 'return true;'),
+    'Dashboard navigation must await V2 and propagate mount success/failure before committing the workspace'
 );
 
 

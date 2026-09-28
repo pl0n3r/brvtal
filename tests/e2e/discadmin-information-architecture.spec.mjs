@@ -246,6 +246,35 @@ test('Memories stays directly after Media and owns the active state only in its 
 });
 
 
+test('successful Dashboard navigation resolves only after canonical active nav is synchronized', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const result = await page.evaluate(async () => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALAdminIA.rebuildNavigation();
+
+    const committed = await window.go('dashboard');
+    const dashboard = [...document.querySelectorAll('.side .nav > button')]
+      .find(button => button.textContent.trim() === 'DASHBOARD');
+
+    return {
+      committed,
+      section:window.state.section,
+      dashboardActive:Boolean(dashboard?.classList.contains('active')),
+      route:new URL(location.href).searchParams.get('module'),
+    };
+  });
+
+  expect(result).toEqual({
+    committed:true,
+    section:'dashboard',
+    dashboardActive:true,
+    route:null,
+  });
+});
+
 test('dirty Banners cancellation blocks dynamic navigation before URL or workspace commit', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);

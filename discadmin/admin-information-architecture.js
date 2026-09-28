@@ -471,7 +471,6 @@
           return undefined;
         }
         result = true;
-        setTimeout(rebuildNavigation, 0);
       }
     } catch (error) {
       cancelWorkspaceNavigation(navigationOperation);
@@ -485,6 +484,7 @@
     }
     retireLegacyEditor();
     syncRouteUrl(section);
+    rebuildNavigation();
     return result;
   };
 

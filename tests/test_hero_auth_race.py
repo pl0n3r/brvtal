@@ -15,6 +15,9 @@ class HeroAuthRaceTests(unittest.TestCase):
         cls.dashboard_e2e = (
             ROOT / "tests/e2e/discadmin-dashboard-v2-authority.spec.mjs"
         ).read_text(encoding="utf-8")
+        cls.ia_e2e = (
+            ROOT / "tests/e2e/discadmin-information-architecture.spec.mjs"
+        ).read_text(encoding="utf-8")
 
     def test_dashboard_to_hero_race_is_regressed(self):
         self.assertIn("await window.BRVTALDashboardV2.mount();", self.index_core)
@@ -22,6 +25,11 @@ class HeroAuthRaceTests(unittest.TestCase):
         self.assertIn("return pending;", self.dashboard)
         self.assertIn("function invalidate()", self.dashboard)
         self.assertIn("window.BRVTALDashboardV2?.invalidate?.();", self.index_core)
+        self.assertIn("if(mounted!==true)return false;", self.index_core)
+        self.assertIn(
+            "successful Dashboard navigation resolves only after canonical active nav is synchronized",
+            self.ia_e2e,
+        )
         self.assertIn(
             "Dashboard V2 invalidates a pending mount across an auth session boundary",
             self.dashboard_e2e,
