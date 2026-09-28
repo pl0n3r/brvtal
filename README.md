@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #729: v0.1.81 estabiliza el segundo Hero → Dashboard y deja diagnóstico seguro si una transición falla.
+> Snapshot de **solo el deploy actual** para #683: v0.1.82 incorpora el boundary D-060 de staff/admin para ControlBot con autenticación HMAC, fail-closed y autoridad protegida.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -15,80 +15,84 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#729 · Hero/Dashboard cycle 2** | `work/issue-729` · reserva `2c53d5d3-43e3-4cf1-b5d4-87124eb16fb2` |
-| Base | ✅ **main** | `ac3df13dd0db1a5f49932da8789dbe3911506e2e` · v0.1.80 |
-| Producción base | ✅ **exacta** | v0.1.80 · observer `36363806627` · health 200 · DB connected |
-| Smoke base | ❌ **AC-07 falla** | `36364125209` · Hero 1/2 PASS; Dashboard transition 2 devuelve `false` |
-| Versión candidato | 🚧 **v0.1.81** | patch deploy-bound |
-| PR | 🚧 **#732 en revisión** | `work/issue-729` → `main` |
-| Producción candidato | 🚧 **pending** | observer + authenticated smoke exactos |
+| Work line | 🚧 **#683 · ControlBot staff API D-060** | `work/issue-683` · reserva `8e52ea9b-4a5e-40f4-ad5b-36d88b6781d2` |
+| Base | ✅ **main** | `01840c5dbba13f4ddda5c764a35dd818cc5e5243` · v0.1.81 |
+| Producción base | ✅ **exacta** | observer `36366671718` · exact-main `01840c5d…` |
+| Versión candidato | 🚧 **v0.1.82** | deploy-bound por endpoint + migración aditiva |
+| PR + snapshot exacto | 🚧 **#733** | `work/issue-683` → `main` |
+| Producción candidato | 🚧 **pending** | merge → migration reconcile → observer → smoke |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+295** | **−54** | **+241** |
+| **18** | **+1276** | **−69** | **+1207** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Factory | 🚧 Factory CI · Policy · Privacy · Labels · **PR + snapshot exacto** |
+| Acceptance | 🚧 **AC-01 HMAC/staff-only · AC-02 audit/idempotency · AC-03 disabled=404/secret-free** |
+| Factory | 🚧 Factory CI · Policy · Privacy · Labels |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
-| Main | 🚧 **CI del SHA exacto de main** · Production Deploy Observer · Authenticated Production Smoke |
+| CI del SHA exacto de main | 🚧 exact-main BRVTAL CI · migration reconcile · Production Deploy Observer · Authenticated Production Smoke |
 
 ## Qué se hizo
-- Dashboard precompromete su URL canónica antes de esperar el mount asíncrono; si el mount falla, restaura el workspace/URL anterior.
-- Admin Information Architecture registra una razón segura por transición: guard rechazado, stale token, core/mount false o commit inestable.
-- Dashboard V2 registra diagnóstico seguro de ownership/mount sin datos sensibles.
-- El smoke productivo guarda estado antes/después de cada Dashboard transition para que un futuro `false` sea explicable.
-- Regresión browser prueba que un mount Dashboard pendiente ya no deja `?module=hero-slider` como ruta autoritativa.
-- No se aumentan retries, no se relaja autenticación y no se modifica esquema ni datos.
+- Añade `/ops/staff` y `/ops/summary` exclusivamente para staff/admin, sin exponer clientes ni usuarios públicos.
+- Aplica HMAC-SHA256 D-060 con canonical query RFC3986, body raw hash, timestamp, nonce anti-replay, HTTPS, allowlist y rate limit.
+- Las mutaciones usan `Idempotency-Key`, preservan resultados equivalentes y fallan 409 ante fingerprint divergente.
+- `root/owner/superadmin/platform_owner` permanecen fuera de la autoridad mutante de ControlBot.
+- Invite y password reset hacen handoff server-side y nunca devuelven tokens/credenciales.
+- Añade `staff_role` mediante migración aditiva/idempotente; cuentas existentes quedan `superadmin` por defecto para fallar cerrado.
+- `datos.yml` incorpora únicamente los tres tratamientos D-060 requeridos por Factory, aún en fase `construccion`.
+- El set canónico de seis documentos de privacidad permanece derivado desde Factory v1; base, consentimiento y retención siguen en `review_required`.
 
 ## Archivos modificados en este deploy
-- `README.md` — snapshot exacto, evidencia productiva y plan v0.1.81.
-- `config/version.php` — versión deploy-bound v0.1.81.
-- `discadmin/admin-information-architecture.js` — precommit de ruta Dashboard y diagnóstico seguro de navegación.
-- `discadmin/dashboard-v2.js` — diagnóstico seguro de ownership y resultado del mount.
-- `package.json` — versión del paquete alineada con v0.1.81.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión de URL canónica durante mount Dashboard pendiente.
-- `tests/e2e/production-authenticated-smoke.mjs` — evidencia de transición Dashboard antes/después y motivo seguro de fallo.
-- `tests/production-smoke-contract.php` — contrato ejecutable de transición awaited y diagnósticos seguros de #125.
+- `README.md` — snapshot exacto de #683 / PR #733.
+- `config/admin_password_security.php` — emisión de reset controlada para invitaciones fallidas e inactivas.
+- `config/admin_staff_ops.php` — autenticación, canonicalización, replay/rate/idempotencia, autorización y auditoría.
+- `config/migration_reconcile.php` — proof explícita de `staff_role` para reconciliación segura.
+- `config/version.php` — v0.1.82.
+- `database/migration_admin_staff_ops_01.sql` — metadata `staff_role` aditiva.
+- `database/schema.sql` — schema base alineado.
+- `datos.yml` — tratamientos mínimos de staff.
+- `docs/privacidad/aviso-privacidad.md` — aviso regenerado desde el mapa de datos actual.
+- `docs/privacidad/politica-tratamiento.md` — política regenerada desde el mapa de datos actual.
+- `docs/privacidad/registro-tratamientos.md` — registro regenerado con los tratamientos D-060.
+- `docs/privacidad/retencion.md` — tabla de retención regenerada sin inventar plazos legales.
+- `ops/.htaccess` — routing/deny de worker sensible.
+- `ops/index.php` — superficie HTTP staff/admin.
+- `package.json` — versión v0.1.82.
+- `tests/admin-staff-ops-contract.php` — regresiones D-060 deterministas.
+- `tests/privacy-as-code-contract.php` — mapa/artefactos de privacidad alineados con D-060.
+- `tests/test_admin_staff_api.py` — evidencia ejecutable AC-01..03.
 
 ## Validación
-- v0.1.80 ya demuestra health 200, DB connected, versión/SHA exactos y Hero 1/2 sin 401 ni revalidación.
-- v0.1.81 exige que Dashboard quite la ruta Hero antes de esperar sus GET y restaure Hero solo si el mount actual falla.
-- El smoke registrará `heroDirty`, `unsavedDirty`, diagnóstico IA y diagnóstico Dashboard para cada retorno.
-- Auth single-flight, mutaciones 401 fail-closed y los tres ciclos reales de #125 permanecen obligatorios.
-
-## Evidencia base
-- PR #731 fue integrado como v0.1.80 en `main@ac3df13dd0db1a5f49932da8789dbe3911506e2e`.
-- Production Deploy Observer `36363806627` terminó **success** y observó v0.1.80 a los 8s.
-- Exact-main BRVTAL CI `36363806923` terminó **success** tras un único rerun dirigido del flake de timing real-stack.
-- Authenticated Production Smoke `36364125209` confirmó health 200, DB connected, versión/SHA exactos, Events, Sets y Hero intentos 1/2.
-- El fallo exacto actual es `#125 Dashboard transition 2 did not commit (result=false)`; no hubo 401 ni revalidación auth.
+- Main base `01840c5d…` tenía BRVTAL CI success y Production Deploy Observer `36366671718` success.
+- El contrato portable fuente es `pl0n3r/Factory/template/ops/admin-staff-api.json`; no se inventan headers, roles protegidos ni semántica de firma/idempotencia.
+- El head candidato queda pendiente de sus gates; este snapshot no afirma deploy ni producción antes de observarlos.
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  A["v0.1.80 desplegada"] --> B["Smoke #36364125209 FAIL · Dashboard 2"]
-  B --> C["v0.1.81 · route precommit + diagnostics"]
-  C --> D["PR #732 exact-head CI + review"]
-  D --> E["merge → exact main"]
-  E --> F["Production Deploy Observer"]
-  F --> G["Authenticated Smoke · 3 ciclos Hero"]
+  A["main v0.1.81"] --> B["#683 · D-060 staff boundary"]
+  B --> C["PR #733 · v0.1.82"]
+  C --> D["CI + Policy/Privacy + Sonar/CodeQL"]
+  D --> E["squash merge → exact main"]
+  E --> F["migration reconcile + deploy observer"]
+  F --> G["authenticated production smoke"]
 ```
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 v0.1.81 / PR #732: cerrar gates sobre SHA exacto. |
-| **NEXT** | 🚧 Exact-main CI + Production Deploy Observer. |
-| **LATER** | 🚧 Authenticated Production Smoke fresco: tres ciclos Dashboard ↔ Hero. |
-| **BLOCKED / EXTERNAL** | 🚧 Ninguno conocido. https://github.com/pl0n3r/brvtal/issues/729 solo se cierra con AC-07 verde. |
+| **NOW** | 🚧 PR #733: cerrar acceptance + CI + seguridad/review sobre un head estable. |
+| **NEXT** | 🚧 Merge serializado y exact-main CI. |
+| **LATER** | 🚧 Migración/observer/smoke de v0.1.82 sin secretos reales en pruebas. |
+| **BLOCKED / EXTERNAL** | 🚧 [#734](https://github.com/pl0n3r/brvtal/issues/734) bloquea go-live/procesamiento real de staff hasta decisión legal; claves/allowlist siguen fuera del repositorio. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #729 / PR #732, cerrar gates exact-head de v0.1.81.
-- 🚧 **NEXT**: merge serializado, exact-main CI y Production Deploy Observer.
-- 🚧 **LATER**: Authenticated Production Smoke fresco con tres ciclos Dashboard ↔ Hero; solo entonces cerrar #729.
+- 🚧 **NOW**: #683 / PR #733, validar el boundary D-060.
+- 🚧 **NEXT**: exact-main + producción v0.1.82.
+- 🚧 **LATER**: al liberar BRVTAL, reintentar el crítico #689 (Factory v1 production observer).

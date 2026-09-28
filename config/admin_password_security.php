@@ -91,7 +91,12 @@ function brvtal_password_transaction(PDO $pdo, callable $operation): mixed
 }
 
 /** @return array{token:string,expires_at:string} */
-function brvtal_password_reset_issue(PDO $pdo, int $adminId, ?int $now = null): array
+function brvtal_password_reset_issue(
+    PDO $pdo,
+    int $adminId,
+    ?int $now = null,
+    bool $allowFailedInvitation = false
+): array
 {
     if ($adminId < 1) {
         throw new InvalidArgumentException('INVALID_ADMIN_ID');
@@ -102,24 +107,32 @@ function brvtal_password_reset_issue(PDO $pdo, int $adminId, ?int $now = null): 
     $hash = brvtal_password_reset_token_hash($token);
     $expiresAt = date('Y-m-d H:i:s', $now + BRVTAL_PASSWORD_RESET_TTL_SECONDS);
 
-    brvtal_password_transaction($pdo, static function (PDO $pdo) use ($adminId, $hash, $expiresAt): void {
-        $admin = $pdo->prepare('SELECT id FROM admins WHERE id=? AND is_active=1 FOR UPDATE');
-        $admin->execute([$adminId]);
-        if ($admin->fetchColumn() === false) {
-            throw new RuntimeException('ADMIN_NOT_ACTIVE');
+    brvtal_password_transaction(
+        $pdo,
+        static function (PDO $pdo) use ($adminId, $hash, $expiresAt, $allowFailedInvitation): void {
+            $sql = 'SELECT id FROM admins WHERE id=? AND is_active=1 FOR UPDATE';
+            if ($allowFailedInvitation) {
+                $sql = "SELECT id FROM admins WHERE id=? AND "
+                    . "(is_active=1 OR (is_active=0 AND staff_invitation_state='failed')) FOR UPDATE";
+            }
+            $admin = $pdo->prepare($sql);
+            $admin->execute([$adminId]);
+            if ($admin->fetchColumn() === false) {
+                throw new RuntimeException('ADMIN_NOT_ACTIVE');
+            }
+
+            $revoke = $pdo->prepare(
+                'UPDATE admin_password_reset_tokens SET revoked_at=NOW() '
+                . 'WHERE admin_id=? AND consumed_at IS NULL AND revoked_at IS NULL'
+            );
+            $revoke->execute([$adminId]);
+
+            $insert = $pdo->prepare(
+                'INSERT INTO admin_password_reset_tokens (admin_id,token_hash,expires_at) VALUES (?,?,?)'
+            );
+            $insert->execute([$adminId, $hash, $expiresAt]);
         }
-
-        $revoke = $pdo->prepare(
-            'UPDATE admin_password_reset_tokens SET revoked_at=NOW() ' .
-            'WHERE admin_id=? AND consumed_at IS NULL AND revoked_at IS NULL'
-        );
-        $revoke->execute([$adminId]);
-
-        $insert = $pdo->prepare(
-            'INSERT INTO admin_password_reset_tokens (admin_id,token_hash,expires_at) VALUES (?,?,?)'
-        );
-        $insert->execute([$adminId, $hash, $expiresAt]);
-    });
+    );
 
     return ['token' => $token, 'expires_at' => $expiresAt];
 }

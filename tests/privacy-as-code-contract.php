@@ -72,6 +72,9 @@ $expectedIds = [
     'contact_rate_limit',
     'internal_analytics_events',
     'public_gtm_measurement',
+    'staff_access_metadata',
+    'staff_contact',
+    'staff_identity',
 ];
 $actualIds = array_map(static fn(array $row): string => (string)$row['id'], $data['treatments']);
 sort($actualIds);
@@ -81,6 +84,13 @@ foreach ($data['treatments'] as $row) {
     privacy_expect(($row['basis'] ?? null) === 'review_required', $row['id'] . ' basis must stay pending legal review');
     privacy_expect(($row['consent'] ?? null) === 'review_required', $row['id'] . ' consent must stay pending legal review');
 }
+
+$staffIdentity = privacy_treatment($data, 'staff_identity');
+privacy_expect($staffIdentity['fields'] === ['staff_id','name','role','status'], 'staff identity fields drifted');
+$staffContact = privacy_treatment($data, 'staff_contact');
+privacy_expect($staffContact['fields'] === ['email'], 'staff contact fields drifted');
+$staffAccess = privacy_treatment($data, 'staff_access_metadata');
+privacy_expect($staffAccess['fields'] === ['last_access_at','failed_login_count'], 'staff access metadata fields drifted');
 
 $identity = privacy_treatment($data, 'admin_identity');
 privacy_expect($identity['fields'] === ['email','name','is_active','last_login_at','created_at','updated_at'], 'admin identity fields drifted');
