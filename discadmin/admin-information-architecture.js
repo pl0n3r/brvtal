@@ -346,22 +346,31 @@
     };
   }
 
-  async function restoreWorkspaceSnapshot(snapshot) {
-    if (!snapshot) return;
+  async function restoreWorkspaceSnapshot(snapshot, expectedToken = routeToken) {
+    if (!snapshot || expectedToken !== routeToken) return false;
     window.BRVTALAdminModules?.cancel?.();
     try {
       if (snapshot.contentContext === 'events') {
-        await loadContentCoreContext();
+        const restored = await invokeOriginalGo('events', expectedToken);
+        if (!restored || expectedToken !== routeToken) return false;
+        if (window.BRVTALAdminModules?.load) {
+          ensureWorkspaceHost();
+          await window.BRVTALAdminModules.load('content-core', {syncUrl:false});
+          if (expectedToken !== routeToken) return false;
+          const root = document.querySelector('#admin-module-host [data-admin-module="content-core"]');
+          if (root) simplifyEventEditor(root);
+        }
       } else if (snapshot.section === 'system' && typeof originalTech === 'function') {
         await originalTech.call(window,'system');
       } else {
-        const token = ++routeToken;
-        await invokeOriginalGo(snapshot.section,token);
+        await invokeOriginalGo(snapshot.section, expectedToken);
       }
     } catch (_) {
+      if (expectedToken !== routeToken) return false;
       restoreVisibleSection(snapshot.section);
     }
 
+    if (expectedToken !== routeToken) return false;
     if (typeof state === 'object' && state) {
       state.section = snapshot.section;
       if (snapshot.rows !== undefined) state.rows = snapshot.rows;
@@ -378,6 +387,7 @@
     }
     restoreVisibleSection(snapshot.section);
     setTimeout(rebuildNavigation,0);
+    return true;
   }
 
   function simplifyEventEditor(root) {
@@ -425,7 +435,7 @@
   window.go = async function(section) {
     if (section === 'content-core') section = 'events';
 
-    if (section === 'dashboard' && !initialRouteApplied) {
+    if (section === 'dashboard' && !initialRouteApplied && String(window.state?.section || 'dashboard') === 'dashboard') {
       const requested = routeFromUrl();
       if (requested !== 'dashboard') {
         applyingRoute = true;
@@ -451,6 +461,7 @@
         const applied = await loadContentCoreContext();
         if (applied === false) {
           cancelWorkspaceNavigation(navigationOperation);
+          if (token === routeToken) await restoreWorkspaceSnapshot(previousWorkspace, token);
           return false;
         }
         if (!applied) {

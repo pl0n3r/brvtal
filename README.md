@@ -34,9 +34,9 @@
 | Control | Estado / contrato |
 | --- | --- |
 | Gates | 🚧 preflight · coordination · fast · database · chromium · real-stack · webkit |
-| Factory | 🚧 Factory CI · Policy · Privacy · Labels |
+| Factory | 🚧 Factory CI · Policy · Privacy · Labels · **PR + snapshot exacto** |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
-| Main | 🚧 exact-main CI · Production Deploy Observer · Authenticated Production Smoke |
+| Main | 🚧 **CI del SHA exacto de main** · Production Deploy Observer · Authenticated Production Smoke |
 
 ## Qué se hizo
 - `go('dashboard')` propaga `BRVTALDashboardV2.mount() === false` en vez de convertir un mount fallido en navegación exitosa.

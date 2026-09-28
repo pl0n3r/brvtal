@@ -21,6 +21,7 @@ function harness(authed = true) {
     window.__requestResolvers={};
     window.__requestFailures={};
     window.__dynamicNavigationToken=0;
+    window.__dashboardMount=null;
     window.req=function(path){
       window.__requestLog.push(path);
       if(window.__requestFailures[path]){
@@ -69,6 +70,12 @@ function harness(authed = true) {
       document.querySelector('[data-new-event]')?.addEventListener('click',()=>window.openModal('events'));
     };
     window.go=async function(section){
+      if(section==='dashboard' && typeof window.__dashboardMount==='function'){
+        window.__nativeGo.push(section);
+        state.section=section;
+        window.__renderShell(section);
+        return window.__dashboardMount();
+      }
       if(['media','releases','blog','seo'].includes(section)){
         const token=++window.__dynamicNavigationToken;
         await window.BRVTALAdminModules.waitForSection(section);
@@ -272,6 +279,78 @@ test('successful Dashboard navigation resolves only after canonical active nav i
     section:'dashboard',
     dashboardActive:true,
     route:null,
+  });
+});
+
+test('failed current Dashboard mount restores the previous Hero workspace', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const result = await page.evaluate(async () => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALAdminIA.rebuildNavigation();
+    window.__dashboardMount = async () => false;
+
+    const committed = await window.go('dashboard');
+    const banners = [...document.querySelectorAll('.side .nav > button')]
+      .find(button => button.textContent.trim() === 'BANNERS');
+
+    return {
+      committed,
+      section:window.state.section,
+      bannersActive:Boolean(banners?.classList.contains('active')),
+      route:new URL(location.href).searchParams.get('module'),
+    };
+  });
+
+  expect(result).toEqual({
+    committed:false,
+    section:'hero-slider',
+    bannersActive:true,
+    route:'hero-slider',
+  });
+});
+
+test('failed stale Dashboard mount never overwrites a newer navigation', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const result = await page.evaluate(async () => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALAdminIA.rebuildNavigation();
+
+    let releaseMount;
+    window.__dashboardMount = () => new Promise(resolve => {
+      releaseMount = resolve;
+    });
+
+    const staleDashboard = window.go('dashboard');
+    while(typeof releaseMount !== 'function') await new Promise(resolve => setTimeout(resolve,0));
+
+    const newer = await window.go('artists');
+    releaseMount(false);
+    const staleResult = await staleDashboard;
+
+    const artists = [...document.querySelectorAll('.side .nav > button')]
+      .find(button => button.textContent.trim() === 'ARTISTS');
+
+    return {
+      staleResult,
+      newer,
+      section:window.state.section,
+      artistsActive:Boolean(artists?.classList.contains('active')),
+      route:new URL(location.href).searchParams.get('module'),
+    };
+  });
+
+  expect(result).toEqual({
+    staleResult:false,
+    newer:true,
+    section:'artists',
+    artistsActive:true,
+    route:'artists',
   });
 });
 
