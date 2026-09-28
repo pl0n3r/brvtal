@@ -26,7 +26,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **0** | **+0** | **−0** | **0** |
+| **9** | **+239** | **−65** | **+174** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -36,7 +36,7 @@
 | Acceptance | 🚧 **AC-01 observer contract · AC-02 BRVTAL CI · AC-03 observer exact-main · AC-04 authenticated smoke · AC-05 safe diagnostics** |
 | Factory | 🚧 Factory CI · Policy · Privacy · Labels |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
-| Exact-main | 🚧 BRVTAL CI · Production Deploy Observer · Authenticated Production Smoke |
+| CI del SHA exacto de main | 🚧 BRVTAL CI · Production Deploy Observer · Authenticated Production Smoke |
 
 ## Qué se hizo
 - Diagnosticó #739 hasta una causa inicial comprobada: health 503 por una migración aditiva pendiente, con DB y SHA exactos correctos.
@@ -84,7 +84,7 @@ flowchart LR
 | **NOW** | 🚧 PR #740: cerrar CI/review sobre HEAD estable. |
 | **NEXT** | 🚧 Merge serializado y validar exact-main BRVTAL CI + Production Deploy Observer + Authenticated Production Smoke. |
 | **LATER** | 🚧 Con GREEN demostrado, registrar por separado el defecto Factory observado al sobrescribir metadata de un incidente automático reservado. |
-| **BLOCKED / EXTERNAL** | 🚧 #737 sigue siendo decisión legal humana independiente y no se activa desde esta reparación. |
+| **BLOCKED / EXTERNAL** | 🚧 [#737](https://github.com/pl0n3r/brvtal/issues/737) sigue siendo decisión legal humana independiente y no se activa desde esta reparación. |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #739 / PR #740, completar recuperación funcional de producción.
