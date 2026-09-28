@@ -45,7 +45,7 @@ admin_session_contract_assert(
     str_contains($auth, "brvtal_log('SECURITY', 'Admin session revoked because account or credential epoch changed'"),
     'inactive or deleted account revocation must be security-auditable'
 );
-$authCheck = strpos($auth, 'function brvtal_admin_is_authenticated(): bool');
+$authCheck = strpos($auth, 'function brvtal_admin_authentication_state(): string');
 admin_session_contract_assert($authCheck !== false, 'authenticated-session boundary must remain explicit');
 $inactiveBlock = strpos(
     $auth,
@@ -55,8 +55,13 @@ $inactiveBlock = strpos(
 admin_session_contract_assert($inactiveBlock !== false, 'inactive/epoch branch must remain explicit');
 $inactiveSource = substr($auth, $inactiveBlock, 500);
 admin_session_contract_assert(
-    str_contains($inactiveSource, 'brvtal_admin_logout();') && str_contains($inactiveSource, 'return false;'),
+    str_contains($inactiveSource, 'brvtal_admin_logout();') && str_contains($inactiveSource, 'return BRVTAL_ADMIN_UNAUTHENTICATED;'),
     'inactive, deleted or stale-epoch sessions must be destroyed and denied'
+);
+admin_session_contract_assert(
+    str_contains($auth, 'function brvtal_admin_is_authenticated(): bool')
+        && str_contains($auth, 'brvtal_admin_authentication_state() === BRVTAL_ADMIN_AUTHENTICATED'),
+    'legacy boolean callers must remain fail-closed through the tri-state boundary'
 );
 
 admin_session_contract_assert(
