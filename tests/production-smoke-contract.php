@@ -81,8 +81,11 @@ $assert(str_contains($probe, 'setsApiPage'), '#124 diagnostics must capture the 
 $assert(str_contains($probe, 'setsBrowserNavigation'), '#124 diagnostics must distinguish browser request/response progress from API latency');
 $assert(str_contains($probe, '/api/index.php/sets?page=1&page_size=50'), '#124 diagnostics must probe the same paginated Sets list used by native navigation');
 $assert(str_contains($probe, "page.evaluate(() => window.go('hero-slider'))"), '#125 must await the real Hero Slider navigation promise');
-$assert(str_contains($probe, "page.evaluate(() => window.go('dashboard'))"), '#125 must await the Dashboard transition between Hero Slider attempts');
-$assert(str_contains($probe, 'opened !== true') && str_contains($probe, 'dashboardOpened !== true'), '#125 must fail when repeated workspace navigation does not commit');
+$assert(str_contains($probe, "const result = await window.go('dashboard');"), '#125 must await the Dashboard transition between Hero Slider attempts');
+$assert(str_contains($probe, 'opened !== true') && str_contains($probe, 'dashboardTransition.result !== true'), '#125 must fail when repeated workspace navigation does not commit');
+$assert(str_contains($probe, 'heroDashboardTransitions'), '#125 must retain Dashboard transition evidence for each Hero cycle');
+$assert(str_contains($probe, 'BRVTALAdminIA?.navigationDiagnostics?.()'), '#125 must capture safe Admin IA navigation diagnostics');
+$assert(str_contains($probe, 'BRVTALDashboardV2?.diagnostics?.()'), '#125 must capture safe Dashboard mount diagnostics');
 $assert(str_contains($probe, 'attempt <= 3'), '#125 must repeat Hero Slider loading');
 $assert(str_contains($probe, 'hero-slider-diagnostic-success-'), '#125 successful attempts must retain Hero Slider diagnostics');
 $assert(str_contains($probe, 'BRVTALHeroSliderDiagnostics?.lastLoad?.()'), '#125 evidence must read the safe Hero Slider diagnostic object');

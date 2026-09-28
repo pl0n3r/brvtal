@@ -14,6 +14,32 @@
   let navObserver = null;
   let applyingRoute = false;
   let initialRouteApplied = false;
+  let lastNavigationDiagnostic = {
+    status:'idle',
+    reason:'',
+    requested:'',
+    previousSection:'',
+    currentSection:'',
+    route:'',
+    heroDirty:false,
+    unsavedDirty:false
+  };
+
+  function recordNavigationDiagnostic(status, reason, requested, previousSection = '') {
+    const heroGuard = window.BRVTALHeroSliderGuard;
+    const unsavedGuard = window.BRVTALUnsavedChanges;
+    lastNavigationDiagnostic = {
+      status:String(status || ''),
+      reason:String(reason || ''),
+      requested:String(requested || ''),
+      previousSection:String(previousSection || ''),
+      currentSection:String(window.state?.section || ''),
+      route:String(new URLSearchParams(location.search).get(ROUTE_PARAM) || 'dashboard'),
+      heroDirty:Boolean(heroGuard?.hasUnsavedChanges?.()),
+      unsavedDirty:Boolean(unsavedGuard?.hasDirtyChanges?.()),
+      dashboard:window.BRVTALDashboardV2?.diagnostics?.() || null
+    };
+  }
 
   const ROUTE_PARAM = 'module';
   const routeSections = new Set([
@@ -58,18 +84,19 @@
   }
 
   function requestWorkspaceNavigation(section) {
-    const operation = {accepted:true,unsavedToken:0};
+    const operation = {accepted:true,unsavedToken:0,reason:''};
     const heroGuard = window.BRVTALHeroSliderGuard;
     if (typeof heroGuard?.requestNavigation === 'function'
       && heroGuard.requestNavigation(section) === false) {
       operation.accepted = false;
+      operation.reason = 'hero-guard-rejected';
       return operation;
     }
 
     const unsavedGuard = window.BRVTALUnsavedChanges;
     if (typeof unsavedGuard?.requestNavigation === 'function') {
       operation.unsavedToken = unsavedGuard.requestNavigation(section);
-      if (operation.unsavedToken === 0) operation.accepted = false;
+      if (operation.unsavedToken === 0) { operation.accepted = false; operation.reason = 'unsaved-guard-rejected'; }
     }
     return operation;
   }
@@ -452,10 +479,15 @@
 
     const previousWorkspace = captureWorkspaceSnapshot();
     const navigationOperation = requestWorkspaceNavigation(section);
-    if (!navigationOperation.accepted) return false;
+    if (!navigationOperation.accepted) {
+      recordNavigationDiagnostic('rejected', navigationOperation.reason || 'guard-rejected', section, previousWorkspace.section);
+      return false;
+    }
     if (!applyingRoute) initialRouteApplied = true;
 
     let result;
+    let navigationToken = null;
+    let dashboardRouteProvisional = false;
     try {
       if (section === 'events') {
         const applied = await loadContentCoreContext();
@@ -469,33 +501,60 @@
         }
       } else {
         const token = ++routeToken;
+        navigationToken = token;
         window.BRVTALAdminModules?.cancel?.();
         if (dynamicModuleSections.has(section)) syncRouteUrl(section, 'push', true);
+        if (section === 'dashboard') {
+          syncRouteUrl(section, 'replace', true);
+          dashboardRouteProvisional = true;
+        }
         const applied = await invokeOriginalGo(section, token);
         if (applied === false) {
           cancelWorkspaceNavigation(navigationOperation);
           if (token === routeToken) await restoreWorkspaceSnapshot(previousWorkspace, token);
+          recordNavigationDiagnostic('failed', 'original-go-false', section, previousWorkspace.section);
           return false;
         }
         if (!applied || token !== routeToken) {
           cancelWorkspaceNavigation(navigationOperation);
+          recordNavigationDiagnostic('stale', 'route-token-changed', section, previousWorkspace.section);
           return undefined;
         }
         result = true;
       }
     } catch (error) {
       cancelWorkspaceNavigation(navigationOperation);
+      if (section === 'dashboard' && navigationToken === routeToken) {
+        await restoreWorkspaceSnapshot(previousWorkspace, navigationToken);
+        recordNavigationDiagnostic('failed', 'original-go-rejected', section, previousWorkspace.section);
+      }
       throw error;
     }
     const committed = commitWorkspaceNavigation(section,navigationOperation);
-    if (committed === null) return undefined;
+    if (committed === null) {
+      recordNavigationDiagnostic('stale', 'unsaved-commit-token-changed', section, previousWorkspace.section);
+      return undefined;
+    }
     if (committed === false) {
+      recordNavigationDiagnostic('failed', 'unsaved-commit-unstable', section, previousWorkspace.section);
       await restoreWorkspaceSnapshot(previousWorkspace);
       return false;
     }
     retireLegacyEditor();
+    if (dashboardRouteProvisional) {
+      const previousUrl = previousWorkspace.url;
+      const currentUrl = `${location.pathname}${location.search}${location.hash}`;
+      if (currentUrl !== previousUrl) {
+        history.replaceState(
+          {brvtalAdminRoute:canonicalRouteSection(previousWorkspace.section)},
+          '',
+          previousUrl
+        );
+      }
+    }
     syncRouteUrl(section);
     rebuildNavigation();
+    recordNavigationDiagnostic('committed', '', section, previousWorkspace.section);
     return result;
   };
 
@@ -569,7 +628,8 @@
     rebuildNavigation,
     openEvents:() => window.go('events'),
     readRoute: routeFromUrl,
-    applyRoute: applyUrlRoute
+    applyRoute: applyUrlRoute,
+    navigationDiagnostics:() => ({...lastNavigationDiagnostic})
   };
 
   window.addEventListener('popstate', () => {

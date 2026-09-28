@@ -15,6 +15,25 @@
   let mountSerial = 0;
   let layoutSaveSerial = 0;
   let layoutSaveChain = Promise.resolve();
+  let lastMountDiagnostics = {
+    status:'idle',
+    reason:'',
+    serial:0,
+    stateSection:'',
+    authed:false
+  };
+
+  function recordMountDiagnostic(status, reason, serial = mountSerial) {
+    lastMountDiagnostics = {
+      status:String(status || ''),
+      reason:String(reason || ''),
+      serial:Number(serial || 0),
+      stateSection:String(window.state?.section || ''),
+      authed:Boolean(window.state?.authed),
+      mounting:Boolean(mounting),
+      hasRoot:Boolean(document.getElementById('brvtal-dashboard-v2'))
+    };
+  }
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
@@ -499,15 +518,37 @@
   }
 
   async function runMount(force = false) {
-    if (mounting || typeof state === 'undefined' || !state.authed || state.section !== 'dashboard') return false;
+    if (mounting) {
+      recordMountDiagnostic('failed','mount-already-running');
+      return false;
+    }
+    if (typeof state === 'undefined') {
+      recordMountDiagnostic('failed','state-unavailable');
+      return false;
+    }
+    if (!state.authed) {
+      recordMountDiagnostic('failed','not-authenticated');
+      return false;
+    }
+    if (state.section !== 'dashboard') {
+      recordMountDiagnostic('failed','section-not-dashboard');
+      return false;
+    }
     const existingRoot = document.getElementById('brvtal-dashboard-v2');
-    if (!force && existingRoot) return true;
+    if (!force && existingRoot) {
+      recordMountDiagnostic('mounted','existing-root');
+      return true;
+    }
     const main = document.querySelector('.main');
-    if (!main) return false;
+    if (!main) {
+      recordMountDiagnostic('failed','main-missing');
+      return false;
+    }
 
     const reservedRoot = existingRoot || ensureDashboardRoot(main);
     mounting = true;
     const serial = ++mountSerial;
+    recordMountDiagnostic('loading','',serial);
     let rendered = false;
     try {
       const results = await Promise.allSettled([
@@ -521,7 +562,13 @@
       rendered = render(results,serial);
     } finally {
       if (!rendered && serial === mountSerial && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
-      if (serial === mountSerial) mounting = false;
+      if (serial === mountSerial) {
+        mounting = false;
+        if (rendered) recordMountDiagnostic('mounted','',serial);
+        else if (window.state?.section !== 'dashboard') recordMountDiagnostic('failed','section-changed-before-render',serial);
+        else if (!window.state?.authed) recordMountDiagnostic('failed','auth-changed-before-render',serial);
+        else recordMountDiagnostic('failed','render-rejected',serial);
+      }
     }
     return rendered;
   }
@@ -539,6 +586,7 @@
     mountSerial += 1;
     mountPromise = null;
     mounting = false;
+    recordMountDiagnostic('invalidated','session-boundary',mountSerial);
     document.getElementById('brvtal-dashboard-v2')?.remove();
   }
 
@@ -550,5 +598,5 @@
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
   setTimeout(() => mount(),0);
-  window.BRVTALDashboardV2 = {mount:() => mount(true),invalidate};
+  window.BRVTALDashboardV2 = {mount:() => mount(true),invalidate,diagnostics:() => ({...lastMountDiagnostics})};
 })();
