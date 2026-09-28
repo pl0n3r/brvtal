@@ -21,3 +21,6 @@ Producto: `pl0n3r/brvtal`
 | contact_rate_limit | usage | review_required | review_required |
 | internal_analytics_events | usage | review_required | review_required |
 | public_gtm_measurement | usage | review_required | review_required |
+| staff_access_metadata | usage | review_required | review_required |
+| staff_contact | contact | staff_account_lifecycle | review_required |
+| staff_identity | identification | staff_account_lifecycle | review_required |

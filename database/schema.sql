@@ -7,6 +7,7 @@ CREATE TABLE admins (
   password_hash VARCHAR(255) NOT NULL,
   credential_epoch BIGINT UNSIGNED NOT NULL DEFAULT 1,
   name VARCHAR(120) NOT NULL DEFAULT 'BRVTAL Admin',
+  staff_role VARCHAR(32) NOT NULL DEFAULT 'superadmin',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   last_login_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
