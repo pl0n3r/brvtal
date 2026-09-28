@@ -72,7 +72,17 @@ try {
         putenv('BRVTAL_CONTROLBOT_STAFF_RATE_MAX');
         ok(brvtalStaffOpsProtectedRole('superadmin'), 'superadmin must be protected');
         ok(!brvtalStaffOpsAllowedManagedRole('viewer'), 'unenforced viewer role must be rejected');
+        ok(!brvtalStaffOpsAllowedManagedRole('editor'), 'unknown role must fail closed');
         ok(brvtalStaffOpsAllowedManagedRole('admin'), 'admin must be the managed BRVTAL role');
+        ok(brvtalStaffOpsInvitationRetryable([
+            'staff_role'=>'admin','is_active'=>0,'staff_invitation_state'=>'failed'
+        ], 'admin'), 'failed invitation must be retryable');
+        ok(!brvtalStaffOpsInvitationRetryable([
+            'staff_role'=>'admin','is_active'=>0,'staff_invitation_state'=>'none'
+        ], 'admin'), 'ordinary suspended admin must not be reused as invitation');
+        ok(!brvtalStaffOpsInvitationRetryable([
+            'staff_role'=>'editor','is_active'=>0,'staff_invitation_state'=>'failed'
+        ], 'admin'), 'unknown stored role must not be retryable');
         echo "AC-01 passed\n";
         exit(0);
     }
@@ -107,13 +117,141 @@ try {
             'BRVTAL_CONTROLBOT_STAFF_KEY_ID',
             'BRVTAL_CONTROLBOT_STAFF_KEY',
             'BRVTAL_CONTROLBOT_STAFF_ALLOWLIST',
-        ] as $name) putenv($name);
-        ok(brvtalStaffOpsConfig()['enabled'] === false, 'ops unexpectedly enabled without config');
+        ] as $name) {
+            putenv($name);
+        }
+
+        try {
+            brvtalStaffOpsAuthenticate([], '', 1000, $tmp);
+            fail('disabled configuration authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 404, 'disabled configuration must be 404');
+        }
+
+        putenv('BRVTAL_CONTROLBOT_STAFF_KEY_ID=product-1');
+        putenv('BRVTAL_CONTROLBOT_STAFF_KEY=test-secret-not-production');
+        putenv('BRVTAL_CONTROLBOT_STAFF_ALLOWLIST=*');
+        try {
+            brvtalStaffOpsAuthenticate([], '', 1000, $tmp);
+            fail('wildcard allowlist authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 404, 'invalid allowlist must disable ops');
+        }
+
+        putenv('BRVTAL_CONTROLBOT_STAFF_ALLOWLIST=127.0.0.1');
+        $signedServer = static function(
+            string $uri,
+            string $body,
+            int $timestamp,
+            string $nonce,
+            string $ip = '127.0.0.1',
+            bool $https = true,
+            ?string $signedUri = null,
+            ?string $signedBody = null
+        ): array {
+            $target = brvtalStaffOpsCanonicalTarget($signedUri ?? $uri);
+            $canonical = brvtalStaffOpsCanonicalRequest(
+                'product-1',
+                'POST',
+                $target,
+                (string)$timestamp,
+                $nonce,
+                $signedBody ?? $body
+            );
+            return [
+                'HTTPS' => $https ? 'on' : 'off',
+                'REQUEST_METHOD' => 'POST',
+                'REQUEST_URI' => $uri,
+                'REMOTE_ADDR' => $ip,
+                'HTTP_X_FACTORY_KEY_ID' => 'product-1',
+                'HTTP_X_FACTORY_TIMESTAMP' => (string)$timestamp,
+                'HTTP_X_FACTORY_NONCE' => $nonce,
+                'HTTP_X_FACTORY_SIGNATURE' => hash_hmac(
+                    'sha256',
+                    $canonical,
+                    'test-secret-not-production'
+                ),
+                'HTTP_X_REQUEST_ID' => '0123456789abcdef0123456789abcdef',
+            ];
+        };
+
+        $body = '{"role":"admin"}';
+
+        $plain = $signedServer(
+            '/ops/staff',$body,1000,'11111111111111111111111111111111','127.0.0.1',false
+        );
+        try {
+            brvtalStaffOpsAuthenticate($plain, $body, 1000, $tmp);
+            fail('non-HTTPS request authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 403, 'non-HTTPS status mismatch');
+        }
+
+        $foreign = $signedServer(
+            '/ops/staff',$body,1000,'22222222222222222222222222222222','203.0.113.10'
+        );
+        try {
+            brvtalStaffOpsAuthenticate($foreign, $body, 1000, $tmp);
+            fail('disallowed origin authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 403, 'origin status mismatch');
+        }
+
+        $stale = $signedServer(
+            '/ops/staff',$body,1,'33333333333333333333333333333333'
+        );
+        try {
+            brvtalStaffOpsAuthenticate($stale, $body, 1000, $tmp);
+            fail('stale timestamp authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 401, 'stale timestamp status mismatch');
+        }
+
+        $tamperedBody = $signedServer(
+            '/ops/staff',$body,1000,'44444444444444444444444444444444',
+            '127.0.0.1',true,null,'{"role":"viewer"}'
+        );
+        try {
+            brvtalStaffOpsAuthenticate($tamperedBody, $body, 1000, $tmp);
+            fail('tampered body authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 401, 'tampered body status mismatch');
+        }
+
+        $tamperedTarget = $signedServer(
+            '/ops/staff?q=admin','',1000,'55555555555555555555555555555555',
+            '127.0.0.1',true,'/ops/staff?q=other'
+        );
+        try {
+            brvtalStaffOpsAuthenticate($tamperedTarget, '', 1000, $tmp);
+            fail('tampered target authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 401, 'tampered target status mismatch');
+        }
+
+        $valid = $signedServer(
+            '/ops/staff',$body,1000,'66666666666666666666666666666666'
+        );
+        $authenticated = brvtalStaffOpsAuthenticate($valid, $body, 1000, $tmp);
+        ok($authenticated['key_id'] === 'product-1', 'valid signature not authenticated');
+
+        try {
+            brvtalStaffOpsAuthenticate($valid, $body, 1000, $tmp);
+            fail('nonce replay authenticated');
+        } catch (BrvtalStaffOpsHttpError $error) {
+            ok($error->status === 409, 'nonce replay status mismatch');
+        }
 
         $index = file_get_contents(__DIR__ . '/../ops/index.php');
         $htaccess = file_get_contents(__DIR__ . '/../ops/.htaccess');
-        ok(is_string($index) && str_contains($index, "json_response(['ok'=>false,'error'=>'NOT_FOUND'], 404)"), 'disabled 404 gate missing');
-        ok(is_string($htaccess) && str_contains($htaccess, 'admin-password-mail-worker'), 'worker HTTP deny missing');
+        ok(is_string($index) && str_contains(
+            $index,
+            "json_response(['ok'=>false,'error'=>'NOT_FOUND'], 404)"
+        ), 'disabled 404 gate missing');
+        ok(is_string($htaccess) && str_contains(
+            $htaccess,
+            'admin-password-mail-worker'
+        ), 'worker HTTP deny missing');
         ok(str_contains($index, 'brvtalStaffOpsAssertSafePayload'), 'safe response guard missing');
         ok(!str_contains($index, "'token'=>(string)"), 'endpoint exposes token');
         echo "AC-03 passed\n";

@@ -320,6 +320,17 @@ function brvtalStaffOpsAllowedManagedRole(string $role): bool
     return strtolower(trim($role)) === 'admin';
 }
 
+/** @param array<string,mixed> $row */
+function brvtalStaffOpsInvitationRetryable(array $row, string $requestedRole): bool
+{
+    $storedRole = strtolower(trim((string)($row['staff_role'] ?? '')));
+    $requestedRole = strtolower(trim($requestedRole));
+    return (int)($row['is_active'] ?? 1) === 0
+        && (string)($row['staff_invitation_state'] ?? '') === 'failed'
+        && brvtalStaffOpsAllowedManagedRole($requestedRole)
+        && hash_equals($storedRole, $requestedRole);
+}
+
 function brvtalStaffOpsMaskEmail(string $email): string
 {
     $email = strtolower(trim($email));

@@ -110,10 +110,7 @@ try {
                         $existing = $lookup->fetch(PDO::FETCH_ASSOC);
 
                         if (is_array($existing)) {
-                            $retryable = (int)$existing['is_active'] === 0
-                                && (string)$existing['staff_invitation_state'] === 'failed'
-                                && hash_equals((string)$existing['staff_role'], $role);
-                            if (!$retryable) {
+                            if (!brvtalStaffOpsInvitationRetryable($existing, $role)) {
                                 throw new BrvtalStaffOpsHttpError(409, 'STAFF_ALREADY_EXISTS');
                             }
                             $id = (int)$existing['id'];
