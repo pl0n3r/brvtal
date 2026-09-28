@@ -21,17 +21,17 @@ admin_session_contract_assert(
     'account-state helper must query the canonical admins row by primary key'
 );
 admin_session_contract_assert(
-    str_contains($revalidation, "'is_active' => (int)($row['is_active'] ?? 0) === 1")
-        && str_contains($revalidation, "'credential_epoch' => max(1"),
+    str_contains($revalidation, '\'is_active\' => (int)($row[\'is_active\'] ?? 0) === 1')
+        && str_contains($revalidation, '\'credential_epoch\' => max(1'),
     'missing and inactive admins must both fail revalidation'
 );
 admin_session_contract_assert(
-    str_contains($auth, "$adminId = (int)($_SESSION['admin_id'] ?? 0);"),
+    str_contains($auth, '$adminId = (int)($_SESSION[\'admin_id\'] ?? 0);'),
     'session authorization must normalize the current admin id before revalidation'
 );
 admin_session_contract_assert(
     str_contains($auth, 'brvtal_admin_account_session_state(db(), $adminId)')
-        && str_contains($auth, "$_SESSION['credential_epoch'] = $state['credential_epoch'];"),
+        && str_contains($auth, '$_SESSION[\'credential_epoch\'] = $state[\'credential_epoch\'];'),
     'every authenticated session check must consult current admin state'
 );
 admin_session_contract_assert(
@@ -39,7 +39,7 @@ admin_session_contract_assert(
     'database revalidation failures must be observable'
 );
 admin_session_contract_assert(
-    preg_match('/catch\\s*\\(Throwable \\$e\\).*?return BRVTAL_ADMIN_AUTH_UNAVAILABLE;/s', $auth) === 1,
+    preg_match('/catch\s*\(Throwable \$e\).*?return BRVTAL_ADMIN_AUTH_UNAVAILABLE;/s', $auth) === 1,
     'database revalidation failures must fail closed without pretending the account was revoked'
 );
 admin_session_contract_assert(
@@ -60,7 +60,7 @@ $authCheck = strpos($auth, 'function brvtal_admin_authentication_state(): string
 admin_session_contract_assert($authCheck !== false, 'authenticated-session boundary must remain explicit');
 $inactiveBlock = strpos(
     $auth,
-    "if ($state === null || !$state['is_active']",
+    'if ($state === null || !$state[\'is_active\']',
     $authCheck
 );
 admin_session_contract_assert($inactiveBlock !== false, 'inactive/epoch branch must remain explicit');
@@ -81,7 +81,7 @@ admin_session_contract_assert(
     'admin auth must expose one canonical session-lock release helper'
 );
 admin_session_contract_assert(
-    str_contains($auth, "strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) === 'GET'")
+    str_contains($auth, 'strtoupper((string)($_SERVER[\'REQUEST_METHOD\'] ?? \'\')) === \'GET\'')
         && str_contains($auth, 'brvtal_admin_release_session();'),
     'authenticated GET requests must release the PHP session lock after revalidation/activity refresh'
 );
