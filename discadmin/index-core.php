@@ -248,8 +248,9 @@ async function go(s){
   if(window.BRVTALDashboardV2){
    state.dashboard={};state.rows=[];state.recent={events:[],artists:[],sets:[],media:[]};
    render();
-   await window.BRVTALDashboardV2.mount();
-   return;
+   const mounted=await window.BRVTALDashboardV2.mount();
+   if(mounted!==true)return false;
+   return true;
   }
   try{
    const d=await req('/dashboard');
