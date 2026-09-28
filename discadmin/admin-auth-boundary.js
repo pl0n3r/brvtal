@@ -121,6 +121,52 @@
 
   const originalFetch = window.fetch.bind(window);
 
+  const ADMIN_GET_CONCURRENCY = 2;
+  let adminGetActive = 0;
+  const adminGetWaiters = [];
+
+  function isAuthRequest(input) {
+    let raw = '';
+    if (typeof input === 'string') raw = input;
+    else if (input && typeof input.url === 'string') raw = input.url;
+    if (!raw) return false;
+
+    const url = new URL(raw, window.location.href);
+    return url.origin === window.location.origin
+      && url.pathname === '/api/index.php/auth';
+  }
+
+  async function acquireAdminGetSlot() {
+    if (adminGetActive < ADMIN_GET_CONCURRENCY) {
+      adminGetActive += 1;
+      return;
+    }
+    await new Promise(resolve => adminGetWaiters.push(resolve));
+  }
+
+  function releaseAdminGetSlot() {
+    const next = adminGetWaiters.shift();
+    if (next) {
+      next();
+      return;
+    }
+    adminGetActive = Math.max(0, adminGetActive - 1);
+  }
+
+  async function boundedAdminGetFetch(input, init) {
+    const shouldBound = requestMethod(input, init) === 'GET'
+      && isAdminRequest(input)
+      && !isAuthRequest(input);
+    if (!shouldBound) return originalFetch(input, init);
+
+    await acquireAdminGetSlot();
+    try {
+      return await originalFetch(input, init);
+    } finally {
+      releaseAdminGetSlot();
+    }
+  }
+
   async function auth(options = {}) {
     const force = options?.force === true;
     if (!force && authSnapshot?.authenticated && authSnapshot?.csrf) {
@@ -191,13 +237,13 @@
     }
     revalidationSucceeded += 1;
 
-    const retry = await originalFetch(input, init);
+    const retry = await boundedAdminGetFetch(input, init);
     if (retry.status === 401) expireSession();
     return retry;
   }
 
   const guardedFetch = async function(input, init) {
-    const response = await originalFetch(input, init);
+    const response = await boundedAdminGetFetch(input, init);
     return revalidateAdminGet(input, init, response);
   };
   guardedFetch.__brvtalAuthBoundary = true;
@@ -217,7 +263,10 @@
       revalidationCount,
       revalidationAttempted,
       revalidationSucceeded,
-      revalidationFailed
+      revalidationFailed,
+      adminGetActive,
+      adminGetQueued: adminGetWaiters.length,
+      adminGetLimit: ADMIN_GET_CONCURRENCY
     })
   };
 })();
