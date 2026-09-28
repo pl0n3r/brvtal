@@ -440,7 +440,8 @@ function brvtalStaffOpsFindForMutation(PDO $pdo, int $id, bool $lock = true): ar
     $statement->execute([$id]);
     $row = $statement->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) throw new BrvtalStaffOpsHttpError(404, 'STAFF_NOT_FOUND');
-    if (brvtalStaffOpsProtectedRole((string)$row['staff_role'])) {
+    $storedRole = strtolower(trim((string)$row['staff_role']));
+    if (!brvtalStaffOpsAllowedManagedRole($storedRole)) {
         throw new BrvtalStaffOpsHttpError(403, 'PROTECTED_AUTHORITY');
     }
     return $row;

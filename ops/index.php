@@ -91,60 +91,107 @@ try {
                     || !brvtalStaffOpsAllowedManagedRole($role)) {
                     throw new BrvtalStaffOpsHttpError(422, 'INVALID_STAFF_INVITE');
                 }
-                $randomPassword = bin2hex(random_bytes(32));
-                $hash = password_hash($randomPassword, PASSWORD_DEFAULT);
-                if (!is_string($hash) || $hash === '') throw new RuntimeException('PASSWORD_HASH_FAILED');
-                try {
-                    $insert = $pdo->prepare(
-                        'INSERT INTO admins(email,password_hash,credential_epoch,name,staff_role,is_active) VALUES(?,?,1,?,?,1)'
-                    );
-                    $insert->execute([$email,$hash,$name,$role]);
-                } catch (PDOException $error) {
-                    if ((string)$error->getCode() === '23000') {
-                        throw new BrvtalStaffOpsHttpError(409, 'STAFF_ALREADY_EXISTS');
-                    }
-                    throw $error;
-                }
-                $id = (int)$pdo->lastInsertId();
-                $issued = null;
-                try {
-                    $issued = brvtal_password_reset_issue($pdo, $id);
-                    $baseUrl = (string)($GLOBALS['config']['app']['base_url'] ?? 'https://www.brvtal.com.co');
-                    $link = rtrim($baseUrl, '/') . '/discadmin/reset-password.php#token='
-                        . rawurlencode((string)$issued['token']);
-                    $delivered = brvtalAdminMailSend(
-                        $email,
-                        'Tu invitación a BRVTAL',
-                        "Fuiste invitado al staff de BRVTAL.\n\nDefine tu contraseña aquí:\n" . $link
-                            . "\n\nEl enlace vence en 60 minutos y solo puede usarse una vez.",
-                        'staff_invitation'
-                    );
-                    if (!$delivered) throw new RuntimeException('DELIVERY_FAILED');
-                    brvtalStaffOpsAudit(
-                        $pdo,'ops_invite',$auth['key_id'],$id,'success',$auth['request_id'],
-                        ['role'=>$role]
-                    );
-                } catch (Throwable $error) {
-                    if (is_array($issued) && isset($issued['token'])) {
-                        brvtal_password_reset_revoke_token($pdo, (string)$issued['token']);
-                    }
-                    $disable = $pdo->prepare(
-                        'UPDATE admins SET is_active=0,credential_epoch=credential_epoch+1 WHERE id=?'
-                    );
-                    $disable->execute([$id]);
-                    try {
-                        brvtalStaffOpsAudit(
-                            $pdo,'ops_invite',$auth['key_id'],$id,'failed',$auth['request_id'],
-                            ['role'=>$role]
+
+                $inviteState = brvtalStaffOpsStatePath('invite', $email);
+                return brvtalStaffOpsWithExclusiveState(
+                    $inviteState,
+                    static function(string $_file) use ($pdo,$name,$email,$role,$auth): array {
+                        $randomPassword = bin2hex(random_bytes(32));
+                        $hash = password_hash($randomPassword, PASSWORD_DEFAULT);
+                        if (!is_string($hash) || $hash === '') {
+                            throw new RuntimeException('PASSWORD_HASH_FAILED');
+                        }
+
+                        $lookup = $pdo->prepare(
+                            'SELECT id,staff_role,is_active,staff_invitation_state '
+                            . 'FROM admins WHERE email=? LIMIT 1'
                         );
-                    } catch (Throwable) {}
-                    throw $error instanceof BrvtalStaffOpsHttpError
-                        ? $error
-                        : new BrvtalStaffOpsHttpError(503, 'INVITATION_DELIVERY_FAILED');
-                }
-                return ['status'=>201,'payload'=>[
-                    'ok'=>true,'data'=>['id'=>$id,'status'=>'active','invitation_sent'=>true]
-                ]];
+                        $lookup->execute([$email]);
+                        $existing = $lookup->fetch(PDO::FETCH_ASSOC);
+
+                        if (is_array($existing)) {
+                            $retryable = (int)$existing['is_active'] === 0
+                                && (string)$existing['staff_invitation_state'] === 'failed'
+                                && hash_equals((string)$existing['staff_role'], $role);
+                            if (!$retryable) {
+                                throw new BrvtalStaffOpsHttpError(409, 'STAFF_ALREADY_EXISTS');
+                            }
+                            $id = (int)$existing['id'];
+                            $retry = $pdo->prepare(
+                                'UPDATE admins SET password_hash=?,name=?,credential_epoch=credential_epoch+1 '
+                                . "WHERE id=? AND is_active=0 AND staff_invitation_state='failed'"
+                            );
+                            $retry->execute([$hash,$name,$id]);
+                            if ($retry->rowCount() !== 1) {
+                                throw new BrvtalStaffOpsHttpError(409, 'INVITATION_STATE_CONFLICT');
+                            }
+                        } else {
+                            $insert = $pdo->prepare(
+                                'INSERT INTO admins('
+                                . 'email,password_hash,credential_epoch,name,staff_role,staff_invitation_state,is_active'
+                                . ") VALUES(?,?,1,?,?,'failed',0)"
+                            );
+                            $insert->execute([$email,$hash,$name,$role]);
+                            $id = (int)$pdo->lastInsertId();
+                        }
+
+                        $issued = null;
+                        try {
+                            $issued = brvtal_password_reset_issue($pdo, $id, null, true);
+                            $baseUrl = (string)($GLOBALS['config']['app']['base_url'] ?? 'https://www.brvtal.com.co');
+                            $link = rtrim($baseUrl, '/') . '/discadmin/reset-password.php#token='
+                                . rawurlencode((string)$issued['token']);
+                            $delivered = brvtalAdminMailSend(
+                                $email,
+                                'Tu invitación a BRVTAL',
+                                "Fuiste invitado al staff de BRVTAL.\n\nDefine tu contraseña aquí:\n" . $link
+                                    . "\n\nEl enlace vence en 60 minutos y solo puede usarse una vez.",
+                                'staff_invitation'
+                            );
+                            if (!$delivered) {
+                                throw new RuntimeException('DELIVERY_FAILED');
+                            }
+
+                            $activate = $pdo->prepare(
+                                "UPDATE admins SET is_active=1,staff_invitation_state='sent',"
+                                . "credential_epoch=credential_epoch+1 "
+                                . "WHERE id=? AND is_active=0 AND staff_invitation_state='failed'"
+                            );
+                            $activate->execute([$id]);
+                            if ($activate->rowCount() !== 1) {
+                                throw new RuntimeException('INVITATION_STATE_CONFLICT');
+                            }
+
+                            brvtalStaffOpsAudit(
+                                $pdo,'ops_invite',$auth['key_id'],$id,'success',$auth['request_id'],
+                                ['role'=>$role]
+                            );
+                        } catch (Throwable $error) {
+                            if (is_array($issued) && isset($issued['token'])) {
+                                brvtal_password_reset_revoke_token($pdo, (string)$issued['token']);
+                            }
+                            $disable = $pdo->prepare(
+                                "UPDATE admins SET is_active=0,staff_invitation_state='failed',"
+                                . 'credential_epoch=credential_epoch+1 WHERE id=?'
+                            );
+                            $disable->execute([$id]);
+                            try {
+                                brvtalStaffOpsAudit(
+                                    $pdo,'ops_invite',$auth['key_id'],$id,'failed',$auth['request_id'],
+                                    ['role'=>$role]
+                                );
+                            } catch (Throwable) {
+                            }
+                            throw $error instanceof BrvtalStaffOpsHttpError
+                                ? $error
+                                : new BrvtalStaffOpsHttpError(503, 'INVITATION_DELIVERY_FAILED');
+                        }
+
+                        return ['status'=>201,'payload'=>[
+                            'ok'=>true,'data'=>['id'=>$id,'status'=>'active','invitation_sent'=>true]
+                        ]];
+                    }
+                );
             }
 
             if ($staffId === null) throw new BrvtalStaffOpsHttpError(422, 'INVALID_STAFF_ID');
