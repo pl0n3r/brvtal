@@ -1,8 +1,8 @@
 {
   "version": 1,
   "epic_issue": 630,
-  "production_green": false,
-  "epic_close_allowed": false,
+  "production_green": true,
+  "epic_close_allowed": true,
   "consumed": {
     "ci": {
       "workflow": ".github/workflows/factory-ci.yml",
@@ -30,11 +30,5 @@
     }
   },
   "external_blockers": [],
-  "pending_adoptions": [
-    {
-      "issue": 689,
-      "code": "observer-exact-main-validation",
-      "required_for_epic_close": true
-    }
-  ]
+  "pending_adoptions": []
 }
