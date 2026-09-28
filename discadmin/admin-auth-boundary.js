@@ -131,13 +131,9 @@
     else if (input && typeof input.url === 'string') raw = input.url;
     if (!raw) return false;
 
-    try {
-      const url = new URL(raw, window.location.href);
-      return url.origin === window.location.origin
-        && url.pathname === '/api/index.php/auth';
-    } catch (_) {
-      return false;
-    }
+    const url = new URL(raw, window.location.href);
+    return url.origin === window.location.origin
+      && url.pathname === '/api/index.php/auth';
   }
 
   async function acquireAdminGetSlot() {
