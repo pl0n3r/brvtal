@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #729: v0.1.80 hace que Hero → Dashboard comprometa workspace y navegación visible antes de resolver.
+> Snapshot de **solo el deploy actual** para #729: v0.1.81 estabiliza el segundo Hero → Dashboard y deja diagnóstico seguro si una transición falla.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -15,19 +15,19 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#729 · Hero/Dashboard navigation commit** | `work/issue-729` · reserva `9d4171ce-ca50-4143-94bd-00f6aa6da769` |
-| Base | ✅ **main** | `873ed41e0400f80880ac1ebdf25242438c869745` · v0.1.79 |
-| Producción base | ✅ **exacta** | v0.1.79 · observer `36360732198` · health 200 · DB connected |
-| Smoke base | ❌ **AC-07 falla** | `36360780996` · Hero intento 1 PASS; Hero → Dashboard no deja nav activo |
-| Versión candidato | 🚧 **v0.1.80** | patch deploy-bound |
-| PR | 🚧 **#731 en revisión** | `work/issue-729` → `main` |
+| Work line | 🚧 **#729 · Hero/Dashboard cycle 2** | `work/issue-729` · reserva `2c53d5d3-43e3-4cf1-b5d4-87124eb16fb2` |
+| Base | ✅ **main** | `ac3df13dd0db1a5f49932da8789dbe3911506e2e` · v0.1.80 |
+| Producción base | ✅ **exacta** | v0.1.80 · observer `36363806627` · health 200 · DB connected |
+| Smoke base | ❌ **AC-07 falla** | `36364125209` · Hero 1/2 PASS; Dashboard transition 2 devuelve `false` |
+| Versión candidato | 🚧 **v0.1.81** | patch deploy-bound |
+| PR | 🚧 **#732 en revisión** | `work/issue-729` → `main` |
 | Producción candidato | 🚧 **pending** | observer + authenticated smoke exactos |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **+197** | **−67** | **+130** |
+| **7** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -39,41 +39,41 @@
 | Main | 🚧 **CI del SHA exacto de main** · Production Deploy Observer · Authenticated Production Smoke |
 
 ## Qué se hizo
-- `go('dashboard')` propaga `BRVTALDashboardV2.mount() === false` en vez de convertir un mount fallido en navegación exitosa.
-- Un mount exitoso devuelve `true` explícitamente.
-- Admin Information Architecture sincroniza la navegación canónica antes de resolver una navegación exitosa.
-- La regresión browser reproduce el contrato observado en producción: al resolver Hero → Dashboard, Dashboard ya debe ser la sección y botón activos.
+- Dashboard precompromete su URL canónica antes de esperar el mount asíncrono; si el mount falla, restaura el workspace/URL anterior.
+- Admin Information Architecture registra una razón segura por transición: guard rechazado, stale token, core/mount false o commit inestable.
+- Dashboard V2 registra diagnóstico seguro de ownership/mount sin datos sensibles.
+- El smoke productivo guarda estado antes/después de cada Dashboard transition para que un futuro `false` sea explicable.
+- Regresión browser prueba que un mount Dashboard pendiente ya no deja `?module=hero-slider` como ruta autoritativa.
 - No se aumentan retries, no se relaja autenticación y no se modifica esquema ni datos.
 
 ## Archivos modificados en este deploy
-- `README.md` — evidencia exacta de v0.1.79 y plan de verificación v0.1.80.
-- `config/version.php` — versión deploy-bound v0.1.80.
-- `package.json` — versión del paquete alineada con el release.
-- `discadmin/index-core.php` — propaga el resultado real del mount Dashboard V2.
-- `discadmin/admin-information-architecture.js` — compromete el estado visual de navegación antes de resolver `go()`.
-- `tests/dashboard-v2-contract.php` — contrato ejecutable de éxito/fallo del mount.
-- `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión Hero → Dashboard con active nav sincronizado.
-- `tests/test_hero_auth_race.py` — acceptance contract incluye la nueva regresión de commit visual.
+- `README.md` — snapshot exacto, evidencia productiva y plan v0.1.81.
+- `config/version.php` — versión deploy-bound v0.1.81.
+- `discadmin/admin-information-architecture.js` — precommit de ruta Dashboard y diagnóstico seguro de navegación.
+- `discadmin/dashboard-v2.js` — diagnóstico seguro de ownership y resultado del mount.
+- `package.json` — versión del paquete alineada con v0.1.81.
+- `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión de URL canónica durante mount Dashboard pendiente.
+- `tests/e2e/production-authenticated-smoke.mjs` — evidencia de transición Dashboard antes/después y motivo seguro de fallo.
 
 ## Validación
-- Regresión browser: Hero → Dashboard solo resuelve cuando Dashboard ya es la sección y navegación activas.
-- Contrato PHP: un `mount() === false` se propaga como navegación fallida; no existe falso positivo.
-- Auth single-flight, mutaciones 401 fail-closed y tres ciclos reales de #125 permanecen obligatorios.
-- v0.1.79 sirve como evidencia negativa reproducible; v0.1.80 debe superar exactamente el mismo smoke.
+- v0.1.80 ya demuestra health 200, DB connected, versión/SHA exactos y Hero 1/2 sin 401 ni revalidación.
+- v0.1.81 exige que Dashboard quite la ruta Hero antes de esperar sus GET y restaure Hero solo si el mount actual falla.
+- El smoke registrará `heroDirty`, `unsavedDirty`, diagnóstico IA y diagnóstico Dashboard para cada retorno.
+- Auth single-flight, mutaciones 401 fail-closed y los tres ciclos reales de #125 permanecen obligatorios.
 
 ## Evidencia base
-- PR #730 fue integrado y desplegado en `main@873ed41e0400f80880ac1ebdf25242438c869745`.
-- Exact-main BRVTAL CI terminó **success**.
-- Production Deploy Observer `36360732198` terminó **success**.
-- Authenticated Production Smoke `36360780996` observó v0.1.79/SHA exactos, health 200, DB connected, Events, Sets y Hero intento 1 correctos.
-- El fallo exacto fue `hero-slider-dashboard-ready-1`: `window.go('dashboard')` resolvió `true`, pero `[data-admin-nav="dashboard"].active` no apareció.
+- PR #731 fue integrado como v0.1.80 en `main@ac3df13dd0db1a5f49932da8789dbe3911506e2e`.
+- Production Deploy Observer `36363806627` terminó **success** y observó v0.1.80 a los 8s.
+- Exact-main BRVTAL CI `36363806923` terminó **success** tras un único rerun dirigido del flake de timing real-stack.
+- Authenticated Production Smoke `36364125209` confirmó health 200, DB connected, versión/SHA exactos, Events, Sets y Hero intentos 1/2.
+- El fallo exacto actual es `#125 Dashboard transition 2 did not commit (result=false)`; no hubo 401 ni revalidación auth.
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  A["v0.1.79 desplegada"] --> B["Smoke #36360780996 FAIL"]
-  B --> C["v0.1.80 · contrato commit visual"]
-  C --> D["PR exact-head CI + review"]
+  A["v0.1.80 desplegada"] --> B["Smoke #36364125209 FAIL · Dashboard 2"]
+  B --> C["v0.1.81 · route precommit + diagnostics"]
+  C --> D["PR #732 exact-head CI + review"]
   D --> E["merge → exact main"]
   E --> F["Production Deploy Observer"]
   F --> G["Authenticated Smoke · 3 ciclos Hero"]
@@ -82,12 +82,12 @@ flowchart LR
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 v0.1.80: cerrar gates del candidato sobre SHA exacto. |
+| **NOW** | 🚧 v0.1.81 / PR #732: cerrar gates sobre SHA exacto. |
 | **NEXT** | 🚧 Exact-main CI + Production Deploy Observer. |
 | **LATER** | 🚧 Authenticated Production Smoke fresco: tres ciclos Dashboard ↔ Hero. |
 | **BLOCKED / EXTERNAL** | 🚧 Ninguno conocido. https://github.com/pl0n3r/brvtal/issues/729 solo se cierra con AC-07 verde. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #729 / PR #731, cerrar gates exact-head de v0.1.80.
+- 🚧 **NOW**: #729 / PR #732, cerrar gates exact-head de v0.1.81.
 - 🚧 **NEXT**: merge serializado, exact-main CI y Production Deploy Observer.
 - 🚧 **LATER**: Authenticated Production Smoke fresco con tres ciclos Dashboard ↔ Hero; solo entonces cerrar #729.
