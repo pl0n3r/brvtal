@@ -136,6 +136,68 @@ test('same-origin admin GET revalidates once after transient 401 and retries exa
   });
 });
 
+test('concurrent admin GET 401 responses share one forced auth revalidation', async ({page}) => {
+  await setSameOriginContent(page);
+  await page.evaluate(() => {
+    window.state={authed:true};
+    window.csrf='stale-csrf';
+    window.__authRequests=0;
+    window.__targetRequests=0;
+    window.__releaseAuth=null;
+    window.__authBarrier=new Promise(resolve => { window.__releaseAuth=resolve; });
+    window.fetch=async input => {
+      const url=String(typeof input==='string'?input:input?.url||'');
+      if(url==='/api/index.php/auth'){
+        window.__authRequests+=1;
+        await window.__authBarrier;
+        return new Response(JSON.stringify({ok:true,authenticated:true,csrf:'fresh-csrf'}),{
+          status:200,headers:{'Content-Type':'application/json'}
+        });
+      }
+      if(url.startsWith('/api/index.php/settings?key=')){
+        window.__targetRequests+=1;
+        if(window.__targetRequests<=2){
+          return new Response(JSON.stringify({ok:false,error:'AUTH_REQUIRED'}),{
+            status:401,headers:{'Content-Type':'application/json'}
+          });
+        }
+        return new Response(JSON.stringify({ok:true,data:[]}),{
+          status:200,headers:{'Content-Type':'application/json'}
+        });
+      }
+      return new Response('{}',{status:404});
+    };
+  });
+  await page.evaluate(source => window.eval(source),authBoundaryJs);
+
+  const pending=page.evaluate(async () => {
+    const requests=[
+      window.fetch('/api/index.php/settings?key=one',{method:'GET',credentials:'same-origin'}),
+      window.fetch('/api/index.php/settings?key=two',{method:'GET',credentials:'same-origin'})
+    ];
+    while(window.__authRequests<1) await new Promise(resolve=>setTimeout(resolve,0));
+    window.__releaseAuth();
+    const responses=await Promise.all(requests);
+    return {
+      statuses:responses.map(response=>response.status),
+      authRequests:window.__authRequests,
+      targetRequests:window.__targetRequests,
+      diagnostics:window.BRVTALAdminAuthBoundary.diagnostics()
+    };
+  });
+  const result=await pending;
+
+  expect(result.statuses).toEqual([200,200]);
+  expect(result.authRequests).toBe(1);
+  expect(result.targetRequests).toBe(4);
+  expect(result.diagnostics).toMatchObject({
+    revalidationCount:2,
+    revalidationAttempted:2,
+    revalidationSucceeded:2,
+    revalidationFailed:0
+  });
+});
+
 test('admin mutation 401 is never revalidated or retried', async ({page}) => {
   await setSameOriginContent(page);
   await page.evaluate(() => {

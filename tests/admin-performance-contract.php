@@ -91,8 +91,8 @@ admin_perf_expect(
 
 admin_perf_expect(
     str_contains($core, 'if(window.BRVTALDashboardV2)')
-        && str_contains($core, 'window.BRVTALDashboardV2?.mount?.()'),
-    'canonical Dashboard V2 must bypass the redundant legacy /dashboard preload'
+        && str_contains($core, 'await window.BRVTALDashboardV2.mount()'),
+    'canonical Dashboard V2 must bypass the redundant legacy /dashboard preload and await its protected mount'
 );
 
 echo "BRVTAL Admin performance contract passed.\n";

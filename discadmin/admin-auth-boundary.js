@@ -9,6 +9,9 @@
   let authSnapshot = null;
   let authGeneration = 0;
   let revalidationCount = 0;
+  let revalidationAttempted = 0;
+  let revalidationSucceeded = 0;
+  let revalidationFailed = 0;
 
   function adminState() {
     return window.state && typeof window.state === 'object' ? window.state : null;
@@ -85,6 +88,7 @@
       if (currentState) currentState.authed = false;
       clearCsrf();
       clearAuthCache();
+      window.BRVTALDashboardV2?.invalidate?.();
 
       const preserveUnsaved = hasUnsavedChanges();
       applyExpiredSessionState(preserveUnsaved);
@@ -122,7 +126,7 @@
     if (!force && authSnapshot?.authenticated && authSnapshot?.csrf) {
       return authSnapshot;
     }
-    if (!force && authPromise) return authPromise;
+    if (authPromise) return authPromise;
 
     const generation = authGeneration;
     const pending = (async () => {
@@ -172,14 +176,20 @@
     }
 
     revalidationCount += 1;
-    const snapshot = await auth({force:true}).catch(() => {
+    revalidationAttempted += 1;
+    let snapshot = null;
+    try {
+      snapshot = await auth({force:true});
+    } catch (_) {
+      revalidationFailed += 1;
       window.dispatchEvent(new Event('brvtal:auth-revalidation-failed'));
-      return null;
-    });
+    }
     if (snapshot?.authenticated !== true || !snapshot?.csrf || adminState()?.authed === false) {
+      if (snapshot) revalidationFailed += 1;
       expireSession();
       return response;
     }
+    revalidationSucceeded += 1;
 
     const retry = await originalFetch(input, init);
     if (retry.status === 401) expireSession();
@@ -203,6 +213,11 @@
     csrfToken,
     rememberAuth,
     clearAuthCache,
-    diagnostics: () => ({ revalidationCount })
+    diagnostics: () => ({
+      revalidationCount,
+      revalidationAttempted,
+      revalidationSucceeded,
+      revalidationFailed
+    })
   };
 })();

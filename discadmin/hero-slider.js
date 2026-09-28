@@ -30,7 +30,7 @@
   let heroDraftBaseRevision = '';
   let heroDraftRecovery = null;
   let heroDraftState = {label:'Saved to server',kind:'server'};
-  let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false};
+  let lastLoadDiagnostics = {status:'idle',reason:'',revision:0,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false,authRevalidationAttempted:0,authRevalidationSucceeded:0,authRevalidationFailed:0};
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   let uidSequence = 0;
@@ -218,14 +218,31 @@
     return failure.failureClass === 'transport' || failure.failureClass === 'application-transient';
   }
 
+  function authRevalidationDiagnostics() {
+    const current = window.BRVTALAdminAuthBoundary?.diagnostics?.() || {};
+    return {
+      attempted:Number(current.revalidationAttempted || 0),
+      succeeded:Number(current.revalidationSucceeded || 0),
+      failed:Number(current.revalidationFailed || 0),
+    };
+  }
+
+  function applyAuthRevalidationDelta(diagnostics, before) {
+    const current = authRevalidationDiagnostics();
+    diagnostics.authRevalidationAttempted = Math.max(0,current.attempted - before.attempted);
+    diagnostics.authRevalidationSucceeded = Math.max(0,current.succeeded - before.succeeded);
+    diagnostics.authRevalidationFailed = Math.max(0,current.failed - before.failed);
+    diagnostics.authRevalidated = diagnostics.authRevalidationAttempted > 0;
+  }
+
   async function readSettingsWithRetry(diagnostics) {
     let lastError = null;
-    const authBefore = Number(window.BRVTALAdminAuthBoundary?.diagnostics?.().revalidationCount || 0);
+    const authBefore = authRevalidationDiagnostics();
     for (let attempt = 1; attempt <= SETTINGS_READ_ATTEMPTS; attempt += 1) {
       diagnostics.settingsAttempts = attempt;
       try {
         const response = await request(SETTINGS_READ_PATH,{cache:'no-store'});
-        diagnostics.authRevalidated = Number(window.BRVTALAdminAuthBoundary?.diagnostics?.().revalidationCount || 0) > authBefore;
+        applyAuthRevalidationDelta(diagnostics,authBefore);
         return response;
       } catch (error) {
         lastError = error;
@@ -233,7 +250,7 @@
         diagnostics.failureClass = failure.failureClass;
         diagnostics.httpStatus = failure.httpStatus;
         diagnostics.code = failure.code;
-        diagnostics.authRevalidated = Number(window.BRVTALAdminAuthBoundary?.diagnostics?.().revalidationCount || 0) > authBefore;
+        applyAuthRevalidationDelta(diagnostics,authBefore);
         if (attempt >= SETTINGS_READ_ATTEMPTS || !retryableSettingsReadError(error)) break;
         await new Promise(resolve => setTimeout(resolve, SETTINGS_RETRY_DELAY_MS));
       }
@@ -512,11 +529,11 @@
   async function load() {
     const host = root();
     if (!host) {
-      lastLoadDiagnostics = {status:'failed',reason:'host-missing-before-load',revision:loadRevision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'application',httpStatus:0,code:'HOST_MISSING',authRevalidated:false};
+      lastLoadDiagnostics = {status:'failed',reason:'host-missing-before-load',revision:loadRevision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'application',httpStatus:0,code:'HOST_MISSING',authRevalidated:false,authRevalidationAttempted:0,authRevalidationSucceeded:0,authRevalidationFailed:0};
       return false;
     }
     const revision = ++loadRevision;
-    const diagnostics = {status:'loading',reason:'',revision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false};
+    const diagnostics = {status:'loading',reason:'',revision,settingsAttempts:0,hostRecovered:false,error:'',failureClass:'',httpStatus:0,code:'',authRevalidated:false,authRevalidationAttempted:0,authRevalidationSucceeded:0,authRevalidationFailed:0};
     lastLoadDiagnostics = diagnostics;
     host.innerHTML = '<div class="hero-slider-loading">LOADING HERO MANAGER…</div>';
     media = [];
