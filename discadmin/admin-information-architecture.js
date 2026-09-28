@@ -461,7 +461,6 @@
         const applied = await loadContentCoreContext();
         if (applied === false) {
           cancelWorkspaceNavigation(navigationOperation);
-          if (token === routeToken) await restoreWorkspaceSnapshot(previousWorkspace, token);
           return false;
         }
         if (!applied) {
@@ -475,6 +474,7 @@
         const applied = await invokeOriginalGo(section, token);
         if (applied === false) {
           cancelWorkspaceNavigation(navigationOperation);
+          if (token === routeToken) await restoreWorkspaceSnapshot(previousWorkspace, token);
           return false;
         }
         if (!applied || token !== routeToken) {

@@ -85,7 +85,7 @@ flowchart LR
 | **NOW** | 🚧 v0.1.80: cerrar gates del candidato sobre SHA exacto. |
 | **NEXT** | 🚧 Exact-main CI + Production Deploy Observer. |
 | **LATER** | 🚧 Authenticated Production Smoke fresco: tres ciclos Dashboard ↔ Hero. |
-| **BLOCKED / EXTERNAL** | Ninguno conocido. https://github.com/pl0n3r/brvtal/issues/729 solo se cierra con AC-07 verde. |
+| **BLOCKED / EXTERNAL** | 🚧 Ninguno conocido. https://github.com/pl0n3r/brvtal/issues/729 solo se cierra con AC-07 verde. |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #729 / PR #731, cerrar gates exact-head de v0.1.80.
