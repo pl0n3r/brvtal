@@ -173,7 +173,12 @@ try {
         }
 
         if($method==='GET') {
-            $authenticated=brvtal_admin_is_authenticated();
+            $authState=brvtal_admin_authentication_state();
+            if($authState===BRVTAL_ADMIN_AUTH_UNAVAILABLE) {
+                brvtal_admin_release_session();
+                json_response(['ok'=>false,'error'=>'AUTH_REVALIDATION_UNAVAILABLE'],503);
+            }
+            $authenticated=$authState===BRVTAL_ADMIN_AUTHENTICATED;
             $csrfToken=$authenticated?brvtal_admin_csrf_token():null;
             brvtal_admin_release_session();
             json_response(['ok'=>true,'authenticated'=>$authenticated,'csrf'=>$csrfToken]);
