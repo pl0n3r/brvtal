@@ -23,16 +23,18 @@
     "coordination": {
       "workflow": ".github/workflows/work-coordination.yml",
       "reusable": "pl0n3r/factory/.github/workflows/coordinacion.yml@v1"
+    },
+    "observer": {
+      "workflow": ".github/workflows/production-deploy-observer.yml",
+      "reusable": "pl0n3r/factory/.github/workflows/observar.yml@v1"
     }
   },
-  "external_blockers": [
+  "external_blockers": [],
+  "pending_adoptions": [
     {
       "issue": 689,
-      "code": "observer-push-trigger-parity",
-      "requires": [
-        "factory-observer-push-main"
-      ]
+      "code": "observer-exact-main-validation",
+      "required_for_epic_close": true
     }
-  ],
-  "pending_adoptions": []
+  ]
 }

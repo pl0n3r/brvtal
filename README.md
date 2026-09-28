@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para #683: v0.1.82 incorpora el boundary D-060 de staff/admin para ControlBot con autenticación HMAC, fail-closed y autoridad protegida.
+> Snapshot de **solo el deploy actual** para #689: adopción del Production Deploy Observer reusable de Factory v1, sin cambio de producto ni autoridad de producción.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -15,84 +15,74 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#683 · ControlBot staff API D-060** | `work/issue-683` · reserva `8e52ea9b-4a5e-40f4-ad5b-36d88b6781d2` |
-| Base | ✅ **main** | `01840c5dbba13f4ddda5c764a35dd818cc5e5243` · v0.1.81 |
-| Producción base | ✅ **exacta** | observer `36366671718` · exact-main `01840c5d…` |
-| Versión candidato | 🚧 **v0.1.82** | deploy-bound por endpoint + migración aditiva |
-| PR + snapshot exacto | 🚧 **#733** | `work/issue-683` → `main` |
-| Producción candidato | 🚧 **pending** | merge → migration reconcile → observer → smoke |
+| Work line | 🚧 **#689 · Factory v1 Production Observer** | `work/issue-689` · reserva `3cb81a3c-b98a-403d-8d8b-9b136d383614` |
+| Base | ✅ ~~**main**~~ | `f936dc5869dedef75b9c9c82008a7467a907acbc` · v0.1.82 |
+| Versión producto | ✅ ~~**v0.1.82 sin bump**~~ | mantenimiento repository-only |
+| PR + snapshot exacto | 🚧 **#738** | reusable observer + contratos |
+| Producción candidato | 🚧 **pending** | merge → exact-main CI → observer Factory v1 |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **18** | **+1276** | **−69** | **+1207** |
+| **7** | **+177** | **−194** | **-17** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
-| Acceptance | 🚧 **AC-01 HMAC/staff-only · AC-02 audit/idempotency · AC-03 disabled=404/secret-free** |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit · recovery** |
+| Acceptance | 🚧 **AC-01 caller v1 · AC-02 SHA/version + lifecycle EN · AC-03 permisos/triggers · AC-04 sin observer duplicado** |
 | Factory | 🚧 Factory CI · Policy · Privacy · Labels |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
-| CI del SHA exacto de main | 🚧 exact-main BRVTAL CI · migration reconcile · Production Deploy Observer · Authenticated Production Smoke |
+| CI del SHA exacto de main | 🚧 BRVTAL CI · Production Deploy Observer reusable |
 
 ## Qué se hizo
-- Añade `/ops/staff` y `/ops/summary` exclusivamente para staff/admin, sin exponer clientes ni usuarios públicos.
-- Aplica HMAC-SHA256 D-060 con canonical query RFC3986, body raw hash, timestamp, nonce anti-replay, HTTPS, allowlist y rate limit.
-- Las mutaciones usan `Idempotency-Key`, preservan resultados equivalentes y fallan 409 ante fingerprint divergente.
-- `root/owner/superadmin/platform_owner` permanecen fuera de la autoridad mutante de ControlBot.
-- Invite y password reset hacen handoff server-side y nunca devuelven tokens/credenciales.
-- Añade `staff_role` mediante migración aditiva/idempotente; cuentas existentes quedan `superadmin` por defecto para fallar cerrado.
-- `datos.yml` incorpora únicamente los tres tratamientos D-060 requeridos por Factory, aún en fase `construccion`.
-- El set canónico de seis documentos de privacidad permanece derivado desde Factory v1; base, consentimiento y retención siguen en `review_required`.
+- Mantiene `production-deploy-observer.yml` como superficie estable, pero delega el comportamiento a `pl0n3r/factory/.github/workflows/observar.yml@v1`.
+- Usa `https://www.brvtal.com.co`, `/api/health.php`, `config/version.php` y `BRVTAL_APP_VERSION`.
+- Envía el SHA exacto del push, exige `schema_up_to_date=true` y conserva el lifecycle de incidente en inglés.
+- Limita el caller a push sobre `main`, `contents: read` e `issues: write`.
+- Elimina polling/curl/jq/checkout duplicados del observer local.
+- Mantiene intactos authenticated smoke, performance, deploy, migraciones, Hostinger y base de datos.
 
 ## Archivos modificados en este deploy
-- `README.md` — snapshot exacto de #683 / PR #733.
-- `config/admin_password_security.php` — emisión de reset controlada para invitaciones fallidas e inactivas.
-- `config/admin_staff_ops.php` — autenticación, canonicalización, replay/rate/idempotencia, autorización y auditoría.
-- `config/migration_reconcile.php` — proof explícita de `staff_role` para reconciliación segura.
-- `config/version.php` — v0.1.82.
-- `database/migration_admin_staff_ops_01.sql` — metadata `staff_role` aditiva.
-- `database/schema.sql` — schema base alineado.
-- `datos.yml` — tratamientos mínimos de staff.
-- `docs/privacidad/aviso-privacidad.md` — aviso regenerado desde el mapa de datos actual.
-- `docs/privacidad/politica-tratamiento.md` — política regenerada desde el mapa de datos actual.
-- `docs/privacidad/registro-tratamientos.md` — registro regenerado con los tratamientos D-060.
-- `docs/privacidad/retencion.md` — tabla de retención regenerada sin inventar plazos legales.
-- `ops/.htaccess` — routing/deny de worker sensible.
-- `ops/index.php` — superficie HTTP staff/admin.
-- `package.json` — versión v0.1.82.
-- `tests/admin-staff-ops-contract.php` — regresiones D-060 deterministas.
-- `tests/privacy-as-code-contract.php` — mapa/artefactos de privacidad alineados con D-060.
-- `tests/test_admin_staff_api.py` — evidencia ejecutable AC-01..03.
+- `.github/workflows/production-deploy-observer.yml` — caller mínimo del observer Factory v1.
+- `.github/workflows/update-release-metadata.yml` — ejecuta el contrato Python de adopción del observer en CI.
+- `README.md` — snapshot exacto de #689 / PR #738.
+- `docs/factory-adoption.json` — observer registrado como consumido; validación exact-main queda pendiente.
+- `tests/ci-scope-contract.php` — contrato global actualizado al observer reusable.
+- `tests/factory-adoption-contract.php` — estado de adopción alineado con Factory push parity.
+- `tests/test_factory_observer_adoption.py` — AC-01..AC-04 ejecutables.
 
 ## Validación
-- Main base `01840c5d…` tenía BRVTAL CI success y Production Deploy Observer `36366671718` success.
-- El contrato portable fuente es `pl0n3r/Factory/template/ops/admin-staff-api.json`; no se inventan headers, roles protegidos ni semántica de firma/idempotencia.
-- El head candidato queda pendiente de sus gates; este snapshot no afirma deploy ni producción antes de observarlos.
+- Base de implementación: `main@f936dc5869dedef75b9c9c82008a7467a907acbc`.
+- Factory v1 valida contexto confiable antes del checkout y conserva versión/SHA exactos.
+- `factory-adoption.json` ya no declara un blocker externo; mantiene #689 pendiente solo de la observación exact-main post-merge.
+- BRVTAL CI ejecuta explícitamente `tests/test_factory_observer_adoption.py` junto al tooling de resiliencia.
+- Sonar y CodeQL se validan sobre el HEAD estable del PR.
+- La prueba decisiva ocurre tras merge: el push exacto de `main` debe ejecutar el reusable y observar producción sin crear un incidente.
 
 ## Flujo de entrega
 ```mermaid
 flowchart LR
-  A["main v0.1.81"] --> B["#683 · D-060 staff boundary"]
-  B --> C["PR #733 · v0.1.82"]
+  A["main v0.1.82"] --> B["#689 · observer reusable"]
+  B --> C["PR #738"]
   C --> D["CI + Policy/Privacy + Sonar/CodeQL"]
   D --> E["squash merge → exact main"]
-  E --> F["migration reconcile + deploy observer"]
-  F --> G["authenticated production smoke"]
+  E --> F["Factory v1 Production Deploy Observer"]
+  F --> G["SHA/version/schema exactos"]
 ```
 
 ## Qué sigue
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 PR #733: cerrar acceptance + CI + seguridad/review sobre un head estable. |
-| **NEXT** | 🚧 Merge serializado y exact-main CI. |
-| **LATER** | 🚧 Migración/observer/smoke de v0.1.82 sin secretos reales en pruebas. |
-| **BLOCKED / EXTERNAL** | 🚧 [#734](https://github.com/pl0n3r/brvtal/issues/734) bloquea go-live/procesamiento real de staff hasta decisión legal; claves/allowlist siguen fuera del repositorio. |
+| **NOW** | 🚧 PR #738: cerrar CI/review sobre HEAD estable. |
+| **NEXT** | 🚧 Merge serializado y validar observer sobre SHA exacto de main. |
+| **LATER** | 🚧 Recalcular el cierre del épico crítico [#630](https://github.com/pl0n3r/brvtal/issues/630). |
+| **BLOCKED / EXTERNAL** | 🚧 [#737](https://github.com/pl0n3r/brvtal/issues/737) sigue siendo decisión legal humana independiente. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #683 / PR #733, validar el boundary D-060.
-- 🚧 **NEXT**: exact-main + producción v0.1.82.
-- 🚧 **LATER**: al liberar BRVTAL, reintentar el crítico #689 (Factory v1 production observer).
+- 🚧 **NOW**: #689 / PR #738, terminar adopción del observer Factory v1.
+- 🚧 **NEXT**: exact-main BRVTAL CI + observer reusable.
+- 🚧 **LATER**: reevaluar #630 contra el estado real de Factory.
+- 🚧 **BLOCKED / EXTERNAL**: #737 no se infiere desde trabajo técnico.

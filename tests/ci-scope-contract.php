@@ -227,15 +227,19 @@ $perfNotOwner = ci_scope_performance_prerequisite($perfLaterCounterpart, $perfSh
 ci_scope_expect(($perfNotOwner['ready'] ?? null) === false && ($perfNotOwner['reason'] ?? '') === 'source_not_later_completion', 'only the later prerequisite completion may own automatic performance measurement');
 
 ci_scope_expect(str_contains($deployObserver, 'push:') && str_contains($deployObserver, 'branches: [main]'), 'deploy observer must start directly from main pushes');
-ci_scope_expect(str_contains($deployObserver, 'EXPECTED_SHA: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');
-ci_scope_expect(str_contains($deployObserver, 'DEPLOYED release observed'), 'deploy observer must report canonical release observation');
-ci_scope_expect(!str_contains($deployObserver, 'VALIDATED IN PRODUCTION'), 'deploy marker observation must not be mislabeled as production validation');
-ci_scope_expect(str_contains($deployObserver, 'timeout-minutes: 12'), 'deploy observer must allow Hostinger propagation beyond the original short window');
-ci_scope_expect(str_contains($deployObserver, 'max_attempts=50'), 'deploy observer must fit its calibrated polling budget inside the workflow deadline');
-ci_scope_expect(str_contains($deployObserver, 'sleep_seconds=8'), 'deploy observer must use bounded polling instead of tight loops');
-ci_scope_expect(str_contains($deployObserver, 'Hostinger hPanel Git auto-deployment'), 'deploy observer failure evidence must point to the external configuration boundary');
-ci_scope_expect(str_contains($deployObserver, 'RELEASE OBSERVED; EXACT SOURCE MISMATCH'), 'deploy observer must distinguish exact-source mismatch from a missing release');
-ci_scope_expect(str_contains($deployObserver, 'echo "- Expected release: \\`v$EXPECTED_VERSION\\`"'), 'deploy observer summary must escape Markdown backticks from shell substitution');
+ci_scope_expect(str_contains($deployObserver, 'uses: pl0n3r/factory/.github/workflows/observar.yml@v1'), 'deploy observer must delegate to protected Factory v1');
+ci_scope_expect(str_contains($deployObserver, 'expected_sha: ${{ github.sha }}'), 'deploy observer must track the exact pushed main SHA');
+ci_scope_expect(str_contains($deployObserver, 'health_path: /api/health.php'), 'deploy observer must use the canonical BRVTAL health endpoint');
+ci_scope_expect(str_contains($deployObserver, 'version_source: config/version.php'), 'deploy observer must read the canonical BRVTAL version source');
+ci_scope_expect(str_contains($deployObserver, 'version_format: php-const'), 'deploy observer must parse the version without executing PHP');
+ci_scope_expect(str_contains($deployObserver, 'version_key: BRVTAL_APP_VERSION'), 'deploy observer must use the canonical BRVTAL version constant');
+ci_scope_expect(str_contains($deployObserver, 'require_schema: true'), 'deploy observer must preserve schema readiness');
+ci_scope_expect(str_contains($deployObserver, 'label_language: en'), 'deploy observer must preserve the English incident lifecycle');
+ci_scope_expect(str_contains($deployObserver, 'contents: read') && str_contains($deployObserver, 'issues: write'), 'deploy observer must declare only the reusable permission envelope');
+ci_scope_expect(!str_contains($deployObserver, 'pull_request:') && !str_contains($deployObserver, 'pull_request_target:'), 'deploy observer must never execute from untrusted PR code');
+foreach (['runs-on:', 'steps:', 'actions/checkout', 'curl ', 'jq ', 'max_attempts=', 'sleep_seconds=', '/api/deployment.php'] as $legacyObserverLogic) {
+    ci_scope_expect(!str_contains($deployObserver, $legacyObserverLogic), "deploy observer must not retain local duplicate logic: {$legacyObserverLogic}");
+}
 
 ci_scope_expect(str_contains($sonarRelay, 'body = "\\n".join(lines).strip() + "\\n"'), 'Sonar relay must build Markdown with newline escape sequences interpreted by Python');
 ci_scope_expect(!str_contains($sonarRelay, 'body = "\\\\n".join(lines).strip() + "\\\\n"'), 'Sonar relay must never publish literal escaped newline markers');
