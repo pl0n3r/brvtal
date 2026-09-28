@@ -111,6 +111,8 @@ function brvtalMigrationProofSpecifications(): array
         'migration_admin_staff_ops_01.sql' => [
             'column:admins.staff_role',
             'column-type:admins.staff_role=varchar(32)',
+            'column:admins.staff_invitation_state',
+            'column-type:admins.staff_invitation_state=varchar(16)',
         ],
         'migration_artist_collective_membership_01.sql' => brvtalMigrationObjectRequirements(
             'artists',

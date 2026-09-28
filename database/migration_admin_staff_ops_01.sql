@@ -4,3 +4,6 @@
 
 ALTER TABLE admins
   ADD COLUMN IF NOT EXISTS staff_role VARCHAR(32) NOT NULL DEFAULT 'superadmin' AFTER name;
+
+ALTER TABLE admins
+  ADD COLUMN IF NOT EXISTS staff_invitation_state VARCHAR(16) NOT NULL DEFAULT 'none' AFTER staff_role;
