@@ -54,7 +54,8 @@ const evidence = {
     setsApiPage: null,
     setsBrowserNavigation: null,
     setRelations: null,
-    heroSlider: []
+    heroSlider: [],
+    heroDashboardTransitions: []
   },
   localStubs: [],
   blockedMutations: [],
@@ -625,13 +626,40 @@ try {
     evidence.checks.heroSlider.push({ attempt, pass: true, diagnostic });
     writeEvidence();
     if (attempt < 3) {
-      const dashboardOpened = await runOperation(
+      const dashboardTransition = await runOperation(
         `hero-slider-dashboard-${attempt}`,
-        () => page.evaluate(() => window.go('dashboard')),
+        () => page.evaluate(async () => {
+          const before = {
+            section:String(window.state?.section || ''),
+            route:new URL(location.href).searchParams.get('module') || 'dashboard',
+            heroDirty:Boolean(window.BRVTALHeroSliderGuard?.hasUnsavedChanges?.()),
+            unsavedDirty:Boolean(window.BRVTALUnsavedChanges?.hasDirtyChanges?.())
+          };
+          const result = await window.go('dashboard');
+          return {
+            result,
+            before,
+            after:{
+              section:String(window.state?.section || ''),
+              route:new URL(location.href).searchParams.get('module') || 'dashboard',
+              heroDirty:Boolean(window.BRVTALHeroSliderGuard?.hasUnsavedChanges?.()),
+              unsavedDirty:Boolean(window.BRVTALUnsavedChanges?.hasDirtyChanges?.()),
+              navigation:window.BRVTALAdminIA?.navigationDiagnostics?.() || null,
+              dashboard:window.BRVTALDashboardV2?.diagnostics?.() || null
+            }
+          };
+        }),
         operationTimeoutMs
       );
-      if (dashboardOpened !== true) {
-        throw new Error(`#125 Dashboard transition ${attempt} did not commit (result=${String(dashboardOpened)}).`);
+      evidence.checks.heroDashboardTransitions.push({attempt,...dashboardTransition});
+      writeEvidence();
+      if (dashboardTransition.result !== true) {
+        const reason = dashboardTransition.after?.navigation?.reason
+          || dashboardTransition.after?.dashboard?.reason
+          || 'unknown';
+        throw new Error(
+          `#125 Dashboard transition ${attempt} did not commit (result=${String(dashboardTransition.result)}, reason=${reason}).`
+        );
       }
       await runOperation(
         `hero-slider-dashboard-ready-${attempt}`,

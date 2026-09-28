@@ -282,6 +282,37 @@ test('successful Dashboard navigation resolves only after canonical active nav i
   });
 });
 
+test('Dashboard precommits its canonical URL while the async mount is pending', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const pending = page.evaluate(async () => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALAdminIA.rebuildNavigation();
+
+    let releaseMount;
+    window.__dashboardMount = () => new Promise(resolve => { releaseMount = resolve; });
+    window.__releaseDashboardMount = value => releaseMount(value);
+
+    const navigation = window.go('dashboard');
+    while(typeof window.__releaseDashboardMount !== 'function') await new Promise(resolve => setTimeout(resolve,0));
+    const during = {
+      section:window.state.section,
+      route:new URL(location.href).searchParams.get('module')
+    };
+    window.__releaseDashboardMount(true);
+    const result = await navigation;
+    return {result,during,route:new URL(location.href).searchParams.get('module')};
+  });
+
+  expect(pending).toEqual({
+    result:true,
+    during:{section:'dashboard',route:null},
+    route:null
+  });
+});
+
 test('failed current Dashboard mount restores the previous Hero workspace', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
