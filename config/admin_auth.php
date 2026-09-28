@@ -131,13 +131,24 @@ function brvtal_admin_logout(): void
     }
 }
 
-function brvtal_admin_is_authenticated(): bool
+const BRVTAL_ADMIN_AUTHENTICATED = 'authenticated';
+const BRVTAL_ADMIN_UNAUTHENTICATED = 'unauthenticated';
+const BRVTAL_ADMIN_AUTH_UNAVAILABLE = 'unavailable';
+
+/**
+ * Return the current authentication state without conflating account revocation
+ * with a transient failure to revalidate the account against the database.
+ *
+ * The unavailable state is still fail-closed: callers must deny the request,
+ * but must not destroy a session that has not been proven invalid.
+ */
+function brvtal_admin_authentication_state(): string
 {
     brvtal_admin_session_start();
 
     $adminId = (int)($_SESSION['admin_id'] ?? 0);
     if ($adminId < 1) {
-        return false;
+        return BRVTAL_ADMIN_UNAUTHENTICATED;
     }
 
     $now = time();
@@ -147,7 +158,7 @@ function brvtal_admin_is_authenticated(): bool
     if (($last && ($now - $last) > BRVTAL_ADMIN_IDLE_TIMEOUT)
         || ($issued && ($now - $issued) > BRVTAL_ADMIN_ABSOLUTE_TIMEOUT)) {
         brvtal_admin_logout();
-        return false;
+        return BRVTAL_ADMIN_UNAUTHENTICATED;
     }
 
     try {
@@ -157,7 +168,7 @@ function brvtal_admin_is_authenticated(): bool
             'admin_id' => $adminId,
             'class' => $e::class,
         ]);
-        return false;
+        return BRVTAL_ADMIN_AUTH_UNAVAILABLE;
     }
 
     $sessionEpoch = (int)($_SESSION['credential_epoch'] ?? 0);
@@ -167,24 +178,32 @@ function brvtal_admin_is_authenticated(): bool
             'admin_id' => $adminId,
         ]);
         brvtal_admin_logout();
-        return false;
+        return BRVTAL_ADMIN_UNAUTHENTICATED;
     }
 
-    return true;
+    return BRVTAL_ADMIN_AUTHENTICATED;
+}
+
+function brvtal_admin_is_authenticated(): bool
+{
+    return brvtal_admin_authentication_state() === BRVTAL_ADMIN_AUTHENTICATED;
 }
 
 function brvtal_admin_require(): void
 {
-    if (!brvtal_admin_is_authenticated()) {
-        http_response_code(401);
+    $authState = brvtal_admin_authentication_state();
+    if ($authState !== BRVTAL_ADMIN_AUTHENTICATED) {
+        $unavailable = $authState === BRVTAL_ADMIN_AUTH_UNAVAILABLE;
+        http_response_code($unavailable ? 503 : 401);
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
         header('Pragma: no-cache');
         header('X-Content-Type-Options: nosniff');
 
+        brvtal_admin_release_session();
         echo json_encode([
             'ok' => false,
-            'error' => 'AUTH_REQUIRED',
+            'error' => $unavailable ? 'AUTH_REVALIDATION_UNAVAILABLE' : 'AUTH_REQUIRED',
         ]);
         exit;
     }

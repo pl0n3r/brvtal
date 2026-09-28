@@ -198,6 +198,66 @@ test('concurrent admin GET 401 responses share one forced auth revalidation', as
   });
 });
 
+test('admin revalidation 503 stays fail-closed without expiring a valid session', async ({page}) => {
+  await setSameOriginContent(page);
+  await page.evaluate(() => {
+    window.state={authed:true};
+    window.csrf='current-csrf';
+    document.body.innerHTML='<div id="modal" class="open"></div>';
+    window.__targetRequests=0;
+    window.__authRequests=0;
+    window.closeModal=()=>document.getElementById('modal')?.classList.remove('open');
+    window.render=()=>{};
+    window.fetch=async (input) => {
+      const url=String(typeof input==='string'?input:input?.url||'');
+      if(url==='/api/index.php/auth'){
+        window.__authRequests+=1;
+        return new Response(JSON.stringify({ok:false,error:'AUTH_REVALIDATION_UNAVAILABLE'}),{
+          status:503,headers:{'Content-Type':'application/json'}
+        });
+      }
+      if(url==='/api/index.php/settings?key=home.hero.slider'){
+        window.__targetRequests+=1;
+        return new Response(JSON.stringify({ok:false,error:'AUTH_REVALIDATION_UNAVAILABLE'}),{
+          status:503,headers:{'Content-Type':'application/json'}
+        });
+      }
+      return new Response('{}',{status:404});
+    };
+  });
+  await page.evaluate(source => window.eval(source),authBoundaryJs);
+
+  const result=await page.evaluate(async () => {
+    const response=await window.fetch('/api/index.php/settings?key=home.hero.slider',{
+      method:'GET',credentials:'same-origin',cache:'no-store'
+    });
+    return {
+      status:response.status,
+      targetRequests:window.__targetRequests,
+      authRequests:window.__authRequests,
+      authed:window.state.authed,
+      csrf:window.csrf,
+      modalOpen:document.getElementById('modal')?.classList.contains('open') === true,
+      diagnostics:window.BRVTALAdminAuthBoundary.diagnostics(),
+    };
+  });
+
+  expect(result).toMatchObject({
+    status:503,
+    targetRequests:1,
+    authRequests:0,
+    authed:true,
+    csrf:'current-csrf',
+    modalOpen:true,
+    diagnostics:{
+      revalidationCount:0,
+      revalidationAttempted:0,
+      revalidationSucceeded:0,
+      revalidationFailed:0
+    }
+  });
+});
+
 test('admin mutation 401 is never revalidated or retried', async ({page}) => {
   await setSameOriginContent(page);
   await page.evaluate(() => {

@@ -42,7 +42,7 @@ const evidence = {
   deploymentProbeErrors: [],
   deploymentProbeFallbacks: [],
   observedDeploymentProbe: null,
-  authentication: { totp: false },
+  authentication: { totp: false, http401: [], failureSnapshot: null },
   checks: {
     health: null,
     home: null,
@@ -241,6 +241,7 @@ async function navigate(page, section) {
 }
 
 let browser = null;
+let page = null;
 const wholeSmokeTimer = setTimeout(() => {
   evidence.status = 'failed';
   evidence.error = `Whole production smoke timed out after ${wholeSmokeTimeoutMs} ms.`;
@@ -319,14 +320,23 @@ try {
     await route.abort('blockedbyclient');
   });
 
-  const page = await context.newPage();
+  page = await context.newPage();
   page.setDefaultTimeout(operationTimeoutMs);
   page.setDefaultNavigationTimeout(Math.max(operationTimeoutMs, 20_000));
   const serverErrors = [];
   page.on('response', response => {
+    const url = new URL(response.url());
+    if (url.origin !== baseUrl) return;
+    if (response.status() === 401) {
+      evidence.authentication.http401.push({
+        path: url.pathname,
+        stage: evidence.execution.stage,
+        operation: evidence.execution.operation || null
+      });
+      writeEvidence();
+    }
     if (response.status() >= 500) {
-      const url = new URL(response.url());
-      if (url.origin === baseUrl) serverErrors.push({ path: url.pathname, status: response.status() });
+      serverErrors.push({ path: url.pathname, status: response.status() });
     }
   });
   markStage('dashboard');
@@ -687,6 +697,20 @@ try {
   evidence.error = String(error?.message || error);
   evidence.execution.failureStage ||= evidence.execution.stage;
   evidence.execution.failureOperation ||= evidence.execution.operation;
+  if (page && !page.isClosed()) {
+    try {
+      evidence.authentication.failureSnapshot = await page.evaluate(() => ({
+        stateAuthed: typeof window.state === 'object' ? window.state?.authed === true : null,
+        section: String(window.state?.section || ''),
+        modalOpen: Boolean(document.getElementById('modal')?.classList.contains('open')),
+        authRequired: document.documentElement.dataset.brvtalAuthRequired || null,
+        authDiagnostics: window.BRVTALAdminAuthBoundary?.diagnostics?.() || null,
+        navigation: window.BRVTALAdminIA?.navigationDiagnostics?.() || null
+      }));
+    } catch (_) {
+      evidence.authentication.failureSnapshot = { available:false };
+    }
+  }
   writeEvidence();
   throw error;
 } finally {
