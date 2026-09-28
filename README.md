@@ -33,7 +33,7 @@
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 preflight · coordination · fast · database · chromium · real-stack · webkit |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Factory | 🚧 Factory CI · Policy · Privacy · Labels · **PR + snapshot exacto** |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
 | Main | 🚧 **CI del SHA exacto de main** · Production Deploy Observer · Authenticated Production Smoke |
