@@ -560,14 +560,15 @@
         fetchData(ENDPOINTS.preferences)
       ]);
       rendered = render(results,serial);
-      if (rendered) recordMountDiagnostic('mounted','',serial);
-      else if (serial !== mountSerial) recordMountDiagnostic('failed','serial-invalidated',serial);
-      else if (window.state?.section !== 'dashboard') recordMountDiagnostic('failed','section-changed-before-render',serial);
-      else if (!window.state?.authed) recordMountDiagnostic('failed','auth-changed-before-render',serial);
-      else recordMountDiagnostic('failed','render-rejected',serial);
     } finally {
       if (!rendered && serial === mountSerial && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
-      if (serial === mountSerial) mounting = false;
+      if (serial === mountSerial) {
+        mounting = false;
+        if (rendered) recordMountDiagnostic('mounted','',serial);
+        else if (window.state?.section !== 'dashboard') recordMountDiagnostic('failed','section-changed-before-render',serial);
+        else if (!window.state?.authed) recordMountDiagnostic('failed','auth-changed-before-render',serial);
+        else recordMountDiagnostic('failed','render-rejected',serial);
+      }
     }
     return rendered;
   }

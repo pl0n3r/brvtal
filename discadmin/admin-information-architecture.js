@@ -486,6 +486,8 @@
     if (!applyingRoute) initialRouteApplied = true;
 
     let result;
+    let navigationToken = null;
+    let dashboardRouteProvisional = false;
     try {
       if (section === 'events') {
         const applied = await loadContentCoreContext();
@@ -499,13 +501,18 @@
         }
       } else {
         const token = ++routeToken;
+        navigationToken = token;
         window.BRVTALAdminModules?.cancel?.();
-        if (dynamicModuleSections.has(section) || section === 'dashboard') syncRouteUrl(section, 'push', true);
+        if (dynamicModuleSections.has(section)) syncRouteUrl(section, 'push', true);
+        if (section === 'dashboard') {
+          syncRouteUrl(section, 'replace', true);
+          dashboardRouteProvisional = true;
+        }
         const applied = await invokeOriginalGo(section, token);
         if (applied === false) {
           cancelWorkspaceNavigation(navigationOperation);
-          recordNavigationDiagnostic('failed', 'original-go-false', section, previousWorkspace.section);
           if (token === routeToken) await restoreWorkspaceSnapshot(previousWorkspace, token);
+          recordNavigationDiagnostic('failed', 'original-go-false', section, previousWorkspace.section);
           return false;
         }
         if (!applied || token !== routeToken) {
@@ -517,6 +524,10 @@
       }
     } catch (error) {
       cancelWorkspaceNavigation(navigationOperation);
+      if (section === 'dashboard' && navigationToken === routeToken) {
+        await restoreWorkspaceSnapshot(previousWorkspace, navigationToken);
+        recordNavigationDiagnostic('failed', 'original-go-rejected', section, previousWorkspace.section);
+      }
       throw error;
     }
     const committed = commitWorkspaceNavigation(section,navigationOperation);
@@ -530,6 +541,17 @@
       return false;
     }
     retireLegacyEditor();
+    if (dashboardRouteProvisional) {
+      const previousUrl = previousWorkspace.url;
+      const currentUrl = `${location.pathname}${location.search}${location.hash}`;
+      if (currentUrl !== previousUrl) {
+        history.replaceState(
+          {brvtalAdminRoute:canonicalRouteSection(previousWorkspace.section)},
+          '',
+          previousUrl
+        );
+      }
+    }
     syncRouteUrl(section);
     rebuildNavigation();
     recordNavigationDiagnostic('committed', '', section, previousWorkspace.section);

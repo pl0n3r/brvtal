@@ -282,6 +282,25 @@ test('successful Dashboard navigation resolves only after canonical active nav i
   });
 });
 
+test('successful Dashboard navigation preserves Hero as the previous browser history entry', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  await page.evaluate(() => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+
+  expect(await page.evaluate(() => window.go('dashboard'))).toBe(true);
+  expect(new URL(page.url()).searchParams.get('module')).toBe(null);
+
+  await page.goBack();
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('module')).toBe('hero-slider');
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('hero-slider');
+});
+
 test('Dashboard precommits its canonical URL while the async mount is pending', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
@@ -323,6 +342,7 @@ test('failed current Dashboard mount restores the previous Hero workspace', asyn
     window.BRVTALAdminIA.rebuildNavigation();
     window.__dashboardMount = async () => false;
 
+    const historyLengthBefore = history.length;
     const committed = await window.go('dashboard');
     const banners = [...document.querySelectorAll('.side .nav > button')]
       .find(button => button.textContent.trim() === 'BANNERS');
@@ -332,14 +352,62 @@ test('failed current Dashboard mount restores the previous Hero workspace', asyn
       section:window.state.section,
       bannersActive:Boolean(banners?.classList.contains('active')),
       route:new URL(location.href).searchParams.get('module'),
+      historyDelta:history.length-historyLengthBefore,
+      diagnostic:window.BRVTALAdminIA.navigationDiagnostics()
     };
   });
 
-  expect(result).toEqual({
+  expect(result).toMatchObject({
     committed:false,
     section:'hero-slider',
     bannersActive:true,
     route:'hero-slider',
+    historyDelta:0,
+    diagnostic:{
+      status:'failed',
+      reason:'original-go-false',
+      currentSection:'hero-slider',
+      route:'hero-slider'
+    }
+  });
+});
+
+test('rejected Dashboard mount restores Hero without duplicating browser history', async ({ page }) => {
+  await serveHarness(page);
+  await page.goto(harnessUrl);
+
+  const result = await page.evaluate(async () => {
+    window.__renderShell('hero-slider');
+    history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
+    window.BRVTALAdminIA.rebuildNavigation();
+    window.__dashboardMount = async () => { throw new Error('DASHBOARD_MOUNT_FAILED'); };
+
+    const historyLengthBefore = history.length;
+    const message = await window.go('dashboard').then(
+      () => '',
+      error => String(error?.message || error)
+    );
+
+    return {
+      message,
+      section:window.state.section,
+      route:new URL(location.href).searchParams.get('module'),
+      historyDelta:history.length-historyLengthBefore,
+      diagnostic:window.BRVTALAdminIA.navigationDiagnostics()
+    };
+  });
+
+  expect(result).toMatchObject({
+    message:'DASHBOARD_MOUNT_FAILED',
+    section:'hero-slider',
+    route:'hero-slider',
+    historyDelta:0,
+    diagnostic:{
+      status:'failed',
+      reason:'original-go-rejected',
+      currentSection:'hero-slider',
+      route:'hero-slider'
+    }
   });
 });
 

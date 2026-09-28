@@ -654,9 +654,11 @@ try {
       evidence.checks.heroDashboardTransitions.push({attempt,...dashboardTransition});
       writeEvidence();
       if (dashboardTransition.result !== true) {
-        const reason = dashboardTransition.after?.navigation?.reason
-          || dashboardTransition.after?.dashboard?.reason
-          || 'unknown';
+        const navigationReason = dashboardTransition.after?.navigation?.reason || '';
+        const dashboardReason = dashboardTransition.after?.dashboard?.reason || '';
+        const reason = navigationReason === 'original-go-false'
+          ? (dashboardReason || navigationReason)
+          : (navigationReason || dashboardReason || 'unknown');
         throw new Error(
           `#125 Dashboard transition ${attempt} did not commit (result=${String(dashboardTransition.result)}, reason=${reason}).`
         );
