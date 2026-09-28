@@ -27,7 +27,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+195** | **−51** | **+144** |
+| **8** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -54,6 +54,7 @@
 - `package.json` — versión del paquete alineada con v0.1.81.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión de URL canónica durante mount Dashboard pendiente.
 - `tests/e2e/production-authenticated-smoke.mjs` — evidencia de transición Dashboard antes/después y motivo seguro de fallo.
+- `tests/production-smoke-contract.php` — contrato ejecutable de transición awaited y diagnósticos seguros de #125.
 
 ## Validación
 - v0.1.80 ya demuestra health 200, DB connected, versión/SHA exactos y Hero 1/2 sin 401 ni revalidación.
