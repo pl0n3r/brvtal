@@ -6,7 +6,7 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el candidato actual** para #729: hacer que Hero → Dashboard comprometa workspace y navegación visible antes de resolver.
+> Snapshot de **solo el deploy actual** para #729: v0.1.80 hace que Hero → Dashboard comprometa workspace y navegación visible antes de resolver.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
@@ -29,7 +29,16 @@
 | ---: | ---: | ---: | ---: |
 | **8** | **+89** | **−69** | **+20** |
 
-## Qué corrige v0.1.80
+## Calidad y entrega
+<!-- brvtal:gate-plan -->
+| Control | Estado / contrato |
+| --- | --- |
+| Gates | 🚧 preflight · coordination · fast · database · chromium · real-stack · webkit |
+| Factory | 🚧 Factory CI · Policy · Privacy · Labels |
+| Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
+| Main | 🚧 exact-main CI · Production Deploy Observer · Authenticated Production Smoke |
+
+## Qué se hizo
 - `go('dashboard')` propaga `BRVTALDashboardV2.mount() === false` en vez de convertir un mount fallido en navegación exitosa.
 - Un mount exitoso devuelve `true` explícitamente.
 - Admin Information Architecture sincroniza la navegación canónica antes de resolver una navegación exitosa.
@@ -45,6 +54,12 @@
 - `tests/dashboard-v2-contract.php` — contrato ejecutable de éxito/fallo del mount.
 - `tests/e2e/discadmin-information-architecture.spec.mjs` — regresión Hero → Dashboard con active nav sincronizado.
 - `tests/test_hero_auth_race.py` — acceptance contract incluye la nueva regresión de commit visual.
+
+## Validación
+- Regresión browser: Hero → Dashboard solo resuelve cuando Dashboard ya es la sección y navegación activas.
+- Contrato PHP: un `mount() === false` se propaga como navegación fallida; no existe falso positivo.
+- Auth single-flight, mutaciones 401 fail-closed y tres ciclos reales de #125 permanecen obligatorios.
+- v0.1.79 sirve como evidencia negativa reproducible; v0.1.80 debe superar exactamente el mismo smoke.
 
 ## Evidencia base
 - PR #730 fue integrado y desplegado en `main@873ed41e0400f80880ac1ebdf25242438c869745`.
@@ -71,3 +86,8 @@ flowchart LR
 | **NEXT** | 🚧 Exact-main CI + Production Deploy Observer. |
 | **LATER** | 🚧 Authenticated Production Smoke fresco: tres ciclos Dashboard ↔ Hero. |
 | **BLOCKED / EXTERNAL** | Ninguno conocido. #729 solo se cierra con AC-07 verde. |
+
+## Panorama general pendiente
+- 🚧 **NOW**: #729 / PR #731, cerrar gates exact-head de v0.1.80.
+- 🚧 **NEXT**: merge serializado, exact-main CI y Production Deploy Observer.
+- 🚧 **LATER**: Authenticated Production Smoke fresco con tres ciclos Dashboard ↔ Hero; solo entonces cerrar #729.
