@@ -15,7 +15,7 @@
 ## Estado del deploy
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#683 · ControlBot staff API D-060** | `work/issue-683` · reserva `94105e4d-e613-4284-86f9-bcf6b6f562e1` |
+| Work line | 🚧 **#683 · ControlBot staff API D-060** | `work/issue-683` · reserva `8e52ea9b-4a5e-40f4-ad5b-36d88b6781d2` |
 | Base | ✅ **main** | `01840c5dbba13f4ddda5c764a35dd818cc5e5243` · v0.1.81 |
 | Producción base | ✅ **exacta** | observer `36366671718` · exact-main `01840c5d…` |
 | Versión candidato | 🚧 **v0.1.82** | deploy-bound por endpoint + migración aditiva |
@@ -26,13 +26,13 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **17** | **+1046** | **−53** | **+993** |
+| **18** | **+1277** | **−70** | **+1207** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP] · database · chromium · real-stack · webkit** |
+| Gates | 🚧 **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
 | Acceptance | 🚧 **AC-01 HMAC/staff-only · AC-02 audit/idempotency · AC-03 disabled=404/secret-free** |
 | Factory | 🚧 Factory CI · Policy · Privacy · Labels |
 | Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
@@ -50,6 +50,7 @@
 
 ## Archivos modificados en este deploy
 - `README.md` — snapshot exacto de #683 / PR #733.
+- `config/admin_password_security.php` — emisión de reset controlada para invitaciones fallidas e inactivas.
 - `config/admin_staff_ops.php` — autenticación, canonicalización, replay/rate/idempotencia, autorización y auditoría.
 - `config/migration_reconcile.php` — proof explícita de `staff_role` para reconciliación segura.
 - `config/version.php` — v0.1.82.
@@ -89,7 +90,7 @@ flowchart LR
 | **NOW** | 🚧 PR #733: cerrar acceptance + CI + seguridad/review sobre un head estable. |
 | **NEXT** | 🚧 Merge serializado y exact-main CI. |
 | **LATER** | 🚧 Migración/observer/smoke de v0.1.82 sin secretos reales en pruebas. |
-| **BLOCKED / EXTERNAL** | 🚧 #734 bloquea go-live/procesamiento real de staff hasta decisión legal; claves/allowlist siguen fuera del repositorio. |
+| **BLOCKED / EXTERNAL** | 🚧 [#734](https://github.com/pl0n3r/brvtal/issues/734) bloquea go-live/procesamiento real de staff hasta decisión legal; claves/allowlist siguen fuera del repositorio. |
 
 ## Panorama general pendiente
 - 🚧 **NOW**: #683 / PR #733, validar el boundary D-060.
