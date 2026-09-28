@@ -25,7 +25,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **4** | **+145** | **−176** | **-31** |
+| **6** | **+0** | **−0** | **+0** |
 
 ## Calidad y entrega
 <!-- brvtal:gate-plan -->
@@ -48,12 +48,15 @@
 ## Archivos modificados en este deploy
 - `.github/workflows/production-deploy-observer.yml` — caller mínimo del observer Factory v1.
 - `README.md` — snapshot exacto de #689 / PR #738.
+- `docs/factory-adoption.json` — observer registrado como consumido; validación exact-main queda pendiente.
 - `tests/ci-scope-contract.php` — contrato global actualizado al observer reusable.
+- `tests/factory-adoption-contract.php` — estado de adopción alineado con Factory push parity.
 - `tests/test_factory_observer_adoption.py` — AC-01..AC-04 ejecutables.
 
 ## Validación
 - Base de implementación: `main@f936dc5869dedef75b9c9c82008a7467a907acbc`.
 - Factory v1 valida contexto confiable antes del checkout y conserva versión/SHA exactos.
+- `factory-adoption.json` ya no declara un blocker externo; mantiene #689 pendiente solo de la observación exact-main post-merge.
 - Sonar y CodeQL se validan sobre el HEAD estable del PR.
 - La prueba decisiva ocurre tras merge: el push exacto de `main` debe ejecutar el reusable y observar producción sin crear un incidente.
 

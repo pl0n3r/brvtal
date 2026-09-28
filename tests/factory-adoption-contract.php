@@ -59,6 +59,10 @@ $expectedConsumers = [
         'workflow' => '.github/workflows/work-coordination.yml',
         'reusable' => 'pl0n3r/factory/.github/workflows/coordinacion.yml@v1',
     ],
+    'observer' => [
+        'workflow' => '.github/workflows/production-deploy-observer.yml',
+        'reusable' => 'pl0n3r/factory/.github/workflows/observar.yml@v1',
+    ],
 ];
 factory_adoption_expect(($status['consumed'] ?? null) === $expectedConsumers, 'consumed Factory v1 capabilities drifted');
 foreach ($expectedConsumers as $consumer) {
@@ -72,23 +76,26 @@ foreach ($expectedConsumers as $consumer) {
 $blockers = $status['external_blockers'] ?? null;
 factory_adoption_expect(is_array($blockers) && array_is_list($blockers), 'external_blockers must be a list');
 factory_adoption_expect(
-    $blockers === [[
-        'issue' => 689,
-        'code' => 'observer-push-trigger-parity',
-        'requires' => ['factory-observer-push-main'],
-    ]],
-    'only the unresolved Factory observer blocker may remain declared'
+    $blockers === [],
+    '#689 must clear the obsolete external observer blocker once Factory push parity is consumed'
 );
 
 $observer = (string) file_get_contents($root . '/.github/workflows/production-deploy-observer.yml');
 factory_adoption_expect(str_contains($observer, "  push:\n    branches: [main]"), '#689 requires preserving the immediate push-to-main observer');
 factory_adoption_expect(
-    !str_contains($observer, 'pl0n3r/factory/.github/workflows/observar.yml@v1'),
-    '#689 must not be falsely marked adopted while Factory observer rejects push'
+    str_contains($observer, 'pl0n3r/factory/.github/workflows/observar.yml@v1'),
+    '#689 must consume Factory v1 observer after central push parity is available'
 );
 
 $pending = $status['pending_adoptions'] ?? null;
-factory_adoption_expect($pending === [], '#692 must clear the mandatory coordination pending-adoption entry');
+factory_adoption_expect(
+    $pending === [[
+        'issue' => 689,
+        'code' => 'observer-exact-main-validation',
+        'required_for_epic_close' => true,
+    ]],
+    '#689 must remain pending only for exact-main production observation before epic closure'
+);
 
 $coordination = (string) file_get_contents($root . '/.github/workflows/work-coordination.yml');
 factory_adoption_expect(
