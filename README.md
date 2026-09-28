@@ -20,14 +20,14 @@
 | Producción base | ✅ **exacta** | v0.1.79 · observer `36360732198` · health 200 · DB connected |
 | Smoke base | ❌ **AC-07 falla** | `36360780996` · Hero intento 1 PASS; Hero → Dashboard no deja nav activo |
 | Versión candidato | 🚧 **v0.1.80** | patch deploy-bound |
-| PR | 🚧 **pending** | se abre tras fijar diff exacto |
+| PR | 🚧 **#731 en revisión** | `work/issue-729` → `main` |
 | Producción candidato | 🚧 **pending** | observer + authenticated smoke exactos |
 
 ## Huella del cambio
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **8** | **pending** | **pending** | **pending** |
+| **8** | **+89** | **−69** | **+20** |
 
 ## Qué corrige v0.1.80
 - `go('dashboard')` propaga `BRVTALDashboardV2.mount() === false` en vez de convertir un mount fallido en navegación exitosa.
