@@ -13,6 +13,140 @@ async function setSameOriginContent(page) {
   await page.goto('/discadmin');
 }
 
+
+test('admin GET bursts are bounded to two in-flight requests', async ({page}) => {
+  await setSameOriginContent(page);
+  await page.evaluate(() => {
+    window.state={authed:true};
+    window.csrf='csrf';
+    window.__activeReads=0;
+    window.__maxReads=0;
+    window.fetch=async input => {
+      const url=String(typeof input==='string'?input:input?.url||'');
+      if(url.startsWith('/api/index.php/settings?key=burst-')){
+        window.__activeReads+=1;
+        window.__maxReads=Math.max(window.__maxReads,window.__activeReads);
+        await new Promise(resolve=>setTimeout(resolve,30));
+        window.__activeReads-=1;
+        return new Response(JSON.stringify({ok:true,data:[]}),{
+          status:200,headers:{'Content-Type':'application/json'}
+        });
+      }
+      return new Response('{}',{status:200,headers:{'Content-Type':'application/json'}});
+    };
+  });
+  await page.evaluate(source => window.eval(source),authBoundaryJs);
+
+  const result=await page.evaluate(async () => {
+    const responses=await Promise.all(
+      Array.from({length:6},(_,index)=>window.fetch(
+        '/api/index.php/settings?key=burst-'+index,
+        {method:'GET',credentials:'same-origin',cache:'no-store'}
+      ))
+    );
+    return {
+      statuses:responses.map(response=>response.status),
+      maxReads:window.__maxReads,
+      diagnostics:window.BRVTALAdminAuthBoundary.diagnostics()
+    };
+  });
+
+  expect(result.statuses).toEqual([200,200,200,200,200,200]);
+  expect(result.maxReads).toBe(2);
+  expect(result.diagnostics).toMatchObject({
+    adminGetActive:0,
+    adminGetQueued:0,
+    adminGetLimit:2
+  });
+});
+
+test('auth and mutations bypass a saturated admin GET queue', async ({page}) => {
+  await setSameOriginContent(page);
+  await page.evaluate(() => {
+    window.state={authed:true};
+    window.csrf='csrf';
+    window.__activeReads=0;
+    window.__maxReads=0;
+    window.__authRequests=0;
+    window.__mutationRequests=0;
+    window.__releaseReads=null;
+    window.__readBarrier=new Promise(resolve=>{ window.__releaseReads=resolve; });
+    window.fetch=async (input,init={}) => {
+      const url=String(typeof input==='string'?input:input?.url||'');
+      const method=String(init?.method||'GET').toUpperCase();
+      if(url.startsWith('/api/index.php/settings?key=hold-') && method==='GET'){
+        window.__activeReads+=1;
+        window.__maxReads=Math.max(window.__maxReads,window.__activeReads);
+        await window.__readBarrier;
+        window.__activeReads-=1;
+        return new Response(JSON.stringify({ok:true,data:[]}),{
+          status:200,headers:{'Content-Type':'application/json'}
+        });
+      }
+      if(url==='/api/index.php/auth'){
+        window.__authRequests+=1;
+        return new Response(JSON.stringify({ok:true,authenticated:true,csrf:'fresh'}),{
+          status:200,headers:{'Content-Type':'application/json'}
+        });
+      }
+      if(url==='/api/index.php/settings' && method==='POST'){
+        window.__mutationRequests+=1;
+        return new Response(JSON.stringify({ok:true}),{
+          status:200,headers:{'Content-Type':'application/json'}
+        });
+      }
+      return new Response('{}',{status:404});
+    };
+  });
+  await page.evaluate(source => window.eval(source),authBoundaryJs);
+
+  const result=await page.evaluate(async () => {
+    const reads=[
+      window.fetch('/api/index.php/settings?key=hold-1',{method:'GET',credentials:'same-origin'}),
+      window.fetch('/api/index.php/settings?key=hold-2',{method:'GET',credentials:'same-origin'}),
+      window.fetch('/api/index.php/settings?key=hold-3',{method:'GET',credentials:'same-origin'})
+    ];
+    while(window.__activeReads<2) await new Promise(resolve=>setTimeout(resolve,0));
+
+    const timeout=new Promise(resolve=>setTimeout(()=>resolve('timeout'),500));
+    const authResult=await Promise.race([
+      window.BRVTALAdminAuthBoundary.auth({force:true}).then(()=> 'ok'),
+      timeout
+    ]);
+    const mutationResult=await Promise.race([
+      window.fetch('/api/index.php/settings',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:'{}',
+        credentials:'same-origin'
+      }).then(response=>response.status),
+      new Promise(resolve=>setTimeout(()=>resolve('timeout'),500))
+    ]);
+    const during=window.BRVTALAdminAuthBoundary.diagnostics();
+    window.__releaseReads();
+    await Promise.all(reads);
+    return {
+      authResult,
+      mutationResult,
+      authRequests:window.__authRequests,
+      mutationRequests:window.__mutationRequests,
+      maxReads:window.__maxReads,
+      during,
+      after:window.BRVTALAdminAuthBoundary.diagnostics()
+    };
+  });
+
+  expect(result).toMatchObject({
+    authResult:'ok',
+    mutationResult:200,
+    authRequests:1,
+    mutationRequests:1,
+    maxReads:2,
+    during:{adminGetActive:2,adminGetQueued:1,adminGetLimit:2},
+    after:{adminGetActive:0,adminGetQueued:0,adminGetLimit:2}
+  });
+});
+
 test('shared admin auth memoizes concurrent auth/CSRF reads into one request', async ({page}) => {
   await page.setContent('<!doctype html><html><body></body></html>');
   await page.evaluate(() => {
