@@ -305,7 +305,7 @@ test('Dashboard precommits its canonical URL while the async mount is pending', 
   await serveHarness(page);
   await page.goto(harnessUrl);
 
-  const pending = page.evaluate(async () => {
+  const pending = await page.evaluate(async () => {
     window.__renderShell('hero-slider');
     history.replaceState({brvtalAdminRoute:'hero-slider'}, '', '?module=hero-slider');
     window.BRVTALAdminIA.rebuildNavigation();
