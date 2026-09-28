@@ -35,8 +35,8 @@ factory_adoption_expect(
 );
 factory_adoption_expect(($status['version'] ?? null) === 1, 'adoption schema version must remain 1');
 factory_adoption_expect(($status['epic_issue'] ?? null) === 630, 'adoption status must belong to epic #630');
-factory_adoption_expect(($status['production_green'] ?? null) === false, 'production cannot be claimed GREEN while declared blockers remain');
-factory_adoption_expect(($status['epic_close_allowed'] ?? null) === false, 'epic cannot close while blockers remain');
+factory_adoption_expect(($status['production_green'] ?? null) === true, 'completed Factory adoption requires production GREEN');
+factory_adoption_expect(($status['epic_close_allowed'] ?? null) === true, 'completed Factory adoption must allow epic closure');
 
 $expectedConsumers = [
     'ci' => [
@@ -75,10 +75,7 @@ foreach ($expectedConsumers as $consumer) {
 
 $blockers = $status['external_blockers'] ?? null;
 factory_adoption_expect(is_array($blockers) && array_is_list($blockers), 'external_blockers must be a list');
-factory_adoption_expect(
-    $blockers === [],
-    '#689 must clear the obsolete external observer blocker once Factory push parity is consumed'
-);
+factory_adoption_expect($blockers === [], 'completed Factory adoption cannot keep external blockers');
 
 $observer = (string) file_get_contents($root . '/.github/workflows/production-deploy-observer.yml');
 factory_adoption_expect(str_contains($observer, "  push:\n    branches: [main]"), '#689 requires preserving the immediate push-to-main observer');
@@ -88,14 +85,8 @@ factory_adoption_expect(
 );
 
 $pending = $status['pending_adoptions'] ?? null;
-factory_adoption_expect(
-    $pending === [[
-        'issue' => 689,
-        'code' => 'observer-exact-main-validation',
-        'required_for_epic_close' => true,
-    ]],
-    '#689 must remain pending only for exact-main production observation before epic closure'
-);
+factory_adoption_expect(is_array($pending) && array_is_list($pending), 'pending_adoptions must be a list');
+factory_adoption_expect($pending === [], 'completed Factory adoption cannot keep mandatory pending work');
 
 $coordination = (string) file_get_contents($root . '/.github/workflows/work-coordination.yml');
 factory_adoption_expect(
@@ -111,13 +102,9 @@ factory_adoption_expect(
     '#692 must remove the legacy local-coordinator behavior suite'
 );
 
-$hasMandatoryPending = array_filter(
-    $pending,
-    static fn(array $item): bool => ($item['required_for_epic_close'] ?? false) === true
-) !== [];
-if ($blockers !== [] || $hasMandatoryPending) {
-    factory_adoption_expect($status['production_green'] === false, 'GREEN must fail closed while blockers/pending adoption exist');
-    factory_adoption_expect($status['epic_close_allowed'] === false, 'epic close must fail closed while blockers/pending adoption exist');
-}
+factory_adoption_expect(
+    $status['epic_close_allowed'] === ($status['production_green'] === true && $blockers === [] && $pending === []),
+    'epic close must stay derived from GREEN plus zero blockers/pending adoption'
+);
 
 echo "Factory adoption status contract passed.\n";
