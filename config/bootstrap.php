@@ -80,7 +80,11 @@ function db(): PDO {
         ]);
         return $pdo;
     } catch (Throwable $e) {
-        brvtal_log('DB_ERROR', 'Database connection failed.', ['message' => $e->getMessage()]);
+        brvtal_log('DB_ERROR', 'Database connection failed.', [
+            'class' => $e::class,
+            'phase' => 'connect',
+            'code' => 'DB_CONNECT_UNAVAILABLE',
+        ]);
         throw $e;
     }
 }
