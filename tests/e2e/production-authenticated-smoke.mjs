@@ -86,6 +86,7 @@ function markStage(stage) {
 // BEGIN_SERVER_ERROR_DIAGNOSTICS
 const SERVER_ERROR_SAFE_FIELDS = new Map([
   ['error', 'errorCode'],
+  ['code', 'code'],
   ['status', 'payloadStatus'],
   ['database', 'database']
 ]);
@@ -109,12 +110,17 @@ function isJsonContentType(contentType) {
 }
 
 function classifyServerError(path, safePayload) {
-  if (safePayload.errorCode === 'AUTH_REVALIDATION_UNAVAILABLE') {
+  const errorCode = safePayload.errorCode || safePayload.code || '';
+  if (errorCode === 'AUTH_REVALIDATION_UNAVAILABLE') {
     return 'auth-revalidation';
   }
   if (
-    (path === '/api/index.php/health' || path === '/api/health.php')
-    && (safePayload.database === 'error' || safePayload.payloadStatus === 'degraded')
+    safePayload.database === 'error'
+    || ['DB_UNAVAILABLE', 'DATABASE_UNAVAILABLE', 'HEALTH_UNAVAILABLE'].includes(errorCode)
+    || (
+      (path === '/api/index.php/health' || path === '/api/health.php')
+      && safePayload.payloadStatus === 'degraded'
+    )
   ) {
     return 'db-health';
   }
