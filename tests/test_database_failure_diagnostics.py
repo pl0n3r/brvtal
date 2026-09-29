@@ -66,7 +66,8 @@ class DatabaseFailureDiagnosticsTests(unittest.TestCase):
         self.assertIn('BRVTAL_EXPECTED_SHA=$(git rev-parse HEAD)', self.workflow)
         self.assertIn("if (response.status() >= 500)", self.smoke)
         self.assertIn("Authenticated DISCADMIN emitted HTTP 5xx", self.smoke)
-        self.assertIn("code: sanitizeDiagnosticValue(payload.code)", self.smoke)
+        self.assertIn("['code', 'code']", self.smoke)
+        self.assertIn("sanitizeServerErrorToken(payload[sourceField])", self.smoke)
 
 
 if __name__ == "__main__":
