@@ -82,6 +82,31 @@ function markStage(stage) {
   writeEvidence();
 }
 
+const SERVER_ERROR_SAFE_FIELDS = ['error', 'status', 'database'];
+
+function sanitizeServerErrorPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
+  const safe = {};
+  for (const field of SERVER_ERROR_SAFE_FIELDS) {
+    const value = payload[field];
+    if (typeof value === 'string' && value.trim()) {
+      safe[field] = value.trim().slice(0, 96);
+    }
+  }
+  return safe;
+}
+
+function classifyServerError(path, safePayload) {
+  if (safePayload.error === 'AUTH_REVALIDATION_UNAVAILABLE') return 'auth-revalidation';
+  if (
+    (path === '/api/index.php/health' || path === '/api/health.php')
+    && (safePayload.database === 'error' || safePayload.status === 'degraded')
+  ) {
+    return 'db-health';
+  }
+  return 'application';
+}
+
 async function runOperation(label, operation, timeoutMs = operationTimeoutMs) {
   evidence.execution.operation = label;
   writeEvidence();
@@ -324,6 +349,7 @@ try {
   page.setDefaultTimeout(operationTimeoutMs);
   page.setDefaultNavigationTimeout(Math.max(operationTimeoutMs, 20_000));
   const serverErrors = [];
+  const serverErrorDiagnostics = [];
   page.on('response', response => {
     const url = new URL(response.url());
     if (url.origin !== baseUrl) return;
@@ -336,7 +362,29 @@ try {
       writeEvidence();
     }
     if (response.status() >= 500) {
-      serverErrors.push({ path: url.pathname, status: response.status() });
+      const item = {
+        path: url.pathname,
+        status: response.status(),
+        stage: evidence.execution.stage,
+        operation: evidence.execution.operation || null,
+        category: 'application'
+      };
+      serverErrors.push(item);
+      const diagnostic = (async () => {
+        try {
+          const contentType = String(response.headers()['content-type'] || '').toLowerCase();
+          if (!contentType.includes('application/json')) return;
+          const payload = await response.json();
+          const safePayload = sanitizeServerErrorPayload(payload);
+          Object.assign(item, safePayload);
+          item.category = classifyServerError(url.pathname, safePayload);
+        } catch (_) {
+          // Evidence remains path/status/category only when the response cannot be decoded safely.
+        } finally {
+          writeEvidence();
+        }
+      })();
+      serverErrorDiagnostics.push(diagnostic);
     }
   });
   markStage('dashboard');
@@ -358,6 +406,7 @@ try {
     state: 'visible',
     timeout: 20_000
   });
+  await Promise.allSettled(serverErrorDiagnostics);
   evidence.checks.dashboardLoad = {
     elapsedMs: Math.round(performance.now() - dashboardStarted),
     visibleHero: true,
@@ -682,8 +731,12 @@ try {
   }
 
   markStage('final-guards');
+  await Promise.allSettled(serverErrorDiagnostics);
   if (serverErrors.length) {
-    throw new Error('Authenticated DISCADMIN emitted HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+    throw new Error(
+      'Authenticated DISCADMIN emitted HTTP 5xx on '
+      + serverErrors.map(item => `${item.path} [${item.category}]`).join(', ')
+    );
   }
   if (evidence.blockedMutations.length) {
     throw new Error(`Read-only guard blocked unexpected production mutations: ${evidence.blockedMutations.join(', ')}`);
