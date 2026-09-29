@@ -49,7 +49,7 @@ admin_session_contract_assert(
     'protected requests must preserve 401 for real auth loss and use 503 for revalidation outages'
 );
 admin_session_contract_assert(
-    str_contains($api, '$authState=brvtal_admin_authentication_state();')
+    str_contains($api, '$authState = brvtal_admin_authentication_state();')
         && str_contains($api, "'AUTH_REVALIDATION_UNAVAILABLE'")
         && str_contains($api, 'brvtal_admin_revalidation_failure_code()'),
     'GET /auth must surface revalidation outages as sanitized 503 diagnostics'

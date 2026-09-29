@@ -24,7 +24,7 @@ class DatabaseFailureDiagnosticsTests(unittest.TestCase):
         return match.group("body")
 
     def _health_block(self):
-        start = self.api.index("    if ($resource==='health') {")
+        start = self.api.index("    if ($resource === 'health') {")
         end = self.api.index("\n\n    if ($resource==='auth') {", start)
         return self.api[start:end]
 
@@ -42,12 +42,12 @@ class DatabaseFailureDiagnosticsTests(unittest.TestCase):
 
     def test_api_health_distinguishes_connect_from_query_failures(self):
         block = self._health_block()
-        self.assertIn("'code'=>'DB_CONNECT_UNAVAILABLE'", block)
-        self.assertIn("'code'=>'DB_QUERY_UNAVAILABLE'", block)
-        self.assertIn("'phase'=>'connect'", block)
-        self.assertIn("'phase'=>'query'", block)
+        self.assertIn("'code' => 'DB_CONNECT_UNAVAILABLE'", block)
+        self.assertIn("'code' => 'DB_QUERY_UNAVAILABLE'", block)
+        self.assertIn("'phase' => 'connect'", block)
+        self.assertIn("'phase' => 'query'", block)
         self.assertNotIn("$e->getMessage()", block)
-        self.assertLess(block.index("$pdo=db();"), block.index("$pdo->query('SELECT 1');"))
+        self.assertLess(block.index("$pdo = db();"), block.index("$pdo->query('SELECT 1');"))
 
     def test_diagnostics_add_no_retry_or_persistent_authority_cache(self):
         auth_body = self._auth_state()
