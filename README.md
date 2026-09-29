@@ -6,78 +6,95 @@
 <a href="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml"><img alt="Deploy Observer" src="https://github.com/pl0n3r/brvtal/actions/workflows/production-deploy-observer.yml/badge.svg?branch=main"></a>
 </p>
 
-> Snapshot de **solo el deploy actual** para [#630](https://github.com/pl0n3r/brvtal/issues/630): cerrar la adopción Factory v1 con estado machine-readable alineado a la evidencia exact-main.
+> Snapshot de **solo el deploy actual** para [#745](https://github.com/pl0n3r/brvtal/issues/745): promover el cambio Dependabot de `actions/setup-node` a una entrega Factory versionada, trazable y con referencia inmutable.
 
 ## Progress convention
 - ✅ ~~Struck through~~ = completed and verified through required gates.
 - 🚧 Normal text = pending/in progress.
 
 ## Estado del deploy
+
 | Señal | Estado | Evidencia |
 | --- | --- | --- |
-| Work line | 🚧 **#630 · Factory v1 adoption closure** | `work/issue-630` · reserva `75d7955f-ee2c-40e1-bf57-d339cf1d7a17` |
-| Base | ✅ ~~**main**~~ | `4317390029f3eb118f55bc97a30f4acf6560e1bb` · v0.1.84 |
-| Versión producto | ✅ ~~**v0.1.84**~~ | cambio repo-only; sin bump |
-| PR + snapshot exacto | 🚧 **candidate** | adoption state + fail-closed contract |
-| Producción actual | ✅ ~~**GREEN**~~ | BRVTAL CI + Observer + Authenticated Smoke success sobre el SHA base |
-| Producción candidato | 🚧 **pending** | merge → exact-main CI + Observer + Authenticated Smoke |
+| Work line | 🚧 **#745 · setup-node v7 promotion** | `work/issue-745` · reserva `6c4f03d3-5812-45b5-b6fe-e5b94c63fae9` |
+| Base | ✅ ~~**main**~~ | `3cac33e7d8fd85abc78bea495b492e366248bfe3` · v0.1.84 |
+| Producción actual | ✅ ~~**GREEN**~~ | `/api/health.php` exacto en v0.1.84 / `3cac33e7...` |
+| Versión objetivo | 🚧 **v0.1.85** | `config/version.php` |
+| Fuente automática | 🚧 **Dependabot #742 preservado** | [PR #742](https://github.com/pl0n3r/brvtal/pull/742) |
+| PR canónico | 🚧 **#747 en validación** | rama coordinada; no mergear #742 directamente |
+| Producción candidato | 🚧 **pending** | merge → CI exact-main → Observer → Authenticated Production Smoke |
 
 ## Huella del cambio
+
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **3** | **+47** | **−71** | **-24** |
+| **7** | **+134** | **−50** | **+84** |
 
 ## Calidad y entrega
+
 <!-- brvtal:gate-plan -->
 | Control | Estado / contrato |
 | --- | --- |
-| Gates | 🚧 **preflight · coordination · fast[PHP]** |
-| Acceptance | 🚧 **AC-01 coordination · AC-02 observer · AC-03 labels · AC-04 adoption close + CI** |
-| Factory | 🚧 Factory CI · Policy · Privacy · Labels |
-| Review | 🚧 Sonar · CodeQL · CodeRabbit terminal |
-| CI del SHA exacto de main | 🚧 BRVTAL CI · Production Deploy Observer · Authenticated Production Smoke |
-
-## Qué se hizo
-- Confirmó que #681, #689, #692 y #694 ya están cerrados/completados.
-- Confirmó que el `main` base consume Factory v1 para CI, policy, release, labels, coordinación y observer.
-- Cambia `production_green` y `epic_close_allowed` a `true` solo con listas de blockers/pending vacías.
-- Elimina el pending obsoleto de #689.
-- Endurece el contrato para que cierre falle si reaparece un blocker/pending o se pierde GREEN.
-- No modifica runtime, versión, DB, Hostinger, secretos ni workflows.
-
-## Archivos modificados en este deploy
-- `README.md` — snapshot operativo exacto de #630.
-- `docs/factory-adoption.json` — estado canónico de cierre Factory v1.
-- `tests/factory-adoption-contract.php` — regresión fail-closed del cierre.
-
-## Validación
-- Base exacta `4317390029f3eb118f55bc97a30f4acf6560e1bb`: BRVTAL CI, Production Deploy Observer y Authenticated Production Smoke en success.
-- El diff no toca producto ni dependencias y no colisiona con los workflows modificados por Dependabot #742.
-- El contrato conserva callers Factory v1 y prohíbe autoridad local duplicada.
-- Rollback: revert de este PR; cero mutaciones de datos.
+| Gates seleccionados | 🚧 pendiente en HEAD final · **preflight · coordination · fast[PHP+JS] · database · chromium · real-stack · webkit** |
+| Pin supply-chain | `actions/setup-node@820762786026740c76f36085b0efc47a31fe5020` · v7.0.0 |
+| Fuente | Dependabot #742 queda como evidencia; el PR bot no se integra directamente |
+| Revisión | CodeRabbit + Sonar + contratos BRVTAL sobre HEAD estable |
+| CI del SHA exacto de main | obligatorio después del merge |
+| Producción | Production Deploy Observer + Authenticated Production Smoke exact-main |
 
 ## Flujo de entrega
+
 ```mermaid
 flowchart LR
-  A["Tanda 2 blockers closed"] --> B["Adoption state truthful"]
-  B --> C["PR #630"]
+  A["Dependabot #742"] --> B["#745 · rama reservada"]
+  B --> C["setup-node v7 SHA + v0.1.85"]
   C --> D["BRVTAL CI + review"]
-  D --> E["squash merge → exact main"]
-  E --> F["Observer + Authenticated Smoke"]
-  F --> G["#630 complete"]
+  D --> E["squash merge serial"]
+  E --> F["exact-main CI + Observer + Auth Smoke"]
 ```
 
+## Qué se hizo
+
+- Conserva exactamente el alcance funcional de Dependabot #742 en los tres workflows de producción.
+- Sustituye la referencia mutable `actions/setup-node@v4` por el SHA inmutable `820762786026740c76f36085b0efc47a31fe5020` correspondiente a v7.0.0.
+- No cambia permisos, inputs, cachés, comandos, lógica de smoke ni comportamiento de producto.
+- Materializa v0.1.85 y sincroniza `config/version.php` con `package.json`, como exige el contrato deploy-bound.
+- Añade regresiones que exigen exactamente una referencia `actions/setup-node` por workflow, siempre el SHA v7.0.0; también fijan identidad de versión, snapshot README y preservación de #742.
+- No toca DB, schema, datos, secretos ni contenido productivo.
+
+## Archivos modificados en este deploy
+
+- `.github/workflows/production-authenticated-smoke.yml`
+- `.github/workflows/production-page-write-smoke.yml`
+- `.github/workflows/production-performance.yml`
+- `README.md`
+- `config/version.php`
+- `package.json`
+- `tests/test_setup_node_promotion.py`
+
+## Validación
+
+- El commit base de producción es `3cac33e7d8fd85abc78bea495b492e366248bfe3`.
+- Los tres workflows usan exactamente una referencia `actions/setup-node`, siempre el SHA de v7.0.0.
+- `config/version.php` y `package.json` declaran la misma versión `0.1.85`.
+- Dependabot #742 permanece como fuente de comparación: https://github.com/pl0n3r/brvtal/pull/742.
+- El cambio canónico no añade nuevas dependencias ni modifica otra action.
+- Rollback: revertir la entrega y volver a v0.1.84; no hay migraciones.
+- GREEN final requiere exact-main BRVTAL CI, Production Deploy Observer y Authenticated Production Smoke.
+
 ## Qué sigue
+
 | Lane | Trabajo |
 | --- | --- |
-| **NOW** | 🚧 [#630](https://github.com/pl0n3r/brvtal/issues/630): cerrar adopción Factory v1 con evidencia ejecutable. |
-| **NEXT** | 🚧 Validar merge exact-main con BRVTAL CI + Production Deploy Observer + Authenticated Production Smoke. |
-| **LATER** | 🚧 Reaplicar el despachador de Tanda 2 sobre GrindFlow y FactoryRunner. |
-| **BLOCKED / EXTERNAL** | 🚧 [#736](https://github.com/pl0n3r/brvtal/issues/736): auditoría de privacidad depende del fix central Factory #308. |
+| **NOW** | 🚧 [#745](https://github.com/pl0n3r/brvtal/issues/745): cerrar promoción setup-node v7. |
+| **NEXT** | 🚧 [#746](https://github.com/pl0n3r/brvtal/issues/746): adoptar README Contract v1 cuando Factory publique el reusable en `@v1`. |
+| **LATER** | 🚧 Continuar [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533) por prioridad. |
+| **BLOCKED / EXTERNAL** | 🚧 README Contract depende de la publicación protegida del nuevo Factory v1.x. |
 
 ## Panorama general pendiente
-- 🚧 **NOW**: #630, sincronizar contrato de adopción y cerrar el épico.
-- 🚧 **NEXT**: exact-main GREEN después del merge.
-- 🚧 **LATER**: continuar la cola automática canónica.
-- 🚧 **BLOCKED / EXTERNAL**: #736 permanece separado hasta Factory #308.
+
+- **NOW**: 🚧 #745 promoción canónica del cambio Dependabot.
+- **NEXT**: 🚧 #746 README Contract v1, serializado detrás de #745 y del canal Factory.
+- **LATER**: 🚧 roadmap #533 y producto.
+- **BLOCKED / EXTERNAL**: 🚧 publicación protegida de Factory `@v1`; ninguna acción manual de producción requerida para #745.
