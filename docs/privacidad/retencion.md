@@ -7,6 +7,7 @@ Producto: `pl0n3r/brvtal`
 | Tratamiento | Categoría | Retención declarada | Máximo común |
 | --- | --- | --- | --- |
 | admin_activity | contact | review_required | review_required |
+| admin_activity_legacy_ip | location | review_required | review_required |
 | admin_identity | contact | review_required | review_required |
 | admin_password | authentication | review_required | review_required |
 | admin_password_reset | authentication | review_required | review_required |

@@ -14,6 +14,16 @@ Producto: `pl0n3r/brvtal`
 - Proveedores: ninguno_declarado
 - Retención: `review_required`
 
+## admin_activity_legacy_ip
+
+- Categoría: `location`
+- Campos de software: `ip_address`
+- Finalidad: `admin_activity_audit`
+- Base documentada: `review_required` (revisión jurídica requerida)
+- Consentimiento: `review_required`
+- Proveedores: ninguno_declarado
+- Retención: `review_required`
+
 ## admin_identity
 
 - Categoría: `contact`

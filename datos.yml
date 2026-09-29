@@ -34,6 +34,18 @@
       "providers": []
     },
     {
+      "id": "admin_activity_legacy_ip",
+      "category": "location",
+      "fields": [
+        "ip_address"
+      ],
+      "purpose": "admin_activity_audit",
+      "basis": "review_required",
+      "retention": "review_required",
+      "consent": "review_required",
+      "providers": []
+    },
+    {
       "id": "admin_identity",
       "category": "contact",
       "fields": [

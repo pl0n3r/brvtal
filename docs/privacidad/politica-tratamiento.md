@@ -18,6 +18,7 @@
 | Tratamiento | Categoría | Campos | Finalidad | Base documentada | Consentimiento | Proveedores | Retención |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | admin_activity | contact | admin_id, admin_name, admin_email, action, resource, resource_id, resource_label, changed_fields, before_json, after_json, meta_json, request_id, created_at | admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
+| admin_activity_legacy_ip | location | ip_address | admin_activity_audit | review_required | review_required | ninguno_declarado | review_required |
 | admin_identity | contact | email, name, is_active, last_login_at, created_at, updated_at | admin_access | review_required | review_required | ninguno_declarado | review_required |
 | admin_password | authentication | password_hash | admin_authentication | review_required | review_required | ninguno_declarado | review_required |
 | admin_password_reset | authentication | admin_id, token_hash, expires_at, consumed_at, revoked_at, created_at | admin_password_recovery | review_required | review_required | ninguno_declarado | review_required |
