@@ -154,6 +154,23 @@ async function decodeServerErrorPayload(response, timeoutMs = Math.min(operation
     if (timer) clearTimeout(timer);
   }
 }
+
+
+function dashboardServerErrorCheckpoint(serverErrors) {
+  const errors = Array.isArray(serverErrors) ? [...serverErrors] : [];
+  const checkpoint = {
+    serverErrors: errors,
+    pass: errors.length === 0
+  };
+  if (!checkpoint.pass) {
+    throw Object.assign(
+      new Error('Production dashboard returned HTTP 5xx on ' + errors.map(item => item.path).join(', ')),
+      { checkpoint }
+    );
+  }
+  return checkpoint;
+}
+
 // END_SERVER_ERROR_DIAGNOSTICS
 
 async function runOperation(label, operation, timeoutMs = operationTimeoutMs) {
@@ -449,16 +466,15 @@ try {
     state: 'visible',
     timeout: 20_000
   });
+  const dashboardServerErrors = [...evidence.serverErrors];
   evidence.checks.dashboardLoad = {
     elapsedMs: Math.round(performance.now() - dashboardStarted),
     visibleHero: true,
-    serverErrors: [...evidence.serverErrors],
-    pass: evidence.serverErrors.length === 0
+    serverErrors: dashboardServerErrors,
+    pass: dashboardServerErrors.length === 0
   };
   writeEvidence();
-  if (evidence.serverErrors.length) {
-    throw new Error('Production dashboard returned HTTP 5xx on ' + evidence.serverErrors.map(item => item.path).join(', '));
-  }
+  dashboardServerErrorCheckpoint(dashboardServerErrors);
 
   const expectedVersionText = `BRVTAL v${expectedVersion}`;
   const renderedVersion = (await page.getByTestId('admin-product-version').innerText()).trim();

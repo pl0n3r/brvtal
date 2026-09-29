@@ -200,19 +200,39 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn("serverErrors: [...evidence.serverErrors]", source)
 
     def test_dashboard_checkpoint_preserves_fatal_server_errors(self):
-        source = SMOKE.read_text(encoding="utf-8")
-        checkpoint = re.search(
-            r"evidence\.checks\.dashboardLoad = \{(?P<body>.*?)\};\n"
-            r"\s*writeEvidence\(\);\n"
-            r"\s*if \(evidence\.serverErrors\.length\) \{(?P<guard>.*?)\n\s*\}",
-            source,
-            flags=re.S,
+        result = self._run_diagnostics_js(
+            """(async () => {
+                const accumulated = [{path: '/api/index.php/settings', httpStatus: 503}];
+                try {
+                    const checkpoint = dashboardServerErrorCheckpoint(accumulated);
+                    return {threw: false, checkpoint};
+                } catch (error) {
+                    return {
+                        threw: true,
+                        message: error.message,
+                        checkpoint: error.checkpoint
+                    };
+                }
+            })()"""
         )
-        self.assertIsNotNone(checkpoint)
-        self.assertIn("serverErrors: [...evidence.serverErrors]", checkpoint.group("body"))
-        self.assertIn("pass: evidence.serverErrors.length === 0", checkpoint.group("body"))
-        self.assertIn("evidence.serverErrors.map(item => item.path)", checkpoint.group("guard"))
-        self.assertIn("Production dashboard returned HTTP 5xx", checkpoint.group("guard"))
+        self.assertTrue(result["threw"])
+        self.assertEqual(
+            result["checkpoint"],
+            {
+                "serverErrors": [
+                    {"path": "/api/index.php/settings", "httpStatus": 503}
+                ],
+                "pass": False,
+            },
+        )
+        self.assertIn("/api/index.php/settings", result["message"])
+        self.assertIn("HTTP 5xx", result["message"])
+
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn("const dashboardServerErrors = [...evidence.serverErrors]", source)
+        self.assertIn("serverErrors: dashboardServerErrors", source)
+        self.assertIn("pass: dashboardServerErrors.length === 0", source)
+        self.assertIn("dashboardServerErrorCheckpoint(dashboardServerErrors)", source)
 
         result = self._run_diagnostics_js(
             """(async () => {
