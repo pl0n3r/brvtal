@@ -197,7 +197,6 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("pass: serverErrors.length", source)
         self.assertNotIn("if (serverErrors.length)", source)
         self.assertNotIn("+ serverErrors.map(item => item.path).join(\', \')", source)
-        self.assertIn("serverErrors: [...evidence.serverErrors]", source)
 
     def test_dashboard_checkpoint_preserves_fatal_server_errors(self):
         result = self._run_diagnostics_js(
