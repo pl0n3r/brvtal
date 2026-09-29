@@ -118,6 +118,11 @@ ci_scope_expect_flags(ci_scope_run(['README.md', 'AGENTS.md']), [
     'run_php' => 'false', 'run_js' => 'false', 'deploy_bound' => 'false',
 ], 'docs only');
 
+ci_scope_expect_flags(ci_scope_run(['readme/project.json']), [
+    'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
+    'run_php' => 'false', 'run_js' => 'false', 'deploy_bound' => 'false', 'areas' => 'Docs/operations',
+], 'README Contract metadata');
+
 ci_scope_expect_flags(ci_scope_run(['docs/privacidad/politica-tratamiento.md']), [
     'full' => 'false', 'run_db' => 'false', 'run_browser' => 'false', 'run_realstack' => 'false', 'run_webkit' => 'false', 'run_recovery' => 'false',
     'run_php' => 'true', 'run_js' => 'false', 'deploy_bound' => 'false',

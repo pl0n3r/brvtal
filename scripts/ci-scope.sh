@@ -48,7 +48,7 @@ brvtal_ci_classify_files() {
     [[ -z "$file" ]] && continue
 
     case "$file" in
-      README.md|AGENTS.md|docs/*|tests/*|scripts/*|ops/factory/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
+      README.md|AGENTS.md|docs/*|readme/*|tests/*|scripts/*|ops/factory/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
         ;;
       *)
         BRVTAL_SCOPE_DEPLOY_BOUND=true
@@ -100,7 +100,7 @@ brvtal_ci_classify_files() {
         brvtal_ci_scope_add_area "Factory deploy adapters"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_RECOVERY=true; BRVTAL_SCOPE_RUN_PHP=true ;;
       scripts/*|tests/*.php)
         brvtal_ci_scope_add_area "Fast tests/tooling" ;;
-      docs/*|README.md|AGENTS.md)
+      docs/*|readme/*|README.md|AGENTS.md)
         brvtal_ci_scope_add_area "Docs/operations" ;;
       *)
         brvtal_ci_scope_add_area "Other"; BRVTAL_SCOPE_RUN_DB=true; BRVTAL_SCOPE_RUN_BROWSER=true; BRVTAL_SCOPE_RUN_REALSTACK=true ;;
@@ -133,7 +133,7 @@ brvtal_ci_classify_files() {
     esac
 
     case "$file" in
-      README.md|AGENTS.md|docs/*|*.md|*.css|*.html|assets/*|uploads/*|ops/factory/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|.github/workflows/sonar-annotation-relay.yml|.github/workflows/production-*.yml)
+      README.md|AGENTS.md|docs/*|readme/*|*.md|*.css|*.html|assets/*|uploads/*|ops/factory/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|.github/workflows/sonar-annotation-relay.yml|.github/workflows/production-*.yml)
         ;;
       *.php|*.js|*.mjs|database/*|package.json|package-lock.json|playwright.config.mjs|scripts/ci-scope.sh|scripts/php85-compatibility.sh|.github/workflows/update-release-metadata.yml)
         ;;
