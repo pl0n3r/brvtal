@@ -105,7 +105,11 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
                     application: classifyServerError('/api/index.php/media', {}),
                     json: isJsonContentType('application/json; charset=utf-8'),
                     problemJson: isJsonContentType('application/problem+json; charset=utf-8'),
-                    text: isJsonContentType('text/plain')
+                    text: isJsonContentType('text/plain'),
+                    unsafe: sanitizeServerErrorPayload({
+                        error: 'SQL failed for private@example.com',
+                        code: 'token=secret'
+                    })
                 };
             })()"""
         )
@@ -124,6 +128,7 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertTrue(result["json"])
         self.assertTrue(result["problemJson"])
         self.assertFalse(result["text"])
+        self.assertEqual(result["unsafe"], {})
 
     def test_transient_auth_db_and_application_failures_are_distinguished(self):
         result = self._run_diagnostics_js(
