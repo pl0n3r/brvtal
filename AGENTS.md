@@ -18,7 +18,7 @@ Use the smallest canonical source that owns the question:
 4. **`docs/BRVTAL-SPEC.md`** — durable product, architecture and functional rules.
 5. **The specific GitHub Issue** — acceptance criteria for that work item.
 6. **GitHub Issue #533** — cross-project execution order and progress only.
-7. **`README.md`** — current PR/deploy snapshot and short pending-work panorama only.
+7. **`README.md`** — operational landing page under README Contract v1: stable human sections plus derived, evidence-backed status blocks.
 8. Old chat/history — last resort, never required for normal continuation.
 
 If code proves prose stale, correct the owning source in the same focused work line when safe.
@@ -28,7 +28,7 @@ If code proves prose stale, correct the owning source in the same focused work l
 - If a statement answers **“how should the agent execute?”**, it belongs here.
 - If it answers **“how should BRVTAL behave or be designed?”**, it belongs in `docs/BRVTAL-SPEC.md`.
 - If it answers **“what work is next / done / blocked?”**, it belongs in Issue #533 or the specific Issue.
-- If it answers **“what changed in this PR/deploy?”**, it belongs in `README.md`.
+- If it answers **“what changed in this PR/deploy?”**, it belongs in the PR and GitHub Release; README only summarizes durable product context and derived operational evidence.
 
 Do not rebuild large product-state inventories or historical decision ledgers inside this file.
 ## 1. Start / resume protocol
@@ -66,7 +66,7 @@ Routine safe authorization includes:
 - tests and test fixes;
 - PR creation/update;
 - CI/CodeRabbit/Sonar fixes;
-- README snapshot refreshes;
+- README Contract metadata/derived-block validation when the task changes those surfaces;
 - squash merge when all required gates and branch/current-main checks allow it;
 - exact-main validation;
 - deployment observation;
@@ -113,7 +113,7 @@ GitHub is the arbiter for concurrent implementation.
 - The `/take` path itself scans active `status: reserved` / `status: in review` reservations before reserving the requested `status: available` Issue; it attempts the oldest inactive candidate first and only opens new work when no compatible stale candidate can be recovered safely.
 - A reservation is **inactive** only when the latest trusted active reservation marker is at least **30 minutes** old and the most recent timestamp among that marker, the canonical branch-head commit, and any qualifying human Issue comment is also at least **30 minutes** old. Qualifying human activity is any non-bot Issue comment except coordination commands (`/take`, `/release`, `/transfer`, `/recover`, `/force-release`); PR `updated_at`, bot comments, CI, Sonar, CodeRabbit and label changes never count.
 - Among inactive candidates, **oldest** means the earliest `created_at` of the latest trusted active `brvtal-work-reservation` marker.
-- A candidate is **compatible** when it is not blocked, its existing PR has no blocking changed-file overlap with another open coordinated PR (README-only overlap remains non-blocking), and no unmet prerequisite prevents continuing its Issue scope. If compatibility cannot be established safely, skip it rather than guessing.
+- A candidate is **compatible** when it is not blocked, its existing PR has no blocking changed-file overlap with another open coordinated PR, and no unmet prerequisite prevents continuing its Issue scope. If compatibility cannot be established safely, skip it rather than guessing.
 - Recover the oldest compatible inactive reservation first. Normal `/take` performs this selection automatically; direct `/recover UUID` remains available for explicit recovery. Recovery keeps the same Issue, `work/issue-N` branch and open PR, validates that PR against this repository/`main`/Issue/current UUID, rotates to a new reservation UUID, verifies assignees, and publishes the new trusted marker only after those transitions succeed.
 - `/recover` requires the exact active reservation UUID, an authorized owner/member/collaborator, and coordinator-side proof that the reservation is actually inactive by the rule above. It supports same-GitHub-owner session recovery by rotating the UUID. It never deletes or recreates the branch or PR. If recovery rollback is incomplete, the Issue becomes `status: blocked` so inconsistent authority cannot continue silently.
 
@@ -126,7 +126,7 @@ GitHub is the arbiter for concurrent implementation.
 - Coordinated PRs target `main`, use their reserved `work/issue-N` branch and close the matching Issue with `Closes #N`, `Fixes #N` or `Resolves #N`.
 - Coordination fails closed when Issue, branch, reservation metadata or closing relation disagree.
 - Changed-file overlap with another open PR targeting `main` is a fail-closed collision and must identify exact paths.
-- `README.md` is the one deliberate non-blocking overlap because every PR owns an exact transient snapshot; all other overlapping paths still block. If `main` moves, regenerate README against the new base before merge.
+- `README.md` follows the same changed-file collision rules as any other path. README Contract v1 removed the per-PR transient snapshot exception; do not rewrite README merely because `main` moved.
 - Independent reservations may run in parallel; conflicting implementation work may not.
 - PR/Issue lifecycle synchronizes visible state and reservation/branch cleanup.
 - Deploy-bound PR titles end with `(vX.Y.Z)`.
@@ -213,7 +213,7 @@ Canonical gate model:
 
 - `preflight` selects changed-file scope;
 - `coordination` validates reservation/branch/Issue/collision integrity;
-- `fast` owns PHP 8.5 contracts, JS syntax and the exact README snapshot check when selected;
+- `fast` owns PHP 8.5 contracts and JS syntax; README Contract runs through its dedicated reusable workflow when README/metadata changes;
 - MariaDB, Chromium, real-stack, WebKit and recovery fan out from preflight when relevant;
 - `validate` is the stable aggregate required for delivery.
 
@@ -247,32 +247,29 @@ Rules:
 - **1.0.0 requires explicit administrator decision.**
 - Git SHA remains separate technical deployment identity.
 
-### README snapshot
+### README Contract v1
 
-Every PR targeting `main` must keep `README.md` synchronized with the exact PR diff because BRVTAL CI validates it.
+`README.md` is the stable operational landing page governed by Factory README Contract v1.
 
-README is transient and must contain only:
+- Human-owned sections describe durable product purpose, architecture, stack, delivery, quality/security and sources of truth.
+- Operational state lives only inside the canonical `factory:status` and `factory:progress-readiness` blocks.
+- Missing evidence remains `UNKNOWN`/`PENDING`; never invent `GREEN` or `DEGRADED`.
+- The README is not a changelog, exact PR diff, release note or second roadmap.
+- PR-specific changed files, deltas, gate plans and validation results belong in the PR / GitHub Release.
+- `readme/project.json` contains stable metadata only.
+- `.github/workflows/readme-contract.yml` consumes `pl0n3r/factory/.github/workflows/readme.yml@v1` and is the sole README contract authority.
 
-- current PR/deploy state;
-- exact changed-file list and Git delta;
-- selected gate plan;
-- concise “Qué se hizo” / validation state;
-- next actionable work;
-- short project-wide pending panorama.
-
-Do not turn README into a product manual, architecture document or cumulative changelog.
-
-If any late fix changes the file set, delta or gate plan, refresh README before final gates/merge.
+Do not regenerate README merely because a PR head or `main` SHA changes.
 
 ### Mandatory delivery loop
 
 1. Start from current green `main`.
 2. Reserve the Issue / canonical branch.
 3. Implement one coherent scope with durable tests.
-4. Refresh exact README snapshot.
+4. Update README/metadata only when the accepted scope changes stable README Contract content or its canonical derived sources; otherwise leave it untouched.
 5. Open PR to `main` with reservation metadata and closing relation.
 6. Run BRVTAL CI, Sonar and CodeRabbit in parallel on the stable intended head.
-7. Fix valid findings on the same branch; refresh README if scope/delta changed.
+7. Fix valid findings on the same branch; rerun README Contract only if README/metadata changed.
 8. Re-read current `main`, head and gates.
 9. Squash merge.
 10. Get the exact merged `main` SHA.
@@ -324,7 +321,7 @@ Read deep references only when relevant:
 - `docs/HERO-SLIDER.md` — Hero/Banners model;
 - `docs/DISCADMIN-UX-AUDIT.md` — UX debt/history;
 - specific GitHub Issue — executable acceptance criteria;
-- `README.md` — current PR/deploy snapshot, not startup truth.
+- `README.md` — README Contract v1 operational landing page, not startup truth or PR snapshot.
 
 Repository map:
 
@@ -353,7 +350,7 @@ To preserve that property:
 - put product/architecture decisions in `docs/BRVTAL-SPEC.md`;
 - put execution order/progress in #533;
 - put acceptance criteria in the specific Issue;
-- keep README synchronized per PR but optional for initial agent bootstrap;
+- keep README Contract v1 structure/metadata valid; do not synchronize it to each PR diff;
 - update AGENTS only when the operating model, safety boundary, source ownership or delivery mechanics actually change.
 
 If a future session needs old chat history to know how to work, this contract has failed and repository context must be repaired.
