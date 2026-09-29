@@ -52,6 +52,7 @@ class PrivacyWorkflowAdoptionTests(unittest.TestCase):
         audit = AUDIT.read_text(encoding="utf-8")
         for clause in (
             "github.event_name != 'issue_comment' ||",
+            "github.event.issue.pull_request == null",
             "github.event.issue.number == 736",
             "github.event.comment.user.login == github.repository_owner",
             "github.event.comment.author_association == 'OWNER'",
@@ -62,10 +63,19 @@ class PrivacyWorkflowAdoptionTests(unittest.TestCase):
     def test_privacy_audit_comment_fails_closed_for_other_events_and_bodies(self) -> None:
         audit = AUDIT.read_text(encoding="utf-8")
         self.assertIn("issue_comment:\n    types: [created]", audit)
+        self.assertEqual(audit.count("github.event.issue.pull_request == null"), 1)
         self.assertEqual(audit.count("github.event.issue.number == 736"), 1)
         self.assertEqual(audit.count("github.event.comment.body == '/privacy-audit'"), 1)
         self.assertNotIn("contains(github.event.comment.body", audit)
         self.assertNotIn("startsWith(github.event.comment.body", audit)
+
+    def test_privacy_audit_comment_rejects_pull_request_payload(self) -> None:
+        audit = AUDIT.read_text(encoding="utf-8")
+        self.assertIn(
+            "github.event.issue.pull_request == null &&\n"
+            "       github.event.issue.number == 736",
+            audit,
+        )
 
     def test_privacy_audit_comment_preserves_permissions_and_factory_pin(self) -> None:
         audit = AUDIT.read_text(encoding="utf-8")
