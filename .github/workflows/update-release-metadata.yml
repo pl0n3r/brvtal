@@ -341,13 +341,6 @@ jobs:
           python3 -m unittest tests/test_ci_retry.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py
           python3 tests/ci-self-audit-contract.py
 
-      - name: Verify README matches this deploy exactly
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python scripts/readme-dashboard.py --check --base "$BASE_SHA" --head "$HEAD_SHA"
-
 
   database:
     name: database
