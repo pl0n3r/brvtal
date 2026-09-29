@@ -101,7 +101,7 @@ ci_scope_expect(!str_contains($workflow, "    needs: fast\n"), 'heavy gates must
 ci_scope_expect(str_contains($workflow, 'needs: [preflight, coordination, coordination-pr, fast, database, browser, realstack, webkit, recovery]'), 'validate must aggregate preflight plus every canonical gate');
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_php == 'true'"), 'PHP fast suite must be scope-aware');
 ci_scope_expect(str_contains($workflow, "if: needs.preflight.outputs.run_js == 'true'"), 'JavaScript syntax validation must be scope-aware');
-ci_scope_expect(str_contains($workflow, 'python scripts/readme-dashboard.py --check'), 'README deploy facts must be checked by the reusable dashboard validator');
+ci_scope_expect(!str_contains($workflow, 'readme-dashboard.py'), 'BRVTAL CI must not retain the retired per-PR README dashboard validator');
 ci_scope_expect(str_contains($workflow, 'brvtal_ci_classify_files "$changed_file_list" "$BRVTAL_EVENT"'), 'workflow must pass its actual changed-file list and event to the shared classifier');
 ci_scope_expect(str_contains($workflow, 'deploy_bound: ${{ steps.scope.outputs.deploy_bound }}'), 'preflight must publish deploy-bound classification');
 ci_scope_expect(str_contains($workflow, 'BRVTAL_DEPLOY_BOUND: ${{ steps.scope.outputs.deploy_bound }}'), 'version validation must consume deploy-bound classification');
