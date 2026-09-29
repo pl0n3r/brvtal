@@ -91,14 +91,19 @@ const SERVER_ERROR_SAFE_FIELDS = new Map([
   ['database', 'database']
 ]);
 
+function sanitizeServerErrorToken(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$/.test(normalized)) return null;
+  return normalized;
+}
+
 function sanitizeServerErrorPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
   const safe = {};
   for (const [sourceField, evidenceField] of SERVER_ERROR_SAFE_FIELDS) {
-    const value = payload[sourceField];
-    if (typeof value === 'string' && value.trim()) {
-      safe[evidenceField] = value.trim().slice(0, 96);
-    }
+    const value = sanitizeServerErrorToken(payload[sourceField]);
+    if (value) safe[evidenceField] = value;
   }
   return safe;
 }
