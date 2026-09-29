@@ -94,13 +94,14 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
                     error: ' AUTH_REVALIDATION_UNAVAILABLE ',
                     status: 'degraded',
                     database: 'error',
+                    code: 'DB_UNAVAILABLE',
                     token: 'do-not-store',
                     email: 'private@example.com'
                 });
                 return {
                     safe,
                     auth: classifyServerError('/api/index.php/settings', safe),
-                    db: classifyServerError('/api/index.php/health', {database: 'error'}),
+                    db: classifyServerError('/discadmin/storage-metrics.php', {code: 'DB_UNAVAILABLE'}),
                     application: classifyServerError('/api/index.php/media', {}),
                     json: isJsonContentType('application/json; charset=utf-8'),
                     problemJson: isJsonContentType('application/problem+json; charset=utf-8'),
@@ -114,6 +115,7 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
                 "errorCode": "AUTH_REVALIDATION_UNAVAILABLE",
                 "payloadStatus": "degraded",
                 "database": "error",
+                "code": "DB_UNAVAILABLE",
             },
         )
         self.assertEqual(result["auth"], "auth-revalidation")
