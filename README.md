@@ -21,7 +21,7 @@
 | Producción actual | ✅ ~~**GREEN**~~ | `/api/health.php` exacto en v0.1.84 / `3cac33e7...` |
 | Versión objetivo | 🚧 **v0.1.85** | `config/version.php` |
 | Fuente automática | 🚧 **Dependabot #742 preservado** | [PR #742](https://github.com/pl0n3r/brvtal/pull/742) |
-| PR canónico | 🚧 **#747 en validación** | rama coordinada; no mergear #742 directamente |
+| PR + snapshot exacto | 🚧 **#747 en validación** | rama coordinada; no mergear #742 directamente |
 | Producción candidato | 🚧 **pending** | merge → CI exact-main → Observer → Authenticated Production Smoke |
 
 ## Huella del cambio
@@ -29,7 +29,7 @@
 <!-- brvtal:git-delta -->
 | Archivos | Inserciones | Eliminaciones | Neto |
 | ---: | ---: | ---: | ---: |
-| **7** | **+134** | **−50** | **+84** |
+| **7** | **+135** | **−51** | **+84** |
 
 ## Calidad y entrega
 
