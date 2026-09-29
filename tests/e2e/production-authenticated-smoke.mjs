@@ -57,6 +57,7 @@ const evidence = {
     heroSlider: [],
     heroDashboardTransitions: []
   },
+  serverErrors: [],
   localStubs: [],
   blockedMutations: [],
   execution: {
@@ -81,6 +82,68 @@ function markStage(stage) {
   evidence.execution.operation = null;
   writeEvidence();
 }
+
+// BEGIN_SERVER_ERROR_DIAGNOSTICS
+const SERVER_ERROR_SAFE_FIELDS = new Map([
+  ['error', 'errorCode'],
+  ['status', 'payloadStatus'],
+  ['database', 'database']
+]);
+
+function sanitizeServerErrorPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
+  const safe = {};
+  for (const [sourceField, evidenceField] of SERVER_ERROR_SAFE_FIELDS) {
+    const value = payload[sourceField];
+    if (typeof value === 'string' && value.trim()) {
+      safe[evidenceField] = value.trim().slice(0, 96);
+    }
+  }
+  return safe;
+}
+
+function isJsonContentType(contentType) {
+  const normalized = String(contentType || '').toLowerCase().split(';', 1)[0].trim();
+  return normalized === 'application/json'
+    || (normalized.startsWith('application/') && normalized.endsWith('+json'));
+}
+
+function classifyServerError(path, safePayload) {
+  if (safePayload.errorCode === 'AUTH_REVALIDATION_UNAVAILABLE') {
+    return 'auth-revalidation';
+  }
+  if (
+    (path === '/api/index.php/health' || path === '/api/health.php')
+    && (safePayload.database === 'error' || safePayload.payloadStatus === 'degraded')
+  ) {
+    return 'db-health';
+  }
+  return 'application';
+}
+
+async function decodeServerErrorPayload(response, timeoutMs = Math.min(operationTimeoutMs, 1_500)) {
+  const contentType = String(response.headers()['content-type'] || '');
+  if (!isJsonContentType(contentType)) return {};
+
+  let timer = null;
+  try {
+    const payload = await Promise.race([
+      response.json(),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('server-error-diagnostic-json-timeout')),
+          timeoutMs
+        );
+      })
+    ]);
+    return sanitizeServerErrorPayload(payload);
+  } catch (_) {
+    return {};
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+// END_SERVER_ERROR_DIAGNOSTICS
 
 async function runOperation(label, operation, timeoutMs = operationTimeoutMs) {
   evidence.execution.operation = label;
@@ -242,6 +305,7 @@ async function navigate(page, section) {
 
 let browser = null;
 let page = null;
+const serverErrorDiagnostics = [];
 const wholeSmokeTimer = setTimeout(() => {
   evidence.status = 'failed';
   evidence.error = `Whole production smoke timed out after ${wholeSmokeTimeoutMs} ms.`;
@@ -323,7 +387,6 @@ try {
   page = await context.newPage();
   page.setDefaultTimeout(operationTimeoutMs);
   page.setDefaultNavigationTimeout(Math.max(operationTimeoutMs, 20_000));
-  const serverErrors = [];
   page.on('response', response => {
     const url = new URL(response.url());
     if (url.origin !== baseUrl) return;
@@ -336,7 +399,24 @@ try {
       writeEvidence();
     }
     if (response.status() >= 500) {
-      serverErrors.push({ path: url.pathname, status: response.status() });
+      const item = {
+        path: url.pathname,
+        httpStatus: response.status(),
+        stage: evidence.execution.stage,
+        operation: evidence.execution.operation || null,
+        category: 'application'
+      };
+      evidence.serverErrors.push(item);
+      // Persist the fatal 5xx first; optional JSON decoding must never erase it.
+      writeEvidence();
+
+      const diagnostic = (async () => {
+        const safePayload = await decodeServerErrorPayload(response);
+        Object.assign(item, safePayload);
+        item.category = classifyServerError(url.pathname, safePayload);
+        writeEvidence();
+      })();
+      serverErrorDiagnostics.push(diagnostic);
     }
   });
   markStage('dashboard');
@@ -682,8 +762,14 @@ try {
   }
 
   markStage('final-guards');
-  if (serverErrors.length) {
-    throw new Error('Authenticated DISCADMIN emitted HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+  await Promise.all(serverErrorDiagnostics);
+  if (evidence.serverErrors.length) {
+    throw new Error(
+      'Authenticated DISCADMIN emitted HTTP 5xx on '
+      + evidence.serverErrors
+        .map(item => `${item.path} HTTP ${item.httpStatus} [${item.category}]`)
+        .join(', ')
+    );
   }
   if (evidence.blockedMutations.length) {
     throw new Error(`Read-only guard blocked unexpected production mutations: ${evidence.blockedMutations.join(', ')}`);
@@ -693,6 +779,7 @@ try {
   writeEvidence();
   console.log('Authenticated production smoke passed for admin version and issues #123, #124 and #125.');
 } catch (error) {
+  await Promise.allSettled(serverErrorDiagnostics);
   evidence.status = 'failed';
   evidence.error = String(error?.message || error);
   evidence.execution.failureStage ||= evidence.execution.stage;
