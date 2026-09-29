@@ -19,9 +19,12 @@ admin_perf_expect(
     str_contains($auth, 'session_write_close();'),
     'read-only admin traffic must have a canonical session-lock release'
 );
+$csrfCopyPos = strpos($index, '$csrfToken = $authenticated ? brvtal_admin_csrf_token() : null;');
+$sessionReleasePos = strpos($index, 'brvtal_admin_release_session();', $csrfCopyPos === false ? 0 : $csrfCopyPos);
 admin_perf_expect(
-    str_contains($index, '$csrfToken=$authenticated?brvtal_admin_csrf_token():null;')
-        && str_contains($index, 'brvtal_admin_release_session();'),
+    $csrfCopyPos !== false
+        && $sessionReleasePos !== false
+        && $csrfCopyPos < $sessionReleasePos,
     'GET /auth must copy CSRF before releasing its session lock'
 );
 admin_perf_expect(
