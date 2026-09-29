@@ -452,12 +452,12 @@ try {
   evidence.checks.dashboardLoad = {
     elapsedMs: Math.round(performance.now() - dashboardStarted),
     visibleHero: true,
-    serverErrors,
-    pass: serverErrors.length === 0
+    serverErrors: [...evidence.serverErrors],
+    pass: evidence.serverErrors.length === 0
   };
   writeEvidence();
-  if (serverErrors.length) {
-    throw new Error('Production dashboard returned HTTP 5xx on ' + serverErrors.map(item => item.path).join(', '));
+  if (evidence.serverErrors.length) {
+    throw new Error('Production dashboard returned HTTP 5xx on ' + evidence.serverErrors.map(item => item.path).join(', '));
   }
 
   const expectedVersionText = `BRVTAL v${expectedVersion}`;

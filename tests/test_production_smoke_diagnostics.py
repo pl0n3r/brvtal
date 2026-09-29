@@ -191,5 +191,29 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn("if (evidence.blockedMutations.length)", source)
 
 
+    def test_dashboard_checkpoint_has_no_stale_server_errors_binding(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertNotIn("    serverErrors,\n", source)
+        self.assertNotIn("pass: serverErrors.length", source)
+        self.assertNotIn("if (serverErrors.length)", source)
+        self.assertNotIn("serverErrors.map(item => item.path)", source)
+        self.assertIn("serverErrors: [...evidence.serverErrors]", source)
+
+    def test_dashboard_checkpoint_preserves_fatal_server_errors(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        checkpoint = re.search(
+            r"evidence\.checks\.dashboardLoad = \{(?P<body>.*?)\};\n"
+            r"\s*writeEvidence\(\);\n"
+            r"\s*if \(evidence\.serverErrors\.length\) \{(?P<guard>.*?)\n\s*\}",
+            source,
+            flags=re.S,
+        )
+        self.assertIsNotNone(checkpoint)
+        self.assertIn("serverErrors: [...evidence.serverErrors]", checkpoint.group("body"))
+        self.assertIn("pass: evidence.serverErrors.length === 0", checkpoint.group("body"))
+        self.assertIn("evidence.serverErrors.map(item => item.path)", checkpoint.group("guard"))
+        self.assertIn("Production dashboard returned HTTP 5xx", checkpoint.group("guard"))
+
+
 if __name__ == "__main__":
     unittest.main()
