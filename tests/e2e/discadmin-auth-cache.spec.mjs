@@ -14,7 +14,7 @@ async function setSameOriginContent(page) {
 }
 
 
-test('admin GET bursts are bounded to two in-flight requests', async ({page}) => {
+test('admin GET bursts are bounded to one in-flight request', async ({page}) => {
   await setSameOriginContent(page);
   await page.evaluate(() => {
     window.state={authed:true};
@@ -52,11 +52,11 @@ test('admin GET bursts are bounded to two in-flight requests', async ({page}) =>
   });
 
   expect(result.statuses).toEqual([200,200,200,200,200,200]);
-  expect(result.maxReads).toBe(2);
+  expect(result.maxReads).toBe(1);
   expect(result.diagnostics).toMatchObject({
     adminGetActive:0,
     adminGetQueued:0,
-    adminGetLimit:2
+    adminGetLimit:1
   });
 });
 
@@ -106,7 +106,7 @@ test('auth and mutations bypass a saturated admin GET queue', async ({page}) => 
       window.fetch('/api/index.php/settings?key=hold-2',{method:'GET',credentials:'same-origin'}),
       window.fetch('/api/index.php/settings?key=hold-3',{method:'GET',credentials:'same-origin'})
     ];
-    while(window.__activeReads<2) await new Promise(resolve=>setTimeout(resolve,0));
+    while(window.__activeReads<1) await new Promise(resolve=>setTimeout(resolve,0));
 
     const timeout=new Promise(resolve=>setTimeout(()=>resolve('timeout'),500));
     const authResult=await Promise.race([
@@ -141,9 +141,9 @@ test('auth and mutations bypass a saturated admin GET queue', async ({page}) => 
     mutationResult:200,
     authRequests:1,
     mutationRequests:1,
-    maxReads:2,
-    during:{adminGetActive:2,adminGetQueued:1,adminGetLimit:2},
-    after:{adminGetActive:0,adminGetQueued:0,adminGetLimit:2}
+    maxReads:1,
+    during:{adminGetActive:1,adminGetQueued:2,adminGetLimit:1},
+    after:{adminGetActive:0,adminGetQueued:0,adminGetLimit:1}
   });
 });
 

@@ -12,12 +12,12 @@ class AdminReadPressureTests(unittest.TestCase):
         cls.e2e = (ROOT / "tests/e2e/discadmin-auth-cache.spec.mjs").read_text(encoding="utf-8")
 
     def test_admin_gets_use_bounded_concurrency_gate(self):
-        self.assertIn("const ADMIN_GET_CONCURRENCY = 2;", self.auth)
+        self.assertIn("const ADMIN_GET_CONCURRENCY = 1;", self.auth)
         self.assertIn("async function acquireAdminGetSlot()", self.auth)
         self.assertIn("function releaseAdminGetSlot()", self.auth)
         self.assertIn("async function boundedAdminGetFetch(input, init)", self.auth)
-        self.assertIn("admin GET bursts are bounded to two in-flight requests", self.e2e)
-        self.assertIn("adminGetLimit:2", self.e2e)
+        self.assertIn("admin GET bursts are bounded to one in-flight request", self.e2e)
+        self.assertIn("adminGetLimit:1", self.e2e)
 
     def test_auth_and_mutations_bypass_read_gate(self):
         bounded = re.search(
