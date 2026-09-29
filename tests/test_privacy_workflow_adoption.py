@@ -59,6 +59,7 @@ class PrivacyWorkflowAdoptionTests(unittest.TestCase):
             "github.event.comment.body == '/privacy-audit'",
         ):
             self.assertIn(clause, audit)
+        self.assertEqual(audit.count(" &&\n"), 4)
 
     def test_privacy_audit_comment_fails_closed_for_other_events_and_bodies(self) -> None:
         audit = AUDIT.read_text(encoding="utf-8")
