@@ -30,9 +30,10 @@ admin_session_contract_assert(
     'session authorization must normalize the current admin id before revalidation'
 );
 admin_session_contract_assert(
-    str_contains($auth, 'brvtal_admin_account_session_state(db(), $adminId)')
+    str_contains($auth, '$pdo = db();')
+        && str_contains($auth, 'brvtal_admin_account_session_state($pdo, $adminId)')
         && str_contains($auth, '$_SESSION[\'credential_epoch\'] = $state[\'credential_epoch\'];'),
-    'every authenticated session check must consult current admin state'
+    'every authenticated session check must connect and consult current admin state'
 );
 admin_session_contract_assert(
     str_contains($auth, "brvtal_log('AUTH_REVALIDATION_ERROR'"),
@@ -49,8 +50,16 @@ admin_session_contract_assert(
 );
 admin_session_contract_assert(
     str_contains($api, '$authState=brvtal_admin_authentication_state();')
-        && str_contains($api, "json_response(['ok'=>false,'error'=>'AUTH_REVALIDATION_UNAVAILABLE'],503);"),
-    'GET /auth must surface revalidation outages as 503 instead of authenticated:false'
+        && str_contains($api, "'AUTH_REVALIDATION_UNAVAILABLE'")
+        && str_contains($api, 'brvtal_admin_revalidation_failure_code()'),
+    'GET /auth must surface revalidation outages as sanitized 503 diagnostics'
+);
+admin_session_contract_assert(
+    str_contains($auth, "'phase' => 'connect'")
+        && str_contains($auth, "'code' => 'DB_CONNECT_UNAVAILABLE'")
+        && str_contains($auth, "'phase' => 'query'")
+        && str_contains($auth, "'code' => 'AUTH_REVALIDATION_QUERY_UNAVAILABLE'"),
+    'revalidation diagnostics must distinguish connection from query failures'
 );
 admin_session_contract_assert(
     str_contains($auth, "brvtal_log('SECURITY', 'Admin session revoked because account or credential epoch changed'"),
