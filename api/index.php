@@ -148,54 +148,54 @@ try {
     $id=$route['id'];
     $action=$route['action'];
 
-    if ($resource==='health') {
-        if($method!=='GET') method_not_allowed();
-        $started=microtime(true);
+    if ($resource === 'health') {
+        if ($method !== 'GET') method_not_allowed();
+        $started = microtime(true);
 
         try {
-            $pdo=db();
-        } catch(Throwable $e) {
-            brvtal_log('HEALTH_ERROR','Health database connection failed',[
-                'class'=>$e::class,
-                'phase'=>'connect',
-                'code'=>'DB_CONNECT_UNAVAILABLE',
+            $pdo = db();
+        } catch (Throwable $e) {
+            brvtal_log('HEALTH_ERROR', 'Health database connection failed', [
+                'class' => $e::class,
+                'phase' => 'connect',
+                'code' => 'DB_CONNECT_UNAVAILABLE',
             ]);
             json_response([
-                'ok'=>false,
-                'status'=>'degraded',
-                'database'=>'error',
-                'code'=>'DB_CONNECT_UNAVAILABLE',
-                'time'=>date(DATE_ATOM),
-            ],503);
+                'ok' => false,
+                'status' => 'degraded',
+                'database' => 'error',
+                'code' => 'DB_CONNECT_UNAVAILABLE',
+                'time' => date(DATE_ATOM),
+            ], 503);
         }
 
         try {
             $pdo->query('SELECT 1');
-        } catch(Throwable $e) {
-            brvtal_log('HEALTH_ERROR','Health database query failed',[
-                'class'=>$e::class,
-                'phase'=>'query',
-                'code'=>'DB_QUERY_UNAVAILABLE',
+        } catch (Throwable $e) {
+            brvtal_log('HEALTH_ERROR', 'Health database query failed', [
+                'class' => $e::class,
+                'phase' => 'query',
+                'code' => 'DB_QUERY_UNAVAILABLE',
             ]);
             json_response([
-                'ok'=>false,
-                'status'=>'degraded',
-                'database'=>'error',
-                'code'=>'DB_QUERY_UNAVAILABLE',
-                'time'=>date(DATE_ATOM),
-            ],503);
+                'ok' => false,
+                'status' => 'degraded',
+                'database' => 'error',
+                'code' => 'DB_QUERY_UNAVAILABLE',
+                'time' => date(DATE_ATOM),
+            ], 503);
         }
 
         json_response([
-            'ok'=>true,
-            'app'=>'BRVTAL',
-            'status'=>'healthy',
-            'database'=>'connected',
-            'driver'=>$pdo->getAttribute(PDO::ATTR_DRIVER_NAME),
-            'server'=>$pdo->getAttribute(PDO::ATTR_SERVER_VERSION),
-            'php'=>PHP_VERSION,
-            'time'=>date(DATE_ATOM),
-            'latency_ms'=>round((microtime(true)-$started)*1000,2),
+            'ok' => true,
+            'app' => 'BRVTAL',
+            'status' => 'healthy',
+            'database' => 'connected',
+            'driver' => $pdo->getAttribute(PDO::ATTR_DRIVER_NAME),
+            'server' => $pdo->getAttribute(PDO::ATTR_SERVER_VERSION),
+            'php' => PHP_VERSION,
+            'time' => date(DATE_ATOM),
+            'latency_ms' => round((microtime(true) - $started) * 1000, 2),
         ]);
     }
 
@@ -216,19 +216,21 @@ try {
             json_response(['ok'=>true]);
         }
 
-        if($method==='GET') {
-            $authState=brvtal_admin_authentication_state();
-            if($authState===BRVTAL_ADMIN_AUTH_UNAVAILABLE) {
+        if ($method === 'GET') {
+            $authState = brvtal_admin_authentication_state();
+            if ($authState === BRVTAL_ADMIN_AUTH_UNAVAILABLE) {
                 brvtal_admin_release_session();
-                $payload=['ok'=>false,'error'=>'AUTH_REVALIDATION_UNAVAILABLE'];
-                $code=brvtal_admin_revalidation_failure_code();
-                if($code!==null) $payload['code']=$code;
-                json_response($payload,503);
+                $payload = ['ok' => false, 'error' => 'AUTH_REVALIDATION_UNAVAILABLE'];
+                $code = brvtal_admin_revalidation_failure_code();
+                if ($code !== null) {
+                    $payload['code'] = $code;
+                }
+                json_response($payload, 503);
             }
-            $authenticated=$authState===BRVTAL_ADMIN_AUTHENTICATED;
-            $csrfToken=$authenticated?brvtal_admin_csrf_token():null;
+            $authenticated = $authState === BRVTAL_ADMIN_AUTHENTICATED;
+            $csrfToken = $authenticated ? brvtal_admin_csrf_token() : null;
             brvtal_admin_release_session();
-            json_response(['ok'=>true,'authenticated'=>$authenticated,'csrf'=>$csrfToken]);
+            json_response(['ok' => true, 'authenticated' => $authenticated, 'csrf' => $csrfToken]);
         }
 
         if($method==='POST') {
