@@ -132,7 +132,7 @@ Para cobertura completa usa los comandos documentados en `docs/TESTING.md` y los
 ## Mapa de la fábrica
 
 - **Factory:** governance/kit y workflows comunes.
-- **ControlBot:** control plane privado.
+- **ControlBot:** control plane; repositorio público, panel de acceso restringido.
 - **FactoryRunner:** execution plane autónomo.
 - **Condor / GrindFlow / BRVTAL:** productos.
 - **AutoFactory:** herramienta local/manual del dueño.

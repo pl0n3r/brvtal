@@ -95,7 +95,7 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
         factory_map = self.readme().split("## Mapa de la fábrica", 1)[1]
         for expected in (
             "**Factory:** governance/kit",
-            "**ControlBot:** control plane privado",
+            "**ControlBot:** control plane; repositorio público, panel de acceso restringido.",
             "**FactoryRunner:** execution plane autónomo",
             "**Condor / GrindFlow / BRVTAL:** productos",
             "**AutoFactory:** herramienta local/manual",
