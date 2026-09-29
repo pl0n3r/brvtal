@@ -135,6 +135,21 @@ const BRVTAL_ADMIN_AUTHENTICATED = 'authenticated';
 const BRVTAL_ADMIN_UNAUTHENTICATED = 'unauthenticated';
 const BRVTAL_ADMIN_AUTH_UNAVAILABLE = 'unavailable';
 
+function brvtal_admin_revalidation_failure_code(): ?string
+{
+    $code = $GLOBALS['brvtal_admin_revalidation_failure_code'] ?? null;
+    return in_array($code, ['DB_CONNECT_UNAVAILABLE', 'AUTH_REVALIDATION_QUERY_UNAVAILABLE'], true)
+        ? $code
+        : null;
+}
+
+function brvtal_admin_set_revalidation_failure_code(?string $code): void
+{
+    $allowed = ['DB_CONNECT_UNAVAILABLE', 'AUTH_REVALIDATION_QUERY_UNAVAILABLE'];
+    $GLOBALS['brvtal_admin_revalidation_failure_code'] =
+        $code !== null && in_array($code, $allowed, true) ? $code : null;
+}
+
 /**
  * Return the current authentication state without conflating account revocation
  * with a transient failure to revalidate the account against the database.
@@ -145,6 +160,7 @@ const BRVTAL_ADMIN_AUTH_UNAVAILABLE = 'unavailable';
 function brvtal_admin_authentication_state(): string
 {
     brvtal_admin_session_start();
+    brvtal_admin_set_revalidation_failure_code(null);
 
     $adminId = (int)($_SESSION['admin_id'] ?? 0);
     if ($adminId < 1) {
@@ -162,11 +178,27 @@ function brvtal_admin_authentication_state(): string
     }
 
     try {
-        $state = brvtal_admin_account_session_state(db(), $adminId);
+        $pdo = db();
     } catch (Throwable $e) {
+        brvtal_admin_set_revalidation_failure_code('DB_CONNECT_UNAVAILABLE');
         brvtal_log('AUTH_REVALIDATION_ERROR', 'Admin session could not be revalidated', [
             'admin_id' => $adminId,
             'class' => $e::class,
+            'phase' => 'connect',
+            'code' => 'DB_CONNECT_UNAVAILABLE',
+        ]);
+        return BRVTAL_ADMIN_AUTH_UNAVAILABLE;
+    }
+
+    try {
+        $state = brvtal_admin_account_session_state($pdo, $adminId);
+    } catch (Throwable $e) {
+        brvtal_admin_set_revalidation_failure_code('AUTH_REVALIDATION_QUERY_UNAVAILABLE');
+        brvtal_log('AUTH_REVALIDATION_ERROR', 'Admin session could not be revalidated', [
+            'admin_id' => $adminId,
+            'class' => $e::class,
+            'phase' => 'query',
+            'code' => 'AUTH_REVALIDATION_QUERY_UNAVAILABLE',
         ]);
         return BRVTAL_ADMIN_AUTH_UNAVAILABLE;
     }
@@ -201,10 +233,17 @@ function brvtal_admin_require(): void
         header('X-Content-Type-Options: nosniff');
 
         brvtal_admin_release_session();
-        echo json_encode([
+        $payload = [
             'ok' => false,
             'error' => $unavailable ? 'AUTH_REVALIDATION_UNAVAILABLE' : 'AUTH_REQUIRED',
-        ]);
+        ];
+        if ($unavailable) {
+            $code = brvtal_admin_revalidation_failure_code();
+            if ($code !== null) {
+                $payload['code'] = $code;
+            }
+        }
+        echo json_encode($payload);
         exit;
     }
 
