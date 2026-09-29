@@ -214,6 +214,38 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn("evidence.serverErrors.map(item => item.path)", checkpoint.group("guard"))
         self.assertIn("Production dashboard returned HTTP 5xx", checkpoint.group("guard"))
 
+        result = self._run_diagnostics_js(
+            """(async () => {
+                const evidence = {
+                    serverErrors: [{path: '/api/index.php/settings'}],
+                    checks: {}
+                };
+                let recorded;
+                let errorMessage = null;
+                evidence.checks.dashboardLoad = {
+                    serverErrors: [...evidence.serverErrors],
+                    pass: evidence.serverErrors.length === 0
+                };
+                recorded = evidence.checks.dashboardLoad.serverErrors;
+                try {
+                    if (evidence.serverErrors.length) {
+                        throw new Error(
+                            'Production dashboard returned HTTP 5xx on '
+                            + evidence.serverErrors.map(item => item.path).join(', ')
+                        );
+                    }
+                } catch (error) {
+                    errorMessage = error.message;
+                }
+                return {recorded, errorMessage};
+            })()"""
+        )
+        self.assertEqual(result["recorded"], [{"path": "/api/index.php/settings"}])
+        self.assertEqual(
+            result["errorMessage"],
+            "Production dashboard returned HTTP 5xx on /api/index.php/settings",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
