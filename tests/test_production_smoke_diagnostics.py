@@ -191,5 +191,80 @@ class ProductionSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn("if (evidence.blockedMutations.length)", source)
 
 
+    def test_dashboard_checkpoint_has_no_stale_server_errors_binding(self):
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertNotIn("    serverErrors,\n", source)
+        self.assertNotIn("pass: serverErrors.length", source)
+        self.assertNotIn("if (serverErrors.length)", source)
+        self.assertNotIn("+ serverErrors.map(item => item.path).join(\', \')", source)
+
+    def test_dashboard_checkpoint_preserves_fatal_server_errors(self):
+        result = self._run_diagnostics_js(
+            """(async () => {
+                const accumulated = [{path: '/api/index.php/settings', httpStatus: 503}];
+                try {
+                    const checkpoint = dashboardServerErrorCheckpoint(accumulated);
+                    return {threw: false, checkpoint};
+                } catch (error) {
+                    return {
+                        threw: true,
+                        message: error.message,
+                        checkpoint: error.checkpoint
+                    };
+                }
+            })()"""
+        )
+        self.assertTrue(result["threw"])
+        self.assertEqual(
+            result["checkpoint"],
+            {
+                "serverErrors": [
+                    {"path": "/api/index.php/settings", "httpStatus": 503}
+                ],
+                "pass": False,
+            },
+        )
+        self.assertIn("/api/index.php/settings", result["message"])
+        self.assertIn("HTTP 5xx", result["message"])
+
+        source = SMOKE.read_text(encoding="utf-8")
+        self.assertIn("const dashboardServerErrors = [...evidence.serverErrors]", source)
+        self.assertIn("serverErrors: dashboardServerErrors", source)
+        self.assertIn("pass: dashboardServerErrors.length === 0", source)
+        self.assertIn("dashboardServerErrorCheckpoint(dashboardServerErrors)", source)
+
+        result = self._run_diagnostics_js(
+            """(async () => {
+                const evidence = {
+                    serverErrors: [{path: '/api/index.php/settings'}],
+                    checks: {}
+                };
+                let recorded;
+                let errorMessage = null;
+                evidence.checks.dashboardLoad = {
+                    serverErrors: [...evidence.serverErrors],
+                    pass: evidence.serverErrors.length === 0
+                };
+                recorded = evidence.checks.dashboardLoad.serverErrors;
+                try {
+                    if (evidence.serverErrors.length) {
+                        throw new Error(
+                            'Production dashboard returned HTTP 5xx on '
+                            + evidence.serverErrors.map(item => item.path).join(', ')
+                        );
+                    }
+                } catch (error) {
+                    errorMessage = error.message;
+                }
+                return {recorded, errorMessage};
+            })()"""
+        )
+        self.assertEqual(result["recorded"], [{"path": "/api/index.php/settings"}])
+        self.assertEqual(
+            result["errorMessage"],
+            "Production dashboard returned HTTP 5xx on /api/index.php/settings",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
