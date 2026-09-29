@@ -70,7 +70,7 @@ $assert(str_contains($agents, 'GitHub Issue **#533** is the canonical execution 
 $assert(str_contains($agents, '✅ ~~Struck through~~') && str_contains($agents, '🚧 Normal text'), 'AGENTS must preserve canonical completed vs pending progress markers');
 $assert(str_contains($agents, '## 12. Maintenance contract'), 'AGENTS must require future sessions to maintain durable operating state');
 $assert(str_contains($agents, 'Read AGENTS.md and continue the project autonomously'), 'AGENTS must define a minimal future-session prompt');
-$assert(str_contains($agents, 'README.md follows the same changed-file collision rules as any other path'), 'AGENTS must apply ordinary collision rules to README');
+$assert(str_contains($agents, '`README.md` follows the same changed-file collision rules as any other path'), 'AGENTS must apply ordinary collision rules to README');
 $assert(str_contains($agents, 'docs/BRVTAL-SPEC.md') && str_contains($agents, 'product, architecture and functional rules'), 'AGENTS must delegate product semantics to BRVTAL-SPEC');
 $assert(!str_contains($agents, '## 3. Current implemented product state'), 'AGENTS must not regress to an implemented-product inventory');
 $assert(!str_contains($agents, '## 4. Recent product decisions that must not be lost'), 'AGENTS must not regress to a numbered product-decision ledger');
