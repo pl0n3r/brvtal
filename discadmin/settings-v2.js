@@ -397,7 +397,7 @@
       const tab = event.target.closest('[data-settings-tab]');
       if (tab) { activate(tab.dataset.settingsTab); return; }
       const saveButton = event.target.closest('[data-settings-save]');
-      if (saveButton) { save(saveButton.dataset.settingsSave); return; }
+      if (saveButton) { save(saveButton.dataset.settingsSave).catch(error => feedback('error', error?.message || 'Settings could not be saved.')); return; }
       const destination = event.target.closest('[data-settings-open]');
       if (destination) {
         const section = destination.dataset.settingsOpen || '';
@@ -407,9 +407,9 @@
         } else if (section) globalThis.go?.(section);
         return;
       }
-      if (event.target.closest('[data-settings-security-retry]')) { loadSecurity(true).catch(() => {}); return; }
+      if (event.target.closest('[data-settings-security-retry]')) { loadSecurity(true).catch(error => feedback('error', error?.message || 'Security settings could not be loaded.')); return; }
       const picker = event.target.closest('[data-settings-media-picker]');
-      if (picker) { openPicker(picker); return; }
+      if (picker) { openPicker(picker).catch(error => feedback('error', error?.message || 'Media picker could not be opened.')); return; }
       if (event.target.closest('[data-settings-clear-asset]')) updateAsset('');
     });
   }

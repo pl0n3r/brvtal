@@ -805,12 +805,12 @@
     top.insertAdjacentHTML('afterend', skeleton());
     root = document.getElementById('system-status-v2');
     if (!root) return;
-    load(root);
+    load(root).catch(error => { root.innerHTML = `<div class="ssv2-fatal"><strong>SYSTEM STATUS UNAVAILABLE</strong><span>\${esc(error?.message || error)}</span></div>`; });
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(function autoRefresh(){
       const current = document.getElementById('system-status-v2');
       if (current?.isConnected && isSystemStatus()) {
-        load(current);
+        load(current).catch(error => { current.innerHTML = `<div class="ssv2-fatal"><strong>SYSTEM STATUS UNAVAILABLE</strong><span>\${esc(error?.message || error)}</span></div>`; });
         refreshTimer = setTimeout(autoRefresh, 60000);
       }
     },60000);

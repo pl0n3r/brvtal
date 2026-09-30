@@ -40,6 +40,29 @@ class MainPromiseReliabilityTests(unittest.TestCase):
         self.assertIn("Hero Slider media controls degraded.", source)
         self.assertIn("void mediaPromise.then(() => {});", source)
 
+    def test_legacy_s9383_async_boundaries_handle_rejections_visibly(self):
+        expectations = {
+            "discadmin/settings-v2.js": ["save(saveButton.dataset.settingsSave).catch(", "openPicker(picker).catch("],
+            "discadmin/theme-studio-v2.js": ["persist(false).catch(", "persist(true).catch(", "loadThemeStudioV2(V2.editingSlug).catch("],
+            "discadmin/admin-modules.js": ["}).catch(() => placeholderFor(img));", "await hydrateContentCoreThumbs(host);", "await hydrateContentCoreThumbs(document);"],
+            "discadmin/media-library.js": ["uploadFiles(input.files).catch(", "uploadFiles(e.dataTransfer?.files).catch("],
+            "discadmin/system-status-v2.js": ["load(root).catch(", "load(current).catch("],
+            "discadmin/system-status-storage.js": ["refresh(true).catch(", "refresh(false).catch("],
+            "discadmin/backups.js": ["load(panel).catch("],
+            "discadmin/releases.js": ["refresh().catch("],
+            "discadmin/totp-login.js": ["verify().catch("],
+            "js/public-contact.js": ["loadChallenge(form).catch("],
+            "js/hero-slider.js": ["init().catch("],
+        }
+        for relative, snippets in expectations.items():
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            with self.subTest(relative=relative):
+                for snippet in snippets:
+                    self.assertIn(snippet, source)
+
+        settings = (ROOT / "discadmin" / "settings-v2.js").read_text(encoding="utf-8")
+        self.assertNotIn("loadSecurity(true).catch(() => {})", settings)
+
     def test_required_ci_command_executes_this_suite(self):
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         scripts = package["scripts"]

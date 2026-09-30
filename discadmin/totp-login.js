@@ -108,8 +108,8 @@
       };
 
       recovery.addEventListener('click', toggleRecovery);
-      submit.addEventListener('click', verify);
-      input.addEventListener('keydown', e => { if (e.key === 'Enter') verify(); });
+      submit.addEventListener('click', () => { verify().catch(error => fail(error?.message || 'Verification failed.')); });
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') verify().catch(error => fail(error?.message || 'Verification failed.')); });
       cancel.addEventListener('click', () => { void cancelChallenge(); });
       overlay.addEventListener('keydown', event => {
         if (event.key === 'Escape') {

@@ -755,9 +755,9 @@
     root.querySelectorAll('[data-theme-reset]').forEach(button => button.addEventListener('click', () => resetGroup(button.dataset.themeReset || '')));
     root.querySelectorAll('[data-theme-action]').forEach(button => button.addEventListener('click', () => {
       const action = button.dataset.themeAction;
-      if (action === 'save') persist(false);
-      if (action === 'activate') persist(true);
-      if (action === 'revert') loadThemeStudioV2(V2.editingSlug);
+      if (action === 'save') persist(false).catch(error => window.BRVTALFeedback?.error(error?.message || 'Theme save failed.', 'theme-studio-save'));
+      if (action === 'activate') persist(true).catch(error => window.BRVTALFeedback?.error(error?.message || 'Theme activation failed.', 'theme-studio-save'));
+      if (action === 'revert') loadThemeStudioV2(V2.editingSlug).catch(error => window.BRVTALFeedback?.error(error?.message || 'Theme reload failed.', 'theme-studio'));
       if (action === 'duplicate') duplicate();
       if (action === 'preset-concept05') preset('concept05');
     }));

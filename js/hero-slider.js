@@ -180,5 +180,6 @@
     }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
+  const start = () => init().catch(error => console.warn('[BRVTAL] Hero Slider initialization failed.', error));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true}); else start();
 })();
