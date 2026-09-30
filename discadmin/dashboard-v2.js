@@ -230,6 +230,10 @@
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Five records at a time from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list" data-dashboard-activity-list>${rows}</div>${more}</section>`;
   }
 
+  function developmentLoadingPanel() {
+    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2><p>Loading read-only repository and CI signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
+  }
+
   function developmentPanel(signals, signalsError) {
     if (!signals) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(signalsError)}</section>`;
     const freshness = String(signals.freshness || 'unavailable');
@@ -251,6 +255,21 @@
       </div>
       <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}</div>
     </section>`;
+  }
+
+  function applyDevelopmentResult(results, serial, result) {
+    results[6] = result;
+    if (
+      serial !== mountSerial
+      || typeof state === 'undefined'
+      || !state.authed
+      || state.section !== 'dashboard'
+    ) return;
+    const root = document.getElementById('brvtal-dashboard-v2');
+    const module = root?.querySelector('[data-dashboard-module="development"]');
+    const panel = module?.querySelector('.dashboard-v2-panel');
+    if (!panel) return;
+    panel.outerHTML = developmentPanel(resultValue(result),resultError(result));
   }
 
   function analyticsPanel() {
@@ -512,17 +531,24 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5], developmentResult = results[6];
+    const preferenceResult = results[5], developmentResult = results[6] || null;
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
+    let developmentMarkup = developmentLoadingPanel();
+    if (developmentResult) {
+      developmentMarkup = developmentPanel(
+        resultValue(developmentResult),
+        resultError(developmentResult)
+      );
+    }
 
     const modules = {
       next_event:nextEventPanel(overview,resultError(overviewResult)),
       attention:attentionPanel(content,resultError(contentResult)),
       drafts:draftsPanel(content,resultError(contentResult)),
       operations:systemPanel(resultValue(results[2]),resultError(results[2]),storage,resultError(storageResult)),
-      development:developmentPanel(resultValue(developmentResult),resultError(developmentResult)),
+      development:developmentMarkup,
       activity:activityPanel(activity,resultError(activityResult)),
       quick_create:actionsPanel(),
       analytics:analyticsPanel()
@@ -583,10 +609,22 @@
         fetchData(ENDPOINTS.health),
         fetchData(ENDPOINTS.storage),
         fetchData(ENDPOINTS.activity),
-        fetchData(ENDPOINTS.preferences),
-        fetchData(ENDPOINTS.development)
+        fetchData(ENDPOINTS.preferences)
       ]);
       rendered = render(results,serial);
+      if (rendered) {
+        void fetchData(ENDPOINTS.development)
+          .then(value => applyDevelopmentResult(
+            results,
+            serial,
+            {status:'fulfilled',value}
+          ))
+          .catch(reason => applyDevelopmentResult(
+            results,
+            serial,
+            {status:'rejected',reason}
+          ));
+      }
     } finally {
       if (!rendered && serial === mountSerial && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
       if (serial === mountSerial) {
