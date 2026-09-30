@@ -30,7 +30,8 @@ jobs:
        github.event.comment.body == '/force-release' ||
        startsWith(github.event.comment.body, '/release ') ||
        startsWith(github.event.comment.body, '/transfer ') ||
-       startsWith(github.event.comment.body, '/recover '))
+       startsWith(github.event.comment.body, '/recover ') ||
+       startsWith(github.event.comment.body, '/renovar-contrato '))
     # Factory v1 declares this maximum workflow_call envelope. GitHub validates
     # the caller against that envelope before selecting the operation-specific job;
     # the reusable narrows effective permissions internally per operation.
