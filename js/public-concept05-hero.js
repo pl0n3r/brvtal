@@ -162,13 +162,19 @@
     animateHero();
   }
 
+  function startInit() {
+    void init().catch(error => {
+      console.warn('[BRVTAL] Concept 05 hero init failed closed.', error);
+    });
+  }
+
   const ready = window.BRVTALRuntimeReady;
   if (ready && typeof ready.then === 'function') {
-    ready.finally(init);
+    void ready.then(startInit, startInit);
   } else if (document.readyState === 'complete') {
-    init();
+    startInit();
   } else {
-    window.addEventListener('load', init, {once:true});
+    window.addEventListener('load', startInit, {once:true});
   }
 
   window.BRVTALConcept05Hero = {
