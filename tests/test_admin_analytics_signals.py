@@ -147,7 +147,7 @@ echo json_encode(['data'=>$data,'cache_writes'=>$cacheWrites], JSON_THROW_ON_ERR
         self.assertIn("hydrateAnalyticsSignal(results,serial)", js)
         self.assertIn("analytics:analyticsPanel(resultValue(results[12]),resultError(results[12]))", js)
         self.assertIn("data-testid=\\"dashboard-analytics-state\\"", js)
-        self.assertIn("{id:'analytics',width:2,height:1,visible:true}", js)
+        self.assertIn("{id:'analytics',width:2,height:1,visible:false}", js)
         self.assertIn("hydrateDevelopmentSource(results,serial,11,ENDPOINTS.backup)", js)
 
     def test_deploy_bound_version_is_0_1_98(self):

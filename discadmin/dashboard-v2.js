@@ -730,7 +730,7 @@
         {id:'development',width:2,height:1,visible:true},
         {id:'activity',width:2,height:1,visible:true},
         {id:'quick_create',width:2,height:1,visible:true},
-        {id:'analytics',width:2,height:1,visible:true}
+        {id:'analytics',width:2,height:1,visible:false}
       ]
     };
   }
