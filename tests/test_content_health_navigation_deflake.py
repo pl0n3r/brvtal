@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "tests" / "e2e" / "discadmin-content-health-navigation.spec.mjs"
+RUNTIME = ROOT / "discadmin" / "content-health.js"
 
 
 class ContentHealthNavigationDeflakeTests(unittest.TestCase):
@@ -26,6 +27,45 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
             source,
         )
 
+
+    def test_initial_fallback_does_not_remount_existing_panel(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        self.assertIn(
+            "if (!document.getElementById('brvtal-content-health')) void mount();",
+            runtime,
+        )
+        source = self._source()
+        self.assertIn("window.__healthFallback=()=>callback(...args);", source)
+        self.assertIn("await page.evaluate(() => window.__healthFallback());", source)
+        self.assertGreaterEqual(
+            source.count("await expect(openButton).toHaveAttribute('data-health-open', '');"),
+            2,
+        )
+
+    def test_explicit_refresh_remains_available(self):
+        runtime = RUNTIME.read_text(encoding="utf-8")
+        self.assertIn(
+            "window.BRVTALContentHealth = {mount,refresh:mount};",
+            runtime,
+        )
+        source = self._source()
+        self.assertIn(
+            "await page.evaluate(() => window.BRVTALContentHealth.refresh());",
+            source,
+        )
+        self.assertIn("await expect.poll(() => healthRequests).toBe(2);", source)
+
+    def test_release_identity_is_synchronized(self):
+        import re
+        config = (ROOT / "config" / "version.php").read_text(encoding="utf-8")
+        match = re.search(
+            r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'",
+            config,
+        )
+        self.assertIsNotNone(match)
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["version"], match.group(1))
+
     def test_required_ci_command_executes_this_suite(self):
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         scripts = package["scripts"]
@@ -43,6 +83,7 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
         self.assertNotRegex(source, r"\bbutton\.click\s*\(")
         self.assertNotRegex(source, r"expect\.poll\([^\n]+,\s*\{\s*timeout\s*:")
         self.assertNotRegex(source, r"test\.setTimeout\s*\(")
+        self.assertNotRegex(source, r"waitForTimeout\s*\(")
         self.assertNotRegex(source, r"\bretries\s*:")
 
 

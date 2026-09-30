@@ -7,7 +7,10 @@ const contentHealthJs = readFileSync(join(process.cwd(), 'discadmin/content-heal
 const harnessUrl = 'http://127.0.0.1:4173/content-health-record-navigation-e2e.html';
 
 test('Content Health OPEN preserves health routing when data-health-open is present but empty', async ({ page }) => {
-  await page.route('**/api/content-health.php', route => route.fulfill({
+  let healthRequests = 0;
+  await page.route('**/api/content-health.php', route => {
+    healthRequests += 1;
+    return route.fulfill({
     contentType: 'application/json; charset=utf-8',
     body: JSON.stringify({
       ok: true,
@@ -26,7 +29,8 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
         }],
       },
     }),
-  }));
+  });
+  });
 
   await page.route(harnessUrl, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
@@ -37,6 +41,11 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
         window.go=async function(section){state.section=section;window.__went=section;return section;};
         window.BRVTALContentCore={openEvent:async function(id){window.__openedRecordId=Number(id);}};
         window.BRVTALFeedback={error:function(message){window.__feedback=message;}};
+        window.__nativeSetTimeout=window.setTimeout.bind(window);
+        window.setTimeout=function(callback,delay,...args){
+          if(Number(delay)===50){window.__healthFallback=()=>callback(...args);return 817;}
+          return window.__nativeSetTimeout(callback,delay,...args);
+        };
       </script>
       <script>${recordNavigationJs}</script>
       <script>${contentHealthJs}</script>
@@ -49,7 +58,13 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
 
   const openButton = page.getByRole('button', { name: 'OPEN' });
   await expect(openButton).toHaveAttribute('data-health-open', 'events');
+  await expect.poll(() => healthRequests).toBe(1);
+  await page.evaluate(() => window.BRVTALContentHealth.refresh());
+  await expect.poll(() => healthRequests).toBe(2);
+  await expect(page.locator('#brvtal-content-health')).toContainText('GENESIS');
   await openButton.evaluate(button => button.setAttribute('data-health-open', ''));
+  await expect(openButton).toHaveAttribute('data-health-open', '');
+  await page.evaluate(() => window.__healthFallback());
   await expect(openButton).toHaveAttribute('data-health-open', '');
   await openButton.click();
 

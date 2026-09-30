@@ -135,6 +135,8 @@
   observer.observe(document.documentElement,{childList:true,subtree:true});
 
   ensureStyle();
-  setTimeout(mount, 50);
+  setTimeout(() => {
+    if (!document.getElementById('brvtal-content-health')) void mount();
+  }, 50);
   window.BRVTALContentHealth = {mount,refresh:mount};
 })();
