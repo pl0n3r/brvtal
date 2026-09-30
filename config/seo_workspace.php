@@ -8,6 +8,96 @@ require_once __DIR__ . '/page_content.php';
 
 const BRVTAL_SEO_WORKSPACE_SETTING_KEY = 'seo';
 
+/** @return list<string> */
+function brvtalSeoWorkspaceWarnings(array $item): array
+{
+    $warnings = [];
+    $title = trim((string)($item['effective_title'] ?? ''));
+    $description = trim((string)($item['effective_description'] ?? ''));
+
+    if ($title === '') {
+        $warnings[] = 'MISSING_TITLE';
+    }
+    if ($description === '') {
+        $warnings[] = 'MISSING_DESCRIPTION';
+    }
+    if (mb_strlen($title) > 70) {
+        $warnings[] = 'TITLE_LONG';
+    }
+    if (mb_strlen($description) > 180) {
+        $warnings[] = 'DESCRIPTION_LONG';
+    }
+    if (empty($item['public']) && ($item['mode'] ?? 'AUTO') !== 'AUTO') {
+        $warnings[] = 'PRIVATE_WITH_OVERRIDE';
+    }
+    return $warnings;
+}
+
+/**
+ * Summarize the canonical SEO inventory without introducing a second score.
+ *
+ * @return array{
+ *   status:string,freshness:string,read_only:bool,total:int,healthy:int,issues:int,
+ *   auto:int,manual:int,warning_counts:array<string,int>,truncated_resources:list<string>
+ * }
+ */
+function brvtalSeoWorkspaceSummary(array $items, array $truncatedResources): array
+{
+    $warningCounts = [];
+    $healthy = 0;
+    $issues = 0;
+    $auto = 0;
+    $manual = 0;
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            throw new InvalidArgumentException('INVALID_SEO_INVENTORY');
+        }
+        $mode = (string)($item['mode'] ?? 'AUTO');
+        if ($mode === 'AUTO') {
+            $auto++;
+        } else {
+            $manual++;
+        }
+
+        $warnings = $item['warnings'] ?? [];
+        if (!is_array($warnings)) {
+            throw new InvalidArgumentException('INVALID_SEO_WARNINGS');
+        }
+        if ($warnings === []) {
+            $healthy++;
+            continue;
+        }
+        $issues++;
+        foreach ($warnings as $warning) {
+            if (!is_string($warning) || $warning === '') {
+                throw new InvalidArgumentException('INVALID_SEO_WARNING');
+            }
+            $warningCounts[$warning] = ($warningCounts[$warning] ?? 0) + 1;
+        }
+    }
+
+    ksort($warningCounts);
+    $truncated = array_values(array_unique(array_filter(
+        array_map(static fn(mixed $value): string => trim((string)$value), $truncatedResources),
+        static fn(string $value): bool => $value !== ''
+    )));
+    sort($truncated);
+
+    return [
+        'status'=>$truncated === [] ? 'available' : 'partial',
+        'freshness'=>$truncated === [] ? 'fresh' : 'stale',
+        'read_only'=>true,
+        'total'=>count($items),
+        'healthy'=>$healthy,
+        'issues'=>$issues,
+        'auto'=>$auto,
+        'manual'=>$manual,
+        'warning_counts'=>$warningCounts,
+        'truncated_resources'=>$truncated,
+    ];
+}
+
 /**
  * Static public destinations whose metadata is not backed by an entity row.
  *
