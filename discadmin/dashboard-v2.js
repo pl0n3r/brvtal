@@ -609,10 +609,9 @@
     const metrics = analytics.metrics;
     const emptyState = state === 'NOT CONFIGURED' || state === 'UNAVAILABLE';
     if (emptyState) {
-      const emptyMetrics = metrics
-        && metrics.users === null
-        && metrics.sessions === null
-        && metrics.views === null;
+      const emptyMetrics = metrics?.users === null
+        && metrics?.sessions === null
+        && metrics?.views === null;
       if (!emptyMetrics) return unavailable;
       return {
         ...unavailable,
@@ -662,7 +661,11 @@
     const analytics = arguments[0];
     const analyticsError = arguments[1] || '';
     const view = analyticsView(analytics);
-    const stateClassName = view.state === 'FRESH' ? 'ok' : (view.state === 'STALE' ? 'warn' : (view.state === 'NOT CONFIGURED' ? 'muted' : 'bad'));
+    const stateClassName = {
+      FRESH:'ok',
+      STALE:'warn',
+      'NOT CONFIGURED':'muted'
+    }[view.state] || 'bad';
     const source = analyticsError ? esc(analyticsError) : esc(view.sourceAt);
     if (view.state === 'NOT CONFIGURED' || view.state === 'UNAVAILABLE') {
       return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>GA4 PERFORMANCE</h2><p>Read-only Google Analytics reporting. Missing evidence never becomes a fabricated zero.</p></div><span class="dashboard-v2-state ${stateClassName}" data-testid="dashboard-analytics-state">${esc(view.state)}</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · ${source || 'GA4 source unavailable'} · BRVTAL does not invent GA4 metrics.</div></section>`;

@@ -159,7 +159,9 @@ function brvtalAnalyticsTopPages(array $payload): array
     }
     $items = [];
     foreach (array_slice($rows, 0, 5) as $row) {
-        if (!is_array($row)) throw new RuntimeException('GA4_INVALID_RESPONSE');
+        if (!is_array($row)) {
+            throw new RuntimeException('GA4_INVALID_RESPONSE');
+        }
         $path = $row['dimensionValues'][0]['value'] ?? null;
         $views = $row['metricValues'][0]['value'] ?? null;
         if (!is_string($path) || $path === '' || strlen($path) > 200) {
@@ -179,7 +181,9 @@ function brvtalAnalyticsDevices(array $payload): array
     }
     $items = [];
     foreach (array_slice($rows, 0, 5) as $row) {
-        if (!is_array($row)) throw new RuntimeException('GA4_INVALID_RESPONSE');
+        if (!is_array($row)) {
+            throw new RuntimeException('GA4_INVALID_RESPONSE');
+        }
         $category = $row['dimensionValues'][0]['value'] ?? null;
         $users = $row['metricValues'][0]['value'] ?? null;
         if (
@@ -202,9 +206,13 @@ function brvtalAnalyticsCacheFile(): string
 function brvtalAnalyticsCacheRead(): ?array
 {
     $path = brvtalAnalyticsCacheFile();
-    if (!is_file($path)) return null;
+    if (!is_file($path)) {
+        return null;
+    }
     $raw = @file_get_contents($path);
-    if (!is_string($raw) || $raw === '' || strlen($raw) > BRVTAL_GA4_MAX_BYTES) return null;
+    if (!is_string($raw) || $raw === '' || strlen($raw) > BRVTAL_GA4_MAX_BYTES) {
+        return null;
+    }
     $decoded = json_decode($raw, true);
     return is_array($decoded) ? $decoded : null;
 }
@@ -213,15 +221,23 @@ function brvtalAnalyticsCacheWrite(array $record): void
 {
     $path = brvtalAnalyticsCacheFile();
     $json = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-    if (strlen($json) > BRVTAL_GA4_MAX_BYTES) return;
+    if (strlen($json) > BRVTAL_GA4_MAX_BYTES) {
+        return;
+    }
     $tmp = tempnam(dirname($path), '.ga4-');
-    if ($tmp === false) return;
+    if ($tmp === false) {
+        return;
+    }
     try {
-        if (@file_put_contents($tmp, $json, LOCK_EX) === false) return;
+        if (@file_put_contents($tmp, $json, LOCK_EX) === false) {
+            return;
+        }
         @chmod($tmp, 0600);
         @rename($tmp, $path);
     } finally {
-        if (is_file($tmp)) @unlink($tmp);
+        if (is_file($tmp)) {
+            @unlink($tmp);
+        }
     }
 }
 
@@ -261,7 +277,9 @@ function brvtalAnalyticsCacheCandidate(
     int $maxAge,
     string $state
 ): ?array {
-    if (!is_array($cache) || ($cache['property_id'] ?? null) !== $propertyId) return null;
+    if (!is_array($cache) || ($cache['property_id'] ?? null) !== $propertyId) {
+        return null;
+    }
     $storedAt = $cache['stored_at'] ?? null;
     $data = $cache['data'] ?? null;
     if (!is_int($storedAt) || $storedAt > $now || ($now - $storedAt) > $maxAge || !is_array($data)) {
@@ -299,7 +317,9 @@ function brvtalAdminAnalyticsSignals(
 
     try {
         $config = brvtalAnalyticsConfig($configOverride);
-        if ($config === null) return brvtalAnalyticsEmpty('NOT CONFIGURED');
+        if ($config === null) {
+            return brvtalAnalyticsEmpty('NOT CONFIGURED');
+        }
 
         $cache = $readCache();
         $freshCache = brvtalAnalyticsCacheCandidate(
@@ -309,10 +329,14 @@ function brvtalAdminAnalyticsSignals(
             BRVTAL_GA4_CACHE_TTL_SECONDS,
             'FRESH'
         );
-        if ($freshCache !== null) return $freshCache;
+        if ($freshCache !== null) {
+            return $freshCache;
+        }
 
         $assertion = ($assertionFactory ?? 'brvtalAnalyticsJwt')($config, $now);
-        if (!is_string($assertion) || $assertion === '') throw new RuntimeException('GA4_AUTH_FAILED');
+        if (!is_string($assertion) || $assertion === '') {
+            throw new RuntimeException('GA4_AUTH_FAILED');
+        }
 
         $tokenPayload = brvtalAnalyticsDecode($request(
             'POST',
@@ -405,7 +429,9 @@ function brvtalAdminAnalyticsSignals(
                     BRVTAL_GA4_STALE_MAX_SECONDS,
                     'STALE'
                 );
-                if ($stale !== null) return $stale;
+                if ($stale !== null) {
+                    return $stale;
+                }
             }
         } catch (Throwable) {
             // Fall through to a secret-safe unavailable state.
