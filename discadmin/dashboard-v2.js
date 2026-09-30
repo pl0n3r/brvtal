@@ -9,6 +9,7 @@
     activity:'/api/admin-activity.php?limit=5',
     development:'/api/admin-development-signals.php',
     sonar:'/api/admin-sonar-signals.php',
+    coderabbit:'/api/admin-coderabbit-signals.php',
     preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
@@ -232,19 +233,30 @@
   }
 
   function developmentLoadingPanel() {
-    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR</h2><p>Loading read-only repository, CI and quality signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
+    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT</h2><p>Loading independent read-only development signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
   }
 
-  function developmentPanel(signals, signalsError, sonar, sonarError) {
+  function developmentFreshnessState(values) {
+    if (values.every(value => value === 'fresh')) {
+      return {state:'ok',label:'FRESH'};
+    }
+    if (values.some(value => value === 'fresh' || value === 'stale')) {
+      return {state:'warn',label:'PARTIAL'};
+    }
+    return {state:'bad',label:'UNAVAILABLE'};
+  }
+
+  function developmentPanel(signals, signalsError, sonar, sonarError, coderabbit, coderabbitError) {
     const githubFreshness = String(signals?.freshness || 'unavailable');
     const sonarFreshness = String(sonar?.freshness || 'unavailable');
-    const freshnesses = [githubFreshness, sonarFreshness];
-    let state = 'bad';
-    if (freshnesses.every(value => value === 'fresh')) state = 'ok';
-    else if (freshnesses.some(value => value === 'fresh' || value === 'stale')) state = 'warn';
-    let statusLabel = 'UNAVAILABLE';
-    if (state === 'ok') statusLabel = 'FRESH';
-    else if (state === 'warn') statusLabel = 'PARTIAL';
+    const codeRabbitFreshness = String(coderabbit?.freshness || 'unavailable');
+    const overall = developmentFreshnessState([
+      githubFreshness,
+      sonarFreshness,
+      codeRabbitFreshness
+    ]);
+    const state = overall.state;
+    const statusLabel = overall.label;
 
     const latestPr = signals?.latest_pr || null;
     const latestCi = signals?.latest_ci || null;
@@ -257,13 +269,17 @@
     const prUrl = safeGithubLink(latestPr?.url);
     const ciUrl = safeGithubLink(latestCi?.url);
     const sonarUrl = safeSonarLink(sonar?.dashboard_url);
+    const codeRabbitUrl = safeGithubLink(coderabbit?.url);
     const githubSource = String(signals?.source_at || '—').replace('T',' ').replace('Z',' UTC');
     const sonarSource = String(sonar?.source_at || '—').replace('T',' ').replace('Z',' UTC');
+    const codeRabbitSource = String(coderabbit?.source_at || '—').replace('T',' ').replace('Z',' UTC');
     const sonarGate = String(sonar?.quality_gate || 'UNAVAILABLE').toUpperCase();
+    const codeRabbitState = String(coderabbit?.review_state || 'UNAVAILABLE').toUpperCase().replaceAll('_',' ');
 
-    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR</h2><p>Independent read-only development signals. An unavailable source never becomes a fabricated healthy zero.</p></div><span class="dashboard-v2-state ${state}">${statusLabel}</span></div>
+    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${state}">${statusLabel}</span></div>
       ${signals ? '' : sourceError('GITHUB · ' + (signalsError || 'UNAVAILABLE'))}
       ${sonar ? '' : sourceError('SONAR · ' + (sonarError || 'UNAVAILABLE'))}
+      ${coderabbit ? '' : sourceError('CODERABBIT · ' + (coderabbitError || 'UNAVAILABLE'))}
       <div class="dashboard-v2-development-grid">
         <div class="dashboard-v2-health-card"><span>OPEN ISSUES</span><b>${signals?.open_issues == null ? '—' : Number(signals.open_issues)}</b><small>GitHub · ${esc(githubFreshness)}</small></div>
         <div class="dashboard-v2-health-card"><span>OPEN PRS</span><b>${signals?.open_prs == null ? '—' : Number(signals.open_prs)}</b><small>${latestPr ? esc('#' + latestPr.number + ' · ' + latestPr.title) : 'No active PR / source unavailable'}</small></div>
@@ -271,8 +287,9 @@
         <div class="dashboard-v2-health-card"><span>SONAR GATE</span><b>${esc(sonarGate)}</b><small>${esc(sonarFreshness + ' · ' + sonarSource)}</small></div>
         <div class="dashboard-v2-health-card"><span>SONAR NEW ISSUES</span><b>${sonar?.new_issues == null ? '—' : Number(sonar.new_issues)}</b><small>New-code source</small></div>
         <div class="dashboard-v2-health-card"><span>SONAR HOTSPOTS</span><b>${sonar?.security_hotspots == null ? '—' : Number(sonar.security_hotspots)}</b><small>Open review queue</small></div>
+        <div class="dashboard-v2-health-card"><span>CODERABBIT</span><b>${esc(codeRabbitState)}</b><small>${esc(codeRabbitFreshness + ' · ' + codeRabbitSource)}</small></div>
       </div>
-      <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}${sonarUrl ? `<a class="dashboard-v2-button" href="${esc(sonarUrl)}" target="_blank" rel="noopener noreferrer">SONAR</a>` : ''}</div>
+      <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}${sonarUrl ? `<a class="dashboard-v2-button" href="${esc(sonarUrl)}" target="_blank" rel="noopener noreferrer">SONAR</a>` : ''}${codeRabbitUrl ? `<a class="dashboard-v2-button" href="${esc(codeRabbitUrl)}" target="_blank" rel="noopener noreferrer">CODERABBIT REVIEW</a>` : ''}</div>
     </section>`;
   }
 
@@ -291,7 +308,9 @@
       resultValue(results[6]),
       resultError(results[6]),
       resultValue(results[7]),
-      resultError(results[7])
+      resultError(results[7]),
+      resultValue(results[8]),
+      resultError(results[8])
     );
   }
 
@@ -319,6 +338,7 @@
   function hydrateDevelopmentSignals(results, serial) {
     hydrateDevelopmentSource(results,serial,6,ENDPOINTS.development);
     hydrateDevelopmentSource(results,serial,7,ENDPOINTS.sonar);
+    hydrateDevelopmentSource(results,serial,8,ENDPOINTS.coderabbit);
   }
 
   function analyticsPanel() {
@@ -580,7 +600,7 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5], developmentResult = results[6] || null, sonarResult = results[7] || null;
+    const preferenceResult = results[5], developmentResult = results[6] || null, sonarResult = results[7] || null, coderabbitResult = results[8] || null;
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
@@ -590,7 +610,9 @@
         resultValue(developmentResult),
         resultError(developmentResult),
         resultValue(sonarResult),
-        resultError(sonarResult)
+        resultError(sonarResult),
+        resultValue(coderabbitResult),
+        resultError(coderabbitResult)
       );
     }
 
