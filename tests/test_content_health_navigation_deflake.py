@@ -48,6 +48,12 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
             "window.BRVTALContentHealth = {mount,refresh:mount};",
             runtime,
         )
+        source = self._source()
+        self.assertIn(
+            "await page.evaluate(() => window.BRVTALContentHealth.refresh());",
+            source,
+        )
+        self.assertIn("await expect.poll(() => healthRequests).toBe(2);", source)
 
     def test_release_identity_is_synchronized(self):
         import re
