@@ -30,7 +30,14 @@ function brvtal_blog_body(): array
 function brvtal_blog_schema_ready(PDO $pdo): bool
 {
     $st = $pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('blog_posts','blog_tags','blog_post_tags','blog_post_relations')");
-    return (int)$st->fetchColumn() === 4;
+    if ((int)$st->fetchColumn() !== 4) return false;
+
+    $columns = $pdo->query(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='blog_posts'
+           AND COLUMN_NAME IN ('deleted_at','deleted_by_admin_id')"
+    );
+    return (int)$columns->fetchColumn() === 2;
 }
 
 function brvtal_blog_slug(string $value): string
@@ -143,9 +150,15 @@ function brvtal_blog_sync_relations(PDO $pdo, int $postId, array $relations): vo
     }
 }
 
-function brvtal_blog_fetch(PDO $pdo, int $id): ?array
+function brvtal_blog_fetch(PDO $pdo, int $id, bool $trashed = false): ?array
 {
-    $st = $pdo->prepare('SELECT * FROM blog_posts WHERE id=? LIMIT 1');
+    $condition = $trashed ? 'p.deleted_at IS NOT NULL' : 'p.deleted_at IS NULL';
+    $st = $pdo->prepare(
+        'SELECT p.*,a.name AS deleted_by_name
+         FROM blog_posts p
+         LEFT JOIN admins a ON a.id=p.deleted_by_admin_id
+         WHERE p.id=? AND ' . $condition . ' LIMIT 1'
+    );
     $st->execute([$id]);
     $post = $st->fetch();
     if (!$post) return null;
@@ -158,22 +171,30 @@ function brvtal_blog_fetch(PDO $pdo, int $id): ?array
     $post['id'] = (int)$post['id'];
     $post['featured'] = (int)$post['featured'];
     $post['sort_order'] = (int)$post['sort_order'];
+    $post['deleted_by_admin_id'] = $post['deleted_by_admin_id'] === null ? null : (int)$post['deleted_by_admin_id'];
     $post['tags'] = $tags->fetchAll();
     $post['relations'] = $relations->fetchAll();
     return $post;
 }
 
-function brvtal_blog_list(PDO $pdo): array
+function brvtal_blog_list(PDO $pdo, bool $trashed = false): array
 {
+    $condition = $trashed ? 'p.deleted_at IS NOT NULL' : 'p.deleted_at IS NULL';
+    $order = $trashed
+        ? 'p.deleted_at DESC,p.id DESC'
+        : 'p.sort_order ASC,p.featured DESC,COALESCE(p.published_at,p.updated_at) DESC,p.id ASC';
     $rows = $pdo->query(
-        'SELECT * FROM blog_posts '
-        . 'ORDER BY sort_order ASC, featured DESC, '
-        . 'COALESCE(published_at,updated_at) DESC, id ASC'
+        'SELECT p.*,a.name AS deleted_by_name
+         FROM blog_posts p
+         LEFT JOIN admins a ON a.id=p.deleted_by_admin_id
+         WHERE ' . $condition . '
+         ORDER BY ' . $order
     )->fetchAll();
     foreach ($rows as &$row) {
         $row['id'] = (int)$row['id'];
         $row['featured'] = (int)$row['featured'];
         $row['sort_order'] = (int)$row['sort_order'];
+        $row['deleted_by_admin_id'] = $row['deleted_by_admin_id'] === null ? null : (int)$row['deleted_by_admin_id'];
     }
     unset($row);
     return $rows;
@@ -185,40 +206,113 @@ try {
 
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
     $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    $trash = ($_GET['trash'] ?? '') === '1';
+    $permanent = ($_GET['permanent'] ?? '') === '1';
 
     if ($method === 'GET') {
         if ($id > 0) {
-            $post = brvtal_blog_fetch($pdo, $id);
+            $post = brvtal_blog_fetch($pdo, $id, $trash);
             if (!$post) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_NOT_FOUND'], 404);
             brvtal_blog_json(['ok'=>true,'data'=>$post]);
         }
-        brvtal_blog_json(['ok'=>true,'data'=>brvtal_blog_list($pdo)]);
+        brvtal_blog_json(['ok'=>true,'data'=>brvtal_blog_list($pdo, $trash)]);
     }
 
-    if (!in_array($method, ['POST','PUT','DELETE'], true)) {
-        header('Allow: GET, POST, PUT, DELETE');
+    if (!in_array($method, ['POST','PUT','PATCH','DELETE'], true)) {
+        header('Allow: GET, POST, PUT, PATCH, DELETE');
         brvtal_blog_json(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405);
     }
 
     brvtal_admin_require_csrf();
 
+    if ($method === 'PATCH') {
+        if ($id <= 0) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_ID_REQUIRED'], 422);
+        $input = brvtal_blog_body();
+        if (($input['action'] ?? null) !== 'restore') {
+            brvtal_blog_json(['ok'=>false,'error'=>'BLOG_RESTORE_ACTION_REQUIRED'], 422);
+        }
+        $before = brvtal_blog_fetch($pdo, $id, true);
+        if (!$before) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_NOT_FOUND'], 404);
+
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare(
+                'UPDATE blog_posts
+                 SET deleted_at=NULL,deleted_by_admin_id=NULL
+                 WHERE id=? AND deleted_at IS NOT NULL'
+            );
+            $st->execute([$id]);
+            if ($st->rowCount() !== 1) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            $after = brvtal_blog_fetch($pdo, $id, false);
+            if (!$after) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            brvtal_activity_record(
+                $pdo,'restore','blog',$id,$before,$after,
+                ['source'=>'blog_api'],(string)$after['title']
+            );
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+
+        brvtalIndexNowNotifyChange($pdo, 'blog', null, $after);
+        brvtal_blog_json(['ok'=>true,'restored'=>$id,'data'=>$after]);
+    }
+
     if ($method === 'DELETE') {
         if ($id <= 0) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_ID_REQUIRED'], 422);
-        $before = brvtal_blog_fetch($pdo, $id);
+
+        if ($permanent) {
+            $before = brvtal_blog_fetch($pdo, $id, true);
+            if (!$before) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_NOT_FOUND'], 404);
+            $input = brvtal_blog_body();
+            $confirmSlug = $input['confirm_slug'] ?? null;
+            if (!is_string($confirmSlug) || !hash_equals((string)$before['slug'], trim($confirmSlug))) {
+                brvtal_blog_json(['ok'=>false,'error'=>'BLOG_PERMANENT_DELETE_CONFIRMATION_REQUIRED'], 422);
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('DELETE FROM blog_posts WHERE id=? AND deleted_at IS NOT NULL');
+                $st->execute([$id]);
+                if ($st->rowCount() !== 1) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+                brvtal_activity_record(
+                    $pdo,'permanent_delete','blog',$id,$before,null,
+                    ['source'=>'blog_api','confirmation'=>'slug'],(string)$before['title']
+                );
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            brvtal_blog_json(['ok'=>true,'permanently_deleted'=>$id]);
+        }
+
+        $before = brvtal_blog_fetch($pdo, $id, false);
         if (!$before) brvtal_blog_json(['ok'=>false,'error'=>'BLOG_POST_NOT_FOUND'], 404);
         $pdo->beginTransaction();
         try {
-            $st = $pdo->prepare('DELETE FROM blog_posts WHERE id=?');
-            $st->execute([$id]);
-            if ($st->rowCount() < 1) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
-            brvtal_activity_record($pdo, 'delete', 'blog', $id, $before, null, ['source'=>'blog_api'], (string)$before['title']);
+            $actor = brvtal_activity_actor($pdo);
+            $st = $pdo->prepare(
+                'UPDATE blog_posts
+                 SET deleted_at=CURRENT_TIMESTAMP,deleted_by_admin_id=?
+                 WHERE id=? AND deleted_at IS NULL'
+            );
+            $st->execute([$actor['id'], $id]);
+            if ($st->rowCount() !== 1) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            $after = brvtal_blog_fetch($pdo, $id, true);
+            if (!$after) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
+            brvtal_activity_record(
+                $pdo,'trash','blog',$id,$before,$after,
+                ['source'=>'blog_api'],(string)$before['title']
+            );
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
         brvtalIndexNowNotifyChange($pdo, 'blog', $before, null);
-        brvtal_blog_json(['ok'=>true,'deleted'=>$id]);
+        brvtal_blog_json(['ok'=>true,'trashed'=>$id,'data'=>$after]);
     }
 
     $data = brvtal_blog_payload(brvtal_blog_body());
@@ -238,7 +332,7 @@ try {
             if ($id <= 0) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
             $before = brvtal_blog_fetch($pdo,$id);
             if (!$before) throw new RuntimeException('BLOG_POST_NOT_FOUND',404);
-            $st = $pdo->prepare("UPDATE blog_posts SET title=?,slug=?,excerpt=?,body=?,cover_image=?,seo_title=?,seo_description=?,status=?,featured=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END,sort_order=? WHERE id=?");
+            $st = $pdo->prepare("UPDATE blog_posts SET title=?,slug=?,excerpt=?,body=?,cover_image=?,seo_title=?,seo_description=?,status=?,featured=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,CURRENT_TIMESTAMP) ELSE published_at END,sort_order=? WHERE id=? AND deleted_at IS NULL");
             $st->execute([
                 $data['title'],$data['slug'],$data['excerpt'] ?: null,$data['body'] ?: null,$data['cover_image'] ?: null,
                 $data['seo_title'] ?: null,$data['seo_description'] ?: null,$data['status'],$data['featured'],$data['status'],$data['sort_order'],$id,
