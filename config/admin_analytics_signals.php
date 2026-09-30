@@ -313,7 +313,7 @@ function brvtalAdminAnalyticsSignals(
     $request = $requester ?? 'brvtalAnalyticsRequest';
     $readCache = $cacheReader ?? 'brvtalAnalyticsCacheRead';
     $writeCache = $cacheWriter ?? 'brvtalAnalyticsCacheWrite';
-    $now = (int)(($clock ?? static fn(): int => time())());
+    $now = (int)(($clock ?? time(...))());
 
     try {
         $config = brvtalAnalyticsConfig($configOverride);
@@ -358,14 +358,12 @@ function brvtalAdminAnalyticsSignals(
             'Content-Type: application/json',
             'Authorization: Bearer ' . $accessToken,
         ];
-        $run = static function (array $body) use ($request, $runUrl, $headers): array {
-            return brvtalAnalyticsDecode($request(
-                'POST',
-                $runUrl,
-                $headers,
-                json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
-            ));
-        };
+        $run = (static fn(array $body): array => brvtalAnalyticsDecode($request(
+            'POST',
+            $runUrl,
+            $headers,
+            json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
+        )));
         $metrics = ['activeUsers'=>new stdClass(), 'sessions'=>new stdClass(), 'screenPageViews'=>new stdClass()];
         $current = brvtalAnalyticsSummary($run([
             'dateRanges'=>[['startDate'=>'7daysAgo', 'endDate'=>'yesterday']],
@@ -420,7 +418,7 @@ function brvtalAdminAnalyticsSignals(
         return $data;
     } catch (Throwable) {
         try {
-            $config = $config ?? brvtalAnalyticsConfig($configOverride);
+            $config ??= brvtalAnalyticsConfig($configOverride);
             if (is_array($config)) {
                 $stale = brvtalAnalyticsCacheCandidate(
                     $readCache(),
