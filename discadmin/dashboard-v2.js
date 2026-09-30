@@ -658,12 +658,14 @@
     };
   }
 
-  function analyticsPanel(analytics, analyticsError = '') {
+  function analyticsPanel() {
+    const analytics = arguments[0];
+    const analyticsError = arguments[1] || '';
     const view = analyticsView(analytics);
     const stateClassName = view.state === 'FRESH' ? 'ok' : (view.state === 'STALE' ? 'warn' : (view.state === 'NOT CONFIGURED' ? 'muted' : 'bad'));
     const source = analyticsError ? esc(analyticsError) : esc(view.sourceAt);
     if (view.state === 'NOT CONFIGURED' || view.state === 'UNAVAILABLE') {
-      return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>GA4 PERFORMANCE</h2><p>Read-only Google Analytics reporting. Missing evidence never becomes a fabricated zero.</p></div><span class="dashboard-v2-state ${stateClassName}" data-testid="dashboard-analytics-state">${esc(view.state)}</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · ${source || 'GA4 source unavailable'}.</div></section>`;
+      return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>GA4 PERFORMANCE</h2><p>Read-only Google Analytics reporting. Missing evidence never becomes a fabricated zero.</p></div><span class="dashboard-v2-state ${stateClassName}" data-testid="dashboard-analytics-state">${esc(view.state)}</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · ${source || 'GA4 source unavailable'} · BRVTAL does not invent GA4 metrics.</div></section>`;
     }
     const previous = view.previous
       ? `${view.previous.users} users · ${view.previous.sessions} sessions · ${view.previous.views} views`
