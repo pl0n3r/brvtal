@@ -35,8 +35,8 @@ class MainPromiseReliabilityTests(unittest.TestCase):
         source = (ROOT / "discadmin" / "hero-slider.js").read_text(encoding="utf-8")
         self.assertEqual(source.count("void mediaPromise"), 2)
         self.assertIn(
-            "void mediaPromise\\n"
-            "        .then(result => applyMediaLoad(result, revision))\\n"
+            "void mediaPromise\n"
+            "        .then(result => applyMediaLoad(result, revision))\n"
             "        .catch(error => {",
             source,
         )
