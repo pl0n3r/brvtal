@@ -37,6 +37,11 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
         window.go=async function(section){state.section=section;window.__went=section;return section;};
         window.BRVTALContentCore={openEvent:async function(id){window.__openedRecordId=Number(id);}};
         window.BRVTALFeedback={error:function(message){window.__feedback=message;}};
+        window.__nativeSetTimeout=window.setTimeout.bind(window);
+        window.setTimeout=function(callback,delay,...args){
+          if(Number(delay)===50){window.__healthFallback=()=>callback(...args);return 817;}
+          return window.__nativeSetTimeout(callback,delay,...args);
+        };
       </script>
       <script>${recordNavigationJs}</script>
       <script>${contentHealthJs}</script>
@@ -50,6 +55,8 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
   const openButton = page.getByRole('button', { name: 'OPEN' });
   await expect(openButton).toHaveAttribute('data-health-open', 'events');
   await openButton.evaluate(button => button.setAttribute('data-health-open', ''));
+  await expect(openButton).toHaveAttribute('data-health-open', '');
+  await page.evaluate(() => window.__healthFallback());
   await expect(openButton).toHaveAttribute('data-health-open', '');
   await openButton.click();
 
