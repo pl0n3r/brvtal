@@ -555,13 +555,13 @@
         const item = layout.modules.find(entry => entry.id === button.dataset.dashboardShow);
         if (!item) return;
         item.visible = true;
-        persist();
+        void persist();
       });
     });
 
     root.querySelector('[data-dashboard-reset]')?.addEventListener('click',() => {
       layout.modules = defaultLayout().modules.map(item => ({...item}));
-      persist();
+      void persist();
     });
   }
 

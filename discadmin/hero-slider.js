@@ -574,7 +574,15 @@
       renderManager();
       diagnostics.status = 'loaded';
       diagnostics.reason = '';
-      mediaPromise.then(result => applyMediaLoad(result, revision));
+      void mediaPromise
+        .then(result => applyMediaLoad(result, revision))
+        .catch(error => {
+          if (revision !== loadRevision) return;
+          media = [];
+          mediaReady = false;
+          mediaLoadError = String(error?.message || 'MEDIA_RENDER_FAILED');
+          console.warn('[BRVTAL] Hero Slider media controls degraded.', error);
+        });
       return true;
     } catch (error) {
       diagnostics.status = 'failed';
@@ -588,7 +596,7 @@
         errorNode.textContent = `Unable to load Banners: ${diagnostics.error}`;
         errorHost.appendChild(errorNode);
       }
-      mediaPromise.then(() => {});
+      void mediaPromise.then(() => {});
       return false;
     }
   }
