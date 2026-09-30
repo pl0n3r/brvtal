@@ -521,6 +521,8 @@ The first implementation should favor shared-hosting-safe primitives:
 
 Backups may contain sensitive database material such as encrypted security state; backup files therefore belong in private storage and must never be directly public.
 
+DISCADMIN Development exposes a separate **Backup Health** signal derived only from the canonical local backup inventory and scheduler state. It is read-only and may report the latest local backup state, scheduler evidence and off-site delivery evidence. Missing/partial backups, failed scheduler runs or enabled off-site delivery without successful evidence must degrade explicitly; the dashboard must never infer restore readiness, 3-2-1-1-0 compliance or a healthy state from missing evidence. This signal must not expose private filenames, filesystem paths, checksums, remote folder identifiers or secrets.
+
 Do **not** implement direct one-click restore from DISCADMIN yet. Restore is a separate sensitive operation requiring explicit safeguards and validation.
 
 ## 34. Versioning
