@@ -132,7 +132,10 @@ $assert(str_contains($backupBlock, 'name: exact-target-production-backup'), 'wri
 $assert(str_contains($backupBlock, 'secrets.DEPLOY_TOKEN'), 'backup job must receive the existing deploy token');
 $assert(str_contains($backupBlock, 'secrets.DEPLOY_SSH_KEY'), 'backup job must receive the existing deploy SSH key');
 $assert(str_contains($backupBlock, 'GITHUB_SHA="${BRVTAL_EXPECTED_SHA}" BRVTAL_FACTORY_ADAPTER_MODE=production bash ops/factory/backup'), 'backup must use the canonical adapter for the exact target SHA');
+$assert(str_contains($backupBlock, 'actual_sha="$(git rev-parse HEAD)"'), 'backup job must resolve the checked-out SHA');
+$assert(str_contains($backupBlock, '[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]'), 'backup job must bind the checkout identity to the exact target SHA');
 $assert(str_contains($smokeBlock, 'needs: backup'), 'browser mutation must depend on successful backup completion');
+$assert(str_contains($smokeBlock, "needs.backup.result == 'success'"), 'browser mutation must require explicit backup success');
 $assert(!str_contains($smokeBlock, 'secrets.DEPLOY_TOKEN') && !str_contains($smokeBlock, 'secrets.DEPLOY_SSH_KEY'), 'deploy transport secrets must stay outside the browser smoke job');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');

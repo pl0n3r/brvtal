@@ -94,6 +94,9 @@ class ProductionWritePhasePolicyTests(unittest.TestCase):
         ):
             self.assertIn(expected, backup)
         self.assertIn("needs: backup", smoke)
+        self.assertIn("needs.backup.result == 'success'", smoke)
+        self.assertIn('actual_sha="$(git rev-parse HEAD)"', backup)
+        self.assertIn('[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]', backup)
         self.assertNotIn("secrets.DEPLOY_TOKEN", smoke)
         self.assertNotIn("secrets.DEPLOY_SSH_KEY", smoke)
         self.assertLess(

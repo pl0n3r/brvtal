@@ -51,6 +51,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "${BRVTAL_EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid exact target SHA"; exit 1; }
+          actual_sha="$(git rev-parse HEAD)"
+          [[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]] || { echo "::error::Backup checkout does not match exact target SHA"; exit 1; }
           GITHUB_SHA="${BRVTAL_EXPECTED_SHA}" BRVTAL_FACTORY_ADAPTER_MODE=production bash ops/factory/backup
           {
             echo "## Exact-target production backup"
@@ -64,14 +66,15 @@ jobs:
     name: controlled-page-write-smoke
     needs: backup
     if: >-
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref == 'refs/heads/main' &&
-       inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE') ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.event == 'push' &&
-       vars.BRVTAL_APP_PHASE == 'construction')
+      needs.backup.result == 'success' &&
+      ((github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE') ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.event == 'push' &&
+        vars.BRVTAL_APP_PHASE == 'construction'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-smoke
