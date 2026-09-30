@@ -20,8 +20,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  backup:
+    name: exact-target-production-backup
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push' &&
+       vars.BRVTAL_APP_PHASE == 'construction')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BRVTAL_EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+    steps:
+      - name: Check out exact observed source for backup
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Create exact-target production backup
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${BRVTAL_EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid exact target SHA"; exit 1; }
+          GITHUB_SHA="${BRVTAL_EXPECTED_SHA}" BRVTAL_FACTORY_ADAPTER_MODE=production bash ops/factory/backup
+          {
+            echo "## Exact-target production backup"
+            echo
+            echo "- Source SHA: \`${BRVTAL_EXPECTED_SHA}\`"
+            echo "- Adapter: \`ops/factory/backup\`"
+            echo "- Result: **ready**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   smoke:
     name: controlled-page-write-smoke
+    needs: backup
     if: >-
       (github.event_name == 'workflow_dispatch' &&
        github.ref == 'refs/heads/main' &&
@@ -46,9 +87,10 @@ jobs:
 
     steps:
       - name: Check out exact observed source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
 
       - name: Require isolated smoke credentials
         shell: bash
@@ -69,7 +111,7 @@ jobs:
           node-version: '24'
 
       - name: Cache npm downloads
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-production-page-write-smoke-npm-${{ hashFiles('package.json') }}
@@ -82,7 +124,7 @@ jobs:
 
       - name: Cache Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-production-page-write-smoke-chromium-${{ hashFiles('package.json') }}
@@ -118,7 +160,7 @@ jobs:
 
       - name: Upload smoke evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: production-page-write-smoke-${{ github.run_id }}
           path: artifacts/production-page-write-smoke.json

@@ -330,6 +330,8 @@ WRITE_AND_DELETE_TEMP_PAGE
 
 `BRVTAL_APP_PHASE` is fail-closed: missing, unknown values, or `live` never authorize the automatic production mutation. Switching the repository to `BRVTAL_APP_PHASE=live` therefore disables the automatic write path without weakening the manual confirmation gate. The automatic workflow checks out and validates `github.event.workflow_run.head_sha`; it never substitutes a newer `main` commit after the observer has completed.
 
+Before either entry path can reach the browser mutation, the workflow runs an isolated `backup` prerequisite using the canonical `ops/factory/backup` adapter against the same `BRVTAL_EXPECTED_SHA`. Deploy transport credentials are scoped only to that backup job. If transport validation, exact-release identity, or backup readiness fails, the `smoke` job is blocked by `needs: backup` and no Page is created. This backup gate adds recovery evidence; it does not authorize restore/cutover or destructive operations.
+
 The controlled sequence is intentionally narrow:
 
 1. authenticate through the normal admin API, including TOTP when enabled;

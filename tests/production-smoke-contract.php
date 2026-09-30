@@ -123,10 +123,21 @@ $assert(str_contains($writeWorkflow, "github.event.workflow_run.head_sha || gith
 $assert(str_contains($writeWorkflow, "github.event_name == 'workflow_run' && 'WRITE_AND_DELETE_TEMP_PAGE' || inputs.confirm"), 'automatic confirmation may only be synthesized inside the gated workflow-run job');
 $assert(str_contains($writeWorkflow, 'BRVTAL_PROD_PAGE_WRITE_MODE:'), 'write-smoke evidence must expose execution mode');
 $assert(str_contains($writeWorkflow, 'automatic-construction'), 'write-smoke evidence must distinguish automatic construction mode');
+$backupJob = strpos($writeWorkflow, "  backup:\n");
+$smokeJob = strpos($writeWorkflow, "  smoke:\n");
+$assert(is_int($backupJob) && is_int($smokeJob) && $backupJob < $smokeJob, 'canonical backup job must precede the production write-smoke job');
+$backupBlock = substr($writeWorkflow, $backupJob, $smokeJob - $backupJob);
+$smokeBlock = substr($writeWorkflow, $smokeJob);
+$assert(str_contains($backupBlock, 'name: exact-target-production-backup'), 'write smoke must use an isolated exact-target backup prerequisite');
+$assert(str_contains($backupBlock, 'secrets.DEPLOY_TOKEN'), 'backup job must receive the existing deploy token');
+$assert(str_contains($backupBlock, 'secrets.DEPLOY_SSH_KEY'), 'backup job must receive the existing deploy SSH key');
+$assert(str_contains($backupBlock, 'GITHUB_SHA="${BRVTAL_EXPECTED_SHA}" BRVTAL_FACTORY_ADAPTER_MODE=production bash ops/factory/backup'), 'backup must use the canonical adapter for the exact target SHA');
+$assert(str_contains($smokeBlock, 'needs: backup'), 'browser mutation must depend on successful backup completion');
+$assert(!str_contains($smokeBlock, 'secrets.DEPLOY_TOKEN') && !str_contains($smokeBlock, 'secrets.DEPLOY_SSH_KEY'), 'deploy transport secrets must stay outside the browser smoke job');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_TOTP_SECRET'), 'controlled write TOTP must come from a secret when enabled');
-$assert(str_contains($writeWorkflow, 'actions/upload-artifact@v4'), 'controlled write workflow must retain evidence');
+$assert(str_contains($writeWorkflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4'), 'controlled write workflow must retain evidence with a pinned upload action');
 $assert(!preg_match('/BRVTAL_PROD_ADMIN_PASSWORD:\s*["\']?[A-Za-z0-9]/', $writeWorkflow), 'controlled write workflow must not hardcode an admin password');
 $assert(!preg_match('/BRVTAL_PROD_TOTP_SECRET:\s*["\']?[A-Z2-7]{8,}/', $writeWorkflow), 'controlled write workflow must not hardcode a TOTP secret');
 
