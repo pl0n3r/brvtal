@@ -208,6 +208,75 @@ echo json_encode(brvtalAdminBackupSignals($backups, $automation, $sourceAt), JSO
         )
         self.assertEqual((missing["state"], missing["lastBackup"]), ("MISSING", "NONE"))
 
+    def test_full_dashboard_rerender_preserves_backup_result(self):
+        js = (ROOT / "discadmin" / "dashboard-v2.js").read_text(encoding="utf-8")
+        start = js.index("  function render(results, serial) {")
+        end = js.index("\n\n  async function runMount", start)
+        render_source = js[start:end].strip()
+        sources_start = js.index("  function developmentSources(results) {")
+        sources_end = js.index("\n\n  function developmentPanel", sources_start)
+        sources_source = js[sources_start:sources_end].strip()
+        backup = {
+            "status": "available",
+            "freshness": "fresh",
+            "backup_state": "ready",
+            "latest_backup": {
+                "id": "brvtal-20260930T120000Z-deadbeef",
+                "status": "ready",
+                "scope": "full",
+                "trigger": "scheduled",
+                "created_at": "2026-09-30T12:00:00Z",
+                "artifacts_bytes": 4096,
+            },
+            "automation": {"enabled": True, "last_result_status": "success"},
+            "offsite": {"enabled": False, "status": "disabled"},
+            "read_only": True,
+        }
+        script = """
+let captured = null;
+const mountSerial = 7;
+const state = {authed:true,section:'dashboard'};
+const root = {innerHTML:''};
+const document = {querySelector:(selector)=>selector === '.main' ? {} : null};
+function ensureDashboardRoot(){ return root; }
+function clearLegacyDashboard(){}
+function resultValue(result){ return result?.status === 'fulfilled' ? result.value : null; }
+function resultError(result){ return result?.status === 'rejected' ? String(result.reason || 'UNAVAILABLE') : ''; }
+function normalizeLayout(){ return {modules:[{id:'development',visible:true}]}; }
+function developmentLoadingPanel(){ return 'LOADING'; }
+function developmentPanel(value){ captured = value; return 'DEVELOPMENT'; }
+function nextEventPanel(){ return ''; }
+function attentionPanel(){ return ''; }
+function draftsPanel(){ return ''; }
+function systemPanel(){ return ''; }
+function activityPanel(){ return ''; }
+function actionsPanel(){ return ''; }
+function analyticsPanel(){ return ''; }
+function moduleShell(_item,content){ return content; }
+function summaryCard(){ return ''; }
+function customizationPanel(){ return ''; }
+function bind(){}
+function setShellStatus(){}
+""" + sources_source + "\n" + render_source + """
+const results = Array(12).fill(null);
+results[2] = {status:'fulfilled',value:{database:'connected'}};
+results[6] = {status:'fulfilled',value:{freshness:'fresh'}};
+results[11] = {status:'fulfilled',value:JSON.parse(process.argv[1])};
+if (!render(results,7)) throw new Error('render failed');
+process.stdout.write(JSON.stringify(captured));
+"""
+        result = subprocess.run(
+            ["node", "-e", script, json.dumps(backup)],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        captured = json.loads(result.stdout)
+        self.assertEqual(captured["backup"], backup)
+        self.assertEqual(captured["backupError"], "")
+
     def test_endpoint_is_authenticated_get_only_no_store_and_private_safe(self):
         api = (ROOT / "api" / "admin-backup-signals.php").read_text(encoding="utf-8")
         config = (ROOT / "config" / "admin_backup_signals.php").read_text(encoding="utf-8")
@@ -237,11 +306,11 @@ echo json_encode(brvtalAdminBackupSignals($backups, $automation, $sourceAt), JSO
         self.assertEqual((malformed_automation["status"], malformed_automation["backup_state"]), ("unavailable", "unavailable"))
         self.assertEqual((invalid_manifest["status"], invalid_manifest["backup_state"]), ("unavailable", "unavailable"))
 
-    def test_deploy_bound_version_is_0_1_96(self):
+    def test_deploy_bound_version_is_0_1_97(self):
         version = (ROOT / "config" / "version.php").read_text(encoding="utf-8")
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.96'", version)
-        self.assertEqual(package["version"], "0.1.96")
+        self.assertIn("BRVTAL_APP_VERSION = '0.1.97'", version)
+        self.assertEqual(package["version"], "0.1.97")
 
 
 if __name__ == "__main__":
