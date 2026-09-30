@@ -8,6 +8,7 @@
     storage:'/discadmin/storage-metrics.php',
     activity:'/api/admin-activity.php?limit=5',
     development:'/api/admin-development-signals.php',
+    sonar:'/api/admin-sonar-signals.php',
     preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
@@ -231,34 +232,46 @@
   }
 
   function developmentLoadingPanel() {
-    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2><p>Loading read-only repository and CI signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
+    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR</h2><p>Loading read-only repository, CI and quality signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
   }
 
-  function developmentPanel(signals, signalsError) {
-    if (!signals) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(signalsError)}</section>`;
-    const freshness = String(signals.freshness || 'unavailable');
+  function developmentPanel(signals, signalsError, sonar, sonarError) {
+    const githubFreshness = String(signals?.freshness || 'unavailable');
+    const sonarFreshness = String(sonar?.freshness || 'unavailable');
+    const freshnesses = [githubFreshness, sonarFreshness];
     let state = 'bad';
-    if (freshness === 'fresh') state = 'ok';
-    else if (freshness === 'stale') state = 'warn';
-    const latestPr = signals.latest_pr || null;
-    const latestCi = signals.latest_ci || null;
-    const safeLink = value => /^https:\/\/github\.com\/pl0n3r\/brvtal(?:\/|$)/.test(String(value || '')) ? String(value) : '';
+    if (freshnesses.every(value => value === 'fresh')) state = 'ok';
+    else if (freshnesses.some(value => value === 'fresh' || value === 'stale')) state = 'warn';
+    const statusLabel = state === 'ok' ? 'FRESH' : state === 'warn' ? 'PARTIAL' : 'UNAVAILABLE';
+
+    const latestPr = signals?.latest_pr || null;
+    const latestCi = signals?.latest_ci || null;
+    const safeGithubLink = value => /^https:\/\/github\.com\/pl0n3r\/brvtal(?:\/|$)/.test(String(value || '')) ? String(value) : '';
+    const safeSonarLink = value => /^https:\/\/sonarcloud\.io\//.test(String(value || '')) ? String(value) : '';
     const repoUrl = 'https://github.com/pl0n3r/brvtal';
-    const prUrl = safeLink(latestPr?.url);
-    const ciUrl = safeLink(latestCi?.url);
-    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2><p>Read-only repository work and latest BRVTAL CI signal.</p></div><span class="dashboard-v2-state ${state}">${esc(freshness)}</span></div>
+    const prUrl = safeGithubLink(latestPr?.url);
+    const ciUrl = safeGithubLink(latestCi?.url);
+    const sonarUrl = safeSonarLink(sonar?.dashboard_url);
+    const githubSource = String(signals?.source_at || '—').replace('T',' ').replace('Z',' UTC');
+    const sonarSource = String(sonar?.source_at || '—').replace('T',' ').replace('Z',' UTC');
+    const sonarGate = String(sonar?.quality_gate || 'UNAVAILABLE').toUpperCase();
+
+    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR</h2><p>Independent read-only development signals. An unavailable source never becomes a fabricated healthy zero.</p></div><span class="dashboard-v2-state ${state}">${statusLabel}</span></div>
+      ${signals ? '' : sourceError('GITHUB · ' + (signalsError || 'UNAVAILABLE'))}
+      ${sonar ? '' : sourceError('SONAR · ' + (sonarError || 'UNAVAILABLE'))}
       <div class="dashboard-v2-development-grid">
-        <div class="dashboard-v2-health-card"><span>OPEN ISSUES</span><b>${signals.open_issues == null ? '—' : Number(signals.open_issues)}</b><small>GitHub source</small></div>
-        <div class="dashboard-v2-health-card"><span>OPEN PRS</span><b>${signals.open_prs == null ? '—' : Number(signals.open_prs)}</b><small>${latestPr ? esc('#' + latestPr.number + ' · ' + latestPr.title) : 'No active PR'}</small></div>
-        <div class="dashboard-v2-health-card"><span>LATEST CI</span><b>${esc(String(latestCi?.conclusion || latestCi?.status || 'UNAVAILABLE').toUpperCase())}</b><small>${esc(latestCi?.status || 'No CI signal')}</small></div>
-        <div class="dashboard-v2-health-card"><span>SOURCE</span><b>${esc(String(signals.source_at || '—').replace('T',' ').replace('Z',' UTC'))}</b><small>No GitHub credentials are exposed to the browser.</small></div>
+        <div class="dashboard-v2-health-card"><span>OPEN ISSUES</span><b>${signals?.open_issues == null ? '—' : Number(signals.open_issues)}</b><small>GitHub · ${esc(githubFreshness)}</small></div>
+        <div class="dashboard-v2-health-card"><span>OPEN PRS</span><b>${signals?.open_prs == null ? '—' : Number(signals.open_prs)}</b><small>${latestPr ? esc('#' + latestPr.number + ' · ' + latestPr.title) : 'No active PR / source unavailable'}</small></div>
+        <div class="dashboard-v2-health-card"><span>LATEST CI</span><b>${esc(String(latestCi?.conclusion || latestCi?.status || 'UNAVAILABLE').toUpperCase())}</b><small>${esc(githubSource)}</small></div>
+        <div class="dashboard-v2-health-card"><span>SONAR GATE</span><b>${esc(sonarGate)}</b><small>${esc(sonarFreshness + ' · ' + sonarSource)}</small></div>
+        <div class="dashboard-v2-health-card"><span>SONAR NEW ISSUES</span><b>${sonar?.new_issues == null ? '—' : Number(sonar.new_issues)}</b><small>New-code source</small></div>
+        <div class="dashboard-v2-health-card"><span>SONAR HOTSPOTS</span><b>${sonar?.security_hotspots == null ? '—' : Number(sonar.security_hotspots)}</b><small>Open review queue</small></div>
       </div>
-      <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}</div>
+      <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}${sonarUrl ? `<a class="dashboard-v2-button" href="${esc(sonarUrl)}" target="_blank" rel="noopener noreferrer">SONAR</a>` : ''}</div>
     </section>`;
   }
 
-  function applyDevelopmentResult(results, serial, result) {
-    results[6] = result;
+  function redrawDevelopment(results, serial) {
     if (
       serial !== mountSerial
       || typeof state === 'undefined'
@@ -269,21 +282,38 @@
     const module = root?.querySelector('[data-dashboard-module="development"]');
     const panel = module?.querySelector('.dashboard-v2-panel');
     if (!panel) return;
-    panel.outerHTML = developmentPanel(resultValue(result),resultError(result));
+    panel.outerHTML = developmentPanel(
+      resultValue(results[6]),
+      resultError(results[6]),
+      resultValue(results[7]),
+      resultError(results[7])
+    );
   }
 
-  function hydrateDevelopmentSignals(results, serial) {
-    void fetchData(ENDPOINTS.development)
+  function applyDevelopmentResult(results, serial, index, result) {
+    results[index] = result;
+    redrawDevelopment(results,serial);
+  }
+
+  function hydrateDevelopmentSource(results, serial, index, endpoint) {
+    void fetchData(endpoint)
       .then(value => applyDevelopmentResult(
         results,
         serial,
+        index,
         {status:'fulfilled',value}
       ))
       .catch(reason => applyDevelopmentResult(
         results,
         serial,
+        index,
         {status:'rejected',reason}
       ));
+  }
+
+  function hydrateDevelopmentSignals(results, serial) {
+    hydrateDevelopmentSource(results,serial,6,ENDPOINTS.development);
+    hydrateDevelopmentSource(results,serial,7,ENDPOINTS.sonar);
   }
 
   function analyticsPanel() {
@@ -545,7 +575,7 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5], developmentResult = results[6] || null;
+    const preferenceResult = results[5], developmentResult = results[6] || null, sonarResult = results[7] || null;
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
@@ -553,7 +583,9 @@
     if (developmentResult) {
       developmentMarkup = developmentPanel(
         resultValue(developmentResult),
-        resultError(developmentResult)
+        resultError(developmentResult),
+        resultValue(sonarResult),
+        resultError(sonarResult)
       );
     }
 
