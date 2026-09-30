@@ -150,7 +150,10 @@ test('Tab stays inside the Content Core dialog', async ({ page }) => {
   const close = page.locator('#eventModal .modal-actions .icon');
   const save = page.locator('#cc-saveBtn');
 
+  await expect(page.locator('#e_title')).toBeFocused();
   await save.focus();
+  await expect(save).toBeFocused();
+
   await page.keyboard.press('Tab');
   await expect(close).toBeFocused();
 
