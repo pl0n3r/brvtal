@@ -181,7 +181,7 @@
   }
 
   function start() {
-    init().catch(error => {
+    void init().catch(error => {
       console.warn('[BRVTAL] Hero Slider initialization failed.', error);
     });
   }
