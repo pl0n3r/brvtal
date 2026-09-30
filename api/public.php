@@ -430,7 +430,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('PUBLIC_API_ERROR', 'Public API failure', [
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $e->getMessage(),
         ]);
     }
