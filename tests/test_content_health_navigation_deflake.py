@@ -1,4 +1,3 @@
-import re
 import unittest
 from pathlib import Path
 
@@ -28,15 +27,10 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
 
     def test_no_programmatic_click_or_timeout_inflation(self):
         source = self._source()
-        evaluate_match = re.search(
-            r"await openButton\.evaluate\((.*?)\);",
-            source,
-            flags=re.DOTALL,
-        )
-        self.assertIsNotNone(evaluate_match)
-        self.assertNotIn(".click(", evaluate_match.group(1))
+        self.assertNotRegex(source, r"\bbutton\.click\s*\(")
         self.assertNotRegex(source, r"expect\.poll\([^\n]+,\s*\{\s*timeout\s*:")
         self.assertNotRegex(source, r"test\.setTimeout\s*\(")
+        self.assertNotRegex(source, r"\bretries\s*:")
 
 
 if __name__ == "__main__":
