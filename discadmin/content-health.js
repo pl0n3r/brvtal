@@ -136,7 +136,7 @@
 
   ensureStyle();
   setTimeout(() => {
-    if (!document.getElementById('brvtal-content-health')) mount();
+    if (!document.getElementById('brvtal-content-health')) void mount();
   }, 50);
   window.BRVTALContentHealth = {mount,refresh:mount};
 })();

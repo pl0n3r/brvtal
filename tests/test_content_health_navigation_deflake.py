@@ -31,7 +31,7 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
     def test_initial_fallback_does_not_remount_existing_panel(self):
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn(
-            "if (!document.getElementById('brvtal-content-health')) mount();",
+            "if (!document.getElementById('brvtal-content-health')) void mount();",
             runtime,
         )
         source = self._source()
