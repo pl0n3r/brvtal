@@ -11,6 +11,8 @@ window.BRVTALBlog = (() => {
   const store = {
     root:null,
     posts:[],
+    trash:[],
+    view:'active',
     related:{event:[],artist:[],set:[],release:[]},
     relatedState:{event:'loading',artist:'loading',set:'loading',release:'loading'},
     loading:false
@@ -46,10 +48,21 @@ window.BRVTALBlog = (() => {
     if(!r.ok||j.ok===false){const e=new Error(j.error||('HTTP_'+r.status));e.status=r.status;e.payload=j;throw e}return j;
   }
   function cover(record){const src=normalizeMediaPath(record?.cover_image||'');return src?`<img class="blog-cover" src="${esc(src)}" alt="${esc(record?.title||'Blog cover')}" loading="lazy">`:'<div class="blog-cover-ph">NO IMG</div>'}
-  function visibleRows(){if(!store.root)return[];const q=(store.root.querySelector('#blog-search')?.value||'').trim().toLowerCase();const status=store.root.querySelector('#blog-status-filter')?.value||'';return store.posts.filter(post=>{if(status&&post.status!==status)return false;if(!q)return true;return [post.title,post.slug,post.excerpt].join(' ').toLowerCase().includes(q)})}
-  function renderMetrics(){if(!store.root)return;const values={'blog-total':store.posts.length,'blog-published':store.posts.filter(x=>x.status==='published').length,'blog-drafts':store.posts.filter(x=>x.status==='draft').length,'blog-featured':store.posts.filter(x=>Number(x.featured)===1).length};Object.entries(values).forEach(([id,v])=>{const el=store.root.querySelector('#'+id);if(el)el.textContent=String(v)})}
+  function currentRows(){return store.view==='trash'?store.trash:store.posts}
+  function visibleRows(){if(!store.root)return[];const q=(store.root.querySelector('#blog-search')?.value||'').trim().toLowerCase();const status=store.root.querySelector('#blog-status-filter')?.value||'';return currentRows().filter(post=>{if(status&&post.status!==status)return false;if(!q)return true;return [post.title,post.slug,post.excerpt,post.deleted_by_name].join(' ').toLowerCase().includes(q)})}
+  function renderMetrics(){if(!store.root)return;const values={'blog-total':store.posts.length,'blog-published':store.posts.filter(x=>x.status==='published').length,'blog-drafts':store.posts.filter(x=>x.status==='draft').length,'blog-featured':store.posts.filter(x=>Number(x.featured)===1).length,'blog-trash-count':store.trash.length};Object.entries(values).forEach(([id,v])=>{const el=store.root.querySelector('#'+id);if(el)el.textContent=String(v)})}
+  function setView(view){
+    store.view=view==='trash'?'trash':'active';
+    const active=store.root?.querySelector('#blog-active-view');
+    const trash=store.root?.querySelector('#blog-trash-view');
+    active?.classList.toggle('active',store.view==='active');
+    trash?.classList.toggle('active',store.view==='trash');
+    active?.setAttribute('aria-selected',String(store.view==='active'));
+    trash?.setAttribute('aria-selected',String(store.view==='trash'));
+    render();
+  }
   function orderingAvailable() {
-    if (!store.root) return false;
+    if (!store.root || store.view !== 'active') return false;
     const query = (store.root.querySelector('#blog-search')?.value || '').trim();
     const status = store.root.querySelector('#blog-status-filter')?.value || '';
     return query === '' && status === '';
@@ -57,6 +70,31 @@ window.BRVTALBlog = (() => {
 
   function blogRow(post) {
     const featured = Number(post.featured) === 1 ? ' · FEATURED' : '';
+    if(store.view==='trash'){
+      const actor=post.deleted_by_name||(
+        post.deleted_by_admin_id ? 'ADMIN #'+Number(post.deleted_by_admin_id) : 'UNKNOWN ACTOR'
+      );
+      return `
+        <article class="blog-row blog-row-trash" data-blog-id="${Number(post.id)}">
+          <div>${cover(post)}</div>
+          <div>
+            <div class="blog-title">${esc(post.title)}</div>
+            <div class="blog-meta">/${esc(post.slug)} · BLOG</div>
+          </div>
+          <div class="blog-excerpt">${esc(post.excerpt || 'NO EXCERPT')}</div>
+          <div class="blog-date">
+            <div class="blog-meta">DELETED</div>
+            <b>${esc(post.deleted_at || 'UNKNOWN')}</b>
+            <div class="blog-meta">BY ${esc(actor)}</div>
+          </div>
+          <div class="blog-actions">
+            <span class="blog-status-wrap"><span class="blog-status-pill trashed">TRASH</span></span>
+            <button class="iconbtn" type="button" data-restore>RESTORE</button>
+            <button class="iconbtn danger" type="button" data-permanent-delete>DELETE FOREVER</button>
+          </div>
+        </article>
+      `;
+    }
     return `
       <article
         class="blog-row"
@@ -78,7 +116,7 @@ window.BRVTALBlog = (() => {
             <span class="blog-status-pill ${esc(post.status)}">${esc(post.status)}</span>
           </span>
           <button class="iconbtn" type="button" data-edit>EDIT</button>
-          <button class="iconbtn" type="button" data-delete>DELETE</button>
+          <button class="iconbtn" type="button" data-delete>TRASH</button>
         </div>
       </article>
     `;
@@ -90,12 +128,15 @@ window.BRVTALBlog = (() => {
     const grid = store.root.querySelector('#blog-grid');
     if (!grid) return;
     const rows = visibleRows();
-    if (window.BRVTALDataGrid?.render?.('blog',grid,rows,{
-      allRows:store.posts,
-      orderingEnabled:orderingAvailable()
-    })) return;
+    if (
+      store.view==='active'
+      && window.BRVTALDataGrid?.render?.('blog',grid,rows,{
+        allRows:store.posts,
+        orderingEnabled:orderingAvailable()
+      })
+    ) return;
     if (!rows.length) {
-      grid.innerHTML = '<div class="blog-empty">NO POSTS MATCH THIS VIEW</div>';
+      grid.innerHTML = `<div class="blog-empty">${store.view==='trash'?'TRASH IS EMPTY':'NO POSTS MATCH THIS VIEW'}</div>`;
       return;
     }
     grid.innerHTML = rows.map(blogRow).join('');
@@ -103,6 +144,8 @@ window.BRVTALBlog = (() => {
       const id = Number(row.dataset.blogId);
       row.querySelector('[data-edit]')?.addEventListener('click', () => openEditor(id));
       row.querySelector('[data-delete]')?.addEventListener('click', () => remove(id));
+      row.querySelector('[data-restore]')?.addEventListener('click', () => restore(id));
+      row.querySelector('[data-permanent-delete]')?.addEventListener('click', () => permanentDelete(id));
     });
   }
 
@@ -120,7 +163,7 @@ window.BRVTALBlog = (() => {
     }));
     results.forEach(([type,result])=>{store.related[type]=result.data;store.relatedState[type]=result.state});
   }
-  async function refresh(){if(store.loading)return;store.loading=true;try{setStatus('Loading blog…');const [result]=await Promise.all([request(''),loadRelated()]);store.posts=Array.isArray(result.data)?result.data:[];render();const relatedErrors=Object.values(store.relatedState).some(state=>state==='error');setStatus(relatedErrors?'EDITORIAL READY · RELATED SOURCE WARNING':'EDITORIAL READY',relatedErrors?'err':'ok')}catch(error){if(error?.message==='BLOG_SCHEMA_MISSING'){const grid=store.root?.querySelector('#blog-grid');if(grid)grid.innerHTML='<div class="blog-schema-note"><b>BLOG DATABASE MIGRATION REQUIRED</b><br>Run database/migration_blog_01.sql before using this module.</div>';setStatus('BLOG_SCHEMA_MISSING','err')}else setStatus('Unable to load blog: '+(error?.message||'UNKNOWN_ERROR'),'err')}finally{store.loading=false}}
+  async function refresh(){if(store.loading)return;store.loading=true;try{setStatus('Loading blog…');const [active,trash]=await Promise.all([request(''),request('?trash=1'),loadRelated()]);store.posts=Array.isArray(active.data)?active.data:[];store.trash=Array.isArray(trash.data)?trash.data:[];render();const relatedErrors=Object.values(store.relatedState).some(state=>state==='error');const ready='EDITORIAL READY · '+store.trash.length+' IN TRASH';setStatus(relatedErrors?ready+' · RELATED SOURCE WARNING':ready,relatedErrors?'err':'ok')}catch(error){if(error?.message==='BLOG_SCHEMA_MISSING'){const grid=store.root?.querySelector('#blog-grid');if(grid)grid.innerHTML='<div class="blog-schema-note"><b>BLOG TRASH MIGRATION REQUIRED</b><br>Apply database/migration_blog_trash_01.sql before using this module.</div>';setStatus('BLOG_SCHEMA_MISSING','err')}else setStatus('Unable to load blog: '+(error?.message||'UNKNOWN_ERROR'),'err')}finally{store.loading=false}}
   function input(id){return document.getElementById(id)}function value(id){return input(id)?.value?.trim?.()??''}
   function relationLabel(type,item){if(type==='artist')return item.name||item.slug||('Artist '+item.id);return item.title||item.name||item.slug||(type+' '+item.id)}
   function relationBoxes(record){const selected=new Set((record?.relations||[]).map(relationKey));return `<div class="blog-related-grid">${Object.entries(store.related).map(([type,items])=>{const state=store.relatedState[type];const body=state==='error'?`<span class="helper blog-related-error">Unable to load ${esc(type.toUpperCase())}S. Existing relations will be preserved.</span>`:items.length?items.map(item=>`<label class="blog-related-item"><input type="checkbox" data-blog-related-type="${type}" data-blog-related-id="${Number(item.id)}" ${selected.has(type+':'+Number(item.id))?'checked':''}><span>${esc(relationLabel(type,item))}</span></label>`).join(''):'<span class="helper">No records available.</span>';return `<div class="blog-related-box" data-blog-related-source="${type}" data-state="${state}"><strong>${type.toUpperCase()}S</strong>${body}</div>`}).join('')}</div>`}
@@ -838,16 +881,52 @@ window.BRVTALBlog = (() => {
   }
 
   async function remove(id) {
-    if (!confirm('Delete this blog post?')) return;
+    if (!confirm('Move this blog post to Trash? It can be restored later.')) return;
     try {
       await request('?id=' + encodeURIComponent(id), {method:'DELETE'});
       await refresh();
-      setStatus('Post deleted.','ok');
+      setStatus('Post moved to Trash.','ok');
     } catch (error) {
-      setStatus(
-        'Could not delete post: ' + (error?.message || 'UNKNOWN_ERROR'),
-        'err'
-      );
+      setStatus('Could not move post to Trash: ' + (error?.message || 'UNKNOWN_ERROR'),'err');
+    }
+  }
+
+  async function restore(id) {
+    try {
+      await request('?id=' + encodeURIComponent(id), {
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'restore'})
+      });
+      await refresh();
+      setStatus('Post restored with its original ID, slug and relations.','ok');
+    } catch (error) {
+      setStatus('Could not restore post: ' + (error?.message || 'UNKNOWN_ERROR'),'err');
+    }
+  }
+
+  async function permanentDelete(id) {
+    const post=store.trash.find(item=>Number(item.id)===Number(id));
+    if(!post)return;
+    const slug=String(post.slug||'');
+    const typed=prompt(
+      'Permanent deletion cannot be undone. Type the exact slug to delete forever:\n\n'+slug
+    );
+    if(typed===null)return;
+    if(typed.trim()!==slug){
+      setStatus('Permanent deletion cancelled: slug confirmation did not match.','err');
+      return;
+    }
+    try {
+      await request('?id='+encodeURIComponent(id)+'&permanent=1',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({confirm_slug:typed.trim()})
+      });
+      await refresh();
+      setStatus('Post permanently deleted.','ok');
+    } catch (error) {
+      setStatus('Could not permanently delete post: '+(error?.message||'UNKNOWN_ERROR'),'err');
     }
   }
 
@@ -864,6 +943,6 @@ window.BRVTALBlog = (() => {
     ) || store.posts;
   });
 
-  function mount(root){store.root=root;root.querySelector('#blog-new')?.addEventListener('click',()=>openEditor());root.querySelector('#blog-search')?.addEventListener('input',render);root.querySelector('#blog-status-filter')?.addEventListener('change',render);refresh()}
-  return {mount,refresh,openEditor,remove};
+  function mount(root){store.root=root;root.querySelector('#blog-new')?.addEventListener('click',()=>openEditor());root.querySelector('#blog-search')?.addEventListener('input',render);root.querySelector('#blog-status-filter')?.addEventListener('change',render);root.querySelector('#blog-active-view')?.addEventListener('click',()=>setView('active'));root.querySelector('#blog-trash-view')?.addEventListener('click',()=>setView('trash'));setView('active');refresh()}
+  return {mount,refresh,openEditor,remove,restore,permanentDelete};
 })();

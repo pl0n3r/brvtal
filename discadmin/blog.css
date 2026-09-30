@@ -18,3 +18,13 @@
 #blog-draft-recovery[data-conflict="1"]{color:#ffc56c}
 .blog-draft-actions{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:700px){#blog-draft-recovery{display:grid}.blog-draft-actions{width:100%}.blog-draft-actions .iconbtn{flex:1}}
+
+/* Blog Trash / recoverable deletion */
+.blog-view-switch{display:flex;gap:6px;align-items:center;margin-left:auto}
+.blog-view-switch .iconbtn.active{border-color:var(--green,#49d98a);color:var(--green,#49d98a)}
+.blog-view-switch #blog-trash-count{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:5px;border-radius:9px;background:#24282c;color:#d8dcde;font-size:8px}
+.blog-status-pill.trashed{color:#ff9f6e;border-color:#6f432f}
+.blog-row-trash{border-color:#3a2924;background:#0d0908}
+.blog-actions .iconbtn.danger{border-color:#6f2f35;color:#ff7777}
+.blog-actions .iconbtn.danger:hover,.blog-actions .iconbtn.danger:focus-visible{background:#321217;border-color:#b54852}
+@media(max-width:700px){.blog-view-switch{margin-left:0}.blog-view-switch .iconbtn{flex:1}}
