@@ -11,6 +11,7 @@
     sonar:'/api/admin-sonar-signals.php',
     coderabbit:'/api/admin-coderabbit-signals.php',
     deploy:'/api/admin-deploy-signals.php',
+    seo:'/api/seo-workspace.php?summary=1',
     preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
@@ -234,7 +235,7 @@
   }
 
   function developmentLoadingPanel() {
-    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY</h2><p>Loading independent read-only development signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
+    return '<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY / SEO</h2><p>Loading independent read-only development signals.</p></div><span class="dashboard-v2-state muted">LOADING</span></div></section>';
   }
 
   function developmentFreshnessState(values) {
@@ -292,6 +293,61 @@
     };
   }
 
+  function developmentSeoView(summary) {
+    if (!summary || typeof summary !== 'object') {
+      return {
+        freshness:'unavailable',
+        state:'UNAVAILABLE',
+        total:null,
+        issues:null,
+        auto:null,
+        manual:null,
+        detail:'summary source unavailable'
+      };
+    }
+    const numericKeys = ['total','issues','auto','manual'];
+    const validState = (
+      (summary.status === 'available' && summary.freshness === 'fresh')
+      || (summary.status === 'partial' && summary.freshness === 'stale')
+    );
+    if (
+      numericKeys.some(key => !Number.isInteger(summary[key]) || summary[key] < 0)
+      || !validState
+      || summary.read_only !== true
+    ) {
+      return {
+        freshness:'unavailable',
+        state:'UNAVAILABLE',
+        total:null,
+        issues:null,
+        auto:null,
+        manual:null,
+        detail:'summary payload incomplete'
+      };
+    }
+
+    const truncated = Array.isArray(summary.truncated_resources)
+      ? summary.truncated_resources.filter(Boolean)
+      : [];
+    let state = Number(summary.issues) > 0 ? 'ATTENTION' : 'CLEAN';
+    let freshness = 'fresh';
+    if (summary.status === 'partial' || truncated.length > 0) {
+      state = 'PARTIAL';
+      freshness = 'stale';
+    }
+    return {
+      freshness,
+      state,
+      total:Number(summary.total),
+      issues:Number(summary.issues),
+      auto:Number(summary.auto),
+      manual:Number(summary.manual),
+      detail:truncated.length > 0
+        ? 'truncated: ' + truncated.join(', ')
+        : String(summary.freshness || freshness)
+    };
+  }
+
   function developmentSources(results) {
     return {
       signals:resultValue(results[6]),
@@ -301,7 +357,9 @@
       coderabbit:resultValue(results[8]),
       coderabbitError:resultError(results[8]),
       deploy:resultValue(results[9]),
-      deployError:resultError(results[9])
+      deployError:resultError(results[9]),
+      seo:resultValue(results[10]),
+      seoError:resultError(results[10])
     };
   }
 
@@ -314,17 +372,21 @@
       coderabbit,
       coderabbitError,
       deploy,
-      deployError
+      deployError,
+      seo,
+      seoError
     } = sources;
     const githubFreshness = String(signals?.freshness || 'unavailable');
     const sonarFreshness = String(sonar?.freshness || 'unavailable');
     const codeRabbitFreshness = String(coderabbit?.freshness || 'unavailable');
     const deployView = developmentDeployView(deploy);
+    const seoView = developmentSeoView(seo);
     const overall = developmentFreshnessState([
       githubFreshness,
       sonarFreshness,
       codeRabbitFreshness,
-      deployView.freshness
+      deployView.freshness,
+      seoView.freshness
     ]);
 
     const latestPr = signals?.latest_pr || null;
@@ -348,14 +410,16 @@
       developmentSourceError(signals,'GITHUB',signalsError),
       developmentSourceError(sonar,'SONAR',sonarError),
       developmentSourceError(coderabbit,'CODERABBIT',coderabbitError),
-      developmentSourceError(deploy,'DEPLOY',deployError)
+      developmentSourceError(deploy,'DEPLOY',deployError),
+      developmentSourceError(seo,'SEO',seoError)
     ].join('');
     const actions = [
       developmentAction(repoUrl,'OPEN REPOSITORY'),
       developmentAction(prUrl,'LATEST PR'),
       developmentAction(ciUrl,'LATEST CI'),
       developmentAction(sonarUrl,'SONAR'),
-      developmentAction(codeRabbitUrl,'CODERABBIT REVIEW')
+      developmentAction(codeRabbitUrl,'CODERABBIT REVIEW'),
+      developmentAction('/discadmin/?module=seo','OPEN SEO')
     ].join('');
 
     return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${overall.state}">${overall.label}</span></div>
@@ -372,6 +436,10 @@
         <div class="dashboard-v2-health-card"><span>PROD SHA</span><b>${esc(deployView.sha)}</b><small>${esc(deployView.source)}</small></div>
         <div class="dashboard-v2-health-card"><span>READINESS</span><b>${esc(deployView.readiness)}</b><small>${esc(deployView.freshness)}</small></div>
         <div class="dashboard-v2-health-card"><span>SCHEMA</span><b>${esc(deployView.schemaLabel)}</b><small>${esc(deployView.schemaDetail)}</small></div>
+        <div class="dashboard-v2-health-card"><span>SEO HEALTH</span><b>${esc(seoView.state)}</b><small>${esc(seoView.detail)}</small></div>
+        <div class="dashboard-v2-health-card"><span>SEO INVENTORY</span><b>${seoView.total == null ? '—' : seoView.total}</b><small>${seoView.issues == null ? 'issues unavailable' : seoView.issues + ' need attention'}</small></div>
+        <div class="dashboard-v2-health-card"><span>SEO AUTO</span><b>${seoView.auto == null ? '—' : seoView.auto}</b><small>automatic metadata</small></div>
+        <div class="dashboard-v2-health-card"><span>SEO MANUAL</span><b>${seoView.manual == null ? '—' : seoView.manual}</b><small>manual / mixed metadata</small></div>
       </div>
       <div class="dashboard-v2-actions" style="margin-top:12px">${actions}</div>
     </section>`;
@@ -417,6 +485,7 @@
     hydrateDevelopmentSource(results,serial,7,ENDPOINTS.sonar);
     hydrateDevelopmentSource(results,serial,8,ENDPOINTS.coderabbit);
     hydrateDevelopmentSource(results,serial,9,ENDPOINTS.deploy);
+    hydrateDevelopmentSource(results,serial,10,ENDPOINTS.seo);
   }
 
   function analyticsPanel() {
@@ -678,7 +747,7 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5], developmentResult = results[6] || null, sonarResult = results[7] || null, coderabbitResult = results[8] || null, deployResult = results[9] || null;
+    const preferenceResult = results[5], developmentResult = results[6] || null, sonarResult = results[7] || null, coderabbitResult = results[8] || null, deployResult = results[9] || null, seoResult = results[10] || null;
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
@@ -692,7 +761,9 @@
         coderabbit:resultValue(coderabbitResult),
         coderabbitError:resultError(coderabbitResult),
         deploy:resultValue(deployResult),
-        deployError:resultError(deployResult)
+        deployError:resultError(deployResult),
+        seo:resultValue(seoResult),
+        seoError:resultError(seoResult)
       });
     }
 
