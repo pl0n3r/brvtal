@@ -49,10 +49,9 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
 
   const openButton = page.getByRole('button', { name: 'OPEN' });
   await expect(openButton).toHaveAttribute('data-health-open', 'events');
-  await openButton.evaluate(button => {
-    button.setAttribute('data-health-open', '');
-    button.click();
-  });
+  await openButton.evaluate(button => button.setAttribute('data-health-open', ''));
+  await expect(openButton).toHaveAttribute('data-health-open', '');
+  await openButton.click();
 
   await expect.poll(() => page.evaluate(() => ({
     section: window.__went,
