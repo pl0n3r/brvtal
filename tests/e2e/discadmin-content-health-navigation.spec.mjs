@@ -30,6 +30,7 @@ test('Content Health OPEN preserves health routing when data-health-open is pres
       },
     }),
   });
+  });
 
   await page.route(harnessUrl, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
