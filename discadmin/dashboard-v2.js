@@ -310,9 +310,17 @@
       (summary.status === 'available' && summary.freshness === 'fresh')
       || (summary.status === 'partial' && summary.freshness === 'stale')
     );
+    const truncated = Array.isArray(summary.truncated_resources)
+      ? summary.truncated_resources
+      : null;
+    const validTruncation = (
+      (summary.status === 'available' && truncated !== null && truncated.length === 0)
+      || (summary.status === 'partial' && truncated !== null && truncated.length > 0)
+    );
     if (
       numericKeys.some(key => !Number.isInteger(summary[key]) || summary[key] < 0)
       || !validState
+      || !validTruncation
       || summary.read_only !== true
     ) {
       return {
@@ -326,9 +334,6 @@
       };
     }
 
-    const truncated = Array.isArray(summary.truncated_resources)
-      ? summary.truncated_resources.filter(Boolean)
-      : [];
     let state = Number(summary.issues) > 0 ? 'ATTENTION' : 'CLEAN';
     let freshness = 'fresh';
     if (summary.status === 'partial' || truncated.length > 0) {

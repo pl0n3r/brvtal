@@ -139,6 +139,55 @@ echo json_encode(
                 "manual": 0,
                 "truncated_resources": [],
             },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+            },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+                "truncated_resources": "events",
+            },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+                "truncated_resources": [None],
+            },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+                "truncated_resources": ["events"],
+            },
+            {
+                "status": "partial",
+                "freshness": "stale",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+                "truncated_resources": [],
+            },
         ]
         for payload in unavailable_payloads:
             with self.subTest(payload=payload):
@@ -208,11 +257,11 @@ echo json_encode(
         )
         self.assertEqual((partial["status"], partial["freshness"]), ("partial", "stale"))
 
-    def test_deploy_bound_version_is_0_1_94(self):
+    def test_deploy_bound_version_is_0_1_95(self):
         version = (ROOT / "config" / "version.php").read_text(encoding="utf-8")
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.94'", version)
-        self.assertEqual(package["version"], "0.1.94")
+        self.assertIn("BRVTAL_APP_VERSION = '0.1.95'", version)
+        self.assertEqual(package["version"], "0.1.95")
 
 
 if __name__ == "__main__":
