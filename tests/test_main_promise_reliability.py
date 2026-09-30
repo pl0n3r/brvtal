@@ -34,14 +34,20 @@ class MainPromiseReliabilityTests(unittest.TestCase):
     def test_hero_slider_normalized_media_promises_are_explicitly_ignored(self):
         source = (ROOT / "discadmin" / "hero-slider.js").read_text(encoding="utf-8")
         self.assertEqual(source.count("void mediaPromise"), 2)
-        self.assertIn(
-            "void mediaPromise\\n"
-            "        .then(result => applyMediaLoad(result, revision))\\n"
-            "        .catch(error => {",
-            source,
-        )
+        self.assertIn("void mediaPromise", source)
+        self.assertIn(".then(result => applyMediaLoad(result, revision))", source)
+        self.assertIn(".catch(error => {", source)
         self.assertIn("Hero Slider media controls degraded.", source)
         self.assertIn("void mediaPromise.then(() => {});", source)
+
+    def test_required_ci_command_executes_this_suite(self):
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        scripts = package["scripts"]
+        self.assertEqual(
+            scripts["test:reliability"],
+            "python3 -m unittest tests/test_main_promise_reliability.py",
+        )
+        self.assertIn("npm run test:reliability", scripts["test:integration"])
 
     def test_changed_javascript_remains_syntax_valid(self):
         for relative in (
