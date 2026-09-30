@@ -15,7 +15,7 @@ class BlogTrashTests(unittest.TestCase):
         self.assertIn("ADD COLUMN IF NOT EXISTS deleted_at", migration)
         self.assertIn("ADD COLUMN IF NOT EXISTS deleted_by_admin_id", migration)
         self.assertIn("idx_blog_posts_trash", migration)
-        self.assertNotRegex(migration, r"(?i)\\b(?:DROP|TRUNCATE|DELETE\\s+FROM|UPDATE\\s+blog_posts)\\b")
+        self.assertNotRegex(migration, r"(?i)\b(?:DROP|TRUNCATE|DELETE\s+FROM|UPDATE\s+blog_posts)\b")
 
         base = source("database/migration_blog_01.sql")
         self.assertIn("FOREIGN KEY (post_id) REFERENCES blog_posts(id) ON DELETE CASCADE", base)
@@ -75,7 +75,7 @@ class BlogTrashTests(unittest.TestCase):
         self.assertIn("does **not** schedule or execute automatic purge", spec)
         self.assertIn("Media remains outside Blog Trash semantics", spec)
         self.assertIn("BRVTAL_APP_VERSION = '0.1.88'", version)
-        self.assertRegex(package, r'"version":\\s*"0\\.1\\.88"')
+        self.assertRegex(package, r'"version":\s*"0\.1\.88"')
 
 
 if __name__ == "__main__":
