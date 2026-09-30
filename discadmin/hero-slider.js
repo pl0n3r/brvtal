@@ -574,7 +574,7 @@
       renderManager();
       diagnostics.status = 'loaded';
       diagnostics.reason = '';
-      mediaPromise.then(result => applyMediaLoad(result, revision));
+      void mediaPromise.then(result => applyMediaLoad(result, revision));
       return true;
     } catch (error) {
       diagnostics.status = 'failed';
@@ -588,7 +588,7 @@
         errorNode.textContent = `Unable to load Banners: ${diagnostics.error}`;
         errorHost.appendChild(errorNode);
       }
-      mediaPromise.then(() => {});
+      void mediaPromise.then(() => {});
       return false;
     }
   }
