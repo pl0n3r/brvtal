@@ -54,6 +54,7 @@ sed \
 "${mysql_db[@]}" < database/migration_artist_collective_membership_01.sql
 "${mysql_db[@]}" < database/migration_releases_01.sql
 "${mysql_db[@]}" < database/migration_blog_01.sql
+"${mysql_db[@]}" < database/migration_blog_trash_01.sql
 "${mysql_db[@]}" < database/migration_seo_01.sql
 "${mysql_db[@]}" < database/migration_totp_foundation.sql
 "${mysql_db[@]}" < database/migration_admin_activity_01.sql
