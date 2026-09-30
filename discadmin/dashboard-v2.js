@@ -247,21 +247,85 @@
     return {state:'bad',label:'UNAVAILABLE'};
   }
 
-  function developmentPanel(signals, signalsError, sonar, sonarError, coderabbit, coderabbitError, deploy, deployError) {
+  function developmentSourceError(data, label, error) {
+    if (data) return '';
+    return sourceError(label + ' · ' + (error || 'UNAVAILABLE'));
+  }
+
+  function developmentAction(url, label) {
+    if (!url) return '';
+    return `<a class="dashboard-v2-button" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
+  }
+
+  function developmentDeployView(deploy) {
+    let freshness = 'unavailable';
+    if (deploy) {
+      freshness = 'degraded';
+      if (deploy.status === 'available' && deploy.readiness === 'ready') {
+        freshness = String(deploy.freshness || 'fresh');
+      }
+    }
+
+    let sha = 'NOT EXACT';
+    if (deploy?.short_sha) sha = String(deploy.short_sha);
+    else if (deploy?.exact) sha = 'INVALID';
+
+    const schema = deploy?.schema || null;
+    let schemaDetail = 'schema source unavailable';
+    if (schema) {
+      schemaDetail = 'applied ' + Number(schema.applied || 0)
+        + ' · pending ' + Number(schema.pending || 0)
+        + ' · mismatch ' + Number(schema.checksum_mismatch || 0)
+        + ' · orphans ' + Number(schema.orphaned_records || 0);
+    }
+
+    return {
+      freshness,
+      version:String(deploy?.version || 'UNAVAILABLE'),
+      sha,
+      readiness:String(deploy?.readiness || 'UNAVAILABLE').toUpperCase(),
+      schemaLabel:deploy?.schema_up_to_date ? 'CURRENT' : 'DEGRADED',
+      schemaDetail,
+      environment:String(deploy?.environment || '—'),
+      source:String(deploy?.source || 'unavailable'),
+      sourceAt:String(deploy?.source_at || '—').replace('T',' ').replace('Z',' UTC')
+    };
+  }
+
+  function developmentSources(results) {
+    return {
+      signals:resultValue(results[6]),
+      signalsError:resultError(results[6]),
+      sonar:resultValue(results[7]),
+      sonarError:resultError(results[7]),
+      coderabbit:resultValue(results[8]),
+      coderabbitError:resultError(results[8]),
+      deploy:resultValue(results[9]),
+      deployError:resultError(results[9])
+    };
+  }
+
+  function developmentPanel(sources) {
+    const {
+      signals,
+      signalsError,
+      sonar,
+      sonarError,
+      coderabbit,
+      coderabbitError,
+      deploy,
+      deployError
+    } = sources;
     const githubFreshness = String(signals?.freshness || 'unavailable');
     const sonarFreshness = String(sonar?.freshness || 'unavailable');
     const codeRabbitFreshness = String(coderabbit?.freshness || 'unavailable');
-    const deployFreshness = deploy?.status === 'available' && deploy?.readiness === 'ready'
-      ? String(deploy.freshness || 'fresh')
-      : (deploy ? 'degraded' : 'unavailable');
+    const deployView = developmentDeployView(deploy);
     const overall = developmentFreshnessState([
       githubFreshness,
       sonarFreshness,
       codeRabbitFreshness,
-      deployFreshness
+      deployView.freshness
     ]);
-    const state = overall.state;
-    const statusLabel = overall.label;
 
     const latestPr = signals?.latest_pr || null;
     const latestCi = signals?.latest_ci || null;
@@ -278,26 +342,24 @@
     const githubSource = String(signals?.source_at || '—').replace('T',' ').replace('Z',' UTC');
     const sonarSource = String(sonar?.source_at || '—').replace('T',' ').replace('Z',' UTC');
     const codeRabbitSource = String(coderabbit?.source_at || '—').replace('T',' ').replace('Z',' UTC');
-    const deploySource = String(deploy?.source_at || '—').replace('T',' ').replace('Z',' UTC');
     const sonarGate = String(sonar?.quality_gate || 'UNAVAILABLE').toUpperCase();
     const codeRabbitState = String(coderabbit?.review_state || 'UNAVAILABLE').toUpperCase().replaceAll('_',' ');
-    const deployVersion = String(deploy?.version || 'UNAVAILABLE');
-    const deploySha = String(deploy?.short_sha || (deploy?.exact ? 'INVALID' : 'NOT EXACT'));
-    const deployReadiness = String(deploy?.readiness || 'UNAVAILABLE').toUpperCase();
-    const schemaLabel = deploy?.schema_up_to_date ? 'CURRENT' : 'DEGRADED';
-    const schema = deploy?.schema || null;
-    const schemaDetail = schema
-      ? 'applied ' + Number(schema.applied || 0)
-        + ' · pending ' + Number(schema.pending || 0)
-        + ' · mismatch ' + Number(schema.checksum_mismatch || 0)
-        + ' · orphans ' + Number(schema.orphaned_records || 0)
-      : 'schema source unavailable';
+    const sourceErrors = [
+      developmentSourceError(signals,'GITHUB',signalsError),
+      developmentSourceError(sonar,'SONAR',sonarError),
+      developmentSourceError(coderabbit,'CODERABBIT',coderabbitError),
+      developmentSourceError(deploy,'DEPLOY',deployError)
+    ].join('');
+    const actions = [
+      developmentAction(repoUrl,'OPEN REPOSITORY'),
+      developmentAction(prUrl,'LATEST PR'),
+      developmentAction(ciUrl,'LATEST CI'),
+      developmentAction(sonarUrl,'SONAR'),
+      developmentAction(codeRabbitUrl,'CODERABBIT REVIEW')
+    ].join('');
 
-    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${state}">${statusLabel}</span></div>
-      ${signals ? '' : sourceError('GITHUB · ' + (signalsError || 'UNAVAILABLE'))}
-      ${sonar ? '' : sourceError('SONAR · ' + (sonarError || 'UNAVAILABLE'))}
-      ${coderabbit ? '' : sourceError('CODERABBIT · ' + (coderabbitError || 'UNAVAILABLE'))}
-      ${deploy ? '' : sourceError('DEPLOY · ' + (deployError || 'UNAVAILABLE'))}
+    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${overall.state}">${overall.label}</span></div>
+      ${sourceErrors}
       <div class="dashboard-v2-development-grid">
         <div class="dashboard-v2-health-card"><span>OPEN ISSUES</span><b>${signals?.open_issues == null ? '—' : Number(signals.open_issues)}</b><small>GitHub · ${esc(githubFreshness)}</small></div>
         <div class="dashboard-v2-health-card"><span>OPEN PRS</span><b>${signals?.open_prs == null ? '—' : Number(signals.open_prs)}</b><small>${latestPr ? esc('#' + latestPr.number + ' · ' + latestPr.title) : 'No active PR / source unavailable'}</small></div>
@@ -306,12 +368,12 @@
         <div class="dashboard-v2-health-card"><span>SONAR NEW ISSUES</span><b>${sonar?.new_issues == null ? '—' : Number(sonar.new_issues)}</b><small>New-code source</small></div>
         <div class="dashboard-v2-health-card"><span>SONAR HOTSPOTS</span><b>${sonar?.security_hotspots == null ? '—' : Number(sonar.security_hotspots)}</b><small>Open review queue</small></div>
         <div class="dashboard-v2-health-card"><span>CODERABBIT</span><b>${esc(codeRabbitState)}</b><small>${esc(codeRabbitFreshness + ' · ' + codeRabbitSource)}</small></div>
-        <div class="dashboard-v2-health-card"><span>PROD VERSION</span><b>${esc(deployVersion)}</b><small>${esc(String(deploy?.environment || '—') + ' · ' + deploySource)}</small></div>
-        <div class="dashboard-v2-health-card"><span>PROD SHA</span><b>${esc(deploySha)}</b><small>${esc(String(deploy?.source || 'unavailable'))}</small></div>
-        <div class="dashboard-v2-health-card"><span>READINESS</span><b>${esc(deployReadiness)}</b><small>${esc(deployFreshness)}</small></div>
-        <div class="dashboard-v2-health-card"><span>SCHEMA</span><b>${esc(schemaLabel)}</b><small>${esc(schemaDetail)}</small></div>
+        <div class="dashboard-v2-health-card"><span>PROD VERSION</span><b>${esc(deployView.version)}</b><small>${esc(deployView.environment + ' · ' + deployView.sourceAt)}</small></div>
+        <div class="dashboard-v2-health-card"><span>PROD SHA</span><b>${esc(deployView.sha)}</b><small>${esc(deployView.source)}</small></div>
+        <div class="dashboard-v2-health-card"><span>READINESS</span><b>${esc(deployView.readiness)}</b><small>${esc(deployView.freshness)}</small></div>
+        <div class="dashboard-v2-health-card"><span>SCHEMA</span><b>${esc(deployView.schemaLabel)}</b><small>${esc(deployView.schemaDetail)}</small></div>
       </div>
-      <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}${sonarUrl ? `<a class="dashboard-v2-button" href="${esc(sonarUrl)}" target="_blank" rel="noopener noreferrer">SONAR</a>` : ''}${codeRabbitUrl ? `<a class="dashboard-v2-button" href="${esc(codeRabbitUrl)}" target="_blank" rel="noopener noreferrer">CODERABBIT REVIEW</a>` : ''}</div>
+      <div class="dashboard-v2-actions" style="margin-top:12px">${actions}</div>
     </section>`;
   }
 
@@ -326,16 +388,7 @@
     const module = root?.querySelector('[data-dashboard-module="development"]');
     const panel = module?.querySelector('.dashboard-v2-panel');
     if (!panel) return;
-    panel.outerHTML = developmentPanel(
-      resultValue(results[6]),
-      resultError(results[6]),
-      resultValue(results[7]),
-      resultError(results[7]),
-      resultValue(results[8]),
-      resultError(results[8]),
-      resultValue(results[9]),
-      resultError(results[9])
-    );
+    panel.outerHTML = developmentPanel(developmentSources(results));
   }
 
   function applyDevelopmentResult(results, serial, index, result) {
@@ -631,16 +684,16 @@
     const summary = overview?.summary || {};
     let developmentMarkup = developmentLoadingPanel();
     if (developmentResult) {
-      developmentMarkup = developmentPanel(
-        resultValue(developmentResult),
-        resultError(developmentResult),
-        resultValue(sonarResult),
-        resultError(sonarResult),
-        resultValue(coderabbitResult),
-        resultError(coderabbitResult),
-        resultValue(deployResult),
-        resultError(deployResult)
-      );
+      developmentMarkup = developmentPanel({
+        signals:resultValue(developmentResult),
+        signalsError:resultError(developmentResult),
+        sonar:resultValue(sonarResult),
+        sonarError:resultError(sonarResult),
+        coderabbit:resultValue(coderabbitResult),
+        coderabbitError:resultError(coderabbitResult),
+        deploy:resultValue(deployResult),
+        deployError:resultError(deployResult)
+      });
     }
 
     const modules = {
