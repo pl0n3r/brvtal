@@ -84,6 +84,11 @@ echo json_encode(
         self.assertIn("total:null", js)
         self.assertIn("issues:null", js)
         self.assertIn("summary payload incomplete", js)
+        self.assertIn("!Number.isInteger(summary[key])", js)
+        self.assertNotIn("Number.isInteger(Number(summary[key]))", js)
+        self.assertIn("summary.status === 'available' && summary.freshness === 'fresh'", js)
+        self.assertIn("summary.status === 'partial' && summary.freshness === 'stale'", js)
+        self.assertIn("summary.read_only !== true", js)
         self.assertNotIn("SEO HEALTH</span><b>0", js)
 
     def test_no_mutation_score_secret_external_analytics_or_schema_change(self):
