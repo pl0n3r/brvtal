@@ -444,7 +444,7 @@
     };
   }
 
-  function developmentSources(results, backupResult = results[11]) {
+  function developmentSources(results) {
     return {
       signals:resultValue(results[6]),
       signalsError:resultError(results[6]),
@@ -456,8 +456,8 @@
       deployError:resultError(results[9]),
       seo:resultValue(results[10]),
       seoError:resultError(results[10]),
-      backup:resultValue(backupResult),
-      backupError:resultError(backupResult)
+      backup:resultValue(results[11]),
+      backupError:resultError(results[11])
     };
   }
 
@@ -855,13 +855,13 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5], developmentResult = results[6] || null, backupResult = results[11] || null;
+    const preferenceResult = results[5], developmentResult = results[6] || null;
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
     let developmentMarkup = developmentLoadingPanel();
     if (developmentResult) {
-      developmentMarkup = developmentPanel(developmentSources(results,backupResult));
+      developmentMarkup = developmentPanel(developmentSources(results));
     }
 
     const modules = {
