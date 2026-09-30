@@ -249,6 +249,14 @@ Published Pages use canonical public entity delivery and SEO rules like the othe
 
 The Blog supports posts, drafts, publication/archive lifecycle, cover media, tags, SEO and relations to Events/Artists/Sets/Releases. Do not add unnecessary editorial automation.
 
+### Blog Trash / Recycle Bin
+
+Blog is the first editorial entity with recoverable deletion. Ordinary deletion is a soft delete: the canonical `blog_posts` row, slug, tag links and related-content links remain intact while `deleted_at` and `deleted_by_admin_id` identify the Trash state. Active DISCADMIN reads and every public Blog query exclude Trash.
+
+DISCADMIN exposes ACTIVE and TRASH as distinct views in the existing Blog module. Restore clears deletion metadata on the same row and records an audit event. Permanent deletion is a separate destructive action available only for an already-trashed post and requires exact slug confirmation on both client and server.
+
+The retention target is **30 days**, but this phase does **not** schedule or execute automatic purge. A future retention job requires its own explicit safe design and production authority. Media remains outside Blog Trash semantics because Media deletion has separate reference-aware safeguards.
+
 ### Canonical public draft preview
 
 Events, Artists, Releases, Sets, Pages and Blog expose a **PUBLIC PREVIEW** action from create/edit without requiring Publish or an intermediate save.

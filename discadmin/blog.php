@@ -36,6 +36,10 @@ brvtal_admin_require();
       <option value="draft">DRAFT</option>
       <option value="archived">ARCHIVED</option>
     </select>
+    <div class="blog-view-switch" role="tablist" aria-label="Blog content view">
+      <button class="iconbtn active" id="blog-active-view" type="button" role="tab" aria-selected="true">ACTIVE</button>
+      <button class="iconbtn" id="blog-trash-view" type="button" role="tab" aria-selected="false">TRASH <span id="blog-trash-count">0</span></button>
+    </div>
   </div>
 
   <div id="blog-status" class="blog-status" aria-live="polite"></div>

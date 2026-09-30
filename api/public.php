@@ -89,6 +89,16 @@ function brvtal_public_table_exists(PDO $pdo, string $table): bool
     return (int)$st->fetchColumn() > 0;
 }
 
+function brvtal_public_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $st = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $st->execute([$table,$column]);
+    return (int)$st->fetchColumn() > 0;
+}
+
 function brvtal_public_memories(PDO $pdo): array
 {
     if (!brvtal_public_table_exists($pdo, 'memories')) {
@@ -165,12 +175,13 @@ function brvtal_public_blog(PDO $pdo): array
     foreach (['blog_posts','blog_tags','blog_post_tags','blog_post_relations'] as $table) {
         if (!brvtal_public_table_exists($pdo, $table)) return [];
     }
+    if (!brvtal_public_column_exists($pdo, 'blog_posts', 'deleted_at')) return [];
 
     $posts = $pdo->query(
         "SELECT id,title,slug,excerpt,body,cover_image,seo_title,seo_description,
                 featured,published_at,sort_order
          FROM blog_posts
-         WHERE status='published'
+         WHERE status='published' AND deleted_at IS NULL
          ORDER BY sort_order ASC, featured DESC, COALESCE(published_at,updated_at) DESC, id ASC"
     )->fetchAll();
 
@@ -181,14 +192,14 @@ function brvtal_public_blog(PDO $pdo): array
          FROM blog_post_tags pt
          JOIN blog_posts p ON p.id=pt.post_id
          JOIN blog_tags t ON t.id=pt.tag_id
-         WHERE p.status='published'
+         WHERE p.status='published' AND p.deleted_at IS NULL
          ORDER BY pt.post_id,t.name"
     )->fetchAll();
     $relationRows = $pdo->query(
         "SELECT r.post_id,r.related_type,r.related_id,r.sort_order
          FROM blog_post_relations r
          JOIN blog_posts p ON p.id=r.post_id
-         WHERE p.status='published'
+         WHERE p.status='published' AND p.deleted_at IS NULL
          ORDER BY r.post_id,r.sort_order,r.related_type,r.related_id"
     )->fetchAll();
 
@@ -419,7 +430,7 @@ try {
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
         brvtal_log('PUBLIC_API_ERROR', 'Public API failure', [
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $e->getMessage(),
         ]);
     }
