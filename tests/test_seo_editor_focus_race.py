@@ -1,5 +1,4 @@
 import json
-import re
 import unittest
 from pathlib import Path
 
@@ -91,9 +90,8 @@ class SeoEditorFocusRaceTests(unittest.TestCase):
     def test_release_identity_is_v01100(self):
         version = (ROOT / "config" / "version.php").read_text(encoding="utf-8")
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-        match = re.search(r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'", version)
-        self.assertIsNotNone(match)
-        self.assertEqual(package["version"], match.group(1))
+        self.assertIn("BRVTAL_APP_VERSION = '0.1.100'", version)
+        self.assertEqual(package["version"], "0.1.100")
 
 
 if __name__ == "__main__":
