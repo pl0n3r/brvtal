@@ -11,6 +11,7 @@ const defaults = {
     {id:'attention',width:2,height:1,visible:true},
     {id:'drafts',width:2,height:1,visible:true},
     {id:'operations',width:2,height:1,visible:true},
+    {id:'development',width:2,height:1,visible:true},
     {id:'activity',width:2,height:1,visible:true},
     {id:'quick_create',width:2,height:1,visible:true},
     {id:'analytics',width:2,height:1,visible:false},
@@ -32,6 +33,7 @@ test('Dashboard persists layout controls and loads Recent Changes five at a time
   await page.route('**/api/content-health.php',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{public:{score:100,items:[]},drafts:{total:2,ready:1,needs_attention:1,items:[]}}})}));
   await page.route('**/api/index.php/health',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,database:'connected',php:'8.5.0',driver:'mysql'})}));
   await page.route('**/discadmin/storage-metrics.php',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{used:'1 GB',quota:'10 GB',used_percent:10,managed_files:4}})}));
+  await page.route('**/api/admin-development-signals.php',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{status:'available',freshness:'fresh',open_issues:2,open_prs:1,latest_pr:null,latest_ci:{status:'completed',conclusion:'success',url:'https://github.com/pl0n3r/brvtal/actions/runs/1'},source_at:'2026-09-30T09:00:00Z',read_only:true}})}));
   await page.route('**/api/admin-dashboard-preferences.php',async route=>{
     const request=route.request();
     if(request.method()==='POST'){
@@ -59,7 +61,7 @@ test('Dashboard persists layout controls and loads Recent Changes five at a time
   await page.goto(harness);
   const root=page.locator('#brvtal-dashboard-v2');
   await expect(root).toBeVisible();
-  await expect(root.locator('[data-dashboard-module]')).toHaveCount(6);
+  await expect(root.locator('[data-dashboard-module]')).toHaveCount(7);
   await expect(root.getByRole('button',{name:/ANALYTICS/})).toBeVisible();
 
   const next=root.locator('[data-dashboard-module="next_event"]');
@@ -74,7 +76,7 @@ test('Dashboard persists layout controls and loads Recent Changes five at a time
   expect(await page.evaluate(()=>window.__csrfCalls)).toBeGreaterThanOrEqual(2);
 
   await root.locator('[data-dashboard-module="activity"] [data-dashboard-move="up"]').click();
-  expect(saved.at(-1).modules.findIndex(item=>item.id==='activity')).toBe(3);
+  expect(saved.at(-1).modules.findIndex(item=>item.id==='activity')).toBe(4);
 
   await expect(root.locator('[data-dashboard-activity-list] .dashboard-v2-row')).toHaveCount(5);
   await root.locator('[data-dashboard-activity-more]').click();
