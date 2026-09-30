@@ -41,31 +41,6 @@ function brvtalSeoWorkspaceBody(): array
     return $decoded;
 }
 
-/** @return list<string> */
-function brvtalSeoWorkspaceWarnings(array $item): array
-{
-    $warnings = [];
-    $title = trim((string)($item['effective_title'] ?? ''));
-    $description = trim((string)($item['effective_description'] ?? ''));
-
-    if ($title === '') {
-        $warnings[] = 'MISSING_TITLE';
-    }
-    if ($description === '') {
-        $warnings[] = 'MISSING_DESCRIPTION';
-    }
-    if (mb_strlen($title) > 70) {
-        $warnings[] = 'TITLE_LONG';
-    }
-    if (mb_strlen($description) > 180) {
-        $warnings[] = 'DESCRIPTION_LONG';
-    }
-    if (empty($item['public']) && ($item['mode'] ?? 'AUTO') !== 'AUTO') {
-        $warnings[] = 'PRIVATE_WITH_OVERRIDE';
-    }
-    return $warnings;
-}
-
 function brvtalSeoWorkspaceEntityIsPublic(string $resource, array $row): bool
 {
     if ($resource === 'events') {
@@ -256,13 +231,10 @@ try {
     if ($method === 'GET') {
         $truncatedResources = [];
         $items = brvtalSeoWorkspaceInventory($pdo, $truncatedResources);
-        $summary = [
-            'total'=>count($items),
-            'auto'=>count(array_filter($items, static fn(array $item): bool => $item['mode'] === 'AUTO')),
-            'manual'=>count(array_filter($items, static fn(array $item): bool => $item['mode'] !== 'AUTO')),
-            'issues'=>count(array_filter($items, static fn(array $item): bool => $item['warnings'] !== [])),
-            'truncated_resources'=>$truncatedResources,
-        ];
+        $summary = brvtalSeoWorkspaceSummary($items, $truncatedResources);
+        if ((string)($_GET['summary'] ?? '') === '1') {
+            brvtalSeoWorkspaceJson(['ok'=>true,'data'=>$summary]);
+        }
         brvtalSeoWorkspaceJson(['ok'=>true,'data'=>$items,'summary'=>$summary]);
     }
 
