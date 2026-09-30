@@ -142,7 +142,7 @@
     watchMenuState();
     observeSections();
     window.addEventListener('hashchange', activeFromHash);
-    hydratePages();
+    void hydratePages();
     root.dataset.publicShell = 'concept05';
     return true;
   }
