@@ -171,12 +171,7 @@ function brvtalSeoWorkspaceRootImagePathIsSafe(string $value): bool
     ) {
         return false;
     }
-    foreach (["\0","\r","\n",'..','?','#'] as $blocked) {
-        if (str_contains($value, $blocked)) {
-            return false;
-        }
-    }
-    return true;
+    return array_all(["\0","\r","\n",'..','?','#'], fn($blocked) => !str_contains($value, $blocked));
 }
 
 function brvtalSeoWorkspaceImageValue(mixed $value): string

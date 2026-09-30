@@ -232,6 +232,9 @@ try {
         $truncatedResources = [];
         $items = brvtalSeoWorkspaceInventory($pdo, $truncatedResources);
         $summary = brvtalSeoWorkspaceSummary($items, $truncatedResources);
+        if (!array_key_exists('truncated_resources', $summary)) {
+            throw new RuntimeException('SEO_SUMMARY_CONTRACT_INVALID');
+        }
         if ((string)($_GET['summary'] ?? '') === '1') {
             brvtalSeoWorkspaceJson(['ok'=>true,'data'=>$summary]);
         }
@@ -307,7 +310,7 @@ try {
     }
     if (function_exists('brvtal_log')) {
         brvtal_log('SEO_WORKSPACE_RUNTIME_ERROR', 'SEO workspace runtime failure', [
-            'class'=>get_class($error),
+            'class'=>$error::class,
             'message'=>$error->getMessage(),
         ]);
     }
@@ -315,7 +318,7 @@ try {
 } catch (Throwable $error) {
     if (function_exists('brvtal_log')) {
         brvtal_log('SEO_WORKSPACE_ERROR', 'SEO workspace request failed', [
-            'class'=>get_class($error),
+            'class'=>$error::class,
             'message'=>$error->getMessage(),
         ]);
     }

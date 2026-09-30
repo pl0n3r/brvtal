@@ -43,6 +43,25 @@ echo json_encode(
         )
         return json.loads(result.stdout)
 
+    def js_seo_view(self, payload):
+        js = (ROOT / "discadmin" / "dashboard-v2.js").read_text(encoding="utf-8")
+        start = js.index("  function developmentSeoView(summary) {")
+        end = js.index("\n\n  function developmentSources", start)
+        function_source = js[start:end].strip()
+        script = (
+            function_source
+            + "\nconsole.log(JSON.stringify(developmentSeoView(JSON.parse(process.argv[1]))));"
+        )
+        result = subprocess.run(
+            ["node", "-e", script, json.dumps(payload)],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        return json.loads(result.stdout)
+
     def test_summary_reuses_canonical_warning_contract(self):
         config = (ROOT / "config" / "seo_workspace.php").read_text(encoding="utf-8")
         api = (ROOT / "api" / "seo-workspace.php").read_text(encoding="utf-8")
@@ -79,17 +98,83 @@ echo json_encode(
         self.assertIn("hydrateDevelopmentSource(results,serial,10,ENDPOINTS.seo)", js)
 
     def test_seo_failure_is_unavailable_not_fake_zero(self):
-        js = (ROOT / "discadmin" / "dashboard-v2.js").read_text(encoding="utf-8")
-        self.assertIn("state:'UNAVAILABLE'", js)
-        self.assertIn("total:null", js)
-        self.assertIn("issues:null", js)
-        self.assertIn("summary payload incomplete", js)
-        self.assertIn("!Number.isInteger(summary[key])", js)
-        self.assertNotIn("Number.isInteger(Number(summary[key]))", js)
-        self.assertIn("summary.status === 'available' && summary.freshness === 'fresh'", js)
-        self.assertIn("summary.status === 'partial' && summary.freshness === 'stale'", js)
-        self.assertIn("summary.read_only !== true", js)
-        self.assertNotIn("SEO HEALTH</span><b>0", js)
+        unavailable_payloads = [
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": None,
+                "issues": None,
+                "auto": None,
+                "manual": None,
+                "truncated_resources": [],
+            },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": "0",
+                "issues": "0",
+                "auto": "0",
+                "manual": "0",
+                "truncated_resources": [],
+            },
+            {
+                "status": "unknown",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+                "truncated_resources": [],
+            },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": False,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
+                "truncated_resources": [],
+            },
+        ]
+        for payload in unavailable_payloads:
+            with self.subTest(payload=payload):
+                view = self.js_seo_view(payload)
+                self.assertEqual(view["state"], "UNAVAILABLE")
+                self.assertEqual(view["freshness"], "unavailable")
+                self.assertIsNone(view["total"])
+                self.assertIsNone(view["issues"])
+
+        clean = self.js_seo_view(
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 4,
+                "issues": 0,
+                "auto": 3,
+                "manual": 1,
+                "truncated_resources": [],
+            }
+        )
+        self.assertEqual((clean["state"], clean["freshness"], clean["total"]), ("CLEAN", "fresh", 4))
+
+        partial = self.js_seo_view(
+            {
+                "status": "partial",
+                "freshness": "stale",
+                "read_only": True,
+                "total": 4,
+                "issues": 1,
+                "auto": 3,
+                "manual": 1,
+                "truncated_resources": ["events"],
+            }
+        )
+        self.assertEqual((partial["state"], partial["freshness"]), ("PARTIAL", "stale"))
 
     def test_no_mutation_score_secret_external_analytics_or_schema_change(self):
         changed = "\n".join(
