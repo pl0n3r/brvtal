@@ -58,6 +58,76 @@ function brvtalDevelopmentDecode(array $response): array
     return $decoded;
 }
 
+function brvtalDevelopmentNonEmptyString(mixed $value): bool
+{
+    return is_string($value) && trim($value) !== '';
+}
+
+/** @return array{number:int,title:string,url:string}|null */
+function brvtalDevelopmentLatestPr(array $payload): ?array
+{
+    if (!isset($payload['items']) || !is_array($payload['items'])) {
+        throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+    }
+    if (!isset($payload['items'][0])) {
+        return null;
+    }
+
+    $item = $payload['items'][0];
+    if (
+        !is_array($item)
+        || !is_int($item['number'] ?? null)
+        || $item['number'] <= 0
+        || !brvtalDevelopmentNonEmptyString($item['title'] ?? null)
+        || !brvtalDevelopmentNonEmptyString($item['html_url'] ?? null)
+    ) {
+        throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+    }
+
+    return [
+        'number'=>$item['number'],
+        'title'=>$item['title'],
+        'url'=>$item['html_url'],
+    ];
+}
+
+/** @return array{status:string,conclusion:?string,url:string,updated_at:string}|null */
+function brvtalDevelopmentLatestCi(array $payload): ?array
+{
+    if (!isset($payload['workflow_runs']) || !is_array($payload['workflow_runs'])) {
+        throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+    }
+    if (!isset($payload['workflow_runs'][0])) {
+        return null;
+    }
+
+    $run = $payload['workflow_runs'][0];
+    $conclusion = is_array($run) && array_key_exists('conclusion', $run)
+        ? $run['conclusion']
+        : null;
+    if (
+        !is_array($run)
+        || !brvtalDevelopmentNonEmptyString($run['status'] ?? null)
+        || ($conclusion !== null && !is_string($conclusion))
+        || !brvtalDevelopmentNonEmptyString($run['html_url'] ?? null)
+        || !brvtalDevelopmentNonEmptyString($run['updated_at'] ?? null)
+    ) {
+        throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+    }
+
+    $sourceTs = strtotime($run['updated_at']);
+    if ($sourceTs === false) {
+        throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+    }
+
+    return [
+        'status'=>$run['status'],
+        'conclusion'=>$conclusion,
+        'url'=>$run['html_url'],
+        'updated_at'=>$run['updated_at'],
+    ];
+}
+
 /** @return array<string,mixed> */
 function brvtalAdminDevelopmentSignals(?callable $requester = null): array
 {
@@ -93,34 +163,23 @@ function brvtalAdminDevelopmentSignals(?callable $requester = null): array
             )
         );
 
+        $issueCount = $issues['total_count'] ?? null;
+        $prCount = $prs['total_count'] ?? null;
         if (
-            !isset($issues['total_count'], $prs['total_count'])
-            || !isset($ci['workflow_runs'])
-            || !is_array($ci['workflow_runs'])
+            !is_int($issueCount)
+            || $issueCount < 0
+            || !is_int($prCount)
+            || $prCount < 0
         ) {
             throw new RuntimeException('GITHUB_INVALID_RESPONSE');
         }
 
-        $latestPr = (
-            is_array($prs['items'] ?? null)
-            && isset($prs['items'][0])
-            && is_array($prs['items'][0])
-        ) ? $prs['items'][0] : null;
-        $latestRun = (
-            isset($ci['workflow_runs'][0])
-            && is_array($ci['workflow_runs'][0])
-        ) ? $ci['workflow_runs'][0] : null;
-        $sourceAt = null;
+        $latestPr = brvtalDevelopmentLatestPr($prs);
+        $latestRun = brvtalDevelopmentLatestCi($ci);
+        $sourceAt = $latestRun['updated_at'] ?? null;
         $freshness = 'unavailable';
         if ($latestRun !== null) {
-            $sourceAt = $latestRun['updated_at'] ?? null;
-            if (!is_string($sourceAt)) {
-                throw new RuntimeException('GITHUB_INVALID_RESPONSE');
-            }
-            $sourceTs = strtotime($sourceAt);
-            if ($sourceTs === false) {
-                throw new RuntimeException('GITHUB_INVALID_RESPONSE');
-            }
+            $sourceTs = strtotime($latestRun['updated_at']);
             $freshness = (time() - $sourceTs) > BRVTAL_DEVELOPMENT_STALE_SECONDS
                 ? 'stale'
                 : 'fresh';
@@ -129,19 +188,13 @@ function brvtalAdminDevelopmentSignals(?callable $requester = null): array
         return [
             'status'=>'available',
             'freshness'=>$freshness,
-            'open_issues'=>(int)$issues['total_count'],
-            'open_prs'=>(int)$prs['total_count'],
-            'latest_pr'=>$latestPr ? [
-                'number'=>(int)($latestPr['number'] ?? 0),
-                'title'=>(string)($latestPr['title'] ?? ''),
-                'url'=>(string)($latestPr['html_url'] ?? ''),
-            ] : null,
+            'open_issues'=>$issueCount,
+            'open_prs'=>$prCount,
+            'latest_pr'=>$latestPr,
             'latest_ci'=>$latestRun ? [
-                'status'=>(string)($latestRun['status'] ?? ''),
-                'conclusion'=>$latestRun['conclusion'] !== null
-                    ? (string)$latestRun['conclusion']
-                    : null,
-                'url'=>(string)($latestRun['html_url'] ?? ''),
+                'status'=>$latestRun['status'],
+                'conclusion'=>$latestRun['conclusion'],
+                'url'=>$latestRun['url'],
             ] : null,
             'source_at'=>$sourceAt,
             'read_only'=>true,
