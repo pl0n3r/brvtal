@@ -242,12 +242,17 @@
     let state = 'bad';
     if (freshnesses.every(value => value === 'fresh')) state = 'ok';
     else if (freshnesses.some(value => value === 'fresh' || value === 'stale')) state = 'warn';
-    const statusLabel = state === 'ok' ? 'FRESH' : state === 'warn' ? 'PARTIAL' : 'UNAVAILABLE';
+    let statusLabel = 'UNAVAILABLE';
+    if (state === 'ok') statusLabel = 'FRESH';
+    else if (state === 'warn') statusLabel = 'PARTIAL';
 
     const latestPr = signals?.latest_pr || null;
     const latestCi = signals?.latest_ci || null;
     const safeGithubLink = value => /^https:\/\/github\.com\/pl0n3r\/brvtal(?:\/|$)/.test(String(value || '')) ? String(value) : '';
-    const safeSonarLink = value => /^https:\/\/sonarcloud\.io\//.test(String(value || '')) ? String(value) : '';
+    const safeSonarLink = value => {
+      const href = String(value || '');
+      return href.startsWith('https://sonarcloud.io/') ? href : '';
+    };
     const repoUrl = 'https://github.com/pl0n3r/brvtal';
     const prUrl = safeGithubLink(latestPr?.url);
     const ciUrl = safeGithubLink(latestCi?.url);
