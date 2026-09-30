@@ -53,7 +53,7 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
         import re
         config = (ROOT / "config" / "version.php").read_text(encoding="utf-8")
         match = re.search(
-            r"BRVTAL_APP_VERSION\\s*=\\s*'([^']+)'",
+            r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'",
             config,
         )
         self.assertIsNotNone(match)
