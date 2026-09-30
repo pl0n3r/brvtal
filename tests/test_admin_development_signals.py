@@ -7,7 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AdminDevelopmentSignalsTests(unittest.TestCase):
-    def php_fixture(self, fail=False, empty=False, ci_empty=False, invalid_ci_time=False):
+    def php_fixture(
+        self,
+        fail=False,
+        empty=False,
+        ci_empty=False,
+        invalid_ci_time=False,
+        malformed=None,
+    ):
         config = (ROOT / "config" / "admin_development_signals.php").as_posix()
         script = f"""
 require {json.dumps(config)};
@@ -15,10 +22,19 @@ $fail = {'true' if fail else 'false'};
 $empty = {'true' if empty else 'false'};
 $ciEmpty = {'true' if ci_empty else 'false'};
 $invalidCiTime = {'true' if invalid_ci_time else 'false'};
-$fn = function(string $url) use ($fail,$empty,$ciEmpty,$invalidCiTime): array {{
+$malformed = {json.dumps(malformed)};
+$fn = function(string $url) use ($fail,$empty,$ciEmpty,$invalidCiTime,$malformed): array {{
   if ($fail) throw new RuntimeException('offline');
-  if (str_contains($url, 'is%3Aissue')) return ['status'=>200,'body'=>json_encode(['total_count'=>$empty?0:7,'items'=>[]])];
-  if (str_contains($url, 'is%3Apr')) return ['status'=>200,'body'=>json_encode(['total_count'=>$empty?0:2,'items'=>$empty?[]:[['number'=>123,'title'=>'Candidate','html_url'=>'https://github.com/pl0n3r/brvtal/pull/123']]])];
+  if (str_contains($url, 'is%3Aissue')) {{
+    $count = $malformed === 'count' ? 'garbage' : ($empty ? 0 : 7);
+    return ['status'=>200,'body'=>json_encode(['total_count'=>$count,'incomplete_results'=>$malformed === 'incomplete','items'=>[]])];
+  }}
+  if (str_contains($url, 'is%3Apr')) {{
+    $items = $empty ? [] : [['number'=>123,'title'=>'Candidate','html_url'=>'https://github.com/pl0n3r/brvtal/pull/123']];
+    if ($malformed === 'latest_pr') $items = [['number'=>0,'title'=>'','html_url'=>'']];
+    if ($malformed === 'missing_items') return ['status'=>200,'body'=>json_encode(['total_count'=>$empty?0:2,'incomplete_results'=>false])];
+    return ['status'=>200,'body'=>json_encode(['total_count'=>$empty?0:2,'incomplete_results'=>false,'items'=>$items])];
+  }}
   if (!str_contains($url, '/repos/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/runs?')) throw new RuntimeException('invalid actions route');
   if ($ciEmpty) return ['status'=>200,'body'=>json_encode(['workflow_runs'=>[]])];
   $updatedAt = $invalidCiTime ? 'not-a-timestamp' : gmdate('c');
@@ -26,7 +42,13 @@ $fn = function(string $url) use ($fail,$empty,$ciEmpty,$invalidCiTime): array {{
 }};
 echo json_encode(brvtalAdminDevelopmentSignals($fn));
 """
-        result = subprocess.run(["php", "-r", script], cwd=ROOT, check=True, text=True, capture_output=True)
+        result = subprocess.run(
+            ["php", "-r", script],
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
         return json.loads(result.stdout)
 
     def test_normalizes_open_work_and_latest_ci_without_credentials(self):
@@ -43,6 +65,15 @@ echo json_encode(brvtalAdminDevelopmentSignals($fn));
         self.assertEqual(data["freshness"], "unavailable")
         self.assertIsNone(data["open_issues"])
         self.assertIsNone(data["open_prs"])
+
+    def test_semantically_malformed_search_payloads_are_unavailable(self):
+        for malformed in ("count", "latest_pr", "missing_items", "incomplete"):
+            with self.subTest(malformed=malformed):
+                data = self.php_fixture(malformed=malformed)
+                self.assertEqual(data["status"], "unavailable")
+                self.assertEqual(data["freshness"], "unavailable")
+                self.assertIsNone(data["open_issues"])
+                self.assertIsNone(data["open_prs"])
 
     def test_dashboard_exposes_configurable_read_only_development_module(self):
         catalog = (ROOT / "config" / "admin_dashboard.php").read_text()
