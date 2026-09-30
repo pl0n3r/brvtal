@@ -272,6 +272,20 @@
     panel.outerHTML = developmentPanel(resultValue(result),resultError(result));
   }
 
+  function hydrateDevelopmentSignals(results, serial) {
+    void fetchData(ENDPOINTS.development)
+      .then(value => applyDevelopmentResult(
+        results,
+        serial,
+        {status:'fulfilled',value}
+      ))
+      .catch(reason => applyDevelopmentResult(
+        results,
+        serial,
+        {status:'rejected',reason}
+      ));
+  }
+
   function analyticsPanel() {
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>PERFORMANCE</h2><p>Admin-safe analytics source required before metrics or visualizations can be configured.</p></div><span class="dashboard-v2-state muted">NOT CONFIGURED</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · BRVTAL does not invent GA4 or client-side metrics.</div></section>`;
   }
@@ -612,19 +626,7 @@
         fetchData(ENDPOINTS.preferences)
       ]);
       rendered = render(results,serial);
-      if (rendered) {
-        void fetchData(ENDPOINTS.development)
-          .then(value => applyDevelopmentResult(
-            results,
-            serial,
-            {status:'fulfilled',value}
-          ))
-          .catch(reason => applyDevelopmentResult(
-            results,
-            serial,
-            {status:'rejected',reason}
-          ));
-      }
+      if (rendered) hydrateDevelopmentSignals(results,serial);
     } finally {
       if (!rendered && serial === mountSerial && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
       if (serial === mountSerial) {
