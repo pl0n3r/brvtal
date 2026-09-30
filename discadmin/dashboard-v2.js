@@ -306,7 +306,15 @@
       };
     }
     const numericKeys = ['total','issues','auto','manual'];
-    if (numericKeys.some(key => !Number.isInteger(Number(summary[key])) || Number(summary[key]) < 0)) {
+    const validState = (
+      (summary.status === 'available' && summary.freshness === 'fresh')
+      || (summary.status === 'partial' && summary.freshness === 'stale')
+    );
+    if (
+      numericKeys.some(key => !Number.isInteger(summary[key]) || summary[key] < 0)
+      || !validState
+      || summary.read_only !== true
+    ) {
       return {
         freshness:'unavailable',
         state:'UNAVAILABLE',
