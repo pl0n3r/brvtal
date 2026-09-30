@@ -167,7 +167,9 @@ function brvtalAdminDevelopmentSignals(?callable $requester = null): array
         $issueCount = $issues['total_count'] ?? null;
         $prCount = $prs['total_count'] ?? null;
         if (
-            !is_int($issueCount)
+            ($issues['incomplete_results'] ?? null) !== false
+            || ($prs['incomplete_results'] ?? null) !== false
+            || !is_int($issueCount)
             || $issueCount < 0
             || !is_int($prCount)
             || $prCount < 0
