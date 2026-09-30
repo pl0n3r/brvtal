@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 
@@ -23,6 +24,18 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
         self.assertIn(
             "toEqual({section:'events',recordId:7,feedback:''});",
             source,
+        )
+
+    def test_required_ci_command_executes_this_suite(self):
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        scripts = package["scripts"]
+        self.assertEqual(
+            scripts["test:content-health-deflake"],
+            "python3 -m unittest tests/test_content_health_navigation_deflake.py",
+        )
+        self.assertIn(
+            "npm run test:content-health-deflake",
+            scripts["test:integration"],
         )
 
     def test_no_programmatic_click_or_timeout_inflation(self):
