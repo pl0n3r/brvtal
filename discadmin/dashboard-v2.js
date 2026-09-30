@@ -12,6 +12,7 @@
     coderabbit:'/api/admin-coderabbit-signals.php',
     deploy:'/api/admin-deploy-signals.php',
     seo:'/api/seo-workspace.php?summary=1',
+    backup:'/api/admin-backup-signals.php',
     preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
@@ -353,6 +354,58 @@
     };
   }
 
+  function developmentBackupView(backup) {
+    const validStatus = backup?.status === 'available' || backup?.status === 'degraded';
+    const validFreshness = backup?.freshness === 'fresh' || backup?.freshness === 'degraded';
+    const validBackupState = ['ready','partial','missing','unavailable'].includes(String(backup?.backup_state || ''));
+    const automation = backup?.automation;
+    const offsite = backup?.offsite;
+    if (
+      !backup
+      || typeof backup !== 'object'
+      || backup.read_only !== true
+      || !validStatus
+      || !validFreshness
+      || !validBackupState
+      || !automation
+      || typeof automation !== 'object'
+      || !offsite
+      || typeof offsite !== 'object'
+    ) {
+      return {
+        freshness:'unavailable',
+        lastBackup:'—',
+        state:'UNAVAILABLE',
+        automation:'UNAVAILABLE',
+        offsite:'UNAVAILABLE',
+        detail:'backup source unavailable'
+      };
+    }
+
+    const latest = backup.latest_backup;
+    let lastBackup = '—';
+    if (latest && typeof latest === 'object') {
+      lastBackup = String(latest.created_at || latest.id || '—').replace('T',' ').replace('Z',' UTC');
+    } else if (backup.backup_state === 'missing') {
+      lastBackup = 'NONE';
+    }
+    const automationLabel = automation.enabled === true
+      ? String(automation.last_result_status || 'UNKNOWN').toUpperCase()
+      : 'DISABLED';
+    const offsiteLabel = offsite.enabled === true
+      ? String(offsite.status || 'PENDING').toUpperCase()
+      : 'DISABLED';
+
+    return {
+      freshness:String(backup.freshness),
+      lastBackup,
+      state:String(backup.backup_state).toUpperCase(),
+      automation:automationLabel,
+      offsite:offsiteLabel,
+      detail:String(backup.status).toUpperCase()
+    };
+  }
+
   function developmentSources(results) {
     return {
       signals:resultValue(results[6]),
@@ -364,7 +417,9 @@
       deploy:resultValue(results[9]),
       deployError:resultError(results[9]),
       seo:resultValue(results[10]),
-      seoError:resultError(results[10])
+      seoError:resultError(results[10]),
+      backup:resultValue(results[11]),
+      backupError:resultError(results[11])
     };
   }
 
@@ -379,19 +434,23 @@
       deploy,
       deployError,
       seo,
-      seoError
+      seoError,
+      backup,
+      backupError
     } = sources;
     const githubFreshness = String(signals?.freshness || 'unavailable');
     const sonarFreshness = String(sonar?.freshness || 'unavailable');
     const codeRabbitFreshness = String(coderabbit?.freshness || 'unavailable');
     const deployView = developmentDeployView(deploy);
     const seoView = developmentSeoView(seo);
+    const backupView = developmentBackupView(backup);
     const overall = developmentFreshnessState([
       githubFreshness,
       sonarFreshness,
       codeRabbitFreshness,
       deployView.freshness,
-      seoView.freshness
+      seoView.freshness,
+      backupView.freshness
     ]);
 
     const latestPr = signals?.latest_pr || null;
@@ -416,7 +475,8 @@
       developmentSourceError(sonar,'SONAR',sonarError),
       developmentSourceError(coderabbit,'CODERABBIT',coderabbitError),
       developmentSourceError(deploy,'DEPLOY',deployError),
-      developmentSourceError(seo,'SEO',seoError)
+      developmentSourceError(seo,'SEO',seoError),
+      developmentSourceError(backup,'BACKUP',backupError)
     ].join('');
     const actions = [
       developmentAction(repoUrl,'OPEN REPOSITORY'),
@@ -427,7 +487,7 @@
       developmentAction('/discadmin/?module=seo','OPEN SEO')
     ].join('');
 
-    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${overall.state}">${overall.label}</span></div>
+    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY / SEO / BACKUP</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${overall.state}">${overall.label}</span></div>
       ${sourceErrors}
       <div class="dashboard-v2-development-grid">
         <div class="dashboard-v2-health-card"><span>OPEN ISSUES</span><b>${signals?.open_issues == null ? '—' : Number(signals.open_issues)}</b><small>GitHub · ${esc(githubFreshness)}</small></div>
@@ -445,6 +505,10 @@
         <div class="dashboard-v2-health-card"><span>SEO INVENTORY</span><b>${seoView.total == null ? '—' : seoView.total}</b><small>${seoView.issues == null ? 'issues unavailable' : seoView.issues + ' need attention'}</small></div>
         <div class="dashboard-v2-health-card"><span>SEO AUTO</span><b>${seoView.auto == null ? '—' : seoView.auto}</b><small>automatic metadata</small></div>
         <div class="dashboard-v2-health-card"><span>SEO MANUAL</span><b>${seoView.manual == null ? '—' : seoView.manual}</b><small>manual / mixed metadata</small></div>
+        <div class="dashboard-v2-health-card"><span>LAST BACKUP</span><b>${esc(backupView.lastBackup)}</b><small>${esc(backupView.detail)}</small></div>
+        <div class="dashboard-v2-health-card"><span>BACKUP STATE</span><b>${esc(backupView.state)}</b><small>${esc(backupView.freshness)}</small></div>
+        <div class="dashboard-v2-health-card"><span>AUTOMATION</span><b>${esc(backupView.automation)}</b><small>scheduler evidence</small></div>
+        <div class="dashboard-v2-health-card"><span>OFF-SITE</span><b>${esc(backupView.offsite)}</b><small>delivery evidence</small></div>
       </div>
       <div class="dashboard-v2-actions" style="margin-top:12px">${actions}</div>
     </section>`;
@@ -491,6 +555,7 @@
     hydrateDevelopmentSource(results,serial,8,ENDPOINTS.coderabbit);
     hydrateDevelopmentSource(results,serial,9,ENDPOINTS.deploy);
     hydrateDevelopmentSource(results,serial,10,ENDPOINTS.seo);
+    hydrateDevelopmentSource(results,serial,11,ENDPOINTS.backup);
   }
 
   function analyticsPanel() {
