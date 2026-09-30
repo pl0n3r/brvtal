@@ -268,7 +268,7 @@ window.BRVTALSEOWorkspace = (() => {
     else overlay.setAttribute('open','');
     document.body.classList.add('seo-editor-open');
     updatePreview();
-    requestAnimationFrame(() => node('seo-editor-title-input')?.focus());
+    node('seo-editor-title-input')?.focus();
   }
 
   function closeEditor(force = false) {

@@ -192,6 +192,22 @@ test('entity reset sends blanks through the shared persistence boundary without 
   expect(payload).not.toHaveProperty('share_image');
 });
 
+test('editor initial focus is immediate and does not steal description focus on later frame', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-seo-open="blog:7"]').click();
+
+  const title = page.locator('#seo-editor-title-input');
+  const description = page.locator('#seo-editor-description-input');
+  await expect(title).toBeFocused();
+
+  await description.focus();
+  await description.fill('Immediate description edit.');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+
+  await expect(description).toBeFocused();
+  await expect(page.locator('#seo-editor-preview-description')).toHaveText('Immediate description edit.');
+});
+
 test('failed save remains visible and preserves authored input for retry', async ({ page }) => {
   await open(page);
   await page.locator('[data-seo-open="blog:7"]').click();
