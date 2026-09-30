@@ -135,6 +135,11 @@ function brvtalMigrationProofSpecifications(): array
                 true
             )
         ),
+        'migration_blog_trash_01.sql' => brvtalMigrationObjectRequirements(
+            'blog_posts',
+            ['deleted_at', 'deleted_by_admin_id'],
+            ['idx_blog_posts_trash']
+        ),
         'migration_content_core_01.sql' => array_merge(
             brvtalMigrationObjectRequirements(
                 'events',
