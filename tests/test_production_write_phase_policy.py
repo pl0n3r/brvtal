@@ -78,6 +78,35 @@ class ProductionWritePhasePolicyTests(unittest.TestCase):
         for destructive in ("DROP", "TRUNCATE"):
             self.assertIn(destructive, config)
 
+    def test_write_smoke_requires_ready_backup_before_mutation(self) -> None:
+        backup_start = self.workflow.index("  backup:\n")
+        smoke_start = self.workflow.index("  smoke:\n")
+        self.assertLess(backup_start, smoke_start)
+        backup = self.workflow[backup_start:smoke_start]
+        smoke = self.workflow[smoke_start:]
+        for expected in (
+            "name: exact-target-production-backup",
+            "secrets.DEPLOY_TOKEN",
+            "secrets.DEPLOY_SSH_KEY",
+            'GITHUB_SHA="${BRVTAL_EXPECTED_SHA}"',
+            "BRVTAL_FACTORY_ADAPTER_MODE=production",
+            "bash ops/factory/backup",
+        ):
+            self.assertIn(expected, backup)
+        self.assertIn("needs: backup", smoke)
+        self.assertIn("needs.backup.result == 'success'", smoke)
+        self.assertIn('actual_sha="$(git rev-parse HEAD)"', backup)
+        self.assertIn('[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]', backup)
+        self.assertNotIn("secrets.DEPLOY_TOKEN", smoke)
+        self.assertNotIn("ref: ${{ github.event.workflow_run.head_sha", self.workflow)
+        self.assertEqual(2, self.workflow.count("ref: main"))
+        self.assertIn("Require exact trusted main identity", smoke)
+        self.assertIn('[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]', smoke)
+        self.assertLess(
+            self.workflow.index("bash ops/factory/backup"),
+            self.workflow.index("node tests/e2e/production-page-write-smoke.mjs"),
+        )
+
     def test_docs_define_phase_switch_and_fail_closed_behavior(self) -> None:
         for expected in (
             "BRVTAL_APP_PHASE",
