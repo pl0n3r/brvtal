@@ -68,3 +68,7 @@ html[data-discadmin-appearance="glass"] .dashboard-v2-customize{background:rgba(
 .dashboard-v2-summary-action{width:100%;text-align:left;color:inherit;cursor:pointer;font:inherit}
 .dashboard-v2-summary-action small{display:block;margin-top:8px;color:#8e969c;font:800 8px/1 monospace;letter-spacing:1px}
 .dashboard-v2-summary-action:hover,.dashboard-v2-summary-action:focus-visible{border-color:#fff;outline:none}
+
+.dashboard-v2-development-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.dashboard-v2-development .dashboard-v2-actions a{display:inline-flex;align-items:center;text-decoration:none}
+@media(max-width:440px){.dashboard-v2-development-grid{grid-template-columns:1fr}}

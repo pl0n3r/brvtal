@@ -16,10 +16,17 @@ dashboard_pref_assert(
     'preference key must be isolated by administrator'
 );
 $defaults = brvtalAdminDashboardDefaultPreferences();
-dashboard_pref_assert(count($defaults['modules']) === 7, 'catalog must include six core modules plus Analytics');
-$lastDefault = $defaults['modules'][count($defaults['modules']) - 1];
+dashboard_pref_assert(count($defaults['modules']) === 8, 'catalog must include seven core modules plus Analytics');
+$defaultsById = [];
+foreach ($defaults['modules'] as $module) {
+    $defaultsById[$module['id']] = $module;
+}
 dashboard_pref_assert(
-    $lastDefault['id'] === 'analytics' && $lastDefault['visible'] === false,
+    isset($defaultsById['development']) && $defaultsById['development']['visible'] === true,
+    'Development must be present and visible by default'
+);
+dashboard_pref_assert(
+    isset($defaultsById['analytics']) && $defaultsById['analytics']['visible'] === false,
     'Analytics must be available but hidden by default until configured'
 );
 
@@ -37,7 +44,12 @@ dashboard_pref_assert($normalized['modules'][0] === [
 dashboard_pref_assert($normalized['modules'][1] === [
     'id'=>'operations','width'=>1,'height'=>2,'visible'=>false,
 ], 'normalization must preserve validated visibility and spans');
-dashboard_pref_assert(count($normalized['modules']) === 7, 'missing canonical modules must be restored');
+dashboard_pref_assert(count($normalized['modules']) === 8, 'missing canonical modules must be restored');
+$normalizedIds = array_column($normalized['modules'], 'id');
+dashboard_pref_assert(
+    in_array('development', $normalizedIds, true),
+    'normalization must restore the Development module when omitted'
+);
 
 foreach ([
     [['id'=>'activity','width'=>99,'height'=>1,'visible'=>true], 'INVALID_DASHBOARD_WIDTH'],
