@@ -136,6 +136,10 @@ $assert(str_contains($backupBlock, 'actual_sha="$(git rev-parse HEAD)"'), 'backu
 $assert(str_contains($backupBlock, '[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]'), 'backup job must bind the checkout identity to the exact target SHA');
 $assert(str_contains($smokeBlock, 'needs: backup'), 'browser mutation must depend on successful backup completion');
 $assert(str_contains($smokeBlock, "needs.backup.result == 'success'"), 'browser mutation must require explicit backup success');
+$assert(substr_count($writeWorkflow, 'ref: main') >= 2, 'privileged backup and smoke checkouts must use trusted main');
+$assert(!str_contains($writeWorkflow, 'ref: ${{ github.event.workflow_run.head_sha'), 'workflow-run data must not select executable checkout code');
+$assert(str_contains($smokeBlock, 'Require exact trusted main identity'), 'browser smoke must verify trusted main still matches the observed SHA');
+$assert(str_contains($smokeBlock, '[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]'), 'browser smoke must fail closed if main advanced after observation');
 $assert(!str_contains($smokeBlock, 'secrets.DEPLOY_TOKEN') && !str_contains($smokeBlock, 'secrets.DEPLOY_SSH_KEY'), 'deploy transport secrets must stay outside the browser smoke job');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');

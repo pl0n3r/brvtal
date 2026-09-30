@@ -98,7 +98,10 @@ class ProductionWritePhasePolicyTests(unittest.TestCase):
         self.assertIn('actual_sha="$(git rev-parse HEAD)"', backup)
         self.assertIn('[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]', backup)
         self.assertNotIn("secrets.DEPLOY_TOKEN", smoke)
-        self.assertNotIn("secrets.DEPLOY_SSH_KEY", smoke)
+        self.assertNotIn("ref: ${{ github.event.workflow_run.head_sha", self.workflow)
+        self.assertEqual(2, self.workflow.count("ref: main"))
+        self.assertIn("Require exact trusted main identity", smoke)
+        self.assertIn('[[ "$actual_sha" == "$BRVTAL_EXPECTED_SHA" ]]', smoke)
         self.assertLess(
             self.workflow.index("bash ops/factory/backup"),
             self.workflow.index("node tests/e2e/production-page-write-smoke.mjs"),
