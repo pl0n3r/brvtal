@@ -180,6 +180,10 @@
     }
   }
 
-  const start = () => { void init().catch(error => console.warn('[BRVTAL] Hero Slider initialization failed.', error)); };
+  function start() {
+    init().catch(error => {
+      console.warn('[BRVTAL] Hero Slider initialization failed.', error);
+    });
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true}); else start();
 })();
