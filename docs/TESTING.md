@@ -319,13 +319,16 @@ A green PR/CI proves only that this smoke **can be run safely**. Do not mark an 
 
 #### Controlled production Page write smoke
 
-Issue #122 cannot be proven in production with a read-only probe because the original defect occurs while creating a CMS Page. `.github/workflows/production-page-write-smoke.yml` therefore isolates that single mutation in a separate **manual-only** workflow.
+Issue #122 cannot be proven in production with a read-only probe because the original defect occurs while creating a CMS Page. `.github/workflows/production-page-write-smoke.yml` isolates that single mutation and has two governed entry paths:
 
-Run it only from `main`, after the intended SHA is deployed, and type the exact dispatch confirmation:
+- **automatic construction mode:** after a successful **Production Deploy Observer** run for a `push` to exact `main`, and only while repository variable `BRVTAL_APP_PHASE` is exactly `construction`;
+- **manual mode:** from `main`, after the intended SHA is deployed, with the exact dispatch confirmation below.
 
 ```text
 WRITE_AND_DELETE_TEMP_PAGE
 ```
+
+`BRVTAL_APP_PHASE` is fail-closed: missing, unknown values, or `live` never authorize the automatic production mutation. Switching the repository to `BRVTAL_APP_PHASE=live` therefore disables the automatic write path without weakening the manual confirmation gate. The automatic workflow checks out and validates `github.event.workflow_run.head_sha`; it never substitutes a newer `main` commit after the observer has completed.
 
 The controlled sequence is intentionally narrow:
 
@@ -340,7 +343,7 @@ If the create response is ambiguous, cleanup searches only for the unique slug g
 
 Because the temporary Page is intentionally `published` to reproduce #122 faithfully, there is a brief interval between creation and cleanup in which that unique slug can technically exist publicly. The slug is generated per run and the probe performs cleanup immediately even when verification fails. A run with failed or unverified cleanup must be treated as a production incident to inspect before retrying.
 
-A green CI/contract run does **not** validate #122 in production. Only a green manual `Controlled Production Page Write Smoke` run against the intended deployed SHA, with `cleanup.verifiedAbsent=true` in the evidence artifact, is sufficient to mark #122 **VALIDATED IN PRODUCTION**.
+A green CI/contract run does **not** validate #122 in production. Only a green `Controlled Production Page Write Smoke` run (automatic construction mode or explicit manual mode) against the exact deployed SHA, with `cleanup.verifiedAbsent=true` in the evidence artifact, is sufficient to mark #122 **VALIDATED IN PRODUCTION**.
 
 ### 6. Production performance evidence
 

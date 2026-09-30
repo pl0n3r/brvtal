@@ -106,14 +106,23 @@ $assert(
 // uniquely named, and self-cleaning.
 $assert(str_contains($writeWorkflow, 'name: Controlled Production Page Write Smoke'), 'controlled write workflow name must remain explicit');
 $assert(str_contains($writeWorkflow, "  workflow_dispatch:\n"), 'controlled write workflow must remain manually dispatchable');
-$assert(!preg_match('/^\s{2}(?:push|pull_request|workflow_run|schedule):/m', $writeWorkflow), 'controlled write workflow must not run from automatic deploy/code events');
+$assert(str_contains($writeWorkflow, "  workflow_run:\n"), 'controlled write workflow must expose the governed deploy-observer trigger');
+$assert(str_contains($writeWorkflow, 'workflows: ["Production Deploy Observer"]'), 'automatic write smoke must only consume the canonical deploy observer');
+$assert(str_contains($writeWorkflow, 'types: [completed]'), 'automatic write smoke must only evaluate completed observer runs');
+$assert(!preg_match('/^\s{2}(?:push|pull_request|schedule|repository_dispatch):/m', $writeWorkflow), 'controlled write workflow must not run directly from ungoverned code/schedule events');
 $assert(str_contains($writeWorkflow, 'confirm:'), 'controlled write workflow must require a confirmation input');
 $assert(str_contains($writeWorkflow, "inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE'"), 'controlled write job must require the exact confirmation token');
-$assert(str_contains($writeWorkflow, "github.ref == 'refs/heads/main'"), 'controlled write workflow must refuse non-main refs');
+$assert(str_contains($writeWorkflow, "github.ref == 'refs/heads/main'"), 'manual controlled write workflow must refuse non-main refs');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.conclusion == 'success'"), 'automatic write smoke must require a successful observer');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.head_branch == 'main'"), 'automatic write smoke must require the observer main branch');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.event == 'push'"), 'automatic write smoke must require a main push observer');
+$assert(str_contains($writeWorkflow, "vars.BRVTAL_APP_PHASE == 'construction'"), 'automatic production mutation must require explicit construction phase');
 $assert(str_contains($writeWorkflow, 'environment: production-smoke'), 'controlled write workflow must isolate production credentials');
 $assert(str_contains($writeWorkflow, 'https://www.brvtal.com.co'), 'controlled write workflow must use the canonical www production origin');
-$assert(str_contains($writeWorkflow, 'BRVTAL_EXPECTED_SHA: ${{ github.sha }}'), 'controlled write evidence must be tied to the dispatched main SHA');
-$assert(str_contains($writeWorkflow, 'BRVTAL_PROD_PAGE_WRITE_CONFIRM: ${{ inputs.confirm }}'), 'confirmation token must be passed explicitly to the probe');
+$assert(str_contains($writeWorkflow, "github.event.workflow_run.head_sha || github.sha"), 'automatic write evidence and checkout must bind to the observer exact SHA');
+$assert(str_contains($writeWorkflow, "github.event_name == 'workflow_run' && 'WRITE_AND_DELETE_TEMP_PAGE' || inputs.confirm"), 'automatic confirmation may only be synthesized inside the gated workflow-run job');
+$assert(str_contains($writeWorkflow, 'BRVTAL_PROD_PAGE_WRITE_MODE:'), 'write-smoke evidence must expose execution mode');
+$assert(str_contains($writeWorkflow, 'automatic-construction'), 'write-smoke evidence must distinguish automatic construction mode');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_TOTP_SECRET'), 'controlled write TOTP must come from a secret when enabled');

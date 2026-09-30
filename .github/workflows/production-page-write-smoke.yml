@@ -8,6 +8,9 @@ on:
         description: 'Type WRITE_AND_DELETE_TEMP_PAGE to create, verify, and delete one temporary published CMS Page.'
         required: true
         type: string
+  workflow_run:
+    workflows: ["Production Deploy Observer"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -19,7 +22,15 @@ concurrency:
 jobs:
   smoke:
     name: controlled-page-write-smoke
-    if: github.ref == 'refs/heads/main' && inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE'
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.confirm == 'WRITE_AND_DELETE_TEMP_PAGE') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push' &&
+       vars.BRVTAL_APP_PHASE == 'construction')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-smoke
@@ -28,15 +39,16 @@ jobs:
       BRVTAL_PROD_ADMIN_EMAIL: ${{ secrets.BRVTAL_PROD_ADMIN_EMAIL }}
       BRVTAL_PROD_ADMIN_PASSWORD: ${{ secrets.BRVTAL_PROD_ADMIN_PASSWORD }}
       BRVTAL_PROD_TOTP_SECRET: ${{ secrets.BRVTAL_PROD_TOTP_SECRET }}
-      BRVTAL_EXPECTED_SHA: ${{ github.sha }}
-      BRVTAL_PROD_PAGE_WRITE_CONFIRM: ${{ inputs.confirm }}
+      BRVTAL_EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      BRVTAL_PROD_PAGE_WRITE_CONFIRM: ${{ github.event_name == 'workflow_run' && 'WRITE_AND_DELETE_TEMP_PAGE' || inputs.confirm }}
+      BRVTAL_PROD_PAGE_WRITE_MODE: ${{ github.event_name == 'workflow_run' && 'automatic-construction' || 'manual' }}
       BRVTAL_PROD_PAGE_WRITE_OUTPUT: artifacts/production-page-write-smoke.json
 
     steps:
-      - name: Check out exact main source
+      - name: Check out exact observed source
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Require isolated smoke credentials
         shell: bash
@@ -96,8 +108,8 @@ jobs:
             echo "## Controlled production Page write smoke"
             echo
             echo "- Canonical origin: \`${BRVTAL_PROD_URL}\`"
-            echo "- Source SHA: \`${GITHUB_SHA}\`"
-            echo "- Mode: **manual / authenticated / one temporary published Page / mandatory cleanup**"
+            echo "- Source SHA: \`${BRVTAL_EXPECTED_SHA}\`"
+            echo "- Mode: **${BRVTAL_PROD_PAGE_WRITE_MODE} / authenticated / one temporary published Page / mandatory cleanup**"
             echo "- Check: #122 valid \`content_json\` persistence through the real production API"
             echo "- Evidence: \`production-page-write-smoke.json\` artifact"
             echo
