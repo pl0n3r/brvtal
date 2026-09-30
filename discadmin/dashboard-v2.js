@@ -13,6 +13,7 @@
     deploy:'/api/admin-deploy-signals.php',
     seo:'/api/seo-workspace.php?summary=1',
     backup:'/api/admin-backup-signals.php',
+    analytics:'/api/admin-analytics-signals.php',
     preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
@@ -596,8 +597,123 @@
     hydrateDevelopmentSource(results,serial,11,ENDPOINTS.backup);
   }
 
+  function analyticsView(analytics) {
+    const unavailable = {
+      state:'UNAVAILABLE',freshness:'unavailable',
+      metrics:{users:null,sessions:null,views:null},
+      previous:null,topPages:[],devices:[],sourceAt:'—',cached:false
+    };
+    if (!analytics || typeof analytics !== 'object' || analytics.read_only !== true) return unavailable;
+    const state = String(analytics.state || '');
+    if (!['FRESH','STALE','NOT CONFIGURED','UNAVAILABLE'].includes(state)) return unavailable;
+    const metrics = analytics.metrics;
+    const emptyState = state === 'NOT CONFIGURED' || state === 'UNAVAILABLE';
+    if (emptyState) {
+      const emptyMetrics = metrics?.users === null
+        && metrics?.sessions === null
+        && metrics?.views === null;
+      if (!emptyMetrics) return unavailable;
+      return {
+        ...unavailable,
+        state,
+        freshness:String(analytics.freshness || '').replaceAll('_',' '),
+      };
+    }
+    const validMetric = value => Number.isInteger(value) && value >= 0;
+    if (
+      !metrics
+      || !validMetric(metrics.users)
+      || !validMetric(metrics.sessions)
+      || !validMetric(metrics.views)
+      || !Array.isArray(analytics.top_pages)
+      || !Array.isArray(analytics.devices)
+    ) return unavailable;
+    const topPages = analytics.top_pages.slice(0,5).filter(item =>
+      item && typeof item.path === 'string' && item.path.length <= 200 && validMetric(item.views)
+    );
+    const devices = analytics.devices.slice(0,5).filter(item =>
+      item && typeof item.category === 'string' && item.category.length <= 40 && validMetric(item.users)
+    );
+    if (topPages.length !== analytics.top_pages.slice(0,5).length || devices.length !== analytics.devices.slice(0,5).length) {
+      return unavailable;
+    }
+    const previous = analytics.previous;
+    const validPrevious = previous === null || (
+      previous
+      && validMetric(previous.users)
+      && validMetric(previous.sessions)
+      && validMetric(previous.views)
+    );
+    if (!validPrevious) return unavailable;
+    return {
+      state,
+      freshness:String(analytics.freshness || state.toLowerCase()),
+      metrics,
+      previous,
+      topPages,
+      devices,
+      sourceAt:String(analytics.source_at || '—').replace('T',' ').replace('Z',' UTC'),
+      cached:analytics.cached === true
+    };
+  }
+
   function analyticsPanel() {
-    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>PERFORMANCE</h2><p>Admin-safe analytics source required before metrics or visualizations can be configured.</p></div><span class="dashboard-v2-state muted">NOT CONFIGURED</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · BRVTAL does not invent GA4 or client-side metrics.</div></section>`;
+    const analytics = arguments[0];
+    const analyticsError = arguments[1] || '';
+    const view = analyticsView(analytics);
+    const stateClassName = {
+      FRESH:'ok',
+      STALE:'warn',
+      'NOT CONFIGURED':'muted'
+    }[view.state] || 'bad';
+    const source = analyticsError ? esc(analyticsError) : esc(view.sourceAt);
+    if (view.state === 'NOT CONFIGURED' || view.state === 'UNAVAILABLE') {
+      return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>GA4 PERFORMANCE</h2><p>Read-only Google Analytics reporting. Missing evidence never becomes a fabricated zero.</p></div><span class="dashboard-v2-state ${stateClassName}" data-testid="dashboard-analytics-state">${esc(view.state)}</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · ${source || 'GA4 source unavailable'} · BRVTAL does not invent GA4 metrics.</div></section>`;
+    }
+    const previous = view.previous
+      ? `${view.previous.users} users · ${view.previous.sessions} sessions · ${view.previous.views} views`
+      : 'Previous period unavailable';
+    const pages = view.topPages.length
+      ? view.topPages.map(item => `<div class="dashboard-v2-row"><div><div class="dashboard-v2-row-title">${esc(item.path)}</div></div><span class="dashboard-v2-state muted">${item.views} VIEWS</span></div>`).join('')
+      : '<div class="dashboard-v2-empty">No page rows returned for this period.</div>';
+    const devices = view.devices.length
+      ? view.devices.map(item => `${esc(item.category.toUpperCase())}: ${item.users}`).join(' · ')
+      : 'Device split unavailable';
+    return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>GA4 PERFORMANCE</h2><p>Bounded 7-day read-only summary from Google Analytics Data API.</p></div><span class="dashboard-v2-state ${stateClassName}" data-testid="dashboard-analytics-state">${esc(view.state)}</span></div>
+      <div class="dashboard-v2-health">
+        <div class="dashboard-v2-health-card"><span>USERS · 7D</span><b>${view.metrics.users}</b><small>${esc(view.cached ? 'cached evidence' : 'live evidence')}</small></div>
+        <div class="dashboard-v2-health-card"><span>SESSIONS · 7D</span><b>${view.metrics.sessions}</b><small>${esc(previous)}</small></div>
+        <div class="dashboard-v2-health-card"><span>VIEWS · 7D</span><b>${view.metrics.views}</b><small>${esc(view.freshness + ' · ' + view.sourceAt)}</small></div>
+        <div class="dashboard-v2-health-card"><span>DEVICES</span><b>${view.devices.length}</b><small>${devices}</small></div>
+      </div>
+      <div class="dashboard-v2-list" style="margin-top:12px">${pages}</div>
+    </section>`;
+  }
+
+  function redrawAnalytics(results, serial) {
+    if (
+      serial !== mountSerial
+      || typeof state === 'undefined'
+      || !state.authed
+      || state.section !== 'dashboard'
+    ) return;
+    const root = document.getElementById('brvtal-dashboard-v2');
+    const module = root?.querySelector('[data-dashboard-module="analytics"]');
+    const panel = module?.querySelector('.dashboard-v2-panel');
+    if (!panel) return;
+    panel.outerHTML = analyticsPanel(resultValue(results[12]),resultError(results[12]));
+  }
+
+  function hydrateAnalyticsSignal(results, serial) {
+    void fetchData(ENDPOINTS.analytics)
+      .then(value => {
+        results[12] = {status:'fulfilled',value};
+        redrawAnalytics(results,serial);
+      })
+      .catch(reason => {
+        results[12] = {status:'rejected',reason};
+        redrawAnalytics(results,serial);
+      });
   }
 
   function actionsPanel() {
@@ -872,7 +988,7 @@
       development:developmentMarkup,
       activity:activityPanel(activity,resultError(activityResult)),
       quick_create:actionsPanel(),
-      analytics:analyticsPanel()
+      analytics:analyticsPanel(resultValue(results[12]),resultError(results[12]))
     };
     const visibleModules = layout.modules
       .filter(item => item.visible && modules[item.id])
@@ -933,7 +1049,10 @@
         fetchData(ENDPOINTS.preferences)
       ]);
       rendered = render(results,serial);
-      if (rendered) hydrateDevelopmentSignals(results,serial);
+      if (rendered) {
+        hydrateDevelopmentSignals(results,serial);
+        hydrateAnalyticsSignal(results,serial);
+      }
     } finally {
       if (!rendered && serial === mountSerial && !existingRoot && reservedRoot.isConnected) reservedRoot.remove();
       if (serial === mountSerial) {
