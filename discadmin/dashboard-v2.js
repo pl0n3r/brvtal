@@ -285,7 +285,13 @@
     const deploySha = String(deploy?.short_sha || (deploy?.exact ? 'INVALID' : 'NOT EXACT'));
     const deployReadiness = String(deploy?.readiness || 'UNAVAILABLE').toUpperCase();
     const schemaLabel = deploy?.schema_up_to_date ? 'CURRENT' : 'DEGRADED';
-    const schema = deploy?.schema || {};
+    const schema = deploy?.schema || null;
+    const schemaDetail = schema
+      ? 'applied ' + Number(schema.applied || 0)
+        + ' · pending ' + Number(schema.pending || 0)
+        + ' · mismatch ' + Number(schema.checksum_mismatch || 0)
+        + ' · orphans ' + Number(schema.orphaned_records || 0)
+      : 'schema source unavailable';
 
     return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI / SONAR / CODERABBIT / DEPLOY</h2><p>Independent read-only development signals. Missing evidence never becomes a fabricated healthy state.</p></div><span class="dashboard-v2-state ${state}">${statusLabel}</span></div>
       ${signals ? '' : sourceError('GITHUB · ' + (signalsError || 'UNAVAILABLE'))}
@@ -303,7 +309,7 @@
         <div class="dashboard-v2-health-card"><span>PROD VERSION</span><b>${esc(deployVersion)}</b><small>${esc(String(deploy?.environment || '—') + ' · ' + deploySource)}</small></div>
         <div class="dashboard-v2-health-card"><span>PROD SHA</span><b>${esc(deploySha)}</b><small>${esc(String(deploy?.source || 'unavailable'))}</small></div>
         <div class="dashboard-v2-health-card"><span>READINESS</span><b>${esc(deployReadiness)}</b><small>${esc(deployFreshness)}</small></div>
-        <div class="dashboard-v2-health-card"><span>SCHEMA</span><b>${esc(schemaLabel)}</b><small>${esc('applied ' + Number(schema.applied || 0) + ' · pending ' + Number(schema.pending || 0) + ' · mismatch ' + Number(schema.checksum_mismatch || 0) + ' · orphans ' + Number(schema.orphaned_records || 0))}</small></div>
+        <div class="dashboard-v2-health-card"><span>SCHEMA</span><b>${esc(schemaLabel)}</b><small>${esc(schemaDetail)}</small></div>
       </div>
       <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}${sonarUrl ? `<a class="dashboard-v2-button" href="${esc(sonarUrl)}" target="_blank" rel="noopener noreferrer">SONAR</a>` : ''}${codeRabbitUrl ? `<a class="dashboard-v2-button" href="${esc(codeRabbitUrl)}" target="_blank" rel="noopener noreferrer">CODERABBIT REVIEW</a>` : ''}</div>
     </section>`;
