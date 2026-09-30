@@ -91,7 +91,7 @@ function brvtalDevelopmentLatestPr(array $payload): ?array
     ];
 }
 
-/** @return array{status:string,conclusion:?string,url:string,updated_at:string}|null */
+/** @return array{status:string,conclusion:?string,url:string,updated_at:string,source_ts:int}|null */
 function brvtalDevelopmentLatestCi(array $payload): ?array
 {
     if (!isset($payload['workflow_runs']) || !is_array($payload['workflow_runs'])) {
@@ -125,6 +125,7 @@ function brvtalDevelopmentLatestCi(array $payload): ?array
         'conclusion'=>$conclusion,
         'url'=>$run['html_url'],
         'updated_at'=>$run['updated_at'],
+        'source_ts'=>$sourceTs,
     ];
 }
 
@@ -179,8 +180,7 @@ function brvtalAdminDevelopmentSignals(?callable $requester = null): array
         $sourceAt = $latestRun['updated_at'] ?? null;
         $freshness = 'unavailable';
         if ($latestRun !== null) {
-            $sourceTs = strtotime($latestRun['updated_at']);
-            $freshness = (time() - $sourceTs) > BRVTAL_DEVELOPMENT_STALE_SECONDS
+            $freshness = (time() - $latestRun['source_ts']) > BRVTAL_DEVELOPMENT_STALE_SECONDS
                 ? 'stale'
                 : 'fresh';
         }
