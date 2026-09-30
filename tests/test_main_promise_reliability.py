@@ -40,6 +40,64 @@ class MainPromiseReliabilityTests(unittest.TestCase):
         self.assertIn("Hero Slider media controls degraded.", source)
         self.assertIn("void mediaPromise.then(() => {});", source)
 
+    def test_legacy_s9383_async_boundaries_handle_rejections_visibly(self):
+        expectations = {
+            "discadmin/settings-v2.js": [
+                "save(saveButton.dataset.settingsSave).catch(error => feedback('error'",
+                "loadSecurity(true).catch(error => feedback('error'",
+                "openPicker(picker).catch(error => feedback('error'",
+            ],
+            "discadmin/theme-studio-v2.js": [
+                "persist(false).catch(error => window.BRVTALFeedback?.error(",
+                "persist(true).catch(error => window.BRVTALFeedback?.error(",
+                "loadThemeStudioV2(V2.editingSlug).catch(error => window.BRVTALFeedback?.error(",
+            ],
+            "discadmin/admin-modules.js": [
+                "}).catch(() => placeholderFor(img));",
+                "await hydrateContentCoreThumbs(host);",
+                "Feedback.error('Unable to load ' + section",
+                "await hydrateContentCoreThumbs(document);",
+            ],
+            "discadmin/media-library.js": [
+                "uploadFiles(input.files).catch(error => notify('error'",
+                "uploadFiles(e.dataTransfer?.files).catch(error => notify('error'",
+            ],
+            "discadmin/system-status-v2.js": [
+                "load(root).catch(error => { root.innerHTML =",
+                "load(current).catch(error => { current.innerHTML =",
+                "SYSTEM STATUS UNAVAILABLE",
+            ],
+            "discadmin/system-status-storage.js": [
+                "refresh(true).catch(() => applyUnavailable())",
+                "refresh(false).catch(() => applyUnavailable())",
+            ],
+            "discadmin/backups.js": [
+                "load(panel).catch(error => { panel.innerHTML =",
+                "BACKUPS UNAVAILABLE",
+            ],
+            "discadmin/releases.js": ["refresh().catch(error => setStatus("],
+            "discadmin/totp-login.js": [
+                "verify().catch(error => fail(",
+                "Verification failed.",
+            ],
+            "js/public-contact.js": [
+                "loadChallenge(form).catch(() => setStatus(",
+                "ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.",
+            ],
+            "js/hero-slider.js": [
+                "void init().catch(error => {",
+                "console.warn('[BRVTAL] Hero Slider initialization failed.'",
+            ],
+        }
+        for relative, snippets in expectations.items():
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            with self.subTest(relative=relative):
+                for snippet in snippets:
+                    self.assertIn(snippet, source)
+
+        settings = (ROOT / "discadmin" / "settings-v2.js").read_text(encoding="utf-8")
+        self.assertNotIn("loadSecurity(true).catch(() => {})", settings)
+
     def test_required_ci_command_executes_this_suite(self):
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         scripts = package["scripts"]

@@ -285,7 +285,7 @@ window.BRVTALAdminModules = (() => {
         } else {
           placeholderFor(img);
         }
-      });
+      }).catch(() => placeholderFor(img));
       return;
     }
 
@@ -567,7 +567,7 @@ window.BRVTALAdminModules = (() => {
       if(!fragment) throw Error('Invalid module response');
       host.replaceChildren(document.importNode(fragment,true));
       await modules[section].mount(host.firstElementChild);
-      if (section === 'content-core') hydrateContentCoreThumbs(host);
+      if (section === 'content-core') await hydrateContentCoreThumbs(host);
     } catch(error) {
       if(controller.signal.aborted || !host.isConnected) return;
       host.replaceChildren();
@@ -656,7 +656,7 @@ window.BRVTALAdminModules = (() => {
       try { await mediaPermissions.repair(); }
       catch (e) { if (e?.message !== 'AUTH_REQUIRED') Feedback.error('Media thumbnail access check failed: ' + e.message,'media-permissions'); }
       const result = await originalRestoreSession.apply(this,args);
-      if (result) hydrateContentCoreThumbs(document);
+      if (result) await hydrateContentCoreThumbs(document);
       ensureDynamicNavigation();
       return result;
     };

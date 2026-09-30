@@ -361,7 +361,7 @@ window.BRVTALReleases = (() => {
     root.querySelector('#release-new')?.addEventListener('click',() => openEditor(null));
     root.querySelector('#release-search')?.addEventListener('input',render);
     root.querySelector('#release-status-filter')?.addEventListener('change',render);
-    refresh();
+    refresh().catch(error => setStatus('Unable to load releases: ' + (error?.message || 'UNKNOWN_ERROR'), 'err'));
   }
 
   return { mount, refresh, openEditor, save, remove, payload, normalizeMediaPath };

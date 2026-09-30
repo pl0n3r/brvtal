@@ -226,7 +226,7 @@
     panel.className = 'ssv2-panel ssv2-backups';
     panel.innerHTML = '<div class="backup-loading"><span></span> READING PRIVATE BACKUPS…</div>';
     advanced.before(panel);
-    load(panel);
+    load(panel).catch(error => { panel.innerHTML = `<div class="backup-loading">BACKUPS UNAVAILABLE · ${esc(error?.message || error)}</div>`; });
   }
 
   const observer = new MutationObserver(() => {

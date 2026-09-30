@@ -197,7 +197,7 @@
     if (form && !form.dataset.bound) {
       form.dataset.bound = '1';
       form.addEventListener('submit', submitContact);
-      loadChallenge(form);
+      loadChallenge(form).catch(() => setStatus(form, 'ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.', 'error'));
     }
 
     const hydrate = () => getPublicData().then(data => applySocials(data, root)).catch(() => {});

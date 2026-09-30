@@ -98,7 +98,7 @@
     const button = document.querySelector('#system-status-v2 #ssv2-refresh');
     if (!button || button.dataset.storageMetricsBound === '1') return;
     button.dataset.storageMetricsBound = '1';
-    button.addEventListener('click', () => setTimeout(() => refresh(true), 80));
+    button.addEventListener('click', () => setTimeout(() => refresh(true).catch(() => applyUnavailable()), 80));
   }
 
   function schedule() {
@@ -106,7 +106,7 @@
     timer = setTimeout(() => {
       if (!document.getElementById('system-status-v2')) return;
       bindRefresh();
-      refresh(false);
+      refresh(false).catch(() => applyUnavailable());
     }, 80);
   }
 

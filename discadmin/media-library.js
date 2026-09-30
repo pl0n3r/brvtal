@@ -577,11 +577,11 @@ window.BRVTALMediaLibrary = (() => {
     search?.addEventListener('input',renderGrid); type?.addEventListener('change',renderGrid); month?.addEventListener('change',renderGrid);
     const input = root.querySelector('#media-file');
     root.querySelector('#media-upload')?.addEventListener('click',() => input?.click());
-    input?.addEventListener('change',() => { uploadFiles(input.files); input.value=''; });
+    input?.addEventListener('change',() => { uploadFiles(input.files).catch(error => notify('error', error?.message || 'Upload failed.')); input.value=''; });
     const dz = root.querySelector('#media-dropzone');
     ['dragenter','dragover'].forEach(name => dz?.addEventListener(name,e => { e.preventDefault(); dz.classList.add('drag'); }));
     ['dragleave','drop'].forEach(name => dz?.addEventListener(name,e => { e.preventDefault(); dz.classList.remove('drag'); }));
-    dz?.addEventListener('drop',e => uploadFiles(e.dataTransfer?.files));
+    dz?.addEventListener('drop',e => uploadFiles(e.dataTransfer?.files).catch(error => notify('error', error?.message || 'Upload failed.')));
     dz?.addEventListener('click',() => input?.click());
     startPickerObserver(); refresh();
   }
