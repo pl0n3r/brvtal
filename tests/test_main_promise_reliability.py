@@ -65,11 +65,12 @@ class MainPromiseReliabilityTests(unittest.TestCase):
                 timeout=30,
             )
 
-    def test_deploy_bound_version_is_0_1_91(self):
+    def test_deploy_bound_version_matches_package(self):
         version = (ROOT / "config" / "version.php").read_text(encoding="utf-8")
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.91'", version)
-        self.assertEqual(package["version"], "0.1.91")
+        expected = f"BRVTAL_APP_VERSION = '{package['version']}'"
+        self.assertIn(expected, version)
+        self.assertRegex(package["version"], r"^\d+\.\d+\.\d+$")
 
 
 if __name__ == "__main__":
