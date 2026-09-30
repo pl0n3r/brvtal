@@ -7,18 +7,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AdminDevelopmentSignalsTests(unittest.TestCase):
-    def php_fixture(self, fail=False, empty=False):
+    def php_fixture(self, fail=False, empty=False, ci_empty=False, invalid_ci_time=False):
         config = (ROOT / "config" / "admin_development_signals.php").as_posix()
         script = f"""
 require {json.dumps(config)};
 $fail = {'true' if fail else 'false'};
 $empty = {'true' if empty else 'false'};
-$fn = function(string $url) use ($fail,$empty): array {{
+$ciEmpty = {'true' if ci_empty else 'false'};
+$invalidCiTime = {'true' if invalid_ci_time else 'false'};
+$fn = function(string $url) use ($fail,$empty,$ciEmpty,$invalidCiTime): array {{
   if ($fail) throw new RuntimeException('offline');
   if (str_contains($url, 'is%3Aissue')) return ['status'=>200,'body'=>json_encode(['total_count'=>$empty?0:7,'items'=>[]])];
   if (str_contains($url, 'is%3Apr')) return ['status'=>200,'body'=>json_encode(['total_count'=>$empty?0:2,'items'=>$empty?[]:[['number'=>123,'title'=>'Candidate','html_url'=>'https://github.com/pl0n3r/brvtal/pull/123']]])];
   if (!str_contains($url, '/repos/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/runs?')) throw new RuntimeException('invalid actions route');
-  return ['status'=>200,'body'=>json_encode(['workflow_runs'=>[['status'=>'completed','conclusion'=>'success','html_url'=>'https://github.com/pl0n3r/brvtal/actions/runs/1','updated_at'=>gmdate('c')]]])];
+  if ($ciEmpty) return ['status'=>200,'body'=>json_encode(['workflow_runs'=>[]])];
+  $updatedAt = $invalidCiTime ? 'not-a-timestamp' : gmdate('c');
+  return ['status'=>200,'body'=>json_encode(['workflow_runs'=>[['status'=>'completed','conclusion'=>'success','html_url'=>'https://github.com/pl0n3r/brvtal/actions/runs/1','updated_at'=>$updatedAt]]])];
 }};
 echo json_encode(brvtalAdminDevelopmentSignals($fn));
 """
@@ -70,6 +74,17 @@ echo json_encode(brvtalAdminDevelopmentSignals($fn));
         self.assertEqual(self.php_fixture(empty=True)["open_prs"], 0)
         self.assertIsNone(self.php_fixture(empty=True)["latest_pr"])
         self.assertEqual(self.php_fixture(fail=True)["status"], "unavailable")
+
+        no_ci = self.php_fixture(ci_empty=True)
+        self.assertEqual(no_ci["status"], "available")
+        self.assertEqual(no_ci["freshness"], "unavailable")
+        self.assertIsNone(no_ci["latest_ci"])
+        self.assertIsNone(no_ci["source_at"])
+
+        invalid_ci_time = self.php_fixture(invalid_ci_time=True)
+        self.assertEqual(invalid_ci_time["status"], "unavailable")
+        self.assertEqual(invalid_ci_time["freshness"], "unavailable")
+        self.assertIsNone(invalid_ci_time["source_at"])
 
     def test_deploy_bound_version_is_0_1_89(self):
         version = (ROOT / "config" / "version.php").read_text()
