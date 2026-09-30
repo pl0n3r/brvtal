@@ -166,6 +166,16 @@ echo json_encode(
                 "issues": 0,
                 "auto": 0,
                 "manual": 0,
+                "truncated_resources": [None],
+            },
+            {
+                "status": "available",
+                "freshness": "fresh",
+                "read_only": True,
+                "total": 0,
+                "issues": 0,
+                "auto": 0,
+                "manual": 0,
                 "truncated_resources": ["events"],
             },
             {

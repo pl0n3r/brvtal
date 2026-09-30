@@ -311,7 +311,7 @@
       || (summary.status === 'partial' && summary.freshness === 'stale')
     );
     const truncated = Array.isArray(summary.truncated_resources)
-      ? summary.truncated_resources.filter(Boolean)
+      ? summary.truncated_resources
       : null;
     const validTruncation = (
       (summary.status === 'available' && truncated !== null && truncated.length === 0)
