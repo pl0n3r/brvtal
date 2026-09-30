@@ -42,17 +42,52 @@ class MainPromiseReliabilityTests(unittest.TestCase):
 
     def test_legacy_s9383_async_boundaries_handle_rejections_visibly(self):
         expectations = {
-            "discadmin/settings-v2.js": ["save(saveButton.dataset.settingsSave).catch(", "openPicker(picker).catch("],
-            "discadmin/theme-studio-v2.js": ["persist(false).catch(", "persist(true).catch(", "loadThemeStudioV2(V2.editingSlug).catch("],
-            "discadmin/admin-modules.js": ["}).catch(() => placeholderFor(img));", "await hydrateContentCoreThumbs(host);", "await hydrateContentCoreThumbs(document);"],
-            "discadmin/media-library.js": ["uploadFiles(input.files).catch(", "uploadFiles(e.dataTransfer?.files).catch("],
-            "discadmin/system-status-v2.js": ["load(root).catch(", "load(current).catch("],
-            "discadmin/system-status-storage.js": ["refresh(true).catch(", "refresh(false).catch("],
-            "discadmin/backups.js": ["load(panel).catch("],
-            "discadmin/releases.js": ["refresh().catch("],
-            "discadmin/totp-login.js": ["verify().catch("],
-            "js/public-contact.js": ["loadChallenge(form).catch("],
-            "js/hero-slider.js": ["init().catch("],
+            "discadmin/settings-v2.js": [
+                "save(saveButton.dataset.settingsSave).catch(error => feedback('error'",
+                "loadSecurity(true).catch(error => feedback('error'",
+                "openPicker(picker).catch(error => feedback('error'",
+            ],
+            "discadmin/theme-studio-v2.js": [
+                "persist(false).catch(error => window.BRVTALFeedback?.error(",
+                "persist(true).catch(error => window.BRVTALFeedback?.error(",
+                "loadThemeStudioV2(V2.editingSlug).catch(error => window.BRVTALFeedback?.error(",
+            ],
+            "discadmin/admin-modules.js": [
+                "}).catch(() => placeholderFor(img));",
+                "await hydrateContentCoreThumbs(host);",
+                "Feedback.error('Unable to load ' + section",
+                "await hydrateContentCoreThumbs(document);",
+            ],
+            "discadmin/media-library.js": [
+                "uploadFiles(input.files).catch(error => notify('error'",
+                "uploadFiles(e.dataTransfer?.files).catch(error => notify('error'",
+            ],
+            "discadmin/system-status-v2.js": [
+                "load(root).catch(error => { root.innerHTML =",
+                "load(current).catch(error => { current.innerHTML =",
+                "SYSTEM STATUS UNAVAILABLE",
+            ],
+            "discadmin/system-status-storage.js": [
+                "refresh(true).catch(() => applyUnavailable())",
+                "refresh(false).catch(() => applyUnavailable())",
+            ],
+            "discadmin/backups.js": [
+                "load(panel).catch(error => { panel.innerHTML =",
+                "BACKUPS UNAVAILABLE",
+            ],
+            "discadmin/releases.js": ["refresh().catch(error => setStatus("],
+            "discadmin/totp-login.js": [
+                "verify().catch(error => fail(",
+                "Verification failed.",
+            ],
+            "js/public-contact.js": [
+                "loadChallenge(form).catch(() => setStatus(",
+                "ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.",
+            ],
+            "js/hero-slider.js": [
+                "void init().catch(error => {",
+                "console.warn('[BRVTAL] Hero Slider initialization failed.'",
+            ],
         }
         for relative, snippets in expectations.items():
             source = (ROOT / relative).read_text(encoding="utf-8")
