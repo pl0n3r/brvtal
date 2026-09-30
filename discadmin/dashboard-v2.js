@@ -7,6 +7,7 @@
     health:'/api/index.php/health',
     storage:'/discadmin/storage-metrics.php',
     activity:'/api/admin-activity.php?limit=5',
+    development:'/api/admin-development-signals.php',
     preferences:'/api/admin-dashboard-preferences.php'
   };
   const sectionFor = type => ({events:'events',artists:'artists',sets:'sets',releases:'releases',pages:'pages',blog:'blog',ticket_types:'events',event_lineup:'events'})[type] || 'dashboard';
@@ -229,6 +230,29 @@
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">EDITORIAL ACTIVITY</div><h2>RECENT CHANGES</h2><p>Five records at a time from the append-only Admin Activity log.</p></div><span class="dashboard-v2-state muted">${Number(activity.total || items.length)} TOTAL</span></div><div class="dashboard-v2-list" data-dashboard-activity-list>${rows}</div>${more}</section>`;
   }
 
+  function developmentPanel(signals, signalsError) {
+    if (!signals) return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2></div><span class="dashboard-v2-state bad">UNAVAILABLE</span></div>${sourceError(signalsError)}</section>`;
+    const freshness = String(signals.freshness || 'unavailable');
+    let state = 'bad';
+    if (freshness === 'fresh') state = 'ok';
+    else if (freshness === 'stale') state = 'warn';
+    const latestPr = signals.latest_pr || null;
+    const latestCi = signals.latest_ci || null;
+    const safeLink = value => /^https:\/\/github\.com\/pl0n3r\/brvtal(?:\/|$)/.test(String(value || '')) ? String(value) : '';
+    const repoUrl = 'https://github.com/pl0n3r/brvtal';
+    const prUrl = safeLink(latestPr?.url);
+    const ciUrl = safeLink(latestCi?.url);
+    return `<section class="dashboard-v2-panel dashboard-v2-development"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">DEVELOPMENT</div><h2>GITHUB / CI</h2><p>Read-only repository work and latest BRVTAL CI signal.</p></div><span class="dashboard-v2-state ${state}">${esc(freshness)}</span></div>
+      <div class="dashboard-v2-development-grid">
+        <div class="dashboard-v2-health-card"><span>OPEN ISSUES</span><b>${signals.open_issues == null ? '—' : Number(signals.open_issues)}</b><small>GitHub source</small></div>
+        <div class="dashboard-v2-health-card"><span>OPEN PRS</span><b>${signals.open_prs == null ? '—' : Number(signals.open_prs)}</b><small>${latestPr ? esc('#' + latestPr.number + ' · ' + latestPr.title) : 'No active PR'}</small></div>
+        <div class="dashboard-v2-health-card"><span>LATEST CI</span><b>${esc(String(latestCi?.conclusion || latestCi?.status || 'UNAVAILABLE').toUpperCase())}</b><small>${esc(latestCi?.status || 'No CI signal')}</small></div>
+        <div class="dashboard-v2-health-card"><span>SOURCE</span><b>${esc(String(signals.source_at || '—').replace('T',' ').replace('Z',' UTC'))}</b><small>No GitHub credentials are exposed to the browser.</small></div>
+      </div>
+      <div class="dashboard-v2-actions" style="margin-top:12px"><a class="dashboard-v2-button" href="${repoUrl}" target="_blank" rel="noopener noreferrer">OPEN REPOSITORY</a>${prUrl ? `<a class="dashboard-v2-button" href="${esc(prUrl)}" target="_blank" rel="noopener noreferrer">LATEST PR</a>` : ''}${ciUrl ? `<a class="dashboard-v2-button" href="${esc(ciUrl)}" target="_blank" rel="noopener noreferrer">LATEST CI</a>` : ''}</div>
+    </section>`;
+  }
+
   function analyticsPanel() {
     return `<section class="dashboard-v2-panel"><div class="dashboard-v2-panel-head"><div><div class="dashboard-v2-kicker">ANALYTICS</div><h2>PERFORMANCE</h2><p>Admin-safe analytics source required before metrics or visualizations can be configured.</p></div><span class="dashboard-v2-state muted">NOT CONFIGURED</span></div><div class="dashboard-v2-empty" data-dashboard-analytics-unavailable>DATA UNAVAILABLE · BRVTAL does not invent GA4 or client-side metrics.</div></section>`;
   }
@@ -244,6 +268,7 @@
         {id:'attention',width:2,height:1,visible:true},
         {id:'drafts',width:2,height:1,visible:true},
         {id:'operations',width:2,height:1,visible:true},
+        {id:'development',width:2,height:1,visible:true},
         {id:'activity',width:2,height:1,visible:true},
         {id:'quick_create',width:2,height:1,visible:true},
         {id:'analytics',width:2,height:1,visible:false}
@@ -487,7 +512,7 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5];
+    const preferenceResult = results[5], developmentResult = results[6];
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
@@ -497,6 +522,7 @@
       attention:attentionPanel(content,resultError(contentResult)),
       drafts:draftsPanel(content,resultError(contentResult)),
       operations:systemPanel(resultValue(results[2]),resultError(results[2]),storage,resultError(storageResult)),
+      development:developmentPanel(resultValue(developmentResult),resultError(developmentResult)),
       activity:activityPanel(activity,resultError(activityResult)),
       quick_create:actionsPanel(),
       analytics:analyticsPanel()
@@ -557,7 +583,8 @@
         fetchData(ENDPOINTS.health),
         fetchData(ENDPOINTS.storage),
         fetchData(ENDPOINTS.activity),
-        fetchData(ENDPOINTS.preferences)
+        fetchData(ENDPOINTS.preferences),
+        fetchData(ENDPOINTS.development)
       ]);
       rendered = render(results,serial);
     } finally {

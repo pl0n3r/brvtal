@@ -448,6 +448,8 @@ The visible storage capacity must represent BRVTAL-managed application data agai
 
 Diagnostics may detect and recommend but should not autonomously repair production. Private logs must never expose sensitive stack traces publicly.
 
+Dashboard Development signals are a read-only operational surface over the public `pl0n3r/brvtal` GitHub repository. The authenticated server adapter may use an optional server-side GitHub token, but credentials never reach browser responses. It reports open Issue/PR counts, the newest active PR and latest BRVTAL CI run with explicit source freshness. GitHub timeout, rate-limit or invalid payload must degrade to `unavailable`/`stale` rather than fabricated healthy zeroes or a Dashboard 5xx. This module never mutates GitHub and does not replace ControlBot/Factory coordination.
+
 ## 29. Settings and tracking
 
 Site Settings centralizes global configuration.
