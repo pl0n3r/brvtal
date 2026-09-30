@@ -33,11 +33,14 @@ class MainPromiseReliabilityTests(unittest.TestCase):
 
     def test_hero_slider_normalized_media_promises_are_explicitly_ignored(self):
         source = (ROOT / "discadmin" / "hero-slider.js").read_text(encoding="utf-8")
-        self.assertEqual(source.count("void mediaPromise.then("), 2)
+        self.assertEqual(source.count("void mediaPromise"), 2)
         self.assertIn(
-            "void mediaPromise.then(result => applyMediaLoad(result, revision));",
+            "void mediaPromise\\n"
+            "        .then(result => applyMediaLoad(result, revision))\\n"
+            "        .catch(error => {",
             source,
         )
+        self.assertIn("Hero Slider media controls degraded.", source)
         self.assertIn("void mediaPromise.then(() => {});", source)
 
     def test_changed_javascript_remains_syntax_valid(self):
