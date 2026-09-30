@@ -855,24 +855,13 @@
     clearLegacyDashboard(main);
 
     const overviewResult = results[0], contentResult = results[1], healthResult = results[2], storageResult = results[3], activityResult = results[4];
-    const preferenceResult = results[5], developmentResult = results[6] || null, sonarResult = results[7] || null, coderabbitResult = results[8] || null, deployResult = results[9] || null, seoResult = results[10] || null;
+    const preferenceResult = results[5], developmentResult = results[6] || null;
     const overview = resultValue(overviewResult), content = resultValue(contentResult), health = resultValue(healthResult), storage = resultValue(storageResult), activity = resultValue(activityResult);
     const layout = normalizeLayout(resultValue(preferenceResult));
     const summary = overview?.summary || {};
     let developmentMarkup = developmentLoadingPanel();
     if (developmentResult) {
-      developmentMarkup = developmentPanel({
-        signals:resultValue(developmentResult),
-        signalsError:resultError(developmentResult),
-        sonar:resultValue(sonarResult),
-        sonarError:resultError(sonarResult),
-        coderabbit:resultValue(coderabbitResult),
-        coderabbitError:resultError(coderabbitResult),
-        deploy:resultValue(deployResult),
-        deployError:resultError(deployResult),
-        seo:resultValue(seoResult),
-        seoError:resultError(seoResult)
-      });
+      developmentMarkup = developmentPanel(developmentSources(results));
     }
 
     const modules = {
