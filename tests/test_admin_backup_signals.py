@@ -213,7 +213,7 @@ echo json_encode(brvtalAdminBackupSignals($backups, $automation, $sourceAt), JSO
         start = js.index("  function render(results, serial) {")
         end = js.index("\n\n  async function runMount", start)
         render_source = js[start:end].strip()
-        sources_start = js.index("  function developmentSources(results) {")
+        sources_start = js.index("  function developmentSources(")
         sources_end = js.index("\n\n  function developmentPanel", sources_start)
         sources_source = js[sources_start:sources_end].strip()
         backup = {
