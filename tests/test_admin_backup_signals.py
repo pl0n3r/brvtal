@@ -262,8 +262,12 @@ const results = Array(12).fill(null);
 results[2] = {status:'fulfilled',value:{database:'connected'}};
 results[6] = {status:'fulfilled',value:{freshness:'fresh'}};
 results[11] = {status:'fulfilled',value:JSON.parse(process.argv[1])};
-if (!render(results,7)) throw new Error('render failed');
-process.stdout.write(JSON.stringify(captured));
+if (!render(results,7)) throw new Error('fulfilled render failed');
+const fulfilled = captured;
+results[11] = {status:'rejected',reason:'BACKUP_UNAVAILABLE'};
+if (!render(results,7)) throw new Error('rejected render failed');
+const rejected = captured;
+process.stdout.write(JSON.stringify({fulfilled,rejected}));
 """
         result = subprocess.run(
             ["node", "-e", script, json.dumps(backup)],
@@ -274,8 +278,10 @@ process.stdout.write(JSON.stringify(captured));
             timeout=30,
         )
         captured = json.loads(result.stdout)
-        self.assertEqual(captured["backup"], backup)
-        self.assertEqual(captured["backupError"], "")
+        self.assertEqual(captured["fulfilled"]["backup"], backup)
+        self.assertEqual(captured["fulfilled"]["backupError"], "")
+        self.assertIsNone(captured["rejected"]["backup"])
+        self.assertEqual(captured["rejected"]["backupError"], "BACKUP_UNAVAILABLE")
 
     def test_endpoint_is_authenticated_get_only_no_store_and_private_safe(self):
         api = (ROOT / "api" / "admin-backup-signals.php").read_text(encoding="utf-8")
