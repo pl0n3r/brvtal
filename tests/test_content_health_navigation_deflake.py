@@ -77,6 +77,7 @@ class ContentHealthNavigationDeflakeTests(unittest.TestCase):
         self.assertNotRegex(source, r"\bbutton\.click\s*\(")
         self.assertNotRegex(source, r"expect\.poll\([^\n]+,\s*\{\s*timeout\s*:")
         self.assertNotRegex(source, r"test\.setTimeout\s*\(")
+        self.assertNotRegex(source, r"waitForTimeout\s*\(")
         self.assertNotRegex(source, r"\bretries\s*:")
 
 
