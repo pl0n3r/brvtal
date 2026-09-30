@@ -110,14 +110,21 @@ function brvtalAdminDevelopmentSignals(?callable $requester = null): array
             isset($ci['workflow_runs'][0])
             && is_array($ci['workflow_runs'][0])
         ) ? $ci['workflow_runs'][0] : null;
-        $sourceAt = is_string($latestRun['updated_at'] ?? null)
-            ? $latestRun['updated_at']
-            : gmdate('c');
-        $sourceTs = strtotime($sourceAt);
-        $freshness = (
-            $sourceTs !== false
-            && (time() - $sourceTs) > BRVTAL_DEVELOPMENT_STALE_SECONDS
-        ) ? 'stale' : 'fresh';
+        $sourceAt = null;
+        $freshness = 'unavailable';
+        if ($latestRun !== null) {
+            $sourceAt = $latestRun['updated_at'] ?? null;
+            if (!is_string($sourceAt)) {
+                throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+            }
+            $sourceTs = strtotime($sourceAt);
+            if ($sourceTs === false) {
+                throw new RuntimeException('GITHUB_INVALID_RESPONSE');
+            }
+            $freshness = (time() - $sourceTs) > BRVTAL_DEVELOPMENT_STALE_SECONDS
+                ? 'stale'
+                : 'fresh';
+        }
 
         return [
             'status'=>'available',
@@ -147,7 +154,7 @@ function brvtalAdminDevelopmentSignals(?callable $requester = null): array
             'open_prs'=>null,
             'latest_pr'=>null,
             'latest_ci'=>null,
-            'source_at'=>gmdate('c'),
+            'source_at'=>null,
             'read_only'=>true,
         ];
     }
