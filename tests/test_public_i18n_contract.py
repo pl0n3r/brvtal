@@ -14,7 +14,7 @@ class PublicI18nContractTests(unittest.TestCase):
         script = (
             "chdir($argv[1]); "
             "require 'config/public_i18n.php'; "
-            f"echo json_encode(brvtal_public_i18n_payload({site_expression}), "
+            f"echo json_encode(brvtalPublicI18nPayload({site_expression}), "
             "JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);"
         )
         result = subprocess.run(
@@ -34,6 +34,11 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertEqual(payload["default_locale"], "es")
         self.assertEqual(payload["available_locales"], ["es", "en"])
 
+        stale_english_default = self.php_payload(
+            "['default_locale'=>'en','available_locales'=>['es','en']]"
+        )
+        self.assertEqual(stale_english_default["default_locale"], "es")
+
         fallback = self.php_payload(
             "['default_locale'=>'fr','available_locales'=>['fr']]"
         )
@@ -45,7 +50,7 @@ class PublicI18nContractTests(unittest.TestCase):
         api = (ROOT / "api/public.php").read_text(encoding="utf-8")
         runtime = (ROOT / "js/app.js").read_text(encoding="utf-8")
         self.assertIn('<html lang="es">', index)
-        self.assertIn("brvtal_public_i18n_payload", api)
+        self.assertIn("brvtalPublicI18nPayload", api)
         self.assertIn("document.documentElement.lang = defaultLocale;", runtime)
 
     def test_critical_microcopy_and_protected_terms_are_versioned_in_code(self) -> None:
