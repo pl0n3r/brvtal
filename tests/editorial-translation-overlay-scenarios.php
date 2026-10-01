@@ -41,24 +41,34 @@ function overlay_cache(): array
     return [$read, $write];
 }
 
-function canonical_blog(array $overrides = []): array
+function canonical_blog_page(array $overrides = [], string $body = '<p>Cuerpo canónico español.</p>'): array
 {
-    return array_replace([
-        'id' => 41,
-        'slug' => 'ritual-industrial',
-        'route_type' => 'blog',
-        'status' => 'published',
-        'title' => 'Ritual industrial',
-        'description' => 'Una crónica desde la pista.',
-        'seo_title' => 'Ritual industrial — BRVTAL',
-        'seo_description' => 'Crónica editorial canónica.',
-    ], $overrides);
+    return [
+        'entity' => array_replace([
+            'id' => 41,
+            'slug' => 'ritual-industrial',
+            'route_type' => 'blog',
+            'status' => 'published',
+            'title' => 'Ritual industrial',
+            'description' => 'Una crónica desde la pista.',
+            'seo_title' => 'Ritual industrial — BRVTAL',
+            'seo_description' => 'Crónica editorial canónica.',
+        ], $overrides),
+        'record' => ['body_html' => $body],
+    ];
+}
+
+function canonical_blog_source(array $overrides = [], string $body = '<p>Cuerpo canónico español.</p>'): array
+{
+    return brvtalPublicEditorialOverlaySourceFromPage(
+        canonical_blog_page($overrides, $body)
+    );
 }
 
 $case = $argv[1] ?? '';
 
 if ($case === 'identity') {
-    $source = canonical_blog();
+    $source = canonical_blog_source();
     $adapter = new OverlayTestAdapter();
     [$read, $write] = overlay_cache();
 
@@ -85,7 +95,7 @@ if ($case === 'identity') {
     overlay_expect($applied['entity']['title'] === 'EN Ritual industrial', 'overlay must project translated title');
     overlay_expect(!array_key_exists('locale', $applied['entity']), 'overlay must not create a duplicate localized record');
 
-    $changed = canonical_blog(['description' => 'La fuente española cambió.']);
+    $changed = canonical_blog_source(['description' => 'La fuente española cambió.']);
     $changedIdentity = brvtalPublicEditorialOverlaySourceIdentity($changed);
     overlay_expect(
         $changedIdentity['source_identity'] === $overlay['source_identity'],
@@ -100,12 +110,50 @@ if ($case === 'identity') {
         'stale overlay must fail closed after source change'
     );
 
+    $bodyChanged = canonical_blog_source([], '<p>El cuerpo español cambió.</p>');
+    $bodyIdentity = brvtalPublicEditorialOverlaySourceIdentity($bodyChanged);
+    overlay_expect(
+        $bodyIdentity['source_identity'] === $overlay['source_identity'],
+        'body changes must preserve stable source identity'
+    );
+    overlay_expect(
+        $bodyIdentity['source_hash'] !== $overlay['source_hash'],
+        'body-only changes must invalidate the source hash'
+    );
+    overlay_expect(
+        brvtalPublicEditorialOverlayApply($bodyChanged, $overlay, true, true) === null,
+        'body-only source change must invalidate a stale overlay'
+    );
+
+    $pageSource = [
+        'id' => 77,
+        'slug' => 'manifiesto',
+        'route_type' => 'pages',
+        'status' => 'published',
+        'title' => 'Manifiesto',
+        'description' => 'Texto editorial de página.',
+        'seo_title' => 'Manifiesto — BRVTAL',
+        'seo_description' => 'Página canónica.',
+    ];
+    $pageOverlay = brvtalPublicEditorialOverlayResolve(
+        $pageSource,
+        'en',
+        $adapter,
+        $read,
+        $write,
+        true,
+        true
+    );
+    overlay_expect(is_array($pageOverlay), 'published Pages source must support overlays');
+    overlay_expect($pageOverlay['source_identity'] === 'pages:77', 'Pages must preserve canonical source identity');
+    overlay_expect(array_key_exists('title', $pageOverlay['fields']), 'Pages editorial title must be translatable');
+
     echo "identity-ok\n";
     exit(0);
 }
 
 if ($case === 'visibility') {
-    $source = canonical_blog();
+    $source = canonical_blog_source();
     $adapter = new OverlayTestAdapter();
     [$read, $write] = overlay_cache();
 
@@ -122,17 +170,17 @@ if ($case === 'visibility') {
     $valid = brvtalPublicEditorialOverlayResolve($source, 'en', $adapter, $read, $write, true, true);
     overlay_expect(is_array($valid), 'control overlay must resolve');
 
-    $draft = canonical_blog(['status' => 'draft']);
+    $draft = canonical_blog_source(['status' => 'draft']);
     overlay_expect(
         brvtalPublicEditorialOverlayApply($draft, $valid, true, true) === null,
         'draft source must not publish through overlay'
     );
-    $private = canonical_blog(['visibility' => 'private']);
+    $private = canonical_blog_source(['visibility' => 'private']);
     overlay_expect(
         brvtalPublicEditorialOverlayApply($private, $valid, true, true) === null,
         'private source must not publish through overlay'
     );
-    $untrusted = canonical_blog(['trusted' => false]);
+    $untrusted = canonical_blog_source(['trusted' => false]);
     overlay_expect(
         brvtalPublicEditorialOverlayApply($untrusted, $valid, true, true) === null,
         'untrusted source must not publish through overlay'

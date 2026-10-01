@@ -11,7 +11,7 @@ require_once __DIR__ . '/public_visibility.php';
 
 function brvtalPublicEditorialOverlayRoutes(): array
 {
-    return ['events', 'artists', 'sets', 'releases', 'blog'];
+    return ['events', 'artists', 'sets', 'releases', 'blog', 'pages'];
 }
 
 function brvtalPublicEditorialOverlayEligible(
@@ -74,6 +74,32 @@ function brvtalPublicEditorialOverlayNormalizeSourceText(mixed $value): string
 }
 
 /**
+ * Build the complete canonical source snapshot consumed by the overlay layer.
+ * Blog body is owned by public_page_data(), so callers must pass the full page
+ * payload rather than silently hashing only SEO/excerpt fields.
+ */
+function brvtalPublicEditorialOverlaySourceFromPage(array $page): array
+{
+    $entity = $page['entity'] ?? null;
+    if (!is_array($entity)) {
+        throw new InvalidArgumentException('INVALID_EDITORIAL_PAGE_SOURCE');
+    }
+
+    $source = $entity;
+    if (($source['route_type'] ?? '') === 'blog') {
+        $record = $page['record'] ?? null;
+        if (!is_array($record) || !array_key_exists('body_html', $record)) {
+            throw new InvalidArgumentException('MISSING_EDITORIAL_BLOG_BODY');
+        }
+        $source['body'] = brvtalPublicEditorialOverlayNormalizeSourceText(
+            $record['body_html']
+        );
+    }
+
+    return $source;
+}
+
+/**
  * @return array{
  *   source_identity:string,
  *   source_hash:string,
@@ -94,9 +120,12 @@ function brvtalPublicEditorialOverlaySourceIdentity(array $source): array
     ) {
         throw new InvalidArgumentException('INVALID_EDITORIAL_SOURCE_IDENTITY');
     }
+    if ($routeType === 'blog' && !array_key_exists('body', $source)) {
+        throw new InvalidArgumentException('MISSING_EDITORIAL_BLOG_BODY');
+    }
 
     $sourceFields = [];
-    foreach (['title', 'description', 'seo_title', 'seo_description'] as $field) {
+    foreach (['title', 'description', 'seo_title', 'seo_description', 'body'] as $field) {
         $sourceFields[$field] = brvtalPublicEditorialOverlayNormalizeSourceText(
             $source[$field] ?? ''
         );
@@ -131,8 +160,8 @@ function brvtalPublicEditorialOverlayTranslatableFields(array $source): array
     }
 
     // Phase 1 policy protects entity names/titles for the music-domain families.
-    // Blog editorial titles are not in that protected-field list.
-    return $routeType === 'blog'
+    // Blog and CMS Page editorial titles are not in that protected-field list.
+    return in_array($routeType, ['blog', 'pages'], true)
         ? ['title', 'description', 'seo_title', 'seo_description']
         : ['description', 'seo_description'];
 }
@@ -190,7 +219,11 @@ function brvtalPublicEditorialOverlayResolve(
         return null;
     }
 
-    $identity = brvtalPublicEditorialOverlaySourceIdentity($source);
+    try {
+        $identity = brvtalPublicEditorialOverlaySourceIdentity($source);
+    } catch (InvalidArgumentException) {
+        return null;
+    }
     $translatedFields = [];
     foreach (brvtalPublicEditorialOverlayTranslatableFields($source) as $field) {
         $sourceText = brvtalPublicEditorialOverlayNormalizeSourceText(
@@ -276,7 +309,11 @@ function brvtalPublicEditorialOverlayApply(
         return null;
     }
 
-    $identity = brvtalPublicEditorialOverlaySourceIdentity($source);
+    try {
+        $identity = brvtalPublicEditorialOverlaySourceIdentity($source);
+    } catch (InvalidArgumentException) {
+        return null;
+    }
     if (
         ($overlay['source_identity'] ?? '') !== $identity['source_identity']
         || ($overlay['source_hash'] ?? '') !== $identity['source_hash']
