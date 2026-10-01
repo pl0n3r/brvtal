@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
 from scripts.ci_retry import is_transient_failure
-from scripts.ci_self_audit import audit_workflow
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,7 +58,19 @@ class WebKitDependencyRetryTests(unittest.TestCase):
         self.assertNotIn("playwright test", retry_section)
 
     def test_ci_self_audit_accepts_the_workflow(self) -> None:
-        self.assertEqual(audit_workflow(WORKFLOW), [])
+        for command in (
+            [sys.executable, "scripts/ci_self_audit.py"],
+            [sys.executable, "tests/ci-self-audit-contract.py"],
+        ):
+            result = subprocess.run(
+                command,
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stdout)
 
 
 if __name__ == "__main__":
