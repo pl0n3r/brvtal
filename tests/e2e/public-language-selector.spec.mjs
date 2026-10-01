@@ -33,7 +33,7 @@ async function installHarness(page) {
       <aside id="menuPanel" aria-hidden="true"></aside>
       <fieldset id="languageSelector"><legend>Idioma / Language</legend>
         <button type="button" data-locale="es" aria-pressed="true">ES</button>
-        <button type="button" data-locale="en" aria-pressed="false">EN</button>
+        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
       </fieldset>
       <h2 data-i18n-key="nav.events">EVENTOS</h2>
       <a data-i18n-key="nav.contact">CONTACTO</a>
@@ -70,4 +70,29 @@ test('ES/EN switches without navigation and persists the explicit choice', async
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTS');
   await expect(page.locator('[data-current-locale]')).toHaveText('EN');
+});
+
+test('missing public locale policy keeps EN unavailable and Spanish canonical', async ({ page }) => {
+  await page.route('**/api/**', route => route.abort('failed'));
+  await page.route(harnessUrl, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: `<!doctype html><html lang="es"><body>
+      <div id="loader"></div><button id="menuToggle">MENU <strong>+</strong></button>
+      <aside id="menuPanel" aria-hidden="true"></aside>
+      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
+        <button type="button" data-locale="es" aria-pressed="true">ES</button>
+        <button type="button" data-locale="en" aria-pressed="false" disabled>EN</button>
+      </fieldset>
+      <h2 data-i18n-key="nav.events">EVENTOS</h2><span data-current-locale>ES</span>
+      <span id="dynamicStatus"></span><div id="apiFallback"></div><div class="events-track"></div>
+      <script>${appJs}</script>
+    </body></html>`,
+  }));
+  await page.goto(harnessUrl);
+  await expect(page.locator('#dynamicStatus')).toHaveText('STATIC / API OFFLINE');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.getByRole('button', {name:'ES', exact:true})).toBeEnabled();
+  await expect(page.getByRole('button', {name:'EN', exact:true})).toBeDisabled();
+  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTOS');
+  expect(await page.evaluate(() => localStorage.getItem('brvtal.public.locale'))).toBeNull();
 });

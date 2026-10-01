@@ -37,6 +37,24 @@ class PublicLanguageSelectorTests(unittest.TestCase):
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
+    def test_missing_policy_fails_closed_to_spanish_only(self) -> None:
+        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('<html lang="es">', index)
+        self.assertIn(
+            'data-locale="en" aria-pressed="false" data-cursor="EN" disabled',
+            index,
+        )
+        self.assertIn(
+            "button.disabled = !availableLocales.includes(button.dataset.locale);",
+            runtime,
+        )
+        self.assertIn(
+            "if (!selector || !config || !Array.isArray(config.availableLocales)) return;",
+            runtime,
+        )
+
     def test_first_visit_is_spanish_and_explicit_choice_persists(self) -> None:
         index = (ROOT / "index.html").read_text(encoding="utf-8")
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
