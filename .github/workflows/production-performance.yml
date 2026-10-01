@@ -32,11 +32,26 @@ jobs:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          ref: main
           persist-credentials: false
 
-      - name: Confirm automatic measurement prerequisites
+      - name: Verify trusted exact-main checkout
         if: github.event_name == 'workflow_run'
+        id: source_identity
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Trusted main no longer matches source SHA; measurement skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm automatic measurement prerequisites
+        if: github.event_name == 'workflow_run' && steps.source_identity.outputs.ready == 'true'
         id: prerequisites
         env:
           GH_TOKEN: ${{ github.token }}
