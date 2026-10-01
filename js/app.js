@@ -326,6 +326,8 @@
       if (!availableLocales.includes(defaultLocale)) availableLocales.unshift(defaultLocale);
       if (!availableLocales.length) availableLocales.push('es', 'en');
 
+      document.documentElement.lang = defaultLocale;
+      document.documentElement.dataset.locale = defaultLocale;
       document.documentElement.dataset.availableLocales = availableLocales.join(',');
       window.BRVTALI18N = {
         version: Number.isInteger(i18n.version) ? i18n.version : 1,
