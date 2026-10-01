@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -23,26 +24,62 @@ class WebKitDependencyRetryTests(unittest.TestCase):
         self.assertIn("timeout-minutes: 15", block)
         self.assertEqual(block.count("python3 scripts/ci_retry.py"), 1)
         self.assertEqual(block.count("--attempts 2"), 1)
-        self.assertEqual(
-            block.count("timeout 300s npx playwright install-deps webkit"),
-            1,
+        self.assertEqual(block.count("--exit-code-only"), 1)
+        self.assertEqual(block.count("scripts/ci_bounded_command.py"), 1)
+        self.assertEqual(block.count("--timeout-seconds 240"), 1)
+        self.assertEqual(block.count("--kill-grace-seconds 10"), 1)
+
+        started = time.monotonic()
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci_bounded_command.py",
+                "--timeout-seconds",
+                "0.2",
+                "--kill-grace-seconds",
+                "0.1",
+                "--",
+                sys.executable,
+                "-c",
+                (
+                    "import signal,time;"
+                    "signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+                    "time.sleep(3)"
+                ),
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
         )
+        elapsed = time.monotonic() - started
+        self.assertEqual(75, result.returncode, result.stdout)
+        self.assertLess(elapsed, 1.5, result.stdout)
 
     def test_only_timeout_is_promoted_to_verified_transient_signal(self) -> None:
         block = self.webkit_block()
-        self.assertIn('if [ "$status" -eq 124 ]; then', block)
-        self.assertIn(
-            'echo "timeout: WebKit system dependency installation exceeded 300s"',
-            block,
-        )
+        self.assertIn("--exit-code-only", block)
         self.assertTrue(
             is_transient_failure(
-                124,
-                "timeout: WebKit system dependency installation exceeded 300s",
+                75,
+                "bounded-command: deadline exceeded",
+                exit_code_only=True,
             )
         )
         self.assertFalse(
-            is_transient_failure(100, "apt dependency resolution failed")
+            is_transient_failure(
+                100,
+                "connection reset by peer",
+                exit_code_only=True,
+            )
+        )
+        self.assertFalse(
+            is_transient_failure(
+                100,
+                "HTTP 503 upstream unavailable",
+                exit_code_only=True,
+            )
         )
 
     def test_webkit_test_itself_is_not_retried(self) -> None:

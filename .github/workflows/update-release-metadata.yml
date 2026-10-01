@@ -540,16 +540,11 @@ jobs:
             --attempts 2 \
             --base-delay 3 \
             --label "WebKit system dependencies" \
-            -- bash -c '
-              set +e
-              timeout 300s npx playwright install-deps webkit
-              status=$?
-              set -e
-              if [ "$status" -eq 124 ]; then
-                echo "timeout: WebKit system dependency installation exceeded 300s"
-              fi
-              exit "$status"
-            '
+            --exit-code-only \
+            -- python3 scripts/ci_bounded_command.py \
+              --timeout-seconds 240 \
+              --kill-grace-seconds 10 \
+              -- npx playwright install-deps webkit
 
       - name: Install WebKit browser
         if: steps.webkit-cache.outputs.cache-hit != 'true'
