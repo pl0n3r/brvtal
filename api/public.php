@@ -288,24 +288,15 @@ try {
          ORDER BY s.sort_order ASC,s.created_at DESC"
     )->fetchAll();
 
-    // Page delivery follows the effective canonical locale contract.
-    $settings = brvtal_public_settings($pdo);
-    $pageLocale = (string)($settings['i18n']['default_locale'] ?? 'es');
-    $pagesStatement = $pdo->prepare(
+    // Page publication/routing remains on the legacy English contract in this
+    // foundation leaf. Its ES migration must be atomic across delivery, routes,
+    // SEO, visibility, health/indexing and persisted data.
+    $pages = $pdo->query(
         "SELECT id,title,slug,locale,content_json,seo_title,seo_description
          FROM pages
-         WHERE status='published' AND locale=?
+         WHERE status='published' AND locale='en'
          ORDER BY id DESC"
-    );
-    $pagesStatement->execute([$pageLocale]);
-    $pages = $pagesStatement->fetchAll();
-
-    // Data-safe transition: production may still contain legacy English Pages.
-    // Preserve them only while no canonical Spanish Page has been published.
-    if ($pages === [] && $pageLocale === 'es') {
-        $pagesStatement->execute(['en']);
-        $pages = $pagesStatement->fetchAll();
-    }
+    )->fetchAll();
 
     $media = $pdo->query(
         "SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at
@@ -382,6 +373,7 @@ try {
     }
     unset($event);
 
+    $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
     $blog = brvtal_public_sanitize_blog_relations(
         brvtal_public_blog($pdo),

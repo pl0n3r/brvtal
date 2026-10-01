@@ -59,11 +59,12 @@ class PublicI18nContractTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(lint.returncode, 0, lint.stderr)
-        self.assertNotIn("locale='en'", api)
-        self.assertIn("$pageLocale = (string)($settings['i18n']['default_locale'] ?? 'es');", api)
-        self.assertIn("$pagesStatement->execute([$pageLocale]);", api)
-        self.assertIn("if ($pages === [] && $pageLocale === 'es')", api)
-        self.assertIn("$pagesStatement->execute(['en']);", api)
+
+    def test_legacy_pages_remain_unchanged_until_atomic_locale_migration(self) -> None:
+        api = (ROOT / "api" / "public.php").read_text(encoding="utf-8")
+        self.assertIn("WHERE status='published' AND locale='en'", api)
+        self.assertNotIn("$pagesStatement->execute([$pageLocale]);", api)
+        self.assertIn("migration must be atomic", api)
 
     def test_critical_microcopy_and_protected_terms_are_versioned_in_code(self) -> None:
         payload = self.php_payload("[]")
