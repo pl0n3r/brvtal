@@ -81,6 +81,14 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertIn("artists[].name", protected["entity_fields"])
         self.assertIn("events[].title", protected["entity_fields"])
 
+    def test_required_ci_command_executes_acceptance_suite(self) -> None:
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            package["scripts"]["test:i18n"],
+            "python3 -m unittest tests/test_public_i18n_contract.py",
+        )
+        self.assertIn("npm run test:i18n", package["scripts"]["test:integration"])
+
 
 if __name__ == "__main__":
     unittest.main()
