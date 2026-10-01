@@ -31,10 +31,10 @@ async function installHarness(page) {
       <div id="loader"></div>
       <button id="menuToggle">MENU <strong>+</strong></button>
       <aside id="menuPanel" aria-hidden="true"></aside>
-      <div id="languageSelector" role="group" aria-label="Idioma / Language">
+      <fieldset id="languageSelector"><legend>Idioma / Language</legend>
         <button type="button" data-locale="es" aria-pressed="true">ES</button>
         <button type="button" data-locale="en" aria-pressed="false">EN</button>
-      </div>
+      </fieldset>
       <h2 data-i18n-key="nav.events">EVENTOS</h2>
       <a data-i18n-key="nav.contact">CONTACTO</a>
       <span data-current-locale>ES</span>

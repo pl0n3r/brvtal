@@ -15,7 +15,9 @@ class PublicLanguageSelectorTests(unittest.TestCase):
         styles = (ROOT / "css" / "style.css").read_text(encoding="utf-8")
 
         self.assertIn('<html lang="es">', index)
-        self.assertIn('id="languageSelector"', index)
+        self.assertIn('<fieldset class="language-selector" id="languageSelector">', index)
+        self.assertIn('<legend>Idioma / Language</legend>', index)
+        self.assertNotIn('role="group"', index)
         self.assertIn('data-locale="es"', index)
         self.assertIn('data-locale="en"', index)
         self.assertIn('aria-pressed="true"', index)
