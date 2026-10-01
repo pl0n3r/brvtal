@@ -19,7 +19,7 @@ jobs:
   measure:
     name: measure
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.event == 'push')
@@ -30,9 +30,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
 
       - name: Confirm automatic measurement prerequisites
         if: github.event_name == 'workflow_run'
@@ -141,7 +142,7 @@ jobs:
 
       - name: Cache npm downloads
         if: steps.connectivity.outputs.reachable == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-production-performance-npm-${{ hashFiles('package.json') }}
@@ -156,7 +157,7 @@ jobs:
       - name: Cache Chromium
         if: steps.connectivity.outputs.reachable == 'true'
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-production-performance-chromium-${{ hashFiles('package.json') }}
@@ -186,11 +187,20 @@ jobs:
           BRVTAL_PERF_OUTPUT: artifacts/production-performance-desktop.json
         run: node tests/e2e/production-performance-probe.mjs
 
+      - name: Normalize Factory Performance v1 evidence
+        if: github.event_name == 'workflow_run' && steps.prerequisites.outputs.ready == 'true' && steps.connectivity.outputs.reachable == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          release="$(sed -nE "s/^const BRVTAL_APP_VERSION = '([^']+)';$/\1/p" config/version.php)"
+          python3 scripts/production-performance-evidence.py             --sha "$sha"             --release "$release"             --run-id "$GITHUB_RUN_ID"
+
       - name: Upload performance evidence
-        if: always() && steps.connectivity.outputs.reachable == 'true'
-        uses: actions/upload-artifact@v4
+        if: success() && steps.connectivity.outputs.reachable == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: production-performance-${{ github.run_id }}
           path: artifacts/production-performance-*.json
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 14
