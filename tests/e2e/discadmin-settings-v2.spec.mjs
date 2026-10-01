@@ -63,9 +63,12 @@ async function open(page, viewport={width:1280,height:900}) {
 test('Settings uses typed logical sections instead of raw JSON as the primary UI', async ({ page }) => {
   await open(page);
   await expect(page.locator('[data-settings-tab]')).toHaveText(['01GENERAL','02SOCIAL & CONTACT','03SEO','04ANALYTICS & PRIVACY','05ADVANCED']);
-  await expect(page.locator('[data-settings-pane="general"]')).toBeVisible();
+  const general = page.locator('[data-settings-pane="general"]');
+  await expect(general).toBeVisible();
   await expect(page.locator('#sv2_site_name')).toHaveValue('BRVTAL');
-  await expect(page.getByText(/reserved for #212/i)).toBeVisible();
+  await expect(general.getByText('LANGUAGE POLICY',{exact:true})).toBeVisible();
+  await expect(general.getByText('ES · ES / EN',{exact:true})).toBeVisible();
+  await expect(general.getByText(/Spanish is canonical\/default/i)).toBeVisible();
   await expect(page.locator('[data-settings-pane="general"] textarea')).toHaveCount(0);
 });
 
