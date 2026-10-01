@@ -60,6 +60,19 @@ class PublicI18nContractTests(unittest.TestCase):
         )
         self.assertEqual(lint.returncode, 0, lint.stderr)
 
+    def test_browser_delegates_locale_policy_to_server_payload(self) -> None:
+        runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("const supportedLocales", runtime)
+        self.assertNotIn("configuredLocales", runtime)
+        self.assertNotIn("canonicalLocale: 'es'", runtime)
+        self.assertIn(
+            "i18n.available_locales.every(locale => typeof locale === 'string')",
+            runtime,
+        )
+        self.assertIn("typeof i18n.default_locale === 'string'", runtime)
+        self.assertIn("typeof i18n.canonical_locale === 'string'", runtime)
+        self.assertIn("canonicalLocale,", runtime)
+
     def test_selector_owned_document_locale_is_not_applied_in_foundation_leaf(self) -> None:
         index = (ROOT / "index.html").read_text(encoding="utf-8")
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
