@@ -6,6 +6,7 @@ require_once __DIR__ . '/config/deployment.php';
 require_once __DIR__ . '/config/public_assets.php';
 require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
+require_once __DIR__ . '/config/public_i18n_routing.php';
 require_once __DIR__ . '/config/public_page.php';
 require_once __DIR__ . '/config/public_artist.php';
 require_once __DIR__ . '/config/public_entity_delivery.php';
@@ -19,11 +20,42 @@ $type = trim((string)($_GET['type'] ?? ''));
 $slug = trim((string)($_GET['slug'] ?? ''));
 $entity = null;
 $baseUrl = brvtal_public_base_url($config);
+$routeLocaleInput = $_GET['locale'] ?? null;
+$routeLocaleExplicit = is_string($routeLocaleInput) && trim($routeLocaleInput) !== '';
+$routeLocale = brvtalPublicRouteLocale($routeLocaleInput);
+
+if ($routeLocale === null) {
+    $seo = brvtal_public_not_found_seo($baseUrl, 'locale', 'invalid');
+    $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtalDeploymentCacheKey());
+    http_response_code(404);
+    header('X-Robots-Tag: noindex, follow');
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo brvtalPublicApplyLocalizedDocument(
+        brvtal_public_not_found_page($seo, $analytics),
+        'es'
+    );
+    exit;
+}
 
 if ($pageRoute === 'contact') {
-    $seo = brvtal_public_contact_seo($baseUrl, db());
+    $route = brvtalPublicLocalizedRouteUrls($baseUrl, $routeLocale, '', '', 'contact');
+    if ($route === null) {
+        http_response_code(404);
+        exit;
+    }
+    $seo = brvtalPublicApplyLocalizedSeo(
+        brvtal_public_contact_seo($baseUrl, db()),
+        $route
+    );
     $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtalDeploymentCacheKey());
     $contactHtml = brvtal_public_contact_page($seo, $analytics);
+    $contactHtml = brvtalPublicApplyLocalizedDocument(
+        $contactHtml,
+        $routeLocale,
+        $route['paths'],
+        $routeLocaleExplicit
+    );
     $contactHtml = brvtal_public_optimize_font_stylesheet($contactHtml);
     $contactHtml = brvtal_public_version_assets($contactHtml, brvtalDeploymentCacheKey());
     header('Content-Type: text/html; charset=utf-8');
@@ -48,6 +80,17 @@ if ($type !== '' || $slug !== '') {
 
 $seoDefaults = brvtal_public_global_seo(db());
 $seo = brvtal_public_seo_document($entity, $baseUrl, $seoDefaults);
+$route = brvtalPublicLocalizedRouteUrls(
+    $baseUrl,
+    $routeLocale,
+    $entity ? (string)$entity['route_type'] : '',
+    $entity ? (string)$entity['slug'] : ''
+);
+if ($route === null) {
+    http_response_code(404);
+    exit;
+}
+$seo = brvtalPublicApplyLocalizedSeo($seo, $route);
 $analytics = brvtal_public_analytics_markup(brvtal_public_gtm_id(db()), brvtalDeploymentCacheKey());
 if ($entity) {
     try {
@@ -57,7 +100,7 @@ if ($entity) {
             brvtal_log('PUBLIC_ENTITY_DATA_ERROR', 'Essential canonical entity data failed to load', [
                 'type' => (string)($entity['route_type'] ?? ''),
                 'id' => (int)($entity['id'] ?? 0),
-                'class' => get_class($e),
+                'class' => $e::class,
                 'message' => $e->getMessage(),
             ]);
         }
@@ -79,12 +122,18 @@ if ($entity) {
     } else {
         header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
     }
-    echo brvtalPublicEntityDocument(
+    $entityHtml = brvtalPublicEntityDocument(
         db(),
         $page,
         $seo,
         $analytics,
         brvtalDeploymentCacheKey()
+    );
+    echo brvtalPublicApplyLocalizedDocument(
+        $entityHtml,
+        $routeLocale,
+        $route['paths'],
+        $routeLocaleExplicit
     );
     exit;
 }
@@ -96,7 +145,7 @@ try {
     $nextExperience = null;
     if (function_exists('brvtal_log')) {
         brvtal_log('PUBLIC_HOME_ERROR', 'Next Experience lookup failed', [
-            'class' => get_class($e),
+            'class' => $e::class,
             'message' => $e->getMessage(),
         ]);
     }
@@ -194,6 +243,12 @@ $html = str_replace('</body>', $analytics . "\n</body>", $html);
 $html = preg_replace('/<title>.*?<\/title>/s', '<title>' . htmlspecialchars($seo['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</title>', $html, 1) ?? $html;
 $html = preg_replace('/<meta name="description" content="[^"]*">/', '<meta name="description" content="' . htmlspecialchars($seo['description'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">', $html, 1) ?? $html;
 $html = str_replace('</head>', '  ' . brvtal_public_seo_tags($seo) . "\n</head>", $html);
+$html = brvtalPublicApplyLocalizedDocument(
+    $html,
+    $routeLocale,
+    $route['paths'],
+    $routeLocaleExplicit
+);
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
 echo $html;
