@@ -26,6 +26,7 @@ jobs:
     name: relay
     if: github.event_name == 'workflow_dispatch' || github.event.check_run.name == 'SonarCloud Code Analysis'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Publish Sonar annotations to the pull request
         shell: bash

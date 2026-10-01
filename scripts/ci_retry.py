@@ -27,10 +27,17 @@ TRANSIENT_PATTERNS = (
 )
 
 
-def is_transient_failure(returncode: int, output: str) -> bool:
-    return returncode in TRANSIENT_EXIT_CODES or any(
-        pattern.search(output) is not None for pattern in TRANSIENT_PATTERNS
-    )
+def is_transient_failure(
+    returncode: int,
+    output: str,
+    *,
+    exit_code_only: bool = False,
+) -> bool:
+    if returncode in TRANSIENT_EXIT_CODES:
+        return True
+    if exit_code_only:
+        return False
+    return any(pattern.search(output) is not None for pattern in TRANSIENT_PATTERNS)
 
 
 def validate_options(command: Sequence[str], attempts: int, base_delay: float) -> None:
@@ -53,13 +60,24 @@ def execute(command: Sequence[str]) -> tuple[int, str]:
     return result.returncode, output
 
 
-def run(command: Sequence[str], *, attempts: int = 3, base_delay: float = 2.0, label: str = "External operation") -> int:
+def run(
+    command: Sequence[str],
+    *,
+    attempts: int = 3,
+    base_delay: float = 2.0,
+    label: str = "External operation",
+    exit_code_only: bool = False,
+) -> int:
     validate_options(command, attempts, base_delay)
     for attempt in range(1, attempts + 1):
         returncode, output = execute(command)
         if returncode == 0:
             return 0
-        if not is_transient_failure(returncode, output):
+        if not is_transient_failure(
+            returncode,
+            output,
+            exit_code_only=exit_code_only,
+        ):
             print(f"::notice title=CI not retried::{label} failed without a verified transient signal.")
             return returncode
         if attempt == attempts:
@@ -75,11 +93,22 @@ def main() -> int:
     parser.add_argument("--attempts", type=int, default=3)
     parser.add_argument("--base-delay", type=float, default=2.0)
     parser.add_argument("--label", default="External operation")
+    parser.add_argument(
+        "--exit-code-only",
+        action="store_true",
+        help="Retry only explicit transient exit codes; ignore output patterns.",
+    )
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     try:
-        return run(command, attempts=args.attempts, base_delay=args.base_delay, label=args.label)
+        return run(
+            command,
+            attempts=args.attempts,
+            base_delay=args.base_delay,
+            label=args.label,
+            exit_code_only=args.exit_code_only,
+        )
     except ValueError as error:
         print(f"ci_retry: {error}", file=sys.stderr)
         return 2

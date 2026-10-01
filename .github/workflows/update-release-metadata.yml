@@ -411,7 +411,7 @@ jobs:
           persist-credentials: false
 
       - name: Cache npm downloads
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
@@ -423,7 +423,7 @@ jobs:
 
       - name: Cache Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
@@ -478,7 +478,7 @@ jobs:
           ini-file: production
 
       - name: Cache npm downloads
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
@@ -490,7 +490,7 @@ jobs:
 
       - name: Cache Chromium
         id: chromium-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('package.json') }}
@@ -517,7 +517,7 @@ jobs:
           persist-credentials: false
 
       - name: Cache npm downloads
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
@@ -529,13 +529,22 @@ jobs:
 
       - name: Cache WebKit
         id: webkit-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-webkit-${{ hashFiles('package.json') }}
 
       - name: Install WebKit system dependencies
-        run: npx playwright install-deps webkit
+        run: |
+          python3 scripts/ci_retry.py \
+            --attempts 2 \
+            --base-delay 3 \
+            --label "WebKit system dependencies" \
+            --exit-code-only \
+            -- python3 scripts/ci_bounded_command.py \
+              --timeout-seconds 240 \
+              --kill-grace-seconds 10 \
+              -- npx playwright install-deps webkit
 
       - name: Install WebKit browser
         if: steps.webkit-cache.outputs.cache-hit != 'true'

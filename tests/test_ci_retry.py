@@ -10,6 +10,16 @@ class CiRetryTests(unittest.TestCase):
         self.assertTrue(is_transient_failure(1, "HTTP 503 upstream unavailable"))
         self.assertTrue(is_transient_failure(75, "temporary failure"))
         self.assertFalse(is_transient_failure(1, "assertion failed"))
+        self.assertTrue(
+            is_transient_failure(75, "anything", exit_code_only=True)
+        )
+        self.assertFalse(
+            is_transient_failure(
+                1,
+                "HTTP 503 upstream unavailable",
+                exit_code_only=True,
+            )
+        )
 
     def test_limits_are_bounded(self) -> None:
         validate_options(["echo", "ok"], 5, 30)
