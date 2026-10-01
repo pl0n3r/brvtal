@@ -81,7 +81,7 @@ function brvtal_public_settings(PDO $pdo): array
     }
 
     $site = is_array($out['site'] ?? null) ? $out['site'] : [];
-    $out['i18n'] = brvtal_public_i18n_payload($site);
+    $out['i18n'] = brvtalPublicI18nPayload($site);
 
     return $out;
 }
