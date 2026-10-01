@@ -45,7 +45,15 @@ const fixture = `<!doctype html>
     </nav>
     <span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>
     <a class="c5-header-ticket" href="#genesis">TICKETS <span>↗</span></a>
-    <div class="nav-right"><button class="sound" type="button">SOUND</button><button class="menu" type="button">MENU +</button></div>
+    <div class="nav-right">
+      <fieldset class="language-selector">
+        <legend>Idioma / Language</legend>
+        <button type="button" class="language-option magnetic" data-locale="es" aria-pressed="true" data-cursor="ES">ES</button>
+        <span class="language-separator" aria-hidden="true">/</span>
+        <button type="button" class="language-option magnetic" data-locale="en" aria-pressed="false" data-cursor="EN" disabled>EN</button>
+      </fieldset>
+      <button class="menu magnetic" type="button">MENU +</button>
+    </div>
   </header>
 
   <main id="top">
@@ -455,12 +463,12 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: '0041af2a9a92437bfdf97f4ccb800b8a681c4e4333deecddbee6dbdb3ac76121',
+    structure: 'edfe407237d9ef173e646822897acd0e79beece2feee1f9307d5433701f80677',
     color: 'c10a87b74a32a59ca0269d9286c2167e07551eba6145e96bf7a34bcdfcb5bbd5',
   },
   1440: {
-    structure: '6c9d561a897171adffcc1bf63704850228d5945a396deea310a8af5fa17cd2f8',
-    color: 'c31260ce2874445790d9bce56c61b4f043a60d0158e7722567fe1bf7935e49b7',
+    structure: 'c06aa9c8d8ff7b13e7a5ba96846f42ecc60ee927594e73bb2f6c471426b732fc',
+    color: '79260fa7ca9ad3185f91e46209c092677aa90e031bc327480ef9ec161418b943',
   },
 };
 

@@ -49,7 +49,7 @@ Effects must never be added merely for decoration. Mobile is a first-class requi
 
 ## 4. Sound
 
-Sound remains an optional part of the public experience and must respect browser autoplay restrictions. Owner decision #821 retires the public **SOUND ON / SOUND OFF** control when the approved ES/EN selector leaf (#826) lands; until then the current control remains supported. When it is replaced, any no-longer-reachable synthetic audio/AudioContext path must be removed instead of left orphaned.
+Public audio remains content-led (sets/media) and must respect browser autoplay restrictions. Owner decision #821/#826 retires the public **SOUND ON / SOUND OFF** navigation control; the synthetic AudioContext path is intentionally absent and must not be reintroduced as an implicit navigation side effect.
 
 ## 5. Public narrative
 
