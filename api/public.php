@@ -300,6 +300,13 @@ try {
     $pagesStatement->execute([$pageLocale]);
     $pages = $pagesStatement->fetchAll();
 
+    // Data-safe transition: production may still contain legacy English Pages.
+    // Preserve them only while no canonical Spanish Page has been published.
+    if ($pages === [] && $pageLocale === 'es') {
+        $pagesStatement->execute(['en']);
+        $pages = $pagesStatement->fetchAll();
+    }
+
     $media = $pdo->query(
         "SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at
          FROM media

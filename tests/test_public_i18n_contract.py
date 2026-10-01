@@ -62,6 +62,8 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertNotIn("locale='en'", api)
         self.assertIn("$pageLocale = (string)($settings['i18n']['default_locale'] ?? 'es');", api)
         self.assertIn("$pagesStatement->execute([$pageLocale]);", api)
+        self.assertIn("if ($pages === [] && $pageLocale === 'es')", api)
+        self.assertIn("$pagesStatement->execute(['en']);", api)
 
     def test_critical_microcopy_and_protected_terms_are_versioned_in_code(self) -> None:
         payload = self.php_payload("[]")
