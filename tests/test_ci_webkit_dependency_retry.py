@@ -57,6 +57,28 @@ class WebKitDependencyRetryTests(unittest.TestCase):
         self.assertEqual(75, result.returncode, result.stdout)
         self.assertLess(elapsed, 1.5, result.stdout)
 
+        child_75 = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ci_bounded_command.py",
+                "--timeout-seconds",
+                "2",
+                "--kill-grace-seconds",
+                "0.1",
+                "--",
+                sys.executable,
+                "-c",
+                "raise SystemExit(75)",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        self.assertEqual(74, child_75.returncode, child_75.stdout)
+        self.assertIn("no retry signal emitted", child_75.stdout)
+
     def test_only_timeout_is_promoted_to_verified_transient_signal(self) -> None:
         block = self.webkit_block()
         self.assertIn("--exit-code-only", block)

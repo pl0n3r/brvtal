@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run one external command with a hard wall-clock bound.
 
-Timeout is the only condition translated to EX_TEMPFAIL (75). All ordinary
-child exits are preserved so callers can fail closed without conflating APT
-or product errors with infrastructure slowness.
+Timeout is the only condition translated to EX_TEMPFAIL (75). Normal child
+failures stay fail-closed, and child exit 75 is remapped so it cannot
+accidentally masquerade as this wrapper's verified timeout signal.
 """
 
 from __future__ import annotations
@@ -17,6 +17,54 @@ from collections.abc import Sequence
 
 
 TIMEOUT_EXIT_CODE = 75
+RESERVED_CHILD_EXIT_REMAP = 74
+
+
+def _text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _emit(output: str) -> None:
+    if output:
+        print(output, end="" if output.endswith("\n") else "\n")
+
+
+def _signal_group(process: subprocess.Popen[str], sig: signal.Signals) -> None:
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        pass
+
+
+def _stop_timed_out_process(
+    process: subprocess.Popen[str],
+    *,
+    grace_seconds: float,
+) -> str:
+    _signal_group(process, signal.SIGTERM)
+    try:
+        tail, _ = process.communicate(timeout=grace_seconds)
+        return _text(tail)
+    except subprocess.TimeoutExpired as error:
+        partial = _text(error.output)
+    _signal_group(process, signal.SIGKILL)
+    tail, _ = process.communicate()
+    return partial + _text(tail)
+
+
+def _normal_exit_code(returncode: int | None) -> int:
+    code = int(returncode or 0)
+    if code == TIMEOUT_EXIT_CODE:
+        print(
+            "::notice title=Reserved timeout exit::"
+            "Child exit 75 remapped to 74; no retry signal emitted."
+        )
+        return RESERVED_CHILD_EXIT_REMAP
+    return code
 
 
 def run_bounded(
@@ -40,43 +88,23 @@ def run_bounded(
         errors="replace",
         start_new_session=True,
     )
-    output = ""
     try:
         output, _ = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired as error:
-        partial = error.output or ""
-        if isinstance(partial, bytes):
-            partial = partial.decode("utf-8", errors="replace")
-        output = partial
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            tail, _ = process.communicate(timeout=kill_grace_seconds)
-            output += tail or ""
-        except subprocess.TimeoutExpired as grace_error:
-            grace_partial = grace_error.output or ""
-            if isinstance(grace_partial, bytes):
-                grace_partial = grace_partial.decode("utf-8", errors="replace")
-            output += grace_partial
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            tail, _ = process.communicate()
-            output += tail or ""
-        if output:
-            print(output, end="" if output.endswith("\n") else "\n")
+        output = _text(error.output)
+        output += _stop_timed_out_process(
+            process,
+            grace_seconds=kill_grace_seconds,
+        )
+        _emit(output)
         print(
             f"bounded-command: deadline exceeded after {timeout_seconds:g}s; "
             f"process group terminated within {kill_grace_seconds:g}s grace."
         )
         return TIMEOUT_EXIT_CODE
 
-    if output:
-        print(output, end="" if output.endswith("\n") else "\n")
-    return int(process.returncode or 0)
+    _emit(_text(output))
+    return _normal_exit_code(process.returncode)
 
 
 def main() -> int:
