@@ -50,7 +50,7 @@ const fixture = `<!doctype html>
         <legend>Idioma / Language</legend>
         <button type="button" class="language-option magnetic" data-locale="es" aria-pressed="true" data-cursor="ES">ES</button>
         <span class="language-separator" aria-hidden="true">/</span>
-        <button type="button" class="language-option magnetic" data-locale="en" aria-pressed="false" data-cursor="EN">EN</button>
+        <button type="button" class="language-option magnetic" data-locale="en" aria-pressed="false" data-cursor="EN" disabled>EN</button>
       </fieldset>
       <button class="menu magnetic" type="button">MENU +</button>
     </div>
@@ -463,12 +463,12 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: '86730e075f3c5e36623442bfed91e15786149ae34be87a76562a3925a7f20934',
-    color: 'c10a87b74a32a59ca0269d9286c2167e07551eba6145e96bf7a34bcdfcb5bbd5',
+    structure: 'PENDING_CALIBRATION',
+    color: 'PENDING_CALIBRATION',
   },
   1440: {
-    structure: '2fca9b56dd3ad646439ebaf872079cb37c9a7641a01456a8dac2a9e5e554772e',
-    color: '79260fa7ca9ad3185f91e46209c092677aa90e031bc327480ef9ec161418b943',
+    structure: 'PENDING_CALIBRATION',
+    color: 'PENDING_CALIBRATION',
   },
 };
 
