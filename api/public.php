@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../config/bootstrap.php';\nrequire_once __DIR__ . '/../config/public_i18n.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
 require_once __DIR__ . '/public-archive.php';
@@ -79,7 +79,7 @@ function brvtal_public_settings(PDO $pdo): array
         $out['theme'] = $themeOut;
     }
 
-    return $out;
+    $site = is_array($out['site'] ?? null) ? $out['site'] : [];\n    $out['i18n'] = brvtal_public_i18n_payload($site);\n\n    return $out;
 }
 
 function brvtal_public_table_exists(PDO $pdo, string $table): bool
