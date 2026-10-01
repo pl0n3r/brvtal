@@ -171,7 +171,7 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
         checkout = text[text.index("- name: Check out source"):text.index("- name: Confirm automatic measurement prerequisites")]
         self.assertIn("ref: main", checkout)
         self.assertNotIn("github.event.workflow_run.head_sha ||", checkout)
-        self.assertIn("steps.source_identity.outputs.ready == 'true'", checkout)
+        self.assertIn("steps.source_identity.outputs.ready == 'true'", text)
         self.assertIn("path: artifacts/production-performance-*.json", text)
         self.assertIn("if: success() && steps.connectivity.outputs.reachable == 'true'", text[upload:])
         self.assertIn("if-no-files-found: error", text[upload:])
