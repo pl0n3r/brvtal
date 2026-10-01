@@ -17,11 +17,8 @@ assert spec.loader is not None
 spec.loader.exec_module(module)
 
 BASE_METRICS = {
-    "firstContentfulPaint": 1200.5,
-    "largestContentfulPaint": 1800.2,
-    "cumulativeLayoutShift": 0.012,
-    "domContentLoaded": 1400.1,
-    "loadEventEnd": 2100.8,
+    "firstContentfulPaint": 1200.5, "largestContentfulPaint": 1800.2,
+    "cumulativeLayoutShift": 0.012, "domContentLoaded": 1400.1, "loadEventEnd": 2100.8,
 }
 
 
@@ -43,8 +40,7 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
         self.serial += 1
         payload = {
             "measuredAt": measured_at or (
-                "2026-10-01T10:00:00.000Z"
-                if filename_mode == "mobile"
+                "2026-10-01T10:00:00.000Z" if filename_mode == "mobile"
                 else "2026-10-01T10:00:20.000Z"
             ),
             "mode": payload_mode or filename_mode,
@@ -79,15 +75,14 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
         first, second = self._build(mobile, desktop), self._build(mobile, desktop)
         self.assertEqual(first, second)
         self.assertEqual(first["identity"], {
-            "sha": "c62baaabc994484d925d11f3625bb12772a8b5cb",
-            "release": "0.1.101",
+            "sha": "c62baaabc994484d925d11f3625bb12772a8b5cb", "release": "0.1.101",
         })
         self.assertEqual(first["evidence_ref"], "github:pl0n3r/brvtal/actions/runs/36786118661")
         self.assertEqual(len(first["observations"]), 10)
         required = {
-            "version", "project", "surface", "metric", "value", "unit",
-            "observed_at", "window_seconds", "sample_count", "severity",
-            "operational_impact", "bottleneck", "evidence_ref", "sha", "release",
+            "version", "project", "surface", "metric", "value", "unit", "observed_at",
+            "window_seconds", "sample_count", "severity", "operational_impact",
+            "bottleneck", "evidence_ref", "sha", "release",
         }
         for row in first["observations"]:
             self.assertEqual(set(row), required)
@@ -96,20 +91,16 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
             self.assertEqual((row["operational_impact"], row["bottleneck"]), (False, "unknown"))
         self.assertEqual(
             {(row["metric"], row["unit"]) for row in first["observations"]},
-            {
-                ("fcp", "ms"), ("lcp", "ms"), ("cls", "ratio"),
-                ("dom_content_loaded", "ms"), ("load_event_end", "ms"),
-            },
+            {("fcp", "ms"), ("lcp", "ms"), ("cls", "ratio"),
+             ("dom_content_loaded", "ms"), ("load_event_end", "ms")},
         )
 
     def test_malformed_or_incoherent_evidence_fails_closed_without_echo(self):
         cases = [
             (self._probe("mobile", payload_mode="desktop"), self._probe("desktop"), "probe_mode_mismatch"),
-            (
-                self._probe("mobile"),
-                self._probe("desktop", measured_at="2026-10-01T10:20:00Z"),
-                "probe_window_mismatch",
-            ),
+            (self._probe("mobile"), self._probe(
+                "desktop", measured_at="2026-10-01T10:20:00Z"
+            ), "probe_window_mismatch"),
         ]
         for bad_value in (-1, float("nan"), "1800"):
             metrics = dict(BASE_METRICS)
@@ -132,8 +123,7 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
             self._build(rejected_mobile, rejected_desktop)
 
         for code, overrides in (
-            ("sha_invalid", {"sha": "secret-value"}),
-            ("release_invalid", {"release": "bad release"}),
+            ("sha_invalid", {"sha": "secret-value"}), ("release_invalid", {"release": "bad release"}),
             ("run_id_invalid", {"run_id": "token=secret"}),
         ):
             with self.subTest(code=code):
@@ -158,10 +148,8 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
         self.assertLess(normalize, upload)
         block = text[normalize:upload]
         for expected in (
-            "python3 scripts/production-performance-evidence.py",
-            "github.event_name == 'workflow_run'",
-            "steps.prerequisites.outputs.ready == 'true'",
-            'sha="$(git rev-parse HEAD)"',
+            "python3 scripts/production-performance-evidence.py", "github.event_name == 'workflow_run'",
+            "steps.prerequisites.outputs.ready == 'true'", 'sha="$(git rev-parse HEAD)"',
             '--run-id "$GITHUB_RUN_ID"',
         ):
             self.assertIn(expected, block)
@@ -176,13 +164,9 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
         self.assertIn("if: success() && steps.connectivity.outputs.reachable == 'true'", text[upload:])
         self.assertIn("if-no-files-found: error", text[upload:])
         script = SCRIPT.read_text(encoding="utf-8")
-        for filename in (
-            "production-performance-mobile.json",
-            "production-performance-desktop.json",
-            "production-performance-evidence.json",
-        ):
+        for filename in ("production-performance-mobile.json", "production-performance-desktop.json",
+                         "production-performance-evidence.json"):
             self.assertIn(filename, script)
-
 
     def test_cli_main_writes_only_canonical_artifact(self):
         args = type("Args", (), {"sha": "a" * 40, "release": "0.1.101", "run_id": "1"})()
@@ -192,7 +176,6 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
             parser.return_value.parse_args.return_value = args
             self.assertEqual(module.main(), 0)
         output.assert_called_once_with("artifacts/production-performance-evidence.json", "w", encoding="utf-8")
-
 
 if __name__ == "__main__":
     unittest.main()
