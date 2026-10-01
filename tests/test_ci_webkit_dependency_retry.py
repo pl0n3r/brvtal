@@ -22,12 +22,12 @@ class WebKitDependencyRetryTests(unittest.TestCase):
     def test_install_deps_is_bounded_and_retried_at_most_twice(self) -> None:
         block = self.webkit_block()
         self.assertIn("timeout-minutes: 15", block)
-        self.assertEqual(block.count("python3 scripts/ci_retry.py"), 1)
-        self.assertEqual(block.count("--attempts 2"), 1)
-        self.assertEqual(block.count("--exit-code-only"), 1)
-        self.assertEqual(block.count("scripts/ci_bounded_command.py"), 1)
-        self.assertEqual(block.count("--timeout-seconds 240"), 1)
-        self.assertEqual(block.count("--kill-grace-seconds 10"), 1)
+        self.assertEqual(1, block.count("python3 scripts/ci_retry.py"))
+        self.assertEqual(1, block.count("--attempts 2"))
+        self.assertEqual(1, block.count("--exit-code-only"))
+        self.assertEqual(1, block.count("scripts/ci_bounded_command.py"))
+        self.assertEqual(1, block.count("--timeout-seconds 240"))
+        self.assertEqual(1, block.count("--kill-grace-seconds 10"))
 
         started = time.monotonic()
         result = subprocess.run(
@@ -88,7 +88,7 @@ class WebKitDependencyRetryTests(unittest.TestCase):
             "npx playwright test tests/e2e/discadmin-totp-login.spec.mjs "
             "--project=webkit-totp"
         )
-        self.assertEqual(block.count(test_command), 1)
+        self.assertEqual(1, block.count(test_command))
         retry_section = block.split(
             "- name: Install WebKit system dependencies", 1
         )[1].split("- name: Install WebKit browser", 1)[0]
