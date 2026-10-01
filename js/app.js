@@ -316,6 +316,28 @@
       const branding = theme.branding && typeof theme.branding === 'object' ? theme.branding : {};
       const colors = theme.colors && typeof theme.colors === 'object' ? theme.colors : {};
 
+      const i18n = settings.i18n && typeof settings.i18n === 'object' ? settings.i18n : {};
+      const supportedLocales = new Set(['es', 'en']);
+      const configuredLocales = Array.isArray(i18n.available_locales)
+        ? i18n.available_locales.filter(locale => supportedLocales.has(locale))
+        : ['es', 'en'];
+      const availableLocales = [...new Set(configuredLocales)];
+      const defaultLocale = supportedLocales.has(i18n.default_locale) ? i18n.default_locale : 'es';
+      if (!availableLocales.includes(defaultLocale)) availableLocales.unshift(defaultLocale);
+      if (!availableLocales.length) availableLocales.push('es', 'en');
+
+      document.documentElement.lang = defaultLocale;
+      document.documentElement.dataset.locale = defaultLocale;
+      document.documentElement.dataset.availableLocales = availableLocales.join(',');
+      window.BRVTALI18N = {
+        version: Number.isInteger(i18n.version) ? i18n.version : 1,
+        canonicalLocale: 'es',
+        defaultLocale,
+        availableLocales,
+        catalog: i18n.catalog && typeof i18n.catalog === 'object' ? i18n.catalog : {},
+        protectedTerms: i18n.protected_terms && typeof i18n.protected_terms === 'object' ? i18n.protected_terms : {}
+      };
+
       const siteName = pick(site, ['name','siteName','title'], 'BRVTAL');
       const tagline = pick(site, ['tagline','description'], 'RAVE TILL GRAVE');
       const accent = pick(appearance, ['defaultAccent','accent','primaryColor'], pick(colors, ['accent','primary','primaryColor'], ''));
