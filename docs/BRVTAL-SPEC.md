@@ -49,7 +49,7 @@ Effects must never be added merely for decoration. Mobile is a first-class requi
 
 ## 4. Sound
 
-The site may use sound as part of the experience. It must expose **SOUND ON / SOUND OFF**, respect browser autoplay restrictions, and require user interaction when necessary.
+Sound remains an optional part of the public experience and must respect browser autoplay restrictions. Owner decision #821 retires the public **SOUND ON / SOUND OFF** control when the approved ES/EN selector leaf (#826) lands; until then the current control remains supported. When it is replaced, any no-longer-reachable synthetic audio/AudioContext path must be removed instead of left orphaned.
 
 ## 5. Public narrative
 
@@ -61,7 +61,11 @@ This is a narrative direction, not a rigid page-builder sequence.
 
 ## 6. Language
 
-The public frontend is currently **English only**. The architecture may remain reasonably i18n-ready, but no language selector or unnecessary translation complexity should be added now.
+Spanish (**es**) is the canonical editorial language and default public locale. English (**en**) is the supported alternate locale. Public locale settings are effective only through the allowlisted contract `default_locale` + `available_locales`; unsupported values fail closed to the supported ES/EN policy.
+
+Critical public microcopy uses a small versioned catalog in code. BRVTAL brand terms, artist names and music taxonomy are protected from automatic translation by an explicit glossary/field policy. Editors maintain one canonical Spanish record rather than duplicating ES/EN editorial entities.
+
+Owner decision #821 materializes this in three leaves: #824 establishes locale policy/catalog/glossary, #825 adds the provider-agnostic server-side translation cache contract, and #826 adds the accessible no-reload selector. No paid provider, translated slugs or `hreflang` are implied by the foundation.
 
 ## 7. Initial page model
 

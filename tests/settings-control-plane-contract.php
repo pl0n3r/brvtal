@@ -56,7 +56,7 @@ control_plane_assert(str_contains($settingsUi, "read('gtm_id').toUpperCase()"), 
 control_plane_assert(str_contains($settingsUi, "['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']"), 'saving canonical GTM retires legacy direct/alias keys');
 control_plane_assert(!str_contains($settingsUi, 'Google Analytics 4 ID'), 'direct GA4 field is removed from primary Settings UI');
 control_plane_assert(str_contains($settingsUi, "const next = { ...current, ...patch }"), 'typed saves preserve unknown sibling JSON keys');
-control_plane_assert(str_contains($settingsUi, 'reserved for #212'), 'language metadata is not misrepresented as implemented i18n');
+control_plane_assert(str_contains($settingsUi, 'Spanish is canonical/default'), 'Settings must reflect the active canonical ES/EN locale policy');
 
 $themeExtension = file_get_contents(__DIR__ . '/../discadmin/theme-studio-configuration.js') ?: '';
 control_plane_assert(str_contains($themeExtension, 'branding = { ...(state.theme.branding || {}), wordmark:'), 'Theme Studio stores wordmark in theme branding');
