@@ -37,6 +37,37 @@ class PublicLanguageSelectorTests(unittest.TestCase):
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
+    def test_success_payload_without_i18n_policy_preserves_safe_first_paint(self) -> None:
+        runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn(
+            "settings.i18n && typeof settings.i18n === 'object'",
+            runtime,
+        )
+        self.assertIn("if (hasValidLocalePolicy) {", runtime)
+        self.assertIn(
+            "window.BRVTALPublicLocale?.configure(window.BRVTALI18N);",
+            runtime,
+        )
+        self.assertIn('data-locale="es" aria-pressed="true"', index)
+        self.assertIn(
+            'data-locale="en" aria-pressed="false" data-cursor="EN" disabled',
+            index,
+        )
+
+    def test_invalid_policy_fails_closed_without_publishing_empty_browser_policy(self) -> None:
+        runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("i18nCandidate.available_locales.length > 0", runtime)
+        self.assertIn("i18nCandidate.available_locales.every", runtime)
+        self.assertIn("renderedLocales = new Set(", runtime)
+        self.assertIn("availableLocales.every(locale => renderedLocales.has(locale))", runtime)
+        self.assertIn("availableLocales.includes(defaultLocale)", runtime)
+        self.assertIn("availableLocales.includes(canonicalLocale)", runtime)
+        self.assertIn("renderedLocales.has(defaultLocale)", runtime)
+        self.assertIn("renderedLocales.has(canonicalLocale)", runtime)
+        self.assertIn("if (hasValidLocalePolicy) {", runtime)
+        self.assertNotIn("if (i18n) {", runtime)
+
     def test_missing_policy_fails_closed_to_spanish_only(self) -> None:
         index = (ROOT / "index.html").read_text(encoding="utf-8")
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")

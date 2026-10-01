@@ -66,12 +66,19 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertNotIn("configuredLocales", runtime)
         self.assertNotIn("canonicalLocale: 'es'", runtime)
         self.assertIn(
-            "i18n.available_locales.every(locale => typeof locale === 'string')",
+            "i18nCandidate.available_locales.every(locale => typeof locale === 'string')",
             runtime,
         )
-        self.assertIn("typeof i18n.default_locale === 'string'", runtime)
-        self.assertIn("typeof i18n.canonical_locale === 'string'", runtime)
+        self.assertIn("typeof i18nCandidate?.default_locale === 'string'", runtime)
+        self.assertIn("typeof i18nCandidate?.canonical_locale === 'string'", runtime)
         self.assertIn("canonicalLocale,", runtime)
+        self.assertIn("qsa('#languageSelector [data-locale]')", runtime)
+        self.assertIn(
+            "availableLocales.every(locale => renderedLocales.has(locale))",
+            runtime,
+        )
+        self.assertIn("availableLocales.includes(defaultLocale)", runtime)
+        self.assertIn("availableLocales.includes(canonicalLocale)", runtime)
 
     def test_selector_owns_document_locale_after_phase_one_selector(self) -> None:
         index = (ROOT / "index.html").read_text(encoding="utf-8")

@@ -367,28 +367,46 @@ window.BRVTALPublicLocale = PublicLocale;
       const branding = theme.branding && typeof theme.branding === 'object' ? theme.branding : {};
       const colors = theme.colors && typeof theme.colors === 'object' ? theme.colors : {};
 
-      const i18n = settings.i18n && typeof settings.i18n === 'object' ? settings.i18n : {};
-      const availableLocales = Array.isArray(i18n.available_locales)
-        && i18n.available_locales.every(locale => typeof locale === 'string')
-        ? [...i18n.available_locales]
-        : [];
-      const defaultLocale = typeof i18n.default_locale === 'string'
-        ? i18n.default_locale
+      const i18nCandidate = settings.i18n && typeof settings.i18n === 'object'
+        ? settings.i18n
+        : null;
+      const availableLocales = Array.isArray(i18nCandidate?.available_locales)
+        && i18nCandidate.available_locales.length > 0
+        && i18nCandidate.available_locales.every(locale => typeof locale === 'string')
+        ? [...i18nCandidate.available_locales]
+        : null;
+      const defaultLocale = typeof i18nCandidate?.default_locale === 'string'
+        ? i18nCandidate.default_locale
         : '';
-      const canonicalLocale = typeof i18n.canonical_locale === 'string'
-        ? i18n.canonical_locale
+      const canonicalLocale = typeof i18nCandidate?.canonical_locale === 'string'
+        ? i18nCandidate.canonical_locale
         : '';
+      const renderedLocales = new Set(
+        qsa('#languageSelector [data-locale]')
+          .map(button => button.dataset.locale)
+          .filter(locale => typeof locale === 'string' && locale !== '')
+      );
+      const hasValidLocalePolicy = availableLocales !== null
+        && renderedLocales.size > 0
+        && availableLocales.every(locale => renderedLocales.has(locale))
+        && availableLocales.includes(defaultLocale)
+        && availableLocales.includes(canonicalLocale)
+        && renderedLocales.has(defaultLocale)
+        && renderedLocales.has(canonicalLocale);
 
-      document.documentElement.dataset.availableLocales = availableLocales.join(',');
-      window.BRVTALI18N = {
-        version: Number.isInteger(i18n.version) ? i18n.version : 1,
-        canonicalLocale,
-        defaultLocale,
-        availableLocales,
-        catalog: i18n.catalog && typeof i18n.catalog === 'object' ? i18n.catalog : {},
-        protectedTerms: i18n.protected_terms && typeof i18n.protected_terms === 'object' ? i18n.protected_terms : {}
-      };
-      window.BRVTALPublicLocale?.configure(window.BRVTALI18N);
+      if (hasValidLocalePolicy) {
+        const i18n = i18nCandidate;
+        document.documentElement.dataset.availableLocales = availableLocales.join(',');
+        window.BRVTALI18N = {
+          version: Number.isInteger(i18n.version) ? i18n.version : 1,
+          canonicalLocale,
+          defaultLocale,
+          availableLocales,
+          catalog: i18n.catalog && typeof i18n.catalog === 'object' ? i18n.catalog : {},
+          protectedTerms: i18n.protected_terms && typeof i18n.protected_terms === 'object' ? i18n.protected_terms : {}
+        };
+        window.BRVTALPublicLocale?.configure(window.BRVTALI18N);
+      }
 
       const siteName = pick(site, ['name','siteName','title'], 'BRVTAL');
       const tagline = pick(site, ['tagline','description'], 'RAVE TILL GRAVE');
