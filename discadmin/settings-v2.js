@@ -84,7 +84,7 @@
       <div class="sv2-grid two">${text('site_name','Public site name',site.name || 'BRVTAL','Used by public name bindings and document fallback.')}${text('site_tagline','Tagline',site.tagline || 'RAVE TILL GRAVE','Global editorial tagline; its typography/placement remains theme-owned.')}</div>
       <div class="sv2-context-grid">
         <article><span>CANONICAL ORIGIN</span><strong>www.brvtal.com.co</strong><p>Environment-owned. Not editable here.</p></article>
-        <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Stored values are visible for context, but public ES/EN behavior remains reserved for #212 and is not presented as a live control yet.</p></article>
+        <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Spanish is canonical/default and ES/EN availability is governed by <code>settings.site</code>. The public selector remains a separate delivery step.</p></article>
         <article><span>STATUS</span><strong>LIVE</strong><p><code>settings.site</code> is consumed by the public runtime.</p></article>
       </div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="general">SAVE GENERAL</button></div>
