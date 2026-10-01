@@ -106,7 +106,7 @@ function brvtalPublicI18nProtectedTerms(): array
         ],
         'entity_fields' => [
             'artists[].name',
-            'events[].name',
+            'events[].title',
             'sets[].title',
             'releases[].title',
         ],

@@ -288,13 +288,17 @@ try {
          ORDER BY s.sort_order ASC,s.created_at DESC"
     )->fetchAll();
 
-    // The public site is English-first. Spanish/private drafts are not exposed.
-    $pages = $pdo->query(
+    // Page delivery follows the effective canonical locale contract.
+    $settings = brvtal_public_settings($pdo);
+    $pageLocale = (string)($settings['i18n']['default_locale'] ?? 'es');
+    $pagesStatement = $pdo->prepare(
         "SELECT id,title,slug,locale,content_json,seo_title,seo_description
          FROM pages
-         WHERE status='published' AND locale='en'
+         WHERE status='published' AND locale=?
          ORDER BY id DESC"
-    )->fetchAll();
+    );
+    $pagesStatement->execute([$pageLocale]);
+    $pages = $pagesStatement->fetchAll();
 
     $media = $pdo->query(
         "SELECT id,type,title,file_path,mime_type,file_size,alt_text,status,created_at
@@ -371,7 +375,6 @@ try {
     }
     unset($event);
 
-    $settings = brvtal_public_settings($pdo);
     $releases = brvtal_public_releases($pdo);
     $blog = brvtal_public_sanitize_blog_relations(
         brvtal_public_blog($pdo),

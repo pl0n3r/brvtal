@@ -52,6 +52,16 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertIn('<html lang="es">', index)
         self.assertIn("brvtalPublicI18nPayload", api)
         self.assertIn("document.documentElement.lang = defaultLocale;", runtime)
+        lint = subprocess.run(
+            ["php", "-l", "api/public.php"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(lint.returncode, 0, lint.stderr)
+        self.assertNotIn("locale='en'", api)
+        self.assertIn("$pageLocale = (string)($settings['i18n']['default_locale'] ?? 'es');", api)
+        self.assertIn("$pagesStatement->execute([$pageLocale]);", api)
 
     def test_critical_microcopy_and_protected_terms_are_versioned_in_code(self) -> None:
         payload = self.php_payload("[]")
@@ -69,6 +79,7 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertIn("RAVE TILL GRAVE", protected["exact"])
         self.assertIn("HARD TECHNO", protected["music_taxonomy"])
         self.assertIn("artists[].name", protected["entity_fields"])
+        self.assertIn("events[].title", protected["entity_fields"])
 
 
 if __name__ == "__main__":
