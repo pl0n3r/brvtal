@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import mock_open, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "production-performance-evidence.py"
@@ -180,6 +181,16 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
             "production-performance-evidence.json",
         ):
             self.assertIn(filename, script)
+
+
+    def test_cli_main_writes_only_canonical_artifact(self):
+        args = type("Args", (), {"sha": "a" * 40, "release": "0.1.101", "run_id": "1"})()
+        with patch.object(module, "_parser") as parser, \
+             patch.object(module, "build_evidence", return_value={}), \
+             patch("builtins.open", mock_open()) as output:
+            parser.return_value.parse_args.return_value = args
+            self.assertEqual(module.main(), 0)
+        output.assert_called_once_with("artifacts/production-performance-evidence.json", "w", encoding="utf-8")
 
 
 if __name__ == "__main__":
