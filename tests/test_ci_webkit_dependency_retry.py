@@ -116,7 +116,7 @@ class WebKitDependencyRetryTests(unittest.TestCase):
         )[1].split("- name: Install WebKit browser", 1)[0]
         self.assertNotIn("playwright test", retry_section)
 
-    def test_ci_self_audit_accepts_the_workflow(self) -> None:
+    def test_ci_self_audit_passes(self) -> None:
         for command in (
             [sys.executable, "scripts/ci_self_audit.py"],
             [sys.executable, "tests/ci-self-audit-contract.py"],
