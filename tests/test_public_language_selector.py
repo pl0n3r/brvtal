@@ -97,8 +97,11 @@ class PublicLanguageSelectorTests(unittest.TestCase):
         self.assertIn("const LOCALE_STORAGE_KEY = 'brvtal.public.locale';", runtime)
         self.assertIn("window.localStorage.getItem(LOCALE_STORAGE_KEY)", runtime)
         self.assertIn("window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)", runtime)
-        self.assertIn("availableLocales.includes(storedLocale)", runtime)
-        self.assertIn(": config.defaultLocale;", runtime)
+        self.assertIn("let locale = config.defaultLocale;", runtime)
+        self.assertIn("if (availableLocales.includes(storedLocale)) {", runtime)
+        self.assertIn("locale = storedLocale;", runtime)
+        self.assertIn("if (availableLocales.includes(routeLocale)) {", runtime)
+        self.assertIn("locale = routeLocale;", runtime)
         self.assertIn("setLocale(button.dataset.locale, {persist:true});", runtime)
         self.assertNotIn("const supportedLocales", runtime)
 

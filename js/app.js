@@ -202,6 +202,17 @@ const PublicLocale = (() => {
     });
   };
 
+  const syncLocalizedRoute = (locale) => {
+    const key = locale === 'en' ? 'routePathEn' : 'routePathEs';
+    const path = document.documentElement.dataset[key];
+    if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return;
+    const target = path + (window.location.hash || '');
+    if (window.location.pathname + window.location.hash !== target) {
+      window.history.replaceState(window.history.state, '', target);
+    }
+    document.documentElement.dataset.routeLocale = locale;
+  };
+
   const setLocale = (locale, {persist = false} = {}) => {
     const config = window.BRVTALI18N;
     const availableLocales = Array.isArray(config?.availableLocales)
@@ -220,7 +231,10 @@ const PublicLocale = (() => {
       element.textContent = locale.toUpperCase();
     });
     applyCatalog(locale, config);
-    if (persist) writeStoredLocale(locale);
+    if (persist) {
+      writeStoredLocale(locale);
+      syncLocalizedRoute(locale);
+    }
     return true;
   };
 
@@ -231,9 +245,14 @@ const PublicLocale = (() => {
       button.disabled = !availableLocales.includes(button.dataset.locale);
     });
     const storedLocale = readStoredLocale();
-    const locale = availableLocales.includes(storedLocale)
-      ? storedLocale
-      : config.defaultLocale;
+    const routeLocale = document.documentElement.dataset.routeLocale;
+    let locale = config.defaultLocale;
+    if (availableLocales.includes(storedLocale)) {
+      locale = storedLocale;
+    }
+    if (availableLocales.includes(routeLocale)) {
+      locale = routeLocale;
+    }
     setLocale(locale);
   };
 

@@ -319,8 +319,21 @@ function brvtal_public_seo_tags(array $seo): string
 {
     $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $json = json_encode($seo['schema'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
-    return implode("\n  ", [
+
+    $tags = [
         '<link rel="canonical" href="' . $escape($seo['canonical']) . '">',
+    ];
+    $alternates = is_array($seo['alternates'] ?? null) ? $seo['alternates'] : [];
+    foreach (['es', 'en', 'x-default'] as $hreflang) {
+        $href = trim((string)($alternates[$hreflang] ?? ''));
+        if ($href === '' || !preg_match('#^https://#i', $href)) {
+            continue;
+        }
+        $tags[] = '<link rel="alternate" hreflang="' . $hreflang . '" href="' . $escape($href) . '">';
+    }
+
+    array_push(
+        $tags,
         '<meta property="og:type" content="' . (($seo['schema']['@type'] ?? '') === 'BlogPosting' ? 'article' : 'website') . '">',
         '<meta property="og:site_name" content="BRVTAL">',
         '<meta property="og:title" content="' . $escape($seo['title']) . '">',
@@ -331,6 +344,8 @@ function brvtal_public_seo_tags(array $seo): string
         '<meta name="twitter:title" content="' . $escape($seo['title']) . '">',
         '<meta name="twitter:description" content="' . $escape($seo['description']) . '">',
         '<meta name="twitter:image" content="' . $escape($seo['image']) . '">',
-        '<script type="application/ld+json">' . $json . '</script>',
-    ]);
+        '<script type="application/ld+json">' . $json . '</script>'
+    );
+
+    return implode("\n  ", $tags);
 }

@@ -41,11 +41,11 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/contact-social.css">
-  <link rel="stylesheet" href="css/public-controls.css">
-  <link rel="stylesheet" href="css/public-legibility.css">
-  <link rel="stylesheet" href="css/public-visual-identity.css">
-  <link rel="icon" type="image/jpeg" href="assets/brvtal-logo.jpeg">
+  <link rel="stylesheet" href="/css/contact-social.css">
+  <link rel="stylesheet" href="/css/public-controls.css">
+  <link rel="stylesheet" href="/css/public-legibility.css">
+  <link rel="stylesheet" href="/css/public-visual-identity.css">
+  <link rel="icon" type="image/jpeg" href="/assets/brvtal-logo.jpeg">
   ' . $seoTags . '
 </head>
 <body class="brvtal-contact-page" data-public-contact-page>
@@ -104,7 +104,7 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   </main>
 
   <footer class="contact-page-footer mono"><span>© 2026 BRVTAL</span><a href="/">BACK TO HOME</a><span>RAVE TILL GRAVE</span></footer>
-  <script src="js/public-contact.js"></script>
+  <script src="/js/public-contact.js"></script>
   ' . $analytics . '
 </body>
 </html>';

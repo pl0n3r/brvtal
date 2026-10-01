@@ -65,7 +65,7 @@ Spanish (**es**) is the canonical editorial language and default public locale. 
 
 Critical public microcopy uses a small versioned catalog in code. BRVTAL brand terms, artist names and music taxonomy are protected from automatic translation by an explicit glossary/field policy. Editors maintain one canonical Spanish record rather than duplicating ES/EN editorial entities.
 
-Owner decision #821 materializes this in three leaves: #824 establishes locale policy/catalog/glossary, #825 adds the provider-agnostic server-side translation cache contract, and #826 adds the accessible no-reload selector. No paid provider, translated slugs or `hreflang` are implied by the foundation.
+Owner decision #821 materializes the Phase 1 foundation in three leaves: #824 establishes locale policy/catalog/glossary, #825 adds the provider-agnostic server-side translation cache contract, and #826 adds the accessible no-reload selector. Owner decision #842 authorizes Phase 2. Its routing leaf #844 keeps the established unprefixed URLs as the single Spanish canonical URLs, serves English alternates under `/en`, redirects explicit `/es` aliases back to the Spanish canonical path, and emits reciprocal `hreflang` (`es`, `en`, `x-default`) only for public routes that already resolve through the canonical publication boundary. Editorial translation overlays and localized sitemap/indexing remain separate dependent leaves #845 and #846. No paid provider, duplicate locale records or translated slugs are implied by this routing contract.
 
 ## 7. Initial page model
 
