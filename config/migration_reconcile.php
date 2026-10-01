@@ -173,6 +173,15 @@ function brvtalMigrationProofSpecifications(): array
             ['idx_memory_relations_target'],
             true
         ),
+        'migration_public_translation_cache_01.sql' => brvtalMigrationObjectRequirements(
+            'public_translation_cache',
+            [
+                'source_hash', 'source_locale', 'target_locale',
+                'translator_version', 'translated_text', 'created_at', 'updated_at',
+            ],
+            ['uq_public_translation_cache_identity', 'idx_public_translation_cache_target'],
+            true
+        ),
         'migration_releases_01.sql' => array_merge(
             brvtalMigrationObjectRequirements(
                 'releases',
