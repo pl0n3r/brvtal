@@ -49,7 +49,7 @@ class PublicI18nContractTests(unittest.TestCase):
         index = (ROOT / "index.html").read_text(encoding="utf-8")
         api = (ROOT / "api/public.php").read_text(encoding="utf-8")
         runtime = (ROOT / "js/app.js").read_text(encoding="utf-8")
-        self.assertIn('<html lang="en">', index)
+        self.assertIn('<html lang="es">', index)
         self.assertIn("brvtalPublicI18nPayload", api)
         self.assertIn("window.BRVTALI18N", runtime)
         lint = subprocess.run(
@@ -73,14 +73,14 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertIn("typeof i18n.canonical_locale === 'string'", runtime)
         self.assertIn("canonicalLocale,", runtime)
 
-    def test_selector_owned_document_locale_is_not_applied_in_foundation_leaf(self) -> None:
+    def test_selector_owns_document_locale_after_phase_one_selector(self) -> None:
         index = (ROOT / "index.html").read_text(encoding="utf-8")
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
-        self.assertIn('<html lang="en">', index)
-        self.assertIn('<span>EN</span>', index)
-        self.assertNotIn("document.documentElement.lang = defaultLocale;", runtime)
-        self.assertNotIn("document.documentElement.dataset.locale = defaultLocale;", runtime)
-        self.assertIn("window.BRVTALI18N", runtime)
+        self.assertIn('<html lang="es">', index)
+        self.assertIn('<span data-current-locale>ES</span>', index)
+        self.assertIn("document.documentElement.lang = locale;", runtime)
+        self.assertIn("document.documentElement.dataset.locale = locale;", runtime)
+        self.assertIn("window.BRVTALPublicLocale", runtime)
 
     def test_legacy_pages_remain_unchanged_until_atomic_locale_migration(self) -> None:
         api = (ROOT / "api" / "public.php").read_text(encoding="utf-8")
