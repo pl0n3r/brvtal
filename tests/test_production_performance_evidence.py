@@ -168,7 +168,10 @@ class ProductionPerformanceEvidenceTests(unittest.TestCase):
         for forbidden in ("--mobile", "--desktop", "--output", "php -r"):
             self.assertNotIn(forbidden, block)
         self.assertIn("(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')", text)
-        self.assertIn("ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}", text)
+        checkout = text[text.index("- name: Check out source"):text.index("- name: Confirm automatic measurement prerequisites")]
+        self.assertIn("ref: main", checkout)
+        self.assertNotIn("github.event.workflow_run.head_sha ||", checkout)
+        self.assertIn("steps.source_identity.outputs.ready == 'true'", checkout)
         self.assertIn("path: artifacts/production-performance-*.json", text)
         self.assertIn("if: success() && steps.connectivity.outputs.reachable == 'true'", text[upload:])
         self.assertIn("if-no-files-found: error", text[upload:])
