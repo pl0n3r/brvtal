@@ -5,39 +5,40 @@ declare(strict_types=1);
  * Public i18n foundation for BRVTAL.
  *
  * Spanish is the canonical editorial locale. Public settings may select the
- * effective default/available locale set only from the supported allowlist.
+ * effective available locale set only from the supported allowlist; the
+ * approved default remains Spanish regardless of stale/raw configuration.
  * Provider-backed editorial translation and the public selector are separate
  * leaves (#825 and #826).
  */
 
-function brvtal_public_i18n_supported_locales(): array
+function brvtalPublicI18nSupportedLocales(): array
 {
     return ['es', 'en'];
 }
 
-function brvtal_public_i18n_normalize_locale(mixed $value): ?string
+function brvtalPublicI18nNormalizeLocale(mixed $value): ?string
 {
     if (!is_string($value)) {
         return null;
     }
 
     $locale = strtolower(trim($value));
-    return in_array($locale, brvtal_public_i18n_supported_locales(), true)
+    return in_array($locale, brvtalPublicI18nSupportedLocales(), true)
         ? $locale
         : null;
 }
 
-function brvtal_public_i18n_policy(array $site): array
+function brvtalPublicI18nPolicy(array $site): array
 {
-    $supported = brvtal_public_i18n_supported_locales();
-    $defaultLocale = brvtal_public_i18n_normalize_locale($site['default_locale'] ?? null) ?? 'es';
+    $supported = brvtalPublicI18nSupportedLocales();
+    $defaultLocale = 'es';
 
     $requested = $site['available_locales'] ?? $supported;
     $available = [];
 
     if (is_array($requested)) {
         foreach ($requested as $candidate) {
-            $locale = brvtal_public_i18n_normalize_locale($candidate);
+            $locale = brvtalPublicI18nNormalizeLocale($candidate);
             if ($locale !== null && !in_array($locale, $available, true)) {
                 $available[] = $locale;
             }
@@ -59,7 +60,7 @@ function brvtal_public_i18n_policy(array $site): array
     ];
 }
 
-function brvtal_public_i18n_catalog(): array
+function brvtalPublicI18nCatalog(): array
 {
     return [
         'es' => [
@@ -83,7 +84,7 @@ function brvtal_public_i18n_catalog(): array
     ];
 }
 
-function brvtal_public_i18n_protected_terms(): array
+function brvtalPublicI18nProtectedTerms(): array
 {
     return [
         'exact' => [
@@ -112,12 +113,12 @@ function brvtal_public_i18n_protected_terms(): array
     ];
 }
 
-function brvtal_public_i18n_payload(array $site): array
+function brvtalPublicI18nPayload(array $site): array
 {
     return [
         'version' => 1,
-        ...brvtal_public_i18n_policy($site),
-        'catalog' => brvtal_public_i18n_catalog(),
-        'protected_terms' => brvtal_public_i18n_protected_terms(),
+        ...brvtalPublicI18nPolicy($site),
+        'catalog' => brvtalPublicI18nCatalog(),
+        'protected_terms' => brvtalPublicI18nProtectedTerms(),
     ];
 }
