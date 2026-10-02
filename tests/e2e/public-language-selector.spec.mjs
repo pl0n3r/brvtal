@@ -72,6 +72,34 @@ test('ES/EN switches without navigation and persists the explicit choice', async
   await expect(page.locator('[data-current-locale]')).toHaveText('EN');
 });
 
+test('language selector stays keyboard-accessible and layout-safe on desktop and mobile', async ({ page }) => {
+  await installHarness(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(harnessUrl);
+
+  const selector = page.getByRole('group', { name:'Idioma / Language' });
+  const english = page.getByRole('button', { name:'EN', exact:true });
+  await expect(selector).toBeVisible();
+  await expect(english).toBeEnabled();
+
+  let navigations = 0;
+  page.on('framenavigated', frame => {
+    if (frame === page.mainFrame()) navigations += 1;
+  });
+
+  await english.focus();
+  await expect(english).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(english).toHaveAttribute('aria-pressed', 'true');
+  expect(navigations).toBe(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(selector).toBeVisible();
+  await expect(page.locator('[data-i18n-key="nav.events"]')).toHaveText('EVENTS');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('successful public response without i18n policy keeps Spanish selector fail-safe', async ({ page }) => {
   await page.route('**/api/public.php', route => route.fulfill({
     contentType: 'application/json',
