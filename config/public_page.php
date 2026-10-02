@@ -13,7 +13,14 @@ require_once __DIR__ . '/public_translation.php';
  *
  * @param callable(array):(?string) $cacheRead
  * @param callable(array,string):void $cacheWrite
- * @return array{page:array,requested_locale:string,resolved_locale:string,source:string,translated:bool,translated_fields:list<string>}
+ * @return array{
+ *   page:array,
+ *   requested_locale:string,
+ *   resolved_locale:string,
+ *   source:string,
+ *   translated:bool,
+ *   translated_fields:list<string>
+ * }
  */
 function brvtalPublicPageLocalizedEditorial(
     array $page,

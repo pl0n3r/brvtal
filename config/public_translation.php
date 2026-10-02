@@ -187,7 +187,15 @@ function brvtalPublicTranslationPlainText(mixed $value): ?string
  *
  * @param callable(array):(?string) $cacheRead
  * @param callable(array,string):void $cacheWrite
- * @return array{record:array,surface:string,requested_locale:string,resolved_locale:string,source:string,translated:bool,translated_fields:list<string>}
+ * @return array{
+ *   record:array,
+ *   surface:string,
+ *   requested_locale:string,
+ *   resolved_locale:string,
+ *   source:string,
+ *   translated:bool,
+ *   translated_fields:list<string>
+ * }
  */
 function brvtalPublicTranslationProjectRecord(
     array $canonicalRecord,
