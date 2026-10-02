@@ -135,13 +135,33 @@
       || safePublicText(CONTACT_CATALOG.es[key]);
   };
 
+  const formatText = (key, locale = activeLocale(), replacements = {}) => {
+    let text = textFor(key, locale);
+    Object.entries(replacements).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, safePublicText(String(value)));
+    });
+    return text;
+  };
+
+  const readReplacements = element => {
+    try {
+      const value = JSON.parse(element.dataset.contactI18nReplacements || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
   const applyLocale = (root, locale = activeLocale()) => {
     const normalized = normalizeLocale(locale) || 'es';
     document.documentElement.lang = normalized;
     document.documentElement.dataset.locale = normalized;
     root.querySelectorAll('[data-contact-i18n-key]').forEach(element => {
-      const value = textFor(String(element.dataset.contactI18nKey || ''), normalized);
-      if (value) element.textContent = value;
+      const key = String(element.dataset.contactI18nKey || '');
+      const value = formatText(key, normalized, readReplacements(element));
+      if (!value) return;
+      element.textContent = value;
+      if (element.hasAttribute('data-text')) element.setAttribute('data-text', value);
     });
     return normalized;
   };
@@ -220,11 +240,9 @@
   function setStatus(form, key, state = 'idle', replacements = {}) {
     const status = form.querySelector('[data-contact-status]');
     if (!status) return;
-    let text = textFor(key);
-    Object.entries(replacements).forEach(([name, value]) => {
-      text = text.replace(`{${name}}`, safePublicText(String(value)));
-    });
-    status.textContent = text;
+    status.dataset.contactI18nKey = key;
+    status.dataset.contactI18nReplacements = JSON.stringify(replacements);
+    status.textContent = formatText(key, activeLocale(), replacements);
     status.dataset.state = state;
   }
 
