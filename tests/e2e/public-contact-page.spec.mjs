@@ -6,10 +6,10 @@ const runtime = readFileSync(join(process.cwd(), 'js/public-contact.js'), 'utf8'
 const styles = readFileSync(join(process.cwd(), 'css/contact-social.css'), 'utf8');
 const fixtureUrl = 'http://127.0.0.1:4173/__contact-fixture';
 
-const markup = `<!doctype html><html><head><style>${styles}</style></head><body class="brvtal-contact-page" data-public-contact-page>
-  <header class="contact-page-nav"><a class="contact-page-brand" href="/"><strong>BRVTAL</strong><span>RAVE TILL GRAVE</span></a><a class="contact-page-home mono" href="/">HOME ↙</a></header>
+const markup = `<!doctype html><html lang="es"><head><style>${styles}</style></head><body class="brvtal-contact-page" data-public-contact-page>
+  <header class="contact-page-nav"><a class="contact-page-brand" href="/"><strong>BRVTAL</strong><span>RAVE TILL GRAVE</span></a><a class="contact-page-home mono" href="/" data-contact-i18n-key="contact.home">INICIO ↙</a></header>
   <main class="contact-page-main">
-    <section class="contact-page-hero"><h1>CONTACT</h1></section>
+    <section class="contact-page-hero"><h1 data-text="CONTACTO" data-contact-i18n-key="contact.title">CONTACTO</h1></section>
     <section class="contact-page-workspace">
       <aside class="contact-page-context"><div data-contact-social-mount></div></aside>
       <div class="brvtal-contact-shell" id="contactForm">
@@ -20,7 +20,7 @@ const markup = `<!doctype html><html><head><style>${styles}</style></head><body 
           <div class="brvtal-contact-field"><label for="contactMessage">MESSAGE</label><textarea id="contactMessage" name="message" required></textarea><span data-error-for="message"></span></div>
           <input name="website" value=""><div class="brvtal-captcha"><div class="brvtal-captcha-copy"><strong data-contact-captcha-question>LOADING…</strong></div><div><input class="brvtal-captcha-input" name="captcha_answer" aria-label="CAPTCHA answer"><span data-error-for="captcha"></span></div></div>
           <input type="hidden" name="captcha_token" data-contact-captcha-token>
-          <div class="brvtal-contact-actions"><button class="brvtal-contact-submit" type="submit">SEND SIGNAL ↗</button><div class="brvtal-contact-status" role="status" aria-live="polite" data-contact-status>READY</div></div>
+          <div class="brvtal-contact-actions"><button class="brvtal-contact-submit" type="submit" data-contact-i18n-key="contact.submit">ENVIAR SEÑAL ↗</button><div class="brvtal-contact-status" role="status" aria-live="polite" data-contact-status data-contact-i18n-key="contact.ready">LISTO / ESPERANDO SEÑAL</div></div>
         </form>
       </div>
     </section>
@@ -63,6 +63,51 @@ test('dedicated Contact runtime hydrates CAPTCHA and configured social links', a
   await expect(page.locator('[data-brvtal-social="soundcloud"]')).toHaveAttribute('href', 'https://soundcloud.com/brvtal');
   await expect(page.locator('[data-brvtal-social="youtube"]')).toBeHidden();
   await expect(page.locator('[data-brvtal-social="spotify"]')).toBeHidden();
+});
+
+test('Contact follows persisted locale without navigation across desktop and mobile', async ({ page }) => {
+  await installContactRoutes(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openContactFixture(page);
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACTO');
+  await expect(page.locator('[data-contact-i18n-key="contact.submit"]')).toHaveText('ENVIAR SEÑAL ↗');
+
+  let navigations = 0;
+  page.on('framenavigated', frame => {
+    if (frame === page.mainFrame()) navigations += 1;
+  });
+
+  await page.evaluate(() => {
+    localStorage.setItem('brvtal.public.locale', 'en');
+    window.dispatchEvent(new CustomEvent('brvtal:localechange', { detail:{ locale:'en' } }));
+  });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACT');
+  await expect(page.locator('[data-contact-i18n-key="contact.submit"]')).toHaveText('SEND SIGNAL ↗');
+  expect(navigations).toBe(0);
+
+  await page.reload({ waitUntil:'domcontentloaded' });
+  await page.addScriptTag({ content: runtime });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACT');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#brvtalContactForm')).toBeVisible();
+  const submitBox = await page.locator('.brvtal-contact-submit').boundingBox();
+  expect(submitBox?.height || 0).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.evaluate(() => {
+    localStorage.setItem('brvtal.public.locale', 'es');
+    window.dispatchEvent(new StorageEvent('storage', {
+      key:'brvtal.public.locale',
+      newValue:'es'
+    }));
+  });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACTO');
 });
 
 test('Contact runtime does not inject a form into Home-like pages', async ({ page }) => {
