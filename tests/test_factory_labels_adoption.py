@@ -28,7 +28,8 @@ class FactoryLabelsAdoptionTests(unittest.TestCase):
         self.assertNotIn("run:", self.text)
         self.assertGreaterEqual(self.text.count("contents: read"), 5)
         self.assertGreaterEqual(self.text.count("issues: write"), 4)
-        self.assertGreaterEqual(self.text.count("pull-requests: read"), 4)
+        self.assertEqual(self.text.count("pull-requests: write"), 1)
+        self.assertEqual(self.text.count("pull-requests: read"), 3)
         for forbidden in ("contents: write", "actions: write", "checks: write", "secrets: inherit"):
             self.assertNotIn(forbidden, self.text)
 
