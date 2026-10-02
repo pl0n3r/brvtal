@@ -161,7 +161,7 @@
       const value = formatText(key, normalized, readReplacements(element));
       if (!value) return;
       element.textContent = value;
-      if (element.hasAttribute('data-text')) element.setAttribute('data-text', value);
+      if (element.dataset.text !== undefined) element.dataset.text = value;
     });
     return normalized;
   };
@@ -360,7 +360,11 @@
       loadChallenge(form).catch(() => setStatus(form, 'status.captcha_unavailable', 'error'));
     }
 
-    const hydrate = () => getPublicData().then(data => applySocials(data, root)).catch(() => {});
+    const hydrate = () => getPublicData()
+      .then(data => applySocials(data, root))
+      .catch(error => {
+        console.warn('[BRVTAL] Contact socials unavailable; keeping safe fallback.', error);
+      });
     window.setTimeout(hydrate, 100);
     return true;
   }

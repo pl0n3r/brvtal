@@ -33,12 +33,11 @@
   const validLocaleConfig = locale => {
     const config = window.BRVTALI18N;
     return Boolean(
-      config
-      && config.canonicalLocale === 'es'
-      && config.defaultLocale === 'es'
-      && Array.isArray(config.availableLocales)
+      config?.canonicalLocale === 'es'
+      && config?.defaultLocale === 'es'
+      && Array.isArray(config?.availableLocales)
       && config.availableLocales.includes(locale)
-      && config.catalog
+      && config?.catalog
       && typeof config.catalog === 'object'
     );
   };
