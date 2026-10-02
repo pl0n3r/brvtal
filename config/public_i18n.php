@@ -123,10 +123,10 @@ function brvtalPublicI18nEditorialSurfaceFields(): array
 {
     return [
         'events' => ['description', 'seo_description'],
-        'artists' => ['bio', 'seo_description'],
+        'artists' => ['bio', 'description', 'seo_description'],
         'sets' => ['description', 'seo_description'],
         'releases' => ['description', 'seo_description'],
-        'blog' => ['title', 'excerpt', 'seo_title', 'seo_description'],
+        'blog' => ['title', 'excerpt', 'description', 'seo_title', 'seo_description'],
         'pages' => ['title', 'description', 'seo_title', 'seo_description'],
         'memories' => ['title', 'context', 'alt_text'],
         'media' => ['title', 'alt_text'],

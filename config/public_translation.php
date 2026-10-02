@@ -161,6 +161,25 @@ function brvtalPublicTranslationResolve(
     }
 }
 
+/** Return provider/cache output only when it is safe public plain text. */
+function brvtalPublicTranslationPlainText(mixed $value): ?string
+{
+    if (!is_string($value)) {
+        return null;
+    }
+    $text = trim(str_replace(["\r\n", "\r"], "\n", $value));
+    if (
+        $text === ''
+        || strlen($text) > 10000
+        || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $text)
+        || str_contains($text, '<')
+        || str_contains($text, '>')
+    ) {
+        return null;
+    }
+    return $text;
+}
+
 /**
  * Project one canonical Spanish record through the shared translation/cache pipeline.
  * Projection is atomic: one missing/invalid English field returns the whole Spanish
@@ -223,13 +242,15 @@ function brvtalPublicTranslationProjectRecord(
         if (
             ($resolved['translated'] ?? false) !== true
             || ($resolved['locale'] ?? '') !== 'en'
-            || !is_string($resolved['text'] ?? null)
-            || trim((string)$resolved['text']) === ''
         ) {
             return $canonical('fallback');
         }
+        $safeText = brvtalPublicTranslationPlainText($resolved['text'] ?? null);
+        if ($safeText === null) {
+            return $canonical('fallback');
+        }
 
-        $projected[$field] = (string)$resolved['text'];
+        $projected[$field] = $safeText;
         $translatedFields[] = $field;
     }
 
