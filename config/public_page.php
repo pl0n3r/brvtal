@@ -91,7 +91,7 @@ function brvtal_page_rows(PDO $pdo, string $sql, array $parameters = [], bool $r
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_ENTITY_QUERY_ERROR', 'Canonical entity query failed', [
                 'required' => $required,
-                'class' => get_class($e),
+                'class' => $e::class,
                 'message' => $e->getMessage(),
             ]);
         }
