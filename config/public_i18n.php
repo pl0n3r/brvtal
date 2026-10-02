@@ -113,6 +113,34 @@ function brvtalPublicI18nProtectedTerms(): array
     ];
 }
 
+/**
+ * Canonical editorial field policy shared by all public ES/EN projections.
+ * Entity identity, slugs, URLs and protected music names are deliberately excluded.
+ *
+ * @return array<string,list<string>>
+ */
+function brvtalPublicI18nEditorialSurfaceFields(): array
+{
+    return [
+        'events' => ['description', 'seo_description'],
+        'artists' => ['bio', 'description', 'seo_description'],
+        'sets' => ['description', 'seo_description'],
+        'releases' => ['description', 'seo_description'],
+        'blog' => ['title', 'excerpt', 'description', 'seo_title', 'seo_description'],
+        'pages' => ['title', 'description', 'seo_title', 'seo_description'],
+        'memories' => ['title', 'context', 'alt_text'],
+        'media' => ['title', 'alt_text'],
+        'ticket_types' => ['name', 'description'],
+    ];
+}
+
+/** @return list<string> */
+function brvtalPublicI18nEditorialFields(string $surface): array
+{
+    $surface = strtolower(trim($surface));
+    return brvtalPublicI18nEditorialSurfaceFields()[$surface] ?? [];
+}
+
 function brvtalPublicI18nPayload(array $site): array
 {
     return [
