@@ -6,7 +6,7 @@ require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_sitemap.php';
 
 $base = BRVTAL_SITEMAP_CANONICAL_ORIGIN;
-$urls = brvtal_public_sitemap_static_urls($base, brvtal_public_static_routes());
+$urls = brvtalPublicSitemapLocalizedStaticUrls($base, brvtal_public_static_routes());
 
 foreach (brvtal_public_content_definitions() as $route => $definition) {
     $table = $definition['table'];
@@ -14,8 +14,8 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
     $parameters = $definition['parameters'];
     try {
         $select = $definition['event_visibility']
-            ? 'slug,updated_at,status,event_date,published_at'
-            : 'slug,updated_at';
+            ? 'id,slug,updated_at,status,event_date,published_at'
+            : 'id,slug,updated_at,status';
         $sql = "SELECT {$select} FROM `{$table}` "
             . "WHERE {$where} AND slug<>'' ORDER BY id";
         $statement = db()->prepare($sql);
@@ -25,7 +25,7 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
         if (function_exists('brvtal_log')) {
             brvtal_log('PUBLIC_SITEMAP_ERROR', 'Sitemap content-family query failed', [
                 'table' => $table,
-                'class' => get_class($error),
+                'class' => $error::class,
                 'message' => $error->getMessage(),
             ]);
         }
@@ -38,13 +38,15 @@ foreach (brvtal_public_content_definitions() as $route => $definition) {
         exit;
     }
 
-    foreach ($rows as $row) {
-        $requiresEventVisibility = $definition['event_visibility'];
-        if ($requiresEventVisibility && !brvtal_public_event_is_visible($row)) {
-            continue;
-        }
-        $location = $base . '/' . $route . '/' . rawurlencode((string) $row['slug']);
-        $urls[] = [$location, $row['updated_at'] ?? null];
+    foreach (
+        brvtalPublicSitemapLocalizedContentUrls(
+            $base,
+            $route,
+            $rows,
+            $definition['event_visibility']
+        ) as $localizedRow
+    ) {
+        $urls[] = $localizedRow;
     }
 }
 

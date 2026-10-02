@@ -52,12 +52,51 @@ $sitemapResponse = brvtal_public_sitemap_response(
     BRVTAL_SITEMAP_CANONICAL_ORIGIN
 );
 public_seo_expect(
-    str_contains($sitemapResponse['body'], '<urlset xmlns="' . BRVTAL_SITEMAP_NAMESPACE . '">'),
+    str_contains(
+        $sitemapResponse['body'],
+        '<urlset xmlns="' . BRVTAL_SITEMAP_NAMESPACE . '"'
+    ),
     'sitemap must render the standard XML URL set through the executable renderer'
+);
+public_seo_expect(
+    str_contains(
+        $sitemapResponse['body'],
+        'xmlns:xhtml="' . BRVTAL_SITEMAP_XHTML_NAMESPACE . '"'
+    ),
+    'localized sitemap rendering must declare the standard XHTML alternate namespace'
 );
 public_seo_expect(str_contains($seo, 'brvtal_public_event_is_visible($row)'), 'canonical Event resolver must apply publication-proof visibility');
 public_seo_expect(str_contains($seo, 'status,event_date,published_at'), 'canonical Event resolver must hydrate lifecycle evidence used by visibility policy');
-public_seo_expect(str_contains($sitemap, 'brvtal_public_event_is_visible($row)'), 'sitemap must apply the same canonical Event visibility predicate');
+$eventSitemapRows = brvtalPublicSitemapLocalizedContentUrls(
+    BRVTAL_SITEMAP_CANONICAL_ORIGIN,
+    'events',
+    [
+        [
+            'id' => 901,
+            'slug' => 'visible-event',
+            'updated_at' => '2026-10-01 12:00:00',
+            'status' => 'published',
+            'event_date' => '2026-10-03',
+            'published_at' => '2026-10-01 10:00:00',
+        ],
+        [
+            'id' => 902,
+            'slug' => 'hidden-event',
+            'updated_at' => '2026-10-01 12:00:00',
+            'status' => 'draft',
+            'event_date' => '2026-10-03',
+            'published_at' => null,
+        ],
+    ],
+    true
+);
+public_seo_expect(
+    array_column($eventSitemapRows, 0) === [
+        BRVTAL_SITEMAP_CANONICAL_ORIGIN . '/events/visible-event',
+        BRVTAL_SITEMAP_CANONICAL_ORIGIN . '/en/events/visible-event',
+    ],
+    'sitemap must apply canonical Event visibility behavior before localized projection'
+);
 public_seo_expect(str_contains($sitemap, 'status,event_date,published_at'), 'sitemap Event rows must include publication-proof lifecycle fields');
 public_seo_expect(str_contains($pages, 'brvtal_page_public_event_rows'), 'entity relationships must filter Event rows through canonical visibility');
 public_seo_expect(str_contains($pages, "\$route !== 'events' || brvtal_public_event_is_visible(\$item)"), 'Blog Event relationships must apply canonical visibility');
