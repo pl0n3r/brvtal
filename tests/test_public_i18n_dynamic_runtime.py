@@ -69,8 +69,8 @@ class PublicI18nDynamicRuntimeTests(unittest.TestCase):
             self.assertIn("text.length > 10000", source)
             self.assertIn("textContent", source)
 
-        self.assertIn("config.canonicalLocale === 'es'", loader)
-        self.assertIn("config.defaultLocale === 'es'", loader)
+        self.assertIn("config?.canonicalLocale === 'es'", loader)
+        self.assertIn("config?.defaultLocale === 'es'", loader)
         self.assertIn("config.availableLocales.includes(locale)", loader)
         self.assertNotIn("innerHTML = value", loader)
         self.assertNotIn("innerHTML = text", loader)
