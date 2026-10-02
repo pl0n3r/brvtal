@@ -4,6 +4,57 @@ require_once __DIR__ . '/media.php';
 require_once __DIR__ . '/memory_relations.php';
 require_once __DIR__ . '/public_visibility.php';
 require_once __DIR__ . '/blog_html.php';
+require_once __DIR__ . '/public_translation.php';
+
+/**
+ * Localize the canonical entity payload while preserving its original identity.
+ * Rich blog markup remains canonical Spanish in this leaf; dynamic/runtime behavior
+ * is owned by the next Phase 3 leaf and cannot make partial translation authoritative.
+ *
+ * @param callable(array):(?string) $cacheRead
+ * @param callable(array,string):void $cacheWrite
+ * @return array{page:array,requested_locale:string,resolved_locale:string,source:string,translated:bool,translated_fields:list<string>}
+ */
+function brvtalPublicPageLocalizedEditorial(
+    array $page,
+    string $targetLocale,
+    BrvtalPublicTranslationAdapter $adapter,
+    callable $cacheRead,
+    callable $cacheWrite
+): array {
+    $entity = $page['entity'] ?? null;
+    if (!is_array($entity)) {
+        return [
+            'page' => $page,
+            'requested_locale' => brvtalPublicI18nNormalizeLocale($targetLocale) ?? 'es',
+            'resolved_locale' => 'es',
+            'source' => 'fallback',
+            'translated' => false,
+            'translated_fields' => [],
+        ];
+    }
+
+    $surface = strtolower(trim((string)($entity['route_type'] ?? '')));
+    $projection = brvtalPublicTranslationProjectRecord(
+        $entity,
+        $surface,
+        $targetLocale,
+        $adapter,
+        $cacheRead,
+        $cacheWrite
+    );
+    $localized = $page;
+    $localized['entity'] = $projection['record'];
+
+    return [
+        'page' => $localized,
+        'requested_locale' => $projection['requested_locale'],
+        'resolved_locale' => $projection['resolved_locale'],
+        'source' => $projection['source'],
+        'translated' => $projection['translated'],
+        'translated_fields' => $projection['translated_fields'],
+    ];
+}
 
 function brvtal_public_media_variant(string $image, string $context): string
 {

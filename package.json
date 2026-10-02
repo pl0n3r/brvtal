@@ -1,11 +1,11 @@
 {
   "name": "brvtal",
-  "version": "0.1.108",
+  "version": "0.1.109",
   "private": true,
   "type": "module",
   "scripts": {
     "test:contracts": "bash scripts/php85-compatibility.sh",
-    "test:integration": "npm run test:reliability && npm run test:i18n && npm run test:i18n-routing && npm run test:translation-overlay && npm run test:i18n-indexing && npm run test:language-selector && npm run test:translation-cache && npm run test:content-health-deflake && php tests/integration/content-persistence.php && bash tests/integration/artist-collective-membership-migration.sh && bash tests/integration/releases-schema.sh && php tests/integration/migrations.php && php tests/integration/memories.php && php tests/integration/memory-relations.php && php tests/integration/media-reference-atomicity.php && php tests/integration/media-dedup.php && php tests/integration/admin-session-revalidation.php && php tests/integration/admin-password-security.php && php tests/integration/event-workflow.php && php tests/integration/blog-relations.php && php tests/integration/global-search.php && php tests/integration/bulk-actions.php && php tests/integration/admin-grid-preferences.php && php tests/integration/public-archive.php && php tests/integration/public-rich-schema.php && php tests/event-record-contract.php && php tests/artist-collective-lifecycle-contract.php && php tests/integration/related-content.php && php tests/integration/contextual-transmissions.php && php tests/integration/admin-activity.php && php tests/integration/seo-persistence.php && php tests/integration/public-translation-cache.php && php tests/integration/seo-workspace.php && php tests/integration/backups.php && php tests/content-ordering-contract.php",
+    "test:integration": "npm run test:reliability && npm run test:i18n && npm run test:i18n-routing && npm run test:translation-overlay && npm run test:i18n-indexing && npm run test:i18n-surfaces && npm run test:language-selector && npm run test:translation-cache && npm run test:content-health-deflake && php tests/integration/content-persistence.php && bash tests/integration/artist-collective-membership-migration.sh && bash tests/integration/releases-schema.sh && php tests/integration/migrations.php && php tests/integration/memories.php && php tests/integration/memory-relations.php && php tests/integration/media-reference-atomicity.php && php tests/integration/media-dedup.php && php tests/integration/admin-session-revalidation.php && php tests/integration/admin-password-security.php && php tests/integration/event-workflow.php && php tests/integration/blog-relations.php && php tests/integration/global-search.php && php tests/integration/bulk-actions.php && php tests/integration/admin-grid-preferences.php && php tests/integration/public-archive.php && php tests/integration/public-rich-schema.php && php tests/event-record-contract.php && php tests/artist-collective-lifecycle-contract.php && php tests/integration/related-content.php && php tests/integration/contextual-transmissions.php && php tests/integration/admin-activity.php && php tests/integration/seo-persistence.php && php tests/integration/public-translation-cache.php && php tests/integration/seo-workspace.php && php tests/integration/backups.php && php tests/content-ordering-contract.php",
     "test:e2e": "playwright test && bash tests/e2e/run-content-core-real-stack.sh",
     "test": "npm run test:contracts && npm run test:integration && npm run test:e2e",
     "test:coordination": "python3 -m unittest tests/test_work_coordinator.py",
@@ -16,7 +16,8 @@
     "test:language-selector": "python3 -m unittest tests/test_public_language_selector.py",
     "test:i18n-routing": "python3 -m unittest tests/test_public_i18n_routing.py",
     "test:translation-overlay": "python3 -m unittest tests/test_editorial_translation_overlay.py",
-    "test:i18n-indexing": "python3 -m unittest tests/test_public_i18n_indexing.py"
+    "test:i18n-indexing": "python3 -m unittest tests/test_public_i18n_indexing.py",
+    "test:i18n-surfaces": "python3 -m unittest tests/test_public_i18n_surface_coverage.py"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"

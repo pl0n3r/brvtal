@@ -2,6 +2,32 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/public_visibility.php';
+require_once __DIR__ . '/public_translation.php';
+
+/**
+ * Localize one canonical Home editorial record through the shared surface policy.
+ * The returned record keeps the original id/slug and falls back atomically to ES.
+ *
+ * @param callable(array):(?string) $cacheRead
+ * @param callable(array,string):void $cacheWrite
+ */
+function brvtalPublicHomeLocalizedEditorialRecord(
+    string $surface,
+    array $record,
+    string $targetLocale,
+    BrvtalPublicTranslationAdapter $adapter,
+    callable $cacheRead,
+    callable $cacheWrite
+): array {
+    return brvtalPublicTranslationProjectRecord(
+        $record,
+        $surface,
+        $targetLocale,
+        $adapter,
+        $cacheRead,
+        $cacheWrite
+    );
+}
 
 function brvtal_public_select_next_experience(array $events, ?DateTimeImmutable $now = null): ?array
 {

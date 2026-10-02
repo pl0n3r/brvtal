@@ -160,3 +160,86 @@ function brvtalPublicTranslationResolve(
         ];
     }
 }
+
+/**
+ * Project one canonical Spanish record through the shared translation/cache pipeline.
+ * Projection is atomic: one missing/invalid English field returns the whole Spanish
+ * source unchanged, so a surface never mixes partial locales or duplicates records.
+ *
+ * @param callable(array):(?string) $cacheRead
+ * @param callable(array,string):void $cacheWrite
+ * @return array{record:array,surface:string,requested_locale:string,resolved_locale:string,source:string,translated:bool,translated_fields:list<string>}
+ */
+function brvtalPublicTranslationProjectRecord(
+    array $canonicalRecord,
+    string $surface,
+    string $targetLocale,
+    BrvtalPublicTranslationAdapter $adapter,
+    callable $cacheRead,
+    callable $cacheWrite
+): array {
+    $surface = strtolower(trim($surface));
+    $target = brvtalPublicI18nNormalizeLocale($targetLocale) ?? 'es';
+    $fields = brvtalPublicI18nEditorialFields($surface);
+
+    $canonical = static fn(string $source): array => [
+        'record' => $canonicalRecord,
+        'surface' => $surface,
+        'requested_locale' => $target,
+        'resolved_locale' => 'es',
+        'source' => $source,
+        'translated' => false,
+        'translated_fields' => [],
+    ];
+
+    if ($target !== 'en') {
+        return $canonical('canonical');
+    }
+    if ($fields === []) {
+        return $canonical('unsupported_surface');
+    }
+
+    $projected = $canonicalRecord;
+    $translatedFields = [];
+    foreach ($fields as $field) {
+        if (!array_key_exists($field, $canonicalRecord) || $canonicalRecord[$field] === null) {
+            continue;
+        }
+        if (!is_string($canonicalRecord[$field])) {
+            return $canonical('fallback');
+        }
+        $sourceText = $canonicalRecord[$field];
+        if (trim($sourceText) === '') {
+            continue;
+        }
+
+        $resolved = brvtalPublicTranslationResolve(
+            $sourceText,
+            'en',
+            $adapter,
+            $cacheRead,
+            $cacheWrite
+        );
+        if (
+            ($resolved['translated'] ?? false) !== true
+            || ($resolved['locale'] ?? '') !== 'en'
+            || !is_string($resolved['text'] ?? null)
+            || trim((string)$resolved['text']) === ''
+        ) {
+            return $canonical('fallback');
+        }
+
+        $projected[$field] = (string)$resolved['text'];
+        $translatedFields[] = $field;
+    }
+
+    return [
+        'record' => $projected,
+        'surface' => $surface,
+        'requested_locale' => 'en',
+        'resolved_locale' => 'en',
+        'source' => $translatedFields === [] ? 'canonical' : 'translation',
+        'translated' => $translatedFields !== [],
+        'translated_fields' => $translatedFields,
+    ];
+}
