@@ -334,6 +334,7 @@
       }
       setStatus(form, 'status.channel_unavailable', 'error');
     } catch (_) {
+      // Expected fetch/parse failures are represented only by localized UI state.
       setStatus(form, 'status.network_error', 'error');
     } finally {
       if (!form.querySelector('[data-contact-captcha-token]')?.value) await loadChallenge(form);
