@@ -124,7 +124,13 @@ contact_assert(brvtalSeoWorkspaceStaticDefinitions()['contact']['path'] === '/co
 contact_assert($seo['canonical'] === 'https://www.brvtal.com.co/contact', 'Contact has its own canonical URL');
 contact_assert(($seo['schema']['@type'] ?? '') === 'ContactPage', 'Contact emits ContactPage structured data');
 $page = brvtal_public_contact_page($seo);
-contact_assert(str_contains($page, '<h1 id="contactTitle" data-text="CONTACT">CONTACT</h1>'), 'dedicated Contact page has a semantic BRVTAL hero');
+contact_assert(
+    str_contains(
+        $page,
+        '<h1 id="contactTitle" data-text="CONTACTO" data-contact-i18n-key="contact.title">CONTACTO</h1>'
+    ),
+    'dedicated Contact page renders the canonical Spanish semantic BRVTAL hero'
+);
 contact_assert(str_contains($page, 'id="brvtalContactForm"'), 'dedicated Contact page server-renders the full form');
 contact_assert(str_contains($page, 'aria-label="CAPTCHA answer"'), 'CAPTCHA input exposes an accessible name');
 contact_assert(str_contains($page, 'role="status" aria-live="polite"'), 'contact status is announced accessibly');
