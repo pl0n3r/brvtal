@@ -34,7 +34,7 @@ class PublicI18nDynamicRuntimeTests(unittest.TestCase):
         self.assertIn("applyLocale(root, event?.detail?.locale)", contact)
         self.assertIn("status.dataset.contactI18nKey = key", contact)
         self.assertIn("status.dataset.contactI18nReplacements", contact)
-        self.assertIn("element.setAttribute('data-text', value)", contact)
+        self.assertIn("element.dataset.text = value", contact)
         self.assertIn("CONTACT_CATALOG", contact)
         self.assertIn("'status.sent':'MENSAJE ENVIADO / SEÑAL RECIBIDA'", contact)
         self.assertIn("'status.sent':'MESSAGE SENT / SIGNAL RECEIVED'", contact)
