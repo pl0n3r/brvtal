@@ -13,6 +13,83 @@
   window.BRVTAL_PUBLIC_VERSION = version;
 
   const localUrl = path => version ? `${path}?v=${encodeURIComponent(version)}` : path;
+  const LOCALE_EVENT = 'brvtal:localechange';
+  const SAFE_LOCALES = new Set(['es', 'en']);
+
+  const safePublicText = value => {
+    if (typeof value !== 'string') return '';
+    const text = value.replace(/\r\n?/g, '\n').trim();
+    if (!text || text.length > 10000) return '';
+    if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)) return '';
+    if (text.includes('<') || text.includes('>')) return '';
+    return text;
+  };
+
+  const activeLocale = () => {
+    const locale = String(document.documentElement.dataset.locale || '').toLowerCase();
+    return SAFE_LOCALES.has(locale) ? locale : 'es';
+  };
+
+  const validLocaleConfig = locale => {
+    const config = window.BRVTALI18N;
+    return Boolean(
+      config?.canonicalLocale === 'es'
+      && config?.defaultLocale === 'es'
+      && Array.isArray(config?.availableLocales)
+      && config.availableLocales.includes(locale)
+      && config?.catalog
+      && typeof config.catalog === 'object'
+    );
+  };
+
+  const applyLocalizedNode = (node, locale) => {
+    if (!(node instanceof Element)) return;
+    const targets = [];
+    if (node.matches?.('[data-i18n-key]')) targets.push(node);
+    targets.push(...(node.querySelectorAll?.('[data-i18n-key]') || []));
+    const catalog = validLocaleConfig(locale) ? window.BRVTALI18N.catalog?.[locale] : null;
+    if (!catalog || typeof catalog !== 'object') return;
+    targets.forEach(element => {
+      const key = String(element.dataset.i18nKey || '').trim();
+      const value = safePublicText(catalog[key]);
+      if (key && value) element.textContent = value;
+    });
+  };
+
+  let observedLocale = null;
+  const refreshLocaleRuntime = ({announce = true, root = document.documentElement} = {}) => {
+    const locale = activeLocale();
+    applyLocalizedNode(root, locale);
+    if (announce && locale !== observedLocale) {
+      observedLocale = locale;
+      window.dispatchEvent(new CustomEvent(LOCALE_EVENT, {detail:{locale}}));
+    }
+    return locale;
+  };
+
+  const localeObserver = new MutationObserver(records => {
+    let localeChanged = false;
+    records.forEach(record => {
+      if (record.type === 'attributes' && record.attributeName === 'data-locale') {
+        localeChanged = true;
+      }
+      record.addedNodes?.forEach(node => applyLocalizedNode(node, activeLocale()));
+    });
+    if (localeChanged) refreshLocaleRuntime();
+  });
+  localeObserver.observe(document.documentElement, {
+    attributes:true,
+    attributeFilter:['data-locale'],
+    childList:true,
+    subtree:true
+  });
+
+  window.BRVTALPublicLocaleRuntime = {
+    eventName:LOCALE_EVENT,
+    currentLocale:activeLocale,
+    refresh:refreshLocaleRuntime
+  };
+
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const motionScripts = [
@@ -100,6 +177,8 @@
     } else {
       document.documentElement.dataset.runtimeIntegrity = 'ok';
     }
+
+    refreshLocaleRuntime();
 
     return {
       mode,

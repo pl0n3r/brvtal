@@ -2,6 +2,170 @@
   'use strict';
 
   const endpoint = '/api/contact.php';
+  const LOCALE_STORAGE_KEY = 'brvtal.public.locale';
+  const LOCALE_EVENT = 'brvtal:localechange';
+  const SAFE_LOCALES = new Set(['es', 'en']);
+  const CONTACT_CATALOG = Object.freeze({
+    es:Object.freeze({
+      'contact.skip':'IR AL FORMULARIO',
+      'contact.nav':'CONTACTO / 01',
+      'contact.home':'INICIO ↙',
+      'contact.channel':'CANAL DIRECTO / BRVTAL',
+      'contact.title':'CONTACTO',
+      'contact.hero_copy':'BOOKINGS, COLABORACIONES, EVENTOS, MEDIA O CONSULTAS GENERALES. ENVÍA UNA SEÑAL CLARA.',
+      'contact.kicker':'PEREIRA / COLOMBIA',
+      'contact.heading_top':'ABRE',
+      'contact.heading_bottom':'CANAL.',
+      'contact.copy':'Usa este canal para bookings, colaboraciones, propuestas de eventos, prensa, media y cualquier solicitud que necesite una respuesta directa de BRVTAL.',
+      'contact.topic.bookings':'BOOKINGS',
+      'contact.topic.collabs':'COLABORACIONES',
+      'contact.topic.events':'EVENTOS',
+      'contact.topic.media':'MEDIA',
+      'contact.topic.general':'GENERAL',
+      'contact.external':'SEÑALES EXTERNAS',
+      'contact.direct':'CONTACTO / CANAL DIRECTO',
+      'contact.instructions':'Completa el formulario. El desafío anti-bot es emitido por BRVTAL y tu mensaje solo se confirma después de una entrega válida.',
+      'contact.name':'NOMBRE',
+      'contact.email':'EMAIL',
+      'contact.subject':'ASUNTO',
+      'contact.message':'MENSAJE',
+      'contact.captcha':'CONTROL ANTI-BOT',
+      'contact.captcha_help':'INGRESA EL RESULTADO PARA CONFIRMAR QUE ERES HUMANO.',
+      'contact.submit':'ENVIAR SEÑAL ↗',
+      'contact.ready':'LISTO / ESPERANDO SEÑAL',
+      'contact.footer_home':'VOLVER AL INICIO',
+      'status.loading':'CARGANDO…',
+      'status.human_check':'VERIFICACIÓN HUMANA',
+      'status.captcha_refreshed':'CAPTCHA ACTUALIZADO / LISTO',
+      'status.captcha_unavailable':'SERVICIO ANTI-BOT NO DISPONIBLE. INTENTA MÁS TARDE.',
+      'status.transmitting':'TRANSMITIENDO…',
+      'status.sent':'MENSAJE ENVIADO / SEÑAL RECIBIDA',
+      'status.check_fields':'REVISA LOS CAMPOS MARCADOS.',
+      'status.rate_limited':'LÍMITE DE ENVÍOS / INTENTA DE NUEVO EN {seconds}s',
+      'status.channel_unavailable':'CANAL DE CONTACTO NO DISPONIBLE. TU MENSAJE NO FUE ENVIADO.',
+      'status.network_error':'ERROR DE RED. TU MENSAJE NO FUE ENVIADO.',
+      'error.INVALID_NAME':'INGRESA UN NOMBRE ENTRE 2 Y 100 CARACTERES.',
+      'error.INVALID_EMAIL':'INGRESA UN EMAIL VÁLIDO.',
+      'error.INVALID_SUBJECT':'INGRESA UN ASUNTO ENTRE 2 Y 140 CARACTERES.',
+      'error.INVALID_MESSAGE':'EL MENSAJE DEBE TENER ENTRE 10 Y 5000 CARACTERES.',
+      'error.INVALID_CAPTCHA':'LA RESPUESTA DEL CAPTCHA NO ES VÁLIDA O EXPIRÓ.',
+      'error.CAPTCHA_TOO_FAST':'ESPERA UN MOMENTO Y COMPLETA EL CAPTCHA DE NUEVO.',
+      'error.BOT_DETECTED':'ENVÍO RECHAZADO.',
+      'error.default':'REVISA ESTE CAMPO.'
+    }),
+    en:Object.freeze({
+      'contact.skip':'SKIP TO FORM',
+      'contact.nav':'CONTACT / 01',
+      'contact.home':'HOME ↙',
+      'contact.channel':'DIRECT CHANNEL / BRVTAL',
+      'contact.title':'CONTACT',
+      'contact.hero_copy':'BOOKINGS, COLLABORATIONS, EVENTS, MEDIA OR GENERAL INQUIRIES. SEND A CLEAN SIGNAL.',
+      'contact.kicker':'PEREIRA / COLOMBIA',
+      'contact.heading_top':'OPEN',
+      'contact.heading_bottom':'CHANNEL.',
+      'contact.copy':'Use this channel for booking requests, collaborations, event proposals, press, media and anything that needs a direct BRVTAL response.',
+      'contact.topic.bookings':'BOOKINGS',
+      'contact.topic.collabs':'COLLABORATIONS',
+      'contact.topic.events':'EVENTS',
+      'contact.topic.media':'MEDIA',
+      'contact.topic.general':'GENERAL',
+      'contact.external':'EXTERNAL SIGNALS',
+      'contact.direct':'CONTACT / DIRECT CHANNEL',
+      'contact.instructions':'Complete the form below. The anti-bot challenge is issued by BRVTAL and your message is only cleared after confirmed delivery.',
+      'contact.name':'NAME',
+      'contact.email':'EMAIL',
+      'contact.subject':'SUBJECT',
+      'contact.message':'MESSAGE',
+      'contact.captcha':'ANTI-BOT CHECK',
+      'contact.captcha_help':'ENTER THE RESULT TO CONFIRM YOU ARE HUMAN.',
+      'contact.submit':'SEND SIGNAL ↗',
+      'contact.ready':'READY / WAITING FOR SIGNAL',
+      'contact.footer_home':'BACK TO HOME',
+      'status.loading':'LOADING…',
+      'status.human_check':'HUMAN CHECK',
+      'status.captcha_refreshed':'CAPTCHA REFRESHED / READY',
+      'status.captcha_unavailable':'ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.',
+      'status.transmitting':'TRANSMITTING…',
+      'status.sent':'MESSAGE SENT / SIGNAL RECEIVED',
+      'status.check_fields':'CHECK THE HIGHLIGHTED FIELDS.',
+      'status.rate_limited':'RATE LIMITED / TRY AGAIN IN {seconds}s',
+      'status.channel_unavailable':'CONTACT CHANNEL UNAVAILABLE. YOUR MESSAGE WAS NOT CLEARED.',
+      'status.network_error':'NETWORK ERROR. YOUR MESSAGE WAS NOT CLEARED.',
+      'error.INVALID_NAME':'ENTER A NAME BETWEEN 2 AND 100 CHARACTERS.',
+      'error.INVALID_EMAIL':'ENTER A VALID EMAIL ADDRESS.',
+      'error.INVALID_SUBJECT':'ENTER A SUBJECT BETWEEN 2 AND 140 CHARACTERS.',
+      'error.INVALID_MESSAGE':'MESSAGE MUST BE BETWEEN 10 AND 5000 CHARACTERS.',
+      'error.INVALID_CAPTCHA':'CAPTCHA ANSWER IS NOT VALID OR EXPIRED.',
+      'error.CAPTCHA_TOO_FAST':'WAIT A MOMENT AND COMPLETE THE CAPTCHA AGAIN.',
+      'error.BOT_DETECTED':'SUBMISSION REJECTED.',
+      'error.default':'CHECK THIS FIELD.'
+    })
+  });
+
+  const safePublicText = value => {
+    if (typeof value !== 'string') return '';
+    const text = value.replace(/\r\n?/g, '\n').trim();
+    if (!text || text.length > 10000) return '';
+    if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(text)) return '';
+    if (text.includes('<') || text.includes('>')) return '';
+    return text;
+  };
+
+  const normalizeLocale = value => {
+    const locale = String(value || '').trim().toLowerCase();
+    return SAFE_LOCALES.has(locale) ? locale : null;
+  };
+
+  const storedLocale = () => {
+    try {
+      return normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const activeLocale = () => normalizeLocale(document.documentElement.dataset.locale)
+    || storedLocale()
+    || normalizeLocale(document.documentElement.lang)
+    || 'es';
+
+  const textFor = (key, locale = activeLocale()) => {
+    const normalized = normalizeLocale(locale) || 'es';
+    return safePublicText(CONTACT_CATALOG[normalized]?.[key])
+      || safePublicText(CONTACT_CATALOG.es[key]);
+  };
+
+  const formatText = (key, locale = activeLocale(), replacements = {}) => {
+    let text = textFor(key, locale);
+    Object.entries(replacements).forEach(([name, value]) => {
+      text = text.replace(`{${name}}`, safePublicText(String(value)));
+    });
+    return text;
+  };
+
+  const readReplacements = element => {
+    try {
+      const value = JSON.parse(element.dataset.contactI18nReplacements || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
+  const applyLocale = (root, locale = activeLocale()) => {
+    const normalized = normalizeLocale(locale) || 'es';
+    document.documentElement.lang = normalized;
+    document.documentElement.dataset.locale = normalized;
+    root.querySelectorAll('[data-contact-i18n-key]').forEach(element => {
+      const key = String(element.dataset.contactI18nKey || '');
+      const value = formatText(key, normalized, readReplacements(element));
+      if (!value) return;
+      element.textContent = value;
+      if (element.dataset.text !== undefined) element.dataset.text = value;
+    });
+    return normalized;
+  };
+
 
   const cleanUrl = value => {
     const raw = String(value || '').trim();
@@ -73,10 +237,12 @@
     });
   }
 
-  function setStatus(form, text, state = 'idle') {
+  function setStatus(form, key, state = 'idle', replacements = {}) {
     const status = form.querySelector('[data-contact-status]');
     if (!status) return;
-    status.textContent = text;
+    status.dataset.contactI18nKey = key;
+    status.dataset.contactI18nReplacements = JSON.stringify(replacements);
+    status.textContent = formatText(key, activeLocale(), replacements);
     status.dataset.state = state;
   }
 
@@ -87,7 +253,7 @@
     const submit = form.querySelector('[type="submit"]');
     if (!question || !token || !answer || !submit) return;
 
-    question.textContent = 'LOADING…';
+    question.textContent = textFor('status.loading');
     token.value = '';
     answer.value = '';
     answer.disabled = true;
@@ -96,14 +262,14 @@
       const response = await fetch(endpoint, { credentials:'same-origin', headers:{Accept:'application/json'}, cache:'no-store' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false || !payload.data?.token) throw new Error(payload.error || `HTTP_${response.status}`);
-      question.textContent = String(payload.data.question || 'HUMAN CHECK');
+      question.textContent = safePublicText(payload.data.question) || textFor('status.human_check');
       token.value = String(payload.data.token);
       answer.disabled = false;
       submit.disabled = false;
-      if (announce) setStatus(form, 'CAPTCHA REFRESHED / READY', 'idle');
+      if (announce) setStatus(form, 'status.captcha_refreshed', 'idle');
     } catch (_) {
-      question.textContent = 'CHECK UNAVAILABLE';
-      setStatus(form, 'ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.', 'error');
+      question.textContent = textFor('status.human_check');
+      setStatus(form, 'status.captcha_unavailable', 'error');
     }
   }
 
@@ -113,15 +279,7 @@
   }
 
   function fieldMessage(code) {
-    return ({
-      INVALID_NAME:'ENTER A NAME BETWEEN 2 AND 100 CHARACTERS.',
-      INVALID_EMAIL:'ENTER A VALID EMAIL ADDRESS.',
-      INVALID_SUBJECT:'ENTER A SUBJECT BETWEEN 2 AND 140 CHARACTERS.',
-      INVALID_MESSAGE:'MESSAGE MUST BE BETWEEN 10 AND 5000 CHARACTERS.',
-      INVALID_CAPTCHA:'CAPTCHA ANSWER IS NOT VALID OR EXPIRED.',
-      CAPTCHA_TOO_FAST:'WAIT A MOMENT AND COMPLETE THE CAPTCHA AGAIN.',
-      BOT_DETECTED:'SUBMISSION REJECTED.'
-    })[code] || 'CHECK THIS FIELD.';
+    return textFor(`error.${String(code || 'default')}`) || textFor('error.default');
   }
 
   function showFieldErrors(form, fields = {}) {
@@ -147,7 +305,7 @@
     const submit = form.querySelector('[type="submit"]');
     const payload = Object.fromEntries(new FormData(form).entries());
     submit.disabled = true;
-    setStatus(form, 'TRANSMITTING…', 'idle');
+    setStatus(form, 'status.transmitting', 'idle');
 
     try {
       const response = await fetch(endpoint, {
@@ -159,24 +317,25 @@
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.ok !== false) {
         form.reset();
-        setStatus(form, 'MESSAGE SENT / SIGNAL RECEIVED', 'success');
+        setStatus(form, 'status.sent', 'success');
         await loadChallenge(form);
         return;
       }
       if (response.status === 422) {
         showFieldErrors(form, data.fields || {});
-        setStatus(form, 'CHECK THE HIGHLIGHTED FIELDS.', 'error');
+        setStatus(form, 'status.check_fields', 'error');
         if (data.fields?.captcha) await loadChallenge(form);
         return;
       }
       if (response.status === 429) {
         const seconds = Math.max(1, Number(data.retry_after || response.headers.get('Retry-After') || 60));
-        setStatus(form, `RATE LIMITED / TRY AGAIN IN ${seconds}s`, 'error');
+        setStatus(form, 'status.rate_limited', 'error', {seconds});
         return;
       }
-      setStatus(form, 'CONTACT CHANNEL UNAVAILABLE. YOUR MESSAGE WAS NOT CLEARED.', 'error');
+      setStatus(form, 'status.channel_unavailable', 'error');
     } catch (_) {
-      setStatus(form, 'NETWORK ERROR. YOUR MESSAGE WAS NOT CLEARED.', 'error');
+      // Expected fetch/parse failures are represented only by localized UI state.
+      setStatus(form, 'status.network_error', 'error');
     } finally {
       if (!form.querySelector('[data-contact-captcha-token]')?.value) await loadChallenge(form);
       else submit.disabled = false;
@@ -188,6 +347,8 @@
     if (!root || root.dataset.brvtalContactReady === '1') return false;
     root.dataset.brvtalContactReady = '1';
 
+    applyLocale(root);
+
     const socialMount = root.querySelector('[data-contact-social-mount]');
     if (socialMount && !socialMount.querySelector('.brvtal-social-rail')) {
       socialMount.innerHTML = socialMarkup();
@@ -197,14 +358,39 @@
     if (form && !form.dataset.bound) {
       form.dataset.bound = '1';
       form.addEventListener('submit', submitContact);
-      loadChallenge(form).catch(() => setStatus(form, 'ANTI-BOT SERVICE UNAVAILABLE. TRY AGAIN LATER.', 'error'));
+      loadChallenge(form).catch(() => setStatus(form, 'status.captcha_unavailable', 'error'));
     }
 
-    const hydrate = () => getPublicData().then(data => applySocials(data, root)).catch(() => {});
+    const hydrate = () => getPublicData()
+      .then(data => applySocials(data, root))
+      .catch(error => {
+        console.warn('[BRVTAL] Contact socials unavailable; keeping safe fallback.', error);
+      });
     window.setTimeout(hydrate, 100);
     return true;
   }
 
-  window.BRVTALContact = { init, applySocials, loadChallenge };
+  const contactRoot = () => document.querySelector('[data-public-contact-page]');
+
+  window.addEventListener(LOCALE_EVENT, event => {
+    const root = contactRoot();
+    if (!root) return;
+    applyLocale(root, event?.detail?.locale);
+  });
+
+  window.addEventListener('storage', event => {
+    if (event.key !== LOCALE_STORAGE_KEY) return;
+    const root = contactRoot();
+    if (!root) return;
+    applyLocale(root, event.newValue);
+  });
+
+  window.BRVTALContact = {
+    init,
+    applySocials,
+    loadChallenge,
+    applyLocale,
+    currentLocale:activeLocale
+  };
   init();
 })();
