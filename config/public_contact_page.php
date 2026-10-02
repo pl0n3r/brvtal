@@ -40,7 +40,9 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   <title>' . $title . '</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/css/contact-social.css">
   <link rel="stylesheet" href="/css/public-controls.css">
   <link rel="stylesheet" href="/css/public-legibility.css">
@@ -53,8 +55,13 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
      href="#contactForm"
      data-contact-i18n-key="contact.skip">IR AL FORMULARIO</a>
   <header class="contact-page-nav" aria-label="Contact navigation">
-    <a class="contact-page-brand" href="/" aria-label="BRVTAL Home"><strong>BRVTAL</strong><span>RAVE TILL GRAVE</span></a>
-    <div class="contact-page-nav-meta mono"><span data-contact-i18n-key="contact.nav">CONTACTO / 01</span><span>PEREIRA — COLOMBIA</span></div>
+    <a class="contact-page-brand" href="/" aria-label="BRVTAL Home">
+      <strong>BRVTAL</strong><span>RAVE TILL GRAVE</span>
+    </a>
+    <div class="contact-page-nav-meta mono">
+      <span data-contact-i18n-key="contact.nav">CONTACTO / 01</span>
+      <span>PEREIRA — COLOMBIA</span>
+    </div>
     <a class="contact-page-home mono" href="/" data-contact-i18n-key="contact.home">INICIO ↙</a>
   </header>
 
@@ -125,7 +132,10 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
             <textarea id="contactMessage" name="message" maxlength="5000" required></textarea>
             <span class="brvtal-contact-error" data-error-for="message"></span>
           </div>
-          <label class="brvtal-contact-hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+          <label class="brvtal-contact-hp" aria-hidden="true">
+            Website
+            <input name="website" tabindex="-1" autocomplete="off">
+          </label>
           <div class="brvtal-captcha">
             <div class="brvtal-captcha-copy">
               <span data-contact-i18n-key="contact.captcha">CONTROL ANTI-BOT</span>
@@ -134,7 +144,13 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
                 INGRESA EL RESULTADO PARA CONFIRMAR QUE ERES HUMANO.
               </small>
             </div>
-            <div><label class="brvtal-contact-hp" for="contactCaptcha">CAPTCHA ANSWER</label><input id="contactCaptcha" class="brvtal-captcha-input" name="captcha_answer" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="CAPTCHA answer" required><span class="brvtal-contact-error" data-error-for="captcha"></span></div>
+            <div>
+              <label class="brvtal-contact-hp" for="contactCaptcha">CAPTCHA ANSWER</label>
+              <input id="contactCaptcha" class="brvtal-captcha-input"
+                name="captcha_answer" inputmode="numeric" pattern="[0-9]*"
+                autocomplete="off" aria-label="CAPTCHA answer" required>
+              <span class="brvtal-contact-error" data-error-for="captcha"></span>
+            </div>
           </div>
           <input type="hidden" name="captcha_token" data-contact-captcha-token>
           <div class="brvtal-contact-actions">
