@@ -51,6 +51,10 @@ function json(route, payload) {
 test('existing Event blocks save until lineup hydration and preserves role plus lineup_order', async ({ page }) => {
   let eventWrites = 0;
   const lineupWrites = [];
+  let releaseLineup;
+  const lineupGate = new Promise(resolve => {
+    releaseLineup = resolve;
+  });
   await installHarness(page);
   await page.route('**/api/index.php/**', async route => {
     const request = route.request();
@@ -61,7 +65,7 @@ test('existing Event blocks save until lineup hydration and preserves role plus 
     if (path.endsWith('/artists')) return json(route,{ok:true,data:artists});
     if (path.endsWith('/ticket_types')) return json(route,{ok:true,data:[]});
     if (path.endsWith('/events/42/lineup') && method === 'GET') {
-      await new Promise(resolve => setTimeout(resolve, 220));
+      await lineupGate;
       return json(route,{ok:true,data:[
         {artist_id:2,lineup_order:0,role:'LIVE SET'},
         {artist_id:1,lineup_order:4,role:'HEADLINER'},
@@ -91,6 +95,7 @@ test('existing Event blocks save until lineup hydration and preserves role plus 
   expect(lineupWrites).toHaveLength(0);
   await expect(page.locator('#eventNotice')).toContainText('Wait for event participation to load');
 
+  releaseLineup();
   await expect(page.locator('#eventArtists')).toHaveAttribute('data-load-state','ready');
   await expect(page.locator('#eventArtists [data-artist]:checked')).toHaveCount(2);
   const saved = await page.evaluate(() => window.BRVTALContentCore.saveEvent());
