@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "title": "BRVTAL Translation Provider Evaluation V4",
+  "purpose": "Secret-free, non-production evidence contract for comparing translation-provider candidates.",
+  "candidate_schema": {
+    "required": [
+      "candidate_ref",
+      "observed_at",
+      "source_url",
+      "pricing_observed_at",
+      "cost_envelope",
+      "privacy",
+      "quality",
+      "latency",
+      "rate_limits"
+    ],
+    "properties": {
+      "candidate_ref": {
+        "type": "string",
+        "description": "Opaque public candidate identifier."
+      },
+      "observed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "source_url": {
+        "type": "string",
+        "format": "uri"
+      },
+      "pricing_observed_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "cost_envelope": {
+        "type": "object",
+        "required": [
+          "currency",
+          "input_unit",
+          "output_unit",
+          "input_unit_cost",
+          "output_unit_cost"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "input_unit": {
+            "type": "string"
+          },
+          "output_unit": {
+            "type": "string"
+          },
+          "input_unit_cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "output_unit_cost": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "privacy": {
+        "type": "object",
+        "required": [
+          "policy_url",
+          "observed_at",
+          "training_use",
+          "retention",
+          "region_notes"
+        ],
+        "properties": {
+          "policy_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "training_use": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ]
+          },
+          "retention": {
+            "type": "string"
+          },
+          "region_notes": {
+            "type": "string"
+          }
+        }
+      },
+      "quality": {
+        "type": "object",
+        "required": [
+          "benchmark_ref",
+          "protected_terms_preserved",
+          "score"
+        ],
+        "properties": {
+          "benchmark_ref": {
+            "type": "string"
+          },
+          "protected_terms_preserved": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      },
+      "latency": {
+        "type": "object",
+        "required": [
+          "sample_size",
+          "p50_ms",
+          "p95_ms"
+        ],
+        "properties": {
+          "sample_size": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "p50_ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "p95_ms": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "rate_limits": {
+        "type": "object",
+        "required": [
+          "source_url",
+          "observed_at",
+          "notes"
+        ],
+        "properties": {
+          "source_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "additional_properties": false
+  },
+  "safety": {
+    "network_calls": false,
+    "production_calls": false,
+    "runtime_authority": false,
+    "private_discadmin_content": false,
+    "provider_activation": false,
+    "spend_authorized": false
+  }
+}
