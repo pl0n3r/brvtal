@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "corpus_ref": "brvtal-public-editorial-es-v1",
+  "source": "synthetic-public-style",
+  "contains_private_content": false,
+  "protected_terms": [
+    "BRVTAL",
+    "DISCADMIN",
+    "hard techno",
+    "Frenchcore",
+    "Uptempo",
+    "Schranz",
+    "Psytrance"
+  ],
+  "samples": [
+    {
+      "id": "event-lineup",
+      "text": "BRVTAL presenta una noche de hard techno, Schranz y Psytrance con artistas invitados."
+    },
+    {
+      "id": "editorial-release",
+      "text": "Nueva sesión de Frenchcore y Uptempo disponible en el archivo público de BRVTAL."
+    },
+    {
+      "id": "product-ui",
+      "text": "El selector ES/EN conserva BRVTAL y DISCADMIN como términos protegidos sin traducir."
+    },
+    {
+      "id": "artist-copy",
+      "text": "Una propuesta de hard techno industrial enfocada en energía, textura y continuidad de pista."
+    },
+    {
+      "id": "event-copy",
+      "text": "La programación combina techno, Frenchcore y sonidos de alta intensidad en una misma jornada."
+    }
+  ]
+}
