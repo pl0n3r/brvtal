@@ -67,6 +67,9 @@ function brvtal_event_workflow_event(array $input): array
     if (array_key_exists('event_date', $input)) {
         $payload['event_date'] = $input['event_date'];
     }
+    if (array_key_exists('publish_at', $input)) {
+        $payload['publish_at'] = $input['publish_at'];
+    }
     $temporal = brvtal_content_temporal_normalize('events', $payload);
     if ($temporal['error'] !== null) {
         throw new InvalidArgumentException((string)$temporal['error']['error']);
@@ -463,12 +466,16 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
         if ($eventId !== null) {
             $beforeEvent = brvtal_event_workflow_fetch_event($pdo, (int)$eventId, true);
             if ($beforeEvent === null) throw new RuntimeException('EVENT_NOT_FOUND');
+            $scheduleError = brvtal_event_publish_at_error($beforeEvent, $eventPatch);
+            if ($scheduleError !== null) throw new InvalidArgumentException($scheduleError['error']);
             $eventPatch = brvtal_event_lifecycle_patch($beforeEvent, $eventPatch);
             $finalEvent = array_replace($beforeEvent, $eventPatch);
             $stateError = brvtal_event_state_error($finalEvent);
             if ($stateError !== null) throw new InvalidArgumentException($stateError['error']);
             brvtal_event_workflow_dynamic_update($pdo, 'events', (int)$eventId, $eventPatch);
         } else {
+            $scheduleError = brvtal_event_publish_at_error([], $eventPatch);
+            if ($scheduleError !== null) throw new InvalidArgumentException($scheduleError['error']);
             $eventPatch = brvtal_event_lifecycle_patch([], $eventPatch);
             $finalEvent = array_replace(['status'=>'draft'], $eventPatch);
             $stateError = brvtal_event_state_error($finalEvent);

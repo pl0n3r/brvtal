@@ -58,7 +58,10 @@ function brvtalContentVisualPublicationError(string $resource, array $state): ?a
 
     $status = strtolower(trim((string)($state['status'] ?? 'draft')));
     $requiresUsableVisual = $resource === 'events'
-        ? brvtal_public_event_is_visible($state)
+        ? (
+            in_array($status, brvtal_public_event_statuses()['active'], true)
+            || brvtal_public_event_is_visible($state)
+        )
         : $status === 'published';
     if (!$requiresUsableVisual) {
         return null;
@@ -122,6 +125,12 @@ function brvtal_content_temporal_normalize(string $resource, array $payload): ar
     $fields = match ($resource) {
         'events' => [
             'event_date' => [
+                ['Y-m-d H:i:s', 'Y-m-d H:i:s'],
+                ['Y-m-d H:i', 'Y-m-d H:i:s'],
+                ['Y-m-d\\TH:i:s', 'Y-m-d H:i:s'],
+                ['Y-m-d\\TH:i', 'Y-m-d H:i:s'],
+            ],
+            'publish_at' => [
                 ['Y-m-d H:i:s', 'Y-m-d H:i:s'],
                 ['Y-m-d H:i', 'Y-m-d H:i:s'],
                 ['Y-m-d\\TH:i:s', 'Y-m-d H:i:s'],
