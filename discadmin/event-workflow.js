@@ -288,14 +288,13 @@
         notice(root,'Event saved; Events list could not refresh. Current editor remains open.',false);
         return;
       }
-      notice(
-        root,
-        draftState?.keepOpen
-          ? 'Server save completed; newer edits remain in the local draft.'
-          : (Array.isArray(timetable)
-            ? 'Event, tickets, roster and timetable saved together.'
-            : 'Event, tickets and roster saved together.')
-      );
+      let successMessage = Array.isArray(timetable)
+        ? 'Event, tickets, roster and timetable saved together.'
+        : 'Event, tickets and roster saved together.';
+      if (draftState?.keepOpen) {
+        successMessage = 'Server save completed; newer edits remain in the local draft.';
+      }
+      notice(root, successMessage);
     }
 
     const atomicSave = async function() {

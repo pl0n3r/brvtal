@@ -167,47 +167,6 @@ function renderTimetable(rows=[]){
   holder.innerHTML='';
   (Array.isArray(rows)?rows:[]).forEach(addTimetableRow);
 }
-function timetableFieldError(index,field,message){
-  currentStep=6;
-  setStep();
-  msg('Timetable slot '+(index+1)+' '+message,false,'eventNotice');
-  field?.focus();
-  return false;
-}
-function validateTimetableRows(){
-  const rows=$$('#eventTimetable .timetable-row');
-  for(let i=0;i<rows.length;i++){
-    const row=rows[i];
-    const artist=row.querySelector('[data-k="artist_id"]');
-    const label=row.querySelector('[data-k="label"]');
-    const starts=row.querySelector('[data-k="starts_at"]');
-    const ends=row.querySelector('[data-k="ends_at"]');
-    const timezone=row.querySelector('[data-k="timezone"]');
-    if(Number(artist?.value||0)<1&&!label?.value.trim())return timetableFieldError(i,label,'needs an Artist or external label.');
-    if(!starts?.value)return timetableFieldError(i,starts,'needs a start time.');
-    if(!ends?.value)return timetableFieldError(i,ends,'needs an end time.');
-    if(ends.value<=starts.value)return timetableFieldError(i,ends,'must end after it starts.');
-    if(!timezone?.value.trim())return timetableFieldError(i,timezone,'needs an IANA timezone.');
-  }
-  return true;
-}
-function timetablePayloadFromRows(){
-  return $$('#eventTimetable .timetable-row').map((row,index)=>{
-    const artistId=Number(row.querySelector('[data-k="artist_id"]')?.value||0);
-    const item={
-      artist_id:artistId>0?artistId:null,
-      label:artistId>0?null:(row.querySelector('[data-k="label"]')?.value.trim()||''),
-      starts_at:(row.querySelector('[data-k="starts_at"]')?.value||'').replace('T',' '),
-      ends_at:(row.querySelector('[data-k="ends_at"]')?.value||'').replace('T',' '),
-      timezone:row.querySelector('[data-k="timezone"]')?.value.trim()||'',
-      status:row.querySelector('[data-k="status"]')?.value||'draft',
-      sort_order:index
-    };
-    const id=Number(row.dataset.id||0);
-    if(id>0)item.id=id;
-    return item;
-  });
-}
 async function saveEvent(){
   const rawDate=$('#e_event_date').value;
   const rawAccent=$('#e_accent').value.trim();
