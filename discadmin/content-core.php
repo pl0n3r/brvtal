@@ -213,7 +213,12 @@ brvtal_admin_require();
       </div>
       <div class="field">
         <span class="helper">STATUS</span>
-        <div id="eventInsightsStatus" role="status" aria-live="polite" data-state="idle">NOT PUBLISHED · No analytics request was sent.</div>
+        <output
+          id="eventInsightsStatus"
+          aria-live="polite"
+          aria-label="Event Insights status"
+          data-state="idle"
+        >NOT PUBLISHED · No analytics request was sent.</output>
       </div>
       <div class="field">
         <span class="helper">USERS</span>
