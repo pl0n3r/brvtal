@@ -321,6 +321,7 @@ let eventEditorReady=Promise.resolve(null);
 
 (function(){
   const originalOpenEvent=openEvent;
+  const originalCloseEvent=closeEvent;
   const originalSaveEvent=saveEvent;
   let ticketRequest=0,ticketState='ready',lineupRequest=0,lineupState='ready',timetableRequest=0,timetableState='ready',insightsRequest=0;
   const timetableEditor=()=>$('#eventTimetable');
@@ -457,6 +458,16 @@ let eventEditorReady=Promise.resolve(null);
     }
     eventEditorReady=Promise.all(loads).then(()=>currentEvent);
     return eventEditorReady;
+  };
+  closeEvent=function(force=false){
+    const modal=$('#eventModal');
+    const wasOpen=modal.classList.contains('open');
+    const result=originalCloseEvent(force);
+    if(result===true&&wasOpen&&!modal.classList.contains('open')){
+      insightsRequest+=1;
+      window.BRVTALEventInsights?.reset?.();
+    }
+    return result;
   };
   saveEvent=async function(){
     if(currentEvent&&window.BRVTALSEOMetadata&&!$('#eventModal [data-seo-editor="content-core"]')){
