@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/public_i18n.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
+require_once __DIR__ . '/../config/public_page.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
 require_once __DIR__ . '/public-response.php';
@@ -351,6 +352,44 @@ try {
     $partition = brvtal_public_partition_events($allEvents);
     $events = $partition['active'];
     $archiveEvents = $partition['archive'];
+
+    // Timetable storage is queried only for Events that already crossed the
+    // canonical public visibility/lifecycle partition above.
+    $publicEventIds = [];
+    foreach (array_merge($events, $archiveEvents) as $publicEvent) {
+        $eventId = (int)($publicEvent['id'] ?? 0);
+        if ($eventId > 0) {
+            $publicEventIds[$eventId] = $eventId;
+        }
+    }
+    $publicEventIds = array_values($publicEventIds);
+
+    $rawTimetableByEvent = [];
+    if ($publicEventIds !== []) {
+        $timetablePlaceholders = implode(',', array_fill(0, count($publicEventIds), '?'));
+        $timetableStatement = $pdo->prepare(
+            "SELECT t.id,t.event_id,t.artist_id,t.label,t.starts_at_utc,t.ends_at_utc,t.timezone,t.status,t.sort_order,"
+                . "a.name AS artist_name,a.slug AS artist_slug,a.photo AS artist_image,a.status AS artist_status "
+                . "FROM event_timetable_items t "
+                . "LEFT JOIN artists a ON a.id=t.artist_id AND a.status='published' "
+                . "WHERE t.event_id IN ({$timetablePlaceholders}) AND t.status='approved' "
+                . "ORDER BY t.event_id,t.starts_at_utc,t.sort_order,t.id"
+        );
+        $timetableStatement->execute($publicEventIds);
+        foreach ($timetableStatement->fetchAll() as $row) {
+            $rawTimetableByEvent[(string)$row['event_id']][] = $row;
+        }
+    }
+
+    $attachPublicTimetable = static function (array &$eventPool) use ($rawTimetableByEvent): void {
+        foreach ($eventPool as &$event) {
+            $eventKey = (string)$event['id'];
+            $event['timetable'] = brvtalPublicEventTimetableRows($rawTimetableByEvent[$eventKey] ?? []);
+        }
+        unset($event);
+    };
+    $attachPublicTimetable($events);
+    $attachPublicTimetable($archiveEvents);
 
     // Related IDs are sanitized against the final public entity pool. This prevents
     // a published Set from leaking the ID or title/name of a private Event or Artist.

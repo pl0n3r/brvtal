@@ -65,11 +65,25 @@ foreach ([
     event_timetable_workflow_assert(str_contains($integration, $needle), "integration proof missing {$needle}");
 }
 
-event_timetable_workflow_assert(($package['version'] ?? null) === '0.1.112', 'package version must be 0.1.112');
+$runtimeVersion = null;
+if (preg_match("/BRVTAL_APP_VERSION\\s*=\\s*'([^']+)'/", $version, $versionMatches) === 1) {
+    $runtimeVersion = $versionMatches[1];
+}
+event_timetable_workflow_assert(
+    is_string($runtimeVersion) && $runtimeVersion !== '',
+    'runtime version must be declared'
+);
+event_timetable_workflow_assert(
+    ($package['version'] ?? null) === $runtimeVersion,
+    'package/runtime versions must stay aligned'
+);
+event_timetable_workflow_assert(
+    version_compare($runtimeVersion, '0.1.112', '>='),
+    'timetable workflow requires runtime version 0.1.112 or newer'
+);
 event_timetable_workflow_assert(
     ($package['scripts']['test:event-timetable-workflow'] ?? null) === 'python3 -m unittest tests/test_event_timetable_workflow.py',
     'workflow acceptance script must be registered'
 );
-event_timetable_workflow_assert(str_contains($version, "BRVTAL_APP_VERSION = '0.1.112'"), 'runtime version must be 0.1.112');
 
 echo "BRVTAL Event timetable workflow contract passed.\n";

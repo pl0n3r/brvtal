@@ -147,6 +147,17 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         lineup_order INT NOT NULL DEFAULT 0,
         role VARCHAR(80) NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("CREATE TEMPORARY TABLE event_timetable_items (
+        id BIGINT PRIMARY KEY,
+        event_id INT NOT NULL,
+        artist_id INT NULL,
+        label VARCHAR(180) NULL,
+        starts_at_utc DATETIME NOT NULL,
+        ends_at_utc DATETIME NOT NULL,
+        timezone VARCHAR(64) NOT NULL,
+        status VARCHAR(16) NOT NULL,
+        sort_order INT NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     $pdo->exec("CREATE TEMPORARY TABLE sets_media (
         id INT PRIMARY KEY,
         title VARCHAR(180) NOT NULL,
@@ -208,6 +219,22 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
         $lineupInsert->execute([$eventId,202,2,'DJ']);
     }
 
+    $timetableInsert = $pdo->prepare(
+        'INSERT INTO event_timetable_items(id,event_id,artist_id,label,starts_at_utc,ends_at_utc,timezone,status,sort_order) '
+        . 'VALUES(?,?,?,?,?,?,?,?,?)'
+    );
+    $activeStart = $today->modify('+30 days')->setTime(22, 0);
+    $timetableInsert->execute([601,101,201,null,$activeStart->format('Y-m-d H:i:s'),$activeStart->modify('+60 minutes')->format('Y-m-d H:i:s'),'America/Bogota','approved',1]);
+    $timetableInsert->execute([602,101,null,'EXTERNAL SLOT',$activeStart->modify('+60 minutes')->format('Y-m-d H:i:s'),$activeStart->modify('+90 minutes')->format('Y-m-d H:i:s'),'America/Bogota','approved',2]);
+    $timetableInsert->execute([603,101,201,null,$activeStart->modify('+90 minutes')->format('Y-m-d H:i:s'),$activeStart->modify('+120 minutes')->format('Y-m-d H:i:s'),'America/Bogota','draft',3]);
+    $timetableInsert->execute([604,101,202,'PRIVATE FALLBACK MUST NOT LEAK',$activeStart->modify('+120 minutes')->format('Y-m-d H:i:s'),$activeStart->modify('+150 minutes')->format('Y-m-d H:i:s'),'America/Bogota','approved',4]);
+    $timetableInsert->execute([605,101,null,'INVALID TIMEZONE',$activeStart->modify('+150 minutes')->format('Y-m-d H:i:s'),$activeStart->modify('+180 minutes')->format('Y-m-d H:i:s'),'Not/AZone','approved',5]);
+    $timetableInsert->execute([606,101,null,'INVALID WINDOW',$activeStart->modify('+210 minutes')->format('Y-m-d H:i:s'),$activeStart->modify('+200 minutes')->format('Y-m-d H:i:s'),'America/Bogota','approved',6]);
+    $historicalStart = $today->modify('-30 days')->setTime(22, 0);
+    $timetableInsert->execute([607,102,201,null,$historicalStart->format('Y-m-d H:i:s'),$historicalStart->modify('+60 minutes')->format('Y-m-d H:i:s'),'America/Bogota','approved',1]);
+    $draftStart = $today->modify('+60 days')->setTime(22, 0);
+    $timetableInsert->execute([608,103,201,null,$draftStart->format('Y-m-d H:i:s'),$draftStart->modify('+60 minutes')->format('Y-m-d H:i:s'),'America/Bogota','approved',1]);
+
     $setInsert = $pdo->prepare('INSERT INTO sets_media(id,title,slug,cover_image,platform,event_id,status,sort_order,created_at) VALUES(?,?,?,?,?,?,?,?,NOW())');
     $setId = 300;
     foreach ([101,102,103] as $eventId) {
@@ -253,6 +280,41 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     event_record_expect(!brvtal_public_event_is_visible(['status'=>'draft','event_date'=>$draftDate]), 'MariaDB draft fixture must remain outside canonical public visibility');
     event_record_expect(empty($draftData['links']['TICKETS']) && empty($draftData['related']['TICKETS']), 'MariaDB draft Event page-data must never expose commercial actions');
 
+    $activeTimetable = $activeData['related']['TIMETABLE'] ?? [];
+    event_record_expect(count($activeTimetable) === 2, 'MariaDB active Event must expose only valid approved timetable rows');
+    event_record_expect(
+        array_column($activeTimetable, 'title') === ['PUBLIC ARTIST','EXTERNAL SLOT'],
+        'MariaDB timetable must remain chronologically ordered and keep valid external labels'
+    );
+    event_record_expect(
+        ($activeTimetable[0]['route_type'] ?? '') === 'artists'
+            && ($activeTimetable[0]['slug'] ?? '') === 'public-artist',
+        'MariaDB timetable linked Artist must resolve only through public Artist identity'
+    );
+    event_record_expect(
+        !array_key_exists('artist_id', $activeTimetable[0])
+            && !array_key_exists('id', $activeTimetable[0])
+            && !array_key_exists('event_id', $activeTimetable[0]),
+        'MariaDB public timetable must never expose internal IDs'
+    );
+    $activeTimetableJson = json_encode($activeTimetable, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    event_record_expect(
+        is_string($activeTimetableJson)
+            && !str_contains($activeTimetableJson, 'PRIVATE ARTIST')
+            && !str_contains($activeTimetableJson, 'PRIVATE FALLBACK MUST NOT LEAK')
+            && !str_contains($activeTimetableJson, 'INVALID TIMEZONE')
+            && !str_contains($activeTimetableJson, 'INVALID WINDOW'),
+        'MariaDB public timetable must fail closed for private Artist and malformed rows'
+    );
+    event_record_expect(
+        count($historicalData['related']['TIMETABLE'] ?? []) === 1,
+        'MariaDB historical public Event may expose its approved timetable record'
+    );
+    event_record_expect(
+        empty($draftData['related']['TIMETABLE']),
+        'MariaDB draft Event must never hydrate public timetable data'
+    );
+
     foreach ([$activeData,$historicalData,$draftData] as $pageData) {
         $lineupTitles = array_column($pageData['related']['LINEUP'] ?? [], 'title');
         $setTitles = array_column($pageData['related']['SETS'] ?? [], 'title');
@@ -272,6 +334,7 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     $integrationHtml = brvtal_public_entity_page($historicalData, $integrationSeo);
     event_record_expect(str_contains($integrationHtml, 'data-event-record-state="historical"'), 'MariaDB hydrated Event must render historical state');
     event_record_expect(str_contains($integrationHtml, 'PUBLIC TRANSMISSION 102'), 'MariaDB hydrated Event must render published Transmission');
+    event_record_expect(str_contains($integrationHtml, 'TIMETABLE / RECORD / 01'), 'MariaDB hydrated Event must render approved timetable inside Event Record');
     event_record_expect(!str_contains($integrationHtml, 'PRIVATE TRANSMISSION 102'), 'MariaDB hydrated Event must not render unpublished Transmission');
     event_record_expect(!str_contains($integrationHtml, '>TICKETS ↗<'), 'MariaDB hydrated historical Event must not render ticket CTA');
 }
