@@ -57,28 +57,52 @@ function brvtalTicketRowValidation(row){
 }
 
 let brvtalEventInsightsModulePromise=null;
+function brvtalDiscardEventInsightsScript(script){
+  if(!script)return;
+  script.dataset.eventInsightsFailed='1';
+  script.remove();
+}
+function brvtalEventInsightsScriptSrc(){
+  const target=new URL('/discadmin/event-insights.js',location.origin);
+  if(!BRVTAL_CONTENT_CORE_SCRIPT_SRC)return target.pathname;
+  const source=new URL(BRVTAL_CONTENT_CORE_SCRIPT_SRC,location.origin);
+  const version=source.searchParams.get('v');
+  if(version)target.searchParams.set('v',version);
+  return target.pathname+target.search;
+}
 function brvtalLoadEventInsightsModule(){
   if(window.BRVTALEventInsights)return Promise.resolve(window.BRVTALEventInsights);
   if(brvtalEventInsightsModulePromise)return brvtalEventInsightsModulePromise;
+
   brvtalEventInsightsModulePromise=new Promise((resolve,reject)=>{
-    const existing=document.querySelector('script[data-event-insights-script="1"]');
-    const finish=()=>{
-      if(window.BRVTALEventInsights)resolve(window.BRVTALEventInsights);
-      else reject(new Error('Event Insights module unavailable'));
-    };
-    if(existing){
-      if(window.BRVTALEventInsights){finish();return;}
-      existing.addEventListener('load',finish,{once:true});
-      existing.addEventListener('error',()=>reject(new Error('Event Insights module unavailable')),{once:true});
-      return;
+    let script=document.querySelector('script[data-event-insights-script="1"]');
+    if(script?.dataset.eventInsightsFailed==='1'){
+      brvtalDiscardEventInsightsScript(script);
+      script=null;
     }
-    const script=document.createElement('script');
-    script.src=brvtalEventInsightsScriptSrc();
-    script.async=true;
-    script.dataset.eventInsightsScript='1';
+
+    const fail=message=>{
+      brvtalDiscardEventInsightsScript(script);
+      reject(new Error(message));
+    };
+    const finish=()=>{
+      if(window.BRVTALEventInsights){
+        script.dataset.eventInsightsReady='1';
+        resolve(window.BRVTALEventInsights);
+        return;
+      }
+      fail('Event Insights module unavailable');
+    };
+
+    if(!script){
+      script=document.createElement('script');
+      script.src=brvtalEventInsightsScriptSrc();
+      script.async=true;
+      script.dataset.eventInsightsScript='1';
+      document.head.appendChild(script);
+    }
     script.addEventListener('load',finish,{once:true});
-    script.addEventListener('error',()=>reject(new Error('Event Insights module unavailable')),{once:true});
-    document.head.appendChild(script);
+    script.addEventListener('error',()=>fail('Event Insights module unavailable'),{once:true});
   }).catch(error=>{
     brvtalEventInsightsModulePromise=null;
     throw error;
