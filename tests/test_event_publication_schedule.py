@@ -145,8 +145,16 @@ echo json_encode([
         self.assertIn("$publishedAt > $now", visibility)
         self.assertNotIn("scheduled_publish_at", lifecycle)
         self.assertNotIn("ALTER TABLE", lifecycle)
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.119'", version)
-        self.assertEqual(package["version"], "0.1.119")
+        release_line = next(
+            line for line in version.splitlines()
+            if line.startswith("const BRVTAL_APP_VERSION = ")
+        )
+        release_version = release_line.split("'")[1]
+        self.assertGreaterEqual(
+            tuple(int(part) for part in release_version.split(".")),
+            (0, 1, 119),
+        )
+        self.assertEqual(package["version"], release_version)
         self.assertEqual(
             package["scripts"]["test:event-publication-schedule"],
             "python3 -m unittest tests/test_event_publication_schedule.py",
