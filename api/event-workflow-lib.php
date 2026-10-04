@@ -170,6 +170,160 @@ function brvtal_event_workflow_lineup(array $input): array
     return $lineup;
 }
 
+
+function brvtal_event_timetable_timezone(mixed $value): DateTimeZone
+{
+    $name = brvtal_event_workflow_text($value, 64);
+    $known = $name === 'UTC' || in_array($name, DateTimeZone::listIdentifiers(), true);
+    if ($name === '' || !$known) {
+        throw new InvalidArgumentException('INVALID_TIMETABLE_TIMEZONE');
+    }
+    return new DateTimeZone($name);
+}
+
+function brvtal_event_timetable_local_datetime(
+    mixed $value,
+    DateTimeZone $timezone,
+    string $field
+): DateTimeImmutable {
+    $raw = trim((string)$value);
+    $raw = str_replace('T', ' ', $raw);
+    if (preg_match('/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}(?::\\d{2})?$/D', $raw) !== 1) {
+        throw new InvalidArgumentException('INVALID_' . strtoupper($field));
+    }
+    if (strlen($raw) === 16) {
+        $raw .= ':00';
+    }
+
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $raw, $timezone);
+    $errors = DateTimeImmutable::getLastErrors();
+    if (
+        !$parsed instanceof DateTimeImmutable
+        || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))
+        || $parsed->format('Y-m-d H:i:s') !== $raw
+    ) {
+        throw new InvalidArgumentException('INVALID_' . strtoupper($field));
+    }
+    return $parsed;
+}
+
+function brvtal_event_timetable_item(array $input, int $fallbackOrder = 0): array
+{
+    $allowed = ['id','artist_id','label','starts_at','ends_at','timezone','status','sort_order'];
+    foreach (array_keys($input) as $key) {
+        if (!is_string($key) || !in_array($key, $allowed, true)) {
+            throw new InvalidArgumentException('INVALID_TIMETABLE_FIELD');
+        }
+    }
+
+    $id = null;
+    if (array_key_exists('id', $input) && $input['id'] !== null && $input['id'] !== '') {
+        $parsed = filter_var($input['id'], FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        if ($parsed === false) {
+            throw new InvalidArgumentException('INVALID_TIMETABLE_ID');
+        }
+        $id = (int)$parsed;
+    }
+
+    $artistId = null;
+    if (array_key_exists('artist_id', $input) && $input['artist_id'] !== null && $input['artist_id'] !== '') {
+        $parsed = filter_var($input['artist_id'], FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        if ($parsed === false) {
+            throw new InvalidArgumentException('INVALID_TIMETABLE_ARTIST_ID');
+        }
+        $artistId = (int)$parsed;
+    }
+
+    $label = brvtal_event_workflow_text($input['label'] ?? '', 180);
+    if ($artistId === null && $label === '') {
+        throw new InvalidArgumentException('TIMETABLE_SLOT_IDENTITY_REQUIRED');
+    }
+
+    $timezone = brvtal_event_timetable_timezone($input['timezone'] ?? '');
+    $startsAt = brvtal_event_timetable_local_datetime(
+        $input['starts_at'] ?? '',
+        $timezone,
+        'timetable_starts_at'
+    );
+    $endsAt = brvtal_event_timetable_local_datetime(
+        $input['ends_at'] ?? '',
+        $timezone,
+        'timetable_ends_at'
+    );
+    if ($endsAt <= $startsAt) {
+        throw new InvalidArgumentException('INVALID_TIMETABLE_WINDOW');
+    }
+
+    $status = strtolower(brvtal_event_workflow_text($input['status'] ?? 'draft', 16));
+    if (!in_array($status, ['draft','approved'], true)) {
+        throw new InvalidArgumentException('INVALID_TIMETABLE_STATUS');
+    }
+
+    $order = array_key_exists('sort_order', $input)
+        ? filter_var($input['sort_order'], FILTER_VALIDATE_INT)
+        : $fallbackOrder;
+    if ($order === false || (int)$order < 0) {
+        throw new InvalidArgumentException('INVALID_TIMETABLE_ORDER');
+    }
+
+    $utc = new DateTimeZone('UTC');
+    return [
+        'id'=>$id,
+        'artist_id'=>$artistId,
+        'label'=>$label === '' ? null : $label,
+        'starts_at_utc'=>$startsAt->setTimezone($utc)->format('Y-m-d H:i:s'),
+        'ends_at_utc'=>$endsAt->setTimezone($utc)->format('Y-m-d H:i:s'),
+        'timezone'=>$timezone->getName(),
+        'status'=>$status,
+        'sort_order'=>(int)$order,
+    ];
+}
+
+function brvtal_event_timetable(array $input): array
+{
+    if (count($input) > 200) {
+        throw new InvalidArgumentException('TOO_MANY_TIMETABLE_ITEMS');
+    }
+
+    $items = [];
+    foreach ($input as $index => $item) {
+        if (!is_array($item)) {
+            throw new InvalidArgumentException('INVALID_TIMETABLE');
+        }
+        $items[] = brvtal_event_timetable_item($item, (int)$index);
+    }
+
+    usort($items, static function (array $left, array $right): int {
+        $byStart = strcmp((string)$left['starts_at_utc'], (string)$right['starts_at_utc']);
+        if ($byStart !== 0) return $byStart;
+        $byOrder = (int)$left['sort_order'] <=> (int)$right['sort_order'];
+        if ($byOrder !== 0) return $byOrder;
+        return ((int)($left['id'] ?? PHP_INT_MAX)) <=> ((int)($right['id'] ?? PHP_INT_MAX));
+    });
+
+    $previousEnd = null;
+    foreach ($items as $index => &$item) {
+        if ($previousEnd !== null && strcmp((string)$item['starts_at_utc'], $previousEnd) < 0) {
+            throw new InvalidArgumentException('TIMETABLE_OVERLAP');
+        }
+        $previousEnd = (string)$item['ends_at_utc'];
+        $item['sort_order'] = $index;
+    }
+    unset($item);
+
+    return $items;
+}
+
+function brvtal_event_workflow_fetch_timetable(PDO $pdo, int $eventId, bool $lock = false): array
+{
+    $sql = 'SELECT id,event_id,artist_id,label,starts_at_utc,ends_at_utc,timezone,status,sort_order '
+        . 'FROM event_timetable_items WHERE event_id=? ORDER BY starts_at_utc,sort_order,id'
+        . ($lock ? ' FOR UPDATE' : '');
+    $statement = $pdo->prepare($sql);
+    $statement->execute([$eventId]);
+    return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 function brvtal_event_workflow_request(array $input): array
 {
     $event = $input['event'] ?? null;
