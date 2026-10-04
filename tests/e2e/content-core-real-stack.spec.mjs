@@ -437,7 +437,7 @@ test('Media writes stay behind the canonical integrity boundary in the real stac
   const auth = await login(page);
   const headers = {'X-CSRF-Token':auth.csrf};
   const png = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGPY9p/hPwAG2QK1I5xhfgAAAABJRU5ErkJggg==',
     'base64',
   );
   let mediaId = 0;
