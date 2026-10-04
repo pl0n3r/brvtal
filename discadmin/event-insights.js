@@ -97,11 +97,11 @@
         signal
       }
     );
-    const payload=await responseJson(response);
     if(response.status===401){
       location.href='/discadmin/';
       throw new Error('AUTH_REQUIRED');
     }
+    const payload=await responseJson(response);
     if(!response.ok||payload?.ok!==true||!payload.data||typeof payload.data!=='object'){
       throw new Error('INSIGHTS_UNAVAILABLE');
     }
@@ -157,6 +157,7 @@
     try{
       const data=await requestEventInsights(eventId,windowKey,controller.signal);
       if(staleRequest(sequence))return {state:'STALE_REQUEST'};
+      if(Number(data.event_id)!==eventId)throw new Error('EVENT_ID_MISMATCH');
       return {state:renderResponse(data)};
     }catch(error){
       if(error?.name==='AbortError'||staleRequest(sequence))return {state:'STALE_REQUEST'};
