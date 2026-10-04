@@ -244,6 +244,9 @@ function brvtalEventTimetableItem(array $input, int $fallbackOrder = 0): array
     }
 
     $label = brvtal_event_workflow_text($input['label'] ?? '', 180);
+    if ($artistId !== null) {
+        $label = '';
+    }
     if ($artistId === null && $label === '') {
         throw new InvalidArgumentException('TIMETABLE_SLOT_IDENTITY_REQUIRED');
     }
@@ -295,11 +298,20 @@ function brvtalEventTimetable(array $input): array
     }
 
     $items = [];
+    $seenIds = [];
     foreach ($input as $index => $item) {
         if (!is_array($item)) {
             throw new InvalidArgumentException('INVALID_TIMETABLE');
         }
-        $items[] = brvtalEventTimetableItem($item, (int)$index);
+        $normalized = brvtalEventTimetableItem($item, (int)$index);
+        $itemId = $normalized['id'];
+        if ($itemId !== null) {
+            if (isset($seenIds[$itemId])) {
+                throw new InvalidArgumentException('DUPLICATE_TIMETABLE_ID');
+            }
+            $seenIds[$itemId] = true;
+        }
+        $items[] = $normalized;
     }
 
     usort($items, static function (array $left, array $right): int {
@@ -333,12 +345,51 @@ function brvtalEventWorkflowFetchTimetable(PDO $pdo, int $eventId, bool $lock = 
     return $statement->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+function brvtalEventTimetableForEditor(array $rows): array
+{
+    $utc = new DateTimeZone('UTC');
+    $editor = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            throw new RuntimeException('INVALID_TIMETABLE_STORAGE');
+        }
+        $timezone = brvtalEventTimetableTimezone($row['timezone'] ?? '');
+        $startsAt = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', (string)($row['starts_at_utc'] ?? ''), $utc);
+        $endsAt = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', (string)($row['ends_at_utc'] ?? ''), $utc);
+        if (!$startsAt instanceof DateTimeImmutable || !$endsAt instanceof DateTimeImmutable) {
+            throw new RuntimeException('INVALID_TIMETABLE_STORAGE');
+        }
+        $artistId = $row['artist_id'] === null ? null : (int)$row['artist_id'];
+        $editor[] = [
+            'id'=>(int)$row['id'],
+            'event_id'=>(int)$row['event_id'],
+            'artist_id'=>$artistId,
+            'label'=>$artistId === null ? ($row['label'] ?? null) : null,
+            'starts_at'=>$startsAt->setTimezone($timezone)->format('Y-m-d\\TH:i'),
+            'ends_at'=>$endsAt->setTimezone($timezone)->format('Y-m-d\\TH:i'),
+            'timezone'=>$timezone->getName(),
+            'status'=>(string)$row['status'],
+            'sort_order'=>(int)$row['sort_order'],
+        ];
+    }
+    return $editor;
+}
+
 function brvtal_event_workflow_request(array $input): array
 {
     $event = $input['event'] ?? null;
     $tickets = $input['ticket_types'] ?? [];
     $lineup = $input['lineup'] ?? [];
-    if (!is_array($event) || !is_array($tickets) || !is_array($lineup)) throw new InvalidArgumentException('INVALID_EVENT_WORKFLOW');
+    $timetableProvided = array_key_exists('timetable', $input);
+    $timetable = $timetableProvided ? $input['timetable'] : null;
+    if (
+        !is_array($event)
+        || !is_array($tickets)
+        || !is_array($lineup)
+        || ($timetableProvided && !is_array($timetable))
+    ) {
+        throw new InvalidArgumentException('INVALID_EVENT_WORKFLOW');
+    }
     if (count($tickets) > 200) throw new InvalidArgumentException('TOO_MANY_TICKET_TYPES');
     $eventId = null;
     if (array_key_exists('id', $event) && $event['id'] !== null && $event['id'] !== '') {
@@ -363,6 +414,7 @@ function brvtal_event_workflow_request(array $input): array
         'event'=>brvtal_event_workflow_event($event),
         'ticket_types'=>$normalizedTickets,
         'lineup'=>brvtal_event_workflow_lineup($lineup),
+        'timetable'=>$timetableProvided ? brvtalEventTimetable($timetable) : null,
     ];
 }
 
@@ -503,9 +555,126 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
             $audit('lineup_update','event_lineup',(int)$eventId,['event_id'=>(int)$eventId,'lineup'=>$beforeLineup],['event_id'=>(int)$eventId,'lineup'=>$afterLineup],['source'=>'event_workflow'],(string)$afterEvent['title']);
         }
 
+        $beforeTimetable = brvtalEventWorkflowFetchTimetable($pdo, (int)$eventId, true);
+        $timetable = $request['timetable'] ?? null;
+        if (is_array($timetable)) {
+            $linkedArtistIds = [];
+            foreach ($timetable as $item) {
+                if ($item['artist_id'] !== null) {
+                    $linkedArtistIds[] = (int)$item['artist_id'];
+                }
+            }
+            $linkedArtistIds = array_values(array_unique($linkedArtistIds));
+            if ($linkedArtistIds !== []) {
+                $marks = implode(',', array_fill(0, count($linkedArtistIds), '?'));
+                $statement = $pdo->prepare("SELECT id FROM artists WHERE id IN ({$marks}) FOR UPDATE");
+                $statement->execute($linkedArtistIds);
+                $found = array_map(intval(...), $statement->fetchAll(PDO::FETCH_COLUMN));
+                sort($found);
+                sort($linkedArtistIds);
+                if ($found !== $linkedArtistIds) {
+                    throw new InvalidArgumentException('TIMETABLE_ARTIST_NOT_FOUND');
+                }
+            }
+
+            $timetableMap = [];
+            foreach ($beforeTimetable as $row) {
+                $timetableMap[(int)$row['id']] = $row;
+            }
+            $keepTimetable = [];
+            foreach ($timetable as $item) {
+                $itemId = $item['id'] === null ? null : (int)$item['id'];
+                $patch = $item;
+                unset($patch['id']);
+                if ($itemId !== null) {
+                    if (!isset($timetableMap[$itemId])) {
+                        throw new InvalidArgumentException('TIMETABLE_ITEM_NOT_FOUND');
+                    }
+                    $before = $timetableMap[$itemId];
+                    brvtal_event_workflow_dynamic_update($pdo, 'event_timetable_items', $itemId, $patch);
+                    $statement = $pdo->prepare(
+                        'SELECT id,event_id,artist_id,label,starts_at_utc,ends_at_utc,timezone,status,sort_order '
+                        . 'FROM event_timetable_items WHERE id=? AND event_id=? LIMIT 1'
+                    );
+                    $statement->execute([$itemId, (int)$eventId]);
+                    $after = $statement->fetch(PDO::FETCH_ASSOC);
+                    if (!is_array($after)) {
+                        throw new RuntimeException('TIMETABLE_ITEM_MISSING');
+                    }
+                    if ($audit !== null && $before !== $after) {
+                        $audit(
+                            'timetable_update',
+                            'event_timetable',
+                            (int)$eventId,
+                            null,
+                            null,
+                            ['source'=>'event_workflow','item_id'=>$itemId,'before'=>$before,'after'=>$after],
+                            (string)$afterEvent['title']
+                        );
+                    }
+                    $keepTimetable[$itemId] = true;
+                    continue;
+                }
+
+                $insert = ['event_id'=>(int)$eventId] + $patch;
+                $fields = array_keys($insert);
+                $columns = implode(',', array_map(static fn(string $field): string => "`{$field}`", $fields));
+                $marks = implode(',', array_fill(0, count($fields), '?'));
+                $statement = $pdo->prepare("INSERT INTO event_timetable_items ({$columns}) VALUES ({$marks})");
+                $statement->execute(array_values($insert));
+                $itemId = (int)$pdo->lastInsertId();
+                $statement = $pdo->prepare(
+                    'SELECT id,event_id,artist_id,label,starts_at_utc,ends_at_utc,timezone,status,sort_order '
+                    . 'FROM event_timetable_items WHERE id=? AND event_id=? LIMIT 1'
+                );
+                $statement->execute([$itemId, (int)$eventId]);
+                $after = $statement->fetch(PDO::FETCH_ASSOC);
+                if (!is_array($after)) {
+                    throw new RuntimeException('TIMETABLE_ITEM_MISSING');
+                }
+                if ($audit !== null) {
+                    $audit(
+                        'timetable_create',
+                        'event_timetable',
+                        (int)$eventId,
+                        null,
+                        null,
+                        ['source'=>'event_workflow','item_id'=>$itemId,'after'=>$after],
+                        (string)$afterEvent['title']
+                    );
+                }
+                $keepTimetable[$itemId] = true;
+            }
+
+            foreach ($timetableMap as $itemId => $before) {
+                if (isset($keepTimetable[$itemId])) {
+                    continue;
+                }
+                $pdo->prepare('DELETE FROM event_timetable_items WHERE id=? AND event_id=?')
+                    ->execute([$itemId, (int)$eventId]);
+                if ($audit !== null) {
+                    $audit(
+                        'timetable_delete',
+                        'event_timetable',
+                        (int)$eventId,
+                        null,
+                        null,
+                        ['source'=>'event_workflow','item_id'=>$itemId,'before'=>$before],
+                        (string)$afterEvent['title']
+                    );
+                }
+            }
+        }
+
         $afterTickets = brvtal_event_workflow_fetch_tickets($pdo, (int)$eventId, false);
+        $afterTimetable = brvtalEventWorkflowFetchTimetable($pdo, (int)$eventId, false);
         $pdo->commit();
-        return ['event'=>$afterEvent,'ticket_types'=>$afterTickets,'lineup'=>$afterLineup];
+        return [
+            'event'=>$afterEvent,
+            'ticket_types'=>$afterTickets,
+            'lineup'=>$afterLineup,
+            'timetable'=>brvtalEventTimetableForEditor($afterTimetable),
+        ];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;

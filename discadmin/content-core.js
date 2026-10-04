@@ -50,7 +50,7 @@ window.BRVTALContentCore = {mount(root) {
 
 const API='/api/index.php';let events=[],artists=[],currentEvent=null,currentStep=1,csrf='',ticketRowSeq=0;
 const $=s=>root.querySelector(s), $$=s=>[...root.querySelectorAll(s)];
-async function api(path,opts={}){const {headers:optHeaders,...rest}=opts;const r=await fetch(API+path,{credentials:'same-origin',...rest,headers:{'Content-Type':'application/json',...(optHeaders||{})}});let j;try{j=await r.json()}catch(_){throw new Error(`API ${r.status} returned invalid JSON`)}if(r.status===401){location.href='/discadmin/';throw new Error(j?.error||'Authentication required')}if(!r.ok||j?.ok===false)throw new Error(j?.error||`API request failed (${r.status})`);return j}
+async function api(path,opts={}){const {headers:optHeaders,...rest}=opts;const r=await fetch(API+path,{credentials:'same-origin',...rest,headers:{'Content-Type':'application/json',...optHeaders}});let j;try{j=await r.json()}catch(_){throw new Error(`API ${r.status} returned invalid JSON`)}if(r.status===401){location.href='/discadmin/';throw new Error(j?.error||'Authentication required')}if(!r.ok||j?.ok===false)throw new Error(j?.error||`API request failed (${r.status})`);return j}
 function msg(text,ok=true,target='cc-notice'){const n=$('#'+target);n.textContent=text;n.className='notice show '+(ok?'ok':'err');setTimeout(()=>n.classList.remove('show'),5000)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth():await api('/auth');if(!j.authenticated){location.href='/discadmin/';return}csrf=j.csrf||'';if(!csrf)throw new Error('CSRF token unavailable')}
@@ -67,8 +67,9 @@ function closeEvent(force=false){
   close();
   return true;
 }
-function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}currentStep=Math.max(1,Math.min(5,currentStep+dir));setStep()}
-function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===5?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===5?'SAVE EVENT':'SAVE DRAFT'}
+function eventWizardLastStep(){return $$('.step').reduce((last,node)=>Math.max(last,Number(node.dataset.step)||0),1)}
+function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}const last=eventWizardLastStep();currentStep=Math.max(1,Math.min(last,currentStep+dir));setStep()}
+function setStep(){const last=eventWizardLastStep();$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===last?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===last?'SAVE EVENT':'SAVE DRAFT'}
 function addTicket(t={}){
   const d=document.createElement('div');
   const rowId='ticket_'+(++ticketRowSeq);
@@ -116,6 +117,56 @@ function validateTicketRows(){
   }
   return true;
 }
+
+function timetableArtistOptions(selectedId){
+  const selected=Number(selectedId||0);
+  const options=['<option value="">EXTERNAL / LABEL ONLY</option>'];
+  artists.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).forEach(artist=>{
+    const id=Number(artist.id||0);
+    if(id<1)return;
+    options.push('<option value="'+id+'" '+(id===selected?'selected':'')+'>'+esc(artist.name||('Artist #'+id))+'</option>');
+  });
+  return options.join('');
+}
+function addTimetableRow(item={}){
+  const row=document.createElement('div');
+  const artistId=Number(item.artist_id||0);
+  const starts=String(item.starts_at||'').replace(' ','T').slice(0,16);
+  const ends=String(item.ends_at||'').replace(' ','T').slice(0,16);
+  const timezone=String(item.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC');
+  row.className='ticket-row timetable-row';
+  if(item.id)row.dataset.id=String(item.id);
+  row.innerHTML='<div class="ticket-row-head"><strong>TIMETABLE SLOT</strong><button type="button" class="icon" aria-label="Remove timetable slot" onclick="this.closest(\'.timetable-row\').remove()">REMOVE</button></div>'
+    +'<div class="ticket-grid">'
+    +'<label class="ticket-field"><span>Artist</span><select data-k="artist_id" aria-label="Timetable artist">'+timetableArtistOptions(artistId)+'</select></label>'
+    +'<label class="ticket-field"><span>External label</span><input data-k="label" aria-label="Timetable external label" maxlength="180" value="'+esc(artistId?'':(item.label||''))+'" placeholder="Opening / Guest"></label>'
+    +'<label class="ticket-field"><span>Starts</span><input data-k="starts_at" aria-label="Timetable starts" type="datetime-local" value="'+esc(starts)+'"></label>'
+    +'<label class="ticket-field"><span>Ends</span><input data-k="ends_at" aria-label="Timetable ends" type="datetime-local" value="'+esc(ends)+'"></label>'
+    +'<label class="ticket-field"><span>Timezone</span><input data-k="timezone" aria-label="Timetable timezone" maxlength="64" value="'+esc(timezone)+'" placeholder="America/Bogota"></label>'
+    +'<label class="ticket-field"><span>Status</span><select data-k="status" aria-label="Timetable status"><option value="draft" '+(item.status!=='approved'?'selected':'')+'>draft</option><option value="approved" '+(item.status==='approved'?'selected':'')+'>approved</option></select></label>'
+    +'</div>';
+  const artist=row.querySelector('[data-k="artist_id"]');
+  const label=row.querySelector('[data-k="label"]');
+  const syncIdentity=()=>{
+    const linked=Number(artist?.value||0)>0;
+    if(label){
+      label.disabled=linked;
+      if(linked)label.value='';
+    }
+  };
+  artist?.addEventListener('change',syncIdentity);
+  syncIdentity();
+  const holder=$('#eventTimetable');
+  if(!holder)return null;
+  holder.appendChild(row);
+  return row;
+}
+function renderTimetable(rows=[]){
+  const holder=$('#eventTimetable');
+  if(!holder)return;
+  holder.innerHTML='';
+  (Array.isArray(rows)?rows:[]).forEach(addTimetableRow);
+}
 async function saveEvent(){
   const rawDate=$('#e_event_date').value;
   const rawAccent=$('#e_accent').value.trim();
@@ -132,7 +183,7 @@ async function saveEvent(){
     if(j.ok===false)throw new Error(j.error||'Save failed');
     const id=Number(j.id||j.data?.id||currentEvent?.id);
     if(!id)throw new Error('Event ID missing after save');
-    currentEvent={...(currentEvent||{}),id,...payload};
+    currentEvent={...currentEvent,id,...payload};
     eventSaved=true;
     await saveTickets(id);
     await loadEvents();
@@ -209,12 +260,14 @@ async function loadArtists(){try{const j=await api('/artists');artists=j.data||j
 function renderEventArtists(){const holder=$('#eventArtists');if(currentEvent?.id&&holder.dataset.loadState==='loading'){holder.innerHTML='<div class="empty">Loading event participation…</div>';return}if(!artists.length){holder.innerHTML='<div class="empty">Load artists to manage event participation.</div>';return}const relations=currentEvent?.lineup??currentEvent?.event_artists??currentEvent?.artists??[];const selected=new Set(relations.map(x=>Number(x.artist_id||x.id)));holder.innerHTML=artists.filter(a=>Number(a.is_collective_member||0)===1||selected.has(Number(a.id))).sort((a,b)=>Number(b.is_collective_member||0)-Number(a.is_collective_member||0)||Number(a.sort_order||0)-Number(b.sort_order||0)||String(a.name||'').localeCompare(String(b.name||''))).map(a=>{const member=Number(a.is_collective_member||0)===1;return `<div class="artist"><div class="ph">${a.photo?'IMG':'BRV'}</div><label class="grow" for="event_artist_${Number(a.id)}"><b>${esc(a.name)}</b><small>${member?'BRVTAL / MEMBER':'EXTERNAL / EVENT'}</small></label><input id="event_artist_${Number(a.id)}" type="checkbox" data-artist="${Number(a.id)}" aria-label="Include ${esc(a.name)} in event lineup" ${selected.has(Number(a.id))?'checked':''}></div>`}).join('')}
 $('#eventSearch').oninput=renderEvents;
 const ready = (async()=>{try{await initAuth();await loadEvents({required:true});await loadArtists();}catch(e){msg('Initialization failed: '+e.message,false);throw e}})();
+let eventEditorReady=Promise.resolve(null);
 
 
 (function(){
   const originalOpenEvent=openEvent;
   const originalSaveEvent=saveEvent;
-  let ticketRequest=0,ticketState='ready',lineupRequest=0,lineupState='ready';
+  let ticketRequest=0,ticketState='ready',lineupRequest=0,lineupState='ready',timetableRequest=0,timetableState='ready';
+  const timetableEditor=()=>$('#eventTimetable');
   const canLoadLineup=()=>typeof window.BRVTALContentCoreLineup?.load==='function';
   const canSaveLineup=()=>typeof window.BRVTALContentCoreLineup?.save==='function';
   async function refreshTickets(eventId,request){
@@ -244,6 +297,22 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
     $('#eventArtists').dataset.loadState='ready';
     renderEventArtists();
   }
+  async function refreshTimetable(eventId,request){
+    const holder=timetableEditor();
+    if(!holder||!eventId)return;
+    const response=await fetch('/api/event-workflow.php?id='+encodeURIComponent(eventId),{
+      credentials:'same-origin',
+      cache:'no-store'
+    });
+    let payload;
+    try{payload=await response.json()}catch(_){throw new Error('Timetable workflow returned invalid JSON')}
+    if(!response.ok||payload?.ok===false)throw new Error(payload?.error||('Timetable load failed ('+response.status+')'));
+    if(request!==timetableRequest||Number(currentEvent?.id)!==eventId)return;
+    currentEvent.timetable=Array.isArray(payload.data?.timetable)?payload.data.timetable:[];
+    timetableState='ready';
+    holder.dataset.loadState='ready';
+    renderTimetable(currentEvent.timetable);
+  }
   function lineupPayloadFromSelection(){
     const existing=normalizeLineup(currentEvent?.lineup||[]);
     const byArtist=new Map(existing.map(item=>[Number(item.artist_id),item]));
@@ -256,7 +325,6 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
     });
     return payload.sort((a,b)=>a.lineup_order-b.lineup_order||a.artist_id-b.artist_id);
   }
-  let eventEditorReady=Promise.resolve(null);
   openEvent=function(id=null){
     const modal=$('#eventModal');
     modal.querySelector('[data-seo-editor="content-core"]')?.remove();
@@ -264,10 +332,16 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
     const lineupRequestId=++lineupRequest;
     lineupState=id&&canLoadLineup()?'loading':'ready';
     $('#eventArtists').dataset.loadState=lineupState;
+    const timetableRequestId=++timetableRequest;
+    timetableState=id&&timetableEditor()?'loading':'ready';
     originalOpenEvent(id);
     const request=++ticketRequest;
     ticketState=id?'loading':'ready';
     $('#tickets').dataset.loadState=ticketState;
+    if(timetableEditor()){
+      timetableEditor().dataset.loadState=timetableState;
+      renderTimetable([]);
+    }
     const loads=[];
     if(id){
       $('#tickets').innerHTML='<div class="empty">Loading ticket types…</div>';
@@ -287,6 +361,16 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
           msg('Could not load event roster: '+e.message,false,'eventNotice');
         }));
       }
+      if(timetableEditor()){
+        timetableEditor().innerHTML='<div class="empty">Loading timetable…</div>';
+        loads.push(refreshTimetable(Number(id),timetableRequestId).catch(e=>{
+          if(timetableRequestId!==timetableRequest||Number(currentEvent?.id)!==Number(id))return;
+          timetableState='error';
+          timetableEditor().dataset.loadState='error';
+          timetableEditor().innerHTML='<div class="empty">Timetable could not be loaded.</div>';
+          msg('Could not load timetable: '+e.message,false,'eventNotice');
+        }));
+      }
     }
     eventEditorReady=Promise.all(loads).then(()=>currentEvent);
     return eventEditorReady;
@@ -304,6 +388,16 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
       msg(lineupState==='loading'?'Wait for event participation to load before saving.':'Reload event participation before saving this event.',false,'eventNotice');
       return false;
     }
+    if(timetableEditor()){
+      msg(
+        timetableState==='loading'
+          ? 'Wait for timetable to load before saving.'
+          : 'Atomic Event workflow unavailable. Reload DISCADMIN.',
+        false,
+        'eventNotice'
+      );
+      return false;
+    }
     const saved=await originalSaveEvent();
     if(!saved)return false;
     const eventId=Number(currentEvent?.id||0);
@@ -319,6 +413,6 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
   };
 })();
 
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady});
 return ready;
 }};

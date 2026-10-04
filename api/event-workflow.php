@@ -42,6 +42,18 @@ function brvtal_event_workflow_reject_composite_fields(array $input): void
             }
         }
     }
+    if (is_array($input['timetable'] ?? null)) {
+        foreach ($input['timetable'] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            foreach (['id','artist_id','label','starts_at','ends_at','timezone','status','sort_order'] as $field) {
+                if (array_key_exists($field, $item) && (is_array($item[$field]) || is_object($item[$field]))) {
+                    throw new InvalidArgumentException('INVALID_FIELD_TYPE');
+                }
+            }
+        }
+    }
 }
 
 brvtal_admin_require();
@@ -49,14 +61,36 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('X-Content-Type-Options: nosniff');
 
-if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
-    json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405, ['Allow'=>'POST']);
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if (!in_array($method, ['GET','POST'], true)) {
+    json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'], 405, ['Allow'=>'GET, POST']);
 }
-
-brvtal_admin_require_csrf();
 
 try {
     $pdo = db();
+    if ($method === 'GET') {
+        $eventId = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        if ($eventId === false) {
+            throw new InvalidArgumentException('INVALID_EVENT_ID');
+        }
+        $event = brvtal_event_workflow_fetch_event($pdo, (int)$eventId, false);
+        if ($event === null) {
+            throw new RuntimeException('EVENT_NOT_FOUND');
+        }
+        json_response([
+            'ok'=>true,
+            'data'=>[
+                'event'=>$event,
+                'ticket_types'=>brvtal_event_workflow_fetch_tickets($pdo, (int)$eventId, false),
+                'lineup'=>brvtal_event_workflow_fetch_lineup($pdo, (int)$eventId, false),
+                'timetable'=>brvtalEventTimetableForEditor(
+                    brvtalEventWorkflowFetchTimetable($pdo, (int)$eventId, false)
+                ),
+            ],
+        ]);
+    }
+
+    brvtal_admin_require_csrf();
     $input = input_json();
     brvtal_event_workflow_reject_composite_fields($input);
     $request = brvtal_event_workflow_request($input);
@@ -88,6 +122,7 @@ try {
         'event_id'=>(int)$result['event']['id'],
         'ticket_count'=>count($result['ticket_types']),
         'lineup_count'=>count($result['lineup']),
+        'timetable_count'=>count($result['timetable']),
     ]);
     json_response(['ok'=>true,'data'=>$result]);
 } catch (InvalidArgumentException $e) {
@@ -107,6 +142,6 @@ try {
     if ($code === 1062) json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'], 409);
     json_response(['ok'=>false,'error'=>'DATABASE_ERROR'], 500);
 } catch (Throwable $e) {
-    brvtal_log('API_ERROR', 'Event workflow failed', ['class'=>get_class($e),'message'=>$e->getMessage()]);
+    brvtal_log('API_ERROR', 'Event workflow failed', ['class'=>$e::class,'message'=>$e->getMessage()]);
     json_response(['ok'=>false,'error'=>'EVENT_WORKFLOW_FAILED'], 500);
 }
