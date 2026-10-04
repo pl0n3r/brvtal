@@ -423,10 +423,10 @@ let eventEditorReady=Promise.resolve(null);
       renderTimetable([]);
     }
     const loads=[];
-    loads.push(refreshEventInsights(currentEvent,insightsRequestId).catch(()=>{
+    void refreshEventInsights(currentEvent,insightsRequestId).catch(()=>{
       if(insightsRequestId!==insightsRequest)return;
       markInsightsUnavailable();
-    }));
+    });
     if(id){
       $('#tickets').innerHTML='<div class="empty">Loading ticket types…</div>';
       loads.push(refreshTickets(Number(id),request).catch(e=>{
