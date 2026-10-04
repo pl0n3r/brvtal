@@ -32,8 +32,21 @@ class PolicyCallerPermissionsTests(unittest.TestCase):
         self.text = WORKFLOW.read_text(encoding="utf-8")
         self.lines = self.text.splitlines()
 
-    def _policy_job(self) -> str:
-        return self.text.split("  policy:\n", 1)[1]
+    def _policy_permissions(self) -> dict[str, str]:
+        policy_index = self.lines.index("  policy:")
+        permissions_index = self.lines.index("    permissions:", policy_index)
+        result: dict[str, str] = {}
+        for line in self.lines[permissions_index + 1:]:
+            if not line.strip():
+                continue
+            indent = len(line) - len(line.lstrip(" "))
+            if indent <= 4:
+                break
+            if indent != 6 or ":" not in line:
+                continue
+            key, value = line.strip().split(":", 1)
+            result[key.strip()] = value.strip()
+        return result
 
     def test_policy_caller_keeps_legacy_minimal_permissions(self) -> None:
         self.assertEqual(
@@ -43,7 +56,13 @@ class PolicyCallerPermissionsTests(unittest.TestCase):
             },
             _mapping_block(self.lines, "permissions:", 0),
         )
-        self.assertNotIn("    permissions:", self._policy_job())
+        self.assertEqual(
+            {
+                "contents": "read",
+                "pull-requests": "read",
+            },
+            self._policy_permissions(),
+        )
         self.assertNotIn("issues: write", self.text)
         self.assertNotIn("checks: read", self.text)
 
