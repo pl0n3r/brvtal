@@ -54,7 +54,6 @@ brvtal_admin_require();
         <div class="step" data-step="4">04 · TICKETS</div>
         <div class="step" data-step="5">05 · ROSTER</div>
         <div class="step" data-step="6">06 · TIMETABLE</div>
-        <div class="step" data-step="7">07 · INSIGHTS</div>
       </div>
       <div class="wizard-main">
 <form id="eventForm" onsubmit="return false">
@@ -195,8 +194,7 @@ brvtal_admin_require();
     <div id="eventTimetable"></div>
   </div>
 </div>
-<div class="step-content" data-content="7">
-  <div class="section" data-event-insights-panel data-state="idle">
+<div class="section" data-event-insights-panel data-state="idle">
     <div class="sectionhead">
       <strong>EVENT INSIGHTS</strong>
       <span class="pill">READ ONLY</span>
@@ -237,7 +235,6 @@ brvtal_admin_require();
       </div>
     </div>
   </div>
-</div>
 </form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
 </div></div></div></div>
 
