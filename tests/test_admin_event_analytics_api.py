@@ -46,11 +46,15 @@ class AdminEventAnalyticsApiTests(unittest.TestCase):
         signals = self.signals()
 
         method_guard = api.index("METHOD_NOT_ALLOWED")
+        parameter_guard = api.index("INVALID_PARAMETER")
         range_guard = api.index("INVALID_WINDOW")
         external_call = api.index("brvtalEventAnalyticsSignals($event)")
 
         self.assertLess(method_guard, external_call)
+        self.assertLess(parameter_guard, external_call)
         self.assertLess(range_guard, external_call)
+        self.assertIn("array_keys($_GET)", api)
+        self.assertIn("['id', 'window']", api)
         self.assertIn("$window !== '7d'", api)
         self.assertIn("EVENT_NOT_FOUND", api)
         self.assertIn("brvtal_public_event_is_visible($event)", signals)
