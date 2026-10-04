@@ -112,7 +112,7 @@ DISCADMIN must support complete event management:
 - tickets;
 - artist participation / roster;
 - timetable when applicable;
-- history/versioning when implemented.
+- read-only Event Version History for persisted Events through the canonical Admin Activity audit trail.
 
 Lifecycle/commercial statuses include:
 
@@ -140,11 +140,11 @@ Requirements:
 - preview is desirable;
 - autosave may be added when safe;
 - publication scheduling may be added later when explicitly required;
-- version history is desired.
+- Version History is available read-only for persisted Events; NEW EVENT does not query history and restore/revert remains intentionally out of scope.
 
 Default required event fields are name, date, city and description, but an incomplete **draft** may be saved before all publication-required fields exist.
 
-The Content Core event wizard supports direct step navigation and a persistent save action. Known production UX/persistence defects discovered during smoke testing are stabilization debt and should be fixed without redesigning the canonical shell.
+The Content Core event wizard supports direct step navigation and a persistent save action. Event Version History V1 reuses the existing `BRVTALAdminActivity.openHistory('events', ...)` viewer and `/api/admin-activity.php`; it does not create a second audit/history system or add a seventh wizard step. Known production UX/persistence defects discovered during smoke testing are stabilization debt and should be fixed without redesigning the canonical shell.
 
 ## 11. Artist participation / lineup
 
