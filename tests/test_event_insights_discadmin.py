@@ -41,8 +41,9 @@ class EventInsightsDiscadminTests(unittest.TestCase):
             )
             self.assertEqual(check.returncode, 0, check.stderr)
 
-        self.assertIn('data-step="7">07 · INSIGHTS', html)
         self.assertIn('data-event-insights-panel', html)
+        self.assertNotIn('data-step="7"', html)
+        self.assertNotIn('data-content="7"', html)
         self.assertIn('id="eventInsightsWindow"', html)
         for metric in ("Users", "Sessions", "Views"):
             self.assertIn(f'id="eventInsights{metric}"', html)
@@ -111,7 +112,6 @@ class EventInsightsDiscadminTests(unittest.TestCase):
             "04 · TICKETS",
             "05 · ROSTER",
             "06 · TIMETABLE",
-            "07 · INSIGHTS",
         ):
             self.assertIn(step, html)
 
@@ -126,6 +126,10 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         ):
             self.assertIn(invariant, core)
 
+        self.assertIn('data-event-insights-panel', html)
+        self.assertNotIn('data-step="7"', html)
+        self.assertNotIn('data-content="7"', html)
+        self.assertIn("eventWizardLastStep()", core)
         self.assertIn("window.BRVTALEventInsights", core)
         self.assertIn("Object.assign(window.BRVTALContentCore", core)
         self.assertNotIn("window.BRVTALContentCore =", self.insights_js())
