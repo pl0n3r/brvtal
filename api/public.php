@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/public_i18n.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
+require_once __DIR__ . '/../config/public_page.php';
 require_once __DIR__ . '/public-archive.php';
 require_once __DIR__ . '/public-related.php';
 require_once __DIR__ . '/public-response.php';
@@ -341,10 +342,28 @@ try {
         $lineupByEvent[(string)$item['event_id']][] = $item;
     }
 
+    $timetableStatement = $pdo->prepare(
+        "SELECT t.id,t.event_id,t.artist_id,t.label,t.starts_at_utc,t.ends_at_utc,t.timezone,t.status,t.sort_order,"
+            . "a.name AS artist_name,a.slug AS artist_slug,a.photo AS artist_image,a.status AS artist_status "
+            . "FROM event_timetable_items t "
+            . "JOIN events e ON e.id=t.event_id "
+            . "LEFT JOIN artists a ON a.id=t.artist_id AND a.status='published' "
+            . "WHERE e.status IN ({$eventPlaceholders}) AND t.status='approved' "
+            . "ORDER BY t.event_id,t.starts_at_utc,t.sort_order,t.id"
+    );
+    $timetableStatement->execute($eventStatuses);
+    $rawTimetableByEvent = [];
+    foreach ($timetableStatement->fetchAll() as $row) {
+        $rawTimetableByEvent[(string)$row['event_id']][] = $row;
+    }
+
     foreach ($allEvents as &$event) {
         $eventKey = (string)$event['id'];
         $event['ticket_types'] = $ticketsByEvent[$eventKey] ?? [];
         $event['lineup'] = $lineupByEvent[$eventKey] ?? [];
+        if (brvtal_public_event_is_visible($event)) {
+            $event['timetable'] = brvtalPublicEventTimetableRows($rawTimetableByEvent[$eventKey] ?? []);
+        }
     }
     unset($event);
 

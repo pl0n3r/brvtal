@@ -115,6 +115,124 @@ function brvtal_page_public_event_rows(PDO $pdo, string $sql, array $parameters 
     ));
 }
 
+/**
+ * Convert approved timetable storage rows into the only shape allowed across
+ * the public boundary. Internal timetable/Event/Artist IDs are intentionally
+ * omitted. Malformed or private-linked rows fail closed.
+ *
+ * @param list<array<string,mixed>> $rows
+ * @return list<array<string,mixed>>
+ */
+function brvtalPublicEventTimetableRows(array $rows): array
+{
+    usort($rows, static function (array $left, array $right): int {
+        $byStart = strcmp((string)($left['starts_at_utc'] ?? ''), (string)($right['starts_at_utc'] ?? ''));
+        if ($byStart !== 0) return $byStart;
+        $byOrder = (int)($left['sort_order'] ?? 0) <=> (int)($right['sort_order'] ?? 0);
+        if ($byOrder !== 0) return $byOrder;
+        return (int)($left['id'] ?? 0) <=> (int)($right['id'] ?? 0);
+    });
+
+    $utc = new DateTimeZone('UTC');
+    $out = [];
+    foreach ($rows as $row) {
+        if (strtolower(trim((string)($row['status'] ?? ''))) !== 'approved') {
+            continue;
+        }
+
+        $timezoneName = trim((string)($row['timezone'] ?? ''));
+        $knownTimezone = $timezoneName === 'UTC'
+            || in_array($timezoneName, DateTimeZone::listIdentifiers(), true);
+        if (!$knownTimezone) {
+            continue;
+        }
+        $timezone = new DateTimeZone($timezoneName);
+
+        $startsRaw = trim((string)($row['starts_at_utc'] ?? ''));
+        $endsRaw = trim((string)($row['ends_at_utc'] ?? ''));
+        $startsAt = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $startsRaw, $utc);
+        $startErrors = DateTimeImmutable::getLastErrors();
+        $endsAt = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $endsRaw, $utc);
+        $endErrors = DateTimeImmutable::getLastErrors();
+        if (
+            !$startsAt instanceof DateTimeImmutable
+            || !$endsAt instanceof DateTimeImmutable
+            || ($startErrors !== false && ($startErrors['warning_count'] > 0 || $startErrors['error_count'] > 0))
+            || ($endErrors !== false && ($endErrors['warning_count'] > 0 || $endErrors['error_count'] > 0))
+            || $startsAt->format('Y-m-d H:i:s') !== $startsRaw
+            || $endsAt->format('Y-m-d H:i:s') !== $endsRaw
+            || $endsAt <= $startsAt
+        ) {
+            continue;
+        }
+
+        $artistRaw = $row['artist_id'] ?? null;
+        $hasArtistReference = $artistRaw !== null && $artistRaw !== '';
+        $item = [];
+        if ($hasArtistReference) {
+            $artistId = filter_var($artistRaw, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+            $artistStatus = strtolower(trim((string)($row['artist_status'] ?? '')));
+            $artistName = trim((string)($row['artist_name'] ?? ''));
+            $artistSlug = trim((string)($row['artist_slug'] ?? ''));
+            if ($artistId === false || $artistStatus !== 'published' || $artistName === '' || $artistSlug === '') {
+                continue;
+            }
+            $item = [
+                'title'=>$artistName,
+                'slug'=>$artistSlug,
+                'image'=>(string)($row['artist_image'] ?? ''),
+                'route_type'=>'artists',
+            ];
+        } else {
+            $label = trim((string)($row['label'] ?? ''));
+            if ($label === '') {
+                continue;
+            }
+            $item = ['title'=>$label];
+        }
+
+        $localStart = $startsAt->setTimezone($timezone);
+        $localEnd = $endsAt->setTimezone($timezone);
+        $sameDate = $localStart->format('Y-m-d') === $localEnd->format('Y-m-d');
+        $range = $sameDate
+            ? $localStart->format('H:i') . '–' . $localEnd->format('H:i')
+            : $localStart->format('d.m H:i') . '–' . $localEnd->format('d.m H:i');
+
+        $item['starts_at'] = $localStart->format('Y-m-d\\TH:i');
+        $item['ends_at'] = $localEnd->format('Y-m-d\\TH:i');
+        $item['timezone'] = $timezoneName;
+        $item['meta'] = $range . ' / ' . $timezoneName;
+        $out[] = $item;
+    }
+
+    return $out;
+}
+
+/**
+ * Hydrate one already-public Event timetable without creating another route.
+ *
+ * @return list<array<string,mixed>>
+ */
+function brvtalPublicEventTimetableForEvent(PDO $pdo, int $eventId): array
+{
+    if ($eventId < 1) {
+        return [];
+    }
+
+    $rows = brvtal_page_rows(
+        $pdo,
+        "SELECT t.id,t.artist_id,t.label,t.starts_at_utc,t.ends_at_utc,t.timezone,t.status,t.sort_order,"
+            . "a.name AS artist_name,a.slug AS artist_slug,a.photo AS artist_image,a.status AS artist_status "
+            . "FROM event_timetable_items t "
+            . "LEFT JOIN artists a ON a.id=t.artist_id AND a.status='published' "
+            . "WHERE t.event_id=? AND t.status='approved' "
+            . "ORDER BY t.starts_at_utc,t.sort_order,t.id",
+        [$eventId]
+    );
+
+    return brvtalPublicEventTimetableRows($rows);
+}
+
 function brvtalPublicTransmissionRelationType(string $routeType): ?string
 {
     return [
@@ -178,6 +296,12 @@ function brvtal_public_page_data(PDO $pdo, array $entity): array
         ]);
         $data['links'] = $allowsTicketing ? array_filter(['TICKETS' => $detail['ticket_url'] ?? '']) : [];
         $data['related']['LINEUP'] = brvtal_page_rows($pdo, "SELECT a.name AS title,a.slug,a.photo AS image,ea.role AS meta,'artists' AS route_type FROM event_artists ea JOIN artists a ON a.id=ea.artist_id AND a.status='published' WHERE ea.event_id=? ORDER BY ea.lineup_order,a.name", [$id]);
+        if (brvtal_public_event_is_visible($detail)) {
+            $timetable = brvtalPublicEventTimetableForEvent($pdo, $id);
+            if ($timetable !== []) {
+                $data['related']['TIMETABLE'] = $timetable;
+            }
+        }
         $data['related']['SETS'] = brvtal_page_rows($pdo, "SELECT title,slug,cover_image AS image,platform AS meta,'sets' AS route_type FROM sets_media WHERE event_id=? AND status='published' ORDER BY sort_order,created_at DESC", [$id]);
         if ($allowsTicketing) {
             $ticketRows = brvtal_page_rows($pdo, "SELECT name AS title,description,price,currency,external_url AS url,status,status AS meta,available_from,available_until FROM event_ticket_types WHERE event_id=? AND status IN ('active','sold_out') ORDER BY sort_order,name", [$id]);
@@ -321,6 +445,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $related = '';
     $historicalHeadings = [
         'LINEUP' => 'LINEUP / RECORD',
+        'TIMETABLE' => 'TIMETABLE / RECORD',
         'SETS' => 'RECORDED SETS',
     ];
     foreach ($page['related'] as $heading => $items) {
