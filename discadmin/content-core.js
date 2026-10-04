@@ -173,11 +173,12 @@ function syncEventHistoryControl(){
   button.disabled=eventId<1;
 }
 async function openEventHistory(){
+  const modal=$('#eventModal');
   const eventId=Number(currentEvent?.id||0);
-  if(eventId<1)return false;
+  if(eventId<1||!modal?.classList.contains('open'))return false;
   try{
     const module=await brvtalLoadEventHistoryModule();
-    if(Number(currentEvent?.id||0)!==eventId)return false;
+    if(Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open'))return false;
     const label=String(currentEvent?.title||currentEvent?.name||`Event #${eventId}`);
     await module.openHistory('events',eventId,label);
     return true;

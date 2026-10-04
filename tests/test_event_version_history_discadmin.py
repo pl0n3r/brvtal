@@ -76,7 +76,7 @@ class EventVersionHistoryDiscadminTests(unittest.TestCase):
 
     def test_new_event_never_loads_or_opens_history(self) -> None:
         history = self.history_function()
-        guard = "if(eventId<1)return false;"
+        guard = "if(eventId<1||!modal?.classList.contains('open'))return false;"
         load = "await brvtalLoadEventHistoryModule()"
         open_call = "await module.openHistory('events',eventId,label)"
         self.assertIn(guard, history)
@@ -140,7 +140,8 @@ const context={
   document,
   location:{origin:'https://brvtal.test'},
   URL,
-  console
+  console,
+  process
 };
 vm.createContext(context);
 vm.runInContext(prefix + String.raw`
@@ -169,7 +170,7 @@ vm.runInContext(prefix + String.raw`
         activity = self.activity_js()
 
         self.assertIn("module.openHistory('events',eventId,label)", history)
-        self.assertIn("Number(currentEvent?.id||0)!==eventId", history)
+        self.assertIn("Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open')", history)
         self.assertNotIn("saveEvent(", history)
         self.assertNotIn("previewEvent(", history)
         self.assertNotIn("BRVTALEventInsights", history)
