@@ -75,6 +75,8 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         fetch_call = insights.index("const response=await fetch(")
         self.assertLess(guard, fetch_call)
         self.assertIn("No analytics request was sent.", insights)
+        self.assertIn("Number(data.event_id)!==eventId", insights)
+        self.assertIn("EVENT_ID_MISMATCH", insights)
         self.assertIn("resetMetrics();", insights)
         self.assertIn("textContent='—'", insights)
         self.assertNotRegex(insights, r"textContent\s*=\s*['\"]0['\"]")
