@@ -69,6 +69,18 @@ class EventTimetableTests(unittest.TestCase):
         self.assertEqual(rejected.returncode, 0, rejected.stderr)
         self.assertEqual(rejected.stdout, "INVALID_TIMETABLE_FIELD")
 
+        composite = php("""try {
+            brvtal_event_timetable([[
+              'label'=>['nested'=>'not allowed'],
+              'starts_at'=>'2026-08-14 21:00',
+              'ends_at'=>'2026-08-14 22:00',
+              'timezone'=>'America/Bogota'
+            ]]);
+        } catch (InvalidArgumentException $e) { echo $e->getMessage(); exit(0); }
+        exit(9);""")
+        self.assertEqual(composite.returncode, 0, composite.stderr)
+        self.assertEqual(composite.stdout, "INVALID_TIMETABLE_FIELD_TYPE")
+
         accepted = php("""$rows=brvtal_event_timetable([[
             'artist_id'=>7,
             'label'=>'CLOSING SLOT',

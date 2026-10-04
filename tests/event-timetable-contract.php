@@ -83,6 +83,16 @@ $freeFormIdentity = timetable_error(static fn(): array => brvtal_event_timetable
 ]));
 timetable_assert($freeFormIdentity === 'INVALID_TIMETABLE_FIELD', 'artist_name must never be an authoritative timetable field');
 
+$composite = timetable_error(static fn(): array => brvtal_event_timetable([
+    [
+        'label'=>['nested'=>'not allowed'],
+        'starts_at'=>'2026-08-14 21:00',
+        'ends_at'=>'2026-08-14 22:00',
+        'timezone'=>'America/Bogota',
+    ],
+]));
+timetable_assert($composite === 'INVALID_TIMETABLE_FIELD_TYPE', 'composite timetable fields must fail closed');
+
 $linked = brvtal_event_timetable([
     ['artist_id'=>7,'label'=>'CLOSING SLOT','starts_at'=>'2026-08-14 23:00','ends_at'=>'2026-08-15 00:20','timezone'=>'America/Bogota'],
 ]);

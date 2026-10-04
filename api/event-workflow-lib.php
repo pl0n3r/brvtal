@@ -215,6 +215,15 @@ function brvtal_event_timetable_item(array $input, int $fallbackOrder = 0): arra
             throw new InvalidArgumentException('INVALID_TIMETABLE_FIELD');
         }
     }
+    foreach ($allowed as $field) {
+        if (
+            array_key_exists($field, $input)
+            && $input[$field] !== null
+            && !is_scalar($input[$field])
+        ) {
+            throw new InvalidArgumentException('INVALID_TIMETABLE_FIELD_TYPE');
+        }
+    }
 
     $id = null;
     if (array_key_exists('id', $input) && $input['id'] !== null && $input['id'] !== '') {
