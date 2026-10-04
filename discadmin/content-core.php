@@ -194,7 +194,56 @@ brvtal_admin_require();
     <div id="eventTimetable"></div>
   </div>
 </div>
-</form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
+</form>
+<div class="section" data-event-insights-panel data-state="idle">
+    <div class="sectionhead">
+      <strong>EVENT INSIGHTS</strong>
+      <span class="pill">READ ONLY</span>
+    </div>
+    <div class="helper" style="margin-bottom:12px">
+      Aggregate Event metrics only. Draft/private Events never trigger analytics requests.
+    </div>
+    <div class="form">
+      <div class="field">
+        <label for="eventInsightsWindow">Window</label>
+        <select id="eventInsightsWindow">
+          <option value="7d">LAST 7 DAYS</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="helper">STATUS</span>
+        <output
+          id="eventInsightsStatus"
+          aria-live="polite"
+          aria-label="Event Insights status"
+          data-state="idle"
+        >NOT PUBLISHED · No analytics request was sent.</output>
+      </div>
+      <div class="field">
+        <span class="helper">USERS</span>
+        <output id="eventInsightsUsers" aria-label="Event Insights users">—</output>
+        <div id="eventInsightsUsersPrevious" class="helper">PREVIOUS: —</div>
+      </div>
+      <div class="field">
+        <span class="helper">SESSIONS</span>
+        <output id="eventInsightsSessions" aria-label="Event Insights sessions">—</output>
+        <div id="eventInsightsSessionsPrevious" class="helper">PREVIOUS: —</div>
+      </div>
+      <div class="field">
+        <span class="helper">VIEWS</span>
+        <output id="eventInsightsViews" aria-label="Event Insights views">—</output>
+        <div id="eventInsightsViewsPrevious" class="helper">PREVIOUS: —</div>
+      </div>
+    </div>
+  </div>
+<div class="foot">
+  <button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button>
+  <div class="foot-right">
+    <button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button>
+    <button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button>
+    <button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button>
+  </div>
+</div>
 </div></div></div></div>
 
 
