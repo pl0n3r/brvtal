@@ -308,7 +308,7 @@ let eventEditorReady=Promise.resolve(null);
     const response=await fetch('/api/event-workflow.php'+query,{
       credentials:'same-origin',
       ...rest,
-      headers:{'Content-Type':'application/json',...(optHeaders||{})}
+      headers:{'Content-Type':'application/json',...optHeaders}
     });
     let payload;
     try{payload=await response.json()}catch(_){throw new Error('Event workflow returned invalid JSON')}
@@ -319,7 +319,7 @@ let eventEditorReady=Promise.resolve(null);
 
   function renderWorkflowRelations(data){
     currentEvent={
-      ...(currentEvent||{}),
+      ...currentEvent,
       ...data.event,
       ticket_types:Array.isArray(data.ticket_types)?data.ticket_types:[],
       lineup:Array.isArray(data.lineup)?data.lineup:[],
