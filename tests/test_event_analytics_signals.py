@@ -17,6 +17,8 @@ $event = ['id'=>42, 'slug'=>'brvtal-night', 'status'=>'published'];
 $claimed = '/events/brvtal-night';
 if ($mode === 'draft') {{
     $event['status'] = 'draft';
+}} elseif ($mode === 'private') {{
+    $event['status'] = 'private';
 }} elseif ($mode === 'unknown') {{
     $event = ['id'=>0, 'slug'=>'missing-event', 'status'=>'published'];
 }} elseif ($mode === 'mismatch') {{
@@ -124,7 +126,7 @@ echo json_encode([
             self.assertNotIn(forbidden, encoded)
 
     def test_draft_private_unknown_or_inconsistent_event_fails_closed_without_pii_or_secret_material(self):
-        for mode in ("draft", "unknown", "mismatch"):
+        for mode in ("draft", "private", "unknown", "mismatch"):
             with self.subTest(mode=mode):
                 result = self.fixture(mode)
                 data = result["data"]
