@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -80,7 +81,12 @@ class PublicI18nE2ETests(unittest.TestCase):
         self.assertIn("width: 390, height: 844", contact)
 
         package = json.loads(read("package.json"))
-        self.assertEqual(package["version"], "0.1.110")
+        version_match = re.search(
+            r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'",
+            read("config/version.php"),
+        )
+        self.assertIsNotNone(version_match)
+        self.assertEqual(package["version"], version_match.group(1))
         self.assertEqual(
             package["scripts"]["test:i18n-e2e"],
             "python3 -m unittest tests/test_public_i18n_e2e.py",

@@ -156,6 +156,20 @@ function brvtalMigrationProofSpecifications(): array
             ),
             ['table:event_ticket_types', 'table:artist_collective_history']
         ),
+        'migration_event_timetable_01.sql' => brvtalMigrationObjectRequirements(
+            'event_timetable_items',
+            [
+                'event_id', 'artist_id', 'label', 'starts_at_utc',
+                'ends_at_utc', 'timezone', 'status', 'sort_order',
+                'created_at', 'updated_at',
+            ],
+            [
+                'idx_event_timetable_event_time',
+                'idx_event_timetable_event_status',
+                'idx_event_timetable_artist',
+            ],
+            true
+        ),
         'migration_media_content_hash_01.sql' => brvtalMigrationObjectRequirements(
             'media',
             ['content_hash'],

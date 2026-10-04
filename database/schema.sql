@@ -95,6 +95,27 @@ CREATE TABLE event_artists (
   CONSTRAINT fk_ea_artist FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE event_timetable_items (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  event_id INT UNSIGNED NOT NULL,
+  artist_id INT UNSIGNED NULL,
+  label VARCHAR(180) NULL,
+  starts_at_utc DATETIME NOT NULL,
+  ends_at_utc DATETIME NOT NULL,
+  timezone VARCHAR(64) NOT NULL,
+  status ENUM('draft','approved') NOT NULL DEFAULT 'draft',
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_event_timetable_event_time (event_id, starts_at_utc, sort_order),
+  INDEX idx_event_timetable_event_status (event_id, status, starts_at_utc),
+  INDEX idx_event_timetable_artist (artist_id, starts_at_utc),
+  CONSTRAINT fk_event_timetable_event
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+  CONSTRAINT fk_event_timetable_artist
+    FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
 CREATE TABLE sets_media (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(180) NOT NULL,
