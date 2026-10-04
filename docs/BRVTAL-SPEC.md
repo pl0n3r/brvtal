@@ -139,10 +139,18 @@ Requirements:
 - warnings generally do not block draft saves;
 - preview is desirable;
 - autosave may be added when safe;
-- publication scheduling may be added later when explicitly required;
+- publication scheduling uses the existing Event lifecycle without a seventh wizard step;
 - Version History is available read-only for persisted Events; NEW EVENT does not query history and restore/revert remains intentionally out of scope.
 
 Default required event fields are name, date, city and description, but an incomplete **draft** may be saved before all publication-required fields exist.
+
+### Event publication scheduling
+
+Event scheduling is a **request-time not-before gate**, not a cron/worker/queue. DISCADMIN accepts the virtual input `publish_at`; clients never control `published_at` directly. The backend consumes `publish_at` and keeps `published_at` server-owned as the first-public/not-before boundary.
+
+A future boundary is valid only for active public lifecycle states. Until that instant, the Event fails closed across public API delivery, canonical Event routes, Archive, Related Content, timetable/ticket exposure, sitemap/indexing and IndexNow URL eligibility. At the boundary the same stored Event becomes visible on the next request without a database mutation or scheduled job. Cancelling or moving out of the active lifecycle before the boundary clears publication evidence that never became effective, so the Event cannot later leak as historical content.
+
+IndexNow remains an editorial-change notification mechanism, not a scheduler. Event saves continue through the existing IndexNow change hook; future-only scheduled rows are not submitted prematurely because they are not yet public. A scheduling change that makes the Event public immediately (for example clearing a future boundary while remaining active) can enqueue the canonical Event URL and Home after the save. Crossing a future boundary by clock alone does not create a background IndexNow task; sitemap and request-time visibility independently follow the same public gate.
 
 The Content Core event wizard supports direct step navigation and a persistent save action. Event Version History V1 reuses the existing `BRVTALAdminActivity.openHistory('events', ...)` viewer and `/api/admin-activity.php`; it does not create a second audit/history system or add a seventh wizard step. Known production UX/persistence defects discovered during smoke testing are stabilization debt and should be fixed without redesigning the canonical shell.
 
