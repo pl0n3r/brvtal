@@ -83,8 +83,10 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         html = self.content()
         insights = self.insights_js()
 
-        self.assertIn('role="status"', html)
-        self.assertIn('aria-live="polite"', html)
+        self.assertRegex(
+            html,
+            r'<output\s+[^>]*id="eventInsightsStatus"[^>]*aria-live="polite"[^>]*aria-label="Event Insights status"',
+        )
         for state in (
             "LOADING",
             "FRESH",
