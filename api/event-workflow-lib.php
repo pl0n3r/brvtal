@@ -487,8 +487,8 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
             $marks = implode(',', array_fill(0, count($artistIds), '?'));
             $st = $pdo->prepare("SELECT id FROM artists WHERE id IN ({$marks}) FOR UPDATE");
             $st->execute($artistIds);
-            $found = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-            sort($found); $expected = array_map('intval', $artistIds); sort($expected);
+            $found = array_map(intval(...), $st->fetchAll(PDO::FETCH_COLUMN));
+            sort($found); $expected = array_map(intval(...), $artistIds); sort($expected);
             if ($found !== $expected) throw new InvalidArgumentException('LINEUP_ARTIST_NOT_FOUND');
         }
         $pdo->prepare('DELETE FROM event_artists WHERE event_id=?')->execute([(int)$eventId]);
