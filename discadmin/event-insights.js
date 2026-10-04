@@ -78,6 +78,59 @@
     setState(state,message);
   }
 
+  async function responseJson(response){
+    try{
+      return await response.json();
+    }catch(_){
+      throw new Error('INVALID_JSON');
+    }
+  }
+
+  async function requestEventInsights(eventId,windowKey,signal){
+    const response=await fetch(
+      '/api/admin-event-analytics.php?id='+encodeURIComponent(eventId)+'&window='+encodeURIComponent(windowKey),
+      {
+        method:'GET',
+        credentials:'same-origin',
+        cache:'no-store',
+        headers:{'Accept':'application/json'},
+        signal
+      }
+    );
+    const payload=await responseJson(response);
+    if(response.status===401){
+      location.href='/discadmin/';
+      throw new Error('AUTH_REQUIRED');
+    }
+    if(!response.ok||payload?.ok!==true||!payload.data||typeof payload.data!=='object'){
+      throw new Error('INSIGHTS_UNAVAILABLE');
+    }
+    return payload.data;
+  }
+
+  function renderAvailableData(data,state){
+    const metrics=data.metrics&&typeof data.metrics==='object'?data.metrics:{};
+    const previous=data.previous&&typeof data.previous==='object'?data.previous:null;
+    for(const metric of METRICS)renderMetric(metric,metrics,previous);
+    setState(state,state==='STALE'?'Cached metrics; source is stale.':'Aggregate metrics are current.');
+  }
+
+  function renderResponse(data){
+    const state=String(data.state||'').toUpperCase();
+    if(!RESPONSE_STATES.has(state))throw new Error('INVALID_STATE');
+    if(state==='FRESH'||state==='STALE'){
+      renderAvailableData(data,state);
+      return state;
+    }
+    resetMetrics();
+    setState(state,state==='NOT CONFIGURED'?'Analytics is not configured.':'Analytics is temporarily unavailable.');
+    return state;
+  }
+
+  function staleRequest(sequence){
+    return sequence!==loadSequence;
+  }
+
   async function load(event){
     mount(root);
     const sequence=++loadSequence;
@@ -91,8 +144,7 @@
     }
 
     const eventId=Number(event.id);
-    const windowSelect=node('eventInsightsWindow');
-    const windowKey=String(windowSelect?.value||'7d');
+    const windowKey=String(node('eventInsightsWindow')?.value||'7d');
     if(windowKey!=='7d'){
       setState('UNAVAILABLE','Unsupported analytics window.');
       return {state:'UNAVAILABLE'};
@@ -103,45 +155,16 @@
     setState('LOADING','Loading bounded aggregate metrics.');
 
     try{
-      const response=await fetch(
-        '/api/admin-event-analytics.php?id='+encodeURIComponent(eventId)+'&window='+encodeURIComponent(windowKey),
-        {
-          method:'GET',
-          credentials:'same-origin',
-          cache:'no-store',
-          headers:{'Accept':'application/json'},
-          signal:controller.signal
-        }
-      );
-      let payload;
-      try{payload=await response.json()}catch(_){throw new Error('INVALID_JSON')}
-      if(sequence!==loadSequence)return {state:'STALE_REQUEST'};
-      if(response.status===401){location.href='/discadmin/';return {state:'UNAVAILABLE'};}
-      if(!response.ok||payload?.ok!==true||!payload.data||typeof payload.data!=='object'){
-        throw new Error('INSIGHTS_UNAVAILABLE');
-      }
-
-      const data=payload.data;
-      const state=String(data.state||'').toUpperCase();
-      if(!RESPONSE_STATES.has(state))throw new Error('INVALID_STATE');
-
-      if(state==='FRESH'||state==='STALE'){
-        const metrics=data.metrics&&typeof data.metrics==='object'?data.metrics:{};
-        const previous=data.previous&&typeof data.previous==='object'?data.previous:null;
-        for(const metric of METRICS)renderMetric(metric,metrics,previous);
-        setState(state,state==='STALE'?'Cached metrics; source is stale.':'Aggregate metrics are current.');
-      }else{
-        resetMetrics();
-        setState(state,state==='NOT CONFIGURED'?'Analytics is not configured.':'Analytics is temporarily unavailable.');
-      }
-      return {state};
+      const data=await requestEventInsights(eventId,windowKey,controller.signal);
+      if(staleRequest(sequence))return {state:'STALE_REQUEST'};
+      return {state:renderResponse(data)};
     }catch(error){
-      if(error?.name==='AbortError'||sequence!==loadSequence)return {state:'STALE_REQUEST'};
+      if(error?.name==='AbortError'||staleRequest(sequence))return {state:'STALE_REQUEST'};
       resetMetrics();
       setState('UNAVAILABLE','Analytics is temporarily unavailable.');
       return {state:'UNAVAILABLE'};
     }finally{
-      if(sequence===loadSequence)activeController=null;
+      if(!staleRequest(sequence))activeController=null;
     }
   }
 
