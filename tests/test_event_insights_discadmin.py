@@ -50,7 +50,9 @@ class EventInsightsDiscadminTests(unittest.TestCase):
             self.assertIn(f'id="eventInsights{metric}"', html)
             self.assertIn(f'id="eventInsights{metric}Previous"', html)
 
-        self.assertIn("script.src='/discadmin/event-insights.js'", core)
+        self.assertIn("document.currentScript?.src", core)
+        self.assertIn("source.searchParams.get('v')", core)
+        self.assertIn("script.src=brvtalEventInsightsScriptSrc()", core)
         self.assertIn("refreshEventInsights(currentEvent,insightsRequestId)", core)
         self.assertIn("'/api/admin-event-analytics.php?id='", insights)
         self.assertIn("method:'GET'", insights)
