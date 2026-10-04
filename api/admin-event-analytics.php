@@ -14,15 +14,22 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
     );
 }
 
+foreach (array_keys($_GET) as $parameter) {
+    if (!is_string($parameter) || !in_array($parameter, ['id', 'window'], true)) {
+        json_response(['ok'=>false, 'error'=>'INVALID_PARAMETER'], 422, ['Cache-Control'=>'no-store']);
+    }
+}
+
 $eventId = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
 if ($eventId === false) {
     json_response(['ok'=>false, 'error'=>'INVALID_EVENT_ID'], 422, ['Cache-Control'=>'no-store']);
 }
 
-$window = strtolower(trim((string)($_GET['window'] ?? '7d')));
-if ($window === '') {
-    $window = '7d';
+$windowRaw = $_GET['window'] ?? '7d';
+if (!is_string($windowRaw)) {
+    json_response(['ok'=>false, 'error'=>'INVALID_WINDOW'], 422, ['Cache-Control'=>'no-store']);
 }
+$window = strtolower(trim($windowRaw));
 if ($window !== '7d') {
     json_response(['ok'=>false, 'error'=>'INVALID_WINDOW'], 422, ['Cache-Control'=>'no-store']);
 }
