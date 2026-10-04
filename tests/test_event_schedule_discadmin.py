@@ -116,8 +116,16 @@ console.log(JSON.stringify({future,past}));
 
         version = VERSION.read_text(encoding="utf-8")
         package = json.loads(PACKAGE.read_text(encoding="utf-8"))
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.120'", version)
-        self.assertEqual(package["version"], "0.1.120")
+        release_line = next(
+            line for line in version.splitlines()
+            if line.startswith("const BRVTAL_APP_VERSION = ")
+        )
+        release_version = release_line.split("'")[1]
+        self.assertGreaterEqual(
+            tuple(int(part) for part in release_version.split(".")),
+            (0, 1, 120),
+        )
+        self.assertEqual(package["version"], release_version)
         self.assertEqual(
             package["scripts"]["test:event-schedule-discadmin"],
             "python3 -m unittest tests/test_event_schedule_discadmin.py",
