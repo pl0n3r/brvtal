@@ -67,7 +67,7 @@ $request = function(string $method, string $url, array $headers, string $body) u
     $values = $start === '14daysAgo' ? ['10', '15', '20'] : ['12', '18', '30'];
     return ['status'=>200, 'body'=>json_encode(['rows'=>[['metricValues'=>[
         ['value'=>$values[0]], ['value'=>$values[1]], ['value'=>$values[2]]
-    ]]])])];
+    ]]]])];
 }};
 $data = brvtalEventAnalyticsSignals(
     $event,
