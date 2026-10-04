@@ -53,6 +53,7 @@ brvtal_admin_require();
         <div class="step" data-step="3">03 · LIFECYCLE</div>
         <div class="step" data-step="4">04 · TICKETS</div>
         <div class="step" data-step="5">05 · ROSTER</div>
+        <div class="step" data-step="6">06 · TIMETABLE</div>
       </div>
       <div class="wizard-main">
 <form id="eventForm" onsubmit="return false">
@@ -178,6 +179,19 @@ brvtal_admin_require();
       so event history is never lost.
     </div>
     <div id="eventArtists" class="artist-list"></div>
+  </div>
+</div>
+<div class="step-content" data-content="6">
+  <div class="section">
+    <div class="sectionhead">
+      <strong>TIMETABLE / RUN OF SHOW</strong>
+      <button type="button" class="btn" onclick="BRVTALContentCore.addTimetableRow()">+ ADD SLOT</button>
+    </div>
+    <div class="helper" style="margin-bottom:12px">
+      Times are stored in UTC with an explicit IANA timezone. Linked artists use Artist identity;
+      use a label only for external or unlinked slots. Draft rows are never public by themselves.
+    </div>
+    <div id="eventTimetable"></div>
   </div>
 </div>
 </form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>

@@ -78,6 +78,17 @@ $pdo->exec("CREATE TEMPORARY TABLE event_artists (
     role VARCHAR(80) NULL,
     PRIMARY KEY(event_id,artist_id)
 ) ENGINE=InnoDB");
+$pdo->exec("CREATE TEMPORARY TABLE event_timetable_items (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    event_id INT UNSIGNED NOT NULL,
+    artist_id INT UNSIGNED NULL,
+    label VARCHAR(180) NULL,
+    starts_at_utc DATETIME NOT NULL,
+    ends_at_utc DATETIME NOT NULL,
+    timezone VARCHAR(64) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'draft',
+    sort_order INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB");
 
 $pdo->prepare('INSERT INTO artists(name) VALUES(?)')->execute(['PL0N3R CI']);
 $artistId = (int)$pdo->lastInsertId();
@@ -107,6 +118,196 @@ event_workflow_it_assert(count($result['lineup']) === 1 && (int)$result['lineup'
 event_workflow_it_assert(trim((string)$result['event']['published_at']) !== '', 'publishing through workflow must stamp published_at');
 
 $ticketId = (int)$result['ticket_types'][0]['id'];
+
+$timetableAudit = [];
+$timetableRequest = brvtal_event_workflow_request([
+    'event'=>[
+        'id'=>$eventId,
+        'title'=>'Atomic Event CI',
+        'slug'=>'atomic-event-ci',
+        'status'=>'published',
+        'event_date'=>'2026-09-16 21:00',
+        'city'=>'Pereira',
+    ],
+    'ticket_types'=>[[
+        'id'=>$ticketId,
+        'name'=>'Preventa',
+        'price'=>'20000',
+        'status'=>'active',
+        'currency'=>'COP',
+        'available_from'=>'2026-09-01 10:00',
+    ]],
+    'lineup'=>[['artist_id'=>$artistId,'lineup_order'=>0,'role'=>'Live Set']],
+    'timetable'=>[
+        [
+            'artist_id'=>$artistId,
+            'starts_at'=>'2026-09-16 21:00',
+            'ends_at'=>'2026-09-16 22:00',
+            'timezone'=>'America/Bogota',
+            'status'=>'approved',
+        ],
+        [
+            'label'=>'Guest transition',
+            'starts_at'=>'2026-09-16 22:00',
+            'ends_at'=>'2026-09-16 22:30',
+            'timezone'=>'America/Bogota',
+            'status'=>'draft',
+        ],
+    ],
+]);
+$scheduled = brvtal_event_workflow_apply(
+    $pdo,
+    $timetableRequest,
+    static function (
+        string $action,
+        string $resource,
+        int $id,
+        ?array $before,
+        ?array $after,
+        array $meta,
+        ?string $label
+    ) use (&$timetableAudit): void {
+        $timetableAudit[] = compact('action','resource','id','before','after','meta','label');
+    }
+);
+event_workflow_it_assert(count($scheduled['timetable']) === 2, 'workflow must persist timetable in the same transaction');
+event_workflow_it_assert(
+    count(array_filter($timetableAudit, static fn(array $row): bool => $row['action'] === 'timetable_create')) === 2,
+    'timetable creates must be audited'
+);
+$firstTimetableId = (int)$scheduled['timetable'][0]['id'];
+$secondTimetableId = (int)$scheduled['timetable'][1]['id'];
+
+$timetableAudit = [];
+$edited = brvtal_event_workflow_apply(
+    $pdo,
+    brvtal_event_workflow_request([
+        'event'=>[
+            'id'=>$eventId,
+            'title'=>'Atomic Event CI',
+            'slug'=>'atomic-event-ci',
+            'status'=>'published',
+            'event_date'=>'2026-09-16 21:00',
+            'city'=>'Pereira',
+        ],
+        'ticket_types'=>[[
+            'id'=>$ticketId,
+            'name'=>'Preventa',
+            'price'=>'20000',
+            'status'=>'active',
+            'currency'=>'COP',
+            'available_from'=>'2026-09-01 10:00',
+        ]],
+        'lineup'=>[['artist_id'=>$artistId,'lineup_order'=>0,'role'=>'Live Set']],
+        'timetable'=>[
+            [
+                'id'=>$firstTimetableId,
+                'artist_id'=>$artistId,
+                'label'=>'must not become artist authority',
+                'starts_at'=>'2026-09-16 21:15',
+                'ends_at'=>'2026-09-16 22:15',
+                'timezone'=>'America/Bogota',
+                'status'=>'approved',
+            ],
+            [
+                'label'=>'Closing',
+                'starts_at'=>'2026-09-16 22:15',
+                'ends_at'=>'2026-09-16 23:15',
+                'timezone'=>'America/Bogota',
+                'status'=>'approved',
+            ],
+        ],
+    ]),
+    static function (
+        string $action,
+        string $resource,
+        int $id,
+        ?array $before,
+        ?array $after,
+        array $meta,
+        ?string $label
+    ) use (&$timetableAudit): void {
+        $timetableAudit[] = compact('action','resource','id','before','after','meta','label');
+    }
+);
+event_workflow_it_assert(count($edited['timetable']) === 2, 'edited timetable must contain exactly two slots');
+event_workflow_it_assert($edited['timetable'][0]['label'] === null, 'linked Artist slots must not retain label authority');
+$actions = array_column($timetableAudit, 'action');
+event_workflow_it_assert(in_array('timetable_update', $actions, true), 'timetable updates must be audited');
+event_workflow_it_assert(in_array('timetable_create', $actions, true), 'timetable creates must be audited during edit');
+event_workflow_it_assert(in_array('timetable_delete', $actions, true), 'timetable deletes must be audited during edit');
+event_workflow_it_assert(
+    (int)$pdo->query("SELECT COUNT(*) FROM event_timetable_items WHERE id={$secondTimetableId}")->fetchColumn() === 0,
+    'omitted timetable rows must be deleted atomically'
+);
+
+$beforeRollbackEvent = $pdo->query("SELECT title FROM events WHERE id={$eventId}")->fetchColumn();
+$beforeRollbackTicket = $pdo->query("SELECT price FROM event_ticket_types WHERE id={$ticketId}")->fetchColumn();
+$beforeRollbackLineup = (int)$pdo->query("SELECT COUNT(*) FROM event_artists WHERE event_id={$eventId}")->fetchColumn();
+$beforeRollbackTimetable = $pdo->query(
+    "SELECT CONCAT(id,':',COALESCE(artist_id,0),':',COALESCE(label,''),':',starts_at_utc,':',ends_at_utc,':',status) "
+    . "FROM event_timetable_items WHERE event_id={$eventId} ORDER BY id"
+)->fetchAll(PDO::FETCH_COLUMN);
+$timetableLateFailure = false;
+try {
+    brvtal_event_workflow_apply($pdo, brvtal_event_workflow_request([
+        'event'=>[
+            'id'=>$eventId,
+            'title'=>'Should rollback timetable failure',
+            'slug'=>'atomic-event-ci',
+            'status'=>'published',
+            'event_date'=>'2026-09-16 21:00',
+            'city'=>'Pereira',
+        ],
+        'ticket_types'=>[[
+            'id'=>$ticketId,
+            'name'=>'Preventa changed before timetable failure',
+            'price'=>'23000',
+            'status'=>'active',
+        ]],
+        'lineup'=>[],
+        'timetable'=>[[
+            'artist_id'=>999999,
+            'starts_at'=>'2026-09-16 23:30',
+            'ends_at'=>'2026-09-17 00:30',
+            'timezone'=>'America/Bogota',
+            'status'=>'approved',
+        ]],
+    ]));
+} catch (InvalidArgumentException $e) {
+    $timetableLateFailure = $e->getMessage() === 'TIMETABLE_ARTIST_NOT_FOUND';
+}
+event_workflow_it_assert($timetableLateFailure, 'missing timetable Artist must fail after earlier writes are staged');
+event_workflow_it_assert($pdo->query("SELECT title FROM events WHERE id={$eventId}")->fetchColumn() === $beforeRollbackEvent, 'timetable failure must roll back Event mutation');
+event_workflow_it_assert($pdo->query("SELECT price FROM event_ticket_types WHERE id={$ticketId}")->fetchColumn() === $beforeRollbackTicket, 'timetable failure must roll back Ticket mutation');
+event_workflow_it_assert((int)$pdo->query("SELECT COUNT(*) FROM event_artists WHERE event_id={$eventId}")->fetchColumn() === $beforeRollbackLineup, 'timetable failure must roll back lineup mutation');
+event_workflow_it_assert(
+    $pdo->query(
+        "SELECT CONCAT(id,':',COALESCE(artist_id,0),':',COALESCE(label,''),':',starts_at_utc,':',ends_at_utc,':',status) "
+        . "FROM event_timetable_items WHERE event_id={$eventId} ORDER BY id"
+    )->fetchAll(PDO::FETCH_COLUMN) === $beforeRollbackTimetable,
+    'timetable failure must roll back timetable mutation'
+);
+
+$overlapRejected = false;
+try {
+    brvtal_event_workflow_request([
+        'event'=>['id'=>$eventId,'title'=>'Overlap','status'=>'draft'],
+        'ticket_types'=>[],
+        'lineup'=>[],
+        'timetable'=>[
+            ['label'=>'A','starts_at'=>'2026-09-16 20:00','ends_at'=>'2026-09-16 21:30','timezone'=>'America/Bogota'],
+            ['label'=>'B','starts_at'=>'2026-09-16 21:00','ends_at'=>'2026-09-16 22:00','timezone'=>'America/Bogota'],
+        ],
+    ]);
+} catch (InvalidArgumentException $e) {
+    $overlapRejected = $e->getMessage() === 'TIMETABLE_OVERLAP';
+}
+event_workflow_it_assert($overlapRejected, 'overlapping timetable must fail before workflow mutation');
+event_workflow_it_assert($pdo->query("SELECT title FROM events WHERE id={$eventId}")->fetchColumn() === $beforeRollbackEvent, 'overlap rejection must leave Event untouched');
+event_workflow_it_assert($pdo->query("SELECT price FROM event_ticket_types WHERE id={$ticketId}")->fetchColumn() === $beforeRollbackTicket, 'overlap rejection must leave Ticket untouched');
+event_workflow_it_assert((int)$pdo->query("SELECT COUNT(*) FROM event_artists WHERE event_id={$eventId}")->fetchColumn() === $beforeRollbackLineup, 'overlap rejection must leave lineup untouched');
+
 $updateRequest = brvtal_event_workflow_request([
     'event'=>[
         'id'=>$eventId,
