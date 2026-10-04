@@ -104,8 +104,9 @@ foreach ($wizardSteps as $wizardStep) {
 
 $insightsStatus = $document->getElementById('eventInsightsStatus');
 content_core_a11y_assert($insightsStatus instanceof DOMElement, 'Event Insights status must remain present.');
-content_core_a11y_assert($insightsStatus->getAttribute('role') === 'status', 'Event Insights status must expose status semantics.');
+content_core_a11y_assert(strtolower($insightsStatus->tagName) === 'output', 'Event Insights status must remain a read-only output.');
 content_core_a11y_assert($insightsStatus->getAttribute('aria-live') === 'polite', 'Event Insights status must announce state changes politely.');
+content_core_a11y_assert(trim($insightsStatus->getAttribute('aria-label')) !== '', 'Event Insights status must keep an accessible name.');
 
 foreach (['eventInsightsUsers','eventInsightsSessions','eventInsightsViews'] as $metricId) {
     $metric = $document->getElementById($metricId);
