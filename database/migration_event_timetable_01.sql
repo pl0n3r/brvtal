@@ -28,11 +28,12 @@ ALTER TABLE event_timetable_items
   ADD COLUMN IF NOT EXISTS updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;
 
 SET @noop_sql := 'SELECT 1';
+SET @timetable_table := 'event_timetable_items';
 
 SET @idx_event_time := (
   SELECT COUNT(*) FROM information_schema.STATISTICS
   WHERE TABLE_SCHEMA=DATABASE()
-    AND TABLE_NAME='event_timetable_items'
+    AND TABLE_NAME=@timetable_table
     AND INDEX_NAME='idx_event_timetable_event_time'
 );
 SET @sql := IF(
@@ -45,7 +46,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @idx_event_status := (
   SELECT COUNT(*) FROM information_schema.STATISTICS
   WHERE TABLE_SCHEMA=DATABASE()
-    AND TABLE_NAME='event_timetable_items'
+    AND TABLE_NAME=@timetable_table
     AND INDEX_NAME='idx_event_timetable_event_status'
 );
 SET @sql := IF(
@@ -58,7 +59,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @idx_artist := (
   SELECT COUNT(*) FROM information_schema.STATISTICS
   WHERE TABLE_SCHEMA=DATABASE()
-    AND TABLE_NAME='event_timetable_items'
+    AND TABLE_NAME=@timetable_table
     AND INDEX_NAME='idx_event_timetable_artist'
 );
 SET @sql := IF(
@@ -71,7 +72,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @fk_event := (
   SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS
   WHERE CONSTRAINT_SCHEMA=DATABASE()
-    AND TABLE_NAME='event_timetable_items'
+    AND TABLE_NAME=@timetable_table
     AND CONSTRAINT_NAME='fk_event_timetable_event'
 );
 SET @sql := IF(
@@ -84,7 +85,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @fk_artist := (
   SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS
   WHERE CONSTRAINT_SCHEMA=DATABASE()
-    AND TABLE_NAME='event_timetable_items'
+    AND TABLE_NAME=@timetable_table
     AND CONSTRAINT_NAME='fk_event_timetable_artist'
 );
 SET @sql := IF(
