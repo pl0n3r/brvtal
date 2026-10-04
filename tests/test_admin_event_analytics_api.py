@@ -20,7 +20,7 @@ class AdminEventAnalyticsApiTests(unittest.TestCase):
     def signals(self) -> str:
         return SIGNALS.read_text(encoding="utf-8")
 
-    def test_event_editor_renders_read_only_bounded_insights_from_canonical_endpoint(self) -> None:
+    def test_endpoint_is_authenticated_get_only_no_store_and_returns_bounded_event_summary(self) -> None:
         api = self.api()
 
         lint = subprocess.run(
