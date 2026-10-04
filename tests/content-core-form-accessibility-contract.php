@@ -88,17 +88,30 @@ foreach ([
     'e_ticket_instructions',
     'e_ticket_qr',
     'e_ticket_url',
+    'eventInsightsWindow',
 ] as $controlId) {
     content_core_a11y_label_targets_control($document, $controlId);
 }
 
 $xpath = new DOMXPath($document);
 $wizardSteps = $xpath->query('//div[contains(concat(" ", normalize-space(@class), " "), " step ")]');
-content_core_a11y_assert($wizardSteps !== false && $wizardSteps->length === 6, 'Event wizard must keep six step indicators.');
+content_core_a11y_assert($wizardSteps !== false && $wizardSteps->length === 7, 'Event wizard must keep seven step indicators.');
 foreach ($wizardSteps as $wizardStep) {
     content_core_a11y_assert($wizardStep instanceof DOMElement, 'Wizard step indicator must remain an element.');
     content_core_a11y_assert(!$wizardStep->hasAttribute('role'), 'Wizard step indicators must not claim button semantics without interaction.');
     content_core_a11y_assert(!$wizardStep->hasAttribute('tabindex'), 'Wizard step indicators must not enter the tab order when they are not interactive.');
+}
+
+$insightsStatus = $document->getElementById('eventInsightsStatus');
+content_core_a11y_assert($insightsStatus instanceof DOMElement, 'Event Insights status must remain present.');
+content_core_a11y_assert($insightsStatus->getAttribute('role') === 'status', 'Event Insights status must expose status semantics.');
+content_core_a11y_assert($insightsStatus->getAttribute('aria-live') === 'polite', 'Event Insights status must announce state changes politely.');
+
+foreach (['eventInsightsUsers','eventInsightsSessions','eventInsightsViews'] as $metricId) {
+    $metric = $document->getElementById($metricId);
+    content_core_a11y_assert($metric instanceof DOMElement, "{$metricId} must remain present.");
+    content_core_a11y_assert(strtolower($metric->tagName) === 'output', "{$metricId} must remain a read-only output.");
+    content_core_a11y_assert(trim($metric->getAttribute('aria-label')) !== '', "{$metricId} must keep an accessible name.");
 }
 
 echo "Content Core form accessibility contract passed.\n";
