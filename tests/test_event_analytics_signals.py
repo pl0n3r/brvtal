@@ -89,11 +89,16 @@ echo json_encode([
         result = subprocess.run(
             ["php", "-r", script],
             cwd=ROOT,
-            check=True,
+            check=False,
             text=True,
             capture_output=True,
             timeout=30,
         )
+        if result.returncode != 0:
+            self.fail(
+                f"PHP fixture failed for mode={mode!r} with exit {result.returncode}:\n"
+                f"{result.stderr.strip()}"
+            )
         return json.loads(result.stdout)
 
     def test_published_event_uses_canonical_route_and_returns_bounded_aggregate_metrics_only(self):
