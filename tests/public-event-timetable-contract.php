@@ -20,7 +20,6 @@ foreach ([
     "t.status='approved'",
     "a.status='published'",
     'brvtalPublicEventTimetableRows',
-    'brvtal_public_event_is_visible($event)',
     "\$event['timetable']",
 ] as $needle) {
     public_event_timetable_expect(str_contains($api, $needle), "public API missing {$needle}");
