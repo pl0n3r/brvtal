@@ -53,7 +53,8 @@ brvtal_admin_require();
         <div class="step" data-step="3">03 · LIFECYCLE</div>
         <div class="step" data-step="4">04 · TICKETS</div>
         <div class="step" data-step="5">05 · ROSTER</div>
-        <div class="step" data-step="6">06 · TIMETABLE</div>\n        <div class="step" data-step="7">07 · INSIGHTS</div>
+        <div class="step" data-step="6">06 · TIMETABLE</div>
+        <div class="step" data-step="7">07 · INSIGHTS</div>
       </div>
       <div class="wizard-main">
 <form id="eventForm" onsubmit="return false">
