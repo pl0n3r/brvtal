@@ -1,3 +1,13 @@
+const BRVTAL_CONTENT_CORE_SCRIPT_SRC=document.currentScript?.src||'';
+function brvtalEventInsightsScriptSrc(){
+  const target=new URL('/discadmin/event-insights.js',location.origin);
+  if(!BRVTAL_CONTENT_CORE_SCRIPT_SRC)return target.pathname;
+  const source=new URL(BRVTAL_CONTENT_CORE_SCRIPT_SRC,location.origin);
+  const version=source.searchParams.get('v');
+  if(version)target.searchParams.set('v',version);
+  return target.pathname+target.search;
+}
+
 function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
 function brvtalTicketPayload(row,eventId,index){
   const payload={event_id:eventId,sort_order:index};
@@ -63,7 +73,7 @@ function brvtalLoadEventInsightsModule(){
       return;
     }
     const script=document.createElement('script');
-    script.src='/discadmin/event-insights.js';
+    script.src=brvtalEventInsightsScriptSrc();
     script.async=true;
     script.dataset.eventInsightsScript='1';
     script.addEventListener('load',finish,{once:true});
