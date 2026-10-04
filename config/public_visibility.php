@@ -74,16 +74,25 @@ function brvtal_public_event_is_visible(array $event, ?DateTimeImmutable $now = 
     $status = strtolower(trim((string)($event['status'] ?? '')));
     if (!in_array($status, brvtal_public_visible_event_statuses(), true)) return false;
 
+    $now = brvtal_public_event_policy_now($now);
+    $publishedRaw = trim((string)($event['published_at'] ?? ''));
+    $publishedAt = brvtal_public_event_datetime($publishedRaw);
+
+    // published_at is the server-owned first-public/not-before boundary. A
+    // malformed non-empty value fails closed, and a future value cannot expose
+    // the Event through direct pages, relations, Archive, sitemap or ticketing.
+    if ($publishedRaw !== '' && $publishedAt === null) return false;
+    if ($publishedAt !== null && $publishedAt > $now) return false;
+
     $historical = brvtal_public_event_statuses()['historical'];
     if (!in_array($status, $historical, true)) return true;
 
-    $now = brvtal_public_event_policy_now($now);
     $today = $now->setTime(0, 0, 0);
     $eventDate = brvtal_public_event_datetime($event['event_date'] ?? null);
-    $publishedAt = brvtal_public_event_datetime($event['published_at'] ?? null);
     $pastByDate = $eventDate !== null && $eventDate < $today;
+    $publishedBeforeNow = $publishedAt !== null && $publishedAt <= $now;
 
-    return $pastByDate || $publishedAt !== null;
+    return $pastByDate || $publishedBeforeNow;
 }
 
 /**

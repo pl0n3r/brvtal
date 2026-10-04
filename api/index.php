@@ -86,7 +86,7 @@ function allowed_fields(string $resource): array
         'events' => [
             'title','slug','event_date','venue','city','description','skin','accent',
             'cover_image','ticket_url','ticket_instructions','ticket_qr','featured',
-            'archive_year','status','sort_order',
+            'archive_year','status','sort_order','publish_at',
         ],
         'artists' => [
             'name','slug','bio','photo','instagram_url','soundcloud_url','website_url',
@@ -664,6 +664,15 @@ try {
             $p = brvtalArtistCollectiveMembershipStoragePayload($pdo, $p);
         }
         if ($resource === 'events') {
+            $scheduleError = brvtal_event_publish_at_error([], $p);
+            if ($scheduleError !== null) {
+                json_response(
+                    ['ok' => false, 'error' => $scheduleError['error'], 'field' => $scheduleError['field']],
+                    422
+                );
+            }
+        }
+        if ($resource === 'events') {
             $p = brvtal_event_lifecycle_patch([], $p);
         }
         if ($resource === 'events') {
@@ -803,6 +812,7 @@ try {
         try{
             $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
             if($before===null){$pdo->rollBack();json_response(['ok'=>false,'error'=>'NOT_FOUND'],404);}
+            if($resource==='events'){$scheduleError=brvtal_event_publish_at_error($before,$p);if($scheduleError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$scheduleError['error'],'field'=>$scheduleError['field']],422);}}
             if($resource==='events')$p=brvtal_event_lifecycle_patch($before,$p);if($resource==='events'){$eventStateError=brvtal_event_publication_error(array_replace($before,$p));if($eventStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$eventStateError['error'],'field'=>$eventStateError['field']],422);}}
             if($resource==='pages'){$pageState=array_replace($before,$p);if(array_key_exists('slug',$p)&&$p['slug']===''){$p['slug']=slugify((string)($pageState['title']??''));$pageState=array_replace($before,$p);}$pageIdentityError=brvtal_page_identity_error($pageState);if($pageIdentityError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageIdentityError['error'],'field'=>$pageIdentityError['field']],422);}$pageStateError=brvtal_page_publication_error($pageState);if($pageStateError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$pageStateError,'field'=>'locale'],422);}}
             if($resource==='ticket_types'){$ticketWindowError=brvtal_ticket_window_error(array_replace($before,$p));if($ticketWindowError!==null){$pdo->rollBack();json_response(['ok'=>false,'error'=>$ticketWindowError['error'],'field'=>$ticketWindowError['field']],422);}}

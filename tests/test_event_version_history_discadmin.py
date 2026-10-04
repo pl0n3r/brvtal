@@ -192,8 +192,16 @@ vm.runInContext(prefix + String.raw`
         )
         self.assertIn("Event Version History V1 reuses the existing", spec)
         self.assertIn("does not create a second audit/history system or add a seventh wizard step", spec)
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.118'", version)
-        self.assertEqual(package["version"], "0.1.118")
+        release_line = next(
+            line for line in version.splitlines()
+            if line.startswith("const BRVTAL_APP_VERSION = ")
+        )
+        release_version = release_line.split("'")[1]
+        self.assertGreaterEqual(
+            tuple(int(part) for part in release_version.split(".")),
+            (0, 1, 118),
+        )
+        self.assertEqual(package["version"], release_version)
         self.assertEqual(
             package["scripts"]["test:event-version-history-discadmin"],
             "python3 -m unittest tests/test_event_version_history_discadmin.py",
