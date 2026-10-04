@@ -25,6 +25,23 @@ foreach ([
 ] as $needle) {
     public_event_timetable_expect(str_contains($api, $needle), "public API missing {$needle}");
 }
+
+$partitionOffset = strpos($api, '$partition = brvtal_public_partition_events($allEvents);');
+$timetableOffset = strpos($api, '$timetableStatement = $pdo->prepare(');
+public_event_timetable_expect(
+    $partitionOffset !== false && $timetableOffset !== false && $partitionOffset < $timetableOffset,
+    'timetable storage must be queried only after canonical public event partitioning'
+);
+$timetableBlock = substr($api, $timetableOffset, 1600);
+public_event_timetable_expect(
+    str_contains($timetableBlock, 'WHERE t.event_id IN ({$timetablePlaceholders})')
+        && !str_contains($timetableBlock, 'WHERE e.status IN'),
+    'timetable query must be constrained to already-public Event IDs, not broad lifecycle statuses'
+);
+public_event_timetable_expect(
+    str_contains($api, 'foreach (array_merge($events, $archiveEvents) as $publicEvent)'),
+    'timetable query IDs must originate from active + archive public Event pools'
+);
 foreach ([
     'function brvtalPublicEventTimetableRows',
     'function brvtalPublicEventTimetableForEvent',

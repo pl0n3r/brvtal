@@ -52,8 +52,12 @@ class PublicEventTimetableTests(unittest.TestCase):
         page = (ROOT / "config/public_page.php").read_text(encoding="utf-8")
         api = (ROOT / "api/public.php").read_text(encoding="utf-8")
         self.assertIn("brvtal_public_event_is_visible($detail)", page)
-        self.assertIn("brvtal_public_event_is_visible($event)", api)
         self.assertIn("a.status='published'", api)
+        partition = api.index("$partition = brvtal_public_partition_events($allEvents);")
+        timetable_query = api.index("$timetableStatement = $pdo->prepare(")
+        self.assertLess(partition, timetable_query)
+        self.assertIn("foreach (array_merge($events, $archiveEvents) as $publicEvent)", api)
+        self.assertIn("WHERE t.event_id IN ({$timetablePlaceholders}) AND t.status='approved'", api)
 
 
 if __name__ == "__main__":
