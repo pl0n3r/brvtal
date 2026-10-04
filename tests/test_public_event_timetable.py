@@ -59,6 +59,22 @@ class PublicEventTimetableTests(unittest.TestCase):
         self.assertIn("foreach (array_merge($events, $archiveEvents) as $publicEvent)", api)
         self.assertIn("WHERE t.event_id IN ({$timetablePlaceholders}) AND t.status='approved'", api)
 
+        partition = php("""require_once 'api/public-archive.php';
+        $now=new DateTimeImmutable('2026-10-03 12:00:00');
+        $partition=brvtal_public_partition_events([
+          ['id'=>10,'status'=>'published','event_date'=>'2026-10-10 22:00:00','published_at'=>null],
+          ['id'=>11,'status'=>'finished','event_date'=>'2026-10-10 22:00:00','published_at'=>null],
+          ['id'=>12,'status'=>'finished','event_date'=>'2026-09-10 22:00:00','published_at'=>null]
+        ],$now);
+        echo json_encode(array_values(array_map(
+          static fn(array $event): int => (int)$event['id'],
+          array_merge($partition['active'],$partition['archive'])
+        )));""")
+        self.assertEqual(partition.returncode, 0, partition.stderr)
+        queried_ids = json.loads(partition.stdout)
+        self.assertEqual(queried_ids, [10, 12])
+        self.assertNotIn(11, queried_ids)
+
 
 if __name__ == "__main__":
     unittest.main()
