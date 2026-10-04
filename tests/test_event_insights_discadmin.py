@@ -51,6 +51,7 @@ class EventInsightsDiscadminTests(unittest.TestCase):
             self.assertIn(f'id="eventInsights{metric}Previous"', html)
 
         self.assertIn("document.currentScript?.src", core)
+        self.assertEqual(core.count("function brvtalEventInsightsScriptSrc()"), 1)
         self.assertIn("source.searchParams.get('v')", core)
         self.assertIn("script.src=brvtalEventInsightsScriptSrc()", core)
         self.assertIn("script.remove()", core)
