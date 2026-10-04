@@ -142,6 +142,6 @@ try {
     if ($code === 1062) json_response(['ok'=>false,'error'=>'DUPLICATE_SLUG'], 409);
     json_response(['ok'=>false,'error'=>'DATABASE_ERROR'], 500);
 } catch (Throwable $e) {
-    brvtal_log('API_ERROR', 'Event workflow failed', ['class'=>get_class($e),'message'=>$e->getMessage()]);
+    brvtal_log('API_ERROR', 'Event workflow failed', ['class'=>$e::class,'message'=>$e->getMessage()]);
     json_response(['ok'=>false,'error'=>'EVENT_WORKFLOW_FAILED'], 500);
 }
