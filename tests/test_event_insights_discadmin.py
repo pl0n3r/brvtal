@@ -44,6 +44,7 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         self.assertIn('data-event-insights-panel', html)
         self.assertNotIn('data-step="7"', html)
         self.assertNotIn('data-content="7"', html)
+        self.assertLess(html.index("</form>"), html.index("data-event-insights-panel"))
         self.assertIn('id="eventInsightsWindow"', html)
         for metric in ("Users", "Sessions", "Views"):
             self.assertIn(f'id="eventInsights{metric}"', html)
