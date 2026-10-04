@@ -472,6 +472,8 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
             $finalEvent = array_replace($beforeEvent, $eventPatch);
             $stateError = brvtal_event_state_error($finalEvent);
             if ($stateError !== null) throw new InvalidArgumentException($stateError['error']);
+            $visualError = brvtalContentVisualPublicationError('events', $finalEvent);
+            if ($visualError !== null) throw new InvalidArgumentException($visualError['error']);
             brvtal_event_workflow_dynamic_update($pdo, 'events', (int)$eventId, $eventPatch);
         } else {
             $scheduleError = brvtal_event_publish_at_error([], $eventPatch);
@@ -480,6 +482,8 @@ function brvtal_event_workflow_apply(PDO $pdo, array $request, ?callable $audit 
             $finalEvent = array_replace(['status'=>'draft'], $eventPatch);
             $stateError = brvtal_event_state_error($finalEvent);
             if ($stateError !== null) throw new InvalidArgumentException($stateError['error']);
+            $visualError = brvtalContentVisualPublicationError('events', $finalEvent);
+            if ($visualError !== null) throw new InvalidArgumentException($visualError['error']);
             if (($eventPatch['slug'] ?? '') === '') $eventPatch['slug'] = brvtal_event_workflow_slug((string)$eventPatch['title']);
             $fields = array_keys($eventPatch);
             $columns = implode(',', array_map(static fn(string $field): string => "`{$field}`", $fields));

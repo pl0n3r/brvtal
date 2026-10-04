@@ -139,6 +139,7 @@ echo json_encode([
         self.assertGreaterEqual(core.count("brvtal_event_publish_at_error("), 2)
         self.assertIn("if (array_key_exists('publish_at', $input))", workflow)
         self.assertGreaterEqual(workflow.count("brvtal_event_publish_at_error("), 2)
+        self.assertGreaterEqual(workflow.count("brvtalContentVisualPublicationError('events', $finalEvent)"), 2)
         self.assertIn("unset($patch['publish_at']);", lifecycle)
         self.assertIn("unset($patch[$field]);", lifecycle)
         self.assertIn("$publishedAt > $now", visibility)
