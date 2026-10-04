@@ -47,7 +47,14 @@
       LINEUP_ARTIST_NOT_FOUND:'One selected artist no longer exists. Reload the Event and try again.',
       DUPLICATE_SLUG:'That Event slug is already in use.',
       EVENT_NOT_FOUND:'This Event no longer exists. Reload Events.',
-      ACTIVITY_SCHEMA_MISSING:'Admin Activity storage is unavailable, so the Event was not changed.'
+      ACTIVITY_SCHEMA_MISSING:'Admin Activity storage is unavailable, so the Event was not changed.',
+      TIMETABLE_SLOT_IDENTITY_REQUIRED:'Every timetable slot needs an Artist or external label.',
+      INVALID_TIMETABLE_TIMEZONE:'Timetable timezone must be a valid IANA timezone.',
+      INVALID_TIMETABLE_WINDOW:'Timetable end must be after its start.',
+      INVALID_TIMETABLE_STATUS:'Timetable status must be draft or approved.',
+      TIMETABLE_OVERLAP:'Timetable slots cannot overlap.',
+      TIMETABLE_ARTIST_NOT_FOUND:'One timetable Artist no longer exists. Reload the Event and try again.',
+      TIMETABLE_NOT_READY:'Wait for timetable to load before saving this Event.'
     };
     return messages[code] || String(code || 'EVENT_WORKFLOW_FAILED').replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase());
   }
@@ -148,8 +155,38 @@
     return selected;
   }
 
-  function draftPayloadForEvent(eventData,tickets,lineup) {
-    return {
+  function timetablePayloads(root) {
+    const holder = root.querySelector('#eventTimetable');
+    if (!holder) return null;
+    return [...holder.querySelectorAll('.timetable-row')].map((row, index) => {
+      const read = key => String(row.querySelector('[data-k="' + key + '"]')?.value ?? '');
+      const artistId = Number(read('artist_id') || 0);
+      const label = read('label').trim();
+      if (artistId < 1 && !label) throw new Error('TIMETABLE_SLOT_IDENTITY_REQUIRED');
+      const startsAt = read('starts_at');
+      const endsAt = read('ends_at');
+      if (!startsAt || !endsAt || endsAt <= startsAt) throw new Error('INVALID_TIMETABLE_WINDOW');
+      const timezone = read('timezone').trim();
+      if (!timezone) throw new Error('INVALID_TIMETABLE_TIMEZONE');
+      const status = read('status') || 'draft';
+      if (!['draft','approved'].includes(status)) throw new Error('INVALID_TIMETABLE_STATUS');
+      const item = {
+        artist_id:artistId > 0 ? artistId : null,
+        label:artistId > 0 ? null : label,
+        starts_at:startsAt,
+        ends_at:endsAt,
+        timezone,
+        status,
+        sort_order:index
+      };
+      const id = Number(row.dataset.id || 0);
+      if (id > 0) item.id = id;
+      return item;
+    });
+  }
+
+  function draftPayloadForEvent(eventData,tickets,lineup,timetable) {
+    const payload = {
       title:eventData.title,
       slug:eventData.slug,
       description:eventData.description,
@@ -167,16 +204,23 @@
       tickets,
       lineup:lineup.map(item => ({artist_id:Number(item.artist_id)}))
     };
+    if (Array.isArray(timetable)) payload.timetable = timetable;
+    return payload;
   }
 
-  async function submitEventWorkflow(eventData,tickets,lineup) {
+  async function submitEventWorkflow(eventData,tickets,lineup,timetable) {
     const token = await csrfToken();
     const response = await fetch('/api/event-workflow.php', {
       method:'POST',
       credentials:'same-origin',
       cache:'no-store',
       headers:{'Content-Type':'application/json','X-CSRF-Token':token},
-      body:JSON.stringify({event:eventData, ticket_types:tickets, lineup})
+      body:JSON.stringify({
+        event:eventData,
+        ticket_types:tickets,
+        lineup,
+        ...(Array.isArray(timetable) ? {timetable} : {})
+      })
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) {
@@ -224,16 +268,18 @@
       if (!activeEventId) return;
       const ticketsState = root.querySelector('#tickets')?.dataset.loadState;
       const lineupState = root.querySelector('#eventArtists')?.dataset.loadState;
+      const timetableState = root.querySelector('#eventTimetable')?.dataset.loadState;
       if (ticketsState && ticketsState !== 'ready') throw new Error('TICKETS_NOT_READY');
       if (lineupState && lineupState !== 'ready') throw new Error('LINEUP_NOT_READY');
+      if (timetableState && timetableState !== 'ready') throw new Error('TIMETABLE_NOT_READY');
     }
 
-    async function finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,result) {
+    async function finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,timetable,result) {
       activeEventId = eventId;
       const draftState = await window.BRVTALLegacyDrafts?.serverSaved?.({
         type:'events',
         id:eventId,
-        payload:submittedDraft || draftPayloadForEvent(eventData,tickets,lineup),
+        payload:submittedDraft || draftPayloadForEvent(eventData,tickets,lineup,timetable),
         result:{id:eventId,data:result.data?.event || {id:eventId}}
       });
       const refreshed = await core.loadEvents();
@@ -246,7 +292,9 @@
         root,
         draftState?.keepOpen
           ? 'Server save completed; newer edits remain in the local draft.'
-          : 'Event, tickets and roster saved together.'
+          : (Array.isArray(timetable)
+            ? 'Event, tickets, roster and timetable saved together.'
+            : 'Event, tickets and roster saved together.')
       );
     }
 
@@ -262,8 +310,9 @@
         const tickets = ticketPayloads(root);
         const beforeLineup = await existingLineup(activeEventId);
         const lineup = lineupPayload(root,beforeLineup);
-        const {eventId,result} = await submitEventWorkflow(eventData,tickets,lineup);
-        await finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,result);
+        const timetable = timetablePayloads(root);
+        const {eventId,result} = await submitEventWorkflow(eventData,tickets,lineup,timetable);
+        await finishEventSave(eventId,submittedDraft,eventData,tickets,lineup,timetable,result);
         return true;
       } catch (error) {
         await window.BRVTALLegacyDrafts?.saveFailed?.({

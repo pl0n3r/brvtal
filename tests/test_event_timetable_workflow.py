@@ -27,16 +27,18 @@ class EventTimetableWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(contract.returncode, 0, contract.stderr)
 
-        editor = (ROOT / "discadmin/content-core.js").read_text(encoding="utf-8")
+        core = (ROOT / "discadmin/content-core.js").read_text(encoding="utf-8")
+        workflow = (ROOT / "discadmin/event-workflow.js").read_text(encoding="utf-8")
         markup = (ROOT / "discadmin/content-core.php").read_text(encoding="utf-8")
-        workflow = (ROOT / "api/event-workflow-lib.php").read_text(encoding="utf-8")
+        server = (ROOT / "api/event-workflow-lib.php").read_text(encoding="utf-8")
         self.assertIn("06 · TIMETABLE", markup)
-        self.assertIn("timetable:timetablePayloadFromRows()", editor)
-        self.assertIn("ticket_types:ticketWorkflowPayloads()", editor)
-        self.assertIn("lineup:lineupPayloadFromSelection()", editor)
-        self.assertIn("'timetable_create'", workflow)
-        self.assertIn("'timetable_update'", workflow)
-        self.assertIn("'timetable_delete'", workflow)
+        self.assertIn("refreshTimetable", core)
+        self.assertIn("function timetablePayloads(root)", workflow)
+        self.assertIn("submitEventWorkflow(eventData,tickets,lineup,timetable)", workflow)
+        self.assertIn("Array.isArray(timetable) ? {timetable} : {}", workflow)
+        self.assertIn("'timetable_create'", server)
+        self.assertIn("'timetable_update'", server)
+        self.assertIn("'timetable_delete'", server)
 
         linked = php("""$request=brvtal_event_workflow_request([
             'event'=>['title'=>'Editor','status'=>'draft'],

@@ -67,8 +67,9 @@ function closeEvent(force=false){
   close();
   return true;
 }
-function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}currentStep=Math.max(1,Math.min(6,currentStep+dir));setStep()}
-function setStep(){$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===6?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===6?'SAVE EVENT':'SAVE DRAFT'}
+function eventWizardLastStep(){return $$('.step').reduce((last,node)=>Math.max(last,Number(node.dataset.step)||0),1)}
+function step(dir){if(dir>0&&currentStep===1&&!$('#e_title').value.trim()){msg('Event name is required before continuing.',false,'eventNotice');return}const last=eventWizardLastStep();currentStep=Math.max(1,Math.min(last,currentStep+dir));setStep()}
+function setStep(){const last=eventWizardLastStep();$$('.step').forEach(x=>x.classList.toggle('active',Number(x.dataset.step)===currentStep));$$('.step-content').forEach(x=>x.classList.toggle('active',Number(x.dataset.content)===currentStep));$('#prevBtn').style.visibility=currentStep===1?'hidden':'visible';$('#nextBtn').style.display=currentStep===last?'none':'inline-block';$('#cc-saveBtn').textContent=currentStep===last?'SAVE EVENT':'SAVE DRAFT'}
 function addTicket(t={}){
   const d=document.createElement('div');
   const rowId='ticket_'+(++ticketRowSeq);
@@ -155,10 +156,14 @@ function addTimetableRow(item={}){
   };
   artist?.addEventListener('change',syncIdentity);
   syncIdentity();
-  $('#eventTimetable').appendChild(row);
+  const holder=$('#eventTimetable');
+  if(!holder)return null;
+  holder.appendChild(row);
+  return row;
 }
 function renderTimetable(rows=[]){
   const holder=$('#eventTimetable');
+  if(!holder)return;
   holder.innerHTML='';
   (Array.isArray(rows)?rows:[]).forEach(addTimetableRow);
 }
@@ -301,165 +306,151 @@ let eventEditorReady=Promise.resolve(null);
 
 (function(){
   const originalOpenEvent=openEvent;
-  let workflowRequest=0,workflowState='ready';
-
-  async function eventWorkflowApi(query='',opts={}){
-    const {headers:optHeaders,...rest}=opts;
-    const response=await fetch('/api/event-workflow.php'+query,{
-      credentials:'same-origin',
-      ...rest,
-      headers:{'Content-Type':'application/json',...optHeaders}
-    });
-    let payload;
-    try{payload=await response.json()}catch(_){throw new Error('Event workflow returned invalid JSON')}
-    if(response.status===401){location.href='/discadmin/';throw new Error(payload?.error||'Authentication required')}
-    if(!response.ok||payload?.ok===false)throw new Error(payload?.error||('Event workflow failed ('+response.status+')'));
-    return payload;
-  }
-
-  function renderWorkflowRelations(data){
-    currentEvent={
-      ...currentEvent,
-      ...data.event,
-      ticket_types:Array.isArray(data.ticket_types)?data.ticket_types:[],
-      lineup:Array.isArray(data.lineup)?data.lineup:[],
-      timetable:Array.isArray(data.timetable)?data.timetable:[]
-    };
+  const originalSaveEvent=saveEvent;
+  let ticketRequest=0,ticketState='ready',lineupRequest=0,lineupState='ready',timetableRequest=0,timetableState='ready';
+  const timetableEditor=()=>$('#eventTimetable');
+  const canLoadLineup=()=>typeof window.BRVTALContentCoreLineup?.load==='function';
+  const canSaveLineup=()=>typeof window.BRVTALContentCoreLineup?.save==='function';
+  async function refreshTickets(eventId,request){
+    const response=await api('/ticket_types');
+    if(response.ok===false)throw new Error(response.error||'Ticket types unavailable');
+    const all=Array.isArray(response.data)?response.data:[];
+    if(request!==ticketRequest||Number(currentEvent?.id)!==eventId)return;
+    currentEvent.ticket_types=all.filter(ticket=>Number(ticket.event_id)===eventId).sort((a,b)=>Number(a.sort_order||0)-Number(b.sort_order||0));
     $('#tickets').innerHTML='';
     currentEvent.ticket_types.forEach(addTicket);
-    renderEventArtists();
-    renderTimetable(currentEvent.timetable);
+    ticketState='ready';
     $('#tickets').dataset.loadState='ready';
+  }
+  function normalizeLineup(lineup){
+    return (Array.isArray(lineup)?lineup:[]).map((item,index)=>{
+      const artistId=Number(item.artist_id||item.id||0);
+      const order=Number(item.lineup_order);
+      return {...item,artist_id:artistId,lineup_order:Number.isFinite(order)?order:index,role:String(item.role??'')};
+    }).filter(item=>item.artist_id>0);
+  }
+  async function refreshLineup(eventId,request){
+    if(!eventId||!canLoadLineup())return;
+    const lineup=await window.BRVTALContentCoreLineup.load(eventId,csrf);
+    if(request!==lineupRequest||Number(currentEvent?.id)!==eventId)return;
+    currentEvent.lineup=normalizeLineup(lineup);
+    lineupState='ready';
     $('#eventArtists').dataset.loadState='ready';
-    $('#eventTimetable').dataset.loadState='ready';
+    renderEventArtists();
   }
-
-  async function refreshWorkflow(eventId,request){
-    const response=await eventWorkflowApi('?id='+encodeURIComponent(eventId),{method:'GET'});
-    if(request!==workflowRequest||Number(currentEvent?.id)!==eventId)return;
-    renderWorkflowRelations(response.data||{});
-    workflowState='ready';
-  }
-
-  function lineupPayloadFromSelection(){
-    const existing=(Array.isArray(currentEvent?.lineup)?currentEvent.lineup:[]).map((item,index)=>({
-      artist_id:Number(item.artist_id||item.id||0),
-      lineup_order:Number.isFinite(Number(item.lineup_order))?Number(item.lineup_order):index,
-      role:String(item.role??'')
-    })).filter(item=>item.artist_id>0);
-    const byArtist=new Map(existing.map(item=>[item.artist_id,item]));
-    let nextOrder=existing.reduce((max,item)=>Math.max(max,item.lineup_order),-1)+1;
-    return $$('#eventArtists [data-artist]:checked').map(element=>{
-      const artistId=Number(element.dataset.artist);
-      const saved=byArtist.get(artistId);
-      return saved||{artist_id:artistId,lineup_order:nextOrder++,role:''};
-    }).sort((a,b)=>a.lineup_order-b.lineup_order||a.artist_id-b.artist_id);
-  }
-
-  function eventWorkflowEventPayload(){
-    const rawDate=$('#e_event_date').value;
-    const rawAccent=$('#e_accent').value.trim();
-    const accent=rawAccent?(window.BRVTALAdminColorField?.normalize(rawAccent)||rawAccent):'';
-    const payload={
-      title:$('#e_title').value.trim(),
-      slug:$('#e_slug').value.trim(),
-      description:$('#e_description').value,
-      cover_image:$('#e_cover_image').value,
-      accent,
-      featured:Number($('#e_featured').value),
-      event_date:rawDate?rawDate.replace('T',' '):null,
-      city:$('#e_city').value.trim(),
-      venue:$('#e_venue').value.trim(),
-      archive_year:Number($('#e_archive_year').value)||null,
-      status:$('#e_status').value,
-      ticket_instructions:$('#e_ticket_instructions').value,
-      ticket_qr:$('#e_ticket_qr').value,
-      ticket_url:$('#e_ticket_url').value
-    };
-    const eventId=Number(currentEvent?.id||0);
-    if(eventId>0)payload.id=eventId;
-    return payload;
-  }
-
-  function ticketWorkflowPayloads(){
-    return $$('#tickets .ticket-row').map((row,index)=>{
-      const payload=brvtalTicketPayload(row,Number(currentEvent?.id||0),index);
-      delete payload.event_id;
-      const id=Number(row.dataset.id||0);
-      if(id>0)payload.id=id;
-      return payload;
+  async function refreshTimetable(eventId,request){
+    const holder=timetableEditor();
+    if(!holder||!eventId)return;
+    const response=await fetch('/api/event-workflow.php?id='+encodeURIComponent(eventId),{
+      credentials:'same-origin',
+      cache:'no-store'
     });
+    let payload;
+    try{payload=await response.json()}catch(_){throw new Error('Timetable workflow returned invalid JSON')}
+    if(!response.ok||payload?.ok===false)throw new Error(payload?.error||('Timetable load failed ('+response.status+')'));
+    if(request!==timetableRequest||Number(currentEvent?.id)!==eventId)return;
+    currentEvent.timetable=Array.isArray(payload.data?.timetable)?payload.data.timetable:[];
+    timetableState='ready';
+    holder.dataset.loadState='ready';
+    renderTimetable(currentEvent.timetable);
   }
-
+  function lineupPayloadFromSelection(){
+    const existing=normalizeLineup(currentEvent?.lineup||[]);
+    const byArtist=new Map(existing.map(item=>[Number(item.artist_id),item]));
+    let nextOrder=existing.reduce((max,item)=>Math.max(max,Number(item.lineup_order)||0),-1)+1;
+    const payload=$$('#eventArtists [data-artist]:checked').map(el=>{
+      const artistId=Number(el.dataset.artist);
+      const saved=byArtist.get(artistId);
+      if(saved)return {artist_id:artistId,lineup_order:saved.lineup_order,role:saved.role};
+      return {artist_id:artistId,lineup_order:nextOrder++,role:''};
+    });
+    return payload.sort((a,b)=>a.lineup_order-b.lineup_order||a.artist_id-b.artist_id);
+  }
   openEvent=function(id=null){
     const modal=$('#eventModal');
     modal.querySelector('[data-seo-editor="content-core"]')?.remove();
     modal.dataset.eventId=id?String(id):'new';
+    const lineupRequestId=++lineupRequest;
+    lineupState=id&&canLoadLineup()?'loading':'ready';
+    $('#eventArtists').dataset.loadState=lineupState;
+    const timetableRequestId=++timetableRequest;
+    timetableState=id&&timetableEditor()?'loading':'ready';
     originalOpenEvent(id);
-    const request=++workflowRequest;
-    workflowState=id?'loading':'ready';
-    $('#tickets').dataset.loadState=workflowState;
-    $('#eventArtists').dataset.loadState=workflowState;
-    $('#eventTimetable').dataset.loadState=workflowState;
-    renderTimetable([]);
-    if(!id){
-      eventEditorReady=Promise.resolve(currentEvent);
-      return eventEditorReady;
+    const request=++ticketRequest;
+    ticketState=id?'loading':'ready';
+    $('#tickets').dataset.loadState=ticketState;
+    if(timetableEditor()){
+      timetableEditor().dataset.loadState=timetableState;
+      renderTimetable([]);
     }
-    $('#tickets').innerHTML='<div class="empty">Loading event workflow…</div>';
-    $('#eventArtists').innerHTML='<div class="empty">Loading event participation…</div>';
-    $('#eventTimetable').innerHTML='<div class="empty">Loading timetable…</div>';
-    eventEditorReady=refreshWorkflow(Number(id),request).catch(error=>{
-      if(request!==workflowRequest)return currentEvent;
-      workflowState='error';
-      $('#tickets').dataset.loadState='error';
-      $('#eventArtists').dataset.loadState='error';
-      $('#eventTimetable').dataset.loadState='error';
-      msg('Could not load the atomic event workflow: '+error.message,false,'eventNotice');
-      return currentEvent;
-    });
+    const loads=[];
+    if(id){
+      $('#tickets').innerHTML='<div class="empty">Loading ticket types…</div>';
+      loads.push(refreshTickets(Number(id),request).catch(e=>{
+        if(request!==ticketRequest)return;
+        ticketState='error';
+        $('#tickets').dataset.loadState='error';
+        $('#tickets').innerHTML='<div class="empty">Ticket types could not be loaded.</div>';
+        msg('Could not load ticket types: '+e.message,false,'eventNotice');
+      }));
+      if(canLoadLineup()){
+        loads.push(refreshLineup(Number(id),lineupRequestId).catch(e=>{
+          if(lineupRequestId!==lineupRequest||Number(currentEvent?.id)!==Number(id))return;
+          lineupState='error';
+          $('#eventArtists').dataset.loadState='error';
+          $('#eventArtists').innerHTML='<div class="empty">Event participation could not be loaded.</div>';
+          msg('Could not load event roster: '+e.message,false,'eventNotice');
+        }));
+      }
+      if(timetableEditor()){
+        timetableEditor().innerHTML='<div class="empty">Loading timetable…</div>';
+        loads.push(refreshTimetable(Number(id),timetableRequestId).catch(e=>{
+          if(timetableRequestId!==timetableRequest||Number(currentEvent?.id)!==Number(id))return;
+          timetableState='error';
+          timetableEditor().dataset.loadState='error';
+          timetableEditor().innerHTML='<div class="empty">Timetable could not be loaded.</div>';
+          msg('Could not load timetable: '+e.message,false,'eventNotice');
+        }));
+      }
+    }
+    eventEditorReady=Promise.all(loads).then(()=>currentEvent);
     return eventEditorReady;
   };
-
   saveEvent=async function(){
     if(currentEvent&&window.BRVTALSEOMetadata&&!$('#eventModal [data-seo-editor="content-core"]')){
       msg('Wait for SEO metadata to load before saving this event.',false,'eventNotice');
       return false;
     }
-    if(workflowState!=='ready'){
-      msg(workflowState==='loading'?'Wait for the event workflow to load before saving.':'Reload the event workflow before saving this event.',false,'eventNotice');
+    if(ticketState!=='ready'){
+      msg(ticketState==='loading'?'Wait for ticket types to load before saving.':'Reload ticket types before saving this event.',false,'eventNotice');
       return false;
     }
-    const eventPayload=eventWorkflowEventPayload();
-    const validationError=validateEventPayload(eventPayload);
-    if(validationError){msg(validationError,false,'eventNotice');return false}
-    if(!validateTicketRows()||!validateTimetableRows())return false;
-    if(!csrf){msg('Security token unavailable. Reload the page.',false,'eventNotice');return false}
-
-    const body={
-      event:eventPayload,
-      ticket_types:ticketWorkflowPayloads(),
-      lineup:lineupPayloadFromSelection(),
-      timetable:timetablePayloadFromRows()
-    };
-    workflowState='saving';
+    if(currentEvent&&canLoadLineup()&&lineupState!=='ready'){
+      msg(lineupState==='loading'?'Wait for event participation to load before saving.':'Reload event participation before saving this event.',false,'eventNotice');
+      return false;
+    }
+    if(timetableEditor()){
+      msg(
+        timetableState==='loading'
+          ? 'Wait for timetable to load before saving.'
+          : 'Atomic Event workflow unavailable. Reload DISCADMIN.',
+        false,
+        'eventNotice'
+      );
+      return false;
+    }
+    const saved=await originalSaveEvent();
+    if(!saved)return false;
+    const eventId=Number(currentEvent?.id||0);
+    if(!eventId||!canSaveLineup()){window.BRVTALUnsavedChanges?.markClean?.($('#eventModal'));return true;}
+    const lineup=lineupPayloadFromSelection();
     try{
-      const response=await eventWorkflowApi('',{
-        method:'POST',
-        body:JSON.stringify(body),
-        headers:{'X-CSRF-Token':csrf}
-      });
-      renderWorkflowRelations(response.data||{});
-      workflowState='ready';
-      await loadEvents();
+      await window.BRVTALContentCoreLineup.save(eventId,lineup,csrf);
+      currentEvent.lineup=lineup;
       window.BRVTALUnsavedChanges?.markClean?.($('#eventModal'));
-      msg('Event, tickets, roster and timetable saved atomically.');
+      msg('Event participation saved.');
       return true;
-    }catch(error){
-      workflowState='ready';
-      msg('Atomic event save failed: '+error.message,false,'eventNotice');
-      return false;
-    }
+    }catch(e){msg('Event saved, but roster could not be saved: '+e.message,false,'eventNotice');return false;}
   };
 })();
 
