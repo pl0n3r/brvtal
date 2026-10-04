@@ -203,9 +203,8 @@ function brvtalAnalyticsCacheFile(): string
 }
 
 /** @return array<string,mixed>|null */
-function brvtalAnalyticsCacheRead(): ?array
+function brvtalAnalyticsCacheReadFrom(string $path): ?array
 {
-    $path = brvtalAnalyticsCacheFile();
     if (!is_file($path)) {
         return null;
     }
@@ -217,14 +216,13 @@ function brvtalAnalyticsCacheRead(): ?array
     return is_array($decoded) ? $decoded : null;
 }
 
-function brvtalAnalyticsCacheWrite(array $record): void
+function brvtalAnalyticsCacheWriteTo(string $path, string $prefix, array $record): void
 {
-    $path = brvtalAnalyticsCacheFile();
     $json = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     if (strlen($json) > BRVTAL_GA4_MAX_BYTES) {
         return;
     }
-    $tmp = tempnam(dirname($path), '.ga4-');
+    $tmp = tempnam(dirname($path), $prefix);
     if ($tmp === false) {
         return;
     }
@@ -239,6 +237,17 @@ function brvtalAnalyticsCacheWrite(array $record): void
             @unlink($tmp);
         }
     }
+}
+
+/** @return array<string,mixed>|null */
+function brvtalAnalyticsCacheRead(): ?array
+{
+    return brvtalAnalyticsCacheReadFrom(brvtalAnalyticsCacheFile());
+}
+
+function brvtalAnalyticsCacheWrite(array $record): void
+{
+    brvtalAnalyticsCacheWriteTo(brvtalAnalyticsCacheFile(), '.ga4-', $record);
 }
 
 /** @return array<string,mixed> */
@@ -301,6 +310,52 @@ function brvtalAnalyticsCacheCandidate(
     return $data;
 }
 
+function brvtalAnalyticsAccessToken(
+    array $config,
+    int $now,
+    callable $request,
+    ?callable $assertionFactory = null
+): string {
+    $assertion = ($assertionFactory ?? 'brvtalAnalyticsJwt')($config, $now);
+    if (!is_string($assertion) || $assertion === '') {
+        throw new RuntimeException('GA4_AUTH_FAILED');
+    }
+
+    $tokenPayload = brvtalAnalyticsDecode($request(
+        'POST',
+        BRVTAL_GA4_TOKEN_URL,
+        ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
+        http_build_query([
+            'grant_type'=>'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion'=>$assertion,
+        ], '', '&', PHP_QUERY_RFC3986)
+    ));
+    $accessToken = $tokenPayload['access_token'] ?? null;
+    if (!is_string($accessToken) || trim($accessToken) === '') {
+        throw new RuntimeException('GA4_AUTH_FAILED');
+    }
+    return $accessToken;
+}
+
+/** @return callable(array<string,mixed>):array<string,mixed> */
+function brvtalAnalyticsReportRunner(callable $request, array $config, string $accessToken): callable
+{
+    $runUrl = BRVTAL_GA4_DATA_BASE . '/v1beta/properties/' . $config['property_id'] . ':runReport';
+    $headers = [
+        'Accept: application/json',
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $accessToken,
+    ];
+
+    return static function (array $body) use ($request, $runUrl, $headers): array {
+        $encoded = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        if (strlen($encoded) > BRVTAL_GA4_MAX_BYTES) {
+            throw new RuntimeException('GA4_REQUEST_TOO_LARGE');
+        }
+        return brvtalAnalyticsDecode($request('POST', $runUrl, $headers, $encoded));
+    };
+}
+
 /** @return array<string,mixed> */
 function brvtalAdminAnalyticsSignals(
     ?callable $requester = null,
@@ -333,37 +388,8 @@ function brvtalAdminAnalyticsSignals(
             return $freshCache;
         }
 
-        $assertion = ($assertionFactory ?? 'brvtalAnalyticsJwt')($config, $now);
-        if (!is_string($assertion) || $assertion === '') {
-            throw new RuntimeException('GA4_AUTH_FAILED');
-        }
-
-        $tokenPayload = brvtalAnalyticsDecode($request(
-            'POST',
-            BRVTAL_GA4_TOKEN_URL,
-            ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
-            http_build_query([
-                'grant_type'=>'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion'=>$assertion,
-            ], '', '&', PHP_QUERY_RFC3986)
-        ));
-        $accessToken = $tokenPayload['access_token'] ?? null;
-        if (!is_string($accessToken) || trim($accessToken) === '') {
-            throw new RuntimeException('GA4_AUTH_FAILED');
-        }
-
-        $runUrl = BRVTAL_GA4_DATA_BASE . '/v1beta/properties/' . $config['property_id'] . ':runReport';
-        $headers = [
-            'Accept: application/json',
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $accessToken,
-        ];
-        $run = (static fn(array $body): array => brvtalAnalyticsDecode($request(
-            'POST',
-            $runUrl,
-            $headers,
-            json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
-        )));
+        $accessToken = brvtalAnalyticsAccessToken($config, $now, $request, $assertionFactory);
+        $run = brvtalAnalyticsReportRunner($request, $config, $accessToken);
         $metrics = ['activeUsers'=>new stdClass(), 'sessions'=>new stdClass(), 'screenPageViews'=>new stdClass()];
         $current = brvtalAnalyticsSummary($run([
             'dateRanges'=>[['startDate'=>'7daysAgo', 'endDate'=>'yesterday']],

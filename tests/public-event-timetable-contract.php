@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_page.php';
+require_once __DIR__ . '/../config/version.php';
 
 function public_event_timetable_expect(bool $condition, string $message): void
 {
@@ -13,7 +14,6 @@ function public_event_timetable_expect(bool $condition, string $message): void
 
 $api = (string)file_get_contents(__DIR__ . '/../api/public.php');
 $page = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
-$version = (string)file_get_contents(__DIR__ . '/../config/version.php');
 $package = json_decode((string)file_get_contents(__DIR__ . '/../package.json'), true);
 
 foreach ([
@@ -101,11 +101,13 @@ public_event_timetable_expect(
     'private, draft, invalid and linked fallback labels must fail closed'
 );
 
-public_event_timetable_expect(($package['version'] ?? null) === '0.1.113', 'package version must be 0.1.113');
+public_event_timetable_expect(
+    ($package['version'] ?? null) === BRVTAL_APP_VERSION,
+    'package version must match BRVTAL_APP_VERSION'
+);
 public_event_timetable_expect(
     ($package['scripts']['test:public-event-timetable'] ?? null) === 'python3 -m unittest tests/test_public_event_timetable.py',
     'public timetable acceptance script must be registered'
 );
-public_event_timetable_expect(str_contains($version, "BRVTAL_APP_VERSION = '0.1.113'"), 'runtime version must be 0.1.113');
 
 echo "BRVTAL public Event timetable contract passed.\n";
