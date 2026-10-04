@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -24,6 +23,17 @@ class EventInsightsDiscadminTests(unittest.TestCase):
 
     def insights_js(self) -> str:
         return INSIGHTS_JS.read_text(encoding="utf-8")
+
+    def run_node(self, source: str, *args: str) -> None:
+        result = subprocess.run(
+            ["node", "-e", source, *args],
+            cwd=ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
     def test_event_editor_renders_read_only_bounded_insights_from_canonical_endpoint(self) -> None:
         html = self.content()
@@ -57,7 +67,9 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         self.assertIn("script.remove()", core)
         self.assertIn("script.dataset.eventInsightsFailed='1'", core)
         self.assertIn("brvtalEventInsightsModulePromise=null", core)
-        self.assertIn("refreshEventInsights(currentEvent,insightsRequestId)", core)
+        self.assertIn("void refreshEventInsights(currentEvent,insightsRequestId)", core)
+        self.assertNotIn("loads.push(refreshEventInsights(", core)
+
         self.assertIn("'/api/admin-event-analytics.php?id='", insights)
         self.assertIn("method:'GET'", insights)
         self.assertIn("credentials:'same-origin'", insights)
@@ -65,31 +77,120 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         self.assertNotIn("method:'POST'", insights)
 
     def test_draft_private_or_unavailable_event_never_queries_or_renders_fake_zero_metrics(self) -> None:
+        harness = r"""
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync(process.argv[1],'utf8');
+
+function element(value=''){
+  return {dataset:{},textContent:'',value,onchange:null};
+}
+function ui(){
+  const panel=element();
+  const nodes={
+    '#eventInsightsStatus':element(),
+    '#eventInsightsWindow':element('7d'),
+    '#eventInsightsUsers':element(),
+    '#eventInsightsUsersPrevious':element(),
+    '#eventInsightsSessions':element(),
+    '#eventInsightsSessionsPrevious':element(),
+    '#eventInsightsViews':element(),
+    '#eventInsightsViewsPrevious':element(),
+  };
+  return {
+    panel,
+    nodes,
+    root:{
+      querySelector(selector){
+        if(selector==='[data-event-insights-panel]')return panel;
+        return nodes[selector]||null;
+      }
+    }
+  };
+}
+function response(data,status=200){
+  return {status,ok:status>=200&&status<300,json:async()=>data};
+}
+function payload(eventId,users){
+  return {
+    ok:true,
+    data:{
+      event_id:eventId,
+      state:'FRESH',
+      metrics:{users,sessions:users+1,views:users+2},
+      previous:null
+    }
+  };
+}
+function moduleWith(fetchImpl){
+  const window={};
+  const context={
+    window,
+    fetch:fetchImpl,
+    location:{href:'/discadmin/'},
+    AbortController,
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(source,context,{filename:'event-insights.js'});
+  return window.BRVTALEventInsights;
+}
+
+(async()=>{
+  let calls=0;
+  let state=ui();
+  let mod=moduleWith(async()=>{
+    calls+=1;
+    return response(payload(1,10));
+  });
+  mod.mount(state.root);
+  const draft=await mod.load({id:1,status:'draft'});
+  assert.equal(draft.state,'NOT PUBLISHED');
+  assert.equal(calls,0);
+  assert.equal(state.nodes['#eventInsightsUsers'].textContent,'—');
+
+  calls=0;
+  state=ui();
+  mod=moduleWith(async()=>{
+    calls+=1;
+    return response(payload(999,10));
+  });
+  mod.mount(state.root);
+  const mismatch=await mod.load({id:1,status:'published'});
+  assert.equal(calls,1);
+  assert.equal(mismatch.state,'UNAVAILABLE');
+  assert.equal(state.nodes['#eventInsightsUsers'].textContent,'—');
+  assert.equal(state.panel.dataset.state,'unavailable');
+
+  const pending=[];
+  state=ui();
+  mod=moduleWith(()=>new Promise(resolve=>pending.push(resolve)));
+  mod.mount(state.root);
+  const first=mod.load({id:1,status:'published'});
+  const second=mod.load({id:2,status:'published'});
+  assert.equal(pending.length,2);
+  pending[1](response(payload(2,22)));
+  assert.equal((await second).state,'FRESH');
+  assert.equal(state.nodes['#eventInsightsUsers'].textContent,'22');
+  pending[0](response(payload(1,11)));
+  assert.equal((await first).state,'STALE_REQUEST');
+  assert.equal(state.nodes['#eventInsightsUsers'].textContent,'22');
+})().catch(error=>{
+  console.error(error);
+  process.exit(1);
+});
+"""
+        self.run_node(harness, str(INSIGHTS_JS))
+
+        core = self.core_js()
         insights = self.insights_js()
-
-        match = re.search(
-            r"PUBLIC_EVENT_STATUSES=new Set\(\[(?P<body>.*?)\]\);",
-            insights,
-            flags=re.DOTALL,
-        )
-        self.assertIsNotNone(match)
-        allowlist = match.group("body")
-        self.assertNotIn("'draft'", allowlist)
-        self.assertNotIn("'private'", allowlist)
-
-        load_block = insights[insights.index("async function load(event)") :]
-        guard = load_block.index("if(!isPotentiallyPublic(event))")
-        request_call = load_block.index("const data=await requestEventInsights")
-        self.assertLess(guard, request_call)
-        self.assertIn("No analytics request was sent.", insights)
-        self.assertIn("Number(data.event_id)!==eventId", insights)
-        self.assertIn("EVENT_ID_MISMATCH", insights)
         self.assertIn("const originalCloseEvent=closeEvent", core)
         self.assertIn("const result=originalCloseEvent(force)", core)
         self.assertIn("result===true&&wasOpen&&!modal.classList.contains('open')", core)
         self.assertIn("insightsRequest+=1", core)
         self.assertIn("window.BRVTALEventInsights?.reset?.()", core)
-        self.assertIn("resetMetrics();", insights)
         self.assertIn("textContent='—'", insights)
         self.assertNotRegex(insights, r"textContent\s*=\s*['\"]0['\"]")
         self.assertNotIn("innerHTML", insights)
