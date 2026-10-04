@@ -22,7 +22,7 @@ function timetable_error(callable $callback): string
     return '';
 }
 
-$items = brvtal_event_timetable([
+$items = brvtalEventTimetable([
     [
         'artist_id'=>12,
         'starts_at'=>'2026-08-15T01:00',
@@ -56,23 +56,23 @@ timetable_assert($items[1]['artist_id'] === 7, 'linked Artist identity must surv
 timetable_assert($items[2]['ends_at_utc'] === '2026-08-15 07:20:00', 'cross-midnight row must normalize correctly');
 timetable_assert(array_column($items, 'sort_order') === [0,1,2], 'canonical order must be dense and deterministic');
 
-$overlap = timetable_error(static fn(): array => brvtal_event_timetable([
+$overlap = timetable_error(static fn(): array => brvtalEventTimetable([
     ['label'=>'A','starts_at'=>'2026-08-14 21:00','ends_at'=>'2026-08-14 22:30','timezone'=>'America/Bogota'],
     ['label'=>'B','starts_at'=>'2026-08-14 22:00','ends_at'=>'2026-08-14 23:00','timezone'=>'America/Bogota'],
 ]));
 timetable_assert($overlap === 'TIMETABLE_OVERLAP', 'overlap must fail closed');
 
-$invalidWindow = timetable_error(static fn(): array => brvtal_event_timetable([
+$invalidWindow = timetable_error(static fn(): array => brvtalEventTimetable([
     ['label'=>'A','starts_at'=>'2026-08-14 22:00','ends_at'=>'2026-08-14 22:00','timezone'=>'America/Bogota'],
 ]));
 timetable_assert($invalidWindow === 'INVALID_TIMETABLE_WINDOW', 'end <= start must fail closed');
 
-$invalidTimezone = timetable_error(static fn(): array => brvtal_event_timetable([
+$invalidTimezone = timetable_error(static fn(): array => brvtalEventTimetable([
     ['label'=>'A','starts_at'=>'2026-08-14 21:00','ends_at'=>'2026-08-14 22:00','timezone'=>'Bogota/Invented'],
 ]));
 timetable_assert($invalidTimezone === 'INVALID_TIMETABLE_TIMEZONE', 'unknown timezone must fail closed');
 
-$freeFormIdentity = timetable_error(static fn(): array => brvtal_event_timetable([
+$freeFormIdentity = timetable_error(static fn(): array => brvtalEventTimetable([
     [
         'artist_id'=>7,
         'artist_name'=>'SHOULD NOT BECOME AUTHORITY',
@@ -83,7 +83,7 @@ $freeFormIdentity = timetable_error(static fn(): array => brvtal_event_timetable
 ]));
 timetable_assert($freeFormIdentity === 'INVALID_TIMETABLE_FIELD', 'artist_name must never be an authoritative timetable field');
 
-$composite = timetable_error(static fn(): array => brvtal_event_timetable([
+$composite = timetable_error(static fn(): array => brvtalEventTimetable([
     [
         'label'=>['nested'=>'not allowed'],
         'starts_at'=>'2026-08-14 21:00',
@@ -93,7 +93,7 @@ $composite = timetable_error(static fn(): array => brvtal_event_timetable([
 ]));
 timetable_assert($composite === 'INVALID_TIMETABLE_FIELD_TYPE', 'composite timetable fields must fail closed');
 
-$linked = brvtal_event_timetable([
+$linked = brvtalEventTimetable([
     ['artist_id'=>7,'label'=>'CLOSING SLOT','starts_at'=>'2026-08-14 23:00','ends_at'=>'2026-08-15 00:20','timezone'=>'America/Bogota'],
 ]);
 timetable_assert($linked[0]['artist_id'] === 7, 'artist_id is the linked identity');

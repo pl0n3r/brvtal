@@ -171,7 +171,7 @@ function brvtal_event_workflow_lineup(array $input): array
 }
 
 
-function brvtal_event_timetable_timezone(mixed $value): DateTimeZone
+function brvtalEventTimetableTimezone(mixed $value): DateTimeZone
 {
     $name = brvtal_event_workflow_text($value, 64);
     $known = $name === 'UTC' || in_array($name, DateTimeZone::listIdentifiers(), true);
@@ -181,7 +181,7 @@ function brvtal_event_timetable_timezone(mixed $value): DateTimeZone
     return new DateTimeZone($name);
 }
 
-function brvtal_event_timetable_local_datetime(
+function brvtalEventTimetableLocalDatetime(
     mixed $value,
     DateTimeZone $timezone,
     string $field
@@ -207,7 +207,7 @@ function brvtal_event_timetable_local_datetime(
     return $parsed;
 }
 
-function brvtal_event_timetable_item(array $input, int $fallbackOrder = 0): array
+function brvtalEventTimetableItem(array $input, int $fallbackOrder = 0): array
 {
     $allowed = ['id','artist_id','label','starts_at','ends_at','timezone','status','sort_order'];
     foreach (array_keys($input) as $key) {
@@ -248,13 +248,13 @@ function brvtal_event_timetable_item(array $input, int $fallbackOrder = 0): arra
         throw new InvalidArgumentException('TIMETABLE_SLOT_IDENTITY_REQUIRED');
     }
 
-    $timezone = brvtal_event_timetable_timezone($input['timezone'] ?? '');
-    $startsAt = brvtal_event_timetable_local_datetime(
+    $timezone = brvtalEventTimetableTimezone($input['timezone'] ?? '');
+    $startsAt = brvtalEventTimetableLocalDatetime(
         $input['starts_at'] ?? '',
         $timezone,
         'timetable_starts_at'
     );
-    $endsAt = brvtal_event_timetable_local_datetime(
+    $endsAt = brvtalEventTimetableLocalDatetime(
         $input['ends_at'] ?? '',
         $timezone,
         'timetable_ends_at'
@@ -288,7 +288,7 @@ function brvtal_event_timetable_item(array $input, int $fallbackOrder = 0): arra
     ];
 }
 
-function brvtal_event_timetable(array $input): array
+function brvtalEventTimetable(array $input): array
 {
     if (count($input) > 200) {
         throw new InvalidArgumentException('TOO_MANY_TIMETABLE_ITEMS');
@@ -299,7 +299,7 @@ function brvtal_event_timetable(array $input): array
         if (!is_array($item)) {
             throw new InvalidArgumentException('INVALID_TIMETABLE');
         }
-        $items[] = brvtal_event_timetable_item($item, (int)$index);
+        $items[] = brvtalEventTimetableItem($item, (int)$index);
     }
 
     usort($items, static function (array $left, array $right): int {
@@ -323,7 +323,7 @@ function brvtal_event_timetable(array $input): array
     return $items;
 }
 
-function brvtal_event_workflow_fetch_timetable(PDO $pdo, int $eventId, bool $lock = false): array
+function brvtalEventWorkflowFetchTimetable(PDO $pdo, int $eventId, bool $lock = false): array
 {
     $sql = 'SELECT id,event_id,artist_id,label,starts_at_utc,ends_at_utc,timezone,status,sort_order '
         . 'FROM event_timetable_items WHERE event_id=? ORDER BY starts_at_utc,sort_order,id'
