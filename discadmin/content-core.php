@@ -236,7 +236,14 @@ brvtal_admin_require();
       </div>
     </div>
   </div>
-<div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
+<div class="foot">
+  <button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button>
+  <div class="foot-right">
+    <button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button>
+    <button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button>
+    <button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button>
+  </div>
+</div>
 </div></div></div></div>
 
 
