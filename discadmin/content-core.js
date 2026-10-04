@@ -296,6 +296,7 @@ async function loadArtists(){try{const j=await api('/artists');artists=j.data||j
 function renderEventArtists(){const holder=$('#eventArtists');if(currentEvent?.id&&holder.dataset.loadState==='loading'){holder.innerHTML='<div class="empty">Loading event participation…</div>';return}if(!artists.length){holder.innerHTML='<div class="empty">Load artists to manage event participation.</div>';return}const relations=currentEvent?.lineup??currentEvent?.event_artists??currentEvent?.artists??[];const selected=new Set(relations.map(x=>Number(x.artist_id||x.id)));holder.innerHTML=artists.filter(a=>Number(a.is_collective_member||0)===1||selected.has(Number(a.id))).sort((a,b)=>Number(b.is_collective_member||0)-Number(a.is_collective_member||0)||Number(a.sort_order||0)-Number(b.sort_order||0)||String(a.name||'').localeCompare(String(b.name||''))).map(a=>{const member=Number(a.is_collective_member||0)===1;return `<div class="artist"><div class="ph">${a.photo?'IMG':'BRV'}</div><label class="grow" for="event_artist_${Number(a.id)}"><b>${esc(a.name)}</b><small>${member?'BRVTAL / MEMBER':'EXTERNAL / EVENT'}</small></label><input id="event_artist_${Number(a.id)}" type="checkbox" data-artist="${Number(a.id)}" aria-label="Include ${esc(a.name)} in event lineup" ${selected.has(Number(a.id))?'checked':''}></div>`}).join('')}
 $('#eventSearch').oninput=renderEvents;
 const ready = (async()=>{try{await initAuth();await loadEvents({required:true});await loadArtists();}catch(e){msg('Initialization failed: '+e.message,false);throw e}})();
+let eventEditorReady=Promise.resolve(null);
 
 
 (function(){
@@ -390,7 +391,6 @@ const ready = (async()=>{try{await initAuth();await loadEvents({required:true});
     });
   }
 
-  let eventEditorReady=Promise.resolve(null);
   openEvent=function(id=null){
     const modal=$('#eventModal');
     modal.querySelector('[data-seo-editor="content-core"]')?.remove();
