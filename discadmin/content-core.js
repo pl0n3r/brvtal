@@ -7,6 +7,14 @@ function brvtalEventInsightsScriptSrc(){
   if(version)target.searchParams.set('v',version);
   return target.pathname+target.search;
 }
+function brvtalEventHistoryScriptSrc(){
+  const target=new URL('/discadmin/admin-activity.js',location.origin);
+  if(!BRVTAL_CONTENT_CORE_SCRIPT_SRC)return target.pathname;
+  const source=new URL(BRVTAL_CONTENT_CORE_SCRIPT_SRC,location.origin);
+  const version=source.searchParams.get('v');
+  if(version)target.searchParams.set('v',version);
+  return target.pathname+target.search;
+}
 
 function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
 function brvtalTicketPayload(row,eventId,index){
@@ -102,6 +110,54 @@ function brvtalLoadEventInsightsModule(){
   return brvtalEventInsightsModulePromise;
 }
 
+let brvtalEventHistoryModulePromise=null;
+function brvtalDiscardEventHistoryScript(script){
+  if(!script)return;
+  script.dataset.eventHistoryFailed='1';
+  script.remove();
+}
+function brvtalLoadEventHistoryModule(){
+  if(typeof window.BRVTALAdminActivity?.openHistory==='function'){
+    return Promise.resolve(window.BRVTALAdminActivity);
+  }
+  if(brvtalEventHistoryModulePromise)return brvtalEventHistoryModulePromise;
+
+  brvtalEventHistoryModulePromise=new Promise((resolve,reject)=>{
+    let script=document.querySelector('script[data-event-history-script="1"]');
+    if(script?.dataset.eventHistoryFailed==='1'){
+      brvtalDiscardEventHistoryScript(script);
+      script=null;
+    }
+
+    const fail=message=>{
+      brvtalDiscardEventHistoryScript(script);
+      reject(new Error(message));
+    };
+    const finish=()=>{
+      if(typeof window.BRVTALAdminActivity?.openHistory==='function'){
+        script.dataset.eventHistoryReady='1';
+        resolve(window.BRVTALAdminActivity);
+        return;
+      }
+      fail('Event Version History module unavailable');
+    };
+
+    if(!script){
+      script=document.createElement('script');
+      script.src=brvtalEventHistoryScriptSrc();
+      script.async=true;
+      script.dataset.eventHistoryScript='1';
+      document.head.appendChild(script);
+    }
+    script.addEventListener('load',finish,{once:true});
+    script.addEventListener('error',()=>fail('Event Version History module unavailable'),{once:true});
+  }).catch(error=>{
+    brvtalEventHistoryModulePromise=null;
+    throw error;
+  });
+  return brvtalEventHistoryModulePromise;
+}
+
 window.BRVTALContentCore = {mount(root) {
 
 const API='/api/index.php';let events=[],artists=[],currentEvent=null,currentStep=1,csrf='',ticketRowSeq=0;
@@ -109,11 +165,32 @@ const $=s=>root.querySelector(s), $$=s=>[...root.querySelectorAll(s)];
 async function api(path,opts={}){const {headers:optHeaders,...rest}=opts;const r=await fetch(API+path,{credentials:'same-origin',...rest,headers:{'Content-Type':'application/json',...optHeaders}});let j;try{j=await r.json()}catch(_){throw new Error(`API ${r.status} returned invalid JSON`)}if(r.status===401){location.href='/discadmin/';throw new Error(j?.error||'Authentication required')}if(!r.ok||j?.ok===false)throw new Error(j?.error||`API request failed (${r.status})`);return j}
 function msg(text,ok=true,target='cc-notice'){const n=$('#'+target);n.textContent=text;n.className='notice show '+(ok?'ok':'err');setTimeout(()=>n.classList.remove('show'),5000)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function syncEventHistoryControl(){
+  const button=$('#cc-historyBtn');
+  if(!button)return;
+  const eventId=Number(currentEvent?.id||0);
+  button.hidden=eventId<1;
+  button.disabled=eventId<1;
+}
+async function openEventHistory(){
+  const eventId=Number(currentEvent?.id||0);
+  if(eventId<1)return false;
+  try{
+    const module=await brvtalLoadEventHistoryModule();
+    if(Number(currentEvent?.id||0)!==eventId)return false;
+    const label=String(currentEvent?.title||currentEvent?.name||`Event #${eventId}`);
+    await module.openHistory('events',eventId,label);
+    return true;
+  }catch(error){
+    msg('Version history unavailable: '+(error?.message||error),false,'eventNotice');
+    return false;
+  }
+}
 async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth():await api('/auth');if(!j.authenticated){location.href='/discadmin/';return}csrf=j.csrf||'';if(!csrf)throw new Error('CSRF token unavailable')}
 async function loadEvents({required=false}={}){try{const j=await api('/events');events=j.data||j.events||[];renderEvents();return true}catch(e){msg('Could not load events: '+e.message,false);if(required)throw e;return false}}
 function renderEvents(){const q=($('#eventSearch').value||'').toLowerCase();const a=events.filter(x=>JSON.stringify(x).toLowerCase().includes(q));$('#eventsTable').innerHTML='<div class="th"><div>EVENT</div><div>DATE</div><div>STATUS</div><div></div></div>'+(a.length?a.map(x=>`<div class="tr"><div><div class="title">${esc(x.title||x.name)}</div><div class="meta">${esc(x.city||'')} ${x.venue?'· '+esc(x.venue):''}</div></div><div>${esc(x.event_date||'—')}</div><div><span class="pill">${esc(x.status||'draft')}</span></div><div class="actions"><button class="icon" onclick="BRVTALContentCore.openEvent(${Number(x.id)})">EDIT</button></div></div>`).join(''):'<div class="empty">No events found.</div>')}
 function fill(id,v){const el=$('#'+id);if(el)el.value=v??''}
-function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_archive_year',currentEvent?.archive_year);fill('e_status',currentEvent?.status||'draft');fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();$('#eventModal').classList.add('open')}
+function openEvent(id=null){currentEvent=events.find(x=>Number(x.id)===Number(id))||null;$('#eventHeading').textContent=currentEvent?'EDIT EVENT':'NEW EVENT';fill('e_title',currentEvent?.title);fill('e_slug',currentEvent?.slug);fill('e_description',currentEvent?.description);fill('e_cover_image',currentEvent?.cover_image);fill('e_accent',currentEvent?.accent);window.BRVTALAdminColorField?.sync($('#e_accent'));fill('e_featured',currentEvent?.featured?'1':'0');fill('e_event_date',currentEvent?.event_date?String(currentEvent.event_date).replace(' ','T').slice(0,16):'');fill('e_city',currentEvent?.city);fill('e_venue',currentEvent?.venue);fill('e_archive_year',currentEvent?.archive_year);fill('e_status',currentEvent?.status||'draft');fill('e_ticket_instructions',currentEvent?.ticket_instructions);fill('e_ticket_qr',currentEvent?.ticket_qr);fill('e_ticket_url',currentEvent?.ticket_url);$('#tickets').innerHTML='';(currentEvent?.ticket_types||[]).forEach(addTicket);renderEventArtists();currentStep=1;setStep();syncEventHistoryControl();$('#eventModal').classList.add('open')}
 function closeEvent(force=false){
   const modal=$('#eventModal');
   const close=()=>modal.classList.remove('open');
@@ -240,6 +317,7 @@ async function saveEvent(){
     const id=Number(j.id||j.data?.id||currentEvent?.id);
     if(!id)throw new Error('Event ID missing after save');
     currentEvent={...currentEvent,id,...payload};
+    syncEventHistoryControl();
     eventSaved=true;
     await saveTickets(id);
     await loadEvents();
@@ -512,6 +590,6 @@ let eventEditorReady=Promise.resolve(null);
   };
 })();
 
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady});
 return ready;
 }};

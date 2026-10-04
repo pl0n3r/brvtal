@@ -41,6 +41,14 @@ brvtal_admin_require();
           class="btn"
           onclick="BRVTALContentCore.previewEvent()"
         >PUBLIC PREVIEW</button>
+        <button
+          id="cc-historyBtn"
+          type="button"
+          class="btn"
+          hidden
+          disabled
+          onclick="BRVTALContentCore.openEventHistory()"
+        >HISTORY</button>
         <button id="cc-top-saveBtn" type="button" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE</button>
         <button class="icon" type="button" onclick="BRVTALContentCore.closeEvent()">CLOSE</button>
       </div>
