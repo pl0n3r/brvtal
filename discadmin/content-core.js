@@ -50,7 +50,7 @@ window.BRVTALContentCore = {mount(root) {
 
 const API='/api/index.php';let events=[],artists=[],currentEvent=null,currentStep=1,csrf='',ticketRowSeq=0;
 const $=s=>root.querySelector(s), $$=s=>[...root.querySelectorAll(s)];
-async function api(path,opts={}){const {headers:optHeaders,...rest}=opts;const r=await fetch(API+path,{credentials:'same-origin',...rest,headers:{'Content-Type':'application/json',...(optHeaders||{})}});let j;try{j=await r.json()}catch(_){throw new Error(`API ${r.status} returned invalid JSON`)}if(r.status===401){location.href='/discadmin/';throw new Error(j?.error||'Authentication required')}if(!r.ok||j?.ok===false)throw new Error(j?.error||`API request failed (${r.status})`);return j}
+async function api(path,opts={}){const {headers:optHeaders,...rest}=opts;const r=await fetch(API+path,{credentials:'same-origin',...rest,headers:{'Content-Type':'application/json',...optHeaders}});let j;try{j=await r.json()}catch(_){throw new Error(`API ${r.status} returned invalid JSON`)}if(r.status===401){location.href='/discadmin/';throw new Error(j?.error||'Authentication required')}if(!r.ok||j?.ok===false)throw new Error(j?.error||`API request failed (${r.status})`);return j}
 function msg(text,ok=true,target='cc-notice'){const n=$('#'+target);n.textContent=text;n.className='notice show '+(ok?'ok':'err');setTimeout(()=>n.classList.remove('show'),5000)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 async function initAuth(){const j=window.BRVTALAdminAuthBoundary?.auth?await window.BRVTALAdminAuthBoundary.auth():await api('/auth');if(!j.authenticated){location.href='/discadmin/';return}csrf=j.csrf||'';if(!csrf)throw new Error('CSRF token unavailable')}
@@ -219,7 +219,7 @@ async function saveEvent(){
     if(j.ok===false)throw new Error(j.error||'Save failed');
     const id=Number(j.id||j.data?.id||currentEvent?.id);
     if(!id)throw new Error('Event ID missing after save');
-    currentEvent={...(currentEvent||{}),id,...payload};
+    currentEvent={...currentEvent,id,...payload};
     eventSaved=true;
     await saveTickets(id);
     await loadEvents();
@@ -320,7 +320,7 @@ let eventEditorReady=Promise.resolve(null);
   function renderWorkflowRelations(data){
     currentEvent={
       ...(currentEvent||{}),
-      ...(data.event||{}),
+      ...data.event,
       ticket_types:Array.isArray(data.ticket_types)?data.ticket_types:[],
       lineup:Array.isArray(data.lineup)?data.lineup:[],
       timetable:Array.isArray(data.timetable)?data.timetable:[]

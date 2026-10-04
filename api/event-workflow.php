@@ -44,7 +44,9 @@ function brvtal_event_workflow_reject_composite_fields(array $input): void
     }
     if (is_array($input['timetable'] ?? null)) {
         foreach ($input['timetable'] as $item) {
-            if (!is_array($item)) continue;
+            if (!is_array($item)) {
+                continue;
+            }
             foreach (['id','artist_id','label','starts_at','ends_at','timezone','status','sort_order'] as $field) {
                 if (array_key_exists($field, $item) && (is_array($item[$field]) || is_object($item[$field]))) {
                     throw new InvalidArgumentException('INVALID_FIELD_TYPE');
