@@ -71,9 +71,10 @@ class EventInsightsDiscadminTests(unittest.TestCase):
         self.assertNotIn("'draft'", allowlist)
         self.assertNotIn("'private'", allowlist)
 
-        guard = insights.index("if(!isPotentiallyPublic(event))")
-        fetch_call = insights.index("const response=await fetch(")
-        self.assertLess(guard, fetch_call)
+        load_block = insights[insights.index("async function load(event)") :]
+        guard = load_block.index("if(!isPotentiallyPublic(event))")
+        request_call = load_block.index("const data=await requestEventInsights")
+        self.assertLess(guard, request_call)
         self.assertIn("No analytics request was sent.", insights)
         self.assertIn("Number(data.event_id)!==eventId", insights)
         self.assertIn("EVENT_ID_MISMATCH", insights)
