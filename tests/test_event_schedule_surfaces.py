@@ -159,7 +159,8 @@ $cancelled = array_replace($scheduled, $patch);
 $later = new DateTimeImmutable("2099-01-02 12:00:00");
 $partition = brvtal_public_partition_events([$cancelled], $later);
 echo json_encode([
-  "published_at"=>$cancelled["published_at"] ?? "missing",
+  "published_at_present"=>array_key_exists("published_at", $cancelled),
+  "published_at"=>$cancelled["published_at"],
   "visible"=>brvtal_public_event_is_visible($cancelled, $later),
   "active"=>count($partition["active"]),
   "archive"=>count($partition["archive"]),
@@ -167,7 +168,13 @@ echo json_encode([
 ''')
         self.assertEqual(
             result,
-            {"published_at": None, "visible": False, "active": 0, "archive": 0},
+            {
+                "published_at_present": True,
+                "published_at": None,
+                "visible": False,
+                "active": 0,
+                "archive": 0,
+            },
         )
 
     def test_indexnow_is_notification_only_for_schedule_changes(self) -> None:
