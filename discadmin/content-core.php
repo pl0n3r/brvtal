@@ -53,7 +53,7 @@ brvtal_admin_require();
         <div class="step" data-step="3">03 · LIFECYCLE</div>
         <div class="step" data-step="4">04 · TICKETS</div>
         <div class="step" data-step="5">05 · ROSTER</div>
-        <div class="step" data-step="6">06 · TIMETABLE</div>
+        <div class="step" data-step="6">06 · TIMETABLE</div>\n        <div class="step" data-step="7">07 · INSIGHTS</div>
       </div>
       <div class="wizard-main">
 <form id="eventForm" onsubmit="return false">
@@ -192,6 +192,44 @@ brvtal_admin_require();
       use a label only for external or unlinked slots. Draft rows are never public by themselves.
     </div>
     <div id="eventTimetable"></div>
+  </div>
+</div>
+<div class="step-content" data-content="7">
+  <div class="section" data-event-insights-panel data-state="idle">
+    <div class="sectionhead">
+      <strong>EVENT INSIGHTS</strong>
+      <span class="pill">READ ONLY</span>
+    </div>
+    <div class="helper" style="margin-bottom:12px">
+      Aggregate Event metrics only. Draft/private Events never trigger analytics requests.
+    </div>
+    <div class="form">
+      <div class="field">
+        <label for="eventInsightsWindow">Window</label>
+        <select id="eventInsightsWindow">
+          <option value="7d">LAST 7 DAYS</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="helper">STATUS</span>
+        <div id="eventInsightsStatus" role="status" aria-live="polite" data-state="idle">NOT PUBLISHED · No analytics request was sent.</div>
+      </div>
+      <div class="field">
+        <span class="helper">USERS</span>
+        <output id="eventInsightsUsers" aria-label="Event Insights users">—</output>
+        <div id="eventInsightsUsersPrevious" class="helper">PREVIOUS: —</div>
+      </div>
+      <div class="field">
+        <span class="helper">SESSIONS</span>
+        <output id="eventInsightsSessions" aria-label="Event Insights sessions">—</output>
+        <div id="eventInsightsSessionsPrevious" class="helper">PREVIOUS: —</div>
+      </div>
+      <div class="field">
+        <span class="helper">VIEWS</span>
+        <output id="eventInsightsViews" aria-label="Event Insights views">—</output>
+        <div id="eventInsightsViewsPrevious" class="helper">PREVIOUS: —</div>
+      </div>
+    </div>
   </div>
 </div>
 </form><div class="foot"><button class="btn" onclick="BRVTALContentCore.closeEvent()">CANCEL</button><div class="foot-right"><button id="prevBtn" class="btn" onclick="BRVTALContentCore.step(-1)">← BACK</button><button id="nextBtn" class="btn" onclick="BRVTALContentCore.step(1)">NEXT →</button><button id="cc-saveBtn" class="btn red" onclick="BRVTALContentCore.saveEvent()">SAVE DRAFT</button></div></div>
