@@ -111,6 +111,10 @@ while ($contentParent instanceof DOMElement) {
         !in_array('step-content', $classes, true),
         'Event Insights panel must stay outside wizard step-content navigation.'
     );
+    content_core_a11y_assert(
+        strtolower($contentParent->tagName) !== 'form',
+        'Event Insights panel must stay outside the Event save form.'
+    );
     $contentParent = $contentParent->parentNode;
 }
 
