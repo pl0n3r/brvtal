@@ -46,6 +46,36 @@ function brvtalTicketRowValidation(row){
   return null;
 }
 
+let brvtalEventInsightsModulePromise=null;
+function brvtalLoadEventInsightsModule(){
+  if(window.BRVTALEventInsights)return Promise.resolve(window.BRVTALEventInsights);
+  if(brvtalEventInsightsModulePromise)return brvtalEventInsightsModulePromise;
+  brvtalEventInsightsModulePromise=new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-event-insights-script="1"]');
+    const finish=()=>{
+      if(window.BRVTALEventInsights)resolve(window.BRVTALEventInsights);
+      else reject(new Error('Event Insights module unavailable'));
+    };
+    if(existing){
+      if(window.BRVTALEventInsights){finish();return;}
+      existing.addEventListener('load',finish,{once:true});
+      existing.addEventListener('error',()=>reject(new Error('Event Insights module unavailable')),{once:true});
+      return;
+    }
+    const script=document.createElement('script');
+    script.src='/discadmin/event-insights.js';
+    script.async=true;
+    script.dataset.eventInsightsScript='1';
+    script.addEventListener('load',finish,{once:true});
+    script.addEventListener('error',()=>reject(new Error('Event Insights module unavailable')),{once:true});
+    document.head.appendChild(script);
+  }).catch(error=>{
+    brvtalEventInsightsModulePromise=null;
+    throw error;
+  });
+  return brvtalEventInsightsModulePromise;
+}
+
 window.BRVTALContentCore = {mount(root) {
 
 const API='/api/index.php';let events=[],artists=[],currentEvent=null,currentStep=1,csrf='',ticketRowSeq=0;
@@ -266,10 +296,32 @@ let eventEditorReady=Promise.resolve(null);
 (function(){
   const originalOpenEvent=openEvent;
   const originalSaveEvent=saveEvent;
-  let ticketRequest=0,ticketState='ready',lineupRequest=0,lineupState='ready',timetableRequest=0,timetableState='ready';
+  let ticketRequest=0,ticketState='ready',lineupRequest=0,lineupState='ready',timetableRequest=0,timetableState='ready',insightsRequest=0;
   const timetableEditor=()=>$('#eventTimetable');
   const canLoadLineup=()=>typeof window.BRVTALContentCoreLineup?.load==='function';
   const canSaveLineup=()=>typeof window.BRVTALContentCoreLineup?.save==='function';
+  async function refreshEventInsights(event,request){
+    const module=await brvtalLoadEventInsightsModule();
+    if(request!==insightsRequest)return;
+    module.mount(root);
+    if(request!==insightsRequest)return;
+    await module.load(event);
+  }
+  function markInsightsUnavailable(){
+    const panel=$('[data-event-insights-panel]');
+    const status=$('#eventInsightsStatus');
+    if(panel)panel.dataset.state='unavailable';
+    if(status){
+      status.dataset.state='unavailable';
+      status.textContent='UNAVAILABLE · Event Insights module could not be loaded.';
+    }
+    ['Users','Sessions','Views'].forEach(metric=>{
+      const value=$('#eventInsights'+metric);
+      const previous=$('#eventInsights'+metric+'Previous');
+      if(value)value.textContent='—';
+      if(previous)previous.textContent='PREVIOUS: —';
+    });
+  }
   async function refreshTickets(eventId,request){
     const response=await api('/ticket_types');
     if(response.ok===false)throw new Error(response.error||'Ticket types unavailable');
@@ -335,6 +387,7 @@ let eventEditorReady=Promise.resolve(null);
     const timetableRequestId=++timetableRequest;
     timetableState=id&&timetableEditor()?'loading':'ready';
     originalOpenEvent(id);
+    const insightsRequestId=++insightsRequest;
     const request=++ticketRequest;
     ticketState=id?'loading':'ready';
     $('#tickets').dataset.loadState=ticketState;
@@ -343,6 +396,10 @@ let eventEditorReady=Promise.resolve(null);
       renderTimetable([]);
     }
     const loads=[];
+    loads.push(refreshEventInsights(currentEvent,insightsRequestId).catch(()=>{
+      if(insightsRequestId!==insightsRequest)return;
+      markInsightsUnavailable();
+    }));
     if(id){
       $('#tickets').innerHTML='<div class="empty">Loading ticket types…</div>';
       loads.push(refreshTickets(Number(id),request).catch(e=>{
@@ -400,6 +457,11 @@ let eventEditorReady=Promise.resolve(null);
     }
     const saved=await originalSaveEvent();
     if(!saved)return false;
+    const insightsRequestId=++insightsRequest;
+    void refreshEventInsights(currentEvent,insightsRequestId).catch(()=>{
+      if(insightsRequestId!==insightsRequest)return;
+      markInsightsUnavailable();
+    });
     const eventId=Number(currentEvent?.id||0);
     if(!eventId||!canSaveLineup()){window.BRVTALUnsavedChanges?.markClean?.($('#eventModal'));return true;}
     const lineup=lineupPayloadFromSelection();
