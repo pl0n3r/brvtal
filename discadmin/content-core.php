@@ -148,11 +148,23 @@ brvtal_admin_require();
     <div class="form">
       <div class="field">
         <label for="e_status">Status</label>
-        <select id="e_status">
+        <select id="e_status" aria-describedby="e_publish_at_help">
           <option>draft</option><option>published</option><option>upcoming</option>
           <option>tickets_available</option><option>last_tickets</option><option>sold_out</option>
           <option>cancelled</option><option>finished</option><option>archived</option>
         </select>
+      </div>
+      <div class="field" id="e_publish_schedule_field">
+        <label for="e_publish_at">Publish not before</label>
+        <input
+          id="e_publish_at"
+          type="datetime-local"
+          aria-describedby="e_publish_at_help"
+          disabled
+        >
+        <div id="e_publish_at_help" class="helper" role="status" aria-live="polite">
+          Choose a public lifecycle status to schedule publication.
+        </div>
       </div>
       <div class="field">
         <label for="e_ticket_instructions">Ticket instructions</label>
