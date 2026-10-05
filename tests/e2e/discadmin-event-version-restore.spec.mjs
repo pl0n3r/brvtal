@@ -1,338 +1,429 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
-const activityJs = readFileSync(join(process.cwd(), 'discadmin/admin-activity.js'), 'utf8');
-const restoreJs = readFileSync(join(process.cwd(), 'discadmin/event-version-restore.js'), 'utf8');
-const unsavedJs = readFileSync(join(process.cwd(), 'discadmin/admin-unsaved-changes.js'), 'utf8');
-const harnessUrl = 'http://127.0.0.1:4173/event-version-restore-e2e.html';
+const baseUrl = process.env.BRVTAL_REAL_STACK_URL || '';
+const adminEmail = process.env.BRVTAL_REAL_STACK_ADMIN_EMAIL || 'ci-admin@brvtal.test';
+const adminPassword = process.env.BRVTAL_REAL_STACK_ADMIN_PASSWORD || '';
 
-const currentEvent = Object.freeze({
-  id: 9,
-  title: 'CURRENT TITLE',
-  description: 'Current copy',
-  status: 'sold_out',
-  published_at: '2026-10-05 01:00:00',
-  cancelled_at: null,
-  finished_at: null,
-  ticket_types: [{id: 21, name: 'VIP'}],
-  lineup: [{artist_id: 7, role: 'HEADLINER'}],
-  timetable: [{id: 31, label: 'PL0N3R', start_at: '2026-10-05 03:00:00'}],
-});
+test.skip(!baseUrl || !adminPassword, 'BRVTAL real-stack admin credentials are required');
 
-function historicalItems() {
-  return [
-    {
-      id: 102,
-      action: 'update',
-      resource: 'events',
-      resource_id: 9,
-      resource_label: 'GENESIS',
-      changed_fields: ['title','description'],
-      before: {id:9,title:'HISTORICAL TITLE',description:'Historical copy',status:'draft',published_at:null},
-      after: {id:9,title:'CURRENT TITLE',description:'Current copy',status:'sold_out',published_at:'2026-10-05 01:00:00'},
-      created_at: '2026-10-05 02:00:00',
-    },
-    {
-      id: 101,
-      action: 'update',
-      resource: 'events',
-      resource_id: 9,
-      resource_label: 'GENESIS',
-      changed_fields: ['title','description','status'],
-      before: {id:9,title:'ORIGINAL TITLE',description:'Original copy',status:'draft',published_at:null},
-      after: {id:9,title:'HISTORICAL TITLE',description:'Historical copy',status:'draft',published_at:null},
-      created_at: '2026-10-05 01:30:00',
-    },
-  ];
+async function login(page) {
+  const response = await page.request.post(`${baseUrl}/api/index.php/auth`, {
+    data:{email:adminEmail,password:adminPassword},
+  });
+  expect(response.ok(), `Admin login failed with HTTP ${response.status()}`).toBeTruthy();
+  const payload = await response.json();
+  expect(payload).toMatchObject({authenticated:true});
+  expect(payload.csrf).toBeTruthy();
+  return payload.csrf;
 }
 
-async function setupHarness(page) {
-  let serverEvent = structuredClone(currentEvent);
-  const historyItems = historicalItems();
-  const putBodies = [];
-
-  await page.route('**/api/admin-activity.php*', route => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('history') !== '1') {
-      return route.fulfill({
-        contentType: 'application/json; charset=utf-8',
-        body: JSON.stringify({ok:true,data:{items:[],total:0,limit:12,read_only:true}}),
-      });
-    }
-    return route.fulfill({
-      contentType: 'application/json; charset=utf-8',
-      body: JSON.stringify({
-        ok:true,
-        data:{
-          items:historyItems,
-          total:historyItems.length,
-          limit:50,
-          next_cursor:null,
-          has_more:false,
-          read_only:true,
-          mode:'content_history',
-        },
-      }),
-    });
-  });
-
-  await page.route('**/api/index.php/events/9', route => {
-    expect(route.request().method()).toBe('PUT');
-    const body = route.request().postDataJSON();
-    putBodies.push(body);
-    const before = {
-      id:serverEvent.id,
-      title:serverEvent.title,
-      description:serverEvent.description,
-      status:serverEvent.status,
-      published_at:serverEvent.published_at,
-    };
-    serverEvent = {...serverEvent,...body};
-    historyItems.unshift({
-      id: 103,
-      action: 'update',
-      resource: 'events',
-      resource_id: 9,
-      resource_label: 'GENESIS',
-      changed_fields: ['description','title'],
-      before,
-      after:{
-        id:serverEvent.id,
-        title:serverEvent.title,
-        description:serverEvent.description,
-        status:serverEvent.status,
-        published_at:serverEvent.published_at,
-      },
-      created_at: '2026-10-05 02:30:00',
-    });
-    return route.fulfill({
-      contentType: 'application/json; charset=utf-8',
-      body: JSON.stringify({ok:true,changed:1}),
-    });
-  });
-
-  await page.route(harnessUrl, route => route.fulfill({
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><meta charset="utf-8"></head><body>
-      <div id="eventModal" class="modal open" data-event-id="9">
-        <input id="e_title" value="CURRENT TITLE">
-        <textarea id="e_description">Current copy</textarea>
-        <select id="e_status">
-          <option value="draft">draft</option>
-          <option value="sold_out" selected>sold_out</option>
-        </select>
-        <div id="tickets"><div class="ticket-row" data-id="21"><input value="VIP"></div></div>
-        <div id="eventArtists"><div data-artist-id="7"><input value="HEADLINER"></div></div>
-        <div id="eventTimetable"><div data-id="31"><input value="PL0N3R"></div></div>
-        <button id="save" type="button">SAVE EVENT</button>
-        <button id="cancel" type="button">CANCEL</button>
-      </div>
-      <script>
-        var state={authed:true,section:'events'};
-        window.BRVTALFeedback={error:function(message){window.__feedback=message;}};
-      </script>
-      <script>${unsavedJs}</script>
-      <script>${restoreJs}</script>
-      <script>${activityJs}</script>
-      <script>
-        window.__currentEvent=${JSON.stringify(currentEvent)};
-        window.__serverEvent=structuredClone(window.__currentEvent);
-
-        function editorSnapshot(){
-          return {
-            id:Number(window.__currentEvent?.id||0),
-            title:document.getElementById('e_title').value,
-            description:document.getElementById('e_description').value
-          };
-        }
-
-        function applyServerEvent(){
-          document.getElementById('e_title').value=window.__serverEvent.title;
-          document.getElementById('e_description').value=window.__serverEvent.description;
-          document.getElementById('e_status').value=window.__serverEvent.status;
-        }
-
-        window.__stageRestore=async function(item){
-          const modal=document.getElementById('eventModal');
-          const eventId=Number(window.__currentEvent?.id||0);
-          if(eventId<1||!modal.classList.contains('open'))return false;
-          if(Number(item?.resource_id||0)!==eventId)return false;
-          const plan=window.BRVTALEventVersionRestore.buildPlan(item,editorSnapshot());
-          if(!plan?.ok||!Array.isArray(plan.changes)||!plan.changes.length)return false;
-          if(!window.confirm('Load historical Event fields into the editor? Nothing is saved automatically.'))return false;
-          if(Number(window.__currentEvent?.id||0)!==eventId||!modal.classList.contains('open'))return false;
-          const controls={title:'e_title',description:'e_description'};
-          for(const change of plan.changes){
-            const id=controls[change.field];
-            if(!id)return false;
-            const control=document.getElementById(id);
-            control.value=change.to==null?'':String(change.to);
-            control.dispatchEvent(new Event('input',{bubbles:true}));
-            control.dispatchEvent(new Event('change',{bubbles:true}));
-          }
-          window.BRVTALUnsavedChanges.touch(modal);
-          return true;
-        };
-
-        window.__openHistory=function(){
-          return window.BRVTALAdminActivity.openHistory(
-            'events',
-            9,
-            'GENESIS',
-            {onRestore:item=>window.__stageRestore(item)}
-          );
-        };
-
-        document.getElementById('save').addEventListener('click',async()=>{
-          const payload={
-            title:document.getElementById('e_title').value,
-            description:document.getElementById('e_description').value,
-            status:document.getElementById('e_status').value
-          };
-          const response=await fetch('/api/index.php/events/9',{
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(payload)
-          });
-          if(!response.ok)return;
-          window.__serverEvent={...window.__serverEvent,...payload};
-          window.__currentEvent={...window.__currentEvent,...payload};
-          window.BRVTALUnsavedChanges.markClean(document.getElementById('eventModal'));
-        });
-
-        document.getElementById('cancel').addEventListener('click',()=>{
-          const modal=document.getElementById('eventModal');
-          window.BRVTALUnsavedChanges.requestClose(modal,()=>modal.classList.remove('open'));
-        });
-
-        window.__reopen=function(){
-          const modal=document.getElementById('eventModal');
-          window.__currentEvent=structuredClone(window.__serverEvent);
-          applyServerEvent();
-          modal.classList.add('open');
-          window.BRVTALUnsavedChanges.begin(modal);
-        };
-
-        window.BRVTALUnsavedChanges.begin(document.getElementById('eventModal'));
-      </script>
-    </body></html>`,
-  }));
-
-  await page.goto(harnessUrl);
-  return {historyItems, putBodies, serverEvent:()=>serverEvent};
+async function fetchEvent(page,eventId) {
+  const response = await page.request.get(`${baseUrl}/api/index.php/events`);
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json();
+  return payload.data.find(row => Number(row.id) === Number(eventId));
 }
 
-test('stages an older Event version without persisting until canonical Save and records new history', async ({ page }) => {
-  const {putBodies, historyItems} = await setupHarness(page);
+async function fetchTickets(page,eventId) {
+  const response = await page.request.get(`${baseUrl}/api/index.php/ticket_types`);
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json();
+  return payload.data.filter(row => Number(row.event_id) === Number(eventId));
+}
 
-  await page.evaluate(() => window.__openHistory());
-  await expect(page.getByRole('dialog', {name:'Editorial version history'})).toBeVisible();
-  await page.locator('[data-history-index="1"]').click();
+async function fetchLineup(page,eventId) {
+  const response = await page.request.get(`${baseUrl}/api/index.php/events/${eventId}/lineup`);
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()).data;
+}
 
-  page.once('dialog', dialog => dialog.accept());
-  await page.getByRole('button', {name:'LOAD INTO EDITOR'}).click();
+async function fetchTimetable(page,eventId) {
+  const response = await page.request.get(`${baseUrl}/api/event-workflow.php?id=${eventId}`);
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()).data.timetable;
+}
 
-  await expect(page.locator('#e_title')).toHaveValue('HISTORICAL TITLE');
-  await expect(page.locator('#e_description')).toHaveValue('Historical copy');
-  await expect(page.locator('#e_status')).toHaveValue('sold_out');
-  await expect(page.locator('#tickets')).toContainText('VIP');
-  await expect(page.locator('#eventArtists')).toContainText('HEADLINER');
-  await expect(page.locator('#eventTimetable')).toContainText('PL0N3R');
-  expect(putBodies).toHaveLength(0);
-  expect(historyItems).toHaveLength(2);
-  expect(await page.evaluate(() => window.BRVTALUnsavedChanges.isDirty(document.getElementById('eventModal')))).toBe(true);
+async function fetchHistory(page,eventId) {
+  const response = await page.request.get(
+    `${baseUrl}/api/admin-activity.php?history=1&resource=events&resource_id=${eventId}&limit=50`
+  );
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()).data;
+}
 
-  await page.getByRole('button', {name:'SAVE EVENT'}).click();
-  await expect.poll(() => putBodies.length).toBe(1);
-  expect(putBodies[0]).toEqual({
-    title:'HISTORICAL TITLE',
-    description:'Historical copy',
+async function workflow(page,csrf,data) {
+  const response = await page.request.post(`${baseUrl}/api/event-workflow.php`, {
+    headers:{'X-CSRF-Token':csrf},
+    data,
+  });
+  expect(response.status()).toBe(200);
+  const payload = await response.json();
+  expect(payload.ok).toBe(true);
+  return payload.data;
+}
+
+function eventPayload(id,slug,title,description) {
+  return {
+    ...(id ? {id} : {}),
+    title,
+    slug,
+    description,
+    cover_image:'',
+    accent:'',
+    featured:0,
+    event_date:'2026-10-31 21:00',
+    city:'Pereira',
+    venue:'CI Restore Warehouse',
+    archive_year:2026,
     status:'sold_out',
-  });
-  expect(putBodies[0]).not.toHaveProperty('published_at');
-  expect(putBodies[0]).not.toHaveProperty('ticket_types');
-  expect(putBodies[0]).not.toHaveProperty('lineup');
-  expect(putBodies[0]).not.toHaveProperty('timetable');
-  expect(historyItems).toHaveLength(3);
+    ticket_instructions:'Current ticket instructions',
+    ticket_qr:'',
+    ticket_url:'',
+  };
+}
 
-  await page.evaluate(() => window.__openHistory());
-  await expect(page.getByRole('dialog', {name:'Editorial version history'})).toContainText('3 recorded versions');
-  await expect(page.locator('[data-history-diff]')).toContainText('CURRENT TITLE');
-  await expect(page.locator('[data-history-diff]')).toContainText('HISTORICAL TITLE');
+function ticketPayload(id = 0) {
+  return {
+    ...(id ? {id} : {}),
+    name:'VIP RESTORE',
+    description:'Current ticket relation',
+    price:'25000',
+    currency:'COP',
+    status:'active',
+    external_url:null,
+    payment_instructions:'Current payment instructions',
+    qr_image:'',
+    available_from:null,
+    available_until:null,
+    sort_order:0,
+  };
+}
+
+function timetablePayload(artistId,id = 0) {
+  return {
+    ...(id ? {id} : {}),
+    artist_id:artistId,
+    label:null,
+    starts_at:'2026-10-31 22:00',
+    ends_at:'2026-10-31 23:00',
+    timezone:'America/Bogota',
+    status:'approved',
+    sort_order:0,
+  };
+}
+
+async function setupVersionedEvent(page,testInfo) {
+  const csrf = await login(page);
+  const artistsResponse = await page.request.get(`${baseUrl}/api/index.php/artists`);
+  expect(artistsResponse.ok()).toBeTruthy();
+  const artists = (await artistsResponse.json()).data;
+  const artist = artists.find(row => row.name === 'PL0N3R SMOKE');
+  expect(artist).toBeTruthy();
+  const artistId = Number(artist.id);
+
+  const runKey = `${Date.now().toString(36)}-${testInfo.workerIndex}-${Math.random().toString(36).slice(2,8)}`;
+  const slug = `ci-event-restore-${runKey}`;
+
+  let data = await workflow(page,csrf,{
+    event:eventPayload(0,slug,`ORIGINAL ${runKey}`,'Original copy'),
+    ticket_types:[ticketPayload()],
+    lineup:[{artist_id:artistId,lineup_order:0,role:'HEADLINER'}],
+  });
+  const eventId = Number(data.event.id);
+  const ticketId = Number(data.ticket_types[0].id);
+  expect(eventId).toBeGreaterThan(0);
+  expect(ticketId).toBeGreaterThan(0);
+
+  data = await workflow(page,csrf,{
+    event:eventPayload(eventId,slug,`HISTORICAL ${runKey}`,'Historical copy'),
+    ticket_types:[ticketPayload(ticketId)],
+    lineup:[{artist_id:artistId,lineup_order:0,role:'HEADLINER'}],
+    timetable:[timetablePayload(artistId)],
+  });
+  const timetableId = Number(data.timetable[0].id);
+  expect(timetableId).toBeGreaterThan(0);
+
+  data = await workflow(page,csrf,{
+    event:eventPayload(eventId,slug,`CURRENT ${runKey}`,'Current copy'),
+    ticket_types:[ticketPayload(ticketId)],
+    lineup:[{artist_id:artistId,lineup_order:0,role:'HEADLINER'}],
+    timetable:[timetablePayload(artistId,timetableId)],
+  });
+
+  const history = await fetchHistory(page,eventId);
+  expect(history.items.length).toBeGreaterThanOrEqual(3);
+  const updates = history.items.filter(item => item.action === 'update');
+  expect(updates.length).toBeGreaterThanOrEqual(2);
+
+  return {
+    csrf,
+    eventId,
+    artistId,
+    ticketId,
+    timetableId,
+    slug,
+    runKey,
+    currentTitle:`CURRENT ${runKey}`,
+    historicalTitle:`HISTORICAL ${runKey}`,
+    current:data.event,
+    history,
+  };
+}
+
+async function cleanupEvent(page,fixture) {
+  if (!fixture?.eventId || !fixture?.csrf) return;
+  await page.request.delete(`${baseUrl}/api/index.php/events/${fixture.eventId}`, {
+    headers:{'X-CSRF-Token':fixture.csrf},
+  }).catch(() => {});
+}
+
+async function openEventEditor(page,eventId) {
+  await page.goto(`${baseUrl}/discadmin/?module=events`, {waitUntil:'domcontentloaded'});
+  const core = page.locator('[data-admin-module="content-core"]');
+  await expect(core).toBeAttached({timeout:10_000});
+  await expect.poll(() => page.evaluate(() => typeof window.BRVTALContentCore?.openEvent)).toBe('function');
+  await page.evaluate(async id => {
+    await window.BRVTALContentCore.openEvent(id);
+    await window.BRVTALContentCore.whenEventReady();
+  }, eventId);
+  await expect(page.locator('#eventModal')).toHaveClass(/open/);
+  await expect(page.locator('#tickets')).toHaveAttribute('data-load-state','ready');
+  await expect(page.locator('#eventArtists')).toHaveAttribute('data-load-state','ready');
+  await expect(page.locator('#eventTimetable')).toHaveAttribute('data-load-state','ready');
+}
+
+async function stageHistoricalVersion(page) {
+  await page.locator('#cc-historyBtn').click();
+  const dialog = page.getByRole('dialog', {name:'Editorial version history'});
+  await expect(dialog).toBeVisible();
+  const versions = dialog.locator('[data-history-index]');
+  await expect(versions).toHaveCount(3);
+  await versions.nth(1).click();
+  page.once('dialog', prompt => prompt.accept());
+  await dialog.getByRole('button', {name:'LOAD INTO EDITOR'}).click();
+  await expect(dialog).toBeHidden();
+}
+
+test('staged restore saves through the canonical Event workflow and creates new history', async ({ page }, testInfo) => {
+  let fixture;
+  try {
+    fixture = await setupVersionedEvent(page,testInfo);
+    const beforeEvent = await fetchEvent(page,fixture.eventId);
+    const beforeHistory = await fetchHistory(page,fixture.eventId);
+    const beforeTickets = await fetchTickets(page,fixture.eventId);
+    const beforeLineup = await fetchLineup(page,fixture.eventId);
+    const beforeTimetable = await fetchTimetable(page,fixture.eventId);
+
+    await openEventEditor(page,fixture.eventId);
+    await stageHistoricalVersion(page);
+
+    await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
+    await expect(page.locator('#e_description')).toHaveValue('Historical copy');
+    await expect(page.locator('#e_status')).toHaveValue('sold_out');
+    await expect(page.locator('#tickets .ticket-row').first()).toContainText('VIP RESTORE');
+    await expect(page.locator('#eventArtists [data-artist]:checked')).toHaveCount(1);
+    await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
+    expect(await page.evaluate(() =>
+      window.BRVTALUnsavedChanges.isDirty(document.getElementById('eventModal'))
+    )).toBe(true);
+
+    const stagedEvent = await fetchEvent(page,fixture.eventId);
+    const stagedHistory = await fetchHistory(page,fixture.eventId);
+    expect(stagedEvent.title).toBe(fixture.currentTitle);
+    expect(stagedEvent.description).toBe('Current copy');
+    expect(stagedHistory.total).toBe(beforeHistory.total);
+
+    const requestPromise = page.waitForRequest(request =>
+      request.method() === 'POST'
+      && new URL(request.url()).pathname === '/api/event-workflow.php'
+    );
+    const responsePromise = page.waitForResponse(response =>
+      response.request().method() === 'POST'
+      && new URL(response.url()).pathname === '/api/event-workflow.php'
+    );
+    await page.locator('#cc-top-saveBtn').click();
+    const request = await requestPromise;
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    const body = request.postDataJSON();
+
+    expect(request.headers()['x-csrf-token']).toBeTruthy();
+    expect(body.event).toMatchObject({
+      id:fixture.eventId,
+      title:fixture.historicalTitle,
+      description:'Historical copy',
+      status:'sold_out',
+    });
+    expect(body.event).not.toHaveProperty('published_at');
+    expect(body.ticket_types).toHaveLength(1);
+    expect(Number(body.ticket_types[0].id)).toBe(fixture.ticketId);
+    expect(body.ticket_types[0].name).toBe('VIP RESTORE');
+    expect(body.lineup).toEqual([{artist_id:fixture.artistId,lineup_order:0,role:'HEADLINER'}]);
+    expect(body.timetable).toHaveLength(1);
+    expect(Number(body.timetable[0].id)).toBe(fixture.timetableId);
+
+    await expect(page.locator('#eventNotice')).toContainText('saved together', {timeout:10_000});
+    await page.evaluate(() => window.BRVTALContentCore.whenEventReady());
+
+    const afterEvent = await fetchEvent(page,fixture.eventId);
+    const afterHistory = await fetchHistory(page,fixture.eventId);
+    const afterTickets = await fetchTickets(page,fixture.eventId);
+    const afterLineup = await fetchLineup(page,fixture.eventId);
+    const afterTimetable = await fetchTimetable(page,fixture.eventId);
+
+    expect(afterEvent).toMatchObject({
+      title:fixture.historicalTitle,
+      description:'Historical copy',
+      status:'sold_out',
+      published_at:beforeEvent.published_at,
+    });
+    expect(afterHistory.total).toBe(beforeHistory.total + 1);
+    expect(afterHistory.items[0]).toMatchObject({
+      action:'update',
+      resource:'events',
+      resource_id:fixture.eventId,
+    });
+    expect(afterHistory.items[0].before.title).toBe(fixture.currentTitle);
+    expect(afterHistory.items[0].after.title).toBe(fixture.historicalTitle);
+
+    expect(Number(afterTickets[0].id)).toBe(Number(beforeTickets[0].id));
+    expect(afterTickets[0].name).toBe(beforeTickets[0].name);
+    expect(afterLineup.map(row => [Number(row.artist_id),row.role])).toEqual(
+      beforeLineup.map(row => [Number(row.artist_id),row.role])
+    );
+    expect(afterTimetable.map(row => [Number(row.id),Number(row.artist_id),row.status])).toEqual(
+      beforeTimetable.map(row => [Number(row.id),Number(row.artist_id),row.status])
+    );
+  } finally {
+    await cleanupEvent(page,fixture);
+  }
 });
 
-test('wrong, stale, closed, incompatible and empty restore plans fail closed without mutation', async ({ page }) => {
-  const {putBodies} = await setupHarness(page);
-  const result = await page.evaluate(async () => {
-    const originalTitle=document.getElementById('e_title').value;
-    const older={
-      id:201,action:'update',resource:'events',resource_id:9,
-      after:{id:9,title:'OTHER TITLE',description:'Other copy'}
-    };
+test('new, wrong, stale, closed, incompatible and empty restores fail closed without mutation', async ({ page }, testInfo) => {
+  let fixture;
+  try {
+    fixture = await setupVersionedEvent(page,testInfo);
+    await openEventEditor(page,fixture.eventId);
+    const historyBefore = await fetchHistory(page,fixture.eventId);
+    const older = historyBefore.items.filter(item => item.action === 'update')[1];
+    expect(older).toBeTruthy();
 
-    const wrong=await window.__stageRestore({...older,resource_id:8,after:{id:8,title:'WRONG'}});
-    window.__currentEvent={...window.__currentEvent,id:10};
-    const stale=await window.__stageRestore(older);
-    window.__currentEvent={...window.__currentEvent,id:9};
-    document.getElementById('eventModal').classList.remove('open');
-    const closed=await window.__stageRestore(older);
-    document.getElementById('eventModal').classList.add('open');
-    const incompatible=window.BRVTALEventVersionRestore.buildPlan(
-      {...older,after:{id:9,title:'OTHER TITLE',metadata:{nested:true}}},
-      {id:9,title:originalTitle,description:'Current copy'}
-    );
-    const empty=window.BRVTALEventVersionRestore.buildPlan(
-      {...older,after:{id:9,title:originalTitle,description:'Current copy'}},
-      {id:9,title:originalTitle,description:'Current copy'}
-    );
-    window.__currentEvent={...window.__currentEvent,id:0};
-    const fresh=await window.__stageRestore(older);
+    const results = await page.evaluate(async ({older,eventId,currentTitle}) => {
+      const core = window.BRVTALContentCore;
+      const restore = window.BRVTALEventVersionRestore;
+      const wrong = structuredClone(older);
+      wrong.resource_id = eventId + 1;
+      wrong.after = {...wrong.after,id:eventId + 1};
 
-    return {
-      wrong,stale,closed,fresh,
-      incompatible:incompatible.code,
-      empty:empty.code,
-      title:document.getElementById('e_title').value
-    };
-  });
+      const incompatible = structuredClone(older);
+      incompatible.id = Number(incompatible.id) + 1000;
+      incompatible.after = {...incompatible.after,metadata:{nested:true}};
 
-  expect(result).toEqual({
-    wrong:false,
-    stale:false,
-    closed:false,
-    fresh:false,
-    incompatible:'INCOMPATIBLE_SNAPSHOT',
-    empty:'NO_SAFE_CHANGES',
-    title:'CURRENT TITLE',
-  });
-  expect(putBodies).toHaveLength(0);
+      const empty = {
+        ...structuredClone(older),
+        id:Number(older.id) + 2000,
+        after:{id:eventId,title:currentTitle,description:'Current copy'},
+      };
+
+      const wrongResult = await core.stageEventVersionRestore(wrong,eventId,restore);
+      const staleResult = await core.stageEventVersionRestore(older,eventId + 1,restore);
+      const incompatibleResult = await core.stageEventVersionRestore(incompatible,eventId,restore);
+      const emptyResult = await core.stageEventVersionRestore(empty,eventId,restore);
+
+      const originalConfirm = window.confirm;
+      window.confirm = () => {
+        document.getElementById('eventModal').classList.remove('open');
+        return true;
+      };
+      const closedResult = await core.stageEventVersionRestore(older,eventId,restore);
+      window.confirm = originalConfirm;
+
+      await core.openEvent();
+      await core.whenEventReady();
+      const newEventResult = await core.openEventHistory();
+
+      return {
+        wrong:wrongResult,
+        stale:staleResult,
+        incompatible:incompatibleResult,
+        empty:emptyResult,
+        closed:closedResult,
+        newEvent:newEventResult,
+      };
+    }, {
+      older,
+      eventId:fixture.eventId,
+      currentTitle:fixture.currentTitle,
+    });
+
+    expect(results).toEqual({
+      wrong:false,
+      stale:false,
+      incompatible:false,
+      empty:false,
+      closed:false,
+      newEvent:false,
+    });
+
+    const serverEvent = await fetchEvent(page,fixture.eventId);
+    const historyAfter = await fetchHistory(page,fixture.eventId);
+    expect(serverEvent).toMatchObject({
+      title:fixture.currentTitle,
+      description:'Current copy',
+      status:'sold_out',
+    });
+    expect(historyAfter.total).toBe(historyBefore.total);
+  } finally {
+    await cleanupEvent(page,fixture);
+  }
 });
 
-test('cancel discards a staged restore while lifecycle and relations stay current', async ({ page }) => {
-  const {putBodies} = await setupHarness(page);
+test('cancel discards a staged restore while lifecycle and relations remain current', async ({ page }, testInfo) => {
+  let fixture;
+  try {
+    fixture = await setupVersionedEvent(page,testInfo);
+    const beforeHistory = await fetchHistory(page,fixture.eventId);
+    const beforeTickets = await fetchTickets(page,fixture.eventId);
+    const beforeLineup = await fetchLineup(page,fixture.eventId);
+    const beforeTimetable = await fetchTimetable(page,fixture.eventId);
 
-  await page.evaluate(() => window.__openHistory());
-  await page.locator('[data-history-index="1"]').click();
-  page.once('dialog', dialog => dialog.accept());
-  await page.getByRole('button', {name:'LOAD INTO EDITOR'}).click();
+    await openEventEditor(page,fixture.eventId);
+    await stageHistoricalVersion(page);
+    await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
+    await expect(page.locator('#e_status')).toHaveValue('sold_out');
 
-  await expect(page.locator('#e_title')).toHaveValue('HISTORICAL TITLE');
-  await expect(page.locator('#e_status')).toHaveValue('sold_out');
-  await expect(page.locator('#tickets')).toContainText('VIP');
-  await expect(page.locator('#eventArtists')).toContainText('HEADLINER');
-  await expect(page.locator('#eventTimetable')).toContainText('PL0N3R');
+    page.once('dialog', prompt => prompt.accept());
+    await page.locator('#eventModal').getByRole('button', {name:'CANCEL',exact:true}).click();
+    await expect(page.locator('#eventModal')).not.toHaveClass(/open/);
 
-  page.once('dialog', dialog => dialog.accept());
-  await page.getByRole('button', {name:'CANCEL'}).click();
-  await expect(page.locator('#eventModal')).not.toHaveClass(/open/);
-  expect(putBodies).toHaveLength(0);
+    const serverEvent = await fetchEvent(page,fixture.eventId);
+    const afterHistory = await fetchHistory(page,fixture.eventId);
+    expect(serverEvent).toMatchObject({
+      title:fixture.currentTitle,
+      description:'Current copy',
+      status:'sold_out',
+    });
+    expect(afterHistory.total).toBe(beforeHistory.total);
 
-  await page.evaluate(() => window.__reopen());
-  await expect(page.locator('#e_title')).toHaveValue('CURRENT TITLE');
-  await expect(page.locator('#e_description')).toHaveValue('Current copy');
-  await expect(page.locator('#e_status')).toHaveValue('sold_out');
-  await expect(page.locator('#tickets')).toContainText('VIP');
-  await expect(page.locator('#eventArtists')).toContainText('HEADLINER');
-  await expect(page.locator('#eventTimetable')).toContainText('PL0N3R');
+    await page.evaluate(async id => {
+      await window.BRVTALContentCore.openEvent(id);
+      await window.BRVTALContentCore.whenEventReady();
+    }, fixture.eventId);
+    await expect(page.locator('#e_title')).toHaveValue(fixture.currentTitle);
+    await expect(page.locator('#e_description')).toHaveValue('Current copy');
+    await expect(page.locator('#e_status')).toHaveValue('sold_out');
+
+    const afterTickets = await fetchTickets(page,fixture.eventId);
+    const afterLineup = await fetchLineup(page,fixture.eventId);
+    const afterTimetable = await fetchTimetable(page,fixture.eventId);
+    expect(Number(afterTickets[0].id)).toBe(Number(beforeTickets[0].id));
+    expect(afterLineup.map(row => [Number(row.artist_id),row.role])).toEqual(
+      beforeLineup.map(row => [Number(row.artist_id),row.role])
+    );
+    expect(afterTimetable.map(row => [Number(row.id),Number(row.artist_id),row.status])).toEqual(
+      beforeTimetable.map(row => [Number(row.id),Number(row.artist_id),row.status])
+    );
+  } finally {
+    await cleanupEvent(page,fixture);
+  }
 });
