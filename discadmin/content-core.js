@@ -270,7 +270,13 @@ function eventRestoreEditorSnapshot(){
   const snapshot={id:Number(currentEvent?.id||0)};
   Object.keys(EVENT_RESTORE_CONTROL_IDS).forEach(field=>{
     const control=eventRestoreControl(field);
-    if(control)snapshot[field]=brvtalEventRestoreValue(field,control);
+    if(control){
+      snapshot[field]=brvtalEventRestoreValue(field,control);
+      return;
+    }
+    if(currentEvent&&Object.hasOwn(currentEvent,field)){
+      snapshot[field]=currentEvent[field];
+    }
   });
   return snapshot;
 }
