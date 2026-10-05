@@ -52,13 +52,15 @@ class BulkCatalogCursorE2ETests(unittest.TestCase):
     def test_cross_page_selection_mutates_only_selected_ids_through_canonical_csrf_post(self) -> None:
         for snippet in (
             "100 SELECTED",
-            "BULK CURSOR FIXTURE 0601",
-            "BULK CURSOR FIXTURE 0602",
-            "BULK CURSOR FIXTURE 0603",
+            "const selectedIds = [...pageOneIds, ...pageTwoIds]",
+            "expect(new Set(selectedIds).size).toBe(100)",
             "/api/bulk-actions.php",
-            "'x-csrf-token'",
+            "mutation.headers()['x-csrf-token']).toBe(auth.csrf)",
             "postDataJSON()",
-            "expect(body.ids.sort",
+            "toEqual(selectedIds)",
+            "expect(archivedIds.sort",
+            "expect(draftIds).toHaveLength(505)",
+            "expect(draftIds).toContain(untouchedId)",
             "status:'archived'",
         ):
             self.assertIn(snippet, self.e2e)
