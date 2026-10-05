@@ -107,7 +107,7 @@ cleanup() {
   if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${PASSWORD_WORKER_PID:-}" ]]; then kill "$PASSWORD_WORKER_PID" >/dev/null 2>&1 || true; fi
-  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE"
+  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE" "${BULK_FIXTURE_SQL:-}"
   if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
     echo "--- PHP server log ---" >&2
     cat "$PHP_LOG" >&2 || true
@@ -191,3 +191,16 @@ npx playwright test \
   tests/e2e/indexnow-real-stack.spec.mjs \
   tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
   --project=chromium
+
+BULK_FIXTURE_SQL="${RUNNER_TEMP:-/tmp}/brvtal-bulk-cursor-fixtures.sql"
+{
+  echo "INSERT INTO events(title,slug,event_date,venue,city,description,status,sort_order) VALUES"
+  for i in $(seq 1 605); do
+    terminator=","
+    if [[ "$i" == "605" ]]; then terminator=";"; fi
+    printf "('BULK CURSOR FIXTURE %04d','bulk-cursor-fixture-%04d','2026-12-31 21:00:00','CI Warehouse','Pereira','Disposable Bulk Catalog Cursor V2 fixture','draft',%d)%s\\n" "$i" "$i" "$i" "$terminator"
+  done
+} > "$BULK_FIXTURE_SQL"
+"${mysql_db[@]}" < "$BULK_FIXTURE_SQL"
+
+npx playwright test tests/e2e/discadmin-bulk-actions-cursor.spec.mjs --project=chromium --workers=1
