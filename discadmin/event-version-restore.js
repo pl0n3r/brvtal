@@ -43,7 +43,7 @@
     return Object.freeze({ok:false, code});
   }
 
-  function buildPlan(historyItem, currentEvent) {
+  function inspectRestoreSource(historyItem, currentEvent) {
     if (!plainObject(historyItem) || !plainObject(currentEvent)) return failure('INVALID_INPUT');
     if (String(historyItem.resource || '').toLowerCase() !== 'events') return failure('WRONG_RESOURCE');
     if (String(historyItem.action || '').toLowerCase() !== 'update') return failure('UNSUPPORTED_HISTORY_ACTION');
@@ -56,34 +56,53 @@
     const target = historyItem.after;
     if (!plainObject(target) || positiveId(target.id) !== eventId) return failure('INCOMPATIBLE_SNAPSHOT');
 
+    return {ok:true, eventId, activityId, target};
+  }
+
+  function collectRestorableValues(target, currentEvent) {
     const values = {};
     const changes = [];
+
     for (const field of RESTORABLE_FIELDS) {
-      if (!Object.prototype.hasOwnProperty.call(target, field)) continue;
+      if (!Object.hasOwn(target, field)) continue;
       const next = target[field];
       if (!safeScalar(next)) return failure('INCOMPATIBLE_SNAPSHOT');
+
       values[field] = next;
-      const previous = Object.prototype.hasOwnProperty.call(currentEvent, field) ? currentEvent[field] : null;
+      const previous = Object.hasOwn(currentEvent, field) ? currentEvent[field] : null;
       if (!equalValue(previous, next)) {
         changes.push(Object.freeze({field, from:previous, to:next}));
       }
     }
 
+    return {ok:true, values, changes};
+  }
+
+  function compatibleOpaqueFields(target) {
     for (const [field, value] of Object.entries(target)) {
       if (field === 'id' || restorable.has(field)) continue;
-      if (!safeScalar(value) && value !== undefined) return failure('INCOMPATIBLE_SNAPSHOT');
+      if (!safeScalar(value) && value !== undefined) return false;
     }
+    return true;
+  }
 
-    if (Object.keys(values).length === 0 || changes.length === 0) return failure('NO_SAFE_CHANGES');
+  function buildPlan(historyItem, currentEvent) {
+    const source = inspectRestoreSource(historyItem, currentEvent);
+    if (!source.ok) return source;
+
+    const restore = collectRestorableValues(source.target, currentEvent);
+    if (!restore.ok) return restore;
+    if (!compatibleOpaqueFields(source.target)) return failure('INCOMPATIBLE_SNAPSHOT');
+    if (Object.keys(restore.values).length === 0 || restore.changes.length === 0) return failure('NO_SAFE_CHANGES');
 
     return Object.freeze({
       ok:true,
-      event_id:eventId,
-      activity_id:activityId,
+      event_id:source.eventId,
+      activity_id:source.activityId,
       source_created_at:String(historyItem.created_at || ''),
-      fields:Object.freeze(Object.keys(values)),
-      values:Object.freeze({...values}),
-      changes:Object.freeze(changes),
+      fields:Object.freeze(Object.keys(restore.values)),
+      values:Object.freeze({...restore.values}),
+      changes:Object.freeze(restore.changes),
       execution:false,
     });
   }
