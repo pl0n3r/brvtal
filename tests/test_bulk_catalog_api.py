@@ -29,7 +29,7 @@ class BulkCatalogApiTests(unittest.TestCase):
         for resource in ("events", "artists", "sets", "pages", "releases", "blog"):
             self.assertIn(f"'{resource}' =>", library)
         self.assert_has(
-            library, "$limit < 1 || $limit > 50", "'snapshot_complete' => true",
+            library, "$limit < 1 || $limit > 50", "'snapshot_complete' => !$hasMore",
             "'updated'=>'updated_at'", "'where'=>'deleted_at IS NULL'",
         )
         self.assertNotIn("'media' =>", library)

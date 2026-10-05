@@ -264,7 +264,7 @@ function brvtalBulkCatalogFetch(PDO $pdo, array $query): array
             'total' => $total,
             'has_more' => $hasMore,
             'next_cursor' => $nextCursor,
-            'snapshot_complete' => true,
+            'snapshot_complete' => !$hasMore,
             'range' => [
                 'after_id' => $lastId,
                 'last_id' => $lastReturnedId,

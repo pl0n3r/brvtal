@@ -99,6 +99,11 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
             ]);
             $page = brvtalBulkCatalogFetch($pdo, $query);
             bulk_assert(($page['pagination']['total'] ?? null) === 520, 'snapshot total must stay 520');
+            bulk_assert(
+                ($page['pagination']['snapshot_complete'] ?? null)
+                    === !($page['pagination']['has_more'] ?? false),
+                'snapshot completeness must match whether continuation remains'
+            );
             foreach ($page['items'] as $item) {
                 $ids[] = (int)$item['id'];
             }
