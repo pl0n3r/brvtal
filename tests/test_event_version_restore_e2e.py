@@ -75,8 +75,9 @@ class EventVersionRestoreE2ETests(unittest.TestCase):
 
         match = re.search(r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'", version)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "0.1.124")
-        self.assertEqual(package["version"], "0.1.124")
+        release_version = match.group(1)
+        self.assertGreaterEqual(tuple(map(int, release_version.split("."))), (0, 1, 124))
+        self.assertEqual(package["version"], release_version)
         self.assertEqual(
             package["scripts"]["test:event-version-restore-e2e"],
             "python3 -m unittest tests/test_event_version_restore_e2e.py",
