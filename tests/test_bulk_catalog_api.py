@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Contrato del catálogo read-only paginado para Bulk Actions."""
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -29,7 +30,7 @@ class BulkCatalogApiTests(unittest.TestCase):
             self.assertIn(f"'{resource}' =>", library)
         self.assert_has(
             library, "$limit < 1 || $limit > 50", "'snapshot_complete' => true",
-            "'updated'=>'updated_at'", "'where'=>'deleted_at IS NULL'",
+            "'updated' => 'updated_at'", "'where' => 'deleted_at IS NULL'",
         )
         self.assertNotIn("'media' =>", library)
     def test_search_and_cursor_cover_records_beyond_first_page_without_duplicates(self) -> None:
@@ -44,6 +45,13 @@ class BulkCatalogApiTests(unittest.TestCase):
             library.index("function brvtalBulkCatalogCursorDecode"),
             library.index("function brvtalBulkCatalogFetch"),
         )
+        contract = subprocess.run(
+            ["php", "tests/bulk-actions-contract.php"], cwd=ROOT, text=True,
+            capture_output=True, timeout=60, check=False,
+        )
+        self.assertEqual(contract.returncode, 0, contract.stderr)
+        if os.environ.get("BRVTAL_INTEGRATION_TESTS") == "1":
+            self.assertIn("BRVTAL Bulk Catalog dynamic pagination passed.", contract.stdout)
 
     def test_invalid_resource_query_cursor_or_limit_fails_closed_without_mutation(self) -> None:
         endpoint, library, mutation = self.sources()
