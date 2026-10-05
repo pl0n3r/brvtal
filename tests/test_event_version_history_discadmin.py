@@ -78,10 +78,14 @@ class EventVersionHistoryDiscadminTests(unittest.TestCase):
         history = self.history_function()
         guard = "if(eventId<1||!modal?.classList.contains('open'))return false;"
         load = "await brvtalLoadEventHistoryModule()"
-        open_call = "await module.openHistory('events',eventId,label)"
+        open_call = "await module.openHistory("
         self.assertIn(guard, history)
         self.assertIn(load, history)
         self.assertIn(open_call, history)
+        self.assertIn(
+            "restoreModule?{onRestore:item=>stageEventVersionRestore(item,eventId,restoreModule)}:{}",
+            history,
+        )
         self.assertLess(history.index(guard), history.index(load))
         self.assertLess(history.index(guard), history.index(open_call))
         self.assertIn("button.hidden=eventId<1", self.core_js())
@@ -169,7 +173,14 @@ vm.runInContext(prefix + String.raw`
         history = self.history_function()
         activity = self.activity_js()
 
-        self.assertIn("module.openHistory('events',eventId,label)", history)
+        self.assertRegex(
+            history,
+            r"module\.openHistory\(\s*'events',\s*eventId,\s*label,",
+        )
+        self.assertIn(
+            "restoreModule?{onRestore:item=>stageEventVersionRestore(item,eventId,restoreModule)}:{}",
+            history,
+        )
         self.assertIn("Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open')", history)
         self.assertNotIn("saveEvent(", history)
         self.assertNotIn("previewEvent(", history)
@@ -178,8 +189,14 @@ vm.runInContext(prefix + String.raw`
         self.assertIn("const ENDPOINT = '/api/admin-activity.php';", activity)
         self.assertIn("history:'1',resource,resource_id:String(resourceId),limit:'50'", activity)
         self.assertNotIn("method:'POST'", activity)
-        self.assertNotIn("restore", history.lower())
-        self.assertNotIn("revert", history.lower())
+        self.assertIn(
+            "Restore/revert actions are intentionally not available from the Admin Activity dashboard",
+            activity,
+        )
+        self.assertIn(
+            "openHistory(button.dataset.activityResource, button.dataset.activityHistory, button.dataset.activityLabel)",
+            activity,
+        )
 
     def test_spec_and_release_identity_are_updated_to_0_1_118(self) -> None:
         spec = SPEC.read_text(encoding="utf-8")
