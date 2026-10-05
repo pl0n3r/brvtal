@@ -225,8 +225,16 @@ echo json_encode([
         self.assertIn("clients never control `published_at` directly", spec)
         self.assertIn("without a database mutation or scheduled job", spec)
         self.assertIn("IndexNow remains an editorial-change notification mechanism, not a scheduler", spec)
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.121'", version)
-        self.assertEqual(package["version"], "0.1.121")
+        release_line = next(
+            line for line in version.splitlines()
+            if line.startswith("const BRVTAL_APP_VERSION = ")
+        )
+        release_version = release_line.split("'")[1]
+        self.assertGreaterEqual(
+            tuple(int(part) for part in release_version.split(".")),
+            (0, 1, 121),
+        )
+        self.assertEqual(package["version"], release_version)
         self.assertEqual(
             package["scripts"]["test:event-schedule-surfaces"],
             "python3 -m unittest tests/test_event_schedule_surfaces.py",
