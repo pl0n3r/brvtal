@@ -62,6 +62,11 @@ class BulkActionsCursorUiTests(unittest.TestCase):
             "'X-CSRF-Token':token",
             "body:JSON.stringify({action:'set_status',resource:module,status,ids})",
             "window.confirm(",
+            "const progressed = (pageIndex * PAGE_SIZE) + page.returned;",
+            "page.returned !== PAGE_SIZE || progressed >= page.total",
+            "progressed !== page.total",
+            "new Set(ids).size !== ids.length",
+            "ids[ids.length - 1] !== page.range.last_id",
         )
 
 
