@@ -42,6 +42,12 @@ bulk_assert(str_contains($shell, '/discadmin/bulk-actions.js'), 'canonical shell
 bulk_assert(str_contains($ui, 'NO BULK DELETE'), 'UI must communicate that bulk deletion is unavailable');
 bulk_assert(str_contains($ui, "window.confirm(`Set"), 'UI must require confirmation before mutation');
 bulk_assert(str_contains($ui, "'X-CSRF-Token':token"), 'UI must send the CSRF token');
+bulk_assert(str_contains($ui, "const CATALOG_ENDPOINT = '/api/bulk-catalog.php';"), 'UI must read from the bounded catalog endpoint');
+bulk_assert(!str_contains($ui, '/api/index.php/events'), 'UI must not download the full Events collection');
+bulk_assert(!str_contains($ui, '/api/releases.php'), 'UI must not download the full Releases collection');
+bulk_assert(str_contains($ui, 'state.cursorStack[index] = state.nextCursor;'), 'UI must navigate using server cursors');
+bulk_assert(str_contains($ui, 'const MAX_SELECTED = 100;'), 'UI must preserve the global 100 selection limit');
+bulk_assert(str_contains($ui, 'button.disabled = !state.ready'), 'UI must fail closed while catalog evidence is unavailable');
 
 if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     require_once $root . '/api/bulk-actions-lib.php';
