@@ -151,30 +151,44 @@
     updateControls();
   }
 
-  function normalizeCatalog(payload, module, query) {
+  function normalizeCatalog(payload, module, query, pageIndex) {
     const data = payload?.ok === true && payload.data && typeof payload.data === 'object' ? payload.data : null;
     const page = data?.pagination;
     if (!data || data.resource !== module || data.q !== query || !Array.isArray(data.items) || !page) {
       throw new Error('INVALID_CATALOG_RESPONSE');
     }
-    if (!Number.isInteger(page.limit) || page.limit < 1 || page.limit > PAGE_SIZE
+    if (page.limit !== PAGE_SIZE
       || !Number.isInteger(page.returned) || page.returned !== data.items.length
       || !Number.isInteger(page.total) || page.total < page.returned
+      || !Number.isInteger(pageIndex) || pageIndex < 0
       || typeof page.has_more !== 'boolean' || typeof page.snapshot_complete !== 'boolean'
-      || !page.range || !Number.isInteger(page.range.after_id) || !Number.isInteger(page.range.last_id)) {
+      || !page.range || !Number.isInteger(page.range.after_id) || !Number.isInteger(page.range.last_id)
+      || page.range.after_id < 0 || page.range.last_id < page.range.after_id) {
       throw new Error('INVALID_CATALOG_RESPONSE');
     }
     const next = page.next_cursor;
+    const progressed = (pageIndex * PAGE_SIZE) + page.returned;
     if (page.has_more) {
-      if (typeof next !== 'string' || next === '' || page.snapshot_complete) throw new Error('INCOMPLETE_CATALOG_RESPONSE');
-    } else if ((next !== null && next !== '') || !page.snapshot_complete) {
+      if (typeof next !== 'string' || next === '' || page.snapshot_complete
+        || page.returned !== PAGE_SIZE || progressed >= page.total) {
+        throw new Error('INCOMPLETE_CATALOG_RESPONSE');
+      }
+    } else if ((next !== null && next !== '') || !page.snapshot_complete || progressed !== page.total) {
       throw new Error('INCOMPLETE_CATALOG_RESPONSE');
     }
+    const ids = [];
     for (const item of data.items) {
       if (!Number.isInteger(item?.id) || item.id < 1 || typeof item.label !== 'string'
         || typeof item.slug !== 'string' || typeof item.status !== 'string') {
         throw new Error('INVALID_CATALOG_RESPONSE');
       }
+      ids.push(item.id);
+    }
+    if (new Set(ids).size !== ids.length
+      || ids.some((id, index) => index > 0 && id <= ids[index - 1])
+      || (ids.length > 0 && (ids[0] <= page.range.after_id || ids[ids.length - 1] !== page.range.last_id))
+      || (ids.length === 0 && page.range.last_id !== page.range.after_id)) {
+      throw new Error('INVALID_CATALOG_RESPONSE');
     }
     return data;
   }
@@ -199,7 +213,7 @@
       const payload = await response.json().catch(() => ({ok:false,error:'INVALID_RESPONSE'}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || ('HTTP_' + response.status));
       if (!state.open || state.module !== module || state.loadId !== loadId) return;
-      const data = normalizeCatalog(payload, module, query);
+      const data = normalizeCatalog(payload, module, query, pageIndex);
       state.rows = data.items; state.pagination = data.pagination; state.ready = true; state.unavailable = false;
       state.pageIndex = pageIndex; state.nextCursor = data.pagination.next_cursor || '';
       state.cursorStack[pageIndex] = cursor; state.cursorStack = state.cursorStack.slice(0, pageIndex + 1);
