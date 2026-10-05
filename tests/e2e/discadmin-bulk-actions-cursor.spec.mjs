@@ -83,43 +83,39 @@ test('catalog over 500 remains searchable and page-complete without duplicates',
 });
 
 test('cross-page selection caps at 100 and canonical CSRF POST mutates only selected IDs', async ({ page }) => {
-  await login(page);
+  const auth = await login(page);
   const dialog = await openBulk(page);
 
   await searchBulk(dialog, fixtureQuery);
   await expect(dialog.locator('[data-bulk-row]')).toHaveCount(50);
+  const pageOneIds = await dialog.locator('[data-bulk-id]').evaluateAll(elements =>
+    elements.map(element => Number(element.getAttribute('data-bulk-id')))
+  );
   await dialog.locator('.brvtal-bulk-select-all').click();
   await expect(dialog.locator('.brvtal-bulk-count')).toHaveText('50 SELECTED');
+
   await dialog.locator('.brvtal-bulk-next').click();
   await expect(dialog.locator('.brvtal-bulk-page-info')).toContainText('PAGE 2');
+  const pageTwoIds = await dialog.locator('[data-bulk-id]').evaluateAll(elements =>
+    elements.map(element => Number(element.getAttribute('data-bulk-id')))
+  );
+  expect(pageTwoIds.some(id => pageOneIds.includes(id))).toBe(false);
   await dialog.locator('.brvtal-bulk-select-all').click();
   await expect(dialog.locator('.brvtal-bulk-count')).toHaveText('100 SELECTED');
+
+  const selectedIds = [...pageOneIds, ...pageTwoIds].sort((a,b) => a-b);
+  expect(selectedIds).toHaveLength(100);
+  expect(new Set(selectedIds).size).toBe(100);
+
   await dialog.locator('.brvtal-bulk-next').click();
   await expect(dialog.locator('.brvtal-bulk-page-info')).toContainText('PAGE 3');
+  const untouchedId = Number(await dialog.locator('[data-bulk-id]').first().getAttribute('data-bulk-id'));
+  expect(selectedIds).not.toContain(untouchedId);
   await dialog.locator('.brvtal-bulk-select-all').click();
   await expect(dialog.locator('.brvtal-bulk-count')).toHaveText('100 SELECTED');
+  await expect(dialog.locator('[data-bulk-id]').first()).not.toBeChecked();
 
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toHaveClass(/open/);
-
-  const reopened = await openBulk(page);
-  await searchBulk(reopened, 'BULK CURSOR FIXTURE 0601');
-  const firstBox = reopened.locator('[data-bulk-id]').first();
-  const firstId = Number(await firstBox.getAttribute('data-bulk-id'));
-  await firstBox.check();
-  await expect(reopened.locator('.brvtal-bulk-count')).toHaveText('1 SELECTED');
-
-  await searchBulk(reopened, 'BULK CURSOR FIXTURE 0602');
-  await expect(reopened.locator('.brvtal-bulk-count')).toHaveText('1 SELECTED');
-  const secondBox = reopened.locator('[data-bulk-id]').first();
-  const secondId = Number(await secondBox.getAttribute('data-bulk-id'));
-  await secondBox.check();
-  await expect(reopened.locator('.brvtal-bulk-count')).toHaveText('2 SELECTED');
-
-  const untouchedBefore = await catalogOne(page, 'BULK CURSOR FIXTURE 0603');
-  expect(untouchedBefore.status).toBe('draft');
-
-  await reopened.locator('.brvtal-bulk-status').selectOption('archived');
+  await dialog.locator('.brvtal-bulk-status').selectOption('archived');
   let confirmationSeen = false;
   page.once('dialog', async dialogEvent => {
     confirmationSeen = dialogEvent.type() === 'confirm';
@@ -131,19 +127,36 @@ test('cross-page selection caps at 100 and canonical CSRF POST mutates only sele
   const responsePromise = page.waitForResponse(response =>
     response.request().method() === 'POST' && response.url().endsWith('/api/bulk-actions.php')
   );
-  await reopened.locator('.brvtal-bulk-apply').click();
+  await dialog.locator('.brvtal-bulk-apply').click();
   const mutation = await mutationPromise;
   const response = await responsePromise;
   expect(confirmationSeen).toBe(true);
   expect(response.status()).toBe(200);
-  expect(mutation.headers()['x-csrf-token']).toBeTruthy();
+  expect(mutation.headers()['x-csrf-token']).toBe(auth.csrf);
   const body = mutation.postDataJSON();
   expect(body).toMatchObject({action:'set_status',resource:'events',status:'archived'});
-  expect(body.ids.sort((a,b) => a-b)).toEqual([firstId,secondId].sort((a,b) => a-b));
+  expect([...body.ids].sort((a,b) => a-b)).toEqual(selectedIds);
 
-  expect((await catalogOne(page, 'BULK CURSOR FIXTURE 0601')).status).toBe('archived');
-  expect((await catalogOne(page, 'BULK CURSOR FIXTURE 0602')).status).toBe('archived');
-  expect((await catalogOne(page, 'BULK CURSOR FIXTURE 0603')).status).toBe('draft');
+  let cursor = '';
+  const archivedIds = [];
+  const draftIds = [];
+  do {
+    const params = new URLSearchParams({resource:'events',q:fixtureQuery,limit:'50'});
+    if (cursor) params.set('cursor',cursor);
+    const catalogResponse = await page.request.get(baseUrl + '/api/bulk-catalog.php?' + params.toString());
+    expect(catalogResponse.status()).toBe(200);
+    const payload = await catalogResponse.json();
+    expect(payload.ok).toBe(true);
+    for (const item of payload.data.items) {
+      if (item.status === 'archived') archivedIds.push(Number(item.id));
+      if (item.status === 'draft') draftIds.push(Number(item.id));
+    }
+    cursor = payload.data.pagination.next_cursor || '';
+  } while (cursor);
+
+  expect(archivedIds.sort((a,b) => a-b)).toEqual(selectedIds);
+  expect(draftIds).toHaveLength(505);
+  expect(draftIds).toContain(untouchedId);
 });
 
 test('keyboard mobile aria-live and incomplete responses remain fail-closed', async ({ page }) => {
