@@ -12,7 +12,7 @@ async function login(page) {
   });
   expect(response.ok(), `Admin login failed with HTTP ${response.status()}`).toBeTruthy();
   const payload = await response.json();
-  expect(payload).toMatchObject({authenticated:true});
+  expect(payload.ok).toBe(true);
   expect(payload.csrf).toBeTruthy();
   return payload.csrf;
 }
