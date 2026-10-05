@@ -28,7 +28,7 @@
   function currentModule() {
     const active = document.querySelector('.nav button.active');
     if (active?.dataset.adminNav && SPECS[active.dataset.adminNav]) return active.dataset.adminNav;
-    const match = (active?.getAttribute('onclick') || '').match(/(?:go|tech)\('([^']+)'\)/);
+    const match = /(?:go|tech)\('([^']+)'\)/.exec(active?.getAttribute('onclick') || '');
     if (match && SPECS[match[1]]) return match[1];
     const heading = document.querySelector('.main .top h1')?.textContent?.trim().toLowerCase() || '';
     return Object.keys(SPECS).find(key => SPECS[key].label.toLowerCase() === heading) || null;
