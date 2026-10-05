@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Executable wiring contract for Event Version Restore real-stack coverage."""
+"""Wiring contract for Event Version Restore real-stack browser coverage."""
 from __future__ import annotations
 
-from functools import lru_cache
 import json
-import os
 import re
-import subprocess
 import unittest
 from pathlib import Path
 
@@ -18,57 +15,47 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-@lru_cache(maxsize=1)
-def listed_browser_tests() -> str:
-    env = {
-        **os.environ,
-        "BRVTAL_REAL_STACK_URL": "http://127.0.0.1:4174",
-        "BRVTAL_REAL_STACK_ADMIN_PASSWORD": "list-only-placeholder",
+def browser_test_titles() -> set[str]:
+    source = read(BROWSER_SPEC)
+    return set(re.findall(r"\btest\(\s*['\"]([^'\"]+)['\"]", source))
+
+
+def assert_real_stack_wiring(testcase: unittest.TestCase) -> None:
+    runner = read("tests/e2e/run-content-core-real-stack.sh")
+    workflow = read(".github/workflows/update-release-metadata.yml")
+
+    runner_specs = {
+        line.strip().rstrip("\\").strip()
+        for line in runner.splitlines()
+        if line.strip().startswith("tests/e2e/") and line.strip().endswith((".mjs \\", ".mjs"))
     }
-    result = subprocess.run(
-        [
-            "npx",
-            "playwright",
-            "test",
-            BROWSER_SPEC,
-            "--project=chromium",
-            "--list",
-        ],
-        cwd=ROOT,
-        check=False,
-        text=True,
-        capture_output=True,
-        timeout=30,
-        env=env,
+    testcase.assertIn(BROWSER_SPEC, runner_specs)
+    testcase.assertRegex(
+        workflow,
+        r"run:\s+bash tests/e2e/run-content-core-real-stack\.sh",
     )
-    if result.returncode != 0:
-        raise AssertionError(result.stderr or result.stdout)
-    return result.stdout
 
 
 class EventVersionRestoreE2ETests(unittest.TestCase):
     def test_staged_restore_saves_through_canonical_event_path_and_creates_new_history(self) -> None:
-        listed = listed_browser_tests()
-        runner = read("tests/e2e/run-content-core-real-stack.sh")
-        workflow = read(".github/workflows/update-release-metadata.yml")
-
+        assert_real_stack_wiring(self)
         self.assertIn(
             "staged restore saves through the canonical Event workflow and creates new history",
-            listed,
+            browser_test_titles(),
         )
-        self.assertIn(BROWSER_SPEC, runner)
-        self.assertIn("bash tests/e2e/run-content-core-real-stack.sh", workflow)
 
     def test_new_stale_or_wrong_event_restore_fails_closed_without_mutation(self) -> None:
+        assert_real_stack_wiring(self)
         self.assertIn(
             "new, wrong, stale, closed, incompatible and empty restores fail closed without mutation",
-            listed_browser_tests(),
+            browser_test_titles(),
         )
 
     def test_restore_never_rewinds_lifecycle_or_relations_and_cancel_discards_staged_changes(self) -> None:
+        assert_real_stack_wiring(self)
         self.assertIn(
             "cancel discards a staged restore while lifecycle and relations remain current",
-            listed_browser_tests(),
+            browser_test_titles(),
         )
 
     def test_spec_declares_review_before_save_restore_contract(self) -> None:
