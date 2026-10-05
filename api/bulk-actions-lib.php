@@ -8,12 +8,12 @@ require_once __DIR__ . '/content-validation.php';
 function brvtal_bulk_resource_specs(): array
 {
     return [
-        'events' => ['table' => 'events', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published','archived']],
-        'artists' => ['table' => 'artists', 'label' => 'name', 'slug' => 'slug', 'statuses' => ['draft','published']],
-        'sets' => ['table' => 'sets_media', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published']],
-        'pages' => ['table' => 'pages', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published']],
-        'releases' => ['table' => 'releases', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published','archived']],
-        'blog' => ['table' => 'blog_posts', 'label' => 'title', 'slug' => 'slug', 'where' => 'deleted_at IS NULL', 'statuses' => ['draft','published','archived']],
+        'events' => ['table' => 'events', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published','archived']],
+        'artists' => ['table' => 'artists', 'label' => 'name', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published']],
+        'sets' => ['table' => 'sets_media', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published']],
+        'pages' => ['table' => 'pages', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published']],
+        'releases' => ['table' => 'releases', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published','archived']],
+        'blog' => ['table' => 'blog_posts', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'where' => 'deleted_at IS NULL', 'statuses' => ['draft','published','archived']],
     ];
 }
 
@@ -25,6 +25,8 @@ function brvtal_bulk_catalog_cursor_encode(array $state): string
         'q' => (string)$state['q'],
         'last_id' => (int)$state['last_id'],
         'snapshot_max_id' => (int)$state['snapshot_max_id'],
+        'snapshot_total' => (int)$state['snapshot_total'],
+        'snapshot_updated_at' => $state['snapshot_updated_at'] ?? null,
     ];
     $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
     if (!is_string($json)) {
@@ -49,19 +51,24 @@ function brvtal_bulk_catalog_cursor_decode(string $cursor, string $resource, str
     }
 
     $payload = json_decode($decoded, true);
-    if (!is_array($payload) || array_keys($payload) !== ['version','resource','q','last_id','snapshot_max_id']) {
+    $keys = ['version','resource','q','last_id','snapshot_max_id','snapshot_total','snapshot_updated_at'];
+    if (!is_array($payload) || array_keys($payload) !== $keys) {
         throw new InvalidArgumentException('INVALID_BULK_CURSOR');
     }
+    $updatedAt = $payload['snapshot_updated_at'] ?? null;
     if (
         ($payload['version'] ?? null) !== 1
         || !is_string($payload['resource'] ?? null)
         || !is_string($payload['q'] ?? null)
         || !is_int($payload['last_id'] ?? null)
         || !is_int($payload['snapshot_max_id'] ?? null)
+        || !is_int($payload['snapshot_total'] ?? null)
+        || ($updatedAt !== null && (!is_string($updatedAt) || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $updatedAt) !== 1))
         || $payload['resource'] !== $resource
         || $payload['q'] !== $query
         || $payload['last_id'] < 0
         || $payload['snapshot_max_id'] < $payload['last_id']
+        || $payload['snapshot_total'] < 0
     ) {
         throw new InvalidArgumentException('INVALID_BULK_CURSOR');
     }
@@ -69,6 +76,8 @@ function brvtal_bulk_catalog_cursor_decode(string $cursor, string $resource, str
     return [
         'last_id' => $payload['last_id'],
         'snapshot_max_id' => $payload['snapshot_max_id'],
+        'snapshot_total' => $payload['snapshot_total'],
+        'snapshot_updated_at' => $updatedAt,
     ];
 }
 
@@ -123,6 +132,8 @@ function brvtal_bulk_catalog_normalize_query(array $input): array
         'limit' => $limit,
         'last_id' => (int)($cursor['last_id'] ?? 0),
         'snapshot_max_id' => $cursor['snapshot_max_id'] ?? null,
+        'snapshot_total' => $cursor['snapshot_total'] ?? null,
+        'snapshot_updated_at' => $cursor['snapshot_updated_at'] ?? null,
     ];
 }
 
@@ -138,6 +149,7 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
     $limit = (int)($query['limit'] ?? 0);
     $lastId = (int)($query['last_id'] ?? 0);
     $snapshotMaxId = $query['snapshot_max_id'] ?? null;
+    $cursorSnapshot = $snapshotMaxId !== null;
     if ($limit < 1 || $limit > 50 || $lastId < 0) {
         throw new InvalidArgumentException('INVALID_BULK_QUERY');
     }
@@ -146,11 +158,12 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
     $table = (string)$spec['table'];
     $labelColumn = (string)$spec['label'];
     $slugColumn = (string)$spec['slug'];
+    $updatedColumn = (string)$spec['updated'];
     $catalogWhere = trim((string)($spec['where'] ?? ''));
     $catalogWhereSql = $catalogWhere === '' ? '' : " AND {$catalogWhere}";
 
     if ($snapshotMaxId === null) {
-        $snapshot = $pdo->query("SELECT COALESCE(MAX(id),0) FROM `{$table}`");
+        $snapshot = $pdo->query("SELECT COALESCE(MAX(id),0) FROM {$table}");
         $snapshotMaxId = (int)$snapshot->fetchColumn();
     } elseif (!is_int($snapshotMaxId) || $snapshotMaxId < $lastId) {
         throw new InvalidArgumentException('INVALID_BULK_CURSOR');
@@ -159,21 +172,34 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
     $searchSql = '';
     $searchParams = [];
     if ($search !== '') {
-        $searchSql = " AND (LOCATE(LOWER(?), LOWER(COALESCE(`{$labelColumn}`,''))) > 0"
-            . " OR LOCATE(LOWER(?), LOWER(COALESCE(`{$slugColumn}`,''))) > 0)";
+        $searchSql = " AND (LOCATE(LOWER(?), LOWER(COALESCE({$labelColumn},''))) > 0"
+            . " OR LOCATE(LOWER(?), LOWER(COALESCE({$slugColumn},''))) > 0)";
         $searchParams = [$search, $search];
     }
 
-    $count = $pdo->prepare(
-        "SELECT COUNT(*) FROM `{$table}` WHERE id <= ?{$catalogWhereSql}{$searchSql}"
+    $snapshotState = $pdo->prepare(
+        "SELECT COUNT(*) AS total, MAX({$updatedColumn}) AS updated_at"
+        . " FROM {$table} WHERE id <= ?{$catalogWhereSql}{$searchSql}"
     );
-    $count->execute(array_merge([$snapshotMaxId], $searchParams));
-    $total = (int)$count->fetchColumn();
+    $snapshotState->execute(array_merge([$snapshotMaxId], $searchParams));
+    $snapshotRow = $snapshotState->fetch(PDO::FETCH_ASSOC) ?: [];
+    $total = (int)($snapshotRow['total'] ?? 0);
+    $updatedAt = ($snapshotRow['updated_at'] ?? null) === null
+        ? null
+        : (string)$snapshotRow['updated_at'];
+
+    if ($cursorSnapshot && (
+        !is_int($query['snapshot_total'] ?? null)
+        || (int)$query['snapshot_total'] !== $total
+        || ($query['snapshot_updated_at'] ?? null) !== $updatedAt
+    )) {
+        throw new InvalidArgumentException('STALE_BULK_CURSOR');
+    }
 
     $fetchLimit = $limit + 1;
     $rowsStatement = $pdo->prepare(
-        "SELECT id,`{$labelColumn}` AS resource_label,`{$slugColumn}` AS slug,status"
-        . " FROM `{$table}` WHERE id > ? AND id <= ?{$catalogWhereSql}{$searchSql}"
+        "SELECT id,{$labelColumn} AS resource_label,{$slugColumn} AS slug,status"
+        . " FROM {$table} WHERE id > ? AND id <= ?{$catalogWhereSql}{$searchSql}"
         . " ORDER BY id ASC LIMIT {$fetchLimit}"
     );
     $rowsStatement->execute(array_merge([$lastId, $snapshotMaxId], $searchParams));
@@ -199,6 +225,8 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
             'q' => $search,
             'last_id' => $lastReturnedId,
             'snapshot_max_id' => $snapshotMaxId,
+            'snapshot_total' => $total,
+            'snapshot_updated_at' => $updatedAt,
         ])
         : null;
 
