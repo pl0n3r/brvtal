@@ -63,8 +63,8 @@ class BulkCatalogApiTests(unittest.TestCase):
         ):
             self.assertIn(snippet, library)
         self.assertLess(
-            library.index("function brvtal_bulk_catalog_cursor_decode"),
-            library.index("function brvtal_bulk_catalog_fetch"),
+            library.index("function brvtalBulkCatalogCursorDecode"),
+            library.index("function brvtalBulkCatalogFetch"),
         )
 
     def test_invalid_resource_query_cursor_or_limit_fails_closed_without_mutation(self) -> None:
