@@ -131,30 +131,58 @@
     return fields.map(field => `<section class="history-field"><h4>${esc(field.replaceAll('_',' ').toUpperCase())}</h4><div class="history-values"><div class="history-value"><small>BEFORE</small>${esc(displayValue(item.before?.[field]))}</div><div class="history-value"><small>AFTER</small>${esc(displayValue(item.after?.[field]))}</div></div></section>`).join('');
   }
 
-  function selectHistoryVersion(timeline, diff, items, button) {
-    const item = items[Number(button.dataset.historyIndex) || 0];
+  function historyRestoreMarkup(item, restoreOptions) {
+    if (
+      !restoreOptions
+      || typeof restoreOptions.onRestore !== 'function'
+      || String(item?.resource || '').toLowerCase() !== 'events'
+    ) return '';
+    return `<div class="history-restore"><button type="button" class="activity-btn" data-history-restore>LOAD INTO EDITOR</button><div class="helper">Loads this editorial snapshot into the open Event editor for review. Nothing is saved automatically.</div></div>`;
+  }
+
+  function renderHistorySelection(timeline, diff, items, button, restoreOptions = null) {
+    const item = items[Number(button?.dataset.historyIndex) || 0];
     timeline.querySelectorAll('[data-history-index]').forEach(entry => {
       entry.classList.toggle('is-active', entry === button);
     });
-    diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}`;
+    if (!item) {
+      diff.innerHTML = '';
+      return;
+    }
+    diff.innerHTML = `<div class="history-summary">Changed in this version: ${esc((item.changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(item)}${historyRestoreMarkup(item, restoreOptions)}`;
+    const restoreButton = diff.querySelector('[data-history-restore]');
+    if (!restoreButton) return;
+    restoreButton.addEventListener('click', async () => {
+      if (restoreButton.disabled) return;
+      restoreButton.disabled = true;
+      try {
+        const restored = await restoreOptions.onRestore(item);
+        if (restored === true) closeDetail();
+      } catch (error) {
+        window.BRVTALFeedback?.error?.('Version restore unavailable: ' + (error?.message || error),'editorial-version-restore');
+      } finally {
+        if (restoreButton.isConnected) restoreButton.disabled = false;
+      }
+    });
   }
 
-  function renderHistoryTimeline(timeline, count, loadMore, diff, items, pagination, selectedIndex = 0) {
+  function renderHistoryTimeline(timeline, count, loadMore, diff, items, pagination, selectedIndex = 0, restoreOptions = null) {
     const {total, nextCursor} = pagination;
     timeline.innerHTML = items.map((item,index) => `<button type="button" class="history-version${index===selectedIndex?' is-active':''}" data-history-index="${index}"><b>${esc(String(item.action||'update').replaceAll('_',' ').toUpperCase())}</b><span>${esc(formatTime(item.created_at))}<br>${esc(item.admin_name || item.admin_email || 'Unknown admin')}</span></button>`).join('') || '<div class="empty">No versions recorded.</div>';
     count.textContent = `${items.length} of ${total} versions`;
     loadMore.hidden = !nextCursor;
     timeline.querySelectorAll('[data-history-index]').forEach(button => {
-      button.addEventListener('click', () => selectHistoryVersion(
+      button.addEventListener('click', () => renderHistorySelection(
         timeline,
         diff,
         items,
-        button
+        button,
+        restoreOptions
       ));
     });
   }
 
-  async function openHistory(resource, resourceId, label = '') {
+  async function openHistory(resource, resourceId, label = '', options = {}) {
     const {loadId,controller} = beginDetailLoad();
     try {
       const data = await fetchHistory(resource, resourceId, null, {signal:controller.signal});
@@ -166,9 +194,10 @@
       const modal = document.createElement('div');
       modal.id = 'brvtal-activity-modal';
       modal.className = 'activity-modal';
+      const restoreOptions = resource === 'events' && typeof options?.onRestore === 'function' ? options : null;
       modal.innerHTML = `<div class="activity-modal-card" role="dialog" aria-modal="true" aria-label="Editorial version history">
-        <div class="activity-modal-head"><div><div class="eyebrow">EDITORIAL VERSION HISTORY</div><h3>${esc(label || `${resource} #${resourceId}`)}</h3><div class="helper">${items.length} recorded version${items.length===1?'':'s'} · read-only</div></div><button type="button" class="activity-btn" data-activity-close>CLOSE</button></div>
-        <div class="activity-modal-body"><div class="history-layout"><div><nav class="history-timeline" data-history-timeline aria-label="Recorded versions"></nav><div class="activity-pagination"><span data-history-count></span><button type="button" class="activity-btn" data-history-load-more>LOAD MORE</button></div></div><div data-history-diff>${items.length ? `<div class="history-summary">Changed in this version: ${esc((items[0].changed_fields||[]).join(' · ') || 'metadata / relation')}</div>${historyDiff(items[0])}` : ''}</div></div></div>
+        <div class="activity-modal-head"><div><div class="eyebrow">EDITORIAL VERSION HISTORY</div><h3>${esc(label || `${resource} #${resourceId}`)}</h3><div class="helper">${items.length} recorded version${items.length===1?'':'s'} · ${restoreOptions?'review-before-save restore available':'read-only'}</div></div><button type="button" class="activity-btn" data-activity-close>CLOSE</button></div>
+        <div class="activity-modal-body"><div class="history-layout"><div><nav class="history-timeline" data-history-timeline aria-label="Recorded versions"></nav><div class="activity-pagination"><span data-history-count></span><button type="button" class="activity-btn" data-history-load-more>LOAD MORE</button></div></div><div data-history-diff></div></div></div>
       </div>`;
       document.body.appendChild(modal);
       const diff = modal.querySelector('[data-history-diff]');
@@ -181,8 +210,19 @@
         loadMore,
         diff,
         items,
-        {total, nextCursor}
+        {total, nextCursor},
+        0,
+        restoreOptions
       );
+      if (items.length) {
+        renderHistorySelection(
+          timeline,
+          diff,
+          items,
+          timeline.querySelector('[data-history-index="0"]'),
+          restoreOptions
+        );
+      }
       loadMore.addEventListener('click', async () => {
         if (!nextCursor || loadMore.disabled) return;
         const pageController = new AbortController();
@@ -203,7 +243,8 @@
             diff,
             items,
             {total, nextCursor},
-            selectedIndex
+            selectedIndex,
+            restoreOptions
           );
         } catch (error) {
           if (error?.name === 'AbortError' || loadId !== detailLoadId) return;
@@ -255,7 +296,7 @@
       </div>
       <div class="activity-list">${items.length ? items.map(rowHtml).join('') : '<div class="empty">No activity recorded for this filter.</div>'}</div>
       <div class="activity-pagination"><span>${items.length} of ${Number(data?.total || items.length)} records</span><button type="button" class="activity-btn" data-activity-load-more${data?.has_more ? '' : ' hidden'}>LOAD MORE</button></div>
-      <div class="activity-note">Read-only. This log does not expose passwords, TOTP secrets, recovery codes, sessions or raw Settings values. Restore/revert actions are intentionally not available in v1.</div>`;
+      <div class="activity-note">Read-only. This log does not expose passwords, TOTP secrets, recovery codes, sessions or raw Settings values. Restore/revert actions are not exposed from the dashboard; Event restores are staged only from the canonical Event editor and still require Save.</div>`;
     main.appendChild(panel);
 
     panel.querySelector('[data-activity-filter]')?.addEventListener('change', event => mount(String(event.target.value || '')));
