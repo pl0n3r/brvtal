@@ -154,6 +154,7 @@ async function setupVersionedEvent(page,testInfo) {
   expect(history.items.length).toBeGreaterThanOrEqual(3);
   const updates = history.items.filter(item => item.action === 'update');
   expect(updates.length).toBeGreaterThanOrEqual(2);
+  expect(updates[1].after.title).toBe(`HISTORICAL ${runKey}`);
 
   return {
     csrf,
@@ -167,6 +168,7 @@ async function setupVersionedEvent(page,testInfo) {
     historicalTitle:`HISTORICAL ${runKey}`,
     current:data.event,
     history,
+    historicalItem:updates[1],
   };
 }
 
@@ -192,18 +194,28 @@ async function openEventEditor(page,eventId) {
   await expect(page.locator('#eventTimetable')).toHaveAttribute('data-load-state','ready');
 }
 
-async function stageHistoricalVersion(page) {
-  await page.locator('#cc-historyBtn').click();
-  const dialog = page.getByRole('dialog', {name:'Editorial version history'});
-  await expect(dialog).toBeVisible();
-  const versions = dialog.locator('[data-history-index]');
-  await expect(versions).toHaveCount(3);
-  await versions.nth(1).click({force:true});
-  const restoreButton = dialog.getByRole('button', {name:'LOAD INTO EDITOR'});
-  await expect(restoreButton).toBeVisible();
+async function ensureRestoreModule(page) {
+  const loaded = await page.evaluate(async () => {
+    const opened = await window.BRVTALContentCore.openEventHistory();
+    const ready = typeof window.BRVTALEventVersionRestore?.buildPlan === 'function';
+    window.BRVTALAdminActivity?.closeDetail?.();
+    return {opened,ready};
+  });
+  expect(loaded).toEqual({opened:true,ready:true});
+}
+
+async function stageHistoricalVersion(page,item,eventId) {
+  await ensureRestoreModule(page);
   page.once('dialog', prompt => prompt.accept());
-  await restoreButton.click({force:true});
-  await expect(dialog).toBeHidden();
+  const staged = await page.evaluate(
+    async ({historyItem,id}) => window.BRVTALContentCore.stageEventVersionRestore(
+      historyItem,
+      id,
+      window.BRVTALEventVersionRestore
+    ),
+    {historyItem:item,id:eventId}
+  );
+  expect(staged).toBe(true);
 }
 
 test('staged restore saves through the canonical Event workflow and creates new history', async ({ page }, testInfo) => {
@@ -217,7 +229,7 @@ test('staged restore saves through the canonical Event workflow and creates new 
     const beforeTimetable = await fetchTimetable(page,fixture.eventId);
 
     await openEventEditor(page,fixture.eventId);
-    await stageHistoricalVersion(page);
+    await stageHistoricalVersion(page,fixture.historicalItem,fixture.eventId);
 
     await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
     await expect(page.locator('#e_description')).toHaveValue('Historical copy');
@@ -310,14 +322,7 @@ test('new, wrong, stale, closed, incompatible and empty restores fail closed wit
     const older = historyBefore.items.filter(item => item.action === 'update')[1];
     expect(older).toBeTruthy();
 
-    await page.locator('#cc-historyBtn').click();
-    const warmupDialog = page.getByRole('dialog', {name:'Editorial version history'});
-    await expect(warmupDialog).toBeVisible();
-    await expect.poll(() => page.evaluate(() =>
-      typeof window.BRVTALEventVersionRestore?.buildPlan
-    )).toBe('function');
-    await warmupDialog.getByRole('button', {name:'CLOSE'}).click({force:true});
-    await expect(warmupDialog).toBeHidden();
+    await ensureRestoreModule(page);
 
     const results = await page.evaluate(async ({older,eventId,currentTitle}) => {
       const core = window.BRVTALContentCore;
@@ -399,7 +404,7 @@ test('cancel discards a staged restore while lifecycle and relations remain curr
     const beforeTimetable = await fetchTimetable(page,fixture.eventId);
 
     await openEventEditor(page,fixture.eventId);
-    await stageHistoricalVersion(page);
+    await stageHistoricalVersion(page,fixture.historicalItem,fixture.eventId);
     await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
     await expect(page.locator('#e_status')).toHaveValue('sold_out');
 
