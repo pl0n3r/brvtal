@@ -69,6 +69,52 @@ class BulkActionsCursorUiTests(unittest.TestCase):
             "ids[ids.length - 1] !== page.range.last_id",
         )
 
+        start = self.source.index("  function normalizeCatalog(")
+        end = self.source.index("\n  async function loadPage(", start)
+        function_source = self.source[start:end]
+        harness = (
+            "const PAGE_SIZE = 50;\n"
+            + function_source
+            + """
+const item = id => ({id, label:'Item '+id, slug:'item-'+id, status:'draft'});
+const truncatedTerminal = {
+  ok:true,
+  data:{
+    resource:'pages',
+    q:'',
+    items:Array.from({length:50}, (_, index) => item(index + 1)),
+    pagination:{
+      limit:50, returned:50, total:500, has_more:false, next_cursor:null,
+      snapshot_complete:true, range:{after_id:0,last_id:50}
+    }
+  }
+};
+const shortContinuation = {
+  ok:true,
+  data:{
+    resource:'pages',
+    q:'',
+    items:Array.from({length:25}, (_, index) => item(index + 1)),
+    pagination:{
+      limit:50, returned:25, total:500, has_more:true, next_cursor:'cursor',
+      snapshot_complete:false, range:{after_id:0,last_id:25}
+    }
+  }
+};
+for (const payload of [truncatedTerminal, shortContinuation]) {
+  let rejected = false;
+  try { normalizeCatalog(payload, 'pages', '', 0); }
+  catch (error) { rejected = error?.message === 'INCOMPLETE_CATALOG_RESPONSE'; }
+  if (!rejected) process.exit(2);
+}
+"""
+        )
+        regression = subprocess.run(
+            ["node", "-e", harness], cwd=ROOT, text=True,
+            capture_output=True, timeout=30, check=False,
+        )
+        self.assertEqual(regression.returncode, 0, regression.stderr or regression.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
