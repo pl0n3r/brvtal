@@ -22,19 +22,66 @@ async function expectBulkRows(dialog, count) {
   await expect(dialog.locator('[data-bulk-row]')).toHaveCount(count);
 }
 
+function bulkCatalogPayload(resource, rows, requestUrl) {
+  const url = new URL(requestUrl);
+  const q = url.searchParams.get('q') || '';
+  const afterId = Number(url.searchParams.get('cursor') || 0);
+  const needle = q.trim().toLowerCase();
+  const matching = rows.filter(row => {
+    const label = row.label || row.title || row.name || ('#' + row.id);
+    return `${label} ${row.slug || ''} ${row.status || ''}`.toLowerCase().includes(needle);
+  });
+  const items = matching
+    .filter(row => Number(row.id) > afterId)
+    .slice(0, 50)
+    .map(row => ({
+      id:Number(row.id),
+      label:row.label || row.title || row.name || ('#' + row.id),
+      slug:String(row.slug || ''),
+      status:String(row.status || ''),
+    }));
+  const lastId = items.length ? items.at(-1).id : afterId;
+  const hasMore = matching.some(row => Number(row.id) > lastId);
+  return {
+    ok:true,
+    data:{
+      resource,
+      q,
+      items,
+      pagination:{
+        limit:50,
+        returned:items.length,
+        total:matching.length,
+        has_more:hasMore,
+        next_cursor:hasMore ? String(lastId) : null,
+        snapshot_complete:!hasMore,
+        range:{after_id:afterId,last_id:lastId},
+      },
+    },
+  };
+}
+
+async function installCatalogRoute(page, catalogs) {
+  await page.route('**/api/bulk-catalog.php**', route => {
+    const url = new URL(route.request().url());
+    const resource = url.searchParams.get('resource') || '';
+    const rows = catalogs[resource] || [];
+    return route.fulfill({
+      contentType:'application/json; charset=utf-8',
+      body:JSON.stringify(bulkCatalogPayload(resource, rows, route.request().url())),
+    });
+  });
+}
+
 test('bulk actions selects multiple events, confirms, sends CSRF and refreshes canonical module', async ({ page }) => {
   let mutation = null;
 
-  await page.route('**/api/index.php/events', route => route.fulfill({
-    contentType: 'application/json; charset=utf-8',
-    body: JSON.stringify({
-      ok: true,
-      data: [
-        { id: 11, title: 'Genesis', slug: 'genesis', status: 'draft' },
-        { id: 12, title: 'BRVTAL Session', slug: 'brvtal-session', status: 'draft' },
-      ],
-    }),
-  }));
+  await installCatalogRoute(page, {
+    events:[
+      { id: 11, title: 'Genesis', slug: 'genesis', status: 'draft' },
+      { id: 12, title: 'BRVTAL Session', slug: 'brvtal-session', status: 'draft' },
+    ],
+  });
 
   await page.route('**/api/bulk-actions.php', async route => {
     const request = route.request();
@@ -82,10 +129,7 @@ async function openLargeCatalog(page, count) {
     slug: `event-${index + 1}`,
     status: 'draft',
   }));
-  await page.route('**/api/index.php/events', route => route.fulfill({
-    contentType: 'application/json; charset=utf-8',
-    body: JSON.stringify({ok:true,data:rows}),
-  }));
+  await installCatalogRoute(page, {events:rows});
   await installHarness(page, 'bulk-synthetic-token');
   await page.goto(harnessUrl);
   await page.getByRole('button', { name: 'Open bulk actions for EVENTS' }).click();
@@ -106,19 +150,19 @@ test('bulk actions searches the full catalog beyond 500 and mutates only explici
   page.on('dialog', dialog => dialog.accept());
 
   const dialog = await openLargeCatalog(page, 605);
-  await expectBulkText(dialog, 'PAGE 1/13 · 1–50 OF 605 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'PAGE 1 · 50 SHOWN OF 605 · IDS >0–50 · MORE AVAILABLE');
   await clickBulk(dialog, 'NEXT');
-  await expectBulkText(dialog, 'PAGE 2/13 · 51–100 OF 605 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'PAGE 2 · 50 SHOWN OF 605 · IDS >50–100 · MORE AVAILABLE');
   await expectBulkRows(dialog, 50);
   for (let pageNumber = 2; pageNumber < 11; pageNumber += 1) {
     await clickBulk(dialog, 'NEXT');
   }
-  await expectBulkText(dialog, 'PAGE 11/13 · 501–550 OF 605 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'PAGE 11 · 50 SHOWN OF 605 · IDS >500–550 · MORE AVAILABLE');
   await expectBulkText(dialog, 'Event 501');
   await expectBulkRows(dialog, 50);
 
-  await dialog.getByRole('searchbox', { name: 'Filter bulk action items' }).fill('event-601');
-  await expectBulkText(dialog, 'PAGE 1/1 · 1–1 OF 1 MATCHES (605 TOTAL) · SEARCH ALL RECORDS');
+  await dialog.getByRole('searchbox', { name: 'Search bulk action items' }).fill('event-601');
+  await expectBulkText(dialog, 'PAGE 1 · 1 SHOWN OF 1 · IDS >0–601 · SNAPSHOT COMPLETE');
   await expectBulkText(dialog, 'Event 601');
   await dialog.locator('[data-bulk-id="601"]').check();
   await expectBulkText(dialog, '1 SELECTED');
@@ -138,7 +182,7 @@ test('bulk action pagination preserves selection across pages and never allows m
   await clickBulk(dialog, 'SELECT PAGE');
   await expectBulkText(dialog, '100 SELECTED');
   await clickBulk(dialog, 'NEXT');
-  await expectBulkText(dialog, 'PAGE 3/6 · 101–150 OF 260 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'PAGE 3 · 50 SHOWN OF 260 · IDS >100–150 · MORE AVAILABLE');
   await clickBulk(dialog, 'SELECT PAGE');
   await expectBulkText(dialog, '100 SELECTED');
   await expect.poll(() => page.evaluate(() => window.__bulkError)).toContain('at most 100');
@@ -160,9 +204,9 @@ test('bulk action pagination preserves selection across pages and never allows m
 
 test('grid preselection can reference a record past page ten without losing its selection', async ({ page }) => {
   const dialog = await openLargeCatalog(page, 605);
-  await page.evaluate(() => window.BRVTALBulkActions.open('events', [605, 605, 9999]));
+  await page.evaluate(() => window.BRVTALBulkActions.open('events', [605, 605]));
   await expectBulkText(dialog, '1 SELECTED');
-  await dialog.getByRole('searchbox', { name: 'Filter bulk action items' }).fill('event-605');
+  await dialog.getByRole('searchbox', { name: 'Search bulk action items' }).fill('event-605');
   await expectBulkText(dialog, 'Event 605');
   await expect(dialog.locator('[data-bulk-id="605"]')).toBeChecked();
   await clickBulk(dialog, 'CLEAR PAGE');
@@ -185,6 +229,6 @@ test('bulk paging keeps the footer and controls reachable on narrow mobile scree
   }
   await clickBulk(dialog, 'NEXT');
   await clickBulk(dialog, 'NEXT');
-  await expectBulkText(dialog, 'PAGE 3/3 · 101–121 OF 121 TOTAL · SEARCH ALL RECORDS');
+  await expectBulkText(dialog, 'PAGE 3 · 21 SHOWN OF 121 · IDS >100–121 · SNAPSHOT COMPLETE');
   await expectBulkRows(dialog, 21);
 });
