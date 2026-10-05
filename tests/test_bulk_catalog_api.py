@@ -30,7 +30,7 @@ class BulkCatalogApiTests(unittest.TestCase):
             self.assertIn(f"'{resource}' =>", library)
         self.assert_has(
             library, "$limit < 1 || $limit > 50", "'snapshot_complete' => true",
-            "'updated' => 'updated_at'", "'where' => 'deleted_at IS NULL'",
+            "'updated'=>'updated_at'", "'where'=>'deleted_at IS NULL'",
         )
         self.assertNotIn("'media' =>", library)
     def test_search_and_cursor_cover_records_beyond_first_page_without_duplicates(self) -> None:
