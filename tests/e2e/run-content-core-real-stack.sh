@@ -190,7 +190,6 @@ export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
 export BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE"
 npx playwright test \
   tests/e2e/discadmin-premium-real-stack.spec.mjs \
-  tests/e2e/discadmin-bulk-actions-cursor.spec.mjs \
   tests/e2e/admin-performance-real-stack.spec.mjs \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/discadmin-event-version-restore.spec.mjs \
@@ -203,3 +202,5 @@ npx playwright test \
   tests/e2e/indexnow-real-stack.spec.mjs \
   tests/e2e/discadmin-password-recovery-real-stack.spec.mjs \
   --project=chromium
+
+npx playwright test tests/e2e/discadmin-bulk-actions-cursor.spec.mjs --project=chromium --workers=1
