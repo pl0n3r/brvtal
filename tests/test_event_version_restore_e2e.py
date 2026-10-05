@@ -1,121 +1,75 @@
 #!/usr/bin/env python3
-"""Closeout contract for Event Version Restore review-before-save behavior."""
+"""Executable wiring contract for Event Version Restore real-stack coverage."""
 from __future__ import annotations
 
+from functools import lru_cache
 import json
+import os
 import re
 import subprocess
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+BROWSER_SPEC = "tests/e2e/discadmin-event-version-restore.spec.mjs"
 
 
 def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def run_checked(command: list[str]) -> None:
-    subprocess.run(
-        command,
+@lru_cache(maxsize=1)
+def listed_browser_tests() -> str:
+    env = {
+        **os.environ,
+        "BRVTAL_REAL_STACK_URL": "http://127.0.0.1:4174",
+        "BRVTAL_REAL_STACK_ADMIN_PASSWORD": "list-only-placeholder",
+    }
+    result = subprocess.run(
+        [
+            "npx",
+            "playwright",
+            "test",
+            BROWSER_SPEC,
+            "--project=chromium",
+            "--list",
+        ],
         cwd=ROOT,
-        check=True,
-        capture_output=True,
+        check=False,
         text=True,
+        capture_output=True,
         timeout=30,
+        env=env,
     )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr or result.stdout)
+    return result.stdout
 
 
 class EventVersionRestoreE2ETests(unittest.TestCase):
     def test_staged_restore_saves_through_canonical_event_path_and_creates_new_history(self) -> None:
-        browser = read("tests/e2e/discadmin-event-version-restore.spec.mjs")
-        core = read("discadmin/content-core.js")
-        api = read("api/index.php")
+        listed = listed_browser_tests()
+        runner = read("tests/e2e/run-content-core-real-stack.sh")
+        workflow = read(".github/workflows/update-release-metadata.yml")
 
         self.assertIn(
-            "stages an older Event version without persisting until canonical Save and records new history",
-            browser,
+            "staged restore saves through the canonical Event workflow and creates new history",
+            listed,
         )
-        self.assertIn("expect(putBodies).toHaveLength(0)", browser)
-        self.assertIn("expect(historyItems).toHaveLength(3)", browser)
-        self.assertIn("request().method()).toBe('PUT')", browser)
-        self.assertIn(
-            "const path=currentEvent?'/events/'+currentEvent.id:'/events';",
-            core,
-        )
-        self.assertIn(
-            "method:currentEvent?'PUT':'POST'",
-            core,
-        )
-        self.assertIn(
-            "brvtal_activity_record($pdo,'update',$resource,$id,$before,$after,['source'=>'core_api'])",
-            api,
-        )
-        run_checked(["node", "--check", "tests/e2e/discadmin-event-version-restore.spec.mjs"])
+        self.assertIn(BROWSER_SPEC, runner)
+        self.assertIn("bash tests/e2e/run-content-core-real-stack.sh", workflow)
 
     def test_new_stale_or_wrong_event_restore_fails_closed_without_mutation(self) -> None:
-        browser = read("tests/e2e/discadmin-event-version-restore.spec.mjs")
-        core = read("discadmin/content-core.js")
-        planner = read("discadmin/event-version-restore.js")
-
         self.assertIn(
-            "wrong, stale, closed, incompatible and empty restore plans fail closed without mutation",
-            browser,
+            "new, wrong, stale, closed, incompatible and empty restores fail closed without mutation",
+            listed_browser_tests(),
         )
-        self.assertIn("wrong:false", browser)
-        self.assertIn("stale:false", browser)
-        self.assertIn("closed:false", browser)
-        self.assertIn("fresh:false", browser)
-        self.assertIn("INCOMPATIBLE_SNAPSHOT", browser)
-        self.assertIn("NO_SAFE_CHANGES", browser)
-        self.assertIn(
-            "if(Number(currentEvent?.id||0)!==eventId||!modal?.classList.contains('open'))return false;",
-            core,
-        )
-        self.assertIn(
-            "if(Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open'))return false;",
-            core,
-        )
-        self.assertIn("if (!eventId || !resourceId || eventId !== resourceId || !activityId)", planner)
 
     def test_restore_never_rewinds_lifecycle_or_relations_and_cancel_discards_staged_changes(self) -> None:
-        browser = read("tests/e2e/discadmin-event-version-restore.spec.mjs")
-        planner = read("discadmin/event-version-restore.js")
-        core = read("discadmin/content-core.js")
-
         self.assertIn(
-            "cancel discards a staged restore while lifecycle and relations stay current",
-            browser,
+            "cancel discards a staged restore while lifecycle and relations remain current",
+            listed_browser_tests(),
         )
-        self.assertIn("toHaveValue('sold_out')", browser)
-        self.assertIn("toContainText('VIP')", browser)
-        self.assertIn("toContainText('HEADLINER')", browser)
-        self.assertIn("toContainText('PL0N3R')", browser)
-        self.assertIn("window.__reopen()", browser)
-        self.assertIn("expect(putBodies).toHaveLength(0)", browser)
-
-        restore_fields = planner[
-            planner.index("const RESTORABLE_FIELDS"):
-            planner.index("]);", planner.index("const RESTORABLE_FIELDS")) + 3
-        ]
-        for forbidden in (
-            "status",
-            "publish_at",
-            "published_at",
-            "cancelled_at",
-            "finished_at",
-            "ticket_types",
-            "lineup",
-            "timetable",
-        ):
-            self.assertNotIn(f"'{forbidden}'", restore_fields)
-
-        mapping = core[
-            core.index("const EVENT_RESTORE_CONTROL_IDS=Object.freeze({"):
-            core.index("});", core.index("const EVENT_RESTORE_CONTROL_IDS=Object.freeze({"))
-        ]
-        for forbidden in ("status", "publish_at", "ticket_types", "lineup", "timetable"):
-            self.assertNotIn(forbidden, mapping)
 
     def test_spec_declares_review_before_save_restore_contract(self) -> None:
         spec = read("docs/BRVTAL-SPEC.md")
@@ -126,7 +80,10 @@ class EventVersionRestoreE2ETests(unittest.TestCase):
         self.assertIn("Admin Activity dashboard remains read-only", spec)
         self.assertIn("LOAD INTO EDITOR", spec)
         self.assertIn("does not persist anything until the normal Save", spec)
-        self.assertIn("lifecycle/status, server-owned timestamps, tickets, lineup and timetable", spec)
+        self.assertIn(
+            "lifecycle/status, server-owned timestamps, tickets, lineup and timetable",
+            spec,
+        )
         self.assertIn("Cancel or close before Save discards the staged restore", spec)
 
         match = re.search(r"BRVTAL_APP_VERSION\s*=\s*'([^']+)'", version)
@@ -137,7 +94,10 @@ class EventVersionRestoreE2ETests(unittest.TestCase):
             package["scripts"]["test:event-version-restore-e2e"],
             "python3 -m unittest tests/test_event_version_restore_e2e.py",
         )
-        self.assertIn("npm run test:event-version-restore-e2e", package["scripts"]["test:integration"])
+        self.assertIn(
+            "npm run test:event-version-restore-e2e",
+            package["scripts"]["test:integration"],
+        )
 
 
 if __name__ == "__main__":
