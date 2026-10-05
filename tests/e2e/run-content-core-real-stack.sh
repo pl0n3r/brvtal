@@ -65,6 +65,17 @@ ADMIN_HASH="$(php -r 'echo password_hash(getenv("BRVTAL_REAL_STACK_ADMIN_PASSWOR
 "${mysql_db[@]}" -e "INSERT INTO admins(email,password_hash,name,is_active,totp_enabled) VALUES ('$ADMIN_EMAIL','$ADMIN_HASH','CI Admin',1,0),('$RECOVERY_ADMIN_EMAIL','$ADMIN_HASH','CI Recovery Admin',1,0);"
 "${mysql_db[@]}" -e "INSERT INTO artists(name,slug,bio,status,is_collective_member,sort_order) VALUES ('PL0N3R SMOKE','pl0n3r-smoke','Real-stack smoke artist','published',1,1),('DNL5 SMOKE','dnl5-smoke','Secondary smoke artist','published',1,2);"
 
+BULK_FIXTURE_SQL="${RUNNER_TEMP:-/tmp}/brvtal-bulk-cursor-fixtures.sql"
+{
+  echo "INSERT INTO events(title,slug,event_date,venue,city,description,status,sort_order) VALUES"
+  for i in $(seq 1 605); do
+    terminator=","
+    if [[ "$i" == "605" ]]; then terminator=";"; fi
+    printf "('BULK CURSOR FIXTURE %04d','bulk-cursor-fixture-%04d','2026-12-31 21:00:00','CI Warehouse','Pereira','Disposable Bulk Catalog Cursor V2 fixture','draft',%d)%s\\n" "$i" "$i" "$i" "$terminator"
+  done
+} > "$BULK_FIXTURE_SQL"
+"${mysql_db[@]}" < "$BULK_FIXTURE_SQL"
+
 mkdir -p storage/logs storage/rate_limits uploads/ci
 printf 'BRVTAL CI hero fixture\n' > uploads/ci/hero-integrity.jpg
 "${mysql_db[@]}" -e "INSERT INTO media(type,title,file_path,mime_type,file_size,alt_text,status) VALUES ('image','CI Hero','/uploads/ci/hero-integrity.jpg','image/jpeg',22,'CI Hero','published'),('image','CI Missing Hero','/uploads/ci/hero-missing.jpg','image/jpeg',22,'CI Missing Hero','published');"
@@ -107,7 +118,7 @@ cleanup() {
   if [[ -n "${PHP_PID:-}" ]]; then kill "$PHP_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${INDEXNOW_PID:-}" ]]; then kill "$INDEXNOW_PID" >/dev/null 2>&1 || true; fi
   if [[ -n "${PASSWORD_WORKER_PID:-}" ]]; then kill "$PASSWORD_WORKER_PID" >/dev/null 2>&1 || true; fi
-  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE"
+  rm -f config/config.php uploads/ci/hero-integrity.jpg "$MAIL_CAPTURE" "${BULK_FIXTURE_SQL:-}"
   if [[ $status -ne 0 && -f "$PHP_LOG" ]]; then
     echo "--- PHP server log ---" >&2
     cat "$PHP_LOG" >&2 || true
@@ -179,6 +190,7 @@ export BRVTAL_INDEXNOW_STUB_ORIGIN="$INDEXNOW_STUB_ORIGIN"
 export BRVTAL_MAIL_CAPTURE_FILE="$MAIL_CAPTURE"
 npx playwright test \
   tests/e2e/discadmin-premium-real-stack.spec.mjs \
+  tests/e2e/discadmin-bulk-actions-cursor.spec.mjs \
   tests/e2e/admin-performance-real-stack.spec.mjs \
   tests/e2e/content-core-real-stack.spec.mjs \
   tests/e2e/discadmin-event-version-restore.spec.mjs \
