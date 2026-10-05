@@ -11,6 +11,7 @@ function bulk_assert(bool $condition, string $message): void
 
 $root = dirname(__DIR__);
 $endpoint = (string)file_get_contents($root . '/api/bulk-actions.php');
+$catalog = (string)file_get_contents($root . '/api/bulk-catalog.php');
 $library = (string)file_get_contents($root . '/api/bulk-actions-lib.php');
 $shell = (string)file_get_contents($root . '/discadmin/index.php');
 $ui = (string)file_get_contents($root . '/discadmin/bulk-actions.js');
@@ -18,6 +19,11 @@ $ui = (string)file_get_contents($root . '/discadmin/bulk-actions.js');
 bulk_assert(str_contains($endpoint, 'brvtal_admin_require();'), 'endpoint must require an authenticated admin session');
 bulk_assert(str_contains($endpoint, 'brvtal_admin_require_csrf();'), 'endpoint must require CSRF protection');
 bulk_assert(str_contains($endpoint, "'POST'"), 'endpoint must accept POST only');
+bulk_assert(str_contains($catalog, 'brvtal_admin_require();'), 'catalog endpoint must require an authenticated admin session');
+bulk_assert(str_contains($catalog, "'GET'"), 'catalog endpoint must accept GET only');
+bulk_assert(str_contains($catalog, "['Allow'=>'GET', 'Cache-Control'=>'no-store']"), 'catalog endpoint must be explicit GET/no-store');
+bulk_assert(!str_contains($catalog, 'brvtal_admin_require_csrf'), 'catalog GET must not require mutation CSRF');
+bulk_assert(!str_contains($catalog, '$_POST'), 'catalog endpoint must remain read-only');
 bulk_assert(str_contains($library, "'events' =>"), 'events must be explicitly allowlisted');
 bulk_assert(str_contains($library, "'artists' =>"), 'artists must be explicitly allowlisted');
 bulk_assert(str_contains($library, "'sets' =>"), 'sets must be explicitly allowlisted');
