@@ -8,16 +8,53 @@ require_once __DIR__ . '/content-validation.php';
 function brvtal_bulk_resource_specs(): array
 {
     return [
-        'events' => ['table' => 'events', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published','archived']],
-        'artists' => ['table' => 'artists', 'label' => 'name', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published']],
-        'sets' => ['table' => 'sets_media', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published']],
-        'pages' => ['table' => 'pages', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published']],
-        'releases' => ['table' => 'releases', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'statuses' => ['draft','published','archived']],
-        'blog' => ['table' => 'blog_posts', 'label' => 'title', 'slug' => 'slug', 'updated' => 'updated_at', 'where' => 'deleted_at IS NULL', 'statuses' => ['draft','published','archived']],
+        'events' => [
+            'table' => 'events',
+            'label' => 'title',
+            'slug' => 'slug',
+            'updated' => 'updated_at',
+            'statuses' => ['draft', 'published', 'archived'],
+        ],
+        'artists' => [
+            'table' => 'artists',
+            'label' => 'name',
+            'slug' => 'slug',
+            'updated' => 'updated_at',
+            'statuses' => ['draft', 'published'],
+        ],
+        'sets' => [
+            'table' => 'sets_media',
+            'label' => 'title',
+            'slug' => 'slug',
+            'updated' => 'updated_at',
+            'statuses' => ['draft', 'published'],
+        ],
+        'pages' => [
+            'table' => 'pages',
+            'label' => 'title',
+            'slug' => 'slug',
+            'updated' => 'updated_at',
+            'statuses' => ['draft', 'published'],
+        ],
+        'releases' => [
+            'table' => 'releases',
+            'label' => 'title',
+            'slug' => 'slug',
+            'updated' => 'updated_at',
+            'statuses' => ['draft', 'published', 'archived'],
+        ],
+        'blog' => [
+            'table' => 'blog_posts',
+            'label' => 'title',
+            'slug' => 'slug',
+            'updated' => 'updated_at',
+            'where' => 'deleted_at IS NULL',
+            'statuses' => ['draft', 'published', 'archived'],
+        ],
     ];
 }
 
-function brvtal_bulk_catalog_cursor_encode(array $state): string
+function brvtalBulkCatalogCursorEncode(array $state): string
 {
     $payload = [
         'version' => 1,
@@ -35,7 +72,7 @@ function brvtal_bulk_catalog_cursor_encode(array $state): string
     return rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
 }
 
-function brvtal_bulk_catalog_cursor_decode(string $cursor, string $resource, string $query): ?array
+function brvtalBulkCatalogCursorDecode(string $cursor, string $resource, string $query): ?array
 {
     if ($cursor === '') {
         return null;
@@ -63,7 +100,13 @@ function brvtal_bulk_catalog_cursor_decode(string $cursor, string $resource, str
         || !is_int($payload['last_id'] ?? null)
         || !is_int($payload['snapshot_max_id'] ?? null)
         || !is_int($payload['snapshot_total'] ?? null)
-        || ($updatedAt !== null && (!is_string($updatedAt) || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $updatedAt) !== 1))
+        || (
+            $updatedAt !== null
+            && (
+                !is_string($updatedAt)
+                || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $updatedAt) !== 1
+            )
+        )
         || $payload['resource'] !== $resource
         || $payload['q'] !== $query
         || $payload['last_id'] < 0
@@ -81,7 +124,7 @@ function brvtal_bulk_catalog_cursor_decode(string $cursor, string $resource, str
     ];
 }
 
-function brvtal_bulk_catalog_normalize_query(array $input): array
+function brvtalBulkCatalogNormalizeQuery(array $input): array
 {
     foreach (array_keys($input) as $parameter) {
         if (!is_string($parameter) || !in_array($parameter, ['resource','q','cursor','limit'], true)) {
@@ -124,7 +167,7 @@ function brvtal_bulk_catalog_normalize_query(array $input): array
     if (!is_string($cursorRaw)) {
         throw new InvalidArgumentException('INVALID_BULK_CURSOR');
     }
-    $cursor = brvtal_bulk_catalog_cursor_decode(trim($cursorRaw), $resource, $query);
+    $cursor = brvtalBulkCatalogCursorDecode(trim($cursorRaw), $resource, $query);
 
     return [
         'resource' => $resource,
@@ -137,7 +180,7 @@ function brvtal_bulk_catalog_normalize_query(array $input): array
     ];
 }
 
-function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
+function brvtalBulkCatalogFetch(PDO $pdo, array $query): array
 {
     $specs = brvtal_bulk_resource_specs();
     $resource = (string)($query['resource'] ?? '');
@@ -220,7 +263,7 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
     );
     $lastReturnedId = $items === [] ? $lastId : (int)$items[array_key_last($items)]['id'];
     $nextCursor = $hasMore
-        ? brvtal_bulk_catalog_cursor_encode([
+        ? brvtalBulkCatalogCursorEncode([
             'resource' => $resource,
             'q' => $search,
             'last_id' => $lastReturnedId,
