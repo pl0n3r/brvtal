@@ -49,6 +49,8 @@ class BulkCatalogApiTests(unittest.TestCase):
         self.assertNotIn("'media' =>", library)
         self.assertIn("$limit < 1 || $limit > 50", library)
         self.assertIn("'snapshot_complete' => true", library)
+        self.assertIn("'where' => 'deleted_at IS NULL'", library)
+        self.assertIn("$catalogWhereSql", library)
         self.assertIn("'total' => $total", library)
 
         upper_endpoint = endpoint.upper()

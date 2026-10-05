@@ -13,7 +13,7 @@ function brvtal_bulk_resource_specs(): array
         'sets' => ['table' => 'sets_media', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published']],
         'pages' => ['table' => 'pages', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published']],
         'releases' => ['table' => 'releases', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published','archived']],
-        'blog' => ['table' => 'blog_posts', 'label' => 'title', 'slug' => 'slug', 'statuses' => ['draft','published','archived']],
+        'blog' => ['table' => 'blog_posts', 'label' => 'title', 'slug' => 'slug', 'where' => 'deleted_at IS NULL', 'statuses' => ['draft','published','archived']],
     ];
 }
 
@@ -146,9 +146,11 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
     $table = (string)$spec['table'];
     $labelColumn = (string)$spec['label'];
     $slugColumn = (string)$spec['slug'];
+    $catalogWhere = trim((string)($spec['where'] ?? ''));
+    $catalogWhereSql = $catalogWhere === '' ? '' : " AND {$catalogWhere}";
 
     if ($snapshotMaxId === null) {
-        $snapshot = $pdo->query("SELECT COALESCE(MAX(id),0) FROM \`${table}\`");
+        $snapshot = $pdo->query("SELECT COALESCE(MAX(id),0) FROM `{$table}`");
         $snapshotMaxId = (int)$snapshot->fetchColumn();
     } elseif (!is_int($snapshotMaxId) || $snapshotMaxId < $lastId) {
         throw new InvalidArgumentException('INVALID_BULK_CURSOR');
@@ -157,22 +159,22 @@ function brvtal_bulk_catalog_fetch(PDO $pdo, array $query): array
     $searchSql = '';
     $searchParams = [];
     if ($search !== '') {
-        $searchSql = " AND (LOCATE(LOWER(?), LOWER(COALESCE(\`${labelColumn}\`,''))) > 0"
-            . " OR LOCATE(LOWER(?), LOWER(COALESCE(\`${slugColumn}\`,''))) > 0)";
+        $searchSql = " AND (LOCATE(LOWER(?), LOWER(COALESCE(`{$labelColumn}`,''))) > 0"
+            . " OR LOCATE(LOWER(?), LOWER(COALESCE(`{$slugColumn}`,''))) > 0)";
         $searchParams = [$search, $search];
     }
 
     $count = $pdo->prepare(
-        "SELECT COUNT(*) FROM \`${table}\` WHERE id <= ?${searchSql}"
+        "SELECT COUNT(*) FROM `{$table}` WHERE id <= ?{$catalogWhereSql}{$searchSql}"
     );
     $count->execute(array_merge([$snapshotMaxId], $searchParams));
     $total = (int)$count->fetchColumn();
 
     $fetchLimit = $limit + 1;
     $rowsStatement = $pdo->prepare(
-        "SELECT id,\`${labelColumn}\` AS resource_label,\`${slugColumn}\` AS slug,status"
-        . " FROM \`${table}\` WHERE id > ? AND id <= ?${searchSql}"
-        . " ORDER BY id ASC LIMIT ${fetchLimit}"
+        "SELECT id,`{$labelColumn}` AS resource_label,`{$slugColumn}` AS slug,status"
+        . " FROM `{$table}` WHERE id > ? AND id <= ?{$catalogWhereSql}{$searchSql}"
+        . " ORDER BY id ASC LIMIT {$fetchLimit}"
     );
     $rowsStatement->execute(array_merge([$lastId, $snapshotMaxId], $searchParams));
     $rows = $rowsStatement->fetchAll(PDO::FETCH_ASSOC);
