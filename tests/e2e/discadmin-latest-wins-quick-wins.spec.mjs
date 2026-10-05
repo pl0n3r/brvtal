@@ -120,13 +120,30 @@ test('Media Library keeps the latest asset selected and mutations stay on that a
 
 test('Bulk Actions ignores an older module load and posts only IDs from the current catalog', async ({ page }) => {
   let mutation = null;
-  await page.route('**/api/index.php/events', async route => {
-    await delay(180);
-    return json(route, {ok:true,data:[{id:11,title:'Genesis',status:'draft'}]});
-  });
-  await page.route('**/api/index.php/artists', async route => {
-    await delay(20);
-    return json(route, {ok:true,data:[{id:21,name:'PL0N3R',status:'draft'}]});
+  await page.route('**/api/bulk-catalog.php**', async route => {
+    const url = new URL(route.request().url());
+    const resource = url.searchParams.get('resource') || '';
+    const q = url.searchParams.get('q') || '';
+    if (resource === 'events') {
+      await delay(180);
+      return json(route, {ok:true,data:{
+        resource:'events',q,
+        items:[{id:11,label:'Genesis',slug:'genesis',status:'draft'}],
+        pagination:{limit:50,returned:1,total:1,has_more:false,next_cursor:null,snapshot_complete:true,range:{after_id:0,last_id:11}},
+      }});
+    }
+    if (resource === 'artists') {
+      await delay(20);
+      return json(route, {ok:true,data:{
+        resource:'artists',q,
+        items:[{id:21,label:'PL0N3R',slug:'pl0n3r',status:'draft'}],
+        pagination:{limit:50,returned:1,total:1,has_more:false,next_cursor:null,snapshot_complete:true,range:{after_id:0,last_id:21}},
+      }});
+    }
+    return json(route, {ok:true,data:{
+      resource,q,items:[],
+      pagination:{limit:50,returned:0,total:0,has_more:false,next_cursor:null,snapshot_complete:true,range:{after_id:0,last_id:0}},
+    }});
   });
   await page.route('**/api/bulk-actions.php', route => {
     mutation = route.request().postDataJSON();
