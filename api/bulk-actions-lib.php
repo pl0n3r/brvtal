@@ -261,7 +261,7 @@ function brvtalBulkCatalogFetch(PDO $pdo, array $query): array
         ],
         $rows
     );
-    $lastReturnedId = $items === [] ? $lastId : (int)$items[array_key_last($items)]['id'];
+    $lastReturnedId = $items === [] ? $lastId : (int)array_last($items)['id'];
     $nextCursor = $hasMore
         ? brvtalBulkCatalogCursorEncode([
             'resource' => $resource,
@@ -358,7 +358,7 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
         throw new InvalidArgumentException('INVALID_BULK_STATUS');
     }
 
-    $ids = array_values(array_unique(array_map('intval', (array)$request['ids'])));
+    $ids = array_values(array_unique(array_map(intval(...), (array)$request['ids'])));
     if ($ids === [] || count($ids) > 100 || min($ids) < 1) {
         throw new InvalidArgumentException('INVALID_BULK_IDS');
     }
