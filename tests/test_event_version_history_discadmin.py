@@ -204,9 +204,12 @@ vm.runInContext(prefix + String.raw`
         package = json.loads(PACKAGE.read_text(encoding="utf-8"))
 
         self.assertIn(
-            "read-only Event Version History for persisted Events through the canonical Admin Activity audit trail.",
+            "Event Version History for persisted Events through the canonical Admin Activity audit trail",
             spec,
         )
+        self.assertIn("review-before-save", spec)
+        self.assertIn("Admin Activity dashboard remains read-only", spec)
+        self.assertIn("LOAD INTO EDITOR", spec)
         self.assertIn("Event Version History V1 reuses the existing", spec)
         self.assertIn("does not create a second audit/history system or add a seventh wizard step", spec)
         release_line = next(

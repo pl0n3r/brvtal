@@ -59,6 +59,17 @@ class EventVersionRestoreDiscadminTests(unittest.TestCase):
             )
             self.assertEqual(check.returncode, 0, check.stderr)
 
+    def test_snapshot_uses_current_event_for_allowlisted_fields_without_mounted_controls(self) -> None:
+        core = CORE.read_text(encoding="utf-8")
+        start = core.index("function eventRestoreEditorSnapshot(){")
+        end = core.index("\nfunction eventRestorePlanReady(", start)
+        snapshot = core[start:end]
+
+        self.assertIn("if(currentEvent&&Object.hasOwn(currentEvent,field))", snapshot)
+        self.assertIn("snapshot[field]=currentEvent[field];", snapshot)
+        self.assertIn("if(control){", snapshot)
+        self.assertIn("snapshot[field]=brvtalEventRestoreValue(field,control);", snapshot)
+
     def test_restore_preserves_lifecycle_schedule_relations_and_marks_editor_dirty(self) -> None:
         core = self.core()
         apply = self.apply_function()

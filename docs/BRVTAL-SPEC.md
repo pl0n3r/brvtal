@@ -112,7 +112,7 @@ DISCADMIN must support complete event management:
 - tickets;
 - artist participation / roster;
 - timetable when applicable;
-- read-only Event Version History for persisted Events through the canonical Admin Activity audit trail.
+- Event Version History for persisted Events through the canonical Admin Activity audit trail, with explicit review-before-save restore staging inside the matching Event editor.
 
 Lifecycle/commercial statuses include:
 
@@ -140,7 +140,7 @@ Requirements:
 - preview is desirable;
 - autosave may be added when safe;
 - publication scheduling uses the existing Event lifecycle without a seventh wizard step;
-- Version History is available read-only for persisted Events; NEW EVENT does not query history and restore/revert remains intentionally out of scope.
+- Version History is available for persisted Events; NEW EVENT does not query history. The Admin Activity dashboard remains read-only, while the matching persisted Event editor may stage an allowlisted historical editorial snapshot for review before the normal Save.
 
 Default required event fields are name, date, city and description, but an incomplete **draft** may be saved before all publication-required fields exist.
 
@@ -152,7 +152,7 @@ A future boundary is valid only for active public lifecycle states. Until that i
 
 IndexNow remains an editorial-change notification mechanism, not a scheduler. Event saves continue through the existing IndexNow change hook; future-only scheduled rows are not submitted prematurely because they are not yet public. A scheduling change that makes the Event public immediately (for example clearing a future boundary while remaining active) can enqueue the canonical Event URL and Home after the save. Crossing a future boundary by clock alone does not create a background IndexNow task; sitemap and request-time visibility independently follow the same public gate.
 
-The Content Core event wizard supports direct step navigation and a persistent save action. Event Version History V1 reuses the existing `BRVTALAdminActivity.openHistory('events', ...)` viewer and `/api/admin-activity.php`; it does not create a second audit/history system or add a seventh wizard step. Known production UX/persistence defects discovered during smoke testing are stabilization debt and should be fixed without redesigning the canonical shell.
+The Content Core event wizard supports direct step navigation and a persistent save action. Event Version History V1 reuses the existing `BRVTALAdminActivity.openHistory('events', ...)` viewer and `/api/admin-activity.php`; it does not create a second audit/history system or add a seventh wizard step. Event Version Restore V1 extends that viewer only when History is opened from the matching persisted Event editor: `LOAD INTO EDITOR` builds an allowlisted restore plan, asks for explicit confirmation, stages the fields in the editor and marks it dirty, but does not persist anything until the normal Save. Known production UX/persistence defects discovered during smoke testing are stabilization debt and should be fixed without redesigning the canonical shell.
 
 ## 11. Artist participation / lineup
 
@@ -437,7 +437,7 @@ Admin Activity / History v1 is implemented as an append-only audit foundation. I
 
 Editorial Version History v1 groups those snapshots by content item in a chronological timeline and renders readable field-level before/after differences inside the existing Dashboard activity panel.
 
-The audit and version-history UI is read-only. Do **not** add automatic restore/revert from activity history yet; future restore UX must introduce separate safeguards.
+The Admin Activity dashboard remains read-only and never exposes direct restore/revert actions. Event Version Restore V1 is review-before-save only from the canonical open editor for the same persisted Event: `LOAD INTO EDITOR` may stage only allowlisted editorial fields, preserves lifecycle/status, server-owned timestamps, tickets, lineup and timetable, and creates no write by itself. The normal Event Save remains the sole persistence boundary and therefore produces a new Admin Activity before/after entry. Cancel or close before Save discards the staged restore. One-click restore, lifecycle rollback, relation restore and restore from NEW EVENT remain out of scope.
 
 ## 28. Dashboard and System Status
 
