@@ -8,16 +8,12 @@ ROOT = Path(__file__).resolve().parents[1]
 ENDPOINT = ROOT / "api/bulk-catalog.php"
 LIBRARY = ROOT / "api/bulk-actions-lib.php"
 MUTATION = ROOT / "api/bulk-actions.php"
-
-
 class BulkCatalogApiTests(unittest.TestCase):
     def sources(self) -> tuple[str, str, str]:
         return tuple(path.read_text(encoding="utf-8") for path in (ENDPOINT, LIBRARY, MUTATION))
-
     def assert_has(self, source: str, *snippets: str) -> None:
         for snippet in snippets:
             self.assertIn(snippet, source)
-
     def test_catalog_get_is_authenticated_read_only_allowlisted_and_bounded(self) -> None:
         endpoint, library, _ = self.sources()
         for path in (ENDPOINT, LIBRARY):
@@ -36,7 +32,6 @@ class BulkCatalogApiTests(unittest.TestCase):
             "'updated'=>'updated_at'", "'where'=>'deleted_at IS NULL'",
         )
         self.assertNotIn("'media' =>", library)
-
     def test_search_and_cursor_cover_records_beyond_first_page_without_duplicates(self) -> None:
         _, library, _ = self.sources()
         self.assert_has(
