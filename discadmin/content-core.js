@@ -15,7 +15,33 @@ function brvtalEventHistoryScriptSrc(){
   if(version)target.searchParams.set('v',version);
   return target.pathname+target.search;
 }
+function brvtalEventRestoreScriptSrc(){
+  const target=new URL('/discadmin/event-version-restore.js',location.origin);
+  if(!BRVTAL_CONTENT_CORE_SCRIPT_SRC)return target.pathname;
+  const source=new URL(BRVTAL_CONTENT_CORE_SCRIPT_SRC,location.origin);
+  const version=source.searchParams.get('v');
+  if(version)target.searchParams.set('v',version);
+  return target.pathname+target.search;
+}
 
+function brvtalEventRestoreValue(field,control){
+  if(!control)return null;
+  if(field==='featured')return Number(control.value||0);
+  if(field==='archive_year')return control.value===''?null:Number(control.value);
+  if(field==='event_date'){
+    const raw=String(control.value||'').trim();
+    if(!raw)return null;
+    const normalized=raw.replace('T',' ');
+    return normalized.length===16?normalized+':00':normalized;
+  }
+  return control.value;
+}
+function brvtalEventRestoreInputValue(field,value){
+  if(value===null||value===undefined)return '';
+  if(field==='featured')return Number(value)?'1':'0';
+  if(field==='event_date')return String(value).replace(' ','T').slice(0,16);
+  return String(value);
+}
 function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
 function brvtalTicketPayload(row,eventId,index){
   const payload={event_id:eventId,sort_order:index};
@@ -158,6 +184,52 @@ function brvtalLoadEventHistoryModule(){
   return brvtalEventHistoryModulePromise;
 }
 
+let brvtalEventRestoreModulePromise=null;
+function brvtalDiscardEventRestoreScript(script){
+  if(!script)return;
+  script.dataset.eventRestoreFailed='1';
+  script.remove();
+}
+function brvtalLoadEventRestoreModule(){
+  if(typeof window.BRVTALEventVersionRestore?.buildPlan==='function'){
+    return Promise.resolve(window.BRVTALEventVersionRestore);
+  }
+  if(brvtalEventRestoreModulePromise)return brvtalEventRestoreModulePromise;
+
+  brvtalEventRestoreModulePromise=new Promise((resolve,reject)=>{
+    let script=document.querySelector('script[data-event-restore-script="1"]');
+    if(script?.dataset.eventRestoreFailed==='1'){
+      brvtalDiscardEventRestoreScript(script);
+      script=null;
+    }
+    const fail=message=>{
+      brvtalDiscardEventRestoreScript(script);
+      reject(new Error(message));
+    };
+    const finish=()=>{
+      if(typeof window.BRVTALEventVersionRestore?.buildPlan==='function'){
+        script.dataset.eventRestoreReady='1';
+        resolve(window.BRVTALEventVersionRestore);
+        return;
+      }
+      fail('Event Version Restore module unavailable');
+    };
+    if(!script){
+      script=document.createElement('script');
+      script.src=brvtalEventRestoreScriptSrc();
+      script.async=true;
+      script.dataset.eventRestoreScript='1';
+      document.head.appendChild(script);
+    }
+    script.addEventListener('load',finish,{once:true});
+    script.addEventListener('error',()=>fail('Event Version Restore module unavailable'),{once:true});
+  }).catch(error=>{
+    brvtalEventRestoreModulePromise=null;
+    throw error;
+  });
+  return brvtalEventRestoreModulePromise;
+}
+
 window.BRVTALContentCore = {mount(root) {
 
 const API='/api/index.php';let events=[],artists=[],currentEvent=null,currentStep=1,csrf='',ticketRowSeq=0;
@@ -172,6 +244,79 @@ function syncEventHistoryControl(){
   button.hidden=eventId<1;
   button.disabled=eventId<1;
 }
+const EVENT_RESTORE_CONTROL_IDS=Object.freeze({
+  title:'e_title',
+  slug:'e_slug',
+  event_date:'e_event_date',
+  archive_year:'e_archive_year',
+  venue:'e_venue',
+  city:'e_city',
+  description:'e_description',
+  skin:'e_skin',
+  accent:'e_accent',
+  cover_image:'e_cover_image',
+  ticket_url:'e_ticket_url',
+  ticket_instructions:'e_ticket_instructions',
+  ticket_qr:'e_ticket_qr',
+  featured:'e_featured',
+  seo_title:'e_seo_title',
+  seo_description:'e_seo_description',
+});
+function eventRestoreControl(field){
+  const id=EVENT_RESTORE_CONTROL_IDS[field];
+  return id?$('#'+id):null;
+}
+function eventRestoreEditorSnapshot(){
+  const snapshot={id:Number(currentEvent?.id||0)};
+  Object.keys(EVENT_RESTORE_CONTROL_IDS).forEach(field=>{
+    const control=eventRestoreControl(field);
+    if(control)snapshot[field]=brvtalEventRestoreValue(field,control);
+  });
+  return snapshot;
+}
+function eventRestorePlanReady(plan){
+  return Boolean(
+    plan?.ok
+    && Array.isArray(plan.changes)
+    && plan.changes.length
+    && plan.changes.every(change=>eventRestoreControl(change.field))
+  );
+}
+function applyEventRestorePlan(plan,eventId){
+  const modal=$('#eventModal');
+  if(!eventRestorePlanReady(plan)||Number(currentEvent?.id||0)!==eventId||!modal?.classList.contains('open'))return false;
+  for(const change of plan.changes){
+    const control=eventRestoreControl(change.field);
+    if(!control)return false;
+    control.value=brvtalEventRestoreInputValue(change.field,change.to);
+    control.dispatchEvent(new Event('input',{bubbles:true}));
+    control.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  if(plan.changes.some(change=>change.field==='accent')){
+    window.BRVTALAdminColorField?.sync?.($('#e_accent'));
+  }
+  window.BRVTALUnsavedChanges?.touch?.(modal);
+  return true;
+}
+async function stageEventVersionRestore(item,eventId,restoreModule){
+  const modal=$('#eventModal');
+  if(Number(currentEvent?.id||0)!==eventId||!modal?.classList.contains('open'))return false;
+  const plan=restoreModule.buildPlan(item,eventRestoreEditorSnapshot());
+  if(!eventRestorePlanReady(plan)){
+    msg('This version cannot be loaded safely into the current Event editor.',false,'eventNotice');
+    return false;
+  }
+  const fields=plan.changes.map(change=>String(change.field).replaceAll('_',' ').toUpperCase()).join(' · ');
+  const source=plan.source_created_at?(' from '+plan.source_created_at):'';
+  if(!window.confirm(`Load this historical Event version${source} into the editor?\n\nFields: ${fields}\n\nNothing will be saved until you press SAVE EVENT.`))return false;
+  if(Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open'))return false;
+  if(!applyEventRestorePlan(plan,eventId)){
+    msg('Event changed before the restore could be staged.',false,'eventNotice');
+    return false;
+  }
+  msg('Historical version loaded into the editor. Review the changes before saving.',true,'eventNotice');
+  return true;
+}
 async function openEventHistory(){
   const modal=$('#eventModal');
   const eventId=Number(currentEvent?.id||0);
@@ -179,8 +324,20 @@ async function openEventHistory(){
   try{
     const module=await brvtalLoadEventHistoryModule();
     if(Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open'))return false;
+    let restoreModule=null;
+    try{
+      restoreModule=await brvtalLoadEventRestoreModule();
+    }catch(error){
+      msg('Version restore unavailable; history remains read-only.',false,'eventNotice');
+    }
+    if(Number(currentEvent?.id||0)!==eventId||!modal.classList.contains('open'))return false;
     const label=String(currentEvent?.title||currentEvent?.name||`Event #${eventId}`);
-    await module.openHistory('events',eventId,label);
+    await module.openHistory(
+      'events',
+      eventId,
+      label,
+      restoreModule?{onRestore:item=>stageEventVersionRestore(item,eventId,restoreModule)}:{}
+    );
     return true;
   }catch(error){
     msg('Version history unavailable: '+(error?.message||error),false,'eventNotice');
@@ -624,6 +781,6 @@ let eventEditorReady=Promise.resolve(null);
 })();
 
 $('#e_status')?.addEventListener('change',syncEventPublishScheduleControl);
-Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,syncEventPublishScheduleControl,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady});
+Object.assign(window.BRVTALContentCore, {openEvent,closeEvent,openEventHistory,syncEventPublishScheduleControl,loadEvents,loadArtists,addTicket,addTimetableRow,step,saveEvent,previewEvent,getCurrentEvent:()=>currentEvent,whenEventReady:()=>eventEditorReady,stageEventVersionRestore});
 return ready;
 }};
