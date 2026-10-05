@@ -15,8 +15,8 @@ if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
 }
 
 try {
-    $query = brvtal_bulk_catalog_normalize_query($_GET);
-    $data = brvtal_bulk_catalog_fetch(db(), $query);
+    $query = brvtalBulkCatalogNormalizeQuery($_GET);
+    $data = brvtalBulkCatalogFetch(db(), $query);
     json_response(
         ['ok'=>true, 'data'=>$data],
         200,
