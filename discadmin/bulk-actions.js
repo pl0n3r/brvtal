@@ -186,7 +186,7 @@
     }
     if (new Set(ids).size !== ids.length
       || ids.some((id, index) => index > 0 && id <= ids[index - 1])
-      || (ids.length > 0 && (ids[0] <= page.range.after_id || ids[ids.length - 1] !== page.range.last_id))
+      || (ids.length > 0 && (ids[0] <= page.range.after_id || ids.at(-1) !== page.range.last_id))
       || (ids.length === 0 && page.range.last_id !== page.range.after_id)) {
       throw new Error('INVALID_CATALOG_RESPONSE');
     }
