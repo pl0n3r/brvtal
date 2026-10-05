@@ -66,7 +66,7 @@ class BulkActionsCursorUiTests(unittest.TestCase):
             "page.returned !== PAGE_SIZE || progressed >= page.total",
             "progressed !== page.total",
             "new Set(ids).size !== ids.length",
-            "ids[ids.length - 1] !== page.range.last_id",
+            "ids.at(-1) !== page.range.last_id",
         )
 
         start = self.source.index("  function normalizeCatalog(")
