@@ -234,7 +234,7 @@ test('staged restore saves through the canonical Event workflow and creates new 
     await expect(page.locator('#e_title')).toHaveValue(fixture.historicalTitle);
     await expect(page.locator('#e_description')).toHaveValue('Historical copy');
     await expect(page.locator('#e_status')).toHaveValue('sold_out');
-    await expect(page.locator('#tickets .ticket-row').first()).toContainText('VIP RESTORE');
+    await expect(page.locator('#tickets [data-k="name"]').first()).toHaveValue('VIP RESTORE');
     await expect(page.locator('#eventArtists [data-artist]:checked')).toHaveCount(1);
     await expect(page.locator('#eventTimetable .timetable-row')).toHaveCount(1);
     expect(await page.evaluate(() =>
