@@ -24,6 +24,24 @@ function brvtalEventRestoreScriptSrc(){
   return target.pathname+target.search;
 }
 
+function brvtalEventRestoreValue(field,control){
+  if(!control)return null;
+  if(field==='featured')return Number(control.value||0);
+  if(field==='archive_year')return control.value===''?null:Number(control.value);
+  if(field==='event_date'){
+    const raw=String(control.value||'').trim();
+    if(!raw)return null;
+    const normalized=raw.replace('T',' ');
+    return normalized.length===16?normalized+':00':normalized;
+  }
+  return control.value;
+}
+function brvtalEventRestoreInputValue(field,value){
+  if(value===null||value===undefined)return '';
+  if(field==='featured')return Number(value)?'1':'0';
+  if(field==='event_date')return String(value).replace(' ','T').slice(0,16);
+  return String(value);
+}
 function brvtalTicketDateInputValue(value){return value?String(value).replace(' ','T').slice(0,16):''}
 function brvtalTicketPayload(row,eventId,index){
   const payload={event_id:eventId,sort_order:index};
@@ -248,31 +266,13 @@ function eventRestoreControl(field){
   const id=EVENT_RESTORE_CONTROL_IDS[field];
   return id?$('#'+id):null;
 }
-function eventRestoreValue(field,control){
-  if(!control)return null;
-  if(field==='featured')return Number(control.value||0);
-  if(field==='archive_year')return control.value===''?null:Number(control.value);
-  if(field==='event_date'){
-    const raw=String(control.value||'').trim();
-    if(!raw)return null;
-    const normalized=raw.replace('T',' ');
-    return normalized.length===16?normalized+':00':normalized;
-  }
-  return control.value;
-}
 function eventRestoreEditorSnapshot(){
   const snapshot={id:Number(currentEvent?.id||0)};
   Object.keys(EVENT_RESTORE_CONTROL_IDS).forEach(field=>{
     const control=eventRestoreControl(field);
-    if(control)snapshot[field]=eventRestoreValue(field,control);
+    if(control)snapshot[field]=brvtalEventRestoreValue(field,control);
   });
   return snapshot;
-}
-function eventRestoreInputValue(field,value){
-  if(value===null||typeof value==='undefined')return '';
-  if(field==='featured')return Number(value)?'1':'0';
-  if(field==='event_date')return String(value).replace(' ','T').slice(0,16);
-  return String(value);
 }
 function eventRestorePlanReady(plan){
   return Boolean(
@@ -288,7 +288,7 @@ function applyEventRestorePlan(plan,eventId){
   for(const change of plan.changes){
     const control=eventRestoreControl(change.field);
     if(!control)return false;
-    control.value=eventRestoreInputValue(change.field,change.to);
+    control.value=brvtalEventRestoreInputValue(change.field,change.to);
     control.dispatchEvent(new Event('input',{bubbles:true}));
     control.dispatchEvent(new Event('change',{bubbles:true}));
   }
