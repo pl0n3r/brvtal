@@ -198,9 +198,11 @@ async function stageHistoricalVersion(page) {
   await expect(dialog).toBeVisible();
   const versions = dialog.locator('[data-history-index]');
   await expect(versions).toHaveCount(3);
-  await versions.nth(1).click();
+  await versions.nth(1).click({force:true});
+  const restoreButton = dialog.getByRole('button', {name:'LOAD INTO EDITOR'});
+  await expect(restoreButton).toBeVisible();
   page.once('dialog', prompt => prompt.accept());
-  await dialog.getByRole('button', {name:'LOAD INTO EDITOR'}).click();
+  await restoreButton.click({force:true});
   await expect(dialog).toBeHidden();
 }
 
@@ -307,6 +309,15 @@ test('new, wrong, stale, closed, incompatible and empty restores fail closed wit
     const historyBefore = await fetchHistory(page,fixture.eventId);
     const older = historyBefore.items.filter(item => item.action === 'update')[1];
     expect(older).toBeTruthy();
+
+    await page.locator('#cc-historyBtn').click();
+    const warmupDialog = page.getByRole('dialog', {name:'Editorial version history'});
+    await expect(warmupDialog).toBeVisible();
+    await expect.poll(() => page.evaluate(() =>
+      typeof window.BRVTALEventVersionRestore?.buildPlan
+    )).toBe('function');
+    await warmupDialog.getByRole('button', {name:'CLOSE'}).click({force:true});
+    await expect(warmupDialog).toBeHidden();
 
     const results = await page.evaluate(async ({older,eventId,currentTitle}) => {
       const core = window.BRVTALContentCore;
