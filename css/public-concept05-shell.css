@@ -218,3 +218,59 @@
   [data-concept="05"] .c5-header-ticket span{transition:none!important}
 }
 html.c5-visual-test [data-concept="05"] .c5-footer::before{display:none!important}
+
+
+/* #922 — canonical Concept 05 header fidelity contract. */
+@media(min-width:901px){
+  [data-concept="05"] .nav{
+    height:52px;
+    grid-template-columns:auto minmax(0,1fr) auto auto auto;
+    gap:clamp(8px,1vw,16px);
+    padding:0 clamp(14px,2.1vw,30px);
+    background:rgba(5,5,5,.985);
+  }
+  [data-concept="05"] .nav .brand>span{
+    font-size:24px;
+    letter-spacing:-.055em;
+  }
+  [data-concept="05"] .nav .brand>small{
+    display:none;
+  }
+  [data-concept="05"] .c5-header-nav{
+    justify-self:center;
+    gap:clamp(14px,1.55vw,24px);
+  }
+  [data-concept="05"] .c5-header-nav a{
+    font-size:8px;
+    letter-spacing:.06em;
+  }
+  [data-concept="05"] .c5-header-origin{
+    font-size:7px;
+  }
+  [data-concept="05"] .c5-header-ticket{
+    min-height:32px;
+    padding:0 12px;
+    font-size:8px;
+  }
+  [data-concept="05"] .nav-right .sound,
+  [data-concept="05"] .nav-right .menu{
+    min-height:36px;
+  }
+}
+@media(max-width:900px){
+  [data-concept="05"] .nav{
+    height:54px;
+    padding:0 12px;
+    background:rgba(5,5,5,.99);
+  }
+  [data-concept="05"] .nav .brand>span{
+    font-size:22px;
+  }
+  [data-concept="05"] .nav-right .sound{
+    display:none;
+  }
+  [data-concept="05"] .nav-right .menu{
+    min-width:44px;
+    min-height:44px;
+  }
+}
