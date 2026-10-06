@@ -469,7 +469,7 @@ html.c5-visual-test [data-concept="05"] .home-phase-a-hero .hero-title::after{
   overflow-wrap:anywhere;
   word-break:break-all;
   color:var(--c5-paper-dirty);
-  font-size:clamp(112px,11.9vw,176px);
+  font-size:clamp(132px,14.6vw,220px);
   line-height:.56;
   letter-spacing:-.09em;
   text-shadow:4px 0 rgba(211,24,34,.42);
