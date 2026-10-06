@@ -54,11 +54,6 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
             MARKER,
             "min-height:118px;",
             "font-size:clamp(48px,5vw,72px);",
-            "grid-column:1/4;",
-            "grid-column:4/7;",
-            "grid-column:7/9;",
-            "grid-column:9/11;",
-            "grid-column:11/-1;",
             "a[hidden]{display:none!important}",
         ):
             with self.subTest(marker=marker):
@@ -82,6 +77,7 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
             'data-social="instagram" hidden',
             'data-social="spotify" hidden',
             "footer reveals configured Spotify while unsafe or missing socials stay hidden",
+            "desktop footer keeps canonical grid and 44px interactive targets",
             "expect(await page.evaluate(() => window.__reads)).toBe(1);",
             "footer keeps privacy fail-closed",
         ):

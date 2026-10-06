@@ -136,6 +136,62 @@ test('footer reveals only a real public privacy page from the shared payload', a
   expect(noOverflow).toBe(true);
 });
 
+test('desktop footer keeps canonical grid and 44px interactive targets', async ({page}) => {
+  await openShell(
+    page,
+    [{slug:'privacy-policy'}],
+    {width:1440,height:900},
+    true,
+    {spotifyUrl:'https://open.spotify.com/artist/brvtal'},
+  );
+  await page.addScriptTag({content:appJs});
+  await page.evaluate(() => window.dispatchEvent(new Event('load')));
+  await page.waitForFunction(() => document.documentElement.dataset.api === 'online');
+
+  const geometry = await page.evaluate(() => {
+    const grid = document.querySelector('.c5-footer-grid');
+    const footer = document.querySelector('.c5-footer');
+    const selectors = [
+      '.c5-footer-brand',
+      '.c5-footer-nav',
+      '.c5-footer-contact',
+      '.c5-footer-socials',
+      '.c5-footer-legal',
+    ];
+    const rects = selectors.map(selector => {
+      const box = document.querySelector(selector).getBoundingClientRect();
+      return {left:box.left,right:box.right};
+    });
+    const targetHeights = [...document.querySelectorAll('.c5-footer a')]
+      .filter(node => {
+        const box = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return !node.hidden
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && box.width > 0
+          && box.height > 0;
+      })
+      .map(node => node.getBoundingClientRect().height);
+    return {
+      columns:getComputedStyle(grid).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+      rects,
+      targetHeights,
+      footerHeight:footer.getBoundingClientRect().height,
+    };
+  });
+
+  expect(geometry.columns).toBe(12);
+  expect(geometry.targetHeights.length).toBeGreaterThan(0);
+  for (const height of geometry.targetHeights) {
+    expect(height).toBeGreaterThanOrEqual(44);
+  }
+  for (let index=1;index<geometry.rects.length;index++) {
+    expect(geometry.rects[index-1].right).toBeLessThanOrEqual(geometry.rects[index].left + 1);
+  }
+  expect(geometry.footerHeight).toBeLessThanOrEqual(150);
+});
+
 test('footer keeps privacy fail-closed when no compatible public Page exists', async ({page}) => {
   await openShell(page, [{slug:'about'}]);
   const privacy = page.locator('[data-footer-privacy]');
