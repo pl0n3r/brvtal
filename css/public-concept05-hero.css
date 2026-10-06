@@ -63,7 +63,7 @@
 
 [data-concept="05"] .home-phase-a-hero .hero-copy{
   left:var(--c5-gutter-outer);
-  top:calc(var(--c5-header-h-desktop) + 22px);
+  top:calc(var(--c5-header-h-desktop) + 34px);
   width:calc(100% - (2 * var(--c5-gutter-outer)));
   max-width:none;
   z-index:6;
