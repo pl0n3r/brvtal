@@ -417,3 +417,234 @@ html.c5-visual-test [data-concept="05"] .home-phase-a-hero .hero-title::after{
   animation:none!important;
   text-shadow:none!important;
 }
+
+
+/* #922 — canonical Concept 05 shell/Hero fidelity contract. */
+[data-concept="05"] .home-phase-a-hero{
+  --c5-hero-title-stack:2.08ch;
+  --c5-hero-documentary-left:18%;
+  --c5-hero-documentary-width:55%;
+  --c5-hero-statement-left:47%;
+  min-height:clamp(540px,68svh,720px);
+  background:var(--c5-deep-black);
+}
+[data-concept="05"] .home-phase-a-hero::after{
+  inset:var(--c5-header-h-desktop) 0 0 0;
+  border-right:0;
+  background:
+    linear-gradient(90deg,
+      transparent 0 46%,
+      rgba(233,229,218,.18) 46% calc(46% + 1px),
+      transparent calc(46% + 1px) 68%,
+      rgba(233,229,218,.15) 68% calc(68% + 1px),
+      transparent calc(68% + 1px) 100%);
+}
+[data-concept="05"] .home-phase-a-hero .hero-grid{
+  inset:var(--c5-header-h-desktop) 0 0 0;
+  opacity:.28;
+}
+[data-concept="05"] .home-phase-a-hero .hero-copy{
+  left:var(--c5-gutter-outer);
+  top:calc(var(--c5-header-h-desktop) + 22px);
+  width:calc(100% - (2 * var(--c5-gutter-outer)));
+  max-width:none;
+}
+[data-concept="05"] .home-phase-a-hero .hero-copy .eyebrow{
+  position:absolute;
+  left:0;
+  top:0;
+  z-index:8;
+  min-height:24px;
+  padding:0 8px;
+  background:rgba(5,5,5,.78);
+  font-size:8px;
+}
+[data-concept="05"] .home-phase-a-hero .hero-title{
+  position:relative;
+  z-index:7;
+  width:var(--c5-hero-title-stack);
+  max-width:var(--c5-hero-title-stack);
+  margin:34px 0 0;
+  overflow:visible;
+  overflow-wrap:anywhere;
+  word-break:break-all;
+  color:var(--c5-paper-dirty);
+  font-size:clamp(112px,11.9vw,176px);
+  line-height:.56;
+  letter-spacing:-.09em;
+  text-shadow:4px 0 rgba(211,24,34,.42);
+}
+[data-concept="05"] .home-phase-a-hero .hero-sub{
+  position:absolute;
+  left:0;
+  top:calc(100% + 10px);
+  width:min(300px,30vw);
+  margin:0;
+  padding-top:8px;
+  z-index:8;
+  background:rgba(5,5,5,.72);
+}
+[data-concept="05"] .home-phase-a-hero .hero-declaration{
+  position:absolute;
+  left:var(--c5-hero-statement-left);
+  top:22%;
+  width:clamp(220px,17vw,290px);
+  min-height:250px;
+  margin:0;
+  padding:20px 18px;
+  border:1px solid rgba(233,229,218,.24);
+  background:rgba(5,5,5,.9);
+  box-shadow:none;
+  z-index:8;
+}
+[data-concept="05"] .home-phase-a-hero .hero-declaration>span{
+  color:var(--c5-paper-muted);
+  font-size:8px;
+}
+[data-concept="05"] .home-phase-a-hero .hero-declaration strong{
+  margin-top:28px;
+  max-width:8ch;
+  font-size:clamp(32px,2.8vw,46px);
+  line-height:.82;
+}
+[data-concept="05"] .home-phase-a-hero .hero-declaration p{
+  margin-top:18px;
+  max-width:25ch;
+  font-size:9px;
+  line-height:1.45;
+}
+[data-concept="05"] .c5-hero-explore{
+  min-width:150px;
+  min-height:44px;
+  margin-top:18px;
+}
+[data-concept="05"] .c5-hero-documentary{
+  left:var(--c5-hero-documentary-left);
+  top:var(--c5-header-h-desktop);
+  width:var(--c5-hero-documentary-width);
+  height:calc(100% - var(--c5-header-h-desktop));
+  min-height:0;
+  max-height:none;
+  border:0;
+  transform:none;
+  opacity:.78;
+  z-index:3;
+}
+[data-concept="05"] .c5-hero-documentary img{
+  filter:grayscale(1) contrast(1.5) brightness(.58);
+}
+[data-concept="05"] .c5-hero-documentary::after{
+  background:
+    linear-gradient(90deg,rgba(5,5,5,.58),transparent 24%,transparent 76%,rgba(5,5,5,.38)),
+    linear-gradient(180deg,transparent 52%,rgba(0,0,0,.78)),
+    repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.04) 4px 5px);
+}
+[data-concept="05"] .home-phase-a-hero .hero-logo-wrap{
+  display:none;
+}
+[data-concept="05"] .home-phase-a-hero .hero-bottom{
+  left:var(--c5-gutter-outer);
+  right:var(--c5-gutter-outer);
+  bottom:12px;
+  z-index:9;
+}
+
+@media(max-width:900px){
+  [data-concept="05"] .home-phase-a-hero{
+    --c5-hero-title-stack:2.08ch;
+    min-height:max(690px,88svh);
+    padding-bottom:var(--c5-bottom-nav-h);
+    background:var(--c5-deep-black);
+  }
+  [data-concept="05"] .home-phase-a-hero::after{
+    inset:var(--c5-header-h-mobile) 0 var(--c5-bottom-nav-h) 0;
+    border:0;
+    background:
+      linear-gradient(90deg,transparent 0 50%,rgba(233,229,218,.12) 50% calc(50% + 1px),transparent calc(50% + 1px));
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-grid{
+    inset:var(--c5-header-h-mobile) 0 var(--c5-bottom-nav-h) 0;
+    opacity:.22;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-copy{
+    position:relative;
+    left:auto;
+    top:auto;
+    width:calc(100% - 28px);
+    margin:calc(var(--c5-header-h-mobile) + 14px) 14px 0;
+    padding:0 0 330px;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-copy .eyebrow{
+    top:0;
+    max-width:78vw;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-title{
+    width:var(--c5-hero-title-stack);
+    max-width:var(--c5-hero-title-stack);
+    margin-top:32px;
+    font-size:clamp(100px,31vw,124px);
+    line-height:.55;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-sub{
+    position:absolute;
+    left:0;
+    top:calc(100% - 310px);
+    width:48%;
+    max-width:176px;
+    background:rgba(5,5,5,.72);
+    font-size:8px;
+  }
+  [data-concept="05"] .c5-hero-documentary{
+    left:30%;
+    top:calc(var(--c5-header-h-mobile) + 42px);
+    width:70%;
+    height:390px;
+    min-height:0;
+    max-height:none;
+    opacity:.72;
+    transform:none;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-declaration{
+    position:absolute;
+    left:14px;
+    right:14px;
+    top:auto;
+    bottom:calc(var(--c5-bottom-nav-h) + 34px);
+    width:auto;
+    min-height:0;
+    margin:0;
+    padding:14px;
+    background:rgba(5,5,5,.94);
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-declaration strong{
+    margin-top:12px;
+    max-width:14ch;
+    font-size:clamp(28px,8.5vw,36px);
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-declaration p{
+    display:block;
+    margin-top:10px;
+    max-width:30ch;
+    font-size:8px;
+  }
+  [data-concept="05"] .c5-hero-explore{
+    width:min(170px,100%);
+    min-height:44px;
+    margin-top:12px;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-bottom{
+    display:none;
+  }
+}
+
+@media(max-width:430px) and (max-height:760px){
+  [data-concept="05"] .home-phase-a-hero{
+    min-height:650px;
+  }
+  [data-concept="05"] .home-phase-a-hero .hero-title{
+    font-size:clamp(92px,29vw,112px);
+  }
+  [data-concept="05"] .c5-hero-documentary{
+    height:350px;
+  }
+}
