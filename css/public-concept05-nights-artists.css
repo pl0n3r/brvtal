@@ -490,3 +490,174 @@ html.c5-visual-test [data-concept="05"] .c5-artist-media img{
   transition:none!important;
   transform:none!important;
 }
+
+
+/* #930 — canonical Concept 05 Nights + Artists fidelity contract. */
+[data-concept="05"] .events .section-head,
+[data-concept="05"] .artists .section-head{
+  grid-template-columns:auto auto minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  padding:8px 0 10px;
+}
+[data-concept="05"] .events .section-head > span:first-child,
+[data-concept="05"] .artists .section-head > span:first-child{
+  grid-column:auto;
+  font-size:9px;
+  white-space:nowrap;
+}
+[data-concept="05"] .events .section-head h2,
+[data-concept="05"] .artists .section-head h2{
+  font-size:clamp(12px,1.1vw,16px);
+  line-height:1;
+  letter-spacing:.08em;
+}
+[data-concept="05"] .events .section-head > span:last-child,
+[data-concept="05"] .artists .section-head > span:last-child{
+  justify-self:end;
+  font-size:8px;
+  white-space:nowrap;
+}
+
+@media(min-width:901px){
+  [data-concept="05"] .events-track{
+    gap:12px;
+    padding:14px 0 10px;
+  }
+  [data-concept="05"] .event-card.c5-night-card{
+    flex:0 0 clamp(270px,23.05vw,332px);
+    width:clamp(270px,23.05vw,332px)!important;
+    border:0;
+    border-top:1px solid var(--c5-rule-color);
+    background:transparent;
+  }
+  [data-concept="05"] .c5-night-card .event-img{
+    aspect-ratio:16 / 9;
+    border:1px solid var(--c5-rule-color);
+  }
+  [data-concept="05"] .c5-night-card .event-info{
+    min-height:132px;
+    gap:5px;
+    padding:10px 0 0;
+    background:transparent;
+  }
+  [data-concept="05"] .c5-night-card .event-info h3{
+    font-size:clamp(18px,1.7vw,26px);
+    line-height:.9;
+  }
+  [data-concept="05"] .c5-night-card .event-info p{
+    font-size:10px;
+    -webkit-line-clamp:1;
+  }
+  [data-concept="05"] .c5-night-actions{
+    gap:6px;
+  }
+  [data-concept="05"] .roster-group{
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:6px;
+    margin-bottom:24px;
+  }
+  [data-concept="05"] .artist.c5-artist-card{
+    gap:5px;
+    padding:0 0 8px;
+    border:0;
+    border-top:1px solid var(--c5-rule-color);
+    background:transparent;
+  }
+  [data-concept="05"] .c5-artist-media{
+    aspect-ratio:4 / 5;
+    border:1px solid var(--c5-rule-color);
+  }
+  [data-concept="05"] .artist.c5-artist-card strong{
+    margin-left:6px;
+    margin-right:6px;
+    font-size:clamp(14px,1.3vw,19px);
+    line-height:.92;
+  }
+  [data-concept="05"] .artist.c5-artist-card i{
+    margin-left:6px;
+    margin-right:6px;
+    font-size:7px;
+  }
+  [data-concept="05"] .artist.c5-artist-card .c5-artist-index{
+    top:5px;
+    left:5px;
+    min-width:24px;
+    min-height:22px;
+    font-size:8px;
+  }
+}
+
+@media(max-width:900px){
+  [data-concept="05"] .events.c5-numbered,
+  [data-concept="05"] .artists.c5-numbered{
+    padding-bottom:calc(var(--c5-bottom-nav-h) + 42px);
+  }
+  [data-concept="05"] .events .section-head,
+  [data-concept="05"] .artists .section-head{
+    grid-template-columns:auto auto minmax(0,1fr);
+    gap:6px;
+  }
+  [data-concept="05"] .events .section-head h2,
+  [data-concept="05"] .artists .section-head h2{
+    font-size:12px;
+  }
+  [data-concept="05"] .events .section-head > span:first-child,
+  [data-concept="05"] .artists .section-head > span:first-child,
+  [data-concept="05"] .events .section-head > span:last-child,
+  [data-concept="05"] .artists .section-head > span:last-child{
+    font-size:7px;
+  }
+  [data-concept="05"] .event-card.c5-night-card{
+    display:grid;
+    grid-template-columns:42% minmax(0,1fr);
+    flex-basis:min(88vw,342px);
+    width:min(88vw,342px)!important;
+    border:1px solid var(--c5-rule-color);
+    background:var(--c5-soft-black);
+  }
+  [data-concept="05"] .c5-night-card .event-img{
+    height:100%!important;
+    min-height:172px;
+    aspect-ratio:1 / 1;
+    border-right:1px solid var(--c5-rule-color);
+  }
+  [data-concept="05"] .c5-night-card .event-info{
+    min-height:172px;
+    gap:5px;
+    padding:10px;
+  }
+  [data-concept="05"] .c5-night-card .event-info h3{
+    font-size:clamp(21px,7vw,30px);
+    line-height:.88;
+  }
+  [data-concept="05"] .c5-night-card .event-info p{
+    font-size:9px;
+    -webkit-line-clamp:1;
+  }
+  [data-concept="05"] .roster-group{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+  [data-concept="05"] .artist.c5-artist-card{
+    gap:5px;
+    padding:0 0 8px;
+    border:0;
+    border-top:1px solid var(--c5-rule-color);
+    background:transparent;
+  }
+  [data-concept="05"] .c5-artist-media{
+    aspect-ratio:4 / 5;
+  }
+  [data-concept="05"] .artist.c5-artist-card strong{
+    margin-left:6px;
+    margin-right:6px;
+    font-size:clamp(17px,5.8vw,23px);
+    line-height:.92;
+  }
+  [data-concept="05"] .artist.c5-artist-card i{
+    margin-left:6px;
+    margin-right:6px;
+    font-size:7px;
+  }
+}
