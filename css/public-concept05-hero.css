@@ -426,7 +426,7 @@ html.c5-visual-test [data-concept="05"] .home-phase-a-hero .hero-title::after{
   --c5-hero-documentary-width:55%;
   --c5-hero-statement-left:47%;
   min-height:clamp(540px,68svh,720px);
-  background:var(--c5-deep-black);
+  background:linear-gradient(90deg,var(--c5-deep-black) 0 68%,var(--c5-soft-black) 68% 100%);
 }
 [data-concept="05"] .home-phase-a-hero::after{
   inset:var(--c5-header-h-desktop) 0 0 0;
@@ -522,7 +522,7 @@ html.c5-visual-test [data-concept="05"] .home-phase-a-hero .hero-title::after{
   left:var(--c5-hero-documentary-left);
   top:var(--c5-header-h-desktop);
   width:var(--c5-hero-documentary-width);
-  height:calc(100% - var(--c5-header-h-desktop));
+  height:calc(100% - var(--c5-header-h-desktop) - 36px);
   min-height:0;
   max-height:none;
   border:0;
@@ -554,7 +554,7 @@ html.c5-visual-test [data-concept="05"] .home-phase-a-hero .hero-title::after{
     --c5-hero-title-stack:2.08ch;
     min-height:max(690px,88svh);
     padding-bottom:var(--c5-bottom-nav-h);
-    background:var(--c5-deep-black);
+    background:linear-gradient(180deg,var(--c5-deep-black) 0 72%,var(--c5-soft-black) 72% 100%);
   }
   [data-concept="05"] .home-phase-a-hero::after{
     inset:var(--c5-header-h-mobile) 0 var(--c5-bottom-nav-h) 0;
