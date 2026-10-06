@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -189,8 +190,13 @@ class Concept05ReleasePolishTests(unittest.TestCase):
         with self.assertRaisesRegex(PERF_MODULE.EvidenceError, "^minimum_release_invalid$"):
             PERF_MODULE._semver_tuple("0.1")
 
-        self.assertRegex(self.version, r"BRVTAL_APP_VERSION = '0\.1\.137'")
-        self.assertEqual("0.1.137", self.package["version"])
+        version_match = re.search(r"BRVTAL_APP_VERSION = '([^']+)'", self.version)
+        self.assertIsNotNone(version_match)
+        current_version = PERF_MODULE._semver_tuple(version_match.group(1))
+        minimum_release = PERF_MODULE._semver_tuple(performance["minimum_release"])
+        self.assertGreaterEqual(current_version, minimum_release)
+        self.assertGreaterEqual(PERF_MODULE._semver_tuple(self.package["version"]), minimum_release)
+        self.assertEqual(version_match.group(1), self.package["version"])
         self.assertIn(
             "npm run test:concept05-release-polish",
             self.package["scripts"]["test:integration"],
