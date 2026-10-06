@@ -122,10 +122,10 @@
     },
     "desktop": {
       "header_mode": "compact-strip",
-      "sound_feature_min_height_px": 260,
-      "sound_feature_columns": "52px minmax(180px,.52fr) minmax(0,1.48fr) 112px",
-      "sound_feature_cover_aspect_ratio": "4/3",
-      "sound_record_columns": "52px minmax(0,1fr) 112px",
+      "sound_feature_min_height_px": 182,
+      "sound_feature_columns": "36px 128px minmax(0,1fr) 84px",
+      "sound_feature_cover_aspect_ratio": "1/1",
+      "sound_record_columns": "36px minmax(0,1fr) 88px",
       "memories_columns": 12,
       "memories_gap_px": 4,
       "memories_spans": [
@@ -135,14 +135,18 @@
         4,
         5,
         3
-      ]
+      ],
+      "sound_layout": "split-feature-index",
+      "sound_list_columns": "minmax(0,1.08fr) minmax(0,.92fr)"
     },
     "mobile": {
-      "sound_feature_cover_aspect_ratio": "16/10",
+      "sound_feature_cover_aspect_ratio": "1/1",
       "memories_columns": 2,
       "memories_gap_px": 4,
       "memories_full_span_cycle": 5,
-      "bottom_nav_clearance_px": 42
+      "bottom_nav_clearance_px": 42,
+      "sound_feature_min_height_px": 92,
+      "sound_feature_columns": "28px 72px minmax(0,1fr) 52px"
     },
     "invariants": [
       "shared-public-payload",
