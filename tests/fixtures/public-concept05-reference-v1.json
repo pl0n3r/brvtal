@@ -104,5 +104,55 @@
       "media-fail-closed",
       "touch-targets-at-least-44px"
     ]
+  },
+  "sound_memories": {
+    "hierarchy": {
+      "sound": [
+        "archive-label",
+        "featured-set",
+        "relations-actions",
+        "dense-record-index"
+      ],
+      "memories": [
+        "archive-label",
+        "documentary-grid",
+        "caption-relations",
+        "archive-route"
+      ]
+    },
+    "desktop": {
+      "header_mode": "compact-strip",
+      "sound_feature_min_height_px": 260,
+      "sound_feature_columns": "52px minmax(180px,.52fr) minmax(0,1.48fr) 112px",
+      "sound_feature_cover_aspect_ratio": "4/3",
+      "sound_record_columns": "52px minmax(0,1fr) 112px",
+      "memories_columns": 12,
+      "memories_gap_px": 4,
+      "memories_spans": [
+        5,
+        3,
+        4,
+        4,
+        5,
+        3
+      ]
+    },
+    "mobile": {
+      "sound_feature_cover_aspect_ratio": "16/10",
+      "memories_columns": 2,
+      "memories_gap_px": 4,
+      "memories_full_span_cycle": 5,
+      "bottom_nav_clearance_px": 42
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-set-records",
+      "safe-external-listen-only",
+      "curated-memories-only",
+      "canonical-memory-relations",
+      "viewer-focus-continuity",
+      "media-fail-closed",
+      "touch-targets-at-least-44px"
+    ]
   }
 }
