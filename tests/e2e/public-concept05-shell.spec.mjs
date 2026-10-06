@@ -159,8 +159,15 @@ test('desktop footer keeps canonical grid and 44px interactive targets', async (
       '.c5-footer-legal',
     ];
     const rects = selectors.map(selector => {
-      const box = document.querySelector(selector).getBoundingClientRect();
-      return {left:box.left,right:box.right};
+      const node = document.querySelector(selector);
+      const box = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return {
+        left:box.left,
+        right:box.right,
+        columnStart:style.gridColumnStart,
+        columnEnd:style.gridColumnEnd,
+      };
     });
     const targetHeights = [...document.querySelectorAll('.c5-footer a')]
       .filter(node => {
@@ -182,6 +189,9 @@ test('desktop footer keeps canonical grid and 44px interactive targets', async (
   });
 
   expect(geometry.columns).toBe(12);
+  expect(
+    geometry.rects.map(({columnStart,columnEnd}) => `${columnStart}/${columnEnd}`)
+  ).toEqual(['1/4','4/7','7/9','9/11','11/-1']);
   expect(geometry.targetHeights.length).toBeGreaterThan(0);
   for (const height of geometry.targetHeights) {
     expect(height).toBeGreaterThanOrEqual(44);
