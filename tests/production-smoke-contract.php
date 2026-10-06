@@ -48,7 +48,8 @@ $assert(str_contains($workflow, 'environment: production-smoke'), 'workflow must
 $assert(str_contains($workflow, 'https://www.brvtal.com.co'), 'workflow must use the canonical www production origin');
 $assert(str_contains($workflow, 'ref: main'), 'both smoke triggers must checkout canonical main');
 $assert(str_contains($workflow, 'BRVTAL_EXPECTED_SHA=$(git rev-parse HEAD)'), 'smoke evidence must resolve exact checked-out main SHA');
-$assert(str_contains($workflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4'), 'workflow must retain downloadable evidence');
+$assert(str_contains($workflow, 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'), 'workflow must retain downloadable evidence with the immutable v7.0.1 pin');
+$assert(str_contains($workflow, 'retention-days: 14'), 'workflow evidence must retain fourteen-day retention');
 
 // Credentials must come from GitHub secrets and must never be embedded in source.
 $assert(str_contains($workflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'admin email must come from a secret');
@@ -144,7 +145,8 @@ $assert(!str_contains($smokeBlock, 'secrets.DEPLOY_TOKEN') && !str_contains($smo
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_EMAIL'), 'controlled write email must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_ADMIN_PASSWORD'), 'controlled write password must come from a secret');
 $assert(str_contains($writeWorkflow, 'secrets.BRVTAL_PROD_TOTP_SECRET'), 'controlled write TOTP must come from a secret when enabled');
-$assert(str_contains($writeWorkflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4'), 'controlled write workflow must retain evidence with a pinned upload action');
+$assert(str_contains($writeWorkflow, 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'), 'controlled write workflow must retain evidence with the immutable v7.0.1 pin');
+$assert(str_contains($writeWorkflow, 'retention-days: 14'), 'controlled write evidence must retain fourteen-day retention');
 $assert(!preg_match('/BRVTAL_PROD_ADMIN_PASSWORD:\s*["\']?[A-Za-z0-9]/', $writeWorkflow), 'controlled write workflow must not hardcode an admin password');
 $assert(!preg_match('/BRVTAL_PROD_TOTP_SECRET:\s*["\']?[A-Z2-7]{8,}/', $writeWorkflow), 'controlled write workflow must not hardcode a TOTP secret');
 

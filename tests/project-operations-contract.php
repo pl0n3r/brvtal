@@ -163,9 +163,15 @@ $assert(str_contains($performanceWorkflow, 'github.event.workflow_run.head_sha')
 $assert(!str_contains($performanceWorkflow, '?v=$short_sha') && !str_contains($performanceWorkflow, 'Wait for exact Hostinger deploy'), 'production performance must not duplicate Hostinger deploy polling');
 $assert(str_contains($performanceWorkflow, 'production-performance-mobile.json') && str_contains($performanceWorkflow, 'production-performance-desktop.json'), 'production performance workflow must retain mobile and desktop evidence');
 $assert(
-    str_contains($performanceWorkflow, 'actions/upload-artifact@v4')
-    || str_contains($performanceWorkflow, 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'),
-    'production performance evidence must be downloadable from the run'
+    str_contains($performanceWorkflow, 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'),
+    'production performance evidence must use the immutable upload-artifact v7.0.1 pin'
+);
+$assert(
+    str_contains($performanceWorkflow, 'name: production-performance-${{ github.run_id }}')
+        && str_contains($performanceWorkflow, 'path: artifacts/production-performance-*.json')
+        && str_contains($performanceWorkflow, 'if-no-files-found: error')
+        && str_contains($performanceWorkflow, 'retention-days: 14'),
+    'production performance evidence must preserve artifact shape and fourteen-day retention'
 );
 $assert(str_contains($performanceProbe, 'largest-contentful-paint'), 'production performance probe must observe LCP directly in Chromium');
 $assert(str_contains($performanceProbe, 'layout-shift'), 'production performance probe must observe CLS directly in Chromium');
