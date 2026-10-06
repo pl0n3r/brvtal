@@ -163,6 +163,8 @@
 
 [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .set-library-cover{
   display:block;
+  width:128px;
+  max-width:128px;
   aspect-ratio:1/1;
 }
 
