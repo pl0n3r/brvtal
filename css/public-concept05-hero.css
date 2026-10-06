@@ -437,7 +437,6 @@
     font-size:clamp(92px,29vw,112px);
   }
   [data-concept="05"] .c5-hero-documentary{
-    top:50%;
     height:350px;
   }
 }
