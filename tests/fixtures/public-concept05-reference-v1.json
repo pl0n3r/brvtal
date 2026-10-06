@@ -65,5 +65,44 @@
       "ticket_cta_min_height_px": 56,
       "ticket_action_order": "first"
     }
+  },
+  "nights_artists": {
+    "hierarchy": {
+      "nights": [
+        "documentary-media",
+        "date-city",
+        "title",
+        "lifecycle-action"
+      ],
+      "artists": [
+        "portrait",
+        "name",
+        "collective-role"
+      ]
+    },
+    "desktop": {
+      "header_mode": "compact-strip",
+      "nights_visible_cards_target": 4,
+      "nights_card_width": "clamp(270px,23.05vw,332px)",
+      "nights_media_aspect_ratio": "16/9",
+      "artists_columns": 6,
+      "artists_media_aspect_ratio": "4/5"
+    },
+    "mobile": {
+      "nights_card_width": "min(88vw,342px)",
+      "nights_grid": "42% minmax(0,1fr)",
+      "nights_media_aspect_ratio": "1/1",
+      "artists_columns": 2,
+      "artists_media_aspect_ratio": "4/5",
+      "bottom_nav_clearance_px": 42
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-event-routes",
+      "canonical-artist-routes",
+      "native-horizontal-night-scroll",
+      "media-fail-closed",
+      "touch-targets-at-least-44px"
+    ]
   }
 }
