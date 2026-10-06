@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const runtime = readFileSync(join(root, 'js/public-concept05-shell.js'), 'utf8');
+const appJs = readFileSync(join(root, 'js/app.js'), 'utf8');
 const css = [
   'css/public-concept05-tokens.css',
   'css/public-concept05-home.css',
@@ -11,8 +12,8 @@ const css = [
 ].map(path => readFileSync(join(root, path), 'utf8')).join('\n');
 const url = 'http://127.0.0.1:4173/concept05-shell.html';
 
-function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
-  const payload = JSON.stringify({pages}).replace(/</g, '\\u003c');
+function markup(pages = [{slug:'privacy-policy'}], ticket = true, social = {}) {
+  const payload = JSON.stringify({pages,settings:{social}}).replace(/</g, '\\u003c');
   const ticketMarkup = ticket
     ? '<a class="c5-header-ticket magnetic" href="https://tickets.example/night" '
       + 'target="_blank" rel="noopener">TICKETS <span>→</span></a>'
@@ -33,7 +34,8 @@ function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
     + '<div class="nav-center mono"><span>CORE</span><b>///</b><span>01</span></div>'
     + ticketMarkup
     + '<div class="nav-right"><button class="sound">SOUND <b>OFF</b></button>'
-    + '<button class="menu">MENU <strong>+</strong></button></div></header>'
+    + '<button class="menu" id="menuToggle">MENU <strong>+</strong></button></div></header>'
+    + '<aside class="menu-panel" id="menuPanel" aria-hidden="true"></aside>'
     + '<main id="top"><section id="events" style="height:700px">EVENTS</section>'
     + '<section id="artists" style="height:700px">ARTISTS</section>'
     + '<section id="sets" style="height:700px">SETS</section>'
@@ -43,10 +45,17 @@ function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
     + '<footer class="footer scene c5-footer" id="site-footer"><div class="c5-footer-grid">'
     + '<div class="c5-footer-brand"><span class="mono">PEREIRA / COLOMBIA</span>'
     + '<h2 data-site-name>BRVTAL</h2><p><span data-site-tagline>RAVE TILL GRAVE</span></p></div>'
-    + '<nav class="c5-footer-nav mono"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a></nav>'
+    + '<nav class="c5-footer-nav mono"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a>'
+    + '<a href="#sets">SOUND</a><a href="/releases">RECORDS</a>'
+    + '<a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a></nav>'
     + '<div class="c5-footer-contact"><span class="mono">TRANSMIT</span>'
     + '<a href="/contact">CONTACT ↗</a><a href="/contact">COLLABORATE ↗</a></div>'
-    + '<div class="c5-footer-socials mono"><a data-social="instagram" hidden>INSTAGRAM</a></div>'
+    + '<div class="c5-footer-socials mono">'
+    + '<a href="#" data-social="instagram" hidden>INSTAGRAM</a>'
+    + '<a href="#" data-social="soundcloud" hidden>SOUNDCLOUD</a>'
+    + '<a href="#" data-social="youtube" hidden>YOUTUBE</a>'
+    + '<a href="#" data-social="spotify" hidden>SPOTIFY</a>'
+    + '<a href="#" data-social="website" hidden>WEBSITE</a></div>'
     + '<div class="c5-footer-legal mono"><span>© <span data-footer-year>2026</span> BRVTAL</span>'
     + '<a data-footer-privacy hidden>PRIVACY ↗</a><span>EN</span></div></div></footer></main>'
     + '<nav class="c5-bottom-nav" aria-label="Primary mobile">'
@@ -64,9 +73,9 @@ function markup(pages = [{slug:'privacy-policy'}], ticket = true) {
     + payload + '}}).then(value=>{window.__reads+=1;return value;});</script></body></html>';
 }
 
-async function openShell(page, pages = [], viewport = {width:390,height:844}, ticket = true) {
+async function openShell(page, pages = [], viewport = {width:390,height:844}, ticket = true, social = {}) {
   await page.setViewportSize(viewport);
-  await page.route(url, route => route.fulfill({contentType:'text/html; charset=utf-8',body:markup(pages,ticket)}));
+  await page.route(url, route => route.fulfill({contentType:'text/html; charset=utf-8',body:markup(pages,ticket,social)}));
   await page.goto(url);
   await page.addScriptTag({content:runtime});
   await page.waitForFunction(() => document.documentElement.dataset.publicShell === 'concept05');
@@ -132,6 +141,31 @@ test('footer keeps privacy fail-closed when no compatible public Page exists', a
   const privacy = page.locator('[data-footer-privacy]');
   await expect(privacy).toBeHidden();
   await expect(privacy).not.toHaveAttribute('href', /.+/);
+});
+
+test('footer reveals configured Spotify while unsafe or missing socials stay hidden', async ({page}) => {
+  await openShell(
+    page,
+    [{slug:'privacy-policy'}],
+    {width:1440,height:900},
+    true,
+    {
+      spotifyUrl:'https://open.spotify.com/artist/brvtal',
+      instagram:'javascript:alert(1)',
+      website:'',
+    },
+  );
+  await page.addScriptTag({content:appJs});
+  await page.evaluate(() => window.dispatchEvent(new Event('load')));
+  await page.waitForFunction(() => document.documentElement.dataset.api === 'online');
+
+  const spotify = page.locator('[data-social="spotify"]');
+  await expect(spotify).toBeVisible();
+  await expect(spotify).toHaveAttribute('href', /^https:\/\/open\.spotify\.com\/artist\/brvtal\/?$/);
+  await expect(page.locator('[data-social="instagram"]')).toBeHidden();
+  await expect(page.locator('[data-social="website"]')).toBeHidden();
+  await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__reads)).toBe(1);
 });
 
 async function expectDesktopHeaderFits(page, width) {

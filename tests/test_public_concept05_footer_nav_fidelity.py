@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/public-concept05-reference-v1.json"
 CSS = ROOT / "css/public-concept05-shell.css"
 RUNTIME = ROOT / "js/public-concept05-shell.js"
+APP = ROOT / "js/app.js"
 E2E = ROOT / "tests/e2e/public-concept05-shell.spec.mjs"
 MARKER = "/* #938 — canonical Concept 05 footer + mobile nav fidelity contract. */"
 
@@ -19,6 +20,7 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
         cls.reference = json.loads(FIXTURE.read_text(encoding="utf-8"))
         cls.css = CSS.read_text(encoding="utf-8")
         cls.runtime = RUNTIME.read_text(encoding="utf-8")
+        cls.app = APP.read_text(encoding="utf-8")
         cls.e2e = E2E.read_text(encoding="utf-8")
 
     def test_reference_contract_pins_footer_and_mobile_nav_geometry(self) -> None:
@@ -34,6 +36,10 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
         self.assertEqual("9/11", desktop["footer_social_column"])
         self.assertEqual("11/-1", desktop["footer_legal_column"])
         self.assertEqual("single-horizontal-band", desktop["footer_layout"])
+        self.assertEqual(
+            ["instagram", "soundcloud", "youtube", "spotify", "website"],
+            desktop["footer_social_keys"],
+        )
         self.assertEqual(5, mobile["nav_items"])
         self.assertEqual(48, mobile["nav_target_min_px"])
         self.assertEqual(16, mobile["nav_icon_width_px"])
@@ -69,10 +75,13 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
                 self.assertIn(marker, self.runtime)
 
         self.assertNotIn("fetch(", self.runtime)
+        self.assertIn("spotify: ['spotify','spotify_url','spotifyUrl']", self.app)
         for marker in (
             'href="/contact">CONTACT ↗',
             'href="/contact">COLLABORATE ↗',
             'data-social="instagram" hidden',
+            'data-social="spotify" hidden',
+            "footer reveals configured Spotify while unsafe or missing socials stay hidden",
             "expect(await page.evaluate(() => window.__reads)).toBe(1);",
             "footer keeps privacy fail-closed",
         ):

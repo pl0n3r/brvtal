@@ -235,7 +235,14 @@
       "footer_contact_column": "7/9",
       "footer_social_column": "9/11",
       "footer_legal_column": "11/-1",
-      "footer_layout": "single-horizontal-band"
+      "footer_layout": "single-horizontal-band",
+      "footer_social_keys": [
+        "instagram",
+        "soundcloud",
+        "youtube",
+        "spotify",
+        "website"
+      ]
     },
     "mobile": {
       "nav_items": 5,
@@ -252,6 +259,7 @@
       "shared-public-payload",
       "privacy-page-fail-closed",
       "configured-socials-only",
+      "configured-spotify-social",
       "canonical-contact-route",
       "aria-current-location",
       "menu-lock-hides-and-inerts-nav",
