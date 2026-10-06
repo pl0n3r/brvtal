@@ -13,6 +13,7 @@ LEGACY_PIN = "ea165f8d65b6e75b540449e92b4886f43607fa02"
 CI = ROOT / ".github/workflows/update-release-metadata.yml"
 RECOVERY_CONTRACT = ROOT / "tests/backup-recovery-rehearsal-contract.php"
 OPERATIONS_CONTRACT = ROOT / "tests/project-operations-contract.php"
+PRODUCTION_SMOKE_CONTRACT = ROOT / "tests/production-smoke-contract.php"
 
 TARGETS = {
     ROOT / ".github/workflows/production-authenticated-smoke.yml": {
@@ -87,13 +88,16 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
     def test_recovery_and_operations_contracts_track_current_pin_and_retention_semantics(self) -> None:
         recovery = RECOVERY_CONTRACT.read_text(encoding="utf-8")
         operations = OPERATIONS_CONTRACT.read_text(encoding="utf-8")
-        for text in (recovery, operations):
+        smoke = PRODUCTION_SMOKE_CONTRACT.read_text(encoding="utf-8")
+        for text in (recovery, operations, smoke):
             self.assertIn(PIN, text)
             self.assertIn("retention-days: 14", text)
             self.assertNotIn(LEGACY_PIN, text)
             self.assertNotIn("actions/upload-artifact@v4", text)
         self.assertIn("backup-recovery-rehearsal-${{ github.run_id }}", recovery)
         self.assertIn("production-performance-${{ github.run_id }}", operations)
+        self.assertIn("production-authenticated-smoke", smoke)
+        self.assertIn("production-page-write-smoke", smoke)
 
     def test_target_workflows_reject_legacy_mutable_or_unretained_uploads(self) -> None:
         valid = "\n".join([
