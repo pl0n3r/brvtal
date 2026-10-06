@@ -449,6 +449,7 @@ window.BRVTALPublicLocale = PublicLocale;
         instagram: ['instagram','instagram_url','instagramUrl'],
         soundcloud: ['soundcloud','soundcloud_url','soundcloudUrl'],
         youtube: ['youtube','youtube_url','youtubeUrl'],
+        spotify: ['spotify','spotify_url','spotifyUrl'],
         website: ['website','website_url','websiteUrl']
       };
       Object.entries(socialMap).forEach(([key, keys]) => {

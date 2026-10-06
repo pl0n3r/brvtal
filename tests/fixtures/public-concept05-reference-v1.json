@@ -206,5 +206,66 @@
       "no-horizontal-overflow",
       "prefers-reduced-motion"
     ]
+  },
+  "footer_nav": {
+    "hierarchy": {
+      "footer": [
+        "origin",
+        "dominant-wordmark",
+        "manifesto",
+        "canonical-links",
+        "contact-collaborate",
+        "configured-socials",
+        "real-legal-year"
+      ],
+      "mobile_nav": [
+        "nights",
+        "artists",
+        "sound",
+        "records",
+        "journal"
+      ]
+    },
+    "desktop": {
+      "footer_min_height_px": 118,
+      "footer_wordmark_max_px": 72,
+      "footer_grid_columns": 12,
+      "footer_brand_column": "1/4",
+      "footer_nav_column": "4/7",
+      "footer_contact_column": "7/9",
+      "footer_social_column": "9/11",
+      "footer_legal_column": "11/-1",
+      "footer_layout": "single-horizontal-band",
+      "footer_social_keys": [
+        "instagram",
+        "soundcloud",
+        "youtube",
+        "spotify",
+        "website"
+      ]
+    },
+    "mobile": {
+      "nav_items": 5,
+      "nav_target_min_px": 48,
+      "nav_icon_width_px": 16,
+      "nav_active_rule_px": 3,
+      "safe_area": true,
+      "footer_wordmark_max_px": 96,
+      "footer_grid_gap_px": 20,
+      "footer_bottom_clearance_px": 42
+    },
+    "invariants": [
+      "canonical-shell-routes",
+      "shared-public-payload",
+      "privacy-page-fail-closed",
+      "configured-socials-only",
+      "configured-spotify-social",
+      "canonical-contact-route",
+      "aria-current-location",
+      "menu-lock-hides-and-inerts-nav",
+      "touch-targets-at-least-44px",
+      "no-horizontal-overflow",
+      "prefers-reduced-motion"
+    ]
   }
 }
