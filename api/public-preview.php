@@ -7,6 +7,9 @@ require_once __DIR__ . '/../config/public_preview.php';
 brvtal_admin_require();
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+header('X-Robots-Tag: noindex, nofollow');
+header('Referrer-Policy: no-referrer');
+header('Cross-Origin-Resource-Policy: same-origin');
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     http_response_code(405);
@@ -46,4 +49,11 @@ try {
     http_response_code(422);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+} catch (Throwable $e) {
+    if (function_exists('brvtal_log')) {
+        brvtal_log('PUBLIC_PREVIEW_ERROR', 'Private preview creation failed', ['class' => $e::class]);
+    }
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => false, 'error' => 'PREVIEW_INTERNAL_ERROR']);
 }

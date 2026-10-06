@@ -2,6 +2,7 @@
   'use strict';
 
   const endpoint = '/api/public-preview.php';
+  const canonicalTypes = new Set(['events','artists','sets','releases','blog','pages']);
   const previewableLegacyTypes = new Set(['events','artists','sets','pages']);
 
   const value = id => document.getElementById(id)?.value?.trim?.() ?? '';
@@ -9,6 +10,13 @@
     const parsed = Number(value(id));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   };
+
+  function assertPreviewRequest(type, payload) {
+    if (!canonicalTypes.has(type)) throw new Error('PREVIEW_TYPE_NOT_ALLOWED');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('INVALID_PREVIEW_PAYLOAD');
+    }
+  }
 
   async function csrfToken() {
     if (window.BRVTALAdminAuthBoundary?.csrfToken) {
@@ -21,6 +29,7 @@
   }
 
   async function create(type, payload) {
+    assertPreviewRequest(type, payload);
     const response = await fetch(endpoint, {
       method:'POST',
       credentials:'same-origin',
@@ -59,6 +68,7 @@
   }
 
   async function open(type, payload) {
+    assertPreviewRequest(type, payload);
     const tab = previewWindow();
     try {
       const data = await create(type, payload);
@@ -80,6 +90,10 @@
 
   function bindButton(button, type, provider) {
     if (!button) return;
+    if (!canonicalTypes.has(type) || typeof provider !== 'function') {
+      hideButton(button);
+      return;
+    }
     button.hidden = false;
     button.disabled = false;
     button.onclick = async () => {
@@ -87,7 +101,9 @@
       const original = button.textContent;
       button.textContent = 'BUILDING PREVIEW…';
       try {
-        await open(type, provider());
+        const payload = provider();
+        assertPreviewRequest(type, payload);
+        await open(type, payload);
       } finally {
         if (button.isConnected) {
           button.disabled = false;
@@ -100,6 +116,7 @@
   function hideButton(button) {
     if (!button) return;
     button.hidden = true;
+    button.disabled = true;
     button.onclick = null;
   }
 
@@ -177,6 +194,7 @@
     open,
     bindButton,
     bindLegacy,
-    legacyPayload
+    legacyPayload,
+    canonicalTypes:() => [...canonicalTypes]
   };
 })();
