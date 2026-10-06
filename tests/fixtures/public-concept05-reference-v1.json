@@ -267,5 +267,103 @@
       "no-horizontal-overflow",
       "prefers-reduced-motion"
     ]
+  },
+  "release_polish": {
+    "release": "0.1.137",
+    "responsive_widths": [
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1728,
+      1920
+    ],
+    "canonical_visual_widths": [
+      390,
+      1440
+    ],
+    "canonical_regions": [
+      "hero",
+      "next-experience",
+      "nights",
+      "artists",
+      "sound",
+      "memories",
+      "journal",
+      "connected",
+      "footer"
+    ],
+    "determinism": {
+      "html_class": "c5-visual-test",
+      "screenshot_animations": "disabled",
+      "screenshot_caret": "hide",
+      "baseline_refresh": "manual-review-only"
+    },
+    "accessibility_invariants": [
+      "visible-keyboard-focus",
+      "touch-targets-at-least-44px",
+      "menu-focus-trap-and-escape",
+      "audio-failure-remains-operable",
+      "mobile-safe-area",
+      "reduced-motion-preserves-content",
+      "no-essential-hover-only-actions"
+    ],
+    "performance_invariants": [
+      "hero-lcp-preloaded-and-high-priority",
+      "noncritical-media-lazy",
+      "local-images-receive-intrinsic-dimensions",
+      "coarse-pointer-skips-nonessential-motion",
+      "reduced-motion-skips-nonessential-motion",
+      "production-performance-requires-post-redesign-release"
+    ],
+    "supported_widths": [
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1728
+    ],
+    "extended_width_min_px": 1728,
+    "visual_regions": [
+      ".home-phase-a-hero",
+      "#genesis",
+      "#events",
+      "#artists",
+      "#sets",
+      "#media",
+      "#transmissions",
+      "#connected",
+      ".c5-footer"
+    ],
+    "deterministic_visual_class": "c5-visual-test",
+    "canonical_snapshot_widths": [
+      390,
+      1440
+    ],
+    "accessibility": {
+      "touch_target_min_px": 44,
+      "visible_focus": true,
+      "keyboard": true,
+      "safe_area": true,
+      "reduced_motion": true,
+      "coarse_pointer_lite_motion": true
+    },
+    "performance": {
+      "metrics": [
+        "lcp",
+        "cls",
+        "fcp",
+        "dom_content_loaded",
+        "load_event_end"
+      ],
+      "lazy_noncritical_media": true,
+      "async_media_decode": true,
+      "exact_main_evidence": true,
+      "minimum_release": "0.1.137"
+    }
   }
 }
