@@ -49,4 +49,11 @@ try {
     http_response_code(422);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+} catch (Throwable $e) {
+    if (function_exists('brvtal_log')) {
+        brvtal_log('PUBLIC_PREVIEW_ERROR', 'Private preview creation failed', ['class' => get_class($e)]);
+    }
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => false, 'error' => 'PREVIEW_INTERNAL_ERROR']);
 }
