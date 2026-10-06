@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Executable contracts for Bulk Catalog Cursor V2 real-stack closure."""
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -94,8 +95,9 @@ class BulkCatalogCursorE2ETests(unittest.TestCase):
         self.assertIn("/api/bulk-actions.php", self.spec)
         self.assertIn("snapshot_complete", self.spec)
         self.assertNotIn("A future server-side cursor may replace the full response", self.spec)
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.127'", self.version)
-        self.assertEqual(self.package.get("version"), "0.1.127")
+        version_match = re.search(r"BRVTAL_APP_VERSION = '([^']+)'", self.version)
+        self.assertIsNotNone(version_match)
+        self.assertEqual(self.package.get("version"), version_match.group(1))
         self.assertIn("test:bulk-catalog-cursor-e2e", self.package.get("scripts", {}))
         self.assertIn("discadmin-bulk-actions-cursor.spec.mjs", self.runner)
 
