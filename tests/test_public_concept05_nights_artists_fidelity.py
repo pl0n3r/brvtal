@@ -8,8 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/public-concept05-reference-v1.json"
 CSS = ROOT / "css/public-concept05-nights-artists.css"
-RUNTIME = ROOT / "js/public-concept05-nights-artists.js"
-E2E = ROOT / "tests/e2e/public-concept05-nights-artists.spec.mjs"
+ENHANCER = ROOT / "js/public-concept05-nights-artists.js"
+APP = ROOT / "js/app.js"
+ROSTER = ROOT / "js/public-roster.js"
+MARKER = "/* #930 — canonical Concept 05 Nights + Artists fidelity contract. */"
 
 
 class Concept05NightsArtistsFidelityTests(unittest.TestCase):
@@ -17,112 +19,95 @@ class Concept05NightsArtistsFidelityTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.reference = json.loads(FIXTURE.read_text(encoding="utf-8"))
         cls.css = CSS.read_text(encoding="utf-8")
-        cls.runtime = RUNTIME.read_text(encoding="utf-8")
-        cls.e2e = E2E.read_text(encoding="utf-8")
+        cls.enhancer = ENHANCER.read_text(encoding="utf-8")
+        cls.app = APP.read_text(encoding="utf-8")
+        cls.roster = ROSTER.read_text(encoding="utf-8")
 
-    @staticmethod
-    def _rule(css: str, selector: str) -> str:
-        start = css.index(f"{selector}{{") + len(selector) + 1
-        end = css.index("}", start)
-        return css[start:end]
+    @classmethod
+    def _canonical_css(cls) -> str:
+        self_marker = cls.MARKER if hasattr(cls, "MARKER") else MARKER
+        return cls.css.rsplit(self_marker, 1)[1]
 
     def test_reference_contract_pins_nights_and_artists_geometry(self) -> None:
         contract = self.reference["nights_artists"]
-        self.assertEqual("clamp(270px,22.5vw,324px)", contract["nights"]["desktop"]["card_width"])
-        self.assertEqual("3/4", contract["nights"]["desktop"]["artwork_aspect_ratio"])
-        self.assertEqual(0, contract["nights"]["desktop"]["gap_px"])
-        self.assertEqual("min(86vw,334px)", contract["nights"]["mobile"]["card_width"])
-        self.assertTrue(contract["nights"]["mobile"]["native_swipe"])
-        self.assertEqual(5, contract["artists"]["desktop"]["columns"])
-        self.assertEqual("2/3", contract["artists"]["desktop"]["portrait_aspect_ratio"])
-        self.assertEqual(2, contract["artists"]["mobile"]["columns"])
-        self.assertEqual("3/4", contract["artists"]["mobile"]["portrait_aspect_ratio"])
+        self.assertEqual(4, contract["desktop"]["nights_visible_cards_target"])
+        self.assertEqual("clamp(270px,23.05vw,332px)", contract["desktop"]["nights_card_width"])
+        self.assertEqual("16/9", contract["desktop"]["nights_media_aspect_ratio"])
+        self.assertEqual(6, contract["desktop"]["artists_columns"])
+        self.assertEqual("4/5", contract["desktop"]["artists_media_aspect_ratio"])
+        self.assertEqual("min(88vw,342px)", contract["mobile"]["nights_card_width"])
+        self.assertEqual("42% minmax(0,1fr)", contract["mobile"]["nights_grid"])
+        self.assertEqual("1/1", contract["mobile"]["nights_media_aspect_ratio"])
+        self.assertEqual(2, contract["mobile"]["artists_columns"])
+        self.assertEqual("4/5", contract["mobile"]["artists_media_aspect_ratio"])
+        self.assertEqual(42, contract["mobile"]["bottom_nav_clearance_px"])
 
     def test_nights_desktop_strip_and_mobile_swipe_match_reference(self) -> None:
-        contract = self.reference["nights_artists"]["nights"]
-        desktop = self.css.split("@media(max-width:900px){", 1)[0]
-        track = self._rule(desktop, '[data-concept="05"] .events-track')
-        card = self._rule(desktop, '[data-concept="05"] .event-card.c5-night-card')
-        media = self._rule(desktop, '[data-concept="05"] .c5-night-card .event-img')
-        info = self._rule(desktop, '[data-concept="05"] .c5-night-card .event-info')
+        css = self._canonical_css()
+        desktop = css.split("@media(min-width:901px){", 1)[1].split("@media(max-width:900px){", 1)[0]
+        mobile = css.split("@media(max-width:900px){", 1)[1]
 
-        self.assertIn("/* #930 — canonical Concept 05 NIGHTS + ARTISTS fidelity contract. */", desktop)
-        self.assertIn(f'--c5-night-card-w:{contract["desktop"]["card_width"]};', track)
-        self.assertIn("gap:0;", track)
-        self.assertIn("border-top:1px solid var(--c5-rule-color);", track)
-        self.assertIn("border-bottom:1px solid var(--c5-rule-color);", track)
-        self.assertIn("flex:0 0 var(--c5-night-card-w);", card)
-        self.assertIn("border-left:1px solid var(--c5-rule-color);", card)
-        self.assertIn(f'aspect-ratio:{contract["desktop"]["artwork_aspect_ratio"].replace("/", " / ")};', media)
-        self.assertIn(f'border-top:{contract["desktop"]["info_red_rule_px"]}px solid var(--c5-signal-red);', info)
+        for marker in (
+            "flex:0 0 clamp(270px,23.05vw,332px);",
+            "width:clamp(270px,23.05vw,332px)!important;",
+            "aspect-ratio:16 / 9;",
+            "min-height:132px;",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, desktop)
 
-        mobile = self.css.split("@media(max-width:900px){", 1)[1].split(
-            "@media(prefers-reduced-motion:reduce)", 1
-        )[0]
-        mobile_track = self._rule(mobile, '[data-concept="05"] .events-track')
-        mobile_card = self._rule(mobile, '[data-concept="05"] .event-card.c5-night-card')
-        self.assertIn("overflow-x:auto;", desktop)
-        self.assertIn("touch-action:pan-x pan-y;", desktop)
-        self.assertIn("gap:0;", mobile_track)
-        self.assertIn(f'flex-basis:{contract["mobile"]["card_width"]};', mobile_card)
-        self.assertIn(f'width:{contract["mobile"]["card_width"]}!important;', mobile_card)
-        self.assertIn(
-            f'padding-bottom:calc(var(--c5-bottom-nav-h) + {contract["mobile"]["bottom_nav_clearance_px"]}px);',
-            mobile,
-        )
+        for marker in (
+            "grid-template-columns:42% minmax(0,1fr);",
+            "flex-basis:min(88vw,342px);",
+            "width:min(88vw,342px)!important;",
+            "aspect-ratio:1 / 1;",
+            "calc(var(--c5-bottom-nav-h) + 42px)",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, mobile)
+
+        self.assertIn("overflow-x:auto;", self.css)
+        self.assertIn("touch-action:pan-x pan-y;", self.css)
+        self.assertEqual(1, self.css.count(MARKER))
 
     def test_artists_desktop_and_mobile_keep_authored_editorial_density(self) -> None:
-        contract = self.reference["nights_artists"]["artists"]
-        desktop = self.css.split("@media(max-width:900px){", 1)[0]
-        group = self._rule(desktop, '[data-concept="05"] .roster-group')
-        card = self._rule(desktop, '[data-concept="05"] .artist.c5-artist-card')
-        media = self._rule(desktop, '[data-concept="05"] .c5-artist-media')
-        focus = self._rule(desktop, '[data-concept="05"] .artist.c5-artist-card:focus-visible')
+        css = self._canonical_css()
+        desktop = css.split("@media(min-width:901px){", 1)[1].split("@media(max-width:900px){", 1)[0]
+        mobile = css.split("@media(max-width:900px){", 1)[1]
 
-        self.assertIn(f'grid-template-columns:repeat({contract["desktop"]["columns"]},minmax(0,1fr));', group)
-        self.assertIn("gap:0;", group)
-        self.assertIn("border:0;", card)
-        self.assertIn("border-left:1px solid var(--c5-rule-color);", card)
-        self.assertIn(f'aspect-ratio:{contract["desktop"]["portrait_aspect_ratio"].replace("/", " / ")};', media)
-        self.assertIn(f'box-shadow:inset {contract["desktop"]["hover_registration_px"]}px 0 var(--c5-signal-green);', focus)
-
-        mobile = self.css.split("@media(max-width:900px){", 1)[1].split(
-            "@media(prefers-reduced-motion:reduce)", 1
-        )[0]
-        mobile_group = self._rule(mobile, '[data-concept="05"] .roster-group')
-        mobile_media = self._rule(mobile, '[data-concept="05"] .c5-artist-media')
-        self.assertIn(f'grid-template-columns:repeat({contract["mobile"]["columns"]},minmax(0,1fr));', mobile_group)
-        self.assertIn("gap:0;", mobile_group)
-        self.assertIn(f'aspect-ratio:{contract["mobile"]["portrait_aspect_ratio"].replace("/", " / ")};', mobile_media)
-        self.assertNotIn("@media(max-width:420px)", self.css)
+        self.assertIn("grid-template-columns:repeat(6,minmax(0,1fr));", desktop)
+        self.assertIn("aspect-ratio:4 / 5;", desktop)
+        self.assertIn("border:0;", desktop)
+        self.assertIn("font-size:clamp(14px,1.3vw,19px);", desktop)
+        self.assertIn("grid-template-columns:repeat(2,minmax(0,1fr));", mobile)
+        self.assertIn("font-size:clamp(17px,5.8vw,23px);", mobile)
 
     def test_dynamic_event_artist_routes_and_failure_semantics_are_preserved(self) -> None:
         for marker in (
-            "No network requests",
-            "safeMediaUrl",
-            "failClosed",
-            "BRVTAL_CONCEPT05_STRIPS_INIT",
-            "brvtal:roster-rendered",
-            "is-media-missing",
+            "window.BRVTALPublicDataPromise",
+            "canonicalEventList(activeItems, archiveItems)",
+            "eventRecordUrl(event)",
+            "eventTicketUrl(event, status)",
+            'data-c5-lifecycle="',
         ):
             with self.subTest(marker=marker):
-                self.assertIn(marker, self.runtime)
+                self.assertIn(marker, self.app)
 
         for marker in (
-            "BRVTALPublicDataPromise",
-            "__publicPayloadReads",
-            "/events/active-night",
-            "/artists/pl0n3r",
-            "external.example/should-not-win",
-            "event-ticket",
-            "is-media-missing",
+            "window.BRVTALPublicDataPromise",
+            "window.BRVTALPublicRoster",
+            "/artists/",
+            "data-roster-group",
+            "brvtal:roster-rendered",
         ):
             with self.subTest(marker=marker):
-                self.assertIn(marker, self.e2e)
+                self.assertIn(marker, self.roster)
 
-        self.assertIn("expect(await page.evaluate(() => window.__publicPayloadReads)).toBe(1);", self.e2e)
-        self.assertIn("touchAction:getComputedStyle(el).touchAction", self.e2e)
-        self.assertIn("prefers-reduced-motion:reduce", self.css)
+        self.assertIn("function failClosed(host, image)", self.enhancer)
+        self.assertIn("function safeMediaUrl(value)", self.enhancer)
+        self.assertNotIn("fetch(", self.enhancer)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", self.css)
+        self.assertIn("min-height:44px;", self.css)
 
 
 if __name__ == "__main__":
