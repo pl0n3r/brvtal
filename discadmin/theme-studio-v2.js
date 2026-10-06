@@ -365,7 +365,7 @@
 
           <div class="tsv2-pane" data-theme-pane="type">
             <div class="tsv2-section-head"><div><span>03 / TYPE</span><h3>Typography</h3></div><div class="tsv2-section-side"><p>Choose from the curated BRVTAL catalog. Google Fonts load only for selected supported families and always use system fallbacks.</p><button type="button" class="btn ghost" data-theme-reset="type">RESET TYPE</button></div></div>
-            <div class="tsv2-grid two">${fontSelectField('display','Display family',ty.display,'display','Space Grotesk is the recommended Concept 05 display family.')}${fontSelectField('body','Body family',ty.body,'body','Independent public body family with safe fallback.')}${fontSelectField('mono','Mono family',ty.mono,'mono','Technical metadata / data labels.')}${textField('bodySize','Body size',ty.bodySize,'Global baseline only; authored Concept 05 display geometry remains design-system owned.')}</div>
+            <div class="tsv2-grid two">${fontSelectField('display','Display family',ty.display,'display','Space Grotesk is the recommended Concept 05 display family.')}${fontSelectField('body','Body family',ty.body,'body','Independent public body family with safe fallback.')}${fontSelectField('mono','Mono family',ty.mono,'mono','Technical metadata / data labels.')}</div>
             <div class="tsv2-type-specimens" aria-label="Typography preview"><article data-type-specimen="display"><span>DISPLAY</span><strong>RAVE TILL GRAVE</strong></article><article data-type-specimen="mono"><span>MONO / DATA</span><strong>02 / NIGHTS · PEREIRA / COLOMBIA</strong></article></div>
           </div>
 
@@ -394,8 +394,8 @@
         </section>
 
         <aside class="tsv2-preview" data-preview-mode="${escapeHtml(V2.previewMode)}">
-          <div class="tsv2-preview-head"><div><span>LOCAL THEME PREVIEW</span><b>CONCEPT 05 / TOKENS</b></div><div><button type="button" class="${V2.previewMode === 'desktop' ? 'active' : ''}" data-preview-mode="desktop">1440</button><button type="button" class="${V2.previewMode === 'mobile' ? 'active' : ''}" data-preview-mode="mobile">390</button></div></div>
-          <div class="tsv2-device"><div class="tsv2-preview-browser"><span data-preview-favicon>B</span><b>brvtal.co / local preview</b></div><div class="tsv2-preview-nav"><div data-preview-brand>BRVTAL</div><div class="tsv2-preview-links"><span>NIGHTS</span><span>ARTISTS</span><span>SOUND</span></div><b>PEREIRA / COLOMBIA</b></div><div class="tsv2-preview-hero"><span>01 / HOME · UNDERGROUND CULTURE</span><h4 data-preview-title>BRVTAL</h4><div data-preview-logo></div><p data-preview-tagline>RAVE TILL GRAVE</p><div class="tsv2-preview-signal"><i>RED / MOTHER</i><i>SIGNAL / GLITCH</i></div></div><div class="tsv2-preview-grid"><i><b>02</b>NIGHTS</i><i><b>03</b>ARTISTS</i><i><b>04</b>SOUND</i></div></div>
+          <div class="tsv2-preview-head"><div><span>CANONICAL HOME PREVIEW</span><b>PUBLIC RUNTIME / DRAFT TOKENS</b></div><div><button type="button" class="${V2.previewMode === 'desktop' ? 'active' : ''}" data-preview-mode="desktop">1440</button><button type="button" class="${V2.previewMode === 'mobile' ? 'active' : ''}" data-preview-mode="mobile">390</button></div></div>
+          <div class="tsv2-device" data-theme-canonical-viewport><iframe data-theme-canonical-preview title="Canonical BRVTAL Home preview" src="/?theme_studio_preview=1" loading="eager" width="1440" height="900"></iframe></div>
           <div class="tsv2-preview-meta"><span id="tsv2-preview-name">${escapeHtml(t.name || '')}</span><code id="tsv2-preview-slug">theme.${escapeHtml(t.slug || '')}</code></div>
         </aside>
       </div>
@@ -424,7 +424,6 @@
     };
     t.typography = {
       ...(t.typography || {}), display:value('display'), body:value('body'), mono:value('mono'),
-      bodySize:value('bodySize'),
     };
     t.navigation = {
       ...(t.navigation || {}), fixed:checked('navFixed'), transparentHero:checked('navTransparent'),
@@ -442,23 +441,68 @@
     return t;
   }
 
+  function concept05PreviewTheme(theme) {
+    const t = theme || {};
+    const b = t.branding || {}, c = t.colors || {}, ty = t.typography || {};
+    const n = t.navigation || {}, e = t.effects || {}, s = t.sound || {};
+    const motion = ['brvtal','subtle','minimal','reduced'].includes(String(e.motion || '')) ? String(e.motion) : 'brvtal';
+    const menuStyle = ['fullscreen','dropdown','slide'].includes(String(n.menuStyle || '')) ? String(n.menuStyle) : 'fullscreen';
+    return {
+      slug:String(t.slug || 'core').slice(0,60),
+      branding:{
+        siteName:String(b.siteName || 'BRVTAL'), tagline:String(b.tagline || 'RAVE TILL GRAVE'),
+        logo:String(b.logo || ''), mobileLogo:String(b.mobileLogo || ''), favicon:String(b.favicon || ''),
+        preloaderLogo:String(b.preloaderLogo || ''), wordmark:String(b.wordmark || ''),
+      },
+      colors:{
+        bg:c.bg, surface:c.surface, text:c.text, muted:c.muted,
+        primary:c.primary, accent:c.accent, border:c.border,
+      },
+      typography:{
+        display:ty.display, body:ty.body, mono:ty.mono,
+        h1:CONCEPT05_VISUAL.typography.h1,
+        bodySize:CONCEPT05_VISUAL.typography.bodySize,
+        tracking:CONCEPT05_VISUAL.typography.tracking,
+      },
+      navigation:{
+        fixed:n.fixed !== false, transparentHero:n.transparentHero !== false, blur:n.blur !== false,
+        menuStyle, logoPosition:n.logoPosition === 'center' ? 'center' : 'left',
+        sceneIndicator:CONCEPT05_VISUAL.navigation.sceneIndicator,
+        soundToggle:n.soundToggle !== false,
+      },
+      effects:{
+        grain:e.grain !== false, scanlines:e.scanlines !== false, glitch:e.glitch !== false,
+        cursor:e.cursor !== false, magnetic:e.magnetic !== false, motion,
+      },
+      sound:{ enabled:s.enabled !== false },
+    };
+  }
+
+  function sizeCanonicalPreview(frame) {
+    const mobile = V2.previewMode === 'mobile';
+    const width = mobile ? 390 : 1440;
+    const height = mobile ? 844 : 900;
+    const device = frame.closest('[data-theme-canonical-viewport]');
+    if (!device) return;
+    frame.setAttribute('width', String(width));
+    frame.setAttribute('height', String(height));
+    device.dataset.canonicalWidth = String(width);
+    device.dataset.canonicalHeight = String(height);
+    const fit = () => {
+      const displayWidth = device.getBoundingClientRect().width || width;
+      const scale = Math.min(1, displayWidth / width);
+      device.style.height = (height * scale) + 'px';
+      frame.style.transform = 'scale(' + scale + ')';
+    };
+    fit();
+    requestAnimationFrame(fit);
+  }
+
   function renderPreview() {
     const root = document.querySelector('[data-theme-studio-v2]');
     if (!root) return;
     const t = currentTheme();
-    const c = t.colors || {}, b = t.branding || {}, ty = t.typography || {};
-    const preview = root.querySelector('.tsv2-device');
-    if (!preview) return;
-    preview.style.setProperty('--p-bg', c.bg || '#050505');
-    preview.style.setProperty('--p-surface', c.surface || '#0a0b0c');
-    preview.style.setProperty('--p-text', c.text || '#f4f5f6');
-    preview.style.setProperty('--p-muted', c.muted || '#7d848b');
-    preview.style.setProperty('--p-primary', c.primary || '#ff2038');
-    preview.style.setProperty('--p-accent', c.accent || '#b6ff00');
-    preview.style.setProperty('--p-border', c.border || '#292d31');
-    preview.style.setProperty('--p-display', ty.display || 'Arial, sans-serif');
-    preview.style.setProperty('--p-body', ty.body || 'Arial, sans-serif');
-    preview.style.setProperty('--p-mono', ty.mono || 'monospace');
+    const c = t.colors || {}, ty = t.typography || {};
     ensurePreviewFonts(ty);
     root.querySelectorAll('[data-type-specimen="display"] strong').forEach(node => { node.style.fontFamily = ty.display || 'Arial, sans-serif'; });
     root.querySelectorAll('[data-type-specimen="mono"] strong').forEach(node => { node.style.fontFamily = ty.mono || 'monospace'; });
@@ -469,13 +513,6 @@
     if (contrastValue) contrastValue.textContent = ratio.toFixed(1) + ':1 · ' + (ratio >= 4.5 ? 'PASS' : 'REVIEW');
     if (contrastCopy) contrastCopy.textContent = ratio >= 4.5 ? 'Primary editorial pair meets WCAG AA for normal text.' : 'Increase PAPER / BLACK contrast before activation.';
     contrast?.toggleAttribute('data-low-contrast', ratio < 4.5);
-    root.querySelector('[data-preview-brand]').textContent = b.siteName || 'BRVTAL';
-    root.querySelector('[data-preview-title]').textContent = b.siteName || 'BRVTAL';
-    root.querySelector('[data-preview-tagline]').textContent = b.tagline || 'RAVE TILL GRAVE';
-    const logo = imagePath((V2.previewMode === 'mobile' ? b.mobileLogo : '') || b.logo);
-    root.querySelector('[data-preview-logo]').innerHTML = logo ? `<img src="${escapeHtml(logo)}" alt="Theme logo preview">` : '<span>LOGO / MEDIA</span>';
-    const favicon = imagePath(b.favicon);
-    root.querySelector('[data-preview-favicon]').innerHTML = favicon ? `<img src="${escapeHtml(favicon)}" alt="Favicon preview">` : escapeHtml((b.siteName || 'B').slice(0,1));
     root.querySelector('#tsv2-preview-name').textContent = t.name || 'THEME';
     root.querySelector('#tsv2-preview-slug').textContent = 'theme.' + (t.slug || 'theme');
     root.querySelectorAll('.tsv2-color-field').forEach(field => {
@@ -483,6 +520,16 @@
       const swatch = field.querySelector('i');
       if (swatch && /^#[0-9a-f]{6}$/i.test(input?.value || '')) swatch.style.background = input.value;
     });
+    const frame = root.querySelector('[data-theme-canonical-preview]');
+    if (!(frame instanceof HTMLIFrameElement)) return;
+    sizeCanonicalPreview(frame);
+    if (frame.contentWindow) {
+      frame.contentWindow.postMessage({
+        type:'brvtal:theme-preview',
+        version:1,
+        theme:concept05PreviewTheme(t),
+      }, window.location.origin);
+    }
   }
 
   function snapshot(theme = null) {
@@ -752,6 +799,7 @@
       root.querySelectorAll('[data-preview-mode]').forEach(item => item.classList.toggle('active', item.dataset.previewMode === V2.previewMode));
       renderPreview();
     }));
+    root.querySelector('[data-theme-canonical-preview]')?.addEventListener('load', renderPreview);
     root.querySelectorAll('[data-theme-reset]').forEach(button => button.addEventListener('click', () => resetGroup(button.dataset.themeReset || '')));
     root.querySelectorAll('[data-theme-action]').forEach(button => button.addEventListener('click', () => {
       const action = button.dataset.themeAction;
@@ -788,6 +836,7 @@
     openMediaPicker:openPicker,
     closeMediaPicker:closePicker,
     currentTheme,
+    renderPreview,
     draft:() => ({
       base_revision:V2.draftBaseRevision,
       has_recovery:Boolean(V2.draftRecovery),
