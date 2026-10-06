@@ -53,6 +53,8 @@ class Concept05PreviewAlignmentTests(unittest.TestCase):
     def test_preview_auth_isolation_and_failure_states_remain_fail_closed(self) -> None:
         self.assertIn("brvtal_admin_require();", API)
         self.assertIn("brvtal_admin_require_csrf();", API)
+        self.assertIn("PREVIEW_INTERNAL_ERROR", API)
+        self.assertIn("http_response_code(500)", API)
         self.assertIn("Cache-Control: no-store", API)
         self.assertIn("Cross-Origin-Resource-Policy: same-origin", API)
         self.assertIn("BRVTAL_PUBLIC_PREVIEW_TTL = 600", CONFIG)
