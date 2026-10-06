@@ -158,5 +158,53 @@
       "media-fail-closed",
       "touch-targets-at-least-44px"
     ]
+  },
+  "journal_connected": {
+    "hierarchy": {
+      "journal": [
+        "archive-label",
+        "featured-story",
+        "date-tags-relations",
+        "dense-story-index"
+      ],
+      "connected": [
+        "system-label",
+        "verified-nodes",
+        "verified-edges-ledger",
+        "todo-conectado"
+      ]
+    },
+    "desktop": {
+      "header_mode": "compact-strip",
+      "journal_list_columns": "minmax(0,1.18fr) minmax(320px,.82fr)",
+      "journal_feature_cover_aspect_ratio": "3/2",
+      "journal_feature_title_max_px": 68,
+      "journal_index_columns": "34px minmax(0,1fr) auto",
+      "connected_graph_min_height_px": 360,
+      "connected_columns": 5,
+      "connected_node_min_height_px": 104,
+      "connected_tagline_max_px": 92
+    },
+    "mobile": {
+      "journal_header_mode": "compact-strip",
+      "journal_index_columns": "30px minmax(0,1fr)",
+      "journal_feature_title_max_px": 42,
+      "connected_graph_min_height_px": 430,
+      "connected_columns": 2,
+      "connected_node_min_height_px": 72,
+      "connected_tagline_max_px": 58,
+      "bottom_nav_clearance_px": 42
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-blog-routes",
+      "canonical-blog-relations",
+      "safe-blog-cover-media",
+      "verified-relation-edges-only",
+      "zero-relations-zero-edges",
+      "touch-targets-at-least-44px",
+      "no-horizontal-overflow",
+      "prefers-reduced-motion"
+    ]
   }
 }
