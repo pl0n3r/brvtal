@@ -7,13 +7,21 @@ require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_preview.php';
 require_once __DIR__ . '/config/public_entity_delivery.php';
 
+function brvtal_preview_security_headers(): void
+{
+    header('X-Robots-Tag: noindex, nofollow');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: no-referrer');
+    header('Cross-Origin-Resource-Policy: same-origin');
+    header("Content-Security-Policy: frame-ancestors 'self'");
+}
+
 function brvtal_preview_error(int $status, string $message): never
 {
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
-    header('X-Robots-Tag: noindex, nofollow');
-    header('Referrer-Policy: no-referrer');
+    brvtal_preview_security_headers();
     $safe = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     echo '<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow">'
         . '<meta name="viewport" content="width=device-width,initial-scale=1"><title>BRVTAL Preview</title>'
@@ -35,9 +43,7 @@ if ($snapshot === null) {
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
-header('X-Robots-Tag: noindex, nofollow');
-header('X-Content-Type-Options: nosniff');
-header('Referrer-Policy: no-referrer');
+brvtal_preview_security_headers();
 
 if (($_GET['render'] ?? '') === '1') {
     $pdo = db();
@@ -92,14 +98,15 @@ header('Content-Type: text/html; charset=utf-8');
   <style>
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;background:#050505;color:#f4f1e8;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-    .bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:10px;min-height:58px;padding:8px 14px;border-bottom:1px solid #30302d;background:#050505}
+    .bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:10px;min-height:58px;padding:8px max(14px,env(safe-area-inset-right)) 8px max(14px,env(safe-area-inset-left));border-bottom:1px solid #30302d;background:#050505}
     .brand{font-weight:900;letter-spacing:-1px;margin-right:auto}.meta{font-size:10px;color:#8a8a82;letter-spacing:1px}
     button,a{min-height:44px;border:1px solid #3c3c38;background:#0a0b0c;color:#f4f1e8;padding:10px 13px;font:700 10px/1 ui-monospace,monospace;letter-spacing:1px;text-decoration:none}
     button[aria-pressed="true"]{border-color:#b6ff00;color:#b6ff00}.private{color:#e31b23}
-    .stage{padding:18px;overflow:auto;min-height:calc(100vh - 58px)}
+    .stage{padding:18px;overflow:auto;min-height:calc(100vh - 58px);min-height:calc(100dvh - 58px)}
     .frame{position:relative;margin:0 auto;transform-origin:top left}
     iframe{display:block;border:1px solid #30302d;background:#fff;transform-origin:top left}
     @media(max-width:720px){.bar{flex-wrap:wrap}.brand{width:100%}.meta{display:none}.stage{padding:10px}}
+    @media(prefers-reduced-motion:reduce){html:focus-within{scroll-behavior:auto}}
   </style>
 </head>
 <body data-preview-token="<?= $safeToken ?>">
@@ -112,7 +119,12 @@ header('Content-Type: text/html; charset=utf-8');
   </nav>
   <main class="stage">
     <div class="frame" data-preview-frame>
-      <iframe title="Canonical public preview" src="<?= htmlspecialchars($src, ENT_QUOTES, 'UTF-8') ?>"></iframe>
+      <iframe
+        title="Canonical public preview"
+        src="<?= htmlspecialchars($src, ENT_QUOTES, 'UTF-8') ?>"
+        sandbox="allow-scripts allow-same-origin"
+        referrerpolicy="no-referrer"
+      ></iframe>
     </div>
   </main>
   <script>

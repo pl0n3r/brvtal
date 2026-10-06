@@ -38,7 +38,8 @@ async function loadHarness(page) {
       <script>
         let csrf='csrf-token';
         window.__previewOpened='';
-        window.open=()=>({
+        window.__previewWindowArgs=null;
+        window.open=(url,target,features)=>{window.__previewWindowArgs={url,target,features:features||''};return ({
           closed:false,
           document:{
             title:'',
@@ -47,7 +48,7 @@ async function loadHarness(page) {
           },
           location:{replace:url=>{window.__previewOpened=url}},
           close:()=>{}
-        });
+        });};
       </script>
       <script>${previewJs}</script>
       <script>BRVTALPublicPreview.bindLegacy('events',{id:42});</script>
@@ -78,10 +79,32 @@ test('legacy editor preview posts current unsaved values and opens private token
   await expect.poll(() => page.evaluate(() => window.__previewOpened)).toBe(
     '/preview/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   );
+  expect(await page.evaluate(() => window.__previewWindowArgs)).toEqual({
+    url:'about:blank',
+    target:'_blank',
+    features:''
+  });
+});
+
+test('canonical preview client rejects standalone Memories while preserving canonical entity routes', async ({ page }) => {
+  await loadHarness(page);
+  const types = await page.evaluate(() => BRVTALPublicPreview.canonicalTypes());
+  expect(types).toEqual(['events','artists','sets','releases','blog','pages']);
+
+  const unsupported = await page.evaluate(async () => {
+    try {
+      await BRVTALPublicPreview.create('memories',{title:'Not a standalone public route'});
+      return 'accepted';
+    } catch (error) {
+      return error.message;
+    }
+  });
+  expect(unsupported).toBe('PREVIEW_TYPE_NOT_ALLOWED');
 });
 
 test('non-editor legacy modal cannot accidentally expose a public preview action', async ({ page }) => {
   await loadHarness(page);
   await page.evaluate(() => BRVTALPublicPreview.bindLegacy('media',{id:7}));
   await expect(page.locator('#previewBtn')).toBeHidden();
+  await expect(page.locator('#previewBtn')).toBeDisabled();
 });
