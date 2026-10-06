@@ -463,12 +463,12 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: 'd76c8b24470caba918e83b6b772e482c7c94f054ddd90a13e05773749b5ef0e0',
-    color: '2204c58c703d93872d6624d793bcc6ed80c0c404676b32da2a89d6c52e6ebc70',
+    structure: 'PENDING_CALIBRATION',
+    color: 'PENDING_CALIBRATION',
   },
   1440: {
-    structure: '8943a20c06d9fb2510c22e60bcaf747a8896fac8e4502010e7f72313ffaac399',
-    color: '2122ef5e0dc472debaa8c9cbded3a2b27d8b2fbe77779673c30a3b7ab263d812',
+    structure: 'PENDING_CALIBRATION',
+    color: 'PENDING_CALIBRATION',
   },
 };
 

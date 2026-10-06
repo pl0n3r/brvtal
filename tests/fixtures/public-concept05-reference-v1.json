@@ -40,5 +40,30 @@
     "no-horizontal-overflow",
     "touch-targets-at-least-44px",
     "prefers-reduced-motion"
-  ]
+  ],
+  "experience": {
+    "hierarchy": [
+      "identity-artwork",
+      "date",
+      "venue-city",
+      "ticket-state-action",
+      "lineup"
+    ],
+    "desktop": {
+      "grid_art_fr": 1.42,
+      "grid_copy_fr": 0.58,
+      "copy_overlap": "clamp(72px,6vw,96px)",
+      "artwork_min": "clamp(600px,60vw,790px)",
+      "title_max_ch": 8,
+      "ticket_cta_min_height_px": 58
+    },
+    "mobile": {
+      "artwork_aspect_ratio": "4/5",
+      "copy_overlap_px": 62,
+      "copy_left_px": 12,
+      "bottom_nav_clearance_px": 54,
+      "ticket_cta_min_height_px": 56,
+      "ticket_action_order": "first"
+    }
+  }
 }
