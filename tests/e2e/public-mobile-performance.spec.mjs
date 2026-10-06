@@ -6,6 +6,8 @@ const mobileScript = readFileSync(join(process.cwd(), 'js/mobile-performance.js'
 const runtimeLoader = readFileSync(join(process.cwd(), 'js/public-runtime-loader.js'), 'utf8');
 const publicEntry = readFileSync(join(process.cwd(), 'index.php'), 'utf8');
 const publicHtml = readFileSync(join(process.cwd(), 'index.html'), 'utf8');
+const publicAssets = readFileSync(join(process.cwd(), 'config/public_assets.php'), 'utf8');
+const publicHome = readFileSync(join(process.cwd(), 'config/public_home.php'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/public-motion-runtime-e2e.html';
 const version = 'abc123';
 const enhancementMarkers = {
@@ -181,4 +183,17 @@ test('a local core module failure reveals static fallback and continues later mo
   expect(order).toContain('theme-branding-sync');
   const ready = await page.evaluate(() => window.BRVTALRuntimeReady);
   expect(ready.failures.some(item => item.phase === 'core' && item.source.includes('menu-scroll-lock.js'))).toBe(true);
+});
+
+
+test('Concept 05 release keeps LCP priority, lazy media and intrinsic image sizing', async () => {
+  expect(publicAssets).toContain('data-brvtal-lcp-preload="desktop"');
+  expect(publicAssets).toContain('data-brvtal-lcp-preload="mobile"');
+  expect(publicAssets).toContain('fetchpriority="high"');
+  expect(publicAssets).toContain('loading="lazy"');
+  expect(publicAssets).toContain('brvtal_public_local_image_dimensions');
+  expect(publicAssets).toContain("attributes[] = 'width=\"' . $dimensions['width'] . '\"'");
+  expect(publicAssets).toContain("attributes[] = 'height=\"' . $dimensions['height'] . '\"'");
+  expect(publicHome).toContain('loading="lazy"');
+  expect(publicHome).toContain('decoding="async"');
 });

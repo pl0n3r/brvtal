@@ -50,6 +50,13 @@ def _iso(value: datetime) -> str:
     return value.isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def _semver_tuple(value: str) -> tuple[int, int, int]:
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", value)
+    if match is None:
+        raise EvidenceError("minimum_release_invalid")
+    return tuple(int(part) for part in match.groups())
+
+
 def _number(value: Any) -> int | float | None:
     if value is None:
         return None
@@ -94,6 +101,7 @@ def build_evidence(
     sha: str,
     release: str,
     run_id: str,
+    minimum_release: str | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic, classification-free evidence envelope."""
     if _SHA.fullmatch(sha) is None:
@@ -102,6 +110,9 @@ def build_evidence(
         raise EvidenceError("release_invalid")
     if _RUN_ID.fullmatch(run_id) is None:
         raise EvidenceError("run_id_invalid")
+    if minimum_release is not None:
+        if _semver_tuple(release) < _semver_tuple(minimum_release):
+            raise EvidenceError("release_before_minimum")
 
     mobile_at, mobile = _load_probe(mobile_path, "mobile")
     desktop_at, desktop = _load_probe(desktop_path, "desktop")
@@ -137,7 +148,7 @@ def build_evidence(
             })
 
     observations.sort(key=lambda item: (item["surface"], item["metric"]))
-    return {
+    payload = {
         "version": 1,
         "project": "brvtal",
         "classification_authority": "factory-performance-v1",
@@ -147,6 +158,12 @@ def build_evidence(
         "observed_at": _iso(max(mobile_at, desktop_at)),
         "observations": observations,
     }
+    if minimum_release is not None:
+        payload["release_contract"] = {
+            "design": "concept05",
+            "minimum_release": minimum_release,
+        }
+    return payload
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -154,6 +171,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--sha", required=True)
     parser.add_argument("--release", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--minimum-release")
     return parser
 
 
@@ -166,6 +184,7 @@ def main() -> int:
             sha=args.sha,
             release=args.release,
             run_id=args.run_id,
+            minimum_release=getattr(args, "minimum_release", None),
         )
     except EvidenceError as exc:
         print(f"Invalid production performance evidence: {exc}")
