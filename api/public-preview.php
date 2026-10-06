@@ -51,7 +51,7 @@ try {
     echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
 } catch (Throwable $e) {
     if (function_exists('brvtal_log')) {
-        brvtal_log('PUBLIC_PREVIEW_ERROR', 'Private preview creation failed', ['class' => get_class($e)]);
+        brvtal_log('PUBLIC_PREVIEW_ERROR', 'Private preview creation failed', ['class' => $e::class]);
     }
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
