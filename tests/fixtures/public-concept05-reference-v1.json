@@ -67,34 +67,42 @@
     }
   },
   "nights_artists": {
-    "nights": {
-      "desktop": {
-        "card_width": "clamp(270px,22.5vw,324px)",
-        "artwork_aspect_ratio": "3/4",
-        "gap_px": 0,
-        "frame": "shared-rules",
-        "info_red_rule_px": 3
-      },
-      "mobile": {
-        "card_width": "min(86vw,334px)",
-        "gap_px": 0,
-        "native_swipe": true,
-        "bottom_nav_clearance_px": 42
-      }
+    "hierarchy": {
+      "nights": [
+        "documentary-media",
+        "date-city",
+        "title",
+        "lifecycle-action"
+      ],
+      "artists": [
+        "portrait",
+        "name",
+        "collective-role"
+      ]
     },
-    "artists": {
-      "desktop": {
-        "columns": 5,
-        "gap_px": 0,
-        "portrait_aspect_ratio": "2/3",
-        "frame": "shared-rules",
-        "hover_registration_px": 4
-      },
-      "mobile": {
-        "columns": 2,
-        "gap_px": 0,
-        "portrait_aspect_ratio": "3/4"
-      }
-    }
+    "desktop": {
+      "header_mode": "compact-strip",
+      "nights_visible_cards_target": 4,
+      "nights_card_width": "clamp(270px,23.05vw,332px)",
+      "nights_media_aspect_ratio": "16/9",
+      "artists_columns": 6,
+      "artists_media_aspect_ratio": "4/5"
+    },
+    "mobile": {
+      "nights_card_width": "min(88vw,342px)",
+      "nights_grid": "42% minmax(0,1fr)",
+      "nights_media_aspect_ratio": "1/1",
+      "artists_columns": 2,
+      "artists_media_aspect_ratio": "4/5",
+      "bottom_nav_clearance_px": 42
+    },
+    "invariants": [
+      "shared-public-payload",
+      "canonical-event-routes",
+      "canonical-artist-routes",
+      "native-horizontal-night-scroll",
+      "media-fail-closed",
+      "touch-targets-at-least-44px"
+    ]
   }
 }
