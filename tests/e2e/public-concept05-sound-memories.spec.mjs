@@ -213,9 +213,18 @@ test('Concept 05 desktop Sound uses canonical records while Memories keeps a cur
   await expect(page.locator('.c5-sound-signal')).toHaveCount(1);
   await expect(page.locator('.c5-section-route--sound')).toHaveAttribute('href', '/sets/genesis-closing-signal');
 
+  await expect(page.locator('.sets-intro')).toBeHidden();
+  const feature = await page.locator('.c5-sound-feature').boundingBox();
   const cover = await page.locator('.c5-sound-feature .set-library-cover').boundingBox();
+  const firstIndexedRecord = await page.locator('.set-library-item').nth(1).boundingBox();
+  expect(feature).not.toBeNull();
   expect(cover).not.toBeNull();
-  expect(cover.width).toBeGreaterThan(220);
+  expect(firstIndexedRecord).not.toBeNull();
+  expect(feature.height).toBeGreaterThanOrEqual(180);
+  expect(feature.height).toBeLessThan(230);
+  expect(cover.width).toBeGreaterThanOrEqual(120);
+  expect(cover.width).toBeLessThanOrEqual(132);
+  expect(firstIndexedRecord.x).toBeGreaterThan(feature.x + feature.width - 8);
 
   await expect(page.locator('[data-public-media-item]')).toHaveCount(3);
   await expect(page.locator('.c5-memory-cell')).toHaveCount(3);
@@ -231,9 +240,17 @@ test('Concept 05 desktop Sound uses canonical records while Memories keeps a cur
 test('Concept 05 mobile Sound and Memories remain touch-safe, authored and overflow-free at 390', async ({ page }) => {
   await mount(page, { width: 390, height: 844 });
 
+  await expect(page.locator('.sets-intro')).toBeHidden();
+  const feature = await page.locator('.c5-sound-feature').boundingBox();
   const cover = await page.locator('.c5-sound-feature .set-library-cover').boundingBox();
+  expect(feature).not.toBeNull();
   expect(cover).not.toBeNull();
-  expect(cover.width).toBeGreaterThan(340);
+  expect(feature.height).toBeGreaterThanOrEqual(92);
+  expect(feature.height).toBeLessThan(180);
+  expect(cover.width).toBeGreaterThanOrEqual(68);
+  expect(cover.width).toBeLessThanOrEqual(76);
+  expect(cover.height).toBeGreaterThanOrEqual(68);
+  expect(cover.height).toBeLessThanOrEqual(76);
 
   for (const button of await page.locator('[data-sets-mode]').all()) {
     const box = await button.boundingBox();
