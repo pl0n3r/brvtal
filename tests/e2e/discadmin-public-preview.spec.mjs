@@ -5,7 +5,7 @@ import { join } from 'node:path';
 const previewJs = readFileSync(join(process.cwd(), 'discadmin/public-preview.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/public-preview-e2e.html';
 
-async function loadHarness(page) {
+async function loadHarness(page, { popupBlocked = false } = {}) {
   await page.route('**/api/public-preview.php', async route => {
     const request = route.request();
     const payload = request.postDataJSON?.() || JSON.parse(request.postData() || '{}');
@@ -13,6 +13,14 @@ async function loadHarness(page) {
       payload,
       csrf:request.headers()['x-csrf-token'] || ''
     });
+    if (payload.type === 'memories') {
+      await route.fulfill({
+        status:422,
+        contentType:'application/json',
+        body:JSON.stringify({ok:false,error:'PREVIEW_TYPE_NOT_ALLOWED'})
+      });
+      return;
+    }
     await route.fulfill({
       contentType:'application/json',
       body:JSON.stringify({
@@ -39,16 +47,23 @@ async function loadHarness(page) {
         let csrf='csrf-token';
         window.__previewOpened='';
         window.__previewWindowArgs=null;
-        window.open=(url,target,features)=>{window.__previewWindowArgs={url,target,features:features||''};return ({
-          closed:false,
-          document:{
-            title:'',
-            body:{style:{cssText:''},replaceChildren:()=>{}},
-            createElement:()=>({textContent:''})
-          },
-          location:{replace:url=>{window.__previewOpened=url}},
-          close:()=>{}
-        });};
+        window.__previewFeedback=[];
+        window.__popupBlocked=${popupBlocked ? 'true' : 'false'};
+        window.BRVTALFeedback={error:(message,context)=>window.__previewFeedback.push({message,context})};
+        window.open=(url,target,features)=>{
+          window.__previewWindowArgs={url,target,features:features||''};
+          if (window.__popupBlocked) return null;
+          return ({
+            closed:false,
+            document:{
+              title:'',
+              body:{style:{cssText:''},replaceChildren:()=>{}},
+              createElement:()=>({textContent:''})
+            },
+            location:{replace:url=>{window.__previewOpened=url}},
+            close:()=>{}
+          });
+        };
       </script>
       <script>${previewJs}</script>
       <script>BRVTALPublicPreview.bindLegacy('events',{id:42});</script>
@@ -86,10 +101,9 @@ test('legacy editor preview posts current unsaved values and opens private token
   });
 });
 
-test('canonical preview client rejects standalone Memories while preserving canonical entity routes', async ({ page }) => {
+test('server remains the canonical authority for unsupported preview types', async ({ page }) => {
   await loadHarness(page);
-  const types = await page.evaluate(() => BRVTALPublicPreview.canonicalTypes());
-  expect(types).toEqual(['events','artists','sets','releases','blog','pages']);
+  expect(await page.evaluate(() => typeof BRVTALPublicPreview.canonicalTypes)).toBe('undefined');
 
   const unsupported = await page.evaluate(async () => {
     try {
@@ -107,4 +121,25 @@ test('non-editor legacy modal cannot accidentally expose a public preview action
   await page.evaluate(() => BRVTALPublicPreview.bindLegacy('media',{id:7}));
   await expect(page.locator('#previewBtn')).toBeHidden();
   await expect(page.locator('#previewBtn')).toBeDisabled();
+});
+
+test('blocked popup keeps DISCADMIN in place and does not create a snapshot', async ({ page }) => {
+  await loadHarness(page, { popupBlocked:true });
+  const originalUrl = page.url();
+
+  const error = await page.evaluate(async () => {
+    try {
+      await BRVTALPublicPreview.open('events',{title:'Blocked popup draft'});
+      return 'accepted';
+    } catch (caught) {
+      return caught.message;
+    }
+  });
+
+  expect(error).toBe('PREVIEW_POPUP_BLOCKED');
+  expect(page.url()).toBe(originalUrl);
+  expect(await page.evaluate(() => window.__previewRequest || null)).toBeNull();
+  expect(await page.evaluate(() => window.__previewFeedback)).toEqual([
+    {message:'PREVIEW POPUP BLOCKED',context:'public-preview'}
+  ]);
 });

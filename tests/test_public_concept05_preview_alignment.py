@@ -71,9 +71,7 @@ class Concept05PreviewAlignmentTests(unittest.TestCase):
     def test_supported_entities_share_accessible_responsive_preview_contract(self) -> None:
         expected = "['events', 'artists', 'sets', 'releases', 'blog', 'pages']"
         self.assertIn(expected, CONFIG)
-        self.assertIn("['events','artists','sets','releases','blog','pages']", ADMIN)
         self.assertIn("PREVIEW_TYPE_NOT_ALLOWED", CONFIG)
-        self.assertIn("PREVIEW_TYPE_NOT_ALLOWED", ADMIN)
         self.assertIn('aria-label="Preview viewport"', PREVIEW)
         self.assertIn('title="Canonical public preview"', PREVIEW)
         self.assertIn("min-height:44px", PREVIEW)
@@ -90,6 +88,18 @@ class Concept05PreviewAlignmentTests(unittest.TestCase):
 
         route_types = re.findall(r"'([a-z]+)'\s*=>\s*\[", CONFIG.split("$allowed = [", 1)[1].split("][$type]", 1)[0])
         self.assertEqual(["events", "artists", "sets", "releases", "blog", "pages"], route_types)
+
+    def test_preview_type_authority_remains_server_canonical(self) -> None:
+        canonical = "['events', 'artists', 'sets', 'releases', 'blog', 'pages']"
+        duplicated_client = "['events','artists','sets','releases','blog','pages']"
+        self.assertIn(canonical, CONFIG)
+        self.assertIn("brvtalPublicPreviewTypes()", CONFIG)
+        self.assertIn("PREVIEW_TYPE_NOT_ALLOWED", CONFIG)
+        self.assertNotIn(duplicated_client, ADMIN)
+        self.assertNotIn("canonicalTypes", ADMIN)
+        self.assertNotIn("PREVIEW_TYPE_NOT_ALLOWED", ADMIN)
+        self.assertIn("previewableLegacyTypes", ADMIN)
+        self.assertIn("['events','artists','sets','pages']", ADMIN)
 
 
 if __name__ == "__main__":
