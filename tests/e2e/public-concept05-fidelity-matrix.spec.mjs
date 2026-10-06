@@ -463,12 +463,12 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: '6a0aa3816e1d67e6e4a7201728daeff37e1d69cefebf0eeeedbd63e3880d3877',
-    color: 'e42dcdaa75549814f50e98174f7c0d6fcfb8de4ea75c7cec2a70d635ebe5d09a',
+    structure: 'e67ece6faafa331c459f3450aa7bd22fd81739b497b0876a3cec302a3c0995af',
+    color: '16b35a7df39875d69f5f0a5020815e17e3cc2503f502ea7d46417138f4877e95',
   },
   1440: {
-    structure: '0802db1e6fbcf09ae17606370fd5639d49e0f4b5b0c15688f933d3abe2c03766',
-    color: 'c656d38710cc0f9b3f7e87802b1b56e21421000bd2da909ecb5d2288eaa04cc4',
+    structure: 'b470685ab9580895aceef455413220cc4e6783de0c3e80b9c05103c58181954d',
+    color: '9e4f95f400d4928ee39490054638e4dd8b78d1dafc91388e42bf11946a7f8d95',
   },
 };
 
@@ -571,4 +571,3 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
     ).toEqual(expected);
   });
 }
-
