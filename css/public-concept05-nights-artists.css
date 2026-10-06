@@ -13,44 +13,6 @@
   padding-bottom:clamp(54px,6vw,88px);
 }
 
-[data-concept="05"] .events .section-head,
-[data-concept="05"] .artists .section-head{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  align-items:end;
-  gap:12px;
-  min-height:0;
-  margin:0;
-  padding:0 0 clamp(14px,1.8vw,24px);
-  border-bottom:1px solid var(--c5-rule-color);
-}
-
-[data-concept="05"] .events .section-head > span:first-child,
-[data-concept="05"] .artists .section-head > span:first-child{
-  grid-column:1 / -1;
-  color:var(--c5-signal-green);
-  font-size:var(--c5-type-mono);
-  letter-spacing:.09em;
-}
-
-[data-concept="05"] .events .section-head h2,
-[data-concept="05"] .artists .section-head h2{
-  margin:0;
-  color:var(--c5-paper-dirty);
-  font-size:clamp(48px,6.4vw,92px);
-  line-height:.76;
-  letter-spacing:-.055em;
-  text-transform:uppercase;
-}
-
-[data-concept="05"] .events .section-head > span:last-child,
-[data-concept="05"] .artists .section-head > span:last-child{
-  align-self:center;
-  color:var(--c5-paper-muted);
-  font-size:var(--c5-type-mono);
-  letter-spacing:.08em;
-}
-
 [data-concept="05"] .c5-section-route{
   display:inline-flex;
   align-items:center;
@@ -495,27 +457,39 @@ html.c5-visual-test [data-concept="05"] .c5-artist-media img{
 /* #930 — canonical Concept 05 Nights + Artists fidelity contract. */
 [data-concept="05"] .events .section-head,
 [data-concept="05"] .artists .section-head{
+display:grid;
   grid-template-columns:auto auto minmax(0,1fr);
   align-items:center;
   gap:8px;
+  min-height:0;
+  margin:0;
   padding:8px 0 10px;
+  border-bottom:1px solid var(--c5-rule-color);
 }
 [data-concept="05"] .events .section-head > span:first-child,
 [data-concept="05"] .artists .section-head > span:first-child{
-  grid-column:auto;
+grid-column:auto;
+  color:var(--c5-signal-green);
   font-size:9px;
+  letter-spacing:.09em;
   white-space:nowrap;
 }
 [data-concept="05"] .events .section-head h2,
 [data-concept="05"] .artists .section-head h2{
+margin:0;
+  color:var(--c5-paper-dirty);
   font-size:clamp(12px,1.1vw,16px);
   line-height:1;
   letter-spacing:.08em;
+  text-transform:uppercase;
 }
 [data-concept="05"] .events .section-head > span:last-child,
 [data-concept="05"] .artists .section-head > span:last-child{
+align-self:center;
   justify-self:end;
+  color:var(--c5-paper-muted);
   font-size:8px;
+  letter-spacing:.08em;
   white-space:nowrap;
 }
 
