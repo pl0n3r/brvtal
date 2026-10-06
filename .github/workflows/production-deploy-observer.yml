@@ -22,4 +22,6 @@ jobs:
       version_key: BRVTAL_APP_VERSION
       expected_sha: ${{ github.sha }}
       require_schema: true
+      convergence_attempts: 5
+      convergence_delay_seconds: 30
       label_language: en
