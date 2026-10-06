@@ -235,8 +235,13 @@
 }
 
 [data-concept="05"] #sets .sets-library-empty{
+  grid-column:1 / -1;
   color:var(--c5-paper-muted);
   border-color:var(--c5-rule-color);
+}
+
+[data-concept="05"] #sets .c5-sound-feature:only-child{
+  grid-column:1 / -1;
 }
 
 /* 05 / MEMORIES --------------------------------------------------------- */
