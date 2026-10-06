@@ -6,6 +6,8 @@
   let mobileQuery = null;
   let currentBranding = null;
   let menuObserver = null;
+  let previewTheme = null;
+  const previewMode = new URLSearchParams(window.location.search).get('theme_studio_preview') === '1';
 
   function safeAsset(value) {
     const raw = String(value || '').trim();
@@ -384,6 +386,19 @@
     return true;
   }
 
+  function receivePreviewTheme(event) {
+    if (!previewMode || window.parent === window) return;
+    if (event.origin !== window.location.origin || event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.type !== 'brvtal:theme-preview' || message.version !== 1) return;
+    if (!message.theme || typeof message.theme !== 'object' || Array.isArray(message.theme)) return;
+    previewTheme = message.theme;
+    html.dataset.themePreview = '1';
+    applyTheme(previewTheme);
+  }
+
+  window.addEventListener('message', receivePreviewTheme);
+
   function settingsFromPayload(source) {
     const payload = source?.payload ?? source;
     const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
@@ -402,7 +417,7 @@
 
   window.BRVTALThemeRuntime = { apply:applyTheme, resolveSettings };
   window.BRVTALThemeReady = resolveSettings()
-    .then(settings => applyTheme(settings.theme || null))
+    .then(settings => applyTheme(previewTheme || settings.theme || null))
     .catch(error => {
       console.warn('[BRVTAL] Theme runtime kept static fallbacks.', error);
       return false;

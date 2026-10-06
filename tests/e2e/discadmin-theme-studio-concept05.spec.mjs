@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const studioJs = readFileSync(join(process.cwd(), 'discadmin/theme-studio-v2.js'), 'utf8');
 const studioCss = readFileSync(join(process.cwd(), 'discadmin/theme-studio-v2.css'), 'utf8');
+const runtimeJs = readFileSync(join(process.cwd(), 'js/public-theme-runtime.js'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin/theme-studio-concept05-e2e.html';
 const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC','base64');
 
@@ -28,6 +29,11 @@ async function loadStudio(page) {
     {setting_key:'theme.active',setting_value:'core'},
     {setting_key:'theme.core',setting_value:themeJson}
   ]);
+  const canonicalHomeUrl = 'http://127.0.0.1:4173/?theme_studio_preview=1';
+  await page.route(canonicalHomeUrl, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:'<!doctype html><html><head><meta name="theme-color" content="#050505"></head><body><div class="brand"><span data-site-name>BRVTAL</span></div><button id="soundToggle"></button><canvas id="fxCanvas"></canvas><script>window.BRVTALPublicDataPromise=Promise.resolve({settings:{theme:' + themeJson + '}});</script><script>' + runtimeJs + '</script></body></html>'
+  }));
   const html = '<!doctype html><html><head><meta charset="utf-8"><style>' + studioCss + '</style></head><body>' +
     '<main><div id="theme-root"></div></main><script>' +
     'var state={theme:null,themeSettings:' + stateJson + ',themeMedia:[]};' +
@@ -48,6 +54,7 @@ test('Concept 05 customizer exposes only authoritative controls and preserves hi
   await expect(page.locator('#th_sceneIndicator')).toHaveCount(0);
   await expect(page.locator('#th_h1')).toHaveCount(0);
   await expect(page.locator('#th_tracking')).toHaveCount(0);
+  await expect(page.locator('#th_bodySize')).toHaveCount(0);
   await page.locator('[data-theme-tab="manage"]').click();
   await expect(page.getByRole('button',{name:'RESET VISUALS TO CONCEPT 05'})).toBeVisible();
   const before = await page.evaluate(() => window.BRVTALThemeStudioV2.currentTheme());
@@ -70,24 +77,37 @@ test('Concept 05 customizer exposes only authoritative controls and preserves hi
   expect(reset.seo.description).toBe('KEEP ME');
 });
 
-test('Theme Studio previews curated typography and canonical 1440/390 frames', async ({ page }) => {
+test('Theme Studio previews curated typography through the canonical Home runtime at 1440/390', async ({ page }) => {
   await loadStudio(page);
   await page.locator('[data-theme-tab="type"]').click();
   await expect(page.locator('#th_display option')).toContainText(['Space Grotesk · recommended']);
+  await expect(page.locator('#th_bodySize')).toHaveCount(0);
   await page.locator('#th_display').selectOption({label:'Space Grotesk · recommended'});
   await page.locator('#th_mono').selectOption({label:'Space Mono · recommended'});
   const href = await page.locator('#brvtal-theme-studio-fonts').getAttribute('href');
   expect(href).toContain('Space+Grotesk');expect(href).toContain('Space+Mono');expect(href).toContain('display=swap');
+
+  const iframe = page.locator('[data-theme-canonical-preview]');
+  await expect(iframe).toHaveAttribute('src','/?theme_studio_preview=1');
+  await expect(page.locator('[data-preview-favicon]')).toHaveCount(0);
   await page.getByRole('button',{name:'1440'}).click();
-  await expect(page.locator('[data-preview-logo] img')).toHaveAttribute('src',/\/custom-logo\.png$/);
-  await expect(page.locator('[data-preview-favicon] img')).toHaveAttribute('src',/\/favicon\.png$/);
-  const desktop = await page.locator('.tsv2-device').evaluate(el=>{const r=el.getBoundingClientRect();return r.width/r.height;});
-  expect(desktop).toBeGreaterThan(1.7);expect(desktop).toBeLessThan(1.81);
+  await expect(iframe).toHaveAttribute('width','1440');
+  await expect(iframe).toHaveAttribute('height','900');
+  const canonical = page.frameLocator('[data-theme-canonical-preview]');
+  await expect(canonical.locator('html')).toHaveAttribute('data-theme-preview','1');
+  await expect(canonical.locator('html')).toHaveAttribute('data-brvtal-theme','core');
+  await expect.poll(async () => canonical.locator('html').evaluate(el => el.style.getPropertyValue('--red'))).toBe('#aa0000');
+  await expect.poll(async () => canonical.locator('.theme-brand-image').getAttribute('src')).toContain('/custom-logo.png');
+
+  await page.locator('#th_primary').fill('#E31B23');
+  await expect.poll(async () => canonical.locator('html').evaluate(el => el.style.getPropertyValue('--red'))).toBe('#E31B23');
+
   await page.getByRole('button',{name:'390'}).click();
-  await expect(page.locator('[data-preview-logo] img')).toHaveAttribute('src',/\/mobile-logo\.png$/);
-  const mobile = await page.locator('.tsv2-device').evaluate(el=>{const r=el.getBoundingClientRect();return r.width/r.height;});
-  expect(mobile).toBeGreaterThan(.45);expect(mobile).toBeLessThan(.48);
-  await expect(page.locator('[data-preview-tagline]')).toHaveText('CUSTOM TAGLINE');
+  await expect(iframe).toHaveAttribute('width','390');
+  await expect(iframe).toHaveAttribute('height','844');
+  await expect.poll(async () => canonical.locator('.theme-brand-image').getAttribute('src')).toContain('/mobile-logo.png');
+  await expect(page.locator('.tsv2-preview-hero')).toHaveCount(0);
+  await expect(page.locator('.tsv2-preview-grid')).toHaveCount(0);
 });
 
 test('Theme Studio group resets are bounded and keep unrelated visual state', async ({ page }) => {
@@ -124,6 +144,7 @@ test('Theme Studio remains touch-sized and horizontally contained at 390px', asy
   expect(geometry.buttons.length).toBeGreaterThan(0);
   expect(Math.min(...geometry.buttons)).toBeGreaterThanOrEqual(44);
 });
+
 test('Theme Studio contrast check flags insufficient PAPER / BLACK readability', async ({ page }) => {
   await loadStudio(page);
   await page.locator('[data-theme-tab="palette"]').click();

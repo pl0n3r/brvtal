@@ -24,8 +24,6 @@
     const preview = root?.querySelector('[data-theme-wordmark-preview]');
     const src = path(clean);
     if (preview) preview.innerHTML = src ? `<img src="${esc(src)}" alt="BRVTAL wordmark preview" loading="lazy">` : '<span>TEXT FALLBACK / BRVTAL</span>';
-    const liveBrand = root?.querySelector('[data-preview-brand]');
-    if (liveBrand) liveBrand.innerHTML = src ? `<img class="tsv2-wordmark-preview" src="${esc(src)}" alt="BRVTAL">` : esc(state.theme?.branding?.siteName || 'BRVTAL');
     input?.dispatchEvent(new Event('change',{bubbles:true}));
   }
 
@@ -65,7 +63,6 @@
       state.theme.branding = { ...(state.theme.branding || {}), wordmark:String(event.target.value || '').trim() };
       const code=card.querySelector('[data-theme-wordmark-path]');if(code)code.textContent=event.target.value||'Not selected';
       const preview=card.querySelector('[data-theme-wordmark-preview]');const image=path(event.target.value);if(preview)preview.innerHTML=image?`<img src="${esc(image)}" alt="BRVTAL wordmark preview" loading="lazy">`:'<span>TEXT FALLBACK / BRVTAL</span>';
-      setTimeout(()=>{const brand=root.querySelector('[data-preview-brand]');if(brand)brand.innerHTML=image?`<img class="tsv2-wordmark-preview" src="${esc(image)}" alt="BRVTAL">`:esc(state.theme?.branding?.siteName||'BRVTAL');},0);
     });
     card.querySelector('[data-wordmark-pick]')?.addEventListener('click',openPicker);
     card.querySelector('[data-wordmark-clear]')?.addEventListener('click',()=>updateWordmark(''));
@@ -82,7 +79,7 @@
     const map = document.createElement('div');
     map.className = 'tsv2-config-map';
     map.dataset.themeConfigMap = '1';
-    map.innerHTML = `<div class="tsv2-section-head"><div><span>CONFIGURATION MAP</span><h3>Ownership & compatibility</h3></div><p>Every option has one primary home. Stored legacy values remain intact but are not presented as working controls when the public runtime ignores them.</p></div><div class="tsv2-manage-grid"><article><span>LIVE THEME</span><strong>BRAND / PALETTE / TYPE / NAV / EXPERIENCE</strong><p>These controls map directly to current public runtime behavior.</p></article><article><span>MOVED TO SETTINGS</span><strong>SEO / ANALYTICS</strong><p>Canonical SEO and analytics are global behavior, not visual-theme concerns.</p></article><article><span>PRESERVED / UNWIRED</span><strong>RESPONSIVE SCALE / ADVANCED FX / PRELOADER BEHAVIOR</strong><p>Legacy JSON remains round-trippable. It stays out of the normal editor until a real runtime consumer exists.</p></article></div>`;
+    map.innerHTML = `<div class="tsv2-section-head"><div><span>CONFIGURATION MAP</span><h3>Ownership & compatibility</h3></div><p>Every option has one primary home. Stored legacy values remain intact but are not presented as working controls when the public runtime ignores them.</p></div><div class="tsv2-manage-grid"><article><span>LIVE THEME</span><strong>BRAND / PALETTE / TYPE / NAV / EXPERIENCE</strong><p>These controls map directly to current public runtime behavior; preview loads the canonical Home and applies draft tokens through that same runtime.</p></article><article><span>MOVED TO SETTINGS</span><strong>SEO / ANALYTICS</strong><p>Canonical SEO and analytics are global behavior, not visual-theme concerns.</p></article><article><span>PRESERVED / UNWIRED</span><strong>RESPONSIVE SCALE / ADVANCED FX / PRELOADER BEHAVIOR</strong><p>Legacy JSON remains round-trippable. It stays out of the normal editor until a real runtime consumer exists.</p></article></div>`;
     manage.appendChild(map);
   }
 
@@ -90,13 +87,6 @@
     if (!root) return;
     injectWordmark(root);
     restructureOwnership(root);
-    const current = String(state.theme?.branding?.wordmark || '');
-    if (current) {
-      const brand = root.querySelector('[data-preview-brand]');
-      const src = path(current);
-      const preview = brand?.querySelector('.tsv2-wordmark-preview');
-      if (brand && src && (!preview || preview.getAttribute('src') !== src)) brand.innerHTML = `<img class="tsv2-wordmark-preview" src="${esc(src)}" alt="BRVTAL">`;
-    }
   }
 
   const observer = new MutationObserver(() => inject(document.querySelector('[data-theme-studio-v2]')));
