@@ -202,6 +202,16 @@ jobs:
           BRVTAL_PERF_OUTPUT: artifacts/production-performance-desktop.json
         run: node tests/e2e/production-performance-probe.mjs
 
+      - name: Capture Concept 05 production visual evidence
+        if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          BRVTAL_VISUAL_OUTPUT_DIR: artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRVTAL_VISUAL_SOURCE_SHA="$(git rev-parse HEAD)" \
+            node tests/e2e/production-concept05-visual-evidence.mjs
+
       - name: Normalize Factory Performance v1 evidence
         if: github.event_name == 'workflow_run' && steps.prerequisites.outputs.ready == 'true' && steps.connectivity.outputs.reachable == 'true'
         shell: bash
@@ -216,6 +226,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: production-performance-${{ github.run_id }}
-          path: artifacts/production-performance-*.json
+          path: |
+            artifacts/production-performance-*.json
+            artifacts/production-concept05-*.png
+            artifacts/production-concept05-visual.json
           if-no-files-found: error
           retention-days: 14

@@ -19,25 +19,29 @@ TARGETS = {
     ROOT / ".github/workflows/production-authenticated-smoke.yml": {
         "condition": "if: always()",
         "name": "name: production-authenticated-smoke-${{ github.run_id }}",
-        "path": "path: artifacts/production-authenticated-smoke.json",
+        "paths": ("path: artifacts/production-authenticated-smoke.json",),
         "missing": "if-no-files-found: warn",
     },
     ROOT / ".github/workflows/production-page-write-smoke.yml": {
         "condition": "if: always()",
         "name": "name: production-page-write-smoke-${{ github.run_id }}",
-        "path": "path: artifacts/production-page-write-smoke.json",
+        "paths": ("path: artifacts/production-page-write-smoke.json",),
         "missing": "if-no-files-found: warn",
     },
     ROOT / ".github/workflows/production-performance.yml": {
         "condition": "if: success() && steps.connectivity.outputs.reachable == 'true'",
         "name": "name: production-performance-${{ github.run_id }}",
-        "path": "path: artifacts/production-performance-*.json",
+        "paths": (
+            "artifacts/production-performance-*.json",
+            "artifacts/production-concept05-*.png",
+            "artifacts/production-concept05-visual.json",
+        ),
         "missing": "if-no-files-found: error",
     },
     ROOT / ".github/workflows/update-release-metadata.yml": {
         "condition": "if: always()",
         "name": "name: backup-recovery-rehearsal-${{ github.run_id }}",
-        "path": "path: artifacts/backup-recovery-rehearsal.json",
+        "paths": ("path: artifacts/backup-recovery-rehearsal.json",),
         "missing": "if-no-files-found: warn",
     },
 }
@@ -49,7 +53,7 @@ def upload_block(text: str) -> str:
     if len(matches) != 1:
         raise AssertionError(f"expected exactly one upload-artifact use, found {len(matches)}")
     index = matches[0]
-    return "\n".join(lines[max(0, index - 2): index + 8])
+    return "\n".join(lines[max(0, index - 2): index + 12])
 
 
 def validate_upload_block(block: str) -> None:
@@ -81,7 +85,8 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
                 validate_upload_block(block)
                 self.assertIn(expected["condition"], block)
                 self.assertIn(expected["name"], block)
-                self.assertIn(expected["path"], block)
+                for expected_path in expected["paths"]:
+                    self.assertIn(expected_path, block)
                 self.assertIn(expected["missing"], block)
                 self.assertEqual(block.count("retention-days: 14"), 1)
 
