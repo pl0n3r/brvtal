@@ -2,39 +2,40 @@
  * BRVTAL — Concept 05 public shell (#599, parent #583).
  * Authored header, overlay navigation, persistent mobile nav and footer.
  */
+/* #922 — canonical Concept 05 header fidelity contract. */
 [data-concept="05"] .nav{
-  height:var(--c5-header-h-desktop);
+  height:52px;
   display:grid;
   grid-template-columns:auto minmax(0,1fr) auto auto auto;
   align-items:center;
-  gap:clamp(8px,1.1vw,18px);
-  padding:0 var(--c5-gutter-outer);
-  background:rgba(5,5,5,.96);
+  gap:clamp(8px,1vw,16px);
+  padding:0 clamp(14px,2.1vw,30px);
+  background:rgba(5,5,5,.985);
   border-bottom:var(--c5-rule-thickness) solid var(--c5-rule-color);
   backdrop-filter:blur(10px)
 }
 [data-concept="05"] .nav .brand{
   display:flex;align-items:baseline;gap:8px;min-width:0;color:var(--c5-paper-dirty);text-decoration:none
 }
-[data-concept="05"] .nav .brand>span{font-size:clamp(20px,2vw,28px);font-weight:900;letter-spacing:-.045em}
+[data-concept="05"] .nav .brand>span{font-size:24px;font-weight:900;letter-spacing:-.055em}
 [data-concept="05"] .nav .brand>small{
-  color:var(--c5-paper-muted);font:700 7px/1 var(--theme-mono-font,"Space Mono",monospace);letter-spacing:.07em;white-space:nowrap
+  display:none;color:var(--c5-paper-muted);font:700 7px/1 var(--theme-mono-font,"Space Mono",monospace);letter-spacing:.07em;white-space:nowrap
 }
 [data-concept="05"] .nav-center{display:none!important}
-[data-concept="05"] .c5-header-nav{min-width:0;justify-self:center;gap:clamp(7px,1vw,18px)}
-[data-concept="05"] .c5-header-nav a{font-size:clamp(8px,.72vw,10px);white-space:nowrap}
+[data-concept="05"] .c5-header-nav{min-width:0;justify-self:center;gap:clamp(14px,1.55vw,24px)}
+[data-concept="05"] .c5-header-nav a{font-size:8px;letter-spacing:.06em;white-space:nowrap}
 [data-concept="05"] .c5-header-nav a[aria-current="location"]{color:var(--c5-signal-green)}
 [data-concept="05"] .c5-header-origin{
-  color:var(--c5-paper-muted);font-size:8px;letter-spacing:.08em;white-space:nowrap
+  color:var(--c5-paper-muted);font-size:7px;letter-spacing:.08em;white-space:nowrap
 }
 [data-concept="05"] .c5-header-ticket{
-  min-height:38px;display:inline-flex;align-items:center;gap:8px;padding:0 13px;
+  min-height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;
   background:var(--c5-signal-red);color:var(--c5-paper-dirty);text-decoration:none;
-  font:700 9px/1 var(--theme-mono-font,"Space Mono",monospace);letter-spacing:.08em;white-space:nowrap
+  font:700 8px/1 var(--theme-mono-font,"Space Mono",monospace);letter-spacing:.08em;white-space:nowrap
 }
 [data-concept="05"] .c5-header-ticket span{display:inline-block;transition:transform .18s ease}
 [data-concept="05"] .nav-right{display:flex;align-items:center;justify-content:flex-end;gap:2px;min-width:max-content}
-[data-concept="05"] .nav-right .sound,[data-concept="05"] .nav-right .menu{min-height:44px}
+[data-concept="05"] .nav-right .sound,[data-concept="05"] .nav-right .menu{min-height:36px}
 
 /* Overlay menu */
 [data-concept="05"] .c5-menu-panel .menu-panel-inner{
@@ -157,24 +158,23 @@
 @media(min-width:901px) and (max-width:1180px){
   [data-concept="05"] .c5-header-origin{display:none}
   [data-concept="05"] .nav{
-    grid-template-columns:auto minmax(0,1fr) auto auto;
-    gap:4px;
-    padding-left:12px;
-    padding-right:12px
+    grid-template-columns:auto minmax(0,1fr) auto auto auto;
+    gap:clamp(8px,1vw,16px);
+    padding:0 clamp(14px,2.1vw,30px)
   }
   [data-concept="05"] .nav .brand>small{display:none}
-  [data-concept="05"] .nav .brand>span{font-size:18px}
+  [data-concept="05"] .nav .brand>span{font-size:24px}
   [data-concept="05"] .c5-header-nav{
-    justify-self:stretch;
+    justify-self:center;
     justify-content:center;
-    gap:5px
+    gap:clamp(14px,1.55vw,24px)
   }
-  [data-concept="05"] .c5-header-nav a{font-size:7px;letter-spacing:.03em}
-  [data-concept="05"] .c5-header-ticket{min-height:34px;padding:0 8px;font-size:8px}
+  [data-concept="05"] .c5-header-nav a{font-size:8px;letter-spacing:.06em}
+  [data-concept="05"] .c5-header-ticket{min-height:32px;padding:0 12px;font-size:8px}
   [data-concept="05"] .nav-right .sound,
   [data-concept="05"] .nav-right .menu{
     min-width:0;
-    min-height:40px;
+    min-height:36px;
     padding-left:7px;
     padding-right:7px;
     font-size:8px
@@ -182,13 +182,16 @@
 }
 @media(max-width:900px){
   [data-concept="05"] .nav{
-    height:var(--c5-header-h-mobile);grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:0 12px
+    height:54px;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:0 12px;background:rgba(5,5,5,.99)
   }
   [data-concept="05"] .nav .brand>small,
   [data-concept="05"] .c5-header-nav,
   [data-concept="05"] .c5-header-origin,
   [data-concept="05"] .c5-header-ticket{display:none!important}
+  [data-concept="05"] .nav .brand>span{font-size:22px}
   [data-concept="05"] .nav-right{grid-column:2;gap:0}
+  [data-concept="05"] .nav-right .sound{display:none}
+  [data-concept="05"] .nav-right .menu{min-width:44px;min-height:44px}
   [data-concept="05"] .c5-menu-panel .menu-panel-inner{
     padding:calc(var(--c5-header-h-mobile) + 24px) 14px calc(var(--c5-bottom-nav-h) + 20px)
   }
@@ -218,59 +221,3 @@
   [data-concept="05"] .c5-header-ticket span{transition:none!important}
 }
 html.c5-visual-test [data-concept="05"] .c5-footer::before{display:none!important}
-
-
-/* #922 — canonical Concept 05 header fidelity contract. */
-@media(min-width:901px){
-  [data-concept="05"] .nav{
-    height:52px;
-    grid-template-columns:auto minmax(0,1fr) auto auto auto;
-    gap:clamp(8px,1vw,16px);
-    padding:0 clamp(14px,2.1vw,30px);
-    background:rgba(5,5,5,.985);
-  }
-  [data-concept="05"] .nav .brand>span{
-    font-size:24px;
-    letter-spacing:-.055em;
-  }
-  [data-concept="05"] .nav .brand>small{
-    display:none;
-  }
-  [data-concept="05"] .c5-header-nav{
-    justify-self:center;
-    gap:clamp(14px,1.55vw,24px);
-  }
-  [data-concept="05"] .c5-header-nav a{
-    font-size:8px;
-    letter-spacing:.06em;
-  }
-  [data-concept="05"] .c5-header-origin{
-    font-size:7px;
-  }
-  [data-concept="05"] .c5-header-ticket{
-    min-height:32px;
-    padding:0 12px;
-    font-size:8px;
-  }
-  [data-concept="05"] .nav-right .sound,
-  [data-concept="05"] .nav-right .menu{
-    min-height:36px;
-  }
-}
-@media(max-width:900px){
-  [data-concept="05"] .nav{
-    height:54px;
-    padding:0 12px;
-    background:rgba(5,5,5,.99);
-  }
-  [data-concept="05"] .nav .brand>span{
-    font-size:22px;
-  }
-  [data-concept="05"] .nav-right .sound{
-    display:none;
-  }
-  [data-concept="05"] .nav-right .menu{
-    min-width:44px;
-    min-height:44px;
-  }
-}
