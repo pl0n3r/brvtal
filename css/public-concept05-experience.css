@@ -10,7 +10,7 @@
   --c5-exp-artwork-min:clamp(600px,60vw,790px);
   min-height:auto;
   display:grid;
-  grid-template-columns:minmax(0,1.42fr) minmax(340px,.58fr);
+  grid-template-columns:minmax(0,1.42fr) minmax(340px,0.58fr);
   grid-template-areas:"art copy";
   align-items:stretch;
   gap:0;

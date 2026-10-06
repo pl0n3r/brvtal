@@ -22,7 +22,7 @@ class Concept05ExperienceFidelityTests(unittest.TestCase):
 
     @staticmethod
     def _rule(css: str, selector: str) -> str:
-        start = css.index(f"{selector}{{") + len(selector) + 1
+        start = css.rindex(f"{selector}{{") + len(selector) + 1
         end = css.index("}", start)
         return css[start:end]
 
