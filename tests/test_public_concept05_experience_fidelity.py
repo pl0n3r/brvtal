@@ -58,7 +58,7 @@ class Concept05ExperienceFidelityTests(unittest.TestCase):
         self.assertIn(f'--c5-exp-copy-overlap:{desktop["copy_overlap"]};', root)
         self.assertIn(f'--c5-exp-artwork-min:{desktop["artwork_min"]};', root)
         self.assertIn("min-height:var(--c5-exp-artwork-min);", artwork)
-        self.assertIn("calc(-1 * var(--c5-exp-copy-overlap))", copy)
+        self.assertIn("calc(0px - var(--c5-exp-copy-overlap))", copy)
         self.assertIn("border-left:6px solid var(--c5-signal-red);", copy)
         self.assertIn(f'max-width:{desktop["title_max_ch"]}ch;', title)
         self.assertIn("grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);", actions)
