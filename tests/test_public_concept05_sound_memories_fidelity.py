@@ -71,6 +71,8 @@ class Concept05SoundMemoriesFidelityTests(unittest.TestCase):
             "grid-row:1 / span 4;",
             "grid-template-columns:36px 128px minmax(0,1fr) 84px;",
             "min-height:182px;",
+            "width:128px;",
+            "max-width:128px;",
             "aspect-ratio:1/1;",
             "grid-template-columns:36px minmax(0,1fr) 88px;",
             "height:22px;",
