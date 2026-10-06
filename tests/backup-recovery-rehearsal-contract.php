@@ -45,7 +45,7 @@ $expect(
     'recovery evidence must use the immutable upload-artifact v7.0.1 pin'
 );
 $expect(
-    str_contains($workflow, "name: backup-recovery-rehearsal-${{ github.run_id }}")
+    str_contains($workflow, 'name: backup-recovery-rehearsal-${{ github.run_id }}')
         && str_contains($workflow, 'path: artifacts/backup-recovery-rehearsal.json')
         && str_contains($workflow, 'if-no-files-found: warn')
         && str_contains($workflow, 'retention-days: 14'),
