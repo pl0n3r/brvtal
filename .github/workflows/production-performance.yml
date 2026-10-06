@@ -205,9 +205,12 @@ jobs:
       - name: Capture Concept 05 production visual evidence
         if: steps.connectivity.outputs.reachable == 'true'
         env:
-          BRVTAL_VISUAL_SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           BRVTAL_VISUAL_OUTPUT_DIR: artifacts
-        run: node tests/e2e/production-concept05-visual-evidence.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRVTAL_VISUAL_SOURCE_SHA="$(git rev-parse HEAD)" \
+            node tests/e2e/production-concept05-visual-evidence.mjs
 
       - name: Normalize Factory Performance v1 evidence
         if: github.event_name == 'workflow_run' && steps.prerequisites.outputs.ready == 'true' && steps.connectivity.outputs.reachable == 'true'
