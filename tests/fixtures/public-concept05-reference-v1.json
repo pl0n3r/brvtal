@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "source": {
+    "name": "ChatGPT Image Sep 21, 2026, 11_35_32 PM.png",
+    "sha256": "01793a8dc4f33267f10e4221f0f00586ba6cc042ab1f2bfa500c4e3628dc8c3f",
+    "recovered_preview": {
+      "width": 1312,
+      "height": 1199
+    }
+  },
+  "viewports": {
+    "desktop": {
+      "width": 1440
+    },
+    "mobile": {
+      "width": 390
+    }
+  },
+  "hero": {
+    "desktop": {
+      "title_stack": "BR/VT/AL",
+      "title_columns_ch": 2.08,
+      "documentary_left_pct": 18,
+      "documentary_width_pct": 55,
+      "statement_left_pct": 47,
+      "header_height_px": 52
+    },
+    "mobile": {
+      "title_stack": "BR/VT/AL",
+      "title_columns_ch": 2.08,
+      "header_height_px": 54,
+      "documentary_left_pct": 30,
+      "documentary_width_pct": 70,
+      "statement_position": "below-poster"
+    }
+  },
+  "invariants": [
+    "dynamic-description-hook",
+    "dynamic-documentary-hook",
+    "no-horizontal-overflow",
+    "touch-targets-at-least-44px",
+    "prefers-reduced-motion"
+  ]
+}
