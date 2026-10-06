@@ -168,7 +168,10 @@ $assert(
 );
 $assert(
     str_contains($performanceWorkflow, 'name: production-performance-${{ github.run_id }}')
-        && str_contains($performanceWorkflow, 'path: artifacts/production-performance-*.json')
+        && str_contains($performanceWorkflow, 'path: |')
+        && str_contains($performanceWorkflow, 'artifacts/production-performance-*.json')
+        && str_contains($performanceWorkflow, 'artifacts/production-concept05-*.png')
+        && str_contains($performanceWorkflow, 'artifacts/production-concept05-visual.json')
         && str_contains($performanceWorkflow, 'if-no-files-found: error')
         && str_contains($performanceWorkflow, 'retention-days: 14'),
     'production performance evidence must preserve artifact shape and fourteen-day retention'
