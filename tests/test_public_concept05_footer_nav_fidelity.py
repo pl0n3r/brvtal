@@ -25,13 +25,15 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
         contract = self.reference["footer_nav"]
         desktop = contract["desktop"]
         mobile = contract["mobile"]
-        self.assertEqual(60, desktop["footer_min_height_vh"])
-        self.assertEqual(224, desktop["footer_wordmark_max_px"])
+        self.assertEqual(118, desktop["footer_min_height_px"])
+        self.assertEqual(72, desktop["footer_wordmark_max_px"])
         self.assertEqual(12, desktop["footer_grid_columns"])
-        self.assertEqual("1/6", desktop["footer_nav_column"])
-        self.assertEqual("7/10", desktop["footer_contact_column"])
-        self.assertEqual("10/-1", desktop["footer_social_column"])
-        self.assertEqual(44, desktop["footer_legal_max_margin_px"])
+        self.assertEqual("1/4", desktop["footer_brand_column"])
+        self.assertEqual("4/7", desktop["footer_nav_column"])
+        self.assertEqual("7/9", desktop["footer_contact_column"])
+        self.assertEqual("9/11", desktop["footer_social_column"])
+        self.assertEqual("11/-1", desktop["footer_legal_column"])
+        self.assertEqual("single-horizontal-band", desktop["footer_layout"])
         self.assertEqual(5, mobile["nav_items"])
         self.assertEqual(48, mobile["nav_target_min_px"])
         self.assertEqual(16, mobile["nav_icon_width_px"])
@@ -44,12 +46,13 @@ class Concept05FooterNavFidelityTests(unittest.TestCase):
     def test_footer_uses_only_canonical_identity_social_contact_and_pages(self) -> None:
         for marker in (
             MARKER,
-            "min-height:60vh;",
-            "font-size:clamp(88px,15.5vw,224px);",
-            "grid-column:1/6;",
-            "grid-column:7/10;",
-            "grid-column:10/-1;",
-            "margin-top:clamp(24px,3.5vw,44px);",
+            "min-height:118px;",
+            "font-size:clamp(48px,5vw,72px);",
+            "grid-column:1/4;",
+            "grid-column:4/7;",
+            "grid-column:7/9;",
+            "grid-column:9/11;",
+            "grid-column:11/-1;",
             "a[hidden]{display:none!important}",
         ):
             with self.subTest(marker=marker):

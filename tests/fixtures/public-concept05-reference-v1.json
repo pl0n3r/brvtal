@@ -227,13 +227,15 @@
       ]
     },
     "desktop": {
-      "footer_min_height_vh": 60,
-      "footer_wordmark_max_px": 224,
+      "footer_min_height_px": 118,
+      "footer_wordmark_max_px": 72,
       "footer_grid_columns": 12,
-      "footer_nav_column": "1/6",
-      "footer_contact_column": "7/10",
-      "footer_social_column": "10/-1",
-      "footer_legal_max_margin_px": 44
+      "footer_brand_column": "1/4",
+      "footer_nav_column": "4/7",
+      "footer_contact_column": "7/9",
+      "footer_social_column": "9/11",
+      "footer_legal_column": "11/-1",
+      "footer_layout": "single-horizontal-band"
     },
     "mobile": {
       "nav_items": 5,

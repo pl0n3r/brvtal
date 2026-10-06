@@ -113,8 +113,14 @@ test('footer reveals only a real public privacy page from the shared payload', a
   await expect(privacy).toBeVisible();
   await expect(privacy).toHaveAttribute('href','/pages/privacy-policy');
   expect(await page.evaluate(() => window.__reads)).toBe(1);
+  const footer = await page.locator('.c5-footer').boundingBox();
   const brand = await page.locator('.c5-footer-brand h2').boundingBox();
-  expect(brand?.width || 0).toBeGreaterThan(500);
+  expect(footer).not.toBeNull();
+  expect(footer.height).toBeGreaterThanOrEqual(100);
+  expect(footer.height).toBeLessThanOrEqual(150);
+  expect(brand).not.toBeNull();
+  expect(brand.height).toBeLessThanOrEqual(80);
+  expect(brand.width).toBeGreaterThan(180);
   const noOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
   );
