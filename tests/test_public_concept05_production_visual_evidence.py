@@ -57,7 +57,7 @@ class Concept05ProductionVisualEvidenceTests(unittest.TestCase):
         self.assertEqual(1, self.performance.count("uses: actions/upload-artifact@"))
         self.assertIn(f"actions/upload-artifact@{PIN} # v7.0.1", self.performance)
         self.assertIn("Capture Concept 05 production visual evidence", self.performance)
-        self.assertIn("BRVTAL_VISUAL_SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}", self.performance)
+        self.assertIn('BRVTAL_VISUAL_SOURCE_SHA="$(git rev-parse HEAD)"', self.performance)
         for marker in (
             "artifacts/production-performance-*.json",
             "artifacts/production-concept05-*.png",
