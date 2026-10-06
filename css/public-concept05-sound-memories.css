@@ -119,6 +119,7 @@
 [data-concept="05"] #sets .set-library-cover{
   display:none;
   position:relative;
+  margin:0;
   overflow:hidden;
   background:
     repeating-linear-gradient(0deg,transparent 0 5px,rgba(255,255,255,.025) 6px 7px),
