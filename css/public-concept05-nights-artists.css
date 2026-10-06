@@ -4,7 +4,7 @@
  * Data remains owned by api/public.php, Events lifecycle and public-roster.js.
  */
 
-/* #930 — canonical Concept 05 NIGHTS + ARTISTS fidelity contract. */
+/* #930 — base strip refinement before canonical viewport overrides. */
 [data-concept="05"] .events.c5-numbered,
 [data-concept="05"] .artists.c5-numbered{
   min-height:auto;
