@@ -4,11 +4,13 @@
  * authors the 1440/390 editorial composition and failure-safe presentation.
  */
 
+/* #927 — canonical Concept 05 Next Experience fidelity contract. */
 [data-concept="05"] .c5-experience-authored{
-  --c5-exp-artwork-w:min(54vw,760px);
+  --c5-exp-copy-overlap:clamp(72px,6vw,96px);
+  --c5-exp-artwork-min:clamp(600px,60vw,790px);
   min-height:auto;
   display:grid;
-  grid-template-columns:minmax(0,1.16fr) minmax(360px,.84fr);
+  grid-template-columns:minmax(0,1.42fr) minmax(340px,0.58fr);
   grid-template-areas:"art copy";
   align-items:stretch;
   gap:0;
@@ -54,7 +56,7 @@
   width:100%;
   min-width:0;
   height:auto;
-  min-height:clamp(560px,67vw,820px);
+  min-height:var(--c5-exp-artwork-min);
   opacity:1;
   transform:none;
   filter:none;
@@ -138,7 +140,7 @@
   z-index:5;
   width:auto;
   min-width:0;
-  margin:clamp(46px,5vw,76px) 0 clamp(38px,5vw,66px) -1px;
+  margin:clamp(46px,5vw,76px) 0 clamp(38px,5vw,66px) calc(0px - var(--c5-exp-copy-overlap));
   padding:clamp(28px,3.2vw,48px);
   display:flex;
   flex-direction:column;
@@ -148,6 +150,7 @@
   border:
     var(--c5-rule-thickness) solid
     var(--c5-rule-color);
+  border-left:6px solid var(--c5-signal-red);
 }
 
 [data-concept="05"] .c5-experience-authored .eyebrow{
@@ -163,11 +166,11 @@
 }
 
 [data-concept="05"] .c5-experience-authored .genesis-copy h2{
-  max-width:10ch;
+  max-width:8ch;
   margin:clamp(22px,3vw,40px) 0 14px;
   color:var(--c5-paper-dirty);
-  font-size:clamp(74px,8.4vw,132px);
-  line-height:.76;
+  font-size:clamp(80px,8.8vw,140px);
+  line-height:.74;
   letter-spacing:-.065em;
   overflow-wrap:anywhere;
   text-wrap:balance;
@@ -312,7 +315,7 @@
 
 [data-concept="05"] .c5-experience-authored .experience-actions{
   display:grid;
-  grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);
+  grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
   gap:10px;
   margin-top:clamp(24px,3vw,38px);
 }
@@ -335,6 +338,7 @@
 }
 
 [data-concept="05"] .c5-experience-authored .experience-actions .ticket-cta{
+  min-height:58px;
   color:var(--c5-paper-dirty);
   background:var(--c5-signal-red);
   border-color:var(--c5-signal-red);
@@ -373,7 +377,7 @@
     padding:
       calc(var(--c5-label-height) + 30px)
       14px
-      calc(var(--c5-bottom-nav-h) + 46px);
+      calc(var(--c5-bottom-nav-h) + 54px);
     overflow-x:clip;
     overflow-y:visible;
   }
@@ -402,9 +406,9 @@
 
   [data-concept="05"] .c5-experience-authored .genesis-copy{
     order:2;
-    width:calc(100% - 18px);
-    margin:-48px 0 0 18px;
-    padding:18px 14px 16px;
+    width:calc(100% - 12px);
+    margin:-62px 0 0 12px;
+    padding:18px 14px 18px;
     align-self:auto;
     border-right:0;
   }
@@ -417,8 +421,8 @@
   [data-concept="05"] .c5-experience-authored .genesis-copy h2{
     max-width:100%;
     margin:22px 0 12px;
-    font-size:clamp(54px,18vw,86px);
-    line-height:.8;
+    font-size:clamp(58px,19vw,86px);
+    line-height:.76;
     letter-spacing:-.055em;
     overflow-wrap:anywhere;
   }
@@ -484,6 +488,7 @@
 
   [data-concept="05"] .c5-experience-authored .experience-actions .ticket-cta{
     order:-1;
+    min-height:56px;
     font-size:11px;
   }
 
@@ -494,12 +499,6 @@
   }
 }
 
-@media(max-width:390px){
-  [data-concept="05"] .c5-experience-authored .genesis-copy{
-    width:calc(100% - 12px);
-    margin-left:12px;
-  }
-}
 
 html.c5-visual-test [data-concept="05"] .c5-experience-authored .genesis-copy h2::after,
 html[data-theme-glitch="0"] [data-concept="05"] .c5-experience-authored .genesis-copy h2::after{
