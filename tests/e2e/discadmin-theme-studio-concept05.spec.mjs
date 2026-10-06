@@ -99,6 +99,7 @@ test('Theme Studio previews curated typography through the canonical Home runtim
   await expect.poll(async () => canonical.locator('html').evaluate(el => el.style.getPropertyValue('--red'))).toBe('#aa0000');
   await expect.poll(async () => canonical.locator('.theme-brand-image').getAttribute('src')).toContain('/custom-logo.png');
 
+  await page.locator('[data-theme-tab="palette"]').click();
   await page.locator('#th_primary').fill('#E31B23');
   await expect.poll(async () => canonical.locator('html').evaluate(el => el.style.getPropertyValue('--red'))).toBe('#E31B23');
 
