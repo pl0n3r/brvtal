@@ -36,6 +36,12 @@ class FactoryObserverAdoptionTests(unittest.TestCase):
         ):
             self.assertIn(required, self.text)
 
+    def test_hostinger_observer_has_bounded_convergence_window(self) -> None:
+        self.assertEqual(self.text.count("convergence_attempts: 5"), 1)
+        self.assertEqual(self.text.count("convergence_delay_seconds: 30"), 1)
+        self.assertNotIn("convergence_attempts: 1", self.text)
+        self.assertNotIn("convergence_delay_seconds: 0", self.text)
+
     def test_exact_sha_version_and_english_incident_contract(self) -> None:
         self.assertIn("expected_sha: ${{ github.sha }}", self.text)
         self.assertIn("version_key: BRVTAL_APP_VERSION", self.text)
