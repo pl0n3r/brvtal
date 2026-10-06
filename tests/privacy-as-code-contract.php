@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const BRVTAL_PRIVACY_FACTORY_SHA = '3341681fcc89bc46e752dd3f8f4093e831578c69';
+const BRVTAL_PRIVACY_FACTORY_SHA = 'fd4674c27e4bd54cce1a2d92e6432f845396fa71';
 const BRVTAL_PRIVACY_PLACEHOLDER = '[COMPLETAR POR EL DUEÑO]';
 
 /** Assert one privacy-contract invariant or fail closed. */

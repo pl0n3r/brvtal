@@ -8,13 +8,14 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FACTORY_SHA = "3341681fcc89bc46e752dd3f8f4093e831578c69"
+FACTORY_SHA = "fd4674c27e4bd54cce1a2d92e6432f845396fa71"
 PRIVACY = ROOT / ".github/workflows/privacidad.yml"
 AUDIT = ROOT / ".github/workflows/auditoria-privacidad.yml"
+CONTRACT = ROOT / "tests/privacy-as-code-contract.php"
 
 
 class PrivacyWorkflowAdoptionTests(unittest.TestCase):
-    def test_privacy_callers_pin_factory_308_fix(self) -> None:
+    def test_privacy_contract_and_callers_share_one_immutable_factory_sha(self) -> None:
         expected = {
             PRIVACY: "pl0n3r/factory/.github/workflows/privacidad.yml",
             AUDIT: "pl0n3r/factory/.github/workflows/auditoria-privacidad.yml",
@@ -24,6 +25,12 @@ class PrivacyWorkflowAdoptionTests(unittest.TestCase):
             self.assertEqual(text.count(FACTORY_SHA), 2)
             self.assertIn(f"uses: {reusable}@{FACTORY_SHA}", text)
             self.assertIn(f"kit_ref: {FACTORY_SHA}", text)
+
+        contract = CONTRACT.read_text(encoding="utf-8")
+        self.assertIn(
+            f"const BRVTAL_PRIVACY_FACTORY_SHA = '{FACTORY_SHA}';",
+            contract,
+        )
 
     def test_permissions_and_secret_boundary_are_preserved(self) -> None:
         privacy = PRIVACY.read_text(encoding="utf-8")
