@@ -27,44 +27,71 @@ class Concept05SoundMemoriesFidelityTests(unittest.TestCase):
 
     def test_reference_contract_pins_sound_and_memories_geometry(self) -> None:
         contract = self.reference["sound_memories"]
-        self.assertEqual("compact-strip", contract["desktop"]["header_mode"])
-        self.assertEqual(260, contract["desktop"]["sound_feature_min_height_px"])
+        desktop = contract["desktop"]
+        mobile = contract["mobile"]
+
+        self.assertEqual("compact-strip", desktop["header_mode"])
+        self.assertEqual("split-feature-index", desktop["sound_layout"])
+        self.assertEqual("minmax(0,1.08fr) minmax(0,.92fr)", desktop["sound_list_columns"])
+        self.assertEqual(182, desktop["sound_feature_min_height_px"])
         self.assertEqual(
-            "52px minmax(180px,.52fr) minmax(0,1.48fr) 112px",
-            contract["desktop"]["sound_feature_columns"],
+            "36px 128px minmax(0,1fr) 84px",
+            desktop["sound_feature_columns"],
         )
-        self.assertEqual("4/3", contract["desktop"]["sound_feature_cover_aspect_ratio"])
-        self.assertEqual("52px minmax(0,1fr) 112px", contract["desktop"]["sound_record_columns"])
-        self.assertEqual(12, contract["desktop"]["memories_columns"])
-        self.assertEqual(4, contract["desktop"]["memories_gap_px"])
-        self.assertEqual([5, 3, 4, 4, 5, 3], contract["desktop"]["memories_spans"])
-        self.assertEqual("16/10", contract["mobile"]["sound_feature_cover_aspect_ratio"])
-        self.assertEqual(2, contract["mobile"]["memories_columns"])
-        self.assertEqual(4, contract["mobile"]["memories_gap_px"])
-        self.assertEqual(5, contract["mobile"]["memories_full_span_cycle"])
-        self.assertEqual(42, contract["mobile"]["bottom_nav_clearance_px"])
+        self.assertEqual("1/1", desktop["sound_feature_cover_aspect_ratio"])
+        self.assertEqual("36px minmax(0,1fr) 88px", desktop["sound_record_columns"])
+        self.assertEqual(12, desktop["memories_columns"])
+        self.assertEqual(4, desktop["memories_gap_px"])
+        self.assertEqual([5, 3, 4, 4, 5, 3], desktop["memories_spans"])
+
+        self.assertEqual(92, mobile["sound_feature_min_height_px"])
+        self.assertEqual(
+            "28px 72px minmax(0,1fr) 52px",
+            mobile["sound_feature_columns"],
+        )
+        self.assertEqual("1/1", mobile["sound_feature_cover_aspect_ratio"])
+        self.assertEqual(2, mobile["memories_columns"])
+        self.assertEqual(4, mobile["memories_gap_px"])
+        self.assertEqual(5, mobile["memories_full_span_cycle"])
+        self.assertEqual(42, mobile["bottom_nav_clearance_px"])
 
     def test_sound_desktop_and_mobile_match_archive_system_reference(self) -> None:
+        desktop = self.css.split("@media(max-width:900px){", 1)[0]
+        mobile = self.css.split("@media(max-width:900px){", 1)[1].split(
+            "@media(prefers-reduced-motion:reduce)", 1
+        )[0]
+
         for marker in (
             MARKER,
             "grid-template-columns:auto auto minmax(0,1fr);",
             "font-size:clamp(12px,1.1vw,16px);",
-            "grid-template-columns:52px minmax(0,1fr) 112px;",
-            "grid-template-columns:52px minmax(180px,.52fr) minmax(0,1.48fr) 112px;",
-            "min-height:260px;",
-            "aspect-ratio:4/3;",
-            "height:28px;",
+            "display:none;",
+            "grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);",
+            "grid-column:1;",
+            "grid-row:1 / span 4;",
+            "grid-template-columns:36px 128px minmax(0,1fr) 84px;",
+            "min-height:182px;",
+            "aspect-ratio:1/1;",
+            "grid-template-columns:36px minmax(0,1fr) 88px;",
+            "height:22px;",
         ):
             with self.subTest(marker=marker):
-                self.assertIn(marker, self.css)
+                self.assertIn(marker, desktop)
 
-        mobile = self.css.split("@media(max-width:900px){", 1)[1].split(
-            "@media(prefers-reduced-motion:reduce)", 1
-        )[0]
-        self.assertIn("grid-template-columns:auto minmax(0,1fr);", mobile)
-        self.assertIn("aspect-ratio:16/10;", mobile)
-        self.assertIn("font-size:clamp(24px,8.2vw,34px);", mobile)
-        self.assertIn("calc(var(--c5-bottom-nav-h) + 42px)", mobile)
+        for marker in (
+            "display:block;",
+            "grid-template-columns:28px 72px minmax(0,1fr) 52px;",
+            "min-height:92px;",
+            "width:72px;",
+            "max-width:72px;",
+            "aspect-ratio:1/1;",
+            "grid-template-columns:28px minmax(0,1fr) 52px;",
+            "font-size:clamp(16px,5.1vw,20px);",
+            "calc(var(--c5-bottom-nav-h) + 42px)",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, mobile)
+
         self.assertIn("min-height:44px;", self.css)
 
     def test_memories_desktop_and_mobile_keep_documentary_contact_sheet(self) -> None:
