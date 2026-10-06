@@ -4,6 +4,7 @@
  * Data remains owned by api/public.php, Events lifecycle and public-roster.js.
  */
 
+/* #930 — canonical Concept 05 NIGHTS + ARTISTS fidelity contract. */
 [data-concept="05"] .events.c5-numbered,
 [data-concept="05"] .artists.c5-numbered{
   min-height:auto;
@@ -77,12 +78,15 @@
 /* 02 / NIGHTS ------------------------------------------------------------ */
 
 [data-concept="05"] .events-track{
+  --c5-night-card-w:clamp(270px,22.5vw,324px);
   display:flex;
-  gap:clamp(10px,1vw,16px);
+  gap:0;
   width:100%;
   max-width:100%;
   margin:0;
   padding:clamp(18px,2vw,28px) 0 12px;
+  border-top:1px solid var(--c5-rule-color);
+  border-bottom:1px solid var(--c5-rule-color);
   overflow-x:auto;
   overflow-y:hidden;
   overscroll-behavior-inline:contain;
@@ -93,15 +97,20 @@
 
 [data-concept="05"] .event-card.c5-night-card{
   position:relative;
-  flex:0 0 clamp(270px,23.2vw,342px);
-  width:clamp(270px,23.2vw,342px)!important;
+  flex:0 0 var(--c5-night-card-w);
+  width:var(--c5-night-card-w)!important;
   min-width:0;
   height:auto;
   margin:0;
-  border:1px solid var(--c5-rule-color);
+  border:0;
+  border-left:1px solid var(--c5-rule-color);
   background:var(--c5-soft-black);
   scroll-snap-align:start;
   isolation:isolate;
+}
+
+[data-concept="05"] .event-card.c5-night-card:last-child{
+  border-right:1px solid var(--c5-rule-color);
 }
 
 [data-concept="05"] .event-card.c5-night-card::after{
@@ -128,7 +137,7 @@
   position:relative;
   width:100%;
   height:auto!important;
-  aspect-ratio:4 / 5;
+  aspect-ratio:3 / 4;
   overflow:hidden;
   background:
     linear-gradient(145deg,rgba(255,255,255,.035),transparent 36%),
@@ -168,9 +177,10 @@
 [data-concept="05"] .c5-night-card .event-info{
   display:grid;
   gap:9px;
-  min-height:190px;
-  padding:14px;
-  background:var(--c5-soft-black);
+  min-height:176px;
+  padding:13px 14px 15px;
+  border-top:3px solid var(--c5-signal-red);
+  background:var(--c5-deep-black);
 }
 
 [data-concept="05"] .c5-night-card .event-info > .mono{
@@ -256,8 +266,8 @@
 
 [data-concept="05"] .roster-group{
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:clamp(9px,1vw,14px);
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:0;
   width:100%;
   margin:0 0 clamp(24px,3vw,42px);
 }
@@ -284,27 +294,33 @@
   gap:8px;
   min-width:0;
   min-height:0;
-  padding:0 0 12px;
-  border:1px solid var(--c5-rule-color);
-  background:var(--c5-soft-black);
+  padding:0 0 16px;
+  border:0;
+  border-left:1px solid var(--c5-rule-color);
+  border-bottom:1px solid var(--c5-rule-color);
+  background:transparent;
   color:var(--c5-paper-dirty);
   text-decoration:none;
   overflow:hidden;
 }
 
+[data-concept="05"] .artist.c5-artist-card:last-child{
+  border-right:1px solid var(--c5-rule-color);
+}
+
 [data-concept="05"] .artist.c5-artist-card:hover,
 [data-concept="05"] .artist.c5-artist-card:focus-visible{
   padding-left:0;
-  border-color:var(--c5-signal-green);
-  box-shadow:none;
-  outline:none;
+  box-shadow:inset 4px 0 var(--c5-signal-green);
+  outline:1px solid var(--c5-signal-green);
+  outline-offset:-1px;
 }
 
 [data-concept="05"] .c5-artist-media{
   position:relative;
   display:block;
   width:100%;
-  aspect-ratio:3 / 4;
+  aspect-ratio:2 / 3;
   overflow:hidden;
   background:
     linear-gradient(135deg,rgba(255,255,255,.035),transparent 40%),
@@ -366,8 +382,8 @@
 
 [data-concept="05"] .artist.c5-artist-card strong{
   color:var(--c5-paper-dirty);
-  font-size:clamp(22px,2.2vw,32px);
-  line-height:.88;
+  font-size:clamp(24px,2.35vw,36px);
+  line-height:.84;
   overflow-wrap:anywhere;
   text-transform:uppercase;
 }
@@ -387,7 +403,7 @@
   [data-concept="05"] .artists.c5-numbered{
     padding-left:14px;
     padding-right:14px;
-    padding-bottom:calc(var(--c5-bottom-nav-h) + 34px);
+    padding-bottom:calc(var(--c5-bottom-nav-h) + 42px);
   }
 
   [data-concept="05"] .events .section-head,
@@ -412,13 +428,13 @@
     max-width:none;
     margin-left:-14px;
     padding:16px 14px 10px;
-    gap:10px;
+    gap:0;
     scroll-padding-inline:14px;
   }
 
   [data-concept="05"] .event-card.c5-night-card{
-    flex-basis:min(84vw,338px);
-    width:min(84vw,338px)!important;
+    flex-basis:min(86vw,334px);
+    width:min(86vw,334px)!important;
   }
 
   [data-concept="05"] .c5-night-card .event-info{
@@ -436,13 +452,17 @@
 
   [data-concept="05"] .roster-group{
     grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:9px;
+    gap:0;
     margin-bottom:28px;
   }
 
   [data-concept="05"] .artist.c5-artist-card{
     min-height:0;
-    padding:0 0 11px;
+    padding:0 0 12px;
+  }
+
+  [data-concept="05"] .c5-artist-media{
+    aspect-ratio:3 / 4;
   }
 
   [data-concept="05"] .artist.c5-artist-card strong{
@@ -455,11 +475,6 @@
   }
 }
 
-@media(max-width:420px){
-  [data-concept="05"] .roster-group{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-}
 
 @media(prefers-reduced-motion:reduce){
   [data-concept="05"] .c5-night-card .event-img img,

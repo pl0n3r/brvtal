@@ -65,5 +65,36 @@
       "ticket_cta_min_height_px": 56,
       "ticket_action_order": "first"
     }
+  },
+  "nights_artists": {
+    "nights": {
+      "desktop": {
+        "card_width": "clamp(270px,22.5vw,324px)",
+        "artwork_aspect_ratio": "3/4",
+        "gap_px": 0,
+        "frame": "shared-rules",
+        "info_red_rule_px": 3
+      },
+      "mobile": {
+        "card_width": "min(86vw,334px)",
+        "gap_px": 0,
+        "native_swipe": true,
+        "bottom_nav_clearance_px": 42
+      }
+    },
+    "artists": {
+      "desktop": {
+        "columns": 5,
+        "gap_px": 0,
+        "portrait_aspect_ratio": "2/3",
+        "frame": "shared-rules",
+        "hover_registration_px": 4
+      },
+      "mobile": {
+        "columns": 2,
+        "gap_px": 0,
+        "portrait_aspect_ratio": "3/4"
+      }
+    }
   }
 }
