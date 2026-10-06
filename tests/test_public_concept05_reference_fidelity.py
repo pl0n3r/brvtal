@@ -83,6 +83,13 @@ class Concept05ReferenceFidelityTests(unittest.TestCase):
         self.assertIn("bottom:calc(var(--c5-bottom-nav-h) + 34px);", statement)
         self.assertIn(f'height:{mobile_ref["header_height_px"]}px;', nav)
 
+        short_mobile = self.hero.split("@media(max-width:430px) and (max-height:760px){", 1)[1].split(
+            "@media(prefers-reduced-motion:reduce)", 1
+        )[0]
+        short_documentary = self._rule(short_mobile, '[data-concept="05"] .c5-hero-documentary')
+        self.assertIn("height:350px;", short_documentary)
+        self.assertNotIn("top:", short_documentary)
+
     def test_dynamic_hero_projection_hooks_are_preserved(self) -> None:
         for marker in (
             "data-c5-hero-description",
