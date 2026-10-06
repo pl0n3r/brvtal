@@ -2,7 +2,6 @@
   'use strict';
 
   const endpoint = '/api/public-preview.php';
-  const canonicalTypes = new Set(['events','artists','sets','releases','blog','pages']);
   const previewableLegacyTypes = new Set(['events','artists','sets','pages']);
 
   const value = id => document.getElementById(id)?.value?.trim?.() ?? '';
@@ -12,7 +11,9 @@
   };
 
   function assertPreviewRequest(type, payload) {
-    if (!canonicalTypes.has(type)) throw new Error('PREVIEW_TYPE_NOT_ALLOWED');
+    if (typeof type !== 'string' || type.trim() === '') {
+      throw new Error('INVALID_PREVIEW_TYPE');
+    }
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       throw new Error('INVALID_PREVIEW_PAYLOAD');
     }
@@ -67,30 +68,35 @@
     return tab;
   }
 
+  function reportPreviewError(error) {
+    window.BRVTALFeedback?.error?.(
+      String(error?.message || 'PREVIEW_FAILED').replaceAll('_',' '),
+      'public-preview'
+    );
+  }
+
   async function open(type, payload) {
     assertPreviewRequest(type, payload);
     const tab = previewWindow();
+    if (!tab) {
+      const error = new Error('PREVIEW_POPUP_BLOCKED');
+      reportPreviewError(error);
+      throw error;
+    }
     try {
       const data = await create(type, payload);
-      if (tab) {
-        tab.location.replace(data.url);
-      } else {
-        window.location.assign(data.url);
-      }
+      tab.location.replace(data.url);
       return data;
     } catch (error) {
-      if (tab && !tab.closed) tab.close();
-      window.BRVTALFeedback?.error?.(
-        String(error?.message || 'PREVIEW_FAILED').replaceAll('_',' '),
-        'public-preview'
-      );
+      if (!tab.closed) tab.close();
+      reportPreviewError(error);
       throw error;
     }
   }
 
   function bindButton(button, type, provider) {
     if (!button) return;
-    if (!canonicalTypes.has(type) || typeof provider !== 'function') {
+    if (typeof provider !== 'function') {
       hideButton(button);
       return;
     }
@@ -194,7 +200,6 @@
     open,
     bindButton,
     bindLegacy,
-    legacyPayload,
-    canonicalTypes:() => [...canonicalTypes]
+    legacyPayload
   };
 })();
