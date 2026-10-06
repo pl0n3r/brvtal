@@ -93,6 +93,11 @@ class Concept05SoundMemoriesFidelityTests(unittest.TestCase):
                 self.assertIn(marker, mobile)
 
         self.assertIn("min-height:44px;", self.css)
+        self.assertIn(
+            '[data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature{',
+            self.css,
+        )
+        self.assertNotIn('[data-concept="05"] #sets .c5-sound-feature{', self.css)
 
     def test_memories_desktop_and_mobile_keep_documentary_contact_sheet(self) -> None:
         self.assertIn("grid-template-columns:repeat(12,minmax(0,1fr));", self.css)
