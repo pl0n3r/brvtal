@@ -350,7 +350,7 @@ jobs:
     timeout-minutes: 15
     services:
       mariadb:
-        image: mariadb:11.4
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
         env:
           MARIADB_ROOT_PASSWORD: brvtal_root
           MARIADB_DATABASE: brvtal_test_ci
@@ -438,6 +438,17 @@ jobs:
       - name: Run Chromium browser tests
         run: npx playwright test --project=chromium
 
+      # Public synthetic page only; captures are evidence, not approval to
+      # refresh visual baselines or bypass the failing Chromium test.
+      - name: Upload Concept 05 visual diff for manual review
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: concept05-pr-visual-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: test-results/public-concept05-fidelity-*/*
+          if-no-files-found: warn
+          retention-days: 14
+
   realstack:
     name: real-stack
     needs: preflight
@@ -446,7 +457,7 @@ jobs:
     timeout-minutes: 20
     services:
       mariadb:
-        image: mariadb:11.4
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
         env:
           MARIADB_ROOT_PASSWORD: brvtal_root
           MARIADB_DATABASE: brvtal_test_ci
@@ -561,7 +572,7 @@ jobs:
     timeout-minutes: 8
     services:
       mariadb:
-        image: mariadb:11.4
+        image: ghcr.io/mariadb/mariadb:11.4.13-noble@sha256:3cff57293253c640483e8a19ce506cf68bf8e4529385e64aeec700c02038e7ed
         env:
           MARIADB_ROOT_PASSWORD: brvtal_root
           MARIADB_DATABASE: brvtal_test_backup_source

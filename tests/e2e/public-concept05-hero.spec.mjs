@@ -35,9 +35,9 @@ const fixture = `<!doctype html>
         <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
         <div class="hero-declaration c5-hero-statement">
           <span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
-          <strong data-site-tagline>RAVE TILL GRAVE</strong>
-          <p data-c5-hero-description>UNDERGROUND ELECTRONIC CULTURE FROM PEREIRA.</p>
-          <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">EXPLORE <span>↘</span></a>
+          <strong data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
+          <p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
+          <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">EXPLORA BRVTAL <span>↘</span></a>
         </div>
       </div>
       <figure class="c5-hero-documentary" data-c5-hero-documentary hidden>
@@ -273,4 +273,18 @@ test('Concept 05 visual-test mode freezes Hero entrance motion deterministically
   await expect(page.locator('[data-c5-hero-documentary]')).toBeVisible();
 
   expect(await page.evaluate(() => window.__heroMotionCalls)).toBe(0);
+});
+
+
+test('Concept 05 owner reference v2 keeps the authored hero at 1440 and 390', async ({ page }) => {
+  for (const viewport of [{ width:1440, height:900 }, { width:390, height:844 }]) {
+    await page.setViewportSize(viewport);
+    await page.setContent(fixture);
+    await expect(page.locator('.hero-title')).toHaveText('BRVTAL');
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.');
+    await expect(page.locator('[data-c5-hero-description]')).toContainText('PEREIRA / COLOMBIA');
+    await expect(page.locator('.c5-hero-explore')).toContainText('EXPLORA BRVTAL');
+    const safe = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+    expect(safe).toBe(true);
+  }
 });

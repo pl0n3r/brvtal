@@ -129,7 +129,7 @@
 [data-concept="05"] .home-phase-a-hero .hero-declaration{
   position:absolute;
   left:var(--c5-hero-statement-left);
-  top:22%;
+  top:18%;
   width:clamp(220px,17vw,290px);
   min-height:250px;
   margin:0;

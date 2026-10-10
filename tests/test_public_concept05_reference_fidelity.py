@@ -29,11 +29,12 @@ class Concept05ReferenceFidelityTests(unittest.TestCase):
         return css[start:end]
 
     def test_reference_contract_pins_canonical_desktop_and_mobile_composition(self) -> None:
-        self.assertEqual(1, self.reference["version"])
+        self.assertEqual(2, self.reference["version"])
         self.assertEqual(
-            "01793a8dc4f33267f10e4221f0f00586ba6cc042ab1f2bfa500c4e3628dc8c3f",
-            self.reference["source"]["sha256"],
+            "f3d8434a605cee56d84d97307c0e3f5a6409b84d",
+            self.reference["source"]["git_blob_sha"],
         )
+        self.assertEqual("62041aa6", self.reference["source"]["sha256_prefix"])
         self.assertEqual({"width": 1440}, self.reference["viewports"]["desktop"])
         self.assertEqual({"width": 390}, self.reference["viewports"]["mobile"])
         self.assertEqual("BR/VT/AL", self.reference["hero"]["desktop"]["title_stack"])

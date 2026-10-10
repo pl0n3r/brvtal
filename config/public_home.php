@@ -445,9 +445,22 @@ function brvtalPublicHomeConcept05Footer(string $html): string
  * editorial labels on the real sections and a persistent mobile
  * bottom nav — all reusing existing anchors/routes, no fake content.
  */
+function brvtalPublicHomeConcept05RemoveLegacyManifesto(string $html): string
+{
+    // Preserve the historical section as an inert ordering anchor for downstream
+    // Home composition contracts while removing its legacy visual/content duplicate.
+    return preg_replace(
+        '~<section class="manifesto scene"[^>]*>.*?</section>~s',
+        '<section class="manifesto scene" hidden aria-hidden="true"></section>',
+        $html,
+        1
+    ) ?? $html;
+}
+
 function brvtal_public_home_concept05_dressing(string $html): string
 {
     $html = brvtal_public_home_concept05_foundation($html);
+    $html = brvtalPublicHomeConcept05RemoveLegacyManifesto($html);
 
     if (!str_contains($html, 'css/public-concept05-home.css')) {
         $html = str_replace(
@@ -572,6 +585,17 @@ function brvtal_public_home_identity(string $html): string
 {
     $html = brvtal_public_home_concept05_dressing($html);
 
+    // The canonical route validates the locale before this renderer runs.
+    // Preserve ES for direct callers, invalid query shapes and legacy URLs.
+    $localeInput = $_GET['locale'] ?? null;
+    $heroLocale = is_string($localeInput) && strtolower(trim($localeInput)) === 'en'
+        ? 'en'
+        : 'es';
+    $heroManifesto = $heroLocale === 'en'
+        ? 'MORE THAN PARTIES.<br>A CULTURE IN MOTION.'
+        : 'MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.';
+    $heroCta = $heroLocale === 'en' ? 'EXPLORE BRVTAL' : 'EXPLORA BRVTAL';
+
     if (!str_contains($html, 'css/public-concept05-hero.css')) {
         $html = str_replace(
             '</head>',
@@ -652,10 +676,10 @@ function brvtal_public_home_identity(string $html): string
     if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration')) {
         $heroStatement = '<div class="hero-declaration c5-hero-statement">'
             . '<span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
-            . '<strong data-site-tagline>RAVE TILL GRAVE</strong>'
-            . '<p data-c5-hero-description>UNDERGROUND ELECTRONIC CULTURE FROM PEREIRA.</p>'
+            . '<strong data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
+            . '<p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
             . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">'
-            . 'EXPLORE <span>↘</span></a>'
+            . $heroCta . ' <span>↘</span></a>'
             . '</div>';
         $html = str_replace($heroSub, $heroSub . $heroStatement, $html);
     }

@@ -1,11 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "source": {
-    "name": "ChatGPT Image Sep 21, 2026, 11_35_32 PM.png",
-    "sha256": "01793a8dc4f33267f10e4221f0f00586ba6cc042ab1f2bfa500c4e3628dc8c3f",
-    "recovered_preview": {
-      "width": 1312,
-      "height": 1199
+    "name": "docs/reference/home-concept05-owner-reference-v2.png",
+    "git_blob_sha": "f3d8434a605cee56d84d97307c0e3f5a6409b84d",
+    "sha256_prefix": "62041aa6",
+    "verification": "owner-approved-v2",
+    "previous_reference": {
+      "name": "ChatGPT Image Sep 21, 2026, 11_35_32 PM.png",
+      "sha256": "01793a8dc4f33267f10e4221f0f00586ba6cc042ab1f2bfa500c4e3628dc8c3f"
     }
   },
   "viewports": {
@@ -365,5 +367,82 @@
       "exact_main_evidence": true,
       "minimum_release": "0.1.137"
     }
+  },
+  "owner_reference_v2": {
+    "schema_version": 2,
+    "viewports": {
+      "desktop": {
+        "width": 1440,
+        "height": 900
+      },
+      "mobile": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    "hero": {
+      "title_stack": "BR/VT/AL",
+      "manifesto": "MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.",
+      "origin": "PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE",
+      "cta": "EXPLORA BRVTAL",
+      "documentary_label": "RAVE TILL GRAVE"
+    },
+    "section_order": [
+      "hero",
+      "next-experience",
+      "nights",
+      "artists",
+      "sound",
+      "memories",
+      "journal",
+      "connected",
+      "footer"
+    ],
+    "desktop_rows": [
+      [
+        "next-experience"
+      ],
+      [
+        "nights",
+        "artists"
+      ],
+      [
+        "sound",
+        "memories"
+      ],
+      [
+        "journal",
+        "connected"
+      ]
+    ],
+    "mobile_order": [
+      "hero",
+      "next-experience",
+      "nights",
+      "artists",
+      "sound",
+      "memories",
+      "journal",
+      "connected",
+      "footer"
+    ],
+    "shell_navigation": [
+      "NIGHTS",
+      "ARTISTS",
+      "SOUND",
+      "RECORDS",
+      "JOURNAL",
+      "CONNECTED",
+      "TICKETS"
+    ],
+    "invariants": [
+      "cms-remains-source-of-truth",
+      "single-connected-section",
+      "legacy-manifesto-removed",
+      "no-horizontal-overflow",
+      "touch-targets-at-least-44px",
+      "managed-media-fail-closed",
+      "desktop-1440-mobile-390"
+    ]
   }
 }
