@@ -693,7 +693,9 @@ function brvtal_public_home_identity(string $html): string
             . '<strong' . $heroManifestoDefaults
             . ' data-c5-display-locale="' . $heroLocale . '"'
             . ' data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
-            . '<p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
+            . '<p data-c5-hero-description'
+            . ' data-c5-default-description="PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE">'
+            . 'PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
             . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE"'
             . ' data-c5-hero-cta data-c5-default-es="EXPLORA BRVTAL"'
             . ' data-c5-default-en="EXPLORE BRVTAL">'

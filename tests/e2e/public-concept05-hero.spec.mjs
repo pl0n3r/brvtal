@@ -38,7 +38,7 @@ const fixture = `<!doctype html>
         <div class="hero-declaration c5-hero-statement">
           <span class="mono" data-c5-hero-eyebrow data-c5-default-es="EVENTS / SOUND / ARTISTS / ARCHIVE" data-c5-default-en="EVENTS / SOUND / ARTISTS / ARCHIVE">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
           <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-display-locale="es" data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
-          <p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
+          <p data-c5-hero-description data-c5-default-description="PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE">PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
           <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE" data-c5-hero-cta data-c5-default-es="EXPLORA BRVTAL" data-c5-default-en="EXPLORE BRVTAL">EXPLORA BRVTAL <span>↘</span></a>
         </div>
       </div>
@@ -714,4 +714,36 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
     body:Buffer.from(JSON.stringify(evidence,null,2)),
     contentType:'application/json',
   });
+});
+
+
+test('Concept 05 blank CMS hero description keeps owner copy after edits at 390/1440', async ({page}) => {
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    await mount(page,viewport);
+    const description=page.locator('[data-c5-hero-description]');
+    const fallback='PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE';
+    await page.evaluate(() => {
+      window.BRVTALConcept05Hero.projectDescription({
+        settings:{site:{description:'',tagline:'RAVE TILL GRAVE'}}
+      });
+    });
+    await expect(description).toHaveText(fallback);
+    await page.evaluate(() => {
+      window.BRVTALConcept05Hero.projectDescription({
+        settings:{site:{description:'CULTURA ELECTRÓNICA INDEPENDIENTE'}}
+      });
+    });
+    await expect(description).toHaveText('CULTURA ELECTRÓNICA INDEPENDIENTE');
+    for (const override of [null,'','<img src=x onerror=alert(1)>','X'.repeat(241)]) {
+      await page.evaluate(value => {
+        window.BRVTALConcept05Hero.projectDescription({
+          settings:{site:{description:value,tagline:'RAVE TILL GRAVE'}}
+        });
+      },override);
+      await expect(description).toHaveText(fallback);
+    }
+    await expect(description).not.toHaveText('RAVE TILL GRAVE');
+    const viewportWidth=await page.evaluate(() => document.documentElement.clientWidth);
+    expect(viewportWidth).toBe(viewport.width);
+  }
 });

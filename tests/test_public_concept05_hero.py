@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class Concept05HeroTests(unittest.TestCase):
 
+    def test_blank_description_restores_owner_copy(self) -> None:
+        self._run_browser("Concept 05 blank CMS hero description keeps owner copy after edits at 390/1440")
+
     def test_slider_enabled_cannot_hide_stacked_brand_hero(self) -> None:
         self._run_browser("Concept 05 authored hero stays visible with a published CMS slider at 390 and 1440")
 

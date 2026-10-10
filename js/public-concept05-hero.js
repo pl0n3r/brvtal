@@ -131,11 +131,24 @@
 
   function projectDescription(data) {
     const site = data?.settings?.site;
-    if (!site || typeof site !== 'object') return;
-    const description = String(site.description || site.tagline || '').trim();
-    if (!description) return;
+    const candidate = site && typeof site === 'object' && !Array.isArray(site)
+      ? site.description : null;
+    const description = typeof candidate === 'string' ? candidate.trim() : '';
+    const valid = description && description.length <= 240
+      && !/[<>]/.test(description) && !/[\u0000-\u001F\u007F]/.test(description);
+
     document.querySelectorAll('[data-c5-hero-description]').forEach(node => {
-      node.textContent = description;
+      if (valid) {
+        // Never insert editor-supplied markup.
+        node.textContent = description;
+        return;
+      }
+      // Empty/missing/rejected description is *not* the site's tagline.
+      // Preserve or restore the canonical PHP-authored owner-v2 copy.
+      const fallback = node.dataset.c5DefaultDescription;
+      if (typeof fallback === 'string' && fallback && node.textContent !== fallback) {
+        node.textContent = fallback;
+      }
     });
   }
 
