@@ -260,6 +260,38 @@ test('reused CMS artwork host rebinds replacement images and ignores detached ev
   await expect(host).not.toHaveClass(/is-media-missing/);
 });
 
+test('same CMS artwork image recovers after success, failure and source reassignment', async ({ page }) => {
+  await page.route('https://example.test/new-artwork.jpg', route => route.fulfill({
+    status:200, contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200"></svg>',
+  }));
+  await page.route('https://example.test/missing-artwork.jpg', route => route.fulfill({
+    status:404, body:'missing',
+  }));
+  await mount(page, {width:390,height:844});
+  const host = page.locator('[data-c5-experience-artwork]');
+  const artwork = host.locator('img');
+  await expect(artwork).toBeVisible();
+  await expect(artwork).toHaveJSProperty('complete', true);
+
+  await artwork.evaluate(image => {
+    image.src = 'https://example.test/missing-artwork.jpg';
+    window.BRVTAL_CONCEPT05_EXPERIENCE_INIT();
+  });
+  await expect(host).toHaveClass(/is-media-missing/);
+  await expect(artwork).toBeHidden();
+  await expect(artwork).not.toHaveAttribute('src');
+
+  // Keep the exact same <img> DOM node rather than replacing the child.
+  await artwork.evaluate(image => {
+    image.src = 'https://example.test/new-artwork.jpg';
+    window.BRVTAL_CONCEPT05_EXPERIENCE_INIT();
+  });
+  await expect(artwork).toBeVisible();
+  await expect(artwork).toHaveAttribute('src', 'https://example.test/new-artwork.jpg');
+  await expect(host).not.toHaveClass(/is-media-missing/);
+});
+
 test('experience runtime does not claim GSAP motion ownership in deterministic visual-test mode', async ({ page }) => {
   await page.setViewportSize({ width:390, height:844 });
   await page.route('https://example.test/genesis.jpg', route => route.fulfill({

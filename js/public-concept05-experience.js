@@ -14,25 +14,31 @@
     image.removeAttribute('src');
   }
 
-  // Bind to the image identity, not the container alone: a CMS refresh may
-  // reuse the host and replace its child <img> without recreating the section.
-  var artworkImages = new WeakMap();
+  // A reused CMS host may replace an image OR change the source on the
+  // same image. Bind each request once and invalidate superseded callbacks.
+  var artworkBindings = new WeakMap();
 
   function bindArtwork(host) {
     if (!host) return;
     var image = host.querySelector('img');
-    if (artworkImages.has(host) && artworkImages.get(host) === image) return;
-    artworkImages.set(host, image);
+    var source = image ? String(image.getAttribute('src') || '') : '';
+    var previous = artworkBindings.get(host);
+    if (previous && previous.image === image && previous.source === source) return;
+
+    var binding = { image: image, source: source };
+    artworkBindings.set(host, binding);
     host.dataset.c5MediaBound = '1';
 
-    if (!image) {
+    if (!image || !source) {
       host.classList.add('is-media-missing');
+      if (image) image.hidden = true;
       return;
     }
 
-    // An old detached image must not reset a newly rendered image's state.
     function isCurrent() {
-      return host.querySelector('img') === image;
+      return artworkBindings.get(host) === binding
+        && host.querySelector('img') === image
+        && image.getAttribute('src') === source;
     }
 
     image.addEventListener('error', function () {
@@ -54,8 +60,7 @@
         failClosed(host, image);
       }
     } else {
-      // Keep a replacement concealed until real load success, including
-      // when the previous CMS image had failed closed.
+      // Suppress broken chrome until the replacement source really loads.
       host.classList.add('is-media-missing');
       image.hidden = true;
     }
