@@ -123,7 +123,7 @@ console.log(JSON.stringify({normal:largestBlankBandBetweenSections(normal),
 const fs=require('node:fs');
 const app=fs.readFileSync('js/app.js','utf8');
 const start=app.indexOf('  if (!reduce && motionReady) {');
-const end=app.indexOf('\\n  // Scene indicator',start);
+const end=app.indexOf('\n  // Scene indicator',start);
 if(start<0||end<=start) throw Error('LEGACY_TWEENS_MISSING');
 const snippet=app.slice(start,end);
 function evaluate(isConcept05) {
