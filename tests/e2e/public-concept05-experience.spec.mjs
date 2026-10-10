@@ -223,3 +223,41 @@ test('experience runtime does not claim GSAP motion ownership in deterministic v
   expect(await page.evaluate(() => window.__experienceGsapCalls)).toBe(0);
   await expect(page.locator('[data-c5-experience-artwork] img')).toBeVisible();
 });
+
+
+/**
+ * #970 AC-03: browser-produced evidence at the owner's two viewport targets.
+ * These images are attached to CI for the human owner-v2 A/B comparison.
+ * A passing geometry check does not automatically approve visual parity.
+ */
+test('Next Experience attaches owner-review captures at 390 and 1440', async ({ page }, info) => {
+  for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+    await mount(page, viewport);
+    const section = page.locator('[data-c5-experience]');
+    await expect(section).toBeVisible();
+    await expect(section.locator('.genesis-copy h2')).toHaveText('GENESIS');
+    await expect(section.locator('[data-c5-fact="date"]')).toHaveText('14.08.2026');
+    await expect(section.locator('.experience-lineup')).toContainText('PL0N3R');
+    await expect(section.locator('.ticket-cta')).toHaveAttribute(
+      'href', 'https://tickets.example.test/genesis'
+    );
+    const geometry = await page.evaluate(() => {
+      const node = document.querySelector('[data-c5-experience]');
+      const rect = node.getBoundingClientRect();
+      return {
+        width:document.documentElement.clientWidth,
+        scrollWidth:document.documentElement.scrollWidth,
+        sectionHeight:rect.height,
+      };
+    });
+    expect(geometry.width).toBe(viewport.width);
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(viewport.width);
+    expect(geometry.sectionHeight).toBeGreaterThan(400);
+    const image = await page.screenshot({
+      fullPage:true, animations:'disabled', caret:'hide',
+    });
+    await info.attach('next-experience-' + viewport.width + '-fullpage', {
+      body:image, contentType:'image/png',
+    });
+  }
+});
