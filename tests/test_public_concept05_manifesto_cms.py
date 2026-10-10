@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ADMIN = (ROOT / "discadmin/settings-v2.js").read_text(encoding="utf-8")
 HERO = (ROOT / "js/public-concept05-hero.js").read_text(encoding="utf-8")
 E2E = (ROOT / "tests/e2e/public-concept05-hero.spec.mjs").read_text(encoding="utf-8")
+ADMIN_E2E = (ROOT / "tests/e2e/discadmin-settings-v2.spec.mjs").read_text(encoding="utf-8")
 PHP_HOME = (ROOT / "config/public_home.php").read_text(encoding="utf-8")
 
 
@@ -22,6 +23,8 @@ class Concept05ManifestoCmsTests(unittest.TestCase):
         self.assertIn("hero_manifesto_es:heroManifestoEs", ADMIN)
         self.assertIn("hero_manifesto_en:heroManifestoEn", ADMIN)
         self.assertIn("await persistJson('site',{name,tagline,", ADMIN)
+        self.assertIn("Concept 05 bilingual manifesto settings save is persistent", ADMIN_E2E)
+        self.assertIn("custom_keep:'preserve-me'", ADMIN_E2E)
 
     def test_playwright_two_distinct_cms_payloads_390_1440(self) -> None:
         self.assertIn("CMS manifesto changes per locale and viewport without overflow", E2E)
