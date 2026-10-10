@@ -159,6 +159,7 @@
   color:var(--c5-paper-dirty);
   font-size:clamp(32px,2.8vw,46px);
   line-height:.82;
+  overflow-wrap:anywhere;
   letter-spacing:-.045em;
   text-transform:uppercase;
 }

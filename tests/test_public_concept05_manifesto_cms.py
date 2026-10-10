@@ -57,7 +57,7 @@ console.log(JSON.stringify({
   missing:run('es',null),
   blank:run('es',''),
   invalid:run('es','<script>alert(1)</script>'),
-  tooLong:run('en','X'.repeat(161)),
+  tooLong:run('en','X'.repeat(65)),
 }));
 """
         result = subprocess.run(
@@ -76,7 +76,7 @@ console.log(JSON.stringify({
             },
             actual,
         )
-        self.assertIn("value.length > 160", ADMIN)
+        self.assertIn("value.length > 64", ADMIN)
         self.assertIn("node.textContent = manifesto", HERO)
 
     def test_original_owner_v2_copy_and_existing_cms_description_remain_unchanged(self) -> None:

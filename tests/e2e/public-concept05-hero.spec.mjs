@@ -310,6 +310,28 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
       );
       expect(noOverflow).toBe(true);
     }
+    // A maximal accepted single-token CMS value must wrap without clipping.
+    await page.evaluate(() => {
+      document.documentElement.lang = 'es';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'X'.repeat(64) } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('X'.repeat(64));
+    const bounds = await page.evaluate(() => {
+      const rect = selector => document.querySelector(selector).getBoundingClientRect();
+      const hero = rect('.home-phase-a-hero');
+      const statement = rect('.hero-declaration');
+      const manifesto = rect('[data-c5-hero-manifesto]');
+      const cta = rect('.c5-hero-explore');
+      return { manifestoRight:manifesto.right, statementRight:statement.right,
+        ctaBottom:cta.bottom, heroBottom:hero.bottom,
+        scrollWidth:document.documentElement.scrollWidth,
+        viewport:document.documentElement.clientWidth };
+    });
+    expect(bounds.manifestoRight).toBeLessThanOrEqual(bounds.statementRight + 1);
+    expect(bounds.ctaBottom).toBeLessThanOrEqual(bounds.heroBottom + 1);
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.viewport);
     await page.evaluate(() => {
       const element = document.querySelector('[data-c5-hero-manifesto]');
       element.textContent = 'SAFE PREVIOUS CONTENT';
@@ -321,7 +343,7 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
     await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('SAFE PREVIOUS CONTENT');
     await page.evaluate(() => {
       window.BRVTALConcept05Hero.projectManifesto({
-        settings: { site: { hero_manifesto_es:'X'.repeat(161) } }
+        settings: { site: { hero_manifesto_es:'X'.repeat(65) } }
       });
     });
     await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('SAFE PREVIOUS CONTENT');

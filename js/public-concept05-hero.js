@@ -67,7 +67,7 @@
     const manifesto = candidate.trim();
     // Plain editorial copy only; markup, control characters and oversized
     // values leave the server-rendered owner-v2 fallback untouched.
-    if (!manifesto || manifesto.length > 160 || /[<>]/.test(manifesto)
+    if (!manifesto || manifesto.length > 64 || /[<>]/.test(manifesto)
         || /[\u0000-\u001F\u007F]/.test(manifesto)) return;
     document.querySelectorAll('[data-c5-hero-manifesto]').forEach(node => {
       node.textContent = manifesto;

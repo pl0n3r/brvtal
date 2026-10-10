@@ -282,8 +282,8 @@
     const heroManifestoEs = read('site_hero_manifesto_es');
     const heroManifestoEn = read('site_hero_manifesto_en');
     for (const value of [heroManifestoEs, heroManifestoEn]) {
-      if (value.length > 160 || /[<>]/.test(value) || /[\u0000-\u001F\u007F]/.test(value)) {
-        throw new Error('Hero manifesto must be plain text (max 160 characters).');
+      if (value.length > 64 || /[<>]/.test(value) || /[\u0000-\u001F\u007F]/.test(value)) {
+        throw new Error('Hero manifesto must be plain text (max 64 characters).');
       }
     }
     await persistJson('site',{name,tagline,hero_manifesto_es:heroManifestoEs,hero_manifesto_en:heroManifestoEn});
