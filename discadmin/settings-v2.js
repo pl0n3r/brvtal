@@ -82,6 +82,7 @@
     return `<section class="sv2-pane ${V2.tab==='general'?'active':''}" data-settings-pane="general">
       <header class="sv2-section-head"><div><span>01 / GENERAL</span><h3>Site identity</h3></div><p>Global identity values used by the public runtime. Visual treatment belongs in Theme Studio.</p></header>
       <div class="sv2-grid two">${text('site_name','Public site name',site.name || 'BRVTAL','Used by public name bindings and document fallback.')}${text('site_tagline','Tagline',site.tagline || 'RAVE TILL GRAVE','Global editorial tagline; its typography/placement remains theme-owned.')}</div>
+      <div class="sv2-grid two">${text('site_hero_manifesto_es','Hero manifesto · ES',site.hero_manifesto_es || '','Leave blank for owner v2 Spanish copy.')}${text('site_hero_manifesto_en','Hero manifesto · EN',site.hero_manifesto_en || '','Leave blank for owner v2 English copy.')}</div>
       <div class="sv2-context-grid">
         <article><span>CANONICAL ORIGIN</span><strong>www.brvtal.com.co</strong><p>Environment-owned. Not editable here.</p></article>
         <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Spanish is canonical/default and ES/EN availability is governed by <code>settings.site</code>. The public selector remains a separate delivery step.</p></article>
@@ -278,7 +279,14 @@
     const name = read('site_name');
     const tagline = read('site_tagline');
     if (!name) throw new Error('Public site name is required.');
-    await persistJson('site',{name,tagline});
+    const heroManifestoEs = read('site_hero_manifesto_es');
+    const heroManifestoEn = read('site_hero_manifesto_en');
+    for (const value of [heroManifestoEs, heroManifestoEn]) {
+      if (value.length > 160 || /[<>]/.test(value) || /[\u0000-\u001F\u007F]/.test(value)) {
+        throw new Error('Hero manifesto must be plain text (max 160 characters).');
+      }
+    }
+    await persistJson('site',{name,tagline,hero_manifesto_es:heroManifestoEs,hero_manifesto_en:heroManifestoEn});
   }
 
   async function saveSocial() {

@@ -288,3 +288,42 @@ test('Concept 05 owner reference v2 keeps the authored hero at 1440 and 390', as
     expect(safe).toBe(true);
   }
 });
+
+
+test('Concept 05 CMS manifesto changes per locale and viewport without overflow', async ({ page }) => {
+  for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+    await mount(page, viewport);
+    for (const sample of [
+      { locale:'es', value:'SONIDO. MEMORIA. COMUNIDAD.' },
+      { locale:'en', value:'MORE THAN A SCENE. A CULTURE.' },
+    ]) {
+      const cms = structuredClone(payload);
+      cms.payload.data.settings.site['hero_manifesto_' + sample.locale] = sample.value;
+      await page.evaluate(({ data, locale }) => {
+        document.documentElement.lang = locale;
+        window.BRVTALConcept05Hero.projectManifesto(data.payload.data);
+      }, { data:cms, locale:sample.locale });
+      await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(sample.value);
+      await expect(page.locator('.c5-hero-explore')).toBeVisible();
+      const noOverflow = await page.evaluate(() =>
+        document.documentElement.scrollWidth <= document.documentElement.clientWidth
+      );
+      expect(noOverflow).toBe(true);
+    }
+    await page.evaluate(() => {
+      const element = document.querySelector('[data-c5-hero-manifesto]');
+      element.textContent = 'SAFE PREVIOUS CONTENT';
+      document.documentElement.lang = 'es';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'<script>alert(1)</script>' } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('SAFE PREVIOUS CONTENT');
+    await page.evaluate(() => {
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'X'.repeat(161) } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('SAFE PREVIOUS CONTENT');
+  }
+});

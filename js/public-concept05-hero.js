@@ -57,6 +57,23 @@
       || firstImage(data?.archive?.events, ['cover_image','image','photo']);
   }
 
+  function projectManifesto(data) {
+    const site = data?.settings?.site;
+    if (!site || typeof site !== 'object' || Array.isArray(site)) return;
+    const locale = String(document.documentElement.lang || 'es').toLowerCase().split('-')[0] === 'en'
+      ? 'en' : 'es';
+    const candidate = site['hero_manifesto_' + locale];
+    if (typeof candidate !== 'string') return;
+    const manifesto = candidate.trim();
+    // Plain editorial copy only; markup, control characters and oversized
+    // values leave the server-rendered owner-v2 fallback untouched.
+    if (!manifesto || manifesto.length > 160 || /[<>]/.test(manifesto)
+        || /[\u0000-\u001F\u007F]/.test(manifesto)) return;
+    document.querySelectorAll('[data-c5-hero-manifesto]').forEach(node => {
+      node.textContent = manifesto;
+    });
+  }
+
   function projectDescription(data) {
     const site = data?.settings?.site;
     if (!site || typeof site !== 'object') return;
@@ -158,6 +175,7 @@
 
     const data = await waitForPublicData();
     projectDescription(data);
+    projectManifesto(data);
     projectDocumentary(data);
     animateHero();
   }
@@ -181,5 +199,6 @@
     init,
     projectDocumentary,
     projectDescription,
+    projectManifesto,
   };
 })();
