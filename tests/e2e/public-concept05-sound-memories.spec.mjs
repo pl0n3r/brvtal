@@ -534,3 +534,47 @@ test('Concept 05 unloads an active embed synchronously while replacement CMS dat
   await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
 });
+
+test('Concept 05 stops a reused Set iframe before a new CMS promise resolves, but not on locale-only changes', async ({ page }) => {
+  await page.route('https://w.soundcloud.com/**', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: '<!doctype html><title>Fake media player</title>',
+  }));
+  await mount(page, { width: 390, height: 844 });
+
+  const oldEmbed = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fold';
+  const newEmbed = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fnew';
+  await page.evaluate(data => {
+    window.BRVTALPublicDataPromise = Promise.resolve({ payload: { data: { sets: data } } });
+    window.BRVTALPublicSetsLibrary.render(data);
+  }, [{ ...sets[0], embed_url: oldEmbed }]);
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await page.locator('.c5-sound-player-toggle').click();
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveAttribute('src', oldEmbed);
+
+  // A translation of the existing DOM is not a CMS content revision.
+  await page.evaluate(() => {
+    document.documentElement.dataset.locale = 'en';
+    window.dispatchEvent(new CustomEvent('brvtal:localechange'));
+  });
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveAttribute('src', oldEmbed);
+
+  const immediate = await page.evaluate(updated => {
+    window.BRVTALPublicDataPromise = new Promise(resolve => { window.__resolveSameIdSet = resolve; });
+    window.BRVTALPublicSetsLibrary.render([updated]); // SAME Set ID, new DOM/URL.
+    return {
+      oldPlayer: !!document.querySelector('.c5-sound-player'),
+      oldFrame: !!document.querySelector('.c5-sound-player-frame iframe'),
+      state: document.querySelector('#sets')?.dataset.c5Player,
+    };
+  }, { ...sets[0], embed_url: newEmbed });
+  expect(immediate).toEqual({ oldPlayer: false, oldFrame: false, state: 'unavailable' });
+
+  await page.evaluate(updated => {
+    window.__resolveSameIdSet({ payload: { data: { sets: [updated] } } });
+    delete window.__resolveSameIdSet;
+  }, { ...sets[0], embed_url: newEmbed });
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+});

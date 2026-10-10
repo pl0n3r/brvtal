@@ -35,6 +35,10 @@
   }
 
   var playerSyncTicket = 0;
+  // The CMS may replace a Set without changing its numeric ID. Track source
+  // identity so old opt-in audio is stopped before awaiting new CMS data.
+  var lastFeaturedNode = null;
+  var lastFeaturedRequest = null;
 
   function clearFeaturedPlayer(section) {
     section.querySelector('.c5-sound-player')?.remove();
@@ -46,11 +50,14 @@
     var id = Number(featured?.dataset.setId);
     // Stop the former provider synchronously when a newly featured Set replaces it.
     // A pending CMS Promise must never keep obsolete audio playing.
+    var request = window.BRVTALPublicDataPromise;
+    var contentChanged = featured !== lastFeaturedNode || request !== lastFeaturedRequest;
+    lastFeaturedNode = featured;
+    lastFeaturedRequest = request;
     var previous = section.querySelector('.c5-sound-player');
-    if (previous && previous.dataset.c5Set !== String(id)) {
+    if (previous && (previous.dataset.c5Set !== String(id) || contentChanged)) {
       clearFeaturedPlayer(section);
     }
-    var request = window.BRVTALPublicDataPromise;
     if (!id || !request || typeof request.then !== 'function') {
       clearFeaturedPlayer(section);
       return;
