@@ -11,6 +11,7 @@
     if (!host || !image) return;
     host.classList.add('is-media-missing');
     image.hidden = true;
+    image.style.visibility = '';
     image.removeAttribute('src');
   }
 
@@ -49,6 +50,7 @@
       if (isCurrent() && image.naturalWidth > 0) {
         host.classList.remove('is-media-missing');
         image.hidden = false;
+        image.style.visibility = '';
       }
     }, { once:true });
 
@@ -56,13 +58,16 @@
       if (image.naturalWidth > 0) {
         host.classList.remove('is-media-missing');
         image.hidden = false;
+        image.style.visibility = '';
       } else {
         failClosed(host, image);
       }
     } else {
-      // Suppress broken chrome until the replacement source really loads.
+      // Preserve layout while pending: img[hidden] is display:none and
+      // prevents offscreen loading=lazy images from ever starting to load.
       host.classList.add('is-media-missing');
-      image.hidden = true;
+      image.hidden = false;
+      image.style.visibility = 'hidden';
     }
   }
 
