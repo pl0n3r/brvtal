@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -577,4 +578,39 @@ test('Concept 05 stops a reused Set iframe before a new CMS promise resolves, bu
   await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
   await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+});
+
+test('Concept 05 attaches Sound and Memories owner-v2 comparison evidence at 390 and 1440', async ({ page }, info) => {
+  const ownerReference = readFileSync(join(root, 'docs/reference/home-concept05-owner-reference-v2.png'));
+  expect(ownerReference.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  await info.attach('owner-v2-reference', { body:ownerReference, contentType:'image/png' });
+  const digest = image => createHash('sha256').update(image).digest('hex');
+  const manifest = {
+    schema:'brvtal-c05-sound-memories-evidence-v1',
+    source:'synthetic CMS Set/Memory records and intercepted SVG media (not production)',
+    reference:'docs/reference/home-concept05-owner-reference-v2.png',
+    reference_sha256:digest(ownerReference),
+    review_status:'PENDING_HUMAN_AB_COMPARISON',
+    accepted_visual_deviations:null,
+    review_notes:['Compare both blocks to owner v2 for each viewport before merging',
+      'Synthetic records and placeholder SVGs are not production CMS/photography'],
+    captures:[],
+  };
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    await mount(page, viewport);
+    await expect(page.locator('.set-library-item')).toHaveCount(4);
+    await expect(page.locator('.c5-memory-cell')).toHaveCount(3);
+    for (const [block, selector] of [['sound','#sets'],['memories','#media']]) {
+      const image = await page.locator(selector).screenshot({animations:'disabled',caret:'hide'});
+      await info.attach('c05-' + block + '-' + viewport.width, {body:image,contentType:'image/png'});
+      manifest.captures.push({viewport:viewport.width,block,sha256:digest(image)});
+    }
+    const full = await page.screenshot({fullPage:true,animations:'disabled',caret:'hide'});
+    await info.attach('c05-fullpage-' + viewport.width, {body:full,contentType:'image/png'});
+    manifest.captures.push({viewport:viewport.width,block:'fullpage',sha256:digest(full)});
+  }
+  expect(manifest.captures).toHaveLength(6);
+  await info.attach('c05-owner-v2-ab-manifest', {
+    body:Buffer.from(JSON.stringify(manifest,null,2)),contentType:'application/json',
+  });
 });

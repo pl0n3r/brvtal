@@ -71,6 +71,11 @@ class HomeC05SoundMemoriesTests(unittest.TestCase):
         self.assertIn("grid-template-columns:repeat(12,minmax(0,1fr));", self.css)
         self.assertIn("grid-template-columns:repeat(2,minmax(0,1fr));", self.css)
         self.assertIn("Concept 05 mobile Sound and Memories remain touch-safe", self.spec)
+        # Require emitted browser artifacts and explicit non-approval, not just viewport literals.
+        self.assertIn("Concept 05 attaches Sound and Memories owner-v2 comparison evidence", self.spec)
+        self.assertIn("await info.attach('owner-v2-reference'", self.spec)
+        self.assertIn("PENDING_HUMAN_AB_COMPARISON", self.spec)
+        self.assertIn("accepted_visual_deviations:null", self.spec)
         # Screenshot comparison must additionally be attached to and reviewed on the PR.
 
     def test_browser_scenarios_cover_sound_memories(self) -> None:
