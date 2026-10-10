@@ -57,6 +57,44 @@
       || firstImage(data?.archive?.events, ['cover_image','image','photo']);
   }
 
+  function projectManifesto(data) {
+    const site = data?.settings?.site;
+    const locale = String(document.documentElement.dataset.locale
+      || document.documentElement.lang || 'es').toLowerCase().split('-')[0] === 'en'
+      ? 'en' : 'es';
+    const candidate = site && typeof site === 'object' && !Array.isArray(site)
+      ? site['hero_manifesto_' + locale] : null;
+    const manifesto = typeof candidate === 'string' ? candidate.trim() : '';
+    const isSafe = manifesto.length > 0 && manifesto.length <= 64
+      && !/[<>]/.test(manifesto) && !/[\u0000-\u001F\u007F]/.test(manifesto);
+
+    document.querySelectorAll('[data-c5-hero-manifesto]').forEach(node => {
+      if (isSafe) {
+        // CMS content never becomes markup.
+        node.textContent = manifesto;
+        node.dataset.c5ManagedCopy = '1';
+        node.dataset.c5DisplayLocale = locale;
+        return;
+      }
+      // Restore the locale-specific owner copy after a previous CMS override.
+      // The trusted defaults are emitted by the PHP renderer, not by the CMS.
+      const fallback = locale === 'en' ? node.dataset.c5DefaultEn : node.dataset.c5DefaultEs;
+      if (typeof fallback !== 'string' || !fallback) return;
+      // On initial load, preserve the PHP-authored <br> and DOM exactly as
+      // rendered; only rebuild when an override or the locale changed.
+      if (node.dataset.c5ManagedCopy !== '1' && node.dataset.c5DisplayLocale === locale) return;
+      delete node.dataset.c5ManagedCopy;
+      node.dataset.c5DisplayLocale = locale;
+      const lines = fallback.split('\n');
+      const parts = [];
+      lines.forEach((line, index) => {
+        if (index) parts.push(document.createElement('br'));
+        parts.push(document.createTextNode(line));
+      });
+      node.replaceChildren(...parts);
+    });
+  }
+
   function projectDescription(data) {
     const site = data?.settings?.site;
     if (!site || typeof site !== 'object') return;
@@ -147,6 +185,8 @@
     return {};
   }
 
+  let lastPublicData = null;
+
   async function init() {
     const hero = document.querySelector('.home-phase-a-hero');
     if (!hero || hero.dataset.c5HeroReady === '1') return;
@@ -157,10 +197,16 @@
     }
 
     const data = await waitForPublicData();
+    lastPublicData = data;
     projectDescription(data);
+    projectManifesto(data);
     projectDocumentary(data);
     animateHero();
   }
+
+  window.addEventListener('brvtal:localechange', () => {
+    if (lastPublicData) projectManifesto(lastPublicData);
+  });
 
   function startInit() {
     void init().catch(error => {
@@ -181,5 +227,6 @@
     init,
     projectDocumentary,
     projectDescription,
+    projectManifesto,
   };
 })();

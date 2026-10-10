@@ -35,7 +35,7 @@ const fixture = `<!doctype html>
         <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
         <div class="hero-declaration c5-hero-statement">
           <span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
-          <strong data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
+          <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-display-locale="es" data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
           <p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
           <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">EXPLORA BRVTAL <span>↘</span></a>
         </div>
@@ -287,4 +287,125 @@ test('Concept 05 owner reference v2 keeps the authored hero at 1440 and 390', as
     const safe = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
     expect(safe).toBe(true);
   }
+});
+
+
+test('Concept 05 CMS manifesto changes per locale and viewport without overflow', async ({ page }) => {
+  for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+    await mount(page, viewport);
+    for (const sample of [
+      { locale:'es', value:'SONIDO. MEMORIA. COMUNIDAD.' },
+      { locale:'en', value:'MORE THAN A SCENE. A CULTURE.' },
+    ]) {
+      const cms = structuredClone(payload);
+      cms.payload.data.settings.site['hero_manifesto_' + sample.locale] = sample.value;
+      await page.evaluate(({ data, locale }) => {
+        document.documentElement.lang = locale;
+        window.BRVTALConcept05Hero.projectManifesto(data.payload.data);
+      }, { data:cms, locale:sample.locale });
+      await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(sample.value);
+      await expect(page.locator('.c5-hero-explore')).toBeVisible();
+      const noOverflow = await page.evaluate(() =>
+        document.documentElement.scrollWidth <= document.documentElement.clientWidth
+      );
+      expect(noOverflow).toBe(true);
+    }
+    // A maximal accepted single-token CMS value must wrap without clipping.
+    await page.evaluate(() => {
+      document.documentElement.lang = 'es';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'X'.repeat(64) } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('X'.repeat(64));
+    const bounds = await page.evaluate(() => {
+      const rect = selector => document.querySelector(selector).getBoundingClientRect();
+      const hero = rect('.home-phase-a-hero');
+      const statement = rect('.hero-declaration');
+      const manifesto = rect('[data-c5-hero-manifesto]');
+      const cta = rect('.c5-hero-explore');
+      return { manifestoRight:manifesto.right, statementRight:statement.right,
+        ctaBottom:cta.bottom, heroBottom:hero.bottom,
+        scrollWidth:document.documentElement.scrollWidth,
+        viewport:document.documentElement.clientWidth };
+    });
+    expect(bounds.manifestoRight).toBeLessThanOrEqual(bounds.statementRight + 1);
+    expect(bounds.ctaBottom).toBeLessThanOrEqual(bounds.heroBottom + 1);
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    // Replay without resetting the DOM: language and rejected settings must
+    // replace the previous CMS override with the correct trusted fallback.
+    await page.evaluate(() => {
+      document.documentElement.lang = 'en';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_en:'' } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+      /MORE THAN PARTIES\.\s*A CULTURE IN MOTION\./
+    );
+    await page.evaluate(() => {
+      document.documentElement.lang = 'es';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'SONIDO ACTIVO' } }
+      });
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'<script>alert(1)</script>' } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+      /MÁS QUE FIESTAS\.\s*UNA CULTURA EN MOVIMIENTO\./
+    );
+    await page.evaluate(() => {
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'X'.repeat(65) } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+      /MÁS QUE FIESTAS\.\s*UNA CULTURA EN MOVIMIENTO\./
+    );
+  }
+});
+
+
+test('Concept 05 bootstraps CMS manifesto and tracks the public locale event', async ({ page }) => {
+  const cms = structuredClone(payload);
+  cms.payload.data.settings.site.hero_manifesto_es = 'PEREIRA CREA SU PROPIA CULTURA.';
+  cms.payload.data.settings.site.hero_manifesto_en = 'PEREIRA CREATES ITS OWN CULTURE.';
+
+  await page.setViewportSize({ width:390, height:844 });
+  await page.route('https://example.test/night.jpg', route => route.fulfill({
+    status:200,
+    contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>',
+  }));
+  await page.setContent(fixture);
+  await page.evaluate(data => {
+    document.documentElement.lang = 'es';
+    document.documentElement.dataset.locale = 'es';
+    window.BRVTALPublicDataPromise = Promise.resolve(data);
+    window.BRVTALRuntimeReady = Promise.resolve({ mode:'test' });
+  }, cms);
+  // No manual projectManifesto() call: the init path must hydrate from API.
+  await page.addScriptTag({ content:runtime });
+  await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+    'PEREIRA CREA SU PROPIA CULTURA.'
+  );
+
+  await page.evaluate(() => {
+    document.documentElement.lang = 'en';
+    document.documentElement.dataset.locale = 'en';
+    window.dispatchEvent(new Event('brvtal:localechange'));
+  });
+  await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+    'PEREIRA CREATES ITS OWN CULTURE.'
+  );
+
+  await page.evaluate(() => {
+    document.documentElement.lang = 'es';
+    document.documentElement.dataset.locale = 'es';
+    window.dispatchEvent(new Event('brvtal:localechange'));
+  });
+  await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+    'PEREIRA CREA SU PROPIA CULTURA.'
+  );
 });

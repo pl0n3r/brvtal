@@ -226,3 +226,43 @@ test('Settings remains usable on mobile without horizontal overflow', async ({ p
   expect(Math.min(...metrics.tabs)).toBeGreaterThanOrEqual(44);
   expect(metrics.save).toBeGreaterThanOrEqual(44);
 });
+
+
+test('Concept 05 bilingual manifesto settings save is persistent and rejects HTML', async ({ page }) => {
+  await open(page, {width:390,height:844});
+  const spanish = page.getByTestId('settings-field-site_hero_manifesto_es');
+  const english = page.getByTestId('settings-field-site_hero_manifesto_en');
+  const save = page.getByRole('button',{name:'SAVE GENERAL'});
+  await expect(spanish).toBeVisible();
+  await expect(english).toBeVisible();
+  await spanish.fill('MÁS QUE MÚSICA. UNA COMUNIDAD.');
+  await english.fill('MORE THAN MUSIC. ONE COMMUNITY.');
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(1);
+  const persisted = await page.evaluate(() => JSON.parse(window.__posts[0].setting_value));
+  expect(persisted).toMatchObject({
+    name:'BRVTAL',
+    tagline:'RAVE TILL GRAVE',
+    default_locale:'es',
+    available_locales:['es','en'],
+    custom_keep:'preserve-me',
+    hero_manifesto_es:'MÁS QUE MÚSICA. UNA COMUNIDAD.',
+    hero_manifesto_en:'MORE THAN MUSIC. ONE COMMUNITY.',
+  });
+  await expect(spanish).toHaveValue('MÁS QUE MÚSICA. UNA COMUNIDAD.');
+  await expect(english).toHaveValue('MORE THAN MUSIC. ONE COMMUNITY.');
+
+  await spanish.fill('<script>alert(1)</script>');
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual([
+    'error', 'Hero manifesto must be plain text (max 64 characters).'
+  ]);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(1);
+
+  await spanish.fill('X'.repeat(65));
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual([
+    'error', 'Hero manifesto must be plain text (max 64 characters).'
+  ]);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(1);
+});

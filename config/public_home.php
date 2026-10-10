@@ -591,9 +591,20 @@ function brvtal_public_home_identity(string $html): string
     $heroLocale = is_string($localeInput) && strtolower(trim($localeInput)) === 'en'
         ? 'en'
         : 'es';
-    $heroManifesto = $heroLocale === 'en'
-        ? 'MORE THAN PARTIES.<br>A CULTURE IN MOTION.'
-        : 'MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.';
+    // The exact same owner-v2 source supplies both server markup and
+    // reversible locale fallbacks; editors cannot inject HTML into the defaults.
+    $heroManifestos = [
+        'es' => 'MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.',
+        'en' => 'MORE THAN PARTIES.<br>A CULTURE IN MOTION.',
+    ];
+    $heroManifesto = $heroManifestos[$heroLocale];
+    $heroManifestoDefaults = '';
+    foreach ($heroManifestos as $locale => $copy) {
+        $plain = str_replace('<br>', "\n", $copy);
+        $escaped = htmlspecialchars($plain, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $heroManifestoDefaults .= ' data-c5-default-' . $locale
+            . '="' . str_replace("\n", '&#10;', $escaped) . '"';
+    }
     $heroCta = $heroLocale === 'en' ? 'EXPLORE BRVTAL' : 'EXPLORA BRVTAL';
 
     if (!str_contains($html, 'css/public-concept05-hero.css')) {
@@ -676,7 +687,9 @@ function brvtal_public_home_identity(string $html): string
     if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration')) {
         $heroStatement = '<div class="hero-declaration c5-hero-statement">'
             . '<span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
-            . '<strong data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
+            . '<strong' . $heroManifestoDefaults
+            . ' data-c5-display-locale="' . $heroLocale . '"'
+            . ' data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
             . '<p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
             . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">'
             . $heroCta . ' <span>↘</span></a>'
