@@ -82,7 +82,10 @@
     return `<section class="sv2-pane ${V2.tab==='general'?'active':''}" data-settings-pane="general">
       <header class="sv2-section-head"><div><span>01 / GENERAL</span><h3>Site identity</h3></div><p>Global identity values used by the public runtime. Visual treatment belongs in Theme Studio.</p></header>
       <div class="sv2-grid two">${text('site_name','Public site name',site.name || 'BRVTAL','Used by public name bindings and document fallback.')}${text('site_tagline','Tagline',site.tagline || 'RAVE TILL GRAVE','Global editorial tagline; its typography/placement remains theme-owned.')}</div>
-      <div class="sv2-grid two">${text('site_hero_manifesto_es','Hero manifesto · ES',site.hero_manifesto_es || '','Leave blank for owner v2 Spanish copy.')}${text('site_hero_manifesto_en','Hero manifesto · EN',site.hero_manifesto_en || '','Leave blank for owner v2 English copy.')}</div>
+      <div class="sv2-grid two">${text('site_description','Hero description',site.description || '','Site description shown on public home; leave blank for the default home copy.')}${text('site_hero_manifesto_es','Hero manifesto · ES',site.hero_manifesto_es || '','Leave blank for owner v2 Spanish copy.')}</div>
+      <div class="sv2-grid two">${text('site_hero_manifesto_en','Hero manifesto · EN',site.hero_manifesto_en || '','Leave blank for owner v2 English copy.')}</div>
+      <div class="sv2-grid two">${text('site_hero_cta_es','Hero button · ES',site.hero_cta_es || '','Leave blank for EXPLORA BRVTAL.')}${text('site_hero_cta_en','Hero button · EN',site.hero_cta_en || '','Leave blank for EXPLORE BRVTAL.')}</div>
+      <div class="sv2-grid two">${text('site_hero_eyebrow_es','Hero eyebrow · ES',site.hero_eyebrow_es || '','Leave blank for the owner v2 editorial categories.')}${text('site_hero_eyebrow_en','Hero eyebrow · EN',site.hero_eyebrow_en || '','Leave blank for the owner v2 editorial categories.')}</div>
       <div class="sv2-context-grid">
         <article><span>CANONICAL ORIGIN</span><strong>www.brvtal.com.co</strong><p>Environment-owned. Not editable here.</p></article>
         <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Spanish is canonical/default and ES/EN availability is governed by <code>settings.site</code>. The public selector remains a separate delivery step.</p></article>
@@ -278,7 +281,12 @@
   async function saveGeneral() {
     const name = read('site_name');
     const tagline = read('site_tagline');
+    const description = read('site_description');
     if (!name) throw new Error('Public site name is required.');
+    if (description.length > 240 || /[<>]/.test(description)
+      || /[\u0000-\u001F\u007F]/.test(description)) {
+      throw new Error('Hero description must be plain text (max 240 characters).');
+    }
     const heroManifestoEs = read('site_hero_manifesto_es');
     const heroManifestoEn = read('site_hero_manifesto_en');
     for (const value of [heroManifestoEs, heroManifestoEn]) {
@@ -286,7 +294,22 @@
         throw new Error('Hero manifesto must be plain text (max 64 characters).');
       }
     }
-    await persistJson('site',{name,tagline,hero_manifesto_es:heroManifestoEs,hero_manifesto_en:heroManifestoEn});
+    const heroCtaEs = read('site_hero_cta_es');
+    const heroCtaEn = read('site_hero_cta_en');
+    const heroEyebrowEs = read('site_hero_eyebrow_es');
+    const heroEyebrowEn = read('site_hero_eyebrow_en');
+    const safeCopy = (value, limit) => value.length <= limit
+      && !/[<>]/.test(value) && !/[\u0000-\u001F\u007F]/.test(value);
+    if (![heroCtaEs,heroCtaEn].every(value => safeCopy(value, 48))
+      || ![heroEyebrowEs,heroEyebrowEn].every(value => safeCopy(value, 80))) {
+      throw new Error('Hero CTA/eyebrow must be plain text (max 48/80 characters).');
+    }
+    await persistJson('site',{
+      name,tagline,description,
+      hero_manifesto_es:heroManifestoEs,hero_manifesto_en:heroManifestoEn,
+      hero_cta_es:heroCtaEs,hero_cta_en:heroCtaEn,
+      hero_eyebrow_es:heroEyebrowEs,hero_eyebrow_en:heroEyebrowEn,
+    });
   }
 
   async function saveSocial() {

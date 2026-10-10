@@ -82,7 +82,13 @@
     return `<div class="brvtal-hero-controls"><button type="button" data-hero-prev aria-label="Previous slide">←</button><div class="brvtal-hero-dots">${dots}</div><button type="button" data-hero-next aria-label="Next slide">→</button><button type="button" data-hero-pause aria-label="Pause automatic slides" aria-pressed="false">Ⅱ</button></div>`;
   }
 
+  // Concept 05 owns the art-directed first viewport. Published CMS banner
+  // slides remain editable in DISCADMIN and continue to work on other themes.
+  const hasAuthoredConcept05 = () => document.body?.dataset.concept === '05'
+    && Boolean(document.querySelector('main#top > .hero.home-phase-a-hero'));
+
   function mount(data) {
+    if (hasAuthoredConcept05()) return;
     const hero = document.querySelector('main#top > .hero');
     if (!hero || !data?.enabled || !Array.isArray(data.slides) || !data.slides.length) return;
     injectStyles();
@@ -170,6 +176,7 @@
   }
 
   async function init() {
+    if (hasAuthoredConcept05()) return;
     try {
       const response = await fetch(endpoint, {cache:'no-store', credentials:'same-origin'});
       const payload = await response.json();

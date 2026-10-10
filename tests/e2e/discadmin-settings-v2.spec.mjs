@@ -266,3 +266,55 @@ test('Concept 05 bilingual manifesto settings save is persistent and rejects HTM
   ]);
   expect(await page.evaluate(() => window.__posts.length)).toBe(1);
 });
+
+
+test('Concept 05 CTA and eyebrow settings roundtrip and reject unsafe copy', async ({ page }) => {
+  await open(page, {width:390,height:844});
+  const spanish = page.getByTestId('settings-field-site_hero_cta_es');
+  const english = page.getByTestId('settings-field-site_hero_cta_en');
+  const eyebrow = page.getByTestId('settings-field-site_hero_eyebrow_es');
+  const eyebrowEn = page.getByTestId('settings-field-site_hero_eyebrow_en');
+  const save = page.getByRole('button',{name:'SAVE GENERAL'});
+  await expect(spanish).toBeVisible();
+  await english.fill('EXPLORE THE SCENE');
+  await spanish.fill('EXPLORA LA ESCENA');
+  await eyebrow.fill('NOCHES / ARTISTAS / ARCHIVO');
+  await eyebrowEn.fill('NIGHTS / ARTISTS / ARCHIVE');
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(window.__posts[0].setting_value))).toMatchObject({
+    name:'BRVTAL',custom_keep:'preserve-me',
+    hero_cta_es:'EXPLORA LA ESCENA',hero_cta_en:'EXPLORE THE SCENE',
+    hero_eyebrow_es:'NOCHES / ARTISTAS / ARCHIVO',
+    hero_eyebrow_en:'NIGHTS / ARTISTS / ARCHIVE',
+  });
+  await expect(spanish).toHaveValue('EXPLORA LA ESCENA');
+  await spanish.fill('<img src=x onerror=alert(1)>');
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual([
+    'error','Hero CTA/eyebrow must be plain text (max 48/80 characters).'
+  ]);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(1);
+});
+
+
+test('Concept 05 hero description is editable, persisted and plain-text safe', async ({page}) => {
+  await open(page,{width:390,height:844});
+  const description=page.getByTestId('settings-field-site_description');
+  const save=page.getByRole('button',{name:'SAVE GENERAL'});
+  await expect(description).toBeVisible();
+  await description.fill('BRVTAL EN PEREIRA: CULTURA ELECTRÓNICA.');
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__posts.length)).toBe(1);
+  expect(await page.evaluate(() => JSON.parse(window.__posts[0].setting_value))).toMatchObject({
+    name:'BRVTAL',custom_keep:'preserve-me',
+    description:'BRVTAL EN PEREIRA: CULTURA ELECTRÓNICA.',
+  });
+  await expect(description).toHaveValue('BRVTAL EN PEREIRA: CULTURA ELECTRÓNICA.');
+  await description.fill('<img onerror=alert(1)>');
+  await save.click();
+  await expect.poll(() => page.evaluate(() => window.__feedback.at(-1))).toEqual([
+    'error','Hero description must be plain text (max 240 characters).'
+  ]);
+  expect(await page.evaluate(() => window.__posts.length)).toBe(1);
+});

@@ -686,12 +686,19 @@ function brvtal_public_home_identity(string $html): string
     $heroSub = '<div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>';
     if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration')) {
         $heroStatement = '<div class="hero-declaration c5-hero-statement">'
-            . '<span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
+            . '<span class="mono" data-c5-hero-eyebrow'
+            . ' data-c5-default-es="EVENTS / SOUND / ARTISTS / ARCHIVE"'
+            . ' data-c5-default-en="EVENTS / SOUND / ARTISTS / ARCHIVE">'
+            . 'EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
             . '<strong' . $heroManifestoDefaults
             . ' data-c5-display-locale="' . $heroLocale . '"'
             . ' data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
-            . '<p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
-            . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">'
+            . '<p data-c5-hero-description'
+            . ' data-c5-default-description="PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE">'
+            . 'PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
+            . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE"'
+            . ' data-c5-hero-cta data-c5-default-es="EXPLORA BRVTAL"'
+            . ' data-c5-default-en="EXPLORE BRVTAL">'
             . $heroCta . ' <span>↘</span></a>'
             . '</div>';
         $html = str_replace($heroSub, $heroSub . $heroStatement, $html);
