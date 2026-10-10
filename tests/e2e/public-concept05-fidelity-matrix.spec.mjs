@@ -277,6 +277,122 @@ for (const viewport of matrix) {
   });
 }
 
+
+for (const viewport of [
+  { width:390, height:844 },
+  { width:1024, height:900 },
+  { width:1440, height:900 },
+]) {
+  test(`Concept 05 CONNECTED tagline renders every line inside its graph at ${viewport.width}px`, async ({ page }) => {
+    await mount(page, viewport);
+    const bounds = await page.evaluate(() => {
+      const tagline = document.querySelector('#connected .c5-connected-tagline');
+      const graph = document.querySelector('#connected .c5-connected-graph');
+      const range = document.createRange();
+      range.selectNodeContents(tagline);
+      const owner = graph.getBoundingClientRect();
+      const ink = [...range.getClientRects()].map(rect => ({
+        left:rect.left, right:rect.right, top:rect.top, bottom:rect.bottom,
+      }));
+      return {
+        owner:{ left:owner.left, right:owner.right, top:owner.top, bottom:owner.bottom },
+        paddingBottom:Number.parseFloat(getComputedStyle(graph).paddingBottom),
+        ink,
+      };
+    });
+    if (viewport.width <= 900) {
+      expect(bounds.paddingBottom, 'CONNECTED mobile graph must preserve bottom ink clearance').toBeGreaterThanOrEqual(20);
+    }
+    expect(bounds.ink.length).toBeGreaterThan(0);
+    for (const line of bounds.ink) {
+      expect(line.left, 'CONNECTED text starts outside graph').toBeGreaterThanOrEqual(bounds.owner.left - 1);
+      expect(line.right, 'CONNECTED text clips at graph right edge').toBeLessThanOrEqual(bounds.owner.right + 1);
+      expect(line.top, 'CONNECTED text starts above graph').toBeGreaterThanOrEqual(bounds.owner.top - 1);
+      expect(line.bottom, 'CONNECTED text clips at graph bottom edge').toBeLessThanOrEqual(bounds.owner.bottom + 1);
+    }
+  });
+}
+
+
+// Verify *painted* glyph ink in addition to Range text-fragment bounds.
+// A clipped/unclipped raster difference reveals ink hidden by overflow:hidden,
+// even when document.scrollWidth and Range.getClientRects() both pass.
+async function connectedPaintDiff(page) {
+  await page.locator('#connected .c5-connected-tagline').scrollIntoViewIfNeeded();
+  await page.evaluate(() => {
+    const graph = document.querySelector('#connected .c5-connected-graph');
+    for (const child of graph.children) {
+      child.style.visibility = child.classList.contains('c5-connected-tagline') ? 'visible' : 'hidden';
+    }
+  });
+  const clip = await page.evaluate(() => {
+    const graph = document.querySelector('#connected .c5-connected-graph').getBoundingClientRect();
+    const section = document.querySelector('#connected').getBoundingClientRect();
+    const text = document.querySelector('#connected .c5-connected-tagline').getBoundingClientRect();
+    const x = Math.ceil(graph.right);
+    const y = Math.max(0, Math.floor(text.top));
+    return {
+      x,
+      y,
+      width: Math.max(0, Math.min(20, Math.floor(Math.min(section.right, window.innerWidth)) - x)),
+      height: Math.max(0, Math.ceil(Math.min(window.innerHeight, text.bottom)) - y),
+    };
+  });
+  expect(clip.width, 'insufficient right-side raster sampling area').toBeGreaterThanOrEqual(4);
+  expect(clip.height, 'tagline must be visible for screenshot sampling').toBeGreaterThan(0);
+  const clipped = await page.screenshot({ clip, animations:'disabled' });
+  await page.evaluate(() => {
+    document.querySelector('#connected .c5-connected-graph').style.overflow = 'visible';
+  });
+  const revealed = await page.screenshot({ clip, animations:'disabled' });
+  await page.evaluate(() => {
+    document.querySelector('#connected .c5-connected-graph').style.removeProperty('overflow');
+  });
+  return page.evaluate(async ({ clipped, revealed }) => {
+    const raster = async base64 => {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + base64;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently:true });
+      context.drawImage(image, 0, 0);
+      return context.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const a = await raster(clipped);
+    const b = await raster(revealed);
+    let changed = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 40) {
+        changed += 1;
+      }
+    }
+    return changed;
+  }, { clipped:clipped.toString('base64'), revealed:revealed.toString('base64') });
+}
+
+for (const viewport of [
+  { width:390, height:844 },
+  { width:1024, height:900 },
+  { width:1440, height:900 },
+]) {
+  test(`Concept 05 CONNECTED painted-ink boundary differential at ${viewport.width}px`, async ({ page }) => {
+    await mount(page, viewport);
+    expect(await connectedPaintDiff(page), 'normal tagline loses painted glyphs at graph edge').toBe(0);
+    if (viewport.width === 1440) {
+      // Positive control: the comparison must detect a real intentionally clipped line.
+      await page.evaluate(() => {
+        const tagline = document.querySelector('#connected .c5-connected-tagline');
+        tagline.textContent = 'TODOCONECTADO'.repeat(12);
+        tagline.style.whiteSpace = 'nowrap';
+        tagline.style.overflowWrap = 'normal';
+      });
+      expect(await connectedPaintDiff(page), 'raster comparison fails to detect forced clipping').toBeGreaterThan(3);
+    }
+  });
+}
+
 test('Concept 05 canonical 390 and 1440 preserve distinct authored compositions', async ({ page }) => {
   await mount(page, { width:390, height:844 });
   const mobile = await page.evaluate(() => {
@@ -455,20 +571,22 @@ const canonicalVisualRegions = [
 ];
 
 /*
- * Baseline refresh is intentionally manual: after an approved Concept 05
- * visual change, replace both values for the affected viewport with
- * PENDING_CALIBRATION, run Chromium once, visually review the captured change,
- * then copy the logged aggregate structure/color fingerprints back here.
+ * These are fingerprints of the synthetic long-copy/media-empty stress
+ * fixture, NOT proof of visual parity with owner Concept 05 v2 or real CMS.
+ * Manual refresh only: inspect the exact-HEAD Chromium screenshots and
+ * document the reason and source hashes under docs/reference/ before editing.
+ * Keep structural and palette assertions fail-closed for future drift.
  * Never auto-update these values in CI.
+ * See docs/reference/concept05-v2-qa-baseline-2026-10-10.md.
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: 'e67ece6faafa331c459f3450aa7bd22fd81739b497b0876a3cec302a3c0995af',
-    color: '16b35a7df39875d69f5f0a5020815e17e3cc2503f502ea7d46417138f4877e95',
+    structure: '0e22155ed8bedcd6a2ce5b995d95cddf5125c15d4c0a5481e4af0e58ae4a8ea9',
+    color: 'b0757d4cc5ea9209533351994b8c437ce8ccbdcc7c2f1d8763e820d42dc810e1',
   },
   1440: {
-    structure: 'b470685ab9580895aceef455413220cc4e6783de0c3e80b9c05103c58181954d',
-    color: '9e4f95f400d4928ee39490054638e4dd8b78d1dafc91388e42bf11946a7f8d95',
+    structure: '0ca474d4581303cf1e8c8f7bdd826ead1eb4754d7347ecf85b8b40d07646317f',
+    color: '133a12fe27127708da420145fd60877727bdddd4ecacd895330fb9a44ed7792f',
   },
 };
 
@@ -565,9 +683,70 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
       console.log(`CONCEPT05_SCREENSHOT_BASELINE_${viewport.width}=${JSON.stringify(actual)}`);
     }
 
+    // Preserve visual evidence of this public synthetic fixture for review.
+    // The assertion below remains fail-closed until the baseline is approved.
+    const fingerprintMismatch =
+      actual.structure !== expected.structure || actual.color !== expected.color;
+
+    // Keep the failing assertion: capture both affected viewports and the
+    // approved owner source in Playwright test-results for a real A/B review.
+    if (viewport.width === 390 && fingerprintMismatch) {
+      const screenshotPath = test.info().outputPath('concept05-390-fullpage.png');
+      await page.screenshot({path:screenshotPath, fullPage:true, animations:'disabled', caret:'hide'});
+      await test.info().attach('concept05-390-fullpage', {
+        path:screenshotPath,
+        contentType:'image/png',
+      });
+    }
+    if (viewport.width === 1440 && fingerprintMismatch) {
+      const screenshotPath = test.info().outputPath('concept05-1440-fullpage.png');
+      await page.screenshot({path:screenshotPath, fullPage:true, animations:'disabled', caret:'hide'});
+      await test.info().attach('concept05-1440-fullpage', {
+        path:screenshotPath,
+        contentType:'image/png',
+      });
+    }
+    if (fingerprintMismatch) {
+      await test.info().attach('concept05-owner-reference-v2', {
+        path:'docs/reference/home-concept05-owner-reference-v2.png',
+        contentType:'image/png',
+      });
+    }
+
     expect(
       { structure:actual.structure, color:actual.color },
       'Intentional Concept 05 visual changes require explicit baseline refresh after review.'
     ).toEqual(expected);
   });
 }
+
+test('Concept 05 owner v2 pairs blocks 02 through 07 on desktop and stacks them on mobile', async ({ page }) => {
+  await mount(page, { width:1440, height:900 });
+  const desktop = await page.evaluate(() => {
+    const box = id => document.getElementById(id).getBoundingClientRect();
+    const events=box('events'), artists=box('artists'), sets=box('sets'), media=box('media');
+    const journal=box('transmissions'), connected=box('connected');
+    return {
+      nightsArtists:Math.abs(events.top-artists.top),
+      soundMemories:Math.abs(sets.top-media.top),
+      journalConnected:Math.abs(journal.top-connected.top),
+      noOverflow:document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    };
+  });
+  expect(desktop.nightsArtists).toBeLessThan(80);
+  expect(desktop.soundMemories).toBeLessThan(80);
+  expect(desktop.journalConnected).toBeLessThan(80);
+  expect(desktop.noOverflow).toBe(true);
+
+  await mount(page, { width:390, height:844 });
+  const mobile = await page.evaluate(() => {
+    const ids=['events','artists','sets','media','transmissions','connected'];
+    const tops=ids.map(id => document.getElementById(id).getBoundingClientRect().top);
+    return {
+      ordered:tops.every((value,index) => index === 0 || value > tops[index-1]),
+      noOverflow:document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    };
+  });
+  expect(mobile.ordered).toBe(true);
+  expect(mobile.noOverflow).toBe(true);
+});
