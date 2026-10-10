@@ -482,3 +482,25 @@ test('Concept 05 editable CTA and eyebrow hydrate safely and restore per locale'
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   )).toBe(true);
 });
+
+
+test('Concept 05 managed maximum editorial copy fits mobile viewport', async ({page}) => {
+  await mount(page,{width:390,height:844});
+  await page.evaluate(() => {
+    document.documentElement.dataset.locale='es';
+    window.BRVTALConcept05Hero.projectHeroEditorialCopy({
+      settings:{site:{hero_cta_es:'X'.repeat(48),hero_eyebrow_es:'Y'.repeat(80)}}
+    });
+  });
+  await expect(page.locator('[data-c5-hero-cta]')).toContainText('X'.repeat(48));
+  await expect(page.locator('[data-c5-hero-eyebrow]')).toHaveText('Y'.repeat(80));
+  await expect(page.locator('[data-c5-hero-cta]')).toHaveAttribute('data-c5-managed-cta','1');
+  const bounds=await page.evaluate(() => {
+    const rect=document.querySelector('[data-c5-hero-cta]').getBoundingClientRect();
+    return {left:rect.left,right:rect.right,width:document.documentElement.clientWidth,
+      scroll:document.documentElement.scrollWidth};
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(-1);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.width+1);
+  expect(bounds.scroll).toBeLessThanOrEqual(bounds.width);
+});

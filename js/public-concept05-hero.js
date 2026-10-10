@@ -115,10 +115,14 @@
         if (!copy) return;
         if (selector === '[data-c5-hero-cta]') {
           // Preserve the destination and arrow icon; only replace the text node.
+          if (valid) node.dataset.c5ManagedCta = '1';
+          else delete node.dataset.c5ManagedCta;
           const first = node.firstChild;
           if (first && first.nodeType === 3) first.textContent = copy + ' ';
           else node.insertBefore(document.createTextNode(copy + ' '), first);
         } else {
+          if (valid) node.dataset.c5ManagedEyebrow = '1';
+          else delete node.dataset.c5ManagedEyebrow;
           node.textContent = copy;
         }
       });
