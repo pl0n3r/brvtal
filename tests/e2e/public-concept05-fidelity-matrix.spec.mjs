@@ -559,6 +559,24 @@ test('Concept 05 motion foundation still animates fine pointers when motion is a
 });
 
 
+
+/* AC-01: only gaps BETWEEN authored sections. Intentional artwork whitespace
+ * inside a section still requires manual, real-CMS visual review. */
+function largestBlankBandBetweenSections(rects) {
+  if (!Array.isArray(rects) || rects.length < 2) throw new Error('C05_GAP_REGIONS_MISSING');
+  const boxes = rects.map(({top,bottom}) => {
+    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= top)
+      throw new Error('C05_GAP_RECT_INVALID');
+    return {top,bottom};
+  }).sort((a,b) => a.top-b.top);
+  let lastEnd=boxes[0].bottom, largest=0;
+  for (const rect of boxes.slice(1)) {
+    largest=Math.max(largest,Math.max(0,rect.top-lastEnd));
+    lastEnd=Math.max(lastEnd,rect.bottom);
+  }
+  return largest;
+}
+
 /**
  * #976: a full-page capture must not depend on ScrollTrigger firing for
  * every below-the-fold section. Simulate the paused initial GSAP state.
@@ -617,10 +635,57 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
       expect(region.clip, region.selector).not.toContain('100%');
       expect(region.height, region.selector).toBeGreaterThan(0);
     }
+    const sectionBoxes = await page.evaluate(() =>
+      ['.home-phase-a-hero','#genesis','#events','#artists','#sets','#media','#transmissions','#connected']
+        .map(selector => {
+          const r=document.querySelector(selector).getBoundingClientRect();
+          return {top:r.top,bottom:r.bottom};
+        }));
+    const maxBlankBandPx = Math.floor(viewport.height * 0.85);
+    expect(largestBlankBandBetweenSections(sectionBoxes),
+      'unintentional inter-section gap exceeds 85% of viewport height'
+    ).toBeLessThanOrEqual(maxBlankBandPx);
+    const injectedGap = [{top:0,bottom:250},
+      {top:251 + maxBlankBandPx,bottom:500 + maxBlankBandPx}];
+    expect(largestBlankBandBetweenSections(injectedGap)).toBeGreaterThan(maxBlankBandPx);
     const png = await page.screenshot({ fullPage:true, animations:'disabled', caret:'hide' });
     await info.attach(`concept05-no-gaps-${viewport.width}-fullpage`, {
       body:png, contentType:'image/png',
     });
+  });
+}
+
+
+for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+  test(`Concept 05 reduced-motion leaves all sections readable at ${viewport.width}px`, async ({page}) => {
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await mount(page,viewport);
+    await page.evaluate(() => {
+      document.documentElement.classList.remove('c5-visual-test');
+      document.documentElement.removeAttribute('data-theme-motion');
+      window.__c5ReducedMotionCalls=0;
+      window.ScrollTrigger={};
+      window.gsap={
+        registerPlugin:()=>{window.__c5ReducedMotionCalls++;},
+        from:()=>{window.__c5ReducedMotionCalls++;},
+        timeline:()=>{window.__c5ReducedMotionCalls++;return {fromTo:()=>{}};},
+      };
+    });
+    await page.addScriptTag({content:motion});
+    await page.evaluate(()=>window.BRVTAL_CONCEPT05_MOTION_INIT());
+    expect(await page.evaluate(()=>window.__c5ReducedMotionCalls)).toBe(0);
+    const regions=await page.evaluate(() =>
+      ['#genesis','#events','#artists','#sets','#media','#transmissions','#connected']
+        .map(selector=>{
+          const el=document.querySelector(selector),style=getComputedStyle(el);
+          return {selector,opacity:Number(style.opacity),visibility:style.visibility,
+            height:el.getBoundingClientRect().height};
+        }));
+    for (const region of regions) {
+      expect(region.opacity,region.selector).toBeGreaterThan(0.99);
+      expect(region.visibility,region.selector).toBe('visible');
+      expect(region.height,region.selector).toBeGreaterThan(0);
+    }
   });
 }
 

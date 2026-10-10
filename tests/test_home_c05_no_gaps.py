@@ -72,5 +72,44 @@ console.log(JSON.stringify({normal:check(false),reduced:check(true)}));
             self.assertIn("scrollTrigger", keys)
 
 
+    def test_fullpage_gap_budget_with_adversarial_spacer(self) -> None:
+        """AC-01: execute the exact JS gap detector, including a failing spacer."""
+        spec = E2E.read_text(encoding="utf-8")
+        start = spec.index("function largestBlankBandBetweenSections(rects) {")
+        end = spec.index("\n}\n", start) + len("\n}")
+        helper = spec[start:end]
+        self.assertIn("Math.floor(viewport.height * 0.85)", spec)
+        self.assertIn("largestBlankBandBetweenSections(sectionBoxes)", spec)
+        self.assertIn("largestBlankBandBetweenSections(injectedGap)", spec)
+        program = helper + """
+const normal=[{top:0,bottom:350},{top:370,bottom:800}];
+const injected=[{top:0,bottom:350},{top:1351,bottom:1800}];
+let rejectsBad=false;
+try { largestBlankBandBetweenSections([{top:0,bottom:0}]); }
+catch(error) { rejectsBad=/C05_GAP_REGIONS_MISSING|C05_GAP_RECT_INVALID/.test(error.message); }
+console.log(JSON.stringify({normal:largestBlankBandBetweenSections(normal),
+  injected:largestBlankBandBetweenSections(injected),rejectsBad}));
+"""
+        outcome = subprocess.run(
+            ["node", "-e", program], cwd=ROOT, capture_output=True,
+            text=True, check=True, timeout=10,
+        )
+        observed = json.loads(outcome.stdout)
+        self.assertEqual(observed, {"normal": 20, "injected": 1001, "rejectsBad": True})
+        self.assertLessEqual(observed["normal"], int(844 * 0.85))
+        self.assertGreater(observed["injected"], int(900 * 0.85))
+
+    def test_reduced_motion_keeps_all_modules_visible(self) -> None:
+        """AC-02: browser fixture covers both viewports; live JS skips GSAP."""
+        spec = E2E.read_text(encoding="utf-8")
+        self.assertIn("Concept 05 reduced-motion leaves all sections readable", spec)
+        self.assertIn("window.__c5ReducedMotionCalls", spec)
+        self.assertIn("reducedMotion:'reduce'", spec)
+        self.assertIn("width:390, height:844", spec)
+        self.assertIn("width:1440, height:900", spec)
+        self.test_e2e_fullpage_motion_contract()
+
+
+
 if __name__ == "__main__":
     unittest.main()
