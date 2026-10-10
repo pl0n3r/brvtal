@@ -207,6 +207,59 @@ test('managed experience artwork fails closed instead of exposing a broken image
   await expect(artwork.locator('img')).not.toHaveAttribute('src');
 });
 
+test('reused CMS artwork host rebinds replacement images and ignores detached events', async ({ page }) => {
+  await page.route('https://example.test/new-artwork.jpg', route => route.fulfill({
+    status: 200,
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200"></svg>',
+  }));
+  await page.route('https://example.test/missing-artwork.jpg', route => route.fulfill({
+    status: 404, body: 'missing',
+  }));
+  await mount(page, { width:390, height:844 });
+  const host = page.locator('[data-c5-experience-artwork]');
+  await expect(host.locator('img')).toBeVisible();
+
+  const immediate = await page.evaluate(() => {
+    const node = document.querySelector('[data-c5-experience-artwork]');
+    const old = node.querySelector('img');
+    const fresh = document.createElement('img');
+    fresh.src = 'https://example.test/new-artwork.jpg';
+    fresh.alt = 'Updated artwork';
+    node.replaceChildren(fresh);
+    window.BRVTAL_CONCEPT05_EXPERIENCE_INIT();
+    old.dispatchEvent(new Event('error')); // A detached load failure is irrelevant.
+    return { newSrc: fresh.getAttribute('src'), hidden: fresh.hidden };
+  });
+  expect(immediate.newSrc).toBe('https://example.test/new-artwork.jpg');
+  // Image may already have loaded; in either case its original source survives.
+  await expect(host.locator('img')).toBeVisible();
+  await expect(host).not.toHaveClass(/is-media-missing/);
+
+  await page.evaluate(() => {
+    const node = document.querySelector('[data-c5-experience-artwork]');
+    const old = node.querySelector('img');
+    const broken = document.createElement('img');
+    broken.src = 'https://example.test/missing-artwork.jpg';
+    node.replaceChildren(broken);
+    window.BRVTAL_CONCEPT05_EXPERIENCE_INIT();
+    old.dispatchEvent(new Event('error'));
+  });
+  await expect(host).toHaveClass(/is-media-missing/);
+  await expect(host.locator('img')).toBeHidden();
+  await expect(host.locator('img')).not.toHaveAttribute('src');
+
+  await page.evaluate(() => {
+    const node = document.querySelector('[data-c5-experience-artwork]');
+    const repaired = document.createElement('img');
+    repaired.src = 'https://example.test/new-artwork.jpg';
+    node.replaceChildren(repaired);
+    window.BRVTAL_CONCEPT05_EXPERIENCE_INIT();
+  });
+  await expect(host.locator('img')).toBeVisible();
+  await expect(host).not.toHaveClass(/is-media-missing/);
+});
+
 test('experience runtime does not claim GSAP motion ownership in deterministic visual-test mode', async ({ page }) => {
   await page.setViewportSize({ width:390, height:844 });
   await page.route('https://example.test/genesis.jpg', route => route.fulfill({
