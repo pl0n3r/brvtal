@@ -419,3 +419,76 @@ test('Concept 05 Sound and archive actions disappear when their CMS destination 
   await expect(page.locator('.c5-section-route--memories')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
+
+
+test('Concept 05 loads only allowlisted official embed after user activation', async ({ page }) => {
+  await page.route('https://w.soundcloud.com/**', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: '<!doctype html><title>Consent-based SoundCloud player fixture</title>',
+  }));
+  await mount(page, { width: 390, height: 844 });
+
+  const safeEmbed = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fbrvtal%2Fsignal';
+  const published = sets.map((set, index) => index === 0
+    ? {...set, embed_url: safeEmbed}
+    : set);
+  await page.evaluate(records => {
+    window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:records}}});
+    window.BRVTALPublicSetsLibrary.render(records);
+  }, published);
+
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  const play = page.locator('.c5-sound-player-toggle');
+  await expect(play).toHaveText('REPRODUCIR SET DESTACADO ↗');
+  await expect(play).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+  await play.click(); // Only this user gesture starts third-party loading.
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveAttribute('src', safeEmbed);
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveAttribute('sandbox', /allow-scripts/);
+  await expect(play).toHaveAttribute('aria-expanded', 'true');
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.locale = 'en';
+    window.dispatchEvent(new Event('brvtal:localechange'));
+  });
+  await expect(play).toHaveText('CLOSE PLAYER ×');
+  await play.click();
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+  await expect(play).toHaveText('PLAY FEATURED SET ↗');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+test('Concept 05 rejects untrusted CMS embeds and clears stale player when featured set disappears', async ({ page }) => {
+  await mount(page);
+  const malicious = [
+    'javascript:alert(1)',
+    'http://w.soundcloud.com/player/?url=x',
+    'https://w.soundcloud.com.evil.test/player/?url=x',
+    'https://evil.test/embed/track',
+    'https://open.spotify.com.evil.test/embed/track',
+    'https://w.soundcloud.com:8443/player/?url=x',
+  ];
+  for (const embed_url of malicious) {
+    const records = sets.map((item, index) => index === 0 ? {...item, embed_url} : item);
+    await page.evaluate(data => {
+      window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:data}}});
+      window.BRVTALPublicSetsLibrary.render(data);
+    }, records);
+    await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'unavailable');
+    await expect(page.locator('.c5-sound-player-toggle')).toHaveCount(0);
+    await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+  }
+
+  const safeEmbed = 'https://open.spotify.com/embed/track/7ouMYWpwJ422jRcDASZB7P';
+  await page.evaluate(data => {
+    window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:data}}});
+    window.BRVTALPublicSetsLibrary.render(data);
+  }, [{...sets[0], embed_url: safeEmbed}]);
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await expect(page.locator('.c5-sound-player-toggle')).toHaveCount(1);
+  await page.evaluate(() => {
+    window.BRVTALPublicSetsLibrary.render([]);
+  });
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'unavailable');
+  await expect(page.locator('.c5-sound-player')).toHaveCount(0);
+});

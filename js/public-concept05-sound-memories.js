@@ -14,6 +14,114 @@
     return locale === 'en';
   }
 
+  // Opt-in third-party embeds: never create an iframe before a user gesture.
+  // Only official HTTPS player endpoints are allowed; no arbitrary CMS HTML.
+  function safeEmbedUrl(value) {
+    try {
+      var url = new URL(String(value || ''));
+      if (url.protocol !== 'https:' || url.username || url.password || url.port) return '';
+      var host = url.hostname;
+      var path = url.pathname;
+      var trusted =
+        (host === 'w.soundcloud.com' && path.startsWith('/player/')) ||
+        (host === 'open.spotify.com' && path.startsWith('/embed/')) ||
+        (host === 'www.youtube-nocookie.com' && path.startsWith('/embed/')) ||
+        (host === 'player.mixcloud.com' && path.startsWith('/widget/iframe/')) ||
+        (host === 'bandcamp.com' && path.startsWith('/EmbeddedPlayer/'));
+      return trusted ? url.href : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  var playerSyncTicket = 0;
+
+  function clearFeaturedPlayer(section) {
+    section.querySelector('.c5-sound-player')?.remove();
+    section.dataset.c5Player = 'unavailable';
+  }
+
+  async function syncFeaturedPlayer(section, featured) {
+    var ticket = ++playerSyncTicket;
+    var id = Number(featured?.dataset.setId);
+    var request = window.BRVTALPublicDataPromise;
+    if (!id || !request || typeof request.then !== 'function') {
+      clearFeaturedPlayer(section);
+      return;
+    }
+
+    var response;
+    try {
+      response = await request;
+    } catch (_) {
+      if (ticket === playerSyncTicket) clearFeaturedPlayer(section);
+      return;
+    }
+    if (ticket !== playerSyncTicket || !featured.isConnected
+      || section.querySelector('.set-library-item') !== featured) return;
+
+    var payload = response?.payload ?? response;
+    var data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    var records = Array.isArray(data?.sets) ? data.sets : [];
+    var record = records.find(function (set) { return Number(set?.id) === id; });
+    var url = safeEmbedUrl(record?.embed_url);
+    if (!url) {
+      clearFeaturedPlayer(section);
+      return;
+    }
+
+    var player = section.querySelector('.c5-sound-player');
+    if (!player || player.dataset.c5Embed !== url || player.dataset.c5Set !== String(id)) {
+      player?.remove();
+      player = document.createElement('div');
+      player.className = 'c5-sound-player';
+      player.dataset.c5Embed = url;
+      player.dataset.c5Set = String(id);
+
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'c5-sound-player-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', 'c5-featured-sound-frame');
+
+      var frame = document.createElement('div');
+      frame.id = 'c5-featured-sound-frame';
+      frame.className = 'c5-sound-player-frame';
+      frame.hidden = true;
+
+      toggle.addEventListener('click', function () {
+        var opened = toggle.getAttribute('aria-expanded') === 'true';
+        if (opened) {
+          frame.replaceChildren(); // Removes the provider iframe and stops playback.
+        } else {
+          var iframe = document.createElement('iframe');
+          iframe.title = String(record?.title || 'BRVTAL Sound');
+          iframe.src = url;
+          iframe.loading = 'lazy';
+          iframe.referrerPolicy = 'no-referrer';
+          iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+          iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+          frame.replaceChildren(iframe);
+        }
+        frame.hidden = opened;
+        toggle.setAttribute('aria-expanded', String(!opened));
+        toggle.textContent = isEnglish()
+          ? (opened ? 'PLAY FEATURED SET ↗' : 'CLOSE PLAYER ×')
+          : (opened ? 'REPRODUCIR SET DESTACADO ↗' : 'CERRAR REPRODUCTOR ×');
+      });
+
+      player.append(toggle, frame);
+      section.querySelector('.set-list')?.after(player);
+    }
+
+    var button = player.querySelector('.c5-sound-player-toggle');
+    var opened = button?.getAttribute('aria-expanded') === 'true';
+    if (button) button.textContent = isEnglish()
+      ? (opened ? 'CLOSE PLAYER ×' : 'PLAY FEATURED SET ↗')
+      : (opened ? 'CERRAR REPRODUCTOR ×' : 'REPRODUCIR SET DESTACADO ↗');
+    section.dataset.c5Player = 'available';
+  }
+
   function failMedia(host, media) {
     if (!host) return;
     host.classList.add('is-media-missing');
@@ -77,6 +185,8 @@
     } else if (route) {
       route.remove();
     }
+
+    void syncFeaturedPlayer(section, first);
 
     document.documentElement.dataset.concept05Sound = 'ready';
   }

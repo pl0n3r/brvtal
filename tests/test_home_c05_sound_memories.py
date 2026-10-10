@@ -39,6 +39,12 @@ class HomeC05SoundMemoriesTests(unittest.TestCase):
         self.assertIn("c5-sound-feature", self.enhancer)
         self.assertIn("EXPLORAR SONIDO", self.enhancer)
         self.assertIn("NO PUBLISHED SETS YET.", self.sets)
+        self.assertIn("function safeEmbedUrl(value)", self.enhancer)
+        self.assertIn("window.BRVTALPublicDataPromise", self.enhancer)
+        self.assertIn("iframe.referrerPolicy = 'no-referrer'", self.enhancer)
+        self.assertIn("allow-scripts allow-same-origin allow-presentation", self.enhancer)
+        self.assertIn("Concept 05 loads only allowlisted official embed after user activation", self.spec)
+        self.assertIn("Concept 05 rejects untrusted CMS embeds", self.spec)
 
     def test_memories_use_curated_cms_media_with_safe_links(self) -> None:
         self.assertIn("window.__memoriesArg?.some(item => item.id === 999)", self.spec)
