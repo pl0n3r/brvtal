@@ -29,6 +29,10 @@ class Concept05HeroTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode,
                          f"{test_name} failed:\n{completed.stdout[-5000:]}\n{completed.stderr[-5000:]}")
 
+    def test_reference_1440_390_screenshots_and_deviations_required(self) -> None:
+        """Produce PHP/CMS screenshot evidence with an explicit pending-review manifest."""
+        self._run_browser("Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440")
+
     def test_hero_playwright_desktop_mobile(self) -> None:
         """Execute the browser contract; never accept source-only assertions."""
         result = subprocess.run(

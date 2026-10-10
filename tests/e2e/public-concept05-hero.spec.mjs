@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -574,4 +576,104 @@ test('Concept 05 hydrates editable CMS hero fields on boot and locale change at 
       document.documentElement.scrollWidth <= document.documentElement.clientWidth
     )).toBe(true);
   }
+});
+
+
+test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async ({page}) => {
+  // Use the real PHP renderer and actual public HTML instead of a handcrafted
+  // hero fixture. Editorial media is intentionally synthetic and disclosed in
+  // the attached manifest: this is evidence, not final owner visual approval.
+  const rendered = execFileSync('php', ['-r',
+    "require 'config/public_home.php'; $_GET['locale']='es';"
+    + "$html=file_get_contents('index.html'); echo brvtal_public_home_identity($html);"
+  ], {cwd:root,encoding:'utf8',maxBuffer:12*1024*1024});
+  expect(rendered).toContain('data-c5-hero-manifesto');
+  expect(rendered).toContain('data-c5-hero-cta');
+  expect(rendered).toContain('data-c5-hero-eyebrow');
+  expect(rendered).toContain('data-concept="05"');
+
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900">'
+    + '<rect width="1200" height="900" fill="#343434"/>'
+    + '<path d="M0 600L1200 240M0 800L1200 440" stroke="#717171" stroke-width="75"/>'
+    + '<text x="80" y="105" fill="#f5f5f5" font-size="28">SYNTHETIC CMS MEDIA — NOT AN OWNER PHOTO</text></svg>';
+  const cms = structuredClone(payload);
+  Object.assign(cms.payload.data.settings.site,{
+    hero_manifesto_es:'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.',
+    hero_cta_es:'EXPLORA BRVTAL',
+    hero_eyebrow_es:'EVENTS / SOUND / ARTISTS / ARCHIVE',
+    description:'PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE',
+  });
+  cms.payload.data.media = [{
+    type:'image',title:'Synthetic CMS evidence',
+    file_path:'data:image/svg+xml;base64,'+Buffer.from(svg).toString('base64'),
+    alt_text:'Synthetic monochrome editorial placeholder',
+  }];
+  const checkoutSha = execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
+  expect(checkoutSha).toMatch(/^[0-9a-f]{40}$/);
+  const evidence = {
+    schemaVersion:1,checkoutSha,source:'PHP brvtal_public_home_identity(index.html)',
+    fixture:'synthetic read-only CMS media (not real editorial photography)',
+    reference:'docs/reference/home-concept05-owner-reference-v2.png',
+    visualApproval:'PENDING_HUMAN_AB_COMPARISON',
+    deviations:[
+      'Media is a clearly labeled synthetic illustration, not representative owner photography',
+      'Real production CMS/Theme Studio appearance and full-page A/B still require separate review',
+    ],
+    captures:[],
+  };
+  const html=rendered.replace('</head>','<style>'+css+'</style></head>');
+  const url='http://127.0.0.1:4173/concept05-php-evidence.html';
+  await page.route('**/*.css', route=>route.fulfill({status:200,contentType:'text/css',body:''}));
+  await page.route('**/*.js', route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
+  await page.route('https://**/*',route=>route.abort());
+  await page.route('**/concept05-php-evidence.html',route=>route.fulfill({
+    status:200,contentType:'text/html; charset=utf-8',body:html,
+  }));
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(source=>{
+      window.BRVTALPublicDataPromise=Promise.resolve(source);
+      window.BRVTALRuntimeReady=Promise.resolve({mode:'visual-evidence'});
+    },cms);
+    await page.goto(url,{waitUntil:'domcontentloaded'});
+    await page.evaluate(async()=>{
+      document.documentElement.classList.add('c5-visual-test');
+      document.documentElement.dataset.locale='es';
+      document.documentElement.lang='es';
+      if(document.fonts?.ready)await document.fonts.ready;
+    });
+    await page.addScriptTag({content:runtime});
+    const hero=page.locator('.home-phase-a-hero');
+    await expect(hero).toBeVisible();
+    await expect(page.locator('[data-c5-hero-cta]')).toContainText('EXPLORA BRVTAL');
+    await expect(page.locator('[data-c5-hero-documentary-image]')).toHaveAttribute('alt',
+      'Synthetic monochrome editorial placeholder');
+    const width=await page.evaluate(()=>({
+      client:document.documentElement.clientWidth,
+      scroll:document.documentElement.scrollWidth,
+    }));
+    expect(width.scroll).toBeLessThanOrEqual(width.client+1);
+    const png=await page.screenshot({
+      fullPage:true,animations:'disabled',caret:'hide',scale:'css',
+    });
+    expect(png.length).toBeGreaterThan(2000);
+    await test.info().attach('concept05-php-cms-'+viewport.width+'-fullpage',{
+      body:png,contentType:'image/png',
+    });
+    evidence.captures.push({
+      viewport,sha256:createHash('sha256').update(png).digest('hex'),
+      bytes:png.length,
+    });
+  }
+  expect(evidence.captures.map(x=>x.viewport.width)).toEqual([390,1440]);
+  const owner=readFileSync(join(root,evidence.reference));
+  expect(owner.length).toBeGreaterThan(2000);
+  evidence.ownerReferenceSha256=createHash('sha256').update(owner).digest('hex');
+  await test.info().attach('concept05-owner-reference-v2',{
+    body:owner,contentType:'image/png',
+  });
+  await test.info().attach('concept05-php-cms-visual-review-manifest',{
+    body:Buffer.from(JSON.stringify(evidence,null,2)),
+    contentType:'application/json',
+  });
 });
