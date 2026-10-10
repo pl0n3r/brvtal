@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 const root = process.cwd();
 const cssFiles = [
@@ -556,6 +557,172 @@ test('Concept 05 motion foundation still animates fine pointers when motion is a
   expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(false);
   await page.addScriptTag({ content:motion });
   expect(await page.evaluate(() => window.__c5MotionCalls)).toBeGreaterThan(0);
+});
+
+
+
+/* AC-01: only gaps BETWEEN authored sections. Intentional artwork whitespace
+ * inside a section still requires manual, real-CMS visual review. */
+function largestBlankBandBetweenSections(rects) {
+  if (!Array.isArray(rects) || rects.length < 2) throw new Error('C05_GAP_REGIONS_MISSING');
+  const boxes = rects.map(({top,bottom}) => {
+    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= top)
+      throw new Error('C05_GAP_RECT_INVALID');
+    return {top,bottom};
+  }).sort((a,b) => a.top-b.top);
+  let lastEnd=boxes[0].bottom, largest=0;
+  for (const rect of boxes.slice(1)) {
+    largest=Math.max(largest,Math.max(0,rect.top-lastEnd));
+    lastEnd=Math.max(lastEnd,rect.bottom);
+  }
+  return largest;
+}
+
+/**
+ * #976: a full-page capture must not depend on ScrollTrigger firing for
+ * every below-the-fold section. Simulate the paused initial GSAP state.
+ * Screenshots are CI artifacts, not an automated owner-reference approval.
+ */
+for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+  test(`Concept 05 full-page pre-scroll content remains visible at ${viewport.width}px`, async ({ page }, info) => {
+    await page.emulateMedia({ reducedMotion:'no-preference' });
+    await mount(page, viewport);
+    await page.evaluate(() => {
+      document.documentElement.classList.remove('c5-visual-test');
+      const module = document.createElement('div');
+      module.className = 'c5-module';
+      module.textContent = 'VISIBLE EVEN WITHOUT SCROLLTRIGGER';
+      document.querySelector('#events').appendChild(module);
+      window.__c5PreScrollTweens = [];
+      window.ScrollTrigger = {};
+      window.gsap = {
+        registerPlugin:() => {},
+        from:(element, opts) => {
+          window.__c5PreScrollTweens.push(Object.keys(opts));
+          // Model GSAP's from-state before any ScrollTrigger callback fires.
+          if ('opacity' in opts) element.style.opacity = String(opts.opacity);
+          if ('clipPath' in opts) element.style.clipPath = opts.clipPath;
+        },
+        timeline:() => ({ fromTo:() => {} }),
+      };
+    });
+    await page.addScriptTag({ content:motion });
+    const beforeScroll = await page.evaluate(() => {
+      const selectors = ['#genesis','#events','#artists','#sets','#media','#transmissions','#connected','.c5-module'];
+      return {
+        scrollY:window.scrollY,
+        tweens:window.__c5PreScrollTweens,
+        regions:selectors.map(selector => {
+          const el=document.querySelector(selector);
+          const css=getComputedStyle(el), rect=el.getBoundingClientRect();
+          return {
+            selector, display:css.display, visibility:css.visibility,
+            opacity:Number(css.opacity), clip:css.clipPath,
+            height:rect.height,
+          };
+        }),
+      };
+    });
+    expect(beforeScroll.scrollY).toBe(0);
+    expect(beforeScroll.tweens.length).toBeGreaterThanOrEqual(8);
+    for (const keys of beforeScroll.tweens) {
+      expect(keys, 'deferred GSAP tween must not hide content').not.toContain('opacity');
+      expect(keys, 'deferred GSAP tween must not clip a section').not.toContain('clipPath');
+    }
+    for (const region of beforeScroll.regions) {
+      expect(region.display, region.selector).not.toBe('none');
+      expect(region.visibility, region.selector).toBe('visible');
+      expect(region.opacity, region.selector).toBeGreaterThan(0.99);
+      expect(region.clip, region.selector).not.toContain('100%');
+      expect(region.height, region.selector).toBeGreaterThan(0);
+    }
+    const sectionBoxes = await page.evaluate(() =>
+      ['.home-phase-a-hero','#genesis','#events','#artists','#sets','#media','#transmissions','#connected']
+        .map(selector => {
+          const r=document.querySelector(selector).getBoundingClientRect();
+          return {top:r.top,bottom:r.bottom};
+        }));
+    const maxBlankBandPx = Math.floor(viewport.height * 0.85);
+    expect(largestBlankBandBetweenSections(sectionBoxes),
+      'unintentional inter-section gap exceeds 85% of viewport height'
+    ).toBeLessThanOrEqual(maxBlankBandPx);
+    const injectedGap = [{top:0,bottom:250},
+      {top:251 + maxBlankBandPx,bottom:500 + maxBlankBandPx}];
+    expect(largestBlankBandBetweenSections(injectedGap)).toBeGreaterThan(maxBlankBandPx);
+    const png = await page.screenshot({ fullPage:true, animations:'disabled', caret:'hide' });
+    await info.attach(`concept05-no-gaps-${viewport.width}-fullpage`, {
+      body:png, contentType:'image/png',
+    });
+  });
+}
+
+
+for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+  test(`Concept 05 reduced-motion leaves all sections readable at ${viewport.width}px`, async ({page}) => {
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await mount(page,viewport);
+    await page.evaluate(() => {
+      document.documentElement.classList.remove('c5-visual-test');
+      document.documentElement.removeAttribute('data-theme-motion');
+      window.__c5ReducedMotionCalls=0;
+      window.ScrollTrigger={};
+      window.gsap={
+        registerPlugin:()=>{window.__c5ReducedMotionCalls++;},
+        from:()=>{window.__c5ReducedMotionCalls++;},
+        timeline:()=>{window.__c5ReducedMotionCalls++;return {fromTo:()=>{}};},
+      };
+    });
+    await page.addScriptTag({content:motion});
+    await page.evaluate(()=>window.BRVTAL_CONCEPT05_MOTION_INIT());
+    expect(await page.evaluate(()=>window.__c5ReducedMotionCalls)).toBe(0);
+    const regions=await page.evaluate(() =>
+      ['#genesis','#events','#artists','#sets','#media','#transmissions','#connected']
+        .map(selector=>{
+          const el=document.querySelector(selector),style=getComputedStyle(el);
+          return {selector,opacity:Number(style.opacity),visibility:style.visibility,
+            height:el.getBoundingClientRect().height};
+        }));
+    for (const region of regions) {
+      expect(region.opacity,region.selector).toBeGreaterThan(0.99);
+      expect(region.visibility,region.selector).toBe('visible');
+      expect(region.height,region.selector).toBeGreaterThan(0);
+    }
+  });
+}
+
+
+test('legacy GSAP reveal options keep Concept 05 visible and older themes unchanged', () => {
+  // Exercise the actual legacy tween declarations, not an independent mock.
+  const source = readFileSync(join(root,'js/app.js'),'utf8');
+  const start = source.indexOf('  if (!reduce && motionReady) {');
+  const end = source.indexOf('\n  // Scene indicator',start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  const code = source.slice(start,end);
+
+  const probe = isConcept05 => {
+    const states = [];
+    const gsap = {
+      from:(selector,opts) => states.push({
+        selector:String(selector), hidden:opts.opacity === 0, scrolled:Boolean(opts.scrollTrigger),
+      }),
+      fromTo:(selector,opts,target) => states.push({
+        selector:'manifesto-line', hidden:opts.opacity === 0, scrolled:Boolean(target.scrollTrigger),
+      }),
+      to:() => {},
+    };
+    runInNewContext(code, {
+      gsap, isConcept05, reduce:false, motionReady:true, coarsePointer:false,
+      qs:() => null, qsa:() => [{}],
+    }, {timeout:1000});
+    return states;
+  };
+  const authored = probe(true), classic = probe(false);
+  expect(authored.length).toBeGreaterThanOrEqual(9);
+  expect(authored.length).toBe(classic.length);
+  expect(authored.every(tween => !tween.hidden)).toBe(true);
+  expect(classic.every(tween => tween.hidden)).toBe(true);
+  expect(authored.filter(tween => tween.scrolled).length).toBeGreaterThanOrEqual(4);
 });
 
 const canonicalVisualRegions = [
