@@ -8,6 +8,126 @@
 
   if (!document.querySelector('[data-concept="05"]')) return;
 
+  function isEnglish() {
+    var locale = String(document.documentElement.dataset.locale || document.documentElement.lang || 'es')
+      .toLowerCase().split('-')[0];
+    return locale === 'en';
+  }
+
+  // Opt-in third-party embeds: never create an iframe before a user gesture.
+  // Only official HTTPS player endpoints are allowed; no arbitrary CMS HTML.
+  function safeEmbedUrl(value) {
+    try {
+      var url = new URL(String(value || ''));
+      if (url.protocol !== 'https:' || url.username || url.password || url.port) return '';
+      var host = url.hostname;
+      var path = url.pathname;
+      var trusted =
+        (host === 'w.soundcloud.com' && path.startsWith('/player/')) ||
+        (host === 'open.spotify.com' && path.startsWith('/embed/')) ||
+        (host === 'www.youtube-nocookie.com' && path.startsWith('/embed/')) ||
+        (host === 'player.mixcloud.com' && path.startsWith('/widget/iframe/')) ||
+        (host === 'bandcamp.com' && path.startsWith('/EmbeddedPlayer/'));
+      return trusted ? url.href : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  var playerSyncTicket = 0;
+
+  function clearFeaturedPlayer(section) {
+    section.querySelector('.c5-sound-player')?.remove();
+    section.dataset.c5Player = 'unavailable';
+  }
+
+  async function syncFeaturedPlayer(section, featured) {
+    var ticket = ++playerSyncTicket;
+    var id = Number(featured?.dataset.setId);
+    // Stop the former provider synchronously when a newly featured Set replaces it.
+    // A pending CMS Promise must never keep obsolete audio playing.
+    var previous = section.querySelector('.c5-sound-player');
+    if (previous && previous.dataset.c5Set !== String(id)) {
+      clearFeaturedPlayer(section);
+    }
+    var request = window.BRVTALPublicDataPromise;
+    if (!id || !request || typeof request.then !== 'function') {
+      clearFeaturedPlayer(section);
+      return;
+    }
+
+    var response;
+    try {
+      response = await request;
+    } catch (_) {
+      if (ticket === playerSyncTicket) clearFeaturedPlayer(section);
+      return;
+    }
+    if (ticket !== playerSyncTicket || !featured.isConnected
+      || section.querySelector('.set-library-item') !== featured) return;
+
+    var payload = response?.payload ?? response;
+    var data = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    var records = Array.isArray(data?.sets) ? data.sets : [];
+    var record = records.find(function (set) { return Number(set?.id) === id; });
+    var url = safeEmbedUrl(record?.embed_url);
+    if (!url) {
+      clearFeaturedPlayer(section);
+      return;
+    }
+
+    var player = section.querySelector('.c5-sound-player');
+    if (!player || player.dataset.c5Embed !== url || player.dataset.c5Set !== String(id)) {
+      player?.remove();
+      player = document.createElement('div');
+      player.className = 'c5-sound-player';
+      player.dataset.c5Embed = url;
+      player.dataset.c5Set = String(id);
+
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'c5-sound-player-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', 'c5-featured-sound-frame');
+
+      var frame = document.createElement('div');
+      frame.id = 'c5-featured-sound-frame';
+      frame.className = 'c5-sound-player-frame';
+      frame.hidden = true;
+
+      toggle.addEventListener('click', function () {
+        var opened = toggle.getAttribute('aria-expanded') === 'true';
+        if (opened) {
+          frame.replaceChildren(); // Removes the provider iframe and stops playback.
+        } else {
+          var iframe = document.createElement('iframe');
+          iframe.title = String(record?.title || 'BRVTAL Sound');
+          iframe.src = url;
+          iframe.loading = 'lazy';
+          iframe.referrerPolicy = 'no-referrer';
+          iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+          iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+          frame.replaceChildren(iframe);
+        }
+        frame.hidden = opened;
+        toggle.setAttribute('aria-expanded', String(!opened));
+        toggle.textContent = isEnglish()
+          ? (opened ? 'PLAY FEATURED SET ↗' : 'CLOSE PLAYER ×')
+          : (opened ? 'REPRODUCIR SET DESTACADO ↗' : 'CERRAR REPRODUCTOR ×');
+      });
+
+      player.append(toggle, frame);
+      section.querySelector('.set-list')?.after(player);
+    }
+
+    var button = player.querySelector('.c5-sound-player-toggle');
+    var opened = button?.getAttribute('aria-expanded') === 'true';
+    if (button) button.textContent = isEnglish()
+      ? (opened ? 'CLOSE PLAYER ×' : 'PLAY FEATURED SET ↗')
+      : (opened ? 'CERRAR REPRODUCTOR ×' : 'REPRODUCIR SET DESTACADO ↗');
+    section.dataset.c5Player = 'available';
+  }
+
   function failMedia(host, media) {
     if (!host) return;
     host.classList.add('is-media-missing');
@@ -64,13 +184,15 @@
       if (!route) {
         route = document.createElement('a');
         route.className = 'c5-section-route c5-section-route--sound';
-        route.textContent = 'EXPLORE SOUND ↗';
         section.appendChild(route);
       }
       route.href = record.getAttribute('href');
+      route.textContent = isEnglish() ? 'EXPLORE SOUND ↗' : 'EXPLORAR SONIDO ↗';
     } else if (route) {
       route.remove();
     }
+
+    void syncFeaturedPlayer(section, first);
 
     document.documentElement.dataset.concept05Sound = 'ready';
   }
@@ -87,10 +209,16 @@
     var section = document.querySelector('.media');
     if (!section) return;
 
-    section.querySelectorAll('[data-public-media-item]').forEach(hydrateMemory);
+    var curated = section.querySelectorAll('[data-public-media-item]');
+    curated.forEach(hydrateMemory);
 
     var annotation = section.querySelector('.c5-memory-annotation');
-    if (!annotation) {
+    // Never claim a documentary contact sheet when the CMS has no curated media.
+    if (!curated.length && annotation) {
+      annotation.remove();
+      annotation = null;
+    }
+    if (curated.length && !annotation) {
       annotation = document.createElement('span');
       annotation.className = 'c5-memory-annotation';
       annotation.setAttribute('aria-hidden', 'true');
@@ -105,9 +233,13 @@
       route = document.createElement('a');
       route.className = 'c5-section-route c5-section-route--memories';
       route.href = '#eventArchive';
-      route.textContent = 'EXPLORE ARCHIVE ↓';
       section.appendChild(route);
+    } else if (!archive && route) {
+      // A removed archive anchor must not leave a dead action in the public UI.
+      route.remove();
+      route = null;
     }
+    if (route) route.textContent = isEnglish() ? 'EXPLORE ARCHIVE ↓' : 'EXPLORAR ARCHIVO ↓';
 
     document.documentElement.dataset.concept05Memories = 'ready';
   }
@@ -126,6 +258,7 @@
 
   window.addEventListener('brvtal:sets-library-rendered', hydrateSound);
   window.addEventListener('brvtal:memories-rendered', hydrateMemories);
+  window.addEventListener('brvtal:localechange', hydrate);
   window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT = hydrate;
 
   if (document.readyState === 'loading') {

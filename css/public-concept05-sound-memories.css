@@ -248,6 +248,45 @@
   grid-column:1 / -1;
 }
 
+/* #972 Featured Sound embeds: opt-in, accessible, no implicit third-party load. */
+[data-concept="05"] #sets .c5-sound-player{
+  margin:12px 0 0;
+  padding:10px;
+  border:1px solid var(--c5-rule-color);
+  background:var(--c5-deep-black);
+}
+
+[data-concept="05"] #sets .c5-sound-player-toggle{
+  display:block;
+  width:100%;
+  min-height:44px;
+  padding:12px 14px;
+  border:1px solid var(--c5-signal-red);
+  background:transparent;
+  color:var(--c5-paper-dirty);
+  font:700 11px/1.4 var(--theme-mono-font,"Space Mono",monospace);
+  letter-spacing:.06em;
+  text-align:left;
+  cursor:pointer;
+}
+
+[data-concept="05"] #sets .c5-sound-player-toggle:focus-visible{
+  outline:2px solid var(--c5-signal-green);
+  outline-offset:3px;
+}
+
+[data-concept="05"] #sets .c5-sound-player-frame:not([hidden]){
+  margin-top:10px;
+}
+
+[data-concept="05"] #sets .c5-sound-player-frame iframe{
+  display:block;
+  width:100%;
+  aspect-ratio:16/9;
+  border:0;
+  background:var(--c5-soft-black);
+}
+
 /* 05 / MEMORIES --------------------------------------------------------- */
 
 [data-concept="05"] .media-title{
