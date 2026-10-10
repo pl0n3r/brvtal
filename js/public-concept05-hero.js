@@ -1,8 +1,8 @@
 /*
  * BRVTAL — Concept 05 authored Hero runtime (Issue #586).
  * Projects canonical public settings/media into the static Hero without
- * issuing another API request. The managed Hero Slider remains authoritative
- * whenever it is enabled.
+ * issuing another API request. Concept 05's authored hero has precedence
+ * over the legacy banner slider; other public themes keep the slider.
  */
 (() => {
   'use strict';

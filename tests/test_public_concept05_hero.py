@@ -16,6 +16,7 @@ class Concept05HeroTests(unittest.TestCase):
 
     def test_admin_hero_copy_roundtrip_and_safe_fallback(self) -> None:
         self._run_browser("Concept 05 editable CTA and eyebrow hydrate safely and restore per locale")
+        self._run_browser("Concept 05 hydrates editable CMS hero fields on boot and locale change at 390/1440")
         self._run_browser("Concept 05 CTA and eyebrow settings roundtrip and reject unsafe copy",
                           "tests/e2e/discadmin-settings-v2.spec.mjs")
 

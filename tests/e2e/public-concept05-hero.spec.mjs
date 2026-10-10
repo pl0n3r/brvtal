@@ -504,3 +504,72 @@ test('Concept 05 managed maximum editorial copy fits mobile viewport', async ({p
   expect(bounds.right).toBeLessThanOrEqual(bounds.width+1);
   expect(bounds.scroll).toBeLessThanOrEqual(bounds.width);
 });
+
+
+test('Concept 05 hydrates editable CMS hero fields on boot and locale change at 390/1440', async ({page}) => {
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    const cms = structuredClone(payload);
+    Object.assign(cms.payload.data.settings.site,{
+      hero_manifesto_es:'CULTURA QUE NOS MUEVE.',
+      hero_manifesto_en:'CULTURE THAT MOVES US.',
+      hero_cta_es:'EXPLORA LA CULTURA',
+      hero_cta_en:'EXPLORE OUR CULTURE',
+      hero_eyebrow_es:'NOCHES / SONIDOS',
+      hero_eyebrow_en:'NIGHTS / SOUNDS',
+      description:'Cultura electrónica independiente.',
+    });
+    await page.setViewportSize(viewport);
+    await page.route('https://example.test/night.jpg', route => route.fulfill({
+      status:200,contentType:'image/svg+xml',
+      body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>',
+    }));
+    await page.setContent(fixture);
+    await page.evaluate(source => {
+      document.documentElement.lang='es';
+      document.documentElement.dataset.locale='es';
+      window.__heroCms = source;
+      window.BRVTALPublicDataPromise=Promise.resolve(source);
+      window.BRVTALRuntimeReady=Promise.resolve({mode:'test'});
+    },cms);
+    // No direct projectHeroEditorialCopy invocation: exercise the real startup.
+    await page.addScriptTag({content:runtime});
+    const cta=page.locator('[data-c5-hero-cta]');
+    const eyebrow=page.locator('[data-c5-hero-eyebrow]');
+    await expect(cta).toContainText('EXPLORA LA CULTURA');
+    await expect(eyebrow).toHaveText('NOCHES / SONIDOS');
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('CULTURA QUE NOS MUEVE.');
+    await expect(page.locator('[data-c5-hero-description]'))
+      .toHaveText('Cultura electrónica independiente.');
+    await expect(cta).toHaveAttribute('href','#genesis');
+    await expect(cta.locator('span')).toHaveText('↘');
+
+    await page.evaluate(() => {
+      document.documentElement.dataset.locale='en';
+      document.documentElement.lang='en';
+      window.dispatchEvent(new Event('brvtal:localechange'));
+    });
+    await expect(cta).toContainText('EXPLORE OUR CULTURE');
+    await expect(eyebrow).toHaveText('NIGHTS / SOUNDS');
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('CULTURE THAT MOVES US.');
+    await expect(cta.locator('span')).toHaveText('↘');
+
+    // Even after a successful CMS override, invalid/missing values revert
+    // to the current locale's trusted owner-v2 defaults, never to stale ES.
+    await page.evaluate(() => {
+      Object.assign(window.__heroCms.payload.data.settings.site,{
+        hero_cta_en:'<script>alert(1)</script>',
+        hero_eyebrow_en:'',
+        hero_manifesto_en:'X'.repeat(65),
+      });
+      window.dispatchEvent(new Event('brvtal:localechange'));
+    });
+    await expect(cta).toContainText('EXPLORE BRVTAL');
+    await expect(eyebrow).toHaveText('EVENTS / SOUND / ARTISTS / ARCHIVE');
+    await expect(page.locator('[data-c5-hero-manifesto]'))
+      .toHaveText(/MORE THAN PARTIES\.\s*A CULTURE IN MOTION\./);
+    await expect(cta.locator('span')).toHaveText('↘');
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )).toBe(true);
+  }
+});
