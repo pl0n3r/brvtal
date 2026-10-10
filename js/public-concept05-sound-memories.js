@@ -118,6 +118,10 @@
       route.className = 'c5-section-route c5-section-route--memories';
       route.href = '#eventArchive';
       section.appendChild(route);
+    } else if (!archive && route) {
+      // A removed archive anchor must not leave a dead action in the public UI.
+      route.remove();
+      route = null;
     }
     if (route) route.textContent = isEnglish() ? 'EXPLORE ARCHIVE ↓' : 'EXPLORAR ARCHIVO ↓';
 

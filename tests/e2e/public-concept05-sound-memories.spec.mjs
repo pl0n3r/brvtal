@@ -391,3 +391,31 @@ test('Concept 05 hides decorative Memories annotation when CMS curated gallery b
   await expect(page.locator('.c5-memory-annotation')).toHaveCount(1);
   await expect(page.locator('.c5-memory-cell')).toHaveCount(3);
 });
+
+
+test('Concept 05 Sound and archive actions disappear when their CMS destination is unavailable', async ({ page }) => {
+  await mount(page, { width: 390, height: 844 });
+  await expect(page.locator('.c5-section-route--sound')).toHaveCount(1);
+  await expect(page.locator('.c5-section-route--memories')).toHaveCount(1);
+
+  await page.evaluate(() => {
+    window.BRVTALPublicSetsLibrary.render([]);
+    document.getElementById('eventArchive')?.remove();
+    window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
+  });
+  await expect(page.getByText('NO PUBLISHED SETS YET.')).toBeVisible();
+  await expect(page.locator('.c5-section-route--sound')).toHaveCount(0);
+  await expect(page.locator('.c5-section-route--memories')).toHaveCount(0);
+
+  await page.evaluate(records => {
+    const archive = document.createElement('section');
+    archive.id = 'eventArchive';
+    document.body.appendChild(archive);
+    window.BRVTALPublicSetsLibrary.render(records);
+    window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
+  }, sets);
+  await expect(page.locator('.c5-section-route--sound')).toHaveAttribute('href', '/sets/genesis-closing-signal');
+  await expect(page.locator('.c5-section-route--memories')).toHaveAttribute('href', '#eventArchive');
+  await expect(page.locator('.c5-section-route--memories')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});

@@ -47,6 +47,8 @@ class HomeC05SoundMemoriesTests(unittest.TestCase):
         self.assertIn("trigger.disabled = true", self.enhancer)
         self.assertIn("if (!curated.length && annotation)", self.enhancer)
         self.assertIn("EXPLORAR ARCHIVO", self.enhancer)
+        self.assertIn("else if (!archive && route)", self.enhancer)
+        self.assertIn("Sound and archive actions disappear when their CMS destination is unavailable", self.spec)
         self.assertIn("noopener noreferrer", self.sets)
         self.assertIn("function relationHref(relation)", self.media)
         self.assertNotIn("fetch(", self.enhancer)
