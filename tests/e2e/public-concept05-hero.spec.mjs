@@ -34,10 +34,10 @@ const fixture = `<!doctype html>
         <h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1>
         <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
         <div class="hero-declaration c5-hero-statement">
-          <span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
+          <span class="mono" data-c5-hero-eyebrow data-c5-default-es="EVENTS / SOUND / ARTISTS / ARCHIVE" data-c5-default-en="EVENTS / SOUND / ARTISTS / ARCHIVE">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
           <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-display-locale="es" data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
           <p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
-          <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">EXPLORA BRVTAL <span>↘</span></a>
+          <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE" data-c5-hero-cta data-c5-default-es="EXPLORA BRVTAL" data-c5-default-en="EXPLORE BRVTAL">EXPLORA BRVTAL <span>↘</span></a>
         </div>
       </div>
       <figure class="c5-hero-documentary" data-c5-hero-documentary hidden>
@@ -449,4 +449,36 @@ test('Concept 05 authored hero stays visible with a published CMS slider at 390 
   // slider on non-C05 routes, including its published CMS slides and controls.
   // Do not remount an unrelated route in this C05-specific test: that was a
   // brittle fixture transition and not part of this contract.
+});
+
+
+test('Concept 05 editable CTA and eyebrow hydrate safely and restore per locale', async ({ page }) => {
+  await mount(page, {width:390,height:844});
+  await page.evaluate(() => {
+    document.documentElement.lang = 'es';
+    document.documentElement.dataset.locale = 'es';
+    window.BRVTALConcept05Hero.projectHeroEditorialCopy({
+      settings:{site:{hero_cta_es:'EXPLORA LA ESCENA',hero_eyebrow_es:'NOCHES / ARTISTAS'}}
+    });
+  });
+  const cta = page.locator('[data-c5-hero-cta]');
+  const eyebrow = page.locator('[data-c5-hero-eyebrow]');
+  await expect(cta).toContainText('EXPLORA LA ESCENA');
+  await expect(cta).toHaveAttribute('href','#genesis');
+  await expect(cta.locator('span')).toHaveText('↘');
+  await expect(eyebrow).toHaveText('NOCHES / ARTISTAS');
+  await page.evaluate(() => {
+    document.documentElement.lang = 'en';
+    document.documentElement.dataset.locale = 'en';
+    window.BRVTALConcept05Hero.projectHeroEditorialCopy({
+      settings:{site:{hero_cta_en:'<script>alert(1)</script>',hero_eyebrow_en:''}}
+    });
+  });
+  await expect(cta).toContainText('EXPLORE BRVTAL');
+  await expect(eyebrow).toHaveText('EVENTS / SOUND / ARTISTS / ARCHIVE');
+  await expect(cta.locator('span')).toHaveText('↘');
+  expect(await page.evaluate(() => document.querySelectorAll('script').length)).toBeGreaterThan(0);
+  expect(await page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  )).toBe(true);
 });

@@ -95,6 +95,36 @@
     });
   }
 
+  function projectHeroEditorialCopy(data) {
+    const site = data?.settings?.site;
+    const locale = String(document.documentElement.dataset.locale
+      || document.documentElement.lang || 'es').toLowerCase().split('-')[0] === 'en'
+      ? 'en' : 'es';
+    for (const [selector, key, limit] of [
+      ['[data-c5-hero-cta]', 'hero_cta_', 48],
+      ['[data-c5-hero-eyebrow]', 'hero_eyebrow_', 80],
+    ]) {
+      const candidate = site && typeof site === 'object' && !Array.isArray(site)
+        ? site[key + locale] : null;
+      const value = typeof candidate === 'string' ? candidate.trim() : '';
+      const valid = value && value.length <= limit && !/[<>]/.test(value)
+        && !/[\u0000-\u001F\u007F]/.test(value);
+      document.querySelectorAll(selector).forEach(node => {
+        const fallback = locale === 'en' ? node.dataset.c5DefaultEn : node.dataset.c5DefaultEs;
+        const copy = valid ? value : fallback;
+        if (!copy) return;
+        if (selector === '[data-c5-hero-cta]') {
+          // Preserve the destination and arrow icon; only replace the text node.
+          const first = node.firstChild;
+          if (first && first.nodeType === 3) first.textContent = copy + ' ';
+          else node.insertBefore(document.createTextNode(copy + ' '), first);
+        } else {
+          node.textContent = copy;
+        }
+      });
+    }
+  }
+
   function projectDescription(data) {
     const site = data?.settings?.site;
     if (!site || typeof site !== 'object') return;
@@ -200,12 +230,16 @@
     lastPublicData = data;
     projectDescription(data);
     projectManifesto(data);
+    projectHeroEditorialCopy(data);
     projectDocumentary(data);
     animateHero();
   }
 
   window.addEventListener('brvtal:localechange', () => {
-    if (lastPublicData) projectManifesto(lastPublicData);
+    if (lastPublicData) {
+      projectManifesto(lastPublicData);
+      projectHeroEditorialCopy(lastPublicData);
+    }
   });
 
   function startInit() {
@@ -228,5 +262,6 @@
     projectDocumentary,
     projectDescription,
     projectManifesto,
+    projectHeroEditorialCopy,
   };
 })();
