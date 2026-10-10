@@ -295,7 +295,7 @@ function canonicalPhpHome({ published = true } = {}) {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<link\b(?=[^>]*rel=["']stylesheet["'])[^>]*>/gi, '')
     .replace(/<base\s+href=["']\/["']\s*\/?>/gi, '')
-    .replace('</head>', '<style>' + css + '</style></head>');
+    .replace('</head>', '<style>' + css + '\n#loader,.cursor,.cursor-label,#fxCanvas{display:none!important}' + '</style></head>');
 }
 
 test('PHP-rendered canonical Next Experience keeps published facts and captures 390/1440', async ({ page }, info) => {
@@ -327,6 +327,10 @@ test('PHP-rendered canonical Next Experience keeps published facts and captures 
     const image = await page.screenshot({fullPage:true,animations:'disabled',caret:'hide'});
     await info.attach('canonical-php-next-experience-'+viewport.width, {
       body:image,contentType:'image/png',
+    });
+    const sectionImage = await section.screenshot({animations:'disabled',caret:'hide'});
+    await info.attach('canonical-php-next-experience-'+viewport.width+'-section', {
+      body:sectionImage,contentType:'image/png',
     });
   }
   await page.setViewportSize({width:390,height:844});
