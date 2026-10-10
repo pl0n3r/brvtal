@@ -672,11 +672,18 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
     await expect(media).toHaveJSProperty('naturalWidth',1200);
     // Check that the PHP-linked CSS (not only the synthetic fixture CSS) loaded.
     const linkedStylesheets=await page.evaluate(()=>Array.from(document.styleSheets)
-      .filter(sheet=>sheet.href && new URL(sheet.href).pathname.startsWith('/css/'))
-      .map(sheet=>new URL(sheet.href).pathname));
+      .filter(sheet=>sheet.href && sheet.href.startsWith('http://127.0.0.1:4173/css/'))
+      .map(sheet=>({
+        path:new URL(sheet.href).pathname,
+        ruleCount:sheet.cssRules.length,
+      })));
+    // A <link> can exist even when its CSS is an empty mocked response.
+    // Require actual CSS rules from the real PHP-linked layout sheets.
     for (const required of ['/css/style.css','/css/public-concept05-home.css',
       '/css/public-concept05-hero.css']) {
-      expect(linkedStylesheets).toContain(required);
+      const stylesheet=linkedStylesheets.find(sheet=>sheet.path===required);
+      expect(stylesheet, 'PHP-linked CSS missing: '+required).toBeDefined();
+      expect(stylesheet.ruleCount, 'PHP-linked CSS empty: '+required).toBeGreaterThan(5);
     }
     const width=await page.evaluate(()=>({
       client:document.documentElement.clientWidth,
