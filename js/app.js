@@ -41,7 +41,7 @@
   if (!reduce && motionReady) {
     if (!coarsePointer) {
       gsap.from('.hero-copy .eyebrow',{y:20,...(isConcept05 ? {} : {opacity:0}),duration:1,delay:.55,ease:'power4.out'});
-      gsap.from('.hero-title',{yPercent:90,...(isConcept05 ? {} : {opacity:0}),skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
+      gsap.from('.hero-title',{yPercent:isConcept05 ? 0 : 90,...(isConcept05 ? {} : {opacity:0}),skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
       gsap.from('.hero-logo-wrap',{scale:1.35,...(isConcept05 ? {} : {opacity:0}),rotation:3,duration:1.8,delay:.75,ease:'power3.out'});
       gsap.from('.hero-sub span',{y:15,...(isConcept05 ? {} : {opacity:0}),stagger:.1,duration:.7,delay:1.2});
     }
