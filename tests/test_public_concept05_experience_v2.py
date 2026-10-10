@@ -93,7 +93,10 @@ echo "NEUTRAL_NEXT_EXPERIENCE_OK\n";
             self.assertEqual(fh.read(8), b"\x89PNG\r\n\x1a\n")
         # This scenario records real PNG attachments in CI, not a fabricated
         # assertion of visual parity against a differently sized contact sheet.
-        self._run_playwright("--grep", "Next Experience attaches owner-review captures at 390 and 1440")
+        self._run_playwright(
+            "--grep",
+            "Next Experience attaches owner-review captures|PHP-rendered canonical Next Experience",
+        )
 
     def test_playwright_experience_suite_runs_from_unittest_wrapper(self) -> None:
         """AC-04: execute genuine Chromium tests, including adverse media states."""
