@@ -365,3 +365,47 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
     );
   }
 });
+
+
+test('Concept 05 bootstraps CMS manifesto and tracks the public locale event', async ({ page }) => {
+  const cms = structuredClone(payload);
+  cms.payload.data.settings.site.hero_manifesto_es = 'PEREIRA CREA SU PROPIA CULTURA.';
+  cms.payload.data.settings.site.hero_manifesto_en = 'PEREIRA CREATES ITS OWN CULTURE.';
+
+  await page.setViewportSize({ width:390, height:844 });
+  await page.route('https://example.test/night.jpg', route => route.fulfill({
+    status:200,
+    contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"></svg>',
+  }));
+  await page.setContent(fixture);
+  await page.evaluate(data => {
+    document.documentElement.lang = 'es';
+    document.documentElement.dataset.locale = 'es';
+    window.BRVTALPublicDataPromise = Promise.resolve(data);
+    window.BRVTALRuntimeReady = Promise.resolve({ mode:'test' });
+  }, cms);
+  // No manual projectManifesto() call: the init path must hydrate from API.
+  await page.addScriptTag({ content:runtime });
+  await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+    'PEREIRA CREA SU PROPIA CULTURA.'
+  );
+
+  await page.evaluate(() => {
+    document.documentElement.lang = 'en';
+    document.documentElement.dataset.locale = 'en';
+    window.dispatchEvent(new Event('brvtal:localechange'));
+  });
+  await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+    'PEREIRA CREATES ITS OWN CULTURE.'
+  );
+
+  await page.evaluate(() => {
+    document.documentElement.lang = 'es';
+    document.documentElement.dataset.locale = 'es';
+    window.dispatchEvent(new Event('brvtal:localechange'));
+  });
+  await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+    'PEREIRA CREA SU PROPIA CULTURA.'
+  );
+});
