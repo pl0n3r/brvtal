@@ -614,7 +614,7 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
       expect(region.display, region.selector).not.toBe('none');
       expect(region.visibility, region.selector).toBe('visible');
       expect(region.opacity, region.selector).toBeGreaterThan(0.99);
-      expect(region.clip, region.selector).not.toMatch(/inset\\(0(?:px|%)? 0(?:px|%)? 100%/);
+      expect(region.clip, region.selector).not.toContain('100%');
       expect(region.height, region.selector).toBeGreaterThan(0);
     }
     const png = await page.screenshot({ fullPage:true, animations:'disabled', caret:'hide' });
