@@ -617,24 +617,44 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
     visualApproval:'PENDING_HUMAN_AB_COMPARISON',
     deviations:[
       'Media is a clearly labeled synthetic illustration, not representative owner photography',
+      'Linked styles come from the exact checkout; external network assets are blocked',
+      'Page scripts other than the hero runtime are stubbed: full-page functionality is not certified',
       'Real production CMS/Theme Studio appearance and full-page A/B still require separate review',
     ],
     captures:[],
   };
-  const html=rendered.replace('</head>','<style>'+css+'</style></head>');
+  // Linked stylesheets must match the checkout being reviewed. Returning empty
+  // CSS made the former "PHP-rendered" screenshots visually non-representative.
+  const html=rendered;
   const url='http://127.0.0.1:4173/concept05-php-evidence.html';
-  await page.route('**/*.css', route=>route.fulfill({status:200,contentType:'text/css',body:''}));
+  await page.route('**/css/**', route => {
+    const assetUrl=new URL(route.request().url());
+    const pathname=assetUrl.pathname;
+    if (assetUrl.origin!=='http://127.0.0.1:4173'
+        || !/^\/css\/[a-zA-Z0-9_./-]+\.css$/.test(pathname)
+        || pathname.split('/').includes('..')) return route.abort();
+    try {
+      return route.fulfill({
+        status:200,contentType:'text/css; charset=utf-8',
+        body:readFileSync(join(root,pathname.slice(1)),'utf8'),
+      });
+    } catch (_) {
+      return route.abort();
+    }
+  });
   await page.route('**/*.js', route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
   await page.route('https://**/*',route=>route.abort());
   await page.route('**/concept05-php-evidence.html',route=>route.fulfill({
     status:200,contentType:'text/html; charset=utf-8',body:html,
   }));
+  // Register only one bootstrap handler: Playwright retains addInitScript
+  // registrations across navigations of the same Page.
+  await page.addInitScript(source=>{
+    window.BRVTALPublicDataPromise=Promise.resolve(source);
+    window.BRVTALRuntimeReady=Promise.resolve({mode:'visual-evidence'});
+  },cms);
   for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
     await page.setViewportSize(viewport);
-    await page.addInitScript(source=>{
-      window.BRVTALPublicDataPromise=Promise.resolve(source);
-      window.BRVTALRuntimeReady=Promise.resolve({mode:'visual-evidence'});
-    },cms);
     await page.goto(url,{waitUntil:'domcontentloaded'});
     await page.evaluate(async()=>{
       document.documentElement.classList.add('c5-visual-test');
@@ -646,8 +666,18 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
     const hero=page.locator('.home-phase-a-hero');
     await expect(hero).toBeVisible();
     await expect(page.locator('[data-c5-hero-cta]')).toContainText('EXPLORA BRVTAL');
-    await expect(page.locator('[data-c5-hero-documentary-image]')).toHaveAttribute('alt',
-      'Synthetic monochrome editorial placeholder');
+    const media=page.locator('[data-c5-hero-documentary-image]');
+    await expect(media).toHaveAttribute('alt','Synthetic monochrome editorial placeholder');
+    await expect(page.locator('[data-c5-hero-documentary]')).toBeVisible();
+    await expect(media).toHaveJSProperty('naturalWidth',1200);
+    // Check that the PHP-linked CSS (not only the synthetic fixture CSS) loaded.
+    const linkedStylesheets=await page.evaluate(()=>Array.from(document.styleSheets)
+      .filter(sheet=>sheet.href && new URL(sheet.href).pathname.startsWith('/css/'))
+      .map(sheet=>new URL(sheet.href).pathname));
+    for (const required of ['/css/style.css','/css/public-concept05-home.css',
+      '/css/public-concept05-hero.css']) {
+      expect(linkedStylesheets).toContain(required);
+    }
     const width=await page.evaluate(()=>({
       client:document.documentElement.clientWidth,
       scroll:document.documentElement.scrollWidth,
@@ -662,7 +692,8 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
     });
     evidence.captures.push({
       viewport,sha256:createHash('sha256').update(png).digest('hex'),
-      bytes:png.length,
+      bytes:png.length,linkedStylesheets,
+      documentaryMediaLoaded:true,
     });
   }
   expect(evidence.captures.map(x=>x.viewport.width)).toEqual([390,1440]);
