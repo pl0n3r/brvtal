@@ -518,6 +518,8 @@ test('Concept 05 hydrates editable CMS hero fields on boot and locale change at 
       hero_eyebrow_en:'NIGHTS / SOUNDS',
       description:'Cultura electrónica independiente.',
     });
+    // Fresh document context also clears old locale-change listeners.
+    await page.goto('about:blank');
     await page.setViewportSize(viewport);
     await page.route('https://example.test/night.jpg', route => route.fulfill({
       status:200,contentType:'image/svg+xml',
