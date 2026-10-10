@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -222,4 +223,122 @@ test('experience runtime does not claim GSAP motion ownership in deterministic v
 
   expect(await page.evaluate(() => window.__experienceGsapCalls)).toBe(0);
   await expect(page.locator('[data-c5-experience-artwork] img')).toBeVisible();
+});
+
+
+/**
+ * #970 AC-03: browser-produced evidence at the owner's two viewport targets.
+ * These images are attached to CI for the human owner-v2 A/B comparison.
+ * A passing geometry check does not automatically approve visual parity.
+ */
+test('Next Experience attaches owner-review captures at 390 and 1440', async ({ page }, info) => {
+  for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+    await mount(page, viewport);
+    const section = page.locator('[data-c5-experience]');
+    await expect(section).toBeVisible();
+    await expect(section.locator('.genesis-copy h2')).toHaveText('GENESIS');
+    await expect(section.locator('[data-c5-fact="date"]')).toHaveText('14.08.2026');
+    await expect(section.locator('.experience-lineup')).toContainText('PL0N3R');
+    await expect(section.locator('.ticket-cta')).toHaveAttribute(
+      'href', 'https://tickets.example.test/genesis'
+    );
+    const geometry = await page.evaluate(() => {
+      const node = document.querySelector('[data-c5-experience]');
+      const rect = node.getBoundingClientRect();
+      return {
+        width:document.documentElement.clientWidth,
+        scrollWidth:document.documentElement.scrollWidth,
+        sectionHeight:rect.height,
+      };
+    });
+    expect(geometry.width).toBe(viewport.width);
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(viewport.width);
+    expect(geometry.sectionHeight).toBeGreaterThan(400);
+    const image = await page.screenshot({
+      fullPage:true, animations:'disabled', caret:'hide',
+    });
+    await info.attach('next-experience-' + viewport.width + '-fullpage', {
+      body:image, contentType:'image/png',
+    });
+  }
+});
+
+
+/**
+ * #970 — mount the actual PHP Home template rather than a hand-written fixture.
+ * Synthetic editorial records only: no production CMS or network mutation.
+ * Full-page PNGs still require visual comparison against the owner reference.
+ */
+function canonicalPhpHome({ published = true } = {}) {
+  const event = published
+    ? "['id'=>44,'title'=>'UNDERGROUND SIGNAL','slug'=>'underground-signal'," +
+      "'status'=>'tickets_available','event_date'=>'2026-12-12 21:00:00'," +
+      "'city'=>'Pereira','venue'=>'Sala Central','description'=>'LIVE CULTURE'," +
+      "'cover_image'=>'','public_ticket_url'=>'https://tickets.example.test/signal'," +
+      "'ticket_types'=>[" +
+        "['name'=>'PREVENTA','status'=>'active','price'=>22000,'currency'=>'COP']," +
+        "['name'=>'DOOR','status'=>'active','price'=>30000,'currency'=>'COP']]," +
+      "'lineup'=>[['name'=>'DJ SIGNAL'],['name'=>'DJ NIGHTS']]]"
+    : 'null';
+  const phpCode = 'require "config/public_home.php"; ' +
+    '$event = ' + event + '; ' +
+    'echo brvtal_public_render_next_experience(file_get_contents("index.html"), $event);';
+  const run = spawnSync('php', ['-r', phpCode], {
+    cwd:root, encoding:'utf8', timeout:15000, maxBuffer:3_000_000,
+  });
+  if (run.error || run.status !== 0) {
+    throw new Error('Canonical PHP renderer failed: ' +
+      String(run.error?.message || run.stderr || run.status).slice(0,4000));
+  }
+  // No JS or CSS served from third parties: deterministic rendered HTML.
+  return run.stdout
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<link\b(?=[^>]*rel=["']stylesheet["'])[^>]*>/gi, '')
+    .replace(/<base\s+href=["']\/["']\s*\/?>/gi, '')
+    .replace('</head>', '<style>' + css + '\n#loader,.cursor,.cursor-label,#fxCanvas{display:none!important}' + '</style></head>');
+}
+
+test('PHP-rendered canonical Next Experience keeps published facts and captures 390/1440', async ({ page }, info) => {
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.setContent(canonicalPhpHome());
+    const section = page.locator('[data-c5-experience]');
+    await expect(section).toBeVisible();
+    await expect(section.locator('h2')).toHaveText('UNDERGROUND SIGNAL');
+    await expect(section.locator('[data-c5-fact="date"]')).toHaveText('12.12.2026');
+    await expect(section.locator('[data-c5-fact="location"]')).toContainText('PEREIRA');
+    await expect(section.locator('.experience-lineup')).toContainText('DJ SIGNAL');
+    await expect(section.locator('.c5-experience-ticket')).toHaveCount(2);
+    await expect(section.locator('.c5-experience-ticket').first()).toContainText('22.000 COP');
+    await expect(section.locator('.c5-experience-ticket').last()).toContainText('30.000 COP');
+    await expect(section.locator('.ticket-cta')).toHaveAttribute(
+      'href', 'https://tickets.example.test/signal'
+    );
+    const rects = await section.evaluate(node => {
+      const outer = node.getBoundingClientRect();
+      const actions = node.querySelector('.experience-actions').getBoundingClientRect();
+      return {left:outer.left,right:outer.right,bottom:outer.bottom,
+        actionsBottom:actions.bottom,scroll:node.scrollWidth,client:node.clientWidth};
+    });
+    expect(rects.left).toBeGreaterThanOrEqual(-1);
+    expect(rects.right).toBeLessThanOrEqual(viewport.width+1);
+    expect(rects.actionsBottom).toBeLessThanOrEqual(rects.bottom+2);
+    expect(rects.scroll).toBeLessThanOrEqual(rects.client+2);
+    const image = await page.screenshot({fullPage:true,animations:'disabled',caret:'hide'});
+    await info.attach('canonical-php-next-experience-'+viewport.width, {
+      body:image,contentType:'image/png',
+    });
+    const sectionImage = await section.screenshot({animations:'disabled',caret:'hide'});
+    await info.attach('canonical-php-next-experience-'+viewport.width+'-section', {
+      body:sectionImage,contentType:'image/png',
+    });
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.setContent(canonicalPhpHome({published:false}));
+  const section = page.locator('[data-c5-experience]');
+  await expect(section.locator('h2')).toHaveText('NEXT SIGNAL');
+  await expect(section.locator('.ticket-cta')).toHaveCount(0);
+  await expect(section.locator('.c5-experience-ticket')).toHaveCount(0);
+  await expect(section.locator('.c5-experience-artwork img')).toHaveCount(0);
+  await expect(section.locator('[data-c5-fact="date"]')).toHaveText('DATE TBA');
 });
