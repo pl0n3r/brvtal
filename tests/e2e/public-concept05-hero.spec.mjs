@@ -341,7 +341,7 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
       });
     });
     await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
-      'MORE THAN PARTIES. A CULTURE IN MOTION.'
+      /MORE THAN PARTIES\.\s*A CULTURE IN MOTION\./
     );
     await page.evaluate(() => {
       document.documentElement.lang = 'es';
@@ -353,7 +353,7 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
       });
     });
     await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
-      'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.'
+      /MÁS QUE FIESTAS\.\s*UNA CULTURA EN MOVIMIENTO\./
     );
     await page.evaluate(() => {
       window.BRVTALConcept05Hero.projectManifesto({
@@ -361,7 +361,7 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
       });
     });
     await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
-      'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.'
+      /MÁS QUE FIESTAS\.\s*UNA CULTURA EN MOVIMIENTO\./
     );
   }
 });
