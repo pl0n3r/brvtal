@@ -59,18 +59,32 @@
 
   function projectManifesto(data) {
     const site = data?.settings?.site;
-    if (!site || typeof site !== 'object' || Array.isArray(site)) return;
-    const locale = String(document.documentElement.lang || 'es').toLowerCase().split('-')[0] === 'en'
+    const locale = String(document.documentElement.dataset.locale
+      || document.documentElement.lang || 'es').toLowerCase().split('-')[0] === 'en'
       ? 'en' : 'es';
-    const candidate = site['hero_manifesto_' + locale];
-    if (typeof candidate !== 'string') return;
-    const manifesto = candidate.trim();
-    // Plain editorial copy only; markup, control characters and oversized
-    // values leave the server-rendered owner-v2 fallback untouched.
-    if (!manifesto || manifesto.length > 64 || /[<>]/.test(manifesto)
-        || /[\u0000-\u001F\u007F]/.test(manifesto)) return;
+    const candidate = site && typeof site === 'object' && !Array.isArray(site)
+      ? site['hero_manifesto_' + locale] : null;
+    const manifesto = typeof candidate === 'string' ? candidate.trim() : '';
+    const isSafe = manifesto.length > 0 && manifesto.length <= 64
+      && !/[<>]/.test(manifesto) && !/[\u0000-\u001F\u007F]/.test(manifesto);
+
     document.querySelectorAll('[data-c5-hero-manifesto]').forEach(node => {
-      node.textContent = manifesto;
+      if (isSafe) {
+        // CMS content never becomes markup.
+        node.textContent = manifesto;
+        return;
+      }
+      // Restore the locale-specific owner copy after a previous CMS override.
+      // The trusted defaults are emitted by the PHP renderer, not by the CMS.
+      const fallback = locale === 'en' ? node.dataset.c5DefaultEn : node.dataset.c5DefaultEs;
+      if (typeof fallback !== 'string' || !fallback) return;
+      const lines = fallback.split('\n');
+      const parts = [];
+      lines.forEach((line, index) => {
+        if (index) parts.push(document.createElement('br'));
+        parts.push(document.createTextNode(line));
+      });
+      node.replaceChildren(...parts);
     });
   }
 
@@ -164,6 +178,8 @@
     return {};
   }
 
+  let lastPublicData = null;
+
   async function init() {
     const hero = document.querySelector('.home-phase-a-hero');
     if (!hero || hero.dataset.c5HeroReady === '1') return;
@@ -174,11 +190,16 @@
     }
 
     const data = await waitForPublicData();
+    lastPublicData = data;
     projectDescription(data);
     projectManifesto(data);
     projectDocumentary(data);
     animateHero();
   }
+
+  window.addEventListener('brvtal:localechange', () => {
+    if (lastPublicData) projectManifesto(lastPublicData);
+  });
 
   function startInit() {
     void init().catch(error => {

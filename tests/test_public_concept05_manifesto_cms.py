@@ -42,26 +42,41 @@ const source = fs.readFileSync('js/public-concept05-hero.js','utf8');
 const begin = source.indexOf('  function projectManifesto(data) {');
 const end = source.indexOf('  function projectDescription(data) {', begin);
 if (begin < 0 || end <= begin) throw new Error('MANIFESTO_PROJECTION_MISSING');
-const element = { textContent:'OWNER_V2_FALLBACK' };
+const defaults = {
+  c5DefaultEs:'MÁS QUE FIESTAS.\nUNA CULTURA EN MOVIMIENTO.',
+  c5DefaultEn:'MORE THAN PARTIES.\nA CULTURE IN MOTION.'
+};
+const element = {
+  dataset:defaults,
+  textContent:'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.',
+  replaceChildren(...parts) {
+    this.textContent = parts.map(part => part.tagName === 'br' ? ' ' : part.textContent).join('');
+  }
+};
 const document = {
-  documentElement: { lang:'es' },
+  documentElement: { lang:'es', dataset:{} },
+  createElement: tag => ({tagName:tag,textContent:''}),
+  createTextNode: value => ({textContent:value}),
   querySelectorAll: selector => selector === '[data-c5-hero-manifesto]' ? [element] : [],
 };
 const projectManifesto = new Function('document', source.slice(begin,end) + ';return projectManifesto;')(document);
-const run = (lang, value) => {
+const apply = (lang, site) => {
   document.documentElement.lang = lang;
-  element.textContent = 'OWNER_V2_FALLBACK';
-  projectManifesto({settings:{site:{['hero_manifesto_' + lang]:value}}});
+  document.documentElement.dataset.locale = lang;
+  projectManifesto({settings:{site}});
   return element.textContent;
 };
-console.log(JSON.stringify({
-  es:run('es','MANIFIESTO EDITABLE'),
-  en:run('en','MANAGED MANIFESTO'),
-  missing:run('es',null),
-  blank:run('es',''),
-  invalid:run('es','<script>alert(1)</script>'),
-  tooLong:run('en','X'.repeat(65)),
-}));
+const observed = {
+  es:apply('es',{hero_manifesto_es:'MANIFIESTO EDITABLE'}),
+  en:apply('en',{hero_manifesto_en:'MANAGED MANIFESTO'}),
+  missing:apply('es',{}),
+  blank:apply('en',{hero_manifesto_en:''}),
+  customAgain:apply('es',{hero_manifesto_es:'SONIDO ACTIVO'}),
+  invalid:apply('es',{hero_manifesto_es:'<script>alert(1)</script>'}),
+  customEnglish:apply('en',{hero_manifesto_en:'ACTIVE CULTURE'}),
+  tooLong:apply('en',{hero_manifesto_en:'X'.repeat(65)}),
+};
+console.log(JSON.stringify(observed));
 """
         result = subprocess.run(
             ["node", "-e", script], cwd=ROOT,
@@ -72,15 +87,18 @@ console.log(JSON.stringify({
             {
                 "es": "MANIFIESTO EDITABLE",
                 "en": "MANAGED MANIFESTO",
-                "missing": "OWNER_V2_FALLBACK",
-                "blank": "OWNER_V2_FALLBACK",
-                "invalid": "OWNER_V2_FALLBACK",
-                "tooLong": "OWNER_V2_FALLBACK",
+                "missing": "MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.",
+                "blank": "MORE THAN PARTIES. A CULTURE IN MOTION.",
+                "customAgain": "SONIDO ACTIVO",
+                "invalid": "MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.",
+                "customEnglish": "ACTIVE CULTURE",
+                "tooLong": "MORE THAN PARTIES. A CULTURE IN MOTION.",
             },
             actual,
         )
         self.assertIn("value.length > 64", ADMIN)
         self.assertIn("node.textContent = manifesto", HERO)
+        self.assertIn("node.replaceChildren(...parts)", HERO)
 
     def test_original_owner_v2_copy_and_existing_cms_description_remain_unchanged(self) -> None:
         self.assertIn("MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.", PHP_HOME)

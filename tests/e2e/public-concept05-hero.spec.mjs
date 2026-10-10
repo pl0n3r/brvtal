@@ -35,7 +35,7 @@ const fixture = `<!doctype html>
         <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
         <div class="hero-declaration c5-hero-statement">
           <span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
-          <strong data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
+          <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
           <p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
           <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">EXPLORA BRVTAL <span>↘</span></a>
         </div>
@@ -332,20 +332,36 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
     expect(bounds.manifestoRight).toBeLessThanOrEqual(bounds.statementRight + 1);
     expect(bounds.ctaBottom).toBeLessThanOrEqual(bounds.heroBottom + 1);
     expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    // Replay without resetting the DOM: language and rejected settings must
+    // replace the previous CMS override with the correct trusted fallback.
     await page.evaluate(() => {
-      const element = document.querySelector('[data-c5-hero-manifesto]');
-      element.textContent = 'SAFE PREVIOUS CONTENT';
+      document.documentElement.lang = 'en';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_en:'' } }
+      });
+    });
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+      'MORE THAN PARTIES. A CULTURE IN MOTION.'
+    );
+    await page.evaluate(() => {
       document.documentElement.lang = 'es';
+      window.BRVTALConcept05Hero.projectManifesto({
+        settings: { site: { hero_manifesto_es:'SONIDO ACTIVO' } }
+      });
       window.BRVTALConcept05Hero.projectManifesto({
         settings: { site: { hero_manifesto_es:'<script>alert(1)</script>' } }
       });
     });
-    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('SAFE PREVIOUS CONTENT');
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+      'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.'
+    );
     await page.evaluate(() => {
       window.BRVTALConcept05Hero.projectManifesto({
         settings: { site: { hero_manifesto_es:'X'.repeat(65) } }
       });
     });
-    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText('SAFE PREVIOUS CONTENT');
+    await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
+      'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.'
+    );
   }
 });
