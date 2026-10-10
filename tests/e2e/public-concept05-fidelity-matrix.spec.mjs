@@ -558,6 +558,72 @@ test('Concept 05 motion foundation still animates fine pointers when motion is a
   expect(await page.evaluate(() => window.__c5MotionCalls)).toBeGreaterThan(0);
 });
 
+
+/**
+ * #976: a full-page capture must not depend on ScrollTrigger firing for
+ * every below-the-fold section. Simulate the paused initial GSAP state.
+ * Screenshots are CI artifacts, not an automated owner-reference approval.
+ */
+for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) {
+  test(`Concept 05 full-page pre-scroll content remains visible at ${viewport.width}px`, async ({ page }, info) => {
+    await page.emulateMedia({ reducedMotion:'no-preference' });
+    await mount(page, viewport);
+    await page.evaluate(() => {
+      document.documentElement.classList.remove('c5-visual-test');
+      const module = document.createElement('div');
+      module.className = 'c5-module';
+      module.textContent = 'VISIBLE EVEN WITHOUT SCROLLTRIGGER';
+      document.querySelector('#events').appendChild(module);
+      window.__c5PreScrollTweens = [];
+      window.ScrollTrigger = {};
+      window.gsap = {
+        registerPlugin:() => {},
+        from:(element, opts) => {
+          window.__c5PreScrollTweens.push(Object.keys(opts));
+          // Model GSAP's from-state before any ScrollTrigger callback fires.
+          if ('opacity' in opts) element.style.opacity = String(opts.opacity);
+          if ('clipPath' in opts) element.style.clipPath = opts.clipPath;
+        },
+        timeline:() => ({ fromTo:() => {} }),
+      };
+    });
+    await page.addScriptTag({ content:motion });
+    const beforeScroll = await page.evaluate(() => {
+      const selectors = ['#genesis','#events','#artists','#sets','#media','#transmissions','#connected','.c5-module'];
+      return {
+        scrollY:window.scrollY,
+        tweens:window.__c5PreScrollTweens,
+        regions:selectors.map(selector => {
+          const el=document.querySelector(selector);
+          const css=getComputedStyle(el), rect=el.getBoundingClientRect();
+          return {
+            selector, display:css.display, visibility:css.visibility,
+            opacity:Number(css.opacity), clip:css.clipPath,
+            height:rect.height,
+          };
+        }),
+      };
+    });
+    expect(beforeScroll.scrollY).toBe(0);
+    expect(beforeScroll.tweens.length).toBeGreaterThanOrEqual(8);
+    for (const keys of beforeScroll.tweens) {
+      expect(keys, 'deferred GSAP tween must not hide content').not.toContain('opacity');
+      expect(keys, 'deferred GSAP tween must not clip a section').not.toContain('clipPath');
+    }
+    for (const region of beforeScroll.regions) {
+      expect(region.display, region.selector).not.toBe('none');
+      expect(region.visibility, region.selector).toBe('visible');
+      expect(region.opacity, region.selector).toBeGreaterThan(0.99);
+      expect(region.clip, region.selector).not.toMatch(/inset\\(0(?:px|%)? 0(?:px|%)? 100%/);
+      expect(region.height, region.selector).toBeGreaterThan(0);
+    }
+    const png = await page.screenshot({ fullPage:true, animations:'disabled', caret:'hide' });
+    await info.attach(`concept05-no-gaps-${viewport.width}-fullpage`, {
+      body:png, contentType:'image/png',
+    });
+  });
+}
+
 const canonicalVisualRegions = [
   '.home-phase-a-hero',
   '#genesis',
