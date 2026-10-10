@@ -691,7 +691,7 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
 }
 
 
-test('legacy GSAP reveal options keep Concept 05 visible and older themes unchanged', () => {
+test('legacy GSAP reveal options keep Concept 05 visible and older themes unchanged', async ({ page }) => {
   // Exercise the actual legacy tween declarations, not an independent mock.
   const source = readFileSync(join(root,'js/app.js'),'utf8');
   const start = source.indexOf('  if (!reduce && motionReady) {');
@@ -705,6 +705,7 @@ test('legacy GSAP reveal options keep Concept 05 visible and older themes unchan
     const gsap = {
       from:(selector,opts) => states.push({
         selector:String(selector), hidden:opts.opacity === 0, scrolled:Boolean(opts.scrollTrigger),
+        yPercent:opts.yPercent ?? null,
       }),
       fromTo:(selector,opts,target) => states.push({
         selector:'manifesto-line', hidden:opts.opacity === 0, scrolled:Boolean(target.scrollTrigger),
@@ -723,6 +724,28 @@ test('legacy GSAP reveal options keep Concept 05 visible and older themes unchan
   expect(authored.every(tween => !tween.hidden)).toBe(true);
   expect(classic.every(tween => tween.hidden)).toBe(true);
   expect(authored.filter(tween => tween.scrolled).length).toBeGreaterThanOrEqual(4);
+  const heroStart=authored.find(tween => tween.selector === '.hero-title')?.yPercent;
+  const classicStart=classic.find(tween => tween.selector === '.hero-title')?.yPercent;
+  expect(heroStart).toBe(0);
+  expect(classicStart).toBe(90);
+  // Apply the real from-state translation before scroll: the heading must
+  // stay in its overflow-clipped hero at both owner-reference viewports.
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    await mount(page,viewport);
+    const visible=await page.evaluate(percent => {
+      const heading=document.querySelector('.hero-title');
+      const hero=document.querySelector('.home-phase-a-hero');
+      const clip=hero.getBoundingClientRect(), original=heading.getBoundingClientRect();
+      const intersection=rect => Math.max(0,Math.min(rect.bottom,clip.bottom)
+        -Math.max(rect.top,clip.top));
+      const before=intersection(original);
+      heading.style.transform='translateY('+(original.height*percent/100)+'px)';
+      return {before,after:intersection(heading.getBoundingClientRect())};
+    },heroStart);
+    expect(visible.before,'hero title must initially intersect clip').toBeGreaterThan(0);
+    expect(visible.after,'initial GSAP transform cannot reduce visible title')
+      .toBeGreaterThanOrEqual(visible.before-1);
+  }
 });
 
 const canonicalVisualRegions = [
