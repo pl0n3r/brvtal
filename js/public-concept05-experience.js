@@ -14,22 +14,33 @@
     image.removeAttribute('src');
   }
 
+  // Bind to the image identity, not the container alone: a CMS refresh may
+  // reuse the host and replace its child <img> without recreating the section.
+  var artworkImages = new WeakMap();
+
   function bindArtwork(host) {
-    if (!host || host.dataset.c5MediaBound === '1') return;
+    if (!host) return;
+    var image = host.querySelector('img');
+    if (artworkImages.has(host) && artworkImages.get(host) === image) return;
+    artworkImages.set(host, image);
     host.dataset.c5MediaBound = '1';
 
-    var image = host.querySelector('img');
     if (!image) {
       host.classList.add('is-media-missing');
       return;
     }
 
+    // An old detached image must not reset a newly rendered image's state.
+    function isCurrent() {
+      return host.querySelector('img') === image;
+    }
+
     image.addEventListener('error', function () {
-      failClosed(host, image);
+      if (isCurrent()) failClosed(host, image);
     }, { once:true });
 
     image.addEventListener('load', function () {
-      if (image.naturalWidth > 0) {
+      if (isCurrent() && image.naturalWidth > 0) {
         host.classList.remove('is-media-missing');
         image.hidden = false;
       }
@@ -38,9 +49,15 @@
     if (image.complete) {
       if (image.naturalWidth > 0) {
         host.classList.remove('is-media-missing');
+        image.hidden = false;
       } else {
         failClosed(host, image);
       }
+    } else {
+      // Keep a replacement concealed until real load success, including
+      // when the previous CMS image had failed closed.
+      host.classList.add('is-media-missing');
+      image.hidden = true;
     }
   }
 
