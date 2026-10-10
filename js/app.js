@@ -2,6 +2,8 @@
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   const motionReady = Boolean(window.gsap && window.ScrollTrigger);
+  // The authored C05 homepage stays readable even before any GSAP reveal fires.
+  const isConcept05 = document.body?.dataset.concept === '05';
   const qs = (s, r=document) => r.querySelector(s);
   const qsa = (s, r=document) => [...r.querySelectorAll(s)];
 
@@ -38,10 +40,10 @@
 
   if (!reduce && motionReady) {
     if (!coarsePointer) {
-      gsap.from('.hero-copy .eyebrow',{y:20,opacity:0,duration:1,delay:.55,ease:'power4.out'});
-      gsap.from('.hero-title',{yPercent:90,opacity:0,skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
-      gsap.from('.hero-logo-wrap',{scale:1.35,opacity:0,rotation:3,duration:1.8,delay:.75,ease:'power3.out'});
-      gsap.from('.hero-sub span',{y:15,opacity:0,stagger:.1,duration:.7,delay:1.2});
+      gsap.from('.hero-copy .eyebrow',{y:20,...(isConcept05 ? {} : {opacity:0}),duration:1,delay:.55,ease:'power4.out'});
+      gsap.from('.hero-title',{yPercent:90,...(isConcept05 ? {} : {opacity:0}),skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
+      gsap.from('.hero-logo-wrap',{scale:1.35,...(isConcept05 ? {} : {opacity:0}),rotation:3,duration:1.8,delay:.75,ease:'power3.out'});
+      gsap.from('.hero-sub span',{y:15,...(isConcept05 ? {} : {opacity:0}),stagger:.1,duration:.7,delay:1.2});
     }
 
     gsap.to('.hero-title',{yPercent:-38,scale:.78,skewX:-2,scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:1}});
@@ -50,9 +52,9 @@
     gsap.to('.hero-grid',{yPercent:18,scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:1.2}});
 
     qsa('.manifesto-line').forEach((el,i)=>{
-      gsap.fromTo(el,{x:i%2?-140:140,opacity:0,skewX:i%2?7:-7},{x:0,opacity:1,skewX:0,scrollTrigger:{trigger:el,start:'top 92%',end:'top 40%',scrub:1}});
+      gsap.fromTo(el,{x:i%2?-140:140,...(isConcept05 ? {} : {opacity:0}),skewX:i%2?7:-7},{x:0,opacity:1,skewX:0,scrollTrigger:{trigger:el,start:'top 92%',end:'top 40%',scrub:1}});
     });
-    gsap.from('.manifesto-final',{y:140,opacity:0,scrollTrigger:{trigger:'.manifesto-final',start:'top 90%',end:'top 40%',scrub:1}});
+    gsap.from('.manifesto-final',{y:140,...(isConcept05 ? {} : {opacity:0}),scrollTrigger:{trigger:'.manifesto-final',start:'top 90%',end:'top 40%',scrub:1}});
     gsap.to('.manifesto-art',{y:-140,rotation:-6,scrollTrigger:{trigger:'.manifesto',start:'top bottom',end:'bottom top',scrub:1.2}});
 
     gsap.to('.genesis-bg',{scale:1,rotation:.5,scrollTrigger:{trigger:'.genesis',start:'top bottom',end:'bottom top',scrub:1.5}});
@@ -66,13 +68,13 @@
         scrollTrigger:{trigger:'.events',start:'top top',end:()=>'+='+Math.max(1100,track.scrollWidth-innerWidth+innerWidth*.2),pin:true,scrub:1.1,invalidateOnRefresh:true}});
     }
 
-    gsap.from('.artist',{y:80,opacity:0,stagger:.08,scrollTrigger:{trigger:'.artists',start:'top 75%',end:'top 20%',scrub:1}});
+    gsap.from('.artist',{y:80,...(isConcept05 ? {} : {opacity:0}),stagger:.08,scrollTrigger:{trigger:'.artists',start:'top 75%',end:'top 20%',scrub:1}});
     gsap.to('.artist-preview',{y:90,rotation:4,scrollTrigger:{trigger:'.artists',start:'top bottom',end:'bottom top',scrub:1.3}});
 
-    gsap.from('.set-item',{x:120,opacity:0,stagger:.1,scrollTrigger:{trigger:'.sets',start:'top 75%',end:'top 25%',scrub:1}});
+    gsap.from('.set-item',{x:120,...(isConcept05 ? {} : {opacity:0}),stagger:.1,scrollTrigger:{trigger:'.sets',start:'top 75%',end:'top 25%',scrub:1}});
     gsap.to('.audio-bg',{rotation:-12,scale:1.15,scrollTrigger:{trigger:'.sets',start:'top bottom',end:'bottom top',scrub:1.5}});
 
-    gsap.from('.media-grid .m',{y:120,opacity:0,rotation:(i)=>i%2?3:-3,stagger:.12,scrollTrigger:{trigger:'.media',start:'top 78%',end:'top 25%',scrub:1}});
+    gsap.from('.media-grid .m',{y:120,...(isConcept05 ? {} : {opacity:0}),rotation:(i)=>i%2?3:-3,stagger:.12,scrollTrigger:{trigger:'.media',start:'top 78%',end:'top 25%',scrub:1}});
   }
 
   // Scene indicator

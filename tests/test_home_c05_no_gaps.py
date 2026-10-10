@@ -111,5 +111,47 @@ console.log(JSON.stringify({normal:largestBlankBandBetweenSections(normal),
 
 
 
+    def test_legacy_scroll_reveals_preserve_concept05_content(self) -> None:
+        """The actual legacy app.js tween block cannot hide the C05 homepage."""
+        source = (ROOT / "js/app.js").read_text(encoding="utf-8")
+        self.assertIn("document.body?.dataset.concept === '05'", source)
+        start = source.index("  if (!reduce && motionReady) {")
+        end = source.index("\n  // Scene indicator", start)
+        # Extract the real shipped tween definitions, not a rewritten copy.
+        snippet = source[start:end]
+        probe = r"""
+const fs=require('node:fs');
+const app=fs.readFileSync('js/app.js','utf8');
+const start=app.indexOf('  if (!reduce && motionReady) {');
+const end=app.indexOf('\\n  // Scene indicator',start);
+if(start<0||end<=start) throw Error('LEGACY_TWEENS_MISSING');
+const snippet=app.slice(start,end);
+function evaluate(isConcept05) {
+  const out=[];
+  const gsap={
+    from:(selector,options)=>out.push({selector,opacity:Object.hasOwn(options,'opacity'),scroll:!!options.scrollTrigger}),
+    fromTo:(selector,options)=>out.push({selector:String(selector),opacity:Object.hasOwn(options,'opacity'),scroll:true}),
+    to:()=>{},
+  };
+  const run=new Function('gsap','qs','qsa','isConcept05','reduce','motionReady','coarsePointer',snippet);
+  run(gsap,()=>null,()=>[{}],isConcept05,false,true,false);
+  return out;
+}
+console.log(JSON.stringify({c05:evaluate(true),legacy:evaluate(false)}));
+"""
+        self.assertIn("isConcept05 ? {} : {opacity:0}", snippet)
+        outcome = subprocess.run(
+            ["node", "-e", probe], cwd=ROOT, capture_output=True,
+            text=True, check=True, timeout=10,
+        )
+        states = json.loads(outcome.stdout)
+        self.assertEqual(len(states["c05"]), len(states["legacy"]))
+        self.assertGreaterEqual(len(states["c05"]), 9)
+        self.assertTrue(all(not item["opacity"] for item in states["c05"]))
+        self.assertTrue(all(item["opacity"] for item in states["legacy"]))
+        self.assertGreaterEqual(sum(bool(item["scroll"]) for item in states["c05"]), 4)
+
+
+
 if __name__ == "__main__":
     unittest.main()
