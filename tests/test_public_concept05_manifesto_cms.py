@@ -47,7 +47,7 @@ const defaults = {
   c5DefaultEn:'MORE THAN PARTIES.\nA CULTURE IN MOTION.'
 };
 const element = {
-  dataset:defaults,
+  dataset:{...defaults,c5DisplayLocale:'es'},
   textContent:'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.',
   replaceChildren(...parts) {
     this.textContent = parts.map(part => part.tagName === 'br' ? ' ' : part.textContent).join('');
@@ -99,6 +99,7 @@ console.log(JSON.stringify(observed));
         self.assertIn("value.length > 64", ADMIN)
         self.assertIn("node.textContent = manifesto", HERO)
         self.assertIn("node.replaceChildren(...parts)", HERO)
+        self.assertIn("node.dataset.c5DisplayLocale === locale", HERO)
 
     def test_original_owner_v2_copy_and_existing_cms_description_remain_unchanged(self) -> None:
         self.assertIn("MÁS QUE FIESTAS.<br>UNA CULTURA EN MOVIMIENTO.", PHP_HOME)

@@ -687,7 +687,7 @@ function brvtal_public_home_identity(string $html): string
     if (str_contains($html, $heroSub) && !str_contains($html, 'class="hero-declaration')) {
         $heroStatement = '<div class="hero-declaration c5-hero-statement">'
             . '<span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>'
-            . '<strong' . $heroManifestoDefaults . ' data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
+            . '<strong' . $heroManifestoDefaults . ' data-c5-display-locale="' . $heroLocale . '" data-c5-hero-manifesto>' . $heroManifesto . '</strong>'
             . '<p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>'
             . '<a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">'
             . $heroCta . ' <span>↘</span></a>'

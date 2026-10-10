@@ -73,13 +73,18 @@
         // CMS content never becomes markup.
         node.textContent = manifesto;
         node.dataset.c5ManagedCopy = '1';
+        node.dataset.c5DisplayLocale = locale;
         return;
       }
       // Restore the locale-specific owner copy after a previous CMS override.
       // The trusted defaults are emitted by the PHP renderer, not by the CMS.
       const fallback = locale === 'en' ? node.dataset.c5DefaultEn : node.dataset.c5DefaultEs;
       if (typeof fallback !== 'string' || !fallback) return;
+      // On initial load, preserve the PHP-authored <br> and DOM exactly as
+      // rendered; only rebuild when an override or the locale changed.
+      if (node.dataset.c5ManagedCopy !== '1' && node.dataset.c5DisplayLocale === locale) return;
       delete node.dataset.c5ManagedCopy;
+      node.dataset.c5DisplayLocale = locale;
       const lines = fallback.split('\n');
       const parts = [];
       lines.forEach((line, index) => {

@@ -35,7 +35,7 @@ const fixture = `<!doctype html>
         <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
         <div class="hero-declaration c5-hero-statement">
           <span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
-          <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
+          <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-display-locale="es" data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
           <p data-c5-hero-description>PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
           <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE">EXPLORA BRVTAL <span>↘</span></a>
         </div>
