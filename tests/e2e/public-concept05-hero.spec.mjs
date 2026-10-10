@@ -409,3 +409,49 @@ test('Concept 05 bootstraps CMS manifesto and tracks the public locale event', a
     'PEREIRA CREA SU PROPIA CULTURA.'
   );
 });
+
+
+test('Concept 05 authored hero stays visible with a published CMS slider at 390 and 1440', async ({ page }) => {
+  const sliderJs = readFileSync(join(root, 'js/hero-slider.js'), 'utf8');
+  const sliderCss = readFileSync(join(root, 'css/hero-slider.css'), 'utf8');
+  const uri = 'http://127.0.0.1:4173/concept05-slider-precedence.html';
+  const slidePayload = {ok:true,data:{enabled:true,autoplay:false,slides:[
+    {id:'published',mediaType:'image',desktopSrc:'/published-event.jpg',
+      title:'PUBLISHED CMS EVENT',contentAlign:'left',overlay:35,layers:[]}
+  ]}};
+  let apiRequests = 0;
+  await page.route('**/api/hero-slider.php', route => {
+    apiRequests += 1;
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(slidePayload)});
+  });
+  const htmlFor = concept => fixture.replace('data-concept="05"', 'data-concept="' + concept + '"')
+    .replace('</head>', '<style>' + sliderCss + '</style></head>')
+    .replace('</body>', '<script>' + sliderJs + '</script></body>');
+  await page.route('**/concept05-slider-precedence.html', route => route.fulfill({
+    status:200,contentType:'text/html; charset=utf-8',body:htmlFor('05')
+  }));
+
+  for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.goto(uri);
+    await expect(page.locator('.home-phase-a-hero')).not.toHaveClass(/hero-slider-active/);
+    await expect(page.locator('.brvtal-hero-slider')).toHaveCount(0);
+    await expect(page.locator('.hero-title')).toBeVisible();
+    await expect(page.locator('.c5-hero-explore')).toBeVisible();
+    const noOverflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    );
+    expect(noOverflow).toBe(true);
+  }
+  expect(apiRequests).toBe(0);
+
+  // Regression: other themes still consume published CMS banners.
+  await page.unroute('**/concept05-slider-precedence.html');
+  await page.route('**/concept05-slider-precedence.html', route => route.fulfill({
+    status:200,contentType:'text/html; charset=utf-8',body:htmlFor('04')
+  }));
+  await page.goto(uri);
+  await expect(page.locator('.home-phase-a-hero')).toHaveClass(/hero-slider-active/);
+  await expect(page.locator('[data-hero-slide="0"]')).toBeVisible();
+  expect(apiRequests).toBe(1);
+});
