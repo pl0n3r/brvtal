@@ -350,3 +350,44 @@ test('Concept 05 Sound and Memories motion is static for reduced-motion users', 
   expect(memoryTransition).toBe('0s');
   expect(filterTransition).toBe('0s');
 });
+
+
+test('Concept 05 Sound and Memories actions follow ES/EN locale without duplicate decorations', async ({ page }) => {
+  await mount(page, { width: 390, height: 844 });
+  await page.evaluate(() => {
+    document.documentElement.dataset.locale = 'es';
+    window.dispatchEvent(new CustomEvent('brvtal:localechange'));
+  });
+  await expect(page.locator('.c5-section-route--sound')).toHaveText('EXPLORAR SONIDO ↗');
+  await expect(page.locator('.c5-section-route--memories')).toHaveText('EXPLORAR ARCHIVO ↓');
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.locale = 'en';
+    window.dispatchEvent(new CustomEvent('brvtal:localechange'));
+  });
+  await expect(page.locator('.c5-section-route--sound')).toHaveText('EXPLORE SOUND ↗');
+  await expect(page.locator('.c5-section-route--memories')).toHaveText('EXPLORE ARCHIVE ↓');
+
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT());
+  await expect(page.locator('.c5-section-route--sound')).toHaveCount(1);
+  await expect(page.locator('.c5-section-route--memories')).toHaveCount(1);
+  await expect(page.locator('.c5-memory-annotation')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= 390)).toBe(true);
+});
+
+test('Concept 05 hides decorative Memories annotation when CMS curated gallery becomes empty', async ({ page }) => {
+  await mount(page);
+  await expect(page.locator('.c5-memory-annotation')).toHaveCount(1);
+  await page.evaluate(() => {
+    window.BRVTALPublicMedia.render([]);
+    window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
+  });
+  await expect(page.locator('[data-public-media-item]')).toHaveCount(0);
+  await expect(page.locator('.c5-memory-annotation')).toHaveCount(0);
+  await page.evaluate(data => {
+    window.BRVTALPublicMedia.render(data);
+    window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
+  }, memories);
+  await expect(page.locator('.c5-memory-annotation')).toHaveCount(1);
+  await expect(page.locator('.c5-memory-cell')).toHaveCount(3);
+});

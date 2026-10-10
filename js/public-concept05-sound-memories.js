@@ -8,6 +8,12 @@
 
   if (!document.querySelector('[data-concept="05"]')) return;
 
+  function isEnglish() {
+    var locale = String(document.documentElement.dataset.locale || document.documentElement.lang || 'es')
+      .toLowerCase().split('-')[0];
+    return locale === 'en';
+  }
+
   function failMedia(host, media) {
     if (!host) return;
     host.classList.add('is-media-missing');
@@ -64,10 +70,10 @@
       if (!route) {
         route = document.createElement('a');
         route.className = 'c5-section-route c5-section-route--sound';
-        route.textContent = 'EXPLORE SOUND ↗';
         section.appendChild(route);
       }
       route.href = record.getAttribute('href');
+      route.textContent = isEnglish() ? 'EXPLORE SOUND ↗' : 'EXPLORAR SONIDO ↗';
     } else if (route) {
       route.remove();
     }
@@ -87,10 +93,16 @@
     var section = document.querySelector('.media');
     if (!section) return;
 
-    section.querySelectorAll('[data-public-media-item]').forEach(hydrateMemory);
+    var curated = section.querySelectorAll('[data-public-media-item]');
+    curated.forEach(hydrateMemory);
 
     var annotation = section.querySelector('.c5-memory-annotation');
-    if (!annotation) {
+    // Never claim a documentary contact sheet when the CMS has no curated media.
+    if (!curated.length && annotation) {
+      annotation.remove();
+      annotation = null;
+    }
+    if (curated.length && !annotation) {
       annotation = document.createElement('span');
       annotation.className = 'c5-memory-annotation';
       annotation.setAttribute('aria-hidden', 'true');
@@ -105,9 +117,9 @@
       route = document.createElement('a');
       route.className = 'c5-section-route c5-section-route--memories';
       route.href = '#eventArchive';
-      route.textContent = 'EXPLORE ARCHIVE ↓';
       section.appendChild(route);
     }
+    if (route) route.textContent = isEnglish() ? 'EXPLORE ARCHIVE ↓' : 'EXPLORAR ARCHIVO ↓';
 
     document.documentElement.dataset.concept05Memories = 'ready';
   }
@@ -126,6 +138,7 @@
 
   window.addEventListener('brvtal:sets-library-rendered', hydrateSound);
   window.addEventListener('brvtal:memories-rendered', hydrateMemories);
+  window.addEventListener('brvtal:localechange', hydrate);
   window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT = hydrate;
 
   if (document.readyState === 'loading') {
