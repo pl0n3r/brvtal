@@ -44,6 +44,12 @@
   async function syncFeaturedPlayer(section, featured) {
     var ticket = ++playerSyncTicket;
     var id = Number(featured?.dataset.setId);
+    // Stop the former provider synchronously when a newly featured Set replaces it.
+    // A pending CMS Promise must never keep obsolete audio playing.
+    var previous = section.querySelector('.c5-sound-player');
+    if (previous && previous.dataset.c5Set !== String(id)) {
+      clearFeaturedPlayer(section);
+    }
     var request = window.BRVTALPublicDataPromise;
     if (!id || !request || typeof request.then !== 'function') {
       clearFeaturedPlayer(section);

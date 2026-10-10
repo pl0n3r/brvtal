@@ -492,3 +492,45 @@ test('Concept 05 rejects untrusted CMS embeds and clears stale player when featu
   await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'unavailable');
   await expect(page.locator('.c5-sound-player')).toHaveCount(0);
 });
+
+
+test('Concept 05 unloads an active embed synchronously while replacement CMS data is pending', async ({ page }) => {
+  await page.route('https://w.soundcloud.com/**', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: '<!doctype html><title>Opt-in audio fixture</title>',
+  }));
+  await mount(page, { width: 390, height: 844 });
+
+  const oldEmbed = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fbrvtal%2Fsignal';
+  await page.evaluate(data => {
+    window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:data}}});
+    window.BRVTALPublicSetsLibrary.render(data);
+  }, [{...sets[0], embed_url: oldEmbed}]);
+
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await page.locator('.c5-sound-player-toggle').click();
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(1);
+
+  // The next CMS request is deliberately never settled during the critical
+  // transition. The old third-party iframe must disappear in the SAME turn.
+  const staleDuringTransition = await page.evaluate(newSet => {
+    window.BRVTALPublicDataPromise = new Promise(resolve => {
+      window.__resolveNextFeaturedSet = resolve;
+    });
+    window.BRVTALPublicSetsLibrary.render([newSet]);
+    return {
+      player: document.querySelector('.c5-sound-player') !== null,
+      frame: document.querySelector('.c5-sound-player-frame iframe') !== null,
+      state: document.querySelector('#sets')?.dataset.c5Player,
+    };
+  }, {...sets[1], embed_url: 'https://open.spotify.com/embed/track/7ouMYWpwJ422jRcDASZB7P'});
+  expect(staleDuringTransition).toEqual({ player:false, frame:false, state:'unavailable' });
+
+  await page.evaluate(newSet => {
+    window.__resolveNextFeaturedSet({payload:{data:{sets:[newSet]}}});
+    delete window.__resolveNextFeaturedSet;
+  }, {...sets[1], embed_url: 'https://open.spotify.com/embed/track/7ouMYWpwJ422jRcDASZB7P'});
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+});

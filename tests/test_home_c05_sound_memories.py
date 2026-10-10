@@ -45,6 +45,8 @@ class HomeC05SoundMemoriesTests(unittest.TestCase):
         self.assertIn("allow-scripts allow-same-origin allow-presentation", self.enhancer)
         self.assertIn("Concept 05 loads only allowlisted official embed after user activation", self.spec)
         self.assertIn("Concept 05 rejects untrusted CMS embeds", self.spec)
+        self.assertIn("A pending CMS Promise must never keep obsolete audio playing.", self.enhancer)
+        self.assertIn("unloads an active embed synchronously while replacement CMS data is pending", self.spec)
 
     def test_memories_use_curated_cms_media_with_safe_links(self) -> None:
         self.assertIn("window.__memoriesArg?.some(item => item.id === 999)", self.spec)
