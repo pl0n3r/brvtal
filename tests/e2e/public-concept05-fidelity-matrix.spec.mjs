@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 const root = process.cwd();
 const cssFiles = [
@@ -688,6 +689,41 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
     }
   });
 }
+
+
+test('legacy GSAP reveal options keep Concept 05 visible and older themes unchanged', () => {
+  // Exercise the actual legacy tween declarations, not an independent mock.
+  const source = readFileSync(join(root,'js/app.js'),'utf8');
+  const start = source.indexOf('  if (!reduce && motionReady) {');
+  const end = source.indexOf('\n  // Scene indicator',start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  const code = source.slice(start,end);
+
+  const probe = isConcept05 => {
+    const states = [];
+    const gsap = {
+      from:(selector,opts) => states.push({
+        selector:String(selector), hidden:opts.opacity === 0, scrolled:Boolean(opts.scrollTrigger),
+      }),
+      fromTo:(selector,opts,target) => states.push({
+        selector:'manifesto-line', hidden:opts.opacity === 0, scrolled:Boolean(target.scrollTrigger),
+      }),
+      to:() => {},
+    };
+    runInNewContext(code, {
+      gsap, isConcept05, reduce:false, motionReady:true, coarsePointer:false,
+      qs:() => null, qsa:() => [{}],
+    }, {timeout:1000});
+    return states;
+  };
+  const authored = probe(true), classic = probe(false);
+  expect(authored.length).toBeGreaterThanOrEqual(9);
+  expect(authored.length).toBe(classic.length);
+  expect(authored.every(tween => !tween.hidden)).toBe(true);
+  expect(classic.every(tween => tween.hidden)).toBe(true);
+  expect(authored.filter(tween => tween.scrolled).length).toBeGreaterThanOrEqual(4);
+});
 
 const canonicalVisualRegions = [
   '.home-phase-a-hero',
