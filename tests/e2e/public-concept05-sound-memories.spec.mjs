@@ -623,3 +623,48 @@ test('Concept 05 attaches Sound and Memories owner-v2 comparison evidence at 390
     body:Buffer.from(JSON.stringify(manifest,null,2)),contentType:'application/json',
   });
 });
+
+test('Concept 05 image-delivery fallback preserves a Memory until the original upload also fails', async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.route(harness, route => route.fulfill({contentType:'text/html; charset=utf-8',body:markup()}));
+  await page.route('**/api/public-image-delivery.php', route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({ok:true,data:{
+      '/uploads/fallback-ok.svg':{variants:{card:{src:'/uploads/failing-card.webp',width:600,height:800}}},
+      '/uploads/fallback-broken.svg':{variants:{card:{src:'/uploads/failing-card-two.webp',width:600,height:800}}},
+    }}),
+  }));
+  await page.route('**/uploads/failing-card*.webp', route => route.fulfill({status:404,body:'missing derivative'}));
+  await page.route('**/uploads/fallback-ok.svg', route => route.fulfill({
+    contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"></svg>',
+  }));
+  await page.route('**/uploads/fallback-broken.svg', route => route.fulfill({status:404,body:'missing original'}));
+  await page.goto(harness);
+  await page.addScriptTag({content:mediaJs});
+  await page.addScriptTag({content:enhancerJs});
+  await page.evaluate(() => window.BRVTALPublicMedia.loadImageDelivery());
+
+  for (const [path,canRecover] of [['/uploads/fallback-ok.svg',true],['/uploads/fallback-broken.svg',false]]) {
+    await page.evaluate(file_path => {
+      window.BRVTALPublicMedia.render([{id:81,media_id:181,type:'image',title:'FALLBACK MEMORY',file_path}]);
+      const image=document.querySelector('.c5-memory-cell img');
+      // Use the canonical image-delivery fallback listener, not a reimplementation.
+      window.BRVTALPublicMedia.applyResponsiveImage(image,'card');
+    },path);
+    const item=page.locator('.c5-memory-cell');
+    const image=item.locator('img');
+    const opener=item.locator('[data-public-media-open]');
+    if (canRecover) {
+      await expect.poll(() => image.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+      await expect(image).toHaveAttribute('src','/uploads/fallback-ok.svg');
+      await expect(image).toBeVisible();
+      await expect(item).not.toHaveClass(/is-media-missing/);
+      await expect(opener).toBeEnabled();
+    } else {
+      await expect(item).toHaveClass(/is-media-missing/);
+      await expect(image).toBeHidden();
+      await expect(opener).toBeDisabled();
+    }
+  }
+});

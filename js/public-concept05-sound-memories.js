@@ -152,9 +152,25 @@
     if (media.dataset.c5ArchiveMediaBound === '1') return;
     media.dataset.c5ArchiveMediaBound = '1';
 
+    // The canonical image-delivery handler may retry a failing WebP derivative
+    // against the original upload. The first error is not final in that case.
+    var fallbackPending = false;
+    var fallbackRecovered = false;
     media.addEventListener('error', function () {
+      if (media instanceof HTMLImageElement && !fallbackPending && !fallbackRecovered
+        && media.dataset.brvtalWebpFallbackBound === '1'
+        && (media.dataset.brvtalWebpSrc || media.dataset.brvtalFallbackApplied === '1')) {
+        fallbackPending = true;
+        return;
+      }
       failMedia(host, media);
-    }, { once:true });
+    });
+    media.addEventListener('load', function () {
+      if (fallbackPending && media instanceof HTMLImageElement && media.naturalWidth > 0) {
+        fallbackPending = false;
+        fallbackRecovered = true;
+      }
+    });
 
     if (media instanceof HTMLImageElement && media.complete && media.naturalWidth === 0) {
       failMedia(host, media);
