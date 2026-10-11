@@ -706,6 +706,7 @@ test('legacy GSAP reveal options keep Concept 05 visible and older themes unchan
       from:(selector,opts) => states.push({
         selector:String(selector), hidden:opts.opacity === 0, scrolled:Boolean(opts.scrollTrigger),
         yPercent:opts.yPercent ?? null,
+        y:opts.y ?? null,
       }),
       fromTo:(selector,opts,target) => states.push({
         selector:'manifesto-line', hidden:opts.opacity === 0, scrolled:Boolean(target.scrollTrigger),
@@ -745,6 +746,40 @@ test('legacy GSAP reveal options keep Concept 05 visible and older themes unchan
     expect(visible.before,'hero title must initially intersect clip').toBeGreaterThan(0);
     expect(visible.after,'initial GSAP transform cannot reduce visible title')
       .toBeGreaterThanOrEqual(visible.before-1);
+    // Exercise actual authored deferred Y offsets, not just opacity, plus
+    // an off-region mutation proving this geometrical guard is sensitive.
+    const deferred=await page.evaluate(offsets=>{
+      const overlap=(el,host)=>{
+        const a=el.getBoundingClientRect(),b=host.getBoundingClientRect();
+        return Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))
+          *Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+      };
+      return [['.artist','#artists',offsets.artist],['.media-grid .m','#media',offsets.memory]]
+        .map(([target,owner,y])=>{
+          const el=document.querySelector(target),host=document.querySelector(owner);
+          // Animating transform returns an intermediate rectangle immediately
+          // after mutation. Disable transitions only in this test probe so
+          // the actual GSAP from-state and negative control are deterministic.
+          el.style.setProperty('transition','none','important');
+          el.style.setProperty('transform','none','important');
+          const baseline=el.getBoundingClientRect();
+          const before=overlap(el,host);
+          el.style.setProperty('transform','translateY('+y+'px)','important');
+          const start=overlap(el,host);
+          // A 400vh shift need not escape a tall region, and the stylesheet
+          // may override ordinary inline transforms with !important.
+          const bottom=host.getBoundingClientRect().bottom;
+          const outside=Math.ceil(Math.max(1,bottom-baseline.top+baseline.height+100));
+          el.style.setProperty('transform','translateY('+outside+'px)','important');
+          return {before,start,adversarial:overlap(el,host)};
+        });
+    },{artist:authored.find(t=>t.selector==='.artist')?.y,
+       memory:authored.find(t=>t.selector==='.media-grid .m')?.y});
+    for (const row of deferred) {
+      expect(row.before,'section item initially intersects its parent').toBeGreaterThan(0);
+      expect(row.start,'deferred section content leaves its region').toBeGreaterThan(0);
+      expect(row.adversarial,'off-region mutation must be detected').toBe(0);
+    }
   }
 });
 
