@@ -668,3 +668,47 @@ test('Concept 05 image-delivery fallback preserves a Memory until the original u
     }
   }
 });
+
+test('Concept 05 Sound cover returns after WebP fallback, and hides only if original also fails', async ({ page }) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.route(harness, route => route.fulfill({contentType:'text/html; charset=utf-8',body:markup()}));
+  await page.route('**/api/public-image-delivery.php', route => route.fulfill({
+    contentType:'application/json',
+    body:JSON.stringify({ok:true,data:{
+      '/uploads/sound-original.svg':{variants:{card:{src:'/uploads/sound-derivative.webp',width:600,height:800}}},
+      '/uploads/sound-gone.svg':{variants:{card:{src:'/uploads/sound-derivative-gone.webp',width:600,height:800}}},
+    }}),
+  }));
+  await page.route('**/uploads/sound-derivative*.webp', route => route.fulfill({status:404,body:'missing derivative'}));
+  await page.route('**/uploads/sound-original.svg', route => route.fulfill({
+    contentType:'image/svg+xml',
+    body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"></svg>',
+  }));
+  await page.route('**/uploads/sound-gone.svg', route => route.fulfill({status:404,body:'missing original'}));
+  await page.goto(harness);
+  await page.addScriptTag({content:setsJs});
+  await page.addScriptTag({content:mediaJs});
+  await page.addScriptTag({content:enhancerJs});
+  await page.evaluate(() => window.BRVTALPublicMedia.loadImageDelivery());
+
+  for (const [path,recovers] of [['sound-original.svg',true],['sound-gone.svg',false]]) {
+    await page.evaluate(item => {
+      window.BRVTALPublicSetsLibrary.render([item]);
+      window.BRVTALPublicMedia.applyDocumentImageDelivery();
+    }, {...sets[0],cover_image:'http://127.0.0.1:4173/uploads/' + path});
+    const cover=page.locator('.set-library-cover').first();
+    const image=cover.locator('img');
+    await image.scrollIntoViewIfNeeded();
+    await expect(image).toHaveAttribute('data-brvtal-fallback-applied','1');
+    if (recovers) {
+      await expect.poll(() => image.evaluate(el => el.complete && el.naturalWidth > 0)).toBe(true);
+      await expect(image).toBeVisible();
+      await expect(cover).not.toHaveClass(/set-library-cover--empty|is-media-missing/);
+      await expect(cover).not.toHaveAttribute('aria-hidden','true');
+    } else {
+      await expect(cover).toHaveClass(/set-library-cover--empty|is-media-missing/);
+      await expect(image).toBeHidden();
+      await expect(cover).toHaveAttribute('aria-hidden','true');
+    }
+  }
+});

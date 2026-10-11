@@ -139,12 +139,25 @@
     if (!host) return;
     host.classList.add('is-media-missing');
     if (media) media.hidden = true;
+    if (host.matches?.('[data-set-cover]')) {
+      host.classList.add('set-library-cover--empty');
+      host.setAttribute('aria-hidden', 'true');
+    }
     var item = host.closest?.('[data-public-media-item]');
     var trigger = item?.querySelector('[data-public-media-open]');
     if (trigger) {
       trigger.disabled = true;
       trigger.setAttribute('aria-disabled', 'true');
     }
+  }
+
+  function restoreCoverAfterFallback(host, media) {
+    // The canonical Sets renderer eagerly hides the cover on the first image
+    // error. Unhide during fallback so native lazy loading can fetch original.
+    if (!host.matches?.('[data-set-cover]')) return;
+    host.classList.remove('set-library-cover--empty');
+    host.removeAttribute('aria-hidden');
+    media.hidden = false;
   }
 
   function bindMedia(host, media) {
@@ -161,6 +174,7 @@
         && media.dataset.brvtalWebpFallbackBound === '1'
         && (media.dataset.brvtalWebpSrc || media.dataset.brvtalFallbackApplied === '1')) {
         fallbackPending = true;
+        restoreCoverAfterFallback(host, media);
         return;
       }
       failMedia(host, media);
@@ -169,6 +183,7 @@
       if (fallbackPending && media instanceof HTMLImageElement && media.naturalWidth > 0) {
         fallbackPending = false;
         fallbackRecovered = true;
+        restoreCoverAfterFallback(host, media);
       }
     });
 
