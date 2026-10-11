@@ -76,6 +76,7 @@ class HomeC05SoundMemoriesTests(unittest.TestCase):
         self.assertIn("await info.attach('owner-v2-reference'", self.spec)
         self.assertIn("PENDING_HUMAN_AB_COMPARISON", self.spec)
         self.assertIn("accepted_visual_deviations:null", self.spec)
+        self.assertIn("img.complete && img.naturalWidth > 0", self.spec)
         # Screenshot comparison must additionally be attached to and reviewed on the PR.
 
     def test_browser_scenarios_cover_sound_memories(self) -> None:

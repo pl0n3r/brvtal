@@ -601,7 +601,16 @@ test('Concept 05 attaches Sound and Memories owner-v2 comparison evidence at 390
     await expect(page.locator('.set-library-item')).toHaveCount(4);
     await expect(page.locator('.c5-memory-cell')).toHaveCount(3);
     for (const [block, selector] of [['sound','#sets'],['memories','#media']]) {
-      const image = await page.locator(selector).screenshot({animations:'disabled',caret:'hide'});
+      const section = page.locator(selector);
+      // Native lazy media can still be offscreen after CMS hydration. Force each
+      // permitted fixture image into view, then require decoded pixels before A/B.
+      const assets = section.locator('img[src]:not([hidden])');
+      for (const asset of await assets.all()) {
+        await asset.scrollIntoViewIfNeeded();
+        await expect.poll(() => asset.evaluate(img => img.complete && img.naturalWidth > 0),
+          {timeout:10000}).toBe(true);
+      }
+      const image = await section.screenshot({animations:'disabled',caret:'hide'});
       await info.attach('c05-' + block + '-' + viewport.width, {body:image,contentType:'image/png'});
       manifest.captures.push({viewport:viewport.width,block,sha256:digest(image)});
     }
