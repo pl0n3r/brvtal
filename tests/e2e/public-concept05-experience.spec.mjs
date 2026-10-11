@@ -406,15 +406,19 @@ function canonicalPhpHome({ published = true } = {}) {
     throw new Error('Canonical PHP renderer failed: ' +
       String(run.error?.message || run.stderr || run.status).slice(0,4000));
   }
-  // No JS or CSS served from third parties: deterministic rendered HTML.
-  return run.stdout
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<link\b(?=[^>]*rel=["']stylesheet["'])[^>]*>/gi, '')
-    .replace(/<base\s+href=["']\/["']\s*\/?>/gi, '')
-    .replace('</head>', '<style>' + css + '\n#loader,.cursor,.cursor-label,#fxCanvas{display:none!important}' + '</style></head>');
+  // Browser sandbox disables scripts and all remote requests; never regex-filter HTML.
+  return run.stdout.replace('</head>',
+    '<style>' + css + '\n#loader,.cursor,.cursor-label,#fxCanvas{display:none!important}' + '</style></head>');
 }
 
-test('PHP-rendered canonical Next Experience keeps published facts and captures 390/1440', async ({ page }, info) => {
+test('PHP-rendered canonical Next Experience keeps published facts and captures 390/1440', async ({ page: originalPage }, info) => {
+  const browser = originalPage.context().browser();
+  if (!browser) throw new Error('Browser context is required for inert HTML tests');
+  const inertContext = await browser.newContext({ javaScriptEnabled:false });
+  const page = await inertContext.newPage();
+  // Block remote CSS, images, scripts and redirects from the raw PHP document.
+  await page.route('**/*', route => route.abort());
+  try {
   for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
     await page.setViewportSize(viewport);
     await page.setContent(canonicalPhpHome());
@@ -457,4 +461,5 @@ test('PHP-rendered canonical Next Experience keeps published facts and captures 
   await expect(section.locator('.c5-experience-ticket')).toHaveCount(0);
   await expect(section.locator('.c5-experience-artwork img')).toHaveCount(0);
   await expect(section.locator('[data-c5-fact="date"]')).toHaveText('DATE TBA');
+  } finally { await inertContext.close(); }
 });
