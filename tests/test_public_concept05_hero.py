@@ -23,6 +23,33 @@ class Concept05HeroTests(unittest.TestCase):
         self._run_browser("Concept 05 CTA and eyebrow settings roundtrip and reject unsafe copy",
                           "tests/e2e/discadmin-settings-v2.spec.mjs")
 
+    def test_php_next_experience_escapes_regex_replacement_tokens(self) -> None:
+        """Literal CMS text must not be interpreted as preg replacement backreferences."""
+        php = r"""
+require 'config/public_home.php';
+$html = file_get_contents('index.html');
+$event = [
+  'title' => 'EVENT $0 and $1',
+  'slug' => 'event-safe',
+  'city' => 'CITY $0',
+  'venue' => 'VENUE $1',
+  'description' => 'DESC $1',
+  'lineup' => [['name' => 'DJ $0']]
+];
+echo brvtal_public_render_next_experience($html, $event);
+"""
+        result = subprocess.run(
+            ["php", "-r", php], cwd=ROOT, capture_output=True,
+            text=True, timeout=20, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr[-2500:])
+        rendered = result.stdout
+        self.assertIn('data-text="EVENT $0 and $1"', rendered)
+        self.assertIn('>EVENT $0 and $1</h2>', rendered)
+        self.assertIn('>CITY $0 / VENUE $1</span>', rendered)
+        self.assertIn('<p class="c5-experience-note">DESC $1</p>', rendered)
+        self.assertIn('DJ $0', rendered)
+
     def _run_browser(self, test_name: str, spec: str = "tests/e2e/public-concept05-hero.spec.mjs") -> None:
         completed = subprocess.run(
             ["npx", "playwright", "test", spec, "--project=chromium",

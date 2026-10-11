@@ -818,21 +818,21 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
         $section,
         1
     ) ?? $section;
-    $section = preg_replace(
+    $section = preg_replace_callback(
         '~<h2\b[^>]*>.*?</h2>~s',
-        '<h2 data-text="' . $safeTitle . '">' . $safeTitle . '</h2>',
+        static fn(array $_matches): string => '<h2 data-text="' . $safeTitle . '">' . $safeTitle . '</h2>',
         $section,
         1
     ) ?? $section;
-    $section = preg_replace(
+    $section = preg_replace_callback(
         '~<p class="genesis-tag">.*?</p>~s',
-        '<p class="genesis-tag">' . $safeTag . '</p>',
+        static fn(array $_matches): string => '<p class="genesis-tag">' . $safeTag . '</p>',
         $section,
         1
     ) ?? $section;
-    $section = preg_replace(
+    $section = preg_replace_callback(
         '~<div class="genesis-data mono">.*?</div>~s',
-        '<div class="genesis-data mono">'
+        static fn(array $_matches): string => '<div class="genesis-data mono">'
             . '<span data-c5-fact="date" data-label="DATE">' . brvtal_public_home_escape($dateLabel) . '</span>'
             . '<span data-c5-fact="time" data-label="TIME">' . brvtal_public_home_escape($timeLabel) . '</span>'
             . '<span data-c5-fact="location" data-label="LOCATION">' . $safeLocation . '</span>'
@@ -859,9 +859,9 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
     $actions .= '</div>';
 
     $lineupMarkup = brvtal_public_next_experience_lineup_markup($event);
-    $section = preg_replace(
+    $section = preg_replace_callback(
         '~<a class="enter magnetic"[^>]*>.*?</a>~s',
-        $ticketSignal . $eventNote . $lineupMarkup . $actions,
+        static fn(array $_matches): string => $ticketSignal . $eventNote . $lineupMarkup . $actions,
         $section,
         1
     ) ?? $section;
@@ -891,9 +891,9 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
         $html = str_replace('<div class="nav-right">', $headerTicket . '<div class="nav-right">', $html);
     }
 
-    $html = preg_replace(
+    $html = preg_replace_callback(
         '~<strong data-c5-next-label>.*?</strong>~s',
-        '<strong data-c5-next-label>' . $safeTitle . '</strong>',
+        static fn(array $_matches): string => '<strong data-c5-next-label>' . $safeTitle . '</strong>',
         $html,
         1
     ) ?? $html;
