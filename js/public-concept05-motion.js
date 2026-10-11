@@ -25,13 +25,14 @@
     if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
 
     hosts.forEach(function (host) {
+      // ScrollTrigger may never fire in a full-page screenshot or JS failure.
+      // Keep every module readable at rest; animate position only.
       host.querySelectorAll('.c5-module').forEach(function (el) {
         gsap.from(el, {
-          opacity: 0,
           y: 24,
           duration: 0.6,
           ease: 'power3.out',
-          clearProps: 'transform,opacity',
+          clearProps: 'transform',
           scrollTrigger: window.ScrollTrigger
             ? { trigger: el, start: 'top 88%', once: true }
             : undefined,
@@ -39,11 +40,13 @@
       });
 
       // Real Home sections dressed by brvtal_public_home_concept05_dressing():
-      // cut-in reveal on the numbered editorial label + registration-offset
+      // visible registration-offset on the numbered section + registration-offset
       // glitch on the section title, once per section on scroll-in.
+      // Never clip entire numbered sections while awaiting scroll.
       host.querySelectorAll('.c5-numbered').forEach(function (section) {
         gsap.from(section, {
-          clipPath: 'inset(0 0 100% 0)',
+          y: 12,
+          clearProps: 'transform',
           duration: 0.5,
           ease: 'power4.inOut',
           scrollTrigger: window.ScrollTrigger
