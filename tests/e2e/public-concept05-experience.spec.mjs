@@ -323,6 +323,36 @@ test('same CMS artwork image recovers after success, failure and source reassign
   await expect(host).not.toHaveClass(/is-media-missing/);
 });
 
+test('same CMS artwork URL can recover after its one-shot load and error', async ({ page }) => {
+  await mount(page, { width:390, height:844 });
+  const host = page.locator('[data-c5-experience-artwork]');
+  const artwork = host.locator('img');
+  await expect(artwork).toBeVisible();
+  await expect(artwork).toHaveJSProperty('naturalWidth', 900);
+
+  // A later request for the *same* CMS URL can fail after the first load.
+  // Fire the real error listener deterministically, without external media.
+  await artwork.evaluate(image => image.dispatchEvent(new Event('error')));
+  await expect(host).toHaveClass(/is-media-missing/);
+  await expect(artwork).toBeHidden();
+  await expect(artwork).not.toHaveAttribute('src');
+
+  // The retry uses the same DOM image and the same original URL. The previous
+  // once:true listener has already fired and must not suppress the new bind.
+  await artwork.evaluate(image => {
+    image.setAttribute('src', 'https://example.test/genesis.jpg');
+    window.BRVTAL_CONCEPT05_EXPERIENCE_INIT();
+  });
+  await expect(artwork).toBeVisible();
+  await expect(host).not.toHaveClass(/is-media-missing/);
+  await expect(artwork).toHaveAttribute('src', 'https://example.test/genesis.jpg');
+
+  // Another failure should still close the artwork safely after this retry.
+  await artwork.evaluate(image => image.dispatchEvent(new Event('error')));
+  await expect(host).toHaveClass(/is-media-missing/);
+  await expect(artwork).not.toHaveAttribute('src');
+});
+
 test('experience runtime does not claim GSAP motion ownership in deterministic visual-test mode', async ({ page }) => {
   await page.setViewportSize({ width:390, height:844 });
   await page.route('https://example.test/genesis.jpg', route => route.fulfill({

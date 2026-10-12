@@ -13,6 +13,10 @@
     image.hidden = true;
     image.style.visibility = '';
     image.removeAttribute('src');
+    // The one-shot load/error listeners have settled. A CMS retry may reuse
+    // this exact <img> and src, so force fresh listeners on the next init.
+    var current = artworkBindings.get(host);
+    if (current && current.image === image) artworkBindings.delete(host);
   }
 
   // A reused CMS host may replace an image OR change the source on the
