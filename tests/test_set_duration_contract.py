@@ -60,6 +60,57 @@ echo json_encode($results);
         output = subprocess.run(["php", "-r", code, encoded], check=True, capture_output=True, text=True)
         self.assertEqual(json.loads(output.stdout), expected)
 
+        # Exercise the real Sets payload sanitizer, not just the normalization helper.
+        # Only unrelated CMS/temporal dependencies are stubbed; duration code is unchanged.
+        sanitizer = "function sanitize_payload(" + api.split("function sanitize_payload(", 1)[1].split("function allowed_fields(", 1)[0]
+        stubs = """
+function json_response($body, $status = 200): never { throw new DomainException('HTTP_' . $status); }
+function ensure_string(array &$d, string $key, int $max): void {}
+function brvtal_content_temporal_normalize(string $resource, array $d): array {
+    return ['error' => null, 'payload' => $d];
+}
+function brvtalContentVisualShapeError(string $resource, array $d): ?array { return null; }
+"""
+        request_cases = [
+            {}, {"duration_seconds": None}, {"duration_seconds": 1},
+            {"duration_seconds": "12"}, {"duration_seconds": 86400},
+            {"duration_seconds": 0}, {"duration_seconds": -1},
+            {"duration_seconds": 86401}, {"duration_seconds": 1.5},
+            {"duration_seconds": True}, {"duration_seconds": "01"},
+            {"duration_seconds": "1e2"}, {"duration_seconds": " 1 "},
+            {"duration_seconds": []}, {"duration_seconds": {}},
+        ]
+        request_script = stubs + helper + sanitizer + """
+$payloads = json_decode(base64_decode($argv[1]), true);
+$results = [];
+foreach ($payloads as $payload) {
+    try {
+        $clean = sanitize_payload('sets', $payload);
+        $results[] = [
+            'status' => 200,
+            'present' => array_key_exists('duration_seconds', $clean),
+            'duration' => $clean['duration_seconds'] ?? null,
+        ];
+    } catch (DomainException $e) {
+        $results[] = ['status' => (int)substr($e->getMessage(), 5)];
+    }
+}
+echo json_encode($results);
+"""
+        request_encoded = base64.b64encode(json.dumps(request_cases).encode()).decode()
+        observed = subprocess.run(
+            ["php", "-r", request_script, request_encoded],
+            check=True, capture_output=True, text=True,
+        )
+        expected_valid = [
+            {"status": 200, "present": False, "duration": None},
+            {"status": 200, "present": True, "duration": None},
+            {"status": 200, "present": True, "duration": 1},
+            {"status": 200, "present": True, "duration": 12},
+            {"status": 200, "present": True, "duration": 86400},
+        ]
+        self.assertEqual(json.loads(observed.stdout), expected_valid + [{"status": 422}] * 10)
+
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")
         tests = source("tests/migrations-contract.php")
