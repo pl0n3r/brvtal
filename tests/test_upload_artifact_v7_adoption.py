@@ -138,7 +138,13 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         self.assertEqual(3, ci.count(image))
         self.assertNotIn("image: mariadb:11.4", ci)
 
-        self.assertEqual(2, ci.count("uses: actions/upload-artifact@"))
+        self.assertEqual(3, ci.count("uses: actions/upload-artifact@"))
+        success_block = upload_block(ci, target_name="name: concept05-owner-v2-ab-")
+        validate_upload_block(success_block)
+        self.assertIn("if: success() && steps.concept05_evidence.outputs.has_evidence == 'true'", success_block)
+        self.assertIn("if-no-files-found: error", success_block)
+        self.assertIn("artifacts/concept05-positive/owner-v2-reference.png", ci)
+        self.assertIn("artifacts/concept05-positive/c05-export-attestation.json", ci)
         block = upload_block(
             ci,
             target_name="name: concept05-pr-visual-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}",
