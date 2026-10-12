@@ -1,7 +1,6 @@
 """Behavioral and structural acceptance for BRVTAL #989 (synthetic inputs only)."""
 import json
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import unittest
@@ -65,7 +64,9 @@ echo json_encode($results);
         reconciliation = source("config/migration_reconcile.php")
         tests = source("tests/migrations-contract.php")
         self.assertIn("'migration_set_duration_01.sql' => brvtalMigrationObjectRequirements(", reconciliation)
-        self.assertIn("'sets_media', ['duration_seconds']", reconciliation)
+        self.assertIn("'column-unsigned-nullable:sets_media.duration_seconds'", reconciliation)
+        self.assertIn("IS_NULLABLE FROM information_schema.COLUMNS", reconciliation)
+        self.assertIn("brvtalMigrationDurationColumnMatches", tests)
         self.assertIn("every historical migration must have an explicit proof specification", tests)
         self.assertIn("brvtalMigrationProofDisposition('migration_set_duration_01.sql'", tests)
         self.assertIn("brvtalMigrationAssertAdditiveSql", tests)

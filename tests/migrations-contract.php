@@ -259,11 +259,43 @@ migrations_assert(str_contains($durationSql, 'information_schema.COLUMNS'), 'Set
 migrations_assert(str_contains($durationSql, 'ADD COLUMN duration_seconds INT UNSIGNED NULL'), 'Set duration must stay optional');
 migrations_assert(!$rejectsNonAdditive($durationSql), 'Set duration migration must remain additive');
 migrations_assert(
-    brvtalMigrationProofSpecifications()['migration_set_duration_01.sql'] === ['column:sets_media.duration_seconds'],
+    brvtalMigrationProofSpecifications()['migration_set_duration_01.sql'] === [
+        'column:sets_media.duration_seconds',
+        'column-unsigned-nullable:sets_media.duration_seconds',
+    ],
     'Set duration reconciliation proof must target exactly the new column'
 );
-$durationProofAbsent = ['complete' => false, 'checks' => ['column:sets_media.duration_seconds' => false]];
-$durationProofPresent = ['complete' => true, 'checks' => ['column:sets_media.duration_seconds' => true]];
+$durationProofAbsent = ['complete' => false, 'checks' => [
+    'column:sets_media.duration_seconds' => false,
+    'column-unsigned-nullable:sets_media.duration_seconds' => false,
+]];
+$durationProofPresent = ['complete' => true, 'checks' => [
+    'column:sets_media.duration_seconds' => true,
+    'column-unsigned-nullable:sets_media.duration_seconds' => true,
+]];
+$durationProofWrongType = ['complete' => false, 'checks' => [
+    'column:sets_media.duration_seconds' => true,
+    'column-unsigned-nullable:sets_media.duration_seconds' => false,
+]];
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofWrongType) === 'blocked',
+    'Existing wrong-typed Set duration column must never be baselined or overwritten'
+);
+foreach ([
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'YES'],
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int(10) unsigned', 'IS_NULLABLE' => 'YES'],
+] as $validDurationDefinition) {
+    migrations_assert(brvtalMigrationDurationColumnMatches($validDurationDefinition), 'MariaDB/MySQL nullable unsigned INT must be accepted');
+}
+foreach ([
+    ['DATA_TYPE' => 'varchar', 'COLUMN_TYPE' => 'varchar(30)', 'IS_NULLABLE' => 'NO'],
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int(11)', 'IS_NULLABLE' => 'YES'],
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'NO'],
+    null,
+    [],
+] as $invalidDurationDefinition) {
+    migrations_assert(!brvtalMigrationDurationColumnMatches($invalidDurationDefinition), 'Wrong type or nullability must fail closed');
+}
 migrations_assert(
     brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofAbsent) === 'apply',
     'Set duration absent proof is eligible for additive apply'

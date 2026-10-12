@@ -170,9 +170,10 @@ function brvtalMigrationProofSpecifications(): array
             ],
             true
         ),
-        'migration_set_duration_01.sql' => brvtalMigrationObjectRequirements(
-            'sets_media', ['duration_seconds']
-        ),
+        'migration_set_duration_01.sql' => [
+            'column:sets_media.duration_seconds',
+            'column-unsigned-nullable:sets_media.duration_seconds',
+        ],
         'migration_media_content_hash_01.sql' => brvtalMigrationObjectRequirements(
             'media',
             ['content_hash'],
@@ -247,8 +248,25 @@ function brvtalMigrationProofSpecifications(): array
     ];
 }
 
+/** Strict cross-MySQL/MariaDB Set duration proof (INT display width varies). */
+function brvtalMigrationDurationColumnMatches(mixed $row): bool
+{
+    return is_array($row)
+        && strtolower((string)($row['DATA_TYPE'] ?? '')) === 'int'
+        && preg_match('/\\bunsigned\\b/i', (string)($row['COLUMN_TYPE'] ?? '')) === 1
+        && strtoupper((string)($row['IS_NULLABLE'] ?? '')) === 'YES';
+}
+
 function brvtalMigrationProbeRequirement(PDO $pdo, string $requirement): bool
 {
+    if (preg_match('/^column-unsigned-nullable:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)$/', $requirement, $match)) {
+        $statement = $pdo->prepare(
+            'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+        );
+        $statement->execute([$match[1], $match[2]]);
+        return brvtalMigrationDurationColumnMatches($statement->fetch(PDO::FETCH_ASSOC));
+    }
     if (preg_match("/^column-type:([A-Za-z0-9_]+)\\.([A-Za-z0-9_]+)=([A-Za-z0-9_(),'.-]+)$/", $requirement, $match)) {
         $statement = $pdo->prepare(
             'SELECT LOWER(COLUMN_TYPE) FROM information_schema.COLUMNS ' .
