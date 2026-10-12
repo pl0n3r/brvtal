@@ -276,13 +276,19 @@ try {
          ORDER BY sort_order ASC, name ASC"
     )->fetchAll();
 
+    // Keep public Sets readable before the additive duration migration lands.
+    // Never invent a duration when the physical column does not exist.
+    $setDurationProjection = brvtal_public_column_exists($pdo, 'sets_media', 'duration_seconds')
+        ? 'CASE WHEN s.duration_seconds BETWEEN 1 AND 86400 THEN s.duration_seconds ELSE NULL END AS duration_seconds'
+        : 'NULL AS duration_seconds';
+
     // Artist names are joined only when the related artist is public. Event titles
     // are resolved after lifecycle partitioning so a Set can never reveal a private event.
     $sets = $pdo->query(
         "SELECT s.id,s.title,s.slug,
                 CASE WHEN a.id IS NULL THEN NULL ELSE s.artist_id END AS artist_id,
                 s.event_id,s.platform,s.external_url,s.embed_url,s.cover_image,s.description,s.seo_title,s.seo_description,
-                CASE WHEN s.duration_seconds BETWEEN 1 AND 86400 THEN s.duration_seconds ELSE NULL END AS duration_seconds,
+                {$setDurationProjection},
                 a.name AS artist_name,NULL AS event_title
          FROM sets_media s
          LEFT JOIN artists a ON a.id=s.artist_id AND a.status='published'

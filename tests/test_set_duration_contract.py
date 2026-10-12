@@ -72,6 +72,45 @@ class SetDurationContractTests(unittest.TestCase):
             ).fetchall()
         self.assertEqual(rows, [(None,), (59,), (86400,), (None,), (None,), (None,)])
 
+    def test_public_sets_survive_duration_migration_transition(self):
+        public = source("api/public.php")
+        branches = re.search(
+            r"\$setDurationProjection\s*=\s*brvtal_public_column_exists\("
+            r"\$pdo,\s*'sets_media',\s*'duration_seconds'\)\s*"
+            r"\?\s*'(?P<modern>[^']+)'\s*:\s*'(?P<legacy>[^']+)';",
+            public,
+        )
+        self.assertIsNotNone(branches)
+        self.assertIn("{$setDurationProjection},", public)
+        self.assertEqual(branches.group("legacy"), "NULL AS duration_seconds")
+        self.assertEqual(
+            branches.group("modern"),
+            "CASE WHEN s.duration_seconds BETWEEN 1 AND 86400 "
+            "THEN s.duration_seconds ELSE NULL END AS duration_seconds",
+        )
+        # Synthetic pre-migration and post-migration database: no draft leak.
+        with sqlite3.connect(":memory:") as fixture:
+            fixture.execute("CREATE TABLE sets_media (id INTEGER PRIMARY KEY, status TEXT)")
+            fixture.executemany(
+                "INSERT INTO sets_media(id,status) VALUES (?,?)",
+                [(1, "published"), (2, "draft")],
+            )
+            before = fixture.execute(
+                f"SELECT {branches.group('legacy')} FROM sets_media s "
+                "WHERE s.status='published' ORDER BY s.id"
+            ).fetchall()
+            self.assertEqual(before, [(None,)])
+            fixture.execute("ALTER TABLE sets_media ADD COLUMN duration_seconds INTEGER")
+            fixture.executemany(
+                "UPDATE sets_media SET duration_seconds=? WHERE id=?",
+                [(45, 1), (95, 2)],
+            )
+            after = fixture.execute(
+                f"SELECT {branches.group('modern')} FROM sets_media s "
+                "WHERE s.status='published' ORDER BY s.id"
+            ).fetchall()
+        self.assertEqual(after, [(45,)])
+
     def test_admin_edit_validates_range_and_permissions(self):
         api = source("api/index.php")
         self.assertIn("if ($resource === 'sets' && array_key_exists('duration_seconds', $d))", api)
