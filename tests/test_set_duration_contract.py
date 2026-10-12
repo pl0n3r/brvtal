@@ -63,8 +63,9 @@ echo json_encode($results);
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")
         tests = source("tests/migrations-contract.php")
-        self.assertIn("'migration_set_duration_01.sql' => brvtalMigrationObjectRequirements(", reconciliation)
-        self.assertIn("'column-unsigned-nullable:sets_media.duration_seconds'", reconciliation)
+        migration_proof = reconciliation.split("'migration_set_duration_01.sql' => [", 1)[1].split("],", 1)[0]
+        self.assertIn("'column:sets_media.duration_seconds'", migration_proof)
+        self.assertIn("'column-unsigned-nullable:sets_media.duration_seconds'", migration_proof)
         self.assertIn("IS_NULLABLE FROM information_schema.COLUMNS", reconciliation)
         self.assertIn("brvtalMigrationDurationColumnMatches", tests)
         self.assertIn("every historical migration must have an explicit proof specification", tests)
