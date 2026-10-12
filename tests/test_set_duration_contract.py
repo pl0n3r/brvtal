@@ -20,12 +20,18 @@ class SetDurationContractTests(unittest.TestCase):
         ddl = source("database/migration_set_duration_01.sql")
         sets_ddl = schema.split("CREATE TABLE sets_media (", 1)[1].split(") ENGINE=InnoDB;", 1)[0]
         self.assertIn("duration_seconds INT UNSIGNED NULL", sets_ddl)
-        self.assertIn("information_schema.COLUMNS", ddl)
-        self.assertIn("COLUMN_NAME = 'duration_seconds'", ddl)
-        self.assertIn("@brvtal_set_duration_present = 0", ddl)
-        self.assertIn("ADD COLUMN duration_seconds INT UNSIGNED NULL", ddl)
-        self.assertIn("'SELECT 1'", ddl)
+        statements = [line.strip() for line in ddl.splitlines()
+                      if line.strip() and not line.lstrip().startswith("--")]
+        self.assertEqual(
+            statements,
+            ["ALTER TABLE sets_media ADD COLUMN duration_seconds INT UNSIGNED NULL AFTER description;"],
+        )
         self.assertNotRegex(ddl, r"(?im)^\s*(?:DROP|TRUNCATE|DELETE|UPDATE)\b")
+        self.assertNotRegex(ddl, r"(?i)\b(?:PREPARE|EXECUTE|DEALLOCATE)\b")
+        reconciliation = source("config/migration_reconcile.php")
+        self.assertIn("'column-unsigned-nullable:sets_media.duration_seconds'", reconciliation)
+        self.assertIn("brvtalMigrationProofDisposition($name, $executionProof) !== 'apply'", reconciliation)
+        self.assertIn("brvtalMigrationAssertReconciliationSql($name, $sql, $executionProof)", reconciliation)
 
     def test_public_api_returns_only_real_published_duration(self):
         public = source("api/public.php")

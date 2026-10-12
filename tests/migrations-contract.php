@@ -253,31 +253,18 @@ migrations_assert(str_contains($cli, "if (\$command === 'reconcile-plan')"), 'to
 migrations_assert(str_contains($cli, "if (\$command === 'reconcile')"), 'tool must expose one controlled reconciliation command');
 migrations_assert(str_contains($cli, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY'), 'historical reconciliation writes must require backup evidence');
 
-// Set duration migration must be additive, optional and idempotent.
+// Set duration uses one inspectable static ALTER. Reconciliation supplies
+// idempotence via the schema proof and registry; direct SQL replay is forbidden.
 $durationSql = (string)file_get_contents(__DIR__ . '/../database/migration_set_duration_01.sql');
-migrations_assert(str_contains($durationSql, 'information_schema.COLUMNS'), 'Set duration must probe schema before ALTER');
-migrations_assert(str_contains($durationSql, 'ADD COLUMN duration_seconds INT UNSIGNED NULL'), 'Set duration must stay optional');
-migrations_assert(!$rejectsNonAdditive($durationSql), 'Set duration migration must remain additive');
-/*
- * The generic additive scanner strips quoted SQL. This historical migration
- * deliberately uses PREPARE for cross-MariaDB/MySQL idempotence, so its only
- * executable DDL literal must be verified rather than ignored.
- */
-preg_match_all("/'([^']*)'/", $durationSql, $quotedDurationSql);
-$durationDdlLiterals = array_values(array_filter(
-    $quotedDurationSql[1],
-    static fn(string $literal): bool => preg_match(
-        '/\\b(?:ALTER|CREATE|DROP|TRUNCATE|DELETE|UPDATE|INSERT|REPLACE)\\b/i',
-        $literal
-    ) === 1
-));
+$durationExecutable = trim((string)preg_replace('/(?m)^--[^\r\n]*$/', '', $durationSql));
 migrations_assert(
-    $durationDdlLiterals === ['ALTER TABLE sets_media ADD COLUMN duration_seconds INT UNSIGNED NULL AFTER description'],
-    'Set duration dynamic DDL must match the sole additive allowlisted statement'
+    $durationExecutable === 'ALTER TABLE sets_media ADD COLUMN duration_seconds INT UNSIGNED NULL AFTER description;',
+    'Set duration must contain exactly one allowlisted additive ALTER'
 );
+migrations_assert(!$rejectsNonAdditive($durationSql), 'Set duration static ALTER must pass the additive scanner');
 migrations_assert(
-    str_contains($durationSql, 'PREPARE brvtal_set_duration_statement FROM @brvtal_set_duration_ddl;'),
-    'Set duration PREPARE must consume the allowlisted DDL variable'
+    preg_match('/\\b(?:PREPARE|EXECUTE|DEALLOCATE)\\b|SET\\s+@/i', $durationExecutable) !== 1,
+    'Set duration must not construct dynamic DDL'
 );
 
 migrations_assert(
