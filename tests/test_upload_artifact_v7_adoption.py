@@ -50,7 +50,22 @@ TARGETS = {
 def upload_block(text: str, *, target_name: str | None = None) -> str:
     lines = text.splitlines()
     indices = [index for index, line in enumerate(lines) if "uses: actions/upload-artifact@" in line]
-    blocks = ["\n".join(lines[max(0, index - 2): index + 12]) for index in indices]
+    blocks = []
+    for index in indices:
+        # An upload with a long explicit allowlist can exceed a fixed slice.
+        # Bound the block by the next sibling YAML step/job instead, so a
+        # following step's retention can never satisfy this upload's policy.
+        indent = len(lines[index]) - len(lines[index].lstrip())
+        step_indent = indent - 2
+        if step_indent < 0:
+            raise AssertionError("upload-artifact must be inside a YAML step")
+        end = next(
+            (cursor for cursor in range(index + 1, len(lines))
+             if lines[cursor].strip()
+             and len(lines[cursor]) - len(lines[cursor].lstrip()) <= step_indent),
+            len(lines),
+        )
+        blocks.append("\n".join(lines[max(0, index - 2):end]))
     if target_name is not None:
         blocks = [block for block in blocks if target_name in block]
     if len(blocks) != 1:
@@ -129,6 +144,39 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     validate_upload_block(block)
 
+    def test_long_upload_allowlist_is_bounded_by_its_own_step(self) -> None:
+        own = [
+            "      - name: Upload long allowlist",
+            "        if: success()",
+            f"        uses: actions/upload-artifact@{PIN} # v7.0.1",
+            "        with:",
+            "          name: long-allowlisted-artifact",
+            "          path: |",
+            *[f"            artifacts/public-{n}.png" for n in range(12)],
+            "          if-no-files-found: error",
+            "          retention-days: 14",
+        ]
+        neighbor = [
+            "      - name: Unrelated upload",
+            "        uses: actions/upload-artifact@" + PIN + " # v7.0.1",
+            "        with:",
+            "          name: next-artifact",
+            "          path: artifacts/unrelated.json",
+            "          retention-days: 14",
+        ]
+        actual = upload_block("\n".join(own + neighbor),
+                              target_name="name: long-allowlisted-artifact")
+        validate_upload_block(actual)
+        self.assertIn("artifacts/public-11.png", actual)
+        self.assertNotIn("name: next-artifact", actual)
+        no_retention = "\n".join(
+            [line for line in own if line != "          retention-days: 14"] + neighbor
+        )
+        with self.assertRaisesRegex(AssertionError, "fourteen-day retention"):
+            validate_upload_block(upload_block(
+                no_retention, target_name="name: long-allowlisted-artifact"
+            ))
+
     def test_chromium_failure_artifact_and_mariadb_ghcr_contract(self) -> None:
         ci = CI.read_text(encoding="utf-8")
         screenshot = (
@@ -138,7 +186,13 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         self.assertEqual(3, ci.count(image))
         self.assertNotIn("image: mariadb:11.4", ci)
 
-        self.assertEqual(2, ci.count("uses: actions/upload-artifact@"))
+        self.assertEqual(3, ci.count("uses: actions/upload-artifact@"))
+        success_block = upload_block(ci, target_name="name: concept05-owner-v2-ab-")
+        validate_upload_block(success_block)
+        self.assertIn("if: success() && steps.concept05_evidence.outputs.has_evidence == 'true'", success_block)
+        self.assertIn("if-no-files-found: error", success_block)
+        self.assertIn("artifacts/concept05-positive/owner-v2-reference.png", ci)
+        self.assertIn("artifacts/concept05-positive/c05-export-attestation.json", ci)
         block = upload_block(
             ci,
             target_name="name: concept05-pr-visual-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}",

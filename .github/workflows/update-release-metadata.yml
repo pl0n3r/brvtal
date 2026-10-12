@@ -338,7 +338,7 @@ jobs:
           set -euo pipefail
           python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py scripts/phpstan_diff.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py
           bash -n scripts/php-static-analysis.sh
-          python3 -m unittest tests/test_ci_retry.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_actions_cache_v6_adoption.py tests/test_upload_artifact_v7_adoption.py tests/test_public_concept05_production_visual_evidence.py
+          python3 -m unittest tests/test_ci_retry.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_actions_cache_v6_adoption.py tests/test_upload_artifact_v7_adoption.py tests/test_concept05_success_visual_artifact.py tests/test_public_concept05_production_visual_evidence.py
           python3 tests/ci-self-audit-contract.py
 
 
@@ -436,7 +436,34 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run Chromium browser tests
-        run: npx playwright test --project=chromium
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/c05-playwright-report.json
+        run: npx playwright test --project=chromium --reporter=list,json
+
+      - name: Export verified synthetic Concept 05 owner-v2 evidence
+        id: concept05_evidence
+        if: success()
+        env:
+          C05_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 tests/test_concept05_success_visual_artifact.py --export "$RUNNER_TEMP/c05-playwright-report.json"
+
+      - name: Upload verified Concept 05 owner-v2 A/B captures
+        if: success() && steps.concept05_evidence.outputs.has_evidence == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: concept05-owner-v2-ab-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}
+          path: |
+            artifacts/concept05-positive/owner-v2-reference.png
+            artifacts/concept05-positive/c05-sound-390.png
+            artifacts/concept05-positive/c05-memories-390.png
+            artifacts/concept05-positive/c05-fullpage-390.png
+            artifacts/concept05-positive/c05-sound-1440.png
+            artifacts/concept05-positive/c05-memories-1440.png
+            artifacts/concept05-positive/c05-fullpage-1440.png
+            artifacts/concept05-positive/c05-owner-v2-ab-manifest.json
+            artifacts/concept05-positive/c05-export-attestation.json
+          if-no-files-found: error
+          retention-days: 14
 
       # Public synthetic page only; captures are evidence, not approval to
       # refresh visual baselines or bypass the failing Chromium test.
