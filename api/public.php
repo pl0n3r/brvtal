@@ -282,6 +282,7 @@ try {
         "SELECT s.id,s.title,s.slug,
                 CASE WHEN a.id IS NULL THEN NULL ELSE s.artist_id END AS artist_id,
                 s.event_id,s.platform,s.external_url,s.embed_url,s.cover_image,s.description,s.seo_title,s.seo_description,
+                CASE WHEN s.duration_seconds BETWEEN 1 AND 86400 THEN s.duration_seconds ELSE NULL END AS duration_seconds,
                 a.name AS artist_name,NULL AS event_title
          FROM sets_media s
          LEFT JOIN artists a ON a.id=s.artist_id AND a.status='published'

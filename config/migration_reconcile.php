@@ -170,6 +170,9 @@ function brvtalMigrationProofSpecifications(): array
             ],
             true
         ),
+        'migration_set_duration_01.sql' => brvtalMigrationObjectRequirements(
+            'sets_media', ['duration_seconds']
+        ),
         'migration_media_content_hash_01.sql' => brvtalMigrationObjectRequirements(
             'media',
             ['content_hash'],

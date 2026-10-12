@@ -253,6 +253,25 @@ migrations_assert(str_contains($cli, "if (\$command === 'reconcile-plan')"), 'to
 migrations_assert(str_contains($cli, "if (\$command === 'reconcile')"), 'tool must expose one controlled reconciliation command');
 migrations_assert(str_contains($cli, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY'), 'historical reconciliation writes must require backup evidence');
 
+// Set duration migration must be additive, optional and idempotent.
+$durationSql = (string)file_get_contents(__DIR__ . '/../database/migration_set_duration_01.sql');
+migrations_assert(str_contains($durationSql, 'information_schema.COLUMNS'), 'Set duration must probe schema before ALTER');
+migrations_assert(str_contains($durationSql, 'ADD COLUMN duration_seconds INT UNSIGNED NULL'), 'Set duration must stay optional');
+migrations_assert(!$rejectsNonAdditive($durationSql), 'Set duration migration must remain additive');
+migrations_assert(
+    brvtalMigrationProofSpecifications()['migration_set_duration_01.sql'] === ['column:sets_media.duration_seconds'],
+    'Set duration reconciliation proof must target exactly the new column'
+);
+$durationProofAbsent = ['complete' => false, 'checks' => ['column:sets_media.duration_seconds' => false]];
+$durationProofPresent = ['complete' => true, 'checks' => ['column:sets_media.duration_seconds' => true]];
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofAbsent) === 'apply',
+    'Set duration absent proof is eligible for additive apply'
+);
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofPresent) === 'baseline',
+    'Set duration present proof must be baselined'
+);
 $specifications = brvtalMigrationProofSpecifications();
 $diskMigrations = array_map(basename(...), glob(__DIR__ . '/../database/migration_*.sql') ?: []);
 sort($diskMigrations);
