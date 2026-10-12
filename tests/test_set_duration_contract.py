@@ -1,5 +1,7 @@
 """Behavioral and structural acceptance for BRVTAL #989 (synthetic inputs only)."""
 import json
+import re
+import sqlite3
 from pathlib import Path
 import shutil
 import subprocess
@@ -33,6 +35,36 @@ class SetDurationContractTests(unittest.TestCase):
         self.assertIn("WHERE s.status='published'", query)
         self.assertIn("brvtal_public_sanitize_set_relations($sets", public)
         self.assertNotIn("duration_seconds = 180", public)
+
+        # Evaluate the production SQL projection on a synthetic in-memory fixture.
+        # This verifies disclosure/range semantics, not MariaDB production readiness.
+        projection = re.search(
+            r"CASE WHEN s\.duration_seconds BETWEEN 1 AND 86400\s+"
+            r"THEN s\.duration_seconds ELSE NULL END AS duration_seconds",
+            public,
+        )
+        self.assertIsNotNone(projection)
+        with sqlite3.connect(":memory:") as fixture:
+            fixture.execute(
+                "CREATE TABLE sets_media (id INTEGER PRIMARY KEY, status TEXT, duration_seconds INTEGER)"
+            )
+            fixture.executemany(
+                "INSERT INTO sets_media(id, status, duration_seconds) VALUES(?, ?, ?)",
+                [
+                    (1, "published", None),
+                    (2, "published", 59),
+                    (3, "published", 86400),
+                    (4, "published", 0),
+                    (5, "published", 86401),
+                    (6, "draft", 120),
+                    (7, "published", -1),
+                ],
+            )
+            rows = fixture.execute(
+                f"SELECT {projection.group(0)} FROM sets_media s "
+                "WHERE s.status='published' ORDER BY s.id"
+            ).fetchall()
+        self.assertEqual(rows, [(None,), (59,), (86400,), (None,), (None,), (None,)])
 
     def test_admin_edit_validates_range_and_permissions(self):
         api = source("api/index.php")
