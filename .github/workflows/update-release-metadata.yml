@@ -308,6 +308,10 @@ jobs:
         if: needs.preflight.outputs.run_php == 'true'
         run: bash scripts/php85-compatibility.sh
 
+      - name: Verify authentic Set duration backend acceptance
+        if: needs.preflight.outputs.run_php == 'true'
+        run: python3 -m unittest tests/test_set_duration_contract.py
+
       - name: Run incremental PHPStan and Rector dry-run
         if: needs.preflight.outputs.run_php == 'true'
         shell: bash
