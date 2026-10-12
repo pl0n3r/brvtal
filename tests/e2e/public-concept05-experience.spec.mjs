@@ -329,6 +329,10 @@ test('same CMS artwork URL can recover after its one-shot load and error', async
   const artwork = host.locator('img');
   await expect(artwork).toBeVisible();
   await expect(artwork).toHaveJSProperty('naturalWidth', 900);
+  // Consume the original once:true load handler even if the browser loaded
+  // the image before this runtime was injected. Without this explicit event,
+  // the old implementation could pass falsely through its stale load listener.
+  await artwork.evaluate(image => image.dispatchEvent(new Event('load')));
 
   // A later request for the *same* CMS URL can fail after the first load.
   // Fire the real error listener deterministically, without external media.
