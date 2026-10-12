@@ -258,6 +258,28 @@ $durationSql = (string)file_get_contents(__DIR__ . '/../database/migration_set_d
 migrations_assert(str_contains($durationSql, 'information_schema.COLUMNS'), 'Set duration must probe schema before ALTER');
 migrations_assert(str_contains($durationSql, 'ADD COLUMN duration_seconds INT UNSIGNED NULL'), 'Set duration must stay optional');
 migrations_assert(!$rejectsNonAdditive($durationSql), 'Set duration migration must remain additive');
+/*
+ * The generic additive scanner strips quoted SQL. This historical migration
+ * deliberately uses PREPARE for cross-MariaDB/MySQL idempotence, so its only
+ * executable DDL literal must be verified rather than ignored.
+ */
+preg_match_all("/'([^']*)'/", $durationSql, $quotedDurationSql);
+$durationDdlLiterals = array_values(array_filter(
+    $quotedDurationSql[1],
+    static fn(string $literal): bool => preg_match(
+        '/\\b(?:ALTER|CREATE|DROP|TRUNCATE|DELETE|UPDATE|INSERT|REPLACE)\\b/i',
+        $literal
+    ) === 1
+));
+migrations_assert(
+    $durationDdlLiterals === ['ALTER TABLE sets_media ADD COLUMN duration_seconds INT UNSIGNED NULL AFTER description'],
+    'Set duration dynamic DDL must match the sole additive allowlisted statement'
+);
+migrations_assert(
+    str_contains($durationSql, 'PREPARE brvtal_set_duration_statement FROM @brvtal_set_duration_ddl;'),
+    'Set duration PREPARE must consume the allowlisted DDL variable'
+);
+
 migrations_assert(
     brvtalMigrationProofSpecifications()['migration_set_duration_01.sql'] === [
         'column:sets_media.duration_seconds',
