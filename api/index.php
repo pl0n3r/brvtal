@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../config/admin_activity.php';
+require_once __DIR__ . '/../config/migration_reconcile.php';
 require_once __DIR__ . '/../config/event_lifecycle.php';
 require_once __DIR__ . '/../config/set_publication.php';
 require_once __DIR__ . '/../config/totp_auth.php';
@@ -59,7 +60,53 @@ function brvtal_auth_password_error_status(Throwable $e): ?array
 
 function method_not_allowed(): never { json_response(['ok'=>false,'error'=>'METHOD_NOT_ALLOWED'],405,['Allow'=>'GET, POST, PUT, DELETE']); }
 function ensure_string(array &$d, string $key, int $max): void { if (array_key_exists($key,$d)) $d[$key] = mb_substr(trim((string)$d[$key]),0,$max); }
+/** Nullable canonical duration in seconds, never inferred from a title or embed. */
+function brvtal_set_duration_normalize(mixed $value): ?int
+{
+    if ($value === null) {
+        return null;
+    }
+    // A canonical decimal string is allowed for regular admin form controls.
+    // Leading zeroes, whitespace, exponents, booleans and floats are ambiguous.
+    if (is_string($value) && preg_match('/^[1-9][0-9]{0,4}$/D', $value) === 1) {
+        $value = (int)$value;
+    }
+    if (!is_int($value) || $value < 1 || $value > 86400) {
+        throw new InvalidArgumentException('INVALID_SET_DURATION');
+    }
+    return $value;
+}
+
+/** Deny duration writes until the additive Set duration schema is physically ready. */
+function brvtal_set_duration_schema_ready(PDO $pdo): bool
+{
+    $st = $pdo->prepare(
+        'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
+        . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $st->execute(['sets_media', 'duration_seconds']);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    return brvtalMigrationDurationColumnMatches($row);
+}
+
+function brvtal_set_duration_require_schema(PDO $pdo, string $resource, array $payload): void
+{
+    if ($resource !== 'sets' || !array_key_exists('duration_seconds', $payload)) {
+        return;
+    }
+    if (!brvtal_set_duration_schema_ready($pdo)) {
+        json_response(['ok' => false, 'error' => 'SET_DURATION_SCHEMA_PENDING', 'field' => 'duration_seconds'], 503);
+    }
+}
+
 function sanitize_payload(string $resource, array $d): array {
+    if ($resource === 'sets' && array_key_exists('duration_seconds', $d)) {
+        try {
+            $d['duration_seconds'] = brvtal_set_duration_normalize($d['duration_seconds']);
+        } catch (InvalidArgumentException) {
+            json_response(['ok' => false, 'error' => 'INVALID_SET_DURATION', 'field' => 'duration_seconds'], 422);
+        }
+    }
     $limits=['title'=>180,'slug'=>190,'name'=>180,'venue'=>180,'city'=>120,'skin'=>60,'accent'=>30,'cover_image'=>500,'ticket_url'=>700,'photo'=>500,'instagram_url'=>700,'soundcloud_url'=>700,'website_url'=>700,'external_url'=>700,'embed_url'=>700,'file_path'=>500,'mime_type'=>120,'alt_text'=>255,'seo_title'=>190,'seo_description'=>320,'locale'=>2,'platform'=>20,'status'=>20,'type'=>20,'role'=>80,'currency'=>3,'price'=>30,'payment_instructions'=>4000];
     foreach($limits as $k=>$n) ensure_string($d,$k,$n);
     foreach(['ticket_url','instagram_url','soundcloud_url','website_url','external_url','embed_url'] as $k) if(array_key_exists($k,$d)) { $v=valid_url_or_empty($d[$k]); if($d[$k]!=='' && $v===null) json_response(['ok'=>false,'error'=>'INVALID_URL','field'=>$k],422); $d[$k]=$v; }
@@ -94,7 +141,7 @@ function allowed_fields(string $resource): array
         ],
         'sets' => [
             'title','slug','artist_id','event_id','platform','external_url','embed_url',
-            'cover_image','description','status','sort_order',
+            'cover_image','description','duration_seconds','status','sort_order',
         ],
         'media' => ['type','title','file_path','mime_type','file_size','alt_text','status'],
         'pages' => ['title','slug','locale','content_json','seo_title','seo_description','status'],
@@ -751,6 +798,7 @@ try {
         if (!$p) {
             json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
         }
+        brvtal_set_duration_require_schema($pdo, $resource, $p);
         $fields = array_keys($p);
         $cols = implode(',', array_map(fn($f) => "`{$f}`", $fields));
         $marks = implode(',', array_fill(0, count($fields), '?'));
@@ -808,6 +856,7 @@ try {
         if (!$p) {
             json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
         }
+        brvtal_set_duration_require_schema($pdo, $resource, $p);
         $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
         try{
             $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);

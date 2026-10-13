@@ -127,6 +127,7 @@ CREATE TABLE sets_media (
   embed_url VARCHAR(700) NULL,
   cover_image VARCHAR(255) NULL,
   description TEXT NULL,
+  duration_seconds INT UNSIGNED NULL,
   status ENUM('draft','published') NOT NULL DEFAULT 'draft',
   sort_order INT NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

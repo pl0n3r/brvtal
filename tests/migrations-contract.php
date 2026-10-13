@@ -253,6 +253,66 @@ migrations_assert(str_contains($cli, "if (\$command === 'reconcile-plan')"), 'to
 migrations_assert(str_contains($cli, "if (\$command === 'reconcile')"), 'tool must expose one controlled reconciliation command');
 migrations_assert(str_contains($cli, 'BRVTAL_MIGRATION_RECONCILE_BACKUP_READY'), 'historical reconciliation writes must require backup evidence');
 
+// Set duration uses one inspectable static ALTER. Reconciliation supplies
+// idempotence via the schema proof and registry; direct SQL replay is forbidden.
+$durationSql = (string)file_get_contents(__DIR__ . '/../database/migration_set_duration_01.sql');
+$durationExecutable = trim((string)preg_replace('/(?m)^--[^\r\n]*$/', '', $durationSql));
+migrations_assert(
+    $durationExecutable === 'ALTER TABLE sets_media ADD COLUMN duration_seconds INT UNSIGNED NULL AFTER description;',
+    'Set duration must contain exactly one allowlisted additive ALTER'
+);
+migrations_assert(!$rejectsNonAdditive($durationSql), 'Set duration static ALTER must pass the additive scanner');
+migrations_assert(
+    preg_match('/\\b(?:PREPARE|EXECUTE|DEALLOCATE)\\b|SET\\s+@/i', $durationExecutable) !== 1,
+    'Set duration must not construct dynamic DDL'
+);
+
+migrations_assert(
+    brvtalMigrationProofSpecifications()['migration_set_duration_01.sql'] === [
+        'column:sets_media.duration_seconds',
+        'column-unsigned-nullable:sets_media.duration_seconds',
+    ],
+    'Set duration reconciliation proof must target exactly the new column'
+);
+$durationProofAbsent = ['complete' => false, 'checks' => [
+    'column:sets_media.duration_seconds' => false,
+    'column-unsigned-nullable:sets_media.duration_seconds' => false,
+]];
+$durationProofPresent = ['complete' => true, 'checks' => [
+    'column:sets_media.duration_seconds' => true,
+    'column-unsigned-nullable:sets_media.duration_seconds' => true,
+]];
+$durationProofWrongType = ['complete' => false, 'checks' => [
+    'column:sets_media.duration_seconds' => true,
+    'column-unsigned-nullable:sets_media.duration_seconds' => false,
+]];
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofWrongType) === 'blocked',
+    'Existing wrong-typed Set duration column must never be baselined or overwritten'
+);
+foreach ([
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'YES'],
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int(10) unsigned', 'IS_NULLABLE' => 'YES'],
+] as $validDurationDefinition) {
+    migrations_assert(brvtalMigrationDurationColumnMatches($validDurationDefinition), 'MariaDB/MySQL nullable unsigned INT must be accepted');
+}
+foreach ([
+    ['DATA_TYPE' => 'varchar', 'COLUMN_TYPE' => 'varchar(30)', 'IS_NULLABLE' => 'NO'],
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int(11)', 'IS_NULLABLE' => 'YES'],
+    ['DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int unsigned', 'IS_NULLABLE' => 'NO'],
+    null,
+    [],
+] as $invalidDurationDefinition) {
+    migrations_assert(!brvtalMigrationDurationColumnMatches($invalidDurationDefinition), 'Wrong type or nullability must fail closed');
+}
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofAbsent) === 'apply',
+    'Set duration absent proof is eligible for additive apply'
+);
+migrations_assert(
+    brvtalMigrationProofDisposition('migration_set_duration_01.sql', $durationProofPresent) === 'baseline',
+    'Set duration present proof must be baselined'
+);
 $specifications = brvtalMigrationProofSpecifications();
 $diskMigrations = array_map(basename(...), glob(__DIR__ . '/../database/migration_*.sql') ?: []);
 sort($diskMigrations);

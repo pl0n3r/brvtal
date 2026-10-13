@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../config/migration_reconcile.php';
 require_once __DIR__ . '/../config/public_i18n.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
@@ -102,6 +103,19 @@ function brvtal_public_column_exists(PDO $pdo, string $table, string $column): b
     );
     $st->execute([$table,$column]);
     return (int)$st->fetchColumn() > 0;
+}
+
+function brvtal_public_set_duration_schema_ready(PDO $pdo): bool
+{
+    // Public reads use the same physical contract as writes and reconciliation.
+    // Missing or incompatible columns must never expose coerced duration values.
+    $statement = $pdo->prepare(
+        'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
+        . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $statement->execute(['sets_media', 'duration_seconds']);
+    $column = $statement->fetch(PDO::FETCH_ASSOC);
+    return brvtalMigrationDurationColumnMatches($column);
 }
 
 function brvtal_public_memories(PDO $pdo): array
@@ -276,12 +290,19 @@ try {
          ORDER BY sort_order ASC, name ASC"
     )->fetchAll();
 
+    // Keep public Sets readable before the additive duration migration lands.
+    // Never invent a duration when the physical column does not exist.
+    $setDurationProjection = brvtal_public_set_duration_schema_ready($pdo)
+        ? 'CASE WHEN s.duration_seconds BETWEEN 1 AND 86400 THEN s.duration_seconds ELSE NULL END AS duration_seconds'
+        : 'NULL AS duration_seconds';
+
     // Artist names are joined only when the related artist is public. Event titles
     // are resolved after lifecycle partitioning so a Set can never reveal a private event.
     $sets = $pdo->query(
         "SELECT s.id,s.title,s.slug,
                 CASE WHEN a.id IS NULL THEN NULL ELSE s.artist_id END AS artist_id,
                 s.event_id,s.platform,s.external_url,s.embed_url,s.cover_image,s.description,s.seo_title,s.seo_description,
+                {$setDurationProjection},
                 a.name AS artist_name,NULL AS event_title
          FROM sets_media s
          LEFT JOIN artists a ON a.id=s.artist_id AND a.status='published'
