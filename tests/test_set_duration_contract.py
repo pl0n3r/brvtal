@@ -287,8 +287,11 @@ function duration_check(bool $ok, string $message): void {
 $testDb = (string)getenv('BRVTAL_TEST_DB_NAME');
 duration_check((string)getenv('BRVTAL_INTEGRATION_TESTS') === '1', 'explicit integration opt-in required');
 duration_check(preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', $testDb) === 1, 'test database name required');
-$host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1');
-$port = (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306);
+$host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '');
+$portText = (string)(getenv('BRVTAL_TEST_DB_PORT') ?: '');
+duration_check($host === '127.0.0.1', 'only local MariaDB is permitted');
+duration_check($portText === '3306', 'unexpected MariaDB test port');
+$port = 3306;
 $user = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
 $pass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
 $schema = 'brvtal_test_duration_' . bin2hex(random_bytes(6));
@@ -320,6 +323,18 @@ try {
     $second = brvtalMigrationReconcileHistorical($pdo, $dir, 'ci', 'abcdef1');
     duration_check($second['applied'] === [] && $second['baselined'] === [], 'second reconcile must not reapply ALTER');
     duration_check((int)$pdo->query('SELECT duration_seconds FROM sets_media WHERE id=7')->fetchColumn() === 123, 'second reconcile must preserve value');
+    // Already-migrated deployments must be baselined, never have the ALTER replayed.
+    $pdo->exec('DROP TABLE schema_migrations');
+    $pdo->exec('DROP TABLE sets_media');
+    $pdo->exec('CREATE TABLE sets_media (id INT UNSIGNED PRIMARY KEY, description TEXT NULL, duration_seconds INT UNSIGNED NULL) ENGINE=InnoDB');
+    $pdo->exec("INSERT INTO sets_media(id, description, duration_seconds) VALUES(7, 'pre-existing duration', 456)");
+    $baselinePlan = brvtalMigrationReconciliationPlan($pdo, $dir);
+    duration_check($baselinePlan['apply'] === [] && $baselinePlan['baseline'] === ['migration_set_duration_01.sql'] && $baselinePlan['blocked'] === [], 'matching pre-existing column must plan baseline');
+    $baseline = brvtalMigrationReconcileHistorical($pdo, $dir, 'ci', 'abcdef1');
+    duration_check($baseline['applied'] === [] && $baseline['baselined'] === ['migration_set_duration_01.sql'], 'matching pre-existing column must baseline without ALTER');
+    $baselineAgain = brvtalMigrationReconcileHistorical($pdo, $dir, 'ci', 'abcdef1');
+    duration_check($baselineAgain['applied'] === [] && $baselineAgain['baselined'] === [], 'baselined column must remain a no-op');
+    duration_check((int)$pdo->query('SELECT duration_seconds FROM sets_media WHERE id=7')->fetchColumn() === 456, 'baseline must preserve an existing duration');
     $pdo->exec('DROP TABLE schema_migrations');
     $pdo->exec("ALTER TABLE sets_media MODIFY duration_seconds VARCHAR(40) NOT NULL DEFAULT 'invalid'");
     $badPlan = brvtalMigrationReconciliationPlan($pdo, $dir);
@@ -336,6 +351,20 @@ try {
     if (is_dir($dir)) rmdir($dir);
 }
 '''
+        # These fail before PDO and do not attempt any remote/local database connection.
+        for overrides, expected_error in [
+            ({"BRVTAL_TEST_DB_HOST": "example.invalid"}, "only local MariaDB is permitted"),
+            ({"BRVTAL_TEST_DB_PORT": "3306junk"}, "unexpected MariaDB test port"),
+        ]:
+            with self.subTest(overrides=overrides):
+                denied_env = os.environ.copy()
+                denied_env.update(overrides)
+                denied = subprocess.run(
+                    ["php", "-r", php], cwd=ROOT, env=denied_env,
+                    capture_output=True, text=True, timeout=15
+                )
+                self.assertNotEqual(denied.returncode, 0)
+                self.assertIn(expected_error, denied.stderr)
         result = subprocess.run(
             ["php", "-r", php], cwd=ROOT, capture_output=True, text=True, timeout=90
         )
