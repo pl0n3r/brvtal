@@ -35,16 +35,28 @@ class HomePartials984Tests(unittest.TestCase):
         self.assertIn("brvtal_public_optimize_home_images", php)
         self.assertIn("brvtalPublicApplyLocalizedDocument", php)
         self.assertNotIn("$_GET[", php[php.index("$homePartialPaths = ["):php.index("foreach ($homePartialPaths")])
-        if shutil.which("php"):
-            check = subprocess.run(
-                ["php", "-l", "index.php"], cwd=ROOT,
-                capture_output=True, text=True, check=False,
-            )
-            self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        self.assertIsNotNone(shutil.which("php"), "PHP required: cannot certify public-home contracts")
+        check = subprocess.run(
+            ["php", "-l", "index.php"], cwd=ROOT,
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
 
     def test_rendered_home_matches_pre_refactor_baseline(self) -> None:
         baseline = (ROOT / "tests" / "fixtures" / "home-partials-984-baseline.html").read_text(encoding="utf-8")
         self.assertEqual(render_static_composition(), baseline)
+        # Execute the loader extracted from the actual PHP entrypoint, not a
+        # duplicate Python implementation. This runs with synthetic files only.
+        php = (ROOT / "index.php").read_text(encoding="utf-8")
+        start = php.index("$html = @file_get_contents(__DIR__ . '/index.html');")
+        end = php.index("try {\\n    $nextExperience", start)
+        program = php[start:end].rstrip() + "\\necho $html;\\n"
+        run = subprocess.run(
+            ["php", "-r", program], cwd=ROOT,
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertEqual(run.stdout, baseline)
         self.assertIn('<main id="top">', baseline)
         self.assertIn('data-dynamic="artists"', baseline)
         self.assertIn('data-dynamic="events"', baseline)
