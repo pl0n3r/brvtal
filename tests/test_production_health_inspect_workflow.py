@@ -148,7 +148,7 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
                 self.assertNotIn(forbidden, self.workflow)
 
     def deployment_parser(self) -> str:
-        opening = "          deployed=\\"$(python3 - \\"$deployment\\" \\"$BRVTAL_EXPECTED_VERSION\\" <<'PY'\n"
+        opening = '''          deployed="$(python3 - "$deployment" "$BRVTAL_EXPECTED_VERSION" <<'PY'\n'''
         script = self.workflow.split(opening, 1)[1].split("\n          PY\n", 1)[0]
         return textwrap.dedent(script) + "\n"
 
