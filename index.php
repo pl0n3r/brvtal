@@ -170,6 +170,11 @@ foreach ($homePartialPaths as $partName => $partPath) {
     }
     $html = str_replace($marker, $partContent, $html);
 }
+// Reject undeclared or nested placeholders left behind by a future partial.
+if (str_contains($html, '<!-- BRVTAL-HOME-PARTIAL:')) {
+    http_response_code(503);
+    exit('Public home temporarily unavailable');
+}
 try {
     $nextExperience = brvtal_public_next_experience(db());
 } catch (Throwable $e) {
