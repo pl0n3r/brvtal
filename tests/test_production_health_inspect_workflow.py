@@ -39,6 +39,36 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
         self.assertIn("persist-credentials: false", text)
         self.assertIn("timeout-minutes: 10", text)
         self.assertIn("cancel-in-progress: false", text)
+        # The guard must belong to jobs.inspect, not a sibling job, comment or step.
+        top, inspect_job = text.split("\njobs:\n  inspect:\n", 1)
+        self.assertIn("\npermissions:\n  contents: read\n", top)
+        header, steps_block = inspect_job.split("\n    steps:\n", 1)
+        self.assertIn(
+            "    if: >-\n      github.actor == github.repository_owner &&\n"
+            "      github.ref == 'refs/heads/main'\n",
+            "\n" + header,
+        )
+        self.assertEqual(
+            re.findall(r"(?m)^      - name: (.+)$", steps_block),
+            [
+                "Check out exact dispatch SHA",
+                "Verify owner, main and current exact SHA",
+                "Test offline inspection security contract",
+                "Validate read-only SSH transport",
+                "Inspect sanitized migration plan",
+            ],
+        )
+        identity = steps_block.split(
+            "      - name: Verify owner, main and current exact SHA\n", 1
+        )[1].split("\n      - name: ", 1)[0]
+        for guard in (
+            '"$GITHUB_ACTOR" == "$GITHUB_REPOSITORY_OWNER"',
+            '"$GITHUB_REF" == "refs/heads/main"',
+            '"$sha" == "$GITHUB_SHA"',
+            'git ls-remote --exit-code origin refs/heads/main',
+            '"$current_main" == "$sha"',
+        ):
+            self.assertIn(guard, identity)
 
     def test_manual_owner_main_exact_head_only(self) -> None:
         self.assert_manual_security_contract(self.workflow)
@@ -107,6 +137,32 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
         inspect = namespace["inspect_migrations"]
         error = namespace["TransportError"]
         dummy_config = object()
+
+        # Valid empty inspection is accepted and sanitized; no SSH is performed.
+        valid = (
+            '{"registry_exists":true,"record_registry_migration":false,'
+            '"pending":[],"baseline":[],"apply":[],"blocked":[],'
+            '"actions":[],"proofs":[]}'
+        )
+        with mock.patch.dict(
+            inspect.__globals__,
+            {"_assert_identity": mock.Mock(),
+             "ssh_capture": mock.Mock(return_value=valid)},
+        ):
+            plan = inspect(dummy_config, EXPECTED_SHA, "0.1.142", ORIGIN)
+        self.assertEqual(
+            plan,
+            {
+                "registry_exists": True,
+                "record_registry_migration": False,
+                "pending": [],
+                "baseline": [],
+                "apply": [],
+                "blocked": [],
+                "actions": [],
+                "proofs": {},
+            },
+        )
 
         # A mismatch fails before contacting SSH.
         capture = mock.Mock()
