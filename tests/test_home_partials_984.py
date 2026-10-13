@@ -160,6 +160,25 @@ class HomePartials984Tests(unittest.TestCase):
             self.assertIn("HTTP_STATUS=503", duplicate.stderr)
             self.assertNotIn("<main", duplicate.stdout)
 
+    def test_direct_static_home_is_canonical_redirect(self) -> None:
+        """Direct /index.html must not publish the unrendered partial markers."""
+        htaccess = (ROOT / ".htaccess").read_text(encoding="utf-8")
+        host_redirect = "RewriteRule ^ https://www.brvtal.com.co%{REQUEST_URI} [R=301,L,NE]"
+        condition = r"RewriteCond %{THE_REQUEST} \s/+index\.html(?:[?\s]) [NC]"
+        redirect = r"RewriteRule ^index\.html$ / [R=301,L,NE,QSD]"
+        self.assertIn("DirectoryIndex index.php index.html", htaccess)
+        self.assertEqual(htaccess.count(condition), 1)
+        self.assertEqual(htaccess.count(redirect), 1)
+        self.assertLess(htaccess.index(host_redirect), htaccess.index(condition))
+        self.assertLess(htaccess.index(condition), htaccess.index(redirect))
+        self.assertLess(htaccess.index(redirect), htaccess.index("RewriteRule ^api/public/?$"))
+        # Keep the canonical localized URL and entity/preview routes intact.
+        for existing in (
+            "RewriteRule ^en$ index.php?locale=en [L,QSA,NC]",
+            "RewriteRule ^preview/([a-f0-9]{48})/?$ preview.php?token=$1 [L,QSA,NC]",
+        ):
+            self.assertIn(existing, htaccess)
+
     def test_home_partial_ownership_map_is_disjoint(self) -> None:
         mapping = (ROOT / "docs" / "reference" / "home-partials-map.md").read_text(encoding="utf-8")
         for name in NAMES:
