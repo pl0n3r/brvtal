@@ -41,6 +41,34 @@ class HomePartials984Tests(unittest.TestCase):
             capture_output=True, text=True, check=False,
         )
         self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        # Existing PHP-rendering regressions must still execute against the
+        # composed HTML. Static assertions cannot stand in for these tests.
+        from importlib.util import module_from_spec, spec_from_file_location
+        targets = (
+            ("test_public_concept05_hero.py", "Concept05HeroTests",
+             "test_php_next_experience_escapes_regex_replacement_tokens"),
+            ("test_public_concept05_owner_reference_v2.py",
+             "PublicConcept05OwnerReferenceV2Tests",
+             "test_hero_static_copy_respects_route_locale_and_keeps_cms_hook"),
+            ("test_public_i18n_contract.py", "PublicI18nContractTests",
+             "test_selector_owns_document_locale_after_phase_one_selector"),
+        )
+        for filename, klass, method in targets:
+            with self.subTest(contract=filename, method=method):
+                spec = spec_from_file_location(
+                    "home984_" + filename.replace(".py", ""), ROOT / "tests" / filename
+                )
+                self.assertIsNotNone(spec)
+                self.assertIsNotNone(spec.loader)
+                module = module_from_spec(spec)
+                spec.loader.exec_module(module)
+                suite = unittest.defaultTestLoader.loadTestsFromName(
+                    klass + "." + method, module
+                )
+                self.assertEqual(suite.countTestCases(), 1)
+                outcome = unittest.TestResult()
+                suite.run(outcome)
+                self.assertTrue(outcome.wasSuccessful(), outcome.errors + outcome.failures)
 
     def test_rendered_home_matches_pre_refactor_baseline(self) -> None:
         baseline = (ROOT / "tests" / "fixtures" / "home-partials-984-baseline.html").read_text(encoding="utf-8")
