@@ -171,6 +171,22 @@ class HomePartials984Tests(unittest.TestCase):
             self.assertEqual(unknown.stdout, "Public home temporarily unavailable")
             self.assertIn("HTTP_STATUS=503", unknown.stderr)
             self.assertNotIn("BRVTAL-HOME-PARTIAL", unknown.stdout)
+            # A known marker nested inside a late partial is also forbidden:
+            # it must not escape just because its own allowlist slot passed.
+            (root / "index.html").write_text(original, encoding="utf-8")
+            footer = root / "partials" / "home" / "footer.html"
+            footer.write_text(
+                footer.read_text(encoding="utf-8")
+                + "\\n" + MARKER.format("hero"),
+                encoding="utf-8",
+            )
+            nested = subprocess.run(
+                ["php", "-r", script], cwd=root,
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            self.assertEqual(nested.stdout, "Public home temporarily unavailable")
+            self.assertIn("HTTP_STATUS=503", nested.stderr)
+            self.assertNotIn("BRVTAL-HOME-PARTIAL", nested.stdout)
 
     def test_direct_static_home_is_canonical_redirect(self) -> None:
         """Direct /index.html must not publish the unrendered partial markers."""
