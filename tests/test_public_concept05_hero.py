@@ -28,6 +28,21 @@ class Concept05HeroTests(unittest.TestCase):
         php = r"""
 require 'config/public_home.php';
 $html = file_get_contents('index.html');
+if (!is_string($html)) {
+    throw new RuntimeException('Cannot read home template');
+}
+foreach (['nav', 'hero', 'experience', 'nights', 'artists', 'sound', 'memories', 'journal', 'connected', 'footer'] as $part) {
+    $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $part . ' -->';
+    $path = 'partials/home/' . $part . '.html';
+    if (substr_count($html, $marker) !== 1 || !is_file($path)) {
+        throw new RuntimeException('Invalid home partial fixture');
+    }
+    $contents = file_get_contents($path);
+    if (!is_string($contents)) {
+        throw new RuntimeException('Unreadable home partial fixture');
+    }
+    $html = str_replace($marker, $contents, $html);
+}
 $event = [
   'title' => 'EVENT $0 and $1',
   'slug' => 'event-safe',
