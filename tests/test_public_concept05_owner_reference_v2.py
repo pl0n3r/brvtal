@@ -48,6 +48,21 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
         script = r"""
             require 'config/public_home.php';
             $source = file_get_contents('index.html');
+            if (!is_string($source)) {
+                throw new RuntimeException('Unreadable home source');
+            }
+            foreach (['nav', 'hero', 'experience', 'nights', 'artists', 'sound', 'memories', 'journal', 'connected', 'footer'] as $part) {
+                $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $part . ' -->';
+                $path = 'partials/home/' . $part . '.html';
+                if (substr_count($source, $marker) !== 1 || !is_file($path)) {
+                    throw new RuntimeException('Invalid home part');
+                }
+                $contents = file_get_contents($path);
+                if (!is_string($contents)) {
+                    throw new RuntimeException('Unreadable home part');
+                }
+                $source = str_replace($marker, $contents, $source);
+            }
             $results = [];
             foreach (['es', 'en', 'invalid'] as $locale) {
                 $_GET['locale'] = $locale;
