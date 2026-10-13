@@ -49,8 +49,8 @@ class HomePartials984Tests(unittest.TestCase):
         # duplicate Python implementation. This runs with synthetic files only.
         php = (ROOT / "index.php").read_text(encoding="utf-8")
         start = php.index("$html = @file_get_contents(__DIR__ . '/index.html');")
-        end = php.index("try {\\n    $nextExperience", start)
-        program = php[start:end].rstrip() + "\\necho $html;\\n"
+        end = php.index("try {\n    $nextExperience", start)
+        program = php[start:end].rstrip() + "\necho $html;\n"
         run = subprocess.run(
             ["php", "-r", program], cwd=ROOT,
             capture_output=True, text=True, timeout=30, check=False,
