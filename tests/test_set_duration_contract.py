@@ -1,5 +1,6 @@
 """Behavioral and structural acceptance for BRVTAL #989 (synthetic inputs only)."""
 import json
+import os
 import re
 import sqlite3
 from pathlib import Path
@@ -269,6 +270,77 @@ echo json_encode($results);
         self.assertIn("brvtalMigrationProofDisposition('migration_set_duration_01.sql'", tests)
         self.assertIn("brvtalMigrationAssertAdditiveSql", tests)
 
+
+    def test_mariadb_duration_migration_roundtrip(self):
+        """Exercise the canonical reconciler in an isolated MariaDB test schema."""
+        if os.getenv("BRVTAL_INTEGRATION_TESTS") != "1":
+            self.skipTest("MariaDB integration environment not enabled")
+        if shutil.which("php") is None:
+            self.fail("PHP CLI required for MariaDB integration")
+        php = r'''
+declare(strict_types=1);
+require_once 'config/migrations.php';
+require_once 'config/migration_reconcile.php';
+function duration_check(bool $ok, string $message): void {
+    if (!$ok) throw new RuntimeException('SET_DURATION_TEST: ' . $message);
+}
+$testDb = (string)getenv('BRVTAL_TEST_DB_NAME');
+duration_check((string)getenv('BRVTAL_INTEGRATION_TESTS') === '1', 'explicit integration opt-in required');
+duration_check(preg_match('/^brvtal_test[a-zA-Z0-9_]*$/D', $testDb) === 1, 'test database name required');
+$host = (string)(getenv('BRVTAL_TEST_DB_HOST') ?: '127.0.0.1');
+$port = (int)(getenv('BRVTAL_TEST_DB_PORT') ?: 3306);
+$user = (string)(getenv('BRVTAL_TEST_DB_USER') ?: 'root');
+$pass = (string)(getenv('BRVTAL_TEST_DB_PASS') ?: '');
+$schema = 'brvtal_test_duration_' . bin2hex(random_bytes(6));
+$dir = sys_get_temp_dir() . '/brvtal-set-duration-' . bin2hex(random_bytes(6));
+duration_check(mkdir($dir, 0700), 'temporary SQL fixture directory');
+$created = false;
+$admin = null;
+$pdo = null;
+try {
+    foreach (['migration_schema_migrations_01.sql', 'migration_set_duration_01.sql'] as $file) {
+        duration_check(copy('database/' . $file, $dir . '/' . $file), 'copy canonical SQL fixture');
+    }
+    $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false];
+    $admin = new PDO("mysql:host={$host};port={$port};charset=utf8mb4", $user, $pass, $options);
+    $admin->exec('CREATE DATABASE ' . $schema . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    $created = true;
+    $pdo = new PDO("mysql:host={$host};port={$port};dbname={$schema};charset=utf8mb4", $user, $pass, $options);
+    $pdo->exec('CREATE TABLE sets_media (id INT UNSIGNED PRIMARY KEY, description TEXT NULL) ENGINE=InnoDB');
+    $pdo->exec("INSERT INTO sets_media(id, description) VALUES(7, 'existing set')");
+    $plan = brvtalMigrationReconciliationPlan($pdo, $dir);
+    duration_check($plan['blocked'] === [] && $plan['apply'] === ['migration_set_duration_01.sql'], 'schema absence must plan one additive migration');
+    $first = brvtalMigrationReconcileHistorical($pdo, $dir, 'ci', 'abcdef1');
+    duration_check($first['verified'] === true && $first['applied'] === ['migration_set_duration_01.sql'], 'canonical reconciler must apply duration');
+    $column = $pdo->query("SELECT DATA_TYPE,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sets_media' AND COLUMN_NAME='duration_seconds'")->fetch();
+    duration_check(brvtalMigrationDurationColumnMatches($column), 'MariaDB column must be nullable unsigned INT');
+    $old = $pdo->query('SELECT description, duration_seconds FROM sets_media WHERE id=7')->fetch();
+    duration_check($old['description'] === 'existing set' && $old['duration_seconds'] === null, 'existing data must survive with NULL duration');
+    $pdo->exec('UPDATE sets_media SET duration_seconds=123 WHERE id=7');
+    $second = brvtalMigrationReconcileHistorical($pdo, $dir, 'ci', 'abcdef1');
+    duration_check($second['applied'] === [] && $second['baselined'] === [], 'second reconcile must not reapply ALTER');
+    duration_check((int)$pdo->query('SELECT duration_seconds FROM sets_media WHERE id=7')->fetchColumn() === 123, 'second reconcile must preserve value');
+    $pdo->exec('DROP TABLE schema_migrations');
+    $pdo->exec("ALTER TABLE sets_media MODIFY duration_seconds VARCHAR(40) NOT NULL DEFAULT 'invalid'");
+    $badPlan = brvtalMigrationReconciliationPlan($pdo, $dir);
+    duration_check($badPlan['blocked'] === ['migration_set_duration_01.sql'], 'wrong physical type must block migration');
+    $rejected = false;
+    try { brvtalMigrationReconcileHistorical($pdo, $dir, 'ci', 'abcdef1'); }
+    catch (RuntimeException $e) { $rejected = str_starts_with($e->getMessage(), 'MIGRATION_RECONCILIATION_BLOCKED:'); }
+    duration_check($rejected && !brvtal_migration_registry_exists($pdo), 'schema drift must fail closed without writes');
+    echo "SET_DURATION_MARIADB_OK\n";
+} finally {
+    $pdo = null;
+    if ($created && $admin instanceof PDO) $admin->exec('DROP DATABASE ' . $schema);
+    foreach (glob($dir . '/*') ?: [] as $file) unlink($file);
+    if (is_dir($dir)) rmdir($dir);
+}
+'''
+        result = subprocess.run(
+            ["php", "-r", php], cwd=ROOT, capture_output=True, text=True, timeout=90
+        )
+        self.assertEqual(result.returncode, 0, result.stderr[-3000:])
+        self.assertIn("SET_DURATION_MARIADB_OK", result.stdout)
 
 if __name__ == "__main__":
     unittest.main()
