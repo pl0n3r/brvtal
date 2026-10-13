@@ -115,7 +115,14 @@ class HomePartials984Tests(unittest.TestCase):
             entrypoint = (ROOT / "index.php").read_text(encoding="utf-8")
             start = entrypoint.index("$html = @file_get_contents(__DIR__ . '/index.html');")
             end = entrypoint.index("try {\n    $nextExperience", start)
-            script = entrypoint[start:end] + "\necho $html;\n"
+            # Capture the CLI response code at shutdown; an exit message alone
+            # can mask an accidental HTTP 200 from a broken failure branch.
+            status_report = (
+                "register_shutdown_function(static function (): void { "
+                "fwrite(STDERR, 'HTTP_STATUS=' . http_response_code() . chr(10)); "
+                "});\n"
+            )
+            script = status_report + entrypoint[start:end] + "\necho $html;\n"
             good = subprocess.run(
                 ["php", "-r", script], cwd=root,
                 capture_output=True, text=True, timeout=30, check=False,
@@ -131,6 +138,7 @@ class HomePartials984Tests(unittest.TestCase):
                 capture_output=True, text=True, timeout=30, check=False,
             )
             self.assertEqual(missing.stdout, "Public home temporarily unavailable")
+            self.assertIn("HTTP_STATUS=503", missing.stderr)
             self.assertNotIn("RAVE TILL GRAVE</span>", missing.stdout)
             # Restore the file, then inject a duplicate marker.
             hero.write_text(
@@ -149,6 +157,7 @@ class HomePartials984Tests(unittest.TestCase):
                 capture_output=True, text=True, timeout=30, check=False,
             )
             self.assertEqual(duplicate.stdout, "Public home temporarily unavailable")
+            self.assertIn("HTTP_STATUS=503", duplicate.stderr)
             self.assertNotIn("<main", duplicate.stdout)
 
     def test_home_partial_ownership_map_is_disjoint(self) -> None:
