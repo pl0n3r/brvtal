@@ -105,7 +105,7 @@ function sanitize_payload(string $resource, array $d): array {
     if ($resource === 'sets' && array_key_exists('duration_seconds', $d)) {
         try {
             $d['duration_seconds'] = brvtal_set_duration_normalize($d['duration_seconds']);
-        } catch (InvalidArgumentException $exception) {
+        } catch (InvalidArgumentException) {
             json_response(['ok' => false, 'error' => 'INVALID_SET_DURATION', 'field' => 'duration_seconds'], 422);
         }
     }
