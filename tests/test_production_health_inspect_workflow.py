@@ -76,6 +76,21 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
         self.assertIn("Invalid sanitized inspection schema", self.workflow)
         self.assertIn("DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}", self.workflow)
         self.assertIn("DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}", self.workflow)
+        self.assertIn("python3 -m unittest tests/test_production_health_inspect_workflow.py", self.workflow)
+        self.assertLess(
+            self.workflow.index("python3 -m unittest tests/test_production_health_inspect_workflow.py"),
+            self.workflow.index("python3 ops/factory/transport.py validate"),
+        )
+        # No credentials for checkout, identity validation or offline tests.
+        self.assertNotIn("DEPLOY_TOKEN:", self.workflow.split("    steps:\n", 1)[0])
+        self.assertNotIn("DEPLOY_SSH_KEY:", self.workflow.split("    steps:\n", 1)[0])
+        test_step = self.workflow.split("      - name: Test offline inspection security contract", 1)[1].split(
+            "      - name: Validate read-only SSH transport", 1
+        )[0]
+        self.assertNotIn("DEPLOY_TOKEN:", test_step)
+        self.assertNotIn("DEPLOY_SSH_KEY:", test_step)
+        self.assertEqual(self.workflow.count("DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}"), 2)
+        self.assertEqual(self.workflow.count("DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}"), 2)
         for forbidden in (
             "reconcile-migrations",
             "gh workflow run",
