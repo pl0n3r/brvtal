@@ -31,6 +31,22 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
         cls.hero_e2e = HERO_E2E.read_text(encoding="utf-8")
         cls.matrix_e2e = MATRIX_E2E.read_text(encoding="utf-8")
 
+    def test_home_partials_984_suite_runs_under_integration(self) -> None:
+        """Make all #984 acceptance tests part of the existing npm integration gate.
+
+        package.json is owned by #993 and cannot be modified by #984; reuse
+        the existing test:concept05-owner-v2 invocation instead.
+        """
+        result = subprocess.run(
+            ["python3", "-m", "unittest", "tests/test_home_partials_984.py"],
+            cwd=ROOT, capture_output=True, text=True,
+            check=False, timeout=90,
+        )
+        self.assertEqual(
+            result.returncode, 0,
+            "Home partial acceptance suite failed:\\n" + result.stdout + result.stderr,
+        )
+
     def test_hero_contract_covers_desktop_and_mobile_reference(self) -> None:
         self.assertEqual(2, self.fixture["version"])
         source = self.fixture["source"]
