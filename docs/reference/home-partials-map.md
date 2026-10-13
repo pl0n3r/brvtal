@@ -17,6 +17,8 @@ This is a structural-only split of `index.html`; PHP `index.php` assembles a **f
 
 `index.html` and the fixed loader in `index.php` remain the #969 composition surface after #984 is merged. The ten leaf-owned partial paths are disjoint. Future changes to shared PHP composition must claim that surface separately rather than editing another agent's lease.
 
+Direct `/index.html` requests are redirected permanently to `/` by a narrowly scoped `.htaccess` rule after the canonical-host rewrite. This prevents public clients from viewing the unexpanded static template while preserving `DirectoryIndex index.php` and localized/entity/preview routes. The test `test_direct_static_home_is_canonical_redirect` enforces its static routing contract, but an Apache/LiteSpeed integration test is still required before live deployment.
+
 Only the PHP-rendered public entrypoint is authoritative. Direct static rendering of `index.html` is not the website: unresolved markers require the PHP composition step. Missing/duplicate markers or unreadable partials return HTTP 503 and never expose filesystem details or silently publish an incomplete home.
 
 **Production gate:** #739 health incident and #993 exact-main version/CI incident remain independent; this refactor is build-ahead, no automatic deployment or production claim.
