@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def composed_home() -> str:
     """Read the same fixed home parts used by the PHP public entrypoint."""
-    source = composed_home()
+    source = (ROOT / "index.html").read_text(encoding="utf-8")
     for name in (
         "nav", "hero", "experience", "nights", "artists",
         "sound", "memories", "journal", "connected", "footer",
