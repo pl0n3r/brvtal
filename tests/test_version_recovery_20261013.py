@@ -84,7 +84,7 @@ class VersionRecovery20261013Tests(unittest.TestCase):
     def test_scope_is_version_metadata_only(self) -> None:
         # Exact diff check applies to the recovery commit; do not pin later releases.
         if self.version != (0, 1, 143):
-            return
+            self.skipTest("Diff assertion applies only to recovery version 0.1.143")
 
         def git(*args: str) -> str | None:
             try:
@@ -99,14 +99,23 @@ class VersionRecovery20261013Tests(unittest.TestCase):
                 return None
             return command.stdout if command.returncode == 0 else None
 
-        previous_php = git("show", "HEAD^:config/version.php")
-        previous_package = git("show", "HEAD^:package.json")
-        files = git("diff", "--name-only", "HEAD^", "HEAD")
-        if previous_php is None or previous_package is None or files is None:
-            self.skipTest("Exact parent diff unavailable in this checkout")
+        # Compare the full PR to its authentic base, not only the last commit.
+        base_sha = git("merge-base", "HEAD", "origin/main")
+        head_sha = git("rev-parse", "HEAD")
+        self.assertIsNotNone(base_sha, "Git base needed to verify exact PR scope")
+        self.assertIsNotNone(head_sha, "Git HEAD needed to verify exact PR scope")
+        base_sha = base_sha.strip()
+        head_sha = head_sha.strip()
+        if base_sha == head_sha:
+            self.skipTest("No proposed changes to validate on main")
 
-        if version_from_php(previous_php) != (0, 1, 142):
-            return
+        previous_php = git("show", f"{base_sha}:config/version.php")
+        previous_package = git("show", f"{base_sha}:package.json")
+        files = git("diff", "--name-only", base_sha, "HEAD")
+        self.assertIsNotNone(previous_php, "Cannot read base product version")
+        self.assertIsNotNone(previous_package, "Cannot read base npm version")
+        self.assertIsNotNone(files, "Cannot inspect PR changed files")
+        self.assertEqual(version_from_php(previous_php), (0, 1, 142))
         self.assertEqual(
             set(files.splitlines()),
             {
