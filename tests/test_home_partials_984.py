@@ -177,7 +177,7 @@ class HomePartials984Tests(unittest.TestCase):
             footer = root / "partials" / "home" / "footer.html"
             footer.write_text(
                 footer.read_text(encoding="utf-8")
-                + "\\n" + MARKER.format("hero"),
+                + "\n" + MARKER.format("hero"),
                 encoding="utf-8",
             )
             nested = subprocess.run(
