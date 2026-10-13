@@ -8,9 +8,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+
+def composed_home() -> str:
+    """Read the same fixed home parts used by the PHP public entrypoint."""
+    source = composed_home()
+    for name in (
+        "nav", "hero", "experience", "nights", "artists",
+        "sound", "memories", "journal", "connected", "footer",
+    ):
+        marker = "<!-- BRVTAL-HOME-PARTIAL:" + name + " -->"
+        if source.count(marker) != 1:
+            raise AssertionError("Missing or duplicate home partial marker: " + name)
+        path = ROOT / "partials" / "home" / (name + ".html")
+        source = source.replace(marker, path.read_text(encoding="utf-8"))
+    return source
+
 class PublicLanguageSelectorTests(unittest.TestCase):
     def test_selector_replaces_sound_toggle_and_updates_document_lang_without_reload(self) -> None:
-        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        index = composed_home()
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
         styles = (ROOT / "css" / "style.css").read_text(encoding="utf-8")
 
@@ -39,7 +54,7 @@ class PublicLanguageSelectorTests(unittest.TestCase):
 
     def test_success_payload_without_i18n_policy_preserves_safe_first_paint(self) -> None:
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
-        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        index = composed_home()
         self.assertIn(
             "settings.i18n && typeof settings.i18n === 'object'",
             runtime,
@@ -69,7 +84,7 @@ class PublicLanguageSelectorTests(unittest.TestCase):
         self.assertNotIn("if (i18n) {", runtime)
 
     def test_missing_policy_fails_closed_to_spanish_only(self) -> None:
-        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        index = composed_home()
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
 
         self.assertIn('<html lang="es">', index)
@@ -87,7 +102,7 @@ class PublicLanguageSelectorTests(unittest.TestCase):
         )
 
     def test_first_visit_is_spanish_and_explicit_choice_persists(self) -> None:
-        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        index = composed_home()
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
 
         self.assertIn('<html lang="es">', index)
