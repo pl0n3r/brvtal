@@ -204,6 +204,20 @@
   transition:transform .18s ease;
 }
 
+/* Wrap CMS-edited copy without altering owner-v2 default geometry. */
+[data-concept="05"] .c5-hero-explore[data-c5-managed-cta="1"]{
+  max-width:100%;
+  height:auto;
+  line-height:1.3;
+  overflow-wrap:anywhere;
+  white-space:normal;
+  padding-block:8px;
+}
+[data-concept="05"] .hero-declaration [data-c5-managed-eyebrow="1"]{
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+
 [data-concept="05"] .c5-hero-documentary{
   position:absolute;
   left:var(--c5-hero-documentary-left);

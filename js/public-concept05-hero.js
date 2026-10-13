@@ -1,8 +1,8 @@
 /*
  * BRVTAL — Concept 05 authored Hero runtime (Issue #586).
  * Projects canonical public settings/media into the static Hero without
- * issuing another API request. The managed Hero Slider remains authoritative
- * whenever it is enabled.
+ * issuing another API request. Concept 05's authored hero has precedence
+ * over the legacy banner slider; other public themes keep the slider.
  */
 (() => {
   'use strict';
@@ -95,13 +95,60 @@
     });
   }
 
+  function projectHeroEditorialCopy(data) {
+    const site = data?.settings?.site;
+    const locale = String(document.documentElement.dataset.locale
+      || document.documentElement.lang || 'es').toLowerCase().split('-')[0] === 'en'
+      ? 'en' : 'es';
+    for (const [selector, key, limit] of [
+      ['[data-c5-hero-cta]', 'hero_cta_', 48],
+      ['[data-c5-hero-eyebrow]', 'hero_eyebrow_', 80],
+    ]) {
+      const candidate = site && typeof site === 'object' && !Array.isArray(site)
+        ? site[key + locale] : null;
+      const value = typeof candidate === 'string' ? candidate.trim() : '';
+      const valid = value && value.length <= limit && !/[<>]/.test(value)
+        && !/[\u0000-\u001F\u007F]/.test(value);
+      document.querySelectorAll(selector).forEach(node => {
+        const fallback = locale === 'en' ? node.dataset.c5DefaultEn : node.dataset.c5DefaultEs;
+        const copy = valid ? value : fallback;
+        if (!copy) return;
+        if (selector === '[data-c5-hero-cta]') {
+          // Preserve the destination and arrow icon; only replace the text node.
+          if (valid) node.dataset.c5ManagedCta = '1';
+          else delete node.dataset.c5ManagedCta;
+          const first = node.firstChild;
+          if (first && first.nodeType === 3) first.textContent = copy + ' ';
+          else node.insertBefore(document.createTextNode(copy + ' '), first);
+        } else {
+          if (valid) node.dataset.c5ManagedEyebrow = '1';
+          else delete node.dataset.c5ManagedEyebrow;
+          node.textContent = copy;
+        }
+      });
+    }
+  }
+
   function projectDescription(data) {
     const site = data?.settings?.site;
-    if (!site || typeof site !== 'object') return;
-    const description = String(site.description || site.tagline || '').trim();
-    if (!description) return;
+    const candidate = site && typeof site === 'object' && !Array.isArray(site)
+      ? site.description : null;
+    const description = typeof candidate === 'string' ? candidate.trim() : '';
+    const valid = description && description.length <= 240
+      && !/[<>]/.test(description) && !/[\u0000-\u001F\u007F]/.test(description);
+
     document.querySelectorAll('[data-c5-hero-description]').forEach(node => {
-      node.textContent = description;
+      if (valid) {
+        // Never insert editor-supplied markup.
+        node.textContent = description;
+        return;
+      }
+      // Empty/missing/rejected description is *not* the site's tagline.
+      // Preserve or restore the canonical PHP-authored owner-v2 copy.
+      const fallback = node.dataset.c5DefaultDescription;
+      if (typeof fallback === 'string' && fallback && node.textContent !== fallback) {
+        node.textContent = fallback;
+      }
     });
   }
 
@@ -200,12 +247,16 @@
     lastPublicData = data;
     projectDescription(data);
     projectManifesto(data);
+    projectHeroEditorialCopy(data);
     projectDocumentary(data);
     animateHero();
   }
 
   window.addEventListener('brvtal:localechange', () => {
-    if (lastPublicData) projectManifesto(lastPublicData);
+    if (lastPublicData) {
+      projectManifesto(lastPublicData);
+      projectHeroEditorialCopy(lastPublicData);
+    }
   });
 
   function startInit() {
@@ -228,5 +279,6 @@
     projectDocumentary,
     projectDescription,
     projectManifesto,
+    projectHeroEditorialCopy,
   };
 })();
