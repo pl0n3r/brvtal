@@ -2,9 +2,14 @@
 """Contrato de inspección productiva exclusivamente de lectura (BRVTAL #991)."""
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 import runpy
+import subprocess
+import sys
+import tempfile
+import textwrap
 import unittest
 from unittest import mock
 
@@ -37,6 +42,7 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
         self.assertIn('"$current_main" == "$sha"', text)
         self.assertIn("ref: ${{ github.sha }}", text)
         self.assertIn("persist-credentials: false", text)
+        self.assertIn("fetch-depth: 0", text)
         self.assertIn("timeout-minutes: 10", text)
         self.assertIn("cancel-in-progress: false", text)
         # The guard must belong to jobs.inspect, not a sibling job, comment or step.
@@ -54,6 +60,7 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
                 "Check out exact dispatch SHA",
                 "Verify owner, main and current exact SHA",
                 "Test offline inspection security contract",
+                "Resolve trusted deployed identity",
                 "Validate read-only SSH transport",
                 "Inspect sanitized migration plan",
             ],
@@ -93,7 +100,7 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
             self.workflow,
         )
         self.assertEqual(commands, ["validate", "inspect-migrations"])
-        self.assertIn("--sha \"$BRVTAL_EXPECTED_SHA\"", self.workflow)
+        self.assertIn("--sha \"$BRVTAL_DEPLOYED_SHA\"", self.workflow)
         self.assertIn("--version \"$BRVTAL_EXPECTED_VERSION\"", self.workflow)
         self.assertIn("--origin \"$BRVTAL_ORIGIN\"", self.workflow)
         self.assertIn("> /tmp/brvtal-health-inspect.json", self.workflow)
@@ -121,6 +128,14 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
         self.assertNotIn("DEPLOY_SSH_KEY:", test_step)
         self.assertEqual(self.workflow.count("DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}"), 2)
         self.assertEqual(self.workflow.count("DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}"), 2)
+        self.assertIn('git merge-base --is-ancestor "$deployed" "$BRVTAL_SOURCE_MAIN_SHA"', self.workflow)
+        self.assertIn('git cat-file -t "$deployed"', self.workflow)
+        self.assertIn("BRVTAL_DEPLOYED_SHA=$deployed", self.workflow)
+        self.assertIn('--proto \'=https\'', self.workflow)
+        self.assertIn('Source main commit:', self.workflow)
+        self.assertIn('Deployed inspected commit:', self.workflow)
+        self.assertIn("Main changed during SSH inspection", self.workflow)
+        self.assertNotIn("BRVTAL_EXPECTED_SHA", self.workflow)
         for forbidden in (
             "reconcile-migrations",
             "gh workflow run",
@@ -131,6 +146,77 @@ class ProductionHealthInspectWorkflowTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, self.workflow)
+
+    def deployment_parser(self) -> str:
+        opening = "          deployed=\\"$(python3 - \\"$deployment\\" \\"$BRVTAL_EXPECTED_VERSION\\" <<'PY'\n"
+        script = self.workflow.split(opening, 1)[1].split("\n          PY\n", 1)[0]
+        return textwrap.dedent(script) + "\n"
+
+    def test_deployed_identity_rejects_ambiguity_and_discordance(self) -> None:
+        parser = self.deployment_parser()
+        self.assertIn("object_pairs_hook=unique_pairs", parser)
+        sha = EXPECTED_SHA
+        valid = {
+            "ok": True,
+            "data": {"exact": True, "source": "git_checkout",
+                     "version": "0.1.142", "commit": sha},
+        }
+        cases = [
+            (json.dumps(valid), "0.1.142", True),
+            (json.dumps(valid), "0.1.143", False),
+            ("{", "0.1.142", False),
+            ('{"ok":true,"ok":true,"data":{}}', "0.1.142", False),
+            (json.dumps({"ok": False, "data": valid["data"]}), "0.1.142", False),
+            (json.dumps({"ok": True, "data": {**valid["data"], "exact": False}}), "0.1.142", False),
+            (json.dumps({"ok": True, "data": {**valid["data"], "source": "unknown"}}), "0.1.142", False),
+            (json.dumps({"ok": True, "data": {**valid["data"], "commit": sha[:9]}}), "0.1.142", False),
+            (json.dumps({"ok": True, "data": {**valid["data"], "commit": "x" * 40}}), "0.1.142", False),
+            (json.dumps({"ok": True, "data": {**valid["data"], "commit": ""}}), "0.1.142", False),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "deployment.json"
+            for payload, version, allowed in cases:
+                with self.subTest(payload=payload, version=version):
+                    path.write_text(payload, encoding="utf-8")
+                    completed = subprocess.run(
+                        [sys.executable, "-c", parser, str(path), version],
+                        capture_output=True, text=True, check=False,
+                    )
+                    self.assertEqual(completed.returncode == 0, allowed)
+                    if allowed:
+                        self.assertEqual(completed.stdout.strip(), sha)
+                    else:
+                        self.assertEqual(completed.stdout, "")
+
+    def test_ancestor_proof_accepts_stale_trusted_deployment_only(self) -> None:
+        self.assertIn(
+            'git merge-base --is-ancestor "$deployed" "$BRVTAL_SOURCE_MAIN_SHA"',
+            self.workflow,
+        )
+        self.assertIn(
+            '"$current_main" == "$BRVTAL_SOURCE_MAIN_SHA"',
+            self.workflow,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            def git(*args: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    ["git", "-C", tmp, *args],
+                    capture_output=True, text=True, check=False,
+                )
+
+            self.assertEqual(git("init", "-q").returncode, 0)
+            self.assertEqual(git("config", "user.name", "CI Inspector").returncode, 0)
+            self.assertEqual(git("config", "user.email", "ci-inspector@example.test").returncode, 0)
+            self.assertEqual(git("commit", "--allow-empty", "-qm", "deployed").returncode, 0)
+            deployed = git("rev-parse", "HEAD").stdout.strip()
+            self.assertEqual(git("commit", "--allow-empty", "-qm", "main").returncode, 0)
+            main = git("rev-parse", "HEAD").stdout.strip()
+            # main=M, deployed=S as trusted ancestor; main=S, deployed=S both safe.
+            self.assertEqual(git("merge-base", "--is-ancestor", deployed, main).returncode, 0)
+            self.assertEqual(git("merge-base", "--is-ancestor", deployed, deployed).returncode, 0)
+            # Future SHA and malformed or absent object cannot pass the proof.
+            self.assertNotEqual(git("merge-base", "--is-ancestor", main, deployed).returncode, 0)
+            self.assertNotEqual(git("cat-file", "-t", "a" * 40).returncode, 0)
 
     def test_missing_identity_or_transport_fails_closed(self) -> None:
         namespace = runpy.run_path(str(TRANSPORT))
