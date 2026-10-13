@@ -111,7 +111,10 @@
           iframe.title = String(record?.title || 'BRVTAL Sound');
           iframe.src = url;
           iframe.loading = 'lazy';
-          iframe.referrerPolicy = 'no-referrer';
+          // YouTube requires the embedding site's origin; other providers stay private.
+          iframe.referrerPolicy = new URL(url).hostname === 'www.youtube-nocookie.com'
+            ? 'strict-origin-when-cross-origin'
+            : 'no-referrer';
           iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
           iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
           frame.replaceChildren(iframe);
@@ -162,6 +165,8 @@
 
   function bindMedia(host, media) {
     if (!host || !media) return;
+    var soundCover = media instanceof HTMLImageElement && host.matches?.('[data-set-cover]');
+    if (soundCover) media.dataset.brvtalImageContext = 'card';
     if (media.dataset.c5ArchiveMediaBound === '1') return;
     media.dataset.c5ArchiveMediaBound = '1';
 
@@ -180,16 +185,29 @@
       failMedia(host, media);
     });
     media.addEventListener('load', function () {
-      if (fallbackPending && media instanceof HTMLImageElement && media.naturalWidth > 0) {
+      if (media instanceof HTMLImageElement && media.naturalWidth > 0) {
+        // An asynchronously delivered valid variant may load after the first
+        // image failed. Only a real successful load can reverse failMedia().
         fallbackPending = false;
         fallbackRecovered = true;
+        host.classList.remove('is-media-missing');
+        media.hidden = false;
         restoreCoverAfterFallback(host, media);
+        var item = host.closest?.('[data-public-media-item]');
+        var trigger = item?.querySelector('[data-public-media-open]');
+        if (trigger) {
+          trigger.disabled = false;
+          trigger.removeAttribute('aria-disabled');
+        }
       }
     });
 
     if (media instanceof HTMLImageElement && media.complete && media.naturalWidth === 0) {
       failMedia(host, media);
     }
+    // Covers may be rendered after the image-delivery manifest has resolved.
+    // Bind native load/error listeners before selecting the responsive card.
+    if (soundCover) window.BRVTALPublicMedia?.applyResponsiveImage?.(media, 'card');
   }
 
   function hydrateSound() {
@@ -249,14 +267,16 @@
 
     var curated = section.querySelectorAll('[data-public-media-item]');
     curated.forEach(hydrateMemory);
+    // Canonical search/type filters hide nonmatching CMS cards without removing them.
+    var hasVisibleMemories = Array.from(curated).some(function (item) { return !item.hidden; });
 
     var annotation = section.querySelector('.c5-memory-annotation');
-    // Never claim a documentary contact sheet when the CMS has no curated media.
-    if (!curated.length && annotation) {
+    // Only display documentary decoration when curated results remain visible.
+    if (!hasVisibleMemories && annotation) {
       annotation.remove();
       annotation = null;
     }
-    if (curated.length && !annotation) {
+    if (hasVisibleMemories && !annotation) {
       annotation = document.createElement('span');
       annotation.className = 'c5-memory-annotation';
       annotation.setAttribute('aria-hidden', 'true');
@@ -282,17 +302,32 @@
     document.documentElement.dataset.concept05Memories = 'ready';
   }
 
+  function notifyReady() {
+    window.dispatchEvent(new CustomEvent('brvtal:concept05-sound-memories-ready'));
+  }
+
   function hydrate() {
     hydrateSound();
     hydrateMemories();
-    window.dispatchEvent(new CustomEvent('brvtal:concept05-sound-memories-ready'));
+    notifyReady();
+  }
+
+  // Changes to Memories must not read/synchronize the consented Sound player.
+  function hydrateSoundOnMutation() {
+    hydrateSound();
+    notifyReady();
+  }
+  function hydrateMemoriesOnMutation() {
+    hydrateMemories();
+    notifyReady();
   }
 
   var setList = document.querySelector('.set-list');
   var mediaGrid = document.querySelector('.media-grid');
-  var observer = new MutationObserver(hydrate);
-  if (setList) observer.observe(setList, { childList:true });
-  if (mediaGrid) observer.observe(mediaGrid, { childList:true });
+  var setObserver = new MutationObserver(hydrateSoundOnMutation);
+  var memoryObserver = new MutationObserver(hydrateMemoriesOnMutation);
+  if (setList) setObserver.observe(setList, { childList:true });
+  if (mediaGrid) memoryObserver.observe(mediaGrid, { childList:true, subtree:true, attributes:true, attributeFilter:['hidden'] });
 
   window.addEventListener('brvtal:sets-library-rendered', hydrateSound);
   window.addEventListener('brvtal:memories-rendered', hydrateMemories);

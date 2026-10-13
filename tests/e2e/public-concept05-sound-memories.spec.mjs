@@ -394,6 +394,81 @@ test('Concept 05 hides decorative Memories annotation when CMS curated gallery b
 });
 
 
+test('Concept 05 hides decorative Memories annotation when search has no visible curated result', async ({ page }) => {
+  await mount(page, { width: 390, height: 844 });
+  const annotation = page.locator('.c5-memory-annotation');
+  const search = page.locator('[data-public-media-search]');
+  await expect(annotation).toHaveCount(1);
+  await expect(page.locator('[data-public-media-item]:not([hidden])')).toHaveCount(3);
+
+  await search.fill('NO MATCHING CMS MEMORY');
+  await expect(page.locator('[data-public-media-item]:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('[data-public-media-empty]')).toBeVisible();
+  await expect(annotation).toHaveCount(0);
+
+  await search.fill('GENESIS');
+  await expect(page.locator('[data-public-media-item]:not([hidden])')).toHaveCount(1);
+  await expect(annotation).toHaveCount(1);
+
+  await search.clear();
+  await expect(page.locator('[data-public-media-item]:not([hidden])')).toHaveCount(3);
+  await expect(annotation).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= 390)).toBe(true);
+});
+
+test('Concept 05 gallery search preserves an already opted-in Sound iframe', async ({ page }) => {
+  const embed = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fbrvtal%2Fsignal';
+  await page.route('https://w.soundcloud.com/**', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: '<!doctype html><title>Sound consent fixture</title>',
+  }));
+  await mount(page, { width: 390, height: 844 });
+  await page.evaluate(records => {
+    window.__soundDataReads = 0;
+    // Use a tracked thenable: native Promise awaits bypass an overridden .then.
+    window.BRVTALPublicDataPromise = {
+      then(resolve) {
+        window.__soundDataReads += 1;
+        resolve({ payload: { data: { sets: records } } });
+      },
+    };
+    window.BRVTALPublicSetsLibrary.render(records);
+  }, [{ ...sets[0], embed_url: embed }, sets[1]]);
+
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await page.locator('.c5-sound-player-toggle').click();
+  const soundFrame = page.locator('.c5-sound-player-frame iframe');
+  await expect(soundFrame).toHaveAttribute('src', embed);
+  await page.evaluate(() => {
+    window.__consentedSoundFrame = document.querySelector('.c5-sound-player-frame iframe');
+  });
+  const readsBeforeFilters = await page.evaluate(() => window.__soundDataReads);
+  expect(readsBeforeFilters).toBeGreaterThan(0);
+
+  const search = page.locator('[data-public-media-search]');
+  await search.fill('NO MATCHING CMS MEMORY');
+  await expect(page.locator('.c5-memory-annotation')).toHaveCount(0);
+  await expect(page.locator('[data-public-media-empty]')).toBeVisible();
+  await expect(soundFrame).toHaveCount(1);
+  expect(await page.evaluate(() =>
+    window.__consentedSoundFrame === document.querySelector('.c5-sound-player-frame iframe')
+  )).toBe(true);
+
+  await search.fill('GENESIS');
+  await expect(page.locator('.c5-memory-annotation')).toHaveCount(1);
+  await search.clear();
+  await expect(page.locator('[data-public-media-item]:not([hidden])')).toHaveCount(3);
+  await expect(soundFrame).toHaveAttribute('src', embed);
+  await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'true');
+  expect(await page.evaluate(() =>
+    window.__consentedSoundFrame === document.querySelector('.c5-sound-player-frame iframe')
+  )).toBe(true);
+  // Settle MutationObserver callbacks; photo filters cannot resync Sound data.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await page.evaluate(() => window.__soundDataReads)).toBe(readsBeforeFilters);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= 390)).toBe(true);
+});
+
 test('Concept 05 Sound and archive actions disappear when their CMS destination is unavailable', async ({ page }) => {
   await mount(page, { width: 390, height: 844 });
   await expect(page.locator('.c5-section-route--sound')).toHaveCount(1);
@@ -457,6 +532,52 @@ test('Concept 05 loads only allowlisted official embed after user activation', a
   await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
   await expect(play).toHaveText('PLAY FEATURED SET ↗');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+test('Concept 05 YouTube embeds send only origin referrer while SoundCloud stays private', async ({ page }) => {
+  const referers = { youtube: [], soundcloud: [] };
+  const fixture = '<!doctype html><title>Opt-in synthetic player</title>';
+  await page.route('https://www.youtube-nocookie.com/**', route => {
+    referers.youtube.push(route.request().headers()['referer'] || '');
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fixture });
+  });
+  await page.route('https://w.soundcloud.com/**', route => {
+    referers.soundcloud.push(route.request().headers()['referer'] || '');
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fixture });
+  });
+  await mount(page, { width: 390, height: 844 });
+
+  const providers = [
+    {
+      kind: 'youtube',
+      url: 'https://www.youtube-nocookie.com/embed/fictional-id?rel=0',
+      policy: 'strict-origin-when-cross-origin',
+    },
+    {
+      kind: 'soundcloud',
+      url: 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fbrvtal%2Fsignal',
+      policy: 'no-referrer',
+    },
+  ];
+  for (const provider of providers) {
+    await page.evaluate(records => {
+      window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:records}}});
+      window.BRVTALPublicSetsLibrary.render(records);
+    }, [{...sets[0], embed_url: provider.url}]);
+    await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+    const toggle = page.locator('.c5-sound-player-toggle');
+    const iframe = page.locator('.c5-sound-player-frame iframe');
+    await expect(iframe).toHaveCount(0);
+    expect(referers[provider.kind]).toHaveLength(0);
+    await toggle.click(); // Consent: no provider request before this click.
+    await expect(iframe).toHaveAttribute('src', provider.url);
+    await expect(iframe).toHaveAttribute('referrerpolicy', provider.policy);
+    await expect.poll(() => referers[provider.kind].length).toBe(1);
+    await toggle.click();
+    await expect(iframe).toHaveCount(0);
+  }
+  expect(referers.youtube[0]).toBe(new URL(page.url()).origin + '/');
+  expect(referers.soundcloud[0]).toBe('');
 });
 
 test('Concept 05 rejects untrusted CMS embeds and clears stale player when featured set disappears', async ({ page }) => {
@@ -534,6 +655,61 @@ test('Concept 05 unloads an active embed synchronously while replacement CMS dat
   await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
   await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+});
+
+test('Concept 05 artist filtering stops an opted-in Set and does not autoplay its replacement', async ({ page }) => {
+  await page.route('https://w.soundcloud.com/**', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: '<!doctype html><title>Filtered player fixture</title>',
+  }));
+  const nextProviderRequests = [];
+  await page.route('https://open.spotify.com/**', route => {
+    nextProviderRequests.push(route.request().url());
+    return route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><title>Filtered next provider</title>',
+    });
+  });
+  await mount(page, { width: 390, height: 844 });
+
+  const oldEmbed = 'https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fbrvtal%2Fsignal';
+  const nextEmbed = 'https://open.spotify.com/embed/track/7ouMYWpwJ422jRcDASZB7P';
+  const records = [
+    { ...sets[0], embed_url: oldEmbed },
+    {
+      ...sets[1],
+      artist_id: 99,
+      artist_name: 'OTHER',
+      artist_slug: 'other',
+      embed_url: nextEmbed,
+    },
+  ];
+  await page.evaluate(data => {
+    window.BRVTALPublicDataPromise = Promise.resolve({ payload: { data: { sets: data } } });
+    window.BRVTALPublicSetsLibrary.render(data);
+  }, records);
+
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  await page.locator('.c5-sound-player-toggle').click();
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveAttribute('src', oldEmbed);
+
+  // Canonical Sets filters re-render the list without a separate public-data event.
+  // The Concept 05 MutationObserver must tear down old opt-in playback.
+  await page.locator('[data-sets-mode="artist"]').click();
+  await page.locator('[data-sets-relation="99"]').click();
+  await expect(page.locator('.set-library-item')).toHaveCount(1);
+  await expect(page.locator('.set-library-item').first()).toHaveAttribute('data-set-id', '2');
+  await expect(page.locator('.c5-section-route--sound')).toHaveAttribute('href', '/sets/independent-transmission');
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+  await expect(page.locator('.c5-sound-player-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#sets')).toHaveAttribute('data-c5-player', 'available');
+  expect(nextProviderRequests).toHaveLength(0);
+
+  await page.locator('[data-sets-mode="latest"]').click();
+  await expect(page.locator('.set-library-item')).toHaveCount(2);
+  await expect(page.locator('.c5-section-route--sound')).toHaveAttribute('href', '/sets/genesis-closing-signal');
+  await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= 390)).toBe(true);
 });
 
 test('Concept 05 stops a reused Set iframe before a new CMS promise resolves, but not on locale-only changes', async ({ page }) => {
@@ -694,11 +870,12 @@ test('Concept 05 Sound cover returns after WebP fallback, and hides only if orig
   for (const [path,recovers] of [['sound-original.svg',true],['sound-gone.svg',false]]) {
     await page.evaluate(item => {
       window.BRVTALPublicSetsLibrary.render([item]);
-      window.BRVTALPublicMedia.applyDocumentImageDelivery();
     }, {...sets[0],cover_image:'http://127.0.0.1:4173/uploads/' + path});
     const cover=page.locator('.set-library-cover').first();
     const image=cover.locator('img');
-    await image.scrollIntoViewIfNeeded();
+    // A failed original can hide a lazy cover before the WebP retry begins.
+    // Eager loading triggers the retry without scrolling an invisible element.
+    await image.evaluate(node => { node.loading = 'eager'; });
     await expect(image).toHaveAttribute('data-brvtal-fallback-applied','1');
     if (recovers) {
       await expect.poll(() => image.evaluate(el => el.complete && el.naturalWidth > 0)).toBe(true);
@@ -711,4 +888,93 @@ test('Concept 05 Sound cover returns after WebP fallback, and hides only if orig
       await expect(cover).toHaveAttribute('aria-hidden','true');
     }
   }
+});
+
+
+test('Concept 05 applies Sound card fallback when manifest resolves after CMS rendering', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let allowManifest;
+  const manifestGate = new Promise(resolve => { allowManifest = resolve; });
+  await page.route(harness, route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: markup() }));
+  await page.route('**/api/public-image-delivery.php', async route => {
+    await manifestGate;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+      '/uploads/sound-original.svg': { variants: { card: { src: '/uploads/sound-derivative.webp', width: 600, height: 800 } } },
+      '/uploads/sound-gone.svg': { variants: { card: { src: '/uploads/sound-derivative-gone.webp', width: 600, height: 800 } } },
+    } }) });
+  });
+  await page.route('**/uploads/sound-derivative*.webp', route => route.fulfill({ status: 404, body: 'missing derivative' }));
+  await page.route('**/uploads/sound-original.svg', route => route.fulfill({
+    contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"></svg>',
+  }));
+  await page.route('**/uploads/sound-gone.svg', route => route.fulfill({ status: 404, body: 'missing original' }));
+  await page.goto(harness);
+  await page.addScriptTag({ content: setsJs });
+  await page.addScriptTag({ content: mediaJs });
+  await page.addScriptTag({ content: enhancerJs });
+  await page.evaluate(items => window.BRVTALPublicSetsLibrary.render(items), [
+    { ...sets[0], id: 101, cover_image: 'http://127.0.0.1:4173/uploads/sound-original.svg' },
+    { ...sets[0], id: 102, cover_image: 'http://127.0.0.1:4173/uploads/sound-gone.svg' },
+  ]);
+  const covers = page.locator('.set-library-cover');
+  await expect(covers).toHaveCount(2);
+  await page.evaluate(() => document.querySelectorAll('.set-library-cover img').forEach(img => { img.loading = 'eager'; }));
+  allowManifest();
+  for (const [index, recovers] of [[0, true], [1, false]]) {
+    const cover = covers.nth(index);
+    const image = cover.locator('img');
+    await expect(image).toHaveAttribute('data-brvtal-fallback-applied', '1');
+    if (recovers) {
+      await expect.poll(() => image.evaluate(el => el.complete && el.naturalWidth > 0)).toBe(true);
+      await expect(image).toBeVisible();
+      await expect(cover).not.toHaveClass(/set-library-cover--empty|is-media-missing/);
+    } else {
+      await expect(image).toBeHidden();
+      await expect(cover).toHaveClass(/set-library-cover--empty|is-media-missing/);
+    }
+  }
+});
+
+
+test('Concept 05 late successful image load revives a previously failed Memory', async ({ page }) => {
+  // Synthetic CMS asset and intercepted delivery: no real production media.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route(harness, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8', body: markup(),
+  }));
+  await page.route('**/uploads/c5-late-missing.svg', route => route.fulfill({
+    status: 404, body: 'missing original',
+  }));
+  await page.route('**/uploads/c5-late-recovered.svg', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="480"></svg>',
+  }));
+  await page.goto(harness);
+  await page.addScriptTag({ content: mediaJs });
+  await page.addScriptTag({ content: enhancerJs });
+
+  await page.evaluate(() => {
+    window.BRVTALPublicMedia.render([{
+      id: 91, media_id: 191, type: 'image', title: 'LATE RECOVERY MEMORY',
+      file_path: 'http://127.0.0.1:4173/uploads/c5-late-missing.svg',
+    }]);
+    window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT();
+  });
+
+  const cell = page.locator('.c5-memory-cell').first();
+  const image = cell.locator('img');
+  const opener = cell.locator('[data-public-media-open]');
+  await expect(cell).toHaveClass(/is-media-missing/);
+  await expect(image).toBeHidden();
+  await expect(opener).toBeDisabled();
+
+  await image.evaluate(node => {
+    node.src = 'http://127.0.0.1:4173/uploads/c5-late-recovered.svg';
+  });
+  await expect.poll(() => image.evaluate(node =>
+    node.complete && node.naturalWidth > 0)).toBe(true);
+  await expect(cell).not.toHaveClass(/is-media-missing/);
+  await expect(image).toBeVisible();
+  await expect(opener).toBeEnabled();
+  await expect(opener).not.toHaveAttribute('aria-disabled', 'true');
 });
