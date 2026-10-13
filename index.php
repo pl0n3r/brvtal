@@ -138,7 +138,38 @@ if ($entity) {
     exit;
 }
 
-$html = (string)file_get_contents(__DIR__ . '/index.html');
+$html = @file_get_contents(__DIR__ . '/index.html');
+if (!is_string($html)) {
+    http_response_code(503);
+    exit('Public home temporarily unavailable');
+}
+
+// The fixed allowlist is independent of routes, requests and CMS fields.
+$homePartialPaths = [
+    'nav' => __DIR__ . '/partials/home/nav.html',
+    'hero' => __DIR__ . '/partials/home/hero.html',
+    'experience' => __DIR__ . '/partials/home/experience.html',
+    'nights' => __DIR__ . '/partials/home/nights.html',
+    'artists' => __DIR__ . '/partials/home/artists.html',
+    'sound' => __DIR__ . '/partials/home/sound.html',
+    'memories' => __DIR__ . '/partials/home/memories.html',
+    'journal' => __DIR__ . '/partials/home/journal.html',
+    'connected' => __DIR__ . '/partials/home/connected.html',
+    'footer' => __DIR__ . '/partials/home/footer.html',
+];
+foreach ($homePartialPaths as $partName => $partPath) {
+    $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $partName . ' -->';
+    if (substr_count($html, $marker) !== 1 || !is_file($partPath)) {
+        http_response_code(503);
+        exit('Public home temporarily unavailable');
+    }
+    $partContent = @file_get_contents($partPath);
+    if (!is_string($partContent)) {
+        http_response_code(503);
+        exit('Public home temporarily unavailable');
+    }
+    $html = str_replace($marker, $partContent, $html);
+}
 try {
     $nextExperience = brvtal_public_next_experience(db());
 } catch (Throwable $e) {
