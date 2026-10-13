@@ -43,7 +43,7 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
             check=False, timeout=90,
         )
         self.assertEqual(
-            result.returncode, 0,
+            0, result.returncode,
             "Home partial acceptance suite failed:\\n" + result.stdout + result.stderr,
         )
 
