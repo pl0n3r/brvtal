@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Verify owner, main and current exact SHA
@@ -41,12 +41,61 @@ jobs:
           [[ "$current_main" == "$sha" ]] || { echo "::error::Stale main; inspection denied"; exit 1; }
           version="$(php -r "require 'config/version.php'; echo BRVTAL_APP_VERSION;")"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid version"; exit 1; }
-          echo "BRVTAL_EXPECTED_SHA=$sha" >> "$GITHUB_ENV"
+          echo "BRVTAL_SOURCE_MAIN_SHA=$sha" >> "$GITHUB_ENV"
           echo "BRVTAL_EXPECTED_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Test offline inspection security contract
         shell: bash
         run: python3 -m unittest tests/test_production_health_inspect_workflow.py
+
+      - name: Resolve trusted deployed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          deployment="$(mktemp)"
+          trap 'rm -f "$deployment"' EXIT
+          curl --fail --silent --show-error --proto '=https' \
+            --connect-timeout 5 --max-time 15 --max-filesize 16384 \
+            -H "Accept: application/json" -H "Cache-Control: no-cache" \
+            "$BRVTAL_ORIGIN/api/deployment.php?__factory_inspect=$GITHUB_RUN_ID" > "$deployment"
+          deployed="$(python3 - "$deployment" "$BRVTAL_EXPECTED_VERSION" <<'PY'
+          import json
+          import re
+          import sys
+
+          def unique_pairs(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      raise ValueError("duplicate key")
+                  result[key] = value
+              return result
+
+          try:
+              with open(sys.argv[1], "r", encoding="utf-8") as handle:
+                  payload = json.load(handle, object_pairs_hook=unique_pairs)
+              data = payload.get("data") if isinstance(payload, dict) else None
+              if not isinstance(data, dict) or payload.get("ok") is not True:
+                  raise ValueError("invalid envelope")
+              sha = data.get("commit")
+              if (data.get("exact") is not True
+                      or data.get("source") != "git_checkout"
+                      or data.get("version") != sys.argv[2]
+                      or not isinstance(sha, str)
+                      or re.fullmatch(r"[a-f0-9]{40}", sha) is None):
+                  raise ValueError("untrusted deployment identity")
+              print(sha)
+          except (OSError, UnicodeError, ValueError, TypeError):
+              sys.exit("Deployment identity invalid; inspection denied")
+          PY
+          )"
+          [[ "$deployed" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::Invalid deployment SHA"; exit 1; }
+          [[ "$(git cat-file -t "$deployed" 2>/dev/null)" == "commit" ]] || { echo "::error::Untrusted deployment commit"; exit 1; }
+          git merge-base --is-ancestor "$deployed" "$BRVTAL_SOURCE_MAIN_SHA" || { echo "::error::Deployed SHA is not an ancestor of main"; exit 1; }
+          current_main="$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$BRVTAL_SOURCE_MAIN_SHA" ]] || { echo "::error::Main changed during inspection preflight"; exit 1; }
+          echo "BRVTAL_DEPLOYED_SHA=$deployed" >> "$GITHUB_ENV"
 
       - name: Validate read-only SSH transport
         env:
@@ -64,10 +113,12 @@ jobs:
           umask 077
           trap 'rm -f /tmp/brvtal-health-inspect.json' EXIT
           python3 ops/factory/transport.py inspect-migrations \
-            --sha "$BRVTAL_EXPECTED_SHA" \
+            --sha "$BRVTAL_DEPLOYED_SHA" \
             --version "$BRVTAL_EXPECTED_VERSION" \
             --origin "$BRVTAL_ORIGIN" \
             > /tmp/brvtal-health-inspect.json
+          current_main="$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+          [[ "$current_main" == "$BRVTAL_SOURCE_MAIN_SHA" ]] || { echo "::error::Main changed during SSH inspection"; exit 1; }
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           import os
@@ -87,7 +138,8 @@ jobs:
           print("## BRVTAL production migration inspection (read-only)")
           print()
           print("- Result: **DIAGNOSTIC ONLY — NOT HEALTH GREEN**")
-          print(f"- Checked commit: `{os.environ['BRVTAL_EXPECTED_SHA']}`")
+          print(f"- Source main commit: `{os.environ['BRVTAL_SOURCE_MAIN_SHA']}`")
+          print(f"- Deployed inspected commit: `{os.environ['BRVTAL_DEPLOYED_SHA']}`")
           print(f"- Registry exists: **{plan['registry_exists']}**")
           print(f"- Registry record required: **{plan['record_registry_migration']}**")
           for name in ("pending", "baseline", "apply", "blocked"):
