@@ -111,6 +111,75 @@ class SetDurationContractTests(unittest.TestCase):
             ).fetchall()
         self.assertEqual(after, [(45,)])
 
+    def test_admin_duration_writes_wait_for_migration(self):
+        api = source("api/index.php")
+        self.assertEqual(api.count("brvtal_set_duration_require_schema($pdo, $resource, $p);"), 2)
+        self.assertIn("'SET_DURATION_SCHEMA_PENDING'", api)
+        if shutil.which("php") is None:
+            self.skipTest("PHP CLI unavailable; exact CI must run this test")
+
+        # Exercise real PHP guard using synthetic metadata, without a database.
+        guard = "function brvtal_set_duration_schema_ready(" + api.split(
+            "function brvtal_set_duration_schema_ready(", 1
+        )[1].split("function sanitize_payload(", 1)[0]
+        harness = r"""
+function json_response(array $body, int $status = 200): never {
+    throw new DomainException('HTTP_' . $status);
+}
+class SetDurationStatement extends PDOStatement {
+    public function __construct(public mixed $row) {}
+    public function execute(?array $params = null): bool {
+        if ($params !== ['sets_media', 'duration_seconds']) {
+            throw new RuntimeException('Unexpected parameters');
+        }
+        return true;
+    }
+    public function fetch(
+        int $mode = PDO::FETCH_DEFAULT,
+        int $cursorOrientation = PDO::FETCH_ORI_NEXT,
+        int $cursorOffset = 0
+    ): mixed { return $this->row; }
+}
+class SetDurationPDO extends PDO {
+    public function __construct(public mixed $row) {}
+    public function prepare(string $query, array $options = []): PDOStatement|false {
+        if (!str_contains($query, 'information_schema.COLUMNS')) {
+            throw new RuntimeException('Unexpected query');
+        }
+        return new SetDurationStatement($this->row);
+    }
+}
+$valid = ['DATA_TYPE'=>'int', 'COLUMN_TYPE'=>'int(10) unsigned', 'IS_NULLABLE'=>'YES'];
+$wrong = ['DATA_TYPE'=>'varchar', 'COLUMN_TYPE'=>'varchar(10)', 'IS_NULLABLE'=>'YES'];
+$cases = [
+    [false,'sets',[], 'OK'],
+    [false,'artists',['duration_seconds'=>30], 'OK'],
+    [false,'sets',['duration_seconds'=>30], 'HTTP_503'],
+    [false,'sets',['duration_seconds'=>null], 'HTTP_503'],
+    [$valid,'sets',['duration_seconds'=>30], 'OK'],
+    [$valid,'sets',['duration_seconds'=>null], 'OK'],
+    [$wrong,'sets',['duration_seconds'=>30], 'HTTP_503'],
+];
+$results = [];
+foreach ($cases as [$schema,$resource,$payload,$expected]) {
+    try {
+        brvtal_set_duration_require_schema(new SetDurationPDO($schema),$resource,$payload);
+        $results[] = 'OK';
+    } catch (DomainException $error) {
+        $results[] = $error->getMessage();
+    }
+}
+echo json_encode($results);
+"""
+        executed = subprocess.run(
+            ["php", "-r", harness + guard],
+            check=True, capture_output=True, text=True
+        )
+        self.assertEqual(
+            json.loads(executed.stdout),
+            ["OK", "OK", "HTTP_503", "HTTP_503", "OK", "OK", "HTTP_503"],
+        )
+
     def test_admin_edit_validates_range_and_permissions(self):
         api = source("api/index.php")
         self.assertIn("if ($resource === 'sets' && array_key_exists('duration_seconds', $d))", api)

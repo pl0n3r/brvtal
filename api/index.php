@@ -76,6 +76,31 @@ function brvtal_set_duration_normalize(mixed $value): ?int
     return $value;
 }
 
+/** Deny duration writes until the additive Set duration schema is physically ready. */
+function brvtal_set_duration_schema_ready(PDO $pdo): bool
+{
+    $st = $pdo->prepare(
+        'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
+        . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $st->execute(['sets_media', 'duration_seconds']);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    return is_array($row)
+        && strtolower((string)($row['DATA_TYPE'] ?? '')) === 'int'
+        && preg_match('/\\bunsigned\\b/i', (string)($row['COLUMN_TYPE'] ?? '')) === 1
+        && strtoupper((string)($row['IS_NULLABLE'] ?? '')) === 'YES';
+}
+
+function brvtal_set_duration_require_schema(PDO $pdo, string $resource, array $payload): void
+{
+    if ($resource !== 'sets' || !array_key_exists('duration_seconds', $payload)) {
+        return;
+    }
+    if (!brvtal_set_duration_schema_ready($pdo)) {
+        json_response(['ok' => false, 'error' => 'SET_DURATION_SCHEMA_PENDING', 'field' => 'duration_seconds'], 503);
+    }
+}
+
 function sanitize_payload(string $resource, array $d): array {
     if ($resource === 'sets' && array_key_exists('duration_seconds', $d)) {
         try {
@@ -775,6 +800,7 @@ try {
         if (!$p) {
             json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
         }
+        brvtal_set_duration_require_schema($pdo, $resource, $p);
         $fields = array_keys($p);
         $cols = implode(',', array_map(fn($f) => "`{$f}`", $fields));
         $marks = implode(',', array_fill(0, count($fields), '?'));
@@ -832,6 +858,7 @@ try {
         if (!$p) {
             json_response(['ok' => false, 'error' => 'NO_FIELDS'], 422);
         }
+        brvtal_set_duration_require_schema($pdo, $resource, $p);
         $audited=brvtal_activity_audited_resource($resource);$pdo->beginTransaction();
         try{
             $before=brvtal_activity_fetch_resource($pdo,$table,$id,true);
