@@ -76,8 +76,7 @@ class SetDurationContractTests(unittest.TestCase):
     def test_public_sets_survive_duration_migration_transition(self):
         public = source("api/public.php")
         branches = re.search(
-            r"\$setDurationProjection\s*=\s*brvtal_public_column_exists\("
-            r"\$pdo,\s*'sets_media',\s*'duration_seconds'\)\s*"
+            r"\$setDurationProjection\s*=\s*brvtal_public_set_duration_schema_ready\(\$pdo\)\s*"
             r"\?\s*'(?P<modern>[^']+)'\s*:\s*'(?P<legacy>[^']+)';",
             public,
         )
@@ -111,6 +110,63 @@ class SetDurationContractTests(unittest.TestCase):
                 "WHERE s.status='published' ORDER BY s.id"
             ).fetchall()
         self.assertEqual(after, [(45,)])
+
+
+    def test_public_sets_reject_wrong_physical_duration_column(self):
+        """A public Sets response must ignore absent or incompatible columns."""
+        public = source("api/public.php")
+        helper = "function brvtal_public_set_duration_schema_ready(" + public.split(
+            "function brvtal_public_set_duration_schema_ready(", 1
+        )[1].split("function brvtal_public_memories(", 1)[0]
+        self.assertIn("information_schema.COLUMNS", helper)
+        if shutil.which("php") is None:
+            self.skipTest("PHP CLI unavailable; exact CI must run this test")
+        harness = r"""
+class DurationPublicStatement extends PDOStatement {
+    public function __construct(private mixed $column) {}
+    public function execute(?array $params = null): bool {
+        if ($params !== ['sets_media', 'duration_seconds']) {
+            throw new RuntimeException('Unexpected column lookup');
+        }
+        return true;
+    }
+    public function fetch(
+        int $mode = PDO::FETCH_DEFAULT,
+        int $cursorOrientation = PDO::FETCH_ORI_NEXT,
+        int $cursorOffset = 0
+    ): mixed { return $this->column; }
+}
+class DurationPublicPDO extends PDO {
+    public function __construct(private mixed $column) {}
+    public function prepare(string $query, array $options = []): PDOStatement|false {
+        if (!str_contains($query, 'information_schema.COLUMNS')) {
+            throw new RuntimeException('Unexpected public query');
+        }
+        return new DurationPublicStatement($this->column);
+    }
+}
+$cases = [
+    ['absent', false, false],
+    ['correct', ['DATA_TYPE'=>'int', 'COLUMN_TYPE'=>'int(10) unsigned', 'IS_NULLABLE'=>'YES'], true],
+    ['text', ['DATA_TYPE'=>'varchar', 'COLUMN_TYPE'=>'varchar(40)', 'IS_NULLABLE'=>'YES'], false],
+    ['signed', ['DATA_TYPE'=>'int', 'COLUMN_TYPE'=>'int(11)', 'IS_NULLABLE'=>'YES'], false],
+    ['required', ['DATA_TYPE'=>'int', 'COLUMN_TYPE'=>'int unsigned', 'IS_NULLABLE'=>'NO'], false],
+];
+foreach ($cases as [$name, $column, $expected]) {
+    $actual = brvtal_public_set_duration_schema_ready(new DurationPublicPDO($column));
+    if ($actual !== $expected) {
+        fwrite(STDERR, 'DURATION_SCHEMA_WRONG:' . $name);
+        exit(1);
+    }
+}
+echo "PUBLIC_DURATION_SCHEMA_OK";
+"""
+        result = subprocess.run(
+            ["php", "-r", helper + harness],
+            cwd=ROOT, capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr[-3000:])
+        self.assertIn("PUBLIC_DURATION_SCHEMA_OK", result.stdout)
 
     def test_admin_duration_writes_wait_for_migration(self):
         api = source("api/index.php")

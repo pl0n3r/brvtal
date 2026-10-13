@@ -104,6 +104,22 @@ function brvtal_public_column_exists(PDO $pdo, string $table, string $column): b
     return (int)$st->fetchColumn() > 0;
 }
 
+function brvtal_public_set_duration_schema_ready(PDO $pdo): bool
+{
+    // Public reads use the same physical contract as writes and reconciliation.
+    // Missing or incompatible columns must never expose coerced duration values.
+    $statement = $pdo->prepare(
+        'SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS '
+        . 'WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?'
+    );
+    $statement->execute(['sets_media', 'duration_seconds']);
+    $column = $statement->fetch(PDO::FETCH_ASSOC);
+    return is_array($column)
+        && strtolower((string)($column['DATA_TYPE'] ?? '')) === 'int'
+        && preg_match('/\bunsigned\b/i', (string)($column['COLUMN_TYPE'] ?? '')) === 1
+        && strtoupper((string)($column['IS_NULLABLE'] ?? '')) === 'YES';
+}
+
 function brvtal_public_memories(PDO $pdo): array
 {
     if (!brvtal_public_table_exists($pdo, 'memories')) {
@@ -278,7 +294,7 @@ try {
 
     // Keep public Sets readable before the additive duration migration lands.
     // Never invent a duration when the physical column does not exist.
-    $setDurationProjection = brvtal_public_column_exists($pdo, 'sets_media', 'duration_seconds')
+    $setDurationProjection = brvtal_public_set_duration_schema_ready($pdo)
         ? 'CASE WHEN s.duration_seconds BETWEEN 1 AND 86400 THEN s.duration_seconds ELSE NULL END AS duration_seconds'
         : 'NULL AS duration_seconds';
 
