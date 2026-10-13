@@ -10,11 +10,11 @@ La inspección utiliza exclusivamente el transporte ya existente `ops/factory/tr
 
 ## Activación segura (posterior al merge)
 
-El workflow `.github/workflows/production-health-inspect.yml` solo acepta `workflow_dispatch` desde **main**, ejecutado por el **OWNER** del repositorio. No se activa por pushes, PR, issue comments ni cron. Solo se puede ejecutar cuando la versión de producción y el HEAD de `main` coinciden exactamente: SHA del evento, checkout, `origin/main` y endpoint `api/deployment.php`.
+El workflow `.github/workflows/production-health-inspect.yml` solo acepta `workflow_dispatch` desde **main**, ejecutado por el **OWNER** del repositorio. No se activa por pushes, PR, issue comments ni cron. El **SHA de origen** se fija al evento, checkout y `origin/main`; el **SHA de despliegue** se lee mediante HTTPS desde `api/deployment.php` con comprobación `exact:true`, `source:git_checkout`, identidad SHA de 40 caracteres y versión igual a la fuente. El SHA desplegado debe ser un commit verificable **ancestro** del `main` autorizado, usando `git merge-base --is-ancestor` y checkout del historial completo. Así se permite diagnosticar un despliegue previo todavía vigente tras un merge, sin aceptar SHAs arbitrarios ni otra rama. `main` se revalida antes de SSH y después de la inspección, y el transporte existente vuelve a contrastar la identidad del endpoint y el checkout remoto.
 
 El job usa `contents: read`, checkout sin persistencia de credenciales, tiempo máximo de diez minutos y `DEPLOY_TOKEN` / `DEPLOY_SSH_KEY` desde GitHub Actions. El paso de transporte falla cerrado si faltan secretos, falla DNS/SSH, el certificado/host key no concuerda, la identidad difiere o el plan está incompleto. No editar secretos ni volver permisivos estos checks para conseguir una ejecución verde.
 
-**Salida autorizada:** únicamente `GITHUB_STEP_SUMMARY` con SHA, presencia del registro, requisito de registro y conteos de `pending`, `baseline`, `apply` y `blocked`. El JSON temporal se crea con `umask 077` y se elimina al terminar. Los nombres de migraciones, pruebas estructurales, registros de clientes, logs no sanitizados y secretos no deben copiarse a los comentarios.
+**Salida autorizada:** únicamente `GITHUB_STEP_SUMMARY` con **SHA de origen de `main` y SHA desplegado inspeccionado**, presencia del registro, requisito de registro y conteos de `pending`, `baseline`, `apply` y `blocked`. El JSON temporal se crea con `umask 077` y se elimina al terminar. Los nombres de migraciones, pruebas estructurales, registros de clientes, logs no sanitizados y secretos no deben copiarse a los comentarios.
 
 ## Interpretación SRE
 
