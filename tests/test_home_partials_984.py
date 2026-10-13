@@ -99,6 +99,58 @@ class HomePartials984Tests(unittest.TestCase):
         self.assertEqual(source.count("<!-- BRVTAL-HOME-PARTIAL:"), len(NAMES))
         self.assertEqual((ROOT / "partials" / "home" / "connected.html").read_text(encoding="utf-8"), "")
 
+        # Probe the real entrypoint loader in an isolated fixture directory.
+        # It must fail closed if any static piece disappears or is ambiguous.
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory(prefix="brvtal-home984-") as scratch:
+            root = Path(scratch)
+            (root / "partials" / "home").mkdir(parents=True)
+            original = (ROOT / "index.html").read_text(encoding="utf-8")
+            (root / "index.html").write_text(original, encoding="utf-8")
+            for name in NAMES:
+                contents = (ROOT / "partials" / "home" / f"{name}.html").read_text(encoding="utf-8")
+                (root / "partials" / "home" / f"{name}.html").write_text(
+                    contents, encoding="utf-8"
+                )
+            entrypoint = (ROOT / "index.php").read_text(encoding="utf-8")
+            start = entrypoint.index("$html = @file_get_contents(__DIR__ . '/index.html');")
+            end = entrypoint.index("try {\n    $nextExperience", start)
+            script = entrypoint[start:end] + "\necho $html;\n"
+            good = subprocess.run(
+                ["php", "-r", script], cwd=root,
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            self.assertEqual(good.returncode, 0, good.stderr)
+            baseline = (ROOT / "tests" / "fixtures" / "home-partials-984-baseline.html").read_text(encoding="utf-8")
+            self.assertEqual(good.stdout, baseline)
+            # Missing physical partial cannot silently remove the hero.
+            hero = root / "partials" / "home" / "hero.html"
+            hero.unlink()
+            missing = subprocess.run(
+                ["php", "-r", script], cwd=root,
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            self.assertEqual(missing.stdout, "Public home temporarily unavailable")
+            self.assertNotIn("RAVE TILL GRAVE</span>", missing.stdout)
+            # Restore the file, then inject a duplicate marker.
+            hero.write_text(
+                (ROOT / "partials" / "home" / "hero.html").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            (root / "index.html").write_text(
+                original.replace(
+                    MARKER.format("hero"),
+                    MARKER.format("hero") + MARKER.format("hero"),
+                ),
+                encoding="utf-8",
+            )
+            duplicate = subprocess.run(
+                ["php", "-r", script], cwd=root,
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            self.assertEqual(duplicate.stdout, "Public home temporarily unavailable")
+            self.assertNotIn("<main", duplicate.stdout)
+
     def test_home_partial_ownership_map_is_disjoint(self) -> None:
         mapping = (ROOT / "docs" / "reference" / "home-partials-map.md").read_text(encoding="utf-8")
         for name in NAMES:
