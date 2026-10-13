@@ -62,7 +62,7 @@ class HomePartials984Tests(unittest.TestCase):
     def test_home_partial_ownership_map_is_disjoint(self) -> None:
         mapping = (ROOT / "docs" / "reference" / "home-partials-map.md").read_text(encoding="utf-8")
         for name in NAMES:
-            self.assertEqual(mapping.count(f"\`{name}.html\`"), 1, name)
+            self.assertEqual(mapping.count(f"`{name}.html`"), 1, name)
         self.assertIn("#969", mapping)
         self.assertIn("#968", mapping)
         self.assertIn("#970", mapping)
