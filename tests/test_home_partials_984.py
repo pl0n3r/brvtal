@@ -159,6 +159,18 @@ class HomePartials984Tests(unittest.TestCase):
             self.assertEqual(duplicate.stdout, "Public home temporarily unavailable")
             self.assertIn("HTTP_STATUS=503", duplicate.stderr)
             self.assertNotIn("<main", duplicate.stdout)
+            # An unknown placeholder must not escape into the public response.
+            (root / "index.html").write_text(
+                original + "\n<!-- BRVTAL-HOME-PARTIAL:unexpected -->",
+                encoding="utf-8",
+            )
+            unknown = subprocess.run(
+                ["php", "-r", script], cwd=root,
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            self.assertEqual(unknown.stdout, "Public home temporarily unavailable")
+            self.assertIn("HTTP_STATUS=503", unknown.stderr)
+            self.assertNotIn("BRVTAL-HOME-PARTIAL", unknown.stdout)
 
     def test_direct_static_home_is_canonical_redirect(self) -> None:
         """Direct /index.html must not publish the unrendered partial markers."""
