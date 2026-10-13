@@ -119,6 +119,7 @@ class SetDurationContractTests(unittest.TestCase):
             "function brvtal_public_set_duration_schema_ready(", 1
         )[1].split("function brvtal_public_memories(", 1)[0]
         self.assertIn("information_schema.COLUMNS", helper)
+        self.assertIn("brvtalMigrationDurationColumnMatches($column)", helper)
         if shutil.which("php") is None:
             self.skipTest("PHP CLI unavailable; exact CI must run this test")
         harness = r"""
@@ -161,8 +162,12 @@ foreach ($cases as [$name, $column, $expected]) {
 }
 echo "PUBLIC_DURATION_SCHEMA_OK";
 """
+        shared = source("config/migration_reconcile.php")
+        matcher = "function brvtalMigrationDurationColumnMatches(" + shared.split(
+            "function brvtalMigrationDurationColumnMatches(", 1
+        )[1].split("function brvtalMigrationProbeRequirement(", 1)[0]
         result = subprocess.run(
-            ["php", "-r", helper + harness],
+            ["php", "-r", matcher + helper + harness],
             cwd=ROOT, capture_output=True, text=True, timeout=15,
         )
         self.assertEqual(result.returncode, 0, result.stderr[-3000:])
@@ -179,6 +184,7 @@ echo "PUBLIC_DURATION_SCHEMA_OK";
         guard = "function brvtal_set_duration_schema_ready(" + api.split(
             "function brvtal_set_duration_schema_ready(", 1
         )[1].split("function sanitize_payload(", 1)[0]
+        self.assertIn("brvtalMigrationDurationColumnMatches($row)", guard)
         harness = r"""
 function json_response(array $body, int $status = 200): never {
     throw new DomainException('HTTP_' . $status);
@@ -228,8 +234,12 @@ foreach ($cases as [$schema,$resource,$payload,$expected]) {
 }
 echo json_encode($results);
 """
+        shared = source("config/migration_reconcile.php")
+        matcher = "function brvtalMigrationDurationColumnMatches(" + shared.split(
+            "function brvtalMigrationDurationColumnMatches(", 1
+        )[1].split("function brvtalMigrationProbeRequirement(", 1)[0]
         executed = subprocess.run(
-            ["php", "-r", harness + guard],
+            ["php", "-r", matcher + harness + guard],
             check=True, capture_output=True, text=True
         )
         self.assertEqual(
