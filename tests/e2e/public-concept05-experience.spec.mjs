@@ -200,9 +200,16 @@ test('long canonical Event copy at enlarged text remains contained without horiz
 
 test('offscreen native lazy artwork loads after entering the viewport', async ({ page }) => {
   let requested = 0;
+  // Keep the image genuinely pending until the viewport transition. Native
+  // lazy-loading heuristics may prefetch a distant image before this assertion.
+  let releaseArtworkResponse;
+  const artworkResponseReady = new Promise(resolve => {
+    releaseArtworkResponse = resolve;
+  });
   await page.setViewportSize({ width:390, height:844 });
-  await page.route('https://example.test/lazy-artwork.jpg', route => {
+  await page.route('https://example.test/lazy-artwork.jpg', async route => {
     requested += 1;
+    await artworkResponseReady;
     return route.fulfill({
       status:200, contentType:'image/svg+xml',
       body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"></svg>',
@@ -215,18 +222,28 @@ test('offscreen native lazy artwork loads after entering the viewport', async ({
       <img loading="lazy" src="https://example.test/lazy-artwork.jpg"
         width="250" height="250" alt="Event artwork">
     </div></body></html>`, { waitUntil:'domcontentloaded' });
-  await page.addScriptTag({ content:runtime });
   const artwork = page.locator('[data-c5-experience-artwork] img');
-  await expect(artwork).toBeHidden();
-  expect(await artwork.evaluate(image => image.hidden)).toBe(false);
-  expect(await artwork.evaluate(image => image.style.visibility)).toBe('hidden');
+  try {
+    await page.addScriptTag({ content:runtime });
+    await expect(artwork).toBeHidden();
+    expect(await artwork.evaluate(image => image.hidden)).toBe(false);
+    expect(await artwork.evaluate(image => image.style.visibility)).toBe('hidden');
 
-  await page.evaluate(() => window.scrollTo(0, 3400));
-  await expect(artwork).toBeVisible({ timeout:10000 });
-  await expect(artwork).toHaveJSProperty('naturalWidth', 600);
-  await expect(artwork).toHaveAttribute('src', 'https://example.test/lazy-artwork.jpg');
-  await expect(page.locator('[data-c5-experience-artwork]')).not.toHaveClass(/is-media-missing/);
-  expect(requested).toBeGreaterThan(0);
+    await page.evaluate(() => window.scrollTo(0, 3400));
+    // A pending response must remain visually hidden even when the artwork
+    // enters the viewport; only a successful image load can reveal it.
+    await expect(artwork).toBeHidden();
+    // Confirm that Chromium requested the image while the response is held.
+    await expect.poll(() => requested, { timeout:10000 }).toBeGreaterThan(0);
+    releaseArtworkResponse();
+    await expect(artwork).toBeVisible({ timeout:10000 });
+    await expect(artwork).toHaveJSProperty('naturalWidth', 600);
+    await expect(artwork).toHaveAttribute('src', 'https://example.test/lazy-artwork.jpg');
+    await expect(page.locator('[data-c5-experience-artwork]')).not.toHaveClass(/is-media-missing/);
+  } finally {
+    // Avoid a dangling route when a browser assertion fails.
+    releaseArtworkResponse();
+  }
 });
 
 test('managed experience artwork fails closed instead of exposing a broken image', async ({ page }) => {
