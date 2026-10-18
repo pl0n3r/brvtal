@@ -192,10 +192,17 @@ class HomePartials984Tests(unittest.TestCase):
         """Direct /index.html must not publish the unrendered partial markers."""
         htaccess = (ROOT / ".htaccess").read_text(encoding="utf-8")
         host_redirect = "RewriteRule ^ https://www.brvtal.com.co%{REQUEST_URI} [R=301,L,NE]"
-        condition = r"RewriteCond %{THE_REQUEST} \s/+index\.html(?:[?\s]) [NC]"
+        condition = "RewriteCond %{IS_SUBREQ} =false"
         redirect = r"RewriteRule ^index\.html$ / [R=301,L,NE,QSD]"
         self.assertIn("DirectoryIndex index.php index.html", htaccess)
         self.assertEqual(htaccess.count(condition), 1)
+        # Raw THE_REQUEST patterns do not recognize encoded spellings of index.html.
+        self.assertNotIn(r"RewriteCond %{THE_REQUEST} \s/+index\.html", htaccess)
+        from urllib.parse import unquote
+        for direct_url in ("/index.html", "/%69ndex.html", "/ind%65x.html",
+                           "/%69ndex.html?ref=1"):
+            with self.subTest(direct_url=direct_url):
+                self.assertEqual(unquote(direct_url.split("?", 1)[0]), "/index.html")
         self.assertEqual(htaccess.count(redirect), 1)
         self.assertLess(htaccess.index(host_redirect), htaccess.index(condition))
         self.assertLess(htaccess.index(condition), htaccess.index(redirect))
