@@ -232,9 +232,10 @@ test('offscreen native lazy artwork loads after entering the viewport', async ({
     await page.evaluate(() => window.scrollTo(0, 3400));
     // A pending response must remain visually hidden even when the artwork
     // enters the viewport; only a successful image load can reveal it.
-    await expect(artwork).toBeHidden();
-    // Confirm that Chromium requested the image while the response is held.
+    // Confirm the request has actually started before checking the pending state.
+    // This catches a regression that reveals the image as soon as loading begins.
     await expect.poll(() => requested, { timeout:10000 }).toBeGreaterThan(0);
+    await expect(artwork).toBeHidden();
     releaseArtworkResponse();
     await expect(artwork).toBeVisible({ timeout:10000 });
     await expect(artwork).toHaveJSProperty('naturalWidth', 600);
