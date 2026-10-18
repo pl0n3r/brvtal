@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -38,7 +39,7 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
         the existing test:concept05-owner-v2 invocation instead.
         """
         result = subprocess.run(
-            ["python3", "-m", "unittest", "tests/test_home_partials_984.py"],
+            [sys.executable, "-m", "unittest", "tests/test_home_partials_984.py"],
             cwd=ROOT, capture_output=True, text=True,
             check=False, timeout=90,
         )

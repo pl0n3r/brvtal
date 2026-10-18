@@ -138,10 +138,21 @@ if ($entity) {
     exit;
 }
 
+// Share the existing fail-closed entity-unavailable response for home errors.
+$emitHomeUnavailable = static function () use ($seo, $analytics): void {
+    $unavailableSeo = brvtal_public_unavailable_seo($seo);
+    http_response_code(503);
+    header('Retry-After: 60');
+    header('X-Robots-Tag: noindex, follow');
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo brvtal_public_unavailable_page($unavailableSeo, $analytics);
+    exit;
+};
+
 $html = @file_get_contents(__DIR__ . '/index.html');
 if (!is_string($html)) {
-    http_response_code(503);
-    exit('Public home temporarily unavailable');
+    $emitHomeUnavailable();
 }
 
 // The fixed allowlist is independent of routes, requests and CMS fields.
@@ -160,20 +171,17 @@ $homePartialPaths = [
 foreach ($homePartialPaths as $partName => $partPath) {
     $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $partName . ' -->';
     if (substr_count($html, $marker) !== 1 || !is_file($partPath)) {
-        http_response_code(503);
-        exit('Public home temporarily unavailable');
+        $emitHomeUnavailable();
     }
     $partContent = @file_get_contents($partPath);
     if (!is_string($partContent)) {
-        http_response_code(503);
-        exit('Public home temporarily unavailable');
+        $emitHomeUnavailable();
     }
     $html = str_replace($marker, $partContent, $html);
 }
 // Reject undeclared or nested placeholders left behind by a future partial.
 if (str_contains($html, '<!-- BRVTAL-HOME-PARTIAL:')) {
-    http_response_code(503);
-    exit('Public home temporarily unavailable');
+    $emitHomeUnavailable();
 }
 try {
     $nextExperience = brvtal_public_next_experience(db());
