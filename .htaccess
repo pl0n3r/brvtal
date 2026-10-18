@@ -8,9 +8,10 @@ RewriteEngine On
 RewriteCond %{HTTP_HOST} ^brvtal\.com\.co(?::[0-9]+)?$ [NC]
 RewriteRule ^ https://www.brvtal.com.co%{REQUEST_URI} [R=301,L,NE]
 
-# Direct /index.html is a static file of partial markers; canonicalize to the
-# PHP-rendered root without rewriting internal DirectoryIndex requests.
-RewriteCond %{THE_REQUEST} \s/+index\.html(?:[?\s]) [NC]
+# Direct requests to /index.html, including percent-encoded variants, must
+# never serve unexpanded partial markers. THE_REQUEST retains raw escapes;
+# IS_SUBREQ exempts only the server's internal DirectoryIndex lookup.
+RewriteCond %{IS_SUBREQ} =false
 RewriteRule ^index\.html$ / [R=301,L,NE,QSD]
 
 # Keep one public API implementation while supporting the compatibility aliases
