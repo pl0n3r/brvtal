@@ -45,9 +45,12 @@
   // Only genuine positive integer seconds received from the CMS become labels.
   // MySQL/PDO may serialize database integers as canonical decimal strings.
   const durationLabel = value => {
-    const seconds = typeof value === 'number' && Number.isInteger(value)
-      ? value
-      : (typeof value === 'string' && /^[1-9][0-9]{0,4}$/.test(value) ? Number(value) : NaN);
+    let seconds = Number.NaN;
+    if (typeof value === 'number' && Number.isInteger(value)) {
+      seconds = value;
+    } else if (typeof value === 'string' && /^[1-9]\d{0,4}$/.test(value)) {
+      seconds = Number(value);
+    }
     if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 86400) return '';
     const pad = number => String(number).padStart(2, '0');
     const hours = Math.floor(seconds / 3600);
