@@ -12,13 +12,18 @@ function rich_schema_expect(bool $condition, string $message): void
 }
 
 $base = 'https://www.brvtal.com.co';
+// Fixed-time local fixture, safely in the future regardless of CI calendar.
+$futureEventDate = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
+    ->modify('+7 days')
+    ->setTime(22, 30, 0)
+    ->format('Y-m-d H:i:s');
 $event = [
     'route_type' => 'events',
     'slug' => 'night-one',
     'schema_type' => 'MusicEvent',
     'title' => 'Night One',
     'description' => 'A real night',
-    'event_date' => '2026-10-14 22:30:00',
+    'event_date' => $futureEventDate,
     'published_at' => '2026-09-01 12:00:00',
     'venue' => 'Club Example',
     'city' => 'Pereira',
@@ -28,12 +33,22 @@ $event = [
 $seo = brvtal_public_seo_document($event, $base);
 $schema = $seo['schema'];
 rich_schema_expect($schema['@type'] === 'MusicEvent', 'dated and located Event must be MusicEvent');
-rich_schema_expect($schema['startDate'] === '2026-10-14T22:30:00', 'Event date must remain local, without fabricated timezone');
+rich_schema_expect($schema['startDate'] === str_replace(' ', 'T', $futureEventDate), 'Event date must remain local, without fabricated timezone');
 rich_schema_expect($schema['location']['@type'] === 'Place' && $schema['location']['name'] === 'Club Example / Pereira', 'Event must include real Place');
 rich_schema_expect($schema['location']['address']['addressLocality'] === 'Pereira', 'Event city must be exposed');
 rich_schema_expect($schema['eventStatus'] === 'https://schema.org/EventScheduled', 'active Event must be scheduled');
 rich_schema_expect($schema['performer'][0]['url'] === $base.'/artists/published-artist', 'performers must use canonical routes');
 rich_schema_expect($seo['canonical'] === $base.'/events/night-one', 'canonical URL must not change');
+
+// Protect the inverse boundary: expired dates stay historical even if the
+// editorial status has not yet advanced from tickets_available.
+$pastEventDate = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
+    ->modify('-7 days')
+    ->setTime(22, 30, 0)
+    ->format('Y-m-d H:i:s');
+$historical = brvtal_public_seo_document(array_replace($event, ['event_date' => $pastEventDate]), $base);
+rich_schema_expect($historical['schema']['@type'] === 'MusicEvent', 'historical dated event must retain MusicEvent');
+rich_schema_expect($historical['schema']['eventStatus'] === 'https://schema.org/EventCompleted', 'past event with stale active status must be completed');
 
 $cancelled = brvtal_public_seo_document(array_replace($event, ['status'=>'cancelled']), $base);
 rich_schema_expect($cancelled['schema']['eventStatus'] === 'https://schema.org/EventCancelled', 'cancelled Event must not advertise ticket eligibility');
