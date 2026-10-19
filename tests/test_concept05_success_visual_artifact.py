@@ -291,7 +291,7 @@ class Concept05SuccessVisualArtifactTests(unittest.TestCase):
                 report['suites'][0]['specs'][0]['tests'][0]['results'][0]['attachments']
                 if item['name'] == 'owner-v2-reference')['body']
             def image(width):
-                return PNG + b'\\x00\\x00\\x00\\rIHDR' + struct.pack('>II', width, 1900) + b'board fixture pixels'
+                return PNG + b'\x00\x00\x00\rIHDR' + struct.pack('>II', width, 1900) + b'board fixture pixels'
             def attachment(name, payload, mime='image/png'):
                 return {'name': name, 'contentType': mime,
                         'body': base64.b64encode(payload).decode('ascii')}
