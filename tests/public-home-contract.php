@@ -73,10 +73,14 @@ public_home_expect(
 $heroPos = strpos($rendered, '<section class="hero scene');
 $experiencePos = strpos($rendered, '<section class="genesis scene');
 $manifestoPos = strpos($rendered, '<section class="manifesto scene');
+$board01Pos = strpos($rendered, 'data-c5-board="01"');
+$board0203Pos = strpos($rendered, 'data-c5-board="02-03"');
 public_home_expect(
-    $heroPos !== false && $experiencePos !== false && $manifestoPos !== false
-    && $heroPos < $experiencePos && $experiencePos < $manifestoPos,
-    'Next Experience must sit immediately after the Hero before the legacy manifesto section'
+    $heroPos !== false && $experiencePos !== false
+    && $manifestoPos === false && $board01Pos !== false && $board0203Pos !== false
+    && $heroPos < $board01Pos && $board01Pos < $experiencePos
+    && $experiencePos < $board0203Pos,
+    'Next Experience must follow the Hero in board 01, precede 02/03, and exclude the legacy manifesto'
 );
 
 $unsafe = brvtal_public_render_next_experience($index, [
