@@ -17,6 +17,11 @@ on:
 permissions:
   contents: read
 
+# Serializar el chequeo+creación del Issue para evitar duplicados en push/cron/manual.
+concurrency:
+  group: revision-juridica-desfase-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   verificar:
     if: github.repository == 'pl0n3r/brvtal'
@@ -64,7 +69,8 @@ jobs:
           <!-- factory-plan-task {"version":1,"epic":533,"task_key":"BRVTAL_LEGAL_FOLDER_REFRESH","order":1,"owner":"pl0n3r","roles":["legal-privacidad","documentacion","ingenieria-software"],"depends_on":[],"paths":["revision-juridica/","tests/test_revision_juridica.py"]} -->
           ISSUE
             )"
-            gh issue create --title 'fix(legal): regenerar carpeta de abogado (v0.1.142)' --body "$body" --label revision-juridica-desfase --label 'status: available' --label 'priority: medium' --label 'type: documentation' --label 'role: legal-privacy'
+            legal_version="$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from generar_revision_juridica import ROOT, version; print(version(ROOT))')"
+            gh issue create --title "fix(legal): regenerar carpeta de abogado (v${legal_version})" --body "$body" --label revision-juridica-desfase --label 'status: available' --label 'priority: medium' --label 'type: documentation' --label 'role: legal-privacy'
           fi
       - name: Falla cerrada si existe desfase
         if: steps.check.outcome == 'failure'

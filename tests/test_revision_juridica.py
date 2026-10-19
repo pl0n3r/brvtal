@@ -41,6 +41,10 @@ class RevisionJuridicaTests(unittest.TestCase):
                          "revision-juridica-desfase", "gh issue create",
                          "GH_TOKEN: ${{ github.token }}",
                          "GH_REPO: ${{ github.repository }}",
+                         "group: revision-juridica-desfase-${{ github.repository }}",
+                         "cancel-in-progress: false",
+                         "from generar_revision_juridica import ROOT, version",
+                         'v${legal_version}',
                          "- tests/test_revision_juridica.py",
                          '"paths":["revision-juridica/","tests/test_revision_juridica.py"]'):
             self.assertIn(required, workflow)
