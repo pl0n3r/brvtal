@@ -340,8 +340,8 @@ echo json_encode($results);
         self.assertIn("duration ? `<span", renderer)
         self.assertNotIn("duration_seconds: 180", renderer)
         self.assertIn("known CMS durations", e2e)
-        self.assertIn("width:390", e2e)
-        self.assertIn("width:1440", e2e)
+        self.assertIn("for (const width of [390, 1440])", e2e)
+        self.assertIn("await page.setViewportSize({width, height:width === 390 ? 844 : 900});", e2e)
 
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")
