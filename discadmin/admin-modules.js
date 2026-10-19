@@ -386,6 +386,7 @@ window.BRVTALAdminModules = (() => {
       artist_id:fieldValue('artist_id') ? Number(fieldValue('artist_id')) : null,
       event_id:fieldValue('event_id') ? Number(fieldValue('event_id')) : null,
       status:fieldValue('status') || 'draft',
+      duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds'),
       description:fieldValue('description')
     };
     if (type === 'media') return {
