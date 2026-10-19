@@ -39,7 +39,7 @@ jobs:
       - name: Abrir Issue si no existe otro desfase
         if: steps.check.outcome == 'failure'
         env:
-          GH_TOKEN: @DLR@{{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GH_REPO: @DLR@{{ github.repository }}
         shell: bash
         run: |
@@ -60,7 +60,8 @@ jobs:
           <!-- factory-acceptance {"version":1,"criteria":[{"id":"AC-01","kind":"test","target":"tests/test_revision_juridica.py::RevisionJuridicaTests::test_exact_copies_bundle_and_sync_workflow"}]} -->
           ### Rutas reclamadas
           - revision-juridica/
-          <!-- factory-plan-task {"version":1,"epic":533,"task_key":"BRVTAL_LEGAL_FOLDER_REFRESH","order":1,"owner":"pl0n3r","roles":["legal-privacidad","documentacion","ingenieria-software"],"depends_on":[],"paths":["revision-juridica/"]} -->
+          - tests/test_revision_juridica.py
+          <!-- factory-plan-task {"version":1,"epic":533,"task_key":"BRVTAL_LEGAL_FOLDER_REFRESH","order":1,"owner":"pl0n3r","roles":["legal-privacidad","documentacion","ingenieria-software"],"depends_on":[],"paths":["revision-juridica/","tests/test_revision_juridica.py"]} -->
           ISSUE
             )"
             gh issue create --title 'fix(legal): regenerar carpeta de abogado (v0.1.142)' --body "$body" --label revision-juridica-desfase --label 'status: available' --label 'priority: medium' --label 'type: documentation' --label 'role: legal-privacy'

@@ -38,7 +38,10 @@ class RevisionJuridicaTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/revision-juridica-sync.yml").read_text(encoding="utf-8")
         for required in ("branches: [main]", "schedule:", "contents: read", "issues: write",
                          "python3 scripts/generar_revision_juridica.py --check",
-                         "revision-juridica-desfase", "gh issue create"):
+                         "revision-juridica-desfase", "gh issue create",
+                         "GH_TOKEN: ${{ github.token }}",
+                         "- tests/test_revision_juridica.py",
+                         '"paths":["revision-juridica/","tests/test_revision_juridica.py"]'):
             self.assertIn(required, workflow)
         self.assertNotIn("contents: write", workflow)
         self.assertNotIn("pull_request_target:", workflow)
