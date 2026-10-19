@@ -251,6 +251,11 @@ echo json_encode($results);
         api = source("api/index.php")
         self.assertIn("if ($resource === 'sets' && array_key_exists('duration_seconds', $d))", api)
         self.assertIn("'duration_seconds','status','sort_order'", api)
+        admin = source("discadmin/index-core.php")
+        modules = source("discadmin/admin-modules.js")
+        self.assertIn('id="f_duration_seconds" type="number" min="1" max="86400"', admin)
+        self.assertIn("r.duration_seconds??''", admin)
+        self.assertIn("duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds')", modules)
         self.assertIn("brvtal_admin_require_csrf();", api)
         self.assertIn("brvtal_activity_record(", api)
         if shutil.which("php") is None:
@@ -323,6 +328,20 @@ echo json_encode($results);
             {"status": 200, "present": True, "duration": 86400},
         ]
         self.assertEqual(json.loads(observed.stdout), expected_valid + [{"status": 422}] * 10)
+
+
+    def test_set_list_formats_known_duration_only(self):
+        renderer = source("js/public-sets-library.js")
+        e2e = source("tests/e2e/public-sets-library-phase-c.spec.mjs")
+        self.assertIn("const durationLabel = value =>", renderer)
+        self.assertIn("Number.isSafeInteger(seconds)", renderer)
+        self.assertIn("seconds < 1 || seconds > 86400", renderer)
+        self.assertIn("data-set-duration aria-label", renderer)
+        self.assertIn("duration ? `<span", renderer)
+        self.assertNotIn("duration_seconds: 180", renderer)
+        self.assertIn("known CMS durations", e2e)
+        self.assertIn("width:390", e2e)
+        self.assertIn("width:1440", e2e)
 
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")
