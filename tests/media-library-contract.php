@@ -138,6 +138,14 @@ $publicMedia = (string)file_get_contents(__DIR__ . '/../js/public-media.js');
 $publicDeliveryApi = (string)file_get_contents(__DIR__ . '/../api/public-image-delivery.php');
 $publicDeliveryLib = (string)file_get_contents(__DIR__ . '/../api/public-media-delivery.php');
 $publicIndex = (string)file_get_contents(__DIR__ . '/../index.html');
+foreach (['nav', 'hero', 'experience', 'nights', 'artists', 'sound', 'memories', 'journal', 'connected', 'footer'] as $name) {
+    $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $name . ' -->';
+    media_assert(substr_count($publicIndex, $marker) === 1, 'public Media partial marker must be unique');
+    $partial = file_get_contents(__DIR__ . '/../partials/home/' . $name . '.html');
+    media_assert($partial !== false, 'public Media partial must exist');
+    $publicIndex = str_replace($marker, $partial, $publicIndex);
+}
+media_assert(!str_contains($publicIndex, 'BRVTAL-HOME-PARTIAL:'), 'public Media contract must use fully composed markup');
 $publicRuntime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $publicPage = (string)file_get_contents(__DIR__ . '/../config/public_page.php');
 media_assert(str_contains($controller, '#f_cover_image,#f_photo,#e_cover_image,#e_ticket_qr'), 'media picker must attach to core image fields');

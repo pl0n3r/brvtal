@@ -9,6 +9,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+
+def composed_home() -> str:
+    """Read the same fixed home parts used by the PHP public entrypoint."""
+    source = (ROOT / "index.html").read_text(encoding="utf-8")
+    for name in (
+        "nav", "hero", "experience", "nights", "artists",
+        "sound", "memories", "journal", "connected", "footer",
+    ):
+        marker = "<!-- BRVTAL-HOME-PARTIAL:" + name + " -->"
+        if source.count(marker) != 1:
+            raise AssertionError("Missing or duplicate home partial marker: " + name)
+        path = ROOT / "partials" / "home" / (name + ".html")
+        source = source.replace(marker, path.read_text(encoding="utf-8"))
+    return source
+
 class PublicI18nContractTests(unittest.TestCase):
     def php_payload(self, site_expression: str) -> dict:
         script = (
@@ -46,7 +61,7 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertEqual(fallback["default_locale"], "es")
         self.assertEqual(fallback["available_locales"], ["es", "en"])
 
-        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        index = composed_home()
         api = (ROOT / "api/public.php").read_text(encoding="utf-8")
         runtime = (ROOT / "js/app.js").read_text(encoding="utf-8")
         self.assertIn('<html lang="es">', index)
@@ -81,7 +96,7 @@ class PublicI18nContractTests(unittest.TestCase):
         self.assertIn("availableLocales.includes(canonicalLocale)", runtime)
 
     def test_selector_owns_document_locale_after_phase_one_selector(self) -> None:
-        index = (ROOT / "index.html").read_text(encoding="utf-8")
+        index = composed_home()
         runtime = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn('<html lang="es">', index)
         self.assertIn('<span data-current-locale>ES</span>', index)

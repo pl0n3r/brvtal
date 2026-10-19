@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home-partials-composition.php';
+
 require_once __DIR__ . '/../config/public_home.php';
 
 function dressing_assert(bool $condition, string $message): void
@@ -11,7 +13,7 @@ function dressing_assert(bool $condition, string $message): void
     }
 }
 
-$html = (string)file_get_contents(__DIR__ . '/../index.html');
+$html = brvtal_test_composed_home();
 $rendered = brvtal_public_home_concept05_dressing($html);
 $identity = brvtal_public_home_identity($html);
 

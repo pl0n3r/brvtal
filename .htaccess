@@ -1,5 +1,5 @@
 Options -Indexes
-DirectoryIndex index.php index.html
+DirectoryIndex index.php
 
 RewriteEngine On
 
@@ -7,6 +7,12 @@ RewriteEngine On
 # API and DISCADMIN path converges on the same HTTPS www origin.
 RewriteCond %{HTTP_HOST} ^brvtal\.com\.co(?::[0-9]+)?$ [NC]
 RewriteRule ^ https://www.brvtal.com.co%{REQUEST_URI} [R=301,L,NE]
+
+# Direct requests to /index.html, including percent-encoded variants, must
+# never serve unexpanded partial markers. THE_REQUEST retains raw escapes;
+# IS_SUBREQ exempts only the server's internal DirectoryIndex lookup.
+RewriteCond %{IS_SUBREQ} =false
+RewriteRule ^index\.html$ / [R=301,L,NE,QSD]
 
 # Keep one public API implementation while supporting the compatibility aliases
 # already declared by the public frontend loader.

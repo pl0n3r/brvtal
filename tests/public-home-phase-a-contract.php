@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home-partials-composition.php';
+
 require_once __DIR__ . '/../config/public_home.php';
 
 function phase_a_assert(bool $condition, string $message): void
@@ -41,7 +43,7 @@ phase_a_assert(
     'non-http ticket URL must be rejected'
 );
 
-$template = (string)file_get_contents(__DIR__ . '/../index.html');
+$template = brvtal_test_composed_home();
 $event = [
     'id' => 9,
     'title' => 'SIGNAL TEST',

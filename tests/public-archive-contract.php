@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home-partials-composition.php';
+
 require_once __DIR__ . '/../api/public-archive.php';
 require_once __DIR__ . '/../config/public_assets.php';
 
@@ -46,7 +48,7 @@ archive_expect($past['ticket_url'] === null && $past['ticket_instructions'] === 
 archive_expect($past['ticket_types'] === [], 'Historical event must not expose ticket types');
 
 $public = file_get_contents(__DIR__ . '/../api/public.php');
-$index = file_get_contents(__DIR__ . '/../index.html');
+$index = brvtal_test_composed_home();
 $indexPhp = file_get_contents(__DIR__ . '/../index.php');
 $archiveJs = file_get_contents(__DIR__ . '/../js/archive.js');
 $runtimeLoader = file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');

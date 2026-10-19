@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -31,6 +32,22 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
         cls.hero_e2e = HERO_E2E.read_text(encoding="utf-8")
         cls.matrix_e2e = MATRIX_E2E.read_text(encoding="utf-8")
 
+    def test_home_partials_984_suite_runs_under_integration(self) -> None:
+        """Make all #984 acceptance tests part of the existing npm integration gate.
+
+        package.json is owned by #993 and cannot be modified by #984; reuse
+        the existing test:concept05-owner-v2 invocation instead.
+        """
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", "tests/test_home_partials_984.py"],
+            cwd=ROOT, capture_output=True, text=True,
+            check=False, timeout=90,
+        )
+        self.assertEqual(
+            0, result.returncode,
+            "Home partial acceptance suite failed:\\n" + result.stdout + result.stderr,
+        )
+
     def test_hero_contract_covers_desktop_and_mobile_reference(self) -> None:
         self.assertEqual(2, self.fixture["version"])
         source = self.fixture["source"]
@@ -48,6 +65,21 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
         script = r"""
             require 'config/public_home.php';
             $source = file_get_contents('index.html');
+            if (!is_string($source)) {
+                throw new RuntimeException('Unreadable home source');
+            }
+            foreach (['nav', 'hero', 'experience', 'nights', 'artists', 'sound', 'memories', 'journal', 'connected', 'footer'] as $part) {
+                $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $part . ' -->';
+                $path = 'partials/home/' . $part . '.html';
+                if (substr_count($source, $marker) !== 1 || !is_file($path)) {
+                    throw new RuntimeException('Invalid home part');
+                }
+                $contents = file_get_contents($path);
+                if (!is_string($contents)) {
+                    throw new RuntimeException('Unreadable home part');
+                }
+                $source = str_replace($marker, $contents, $source);
+            }
             $results = [];
             foreach (['es', 'en', 'invalid'] as $locale) {
                 $_GET['locale'] = $locale;

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home-partials-composition.php';
+
 function transmissions_expect(bool $condition, string $message): void {
     if (!$condition) {
         fwrite(STDERR, "PUBLIC TRANSMISSIONS CONTRACT FAILED: {$message}\n");
@@ -11,7 +13,7 @@ function transmissions_expect(bool $condition, string $message): void {
 $script = (string)file_get_contents(__DIR__ . '/../js/public-transmissions.js');
 $runtime = (string)file_get_contents(__DIR__ . '/../js/public-runtime-loader.js');
 $entry = (string)file_get_contents(__DIR__ . '/../index.php');
-$home = (string)file_get_contents(__DIR__ . '/../index.html');
+$home = brvtal_test_composed_home();
 
 transmissions_expect(str_contains($script, 'window.BRVTALPublicDataPromise'), 'must reuse shared public payload');
 transmissions_expect(!str_contains($script, "fetch('/api/public.php"), 'must not issue a second CMS request');
