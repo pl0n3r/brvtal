@@ -40,9 +40,11 @@ class RevisionJuridicaTests(unittest.TestCase):
                          "python3 scripts/generar_revision_juridica.py --check",
                          "revision-juridica-desfase", "gh issue create",
                          "GH_TOKEN: ${{ github.token }}",
+                         "GH_REPO: ${{ github.repository }}",
                          "- tests/test_revision_juridica.py",
                          '"paths":["revision-juridica/","tests/test_revision_juridica.py"]'):
             self.assertIn(required, workflow)
+        self.assertNotIn("@DLR@", workflow)
         self.assertNotIn("contents: write", workflow)
         self.assertNotIn("pull_request_target:", workflow)
 
