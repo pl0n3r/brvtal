@@ -9,10 +9,10 @@ require_once __DIR__ . '/public_translation.php';
  */
 final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdapter
 {
-    public const MAX_SOURCE_BYTES = 5000;
-    public const MAX_RESULT_BYTES = 10000;
+    public const int MAX_SOURCE_BYTES = 5000;
+    public const int MAX_RESULT_BYTES = 10000;
 
-    private Closure $fakeTransport;
+    private readonly Closure $fakeTransport;
     private bool $configured;
 
     /**
