@@ -21,6 +21,8 @@ SUPPORT = (
     "scripts/generar_revision_juridica.py",
     "tests/test_revision_juridica.py",
     ".github/workflows/revision-juridica-sync.yml",
+    "scripts/ci-scope.sh",
+    "tests/test_ci_scope_legal_1000.py",
 )
 
 
@@ -38,7 +40,7 @@ class CiScopeLegal1000Tests(unittest.TestCase):
     def test_legal_markdown_only_not_deploy_bound(self) -> None:
         """AC-02: exact PR file list and each legal markdown are maintenance only."""
         files = DOCUMENTS + SUPPORT
-        self.assertEqual(len(files), 11)
+        self.assertEqual(len(files), 13)
         self.assertEqual(classify(files)["deploy_bound"], "false")
         for path in DOCUMENTS:
             with self.subTest(path=path):
