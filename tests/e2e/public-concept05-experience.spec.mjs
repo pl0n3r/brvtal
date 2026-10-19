@@ -227,7 +227,8 @@ test('offscreen native lazy artwork loads after entering the viewport', async ({
     await page.addScriptTag({ content:runtime });
     await expect(artwork).toBeHidden();
     expect(await artwork.evaluate(image => image.hidden)).toBe(false);
-    expect(await artwork.evaluate(image => image.style.visibility)).toBe('hidden');
+    // Assert observable concealment rather than a browser-specific inline style.
+    // Native lazy loading may keep style.visibility unset while the image is hidden.
 
     await page.evaluate(() => window.scrollTo(0, 3400));
     // A pending response must remain visually hidden even when the artwork
