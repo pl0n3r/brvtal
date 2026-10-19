@@ -991,10 +991,35 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
   const ref=readFileSync(join(root,'docs/reference/home-concept05-owner-reference-v2.png'));
   expect(ref.subarray(0,8).toString('hex')).toBe('89504e470d0a1a0a');
   await testInfo.attach('owner-reference-v2',{body:ref,contentType:'image/png'});
+  // The composed Home must resolve real checked-in artwork, not about:blank.
+  // Keep the screenshot deterministic: injected CSS is used below, not JS/CSS network loads.
+  const assetBase='http://127.0.0.1:4173/';
+  const htmlWithAssets=html.replace('<base href="/">','<base href="'+assetBase+'">');
+  expect(htmlWithAssets).not.toBe(html);
+  await page.route(assetBase+'**',async route=>{
+    const assetPath=new URL(route.request().url()).pathname;
+    if(!assetPath.startsWith('/assets/')){
+      await route.abort();
+      return;
+    }
+    await route.fulfill({path:join(root,assetPath.slice(1))});
+  });
   for(const width of [1440,390]){
     await page.setViewportSize({width,height:900});
-    await page.setContent(html,{waitUntil:'domcontentloaded'});
+    await page.setContent(htmlWithAssets,{waitUntil:'load'});
     await page.addStyleTag({content:css+'\n*{box-sizing:border-box}html,body{margin:0;max-width:100%}#loader,.cursor,.cursor-label,#fxCanvas,.screen-vignette{display:none!important}'});
+    const artwork=await page.evaluate(async()=>{
+      const images=[...document.images];
+      for(const image of images) image.loading='eager';
+      await Promise.all(images.map(image=>image.decode().catch(()=>{})));
+      return {
+        total:images.length,
+        broken:images.filter(image=>!image.complete || image.naturalWidth===0)
+          .map(image=>image.currentSrc || image.src),
+      };
+    });
+    expect(artwork.total).toBeGreaterThan(0);
+    expect(artwork.broken).toEqual([]);
     await page.evaluate(()=>{document.body.dataset.concept='05';});
     const observed=await page.evaluate(()=>{
       const nodes=[...document.querySelectorAll('main#top>.c5-board-region')];
