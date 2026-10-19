@@ -67,9 +67,24 @@ def expected(root: Path, sha: str, day: str) -> dict[str, bytes]:
 
 def synchronize(root: Path, check: bool) -> list[str]:
     sha, day = provenance(root)
+    payloads = expected(root, sha, day)
+    folder = root / FOLDER
+    # The lawyer handoff must contain only the generated, regular root files.
+    # Refuse unknown entries and links before doing any writes (no auto-delete).
+    if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+        raise ValueError("Carpeta jurídica inválida: no es un directorio regular")
+    if folder.is_dir():
+        unknown = sorted(
+            path.relative_to(folder).as_posix()
+            for path in folder.rglob("*")
+            if path.is_symlink() or path.is_dir()
+            or path.parent != folder or path.name not in payloads
+        )
+        if unknown:
+            raise ValueError("Entradas no previstas en carpeta jurídica: " + ", ".join(unknown))
     stale = []
-    for filename, data in expected(root, sha, day).items():
-        target = root / FOLDER / filename
+    for filename, data in payloads.items():
+        target = folder / filename
         if not target.is_file() or target.read_bytes() != data:
             stale.append(filename)
             if not check:

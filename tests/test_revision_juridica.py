@@ -72,5 +72,40 @@ class RevisionJuridicaTests(unittest.TestCase):
                 self.assertEqual(path.read_bytes(), b"corrupt")
 
 
+    def test_rejects_unknown_entries_and_symlinks_without_writing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "docs/privacidad").mkdir(parents=True)
+            (root / "config").mkdir()
+            for name, _ in mod.NAMES:
+                (root / "docs/privacidad" / name).write_bytes(name.encode("utf-8"))
+            (root / "datos.yml").write_text(json.dumps({"treatments": [{"providers": []}]}))
+            (root / "config/version.php").write_text(
+                "<?php const BRVTAL_APP_VERSION = '0.0.1';")
+            with patch.object(mod, "provenance", return_value=("a" * 40, "2026-10-18")):
+                mod.synchronize(root, check=False)
+                folder = root / "revision-juridica"
+                unexpected = folder / "unexpected.php"
+                unexpected.write_bytes(b"preserve-me")
+                with self.assertRaisesRegex(ValueError, "Entradas no previstas"):
+                    mod.synchronize(root, check=True)
+                with self.assertRaisesRegex(ValueError, "Entradas no previstas"):
+                    mod.synchronize(root, check=False)
+                self.assertEqual(unexpected.read_bytes(), b"preserve-me")
+                unexpected.unlink()
+
+                outside = root / "outside.md"
+                outside.write_bytes(b"untouched")
+                legal = folder / mod.NAMES[0][0]
+                legal.unlink()
+                legal.symlink_to(outside)
+                with self.assertRaisesRegex(ValueError, "Entradas no previstas"):
+                    mod.synchronize(root, check=True)
+                with self.assertRaisesRegex(ValueError, "Entradas no previstas"):
+                    mod.synchronize(root, check=False)
+                self.assertEqual(outside.read_bytes(), b"untouched")
+
+
+
 if __name__ == "__main__":
     unittest.main()
