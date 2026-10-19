@@ -113,7 +113,8 @@ test('Home images keep explicit accessible alternatives', async ({ page }) => {
   expect(missingAlt).toEqual([]);
 
   await expect(page.locator('.hero-logo')).toHaveAttribute('alt', /\S+/);
-  await expect(page.locator('.manifesto-art img')).toHaveAttribute('alt', /\S+/);
+  await expect(page.locator('#manifesto, .manifesto-art')).toHaveCount(0);
+  await expect(page.locator('#genesis')).toHaveCount(1);
   await expect(page.locator('.event-img img').first()).toHaveAttribute('alt', /\S+/);
 });
 
