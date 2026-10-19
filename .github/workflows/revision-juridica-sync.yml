@@ -1,0 +1,77 @@
+name: Revisión jurídica · detectar desfase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/privacidad/**'
+      - 'datos.yml'
+      - 'config/version.php'
+      - 'revision-juridica/**'
+      - 'scripts/generar_revision_juridica.py'
+      - '.github/workflows/revision-juridica-sync.yml'
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serializar el chequeo+creación del Issue para evitar duplicados en push/cron/manual.
+concurrency:
+  group: revision-juridica-desfase-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  verificar:
+    if: github.repository == 'pl0n3r/brvtal'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout solo de main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verificar archivos sin escribir
+        id: check
+        continue-on-error: true
+        run: python3 scripts/generar_revision_juridica.py --check
+      - name: Abrir Issue si no existe otro desfase
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh label create revision-juridica-desfase --color 9F5319 --description 'Revisión jurídica desactualizada' --force
+          count="$(gh issue list --state open --label revision-juridica-desfase --json number --jq 'length')"
+          if [ "$count" -eq 0 ]; then
+            body="$(cat <<'ISSUE'
+          ### Contexto
+          Desfase de la carpeta jurídica en main; no constituye aprobación legal.
+          ### Alcance
+          Regenerar con `python3 scripts/generar_revision_juridica.py` y verificar con `--check`, reservando Issue y PR.
+          ### Fuera de alcance
+          Cambiar contenido jurídico de fuentes, producción, datos personales reales, secretos o releases.
+          ### Criterios de aceptación
+          - [ ] [AC-01] El test `tests/test_revision_juridica.py::RevisionJuridicaTests::test_exact_copies_bundle_and_sync_workflow` verifica las copias.
+          ### Contrato ejecutable
+          <!-- factory-acceptance {"version":1,"criteria":[{"id":"AC-01","kind":"test","target":"tests/test_revision_juridica.py::RevisionJuridicaTests::test_exact_copies_bundle_and_sync_workflow"}]} -->
+          ### Rutas reclamadas
+          - revision-juridica/
+          - tests/test_revision_juridica.py
+          <!-- factory-plan-task {"version":1,"epic":533,"task_key":"BRVTAL_LEGAL_FOLDER_REFRESH","order":1,"owner":"pl0n3r","roles":["legal-privacidad","documentacion","ingenieria-software"],"depends_on":[],"paths":["revision-juridica/","tests/test_revision_juridica.py"]} -->
+          ISSUE
+            )"
+            legal_version="$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from generar_revision_juridica import ROOT, version; print(version(ROOT))')"
+            gh issue create --title "fix(legal): regenerar carpeta de abogado (v${legal_version})" --body "$body" --label revision-juridica-desfase --label 'status: available' --label 'priority: medium' --label 'type: documentation' --label 'role: legal-privacy'
+          fi
+      - name: Falla cerrada si existe desfase
+        if: steps.check.outcome == 'failure'
+        run: exit 1
