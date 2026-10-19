@@ -48,7 +48,7 @@ brvtal_ci_classify_files() {
     [[ -z "$file" ]] && continue
 
     case "$file" in
-      README.md|AGENTS.md|docs/*|readme/*|tests/*|scripts/*|ops/factory/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
+      README.md|AGENTS.md|docs/*|readme/*|revision-juridica/*.md|tests/*|scripts/*|ops/factory/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
         ;;
       *)
         BRVTAL_SCOPE_DEPLOY_BOUND=true
