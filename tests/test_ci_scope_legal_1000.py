@@ -52,6 +52,7 @@ class CiScopeLegal1000Tests(unittest.TestCase):
             "revision-juridica/injected.php",
             "revision-juridica/unknown.bin",
             "revision-juridica/subdir/file.bin",
+            "revision-juridica/subdir/unknown.md",  # A nested Markdown file is not a root legal document.
         ):
             with self.subTest(bad=bad):
                 self.assertEqual(classify(DOCUMENTS + SUPPORT + (bad,))["deploy_bound"], "true")
