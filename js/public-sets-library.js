@@ -42,6 +42,22 @@
     return clean ? `/${type}/${encodeURIComponent(clean)}` : '';
   };
 
+  // Only genuine positive integer seconds received from the CMS become labels.
+  // MySQL/PDO may serialize database integers as canonical decimal strings.
+  const durationLabel = value => {
+    const seconds = typeof value === 'number' && Number.isInteger(value)
+      ? value
+      : (typeof value === 'string' && /^[1-9][0-9]{0,4}$/.test(value) ? Number(value) : NaN);
+    if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 86400) return '';
+    const pad = number => String(number).padStart(2, '0');
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainder = seconds % 60;
+    return hours > 0
+      ? `${hours}:${pad(minutes)}:${pad(remainder)}`
+      : `${pad(minutes)}:${pad(remainder)}`;
+  };
+
   const platformLabel = item => String(item?.platform ?? 'LISTEN').trim().toUpperCase() || 'LISTEN';
   const hasArtist = item => Number(item?.artist_id || 0) > 0 && String(item?.artist_name ?? '').trim() !== '';
   const hasEvent = item => Number(item?.event_id || 0) > 0 && String(item?.event_title ?? '').trim() !== '';
@@ -129,6 +145,7 @@
       const canonical = routeUrl('sets', slug) || '/#sets';
       const external = safeHttpUrl(item?.external_url ?? '');
       const description = String(item?.description ?? '').trim();
+      const duration = durationLabel(item?.duration_seconds);
       const relations = relationLinks(item);
       const cover = safeMediaUrl(item?.cover_image ?? '');
       const coverMarkup = cover
@@ -139,6 +156,7 @@
         ${coverMarkup}
         <div class="set-main">
           <span class="mono">${escapeHtml(platformLabel(item))} / BRVTAL SOUND</span>
+          ${duration ? `<span class="set-library-duration mono" data-set-duration aria-label="Duration ${escapeHtml(duration)}">DURATION / ${escapeHtml(duration)}</span>` : ''}
           <a class="set-record-link" href="${escapeHtml(canonical)}"><h4>${escapeHtml(title)}</h4><span class="mono">OPEN RECORD →</span></a>
           ${relations ? `<div class="set-library-relations mono">${relations}</div>` : '<div class="set-library-relations mono"><span>INDEPENDENT RECORD</span></div>'}
           ${description ? `<p class="set-library-description">${escapeHtml(description)}</p>` : ''}
