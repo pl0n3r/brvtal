@@ -975,3 +975,40 @@ test('Concept 05 owner v2 pairs blocks 02 through 07 on desktop and stacks them 
   expect(mobile.ordered).toBe(true);
   expect(mobile.noOverflow).toBe(true);
 });
+
+
+test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ page }, testInfo) => {
+  const order=['nav','hero','experience','nights','artists','sound','memories','journal','connected','footer'];
+  let html=readFileSync(join(root,'index.html'),'utf8');
+  for(const name of order){
+    const marker='<!-- BRVTAL-HOME-PARTIAL:'+name+' -->';
+    expect(html.split(marker).length).toBe(2);
+    html=html.replace(marker,readFileSync(join(root,'partials/home',name+'.html'),'utf8'));
+  }
+  expect(html).not.toContain('BRVTAL-HOME-PARTIAL:');
+  expect(html).not.toMatch(/<section[^>]+id="manifesto"/);
+  expect(html).not.toMatch(/\bsrc\s*=\s*["']\s*["']/);
+  const ref=readFileSync(join(root,'docs/reference/home-concept05-owner-reference-v2.png'));
+  expect(ref.subarray(0,8).toString('hex')).toBe('89504e470d0a1a0a');
+  await testInfo.attach('owner-reference-v2',{body:ref,contentType:'image/png'});
+  for(const width of [1440,390]){
+    await page.setViewportSize({width,height:900});
+    await page.setContent(html,{waitUntil:'domcontentloaded'});
+    await page.addStyleTag({content:css+'\n*{box-sizing:border-box}html,body{margin:0;max-width:100%}#loader,.cursor,.cursor-label,#fxCanvas,.screen-vignette{display:none!important}'});
+    await page.evaluate(()=>{document.body.dataset.concept='05';});
+    const observed=await page.evaluate(()=>{
+      const nodes=[...document.querySelectorAll('main#top>.c5-board-region')];
+      return {ids:nodes.map(x=>x.dataset.c5Board),children:nodes.map(x=>[...x.children].map(y=>y.id)),overflow:document.documentElement.scrollWidth-innerWidth,columns:nodes.map(x=>getComputedStyle(x).gridTemplateColumns.split(' ').length),connected:document.querySelectorAll('#connected').length};
+    });
+    expect(observed.ids).toEqual(['01','02-03','04-05','06-07']);
+    expect(observed.children[0]).toEqual(['genesis']);
+    expect(observed.children[1]).toEqual(['events','artists']);
+    expect(observed.children[2]).toEqual(['sets','media']);
+    expect(observed.children[3]).toEqual(['transmissions']);
+    expect(observed.connected).toBeLessThanOrEqual(1);
+    expect(observed.overflow).toBeLessThanOrEqual(1);
+    expect(observed.columns[1]).toBe(width===1440?2:1);
+    await testInfo.attach('board-'+width+'-actual',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
+  }
+  await testInfo.attach('board-comparison-note',{body:Buffer.from('Real desktop/mobile screenshots and owner reference attached for visual sign-off; browser structural checks do not claim pixel-perfect approval.'),contentType:'text/plain'});
+});
