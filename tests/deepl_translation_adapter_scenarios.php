@@ -21,17 +21,6 @@ function deepl_error(callable $operation): string
     throw new RuntimeException('DEEPL FAKE TEST: expected rejection');
 }
 
-function deepl_cache(): array
-{
-    $store = [];
-    return [
-        static fn(array $identity): ?string => $store[$identity['cache_key']] ?? null,
-        static function (array $identity, string $value) use (&$store): void {
-            $store[$identity['cache_key']] = $value;
-        },
-    ];
-}
-
 function deepl_report(array $result): never
 {
     echo json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);

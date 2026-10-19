@@ -22,3 +22,7 @@ Run Python unittest tests/test_deepl_adapter.py, and PHP tests/deepl_translation
 ## Future gate
 
 BRVTAL #920 retains legal/privacy and DPA consent, any allowed cost decision, credential provisioning, human approval of real provider/network operations, safe rollout/rollback and production observation. Do not change those authorities in #967. Reversion: remove the four new files; no migration or runtime config needs reversal.
+
+## Release metadata only
+
+BRVTAL CI classifies the new config/public_*.php source as deploy-bound. This PR therefore follows the mandatory product-version transition from 0.1.144 to 0.1.145 in config/version.php and package.json. That version bump identifies the source shipment only: DeepL remains unconfigured, disconnected and inactive; it does not authorize activation under #920.
