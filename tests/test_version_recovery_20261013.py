@@ -18,6 +18,7 @@ VERSION_PATTERN = re.compile(r"const\s+BRVTAL_APP_VERSION\s*=\s*['\"](\d+)\.(\d+
 
 
 def version_from_php(text: str) -> tuple[int, int, int]:
+    """Parse the explicit three-component product version in PHP metadata."""
     match = VERSION_PATTERN.search(text)
     if match is None:
         raise AssertionError("BRVTAL_APP_VERSION is missing or invalid")
@@ -25,6 +26,7 @@ def version_from_php(text: str) -> tuple[int, int, int]:
 
 
 def release_fixture(version: str) -> str:
+    """Build an isolated release metadata fixture for transition validation."""
     return (
         f"const BRVTAL_APP_VERSION = '{version}';\n"
         "const BRVTAL_RELEASE_DATE = '2026-10-13';\n"
@@ -32,13 +34,17 @@ def release_fixture(version: str) -> str:
 
 
 class VersionRecovery20261013Tests(unittest.TestCase):
+    """Verify metadata consistency, consecutive release policy and PR scope."""
+
     @classmethod
     def setUpClass(cls) -> None:
+        """Load the candidate version directly from the checked-out branch."""
         cls.php = PHP_VERSION_FILE.read_text(encoding="utf-8")
         cls.package = json.loads(PACKAGE_FILE.read_text(encoding="utf-8"))
         cls.version = version_from_php(cls.php)
 
     def test_patch_release_and_package_are_0143(self) -> None:
+        """Require the patch bump and matching PHP/npm release metadata."""
         # The lower bound survives later legitimate consecutive releases.
         self.assertGreaterEqual(self.version, (0, 1, 143))
         self.assertEqual(
@@ -48,6 +54,7 @@ class VersionRecovery20261013Tests(unittest.TestCase):
         self.assertTrue(VERSION_SCRIPT.is_file())
 
     def test_transition_0142_to_0143_passes_and_invalid_repeats_fail(self) -> None:
+        """Accept only the consecutive patch and reject repeats or skipped bumps."""
         for after, allowed in (
             ("0.1.143", True),
             ("0.1.142", False),
@@ -82,11 +89,13 @@ class VersionRecovery20261013Tests(unittest.TestCase):
         self.assertEqual(current.returncode, 0, current.stderr)
 
     def test_scope_is_version_metadata_only(self) -> None:
+        """Compare the complete PR with its authentic merge base and file claims."""
         # Exact diff check applies to the recovery commit; do not pin later releases.
         if self.version != (0, 1, 143):
             self.skipTest("Diff assertion applies only to recovery version 0.1.143")
 
         def git(*args: str) -> str | None:
+            """Read Git evidence without changing the worktree."""
             try:
                 command = subprocess.run(
                     ["git", *args],
