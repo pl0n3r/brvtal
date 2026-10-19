@@ -47,12 +47,13 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
         if ($sourceLocale !== 'es' || $targetLocale !== 'en') {
             throw new InvalidArgumentException('unsupported_locale');
         }
+        // Reject malformed UTF-8 and oversize bytes before text normalization
+        // or invoking the injected fake transport.
+        if (strlen($source) > self::MAX_SOURCE_BYTES || preg_match('//u', $source) !== 1) {
+            throw new InvalidArgumentException('invalid_public_text');
+        }
         $plain = brvtalPublicTranslationPlainText($source);
-        if (
-            $plain === null
-            || $plain !== $source
-            || strlen($source) > self::MAX_SOURCE_BYTES
-        ) {
+        if ($plain === null || $plain !== $source) {
             throw new InvalidArgumentException('invalid_public_text');
         }
 
@@ -79,6 +80,13 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
         }
 
         $text = $response['translations'][0]['text'] ?? null;
+        if (
+            !is_string($text)
+            || strlen($text) > self::MAX_RESULT_BYTES
+            || preg_match('//u', $text) !== 1
+        ) {
+            throw new RuntimeException('provider_invalid_response');
+        }
         $plainResult = brvtalPublicTranslationPlainText($text);
         if (
             $plainResult === null

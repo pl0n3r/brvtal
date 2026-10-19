@@ -40,6 +40,7 @@ class DeepLAdapterTests(unittest.TestCase):
         self.assertEqual(data["rejects"], [
             "invalid_public_text", "unsupported_locale",
             "invalid_public_text", "invalid_public_text",
+            "invalid_public_text", "provider_invalid_response",
             "provider_invalid_response",
         ])
         self.assertNotIn("fixture-key-must-never-be-exposed", json.dumps(data))

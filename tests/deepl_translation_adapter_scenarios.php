@@ -77,12 +77,18 @@ if ($scenario === 'valid') {
         deepl_error(static fn(): string => $adapter->translate('Hola', 'en', 'es')),
         deepl_error(static fn(): string => $adapter->translate(str_repeat('x', 5001), 'es', 'en')),
         deepl_error(static fn(): string => $adapter->translate("privado\x00", 'es', 'en')),
+        deepl_error(static fn(): string => $adapter->translate("Hola\xC3\x28", 'es', 'en')),
     ];
     $tooLarge = new BrvtalDeepLTranslationAdapter(
         static fn(array $payload): array => ['translations' => [['text' => str_repeat('Y', 10001)]]],
         $read
     );
     $rejects[] = deepl_error(static fn(): string => $tooLarge->translate('Hola', 'es', 'en'));
+    $invalidUtf8Response = new BrvtalDeepLTranslationAdapter(
+        static fn(array $payload): array => ['translations' => [['text' => "Bad\xC3\x28"]]],
+        $read
+    );
+    $rejects[] = deepl_error(static fn(): string => $invalidUtf8Response->translate('Hola', 'es', 'en'));
     deepl_expect($calls === 1, 'invalid input must not reach transport');
     deepl_report(['translated' => $translated, 'version' => $adapter->version(), 'rejects' => $rejects, 'transport_calls' => $calls]);
 }
