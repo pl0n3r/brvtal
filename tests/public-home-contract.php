@@ -75,9 +75,14 @@ $experiencePos = strpos($rendered, '<section class="genesis scene');
 $manifestoPos = strpos($rendered, '<section class="manifesto scene');
 $board01Pos = strpos($rendered, 'data-c5-board="01"');
 $board0203Pos = strpos($rendered, 'data-c5-board="02-03"');
+$experienceWithinBoard01 = preg_match(
+    '~<div class="c5-board-region[^"]*" data-c5-board="01"[^>]*>\\s*<section class="genesis scene~',
+    $rendered
+) === 1;
 public_home_expect(
     $heroPos !== false && $experiencePos !== false
     && $manifestoPos === false && $board01Pos !== false && $board0203Pos !== false
+    && $experienceWithinBoard01
     && $heroPos < $board01Pos && $board01Pos < $experiencePos
     && $experiencePos < $board0203Pos,
     'Next Experience must follow the Hero in board 01, precede 02/03, and exclude the legacy manifesto'
