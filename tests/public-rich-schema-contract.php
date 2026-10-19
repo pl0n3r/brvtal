@@ -40,6 +40,16 @@ rich_schema_expect($schema['eventStatus'] === 'https://schema.org/EventScheduled
 rich_schema_expect($schema['performer'][0]['url'] === $base.'/artists/published-artist', 'performers must use canonical routes');
 rich_schema_expect($seo['canonical'] === $base.'/events/night-one', 'canonical URL must not change');
 
+// Protect the inverse boundary: expired dates stay historical even if the
+// editorial status has not yet advanced from tickets_available.
+$pastEventDate = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
+    ->modify('-7 days')
+    ->setTime(22, 30, 0)
+    ->format('Y-m-d H:i:s');
+$historical = brvtal_public_seo_document(array_replace($event, ['event_date' => $pastEventDate]), $base);
+rich_schema_expect($historical['schema']['@type'] === 'MusicEvent', 'historical dated event must retain MusicEvent');
+rich_schema_expect($historical['schema']['eventStatus'] === 'https://schema.org/EventCompleted', 'past event with stale active status must be completed');
+
 $cancelled = brvtal_public_seo_document(array_replace($event, ['status'=>'cancelled']), $base);
 rich_schema_expect($cancelled['schema']['eventStatus'] === 'https://schema.org/EventCancelled', 'cancelled Event must not advertise ticket eligibility');
 $finished = brvtal_public_seo_document(array_replace($event, ['status'=>'finished']), $base);
