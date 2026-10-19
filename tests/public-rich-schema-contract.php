@@ -13,7 +13,7 @@ function rich_schema_expect(bool $condition, string $message): void
 
 $base = 'https://www.brvtal.com.co';
 // Fixed-time local fixture, safely in the future regardless of CI calendar.
-$futureEventDate = (new DateTimeImmutable('now', new DateTimeZone('America/Bogota')))
+$futureEventDate = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'))
     ->modify('+7 days')
     ->setTime(22, 30, 0)
     ->format('Y-m-d H:i:s');
