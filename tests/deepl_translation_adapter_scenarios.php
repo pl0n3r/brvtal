@@ -134,7 +134,9 @@ if ($scenario === 'cache') {
         $read
     );
     $store = [];
-    $cacheRead = static fn(array $id): ?string => $store[$id['cache_key']] ?? null;
+    $cacheRead = static function (array $id) use (&$store): ?string {
+        return $store[$id['cache_key']] ?? null;
+    };
     $cacheWrite = static function (array $id, string $text) use (&$store): void {
         $store[$id['cache_key']] = $text;
     };
