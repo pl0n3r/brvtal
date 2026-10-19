@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { composeHomeHtml } from './home-partials-984.mjs';
 
 const root = process.cwd();
 const runtime = readFileSync(join(root, 'js/public-quick-wins.js'), 'utf8');
-const source = readFileSync(join(root, 'index.html'), 'utf8');
+const source = composeHomeHtml(root);
 const heroRuntime = readFileSync(join(root, 'js/hero-slider.js'), 'utf8');
 const appRuntime = readFileSync(join(root, 'js/app.js'), 'utf8');
 const homeCss = [

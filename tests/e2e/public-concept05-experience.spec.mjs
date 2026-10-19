@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { composeHomeHtml } from './home-partials-984.mjs';
 
 const root = process.cwd();
 const css = [
@@ -451,9 +452,10 @@ function canonicalPhpHome({ published = true } = {}) {
     : 'null';
   const phpCode = 'require "config/public_home.php"; ' +
     '$event = ' + event + '; ' +
-    'echo brvtal_public_render_next_experience(file_get_contents("index.html"), $event);';
+    '$html = stream_get_contents(STDIN); ' +
+    'echo brvtal_public_render_next_experience($html, $event);';
   const run = spawnSync('php', ['-r', phpCode], {
-    cwd:root, encoding:'utf8', timeout:15000, maxBuffer:3_000_000,
+    cwd:root, input:composeHomeHtml(root), encoding:'utf8', timeout:15000, maxBuffer:3_000_000,
   });
   if (run.error || run.status !== 0) {
     throw new Error('Canonical PHP renderer failed: ' +

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home-partials-composition.php';
+
 require_once __DIR__ . '/../config/public_home.php';
 
 function public_home_expect(bool $condition, string $message): void
@@ -28,7 +30,7 @@ $nearest = brvtal_public_select_next_experience([
 ], $now);
 public_home_expect(is_array($nearest) && (int)$nearest['id'] === 6, 'Without a featured event, Next Experience must choose the nearest active event');
 
-$index = (string)file_get_contents(__DIR__ . '/../index.html');
+$index = brvtal_test_composed_home();
 $indexPhp = (string)file_get_contents(__DIR__ . '/../index.php');
 public_home_expect($index !== '' && $indexPhp !== '', 'Home sources must be readable');
 

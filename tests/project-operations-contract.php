@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/home-partials-composition.php';
+
 $root = dirname(__DIR__);
 $readme = (string) file_get_contents($root . '/README.md');
 $readmeContractWorkflow = (string) file_get_contents($root . '/.github/workflows/readme-contract.yml');
@@ -14,7 +16,7 @@ $agents = (string) file_get_contents($root . '/AGENTS.md');
 $publicHtaccess = (string) file_get_contents($root . '/.htaccess');
 $privateHtaccess = (string) file_get_contents($root . '/.private/.htaccess');
 $indexPhp = (string) file_get_contents($root . '/index.php');
-$indexHtml = (string) file_get_contents($root . '/index.html');
+$indexHtml = brvtal_test_composed_home();
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
