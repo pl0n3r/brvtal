@@ -55,6 +55,9 @@ class CiScopeLegal1000Tests(unittest.TestCase):
             "revision-juridica/unknown.bin",
             "revision-juridica/subdir/file.bin",
             "revision-juridica/subdir/unknown.md",  # A nested Markdown file is not a root legal document.
+            "revision-juridica/unknown.md",  # New root Markdown is not an approved lawyer document.
+            "revision-juridica/.hidden.md",  # Hidden Markdown must not bypass scope.
+            "revision-juridica/00-LEEME.md.bak",
         ):
             with self.subTest(bad=bad):
                 self.assertEqual(classify(DOCUMENTS + SUPPORT + (bad,))["deploy_bound"], "true")
