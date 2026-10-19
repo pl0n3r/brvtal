@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { composeHomeHtml } from './home-partials-984.mjs';
 
 const root = process.cwd();
 const css = [
@@ -585,8 +586,8 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
   // the attached manifest: this is evidence, not final owner visual approval.
   const rendered = execFileSync('php', ['-r',
     "require 'config/public_home.php'; $_GET['locale']='es';"
-    + "$html=file_get_contents('index.html'); echo brvtal_public_home_identity($html);"
-  ], {cwd:root,encoding:'utf8',maxBuffer:12*1024*1024});
+    + "$html=stream_get_contents(STDIN); echo brvtal_public_home_identity($html);"
+  ], {cwd:root,input:composeHomeHtml(root),encoding:'utf8',maxBuffer:12*1024*1024});
   expect(rendered).toContain('data-c5-hero-manifesto');
   expect(rendered).toContain('data-c5-hero-cta');
   expect(rendered).toContain('data-c5-hero-eyebrow');
