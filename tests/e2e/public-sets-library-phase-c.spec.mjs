@@ -8,19 +8,19 @@ const harness = 'http://127.0.0.1:4173/public-sets-library-phase-c.html';
 
 const sets = [
   {
-    id:3,title:'DNL5 — Closing Signal',slug:'dnl5-closing-signal',artist_id:12,artist_name:'DNL5',artist_slug:'dnl5',
+    id:3,duration_seconds:5432,title:'DNL5 — Closing Signal',slug:'dnl5-closing-signal',artist_id:12,artist_name:'DNL5',artist_slug:'dnl5',
     event_id:null,event_title:null,event_slug:null,platform:'soundcloud',external_url:'https://soundcloud.com/brvtal/dnl5-closing-signal',description:'Recorded live for BRVTAL.'
   },
   {
-    id:2,title:'GENESIS — PL0N3R',slug:'genesis-pl0n3r',artist_id:13,artist_name:'PL0N3R',artist_slug:'pl0n3r',
+    id:2,duration_seconds:95,title:'GENESIS — PL0N3R',slug:'genesis-pl0n3r',artist_id:13,artist_name:'PL0N3R',artist_slug:'pl0n3r',
     event_id:7,event_title:'GENESIS',event_slug:'genesis',platform:'youtube',external_url:'https://youtube.com/watch?v=brvtal',description:'A live record from GENESIS.'
   },
   {
-    id:1,title:'HAKKI — Session Archive',slug:'hakki-session-archive',artist_id:11,artist_name:'HAKKI',artist_slug:'hakki',
+    id:1,duration_seconds:null,title:'HAKKI — Session Archive',slug:'hakki-session-archive',artist_id:11,artist_name:'HAKKI',artist_slug:'hakki',
     event_id:6,event_title:'SESSION #5',event_slug:'session-5',platform:'soundcloud',external_url:'https://soundcloud.com/brvtal/hakki-session',description:''
   },
   {
-    id:4,title:'Independent Transmission',slug:'independent-transmission',artist_id:null,artist_name:null,artist_slug:null,
+    id:4,duration_seconds:0,title:'Independent Transmission',slug:'independent-transmission',artist_id:null,artist_name:null,artist_slug:null,
     event_id:null,event_title:null,event_slug:null,platform:'other',external_url:'https://example.com/listen',description:'Standalone BRVTAL transmission.'
   },
 ];
@@ -144,4 +144,35 @@ test('shared public request failure preserves the static fallback and removes di
   await expect(page.locator('#fallback-set')).toContainText('STATIC FALLBACK');
   await expect(page.locator('.sets-library-controls')).toHaveCount(0);
   await expect(page.locator('html')).not.toHaveAttribute('data-public-sets', 'library');
+});
+
+
+test('known CMS durations render only genuine values across 390 and 1440 viewports', async ({ page }) => {
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({width, height:width === 390 ? 844 : 900});
+    await openWithSets(page);
+    const labels = page.locator('[data-set-duration]');
+    await expect(labels).toHaveCount(2);
+    await expect(page.locator('[data-set-id="3"] [data-set-duration]')).toHaveText('DURATION / 1:30:32');
+    await expect(page.locator('[data-set-id="2"] [data-set-duration]')).toHaveText('DURATION / 01:35');
+    await expect(page.locator('[data-set-id="1"] [data-set-duration]')).toHaveCount(0);
+    await expect(page.locator('[data-set-id="4"] [data-set-duration]')).toHaveCount(0);
+    const dimensions = await page.evaluate(() => ({
+      viewport:document.documentElement.clientWidth,
+      scrollWidth:document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.viewport);
+  }
+});
+
+test('invalid, unknown, malicious and hour-boundary CMS durations are never fabricated', async ({ page }) => {
+  await openWithSets(page);
+  const inputs = [null, undefined, 0, -1, 86401, 1.5, false, '01', '1e2', ' <img src=x onerror=alert(1)>', 59, 60, 3600, 86400, '3601'];
+  const observed = await page.evaluate(items => {
+    const copies = items.map((duration_seconds, id) => ({id, title:'SET '+id, slug:'set-'+id, platform:'other', duration_seconds}));
+    window.BRVTALPublicSetsLibrary.render(copies);
+    return Array.from(document.querySelectorAll('.set-library-item')).map(node => node.querySelector('[data-set-duration]')?.textContent || null);
+  }, inputs);
+  expect(observed).toEqual([null, null, null, null, null, null, null, null, null, null, 'DURATION / 00:59', 'DURATION / 01:00', 'DURATION / 1:00:00', 'DURATION / 24:00:00', 'DURATION / 1:00:01']);
+  await expect(page.locator('img[src="x"]')).toHaveCount(0);
 });
