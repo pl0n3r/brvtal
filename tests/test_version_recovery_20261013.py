@@ -45,8 +45,8 @@ class VersionRecovery20261013Tests(unittest.TestCase):
 
     def test_patch_release_and_package_are_0143(self) -> None:
         """Require the patch bump and matching PHP/npm release metadata."""
-        # The lower bound survives later legitimate consecutive releases.
-        self.assertGreaterEqual(self.version, (0, 1, 143))
+        # This recovery regression requires the exact missing patch bump.
+        self.assertEqual(self.version, (0, 1, 143))
         self.assertEqual(
             self.package["version"], ".".join(str(part) for part in self.version)
         )
@@ -141,9 +141,16 @@ class VersionRecovery20261013Tests(unittest.TestCase):
                 1,
             ),
         )
-        old_package = json.loads(previous_package)
-        old_package["version"] = "0.1.143"
-        self.assertEqual(self.package, old_package)
+        self.assertEqual(
+            previous_package.count('"version": "0.1.142"'), 1,
+            "Expected exactly one base package version literal",
+        )
+        expected_package = previous_package.replace(
+            '"version": "0.1.142"',
+            '"version": "0.1.143"',
+            1,
+        )
+        self.assertEqual(PACKAGE_FILE.read_text(encoding="utf-8"), expected_package)
 
 
 if __name__ == "__main__":
