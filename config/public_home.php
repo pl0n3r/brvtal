@@ -722,6 +722,13 @@ function brvtal_public_home_identity(string $html): string
 
 function brvtalPublicHomePlaceNextExperienceAfterHero(string $html): string
 {
+    // The structural Concept 05 board already owns the exact 01 slot.
+    // Reordering its section would detach it from the numbered region.
+    // Preserve the legacy after-Hero placement only for pre-board templates.
+    if (str_contains($html, 'data-c5-board="01"')) {
+        return $html;
+    }
+
     $experienceStart = strpos($html, '<section class="genesis scene');
     if ($experienceStart === false) {
         return $html;
