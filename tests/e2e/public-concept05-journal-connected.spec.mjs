@@ -151,6 +151,7 @@ test('Journal waits for CMS public data to be published after the loader', async
   await page.addScriptTag({content:journalJs});
   await expect(page.locator('#fallback')).toHaveCount(1);
   await page.waitForTimeout(180);
+  await expect(page.locator('#fallback')).toHaveCount(1);
   await page.evaluate(payload => {
     window.BRVTALPublicDataPromise =
       Promise.resolve({payload:{data:payload}});
@@ -158,6 +159,44 @@ test('Journal waits for CMS public data to be published after the loader', async
   await expect(page.locator('.transmission-card')).toHaveCount(3);
   await expect(page.locator('#transmissions')).toHaveAttribute('data-state','ready');
   await expect(page.locator('#fallback')).toHaveCount(0);
+});
+
+test('Journal recovers once when window.load publishes CMS after the timeout', async ({page}) => {
+  const html = markup(data);
+  const start = html.indexOf('window.BRVTALPublicDataPromise=Promise.resolve(');
+  const end = html.indexOf('</script>', start);
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+  const delayed = html.slice(0, start) +
+    'window.BRVTALPublicDataPromise = null;\n' + html.slice(end);
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8', body:delayed
+  }));
+  await page.goto(harness);
+  await page.addScriptTag({content:journalJs});
+  await expect(page.locator('#fallback')).toHaveCount(1);
+  await expect(page.locator('#transmissions')).toHaveAttribute('data-state','unavailable', {timeout:5500});
+  await page.evaluate(payload => {
+    window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:payload}});
+    window.dispatchEvent(new Event('load'));
+  }, data);
+  await expect(page.locator('.transmission-card')).toHaveCount(3);
+  await expect(page.locator('#transmissions')).toHaveAttribute('data-state','ready');
+  await expect(page.locator('#fallback')).toHaveCount(0);
+});
+
+test('Connected module does not mount or emit twice when included by PHP and runtime loader', async ({page}) => {
+  await mount(page);
+  await page.evaluate(() => {
+    window.__connectedDuplicateEvents = 0;
+    window.addEventListener('brvtal:connected-rendered', () => {
+      window.__connectedDuplicateEvents += 1;
+    });
+  });
+  await page.addScriptTag({content:connectedJs});
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__connectedDuplicateEvents)).toBe(0);
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
 });
 
 test('Concept 05 desktop Journal authors a real feature/index and Connected draws only verified graph edges', async ({page}) => {

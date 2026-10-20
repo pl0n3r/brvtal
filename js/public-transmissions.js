@@ -215,17 +215,36 @@
     }, 100);
   });
 
-  waitForDataPromise(4000).then(result => {
-    if (!result) {
-      count.textContent = 'SIGNAL UNAVAILABLE';
-      section.dataset.state = 'unavailable';
-      return;
-    }
-    render(result?.payload?.data || {});
-  }).catch(() => {
-    // Public CMS reads can fail offline; retain static markup and avoid
-    // logging raw upstream exceptions that might contain private metadata.
+  let adoptedRequest = false;
+  const showUnavailable = () => {
+    // Public CMS reads can fail offline; preserve static markup and
+    // never log upstream errors that may contain private metadata.
     count.textContent = 'SIGNAL UNAVAILABLE';
     section.dataset.state = 'unavailable';
-  });
+  };
+  const adoptRequest = request => {
+    if (!request || adoptedRequest) return;
+    adoptedRequest = true;
+    Promise.resolve(request)
+      .then(result => render(result?.payload?.data || {}))
+      .catch(showUnavailable);
+  };
+
+  waitForDataPromise(4000)
+    .then(request => {
+      if (request) adoptRequest(request);
+      else showUnavailable();
+    })
+    .catch(showUnavailable);
+
+  // If window.load happens after the 4s deadline, app.js will publish the
+  // shared CMS promise 120ms later. Allow a single, finite late recovery.
+  // Never fetch again or keep an interval running after the deadline.
+  window.addEventListener('load', () => {
+    window.setTimeout(() => {
+      if (!adoptedRequest && section.dataset.state === 'unavailable') {
+        adoptRequest(window.BRVTALPublicDataPromise);
+      }
+    }, 180);
+  }, {once:true});
 })();

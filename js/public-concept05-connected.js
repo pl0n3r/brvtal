@@ -6,6 +6,10 @@
 (function () {
   'use strict';
 
+  // PHP and the runtime loader may both inject this module. Bind once.
+  if (window.__brvtalConnectedBootstrapInstalled === true) return;
+  window.__brvtalConnectedBootstrapInstalled = true;
+
   var EDGE_SPECS = [
     ['event_artist','events','artists','EVENTS ↔ ARTISTS'],
     ['event_set','events','sets','EVENTS ↔ SOUND'],
