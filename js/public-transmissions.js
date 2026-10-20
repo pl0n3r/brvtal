@@ -198,28 +198,34 @@
   }
 
   // app.js publishes the CMS request after window.load + 120ms.
-  // The runtime loader may evaluate Journal before that point.
-  const waitForDataPromise = async maxWaitMs => {
-    const started = Date.now();
-    while (!window.BRVTALPublicDataPromise && Date.now() - started < maxWaitMs) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+  // Journal may be evaluated first, so observe for a bounded interval.
+  const waitForDataPromise = maxWaitMs => new Promise(resolve => {
+    const existing = window.BRVTALPublicDataPromise;
+    if (existing) {
+      resolve(existing);
+      return;
     }
-    return window.BRVTALPublicDataPromise || null;
-  };
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const request = window.BRVTALPublicDataPromise;
+      if (request || Date.now() - started >= maxWaitMs) {
+        window.clearInterval(timer);
+        resolve(request || null);
+      }
+    }, 100);
+  });
 
-  (async () => {
-    const request = await waitForDataPromise(4000);
-    if (!request) {
+  waitForDataPromise(4000).then(result => {
+    if (!result) {
       count.textContent = 'SIGNAL UNAVAILABLE';
       section.dataset.state = 'unavailable';
       return;
     }
-    try {
-      const result = await request;
-      render(result?.payload?.data || {});
-    } catch (_) {
-      count.textContent = 'SIGNAL UNAVAILABLE';
-      section.dataset.state = 'unavailable';
-    }
-  })();
+    render(result?.payload?.data || {});
+  }).catch(() => {
+    // Public CMS reads can fail offline; retain static markup and avoid
+    // logging raw upstream exceptions that might contain private metadata.
+    count.textContent = 'SIGNAL UNAVAILABLE';
+    section.dataset.state = 'unavailable';
+  });
 })();
