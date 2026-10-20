@@ -45,6 +45,9 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn("relations.counts !== null", js)
         self.assertIn("!Array.isArray(relations.counts)", js)
         self.assertIn("Number.isSafeInteger(value)", js)
+        self.assertIn("Object.hasOwn(input, spec[0])", js)
+        self.assertIn("Connected ignores inherited relation counters", source(
+            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
         self.assertIn("Connected rejects malformed CMS counts", source(
             "tests/e2e/public-concept05-journal-connected.spec.mjs"))
         self.assertIn("Connected tolerates null CMS relationship counts", source(

@@ -39,7 +39,8 @@
     EDGE_SPECS.forEach(function (spec) {
       // The CMS contract carries integer counts. Do not coerce booleans,
       // objects, fractional values, or unsafe integers into invented edges.
-      var raw = input[spec[0]];
+      // Only CMS-owned keys certify a relationship; inherited keys do not.
+      var raw = Object.hasOwn(input, spec[0]) ? input[spec[0]] : undefined;
       var value = typeof raw === 'number' ? raw
         : (typeof raw === 'string' && /^(?:0|[1-9]\d*)$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
       out[spec[0]] = Number.isSafeInteger(value) && value > 0 ? value : 0;

@@ -204,6 +204,24 @@ test('Connected renders no fake lines when the canonical relation graph has zero
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
 
+test('Connected ignores inherited relation counters and draws no fabricated links', async ({page}) => {
+  const inherited = structuredClone(data);
+  inherited.relations = {counts:{}};
+  await page.addInitScript(() => {
+    Object.defineProperty(Object.prototype, 'event_artist', {
+      configurable:true,
+      value:6,
+    });
+  });
+  await mount(page, inherited);
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
+  await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveCount(0);
+  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
+  await expect(page.locator('[data-connected-edges]')).toContainText(
+    'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.'
+  );
+});
+
 test('Connected tolerates null CMS relationship counts without fabricated edges', async ({page}) => {
   const empty = structuredClone(data);
   empty.relations = {counts:null};
