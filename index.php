@@ -197,7 +197,7 @@ try {
 $html = brvtal_public_render_next_experience($html, $nextExperience);
 $html = brvtal_public_preload_home_lcp($html);
 $html = brvtal_public_keep_home_lcp_visible($html);
-$html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
+$html = str_replace('<body data-scene="CORE">', '<body data-scene="CORE" data-concept="05">' . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>", $html);
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('class="artist" href="#"', 'class="artist" aria-disabled="true"', $html);
 $artistHeadSource = '<div class="section-head"><span class="mono">ROSTER / 04</span>'
@@ -249,6 +249,7 @@ $homeStyles = [
     'css/public-sets-library.css',
     'css/public-memories.css',
     'css/public-transmissions.css',
+    'css/public-concept05-tokens.css',
     'css/public-concept05-journal-connected.css',
     'css/public-visual-identity.css',
 ];

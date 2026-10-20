@@ -52,7 +52,11 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertEqual(1, journal.count('data-index="06"'))
         self.assertNotIn('data-index="07"', journal)
         self.assertIn("BRVTAL JOURNAL / 06", journal)
+        self.assertIn("'css/public-concept05-tokens.css',", php)
         self.assertIn("'css/public-concept05-journal-connected.css',", php)
+        self.assertIn("'<body data-scene=\"CORE\" data-concept=\"05\">'", php)
+        self.assertLess(php.index("'css/public-concept05-tokens.css'"),
+                        php.index("'css/public-concept05-journal-connected.css'"))
         self.assertIn("'journal' => __DIR__ . '/partials/home/journal.html'", php)
         self.assertIn("'connected' => __DIR__ . '/partials/home/connected.html'", php)
         for name in ("journal", "connected"):

@@ -239,7 +239,11 @@ test('real home partials source mounts exactly one Journal 06 and Connected 07 a
   const loader = readFileSync(join(root,'js/public-runtime-loader.js'),'utf8');
   expect(php).toContain("'journal' => __DIR__ . '/partials/home/journal.html'");
   expect(php).toContain("'connected' => __DIR__ . '/partials/home/connected.html'");
+  expect(php).toContain("'css/public-concept05-tokens.css'");
   expect(php).toContain("'css/public-concept05-journal-connected.css'");
+  expect(php).toContain('data-concept="05"');
+  expect(php.indexOf("'css/public-concept05-tokens.css'"))
+    .toBeLessThan(php.indexOf("'css/public-concept05-journal-connected.css'"));
   expect(loader).toContain("'js/public-concept05-connected.js'");
   expect(source.match(/<!-- BRVTAL-HOME-PARTIAL:journal -->/g)).toHaveLength(1);
   expect(source.match(/<!-- BRVTAL-HOME-PARTIAL:connected -->/g)).toHaveLength(1);
