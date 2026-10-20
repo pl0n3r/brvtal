@@ -89,6 +89,8 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn("Connected renders no fake lines", test)
         self.assertIn("CMS publishes newest Journal entries", test)
         self.assertIn("real home partials source mounts", test)
+        self.assertIn("Python AC-01..04 bridge executes alongside Playwright acceptance", test)
+        self.assertIn("'tests/test_home_c05_journal_connected.py'", test)
         self.assertEqual(1, source("js/public-transmissions.js").count("function render(data)"))
 
 

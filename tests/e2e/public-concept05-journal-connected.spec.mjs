@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -122,6 +123,14 @@ async function mount(page, payload = data, viewport = {width:1440,height:900}, b
   );
   await page.waitForTimeout(50);
 }
+
+test('Python AC-01..04 bridge executes alongside Playwright acceptance', () => {
+  // package.json is reserved by a parallel V3, so wire the four Python AC
+  // tests into the existing Playwright suite without modifying that manifest.
+  execFileSync('python3', [
+    '-m', 'unittest', '-v', 'tests/test_home_c05_journal_connected.py',
+  ], {cwd:root,encoding:'utf8',timeout:30000,stdio:'pipe'});
+});
 
 test('Concept 05 desktop Journal authors a real feature/index and Connected draws only verified graph edges', async ({page}) => {
   await mount(page);
