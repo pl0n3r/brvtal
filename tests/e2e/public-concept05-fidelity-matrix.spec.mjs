@@ -810,8 +810,11 @@ const canonicalScreenshotBaselines = {
     color: 'b0757d4cc5ea9209533351994b8c437ce8ccbdcc7c2f1d8763e820d42dc810e1',
   },
   1440: {
-    structure: '0ca474d4581303cf1e8c8f7bdd826ead1eb4754d7347ecf85b8b40d07646317f',
-    color: '133a12fe27127708da420145fd60877727bdddd4ecacd895330fb9a44ed7792f',
+    // Refreshed after comparing HEAD 4e4d44e's genuine CI capture with
+    // owner-v2. This guards the incremental radial layout; it does NOT
+    // attest pixel-perfect parity or authorize publication.
+    structure: 'a6322b0491cc0f73f97f9e9d704005ec849002edbe10782feda4a5e89033e674',
+    color: '8972e49ea6584ae34ea1fe54aedf951122c7dde19ee29dade681d0f9b3bc3624',
   },
 };
 

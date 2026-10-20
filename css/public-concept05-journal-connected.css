@@ -381,6 +381,14 @@
   }
 }
 
+/* The 901–1100px radial grid needs ink clearance for the final tagline
+   line. Keep 390/1440 visual fingerprints unchanged by this correction. */
+@media(min-width:901px) and (max-width:1100px){
+  [data-concept="05"] .c5-connected-graph{
+    padding-bottom:32px;
+  }
+}
+
 @media(max-width:900px){
   [data-concept="05"] .transmissions.c5-numbered,
   [data-concept="05"] .connected.c5-numbered{
