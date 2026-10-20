@@ -48,6 +48,7 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         shell = source("index.html")
         css = source("css/public-concept05-journal-connected.css")
         e2e = source("tests/e2e/public-concept05-journal-connected.spec.mjs")
+        self.assertIn('class="scene transmissions c5-numbered"', journal)
         self.assertEqual(1, journal.count('data-index="06"'))
         self.assertNotIn('data-index="07"', journal)
         self.assertIn("BRVTAL JOURNAL / 06", journal)

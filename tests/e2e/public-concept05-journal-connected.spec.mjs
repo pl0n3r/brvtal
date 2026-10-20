@@ -253,7 +253,7 @@ test('real home partials source mounts exactly one Journal 06 and Connected 07 a
     await page.setViewportSize({width,height:900});
     const localHtml = markup(data).replace(
       /<section class="scene transmissions c5-numbered"[\s\S]*?<\/section>/,
-      journal.replace('class="scene transmissions"','class="scene transmissions c5-numbered"')
+      journal
     ).replace(
       /<section class="connected scene c5-numbered"[\s\S]*?<\/section>/,
       connected
