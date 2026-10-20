@@ -222,7 +222,11 @@
 
   const render = items => {
     if (!Array.isArray(items)) return false;
-    sets = items.filter(item => item && typeof item === 'object');
+    // The public API omits status because it already selects only published Sets.
+    // If a mixed editor/preview payload supplies a lifecycle explicitly, never
+    // render a draft/private Set or its duration on the public library.
+    sets = items.filter(item => item && typeof item === 'object'
+      && !Array.isArray(item) && (item.status == null || item.status === 'published'));
     if (modesRoot) modesRoot.hidden = sets.length === 0;
     selectMode('latest');
     document.documentElement.dataset.publicSets = 'library';

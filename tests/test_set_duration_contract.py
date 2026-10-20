@@ -348,6 +348,8 @@ echo json_encode($results);
         self.assertIn("duration ? `<span", renderer)
         self.assertNotIn("duration_seconds: 180", renderer)
         self.assertIn("known CMS durations", e2e)
+        self.assertIn("item.status == null || item.status === 'published'", renderer)
+        self.assertIn("an explicitly unpublished CMS Set never leaks its duration", e2e)
         self.assertIn("for (const width of [390, 1440])", e2e)
         self.assertIn("await page.setViewportSize({width, height:width === 390 ? 844 : 900});", e2e)
 

@@ -165,6 +165,22 @@ test('known CMS durations render only genuine values across 390 and 1440 viewpor
   }
 });
 
+test('an explicitly unpublished CMS Set never leaks its duration in the public library', async ({ page }) => {
+  await openWithSets(page);
+  await page.evaluate(() => window.BRVTALPublicSetsLibrary.render([
+    {id:88, title:'EDITOR DRAFT PRIVATE', status:'draft', duration_seconds:300},
+    {id:89, title:'HIDDEN PREVIEW', status:'private', duration_seconds:600},
+    {id:90, title:'PUBLIC RECORD', status:'published', duration_seconds:125},
+    {id:91, title:'LEGACY PUBLIC API', duration_seconds:3601},
+  ]));
+  await expect(page.locator('.set-library-item')).toHaveCount(2);
+  await expect(page.locator('[data-sets-count]')).toHaveText('02 / 02 RECORDS');
+  await expect(page.locator('[data-set-id="90"] [data-set-duration]')).toHaveText('DURATION / 02:05');
+  await expect(page.locator('[data-set-id="91"] [data-set-duration]')).toHaveText('DURATION / 1:00:01');
+  await expect(page.locator('.set-list')).not.toContainText('EDITOR DRAFT PRIVATE');
+  await expect(page.locator('.set-list')).not.toContainText('HIDDEN PREVIEW');
+});
+
 test('invalid, unknown, malicious and hour-boundary CMS durations are never fabricated', async ({ page }) => {
   await openWithSets(page);
   const inputs = [null, undefined, 0, -1, 86401, 1.5, false, '01', '1e2', ' <img src=x onerror=alert(1)>', 59, 60, 3600, 86400, '3601'];
