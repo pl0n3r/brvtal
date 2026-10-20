@@ -198,6 +198,31 @@ test('an explicitly unpublished CMS Set never leaks its duration in the public l
   await expect(page.locator('.set-list')).not.toContainText('UNKNOWN NULL STATUS');
 });
 
+test('inherited publication status is never trusted, even if it claims published', async ({ page }) => {
+  await openWithSets(page);
+  await page.evaluate(() => {
+    const inheritedDraft = Object.assign(Object.create({status:'draft'}),
+      {id:301, title:'INHERITED DRAFT', duration_seconds:300});
+    const inheritedPublished = Object.assign(Object.create({status:'published'}),
+      {id:302, title:'INHERITED PUBLISHED', duration_seconds:600});
+    const inheritedGetter = Object.assign(Object.create({get status() {
+      throw new Error('Inherited lifecycle getter should not run');
+    }}), {id:303, title:'INHERITED GETTER', duration_seconds:900});
+    window.BRVTALPublicSetsLibrary.render([
+      inheritedDraft, inheritedPublished, inheritedGetter,
+      {id:304, title:'LEGACY PUBLIC API', duration_seconds:125},
+      {id:305, title:'EXPLICITLY PUBLISHED', status:'published', duration_seconds:3601},
+    ]);
+  });
+  await expect(page.locator('.set-library-item')).toHaveCount(2);
+  await expect(page.locator('[data-sets-count]')).toHaveText('02 / 02 RECORDS');
+  await expect(page.locator('[data-set-id="304"] [data-set-duration]')).toHaveText('DURATION / 02:05');
+  await expect(page.locator('[data-set-id="305"] [data-set-duration]')).toHaveText('DURATION / 1:00:01');
+  for (const forbidden of ['INHERITED DRAFT', 'INHERITED PUBLISHED', 'INHERITED GETTER']) {
+    await expect(page.locator('.set-list')).not.toContainText(forbidden);
+  }
+});
+
 test('invalid, unknown, malicious and hour-boundary CMS durations are never fabricated', async ({ page }) => {
   await openWithSets(page);
   const inputs = [null, undefined, 0, -1, 86401, 1.5, false, '01', '1e2', ' <img src=x onerror=alert(1)>', 59, 60, 3600, 86400, '3601'];

@@ -220,15 +220,18 @@
     button.addEventListener('click', () => selectMode(button.dataset.setsMode || 'latest'));
   });
 
+  // public.php has already restricted rows to published Sets and omits status.
+  // An inherited lifecycle is NOT an omitted status: require an own, published
+  // field from mixed CMS/adapters, including objects with prototype getters.
+  const isPublicSet = item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    if (!('status' in item)) return true;
+    return Object.hasOwn(item, 'status') && item.status === 'published';
+  };
+
   const render = items => {
     if (!Array.isArray(items)) return false;
-    // The public API omits status because it already selects only published Sets.
-    // If a mixed editor/preview payload supplies a lifecycle explicitly, never
-    // render a draft/private Set or its duration on the public library.
-    sets = items.filter(item => item && typeof item === 'object'
-      && !Array.isArray(item)
-      // Absence is expected in canonical public.php; explicit null is not.
-      && (!Object.prototype.hasOwnProperty.call(item, 'status') || item.status === 'published'));
+    sets = items.filter(isPublicSet);
     if (modesRoot) modesRoot.hidden = sets.length === 0;
     selectMode('latest');
     document.documentElement.dataset.publicSets = 'library';
