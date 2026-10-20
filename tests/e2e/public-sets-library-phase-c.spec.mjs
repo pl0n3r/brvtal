@@ -25,7 +25,7 @@ const sets = [
   },
 ];
 
-function markup(promiseScript) {
+function markup(promiseScript, libraryScript = script) {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     :root{--line:rgba(255,255,255,.14);--magenta:#ff147f;--accent:#ff147f}*{box-sizing:border-box}html,body{margin:0;background:#090909;color:#eee;font-family:Arial,sans-serif}.mono{font-family:monospace}.sets{padding:40px 5vw;--accent:var(--magenta)}.sets-intro{margin:30px 0}.set-list{border-top:1px solid var(--line)}.set-item{display:grid;grid-template-columns:100px 1fr 80px;gap:20px;padding:28px 0;border-bottom:1px solid var(--line)}
     ${styles}
@@ -35,7 +35,7 @@ function markup(promiseScript) {
       <div class="sets-intro"><p>BRVTAL SOUND</p><h3>IT IS THE EXPERIENCE.</h3></div>
       <div class="set-list"><article class="set-item" id="fallback-set"><div>000</div><div>STATIC FALLBACK</div></article></div>
     </section>
-    <script>${promiseScript}</script><script>${script}</script>
+    <script>${promiseScript}</script><script>${libraryScript}</script>
   </body></html>`;
 }
 
@@ -117,6 +117,22 @@ test('Sets library is touch-safe and does not overflow a 390px viewport', async 
   expect(relationHeight).toBeGreaterThanOrEqual(44);
   const dimensions = await page.evaluate(() => ({viewport:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth}));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.viewport);
+});
+
+test('late-injected Sets module hydrates real CMS durations after window load', async ({ page }) => {
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:markup('window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:' +
+      JSON.stringify(sets) + '}}});', ''),
+  }));
+  await page.goto(harness);
+  await page.waitForLoadState('load');
+  await expect(page.locator('#fallback-set')).toContainText('STATIC FALLBACK');
+  // The normal load event has already fired before this runtime module is injected.
+  await page.addScriptTag({content:script});
+  await expect(page.locator('#fallback-set')).toHaveCount(0);
+  await expect(page.locator('[data-set-id="3"] [data-set-duration]')).toHaveText('DURATION / 1:30:32');
+  await expect(page.locator('[data-set-id="2"] [data-set-duration]')).toHaveText('DURATION / 01:35');
 });
 
 test('valid empty public Sets data replaces the static fallback with a true empty archive state', async ({ page }) => {

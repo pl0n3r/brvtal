@@ -261,7 +261,7 @@
     visibleSets,
   };
 
-  window.addEventListener('load', () => {
+  const hydrateAfterStaticLoad = () => {
     window.setTimeout(async () => {
       if (document.documentElement.dataset.publicSets === 'library') return;
       try {
@@ -276,5 +276,12 @@
         // Existing static/dynamic fallback remains visible if the shared request fails.
       }
     }, 220);
-  }, { once: true });
+  };
+
+  // The runtime loader can attach this module after the one-shot load event.
+  if (document.readyState === 'complete') {
+    hydrateAfterStaticLoad();
+  } else {
+    window.addEventListener('load', hydrateAfterStaticLoad, { once: true });
+  }
 })();
