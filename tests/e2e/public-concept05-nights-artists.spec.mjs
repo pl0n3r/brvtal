@@ -269,6 +269,8 @@ test('CMS archive and published roster replace honest empty states without canne
   expect(target.height).toBeGreaterThanOrEqual(44);
   expect(target.width).toBeGreaterThanOrEqual(44);
   await expect(page.locator('.artist[href="/artists/cms-published-artist"]')).toHaveCount(1);
+  await expect(page.locator('.c5-section-route--artists')).toHaveText('VER ARTISTAS ↗');
+  await expect(page.locator('.c5-section-route--artists')).toHaveAttribute('href', '/artists/cms-published-artist');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('UPCOMING HIDDEN');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW DRAFT');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW NUMERIC ZERO');
@@ -422,6 +424,8 @@ test('owner v2 roster has six columns desktop and two mobile, with real CMS arti
       })),
     ));
     await expect(page.locator('.roster-group .artist')).toHaveCount(6);
+    await expect(page.locator('.roster-group-head').first()).toHaveCSS('display', 'flex');
+    await expect(page.locator('.roster-group-head').first()).toHaveCSS('justify-content', 'space-between');
     const columns = await page.locator('.roster-group').first().evaluate(element =>
       getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length,
     );

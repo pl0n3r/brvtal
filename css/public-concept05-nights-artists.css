@@ -236,6 +236,10 @@
 
 [data-concept="05"] .roster-group-head{
   grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
   min-height:36px;
   margin:0;
   padding:0 0 8px;

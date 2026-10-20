@@ -104,7 +104,7 @@
         var nights = document.createElement('a');
         nights.className = 'c5-section-route c5-section-route--nights';
         nights.href = '#eventArchive';
-        nights.textContent = 'VIEW ALL NIGHTS ↓';
+        nights.textContent = 'VER TODAS LAS NOCHES ↗';
         events.insertBefore(nights, archive);
       }
     }
@@ -117,7 +117,7 @@
         if (!existing) {
           existing = document.createElement('a');
           existing.className = 'c5-section-route c5-section-route--artists';
-          existing.textContent = 'EXPLORE PROFILES ↗';
+          existing.textContent = 'VER ARTISTAS ↗';
           artists.insertBefore(existing, artists.querySelector('.artist-list'));
         }
         existing.href = firstProfile.getAttribute('href');
