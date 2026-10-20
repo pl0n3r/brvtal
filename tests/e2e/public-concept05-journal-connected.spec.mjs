@@ -214,21 +214,35 @@ test('CMS publishes newest Journal entries before the top five, rejects drafts a
     data.blog[1],
     {...data.blog[0],id:97,slug:'draft',status:'draft',published_at:'2026-10-10 00:00:00'},
     {...data.blog[0],id:98,slug:'unsafe<script>',published_at:'2026-10-11 00:00:00'},
+    {...data.blog[0],id:100,slug:'published-undated',published_at:null},
     data.blog[0],
     {...data.blog[1],id:99,slug:'same-time',published_at:data.blog[1].published_at},
   ];
   await mount(page, scrambled);
-  await expect(page.locator('.transmission-card')).toHaveCount(4);
+  await expect(page.locator('.transmission-card')).toHaveCount(5);
   await expect(page.locator('.transmission-feature .transmission-link'))
     .toHaveAttribute('href','/blog/night-does-not-end');
   expect(await page.locator('.transmission-link').evaluateAll(nodes =>
     nodes.map(node => node.getAttribute('href'))
   )).toEqual([
-    '/blog/night-does-not-end','/blog/pressure-systems','/blog/same-time','/blog/records-as-memory'
+    '/blog/night-does-not-end','/blog/pressure-systems','/blog/same-time',
+    '/blog/records-as-memory','/blog/published-undated'
   ]);
   await expect(page.getByRole('link',{name:'Open latest Journal entry'}))
     .toHaveAttribute('href','/blog/night-does-not-end');
   await expect(page.locator('a[href="/blog/draft"],a[href="/blog/invalid-month"]')).toHaveCount(0);
+});
+
+test('Published CMS post without a publication date stays visible without a false latest claim', async ({page}) => {
+  const undated = structuredClone(data);
+  undated.blog = [{...data.blog[0],slug:'published-undated',published_at:null}];
+  await mount(page, undated);
+  await expect(page.locator('.transmission-card')).toHaveCount(1);
+  await expect(page.locator('.transmission-feature .transmission-link'))
+    .toHaveAttribute('href','/blog/published-undated');
+  await expect(page.locator('.transmission-meta')).toContainText('TRANSMISSION');
+  await expect(page.getByRole('link',{name:'Open latest Journal entry'})).toHaveCount(0);
+  await expect(page.locator('.transmissions-route')).toHaveCount(0);
 });
 
 test('real home partials source mounts exactly one Journal 06 and Connected 07 at 390 and 1440', async ({page}, testInfo) => {

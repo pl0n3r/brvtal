@@ -18,7 +18,9 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         js = source("js/public-transmissions.js")
         self.assertIn("const publicationTime = value =>", js)
         self.assertIn("const publishedPosts = data =>", js)
-        self.assertIn(".sort((a, b) => b.timestamp - a.timestamp || a.position - b.position)", js)
+        self.assertIn(".sort((a, b) => (a.timestamp === null) - (b.timestamp === null)", js)
+        self.assertIn("(post.published_at == null || timestamp !== null)", js)
+        self.assertIn("publicationTime(posts[0]?.published_at) === null", js)
         self.assertLess(js.index(".sort((a, b)"), js.index(".slice(0, 5)", js.index("const publishedPosts")))
         self.assertIn("post.status === 'published'", js)
         self.assertIn("post.is_published !== false", js)
@@ -26,6 +28,8 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn("const posts = publishedPosts(data);", js)
         self.assertIn("timeZone:'UTC'", js)
         self.assertIn("CMS publishes newest Journal entries", source(
+            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
+        self.assertIn("Published CMS post without a publication date stays visible", source(
             "tests/e2e/public-concept05-journal-connected.spec.mjs"))
 
     def test_connected_renders_bounded_cms_node_map(self) -> None:

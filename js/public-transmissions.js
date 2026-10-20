@@ -82,8 +82,9 @@
   };
 
 
-  // CMS may return publications out of order. Pick the newest public
-  // entries before slicing; invalid dates are never used to invent a latest.
+  // CMS may return publications out of order. Sort dated posts newest-first;
+  // published posts without dates remain visible last, never as 'latest'.
+  // Malformed non-null dates cannot invent a publication.
   const publicationTime = value => {
     if (typeof value !== 'string') return null;
     const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:Z)?$/.exec(value.trim());
@@ -96,10 +97,12 @@
   const publishedPosts = data => (Array.isArray(data?.blog) ? data.blog : [])
     .map((post, position) => ({post, position, timestamp:publicationTime(post?.published_at)}))
     .filter(({post, timestamp}) => post && typeof post === 'object'
-      && timestamp !== null && post.is_published !== false
+      && (post.published_at == null || timestamp !== null)
+      && post.is_published !== false
       && (post.status == null || post.status === 'published')
       && routeUrl('blog', post.slug))
-    .sort((a, b) => b.timestamp - a.timestamp || a.position - b.position)
+    .sort((a, b) => (a.timestamp === null) - (b.timestamp === null)
+      || (b.timestamp ?? 0) - (a.timestamp ?? 0) || a.position - b.position)
     .slice(0, 5)
     .map(({post}) => post);
 
@@ -169,7 +172,9 @@
       bindCover(article);
     });
 
-    const latestHref = routeUrl('blog', posts[0]?.slug);
+    const latestHref = publicationTime(posts[0]?.published_at) === null
+      ? ''
+      : routeUrl('blog', posts[0]?.slug);
     if (latestHref) {
       const route = document.createElement('a');
       route.className = 'transmissions-route mono';
