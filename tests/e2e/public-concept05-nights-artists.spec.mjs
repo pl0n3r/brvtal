@@ -243,15 +243,19 @@ test('CMS archive and published roster replace honest empty states without canne
       { id: 998, title: 'DO NOT SHOW NUMERIC ZERO', is_published: 0, status: 'archived' },
       { id: 997, title: 'DO NOT SHOW STRING ZERO', is_published: '0', status: 'archived' }
     ] } });
-    window.BRVTALDynamicHome.renderEvents(
-      [{ id: 101, title: 'UPCOMING HIDDEN', status: 'upcoming', event_date: '2026-12-03', slug: 'upcoming' }],
-      [{ id: 202, title: 'PUBLISHED PAST NIGHT', status: 'archived', event_date: '2026-04-06', city: 'Pereira', slug: 'past-night' }],
-    );
+    // The composed partial fixture deliberately omits app.js global dependencies.
+    // Assert that even an actual legacy active card inserted by that layer stays hidden.
+    const legacy = document.createElement('article');
+    legacy.className = 'event-card';
+    legacy.dataset.c5Lifecycle = 'active';
+    legacy.textContent = 'UPCOMING HIDDEN';
+    document.querySelector('[data-c5-legacy-track]').appendChild(legacy);
     window.BRVTALPublicRoster.render([
       { name: 'CMS PUBLISHED ARTIST', slug: 'cms-published-artist', status: 'active' }
     ]);
   });
   await expect(page.locator('[data-c5-past-nights] .event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
+  await expect(page.locator('.event-card[data-c5-lifecycle="active"]')).toHaveCount(1);
   await expect(page.locator('.event-card[data-c5-lifecycle="active"]')).toBeHidden();
   await expect(page.locator('[data-c5-nights-empty]')).toBeHidden();
   await expect(page.locator('[data-c5-artists-empty]')).toBeHidden();
