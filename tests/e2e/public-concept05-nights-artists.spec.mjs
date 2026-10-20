@@ -239,7 +239,9 @@ test('CMS archive and published roster replace honest empty states without canne
     window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
       { id: 202, title: 'PUBLISHED PAST NIGHT', status: 'archived',
         event_date: '2026-04-06', city: 'Pereira', slug: 'past-night' },
-      { id: 999, title: 'DO NOT SHOW DRAFT', is_published: false, status: 'draft' }
+      { id: 999, title: 'DO NOT SHOW DRAFT', is_published: false, status: 'draft' },
+      { id: 998, title: 'DO NOT SHOW NUMERIC ZERO', is_published: 0, status: 'archived' },
+      { id: 997, title: 'DO NOT SHOW STRING ZERO', is_published: '0', status: 'archived' }
     ] } });
     window.BRVTALDynamicHome.renderEvents(
       [{ id: 101, title: 'UPCOMING HIDDEN', status: 'upcoming', event_date: '2026-12-03', slug: 'upcoming' }],
@@ -257,6 +259,8 @@ test('CMS archive and published roster replace honest empty states without canne
   await expect(page.locator('.artist[href="/artists/cms-published-artist"]')).toHaveCount(1);
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('UPCOMING HIDDEN');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW DRAFT');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW NUMERIC ZERO');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW STRING ZERO');
   await expect(page.locator('[data-c5-legacy-track]')).toBeHidden();
   await page.evaluate(() => {
     document.querySelector('[data-c5-legacy-track]').textContent = 'ACTIVE ONLY';
@@ -287,4 +291,25 @@ test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ pag
     });
   }
   // Human A/B against the attached approved reference remains a separate PR gate.
+});
+
+
+test('owner v2 roster has six columns desktop and two mobile, with real CMS artists', async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await mountRealPartialPair(page, width);
+    await page.evaluate(() => window.BRVTALPublicRoster.render(
+      Array.from({ length: 6 }, (_, i) => ({
+        name: 'CMS ARTIST ' + (i + 1), slug: 'cms-artist-' + (i + 1),
+        is_collective_member: true, sort_order: i + 1,
+      })),
+    ));
+    await expect(page.locator('.roster-group .artist')).toHaveCount(6);
+    const columns = await page.locator('.roster-group').first().evaluate(element =>
+      getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length,
+    );
+    expect(columns).toBe(width === 1440 ? 6 : 2);
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    )).toBe(true);
+  }
 });

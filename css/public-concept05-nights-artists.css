@@ -688,6 +688,6 @@ align-self:center;
 [data-concept="05"] [data-c5-board="02-03"] .c5-section-route[hidden]{display:none!important}
 @media(min-width:901px){
   [data-concept="05"] [data-c5-board="02-03"] .roster-group{
-    grid-template-columns:repeat(3,minmax(0,1fr))
+    grid-template-columns:repeat(6,minmax(0,1fr))
   }
 }

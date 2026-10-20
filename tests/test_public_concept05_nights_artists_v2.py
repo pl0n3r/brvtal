@@ -49,8 +49,10 @@ class Concept05NightsArtistsV2Tests(unittest.TestCase):
                       source("js/app.js"))
         self.assertIn("window.BRVTALPublicRoster", source("js/public-roster.js"))
         self.assertIn("brvtal:public-data", enhancement)
-        self.assertIn("is_published === false", enhancement)
+        self.assertIn("published !== undefined", enhancement)
         self.assertIn("data-c5-legacy-track", nights)
+        self.assertIn("owner v2 roster has six columns", source(
+            "tests/e2e/public-concept05-nights-artists.spec.mjs"))
         self.assertIn("CMS archive and published roster", source(
             "tests/e2e/public-concept05-nights-artists.spec.mjs"))
 

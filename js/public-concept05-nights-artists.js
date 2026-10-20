@@ -134,7 +134,11 @@
     var root = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
     var items = root && root.archive && Array.isArray(root.archive.events) ? root.archive.events : [];
     var past = items.filter(function (event) {
-      if (!event || typeof event !== 'object' || event.is_published === false) return false;
+      if (!event || typeof event !== 'object') return false;
+      // CMS often encodes publication booleans as 0 / "0" rather than false.
+      var published = event.is_published;
+      if (published !== undefined && published !== null
+        && ![true, 1, '1', 'true'].includes(published)) return false;
       return !['draft','private','hidden','unpublished','cancelled']
         .includes(String(event.status || 'archived').toLowerCase());
     }).slice(0, 4);
