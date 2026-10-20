@@ -15,53 +15,34 @@ def source(path: str) -> str:
 
 class HomeC05JournalConnectedTests(unittest.TestCase):
     def test_journal_lists_published_transmissions_in_date_order(self) -> None:
-        js = source("js/public-transmissions.js")
-        self.assertIn("const publicationTime = value =>", js)
-        self.assertIn("const publishedPosts = data =>", js)
-        self.assertIn(".sort((a, b) => (a.timestamp === null) - (b.timestamp === null)", js)
-        self.assertIn("(post.published_at == null || timestamp !== null)", js)
-        self.assertIn("publicationTime(posts[0]?.published_at) === null", js)
-        self.assertLess(js.index(".sort((a, b)"), js.index(".slice(0, 5)", js.index("const publishedPosts")))
-        self.assertIn("post.status === 'published'", js)
-        self.assertIn("&& publiclyPublished(post)", js)
-        self.assertIn("flag === 1", js)
-        self.assertIn("/^(?:1|true)$/i.test(flag.trim())", js)
-        self.assertIn("CMS database flags never expose unpublished Journal records", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
-        self.assertIn("routeUrl('blog', post.slug)", js)
-        self.assertIn("const posts = publishedPosts(data);", js)
-        self.assertIn("timeZone:'UTC'", js)
-        self.assertIn("CMS publishes newest Journal entries", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
-        self.assertIn("Published CMS post without a publication date stays visible", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
+        # Behavioral assertions run in Chromium, not against implementation text.
+        e2e = source("tests/e2e/public-concept05-journal-connected.spec.mjs")
+        for scenario in (
+            "CMS publishes newest Journal entries",
+            "CMS database flags never expose unpublished Journal records",
+            "Published CMS post without a publication date stays visible",
+        ):
+            self.assertIn(f"test('{scenario}", e2e)
 
     def test_connected_renders_bounded_cms_node_map(self) -> None:
         section = source("partials/home/connected.html")
-        js = source("js/public-concept05-connected.js")
         self.assertEqual(1, section.count('id="connected"'))
         self.assertEqual(1, section.count('data-index="07"'))
         self.assertEqual(5, section.count('data-connected-node="'))
-        self.assertIn('data-connected-lines', section)
-        self.assertIn('data-connected-ledger', section)
-        self.assertIn('TODO CONECTADO.', section)
-        self.assertIn("relations && typeof relations.counts === 'object'", js)
-        self.assertIn("relations.counts !== null", js)
-        self.assertIn("!Array.isArray(relations.counts)", js)
-        self.assertIn("Number.isSafeInteger(value)", js)
-        self.assertIn("Object.hasOwn(input, spec[0])", js)
-        self.assertIn("Connected ignores inherited relation counters", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
-        self.assertIn("Connected rejects malformed CMS counts", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
-        self.assertIn("Connected tolerates null CMS relationship counts", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
-        self.assertIn("if (value < 1) return;", js)
-        self.assertIn("Number.isSafeInteger(next)", js)
-        self.assertIn("RELATIONAL LINK TOTAL UNAVAILABLE.", js)
-        self.assertIn("Connected declines an imprecise aggregate total", source(
-            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
-        self.assertIn("window.BRVTALPublicDataPromise", js)
+        self.assertIn("data-connected-lines", section)
+        self.assertIn("data-connected-ledger", section)
+        self.assertIn("TODO CONECTADO.", section)
+
+        # Chromium exercises malformed, inherited, null and imprecise data.
+        e2e = source("tests/e2e/public-concept05-journal-connected.spec.mjs")
+        for scenario in (
+            "Connected renders no fake lines",
+            "Connected ignores inherited relation counters",
+            "Connected rejects malformed CMS counts",
+            "Connected tolerates null CMS relationship counts",
+            "Connected declines an imprecise aggregate total",
+        ):
+            self.assertIn(f"test('{scenario}", e2e)
 
     def test_desktop_mobile_reference_contract_and_capture_gate(self) -> None:
         journal = source("partials/home/journal.html")
@@ -92,17 +73,17 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
 
     def test_browser_scenarios_cover_journal_and_connected(self) -> None:
         loader = source("js/public-runtime-loader.js")
-        js = source("js/public-concept05-connected.js")
-        test = source("tests/e2e/public-concept05-journal-connected.spec.mjs")
+        spec = source("tests/e2e/public-concept05-journal-connected.spec.mjs")
         self.assertEqual(1, loader.count("'js/public-concept05-connected.js'"))
         self.assertIn("'js/public-transmissions.js', 'js/public-concept05-connected.js'", loader)
-        self.assertIn("document.querySelector('#connected[data-scene], section#connected')", js)
-        self.assertIn("Connected renders no fake lines", test)
-        self.assertIn("CMS publishes newest Journal entries", test)
-        self.assertIn("real home partials source mounts", test)
-        self.assertIn("Python AC-01..04 bridge executes alongside Playwright acceptance", test)
-        self.assertIn("'tests/test_home_c05_journal_connected.py'", test)
-        self.assertEqual(1, source("js/public-transmissions.js").count("function render(data)"))
+        for scenario in (
+            "Connected renders no fake lines",
+            "CMS publishes newest Journal entries",
+            "real home partials source mounts",
+            "Python AC-01..04 bridge executes alongside Playwright acceptance",
+        ):
+            self.assertIn(f"test('{scenario}", spec)
+        self.assertIn("'tests/test_home_c05_journal_connected.py'", spec)
 
 
 if __name__ == "__main__":
