@@ -49,7 +49,11 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
         }
         // Reject malformed UTF-8 and oversize bytes before text normalization
         // or invoking the injected fake transport.
-        if (strlen($source) > self::MAX_SOURCE_BYTES || preg_match('//u', $source) !== 1) {
+        if (
+            strlen($source) > self::MAX_SOURCE_BYTES
+            || preg_match('//u', $source) !== 1
+            || preg_match('/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/', $source) === 1
+        ) {
             throw new InvalidArgumentException('invalid_public_text');
         }
         $plain = brvtalPublicTranslationPlainText($source);
