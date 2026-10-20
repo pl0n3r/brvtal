@@ -16,6 +16,8 @@ import unittest
 
 TITLE = 'Concept 05 attaches Sound and Memories owner-v2 comparison evidence at 390 and 1440'
 SPEC = 'public-concept05-sound-memories.spec.mjs'
+BOARD_TITLE = 'C05 owner v2 board real partial layout 390 and 1440 evidence'
+BOARD_SPEC = 'public-concept05-fidelity-matrix.spec.mjs'
 SOURCE = Path('tests/e2e') / SPEC
 FILES = {'owner-v2-reference': 'owner-v2-reference.png',
          'c05-owner-v2-ab-manifest': 'c05-owner-v2-ab-manifest.json'}
@@ -110,6 +112,61 @@ def validate_manifest(data: dict[str, bytes]) -> dict:
     return manifest
 
 
+
+def extract_board_captures(report: dict, reference: bytes) -> dict[str, bytes] | None:
+    """Read only the successful public C05 board test, never private/auth artifacts."""
+    selected = [item for item in specs(report['suites'])
+                if isinstance(item, dict) and item.get('title') == BOARD_TITLE]
+    if not selected:
+        return None
+    if (len(selected) != 1 or selected[0].get('file') not in
+            (BOARD_SPEC, str(Path('tests/e2e') / BOARD_SPEC))):
+        raise ValueError('INVALID_BOARD_SPEC_IDENTITY')
+    case = selected[0]
+    tests = case.get('tests')
+    if case.get('ok') is not True or not isinstance(tests, list) or len(tests) != 1:
+        raise ValueError('BOARD_SPEC_NOT_GREEN')
+    test = tests[0]
+    results = test.get('results') if isinstance(test, dict) else None
+    if (test.get('projectName') != 'chromium' or test.get('expectedStatus') != 'passed'
+            or not isinstance(results, list) or not results or results[-1].get('status') != 'passed'):
+        raise ValueError('BOARD_CHROMIUM_NOT_PASSED')
+    items = results[-1].get('attachments')
+    expected = {'owner-reference-v2', 'board-390-actual', 'board-1440-actual',
+                'board-comparison-note'}
+    if not isinstance(items, list) or len(items) != len(expected):
+        raise ValueError('INVALID_BOARD_ATTACHMENT_COUNT')
+    data = {}
+    for item in items:
+        if not isinstance(item, dict) or set(item) - {'name', 'contentType', 'body'}:
+            raise ValueError('UNTRUSTED_BOARD_ATTACHMENT_FIELDS')
+        name = item.get('name')
+        if name not in expected or name in data or not isinstance(item.get('body'), str):
+            raise ValueError('INVALID_BOARD_ATTACHMENT_IDENTITY')
+        mime = 'text/plain' if name == 'board-comparison-note' else 'image/png'
+        if item.get('contentType') != mime:
+            raise ValueError('INVALID_BOARD_ATTACHMENT_MIME')
+        try:
+            content = base64.b64decode(item['body'], validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise ValueError('INVALID_BOARD_ATTACHMENT_ENCODING') from exc
+        if not content or len(content) > 16 * 1024 * 1024:
+            raise ValueError('INVALID_BOARD_ATTACHMENT_SIZE')
+        if mime == 'image/png':
+            png_width(content)
+        data[name] = content
+    if set(data) != expected or data['owner-reference-v2'] != reference:
+        raise ValueError('BOARD_REFERENCE_IDENTITY_MISMATCH')
+    note = data['board-comparison-note'].decode('utf-8')
+    if not note.startswith('Real desktop/mobile screenshots and owner reference attached'):
+        raise ValueError('UNTRUSTED_BOARD_COMPARISON_NOTE')
+    for width in (390, 1440):
+        capture = data[f'board-{width}-actual']
+        w, h = struct.unpack('>II', capture[16:24])
+        if w != width or h < 900:
+            raise ValueError('BOARD_FULLPAGE_DIMENSIONS_MISMATCH')
+    return data
+
 def export(report: dict, source: str, destination: Path, checkout_sha: str, pr_head_sha: str) -> str:
     if not all(isinstance(x, str) and SHA.fullmatch(x) for x in (checkout_sha, pr_head_sha)):
         raise ValueError('INVALID_SHA_IDENTITY')
@@ -133,7 +190,26 @@ def export(report: dict, source: str, destination: Path, checkout_sha: str, pr_h
             or not isinstance(results, list) or not results or results[-1].get('status') != 'passed'):
         raise ValueError('PUBLIC_CHROMIUM_NOT_PASSED')
     decoded = decode_selected(results[-1].get('attachments'))
-    validate_manifest(decoded)
+    manifest = validate_manifest(decoded)
+    board = extract_board_captures(report, decoded['owner-v2-reference'])
+    if board is not None:
+        # The existing success artifact already uploads c05-fullpage-{width}.png.
+        # Replace only those two formerly Sound/Memories-only screenshots with
+        # authentic full-home 01-07 Playwright renders; never relabel production.
+        for width in (390, 1440):
+            decoded[f'c05-fullpage-{width}'] = board[f'board-{width}-actual']
+        for capture in manifest['captures']:
+            if capture['block'] == 'fullpage':
+                capture['sha256'] = digest(decoded[f"c05-fullpage-{capture['viewport']}"])
+        manifest['fullpage_source'] = 'browser-rendered composed home 01-07, synthetic CMS, not production'
+        manifest['fullpage_review'] = 'PENDING_HUMAN_AB_COMPARISON'
+        manifest['fullpage_limitations'] = (
+            'Real checked-in artwork is decoded; CMS fixtures and unfinished '
+            'block 07 are not proof of production fidelity or owner approval.'
+        )
+        decoded['c05-owner-v2-ab-manifest'] = (
+            json.dumps(manifest, indent=2, sort_keys=True).encode('utf-8'))
+        validate_manifest(decoded)
     if destination.exists():
         raise ValueError('ARTIFACT_DIRECTORY_ALREADY_EXISTS')
     destination.mkdir(parents=True, exist_ok=False)
@@ -205,6 +281,53 @@ class Concept05SuccessVisualArtifactTests(unittest.TestCase):
                              set(p.name for p in dest.iterdir()))
             self.assertNotIn('PRIVATE_SECRET', ''.join(p.read_text(errors='ignore') for p in dest.iterdir()))
             self.assertEqual(self.SHA40, json.loads((dest/'c05-export-attestation.json').read_text())['pr_head_sha'])
+
+    def test_success_board_01_07_replaces_only_two_fullpage_images(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / SPEC
+            source.write_text(TITLE, encoding='utf-8')
+            report = self.make_report()
+            reference = next(item for item in
+                report['suites'][0]['specs'][0]['tests'][0]['results'][0]['attachments']
+                if item['name'] == 'owner-v2-reference')['body']
+            def image(width):
+                return PNG + b'\x00\x00\x00\rIHDR' + struct.pack('>II', width, 1900) + b'board fixture pixels'
+            def attachment(name, payload, mime='image/png'):
+                return {'name': name, 'contentType': mime,
+                        'body': base64.b64encode(payload).decode('ascii')}
+            board = {'title': BOARD_TITLE, 'file': BOARD_SPEC, 'ok': True,
+                     'tests': [{'projectName': 'chromium', 'expectedStatus': 'passed',
+                                'results': [{'status': 'passed', 'attachments': [
+                                   {'name': 'owner-reference-v2', 'contentType': 'image/png',
+                                    'body': reference},
+                                   attachment('board-1440-actual', image(1440)),
+                                   attachment('board-390-actual', image(390)),
+                                   attachment('board-comparison-note',
+                                              b'Real desktop/mobile screenshots and owner reference attached',
+                                              'text/plain'),
+                                ]}]}]}
+            report['suites'].append({'specs': [board], 'suites': []})
+            dest = Path(temp) / 'valid'
+            self.assertEqual('EXPORTED', export(report, str(source), dest,
+                                                 self.SHA40, self.SHA40))
+            for width in (390, 1440):
+                self.assertEqual(image(width), (dest / f'c05-fullpage-{width}.png').read_bytes())
+            manifest = json.loads((dest/'c05-owner-v2-ab-manifest.json').read_text())
+            self.assertIn('composed home 01-07', manifest['fullpage_source'])
+            self.assertEqual('PENDING_HUMAN_AB_COMPARISON', manifest['fullpage_review'])
+            self.assertTrue(json.loads((dest/'c05-export-attestation.json').read_text())['synthetic_only'])
+            for mutation in ('missing', 'wrong_width', 'skipped'):
+                with self.subTest(mutation=mutation):
+                    broken = json.loads(json.dumps(report))
+                    case = broken['suites'][1]['specs'][0]
+                    attachments = case['tests'][0]['results'][0]['attachments']
+                    if mutation == 'missing': attachments.pop()
+                    if mutation == 'wrong_width':
+                        attachments[2]['body'] = base64.b64encode(image(500)).decode()
+                    if mutation == 'skipped': case['tests'][0]['results'][0]['status'] = 'skipped'
+                    with self.assertRaises(ValueError):
+                        export(broken, str(source), Path(temp) / ('invalid-'+mutation),
+                               self.SHA40, self.SHA40)
 
     def test_no_auth_or_private_test_results_in_visual_artifact(self):
         with tempfile.TemporaryDirectory() as temp:
