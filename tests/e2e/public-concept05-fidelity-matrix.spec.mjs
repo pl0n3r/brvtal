@@ -1025,7 +1025,9 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     // explicit synthetic CMS fixture before capturing visual proof.
     // A static loading placeholder is never an AC-03 fidelity screenshot.
     await page.evaluate(() => {
-      const cover = document.querySelector('img[src^="/assets/"]')?.src || '';
+      // Home partials use relative asset paths; choose an already decoded
+      // editorial flyer rather than an absent absolute /assets/ selector.
+      const cover = document.querySelector('#media img[src^="assets/flyers/"]')?.src || '';
       window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{
         events:[{id:7,slug:'genesis',title:'GENESIS'}],
         artists:[{id:2,slug:'pl0n3r',name:'PL0N3R'}],
@@ -1045,6 +1047,11 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     await page.addScriptTag({content:readFileSync(join(root,'js/public-concept05-connected.js'),'utf8')});
     await expect(page.locator('#transmissions .transmission-feature')).toHaveCount(1);
     await expect(page.locator('#transmissions .transmission-feature')).toContainText('LA CIUDAD COMO PISTA');
+    // AC-03 must document the populated visual state, never the missing-image fallback.
+    await expect(page.locator('#transmissions .transmission-cover img')).toHaveCount(1);
+    await expect.poll(async () => page.locator('#transmissions .transmission-cover img')
+      .evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(page.locator('#transmissions .transmission-cover.is-media-missing')).toHaveCount(0);
     await expect(page.locator('#connected [data-connected-lines] line')).toHaveCount(2);
     await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.');
 

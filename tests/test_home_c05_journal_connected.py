@@ -70,6 +70,11 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
                        "build-ahead-local-partials-", 'data-index="07"'):
             self.assertIn(marker, e2e)
         self.assertEqual(1, connected.count('data-index="07"'))
+        # A/B evidence must render a real local editorial fixture, not a missing cover.
+        visual = source("tests/e2e/public-concept05-fidelity-matrix.spec.mjs")
+        self.assertIn("document.querySelector('#media img[src^=", visual)
+        self.assertIn("image.complete && image.naturalWidth > 0", visual)
+        self.assertIn("transmission-cover.is-media-missing", visual)
 
     def test_browser_scenarios_cover_journal_and_connected(self) -> None:
         loader = source("js/public-runtime-loader.js")
