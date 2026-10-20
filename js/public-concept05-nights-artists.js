@@ -131,6 +131,11 @@
     document.querySelectorAll('.events-track .event-card').forEach(hydrateNight);
     document.querySelectorAll('.artist-list .artist').forEach(hydrateArtist);
     ensureRoutes();
+    // Visibility derives from actual CMS-created nodes, never canned names or counts.
+    var nightEmpty = document.querySelector('[data-c5-nights-empty]');
+    var artistEmpty = document.querySelector('[data-c5-artists-empty]');
+    if (nightEmpty) nightEmpty.hidden = Boolean(document.querySelector('#events .event-card[data-c5-lifecycle="archive"]'));
+    if (artistEmpty) artistEmpty.hidden = Boolean(document.querySelector('#artists .artist-list .artist'));
     document.documentElement.dataset.concept05Strips = 'ready';
     window.dispatchEvent(new CustomEvent('brvtal:concept05-strips-ready'));
   }

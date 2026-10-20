@@ -189,3 +189,87 @@ test('Concept 05 strip motion stays static under reduced motion and visual-test 
   expect(states.nightTransition).toBe('0s');
   expect(states.artistTransition).toBe('0s');
 });
+
+
+// #971 — composed production-owned partials, not a duplicate hardcoded design shell.
+const c5NightsPartial = readFileSync(join(root, 'partials/home/nights.html'), 'utf8');
+const c5ArtistsPartial = readFileSync(join(root, 'partials/home/artists.html'), 'utf8');
+const c5BoardCss = readFileSync(join(root, 'css/public-concept05-home.css'), 'utf8');
+const c5RosterRuntime = readFileSync(join(root, 'js/public-roster.js'), 'utf8');
+
+async function mountRealPartialPair(page, width) {
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+  const shell = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'
+    + '*{box-sizing:border-box}html,body{margin:0;max-width:100%;background:#050505;color:#eee}main{max-width:100%}'
+    + c5BoardCss + css + '</style></head><body data-concept="05"><main id="top">'
+    + '<div class="c5-board-region c5-board-region--pair" data-c5-board="02-03">'
+    + c5NightsPartial + c5ArtistsPartial + '</div></main></body></html>';
+  await page.setContent(shell);
+  await page.addScriptTag({ content: enhancer });
+  await page.addScriptTag({ content: app });
+  await page.addScriptTag({ content: c5RosterRuntime });
+}
+
+test('C05 real partials 1440 row and 390 stack, with bounded widths', async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await mountRealPartialPair(page, width);
+    const nights = await page.locator('#events').boundingBox();
+    const artists = await page.locator('#artists').boundingBox();
+    expect(nights).not.toBeNull();
+    expect(artists).not.toBeNull();
+    if (width === 1440) {
+      expect(Math.abs(artists.y - nights.y)).toBeLessThan(3);
+      expect(artists.x).toBeGreaterThan(nights.x + nights.width - 3);
+    } else {
+      expect(artists.y).toBeGreaterThanOrEqual(nights.y + nights.height - 3);
+      expect(artists.x).toBeLessThan(20);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <=
+      document.documentElement.clientWidth)).toBe(true);
+  }
+});
+
+test('CMS archive and published roster replace honest empty states without canned names', async ({ page }) => {
+  await mountRealPartialPair(page, 1440);
+  await expect(page.locator('[data-c5-nights-empty]')).toBeVisible();
+  await expect(page.locator('[data-c5-artists-empty]')).toBeVisible();
+  await expect(page.locator('.events-track .event-card')).toHaveCount(0);
+  await expect(page.locator('.artist-list .artist')).toHaveCount(0);
+  await page.evaluate(() => {
+    window.BRVTALDynamicHome.renderEvents(
+      [{ id: 101, title: 'UPCOMING HIDDEN', status: 'upcoming', event_date: '2026-12-03', slug: 'upcoming' }],
+      [{ id: 202, title: 'PUBLISHED PAST NIGHT', status: 'archived', event_date: '2026-04-06', city: 'Pereira', slug: 'past-night' }],
+    );
+    window.BRVTALPublicRoster.render([
+      { name: 'CMS PUBLISHED ARTIST', slug: 'cms-published-artist', status: 'active' }
+    ]);
+  });
+  await expect(page.locator('.event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
+  await expect(page.locator('.event-card[data-c5-lifecycle="active"]')).toBeHidden();
+  await expect(page.locator('[data-c5-nights-empty]')).toBeHidden();
+  await expect(page.locator('[data-c5-artists-empty]')).toBeHidden();
+  await expect(page.locator('.event-record[href="/events/past-night"]')).toHaveCount(1);
+  await expect(page.locator('.artist[href="/artists/cms-published-artist"]')).toHaveCount(1);
+});
+
+test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ page }, testInfo) => {
+  const reference = join(root, 'docs/reference/home-concept05-owner-reference-v2.png');
+  await testInfo.attach('owner-v2-reference', { path: reference, contentType: 'image/png' });
+  for (const width of [1440, 390]) {
+    await mountRealPartialPair(page, width);
+    await page.evaluate(() => {
+      window.BRVTALDynamicHome.renderEvents([], [
+        { id: 303, title: 'CMS ARCHIVED NIGHT', status: 'archived',
+          event_date: '2026-08-07', slug: 'archived-night', city: 'Pereira' },
+      ]);
+      window.BRVTALPublicRoster.render([
+        { name: 'CMS ARTIST', slug: 'cms-artist', status: 'active' },
+      ]);
+    });
+    await expect(page.locator('.event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
+    await testInfo.attach('build-ahead-partials-' + width, {
+      body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
+    });
+  }
+  // Human A/B against the attached approved reference remains a separate PR gate.
+});

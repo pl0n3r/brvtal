@@ -635,3 +635,44 @@ align-self:center;
     font-size:7px;
   }
 }
+
+/* #971 / Concept 05 row 02-03: self-contained partial source, no shared manifest. */
+[data-concept="05"] [data-c5-board="02-03"] > #events,
+[data-concept="05"] [data-c5-board="02-03"] > #artists {
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+}
+[data-concept="05"] [data-c5-board="02-03"] #events .event-card[data-c5-lifecycle="active"] {
+  display:none!important; /* 02 is published past nights only, not the upcoming hero. */
+}
+[data-concept="05"] [data-c5-board="02-03"] .c5-cms-empty {
+  display:block;
+  padding:clamp(16px,3vw,28px) 0;
+  color:var(--c5-paper-muted,#999);
+  font-size:11px;
+  border-block:1px solid var(--c5-rule-color,#555);
+  letter-spacing:.08em;
+}
+[data-concept="05"] [data-c5-board="02-03"] .c5-cms-empty[hidden] {
+  display:none!important;
+}
+[data-concept="05"] [data-c5-board="02-03"] .event-archive {
+  margin-top:12px;
+}
+[data-concept="05"] [data-c5-board="02-03"] .archive-grid:empty {
+  display:none;
+}
+@media(min-width:901px) {
+  [data-concept="05"] [data-c5-board="02-03"] {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    align-items:stretch;
+  }
+}
+@media(max-width:900px) {
+  [data-concept="05"] [data-c5-board="02-03"] {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+  }
+}
