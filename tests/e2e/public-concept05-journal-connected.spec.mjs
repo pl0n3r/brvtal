@@ -160,6 +160,21 @@ test('Concept 05 desktop Journal authors a real feature/index and Connected draw
   await expect(page.locator('[data-connected-ledger-edge="release_memory"]')).toHaveCount(0);
   await expect(page.locator('[data-connected-edges]')).toContainText('7 VERIFIED RELATIONAL LINKS');
 
+  // Visual geometry regression: genuine CMS edges form a diagonal/radial
+  // network at desktop widths instead of five nodes in one long row.
+  const positions = await page.locator('.c5-connected-nodes li').evaluateAll(nodes =>
+    nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return {x:rect.left + rect.width / 2,y:rect.top + rect.height / 2};
+    })
+  );
+  expect(positions[0].x).toBeLessThan(positions[2].x);
+  expect(positions[2].x).toBeLessThan(positions[1].x);
+  expect(positions[0].y).toBeLessThan(positions[3].y);
+  expect(positions[1].y).toBeLessThan(positions[4].y);
+  expect(positions[2].y).toBeGreaterThan(positions[0].y);
+  expect(positions[2].y).toBeLessThan(positions[3].y);
+
   expect(await page.evaluate(() => window.__publicReads)).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
