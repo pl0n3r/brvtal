@@ -23,7 +23,11 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn("publicationTime(posts[0]?.published_at) === null", js)
         self.assertLess(js.index(".sort((a, b)"), js.index(".slice(0, 5)", js.index("const publishedPosts")))
         self.assertIn("post.status === 'published'", js)
-        self.assertIn("post.is_published !== false", js)
+        self.assertIn("&& publiclyPublished(post)", js)
+        self.assertIn("flag === 1", js)
+        self.assertIn("/^(?:1|true)$/i.test(flag.trim())", js)
+        self.assertIn("CMS database flags never expose unpublished Journal records", source(
+            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
         self.assertIn("routeUrl('blog', post.slug)", js)
         self.assertIn("const posts = publishedPosts(data);", js)
         self.assertIn("timeZone:'UTC'", js)

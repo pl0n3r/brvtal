@@ -94,11 +94,19 @@
     return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 19) === exact ? ms : null;
   };
 
+  // Database-backed CMS flags may be bool, tinyint or a serialized string.
+  // If a publication flag exists, fail closed unless it clearly says published.
+  const publiclyPublished = post => {
+    const flag = post.is_published;
+    return flag == null || flag === true || flag === 1
+      || (typeof flag === 'string' && /^(?:1|true)$/i.test(flag.trim()));
+  };
+
   const publishedPosts = data => (Array.isArray(data?.blog) ? data.blog : [])
     .map((post, position) => ({post, position, timestamp:publicationTime(post?.published_at)}))
     .filter(({post, timestamp}) => post && typeof post === 'object'
       && (post.published_at == null || timestamp !== null)
-      && post.is_published !== false
+      && publiclyPublished(post)
       && (post.status == null || post.status === 'published')
       && routeUrl('blog', post.slug))
     .sort((a, b) => (a.timestamp === null) - (b.timestamp === null)

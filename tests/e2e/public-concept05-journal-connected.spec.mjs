@@ -302,6 +302,29 @@ test('CMS publishes newest Journal entries before the top five, rejects drafts a
   await expect(page.locator('a[href="/blog/draft"],a[href="/blog/invalid-month"]')).toHaveCount(0);
 });
 
+test('CMS database flags never expose unpublished Journal records', async ({page}) => {
+  const mixed = structuredClone(data);
+  mixed.blog = [
+    {...data.blog[0],id:201,slug:'draft-int',is_published:0,published_at:'2026-10-11 00:00:00'},
+    {...data.blog[0],id:202,slug:'draft-string',is_published:'0',published_at:'2026-10-10 00:00:00'},
+    {...data.blog[0],id:203,slug:'draft-false',is_published:false,published_at:'2026-10-09 00:00:00'},
+    {...data.blog[0],id:204,slug:'draft-text',is_published:'false',published_at:'2026-10-08 00:00:00'},
+    {...data.blog[1],id:205,slug:'published-int',is_published:1,published_at:'2026-09-30 00:00:00'},
+    {...data.blog[2],id:206,slug:'published-string',is_published:'true',published_at:'2026-09-29 00:00:00'},
+  ];
+  await mount(page, mixed);
+  await expect(page.locator('.transmission-card')).toHaveCount(2);
+  await expect(page.locator('.transmission-feature .transmission-link'))
+    .toHaveAttribute('href','/blog/published-int');
+  await expect(page.locator('.transmission-indexed .transmission-link'))
+    .toHaveAttribute('href','/blog/published-string');
+  for (const slug of ['draft-int','draft-string','draft-false','draft-text']) {
+    await expect(page.locator(`a[href="/blog/${slug}"]`)).toHaveCount(0);
+  }
+  await expect(page.getByRole('link',{name:'Open latest Journal entry'}))
+    .toHaveAttribute('href','/blog/published-int');
+});
+
 test('Published CMS post without a publication date stays visible without a false latest claim', async ({page}) => {
   const undated = structuredClone(data);
   undated.blog = [{...data.blog[0],slug:'published-undated',published_at:null}];
