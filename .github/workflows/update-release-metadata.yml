@@ -469,6 +469,10 @@ jobs:
             artifacts/concept05-positive/c05-fullpage-1440.png
             artifacts/concept05-positive/c05-owner-v2-ab-manifest.json
             artifacts/concept05-positive/c05-export-attestation.json
+            # #971: public synthetic A/B captures from the real 02/03 partial test.
+            test-results/public-concept05-fidelity-971/nights-artists-1440.png
+            test-results/public-concept05-fidelity-971/nights-artists-390.png
+            test-results/public-concept05-fidelity-971/nights-artists-ab-manifest.json
           if-no-files-found: error
           retention-days: 14
 
