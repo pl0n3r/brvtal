@@ -33,7 +33,8 @@
   }
 
   function relationCounts(relations) {
-    var input = relations && typeof relations.counts === 'object' ? relations.counts : {};
+    var input = relations && typeof relations.counts === 'object' && relations.counts !== null && !Array.isArray(relations.counts)
+      ? relations.counts : {};
     var out = {};
     EDGE_SPECS.forEach(function (spec) {
       var value = Number(input[spec[0]]);

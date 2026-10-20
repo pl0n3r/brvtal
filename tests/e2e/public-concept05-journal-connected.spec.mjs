@@ -193,6 +193,16 @@ test('Connected renders no fake lines when the canonical relation graph has zero
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
 
+test('Connected tolerates null CMS relationship counts without fabricated edges', async ({page}) => {
+  const empty = structuredClone(data);
+  empty.relations = {counts:null};
+  await mount(page, empty);
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
+  await expect(page.locator('[data-connected-ledger]')).toContainText('NO STRUCTURED LINKS YET.');
+  await expect(page.locator('[data-connected-edges]')).toContainText('NO STRUCTURED RELATIONSHIPS PUBLISHED YET.');
+  await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
+});
+
 test('Journal empty state remains honest and reduced-motion leaves the authored modules static', async ({page}) => {
   await page.emulateMedia({reducedMotion:'reduce'});
   const empty = structuredClone(data);

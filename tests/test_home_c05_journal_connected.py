@@ -42,6 +42,10 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn('data-connected-ledger', section)
         self.assertIn('TODO CONECTADO.', section)
         self.assertIn("relations && typeof relations.counts === 'object'", js)
+        self.assertIn("relations.counts !== null", js)
+        self.assertIn("!Array.isArray(relations.counts)", js)
+        self.assertIn("Connected tolerates null CMS relationship counts", source(
+            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
         self.assertIn("if (value < 1) return;", js)
         self.assertIn("window.BRVTALPublicDataPromise", js)
 
