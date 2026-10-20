@@ -127,9 +127,11 @@ async function mount(page, payload = data, viewport = {width:1440,height:900}, b
 test('Python AC-01..04 bridge executes alongside Playwright acceptance', () => {
   // package.json is reserved by a parallel V3, so wire the four Python AC
   // tests into the existing Playwright suite without modifying that manifest.
-  execFileSync('python3', [
+  // An explicit Playwright assertion keeps a failed Python AC visible
+  // to both the runner and static-quality checks.
+  expect(() => execFileSync('python3', [
     '-m', 'unittest', '-v', 'tests/test_home_c05_journal_connected.py',
-  ], {cwd:root,encoding:'utf8',timeout:30000,stdio:'pipe'});
+  ], {cwd:root,encoding:'utf8',timeout:30000,stdio:'pipe'})).not.toThrow();
 });
 
 test('Concept 05 desktop Journal authors a real feature/index and Connected draws only verified graph edges', async ({page}) => {
