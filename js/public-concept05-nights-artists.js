@@ -127,6 +127,74 @@
     }
   }
 
+  // Public API archive records only: never mirror the legacy active-events track.
+  function renderPastNights(payload) {
+    var strip = document.querySelector('[data-c5-past-nights]');
+    if (!strip) return;
+    var root = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
+    var items = root && root.archive && Array.isArray(root.archive.events) ? root.archive.events : [];
+    var past = items.filter(function (event) {
+      if (!event || typeof event !== 'object' || event.is_published === false) return false;
+      return !['draft','private','hidden','unpublished','cancelled']
+        .includes(String(event.status || 'archived').toLowerCase());
+    }).slice(0, 4);
+    var cards = past.map(function (event) {
+      var card = document.createElement('article');
+      card.className = 'event-card c5-night-card';
+      card.dataset.c5Lifecycle = 'archive';
+      var media = document.createElement('div');
+      media.className = 'event-img';
+      var photo = safeMediaUrl(event.cover_image || event.image || '');
+      if (photo) {
+        var image = document.createElement('img');
+        image.src = photo;
+        image.alt = String(event.title || '');
+        image.loading = 'lazy';
+        media.appendChild(image);
+      }
+      var info = document.createElement('div');
+      info.className = 'event-info';
+      var meta = document.createElement('span');
+      meta.className = 'mono';
+      meta.textContent = [String(event.event_date || '').slice(0, 10), String(event.city || '')].filter(Boolean).join(' / ');
+      var name = document.createElement('h3');
+      name.textContent = String(event.title || '');
+      info.append(meta, name);
+      var slug = String(event.slug || '').trim();
+      if (slug) {
+        var link = document.createElement('a');
+        link.className = 'event-record mono';
+        link.href = '/events/' + encodeURIComponent(slug);
+        link.textContent = 'VIEW RECORD ↗';
+        info.appendChild(link);
+      }
+      card.append(media, info);
+      hydrateNight(card);
+      return card;
+    });
+    strip.replaceChildren.apply(strip, cards);
+    var empty = document.querySelector('[data-c5-nights-empty]');
+    var all = document.querySelector('.c5-section-route--nights');
+    if (empty) empty.hidden = cards.length > 0;
+    if (all) all.hidden = cards.length === 0;
+    document.documentElement.dataset.c5NightsSource = 'public-cms-archive';
+  }
+
+  window.addEventListener('brvtal:public-data', function (event) {
+    renderPastNights(event.detail);
+  });
+  window.addEventListener('load', function () {
+    window.setTimeout(function () {
+      var request = window.BRVTALPublicDataPromise;
+      if (request && typeof request.then === 'function') {
+        request.then(function (result) {
+          renderPastNights(result && result.payload ? result.payload : result);
+        }).catch(function () { /* A missing CMS response never creates fake records. */ });
+      }
+    }, 260);
+  }, { once:true });
+  window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS = renderPastNights;
+
   function hydrate() {
     document.querySelectorAll('.events-track .event-card').forEach(hydrateNight);
     document.querySelectorAll('.artist-list .artist').forEach(hydrateArtist);
@@ -134,7 +202,7 @@
     // Visibility derives from actual CMS-created nodes, never canned names or counts.
     var nightEmpty = document.querySelector('[data-c5-nights-empty]');
     var artistEmpty = document.querySelector('[data-c5-artists-empty]');
-    if (nightEmpty) nightEmpty.hidden = Boolean(document.querySelector('#events .event-card[data-c5-lifecycle="archive"]'));
+    if (nightEmpty) nightEmpty.hidden = Boolean(document.querySelector('[data-c5-past-nights] .event-card'));
     if (artistEmpty) artistEmpty.hidden = Boolean(document.querySelector('#artists .artist-list .artist'));
     document.documentElement.dataset.concept05Strips = 'ready';
     window.dispatchEvent(new CustomEvent('brvtal:concept05-strips-ready'));

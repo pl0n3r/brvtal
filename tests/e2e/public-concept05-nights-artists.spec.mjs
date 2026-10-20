@@ -236,6 +236,11 @@ test('CMS archive and published roster replace honest empty states without canne
   await expect(page.locator('.events-track .event-card')).toHaveCount(0);
   await expect(page.locator('.artist-list .artist')).toHaveCount(0);
   await page.evaluate(() => {
+    window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
+      { id: 202, title: 'PUBLISHED PAST NIGHT', status: 'archived',
+        event_date: '2026-04-06', city: 'Pereira', slug: 'past-night' },
+      { id: 999, title: 'DO NOT SHOW DRAFT', is_published: false, status: 'draft' }
+    ] } });
     window.BRVTALDynamicHome.renderEvents(
       [{ id: 101, title: 'UPCOMING HIDDEN', status: 'upcoming', event_date: '2026-12-03', slug: 'upcoming' }],
       [{ id: 202, title: 'PUBLISHED PAST NIGHT', status: 'archived', event_date: '2026-04-06', city: 'Pereira', slug: 'past-night' }],
@@ -244,12 +249,22 @@ test('CMS archive and published roster replace honest empty states without canne
       { name: 'CMS PUBLISHED ARTIST', slug: 'cms-published-artist', status: 'active' }
     ]);
   });
-  await expect(page.locator('.event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
+  await expect(page.locator('[data-c5-past-nights] .event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
   await expect(page.locator('.event-card[data-c5-lifecycle="active"]')).toBeHidden();
   await expect(page.locator('[data-c5-nights-empty]')).toBeHidden();
   await expect(page.locator('[data-c5-artists-empty]')).toBeHidden();
-  await expect(page.locator('.event-record[href="/events/past-night"]')).toHaveCount(1);
+  await expect(page.locator('[data-c5-past-nights] .event-record[href="/events/past-night"]')).toHaveCount(1);
   await expect(page.locator('.artist[href="/artists/cms-published-artist"]')).toHaveCount(1);
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('UPCOMING HIDDEN');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW DRAFT');
+  await expect(page.locator('[data-c5-legacy-track]')).toBeHidden();
+  await page.evaluate(() => {
+    document.querySelector('[data-c5-legacy-track]').textContent = 'ACTIVE ONLY';
+  });
+  await expect(page.locator('[data-c5-past-nights]')).toContainText('PUBLISHED PAST NIGHT');
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({archive:{events:[]}}));
+  await expect(page.locator('[data-c5-nights-empty]')).toBeVisible();
+  await expect(page.locator('.c5-section-route--nights')).toBeHidden();
 });
 
 test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ page }, testInfo) => {
@@ -258,15 +273,15 @@ test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ pag
   for (const width of [1440, 390]) {
     await mountRealPartialPair(page, width);
     await page.evaluate(() => {
-      window.BRVTALDynamicHome.renderEvents([], [
+      window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({archive:{events:[
         { id: 303, title: 'CMS ARCHIVED NIGHT', status: 'archived',
           event_date: '2026-08-07', slug: 'archived-night', city: 'Pereira' },
-      ]);
+      ]}});
       window.BRVTALPublicRoster.render([
         { name: 'CMS ARTIST', slug: 'cms-artist', status: 'active' },
       ]);
     });
-    await expect(page.locator('.event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
+    await expect(page.locator('[data-c5-past-nights] .event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
     await testInfo.attach('build-ahead-partials-' + width, {
       body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
     });

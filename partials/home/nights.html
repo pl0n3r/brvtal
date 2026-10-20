@@ -1,10 +1,24 @@
     <section class="events scene c5-numbered" data-dynamic="events" id="events" data-scene="ARCHIVE" data-index="02" aria-labelledby="c5-nights-title">
       <link rel="stylesheet" href="css/public-concept05-nights-artists.css">
       <div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span><h2 id="c5-nights-title">ÚLTIMAS NOCHES</h2><span class="mono">ARCHIVE / PAST</span></div>
-      <div class="events-track" data-c5-past-nights aria-label="Noches pasadas publicadas" aria-live="polite"></div>
+      <div class="c5-past-nights" data-c5-past-nights aria-label="Noches pasadas publicadas" aria-live="polite"></div>
+      <div class="events-track" data-c5-legacy-track hidden aria-hidden="true"></div>
       <p class="c5-cms-empty mono" data-c5-nights-empty role="status">NO PUBLISHED NIGHTS YET.</p>
-      <a class="c5-section-route c5-section-route--nights" href="#eventArchive">VER TODAS LAS NOCHES ↗</a>
-      <div class="event-archive" id="eventArchive" data-dynamic="archive">
+      <a class="c5-section-route c5-section-route--nights" href="#eventArchive" hidden>VER TODAS LAS NOCHES ↗</a>
+      <div class="event-archive" id="eventArchive" data-dynamic="archive" hidden>
+                <div class="event-archive-head"><div><div class="event-archive-kicker mono">PAST NIGHTS / PERMANENT RECORD</div><h3>ARCHIVE</h3></div><div class="archive-summary mono" aria-live="polite"></div></div>
+        <div class="archive-discovery" aria-label="Search and filter archive">
+          <label class="archive-search"><span class="mono">BUSCAR HISTORIA</span><input type="search" data-archive-search placeholder="EVENT, CITY, VENUE OR ARTIST" autocomplete="off"></label>
+          <div class="archive-relations" aria-label="Filter by related content">
+            <button type="button" class="active" data-archive-relation="all">ALL RECORDS</button>
+            <button type="button" data-archive-relation="artists">WITH ARTISTS</button>
+            <button type="button" data-archive-relation="sets">WITH SETS</button>
+            <button type="button" data-archive-relation="memories">WITH MEMORIES</button>
+          </div>
+        </div>
+        <div class="archive-years" aria-label="Filter archive by year"></div>
+        <div class="archive-results mono" data-archive-results aria-live="polite"></div>
+        <div class="archive-no-results" data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" class="mono" data-archive-reset>CLEAR FILTERS</button></div>
         <div class="archive-grid" aria-label="Historial publicado"></div>
       </div>
     </section>

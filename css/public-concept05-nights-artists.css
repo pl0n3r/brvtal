@@ -676,3 +676,18 @@ align-self:center;
     grid-template-columns:minmax(0,1fr);
   }
 }
+
+/* #971: archive.js owns the hidden legacy active track; 02 shows CMS past only. */
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-legacy-track]{display:none!important}
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-past-nights]{
+  display:flex;max-width:100%;min-width:0;gap:8px;overflow-x:auto;
+  overscroll-behavior-inline:contain;touch-action:pan-x pan-y;
+  scroll-snap-type:inline proximity;padding:16px 0 12px
+}
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-past-nights]>.event-card{scroll-snap-align:start}
+[data-concept="05"] [data-c5-board="02-03"] .c5-section-route[hidden]{display:none!important}
+@media(min-width:901px){
+  [data-concept="05"] [data-c5-board="02-03"] .roster-group{
+    grid-template-columns:repeat(3,minmax(0,1fr))
+  }
+}

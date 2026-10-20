@@ -42,12 +42,15 @@ class Concept05NightsArtistsV2Tests(unittest.TestCase):
         self.assertIn('class="artist-list"', artists)
         self.assertNotIn('data-public-event-id="', nights)
         self.assertNotIn('class="artist" href="', artists)
-        self.assertIn("data-c5-lifecycle=\"archive\"", enhancement)
-        self.assertIn("if (nightEmpty) nightEmpty.hidden", enhancement)
+        self.assertIn("function renderPastNights(payload)", enhancement)
+        self.assertIn("data-c5-past-nights", enhancement)
         self.assertIn("if (artistEmpty) artistEmpty.hidden", enhancement)
         self.assertIn("canonicalEventList(activeItems, archiveItems)",
                       source("js/app.js"))
         self.assertIn("window.BRVTALPublicRoster", source("js/public-roster.js"))
+        self.assertIn("brvtal:public-data", enhancement)
+        self.assertIn("is_published === false", enhancement)
+        self.assertIn("data-c5-legacy-track", nights)
         self.assertIn("CMS archive and published roster", source(
             "tests/e2e/public-concept05-nights-artists.spec.mjs"))
 
