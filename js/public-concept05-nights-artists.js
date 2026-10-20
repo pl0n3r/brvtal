@@ -146,7 +146,7 @@
       // Archive payloads can be stale: never label a future dated event as past.
       var eventDate = String(event.event_date || '').trim();
       var timestamp = Date.parse(eventDate.replace(' ', 'T'));
-      return !Number.isFinite(timestamp) || timestamp <= Date.now();
+      return Number.isFinite(timestamp) && timestamp <= Date.now();
     }).sort(function (left, right) {
       // Canonical CMS event dates begin with YYYY-MM-DD; newest first.
       return String(right.event_date || '').localeCompare(String(left.event_date || ''));

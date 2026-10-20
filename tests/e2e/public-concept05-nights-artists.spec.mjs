@@ -290,12 +290,23 @@ test('latest published past nights are sorted newest-first, bounded, and never f
     { id:6, title:'DO NOT SHOW FUTURE', status:'archived', event_date:'2099-01-01' },
     { id:7, title:'DO NOT SHOW UPCOMING', status:'upcoming', event_date:'2021-05-01' },
     { id:8, title:'DO NOT SHOW PRIVATE', status:'archived', is_published:0, event_date:'2025-07-01' },
+    { id:9, title:'DO NOT SHOW MISSING DATE', status:'archived' },
+    { id:10, title:'DO NOT SHOW INVALID DATE', status:'archived', event_date:'not-a-date' },
   ] } }));
   const titles = await page.locator('[data-c5-past-nights] .event-card h3').allTextContents();
   expect(titles).toEqual(['NEWEST', 'SECOND', 'THIRD', 'FOURTH']);
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW FUTURE');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW UPCOMING');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW PRIVATE');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW MISSING DATE');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW INVALID DATE');
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
+    { title:'UNKNOWN DATE', status:'archived' },
+    { title:'BAD DATE', status:'archived', event_date:'not-a-date' },
+    { title:'FUTURE', status:'archived', event_date:'2099-01-01' },
+  ] } }));
+  await expect(page.locator('[data-c5-past-nights] .event-card')).toHaveCount(0);
+  await expect(page.locator('[data-c5-nights-empty]')).toBeVisible();
 });
 
 test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ page }, testInfo) => {
