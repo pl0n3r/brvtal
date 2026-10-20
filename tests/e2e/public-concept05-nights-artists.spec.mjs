@@ -288,7 +288,7 @@ test('latest published past nights are sorted newest-first, bounded, and never f
     { id:4, title:'SECOND', status:'archived', event_date:'2024-05-01' },
     { id:5, title:'FOURTH', status:'archived', event_date:'2022-05-01' },
     { id:6, title:'DO NOT SHOW FUTURE', status:'archived', event_date:'2099-01-01' },
-    { id:7, title:'DO NOT SHOW UPCOMING', status:'upcoming', event_date:'2021-05-01' },
+    { id:7, title:'OLDER PUBLIC NIGHT', status:'upcoming', event_date:'2021-05-01' },
     { id:8, title:'DO NOT SHOW PRIVATE', status:'archived', is_published:0, event_date:'2025-07-01' },
     { id:9, title:'DO NOT SHOW MISSING DATE', status:'archived' },
     { id:10, title:'DO NOT SHOW INVALID DATE', status:'archived', event_date:'not-a-date' },
@@ -296,10 +296,26 @@ test('latest published past nights are sorted newest-first, bounded, and never f
   const titles = await page.locator('[data-c5-past-nights] .event-card h3').allTextContents();
   expect(titles).toEqual(['NEWEST', 'SECOND', 'THIRD', 'FOURTH']);
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW FUTURE');
-  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW UPCOMING');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('OLDER PUBLIC NIGHT');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW PRIVATE');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW MISSING DATE');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW INVALID DATE');
+  // Server-owned public_archive.php can contain a past event still marked
+  // upcoming; do not mistake its stale CMS status for a future event.
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
+    { title:'HISTORICAL UPCOMING', status:'upcoming', event_date:'2024-02-14' },
+    { title:'SOLD OUT PAST', status:'sold_out', event_date:'2023-02-14' },
+    { title:'NOT PUBLIC', status:'preview', event_date:'2025-02-14' },
+    { title:'CANCELLED', status:'cancelled', event_date:'2024-03-14' },
+    { title:'FUTURE UPCOMING', status:'upcoming', event_date:'2099-02-14' },
+    { title:'MISSING STATUS', event_date:'2022-01-14' },
+  ] } }));
+  expect(await page.locator('[data-c5-past-nights] .event-card h3').allTextContents())
+    .toEqual(['HISTORICAL UPCOMING', 'SOLD OUT PAST']);
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('NOT PUBLIC');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('CANCELLED');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('FUTURE UPCOMING');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('MISSING STATUS');
   await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
     { title:'UNKNOWN DATE', status:'archived' },
     { title:'BAD DATE', status:'archived', event_date:'not-a-date' },

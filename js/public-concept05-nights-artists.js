@@ -139,8 +139,11 @@
       var published = event.is_published;
       if (published !== undefined && published !== null
         && ![true, 1, '1', 'true'].includes(published)) return false;
-      var status = String(event.status || 'archived').trim().toLowerCase();
-      if (['draft','private','hidden','unpublished','cancelled','upcoming','scheduled'].includes(status)) {
+      var status = String(event.status || '').trim().toLowerCase();
+      // The canonical public API archives past events even if their CMS status
+      // is still upcoming. Allow only known public lifecycle states, excluding
+      // cancelled nights. Date and publication checks remain fail-closed.
+      if (!['published','upcoming','tickets_available','last_tickets','sold_out','finished','archived'].includes(status)) {
         return false;
       }
       // Archive payloads can be stale: never label a future dated event as past.
