@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
@@ -375,6 +375,10 @@ test('latest published past nights are sorted newest-first, bounded, and never f
 test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ page }, testInfo) => {
   const reference = join(root, 'docs/reference/home-concept05-owner-reference-v2.png');
   await testInfo.attach('owner-v2-reference', { path: reference, contentType: 'image/png' });
+  // The Chromium CI job uploads this glob; testInfo attachments alone are not durable PR artifacts.
+  const artifactDir = join(root, 'test-results', 'public-concept05-fidelity-971');
+  mkdirSync(artifactDir, { recursive:true });
+  copyFileSync(reference, join(artifactDir, 'owner-v2-reference.png'));
   for (const width of [1440, 390]) {
     await mountRealPartialPair(page, width);
     await page.evaluate(() => {
@@ -387,11 +391,24 @@ test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ pag
       ]);
     });
     await expect(page.locator('[data-c5-past-nights] .event-card[data-c5-lifecycle="archive"]')).toHaveCount(1);
+    const screenshot = await page.screenshot({ fullPage: true });
     await testInfo.attach('build-ahead-partials-' + width, {
-      body: await page.screenshot({ fullPage: true }), contentType: 'image/png',
+      body: screenshot, contentType: 'image/png',
     });
+    writeFileSync(join(artifactDir, 'nights-artists-' + width + '.png'), screenshot);
   }
-  // Human A/B against the attached approved reference remains a separate PR gate.
+  writeFileSync(join(artifactDir, 'nights-artists-ab-manifest.json'), JSON.stringify({
+    issue:971, viewports:[1440,390],
+    reference:'owner-v2-reference.png',
+    captures:['nights-artists-1440.png','nights-artists-390.png'],
+    source:'Browser-rendered C05 real home partials with synthetic, public CMS-shaped records',
+    deviations:[
+      'One synthetic CMS archived Night and one Artist, versus the reference containing several: counts must reflect actual published CMS records, not fabricated cards',
+      'No actual artwork is generated or published by this test; placeholder/missing media is not production visual parity'
+    ],
+    status:'Evidence for visual A/B review; NOT production validation or visual approval'
+  }, null, 2) + '\n');
+  // Human A/B against the approved reference remains distinct from browser PASS.
 });
 
 
