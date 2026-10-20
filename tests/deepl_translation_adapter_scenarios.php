@@ -157,10 +157,20 @@ if ($scenario === 'cache') {
         $source, 'en', $adapter, $cacheRead, $cacheWrite, true, true
     );
     deepl_expect(is_array($trusted), 'public trusted projection works through existing resolver');
+    $spacedSource = $source;
+    $spacedSource['title'] = "  Hola pagina \r\n";
+    $spaced = brvtalPublicEditorialOverlayResolve(
+        $spacedSource, 'en', $adapter, $cacheRead, $cacheWrite, true, true
+    );
+    deepl_expect(is_array($spaced), 'spaced public title must preserve its English overlay');
+    deepl_expect(
+        ($spaced['fields']['title'] ?? null) === 'EN Hola pagina',
+        'spaced public title must normalize before the injected fake transport'
+    );
     deepl_report([
         'first' => $first, 'second' => $second, 'spanish' => $spanish,
         'changed' => $changed, 'private' => $private,
-        'trusted' => is_array($trusted), 'calls_before_visibility' => $beforeVisibility,
+        'trusted' => is_array($trusted), 'spaced_title' => $spaced['fields']['title'], 'calls_before_visibility' => $beforeVisibility,
         'transport_calls' => $calls,
         'cache_keys' => count($store),
     ]);

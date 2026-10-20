@@ -71,6 +71,7 @@ class DeepLAdapterTests(unittest.TestCase):
         self.assertEqual(data["changed"]["source"], "provider")
         self.assertIsNone(data["private"])
         self.assertTrue(data["trusted"])
+        self.assertEqual(data["spaced_title"], "EN Hola pagina")
         self.assertEqual(data["calls_before_visibility"], 2)
         self.assertGreater(data["transport_calls"], 2)
         self.assertGreaterEqual(data["cache_keys"], 4)
