@@ -258,7 +258,7 @@ echo json_encode($results);
         self.assertIn("duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds')", modules)
         self.assertIn("function validOptionalSetDuration()", modules)
         self.assertIn("if (type === 'sets' && !validOptionalSetDuration()) return;", modules)
-        self.assertIn("const canonical = value === '' || /^[1-9]\\d{0,4}$/.test(value);".replace("\\\\d", "\\d"), modules)
+        self.assertIn(r"const canonical = value === '' || /^[1-9]\d{0,4}$/.test(value);", modules)
         self.assertIn("input.checkValidity() && canonical", modules)
         self.assertIn("input.reportValidity();", modules)
         self.assertIn("Feedback.error('Duration must be whole seconds", modules)
@@ -348,6 +348,51 @@ echo json_encode($results);
         self.assertIn("known CMS durations", e2e)
         self.assertIn("for (const width of [390, 1440])", e2e)
         self.assertIn("await page.setViewportSize({width, height:width === 390 ? 844 : 900});", e2e)
+
+
+    def test_editor_duration_guard_runtime_synthetic(self):
+        """Exercise the production editor guard without network or real records."""
+        modules = source("discadmin/admin-modules.js")
+        self.assertIn("if (type === 'sets' && !validOptionalSetDuration()) return;", modules)
+        if shutil.which("node") is None:
+            self.skipTest("Node unavailable for isolated editor guard execution")
+        guard = "function validOptionalSetDuration() {" + modules.split(
+            "function validOptionalSetDuration() {", 1
+        )[1].split("  window.save = async function", 1)[0]
+        harness = r"""
+let current;
+let errorCount = 0;
+const document = {getElementById: key => key === 'f_duration_seconds' ? current : null};
+const Feedback = {error() {errorCount++;}};
+""" + guard + r"""
+const inputs = JSON.parse(process.argv[1]);
+const results = inputs.map(value => {
+  let reported = 0;
+  let focused = 0;
+  const prevErrors = errorCount;
+  current = {
+    value,
+    checkValidity() {
+      if (value === '') return true;
+      const num = Number(value);
+      return value.trim() === value && Number.isInteger(num) && num >= 1 && num <= 86400;
+    },
+    reportValidity() {reported++;},
+    focus() {focused++;}
+  };
+  const allowed = validOptionalSetDuration();
+  return [allowed, reported, focused, errorCount - prevErrors];
+});
+console.log(JSON.stringify(results));
+"""
+        inputs = ["", "1", "3599", "86400", "0", "-1", "86401",
+                  "01", "1e2", "1.5", "3.0", "abc", " 1 "]
+        output = subprocess.run(
+            ["node", "-e", harness, json.dumps(inputs)],
+            check=True, capture_output=True, text=True
+        )
+        expected = [[True, 0, 0, 0]] * 4 + [[False, 1, 1, 1]] * 9
+        self.assertEqual(json.loads(output.stdout), expected)
 
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")
