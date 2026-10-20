@@ -90,7 +90,10 @@ if ($scenario === 'valid') {
     );
     $rejects[] = deepl_error(static fn(): string => $invalidUtf8Response->translate('Hola', 'es', 'en'));
     deepl_expect($calls === 1, 'invalid input must not reach transport');
-    deepl_report(['translated' => $translated, 'version' => $adapter->version(), 'rejects' => $rejects, 'transport_calls' => $calls]);
+    $normalized = $adapter->translate("  Hola mundo \r\n", 'es', 'en');
+    deepl_expect($normalized === 'EN Hola mundo', 'safe whitespace must normalize before fake transport');
+    deepl_expect($calls === 2, 'only valid requests reach fake transport');
+    deepl_report(['translated' => $translated, 'normalized' => $normalized, 'version' => $adapter->version(), 'rejects' => $rejects, 'transport_calls' => $calls]);
 }
 
 if ($scenario === 'errors') {

@@ -36,7 +36,8 @@ class DeepLAdapterTests(unittest.TestCase):
         data = run_scenario("valid")
         self.assertEqual(data["translated"], "EN Hola mundo")
         self.assertEqual(data["version"], "deepl-fake-es-en-v1")
-        self.assertEqual(data["transport_calls"], 1)
+        self.assertEqual(data["normalized"], "EN Hola mundo")
+        self.assertEqual(data["transport_calls"], 2)
         self.assertEqual(data["rejects"], [
             "invalid_public_text", "unsupported_locale",
             "invalid_public_text", "invalid_public_text",

@@ -26,9 +26,3 @@ BRVTAL #920 retains legal/privacy and DPA consent, any allowed cost decision, cr
 ## Release metadata only
 
 BRVTAL CI classifies `config/public_translation_deepl.php` as deploy-bound, so the release-version preflight requires a sequential product-version transition even though the adapter remains unwired.
-
-[PR #1007](https://github.com/pl0n3r/brvtal/pull/1007) is **merged** into `main@1bd47c931ffa324fd43acc399440efc6eff978e7` with product version `0.1.145`; its previous V3 claim on `config/version.php` and `package.json` is inactive. After recovering #967 and formally renewing its V3 contract to include those two metadata files, branch `work/issue-967` was reconciled with that exact main via a non-force merge, and both version manifests were bumped to **`0.1.146`** in commit `7e189f9ffd2217f3a7c3ac9786618551590c7689`. This does not activate the DeepL provider or add production wiring. The latest CI `preflight` on that SHA has succeeded; `validate` and the full CI must be assessed on the eventual final HEAD rather than inferred from earlier runs.
-
-The only six claimed paths are the four fake-adapter/test/doc files, plus these two product-version metadata manifests. Before a final squash, re-check the authentic active V3 UUID, exact HEAD, six-path diff, sequential version, complete tests and security evidence. Ask CodeRabbit for **one final review only after final CI is green**, never during intermediate commits. Do not interpret a green CI or a merged source patch as a production DeepL smoke.
-
-The repo's project metadata/README identify phase `live`, while `datos.yml` identifies `construccion`. Under Factory D-069, the author must not assume autonomous merge authority in `live` from this conflict, and D-043/D-059 deployment gates remain independent. #920 still controls any real provider account, tokens, privacy/commercial consent, networking, spending and production activation.

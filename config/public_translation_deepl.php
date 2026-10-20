@@ -53,9 +53,12 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
             throw new InvalidArgumentException('invalid_public_text');
         }
         $plain = brvtalPublicTranslationPlainText($source);
-        if ($plain === null || $plain !== $source) {
+        if ($plain === null) {
             throw new InvalidArgumentException('invalid_public_text');
         }
+        // Normalization is safe for public plain text and preserves cache identity
+        // at the provider-neutral resolver boundary.
+        $source = $plain;
 
         try {
             // Only this injected test double is invoked; no key is forwarded.
