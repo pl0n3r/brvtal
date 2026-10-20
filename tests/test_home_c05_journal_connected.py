@@ -21,6 +21,7 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
             "CMS publishes newest Journal entries",
             "CMS database flags never expose unpublished Journal records",
             "Published CMS post without a publication date stays visible",
+            "Journal waits for CMS public data to be published after the loader",
         ):
             self.assertIn(f"test('{scenario}", e2e)
 

@@ -134,6 +134,32 @@ test('Python AC-01..04 bridge executes alongside Playwright acceptance', () => {
   ], {cwd:root,encoding:'utf8',timeout:30000,stdio:'pipe'})).not.toThrow();
 });
 
+test('Journal waits for CMS public data to be published after the loader', async ({page}) => {
+  // app.js attaches initialization to load plus a timer; the loader may
+  // evaluate the Journal module before BRVTALPublicDataPromise exists.
+  const html = markup(data);
+  const start = html.indexOf('window.BRVTALPublicDataPromise=Promise.resolve(');
+  const end = html.indexOf('</script>', start);
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+  const delayed = html.slice(0, start) +
+    'window.BRVTALPublicDataPromise = null;\n' + html.slice(end);
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8', body:delayed
+  }));
+  await page.goto(harness);
+  await page.addScriptTag({content:journalJs});
+  await expect(page.locator('#fallback')).toHaveCount(1);
+  await page.waitForTimeout(180);
+  await page.evaluate(payload => {
+    window.BRVTALPublicDataPromise =
+      Promise.resolve({payload:{data:payload}});
+  }, data);
+  await expect(page.locator('.transmission-card')).toHaveCount(3);
+  await expect(page.locator('#transmissions')).toHaveAttribute('data-state','ready');
+  await expect(page.locator('#fallback')).toHaveCount(0);
+});
+
 test('Concept 05 desktop Journal authors a real feature/index and Connected draws only verified graph edges', async ({page}) => {
   await mount(page);
 

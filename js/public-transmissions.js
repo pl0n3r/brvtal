@@ -2,7 +2,7 @@
   'use strict';
 
   const section = document.querySelector('[data-dynamic="transmissions"]');
-  if (!section || !window.BRVTALPublicDataPromise) return;
+  if (!section) return;
 
   const list = section.querySelector('[data-transmissions-list]');
   const count = section.querySelector('[data-transmissions-count]');
@@ -197,10 +197,29 @@
     }));
   }
 
-  window.BRVTALPublicDataPromise.then(result => {
-    render(result?.payload?.data || {});
-  }).catch(() => {
-    count.textContent = 'SIGNAL UNAVAILABLE';
-    section.dataset.state = 'unavailable';
-  });
+  // app.js publishes the CMS request after window.load + 120ms.
+  // The runtime loader may evaluate Journal before that point.
+  const waitForDataPromise = async maxWaitMs => {
+    const started = Date.now();
+    while (!window.BRVTALPublicDataPromise && Date.now() - started < maxWaitMs) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return window.BRVTALPublicDataPromise || null;
+  };
+
+  (async () => {
+    const request = await waitForDataPromise(4000);
+    if (!request) {
+      count.textContent = 'SIGNAL UNAVAILABLE';
+      section.dataset.state = 'unavailable';
+      return;
+    }
+    try {
+      const result = await request;
+      render(result?.payload?.data || {});
+    } catch (_) {
+      count.textContent = 'SIGNAL UNAVAILABLE';
+      section.dataset.state = 'unavailable';
+    }
+  })();
 })();
