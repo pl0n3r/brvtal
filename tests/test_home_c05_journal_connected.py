@@ -75,6 +75,10 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn("document.querySelector('#media img[src^=", visual)
         self.assertIn("image.complete && image.naturalWidth > 0", visual)
         self.assertIn("transmission-cover.is-media-missing", visual)
+        self.assertIn("NOCHE / SEÑAL", visual)
+        self.assertIn("FRECUENCIAS DEL ARCHIVO", visual)
+        self.assertIn("MEMORIAS VIVAS", visual)
+        self.assertIn(".toHaveText(['NOCHE / SEÑAL'", visual)
 
     def test_browser_scenarios_cover_journal_and_connected(self) -> None:
         loader = source("js/public-runtime-loader.js")

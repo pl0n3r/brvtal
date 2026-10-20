@@ -1034,11 +1034,25 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
         sets:[{id:3,slug:'ritual',title:'RITUAL SET'}],
         releases:[{id:4,slug:'signal',title:'SIGNAL 001'}],
         memories:[{id:5,title:'ARCHIVE IMAGE'}],
+        // A/B uses four fabricated public records: one illustrated feature
+        // and three date-ordered index entries, not production CMS data.
         blog:[{
           id:6,slug:'ciudad-como-pista',title:'LA CIUDAD COMO PISTA',
           published_at:'2026-10-12 12:00:00',status:'published',
           is_published:true,excerpt:'Crónica editorial del archivo BRVTAL.',
           cover_image:cover,
+        },{
+          id:7,slug:'noche-senal',title:'NOCHE / SEÑAL',
+          published_at:'2026-10-09 19:00:00',status:'published',is_published:true,
+          excerpt:'La comunidad se encuentra en la pista.'
+        },{
+          id:8,slug:'frecuencias-del-archivo',title:'FRECUENCIAS DEL ARCHIVO',
+          published_at:'2026-10-05 15:00:00',status:'published',is_published:true,
+          excerpt:'Relatos y sonidos del archivo editorial.'
+        },{
+          id:9,slug:'memorias-vivas',title:'MEMORIAS VIVAS',
+          published_at:'2026-09-27 11:00:00',status:'published',is_published:true,
+          excerpt:'Crónicas de una cultura en movimiento.'
         }],
         relations:{counts:{event_artist:2,event_memory:1}},
       }}});
@@ -1047,6 +1061,9 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     await page.addScriptTag({content:readFileSync(join(root,'js/public-concept05-connected.js'),'utf8')});
     await expect(page.locator('#transmissions .transmission-feature')).toHaveCount(1);
     await expect(page.locator('#transmissions .transmission-feature')).toContainText('LA CIUDAD COMO PISTA');
+    await expect(page.locator('#transmissions .transmission-indexed .transmission-link h3'))
+      .toHaveText(['NOCHE / SEÑAL', 'FRECUENCIAS DEL ARCHIVO', 'MEMORIAS VIVAS']);
+    await expect(page.locator('#transmissions [data-transmissions-list] article')).toHaveCount(4);
     // AC-03 must document the populated visual state, never the missing-image fallback.
     await expect(page.locator('#transmissions .transmission-cover img')).toHaveCount(1);
     await expect.poll(async () => page.locator('#transmissions .transmission-cover img')
