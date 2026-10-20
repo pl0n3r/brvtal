@@ -279,6 +279,33 @@ test('CMS archive and published roster replace honest empty states without canne
   await expect(page.locator('.c5-section-route--nights')).toBeHidden();
 });
 
+test('C05 view-all route waits for a genuine rendered archive and fails closed on loss', async ({ page }) => {
+  await mountRealPartialPair(page, 1440);
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({
+    archive: { events: [
+      { id: 920, title: 'PAST FROM CMS', status: 'archived', event_date: '2023-05-01' }
+    ] }
+  }));
+  const route = page.locator('.c5-section-route--nights');
+  await expect(page.locator('[data-c5-past-nights] .event-card')).toHaveCount(1);
+  await expect(route).toBeHidden(); // Archive.js has not supplied a target.
+  await page.evaluate(() => {
+    const archive = document.querySelector('#eventArchive');
+    const card = document.createElement('article');
+    card.dataset.archiveEvent = '';
+    archive.querySelector('.archive-grid').appendChild(card);
+    archive.hidden = false;
+  });
+  await expect(route).toBeVisible();
+  await expect(route).toHaveAttribute('href', '#eventArchive');
+  await page.evaluate(() => { document.querySelector('#eventArchive').hidden = true; });
+  await expect(route).toBeHidden();
+  await page.evaluate(() => { document.querySelector('#eventArchive').hidden = false; });
+  await expect(route).toBeVisible();
+  await page.evaluate(() => { document.querySelector('.archive-grid').replaceChildren(); });
+  await expect(route).toBeHidden(); // No stale CTA after the CMS archive empties.
+});
+
 test('latest published past nights are sorted newest-first, bounded, and never future', async ({ page }) => {
   await mountRealPartialPair(page, 1440);
   await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [

@@ -127,6 +127,20 @@
     }
   }
 
+  // A published-night CTA must never point into an unrendered or hidden archive.
+  // archive.js owns the actual CMS archive; this component observes, never fakes it.
+  function syncArchiveRoute() {
+    var board = document.querySelector('[data-c5-board="02-03"]');
+    if (!board) return; // Legacy standalone strips have independent route contracts.
+    var route = board.querySelector('.c5-section-route--nights');
+    if (!route) return;
+    var archive = board.querySelector('#eventArchive');
+    var hasPastNights = Boolean(board.querySelector('[data-c5-past-nights] .event-card'));
+    var hasArchiveCards = Boolean(archive && !archive.hidden
+      && archive.querySelector('.archive-grid [data-archive-event]'));
+    route.hidden = !(hasPastNights && hasArchiveCards);
+  }
+
   // Public API archive records only: never mirror the legacy active-events track.
   function renderPastNights(payload) {
     var strip = document.querySelector('[data-c5-past-nights]');
@@ -201,9 +215,8 @@
     });
     strip.replaceChildren.apply(strip, cards);
     var empty = document.querySelector('[data-c5-nights-empty]');
-    var all = document.querySelector('.c5-section-route--nights');
     if (empty) empty.hidden = cards.length > 0;
-    if (all) all.hidden = cards.length === 0;
+    syncArchiveRoute();
     document.documentElement.dataset.c5NightsSource = 'public-cms-archive';
   }
 
@@ -240,6 +253,13 @@
   var observer = new MutationObserver(hydrate);
   if (eventsTrack) observer.observe(eventsTrack, { childList:true });
   if (artistList) observer.observe(artistList, { childList:true, subtree:false });
+  var archiveRoot = document.querySelector('[data-c5-board="02-03"] #eventArchive');
+  if (archiveRoot) {
+    var archiveObserver = new MutationObserver(syncArchiveRoute);
+    archiveObserver.observe(archiveRoot, {
+      attributes:true, attributeFilter:['hidden'], childList:true, subtree:true
+    });
+  }
 
   window.addEventListener('brvtal:roster-rendered', hydrate);
   window.BRVTAL_CONCEPT05_STRIPS_INIT = hydrate;
