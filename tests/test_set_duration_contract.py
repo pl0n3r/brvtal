@@ -259,6 +259,8 @@ echo json_encode($results);
         self.assertIn("function validOptionalSetDuration()", modules)
         self.assertIn("if (type === 'sets' && !validOptionalSetDuration()) return;", modules)
         self.assertIn(r"const canonical = value === '' || /^[1-9]\d{0,4}$/.test(value);", modules)
+        self.assertIn("if (!input) {", modules)
+        self.assertIn("Duration field unavailable; reopen the Sets editor.", modules)
         self.assertIn("input.checkValidity() && canonical", modules)
         self.assertIn("input.reportValidity();", modules)
         self.assertIn("Feedback.error('Duration must be whole seconds", modules)
@@ -383,7 +385,10 @@ const results = inputs.map(value => {
   const allowed = validOptionalSetDuration();
   return [allowed, reported, focused, errorCount - prevErrors];
 });
-console.log(JSON.stringify(results));
+const priorErrors = errorCount;
+current = null;
+const missingAllowed = validOptionalSetDuration();
+console.log(JSON.stringify({results, missingAllowed, missingErrors: errorCount - priorErrors}));
 """
         inputs = ["", "1", "3599", "86400", "0", "-1", "86401",
                   "01", "1e2", "1.5", "3.0", "abc", " 1 "]
@@ -392,7 +397,10 @@ console.log(JSON.stringify(results));
             check=True, capture_output=True, text=True
         )
         expected = [[True, 0, 0, 0]] * 4 + [[False, 1, 1, 1]] * 9
-        self.assertEqual(json.loads(output.stdout), expected)
+        result = json.loads(output.stdout)
+        self.assertEqual(result["results"], expected)
+        self.assertFalse(result["missingAllowed"])
+        self.assertEqual(result["missingErrors"], 1)
 
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")

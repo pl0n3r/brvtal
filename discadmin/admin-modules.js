@@ -420,7 +420,11 @@ window.BRVTALAdminModules = (() => {
   // the same canonical integer syntax as the server before making a request.
   function validOptionalSetDuration() {
     const input = document.getElementById('f_duration_seconds');
-    if (!input) return true;
+    // A missing field must not silently overwrite a saved duration with null.
+    if (!input) {
+      Feedback.error('Duration field unavailable; reopen the Sets editor.', 'sets-duration');
+      return false;
+    }
     const value = input.value;
     const canonical = value === '' || /^[1-9]\d{0,4}$/.test(value);
     if (input.checkValidity() && canonical) return true;
