@@ -1021,6 +1021,33 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     expect(artwork.total).toBeGreaterThan(0);
     expect(artwork.broken).toEqual([]);
     await page.evaluate(()=>{document.body.dataset.concept='05';});
+    // Render the actual checked-in Journal and Connected scripts with an
+    // explicit synthetic CMS fixture before capturing visual proof.
+    // A static loading placeholder is never an AC-03 fidelity screenshot.
+    await page.evaluate(() => {
+      const cover = document.querySelector('img[src^="/assets/"]')?.src || '';
+      window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{
+        events:[{id:7,slug:'genesis',title:'GENESIS'}],
+        artists:[{id:2,slug:'pl0n3r',name:'PL0N3R'}],
+        sets:[{id:3,slug:'ritual',title:'RITUAL SET'}],
+        releases:[{id:4,slug:'signal',title:'SIGNAL 001'}],
+        memories:[{id:5,title:'ARCHIVE IMAGE'}],
+        blog:[{
+          id:6,slug:'ciudad-como-pista',title:'LA CIUDAD COMO PISTA',
+          published_at:'2026-10-12 12:00:00',status:'published',
+          is_published:true,excerpt:'Crónica editorial del archivo BRVTAL.',
+          cover_image:cover,
+        }],
+        relations:{counts:{event_artist:2,event_memory:1}},
+      }}});
+    });
+    await page.addScriptTag({content:readFileSync(join(root,'js/public-transmissions.js'),'utf8')});
+    await page.addScriptTag({content:readFileSync(join(root,'js/public-concept05-connected.js'),'utf8')});
+    await expect(page.locator('#transmissions .transmission-feature')).toHaveCount(1);
+    await expect(page.locator('#transmissions .transmission-feature')).toContainText('LA CIUDAD COMO PISTA');
+    await expect(page.locator('#connected [data-connected-lines] line')).toHaveCount(2);
+    await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VERIFIED RELATIONAL LINKS.');
+
     const observed=await page.evaluate(()=>{
       const nodes=[...document.querySelectorAll('main#top>.c5-board-region')];
       return {ids:nodes.map(x=>x.dataset.c5Board),children:nodes.map(x=>[...x.children].map(y=>y.id)),overflow:document.documentElement.scrollWidth-innerWidth,columns:nodes.map(x=>getComputedStyle(x).gridTemplateColumns.split(' ').length),connected:document.querySelectorAll('#connected').length};
