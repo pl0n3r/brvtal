@@ -351,6 +351,8 @@ echo json_encode($results);
         self.assertIn("document.readyState === 'complete'", renderer)
         self.assertIn("window.addEventListener('load', hydrateAfterStaticLoad", renderer)
         self.assertIn("late-injected Sets module hydrates real CMS durations after window load", e2e)
+        self.assertIn("for (let attempt = 0; attempt < 30; attempt += 1)", renderer)
+        self.assertIn("late shared public loader hydrates real CMS duration", e2e)
         self.assertIn("if (!('status' in item)) return true;", renderer)
         self.assertIn("return Object.hasOwn(item, 'status') && item.status === 'published';", renderer)
         self.assertIn("inherited publication status is never trusted", e2e)

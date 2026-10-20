@@ -135,6 +135,19 @@ test('late-injected Sets module hydrates real CMS durations after window load', 
   await expect(page.locator('[data-set-id="2"] [data-set-duration]')).toHaveText('DURATION / 01:35');
 });
 
+test('late shared public loader hydrates real CMS duration without inventing fallback values', async ({ page }) => {
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8',
+    body:markup('window.setTimeout(() => { window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{sets:' +
+      JSON.stringify(sets) + '}}}); }, 900);'),
+  }));
+  await page.goto(harness);
+  await expect(page.locator('#fallback-set')).toContainText('STATIC FALLBACK');
+  await expect(page.locator('#fallback-set')).toHaveCount(0);
+  await expect(page.locator('[data-set-id="3"] [data-set-duration]')).toHaveText('DURATION / 1:30:32');
+  await expect(page.locator('[data-set-id="2"] [data-set-duration]')).toHaveText('DURATION / 01:35');
+});
+
 test('valid empty public Sets data replaces the static fallback with a true empty archive state', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',

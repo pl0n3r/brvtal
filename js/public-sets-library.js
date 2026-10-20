@@ -240,7 +240,9 @@
   };
 
   const dataFromSharedRequest = async () => {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    // The shared loader may register its Promise after window.load, especially on slow pages.
+    // Bound the wait; missing or malformed CMS data must still leave the static fallback visible.
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       const request = window.BRVTALPublicDataPromise;
       if (request && typeof request.then === 'function') {
         const result = await request;
