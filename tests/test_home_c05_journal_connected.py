@@ -50,6 +50,10 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertIn("Connected tolerates null CMS relationship counts", source(
             "tests/e2e/public-concept05-journal-connected.spec.mjs"))
         self.assertIn("if (value < 1) return;", js)
+        self.assertIn("Number.isSafeInteger(next)", js)
+        self.assertIn("RELATIONAL LINK TOTAL UNAVAILABLE.", js)
+        self.assertIn("Connected declines an imprecise aggregate total", source(
+            "tests/e2e/public-concept05-journal-connected.spec.mjs"))
         self.assertIn("window.BRVTALPublicDataPromise", js)
 
     def test_desktop_mobile_reference_contract_and_capture_gate(self) -> None:

@@ -48,7 +48,13 @@
   }
 
   function edgeTotal(counts) {
-    return Object.values(counts).reduce(function (sum, value) { return sum + value; }, 0);
+    // Each CMS count is safe on its own, but the aggregate may overflow.
+    // Report an unknown total rather than round a verified link count.
+    return Object.values(counts).reduce(function (sum, value) {
+      if (sum === null) return null;
+      var next = sum + value;
+      return Number.isSafeInteger(next) ? next : null;
+    }, 0);
   }
 
   function nodeCenter(section, key) {
@@ -127,9 +133,11 @@
     var edges = edgeTotal(counts);
     var edgesEl = section.querySelector('[data-connected-edges]');
     if (edgesEl) {
-      edgesEl.textContent = edges > 0
-        ? edges + ' VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.'
-        : 'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.';
+      edgesEl.textContent = edges === null
+        ? 'RELATIONAL LINK TOTAL UNAVAILABLE.'
+        : edges > 0
+          ? edges + ' VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.'
+          : 'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.';
     }
 
     requestAnimationFrame(function () { drawEdges(section, counts); });

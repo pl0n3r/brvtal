@@ -231,6 +231,17 @@ test('Connected rejects malformed CMS counts without fabricating graph edges', a
   await expect(page.locator('[data-connected-edges]')).toContainText('2 VERIFIED RELATIONAL LINKS');
 });
 
+test('Connected declines an imprecise aggregate total while preserving exact CMS edges', async ({page}) => {
+  const large = structuredClone(data);
+  large.relations = {counts:{event_artist:Number.MAX_SAFE_INTEGER,event_set:1}};
+  await mount(page, large);
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(2);
+  await expect(page.locator('[data-connected-edge="event_artist"]'))
+    .toHaveAttribute('data-connected-count',String(Number.MAX_SAFE_INTEGER));
+  await expect(page.locator('[data-connected-ledger-edge="event_set"]')).toContainText('1');
+  await expect(page.locator('[data-connected-edges]')).toHaveText('RELATIONAL LINK TOTAL UNAVAILABLE.');
+});
+
 test('Journal empty state remains honest and reduced-motion leaves the authored modules static', async ({page}) => {
   await page.emulateMedia({reducedMotion:'reduce'});
   const empty = structuredClone(data);
