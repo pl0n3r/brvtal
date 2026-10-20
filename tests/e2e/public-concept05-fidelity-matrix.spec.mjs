@@ -1046,7 +1046,7 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     await expect(page.locator('#transmissions .transmission-feature')).toHaveCount(1);
     await expect(page.locator('#transmissions .transmission-feature')).toContainText('LA CIUDAD COMO PISTA');
     await expect(page.locator('#connected [data-connected-lines] line')).toHaveCount(2);
-    await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VERIFIED RELATIONAL LINKS.');
+    await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.');
 
     const observed=await page.evaluate(()=>{
       const nodes=[...document.querySelectorAll('main#top>.c5-board-region')];
