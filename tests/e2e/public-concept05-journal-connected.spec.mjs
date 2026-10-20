@@ -205,3 +205,70 @@ test('Journal empty state remains honest and reduced-motion leaves the authored 
   expect(nodeTransition).toBe('0s');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
+
+test('CMS publishes newest Journal entries before the top five, rejects drafts and invalid dates', async ({page}) => {
+  const scrambled = structuredClone(data);
+  scrambled.blog = [
+    data.blog[2],
+    {...data.blog[0],id:96,slug:'invalid-month',published_at:'2026-13-01 00:00:00'},
+    data.blog[1],
+    {...data.blog[0],id:97,slug:'draft',status:'draft',published_at:'2026-10-10 00:00:00'},
+    {...data.blog[0],id:98,slug:'unsafe<script>',published_at:'2026-10-11 00:00:00'},
+    data.blog[0],
+    {...data.blog[1],id:99,slug:'same-time',published_at:data.blog[1].published_at},
+  ];
+  await mount(page, scrambled);
+  await expect(page.locator('.transmission-card')).toHaveCount(4);
+  await expect(page.locator('.transmission-feature .transmission-link'))
+    .toHaveAttribute('href','/blog/night-does-not-end');
+  expect(await page.locator('.transmission-link').evaluateAll(nodes =>
+    nodes.map(node => node.getAttribute('href'))
+  )).toEqual([
+    '/blog/night-does-not-end','/blog/pressure-systems','/blog/same-time','/blog/records-as-memory'
+  ]);
+  await expect(page.getByRole('link',{name:'Open latest Journal entry'}))
+    .toHaveAttribute('href','/blog/night-does-not-end');
+  await expect(page.locator('a[href="/blog/draft"],a[href="/blog/invalid-month"]')).toHaveCount(0);
+});
+
+test('real home partials source mounts exactly one Journal 06 and Connected 07 at 390 and 1440', async ({page}, testInfo) => {
+  const source = readFileSync(join(root,'index.html'),'utf8');
+  const journal = readFileSync(join(root,'partials/home/journal.html'),'utf8');
+  const connected = readFileSync(join(root,'partials/home/connected.html'),'utf8');
+  const php = readFileSync(join(root,'index.php'),'utf8');
+  const loader = readFileSync(join(root,'js/public-runtime-loader.js'),'utf8');
+  expect(php).toContain("'journal' => __DIR__ . '/partials/home/journal.html'");
+  expect(php).toContain("'connected' => __DIR__ . '/partials/home/connected.html'");
+  expect(php).toContain("'css/public-concept05-journal-connected.css'");
+  expect(loader).toContain("'js/public-concept05-connected.js'");
+  expect(source.match(/<!-- BRVTAL-HOME-PARTIAL:journal -->/g)).toHaveLength(1);
+  expect(source.match(/<!-- BRVTAL-HOME-PARTIAL:connected -->/g)).toHaveLength(1);
+  expect(journal).toContain('data-index="06"');
+  expect(connected).toContain('data-index="07"');
+  const preview = source.replace('<!-- BRVTAL-HOME-PARTIAL:journal -->',journal)
+    .replace('<!-- BRVTAL-HOME-PARTIAL:connected -->',connected);
+  expect(preview).toContain('id="transmissions"');
+  expect(preview).toContain('id="connected"');
+  for (const width of [390,1440]) {
+    await page.setViewportSize({width,height:900});
+    const localHtml = markup(data).replace(
+      /<section class="scene transmissions c5-numbered"[\s\S]*?<\/section>/,
+      journal.replace('class="scene transmissions"','class="scene transmissions c5-numbered"')
+    ).replace(
+      /<section class="connected scene c5-numbered"[\s\S]*?<\/section>/,
+      connected
+    );
+    await page.route(harness, route=>route.fulfill({contentType:'text/html; charset=utf-8',body:localHtml}));
+    await page.goto(harness);
+    await page.addScriptTag({content:journalJs});
+    await page.addScriptTag({content:connectedJs});
+    await expect(page.locator('#transmissions[data-index="06"]')).toHaveCount(1);
+    await expect(page.locator('#connected[data-index="07"]')).toHaveCount(1);
+    await expect(page.locator('[data-connected-node]')).toHaveCount(5);
+    await expect(page.locator('.transmission-feature')).toHaveCount(1);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await testInfo.attach('build-ahead-local-partials-'+width+'.png',{
+      body:await page.screenshot({fullPage:true}), contentType:'image/png'
+    });
+  }
+});

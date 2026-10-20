@@ -33,10 +33,11 @@
 
   const formatDate = value => {
     if (!value) return 'TRANSMISSION';
-    const date = new Date(String(value).replace(' ', 'T'));
-    if (Number.isNaN(date.getTime())) return 'TRANSMISSION';
+    const timestamp = publicationTime(value);
+    if (timestamp === null) return 'TRANSMISSION';
+    const date = new Date(timestamp);
     return new Intl.DateTimeFormat('en-GB', {
-      day:'2-digit',month:'2-digit',year:'numeric'
+      day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'
     }).format(date);
   };
 
@@ -80,8 +81,30 @@
     if (image.complete && image.naturalWidth === 0) failCover(figure, image);
   };
 
+
+  // CMS may return publications out of order. Pick the newest public
+  // entries before slicing; invalid dates are never used to invent a latest.
+  const publicationTime = value => {
+    if (typeof value !== 'string') return null;
+    const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:Z)?$/.exec(value.trim());
+    if (!match) return null;
+    const exact = match[1] + 'T' + match[2];
+    const ms = Date.parse(exact + 'Z');
+    return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 19) === exact ? ms : null;
+  };
+
+  const publishedPosts = data => (Array.isArray(data?.blog) ? data.blog : [])
+    .map((post, position) => ({post, position, timestamp:publicationTime(post?.published_at)}))
+    .filter(({post, timestamp}) => post && typeof post === 'object'
+      && timestamp !== null && post.is_published !== false
+      && (post.status == null || post.status === 'published')
+      && routeUrl('blog', post.slug))
+    .sort((a, b) => b.timestamp - a.timestamp || a.position - b.position)
+    .slice(0, 5)
+    .map(({post}) => post);
+
   function render(data) {
-    const posts = Array.isArray(data.blog) ? data.blog.slice(0, 5) : [];
+    const posts = publishedPosts(data);
     const relationIndex = buildRelationIndex(data);
     list.replaceChildren();
     document.documentElement.dataset.publicTransmissions = 'editorial';

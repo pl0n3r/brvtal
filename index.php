@@ -249,6 +249,7 @@ $homeStyles = [
     'css/public-sets-library.css',
     'css/public-memories.css',
     'css/public-transmissions.css',
+    'css/public-concept05-journal-connected.css',
     'css/public-visual-identity.css',
 ];
 $homeStyleLinks = implode(
