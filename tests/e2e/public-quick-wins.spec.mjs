@@ -115,7 +115,26 @@ test('Home images keep explicit accessible alternatives', async ({ page }) => {
   await expect(page.locator('.hero-logo')).toHaveAttribute('alt', /\S+/);
   await expect(page.locator('#manifesto, .manifesto-art')).toHaveCount(0);
   await expect(page.locator('#genesis')).toHaveCount(1);
-  await expect(page.locator('.event-img img').first()).toHaveAttribute('alt', /\S+/);
+  // No CMS night is fabricated in the static template: the published strip starts empty.
+  await expect(page.locator('[data-c5-past-nights] .event-img img')).toHaveCount(0);
+  await expect(page.locator('[data-c5-nights-empty]')).toHaveCount(1);
+  // With a real CMS-shaped published night, the actual C05 renderer must supply alt text.
+  await page.route('https://example.test/night.svg', route => route.fulfill({
+    status: 200,
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"></svg>',
+  }));
+  await page.evaluate(() => { document.body.dataset.concept = '05'; });
+  const c5Runtime = readFileSync(join(root, 'js/public-concept05-nights-artists.js'), 'utf8');
+  await page.addScriptTag({ content: c5Runtime });
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({
+    archive: { events: [{
+      id: 1, title: 'PUBLISHED CMS NIGHT', status: 'archived',
+      event_date: '2023-05-01', cover_image: 'https://example.test/night.svg',
+    }] },
+  }));
+  await expect(page.locator('[data-c5-past-nights] .event-img img'))
+    .toHaveAttribute('alt', 'PUBLISHED CMS NIGHT');
 });
 
 test('Hero counting remains tied to the configured slider total', async () => {

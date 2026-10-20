@@ -104,7 +104,7 @@
         var nights = document.createElement('a');
         nights.className = 'c5-section-route c5-section-route--nights';
         nights.href = '#eventArchive';
-        nights.textContent = 'VIEW ALL NIGHTS ↓';
+        nights.textContent = 'VER TODAS LAS NOCHES ↗';
         events.insertBefore(nights, archive);
       }
     }
@@ -117,7 +117,7 @@
         if (!existing) {
           existing = document.createElement('a');
           existing.className = 'c5-section-route c5-section-route--artists';
-          existing.textContent = 'EXPLORE PROFILES ↗';
+          existing.textContent = 'VER ARTISTAS ↗';
           artists.insertBefore(existing, artists.querySelector('.artist-list'));
         }
         existing.href = firstProfile.getAttribute('href');
@@ -127,10 +127,123 @@
     }
   }
 
+  // A published-night CTA must never point into an unrendered or hidden archive.
+  // archive.js owns the actual CMS archive; this component observes, never fakes it.
+  function syncArchiveRoute() {
+    var board = document.querySelector('[data-c5-board="02-03"]');
+    if (!board) return; // Legacy standalone strips have independent route contracts.
+    var route = board.querySelector('.c5-section-route--nights');
+    if (!route) return;
+    var archive = board.querySelector('#eventArchive');
+    var hasPastNights = Boolean(board.querySelector('[data-c5-past-nights] .event-card'));
+    var hasArchiveCards = Boolean(archive && !archive.hidden
+      && archive.querySelector('.archive-grid [data-archive-event]:not([hidden])'));
+    route.hidden = !(hasPastNights && hasArchiveCards);
+  }
+
+  // Public API archive records only: never mirror the legacy active-events track.
+  function renderPastNights(payload) {
+    var strip = document.querySelector('[data-c5-past-nights]');
+    if (!strip) return;
+    var root = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
+    var items = root && root.archive && Array.isArray(root.archive.events) ? root.archive.events : [];
+    var past = items.filter(function (event) {
+      if (!event || typeof event !== 'object') return false;
+      // CMS often encodes publication booleans as 0 / "0" rather than false.
+      var published = event.is_published;
+      if (published !== undefined && published !== null
+        && ![true, 1, '1', 'true'].includes(published)) return false;
+      var status = String(event.status || '').trim().toLowerCase();
+      // The canonical public API archives past events even if their CMS status
+      // is still upcoming. Allow only known public lifecycle states, excluding
+      // cancelled nights. Date and publication checks remain fail-closed.
+      if (!['published','upcoming','tickets_available','last_tickets','sold_out','finished','archived'].includes(status)) {
+        return false;
+      }
+      // Archive payloads can be stale: never label a future dated event as past.
+      var eventDate = String(event.event_date || '').trim();
+      var timestamp = Date.parse(eventDate.replace(' ', 'T'));
+      var dateParts = /^(\d{4})-(\d{2})-(\d{2})(?:[ T]|$)/.exec(eventDate);
+      if (!dateParts || !Number.isFinite(timestamp)) return false;
+      var year = Number(dateParts[1]);
+      var month = Number(dateParts[2]);
+      var day = Number(dateParts[3]);
+      var localEventDay = new Date(year, month - 1, day);
+      if (localEventDay.getFullYear() !== year || localEventDay.getMonth() !== month - 1
+        || localEventDay.getDate() !== day) return false;
+      // public_visibility.php classifies historical events before today's midnight.
+      var now = new Date();
+      var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return localEventDay < todayMidnight;
+    }).sort(function (left, right) {
+      // Canonical CMS event dates begin with YYYY-MM-DD; newest first.
+      return String(right.event_date || '').localeCompare(String(left.event_date || ''));
+    }).slice(0, 4);
+    var cards = past.map(function (event) {
+      var card = document.createElement('article');
+      card.className = 'event-card c5-night-card';
+      card.dataset.c5Lifecycle = 'archive';
+      var media = document.createElement('div');
+      media.className = 'event-img';
+      var photo = safeMediaUrl(event.cover_image || event.image || '');
+      if (photo) {
+        var image = document.createElement('img');
+        image.src = photo;
+        image.alt = String(event.title || '');
+        image.loading = 'lazy';
+        media.appendChild(image);
+      }
+      var info = document.createElement('div');
+      info.className = 'event-info';
+      var meta = document.createElement('span');
+      meta.className = 'mono';
+      meta.textContent = [String(event.event_date || '').slice(0, 10), String(event.city || '')].filter(Boolean).join(' / ');
+      var name = document.createElement('h3');
+      name.textContent = String(event.title || '');
+      info.append(meta, name);
+      var slug = String(event.slug || '').trim();
+      if (slug) {
+        var link = document.createElement('a');
+        link.className = 'event-record mono';
+        link.href = '/events/' + encodeURIComponent(slug);
+        link.textContent = 'VIEW RECORD ↗';
+        info.appendChild(link);
+      }
+      card.append(media, info);
+      hydrateNight(card);
+      return card;
+    });
+    strip.replaceChildren.apply(strip, cards);
+    var empty = document.querySelector('[data-c5-nights-empty]');
+    if (empty) empty.hidden = cards.length > 0;
+    syncArchiveRoute();
+    document.documentElement.dataset.c5NightsSource = 'public-cms-archive';
+  }
+
+  window.addEventListener('brvtal:public-data', function (event) {
+    renderPastNights(event.detail);
+  });
+  window.addEventListener('load', function () {
+    window.setTimeout(function () {
+      var request = window.BRVTALPublicDataPromise;
+      if (request && typeof request.then === 'function') {
+        request.then(function (result) {
+          renderPastNights(result && result.payload ? result.payload : result);
+        }).catch(function () { /* A missing CMS response never creates fake records. */ });
+      }
+    }, 260);
+  }, { once:true });
+  window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS = renderPastNights;
+
   function hydrate() {
     document.querySelectorAll('.events-track .event-card').forEach(hydrateNight);
     document.querySelectorAll('.artist-list .artist').forEach(hydrateArtist);
     ensureRoutes();
+    // Visibility derives from actual CMS-created nodes, never canned names or counts.
+    var nightEmpty = document.querySelector('[data-c5-nights-empty]');
+    var artistEmpty = document.querySelector('[data-c5-artists-empty]');
+    if (nightEmpty) nightEmpty.hidden = Boolean(document.querySelector('[data-c5-past-nights] .event-card'));
+    if (artistEmpty) artistEmpty.hidden = Boolean(document.querySelector('#artists .artist-list .artist'));
     document.documentElement.dataset.concept05Strips = 'ready';
     window.dispatchEvent(new CustomEvent('brvtal:concept05-strips-ready'));
   }
@@ -140,6 +253,13 @@
   var observer = new MutationObserver(hydrate);
   if (eventsTrack) observer.observe(eventsTrack, { childList:true });
   if (artistList) observer.observe(artistList, { childList:true, subtree:false });
+  var archiveRoot = document.querySelector('[data-c5-board="02-03"] #eventArchive');
+  if (archiveRoot) {
+    var archiveObserver = new MutationObserver(syncArchiveRoute);
+    archiveObserver.observe(archiveRoot, {
+      attributes:true, attributeFilter:['hidden'], childList:true, subtree:true
+    });
+  }
 
   window.addEventListener('brvtal:roster-rendered', hydrate);
   window.BRVTAL_CONCEPT05_STRIPS_INIT = hydrate;

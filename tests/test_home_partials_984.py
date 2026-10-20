@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import http.client
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -28,6 +29,29 @@ def render_static_composition() -> str:
             raise ValueError(f"Missing or repeated fixed partial marker: {name}")
         partial = ROOT / "partials" / "home" / f"{name}.html"
         html = html.replace(marker, partial.read_text(encoding="utf-8"))
+    return html
+
+
+
+def compose_without_owner_leaf_markup(html: str) -> str:
+    """Preserve byte-exact #984 baseline outside #971's two editable C05 blocks.
+
+    The v2 design intentionally replaces only nights/events and artists; other
+    home partials and the surrounding board must still match the frozen #984
+    snapshot exactly. The HTML section selectors must be unambiguous.
+    """
+    for section_id in ("events", "artists"):
+        pattern = re.compile(
+            rf'<section\b[^>]*\bid="{section_id}"[^>]*>.*?</section>',
+            flags=re.DOTALL,
+        )
+        html, replacements = pattern.subn(
+            f"<!-- #971 edited {section_id} partial -->", html
+        )
+        if replacements != 1:
+            raise AssertionError(
+                f"Expected exactly one editable {section_id} section, found {replacements}"
+            )
     return html
 
 
@@ -78,7 +102,13 @@ class HomePartials984Tests(unittest.TestCase):
 
     def test_rendered_home_matches_pre_refactor_baseline(self) -> None:
         baseline = (ROOT / "tests" / "fixtures" / "home-partials-984-baseline.html").read_text(encoding="utf-8")
-        self.assertEqual(render_static_composition(), baseline)
+        # A true #984 lossless contract for all unchanged DOM; #971 is the
+        # authorized owner of the two replaced 02/03 sections only.
+        composed = render_static_composition()
+        self.assertEqual(
+            compose_without_owner_leaf_markup(composed),
+            compose_without_owner_leaf_markup(baseline),
+        )
         # Execute the loader extracted from the actual PHP entrypoint, not a
         # duplicate Python implementation. This runs with synthetic files only.
         php = (ROOT / "index.php").read_text(encoding="utf-8")
@@ -90,7 +120,7 @@ class HomePartials984Tests(unittest.TestCase):
             capture_output=True, text=True, timeout=30, check=False,
         )
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        self.assertEqual(run.stdout, baseline)
+        self.assertEqual(run.stdout, composed)
         self.assertIn('<main id="top">', baseline)
         self.assertIn('data-dynamic="artists"', baseline)
         self.assertIn('data-dynamic="events"', baseline)
@@ -141,7 +171,7 @@ class HomePartials984Tests(unittest.TestCase):
             )
             self.assertEqual(good.returncode, 0, good.stderr)
             baseline = (ROOT / "tests" / "fixtures" / "home-partials-984-baseline.html").read_text(encoding="utf-8")
-            self.assertEqual(good.stdout, baseline)
+            self.assertEqual(good.stdout, render_static_composition())
             # Missing physical partial cannot silently remove the hero.
             hero = root / "partials" / "home" / "hero.html"
             hero.unlink()

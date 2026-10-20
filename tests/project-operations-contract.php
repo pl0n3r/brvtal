@@ -221,7 +221,12 @@ $assert(str_contains($assetFixture, 'background-image:none'), 'decorative CSS ba
 $assert(str_contains($assetFixture, 'assets/brvtal-logo-640.webp?v=abc1234 640w'), 'decorative logo WebP srcset must receive deploy versioning');
 $assert(str_contains($assetFixture, 'assets/flyers/genesis-640.webp?v=abc1234 640w'), 'decorative Genesis WebP srcset must receive deploy versioning');
 $assert(str_contains($indexHtml, 'assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w'), 'Home hero must expose responsive desktop WebP derivatives');
-$assert(str_contains($indexHtml, 'assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w'), 'Home Genesis artwork must expose responsive desktop WebP derivatives');
+$assert(
+    str_contains($indexHtml, 'data-c5-board="02-03"')
+        && str_contains($indexHtml, 'data-c5-past-nights')
+        && str_contains($indexHtml, 'class="artist-list"'),
+    'Composed C05 home must include the CMS-backed Nights/Artists board'
+);
 $assert(is_file($root . '/assets/brvtal-logo-640.webp') && is_file($root . '/assets/brvtal-logo-886.webp'), 'selected logo WebP derivatives must exist');
 $assert(is_file($root . '/assets/flyers/genesis-640.webp') && is_file($root . '/assets/flyers/genesis-886.webp'), 'selected Genesis WebP derivatives must exist');
 
