@@ -168,21 +168,30 @@
     if (!section) return;
     // Same DOM section is mounted once even if PHP and loader both inject us.
     // A new section after a partial re-render must remain independently mountable.
-    if (section.dataset.brvtalConnectedMounted === '1') return;
-    section.dataset.brvtalConnectedMounted = '1';
-
-    var request = await waitForDataPromise(4000);
-    if (!request) {
-      section.dataset.state = 'unavailable';
-      return;
-    }
+    if (section.dataset.brvtalConnectedMounted === '1'
+      || section.dataset.brvtalConnectedMounting === '1') return;
+    section.dataset.brvtalConnectedMounting = '1';
 
     try {
+      var request = await waitForDataPromise(4000);
+      if (!request) {
+        section.dataset.state = 'unavailable';
+        return;
+      }
+
       var result = await request;
       var payload = result && result.payload ? result.payload : result;
-      if (payload) render(section, payload.data || payload);
+      if (!payload || !section.isConnected) {
+        section.dataset.state = 'unavailable';
+        return;
+      }
+      render(section, payload.data || payload);
+      section.dataset.brvtalConnectedMounted = '1';
+      section.dataset.state = 'ready';
     } catch (_) {
       section.dataset.state = 'unavailable';
+    } finally {
+      delete section.dataset.brvtalConnectedMounting;
     }
   }
 
@@ -191,4 +200,9 @@
   } else {
     init();
   }
+  // app.js may not publish its promise until window.load + 120 ms;
+  // recover from an earlier timeout without an unbounded polling loop.
+  window.addEventListener('load', function () {
+    window.setTimeout(init, 180);
+  }, {once:true});
 })();

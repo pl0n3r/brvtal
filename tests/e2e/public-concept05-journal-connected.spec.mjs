@@ -204,6 +204,34 @@ test('Connected module does not mount or emit twice when included by PHP and run
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
 });
 
+test('Connected retries after a late load without mounting stale placeholders', async ({page}) => {
+  const html = markup(data);
+  const start = html.indexOf('window.BRVTALPublicDataPromise=Promise.resolve(');
+  const end = html.indexOf('</script>', start);
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+  const delayed = html.slice(0, start) +
+    'window.BRVTALPublicDataPromise = null;\n' + html.slice(end);
+  await page.route(harness, route => route.fulfill({
+    contentType:'text/html; charset=utf-8', body:delayed,
+  }));
+  await page.goto(harness);
+  await page.addScriptTag({content:connectedJs});
+  await expect(page.locator('#connected')).toHaveAttribute('data-state', 'unavailable', {timeout:5500});
+  await expect(page.locator('#connected')).not.toHaveAttribute('data-brvtal-connected-mounted', '1');
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(0);
+
+  await page.evaluate(payload => {
+    window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:payload}});
+    window.dispatchEvent(new Event('load'));
+  }, data);
+  await expect(page.locator('#connected')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+  await expect(page.locator('#connected')).toHaveAttribute('data-brvtal-connected-mounted', '1');
+  await page.addScriptTag({content:connectedJs});
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+});
+
 test('Concept 05 desktop Journal authors a real feature/index and Connected draws only verified graph edges', async ({page}) => {
   await mount(page);
 
