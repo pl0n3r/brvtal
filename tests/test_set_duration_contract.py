@@ -256,6 +256,12 @@ echo json_encode($results);
         self.assertIn('id="f_duration_seconds" type="number" min="1" max="86400"', admin)
         self.assertIn("r.duration_seconds??''", admin)
         self.assertIn("duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds')", modules)
+        self.assertIn("function validOptionalSetDuration()", modules)
+        self.assertIn("if (type === 'sets' && !validOptionalSetDuration()) return;", modules)
+        self.assertIn("const canonical = value === '' || /^[1-9]\\d{0,4}$/.test(value);".replace("\\\\d", "\\d"), modules)
+        self.assertIn("input.checkValidity() && canonical", modules)
+        self.assertIn("input.reportValidity();", modules)
+        self.assertIn("Feedback.error('Duration must be whole seconds", modules)
         self.assertIn("brvtal_admin_require_csrf();", api)
         self.assertIn("brvtal_activity_record(", api)
         if shutil.which("php") is None:

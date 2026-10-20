@@ -416,7 +416,22 @@ window.BRVTALAdminModules = (() => {
     return rows.reduce((max,row) => Math.max(max,Number(row.sort_order ?? -1)), -1) + 1;
   }
 
+  // The save action is not a native form submit; enforce HTML constraints and
+  // the same canonical integer syntax as the server before making a request.
+  function validOptionalSetDuration() {
+    const input = document.getElementById('f_duration_seconds');
+    if (!input) return true;
+    const value = input.value;
+    const canonical = value === '' || /^[1-9]\d{0,4}$/.test(value);
+    if (input.checkValidity() && canonical) return true;
+    input.reportValidity();
+    input.focus();
+    Feedback.error('Duration must be whole seconds (1–86400), or left empty.', 'sets-duration');
+    return false;
+  }
+
   window.save = async function(type, id = null) {
+    if (type === 'sets' && !validOptionalSetDuration()) return;
     const saveBtn = document.getElementById('saveBtn');
     const previousLabel = saveBtn?.textContent || 'SAVE';
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING…'; }
