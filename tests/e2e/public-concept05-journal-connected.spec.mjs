@@ -210,6 +210,7 @@ test('Connected ignores inherited relation counters and draws no fabricated link
   await page.addInitScript(() => {
     Object.defineProperty(Object.prototype, 'event_artist', {
       configurable:true,
+      writable:true,
       value:6,
     });
   });

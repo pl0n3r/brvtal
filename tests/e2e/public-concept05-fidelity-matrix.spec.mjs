@@ -1029,7 +1029,7 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     expect(observed.children[0]).toEqual(['genesis']);
     expect(observed.children[1]).toEqual(['events','artists']);
     expect(observed.children[2]).toEqual(['sets','media']);
-    expect(observed.children[3]).toEqual(['transmissions']);
+    expect(observed.children[3]).toEqual(['transmissions','connected']);
     expect(observed.connected).toBeLessThanOrEqual(1);
     expect(observed.overflow).toBeLessThanOrEqual(1);
     expect(observed.columns[1]).toBe(width===1440?2:1);
