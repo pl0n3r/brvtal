@@ -96,7 +96,7 @@
   grid-column:1/-1;
   position:relative;
   margin:0 0 12px;
-  aspect-ratio:2/1;
+  aspect-ratio:3/2;
   overflow:hidden;
   border:1px solid var(--c5-rule-color);
   background:
@@ -220,7 +220,7 @@
 
 [data-concept="05"] .c5-connected-graph{
   position:relative;
-  min-height:320px;
+  min-height:360px;
   overflow:hidden;
   padding:14px 0 0;
   border-top:1px solid var(--c5-rule-color);
