@@ -298,6 +298,15 @@ test('C05 view-all route waits for a genuine rendered archive and fails closed o
   });
   await expect(route).toBeVisible();
   await expect(route).toHaveAttribute('href', '#eventArchive');
+  // Archive.js uses [hidden] for filtered-out CMS records, even when the grid is populated.
+  await page.evaluate(() => {
+    document.querySelector('.archive-grid [data-archive-event]').hidden = true;
+  });
+  await expect(route).toBeHidden();
+  await page.evaluate(() => {
+    document.querySelector('.archive-grid [data-archive-event]').hidden = false;
+  });
+  await expect(route).toBeVisible();
   await page.evaluate(() => { document.querySelector('#eventArchive').hidden = true; });
   await expect(route).toBeHidden();
   await page.evaluate(() => { document.querySelector('#eventArchive').hidden = false; });

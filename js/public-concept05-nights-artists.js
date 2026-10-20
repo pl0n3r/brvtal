@@ -137,7 +137,7 @@
     var archive = board.querySelector('#eventArchive');
     var hasPastNights = Boolean(board.querySelector('[data-c5-past-nights] .event-card'));
     var hasArchiveCards = Boolean(archive && !archive.hidden
-      && archive.querySelector('.archive-grid [data-archive-event]'));
+      && archive.querySelector('.archive-grid [data-archive-event]:not([hidden])'));
     route.hidden = !(hasPastNights && hasArchiveCards);
   }
 
