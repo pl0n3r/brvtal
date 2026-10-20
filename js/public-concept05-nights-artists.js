@@ -139,8 +139,17 @@
       var published = event.is_published;
       if (published !== undefined && published !== null
         && ![true, 1, '1', 'true'].includes(published)) return false;
-      return !['draft','private','hidden','unpublished','cancelled']
-        .includes(String(event.status || 'archived').toLowerCase());
+      var status = String(event.status || 'archived').trim().toLowerCase();
+      if (['draft','private','hidden','unpublished','cancelled','upcoming','scheduled'].includes(status)) {
+        return false;
+      }
+      // Archive payloads can be stale: never label a future dated event as past.
+      var eventDate = String(event.event_date || '').trim();
+      var timestamp = Date.parse(eventDate.replace(' ', 'T'));
+      return !Number.isFinite(timestamp) || timestamp <= Date.now();
+    }).sort(function (left, right) {
+      // Canonical CMS event dates begin with YYYY-MM-DD; newest first.
+      return String(right.event_date || '').localeCompare(String(left.event_date || ''));
     }).slice(0, 4);
     var cards = past.map(function (event) {
       var card = document.createElement('article');

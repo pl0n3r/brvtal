@@ -279,6 +279,25 @@ test('CMS archive and published roster replace honest empty states without canne
   await expect(page.locator('.c5-section-route--nights')).toBeHidden();
 });
 
+test('latest published past nights are sorted newest-first, bounded, and never future', async ({ page }) => {
+  await mountRealPartialPair(page, 1440);
+  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
+    { id:1, title:'OLDEST', status:'archived', event_date:'2020-05-01' },
+    { id:2, title:'NEWEST', status:'archived', event_date:'2025-05-01' },
+    { id:3, title:'THIRD', status:'published', event_date:'2023-05-01' },
+    { id:4, title:'SECOND', status:'archived', event_date:'2024-05-01' },
+    { id:5, title:'FOURTH', status:'archived', event_date:'2022-05-01' },
+    { id:6, title:'DO NOT SHOW FUTURE', status:'archived', event_date:'2099-01-01' },
+    { id:7, title:'DO NOT SHOW UPCOMING', status:'upcoming', event_date:'2021-05-01' },
+    { id:8, title:'DO NOT SHOW PRIVATE', status:'archived', is_published:0, event_date:'2025-07-01' },
+  ] } }));
+  const titles = await page.locator('[data-c5-past-nights] .event-card h3').allTextContents();
+  expect(titles).toEqual(['NEWEST', 'SECOND', 'THIRD', 'FOURTH']);
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW FUTURE');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW UPCOMING');
+  await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW PRIVATE');
+});
+
 test('C05 02/03 owner-reference A/B screenshots for real partials', async ({ page }, testInfo) => {
   const reference = join(root, 'docs/reference/home-concept05-owner-reference-v2.png');
   await testInfo.attach('owner-v2-reference', { path: reference, contentType: 'image/png' });
