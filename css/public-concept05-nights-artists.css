@@ -644,7 +644,7 @@ align-self:center;
   overflow:hidden;
 }
 [data-concept="05"] [data-c5-board="02-03"] #events .event-card[data-c5-lifecycle="active"] {
-  display:none!important; /* 02 is published past nights only, not the upcoming hero. */
+  display:none; /* 02 is published past nights only, not the upcoming hero. */
 }
 [data-concept="05"] [data-c5-board="02-03"] .c5-cms-empty {
   display:block;
@@ -655,7 +655,7 @@ align-self:center;
   letter-spacing:.08em;
 }
 [data-concept="05"] [data-c5-board="02-03"] .c5-cms-empty[hidden] {
-  display:none!important;
+  display:none;
 }
 [data-concept="05"] [data-c5-board="02-03"] .event-archive {
   margin-top:12px;
@@ -698,14 +698,14 @@ align-self:center;
 }
 
 /* #971: archive.js owns the hidden legacy active track; 02 shows CMS past only. */
-[data-concept="05"] [data-c5-board="02-03"] [data-c5-legacy-track]{display:none!important}
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-legacy-track]{display:none}
 [data-concept="05"] [data-c5-board="02-03"] [data-c5-past-nights]{
   display:flex;max-width:100%;min-width:0;gap:8px;overflow-x:auto;
   overscroll-behavior-inline:contain;touch-action:pan-x pan-y;
   scroll-snap-type:inline proximity;padding:16px 0 12px
 }
 [data-concept="05"] [data-c5-board="02-03"] [data-c5-past-nights]>.event-card{scroll-snap-align:start}
-[data-concept="05"] [data-c5-board="02-03"] .c5-section-route[hidden]{display:none!important}
+[data-concept="05"] [data-c5-board="02-03"] .c5-section-route[hidden]{display:none}
 @media(min-width:901px){
   [data-concept="05"] [data-c5-board="02-03"] .roster-group{
     grid-template-columns:repeat(6,minmax(0,1fr))
