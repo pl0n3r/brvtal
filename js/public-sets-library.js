@@ -226,7 +226,9 @@
     // If a mixed editor/preview payload supplies a lifecycle explicitly, never
     // render a draft/private Set or its duration on the public library.
     sets = items.filter(item => item && typeof item === 'object'
-      && !Array.isArray(item) && (item.status == null || item.status === 'published'));
+      && !Array.isArray(item)
+      // Absence is expected in canonical public.php; explicit null is not.
+      && (!Object.prototype.hasOwnProperty.call(item, 'status') || item.status === 'published'));
     if (modesRoot) modesRoot.hidden = sets.length === 0;
     selectMode('latest');
     document.documentElement.dataset.publicSets = 'library';
@@ -241,7 +243,9 @@
         const result = await request;
         const payload = result?.payload ?? result;
         const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
-        return Array.isArray(root?.sets) ? root.sets : [];
+        // Missing/malformed Sets is not equivalent to a legitimate empty [] response.
+        // Preserve the static fallback instead of fabricating an empty archive.
+        return Array.isArray(root?.sets) ? root.sets : null;
       }
       await new Promise(resolve => window.setTimeout(resolve, 40));
     }

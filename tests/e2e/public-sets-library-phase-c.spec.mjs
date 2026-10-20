@@ -134,6 +134,21 @@ test('valid empty public Sets data replaces the static fallback with a true empt
   await expect(page.locator('.section-head > span').first()).toHaveText('SOUND LIBRARY / 00');
 });
 
+test('missing or malformed Sets data does not erase the static fallback', async ({ page }) => {
+  for (const payload of [{data:{artists:[]}}, {data:{sets:null}}, {data:{sets:{id:1}}}]) {
+    await page.route(harness, route => route.fulfill({
+      contentType:'text/html; charset=utf-8',
+      body:markup('window.BRVTALPublicDataPromise = Promise.resolve({payload:' + JSON.stringify(payload) + '});'),
+    }));
+    await page.goto(harness);
+    await page.waitForTimeout(350);
+    await expect(page.locator('#fallback-set')).toContainText('STATIC FALLBACK');
+    await expect(page.locator('.sets-library-controls')).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveAttribute('data-public-sets', 'library');
+    await page.unroute(harness);
+  }
+});
+
 test('shared public request failure preserves the static fallback and removes discovery controls', async ({ page }) => {
   await page.route(harness, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
@@ -170,6 +185,7 @@ test('an explicitly unpublished CMS Set never leaks its duration in the public l
   await page.evaluate(() => window.BRVTALPublicSetsLibrary.render([
     {id:88, title:'EDITOR DRAFT PRIVATE', status:'draft', duration_seconds:300},
     {id:89, title:'HIDDEN PREVIEW', status:'private', duration_seconds:600},
+    {id:92, title:'UNKNOWN NULL STATUS', status:null, duration_seconds:30},
     {id:90, title:'PUBLIC RECORD', status:'published', duration_seconds:125},
     {id:91, title:'LEGACY PUBLIC API', duration_seconds:3601},
   ]));
@@ -179,6 +195,7 @@ test('an explicitly unpublished CMS Set never leaks its duration in the public l
   await expect(page.locator('[data-set-id="91"] [data-set-duration]')).toHaveText('DURATION / 1:00:01');
   await expect(page.locator('.set-list')).not.toContainText('EDITOR DRAFT PRIVATE');
   await expect(page.locator('.set-list')).not.toContainText('HIDDEN PREVIEW');
+  await expect(page.locator('.set-list')).not.toContainText('UNKNOWN NULL STATUS');
 });
 
 test('invalid, unknown, malicious and hour-boundary CMS durations are never fabricated', async ({ page }) => {
