@@ -149,7 +149,18 @@
       // Archive payloads can be stale: never label a future dated event as past.
       var eventDate = String(event.event_date || '').trim();
       var timestamp = Date.parse(eventDate.replace(' ', 'T'));
-      return Number.isFinite(timestamp) && timestamp <= Date.now();
+      var dateParts = /^(\d{4})-(\d{2})-(\d{2})(?:[ T]|$)/.exec(eventDate);
+      if (!dateParts || !Number.isFinite(timestamp)) return false;
+      var year = Number(dateParts[1]);
+      var month = Number(dateParts[2]);
+      var day = Number(dateParts[3]);
+      var localEventDay = new Date(year, month - 1, day);
+      if (localEventDay.getFullYear() !== year || localEventDay.getMonth() !== month - 1
+        || localEventDay.getDate() !== day) return false;
+      // public_visibility.php classifies historical events before today's midnight.
+      var now = new Date();
+      var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return localEventDay < todayMidnight;
     }).sort(function (left, right) {
       // Canonical CMS event dates begin with YYYY-MM-DD; newest first.
       return String(right.event_date || '').localeCompare(String(left.event_date || ''));

@@ -316,11 +316,18 @@ test('latest published past nights are sorted newest-first, bounded, and never f
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('CANCELLED');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('FUTURE UPCOMING');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('MISSING STATUS');
-  await page.evaluate(() => window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
-    { title:'UNKNOWN DATE', status:'archived' },
+  await page.evaluate(() => {
+    const today = new Date();
+    const sameDay = [today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0')].join('-');
+    window.BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS({ archive: { events: [
+      { title:'TODAY IS NOT HISTORY', status:'upcoming', event_date:sameDay + ' 00:00:00' },
+      { title:'UNKNOWN DATE', status:'archived' },
     { title:'BAD DATE', status:'archived', event_date:'not-a-date' },
     { title:'FUTURE', status:'archived', event_date:'2099-01-01' },
-  ] } }));
+    ] } });
+  });
   await expect(page.locator('[data-c5-past-nights] .event-card')).toHaveCount(0);
   await expect(page.locator('[data-c5-nights-empty]')).toBeVisible();
 });
