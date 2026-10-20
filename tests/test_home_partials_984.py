@@ -42,7 +42,7 @@ def compose_without_owner_leaf_markup(html: str) -> str:
     """
     for section_id in ("events", "artists", "transmissions"):
         pattern = re.compile(
-            rf'<section\\b[^>]*\\bid="{section_id}"[^>]*>.*?</section>',
+            rf'<section\b[^>]*\bid="{section_id}"[^>]*>.*?</section>',
             flags=re.DOTALL,
         )
         html, replacements = pattern.subn(
@@ -54,7 +54,7 @@ def compose_without_owner_leaf_markup(html: str) -> str:
             )
 
     connected = re.compile(
-        r'<section\\b[^>]*\\bid="connected"[^>]*>.*?</section>',
+        r'<section\b[^>]*\bid="connected"[^>]*>.*?</section>',
         flags=re.DOTALL,
     )
     html, connected_sections = connected.subn("", html)
@@ -63,7 +63,7 @@ def compose_without_owner_leaf_markup(html: str) -> str:
     # #984 froze a blank Connected partial; #973 adds a real section, which
     # may contribute one extra newline at the original fixed marker boundary.
     html = re.sub(
-        r"(<!-- owner-edited transmissions partial -->)\\s+(?=    </div>)",
+        r"(<!-- owner-edited transmissions partial -->)\s+(?=    </div>)",
         lambda match: match.group(1) + "\n\n",
         html,
     )
