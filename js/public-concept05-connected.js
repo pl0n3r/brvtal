@@ -6,10 +6,6 @@
 (function () {
   'use strict';
 
-  // PHP and the runtime loader may both inject this module. Bind once.
-  if (window.__brvtalConnectedBootstrapInstalled === true) return;
-  window.__brvtalConnectedBootstrapInstalled = true;
-
   var EDGE_SPECS = [
     ['event_artist','events','artists','EVENTS ↔ ARTISTS'],
     ['event_set','events','sets','EVENTS ↔ SOUND'],
@@ -170,6 +166,10 @@
   async function init() {
     var section = document.querySelector('#connected[data-scene], section#connected');
     if (!section) return;
+    // Same DOM section is mounted once even if PHP and loader both inject us.
+    // A new section after a partial re-render must remain independently mountable.
+    if (section.dataset.brvtalConnectedMounted === '1') return;
+    section.dataset.brvtalConnectedMounted = '1';
 
     var request = await waitForDataPromise(4000);
     if (!request) {

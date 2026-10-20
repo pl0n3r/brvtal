@@ -197,6 +197,11 @@ test('Connected module does not mount or emit twice when included by PHP and run
   await page.waitForTimeout(150);
   expect(await page.evaluate(() => window.__connectedDuplicateEvents)).toBe(0);
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+  // Replacing the document creates a new section: the same script must mount
+  // again, without reviving duplicate listeners on the old section.
+  await page.setContent(markup(data));
+  await page.addScriptTag({content:connectedJs});
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
 });
 
 test('Concept 05 desktop Journal authors a real feature/index and Connected draws only verified graph edges', async ({page}) => {
