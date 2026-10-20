@@ -256,6 +256,14 @@ test('CMS archive and published roster replace honest empty states without canne
   await expect(page.locator('[data-c5-nights-empty]')).toBeHidden();
   await expect(page.locator('[data-c5-artists-empty]')).toBeHidden();
   await expect(page.locator('[data-c5-past-nights] .event-record[href="/events/past-night"]')).toHaveCount(1);
+
+  // The real CMS card must be usable by touch, not just the legacy fixture.
+  const recordTap = page.locator('[data-c5-past-nights] .event-record[href="/events/past-night"]');
+  await expect(recordTap).toHaveCSS('min-height', '44px');
+  const target = await recordTap.boundingBox();
+  expect(target).not.toBeNull();
+  expect(target.height).toBeGreaterThanOrEqual(44);
+  expect(target.width).toBeGreaterThanOrEqual(44);
   await expect(page.locator('.artist[href="/artists/cms-published-artist"]')).toHaveCount(1);
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('UPCOMING HIDDEN');
   await expect(page.locator('[data-c5-past-nights]')).not.toContainText('DO NOT SHOW DRAFT');
