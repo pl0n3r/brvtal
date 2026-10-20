@@ -236,6 +236,10 @@
 
 [data-concept="05"] .roster-group-head{
   grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
   min-height:36px;
   margin:0;
   padding:0 0 8px;
@@ -633,5 +637,81 @@ align-self:center;
     margin-left:6px;
     margin-right:6px;
     font-size:7px;
+  }
+}
+
+/* #971 / Concept 05 row 02-03: self-contained partial source, no shared manifest. */
+[data-concept="05"] [data-c5-board="02-03"] > #events,
+[data-concept="05"] [data-c5-board="02-03"] > #artists {
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+}
+[data-concept="05"] [data-c5-board="02-03"] #events .event-card[data-c5-lifecycle="active"] {
+  display:none; /* 02 is published past nights only, not the upcoming hero. */
+}
+[data-concept="05"] [data-c5-board="02-03"] .c5-cms-empty {
+  display:block;
+  padding:clamp(16px,3vw,28px) 0;
+  color:var(--c5-paper-muted,#999);
+  font-size:11px;
+  border-block:1px solid var(--c5-rule-color,#555);
+  letter-spacing:.08em;
+}
+[data-concept="05"] [data-c5-board="02-03"] .c5-cms-empty[hidden] {
+  display:none;
+}
+[data-concept="05"] [data-c5-board="02-03"] .event-archive {
+  margin-top:12px;
+}
+[data-concept="05"] [data-c5-board="02-03"] .archive-grid:empty {
+  display:none;
+}
+@media(min-width:901px) {
+  [data-concept="05"] [data-c5-board="02-03"] {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    align-items:stretch;
+  }
+}
+@media(max-width:900px) {
+  [data-concept="05"] [data-c5-board="02-03"] {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+  }
+}
+
+
+/* #971: actual CMS night-card record CTA meets the owner v2 touch contract.
+   The legacy .c5-night-actions selector does not cover cards emitted by
+   BRVTAL_CONCEPT05_RENDER_PAST_NIGHTS. */
+[data-concept="05"] [data-c5-past-nights] .c5-night-card .event-record {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  min-width:44px;
+  width:fit-content;
+  padding:0 12px;
+  border:1px solid var(--c5-rule-color);
+  color:var(--c5-paper-dirty);
+  background:transparent;
+  text-decoration:none;
+  font-size:10px;
+  letter-spacing:.06em;
+}
+
+/* #971: archive.js owns the hidden legacy active track; 02 shows CMS past only. */
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-legacy-track]{display:none}
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-past-nights]{
+  display:flex;max-width:100%;min-width:0;gap:8px;overflow-x:auto;
+  overscroll-behavior-inline:contain;touch-action:pan-x pan-y;
+  scroll-snap-type:inline proximity;padding:16px 0 12px
+}
+[data-concept="05"] [data-c5-board="02-03"] [data-c5-past-nights]>.event-card{scroll-snap-align:start}
+[data-concept="05"] [data-c5-board="02-03"] .c5-section-route[hidden]{display:none}
+@media(min-width:901px){
+  [data-concept="05"] [data-c5-board="02-03"] .roster-group{
+    grid-template-columns:repeat(6,minmax(0,1fr))
   }
 }
