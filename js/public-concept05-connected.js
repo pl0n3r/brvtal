@@ -37,8 +37,12 @@
       ? relations.counts : {};
     var out = {};
     EDGE_SPECS.forEach(function (spec) {
-      var value = Number(input[spec[0]]);
-      out[spec[0]] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+      // The CMS contract carries integer counts. Do not coerce booleans,
+      // objects, fractional values, or unsafe integers into invented edges.
+      var raw = input[spec[0]];
+      var value = typeof raw === 'number' ? raw
+        : (typeof raw === 'string' && /^(?:0|[1-9]\d*)$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
+      out[spec[0]] = Number.isSafeInteger(value) && value > 0 ? value : 0;
     });
     return out;
   }

@@ -203,6 +203,25 @@ test('Connected tolerates null CMS relationship counts without fabricated edges'
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
 
+test('Connected rejects malformed CMS counts without fabricating graph edges', async ({page}) => {
+  const malformed = structuredClone(data);
+  malformed.relations = {counts:{
+    event_artist:true,
+    event_set:{value:2},
+    artist_set:[1,2],
+    artist_release:-7,
+    event_memory:'1.5',
+    artist_memory:'9999999999999999999999',
+    set_memory:'2',
+    release_memory:'-1',
+  }};
+  await mount(page, malformed);
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(1);
+  await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveAttribute('data-connected-count','2');
+  await expect(page.locator('[data-connected-edge="event_artist"]')).toHaveCount(0);
+  await expect(page.locator('[data-connected-edges]')).toContainText('2 VERIFIED RELATIONAL LINKS');
+});
+
 test('Journal empty state remains honest and reduced-motion leaves the authored modules static', async ({page}) => {
   await page.emulateMedia({reducedMotion:'reduce'});
   const empty = structuredClone(data);
