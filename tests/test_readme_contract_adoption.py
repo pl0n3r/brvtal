@@ -58,7 +58,7 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
 
     def test_readme_is_contract_v2_without_unknown_blocks(self):
         readme = self.readme()
-        cockpit = readme.split("## Operational Cockpit", 1)[1].split("\\n## ", 1)[0]
+        cockpit = readme.split("## Operational Cockpit", 1)[1].split("\n## ", 1)[0]
         for stale in (
             "UNKNOWN",
             "factory:status",
