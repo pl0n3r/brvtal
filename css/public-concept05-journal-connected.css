@@ -730,3 +730,59 @@ html[data-theme-grain="0"] [data-concept="05"] #connected .c5-connected-graph{
     radial-gradient(ellipse at 24% 45%,rgba(242,13,18,.14),transparent 42%),
     radial-gradient(ellipse at 78% 52%,rgba(120,222,90,.08),transparent 41%);
 }
+
+
+/* BR973-OWNER-V2-PAIRED-FRAME-20261021
+ * The real 06/07 CMS partials share a frame in the owner's reference:
+ * Journal occupies the editorial majority; Connected is a compact node map.
+ * This overrides the generic 50/50 and 520px pairing ONLY for 06/07 on
+ * desktop. It never invents CMS media/edges and preserves mobile stacking.
+ */
+@media (min-width:901px){
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions){
+    grid-template-columns:minmax(0,7fr) minmax(0,3fr);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions)>section{
+    min-height:0;
+  }
+  [data-concept="05"] #transmissions.transmissions.c5-numbered,
+  [data-concept="05"] #connected.connected.c5-numbered{
+    padding-top:calc(var(--c5-label-height) + 8px);
+    padding-bottom:18px;
+  }
+  [data-concept="05"] #transmissions .transmissions-intro{
+    margin:6px 0 8px;
+    padding-bottom:6px;
+  }
+  [data-concept="05"] #transmissions .transmissions-intro h3{
+    font-size:clamp(20px,1.65vw,28px);
+  }
+  [data-concept="05"] #transmissions .transmissions-list{
+    grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);
+  }
+  [data-concept="05"] #transmissions .transmission-feature{
+    min-height:230px;
+  }
+  [data-concept="05"] #transmissions .transmission-indexed{
+    padding:7px 0;
+  }
+  [data-concept="05"] #connected .c5-connected-graph{
+    min-height:0;
+    padding-top:0;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes{
+    grid-template-rows:repeat(2,minmax(0,62px));
+    min-height:132px;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes li,
+  [data-concept="05"] #connected .c5-connected-nodes a{
+    min-height:62px;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes strong{
+    font-size:clamp(18px,1.8vw,26px);
+  }
+  [data-concept="05"] #connected .c5-connected-tagline{
+    margin-top:8px;
+    font-size:clamp(24px,2.5vw,36px);
+  }
+}
