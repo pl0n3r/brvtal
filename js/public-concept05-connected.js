@@ -26,7 +26,9 @@
     var addId = function (item) {
       // Only real positive CMS IDs are countable. Normalize number/string
       // representations so the public feed and archive cannot double count.
-      var raw = item && item.id;
+      // Only own CMS fields establish identity; inherited IDs/getters are untrusted.
+      var raw = item && typeof item === 'object' && !Array.isArray(item)
+        && Object.hasOwn(item, 'id') ? item.id : undefined;
       var id = typeof raw === 'number' ? raw
         : (typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
       if (Number.isSafeInteger(id) && id > 0) ids.add(String(id));

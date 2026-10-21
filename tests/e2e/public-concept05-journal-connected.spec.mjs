@@ -334,6 +334,22 @@ test('Connected counts only safe CMS event IDs across current and archive record
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
 });
 
+test('Connected never counts inherited CMS event IDs as real nodes', async ({page}) => {
+  const inherited = structuredClone(data);
+  inherited.events = [{id:7}, {title:'NO CMS ID'}];
+  inherited.archive.events = [{id:8}, {title:'NO ARCHIVED CMS ID'}];
+  await page.addInitScript(() => {
+    Object.defineProperty(Object.prototype, 'id', {
+      configurable:true, enumerable:false, writable:true, value:999,
+    });
+  });
+  await mount(page, inherited);
+  // Anonymous CMS records cannot fabricate a third event through the prototype.
+  await expect(page.locator('[data-connected-node="events"] [data-connected-count]'))
+    .toHaveText('2');
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+});
+
 test('Connected ignores inherited relation counters and draws no fabricated links', async ({page}) => {
   const inherited = structuredClone(data);
   inherited.relations = {counts:{}};
