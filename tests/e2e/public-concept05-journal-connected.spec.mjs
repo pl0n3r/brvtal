@@ -573,6 +573,8 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
   await page.evaluate(() => {
     const main = document.createElement('main');
     main.id = 'top';
+    // Match the real PHP home's viewport-wide grid, not shrink-to-fit.
+    main.style.width = '100vw';
     const pair = document.createElement('div');
     pair.className = 'c5-board-region--pair';
     main.appendChild(pair);
@@ -614,6 +616,8 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
     await page.evaluate(() => {
       const main = document.createElement('main');
       main.id = 'top';
+      // Match the real PHP home's viewport-wide grid, not shrink-to-fit.
+      main.style.width = '100vw';
       const pair = document.createElement('div');
       pair.className = 'c5-board-region--pair';
       main.appendChild(pair);
@@ -626,7 +630,7 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
     await expect(nodes).toHaveCount(5);
     await expect.poll(() => nodes.first().evaluate(node =>
       getComputedStyle(node).position === 'absolute'
-    )).toBe(width >= 1440);
+    )).toBe(width >= 1231);
 
     const metrics = await nodes.evaluateAll(items => ({
       rects: items.map(node => {
@@ -639,6 +643,8 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
       listWidth: document.querySelector('#connected .c5-connected-nodes').getBoundingClientRect().width,
       pairWidth: document.querySelector('main#top>.c5-board-region--pair').getBoundingClientRect().width,
     }));
+    // Never validate node spacing with a shrunk 119px synthetic frame.
+    expect(metrics.pairWidth).toBeGreaterThan(width * 0.95);
     expect(metrics.overflow).toBe(false);
     for (let i = 0; i < metrics.rects.length; i++) {
       for (let j = i + 1; j < metrics.rects.length; j++) {

@@ -789,11 +789,11 @@ html[data-theme-grain="0"] [data-concept="05"] #connected .c5-connected-graph{
 
 /* BR973-OWNER-V2-SPATIAL-MAP-20261021
  * The actual paired PHP 06/07 frame has a compact, asymmetric node diagram.
- * Chromium reproduced overlapping absolute nodes at 1231px in the 70/30 split.
- * Keep the existing flow/grid positions below the verified 1440px reference width.
+ * Reserve absolute positions for wide layouts; at 901-1230px the
+ * paired 70/30 column uses the existing responsive grid instead.
  * Only server-verified CMS relations draw SVG lines; do not invent edges.
  */
-@media (min-width:1440px){
+@media (min-width:1231px){
   [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes{
     display:block;
     height:176px;
