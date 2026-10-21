@@ -252,6 +252,29 @@ test('inherited publication status is never trusted, even if it claims published
   }
 });
 
+test('inherited duration metadata cannot masquerade as a genuine CMS field', async ({ page }) => {
+  await openWithSets(page);
+  await page.evaluate(() => {
+    const inheritedValue = Object.assign(Object.create({duration_seconds:600}), {
+      id:401, title:'INHERITED DURATION', slug:'inherited-duration', platform:'other',
+    });
+    const inheritedGetter = Object.assign(Object.create({get duration_seconds() {
+      throw new Error('Untrusted prototype duration getter must not execute');
+    }}), {
+      id:402, title:'GETTER DURATION', slug:'getter-duration', platform:'other',
+    });
+    const legitimate = Object.assign(Object.create({duration_seconds:600}), {
+      id:403, title:'REAL CMS DURATION', slug:'real-cms-duration',
+      platform:'other', duration_seconds:121,
+    });
+    window.BRVTALPublicSetsLibrary.render([inheritedValue, inheritedGetter, legitimate]);
+  });
+  await expect(page.locator('.set-library-item')).toHaveCount(3);
+  await expect(page.locator('[data-set-id="401"] [data-set-duration]')).toHaveCount(0);
+  await expect(page.locator('[data-set-id="402"] [data-set-duration]')).toHaveCount(0);
+  await expect(page.locator('[data-set-id="403"] [data-set-duration]')).toHaveText('DURATION / 02:01');
+});
+
 test('invalid, unknown, malicious and hour-boundary CMS durations are never fabricated', async ({ page }) => {
   await openWithSets(page);
   const inputs = [null, undefined, 0, -1, 86401, 1.5, false, '01', '1e2', ' <img src=x onerror=alert(1)>', 59, 60, 3600, 86400, '3601'];

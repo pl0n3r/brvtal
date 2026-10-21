@@ -148,7 +148,11 @@
       const canonical = routeUrl('sets', slug) || '/#sets';
       const external = safeHttpUrl(item?.external_url ?? '');
       const description = String(item?.description ?? '').trim();
-      const duration = durationLabel(item?.duration_seconds);
+      // A duration inherited from an adapter prototype is not CMS evidence.
+      // hasOwn also avoids invoking attacker-controlled prototype getters.
+      const duration = Object.hasOwn(item, 'duration_seconds')
+        ? durationLabel(item.duration_seconds)
+        : '';
       const relations = relationLinks(item);
       const cover = safeMediaUrl(item?.cover_image ?? '');
       const coverMarkup = cover
