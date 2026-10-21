@@ -576,7 +576,7 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
     // Match the real PHP home's viewport-wide grid, not shrink-to-fit.
     main.style.width = '100vw';
     const pair = document.createElement('div');
-    pair.className = 'c5-board-region--pair';
+    pair.className = 'c5-board-region c5-board-region--pair';
     main.appendChild(pair);
     document.body.appendChild(main);
     pair.appendChild(document.querySelector('#transmissions'));
@@ -619,7 +619,7 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
       // Match the real PHP home's viewport-wide grid, not shrink-to-fit.
       main.style.width = '100vw';
       const pair = document.createElement('div');
-      pair.className = 'c5-board-region--pair';
+      pair.className = 'c5-board-region c5-board-region--pair';
       main.appendChild(pair);
       document.body.appendChild(main);
       pair.appendChild(document.querySelector('#transmissions'));
