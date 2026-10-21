@@ -496,3 +496,38 @@ test('real home partials source mounts exactly one Journal 06 and Connected 07 a
     });
   }
 });
+
+
+test('Journal and Connected compress the owner-v2 editorial grid without adding CMS edges', async ({page}) => {
+  for (const width of [390,1440]) {
+    await mount(page, data, {width,height:900});
+    const metrics = await page.evaluate(() => {
+      const feature = document.querySelector('#transmissions .transmission-feature');
+      const cover = feature.querySelector('[data-transmission-cover]');
+      const copy = feature.querySelector('.transmission-copy');
+      const graph = document.querySelector('#connected .c5-connected-graph');
+      const bounds = node => {
+        const b = node.getBoundingClientRect();
+        return {top:b.top,bottom:b.bottom,height:b.height,width:b.width};
+      };
+      return {
+        feature:bounds(feature),
+        cover:bounds(cover),
+        copy:bounds(copy),
+        graph:bounds(graph),
+        coverPosition:getComputedStyle(cover).position,
+        horizontalOverflow:document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    expect(metrics.coverPosition).toBe('absolute');
+    expect(metrics.cover.top).toBeGreaterThanOrEqual(metrics.feature.top - 2);
+    expect(metrics.cover.bottom).toBeLessThanOrEqual(metrics.feature.bottom + 2);
+    expect(metrics.copy.top).toBeLessThan(metrics.cover.bottom);
+    expect(metrics.feature.height).toBeLessThan(width === 390 ? 660 : 710);
+    expect(metrics.graph.height).toBeLessThan(width === 390 ? 650 : 610);
+    expect(metrics.horizontalOverflow).toBe(false);
+    // Visual density must never be achieved by inventing relationships.
+    await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+    await expect(page.locator('[data-connected-ledger-edge]')).toHaveCount(6);
+  }
+});
