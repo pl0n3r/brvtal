@@ -508,3 +508,208 @@ html.c5-visual-test [data-concept="05"] .c5-connected-lines line{
   transition:none!important;
   animation:none!important;
 }
+
+
+/* BR973-EDITORIAL-DENSITY-20261020
+ * A photographed Journal lead and tighter CMS ledger match the 06/07
+ * board without replacing CMS stories, creating fake graph edges, or
+ * masking missing-media states. Scope to Concept 05 only.
+ */
+[data-concept="05"] #transmissions .transmissions-intro{
+  gap:clamp(8px,1.25vw,16px);
+  margin:10px 0 12px;
+  padding-bottom:10px;
+}
+[data-concept="05"] #transmissions .transmissions-intro h3{
+  font-size:clamp(24px,2.6vw,38px);
+  line-height:.87;
+}
+[data-concept="05"] #transmissions .transmissions-intro p{
+  font-size:9px;
+  line-height:1.35;
+}
+[data-concept="05"] #transmissions .transmissions-list{
+  grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);
+  gap:0 clamp(10px,1.25vw,18px);
+}
+[data-concept="05"] #transmissions .transmission-feature{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-content:end;
+  min-height:clamp(300px,28vw,390px);
+  padding:14px;
+  overflow:hidden;
+  isolation:isolate;
+  background:var(--c5-soft-black);
+}
+[data-concept="05"] #transmissions .transmission-feature::before{
+  content:"";
+  position:absolute;
+  z-index:1;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,.45) 40%,rgba(0,0,0,.95) 100%);
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-cover{
+  position:absolute;
+  z-index:0;
+  inset:0;
+  width:100%;
+  height:100%;
+  margin:0;
+  aspect-ratio:auto;
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-cover img{
+  object-position:center 38%;
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-cover>span{
+  top:10px;
+  right:10px;
+  bottom:auto;
+  left:auto;
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-index{
+  position:absolute;
+  z-index:2;
+  top:10px;
+  left:14px;
+  color:var(--c5-paper-dirty);
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-copy{
+  position:relative;
+  z-index:2;
+  grid-column:1;
+  min-width:0;
+  padding-top:70px;
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-link h3{
+  max-width:100%;
+  margin:6px 0 8px;
+  font-size:clamp(24px,2.65vw,39px);
+  line-height:.93;
+  overflow-wrap:anywhere;
+  text-shadow:0 1px 10px rgba(0,0,0,.7);
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-copy>p{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  overflow:hidden;
+  max-width:56ch;
+  margin-bottom:4px;
+  font-size:11px;
+  line-height:1.35;
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-meta,
+[data-concept="05"] #transmissions .transmission-feature .transmission-relations{
+  font-size:8px;
+}
+[data-concept="05"] #transmissions .transmission-feature .transmission-open{
+  position:relative;
+  z-index:2;
+  grid-column:1;
+  margin-top:6px;
+  min-height:44px;
+  justify-self:end;
+}
+[data-concept="05"] #transmissions .transmission-indexed{
+  gap:8px;
+  padding:9px 0;
+  grid-template-columns:24px minmax(0,1fr);
+}
+[data-concept="05"] #transmissions .transmission-indexed .transmission-link h3{
+  margin:4px 0 6px;
+  font-size:clamp(17px,1.5vw,23px);
+  line-height:1.03;
+}
+[data-concept="05"] #transmissions .transmission-indexed .transmission-open{
+  grid-column:2;
+  justify-self:start;
+  min-height:32px;
+}
+[data-concept="05"] #connected .c5-connected-graph{
+  min-height:0;
+  padding-top:12px;
+  background:
+    radial-gradient(ellipse at 24% 45%,rgba(242,13,18,.14),transparent 42%),
+    radial-gradient(ellipse at 78% 52%,rgba(120,222,90,.08),transparent 41%),
+    repeating-linear-gradient(90deg,transparent 0 35px,rgba(255,255,255,.016) 36px 37px);
+}
+[data-concept="05"] #connected .c5-connected-kicker{
+  margin-bottom:10px;
+}
+[data-concept="05"] #connected .c5-connected-nodes li::before{
+  width:7px;
+  height:7px;
+  box-shadow:0 0 0 3px var(--c5-deep-black),0 0 22px rgba(242,13,18,.58);
+}
+[data-concept="05"] #connected .c5-connected-nodes a{
+  gap:10px;
+}
+[data-concept="05"] #connected .c5-connected-ledger{
+  margin-top:9px;
+}
+[data-concept="05"] #connected .c5-connected-tagline{
+  max-width:100%;
+  margin-top:12px;
+  font-size:clamp(34px,4.4vw,56px);
+  line-height:.9;
+}
+@media(min-width:901px){
+  [data-concept="05"] #connected .c5-connected-nodes{
+    grid-template-rows:repeat(2,minmax(0,76px));
+    min-height:164px;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes li,
+  [data-concept="05"] #connected .c5-connected-nodes a{
+    min-height:76px;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes strong{
+    font-size:clamp(25px,2.8vw,38px);
+  }
+}
+@media(max-width:900px){
+  [data-concept="05"] #transmissions .transmissions-intro{
+    margin-top:8px;
+    margin-bottom:8px;
+    grid-template-columns:minmax(0,1fr);
+  }
+  [data-concept="05"] #transmissions .transmissions-intro h3{
+    font-size:clamp(23px,7vw,30px);
+  }
+  [data-concept="05"] #transmissions .transmission-feature{
+    min-height:300px;
+    padding:12px;
+  }
+  [data-concept="05"] #transmissions .transmission-feature .transmission-copy{
+    padding-top:56px;
+  }
+  [data-concept="05"] #transmissions .transmission-feature .transmission-link h3{
+    font-size:clamp(24px,6.8vw,34px);
+  }
+  [data-concept="05"] #transmissions .transmission-indexed{
+    grid-template-columns:24px minmax(0,1fr);
+    padding:8px 0;
+  }
+  [data-concept="05"] #transmissions .transmission-indexed .transmission-link h3{
+    font-size:clamp(18px,5vw,23px);
+  }
+  [data-concept="05"] #connected .c5-connected-graph{
+    min-height:0;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes{
+    min-height:0;
+    gap:4px;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes li,
+  [data-concept="05"] #connected .c5-connected-nodes a{
+    min-height:64px;
+  }
+  [data-concept="05"] #connected .c5-connected-nodes strong{
+    font-size:28px;
+  }
+  [data-concept="05"] #connected .c5-connected-tagline{
+    font-size:clamp(34px,10vw,44px);
+  }
+}
