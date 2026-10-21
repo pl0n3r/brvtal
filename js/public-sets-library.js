@@ -61,6 +61,20 @@
       : `${pad(minutes)}:${pad(remainder)}`;
   };
 
+  // Canonical CMS JSON provides an own data property, never an accessor.
+  // An adapter getter (or a Proxy throwing on lookup) must not fabricate a time
+  // or prevent the remaining published Sets from rendering.
+  const trustedDurationLabel = item => {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(item, 'duration_seconds');
+      return descriptor && Object.hasOwn(descriptor, 'value')
+        ? durationLabel(descriptor.value)
+        : '';
+    } catch (_) {
+      return '';
+    }
+  };
+
   const platformLabel = item => String(item?.platform ?? 'LISTEN').trim().toUpperCase() || 'LISTEN';
   const hasArtist = item => Number(item?.artist_id || 0) > 0 && String(item?.artist_name ?? '').trim() !== '';
   const hasEvent = item => Number(item?.event_id || 0) > 0 && String(item?.event_title ?? '').trim() !== '';
@@ -148,11 +162,8 @@
       const canonical = routeUrl('sets', slug) || '/#sets';
       const external = safeHttpUrl(item?.external_url ?? '');
       const description = String(item?.description ?? '').trim();
-      // A duration inherited from an adapter prototype is not CMS evidence.
-      // hasOwn also avoids invoking attacker-controlled prototype getters.
-      const duration = Object.hasOwn(item, 'duration_seconds')
-        ? durationLabel(item.duration_seconds)
-        : '';
+      // Treat only a genuine CMS data property as duration evidence.
+      const duration = trustedDurationLabel(item);
       const relations = relationLinks(item);
       const cover = safeMediaUrl(item?.cover_image ?? '');
       const coverMarkup = cover

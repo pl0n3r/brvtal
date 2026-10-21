@@ -275,6 +275,34 @@ test('inherited duration metadata cannot masquerade as a genuine CMS field', asy
   await expect(page.locator('[data-set-id="403"] [data-set-duration]')).toHaveText('DURATION / 02:01');
 });
 
+test('own duration getters and throwing descriptors cannot fabricate CMS metadata', async ({ page }) => {
+  await openWithSets(page);
+  await page.evaluate(() => {
+    const throwingGetter = {id:404, title:'OWN THROWING GETTER', slug:'own-throwing', platform:'other'};
+    Object.defineProperty(throwingGetter, 'duration_seconds', {
+      enumerable:true, get() { throw new Error('Own duration getter must not execute'); }
+    });
+    const forgedGetter = {id:405, title:'OWN FORGED GETTER', slug:'own-forged', platform:'other'};
+    Object.defineProperty(forgedGetter, 'duration_seconds', {
+      enumerable:true, get() { return 180; }
+    });
+    const throwingDescriptor = new Proxy(
+      {id:406, title:'THROWING DESCRIPTOR', slug:'throwing-descriptor', platform:'other'},
+      {getOwnPropertyDescriptor(target, key) {
+        if (key === 'duration_seconds') throw new Error('Descriptor access denied');
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      }}
+    );
+    const genuine = {id:407, title:'REAL CMS DURATION', slug:'valid-own-duration', platform:'other', duration_seconds:121};
+    window.BRVTALPublicSetsLibrary.render([throwingGetter, forgedGetter, throwingDescriptor, genuine]);
+  });
+  await expect(page.locator('.set-library-item')).toHaveCount(4);
+  for (const id of [404, 405, 406]) {
+    await expect(page.locator(`[data-set-id="${id}"] [data-set-duration]`)).toHaveCount(0);
+  }
+  await expect(page.locator('[data-set-id="407"] [data-set-duration]')).toHaveText('DURATION / 02:01');
+});
+
 test('invalid, unknown, malicious and hour-boundary CMS durations are never fabricated', async ({ page }) => {
   await openWithSets(page);
   const inputs = [null, undefined, 0, -1, 86401, 1.5, false, '01', '1e2', ' <img src=x onerror=alert(1)>', 59, 60, 3600, 86400, '3601'];
