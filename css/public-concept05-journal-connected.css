@@ -745,43 +745,43 @@ html[data-theme-grain="0"] [data-concept="05"] #connected .c5-connected-graph{
   [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions)>section{
     min-height:0;
   }
-  [data-concept="05"] #transmissions.transmissions.c5-numbered,
-  [data-concept="05"] #connected.connected.c5-numbered{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions.transmissions.c5-numbered,
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected.connected.c5-numbered{
     padding-top:calc(var(--c5-label-height) + 8px);
     padding-bottom:18px;
   }
-  [data-concept="05"] #transmissions .transmissions-intro{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions .transmissions-intro{
     margin:6px 0 8px;
     padding-bottom:6px;
   }
-  [data-concept="05"] #transmissions .transmissions-intro h3{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions .transmissions-intro h3{
     font-size:clamp(20px,1.65vw,28px);
   }
-  [data-concept="05"] #transmissions .transmissions-list{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions .transmissions-list{
     grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);
   }
-  [data-concept="05"] #transmissions .transmission-feature{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions .transmission-feature{
     min-height:230px;
   }
-  [data-concept="05"] #transmissions .transmission-indexed{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions .transmission-indexed{
     padding:7px 0;
   }
-  [data-concept="05"] #connected .c5-connected-graph{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-graph{
     min-height:0;
     padding-top:0;
   }
-  [data-concept="05"] #connected .c5-connected-nodes{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes{
     grid-template-rows:repeat(2,minmax(0,62px));
     min-height:132px;
   }
-  [data-concept="05"] #connected .c5-connected-nodes li,
-  [data-concept="05"] #connected .c5-connected-nodes a{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li,
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes a{
     min-height:62px;
   }
-  [data-concept="05"] #connected .c5-connected-nodes strong{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes strong{
     font-size:clamp(18px,1.8vw,26px);
   }
-  [data-concept="05"] #connected .c5-connected-tagline{
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-tagline{
     margin-top:8px;
     font-size:clamp(24px,2.5vw,36px);
   }

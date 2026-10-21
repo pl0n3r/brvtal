@@ -1087,6 +1087,22 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     expect(observed.connected).toBeLessThanOrEqual(1);
     expect(observed.overflow).toBeLessThanOrEqual(1);
     expect(observed.columns[1]).toBe(width===1440?2:1);
+
+    // BR973-OWNER-V2-REAL-PAIR-RATIO: the actual checked-in 06/07 home
+    // must use the editor's majority/minority pairing, not the 50/50 shell.
+    // The isolated fingerprint fixture lacks a real .c5-board-region wrapper
+    // and intentionally retains its separately approved baseline.
+    if (width===1440){
+      const journalShare=await page.evaluate(()=>{
+        const pair=document.querySelector('main#top>.c5-board-region[data-c5-board="06-07"]');
+        if (!pair) return null;
+        const tracks=getComputedStyle(pair).gridTemplateColumns.split(/\\s+/).map(Number.parseFloat);
+        return tracks.length===2 && tracks[1]>0 ? tracks[0]/tracks[1] : null;
+      });
+      expect(journalShare).not.toBeNull();
+      expect(journalShare).toBeGreaterThan(2.1);
+      expect(journalShare).toBeLessThan(2.6);
+    }
     await testInfo.attach('board-'+width+'-actual',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
   }
   await testInfo.attach('board-comparison-note',{body:Buffer.from('Real desktop/mobile screenshots and owner reference attached for visual sign-off; browser structural checks do not claim pixel-perfect approval.'),contentType:'text/plain'});
