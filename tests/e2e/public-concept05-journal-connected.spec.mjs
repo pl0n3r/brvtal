@@ -608,7 +608,7 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
 
 
 test('Connected falls back to non-overlapping grid below the safe spatial-map width', async ({page}) => {
-  for (const width of [1024, 1230, 1231]) {
+  for (const width of [1024, 1230, 1231, 1366, 1439, 1440]) {
     await mount(page, data, {width, height:900});
     // Model the real 06/07 70:30 PHP frame, not just the stand-alone partial.
     await page.evaluate(() => {
@@ -626,7 +626,7 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
     await expect(nodes).toHaveCount(5);
     await expect.poll(() => nodes.first().evaluate(node =>
       getComputedStyle(node).position === 'absolute'
-    )).toBe(width >= 1231);
+    )).toBe(width >= 1440);
 
     const metrics = await nodes.evaluateAll(items => ({
       rects: items.map(node => {
