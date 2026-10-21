@@ -1096,7 +1096,7 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
       const journalShare=await page.evaluate(()=>{
         const pair=document.querySelector('main#top>.c5-board-region[data-c5-board="06-07"]');
         if (!pair) return null;
-        const tracks=getComputedStyle(pair).gridTemplateColumns.split(/\\s+/).map(Number.parseFloat);
+        const tracks=getComputedStyle(pair).gridTemplateColumns.split(/\s+/).map(Number.parseFloat);
         return tracks.length===2 && tracks[1]>0 ? tracks[0]/tracks[1] : null;
       });
       expect(journalShare).not.toBeNull();
