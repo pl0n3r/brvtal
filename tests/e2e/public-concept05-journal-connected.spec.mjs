@@ -317,6 +317,23 @@ test('Connected renders no fake lines when the canonical relation graph has zero
   await expect(page.locator('[data-connected-node="events"] [data-connected-count]')).toHaveText('2');
 });
 
+test('Connected counts only safe CMS event IDs across current and archive records', async ({page}) => {
+  const mixed = structuredClone(data);
+  mixed.events = [
+    {id:7}, {id:'7'}, {id:' 8 '}, {id:8},
+    {id:0}, {id:-1}, {id:3.5}, {id:'7e1'},
+    {id:null}, {id:'Infinity'}, {id:'9007199254740992'}, {id:{}},
+  ];
+  mixed.archive.events = [
+    {id:'08'}, {id:9}, {id:'9'}, {id:false}, {id:'0'},
+  ];
+  await mount(page, mixed);
+  await expect(page.locator('[data-connected-node="events"] [data-connected-count]'))
+    .toHaveText('3');
+  // Untrusted event identifiers cannot create extra CMS graph edges.
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+});
+
 test('Connected ignores inherited relation counters and draws no fabricated links', async ({page}) => {
   const inherited = structuredClone(data);
   inherited.relations = {counts:{}};

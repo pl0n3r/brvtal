@@ -23,12 +23,16 @@
 
   function uniqueEventCount(payload) {
     var ids = new Set();
-    (Array.isArray(payload.events) ? payload.events : []).forEach(function (item) {
-      if (item && item.id != null) ids.add(String(item.id));
-    });
-    (Array.isArray(payload.archive?.events) ? payload.archive.events : []).forEach(function (item) {
-      if (item && item.id != null) ids.add(String(item.id));
-    });
+    var addId = function (item) {
+      // Only real positive CMS IDs are countable. Normalize number/string
+      // representations so the public feed and archive cannot double count.
+      var raw = item && item.id;
+      var id = typeof raw === 'number' ? raw
+        : (typeof raw === 'string' && /^\\d+$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
+      if (Number.isSafeInteger(id) && id > 0) ids.add(String(id));
+    };
+    (Array.isArray(payload.events) ? payload.events : []).forEach(addId);
+    (Array.isArray(payload.archive?.events) ? payload.archive.events : []).forEach(addId);
     return ids.size;
   }
 
