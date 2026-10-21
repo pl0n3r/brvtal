@@ -564,3 +564,42 @@ test('Journal and Connected compress the owner-v2 editorial grid without adding 
     await expect(page.locator('[data-connected-ledger-edge]')).toHaveCount(6);
   }
 });
+
+
+test('owner-v2 paired frame spatially distributes only verified Connected nodes at 1440', async ({page}) => {
+  await mount(page, data, {width:1440,height:900});
+  // Recreate the actual parent frame used by the PHP partials, which the
+  // stand-alone harness does not otherwise include.
+  await page.evaluate(() => {
+    const main = document.createElement('main');
+    main.id = 'top';
+    const pair = document.createElement('div');
+    pair.className = 'c5-board-region--pair';
+    main.appendChild(pair);
+    document.body.appendChild(main);
+    pair.appendChild(document.querySelector('#transmissions'));
+    pair.appendChild(document.querySelector('#connected'));
+    window.dispatchEvent(new Event('resize'));
+  });
+  await page.waitForTimeout(120);
+  const nodes = await page.locator('#connected .c5-connected-nodes li').evaluateAll(items =>
+    items.map(node => {
+      const rect = node.getBoundingClientRect();
+      return {
+        x:rect.left + rect.width / 2,
+        y:rect.top + rect.height / 2,
+        position:getComputedStyle(node).position,
+      };
+    })
+  );
+  expect(nodes).toHaveLength(5);
+  for (const node of nodes) expect(node.position).toBe('absolute');
+  expect(nodes[1].x).toBeLessThan(nodes[2].x);
+  expect(nodes[2].x).toBeLessThan(nodes[0].x);
+  expect(nodes[0].y).toBeLessThan(nodes[2].y);
+  expect(nodes[2].y).toBeLessThan(nodes[4].y);
+  expect(nodes[1].y).toBeLessThan(nodes[3].y);
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+  await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});

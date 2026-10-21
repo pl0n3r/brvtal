@@ -786,3 +786,51 @@ html[data-theme-grain="0"] [data-concept="05"] #connected .c5-connected-graph{
     font-size:clamp(24px,2.5vw,36px);
   }
 }
+
+/* BR973-OWNER-V2-SPATIAL-MAP-20261021
+ * The actual paired PHP 06/07 frame has a compact, asymmetric node diagram.
+ * Only the server-verified CMS relations draw SVG lines; these rules merely
+ * position the five existing categories and leave the mobile layout intact.
+ */
+@media (min-width:901px){
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes{
+    display:block;
+    height:176px;
+    min-height:176px;
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li{
+    position:absolute;
+    width:76px;
+    height:56px;
+    min-height:0;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    background:rgba(5,5,5,.72);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(1){left:76%;top:18%}
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(2){left:20%;top:30%}
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(3){left:51%;top:52%}
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(4){left:20%;top:80%}
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(5){left:79%;top:78%}
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes a{
+    height:56px;
+    min-height:56px;
+    padding:5px 2px;
+    gap:3px;
+    justify-content:space-between;
+    font-size:9px;
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes strong{
+    font-size:17px;
+    line-height:1;
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li::before{
+    width:6px;
+    height:6px;
+    box-shadow:0 0 0 2px var(--c5-deep-black),0 0 17px rgba(242,13,18,.85);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-lines line{
+    opacity:.85;
+    stroke-dasharray:3 4;
+  }
+}
