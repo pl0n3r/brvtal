@@ -28,7 +28,7 @@
       // representations so the public feed and archive cannot double count.
       var raw = item && item.id;
       var id = typeof raw === 'number' ? raw
-        : (typeof raw === 'string' && /^\\d+$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
+        : (typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
       if (Number.isSafeInteger(id) && id > 0) ids.add(String(id));
     };
     (Array.isArray(payload.events) ? payload.events : []).forEach(addId);
