@@ -635,6 +635,9 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
       }),
       overflow: document.documentElement.scrollWidth >
         document.documentElement.clientWidth,
+      graphWidth: document.querySelector('#connected .c5-connected-graph').getBoundingClientRect().width,
+      listWidth: document.querySelector('#connected .c5-connected-nodes').getBoundingClientRect().width,
+      pairWidth: document.querySelector('main#top>.c5-board-region--pair').getBoundingClientRect().width,
     }));
     expect(metrics.overflow).toBe(false);
     for (let i = 0; i < metrics.rects.length; i++) {
@@ -643,7 +646,8 @@ test('Connected falls back to non-overlapping grid below the safe spatial-map wi
         const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
         const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
         expect(overlapX > 2 && overlapY > 2,
-          'Node rectangles must not overlap at ' + width + 'px: ' + i + '/' + j
+          'Node rectangles must not overlap at ' + width + 'px: ' + i + '/' + j +
+          ' :: ' + JSON.stringify(metrics)
         ).toBe(false);
       }
     }
