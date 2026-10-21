@@ -581,7 +581,9 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
     pair.appendChild(document.querySelector('#connected'));
     window.dispatchEvent(new Event('resize'));
   });
-  await page.waitForTimeout(120);
+  // CSS assertions retry until the spatial desktop layout has settled.
+  await expect(page.locator('#connected .c5-connected-nodes li').first())
+    .toHaveCSS('position', 'absolute');
   const nodes = await page.locator('#connected .c5-connected-nodes li').evaluateAll(items =>
     items.map(node => {
       const rect = node.getBoundingClientRect();
@@ -602,4 +604,49 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
   await expect(page.locator('[data-connected-edge="set_memory"]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+
+test('Connected falls back to non-overlapping grid below the safe spatial-map width', async ({page}) => {
+  for (const width of [1024, 1230, 1231]) {
+    await mount(page, data, {width, height:900});
+    // Model the real 06/07 70:30 PHP frame, not just the stand-alone partial.
+    await page.evaluate(() => {
+      const main = document.createElement('main');
+      main.id = 'top';
+      const pair = document.createElement('div');
+      pair.className = 'c5-board-region--pair';
+      main.appendChild(pair);
+      document.body.appendChild(main);
+      pair.appendChild(document.querySelector('#transmissions'));
+      pair.appendChild(document.querySelector('#connected'));
+      window.dispatchEvent(new Event('resize'));
+    });
+    const nodes = page.locator('#connected .c5-connected-nodes li');
+    await expect(nodes).toHaveCount(5);
+    await expect.poll(() => nodes.first().evaluate(node =>
+      getComputedStyle(node).position === 'absolute'
+    )).toBe(width >= 1231);
+
+    const metrics = await nodes.evaluateAll(items => ({
+      rects: items.map(node => {
+        const {left, right, top, bottom} = node.getBoundingClientRect();
+        return {left, right, top, bottom};
+      }),
+      overflow: document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    }));
+    expect(metrics.overflow).toBe(false);
+    for (let i = 0; i < metrics.rects.length; i++) {
+      for (let j = i + 1; j < metrics.rects.length; j++) {
+        const a = metrics.rects[i], b = metrics.rects[j];
+        const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        expect(overlapX > 2 && overlapY > 2,
+          'Node rectangles must not overlap at ' + width + 'px: ' + i + '/' + j
+        ).toBe(false);
+      }
+    }
+    await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+  }
 });
