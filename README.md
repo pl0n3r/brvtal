@@ -29,7 +29,7 @@ Esta selección es navegación editorial, no un segundo planificador. Consulta l
 - **Archivo público:** artistas, eventos, sets, contenido editorial, conexiones y SEO servidos por [`index.php`](https://github.com/pl0n3r/brvtal/blob/main/index.php) y [`api/public.php`](https://github.com/pl0n3r/brvtal/blob/main/api/public.php).
 - **DISCADMIN:** administración editorial y de Media, publicación, configuración y panel operativo; entrada en [`discadmin/index-core.php`](https://github.com/pl0n3r/brvtal/blob/main/discadmin/index-core.php).
 - **Contenido en español canónico y navegación ES/EN:** contrato documentado en [#212](https://github.com/pl0n3r/brvtal/issues/212); el [adaptador DeepL de prueba](https://github.com/pl0n3r/brvtal/blob/main/config/public_translation_deepl.php) **no implica activación ni compra del proveedor** ([#920](https://github.com/pl0n3r/brvtal/issues/920)).
-- **Concept 05, Journal y Connected:** [#973 / PR #1012](https://github.com/pl0n3r/brvtal/pull/1012) continúa como trabajo de rama; no se presenta aquí como desplegado. **Duración de sets:** [#987 / PR #1008](https://github.com/pl0n3r/brvtal/pull/1008) también sigue en revisión.
+- **Concept 05, Journal y Connected:** [#973 / PR #1012](https://github.com/pl0n3r/brvtal/pull/1012). **Duración de sets:** [#987 / PR #1008](https://github.com/pl0n3r/brvtal/pull/1008). Consulta el estado vigente de cada trabajo en GitHub; su integración no certifica despliegue.
 
 Las funcionalidades y decisiones permanentes se describen en [`docs/BRVTAL-SPEC.md`](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SPEC.md); los cambios concretos viven en PRs y Releases.
 

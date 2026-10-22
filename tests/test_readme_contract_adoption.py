@@ -102,6 +102,14 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
         self.assertNotIn("https://github.com/pl0n3r/brvtal/issues/1014", queue,
                          "No publicar como NOW el Issue que cierra este mismo PR")
 
+    def test_product_overview_pr_links_avoid_transient_status_claims(self):
+        overview = self.readme().split("## Qué hace el producto", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("https://github.com/pl0n3r/brvtal/pull/1012", overview)
+        self.assertIn("https://github.com/pl0n3r/brvtal/pull/1008", overview)
+        self.assertIn("Consulta el estado vigente de cada trabajo en GitHub", overview)
+        self.assertNotIn("continúa como trabajo de rama", overview)
+        self.assertNotIn("sigue en revisión", overview)
+
     def test_factory_map_preserves_roles(self):
         factory_map = self.readme().split("## Mapa de la fábrica", 1)[1]
         for expected in (
