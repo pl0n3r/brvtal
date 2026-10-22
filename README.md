@@ -17,10 +17,10 @@ Las insignias consultan fuentes externas al abrir la página; no requieren commi
 
 ## Work Queue
 
-- **NOW:** [#1014 — adopción de README v2](https://github.com/pl0n3r/brvtal/issues/1014) y [#973 — Journal/Connected del Concept 05](https://github.com/pl0n3r/brvtal/issues/973) ([PR #1012](https://github.com/pl0n3r/brvtal/pull/1012), aún sin fusionar).
-- **NEXT:** [#987 — duración real de los sets](https://github.com/pl0n3r/brvtal/issues/987) ([PR #1008](https://github.com/pl0n3r/brvtal/pull/1008)) y [#974 — navegación/footer móvil](https://github.com/pl0n3r/brvtal/issues/974), según dependencias y reservas.
-- **LATER:** [#975 — medios placeholder registrados en el CMS](https://github.com/pl0n3r/brvtal/issues/975) y el resto del [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533).
-- **BLOCKED:** [#1009 — completar protección de `main`](https://github.com/pl0n3r/brvtal/issues/1009) y [#985 — replay WebP](https://github.com/pl0n3r/brvtal/issues/985) hasta liberar claims; la autoridad de estado reside en cada Issue.
+- **NOW:** [Issues críticos abiertos](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22priority%3A%20critical%22) y [PRs abiertos](https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr%20is%3Aopen). GitHub determina el estado actual.
+- **NEXT:** [Issues disponibles](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22status%3A%20available%22), sujetos a reservas y dependencias; no son autorización automática de despliegue.
+- **LATER:** [Roadmap #533](https://github.com/pl0n3r/brvtal/issues/533) y [backlog abierto](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen), sin duplicar un listado que caduca con cada merge.
+- **BLOCKED:** [Issues bloqueados](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22status%3A%20blocked%22). Cada Issue conserva la causa y la condición de desbloqueo.
 
 Esta selección es navegación editorial, no un segundo planificador. Consulta los [Issues abiertos](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue+is%3Aopen) para obtener el estado actualizado.
 

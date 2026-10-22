@@ -95,8 +95,12 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
         for lane in ("NOW", "NEXT", "LATER", "BLOCKED"):
             self.assertIn(f"**{lane}:**", queue)
         self.assertIn("https://github.com/pl0n3r/brvtal/issues/533", queue)
-        self.assertIn("https://github.com/pl0n3r/brvtal/issues/1014", queue)
-        self.assertIn("https://github.com/pl0n3r/brvtal/issues/1009", queue)
+        self.assertIn("https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue", queue)
+        self.assertIn("https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr", queue)
+        self.assertIn("status%3A%20blocked", queue)
+        self.assertIn("status%3A%20available", queue)
+        self.assertNotIn("https://github.com/pl0n3r/brvtal/issues/1014", queue,
+                         "No publicar como NOW el Issue que cierra este mismo PR")
 
     def test_factory_map_preserves_roles(self):
         factory_map = self.readme().split("## Mapa de la fábrica", 1)[1]
