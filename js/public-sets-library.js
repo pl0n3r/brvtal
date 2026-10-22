@@ -71,6 +71,9 @@
         ? durationLabel(descriptor.value)
         : '';
     } catch (_) {
+      // An untrusted Proxy may throw while describing this optional CMS field.
+      // Ignore that metadata error so other published Sets continue rendering;
+      // no duration label is emitted without a genuine own data property.
       return '';
     }
   };
