@@ -2,119 +2,82 @@
 
 > Plataforma underground de música y archivo cultural con una experiencia pública editorial y un DISCADMIN unificado.
 
-**Rol en la fábrica:** product · **Fase:** live · **Roadmap:** [Issue #533](https://github.com/pl0n3r/brvtal/issues/533)
+**Rol en la fábrica:** product · **Roadmap:** [Issue #533](https://github.com/pl0n3r/brvtal/issues/533) · **Fase:** [configuración](readme/project.json) y [tratamiento de datos](datos.yml) pendientes de conciliación en [#1009](https://github.com/pl0n3r/brvtal/issues/1009).
 
-BRVTAL sirve el producto público y su administración editorial desde el mismo repositorio. El README es la portada operativa bajo **README Contract v1**: resume estado, arquitectura y fuentes canónicas sin convertirse en changelog ni en segundo roadmap.
+Esta portada sigue **README Contract v2**: descripción duradera y enlaces a señales vivas; no duplica estado, progreso ni decisiones de GitHub. La fuente ejecutable es [`main`](https://github.com/pl0n3r/brvtal/tree/main).
 
 ## Operational Cockpit
 
-<!-- factory:status:start -->
-| Señal | Estado |
-| --- | --- |
-| main SHA | UNKNOWN |
-| versión | UNKNOWN |
-| CI | UNKNOWN |
-| release | UNKNOWN |
-| health | UNKNOWN |
-| smoke/observer | UNKNOWN |
-| quality/security | UNKNOWN |
-| Issue activo | UNKNOWN |
-| PR activo | UNKNOWN |
-| último release | UNKNOWN |
-<!-- factory:status:end -->
+[![BRVTAL CI en main](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml/badge.svg?branch=main)](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml)
+[![Último release de BRVTAL](https://img.shields.io/github/v/release/pl0n3r/brvtal?label=release)](https://github.com/pl0n3r/brvtal/releases)
 
-### Progress + Readiness
+[GitHub Actions](https://github.com/pl0n3r/brvtal/actions) · [GitHub Releases](https://github.com/pl0n3r/brvtal/releases) · [Orquestador de ControlBot](https://control.condorapp.com.co/)
 
-<!-- factory:progress-readiness:start -->
-| Señal | Estado |
-| --- | --- |
-| Target | UNKNOWN |
-| Progress | UNKNOWN |
-| Readiness | UNKNOWN |
-| Evidence freshness | UNKNOWN |
-| Critical blockers | UNKNOWN |
-| Trend | UNKNOWN |
-
-| Dimensión | Progress | Readiness |
-| --- | --- | --- |
-| UNKNOWN | UNKNOWN | UNKNOWN |
-<!-- factory:progress-readiness:end -->
-
-> Los bloques anteriores son derivados. `UNKNOWN` / `PENDING` significa que falta evidencia canónica suficiente; nunca se sustituye por `GREEN` o `DEGRADED` sin evidencia verificable.
+Las insignias consultan fuentes externas al abrir la página; no requieren commits de actualización. Para salud, checks exact-SHA, despliegue y decisiones utiliza sus registros canónicos; el README no certifica producción.
 
 ## Work Queue
 
-- **NOW:** [#746 — adoptar README Contract v1](https://github.com/pl0n3r/brvtal/issues/746).
-- **NEXT:** [#623 — reducir serialización y overhead de DISCADMIN](https://github.com/pl0n3r/brvtal/issues/623).
-- **LATER:** continuar el [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533) por prioridad y dependencias.
-- **BLOCKED:** los bloqueos vigentes se mantienen en #533 y en sus Issues específicos; este README no los infiere ni los duplica.
+- **NOW:** [Issues críticos abiertos](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22priority%3A%20critical%22) y [PRs abiertos](https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr%20is%3Aopen). GitHub determina el estado actual.
+- **NEXT:** [Issues disponibles](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22status%3A%20available%22), sujetos a reservas y dependencias; no son autorización automática de despliegue.
+- **LATER:** [Roadmap #533](https://github.com/pl0n3r/brvtal/issues/533) y [backlog abierto](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen), sin duplicar un listado que caduca con cada merge.
+- **BLOCKED:** [Issues bloqueados](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22status%3A%20blocked%22). Cada Issue conserva la causa y la condición de desbloqueo.
 
-Esta vista resume la cola. El orden, progreso e historial de entregas viven en GitHub Issues y Releases.
+Esta selección es navegación editorial, no un segundo planificador. Consulta los [Issues abiertos](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue+is%3Aopen) para obtener el estado actualizado.
 
 ## Qué hace el producto
 
-BRVTAL combina dos superficies principales:
+- **Archivo público:** artistas, eventos, sets, contenido editorial, conexiones y SEO servidos por [`index.php`](https://github.com/pl0n3r/brvtal/blob/main/index.php) y [`api/public.php`](https://github.com/pl0n3r/brvtal/blob/main/api/public.php).
+- **DISCADMIN:** administración editorial y de Media, publicación, configuración y panel operativo; entrada en [`discadmin/index-core.php`](https://github.com/pl0n3r/brvtal/blob/main/discadmin/index-core.php).
+- **Contenido en español canónico y navegación ES/EN:** contrato documentado en [#212](https://github.com/pl0n3r/brvtal/issues/212); el [adaptador DeepL de prueba](https://github.com/pl0n3r/brvtal/blob/main/config/public_translation_deepl.php) **no implica activación ni compra del proveedor** ([#920](https://github.com/pl0n3r/brvtal/issues/920)).
+- **Concept 05, Journal y Connected:** [#973 / PR #1012](https://github.com/pl0n3r/brvtal/pull/1012). **Duración de sets:** [#987 / PR #1008](https://github.com/pl0n3r/brvtal/pull/1008). Consulta el estado vigente de cada trabajo en GitHub; su integración no certifica despliegue.
 
-- **Producto público:** archivo cultural underground de artistas, eventos, blog, media, relaciones editoriales, SEO y contenido conectado.
-- **DISCADMIN:** shell administrativo único para edición, configuración, media, operaciones y observabilidad editorial.
-
-Las capacidades permanentes y decisiones de producto se documentan en `docs/BRVTAL-SPEC.md`; los cambios efímeros pertenecen al PR y a GitHub Releases.
+Las funcionalidades y decisiones permanentes se describen en [`docs/BRVTAL-SPEC.md`](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SPEC.md); los cambios concretos viven en PRs y Releases.
 
 ## Arquitectura en 60 segundos
 
 ```mermaid
 flowchart LR
-    V[Visitante] --> P[BRVTAL público]
-    S[Staff] --> A[DISCADMIN /discadmin]
-    P --> H[PHP 8.5]
-    A --> H
-    H --> D[(MariaDB)]
-    G[GitHub main] --> X[Hostinger deploy]
-    F[Factory] -->|governance / reusable workflows| G
+    V[Visitante] --> P[Web pública PHP / JS]
+    S[Staff] --> A[DISCADMIN]
+    P --> API[API pública PHP]
+    A --> H[Backend PHP 8.5]
+    API --> D[(MariaDB)]
+    H --> D
+    G[GitHub main] --> CI[BRVTAL CI / validate]
+    CI --> Deploy[Entrega Hostinger]
+    F[Factory] -->|contratos / workflows| CI
 ```
 
-DISCADMIN conserva **ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE**. El producto público y la administración comparten runtime y datos, pero mantienen identidades visuales y responsabilidades distintas.
+El render público se compone desde [`index.php`](https://github.com/pl0n3r/brvtal/blob/main/index.php) y sus [parciales](https://github.com/pl0n3r/brvtal/tree/main/partials/home). La API y DISCADMIN comparten persistencia pero no la frontera de autorización; el admin opera con sesión y controles propios (véase [especificación](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SPEC.md)).
 
 ## Stack e infraestructura
 
-- **Backend:** PHP 8.5.
-- **Frontend:** HTML, CSS y JavaScript vanilla.
-- **Base de datos:** MariaDB / MySQL-compatible.
-- **Hosting:** Hostinger shared hosting / LiteSpeed.
-- **Testing:** contratos PHP/Python, integración, Playwright Chromium y WebKit dirigido.
-- **CI:** BRVTAL CI + reusable workflows de Factory.
-- **Entrega:** GitHub `main` → Hostinger Git auto-deploy.
-- **Observabilidad:** deploy observer, authenticated production smoke, performance y quality/security gates.
+- **Runtime:** PHP 8.5, HTML/CSS/JavaScript y MariaDB; configuración y dependencias en [`composer.json`](https://github.com/pl0n3r/brvtal/blob/main/composer.json) y [`package.json`](https://github.com/pl0n3r/brvtal/blob/main/package.json).
+- **Hosting y entrega:** Hostinger, supervisión de release y observación productiva documentadas en el [roadmap #533](https://github.com/pl0n3r/brvtal/issues/533); deploy no equivale a validación productiva.
+- **Pruebas:** contratos PHP/Python, integración y Playwright Chromium/WebKit, según [estrategia de pruebas](https://github.com/pl0n3r/brvtal/blob/main/docs/TESTING.md).
+- **Automatización:** [BRVTAL CI](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml) y [workflows de Factory](https://github.com/pl0n3r/factory/tree/main/.github/workflows).
 
 ## Ciclo de entrega
 
-Issue → `/take` → `work/issue-N` → PR → BRVTAL CI / README Contract / revisiones → merge serial → CI del SHA exacto de `main` → observación de deploy → smoke/validación de producción cuando aplique.
+[Issue](https://github.com/pl0n3r/brvtal/issues) → `/take` y reserva V3 → `work/issue-N` → [PR](https://github.com/pl0n3r/brvtal/pulls) → [BRVTAL CI / validate](https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml) y revisiones → squash con puertas vigentes → validación exacta de `main` → observador y smoke de producción cuando corresponda.
 
-Un merge, release o deploy observado no sustituye la validación de comportamiento en producción.
+La protección y los checks requeridos de `main` tienen [seguimiento operativo #1009](https://github.com/pl0n3r/brvtal/issues/1009); no se supone autorización de fusión por el simple color verde de un workflow.
 
 ## Calidad y seguridad
 
-- `BRVTAL CI / validate` es el gate estable de código.
-- README Contract valida metadata y bloques derivados sin inventar salud.
-- SonarCloud y CodeRabbit aportan análisis sobre el HEAD estable del PR.
-- Admin/API protegidos requieren autenticación y CSRF según corresponda.
-- SQL usa validación server-side, prepared statements y migraciones data-safe.
-- Backups, restore y rollback deben preservar datos y fallar cerrado.
-- No se versionan secretos, tokens, contraseñas, PII ni contenido productivo de la base.
-- Health, smoke, release y readiness solo se representan como terminales cuando existe evidencia canónica.
+- `validate` (BRVTAL CI) verifica el código; [SonarCloud, CodeQL y CodeRabbit](https://github.com/pl0n3r/brvtal/pulls) complementan la revisión, sin reemplazar controles de seguridad.
+- DISCADMIN y API mantienen las fronteras de autenticación y CSRF definidas en [especificación](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SPEC.md).
+- Cambios en persistencia requieren migraciones compatibles, backup previo cuando corresponda y regresiones reproducibles ([pruebas](https://github.com/pl0n3r/brvtal/blob/main/docs/TESTING.md)).
+- Sin secretos, tokens, contraseñas ni datos personales en Git. La fase de `datos.yml` y la de `readme/project.json` aún difieren: [#1009](https://github.com/pl0n3r/brvtal/issues/1009) documenta el veto a inferir go-live o merge autónomo.
 
 ## Roadmap y fuentes de verdad
 
-- Ejecución y progreso: [Issue #533](https://github.com/pl0n3r/brvtal/issues/533).
-- Contrato operativo de agentes: `AGENTS.md`.
-- Producto y arquitectura: `docs/BRVTAL-SPEC.md`.
-- Testing y evidencia: `docs/TESTING.md`.
-- Decisiones vigentes: `decisiones.yml`.
-- Privacidad/datos: `datos.yml`.
-- Cambios entregados: GitHub PRs y Releases.
-- Gobernanza transversal: [Factory PLAN-AGENTES.md](https://github.com/pl0n3r/factory/blob/main/PLAN-AGENTES.md).
+- [Roadmap y orden de ejecución — #533](https://github.com/pl0n3r/brvtal/issues/533); [Issues](https://github.com/pl0n3r/brvtal/issues) y [PRs](https://github.com/pl0n3r/brvtal/pulls) reflejan estados actuales.
+- [`AGENTS.md`](https://github.com/pl0n3r/brvtal/blob/main/AGENTS.md): ejecución del agente; [`docs/BRVTAL-SPEC.md`](https://github.com/pl0n3r/brvtal/blob/main/docs/BRVTAL-SPEC.md): producto y arquitectura.
+- [`docs/TESTING.md`](https://github.com/pl0n3r/brvtal/blob/main/docs/TESTING.md): pruebas; [`decisiones.yml`](https://github.com/pl0n3r/brvtal/blob/main/decisiones.yml): decisiones; [`datos.yml`](https://github.com/pl0n3r/brvtal/blob/main/datos.yml): privacidad.
+- [Releases](https://github.com/pl0n3r/brvtal/releases): entregas; [Factory PLAN-AGENTES.md](https://github.com/pl0n3r/factory/blob/main/PLAN-AGENTES.md): gobernanza.
 
-El README enlaza estas fuentes; no las replica.
+El README solo enlaza las fuentes, sin duplicar un changelog ni generar métricas estáticas.
 
 ## Desarrollo local
 
