@@ -42,6 +42,42 @@
     return clean ? `/${type}/${encodeURIComponent(clean)}` : '';
   };
 
+  // Only genuine positive integer seconds received from the CMS become labels.
+  // MySQL/PDO may serialize database integers as canonical decimal strings.
+  const durationLabel = value => {
+    let seconds = Number.NaN;
+    if (typeof value === 'number' && Number.isInteger(value)) {
+      seconds = value;
+    } else if (typeof value === 'string' && /^[1-9]\d{0,4}$/.test(value)) {
+      seconds = Number(value);
+    }
+    if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 86400) return '';
+    const pad = number => String(number).padStart(2, '0');
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainder = seconds % 60;
+    return hours > 0
+      ? `${hours}:${pad(minutes)}:${pad(remainder)}`
+      : `${pad(minutes)}:${pad(remainder)}`;
+  };
+
+  // Canonical CMS JSON provides an own data property, never an accessor.
+  // An adapter getter (or a Proxy throwing on lookup) must not fabricate a time
+  // or prevent the remaining published Sets from rendering.
+  const trustedDurationLabel = item => {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(item, 'duration_seconds');
+      return descriptor && Object.hasOwn(descriptor, 'value')
+        ? durationLabel(descriptor.value)
+        : '';
+    } catch (_) {
+      // An untrusted Proxy may throw while describing this optional CMS field.
+      // Ignore that metadata error so other published Sets continue rendering;
+      // no duration label is emitted without a genuine own data property.
+      return '';
+    }
+  };
+
   const platformLabel = item => String(item?.platform ?? 'LISTEN').trim().toUpperCase() || 'LISTEN';
   const hasArtist = item => Number(item?.artist_id || 0) > 0 && String(item?.artist_name ?? '').trim() !== '';
   const hasEvent = item => Number(item?.event_id || 0) > 0 && String(item?.event_title ?? '').trim() !== '';
@@ -129,6 +165,8 @@
       const canonical = routeUrl('sets', slug) || '/#sets';
       const external = safeHttpUrl(item?.external_url ?? '');
       const description = String(item?.description ?? '').trim();
+      // Treat only a genuine CMS data property as duration evidence.
+      const duration = trustedDurationLabel(item);
       const relations = relationLinks(item);
       const cover = safeMediaUrl(item?.cover_image ?? '');
       const coverMarkup = cover
@@ -139,6 +177,7 @@
         ${coverMarkup}
         <div class="set-main">
           <span class="mono">${escapeHtml(platformLabel(item))} / BRVTAL SOUND</span>
+          ${duration ? `<span class="set-library-duration mono" data-set-duration aria-label="Duration ${escapeHtml(duration)}">DURATION / ${escapeHtml(duration)}</span>` : ''}
           <a class="set-record-link" href="${escapeHtml(canonical)}"><h4>${escapeHtml(title)}</h4><span class="mono">OPEN RECORD →</span></a>
           ${relations ? `<div class="set-library-relations mono">${relations}</div>` : '<div class="set-library-relations mono"><span>INDEPENDENT RECORD</span></div>'}
           ${description ? `<p class="set-library-description">${escapeHtml(description)}</p>` : ''}
@@ -199,9 +238,18 @@
     button.addEventListener('click', () => selectMode(button.dataset.setsMode || 'latest'));
   });
 
+  // public.php has already restricted rows to published Sets and omits status.
+  // An inherited lifecycle is NOT an omitted status: require an own, published
+  // field from mixed CMS/adapters, including objects with prototype getters.
+  const isPublicSet = item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    if (!('status' in item)) return true;
+    return Object.hasOwn(item, 'status') && item.status === 'published';
+  };
+
   const render = items => {
     if (!Array.isArray(items)) return false;
-    sets = items.filter(item => item && typeof item === 'object');
+    sets = items.filter(isPublicSet);
     if (modesRoot) modesRoot.hidden = sets.length === 0;
     selectMode('latest');
     document.documentElement.dataset.publicSets = 'library';
@@ -210,13 +258,17 @@
   };
 
   const dataFromSharedRequest = async () => {
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    // The shared loader may register its Promise after window.load, especially on slow pages.
+    // Bound the wait; missing or malformed CMS data must still leave the static fallback visible.
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       const request = window.BRVTALPublicDataPromise;
       if (request && typeof request.then === 'function') {
         const result = await request;
         const payload = result?.payload ?? result;
         const root = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
-        return Array.isArray(root?.sets) ? root.sets : [];
+        // Missing/malformed Sets is not equivalent to a legitimate empty [] response.
+        // Preserve the static fallback instead of fabricating an empty archive.
+        return Array.isArray(root?.sets) ? root.sets : null;
       }
       await new Promise(resolve => window.setTimeout(resolve, 40));
     }
@@ -229,7 +281,7 @@
     visibleSets,
   };
 
-  window.addEventListener('load', () => {
+  const hydrateAfterStaticLoad = () => {
     window.setTimeout(async () => {
       if (document.documentElement.dataset.publicSets === 'library') return;
       try {
@@ -244,5 +296,12 @@
         // Existing static/dynamic fallback remains visible if the shared request fails.
       }
     }, 220);
-  }, { once: true });
+  };
+
+  // The runtime loader can attach this module after the one-shot load event.
+  if (document.readyState === 'complete') {
+    hydrateAfterStaticLoad();
+  } else {
+    window.addEventListener('load', hydrateAfterStaticLoad, { once: true });
+  }
 })();
