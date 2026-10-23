@@ -586,6 +586,11 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
   // CSS assertions retry until the spatial desktop layout has settled.
   await expect(page.locator('#connected .c5-connected-nodes li').first())
     .toHaveCSS('position', 'absolute');
+  // Owner-v2 is a network, not five opaque cards: keep the real CMS edges
+  // visible below the labels without fabricating additional relationships.
+  for (const node of await page.locator('#connected .c5-connected-nodes li').all()) {
+    await expect(node).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
   const nodes = await page.locator('#connected .c5-connected-nodes li').evaluateAll(items =>
     items.map(node => {
       const rect = node.getBoundingClientRect();
