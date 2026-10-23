@@ -638,6 +638,37 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
 });
 
 
+test('owner-v2 paper lead fails closed when CMS cover 404', async ({page}) => {
+  await mount(page, data, {width:1440,height:900}, true);
+  await page.evaluate(() => {
+    const main = document.createElement('main');
+    main.id = 'top';
+    main.style.width = '100vw';
+    const pair = document.createElement('div');
+    pair.className = 'c5-board-region c5-board-region--pair';
+    main.appendChild(pair);
+    document.body.appendChild(main);
+    pair.appendChild(document.querySelector('#transmissions'));
+    pair.appendChild(document.querySelector('#connected'));
+    window.dispatchEvent(new Event('resize'));
+  });
+  const feature = page.locator('#transmissions .transmission-feature');
+  await expect(feature.locator('.transmission-cover')).toHaveClass(/is-media-missing/);
+  await expect(feature.locator('.transmission-cover img')).toBeHidden();
+  // Do not show a paper-white editorial cover when only missing-media
+  // placeholder text remains: the old dark fallback must stay readable.
+  const rgb = await feature.evaluate(node => {
+    const value = getComputedStyle(node).backgroundColor;
+    return value.slice(value.indexOf('(') + 1, value.indexOf(')'))
+      .split(',').slice(0, 3).map(part => Number.parseInt(part.trim(), 10));
+  });
+  expect(rgb).toHaveLength(3);
+  expect(rgb.every(channel => channel < 120)).toBe(true);
+  expect(await page.evaluate(() =>
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  )).toBe(true);
+});
+
 test('Connected falls back to non-overlapping grid below the safe spatial-map width', async ({page}) => {
   for (const width of [1024, 1230, 1231, 1366, 1439, 1440]) {
     await mount(page, data, {width, height:900});
