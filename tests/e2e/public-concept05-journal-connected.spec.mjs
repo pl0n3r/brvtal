@@ -590,8 +590,8 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
     const bounds = node.getBoundingClientRect();
     const cover = node.querySelector('.transmission-cover').getBoundingClientRect();
     const title = node.querySelector('.transmission-link h3');
-    const channel = value => Number.parseInt(value.match(/\\d+/)?.[0] || '0', 10);
-    const rgb = value => (value.match(/\\d+/g) || []).slice(0, 3).map(Number);
+    const rgb = value => value.slice(value.indexOf('(') + 1, value.indexOf(')'))
+      .split(',').slice(0, 3).map(part => Number.parseInt(part.trim(), 10));
     return {
       background: rgb(getComputedStyle(node).backgroundColor),
       foreground: rgb(getComputedStyle(title).color),
@@ -601,6 +601,8 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
     };
   });
   expect(lead.imageReady).toBe(true);
+  expect(lead.background).toHaveLength(3);
+  expect(lead.foreground).toHaveLength(3);
   expect(lead.background.slice(0,3).every(channel => channel >= 150)).toBe(true);
   expect(lead.foreground.slice(0,3).every(channel => channel <= 55)).toBe(true);
   expect(lead.coverLeftFraction).toBeGreaterThan(0.40);
