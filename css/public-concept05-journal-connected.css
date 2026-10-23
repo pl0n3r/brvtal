@@ -837,3 +837,55 @@ html[data-theme-grain="0"] [data-concept="05"] #connected .c5-connected-graph{
     stroke-dasharray:3 4;
   }
 }
+
+/* BR973-OWNER-V2-PAPER-LEAD-20261023
+ * Only the actual 06/07 desktop paired frame with a valid CMS cover gets
+ * the reference's paper headline + documentary-image split. No fallback
+ * is concealed when a CMS image fails; narrow/mobile retains dark contrast.
+ */
+@media (min-width:1231px){
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img){
+    min-height:230px;
+    background:var(--c5-paper-dirty);
+    color:var(--c5-deep-black);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img)::before{
+    background:linear-gradient(90deg,var(--c5-paper-dirty) 0 43%,rgba(0,0,0,0) 47%);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-cover{
+    left:44%;
+    right:0;
+    width:56%;
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-copy{
+    width:43%;
+    align-self:center;
+    padding-top:17px;
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-link h3{
+    color:var(--c5-deep-black);
+    font-size:clamp(21px,2.2vw,35px);
+    text-shadow:none;
+    overflow-wrap:break-word;
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-meta,
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-copy>p{
+    color:var(--c5-deep-black);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-open{
+    justify-self:start;
+    color:var(--c5-deep-black);
+  }
+  [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #transmissions
+  .transmission-feature:has(.transmission-cover:not(.is-media-missing) img) .transmission-index{
+    color:var(--c5-deep-black);
+  }
+}
