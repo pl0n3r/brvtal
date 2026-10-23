@@ -583,6 +583,28 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
     pair.appendChild(document.querySelector('#connected'));
     window.dispatchEvent(new Event('resize'));
   });
+  // A CMS-backed editorial cover must use paper-black typographic contrast
+  // and a right-side photograph, instead of overlaying white letters on a
+  // dark event flyer. This is scoped to the real paired desktop board.
+  const lead = await page.locator('#transmissions .transmission-feature').evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    const cover = node.querySelector('.transmission-cover').getBoundingClientRect();
+    const title = node.querySelector('.transmission-link h3');
+    const channel = value => Number.parseInt(value.match(/\\d+/)?.[0] || '0', 10);
+    const rgb = value => (value.match(/\\d+/g) || []).slice(0, 3).map(Number);
+    return {
+      background: rgb(getComputedStyle(node).backgroundColor),
+      foreground: rgb(getComputedStyle(title).color),
+      coverLeftFraction:(cover.left-bounds.left)/bounds.width,
+      coverWidthFraction:cover.width/bounds.width,
+      imageReady:node.querySelector('.transmission-cover img')?.naturalWidth > 0,
+    };
+  });
+  expect(lead.imageReady).toBe(true);
+  expect(lead.background.slice(0,3).every(channel => channel >= 150)).toBe(true);
+  expect(lead.foreground.slice(0,3).every(channel => channel <= 55)).toBe(true);
+  expect(lead.coverLeftFraction).toBeGreaterThan(0.40);
+  expect(lead.coverWidthFraction).toBeLessThan(0.61);
   // CSS assertions retry until the spatial desktop layout has settled.
   await expect(page.locator('#connected .c5-connected-nodes li').first())
     .toHaveCSS('position', 'absolute');
