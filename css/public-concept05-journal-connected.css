@@ -806,7 +806,9 @@ html[data-theme-grain="0"] [data-concept="05"] #connected .c5-connected-graph{
     min-height:0;
     transform:translate(-50%,-50%);
     text-align:center;
-    background:rgba(5,5,5,.72);
+    /* The owner-v2 reference is an unboxed node network. Keeping a dark
+       card behind each label hides genuine CMS-verified SVG connectors. */
+    background:transparent;
   }
   [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(1){left:76%;top:18%}
   [data-concept="05"] main#top>.c5-board-region--pair:has(> #transmissions) #connected .c5-connected-nodes li:nth-child(2){left:20%;top:30%}
