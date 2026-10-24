@@ -31,7 +31,7 @@ En el corte había **5 PR abiertos**: [#1015](https://github.com/pl0n3r/brvtal/p
 
 ## Evidencia de la reconciliación
 
-- Inventario de GitHub: [issues abiertos](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen) y [PRs abiertos](https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr%20is%3Aopen).
+- Inventario histórico fijo: las diez filas de esta tabla y los cinco PR enlazados individualmente en «PRs abiertos y exclusividad» sustentan el corte del 24 de octubre. Las consultas dinámicas de [issues abiertos](https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue%20is%3Aopen) y [PRs abiertos](https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr%20is%3Aopen) muestran el estado **actual** y sirven solo para navegación; no prueban los totales históricos.
 - Gobierno: [interruptor Factory #767](https://github.com/pl0n3r/Factory/issues/767) en RUNNING y [freeze #921](https://github.com/pl0n3r/Factory/issues/921) cerrado en el corte.
 - Aceptación ejecutable: `python3 -m unittest -v tests.test_reconciliacion_issues_20261024.ReconciliacionIssuesTests.test_acceptance`. El método exige 10 filas únicas, referencias por issue, evidencia de GitHub y siguiente acción para cada decisión.
 - **Ningún Issue se ha cerrado por efecto de esta reconciliación.** Cada cierre posterior requiere un nuevo preflight exact-main, aceptación y CI antes de mutar su estado.
