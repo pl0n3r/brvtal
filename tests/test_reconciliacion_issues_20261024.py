@@ -120,5 +120,23 @@ class ReconciliacionIssuesTests(unittest.TestCase):
                     self.assert_issue_inventory(corrupted)
 
 
+    def test_ci_calls_acceptance_and_denies_partial_inventory(self) -> None:
+        """Keep AC-01 executable on exact-HEAD CI, not only in local fixtures."""
+        workflow = (ROOT / ".github/workflows/update-release-metadata.yml").read_text(
+            encoding="utf-8"
+        )
+        step_name = "      - name: Verify #1016 backlog reconciliation acceptance when present\n"
+        self.assertIn(step_name, workflow)
+        step = workflow.split(step_name, 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn('if [[ -f "$report" || -f "$test_module" ]]; then', step)
+        self.assertIn('if [[ ! -f "$report" || ! -f "$test_module" ]]; then', step)
+        self.assertIn("exit 1", step)
+        self.assertIn(
+            "python3 -m unittest -v tests.test_reconciliacion_issues_20261024",
+            step,
+        )
+
+
+
 if __name__ == "__main__":
     unittest.main()

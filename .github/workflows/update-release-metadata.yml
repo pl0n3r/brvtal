@@ -344,6 +344,20 @@ jobs:
           bash -n scripts/php-static-analysis.sh
           python3 -m unittest tests/test_ci_retry.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_actions_cache_v6_adoption.py tests/test_upload_artifact_v7_adoption.py tests/test_concept05_success_visual_artifact.py tests/test_public_concept05_production_visual_evidence.py
           python3 tests/ci-self-audit-contract.py
+      
+      - name: Verify #1016 backlog reconciliation acceptance when present
+        shell: bash
+        run: |
+          set -euo pipefail
+          report=docs/reconciliacion-issues-20261024.md
+          test_module=tests/test_reconciliacion_issues_20261024.py
+          if [[ -f "$report" || -f "$test_module" ]]; then
+            if [[ ! -f "$report" || ! -f "$test_module" ]]; then
+              echo "::error::Backlog reconciliation report/test pair incomplete"
+              exit 1
+            fi
+            python3 -m unittest -v tests.test_reconciliacion_issues_20261024
+          fi
 
 
   database:
