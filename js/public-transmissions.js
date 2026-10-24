@@ -2,7 +2,7 @@
   'use strict';
 
   const section = document.querySelector('[data-dynamic="transmissions"]');
-  if (!section || !window.BRVTALPublicDataPromise) return;
+  if (!section) return;
 
   const list = section.querySelector('[data-transmissions-list]');
   const count = section.querySelector('[data-transmissions-count]');
@@ -33,10 +33,11 @@
 
   const formatDate = value => {
     if (!value) return 'TRANSMISSION';
-    const date = new Date(String(value).replace(' ', 'T'));
-    if (Number.isNaN(date.getTime())) return 'TRANSMISSION';
+    const timestamp = publicationTime(value);
+    if (timestamp === null) return 'TRANSMISSION';
+    const date = new Date(timestamp);
     return new Intl.DateTimeFormat('en-GB', {
-      day:'2-digit',month:'2-digit',year:'numeric'
+      day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'
     }).format(date);
   };
 
@@ -80,8 +81,41 @@
     if (image.complete && image.naturalWidth === 0) failCover(figure, image);
   };
 
+
+  // CMS may return publications out of order. Sort dated posts newest-first;
+  // published posts without dates remain visible last, never as 'latest'.
+  // Malformed non-null dates cannot invent a publication.
+  const publicationTime = value => {
+    if (typeof value !== 'string') return null;
+    const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:Z)?$/.exec(value.trim());
+    if (!match) return null;
+    const exact = match[1] + 'T' + match[2];
+    const ms = Date.parse(exact + 'Z');
+    return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 19) === exact ? ms : null;
+  };
+
+  // Database-backed CMS flags may be bool, tinyint or a serialized string.
+  // If a publication flag exists, fail closed unless it clearly says published.
+  const publiclyPublished = post => {
+    const flag = post.is_published;
+    return flag == null || flag === true || flag === 1
+      || (typeof flag === 'string' && /^(?:1|true)$/i.test(flag.trim()));
+  };
+
+  const publishedPosts = data => (Array.isArray(data?.blog) ? data.blog : [])
+    .map((post, position) => ({post, position, timestamp:publicationTime(post?.published_at)}))
+    .filter(({post, timestamp}) => post && typeof post === 'object'
+      && (post.published_at == null || timestamp !== null)
+      && publiclyPublished(post)
+      && (post.status == null || post.status === 'published')
+      && routeUrl('blog', post.slug))
+    .sort((a, b) => (a.timestamp === null) - (b.timestamp === null)
+      || (b.timestamp ?? 0) - (a.timestamp ?? 0) || a.position - b.position)
+    .slice(0, 5)
+    .map(({post}) => post);
+
   function render(data) {
-    const posts = Array.isArray(data.blog) ? data.blog.slice(0, 5) : [];
+    const posts = publishedPosts(data);
     const relationIndex = buildRelationIndex(data);
     list.replaceChildren();
     document.documentElement.dataset.publicTransmissions = 'editorial';
@@ -146,7 +180,9 @@
       bindCover(article);
     });
 
-    const latestHref = routeUrl('blog', posts[0]?.slug);
+    const latestHref = publicationTime(posts[0]?.published_at) === null
+      ? ''
+      : routeUrl('blog', posts[0]?.slug);
     if (latestHref) {
       const route = document.createElement('a');
       route.className = 'transmissions-route mono';
@@ -161,10 +197,54 @@
     }));
   }
 
-  window.BRVTALPublicDataPromise.then(result => {
-    render(result?.payload?.data || {});
-  }).catch(() => {
+  // app.js publishes the CMS request after window.load + 120ms.
+  // Journal may be evaluated first, so observe for a bounded interval.
+  const waitForDataPromise = maxWaitMs => new Promise(resolve => {
+    const existing = window.BRVTALPublicDataPromise;
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const request = window.BRVTALPublicDataPromise;
+      if (request || Date.now() - started >= maxWaitMs) {
+        window.clearInterval(timer);
+        resolve(request || null);
+      }
+    }, 100);
+  });
+
+  let adoptedRequest = false;
+  const showUnavailable = () => {
+    // Public CMS reads can fail offline; preserve static markup and
+    // never log upstream errors that may contain private metadata.
     count.textContent = 'SIGNAL UNAVAILABLE';
     section.dataset.state = 'unavailable';
-  });
+  };
+  const adoptRequest = request => {
+    if (!request || adoptedRequest) return;
+    adoptedRequest = true;
+    Promise.resolve(request)
+      .then(result => render(result?.payload?.data || {}))
+      .catch(showUnavailable);
+  };
+
+  waitForDataPromise(4000)
+    .then(request => {
+      if (request) adoptRequest(request);
+      else showUnavailable();
+    })
+    .catch(showUnavailable);
+
+  // If window.load happens after the 4s deadline, app.js will publish the
+  // shared CMS promise 120ms later. Allow a single, finite late recovery.
+  // Never fetch again or keep an interval running after the deadline.
+  window.addEventListener('load', () => {
+    window.setTimeout(() => {
+      if (!adoptedRequest && section.dataset.state === 'unavailable') {
+        adoptRequest(window.BRVTALPublicDataPromise);
+      }
+    }, 180);
+  }, {once:true});
 })();
