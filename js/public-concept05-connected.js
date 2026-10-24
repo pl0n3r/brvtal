@@ -147,12 +147,33 @@
           : 'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.';
     }
 
-    requestAnimationFrame(function () { drawEdges(section, counts); });
+    requestAnimationFrame(function () {
+      if (section.isConnected) drawEdges(section, counts);
+    });
+    // PHP partials can be replaced without a full page load. The latest
+    // Connected section owns exactly one resize listener across script reloads.
+    if (typeof window.__brvtalConnectedResizeCleanup === 'function') {
+      window.__brvtalConnectedResizeCleanup();
+    }
     var resizeTimer = 0;
     var redraw = function () {
+      if (!section.isConnected) {
+        cleanupResize();
+        return;
+      }
       window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(function () { drawEdges(section, counts); }, 80);
+      resizeTimer = window.setTimeout(function () {
+        if (section.isConnected) drawEdges(section, counts);
+      }, 80);
     };
+    var cleanupResize = function () {
+      window.removeEventListener('resize', redraw);
+      window.clearTimeout(resizeTimer);
+      if (window.__brvtalConnectedResizeCleanup === cleanupResize) {
+        delete window.__brvtalConnectedResizeCleanup;
+      }
+    };
+    window.__brvtalConnectedResizeCleanup = cleanupResize;
     window.addEventListener('resize', redraw, {passive:true});
 
     document.documentElement.dataset.publicConnected = 'relational';

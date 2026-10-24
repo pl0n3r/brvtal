@@ -204,6 +204,37 @@ test('Connected module does not mount or emit twice when included by PHP and run
   await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
 });
 
+test('Connected releases the detached section resize handler after a partial remount', async ({page}) => {
+  await mount(page);
+  await page.evaluate(() => {
+    const oldSection = document.querySelector('#connected');
+    const oldGraph = oldSection.querySelector('[data-connected-graph]');
+    window.__staleConnectedDraws = 0;
+    Object.defineProperty(oldGraph, 'clientWidth', {
+      configurable:true,
+      get() {
+        window.__staleConnectedDraws += 1;
+        return 700;
+      },
+    });
+    const replacement = oldSection.cloneNode(true);
+    replacement.removeAttribute('data-brvtal-connected-mounted');
+    replacement.removeAttribute('data-state');
+    replacement.querySelector('[data-connected-lines]').replaceChildren();
+    replacement.querySelector('[data-connected-ledger]').replaceChildren();
+    oldSection.replaceWith(replacement);
+  });
+  // The runtime script is evaluated again against the new PHP partial
+  // without replacing the whole document or dropping window listeners.
+  await page.addScriptTag({content:connectedJs});
+  await expect(page.locator('#connected')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('[data-connected-lines] line')).toHaveCount(6);
+  await page.locator('[data-connected-lines]').evaluate(el => el.setAttribute('viewBox', '0 0 0 0'));
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await expect.poll(() => page.locator('[data-connected-lines]').getAttribute('viewBox')).not.toBe('0 0 0 0');
+  expect(await page.evaluate(() => window.__staleConnectedDraws)).toBe(0);
+});
+
 test('Connected retries after a late load without mounting stale placeholders', async ({page}) => {
   const html = markup(data);
   const start = html.indexOf('window.BRVTALPublicDataPromise=Promise.resolve(');
