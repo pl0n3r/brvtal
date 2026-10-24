@@ -586,6 +586,10 @@ test('owner-v2 paired frame spatially distributes only verified Connected nodes 
   // A CMS-backed editorial cover must use paper-black typographic contrast
   // and a right-side photograph, instead of overlaying white letters on a
   // dark event flyer. This is scoped to the real paired desktop board.
+  // The Journal DOM may exist before its editorial cover has finished loading.
+  // Wait for real image dimensions instead of capturing a transient empty state.
+  await expect.poll(() => page.locator('#transmissions .transmission-feature .transmission-cover img')
+    .evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
   const lead = await page.locator('#transmissions .transmission-feature').evaluate(node => {
     const bounds = node.getBoundingClientRect();
     const cover = node.querySelector('.transmission-cover').getBoundingClientRect();
