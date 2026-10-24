@@ -120,20 +120,20 @@ class ReconciliacionIssuesTests(unittest.TestCase):
                     self.assert_issue_inventory(corrupted)
 
 
-    def test_ci_calls_acceptance_and_denies_partial_inventory(self) -> None:
-        """Keep AC-01 executable on exact-HEAD CI, not only in local fixtures."""
-        workflow = (ROOT / ".github/workflows/update-release-metadata.yml").read_text(
+    def test_ci_calls_acceptance_on_exact_head(self) -> None:
+        """Fail if the dated snapshot loses its independent exact-HEAD CI gate."""
+        workflow = (ROOT / ".github/workflows/ci-backlog-reconciliation.yml").read_text(
             encoding="utf-8"
         )
-        step_name = "      - name: Verify #1016 backlog reconciliation acceptance when present\n"
-        self.assertIn(step_name, workflow)
-        step = workflow.split(step_name, 1)[1].split("\n      - name:", 1)[0]
-        self.assertIn('if [[ -f "$report" || -f "$test_module" ]]; then', step)
-        self.assertIn('if [[ ! -f "$report" || ! -f "$test_module" ]]; then', step)
-        self.assertIn("exit 1", step)
+        self.assertIn("name: BRVTAL Backlog Reconciliation Acceptance", workflow)
+        self.assertIn("contents: read", workflow)
+        self.assertIn("persist-credentials: false", workflow)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
+        self.assertIn("'tests/test_reconciliacion_issues_20261024.py'", workflow)
+        self.assertIn("'docs/reconciliacion-issues-20261024.md'", workflow)
         self.assertIn(
             "python3 -m unittest -v tests.test_reconciliacion_issues_20261024",
-            step,
+            workflow,
         )
 
 

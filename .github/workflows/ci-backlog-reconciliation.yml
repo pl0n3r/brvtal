@@ -1,0 +1,31 @@
+name: BRVTAL Backlog Reconciliation Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/reconciliacion-issues-20261024.md'
+      - 'tests/test_reconciliacion_issues_20261024.py'
+      - '.github/workflows/ci-backlog-reconciliation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/reconciliacion-issues-20261024.md'
+      - 'tests/test_reconciliacion_issues_20261024.py'
+      - '.github/workflows/ci-backlog-reconciliation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backlog-acceptance:
+    name: Reconciliacion backlog #1016
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Execute exact-HEAD backlog acceptance
+        run: python3 -m unittest -v tests.test_reconciliacion_issues_20261024
