@@ -57,6 +57,12 @@ class HomeC05JournalConnectedTests(unittest.TestCase):
         self.assertNotIn('data-index="07"', journal)
         self.assertIn("BRVTAL JOURNAL / 06", journal)
         self.assertIn("'css/public-concept05-tokens.css',", php)
+        self.assertIn("'css/public-concept05-home.css',", php)
+        self.assertEqual(1, php.count("'css/public-concept05-home.css',"))
+        self.assertLess(php.index("'css/public-concept05-tokens.css'"),
+                        php.index("'css/public-concept05-home.css'"))
+        self.assertLess(php.index("'css/public-concept05-home.css'"),
+                        php.index("'css/public-concept05-journal-connected.css'"))
         self.assertIn("'css/public-concept05-journal-connected.css',", php)
         self.assertIn("'<body data-scene=\"CORE\" data-concept=\"05\">'", php)
         self.assertLess(php.index("'css/public-concept05-tokens.css'"),
