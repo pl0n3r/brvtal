@@ -25,7 +25,7 @@ $assert = static function (bool $condition, string $message): void {
     }
 };
 
-// README Contract v1 is a durable operational cover, not a per-PR deploy snapshot.
+// README Contract v2 is a linked operational cover, not a per-PR deploy snapshot.
 $assert(str_starts_with($readme, '# BRVTAL'), 'README must preserve BRVTAL identity');
 foreach ([
     '## Operational Cockpit',
@@ -39,10 +39,14 @@ foreach ([
     '## Desarrollo local',
     '## Mapa de la fábrica',
 ] as $heading) {
-    $assert(str_contains($readme, $heading), "README Contract v1 must contain {$heading}");
+    $assert(str_contains($readme, $heading), "README Contract v2 must contain {$heading}");
 }
-$assert(str_contains($readme, '<!-- factory:status:start -->') && str_contains($readme, '<!-- factory:status:end -->'), 'README must expose the Factory status derived block');
-$assert(str_contains($readme, '<!-- factory:progress-readiness:start -->') && str_contains($readme, '<!-- factory:progress-readiness:end -->'), 'README must expose the Factory progress/readiness derived block');
+$assert(str_contains($readme, 'README Contract v2'), 'README must identify its current contract');
+$assert(!str_contains($readme, 'factory:status') && !str_contains($readme, 'factory:progress-readiness'), 'README v2 must omit legacy derived markers');
+$assert(!str_contains($readme, 'Progress + Readiness') && !str_contains($readme, 'UNKNOWN'), 'README v2 must omit legacy readiness and placeholder tables');
+$assert(str_contains($readme, 'https://github.com/pl0n3r/brvtal/actions'), 'README v2 must link real GitHub Actions');
+$assert(str_contains($readme, 'https://github.com/pl0n3r/brvtal/releases'), 'README v2 must link real GitHub Releases');
+$assert(str_contains($readme, 'https://control.condorapp.com.co/'), 'README v2 must link the canonical ControlBot Orchestrator');
 $assert(str_contains($readme, '**NOW:**') && str_contains($readme, '**NEXT:**') && str_contains($readme, '**LATER:**') && str_contains($readme, '**BLOCKED:**'), 'README must expose the four canonical Work Queue lanes');
 $assert(str_contains($readme, 'https://github.com/pl0n3r/brvtal/issues/533'), 'README Work Queue must link the canonical roadmap');
 $assert(!str_contains($readme, '<!-- brvtal:git-delta -->'), 'README must not retain the retired per-PR Git delta block');
@@ -66,7 +70,7 @@ $assert(str_contains($agents, '## 6. Compact BRVTAL invariants'), 'AGENTS must r
 $assert(str_contains($agents, 'ONE SHELL / ONE SIDEBAR / ONE SESSION / ONE CENTRAL WORKSPACE'), 'AGENTS must preserve canonical DISCADMIN architecture');
 $assert(str_contains($agents, '## 8. Tests, CI and review gates'), 'AGENTS must document canonical validation mechanics');
 $assert(str_contains($agents, '## 9. Release and delivery loop'), 'AGENTS must preserve the autonomous delivery loop');
-$assert(str_contains($agents, 'README Contract v1'), 'AGENTS must describe README Contract v1 as the current README authority');
+$assert(str_contains($agents, 'README Contract v2'), 'AGENTS must describe README Contract v2 as the current README authority');
 $assert(str_contains($agents, '## 10. Roadmap and progress ownership'), 'AGENTS must expose the canonical execution-roadmap handoff');
 $assert(str_contains($agents, 'GitHub Issue **#533** is the canonical execution roadmap'), 'AGENTS must identify Issue #533 as the single execution-order source');
 $assert(str_contains($agents, '✅ ~~Struck through~~') && str_contains($agents, '🚧 Normal text'), 'AGENTS must preserve canonical completed vs pending progress markers');
