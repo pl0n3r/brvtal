@@ -806,12 +806,15 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: '0e22155ed8bedcd6a2ce5b995d95cddf5125c15d4c0a5481e4af0e58ae4a8ea9',
-    color: 'b0757d4cc5ea9209533351994b8c437ce8ccbdcc7c2f1d8763e820d42dc810e1',
+    structure: '7f1537fcb58333eadcbd6b2517ab385f29a53de59f1ac0fb7e650472b480c387',
+    color: '3bc5bf4cb50e852472ae3daecc946cab00c844f0efefe40f62302a988db327d2',
   },
   1440: {
-    structure: '0ca474d4581303cf1e8c8f7bdd826ead1eb4754d7347ecf85b8b40d07646317f',
-    color: '133a12fe27127708da420145fd60877727bdddd4ecacd895330fb9a44ed7792f',
+    // Refreshed after comparing HEAD 4e4d44e's genuine CI capture with
+    // owner-v2. This guards the incremental radial layout; it does NOT
+    // attest pixel-perfect parity or authorize publication.
+    structure: '8b6f932906121e083479f455f691ecb507efdaaa699a6d2b7e0decf96e92c4c6',
+    color: '35e207190412c9b129b55bb6a7c373ef25edd00ca7533a951598d454c0d98fda',
   },
 };
 
@@ -1021,6 +1024,57 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     expect(artwork.total).toBeGreaterThan(0);
     expect(artwork.broken).toEqual([]);
     await page.evaluate(()=>{document.body.dataset.concept='05';});
+    // Render the actual checked-in Journal and Connected scripts with an
+    // explicit synthetic CMS fixture before capturing visual proof.
+    // A static loading placeholder is never an AC-03 fidelity screenshot.
+    await page.evaluate(() => {
+      // Home partials use relative asset paths; choose an already decoded
+      // editorial flyer rather than an absent absolute /assets/ selector.
+      const cover = document.querySelector('#media img[src^="assets/flyers/"]')?.src || '';
+      window.BRVTALPublicDataPromise = Promise.resolve({payload:{data:{
+        events:[{id:7,slug:'genesis',title:'GENESIS'}],
+        artists:[{id:2,slug:'pl0n3r',name:'PL0N3R'}],
+        sets:[{id:3,slug:'ritual',title:'RITUAL SET'}],
+        releases:[{id:4,slug:'signal',title:'SIGNAL 001'}],
+        memories:[{id:5,title:'ARCHIVE IMAGE'}],
+        // A/B uses four fabricated public records: one illustrated feature
+        // and three date-ordered index entries, not production CMS data.
+        blog:[{
+          id:6,slug:'ciudad-como-pista',title:'LA CIUDAD COMO PISTA',
+          published_at:'2026-10-12 12:00:00',status:'published',
+          is_published:true,excerpt:'Crónica editorial del archivo BRVTAL.',
+          cover_image:cover,
+        },{
+          id:7,slug:'noche-senal',title:'NOCHE / SEÑAL',
+          published_at:'2026-10-09 19:00:00',status:'published',is_published:true,
+          excerpt:'La comunidad se encuentra en la pista.'
+        },{
+          id:8,slug:'frecuencias-del-archivo',title:'FRECUENCIAS DEL ARCHIVO',
+          published_at:'2026-10-05 15:00:00',status:'published',is_published:true,
+          excerpt:'Relatos y sonidos del archivo editorial.'
+        },{
+          id:9,slug:'memorias-vivas',title:'MEMORIAS VIVAS',
+          published_at:'2026-09-27 11:00:00',status:'published',is_published:true,
+          excerpt:'Crónicas de una cultura en movimiento.'
+        }],
+        relations:{counts:{event_artist:2,event_memory:1}},
+      }}});
+    });
+    await page.addScriptTag({content:readFileSync(join(root,'js/public-transmissions.js'),'utf8')});
+    await page.addScriptTag({content:readFileSync(join(root,'js/public-concept05-connected.js'),'utf8')});
+    await expect(page.locator('#transmissions .transmission-feature')).toHaveCount(1);
+    await expect(page.locator('#transmissions .transmission-feature')).toContainText('LA CIUDAD COMO PISTA');
+    await expect(page.locator('#transmissions .transmission-indexed .transmission-link h3'))
+      .toHaveText(['NOCHE / SEÑAL', 'FRECUENCIAS DEL ARCHIVO', 'MEMORIAS VIVAS']);
+    await expect(page.locator('#transmissions [data-transmissions-list] article')).toHaveCount(4);
+    // AC-03 must document the populated visual state, never the missing-image fallback.
+    await expect(page.locator('#transmissions .transmission-cover img')).toHaveCount(1);
+    await expect.poll(async () => page.locator('#transmissions .transmission-cover img')
+      .evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(page.locator('#transmissions .transmission-cover.is-media-missing')).toHaveCount(0);
+    await expect(page.locator('#connected [data-connected-lines] line')).toHaveCount(2);
+    await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.');
+
     const observed=await page.evaluate(()=>{
       const nodes=[...document.querySelectorAll('main#top>.c5-board-region')];
       return {ids:nodes.map(x=>x.dataset.c5Board),children:nodes.map(x=>[...x.children].map(y=>y.id)),overflow:document.documentElement.scrollWidth-innerWidth,columns:nodes.map(x=>getComputedStyle(x).gridTemplateColumns.split(' ').length),connected:document.querySelectorAll('#connected').length};
@@ -1029,10 +1083,26 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
     expect(observed.children[0]).toEqual(['genesis']);
     expect(observed.children[1]).toEqual(['events','artists']);
     expect(observed.children[2]).toEqual(['sets','media']);
-    expect(observed.children[3]).toEqual(['transmissions']);
+    expect(observed.children[3]).toEqual(['transmissions','connected']);
     expect(observed.connected).toBeLessThanOrEqual(1);
     expect(observed.overflow).toBeLessThanOrEqual(1);
     expect(observed.columns[1]).toBe(width===1440?2:1);
+
+    // BR973-OWNER-V2-REAL-PAIR-RATIO: the actual checked-in 06/07 home
+    // must use the editor's majority/minority pairing, not the 50/50 shell.
+    // The isolated fingerprint fixture lacks a real .c5-board-region wrapper
+    // and intentionally retains its separately approved baseline.
+    if (width===1440){
+      const journalShare=await page.evaluate(()=>{
+        const pair=document.querySelector('main#top>.c5-board-region[data-c5-board="06-07"]');
+        if (!pair) return null;
+        const tracks=getComputedStyle(pair).gridTemplateColumns.split(/\s+/).map(Number.parseFloat);
+        return tracks.length===2 && tracks[1]>0 ? tracks[0]/tracks[1] : null;
+      });
+      expect(journalShare).not.toBeNull();
+      expect(journalShare).toBeGreaterThan(2.1);
+      expect(journalShare).toBeLessThan(2.6);
+    }
     await testInfo.attach('board-'+width+'-actual',{body:await page.screenshot({fullPage:true}),contentType:'image/png'});
   }
   await testInfo.attach('board-comparison-note',{body:Buffer.from('Real desktop/mobile screenshots and owner reference attached for visual sign-off; browser structural checks do not claim pixel-perfect approval.'),contentType:'text/plain'});

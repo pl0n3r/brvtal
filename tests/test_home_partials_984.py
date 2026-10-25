@@ -34,24 +34,39 @@ def render_static_composition() -> str:
 
 
 def compose_without_owner_leaf_markup(html: str) -> str:
-    """Preserve byte-exact #984 baseline outside #971's two editable C05 blocks.
+    """Keep #984 lossless outside the explicitly owned #971 and #973 regions.
 
-    The v2 design intentionally replaces only nights/events and artists; other
-    home partials and the surrounding board must still match the frozen #984
-    snapshot exactly. The HTML section selectors must be unambiguous.
+    #971 owns Events/Artists (02/03) and #973 owns Journal/Connected (06/07).
+    Missing/duplicate required sections still fail; untouched DOM remains
+    byte-exact against the original #984 fixture.
     """
-    for section_id in ("events", "artists"):
+    for section_id in ("events", "artists", "transmissions"):
         pattern = re.compile(
             rf'<section\b[^>]*\bid="{section_id}"[^>]*>.*?</section>',
             flags=re.DOTALL,
         )
         html, replacements = pattern.subn(
-            f"<!-- #971 edited {section_id} partial -->", html
+            f"<!-- owner-edited {section_id} partial -->", html
         )
         if replacements != 1:
             raise AssertionError(
                 f"Expected exactly one editable {section_id} section, found {replacements}"
             )
+
+    connected = re.compile(
+        r'<section\b[^>]*\bid="connected"[^>]*>.*?</section>',
+        flags=re.DOTALL,
+    )
+    html, connected_sections = connected.subn("", html)
+    if connected_sections > 1:
+        raise AssertionError("Connected region must not be duplicated")
+    # #984 froze a blank Connected partial; #973 adds a real section, which
+    # may contribute one extra newline at the original fixed marker boundary.
+    html = re.sub(
+        r"(<!-- owner-edited transmissions partial -->)\s+(?=    </div>)",
+        lambda match: match.group(1) + "\n\n",
+        html,
+    )
     return html
 
 
@@ -102,8 +117,8 @@ class HomePartials984Tests(unittest.TestCase):
 
     def test_rendered_home_matches_pre_refactor_baseline(self) -> None:
         baseline = (ROOT / "tests" / "fixtures" / "home-partials-984-baseline.html").read_text(encoding="utf-8")
-        # A true #984 lossless contract for all unchanged DOM; #971 is the
-        # authorized owner of the two replaced 02/03 sections only.
+        # Preserve all unchanged #984 DOM; only owner-approved #971 (02/03)
+        # and #973 (06/07) regions may differ from this historical baseline.
         composed = render_static_composition()
         self.assertEqual(
             compose_without_owner_leaf_markup(composed),
@@ -133,7 +148,11 @@ class HomePartials984Tests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertTrue(all(source.count(MARKER.format(name)) == 1 for name in NAMES))
         self.assertEqual(source.count("<!-- BRVTAL-HOME-PARTIAL:"), len(NAMES))
-        self.assertEqual((ROOT / "partials" / "home" / "connected.html").read_text(encoding="utf-8"), "")
+        connected = (ROOT / "partials" / "home" / "connected.html").read_text(encoding="utf-8")
+        self.assertEqual(connected.count('id="connected"'), 1)
+        self.assertEqual(connected.count('data-index="07"'), 1)
+        self.assertEqual(connected.count('data-connected-node="'), 5)
+        self.assertNotIn("data-connected-count>0<", connected)
 
         # Probe the real entrypoint loader in an isolated fixture directory.
         # It must fail closed if any static piece disappears or is ambiguous.

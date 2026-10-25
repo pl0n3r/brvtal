@@ -23,27 +23,45 @@
 
   function uniqueEventCount(payload) {
     var ids = new Set();
-    (Array.isArray(payload.events) ? payload.events : []).forEach(function (item) {
-      if (item && item.id != null) ids.add(String(item.id));
-    });
-    (Array.isArray(payload.archive?.events) ? payload.archive.events : []).forEach(function (item) {
-      if (item && item.id != null) ids.add(String(item.id));
-    });
+    var addId = function (item) {
+      // Only real positive CMS IDs are countable. Normalize number/string
+      // representations so the public feed and archive cannot double count.
+      // Only own CMS fields establish identity; inherited IDs/getters are untrusted.
+      var raw = item && typeof item === 'object' && !Array.isArray(item)
+        && Object.hasOwn(item, 'id') ? item.id : undefined;
+      var id = typeof raw === 'number' ? raw
+        : (typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
+      if (Number.isSafeInteger(id) && id > 0) ids.add(String(id));
+    };
+    (Array.isArray(payload.events) ? payload.events : []).forEach(addId);
+    (Array.isArray(payload.archive?.events) ? payload.archive.events : []).forEach(addId);
     return ids.size;
   }
 
   function relationCounts(relations) {
-    var input = relations && typeof relations.counts === 'object' ? relations.counts : {};
+    var input = relations && typeof relations.counts === 'object' && relations.counts !== null && !Array.isArray(relations.counts)
+      ? relations.counts : {};
     var out = {};
     EDGE_SPECS.forEach(function (spec) {
-      var value = Number(input[spec[0]]);
-      out[spec[0]] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+      // The CMS contract carries integer counts. Do not coerce booleans,
+      // objects, fractional values, or unsafe integers into invented edges.
+      // Only CMS-owned keys certify a relationship; inherited keys do not.
+      var raw = Object.hasOwn(input, spec[0]) ? input[spec[0]] : undefined;
+      var value = typeof raw === 'number' ? raw
+        : (typeof raw === 'string' && /^(?:0|[1-9]\d*)$/.test(raw.trim()) ? Number(raw.trim()) : NaN);
+      out[spec[0]] = Number.isSafeInteger(value) && value > 0 ? value : 0;
     });
     return out;
   }
 
   function edgeTotal(counts) {
-    return Object.values(counts).reduce(function (sum, value) { return sum + value; }, 0);
+    // Each CMS count is safe on its own, but the aggregate may overflow.
+    // Report an unknown total rather than round a verified link count.
+    return Object.values(counts).reduce(function (sum, value) {
+      if (sum === null) return null;
+      var next = sum + value;
+      return Number.isSafeInteger(next) ? next : null;
+    }, 0);
   }
 
   function nodeCenter(section, key) {
@@ -122,17 +140,40 @@
     var edges = edgeTotal(counts);
     var edgesEl = section.querySelector('[data-connected-edges]');
     if (edgesEl) {
-      edgesEl.textContent = edges > 0
-        ? edges + ' VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.'
-        : 'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.';
+      edgesEl.textContent = edges === null
+        ? 'RELATIONAL LINK TOTAL UNAVAILABLE.'
+        : edges > 0
+          ? edges + ' VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.'
+          : 'NO STRUCTURED RELATIONSHIPS PUBLISHED YET.';
     }
 
-    requestAnimationFrame(function () { drawEdges(section, counts); });
+    requestAnimationFrame(function () {
+      if (section.isConnected) drawEdges(section, counts);
+    });
+    // PHP partials can be replaced without a full page load. The latest
+    // Connected section owns exactly one resize listener across script reloads.
+    if (typeof window.__brvtalConnectedResizeCleanup === 'function') {
+      window.__brvtalConnectedResizeCleanup();
+    }
     var resizeTimer = 0;
     var redraw = function () {
+      if (!section.isConnected) {
+        cleanupResize();
+        return;
+      }
       window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(function () { drawEdges(section, counts); }, 80);
+      resizeTimer = window.setTimeout(function () {
+        if (section.isConnected) drawEdges(section, counts);
+      }, 80);
     };
+    var cleanupResize = function () {
+      window.removeEventListener('resize', redraw);
+      window.clearTimeout(resizeTimer);
+      if (window.__brvtalConnectedResizeCleanup === cleanupResize) {
+        delete window.__brvtalConnectedResizeCleanup;
+      }
+    };
+    window.__brvtalConnectedResizeCleanup = cleanupResize;
     window.addEventListener('resize', redraw, {passive:true});
 
     document.documentElement.dataset.publicConnected = 'relational';
@@ -152,19 +193,32 @@
   async function init() {
     var section = document.querySelector('#connected[data-scene], section#connected');
     if (!section) return;
-
-    var request = await waitForDataPromise(4000);
-    if (!request) {
-      section.dataset.state = 'unavailable';
-      return;
-    }
+    // Same DOM section is mounted once even if PHP and loader both inject us.
+    // A new section after a partial re-render must remain independently mountable.
+    if (section.dataset.brvtalConnectedMounted === '1'
+      || section.dataset.brvtalConnectedMounting === '1') return;
+    section.dataset.brvtalConnectedMounting = '1';
 
     try {
+      var request = await waitForDataPromise(4000);
+      if (!request) {
+        section.dataset.state = 'unavailable';
+        return;
+      }
+
       var result = await request;
       var payload = result && result.payload ? result.payload : result;
-      if (payload) render(section, payload.data || payload);
+      if (!payload || !section.isConnected) {
+        section.dataset.state = 'unavailable';
+        return;
+      }
+      render(section, payload.data || payload);
+      section.dataset.brvtalConnectedMounted = '1';
+      section.dataset.state = 'ready';
     } catch (_) {
       section.dataset.state = 'unavailable';
+    } finally {
+      delete section.dataset.brvtalConnectedMounting;
     }
   }
 
@@ -173,4 +227,9 @@
   } else {
     init();
   }
+  // app.js may not publish its promise until window.load + 120 ms;
+  // recover from an earlier timeout without an unbounded polling loop.
+  window.addEventListener('load', function () {
+    window.setTimeout(init, 180);
+  }, {once:true});
 })();
