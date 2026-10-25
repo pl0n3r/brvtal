@@ -251,6 +251,19 @@ echo json_encode($results);
         api = source("api/index.php")
         self.assertIn("if ($resource === 'sets' && array_key_exists('duration_seconds', $d))", api)
         self.assertIn("'duration_seconds','status','sort_order'", api)
+        admin = source("discadmin/index-core.php")
+        modules = source("discadmin/admin-modules.js")
+        self.assertIn('id="f_duration_seconds" type="number" min="1" max="86400"', admin)
+        self.assertIn("r.duration_seconds??''", admin)
+        self.assertIn("duration_seconds:fieldValue('duration_seconds') === '' ? null : fieldValue('duration_seconds')", modules)
+        self.assertIn("function validOptionalSetDuration()", modules)
+        self.assertIn("if (type === 'sets' && !validOptionalSetDuration()) return;", modules)
+        self.assertIn(r"const canonical = value === '' || /^[1-9]\d{0,4}$/.test(value);", modules)
+        self.assertIn("if (!input) {", modules)
+        self.assertIn("Duration field unavailable; reopen the Sets editor.", modules)
+        self.assertIn("input.checkValidity() && canonical", modules)
+        self.assertIn("input.reportValidity();", modules)
+        self.assertIn("Feedback.error('Duration must be whole seconds", modules)
         self.assertIn("brvtal_admin_require_csrf();", api)
         self.assertIn("brvtal_activity_record(", api)
         if shutil.which("php") is None:
@@ -323,6 +336,82 @@ echo json_encode($results);
             {"status": 200, "present": True, "duration": 86400},
         ]
         self.assertEqual(json.loads(observed.stdout), expected_valid + [{"status": 422}] * 10)
+
+
+    def test_set_list_formats_known_duration_only(self):
+        renderer = source("js/public-sets-library.js")
+        e2e = source("tests/e2e/public-sets-library-phase-c.spec.mjs")
+        self.assertIn("const durationLabel = value =>", renderer)
+        self.assertIn("Number.isSafeInteger(seconds)", renderer)
+        self.assertIn("seconds < 1 || seconds > 86400", renderer)
+        self.assertIn("data-set-duration aria-label", renderer)
+        self.assertIn("duration ? `<span", renderer)
+        self.assertNotIn("duration_seconds: 180", renderer)
+        self.assertIn("known CMS durations", e2e)
+        self.assertIn("document.readyState === 'complete'", renderer)
+        self.assertIn("window.addEventListener('load', hydrateAfterStaticLoad", renderer)
+        self.assertIn("late-injected Sets module hydrates real CMS durations after window load", e2e)
+        self.assertIn("for (let attempt = 0; attempt < 30; attempt += 1)", renderer)
+        self.assertIn("late shared public loader hydrates real CMS duration", e2e)
+        self.assertIn("if (!('status' in item)) return true;", renderer)
+        self.assertIn("return Object.hasOwn(item, 'status') && item.status === 'published';", renderer)
+        self.assertIn("inherited publication status is never trusted", e2e)
+        self.assertIn("Missing/malformed Sets is not equivalent", renderer)
+        self.assertIn("missing or malformed Sets data does not erase the static fallback", e2e)
+        self.assertIn("an explicitly unpublished CMS Set never leaks its duration", e2e)
+        self.assertIn("for (const width of [390, 1440])", e2e)
+        self.assertIn("await page.setViewportSize({width, height:width === 390 ? 844 : 900});", e2e)
+
+
+    def test_editor_duration_guard_runtime_synthetic(self):
+        """Exercise the production editor guard without network or real records."""
+        modules = source("discadmin/admin-modules.js")
+        self.assertIn("if (type === 'sets' && !validOptionalSetDuration()) return;", modules)
+        if shutil.which("node") is None:
+            self.skipTest("Node unavailable for isolated editor guard execution")
+        guard = "function validOptionalSetDuration() {" + modules.split(
+            "function validOptionalSetDuration() {", 1
+        )[1].split("  window.save = async function", 1)[0]
+        harness = r"""
+let current;
+let errorCount = 0;
+const document = {getElementById: key => key === 'f_duration_seconds' ? current : null};
+const Feedback = {error() {errorCount++;}};
+""" + guard + r"""
+const inputs = JSON.parse(process.argv[1]);
+const results = inputs.map(value => {
+  let reported = 0;
+  let focused = 0;
+  const prevErrors = errorCount;
+  current = {
+    value,
+    checkValidity() {
+      if (value === '') return true;
+      const num = Number(value);
+      return value.trim() === value && Number.isInteger(num) && num >= 1 && num <= 86400;
+    },
+    reportValidity() {reported++;},
+    focus() {focused++;}
+  };
+  const allowed = validOptionalSetDuration();
+  return [allowed, reported, focused, errorCount - prevErrors];
+});
+const priorErrors = errorCount;
+current = null;
+const missingAllowed = validOptionalSetDuration();
+console.log(JSON.stringify({results, missingAllowed, missingErrors: errorCount - priorErrors}));
+"""
+        inputs = ["", "1", "3599", "86400", "0", "-1", "86401",
+                  "01", "1e2", "1.5", "3.0", "abc", " 1 "]
+        output = subprocess.run(
+            ["node", "-e", harness, json.dumps(inputs)],
+            check=True, capture_output=True, text=True
+        )
+        expected = [[True, 0, 0, 0]] * 4 + [[False, 1, 1, 1]] * 9
+        result = json.loads(output.stdout)
+        self.assertEqual(result["results"], expected)
+        self.assertFalse(result["missingAllowed"])
+        self.assertEqual(result["missingErrors"], 1)
 
     def test_migration_registry_and_reconciliation_contract(self):
         reconciliation = source("config/migration_reconcile.php")
