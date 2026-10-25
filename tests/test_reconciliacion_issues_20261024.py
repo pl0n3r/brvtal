@@ -73,7 +73,8 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         entries = [
             int(number)
             for number in re.findall(
-                r"\[[^\]]+\]\(" + re.escape(CANONICAL + "pull/") + r"(\d+)\)",
+                r"\[[^\]]+\]\(" + re.escape(CANONICAL + "pull/")
+                + r"(\d+)(?:/[^)\s]*)?(?:[?#][^)\s]*)?\)",
                 pr_section,
             )
         ]
@@ -153,11 +154,15 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         report = DOCUMENT.read_text(encoding="utf-8")
         marker = "## Evidencia de la reconciliación"
         self.assertIn(marker, report)
-        corrupted = report.replace(
-            marker, f"[#2000]({CANONICAL}pull/2000) " + marker, 1
-        )
-        with self.assertRaises(AssertionError):
-            self.assert_pr_inventory(corrupted)
+        for suffix in ("", "?tab=files", "#discussion_r1", "/files"):
+            with self.subTest(url_suffix=suffix):
+                corrupted = report.replace(
+                    marker,
+                    f"[#2000]({CANONICAL}pull/2000{suffix}) " + marker,
+                    1,
+                )
+                with self.assertRaises(AssertionError):
+                    self.assert_pr_inventory(corrupted)
 
     def test_ci_rejects_commented_ref_and_main_checkout(self) -> None:
         """A comment referencing HEAD does not make checkout on main safe."""
