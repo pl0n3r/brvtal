@@ -1,4 +1,4 @@
-"""Regresiones de adopción de README Contract v1 en BRVTAL."""
+"""Regresiones de adopción de README Contract v2 en BRVTAL."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,6 @@ METADATA = ROOT / "readme" / "project.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "readme-contract.yml"
 BRVTAL_CI = ROOT / ".github" / "workflows" / "update-release-metadata.yml"
 LEGACY_DASHBOARD = ROOT / "scripts" / "readme-dashboard.py"
-AGENTS = ROOT / "AGENTS.md"
 
 REQUIRED_METADATA = {"name", "tagline", "role", "phase", "roadmap", "stack"}
 FORBIDDEN_OPERATIONAL = {
@@ -47,30 +46,37 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
             self.assertIsInstance(value, str)
             self.assertTrue(value.strip())
 
-    def test_readme_has_contract_v1_anatomy(self):
+    def test_readme_has_contract_v2_anatomy(self):
         readme = self.readme()
         self.assertTrue(readme.startswith("# BRVTAL"))
         for heading in REQUIRED_SECTIONS:
             self.assertEqual(readme.count(f"## {heading}"), 1, heading)
+        positions = [readme.index(f"## {heading}") for heading in REQUIRED_SECTIONS]
+        self.assertEqual(positions, sorted(positions), "secciones en orden canónico")
         self.assertIn("underground", readme.lower())
         self.assertIn("DISCADMIN", readme)
 
-    def test_derived_blocks_fail_closed_without_evidence(self):
+    def test_readme_is_contract_v2_without_unknown_blocks(self):
         readme = self.readme()
-        pairs = (
-            ("<!-- factory:status:start -->", "<!-- factory:status:end -->"),
-            (
-                "<!-- factory:progress-readiness:start -->",
-                "<!-- factory:progress-readiness:end -->",
-            ),
+        cockpit = readme.split("## Operational Cockpit", 1)[1].split("\n## ", 1)[0]
+        for stale in (
+            "UNKNOWN",
+            "factory:status",
+            "factory:progress-readiness",
+            "Progress + Readiness",
+        ):
+            self.assertNotIn(stale, readme)
+        self.assertIn(
+            "https://github.com/pl0n3r/brvtal/actions/workflows/update-release-metadata.yml",
+            cockpit,
         )
-        for start, end in pairs:
-            self.assertEqual(readme.count(start), 1)
-            self.assertEqual(readme.count(end), 1)
-            block = readme.split(start, 1)[1].split(end, 1)[0]
-            self.assertIn("UNKNOWN", block)
-            self.assertNotIn("GREEN", block)
-            self.assertNotIn("DEGRADED", block)
+        self.assertIn(
+            "https://github.com/pl0n3r/brvtal/releases", cockpit
+        )
+        self.assertIn("https://control.condorapp.com.co/", cockpit)
+        self.assertIn("badge.svg?branch=main", cockpit)
+        self.assertIn("img.shields.io/github/v/release/pl0n3r/brvtal", cockpit)
+        self.assertNotIn("| Señal | Estado |", cockpit)
 
     def test_consumer_workflow_uses_factory_v1(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
@@ -89,7 +95,20 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
         for lane in ("NOW", "NEXT", "LATER", "BLOCKED"):
             self.assertIn(f"**{lane}:**", queue)
         self.assertIn("https://github.com/pl0n3r/brvtal/issues/533", queue)
-        self.assertIn("https://github.com/pl0n3r/brvtal/issues/746", queue)
+        self.assertIn("https://github.com/pl0n3r/brvtal/issues?q=is%3Aissue", queue)
+        self.assertIn("https://github.com/pl0n3r/brvtal/pulls?q=is%3Apr", queue)
+        self.assertIn("status%3A%20blocked", queue)
+        self.assertIn("status%3A%20available", queue)
+        self.assertNotIn("https://github.com/pl0n3r/brvtal/issues/1014", queue,
+                         "No publicar como NOW el Issue que cierra este mismo PR")
+
+    def test_product_overview_pr_links_avoid_transient_status_claims(self):
+        overview = self.readme().split("## Qué hace el producto", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("https://github.com/pl0n3r/brvtal/pull/1012", overview)
+        self.assertIn("https://github.com/pl0n3r/brvtal/pull/1008", overview)
+        self.assertIn("Consulta el estado vigente de cada trabajo en GitHub", overview)
+        self.assertNotIn("continúa como trabajo de rama", overview)
+        self.assertNotIn("sigue en revisión", overview)
 
     def test_factory_map_preserves_roles(self):
         factory_map = self.readme().split("## Mapa de la fábrica", 1)[1]
@@ -102,18 +121,11 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
         ):
             self.assertIn(expected, factory_map)
 
-    def test_legacy_dashboard_is_retired_and_agents_follow_contract_v1(self):
+    def test_legacy_dashboard_is_retired(self):
         self.assertFalse(LEGACY_DASHBOARD.exists())
         ci = BRVTAL_CI.read_text(encoding="utf-8")
         self.assertNotIn("readme-dashboard.py", ci)
         self.assertNotIn("Verify README matches this deploy exactly", ci)
-        agents = AGENTS.read_text(encoding="utf-8")
-        self.assertIn("README Contract v1", agents)
-        self.assertNotIn(
-            "Every PR targeting `main` must keep `README.md` synchronized with the exact PR diff",
-            agents,
-        )
-        self.assertNotIn("Refresh exact README snapshot", agents)
 
 
 if __name__ == "__main__":

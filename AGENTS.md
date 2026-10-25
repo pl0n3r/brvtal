@@ -18,7 +18,7 @@ Use the smallest canonical source that owns the question:
 4. **`docs/BRVTAL-SPEC.md`** — durable product, architecture and functional rules.
 5. **The specific GitHub Issue** — acceptance criteria for that work item.
 6. **GitHub Issue #533** — cross-project execution order and progress only.
-7. **`README.md`** — operational landing page under README Contract v1: stable human sections plus derived, evidence-backed status blocks.
+7. **`README.md`** — operational landing page under README Contract v2: stable human sections plus live GitHub signals and a ControlBot Orchestrator link.
 8. Old chat/history — last resort, never required for normal continuation.
 
 If code proves prose stale, correct the owning source in the same focused work line when safe.
@@ -126,7 +126,7 @@ GitHub is the arbiter for concurrent implementation.
 - Coordinated PRs target `main`, use their reserved `work/issue-N` branch and close the matching Issue with `Closes #N`, `Fixes #N` or `Resolves #N`.
 - Coordination fails closed when Issue, branch, reservation metadata or closing relation disagree.
 - Changed-file overlap with another open PR targeting `main` is a fail-closed collision and must identify exact paths.
-- `README.md` follows the same changed-file collision rules as any other path. README Contract v1 removed the per-PR transient snapshot exception; do not rewrite README merely because `main` moved.
+- `README.md` follows the same changed-file collision rules as any other path. README Contract v2 never uses a per-PR snapshot: do not rewrite README merely because `main` moved.
 - Independent reservations may run in parallel; conflicting implementation work may not.
 - PR/Issue lifecycle synchronizes visible state and reservation/branch cleanup.
 - Deploy-bound PR titles end with `(vX.Y.Z)`.
@@ -247,13 +247,13 @@ Rules:
 - **1.0.0 requires explicit administrator decision.**
 - Git SHA remains separate technical deployment identity.
 
-### README Contract v1
+### README Contract v2
 
-`README.md` is the stable operational landing page governed by Factory README Contract v1.
+`README.md` is the stable operational landing page governed by Factory README Contract v2.
 
 - Human-owned sections describe durable product purpose, architecture, stack, delivery, quality/security and sources of truth.
-- Operational state lives only inside the canonical `factory:status` and `factory:progress-readiness` blocks.
-- Missing evidence remains `UNKNOWN`/`PENDING`; never invent `GREEN` or `DEGRADED`.
+- Operational links use live GitHub Actions/Releases badges and the canonical ControlBot Orchestrator; the README does not render legacy status/progress markers.
+- Missing optional sources are omitted; never infer health, readiness, deployment or `GREEN` from missing evidence.
 - The README is not a changelog, exact PR diff, release note or second roadmap.
 - PR-specific changed files, deltas, gate plans and validation results belong in the PR / GitHub Release.
 - `readme/project.json` contains stable metadata only.
@@ -321,7 +321,7 @@ Read deep references only when relevant:
 - `docs/HERO-SLIDER.md` — Hero/Banners model;
 - `docs/DISCADMIN-UX-AUDIT.md` — UX debt/history;
 - specific GitHub Issue — executable acceptance criteria;
-- `README.md` — README Contract v1 operational landing page, not startup truth or PR snapshot.
+- `README.md` — README Contract v2 operational landing page, not startup truth or PR snapshot.
 
 Repository map:
 
@@ -350,7 +350,7 @@ To preserve that property:
 - put product/architecture decisions in `docs/BRVTAL-SPEC.md`;
 - put execution order/progress in #533;
 - put acceptance criteria in the specific Issue;
-- keep README Contract v1 structure/metadata valid; do not synchronize it to each PR diff;
+- keep README Contract v2 structure/metadata valid; do not synchronize it to each PR diff;
 - update AGENTS only when the operating model, safety boundary, source ownership or delivery mechanics actually change.
 
 If a future session needs old chat history to know how to work, this contract has failed and repository context must be repaired.
