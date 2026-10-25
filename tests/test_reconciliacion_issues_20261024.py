@@ -66,7 +66,7 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         for pr in EXPECTED_PRS:
             self.assertRegex(
                 pr_section,
-                r"\\[[^\\]]+\\]\\(" + re.escape(CANONICAL + "pull/" + str(pr)) + r"\\)",
+                r"\[[^\]]+\]\(" + re.escape(CANONICAL + "pull/" + str(pr)) + r"\)",
                 f"PR abierto #{pr} omitido del inventario histórico",
             )
 
