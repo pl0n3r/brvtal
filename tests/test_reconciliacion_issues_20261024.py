@@ -15,6 +15,13 @@ CANONICAL = "https://github.com/pl0n3r/brvtal/"
 MAIN_SHA = "4edbf3fdb4302f3c1034e27f007ba09638cfeebc"
 VALID_DECISIONS = ("ENTREGAR PR", "ACTUALIZAR", "MANTENER ABIERTO")
 
+EXACT_HEAD_CHECKOUT = re.compile(
+    r"(?m)^      - uses: actions/checkout@[^\n]+\n"
+    r"        with:\n"
+    r"          ref: \$\{\{ github.event.pull_request.head.sha \|\| github.sha \}\}\n"
+    r"          persist-credentials: false$"
+)
+
 
 class ReconciliacionIssuesTests(unittest.TestCase):
     def assert_issue_inventory(self, report: str) -> None:
@@ -63,12 +70,18 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         pr_section = report.split("## PRs abiertos y exclusividad", 1)[1].split(
             "## Evidencia de la reconciliación", 1
         )[0]
-        for pr in EXPECTED_PRS:
-            self.assertRegex(
+        entries = [
+            int(number)
+            for number in re.findall(
+                r"\[[^\]]+\]\(" + re.escape(CANONICAL + "pull/") + r"(\d+)\)",
                 pr_section,
-                r"\[[^\]]+\]\(" + re.escape(CANONICAL + "pull/" + str(pr)) + r"\)",
-                f"PR abierto #{pr} omitido del inventario histórico",
             )
+        ]
+        self.assertEqual(
+            sorted(entries),
+            sorted(EXPECTED_PRS),
+            "El inventario histórico debe incluir exactamente cinco PR únicos",
+        )
 
     def test_acceptance(self) -> None:
         self.assertTrue(DOCUMENT.is_file(), "Falta el inventario documentado del corte")
@@ -135,6 +148,31 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assert_pr_inventory(corrupted)
 
+    def test_surplus_pr_inventory_is_rejected(self) -> None:
+        """An extra PR link must invalidate the fixed five-PR inventory."""
+        report = DOCUMENT.read_text(encoding="utf-8")
+        marker = "## Evidencia de la reconciliación"
+        self.assertIn(marker, report)
+        corrupted = report.replace(
+            marker, f"[#2000]({CANONICAL}pull/2000) " + marker, 1
+        )
+        with self.assertRaises(AssertionError):
+            self.assert_pr_inventory(corrupted)
+
+    def test_ci_rejects_commented_ref_and_main_checkout(self) -> None:
+        """A comment referencing HEAD does not make checkout on main safe."""
+        workflow = (ROOT / ".github/workflows/ci-backlog-reconciliation.yml").read_text(
+            encoding="utf-8"
+        )
+        correct = "          ref: " + "$" + "{{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertIn(correct, workflow)
+        corrupted = workflow.replace(
+            correct,
+            correct.replace("ref:", "# ref:") + chr(10) + "          ref: main",
+            1,
+        )
+        self.assertNotRegex(corrupted, EXACT_HEAD_CHECKOUT)
+
     def test_ci_calls_acceptance_on_exact_head(self) -> None:
         """Fail if the dated snapshot loses its independent exact-HEAD CI gate."""
         workflow = (ROOT / ".github/workflows/ci-backlog-reconciliation.yml").read_text(
@@ -143,7 +181,7 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         self.assertIn("name: BRVTAL Backlog Reconciliation Acceptance", workflow)
         self.assertIn("contents: read", workflow)
         self.assertIn("persist-credentials: false", workflow)
-        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", workflow)
+        self.assertRegex(workflow, EXACT_HEAD_CHECKOUT)
         self.assertIn("'tests/test_reconciliacion_issues_20261024.py'", workflow)
         self.assertIn("'docs/reconciliacion-issues-20261024.md'", workflow)
         self.assertIn(
