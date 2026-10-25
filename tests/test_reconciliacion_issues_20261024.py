@@ -58,6 +58,18 @@ class ReconciliacionIssuesTests(unittest.TestCase):
 
         self.assertEqual(seen, EXPECTED_ISSUES)
 
+    def assert_pr_inventory(self, report: str) -> None:
+        """Validate full Markdown PR links, never a numeric-prefix substring."""
+        pr_section = report.split("## PRs abiertos y exclusividad", 1)[1].split(
+            "## Evidencia de la reconciliación", 1
+        )[0]
+        for pr in EXPECTED_PRS:
+            self.assertRegex(
+                pr_section,
+                r"\\[[^\\]]+\\]\\(" + re.escape(CANONICAL + "pull/" + str(pr)) + r"\\)",
+                f"PR abierto #{pr} omitido del inventario histórico",
+            )
+
     def test_acceptance(self) -> None:
         self.assertTrue(DOCUMENT.is_file(), "Falta el inventario documentado del corte")
         report = DOCUMENT.read_text(encoding="utf-8")
@@ -68,15 +80,7 @@ class ReconciliacionIssuesTests(unittest.TestCase):
         self.assertIn("## Evidencia de la reconciliación", report)
         self.assert_issue_inventory(report)
 
-        # Require every PR inside the fixed historic inventory, not in unrelated rows.
-        pr_section = report.split("## PRs abiertos y exclusividad", 1)[1].split(
-            "## Evidencia de la reconciliación", 1
-        )[0]
-        for pr in EXPECTED_PRS:
-            self.assertIn(
-                f"https://github.com/pl0n3r/brvtal/pull/{pr}", pr_section,
-                f"PR abierto #{pr} omitido del inventario histórico",
-            )
+        self.assert_pr_inventory(report)
 
         for safeguard in (
             "SonarCloud Code Analysis",
@@ -119,6 +123,17 @@ class ReconciliacionIssuesTests(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     self.assert_issue_inventory(corrupted)
 
+
+    def test_pr_link_prefix_is_not_historical_evidence(self) -> None:
+        """A link to PR 9980 must never satisfy the required PR 998."""
+        report = DOCUMENT.read_text(encoding="utf-8")
+        good = f"[#998]({CANONICAL}pull/998)"
+        wrong = f"[#998]({CANONICAL}pull/9980)"
+        self.assertIn(good, report)
+        corrupted = report.replace(good, wrong, 1)
+        self.assertNotEqual(corrupted, report)
+        with self.assertRaises(AssertionError):
+            self.assert_pr_inventory(corrupted)
 
     def test_ci_calls_acceptance_on_exact_head(self) -> None:
         """Fail if the dated snapshot loses its independent exact-HEAD CI gate."""
