@@ -6,7 +6,7 @@
 
 ## Procedencia
 
-- Proyecto `pl0n3r/brvtal`, versión declarada `0.1.147`.
+- Proyecto `pl0n3r/brvtal`, versión declarada `0.1.148`.
 - Fuentes canónicas `docs/privacidad/` y `datos.yml`. Última modificación de esas fuentes: 2026-09-29, commit `122f9c5b4bd97f3823534a0f844ebaed738aad12`.
 - Los seis documentos incluidos son copias byte a byte de sus fuentes. Las correcciones jurídicas se hacen en las fuentes, y luego se regenera.
 
