@@ -14,10 +14,10 @@ const items = [
   {id:4,media_id:104,type:'image',title:'Afterhours',context:'Afterimage / 05:12',file_path:'/uploads/afterhours.jpg',sort_order:40},
 ];
 
-async function mountHarness(page) {
+async function mountHarness(page, delivery = {}) {
   const silentWav = Buffer.from('UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'base64');
   await page.route('**/uploads/closing.mp3', route => route.fulfill({contentType:'audio/wav',body:silentWav}));
-  await page.route('**/api/public-image-delivery.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{}})}));
+  await page.route('**/api/public-image-delivery.php', route => route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:delivery})}));
   await page.route(harnessUrl, route => route.fulfill({
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html lang="en"><head><style>html,body{margin:0;background:#080808;color:#fff}${mediaCss}${memoriesCss}</style></head><body>
@@ -66,4 +66,82 @@ test('Memories keeps a two-column mobile editorial rhythm with deliberate full-s
   await page.setViewportSize({width:390,height:844}); await mountHarness(page); const cards=page.locator('[data-public-media-item]'); await expect(cards).toHaveCount(4); const boxes=await Promise.all([0,1,2,3].map(index=>cards.nth(index).boundingBox())); for(const box of boxes)expect(box).not.toBeNull();
   expect(boxes[0].width).toBeGreaterThan(340);expect(boxes[1].width).toBeGreaterThan(160);expect(boxes[1].width).toBeLessThan(180);expect(Math.abs(boxes[1].y-boxes[2].y)).toBeLessThan(4);expect(boxes[2].x).toBeGreaterThan(boxes[1].x+boxes[1].width-2);expect(boxes[3].y).toBeGreaterThan(boxes[1].y+100);
   for(const button of await page.locator('[data-public-media-type]').all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);} const relationBox=await page.getByRole('link',{name:'EVENT / GENESIS'}).boundingBox();expect(relationBox.height).toBeGreaterThanOrEqual(44);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true); await expect(page.getByRole('heading',{name:'MEMORIES'})).toBeVisible(); await expect(page.getByText('THE NIGHT REMAINS.')).toBeVisible();
+});
+
+const replayPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/J0kAAAAASUVORK5CYII=', 'base64');
+function replayDelivery(name, original) {
+  return {[original]:{variants:{card:{src:'/uploads/' + name + '.webp',width:1,height:1}}}};
+}
+async function replayImage(page, src) {
+  await page.evaluate(value => {
+    const image = document.createElement('img');
+    image.id = 'replay-image';
+    image.dataset.brvtalImageContext = 'card';
+    image.src = value;
+    document.body.append(image);
+    window.BRVTALPublicMedia.applyDocumentImageDelivery(image);
+  }, src);
+  return page.locator('#replay-image');
+}
+
+test('public image replay fallback: same asset replay does not reselect failed WebP', async ({page}) => {
+  let webpRequests = 0;
+  await page.route('**/uploads/asset-a.webp', route => {webpRequests++; return route.fulfill({status:404,body:'broken'});});
+  await page.route('**/uploads/asset-a.jpg', route => route.fulfill({contentType:'image/png',body:replayPixel}));
+  await mountHarness(page, replayDelivery('asset-a','/uploads/asset-a.jpg'));
+  await page.evaluate(() => window.BRVTALPublicMedia.loadImageDelivery());
+  const image = await replayImage(page,'/uploads/asset-a.jpg');
+  await expect.poll(() => image.evaluate(el => el.complete && el.naturalWidth > 0 && !el.hidden)).toBe(true);
+  expect(webpRequests).toBe(1);
+  await page.evaluate(() => {
+    const image = document.querySelector('#replay-image');
+    window.BRVTALPublicMedia.applyDocumentImageDelivery(image);
+    window.BRVTALPublicMedia.applyDocumentImageDelivery(image);
+  });
+  expect(webpRequests).toBe(1);
+  await expect(image).toHaveAttribute('src','/uploads/asset-a.jpg');
+  await expect(image).toBeVisible();
+});
+
+test('public image replay fallback: original 404 replay remains fail closed', async ({page}) => {
+  let webpRequests = 0, originalRequests = 0;
+  await page.route('**/uploads/asset-a.webp', route => {webpRequests++; return route.fulfill({status:404,body:'broken'});});
+  await page.route('**/uploads/asset-a.jpg', route => {originalRequests++; return route.fulfill({status:404,body:'missing'});});
+  await mountHarness(page, replayDelivery('asset-a','/uploads/asset-a.jpg'));
+  await page.evaluate(() => window.BRVTALPublicMedia.loadImageDelivery());
+  const image = await replayImage(page,'/uploads/asset-a.jpg');
+  await expect.poll(() => image.evaluate(el => el.hidden)).toBe(true);
+  await page.evaluate(() => {
+    const image = document.querySelector('#replay-image');
+    window.BRVTALPublicMedia.applyDocumentImageDelivery(image);
+    window.BRVTALPublicMedia.applyDocumentImageDelivery(image);
+  });
+  expect(webpRequests).toBe(1);
+  expect(originalRequests).toBeLessThanOrEqual(2);
+  await expect(image).toBeHidden();
+});
+
+test('public image replay fallback: new asset can retry without stale fallback', async ({page}) => {
+  let oldWebp = 0, newWebp = 0;
+  await page.route('**/uploads/asset-a.webp', route => {oldWebp++; return route.fulfill({status:404,body:'broken'});});
+  await page.route('**/uploads/asset-a.jpg', route => route.fulfill({contentType:'image/png',body:replayPixel}));
+  await page.route('**/uploads/asset-b.webp', route => {newWebp++; return route.fulfill({contentType:'image/png',body:replayPixel});});
+  await page.route('**/uploads/asset-b.jpg', route => route.fulfill({contentType:'image/png',body:replayPixel}));
+  await mountHarness(page,{
+    ...replayDelivery('asset-a','/uploads/asset-a.jpg'),
+    ...replayDelivery('asset-b','/uploads/asset-b.jpg'),
+  });
+  await page.evaluate(() => window.BRVTALPublicMedia.loadImageDelivery());
+  const image = await replayImage(page,'/uploads/asset-a.jpg');
+  await expect.poll(() => image.evaluate(el => el.complete && el.naturalWidth > 0 && !el.hidden)).toBe(true);
+  await page.evaluate(() => {
+    const image = document.querySelector('#replay-image');
+    image.src = '/uploads/asset-b.jpg';
+    window.BRVTALPublicMedia.applyDocumentImageDelivery(image);
+  });
+  await expect.poll(() => image.evaluate(el => el.complete && el.naturalWidth > 0 && !el.hidden)).toBe(true);
+  expect(oldWebp).toBe(1);
+  expect(newWebp).toBe(1);
+  await expect(image).toHaveAttribute('src','/uploads/asset-b.webp');
+  await expect(image).toBeVisible();
 });

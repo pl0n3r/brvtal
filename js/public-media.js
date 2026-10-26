@@ -66,23 +66,63 @@
     image.dataset.brvtalWebpFallbackBound = '1';
     image.addEventListener('error', () => {
       const original = image.dataset.brvtalOriginalSrc || '';
-      if (!original || image.dataset.brvtalFallbackApplied === '1') return;
+      const active = image.getAttribute('src') || image.getAttribute('data-src') || '';
+      const webp = image.dataset.brvtalWebpSrc || '';
+      if (!localUploadPath(original) || active === original || !webp || active !== webp) {
+        // The original also failed, or an unrecognized media URL failed.
+        // Never expose a broken image or start an unbounded fallback loop.
+        image.hidden = true;
+        return;
+      }
+      image.dataset.brvtalFailedWebpSrc = webp;
+      image.dataset.brvtalFailedWebpOriginal = original;
       image.dataset.brvtalFallbackApplied = '1';
       delete image.dataset.brvtalWebpSrc;
+      image.hidden = false;
       if (image.hasAttribute('src')) image.src = original; else image.dataset.src = original;
     });
   }
   function applyResponsiveImage(image, context=imageDeliveryContext(image)) {
     if (!(image instanceof HTMLImageElement)) return;
-    const currentSrc=image.getAttribute('src')||'', deferredSrc=image.getAttribute('data-src')||'', original=image.dataset.brvtalOriginalSrc||currentSrc||deferredSrc;
+    const currentSrc = image.getAttribute('src') || '';
+    const deferredSrc = image.getAttribute('data-src') || '';
+    const priorOriginal = image.dataset.brvtalOriginalSrc || '';
+    const activeWebp = image.dataset.brvtalWebpSrc || '';
+    const failedWebp = image.dataset.brvtalFailedWebpSrc || '';
+    let original = priorOriginal || currentSrc || deferredSrc;
+    // A caller can replace the same image node with a new legitimate asset.
+    // Do not misclassify the first delivery variant as a new original.
+    if (image.dataset.brvtalWebpFallbackBound === '1') {
+      const replacement = [currentSrc, deferredSrc].find(src =>
+        src && localUploadPath(src) && src !== priorOriginal
+        && src !== activeWebp && src !== failedWebp
+      );
+      if (replacement) {
+        original = replacement;
+        image.dataset.brvtalOriginalSrc = original;
+        delete image.dataset.brvtalFailedWebpSrc;
+        delete image.dataset.brvtalFailedWebpOriginal;
+        delete image.dataset.brvtalFallbackApplied;
+        delete image.dataset.brvtalWebpSrc;
+        image.hidden = false;
+      }
+    }
     if (!localUploadPath(original)) return;
-    if (!image.dataset.brvtalOriginalSrc) image.dataset.brvtalOriginalSrc = original;
-    const candidate=deliveryCandidate(original,context); if (!candidate?.src) return;
-    image.dataset.brvtalWebpSrc=candidate.src; bindImageFallback(image);
-    if (currentSrc) { if (currentSrc !== candidate.src) image.src=candidate.src; }
-    else if (deferredSrc && deferredSrc !== candidate.src) image.dataset.src=candidate.src;
-    if (!image.hasAttribute('width') && Number(candidate.width)>0) image.width=Number(candidate.width);
-    if (!image.hasAttribute('height') && Number(candidate.height)>0) image.height=Number(candidate.height);
+    image.dataset.brvtalOriginalSrc = original;
+    const candidate = deliveryCandidate(original, context);
+    if (!candidate?.src) return;
+    bindImageFallback(image);
+    if (image.dataset.brvtalFailedWebpOriginal === original
+        && image.dataset.brvtalFailedWebpSrc === candidate.src) {
+      // Replaying the same manifest must not retry the known-broken WebP.
+      return;
+    }
+    delete image.dataset.brvtalFallbackApplied;
+    image.dataset.brvtalWebpSrc = candidate.src;
+    if (currentSrc) { if (currentSrc !== candidate.src) image.src = candidate.src; }
+    else if (deferredSrc && deferredSrc !== candidate.src) image.dataset.src = candidate.src;
+    if (!image.hasAttribute('width') && Number(candidate.width) > 0) image.width = Number(candidate.width);
+    if (!image.hasAttribute('height') && Number(candidate.height) > 0) image.height = Number(candidate.height);
   }
   function applyDocumentImageDelivery(root=document) {
     const scope = root instanceof Element || root instanceof Document ? root : document;
