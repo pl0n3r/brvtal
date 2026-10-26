@@ -2,7 +2,7 @@
   "name": "BRVTAL",
   "tagline": "Underground music platform and cultural archive with a unified editorial admin.",
   "role": "product",
-  "phase": "live",
+  "phase": "construccion",
   "roadmap": "GitHub Issue #533",
   "stack": "PHP 8.5 + MariaDB + HTML/CSS/vanilla JavaScript + Playwright + Hostinger"
 }
