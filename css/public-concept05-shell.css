@@ -69,7 +69,6 @@
 /* Reuse the authored archive filter, not an invented search endpoint. */
 [data-concept="05"] .c5-header-search{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;color:var(--c5-paper-dirty);text-decoration:none;border:1px solid var(--c5-rule-color);font-size:22px}
 [data-concept="05"] .c5-header-search:focus-visible{outline:2px solid var(--c5-signal-green);outline-offset:3px}
-@media(max-width:900px){[data-concept="05"] .c5-header-search{min-width:44px;min-height:44px}}
 
 /* Persistent mobile nav */
 [data-concept="05"] .c5-bottom-nav{
@@ -190,6 +189,7 @@
   }
 }
 @media(max-width:900px){
+  [data-concept="05"] .c5-header-search{min-width:44px;min-height:44px}
   [data-concept="05"] .nav{
     height:54px;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:0 12px;background:rgba(5,5,5,.99)
   }
