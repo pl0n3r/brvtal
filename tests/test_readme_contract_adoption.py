@@ -41,7 +41,7 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
         self.assertFalse(set(metadata) & FORBIDDEN_OPERATIONAL)
         self.assertEqual(metadata["name"], "BRVTAL")
         self.assertEqual(metadata["role"], "product")
-        self.assertEqual(metadata["phase"], "construccion")
+        self.assertEqual(metadata["phase"], "construction")
         for value in metadata.values():
             self.assertIsInstance(value, str)
             self.assertTrue(value.strip())
@@ -49,11 +49,11 @@ class ReadmeContractAdoptionTests(unittest.TestCase):
     def test_readme_phase_matches_authoritative_project_phase(self):
         """El contrato público sigue la fase aprobada en la fuente canónica."""
         metadata = json.loads(METADATA.read_text(encoding="utf-8"))
-        # datos.yml se almacena deliberadamente como JSON válido.
+        # datos.yml usa JSON con la fase española; README Contract v2 usa la inglesa.
         canonical = json.loads((ROOT / "datos.yml").read_text(encoding="utf-8"))
         self.assertEqual(canonical["project"], "pl0n3r/brvtal")
         self.assertEqual(canonical["phase"], "construccion")
-        self.assertEqual(metadata["phase"], canonical["phase"])
+        self.assertEqual(metadata["phase"], {"construccion": "construction"}[canonical["phase"]])
 
     def test_readme_has_contract_v2_anatomy(self):
         readme = self.readme()
