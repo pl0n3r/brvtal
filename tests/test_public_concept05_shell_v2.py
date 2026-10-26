@@ -90,6 +90,7 @@ class Concept05ShellV2Tests(unittest.TestCase):
         # The search affordance must land on the existing local archive filters.
         runtime = (ROOT / "js/public-concept05-shell.js").read_text(encoding="utf-8")
         self.assertIn("function attachArchiveSearch()", runtime)
+        self.assertIn("if (!bottomNav || !document.querySelector('.c5-footer')) return false;", runtime)
         self.assertIn("anchor.href = '#media';", runtime)
         self.assertNotIn('class="c5-header-search magnetic"', self.html)
 

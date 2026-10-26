@@ -150,6 +150,8 @@
   }
 
   function init() {
+    // Run only on the actual PHP-composed Home shell, never entity/contact pages.
+    if (!bottomNav || !document.querySelector('.c5-footer')) return false;
     attachArchiveSearch();
     syncYear();
     watchMenuState();
