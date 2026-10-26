@@ -106,6 +106,7 @@
     'js/public-discovery-url-state.js',
     'js/public-canonical-navigation.js',
     'js/public-contact.js',
+    'js/public-concept05-shell.js',
     'js/public-theme-runtime.js',
     'js/public-theme-branding-sync.js'
   ];

@@ -281,3 +281,49 @@ test('reduced motion keeps the authored shell complete and static', async ({page
   const transition = await page.locator('.c5-bottom-nav').evaluate(node => getComputedStyle(node).transitionDuration);
   expect(transition).toBe('0s');
 });
+
+// Use the real server-side PHP partial composer. The historical markup() above
+// deliberately remains an isolated fixture and cannot prove the public DOM.
+test('real PHP partial composition captures desktop and mobile against owner reference', async ({page}, testInfo) => {
+  const { spawnSync } = await import('node:child_process');
+  const source = [
+    "require 'config/public_home.php';",
+    "$html = file_get_contents('index.html');",
+    "foreach (['nav','hero','experience','nights','artists','sound','memories','journal','connected','footer'] as $part) {",
+    "  $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $part . ' -->';",
+    "  if (substr_count($html,$marker) !== 1) { throw new RuntimeException('bad partial'); }",
+    "  $html = str_replace($marker,file_get_contents('partials/home/' . $part . '.html'),$html);",
+    "}",
+    "echo brvtal_public_home_identity($html);",
+  ].join('\n');
+  const rendered = spawnSync('php', ['-r', source], {cwd:root, encoding:'utf8', timeout:30000});
+  expect(rendered.status, rendered.stderr).toBe(0);
+  expect(rendered.stdout).toContain('class="c5-bottom-nav"');
+  const realUrl = 'http://127.0.0.1:4173/real-c05-home.html';
+  const realHtml = rendered.stdout.replace(/<html([^>]*)>/i, '<html$1 data-concept="05">');
+  await page.route('**/*', route => route.abort());
+  await page.route(realUrl, route => route.fulfill({contentType:'text/html; charset=utf-8',body:realHtml}));
+  await page.setViewportSize({width:1440,height:900});
+  await page.goto(realUrl, {waitUntil:'domcontentloaded'});
+  await page.addStyleTag({content:css});
+  await page.addScriptTag({content:runtime});
+  await expect(page.locator('.c5-header-nav')).toHaveCount(1);
+  await expect(page.locator('.c5-footer')).toHaveCount(1);
+  await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);
+  await page.screenshot({path:testInfo.outputPath('c05-php-desktop-1440.png')});
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('.c5-bottom-nav a')).toHaveCount(5);
+  for (const anchor of await page.locator('.c5-bottom-nav a').all()) {
+    const box = await anchor.boundingBox();
+    expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+  await page.evaluate(() => {
+    document.documentElement.classList.add('menu-scroll-locked');
+  });
+  await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','true');
+  expect(await page.locator('.c5-bottom-nav').evaluate(element => element.inert)).toBe(true);
+  await page.evaluate(() => document.documentElement.classList.remove('menu-scroll-locked'));
+  await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','false');
+  await page.screenshot({path:testInfo.outputPath('c05-php-mobile-390.png')});
+  // Screenshots are evidence candidates, not an automatic visual approval.
+});

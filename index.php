@@ -256,6 +256,7 @@ $homeStyles = [
     'css/public-transmissions.css',
     'css/public-concept05-tokens.css',
     'css/public-concept05-home.css',
+    'css/public-concept05-shell.css',
     'css/public-concept05-journal-connected.css',
     'css/public-visual-identity.css',
 ];
