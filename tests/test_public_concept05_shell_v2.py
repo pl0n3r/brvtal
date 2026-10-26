@@ -88,7 +88,10 @@ class Concept05ShellV2Tests(unittest.TestCase):
         self.assertIn('data-footer-privacy hidden', self.html)
         self.assertIn('href="/contact">CONTACT', self.html)
         # The search affordance must land on the existing local archive filters.
-        self.assertIn('class="c5-header-search magnetic" href="#media"', self.html)
+        runtime = (ROOT / "js/public-concept05-shell.js").read_text(encoding="utf-8")
+        self.assertIn("function attachArchiveSearch()", runtime)
+        self.assertIn("anchor.href = '#media';", runtime)
+        self.assertNotIn('class="c5-header-search magnetic"', self.html)
 
     def test_mobile_touch_targets_and_keyboard_accessibility(self) -> None:
         css = STYLE.read_text(encoding="utf-8")

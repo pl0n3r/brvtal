@@ -310,6 +310,7 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   await expect(page.locator('.c5-header-nav')).toHaveCount(1);
   await expect(page.locator('.c5-footer')).toHaveCount(1);
   await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);
+  await expect(page.locator('.c5-header-search')).toHaveCount(1);
   await page.screenshot({path:testInfo.outputPath('c05-php-desktop-1440.png')});
   await page.setViewportSize({width:390,height:844});
   await expect(page.locator('.c5-bottom-nav a')).toHaveCount(5);
