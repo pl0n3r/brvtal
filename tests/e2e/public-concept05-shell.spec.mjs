@@ -286,6 +286,9 @@ test('reduced motion keeps the authored shell complete and static', async ({page
 // deliberately remains an isolated fixture and cannot prove the public DOM.
 test('real PHP partial composition captures desktop and mobile against owner reference', async ({page}, testInfo) => {
   const { spawnSync } = await import('node:child_process');
+  const { mkdirSync } = await import('node:fs');
+  const visualDir = join(root, 'test-results', 'public-concept05-fidelity-shell');
+  mkdirSync(visualDir, {recursive:true});
   const source = [
     "require 'config/public_home.php';",
     "$html = file_get_contents('index.html');",
@@ -311,7 +314,7 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   await expect(page.locator('.c5-footer')).toHaveCount(1);
   await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);
   await expect(page.locator('.c5-header-search')).toHaveCount(1);
-  await page.screenshot({path:testInfo.outputPath('c05-php-desktop-1440.png')});
+  await page.screenshot({path:join(visualDir, 'c05-php-desktop-1440.png')});
   await page.setViewportSize({width:390,height:844});
   await expect(page.locator('.c5-bottom-nav a')).toHaveCount(5);
   for (const anchor of await page.locator('.c5-bottom-nav a').all()) {
@@ -325,6 +328,6 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   expect(await page.locator('.c5-bottom-nav').evaluate(element => element.inert)).toBe(true);
   await page.evaluate(() => document.documentElement.classList.remove('menu-scroll-locked'));
   await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','false');
-  await page.screenshot({path:testInfo.outputPath('c05-php-mobile-390.png')});
+  await page.screenshot({path:join(visualDir, 'c05-php-mobile-390.png')});
   // Screenshots are evidence candidates, not an automatic visual approval.
 });

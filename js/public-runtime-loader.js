@@ -106,7 +106,6 @@
     'js/public-discovery-url-state.js',
     'js/public-canonical-navigation.js',
     'js/public-contact.js',
-    'js/public-concept05-shell.js',
     'js/public-theme-runtime.js',
     'js/public-theme-branding-sync.js'
   ];
@@ -171,6 +170,13 @@
 
     failures.push(...await loadSequenceResilient(coreScripts.map(localUrl), 'core'));
     failures.push(...await loadSequenceResilient(enhancementScripts.map(localUrl), 'enhancement'));
+    // HOME C05 is not a global module. Entity/contact pages and synthetic
+    // runtime tests must retain the existing module load order.
+    if (document.documentElement.dataset.concept === '05'
+        && document.querySelector('.c5-bottom-nav')
+        && document.querySelector('.c5-footer')) {
+      failures.push(...await loadSequenceResilient([localUrl('js/public-concept05-shell.js')], 'home-shell'));
+    }
 
     if (failures.length) {
       document.documentElement.dataset.runtimeIntegrity = 'degraded';

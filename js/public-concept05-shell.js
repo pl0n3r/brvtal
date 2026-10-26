@@ -138,7 +138,7 @@
     anchor.className = 'c5-header-search magnetic';
     anchor.href = '#media';
     anchor.setAttribute('aria-label', 'Buscar en el archivo / Search the archive');
-    anchor.setAttribute('data-cursor', 'SEARCH');
+    anchor.dataset.cursor = 'SEARCH';
     anchor.textContent = '⌕';
     container.insertBefore(anchor, container.querySelector('#menuToggle'));
   }
