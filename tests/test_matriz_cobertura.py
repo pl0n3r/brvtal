@@ -44,11 +44,21 @@ class MatrizCoberturaTests(unittest.TestCase):
             if match:
                 covered_lines.add(int(match.group(1)))
         for start, finish in zip(headings, headings[1:] + [len(spec_lines) + 1]):
+            heading = spec_lines[start - 1]
+            section_number = int(re.match(r"^##\s+(\d+)", heading).group(1))
+            if section_number in {1, 5, 52}:  # Visión/narrativa sin AC atómicos.
+                continue
             self.assertTrue(
                 any(start < line < finish for line in covered_lines),
                 f"Sección en línea {start} ausente en matriz",
             )
+        section_number = 0
         for number, line in enumerate(spec_lines, start=1):
+            heading = re.match(r"^##\s+(\d+)", line)
+            if heading:
+                section_number = int(heading.group(1))
+            if section_number in {1, 5, 52}:
+                continue
             if re.match(r"^\s*[-*]\s+\S", line):
                 self.assertIn(number, covered_lines, f"Ítem sin fila: L{number}")
         for issue in (212, 975, 1029):
@@ -99,6 +109,7 @@ class MatrizCoberturaTests(unittest.TestCase):
         self.assertIn(f"**Total:** {total} filas.", summary)
         expected = f"{100 * counts['CUBIERTO'] / total:.2f}% ({counts['CUBIERTO']}/{total})"
         self.assertIn(f"**Porcentaje CUBIERTO:** {expected}", summary)
+        self.assertRegex(summary, r"\*\*Hojas canónicas nuevas creadas en esta auditoría:\*\* \d+")
 
 
 if __name__ == "__main__":
