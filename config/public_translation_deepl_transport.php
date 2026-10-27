@@ -12,17 +12,17 @@ require_once __DIR__ . '/public_translation_deepl.php';
  * is read here at call time, is never stored in a property, and never appears in
  * errors, logs or return values.
  */
-final class BrvtalDeepLHttpTransport
+final readonly class BrvtalDeepLHttpTransport
 {
     public const string ENDPOINT = 'https://api-free.deepl.com/v2/translate';
     public const int TIMEOUT_SECONDS = 5;
     public const int DEFAULT_MONTHLY_CHARS = 300000;
     public const string VERSION = 'deepl-api-free-es-en-v1';
 
-    private readonly Closure $http;
-    private readonly Closure $env;
-    private readonly string $budgetFile;
-    private readonly Closure $clock;
+    private Closure $http;
+    private Closure $env;
+    private string $budgetFile;
+    private Closure $clock;
 
     /**
      * @param callable(string $url, array<int,string> $headers, string $body, int $timeout): array{status:int, body:string}|null $http
@@ -30,13 +30,13 @@ final class BrvtalDeepLHttpTransport
      */
     public function __construct(?callable $http = null, ?callable $env = null, ?string $budgetFile = null, ?callable $clock = null)
     {
-        $this->http = Closure::fromCallable($http ?? [self::class, 'curlRequest']);
+        $this->http = Closure::fromCallable($http ?? self::curlRequest(...));
         $this->env = Closure::fromCallable($env ?? static function (string $name): ?string {
             $value = getenv($name);
             return $value === false ? null : $value;
         });
         $this->budgetFile = $budgetFile ?? dirname(__DIR__) . '/storage/deepl-usage.json';
-        $this->clock = Closure::fromCallable($clock ?? static fn(): int => time());
+        $this->clock = Closure::fromCallable($clock ?? time(...));
     }
 
     public static function isEnabled(callable $env): bool
@@ -151,7 +151,6 @@ final class BrvtalDeepLHttpTransport
         ]);
         $result = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        curl_close($ch);
         if (!is_string($result)) {
             throw new RuntimeException('curl_failed');
         }
