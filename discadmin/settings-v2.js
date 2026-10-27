@@ -443,7 +443,7 @@
     const target = trigger?.dataset.settingsMediaPicker || 'seo_share';
     const images = media.filter(item => item.type === 'image'
       && (target === 'seo_share' || item.status === 'published')
-      && safeCmsMediaPath(String(item.file_path || '')));
+      && (target === 'seo_share' || safeCmsMediaPath(String(item.file_path || ''))));
     const overlay = document.createElement('div');
     overlay.id = 'sv2-media-picker';
     overlay.className = 'sv2-picker-overlay';

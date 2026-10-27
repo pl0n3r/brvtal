@@ -49,6 +49,23 @@ test('unsafe CMS image never becomes a broken or navigable URL', async ({page}) 
 });
 
 
+test('published CMS image stays hidden after a 404 response', async ({page}) => {
+  await page.route('**/uploads/media/fixture/missing.webp', route =>
+    route.fulfill({status:404,body:'missing'}));
+  await page.setContent('<!doctype html><html><head><base href="http://127.0.0.1:4173/"></head>'
+    + '<body><section class="home-phase-a-hero">'
+    + '<img hidden data-c5-editorial-media="hero_face"></section></body></html>');
+  await page.evaluate(() => { window.BRVTALPublicDataPromise = Promise.resolve({
+    data:{settings:{site:{c05_media_hero_face:{
+      id:43,url:'/uploads/media/fixture/missing.webp',status:'published'
+    }}}}
+  }); });
+  await page.addScriptTag({content:heroRuntime});
+  const image = page.locator('[data-c5-editorial-media=hero_face]');
+  await expect(image).not.toHaveAttribute('src',/./);
+  await expect(image).toBeHidden();
+});
+
 // This test checks real, server-side assembled Concept 05 markup. All media and
 // public settings are synthetic; no production endpoints, accounts or cookies.
 test('PHP-composed C05 displays five published CMS images at 390 and 1440', async ({page}, testInfo) => {
@@ -130,4 +147,56 @@ test('PHP-composed C05 displays five published CMS images at 390 and 1440', asyn
     body:readFileSync(join(root,'docs/reference/home-concept05-owner-reference-v2.png')),
     contentType:'image/png'
   });
+});
+
+
+const settingsRuntime = readFileSync(join(root,'discadmin/settings-v2.js'),'utf8');
+
+test('DISCADMIN media replacement persists and preserves sibling CMS relations', async ({page}) => {
+  const slots = ['hero_face','crowd','artists','nights','memories'];
+  const original = {name:'BRVTAL',default_locale:'es',custom_keep:'untouched'};
+  slots.forEach((slot,index) => {
+    original['c05_media_'+slot] = {
+      id:index+1,url:'/uploads/media/2026/10/old'+index+'.webp',status:'published'
+    };
+  });
+  await page.setContent('<!doctype html><html><body><div id="app"></div></body></html>');
+  await page.evaluate(site => {
+    window.state={rows:[{setting_key:'site',is_json:1,setting_value:JSON.stringify(site)}]};
+    window.__cmsSaves=[];
+    window.req=async(path,opts={})=>{
+      if(path==='/media')return {data:[{
+        id:87,type:'image',status:'published',
+        file_path:'/uploads/media/2026/10/replacement.webp',title:'Synthetic replacement'
+      }]};
+      if(path==='/settings'&&opts.method==='POST'){
+        const payload=JSON.parse(opts.body);
+        window.__cmsSaves.push(payload);
+        state.rows.find(item=>item.setting_key==='site').setting_value=payload.setting_value;
+        return {ok:true};
+      }
+      if(path==='/settings')return {data:state.rows};
+      return {data:[]};
+    };
+    window.BRVTALFeedback={success(){},error(message){window.__lastError=message;}};
+    window.go=()=>{};
+    window.render=()=>{document.getElementById('app').innerHTML=window.settingsHome();};
+  },original);
+  await page.addScriptTag({content:settingsRuntime});
+  await page.evaluate(()=>window.render());
+  await page.locator('[data-settings-media-picker="c05_media_hero_face"]').click();
+  await page.locator('[data-sv2-media="/uploads/media/2026/10/replacement.webp"]').click();
+  await page.locator('[data-settings-save="general"]').click();
+  await expect.poll(()=>page.evaluate(()=>window.__cmsSaves.length)).toBe(1);
+  const saved=await page.evaluate(()=>JSON.parse(window.__cmsSaves[0].setting_value));
+  expect(saved.c05_media_hero_face).toEqual({
+    id:87,url:'/uploads/media/2026/10/replacement.webp',status:'published'
+  });
+  slots.slice(1).forEach(slot=>{
+    expect(saved['c05_media_'+slot]).toEqual(original['c05_media_'+slot]);
+  });
+  expect(saved.custom_keep).toBe('untouched');
+  await page.evaluate(()=>window.render());
+  await expect(page.locator('#sv2_c05_media_hero_face'))
+    .toHaveValue('/uploads/media/2026/10/replacement.webp');
 });

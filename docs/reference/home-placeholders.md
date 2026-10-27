@@ -20,7 +20,7 @@ Los cinco archivos son materiales **sintéticos y de autoría original**: compos
 2. En `api/media-library.php?action=upload`, enviar cada WebP como archivo multipart real (no llamar `register` con `assets/`, ni inventar `/uploads/media`). El servidor registra inicialmente el medio como `draft`, y el flujo autenticado puede cambiarlo a `published` mediante `PUT?action=update&id=N` después de comprobar la subida.
 3. La deduplicación por hash de contenido es responsabilidad del endpoint. Ante la misma entrada se conserva el ID existente; cinco categorías con contenido distinto deben conservar cinco identidades.
 4. DISCADMIN muestra un selector para cada categoría a través del picker canónico. Al guardar, se persisten solamente las cinco claves editoriales dentro de `settings.site`, preservando todas las otras claves y las relaciones de otras secciones.
-5. El home usa únicamente rutas HTTPS o rutas locales `/uploads/media/...` correspondientes a medios publicados/autorizados; si falta medio, conserva el contenido editorial previo sin romper imágenes. Nunca se presenta una fuente Git como asset servido por el CMS.
+5. El home usa únicamente rutas locales `/uploads/media/...` correspondientes a medios publicados/autorizados; si falta medio, conserva el contenido editorial previo sin romper imágenes. Nunca se presenta una fuente Git como asset servido por el CMS.
 
 ## Evidencia exigida
 

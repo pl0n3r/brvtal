@@ -47,10 +47,10 @@ class HomeC05MediaPlaceholdersTests(unittest.TestCase):
     def test_admin_media_replacement_roundtrip_updates_published_home(self):
         settings = (ROOT / "discadmin/settings-v2.js").read_text()
         hero = (ROOT / "js/public-concept05-hero.js").read_text()
-        home = (ROOT / "js/public-concept05-hero.js").read_text()
+        # Runtime media replacement is exercised by the browser roundtrip fixture.
         for key in ("hero_face", "crowd", "artists", "nights", "memories"):
             self.assertIn(f"sv2_c05_media_{key}", settings)
-            self.assertIn("image.dataset.c5EditorialMedia = key", home)
+            self.assertIn("image.dataset.c5EditorialMedia = key", hero)
             self.assertIn("'c05_media_' + key", settings)
             self.assertIn("'c05_media_' + image.dataset.c5EditorialMedia", hero)
         for token in ("item.status === 'published'", "persistJson('site'", "...assignedMedia",
