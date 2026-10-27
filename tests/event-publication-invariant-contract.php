@@ -85,7 +85,8 @@ event_invariant_assert(
 );
 event_invariant_assert(
     str_contains($bulkSource, "require_once __DIR__ . '/content-validation.php';")
-        && str_contains($bulkSource, "'events' ? ',title,event_date,city,description,published_at,cancelled_at,finished_at'")
+        && str_contains($bulkSource, "\$resource === 'events'")
+        && str_contains($bulkSource, "',title,event_date,city,description,published_at,cancelled_at,finished_at'")
         && str_contains($bulkSource, "brvtal_event_publication_error(array_replace(\$row, ['status'=>\$status]))"),
     'Bulk Actions must load and enforce the same Event invariant before mutation'
 );
