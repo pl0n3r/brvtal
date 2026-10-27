@@ -184,6 +184,34 @@
       && (/^\/uploads\/media\/[A-Za-z0-9/_-]+\.(?:webp|png|jpe?g|gif)$/i.test(url)
         || /^https:\/\/[A-Za-z0-9.-]+(?:\/[A-Za-z0-9/_ .%-]+)*\.(?:webp|png|jpe?g|gif)$/i.test(url))
       && !url.includes('..') && !/%2e/i.test(url);
+    const destinations = {
+      hero_face:'.home-phase-a-hero',
+      crowd:'#genesis',
+      nights:'#events',
+      artists:'#artists',
+      memories:'#media',
+    };
+    Object.entries(destinations).forEach(([key, selector]) => {
+      const section = document.querySelector(selector);
+      const record = site['c05_media_' + key];
+      if (!section || !record || record.status !== 'published'
+        || !Number.isSafeInteger(Number(record.id)) || Number(record.id) < 1
+        || !valid(record.url)) return;
+      if (section.querySelector('img[data-c5-editorial-media="' + key + '"]')) return;
+      const image = document.createElement('img');
+      image.dataset.c5EditorialMedia = key;
+      image.alt = 'BRVTAL editorial ' + key.replace('_', ' ');
+      image.width = 384;
+      image.height = 240;
+      image.style.maxWidth = '100%';
+      image.style.height = 'auto';
+      image.style.maxHeight = '220px';
+      image.style.objectFit = 'cover';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.hidden = true;
+      section.append(image);
+    });
     document.querySelectorAll('img[data-c5-editorial-media]').forEach(image => {
       const record = site['c05_media_' + image.dataset.c5EditorialMedia];
       const url = record && typeof record === 'object' ? record.url : '';
