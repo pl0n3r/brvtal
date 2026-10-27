@@ -343,17 +343,28 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   await page.waitForFunction(() => document.documentElement.dataset.publicShell === 'concept05');
   expect(loadedShellModules).toBe(1);
   await expect(page.locator('.c5-header-nav')).toHaveCount(1);
+  await expect(page.locator('.c5-header-nav')).toBeVisible();
+  await expect(page.locator('.c5-header-nav a')).toHaveCount(6);
+  for (const link of await page.locator('.c5-header-nav a').all()) {
+    await expect(link).toBeVisible();
+  }
   await expect(page.locator('.c5-footer')).toHaveCount(1);
   await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);
   await expect(page.locator('.c5-header-search')).toHaveCount(1);
   const phpDesktopScreenshot = await page.screenshot({path:join(visualDir, 'c05-php-desktop-1440.png'), fullPage:true});
   await testInfo.attach('php-c05-desktop-1440', {body:phpDesktopScreenshot, contentType:'image/png'});
   await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('.c5-bottom-nav')).toBeVisible();
   await expect(page.locator('.c5-bottom-nav a')).toHaveCount(5);
   for (const anchor of await page.locator('.c5-bottom-nav a').all()) {
+    await expect(anchor).toBeVisible();
     const box = await anchor.boundingBox();
     expect(box?.height || 0).toBeGreaterThanOrEqual(44);
   }
+  // A present/mobile footer must actually fit the screen, not only exist in DOM.
+  const horizontalOverflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth - window.innerWidth);
+  expect(horizontalOverflow).toBeLessThanOrEqual(1);
   await page.evaluate(() => {
     document.documentElement.classList.add('menu-scroll-locked');
   });
@@ -361,6 +372,7 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   expect(await page.locator('.c5-bottom-nav').evaluate(element => element.inert)).toBe(true);
   await page.evaluate(() => document.documentElement.classList.remove('menu-scroll-locked'));
   await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','false');
+  await expect(page.locator('.c5-bottom-nav')).toBeVisible();
   const phpMobileScreenshot = await page.screenshot({path:join(visualDir, 'c05-php-mobile-390.png'), fullPage:true});
   await testInfo.attach('php-c05-mobile-390', {body:phpMobileScreenshot, contentType:'image/png'});
   await testInfo.attach('php-c05-source-note', {

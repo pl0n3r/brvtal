@@ -127,7 +127,10 @@ class Concept05ShellV2Tests(unittest.TestCase):
         self.assertEqual(fixture["owner_reference_v2"]["viewports"]["mobile"]["width"], 390)
         e2e = E2E.read_text(encoding="utf-8")
         for marker in ("real PHP partial composition", "c05-php-desktop-1440.png",
-                       "c05-php-mobile-390.png", "page.screenshot(", "fullPage:true"):
+                       "c05-php-mobile-390.png", "page.screenshot(", "fullPage:true",
+                       "await expect(page.locator(\'.c5-header-nav\')).toBeVisible();",
+                       "await expect(page.locator(\'.c5-bottom-nav\')).toBeVisible();",
+                       "document.documentElement.scrollWidth"):
             self.assertIn(marker, e2e)
         # This test validates capture wiring, NOT aesthetic approval.
         # Screenshots from a real Chromium run still require PR comparison.
