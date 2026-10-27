@@ -117,7 +117,7 @@ class SecurityGatesTests(unittest.TestCase):
         ):
             with self.subTest(keyword=keyword):
                 self.assertIn(keyword.casefold(), text.casefold())
-        self.assertIn("una revisión manual", text)
+        self.assertIn("una revisión manual", text.casefold())
         self.assertIn("no equivale a una revisión aprobada", text)
 
     def test_no_listo_sin_evidencia_exact_sha(self):
