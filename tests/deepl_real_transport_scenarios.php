@@ -29,7 +29,9 @@ function real_env(array $values): Closure
 
 $on = ['BRVTAL_DEEPL_ENABLED' => '1', 'DEEPL_AUTH_KEY' => DEEPL_REAL_FIXTURE_KEY];
 $budget = tempnam(sys_get_temp_dir(), 'deepl-budget-');
-file_put_contents($budget, '');
+if ($budget === false || !unlink($budget)) {
+    throw new RuntimeException('DEEPL REAL TEST: fixture unavailable');
+}
 $scenario = $argv[1] ?? '';
 
 if ($scenario === 'off') {
@@ -62,7 +64,20 @@ if ($scenario === 'contract') {
         real_error(static fn() => $adapter->translate('Hola', 'es', 'fr')),
         real_error(static fn() => $adapter->translate(str_repeat('a', 5001), 'es', 'en')),
     ];
+    $direct = new BrvtalDeepLHttpTransport($http, real_env($on), $budget);
+    $beforeDirect = count($seen);
+    $directRequest = static fn(string $value): array => [
+        'text' => [$value], 'source_lang' => 'ES', 'target_lang' => 'EN',
+    ];
+    $directRejects = [
+        real_error(static fn() => $direct($directRequest(str_repeat('a', 5001)))),
+        real_error(static fn() => $direct($directRequest("\xC3\x28"))),
+        real_error(static fn() => $direct($directRequest('<b>Hola</b>'))),
+    ];
+    $directCalls = count($seen) - $beforeDirect;
     real_report([
+        'direct_rejects' => $directRejects,
+        'direct_http_calls' => $directCalls,
         'translated' => $translated,
         'version' => $adapter->version(),
         'calls' => count($seen),
@@ -113,11 +128,21 @@ if ($scenario === 'budget') {
     $nextMonth($request);
     $badLimit = new BrvtalDeepLHttpTransport($http, real_env($on + ['BRVTAL_DEEPL_MONTHLY_CHARS' => 'abc']), $budget, static fn(): int => $now);
     $badLimit($request);
+    $saved = json_decode((string)file_get_contents($budget), true);
+    file_put_contents($budget, '{"month":');
+    $beforeMalformed = $calls;
+    $malformedRecord = real_error(static fn() => $nextMonth($request));
+    file_put_contents($budget, '');
+    $emptyRecord = real_error(static fn() => $nextMonth($request));
+    $malformedHttpCalls = $calls - $beforeMalformed;
     real_report([
+        'malformed_record' => $malformedRecord,
+        'empty_record' => $emptyRecord,
+        'malformed_http_calls' => $malformedHttpCalls,
         'exhausted' => $exhausted,
         'calls_at_limit' => $callsAtLimit,
         'calls_after_new_month' => $calls,
-        'saved' => json_decode((string)file_get_contents($budget), true),
+        'saved' => $saved,
     ]);
 }
 

@@ -15,7 +15,7 @@ require_once __DIR__ . '/public_translation_deepl.php';
 final readonly class BrvtalDeepLHttpTransport
 {
     public const string ENDPOINT = 'https://api-free.deepl.com/v2/translate';
-    public const int TIMEOUT_SECONDS = 5;
+    public const int TIMEOUT_SECONDS = 3;
     public const int DEFAULT_MONTHLY_CHARS = 300000;
     public const string VERSION = 'deepl-api-free-es-en-v1';
 
@@ -69,7 +69,15 @@ final readonly class BrvtalDeepLHttpTransport
         ) {
             throw new RuntimeException('deepl_bad_request');
         }
-        $this->reserveBudget(mb_strlen($text[0], 'UTF-8'));
+        $source = $text[0];
+        if (
+            strlen($source) > BrvtalDeepLTranslationAdapter::MAX_SOURCE_BYTES
+            || preg_match('//u', $source) !== 1
+            || brvtalPublicTranslationPlainText($source) !== $source
+        ) {
+            throw new RuntimeException('deepl_bad_request');
+        }
+        $this->reserveBudget(mb_strlen($source, 'UTF-8'));
 
         $key = (string)($this->env)('DEEPL_AUTH_KEY');
         $body = json_encode(
@@ -108,6 +116,7 @@ final readonly class BrvtalDeepLHttpTransport
     private function reserveBudget(int $chars): void
     {
         $month = gmdate('Y-m', ($this->clock)());
+        $initiallyMissing = !file_exists($this->budgetFile);
         $handle = @fopen($this->budgetFile, 'c+');
         if ($handle === false) {
             throw new RuntimeException('deepl_budget_unavailable');
@@ -116,16 +125,45 @@ final readonly class BrvtalDeepLHttpTransport
             if (!flock($handle, LOCK_EX)) {
                 throw new RuntimeException('deepl_budget_unavailable');
             }
-            $saved = json_decode((string)stream_get_contents($handle), true);
-            $used = (is_array($saved) && ($saved['month'] ?? null) === $month && is_int($saved['chars'] ?? null))
-                ? $saved['chars'] : 0;
+            $raw = stream_get_contents($handle);
+            if ($raw === false) {
+                throw new RuntimeException('deepl_budget_unavailable');
+            }
+            if ($raw === '' && $initiallyMissing) {
+                $used = 0;
+            } else {
+                $saved = json_decode($raw, true);
+                if (
+                    !is_array($saved)
+                    || array_keys($saved) !== ['month', 'chars']
+                    || !is_string($saved['month'])
+                    || preg_match('/^[0-9]{4}-(0[1-9]|1[0-2])$/', $saved['month']) !== 1
+                    || !is_int($saved['chars'])
+                    || $saved['chars'] < 0
+                ) {
+                    throw new RuntimeException('deepl_budget_unavailable');
+                }
+                $used = $saved['month'] === $month ? $saved['chars'] : 0;
+            }
             if ($used + $chars > $this->monthlyLimit()) {
                 throw new RuntimeException('deepl_budget_exhausted');
             }
-            ftruncate($handle, 0);
-            rewind($handle);
-            fwrite($handle, json_encode(['month' => $month, 'chars' => $used + $chars], JSON_THROW_ON_ERROR));
-            fflush($handle);
+            $record = json_encode(['month' => $month, 'chars' => $used + $chars], JSON_THROW_ON_ERROR);
+            if (!ftruncate($handle, 0) || !rewind($handle)) {
+                throw new RuntimeException('deepl_budget_unavailable');
+            }
+            $written = 0;
+            $length = strlen($record);
+            while ($written < $length) {
+                $bytes = fwrite($handle, substr($record, $written));
+                if ($bytes === false || $bytes === 0) {
+                    throw new RuntimeException('deepl_budget_unavailable');
+                }
+                $written += $bytes;
+            }
+            if (!fflush($handle)) {
+                throw new RuntimeException('deepl_budget_unavailable');
+            }
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);

@@ -34,7 +34,7 @@ class DeepLRealTransportTests(unittest.TestCase):
         data = run_scenario("contract")
         request = data["request"]
         self.assertEqual(request["url"], "https://api-free.deepl.com/v2/translate")
-        self.assertEqual(request["timeout"], 5)
+        self.assertEqual(request["timeout"], 3)
         self.assertEqual(request["body"], {"text": ["Hola mundo"], "source_lang": "ES", "target_lang": "EN-US"})
         self.assertTrue(data["key_in_headers_only"])
         self.assertFalse(data["key_in_body"])
@@ -42,6 +42,8 @@ class DeepLRealTransportTests(unittest.TestCase):
         self.assertEqual(data["version"], "deepl-api-free-es-en-v1")
         self.assertEqual(data["calls"], 1)
         self.assertEqual(data["rejects"], ["unsupported_locale", "invalid_public_text"])
+        self.assertEqual(data["direct_rejects"], ["deepl_bad_request"] * 3)
+        self.assertEqual(data["direct_http_calls"], 0)
 
     def test_errors_timeouts_and_budget_never_leak_secrets(self) -> None:
         errors = run_scenario("errors")
@@ -54,6 +56,9 @@ class DeepLRealTransportTests(unittest.TestCase):
             self.assertEqual(fallback, SPANISH)
         budget = run_scenario("budget")
         self.assertEqual(budget["exhausted"], "deepl_budget_exhausted")
+        self.assertEqual(budget["malformed_record"], "deepl_budget_unavailable")
+        self.assertEqual(budget["empty_record"], "deepl_budget_unavailable")
+        self.assertEqual(budget["malformed_http_calls"], 0)
         self.assertEqual(budget["calls_at_limit"], 2)
         self.assertGreater(budget["calls_after_new_month"], budget["calls_at_limit"])
         for payload in (errors, budget):
