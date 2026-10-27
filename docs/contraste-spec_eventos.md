@@ -9,7 +9,7 @@
 - `SIN_COBERTURA`: diferencia técnica reproducible con issue hoja ejecutable; no se clasifica así por simple ausencia de documentación.
 - `DESCARTADO`: **solo se descarta una prueba atómica aislada** para títulos, permisos optativos y direcciones editoriales no evaluables; no se cancela ni elimina el producto descrito.
 - La columna «Fuente» incluye PR de implementación anterior o issue de brecha. Las nuevas aserciones del contrato de lineup se publican en esta hoja #1059.
-- `docs/matriz-cobertura.md` está bajo reserva V3 del PR [#1064](https://github.com/pl0n3r/brvtal/pull/1064) al iniciar este contraste; **la actualización de S09–S11 se hará solo tras obtener una renovación propia que reclame dicha ruta**. AC-04 debe fallar hasta que matriz y reporte concuerden.
+- El PR [#1064](https://github.com/pl0n3r/brvtal/pull/1064) fue fusionado, liberando la matriz. La reserva V3 de #1059 fue renovada auténticamente a `cccd9ea6-1651-59e6-b863-8d0d2e6b3c9f` para reclamar `docs/matriz-cobertura.md` y su contrato global; ahora S09–S11 y el resumen de 611 filas están actualizados. AC-04 debe comprobar igualdad exacta entre esta tabla y la matriz.
 
 ## Veredictos de cada fila
 
@@ -63,5 +63,5 @@
 ## Alcance y reversión
 
 Se documentan evidencias **del código y tests**, no conexiones a datos reales. La fila S10-R011 queda abierta en #1065 y no se suaviza para conseguir CI verde. Las decisiones editoriales no verificables no se confunden con defectos.
-El último paso AC-04 consiste en sustituir **solo** las filas S09–S11 de la matriz, recalcular su resumen automáticamente y mantener la verificación global; la reserva actual de #1059 cubre únicamente documento y prueba.
+El paso AC-04 sustituyó **solo** las 43 filas previamente `NO_VERIFICABLE` en S09–S11 y recalculó el resumen a 91 `CUBIERTO`, 20 `DESCARTADO`, 1 `SIN_COBERTURA`, 499 `NO_VERIFICABLE` y 0 `EN_CURSO`, preservando 611 filas. La reserva V3 ampliada incluye la matriz y `tests/test_matriz_cobertura.py`; el check `validate` exact-HEAD de GitHub sigue siendo evidencia independiente obligatoria.
 Reversión: revertir el squash documental y sus pruebas, sin tocar datos, credenciales, hosting, SEO en vivo o migraciones.
