@@ -152,7 +152,7 @@ window.BRVTALSEOWorkspace = (() => {
       state.summary = {total:null,auto:null,manual:null,issues:null,
         truncated_resources:[],content_health_state:'unavailable',content_health_score:null};
       rerender();
-      setStatus('SEO inventory could not be loaded:  + (error?.message || error), true);
+      setStatus('SEO inventory could not be loaded: ' + (error?.message || error), true);
       window.BRVTALFeedback?.error?.('SEO inventory failed: ' + (error?.message || error),'seo-workspace');
     } finally {
       state.loading = false;
