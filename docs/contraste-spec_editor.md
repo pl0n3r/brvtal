@@ -67,6 +67,6 @@ Fuente histórica de implementación: [PR #572](https://github.com/pl0n3r/brvtal
 
 **CUBIERTO:** 17. **DESCARTADO:** 4. **NO_VERIFICABLE:** 29. **SIN_COBERTURA:** 0. **TOTAL:** 50.
 
-No se acreditan autocertificación de roles, historias completas del roadmap, autenticación expirada ni eventos nativos de descarga si no existe aserción explícita. Este archivo no toca datos reales, proveedores, DB, credenciales ni producción. La matriz y sus pruebas se actualizan únicamente después de renovar V3 con esos claims exactos, y AC-04 requiere `Validar` success terminal del HEAD final.
+No se acreditan autocertificación de roles, historias completas del roadmap, autenticación expirada ni eventos nativos de descarga si no existe aserción explícita. Este archivo no toca datos reales, proveedores, DB, credenciales ni producción. La matriz y sus pruebas se actualizaron mediante renovación V3 auténtica con los cuatro claims exactos, y AC-04 requiere `Validar` success terminal del HEAD final.
 
 Reversión: revertir squash restaura los veredictos previos y elimina el contraste; ninguna acción de runtime.
