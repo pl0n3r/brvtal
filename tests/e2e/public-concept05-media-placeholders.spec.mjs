@@ -68,7 +68,7 @@ test('PHP-composed C05 displays five published CMS images at 390 and 1440', asyn
   const php = spawnSync('php', ['-r', source], {cwd:root, encoding:'utf8', timeout:30000});
   expect(php.status, php.stderr).toBe(0);
   const shell = php.stdout.replace('<body data-scene="CORE">', '<body data-scene="CORE" data-concept="05">');
-  expect(shell).toContain('class="home-phase-a-hero"');
+  expect(shell).toContain('class="hero scene home-phase-a-hero"');
   const mediaSources = ['hero-face','crowd','artists','nights','memories'];
   const publicSite = {};
   for (const [index, name] of mediaSources.entries()) {
