@@ -328,13 +328,20 @@ test('real PHP partial composition captures desktop and mobile against owner ref
     } catch {
       return route.abort();
     }
-    const ext = extname(pathname);
-    if (!pathname.startsWith(root + sep) || !['.js', '.css'].includes(ext) || !existsSync(pathname)) {
+    const ext = extname(pathname).toLowerCase();
+    const contentTypes = {
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.jpeg': 'image/jpeg',
+      '.jpg': 'image/jpeg',
+      '.webp': 'image/webp',
+    };
+    if (!pathname.startsWith(root + sep) || !Object.hasOwn(contentTypes, ext) || !existsSync(pathname)) {
       return route.abort();
     }
     if (requested.pathname.endsWith('/js/public-concept05-shell.js')) loadedShellModules += 1;
     return route.fulfill({
-      contentType: ext === '.js' ? 'application/javascript' : 'text/css',
+      contentType: contentTypes[ext],
       body: readFileSync(pathname)
     });
   });
