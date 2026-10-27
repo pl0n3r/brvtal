@@ -32,11 +32,20 @@ function c05Sources(): array
     return $result;
 }
 
-function c05FixtureRequest(string $origin, string $path, string $method, array $post, string $cookie, string $csrf): array
+function c05FixtureRequest(
+    string $origin,
+    string $path,
+    string $method,
+    array $post,
+    string $cookie,
+    string $csrf
+): array
 {
     $url = $origin . '/api/media-library.php' . $path;
     $ch = curl_init($url);
-    if ($ch === false) throw new RuntimeException('CURL_INIT_FAILED');
+    if ($ch === false) {
+        throw new RuntimeException('CURL_INIT_FAILED');
+    }
     $headers = ['X-CSRF-Token: ' . $csrf, 'Accept: application/json'];
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
@@ -58,7 +67,8 @@ function c05FixtureRequest(string $origin, string $path, string $method, array $
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $json = is_string($response) ? json_decode($response, true) : null;
     if (!is_array($json) || ($json['ok'] ?? false) !== true || $status < 200 || $status > 299) {
-        throw new RuntimeException("FIXTURE_API_FAILED:{$status}:" . (is_array($json) ? ($json['error'] ?? '') : 'INVALID_JSON'));
+        $detail = is_array($json) ? ($json['error'] ?? '') : 'INVALID_JSON';
+        throw new RuntimeException("FIXTURE_API_FAILED:{$status}:{$detail}");
     }
     return $json;
 }
@@ -67,7 +77,8 @@ try {
     $sources = c05Sources();
     $apply = in_array('--apply', $argv, true);
     if (!$apply) {
-        echo json_encode(['mode' => 'dry-run', 'synthetic_only' => true, 'sources' => $sources], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
+        $payload = ['mode' => 'dry-run', 'synthetic_only' => true, 'sources' => $sources];
+        echo json_encode($payload, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
         exit(0);
     }
     $origin = (string)(getenv('BRVTAL_C05_FIXTURE_ORIGIN') ?: '');
@@ -105,7 +116,8 @@ try {
     if (count(array_unique(array_column($published, 'id'))) !== 5) {
         throw new RuntimeException('MEDIA_IDS_MUST_BE_DISTINCT');
     }
-    echo json_encode(['mode' => 'isolated-fixture-only', 'synthetic_only' => true, 'published' => $published], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
+    $result = ['mode' => 'isolated-fixture-only', 'synthetic_only' => true, 'published' => $published];
+    echo json_encode($result, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
 } catch (Throwable $error) {
     fwrite(STDERR, "C05_MEDIA_IMPORT_ABORTED: " . $error->getMessage() . PHP_EOL);
     exit(1);

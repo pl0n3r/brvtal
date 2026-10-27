@@ -44,6 +44,16 @@
     return document.getElementById('sv2_' + id)?.value?.trim() || '';
   }
 
+  function safeCmsMediaPath(value) {
+    if (typeof value !== 'string' || !value.startsWith('/uploads/media/')) return false;
+    if (value.includes('..') || /[%?#\\]/.test(value)) return false;
+    const segments = value.slice('/uploads/media/'.length).split('/');
+    if (!segments.length) return false;
+    return segments.every((part, index) => index === segments.length - 1
+      ? /^[\w-]+\.(?:webp|png|jpe?g|gif)$/i.test(part)
+      : /^[\w-]+$/.test(part));
+  }
+
   function validHttpUrl(value) {
     if (!value) return true;
     try { return /^https?:$/.test(new URL(value, location.href).protocol); }
@@ -316,8 +326,7 @@
       const url = String(input?.value || '').trim();
       const id = Number(input?.dataset.mediaId || 0);
       if (url && (!Number.isSafeInteger(id) || id < 1
-        || !/^\/uploads\/media\/[A-Za-z0-9/_-]+\.(?:webp|png|jpe?g|gif)$/i.test(url)
-        || url.includes('..'))) {
+        || !safeCmsMediaPath(url))) {
         throw new Error('Select a published Media Library image.');
       }
       assignedMedia['c05_media_' + key] = url ? {id, url, status:'published'} : null;
@@ -430,8 +439,7 @@
     const target = trigger?.dataset.settingsMediaPicker || 'seo_share';
     const images = media.filter(item => item.type === 'image'
       && (target === 'seo_share' || item.status === 'published')
-      && /^\/uploads\/media\/[A-Za-z0-9/_-]+\.(?:webp|png|jpe?g|gif)$/i.test(String(item.file_path || ''))
-      && !String(item.file_path || '').includes('..'));
+      && safeCmsMediaPath(String(item.file_path || '')));
     const overlay = document.createElement('div');
     overlay.id = 'sv2-media-picker';
     overlay.className = 'sv2-picker-overlay';
@@ -459,6 +467,11 @@
     search?.focus();
   }
 
+  function clearEditorialMedia(button) {
+    const input = document.getElementById('sv2_' + button.dataset.settingsClearMedia);
+    if (input) { input.value = ''; delete input.dataset.mediaId; }
+  }
+
   function bind() {
     document.addEventListener('click', event => {
       const tab = event.target.closest('[data-settings-tab]');
@@ -478,10 +491,7 @@
       const picker = event.target.closest('[data-settings-media-picker]');
       if (picker) { openPicker(picker).catch(error => feedback('error', error?.message || 'Media picker could not be opened.')); return; }
       const clear = event.target.closest('[data-settings-clear-media]');
-      if (clear) {
-        const input = document.getElementById('sv2_' + clear.dataset.settingsClearMedia);
-        if (input) { input.value = ''; delete input.dataset.mediaId; }
-      }
+      if (clear) clearEditorialMedia(clear);
       if (event.target.closest('[data-settings-clear-asset]')) updateAsset('');
     });
   }

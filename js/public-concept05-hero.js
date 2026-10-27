@@ -177,13 +177,20 @@
   }
 
   // The five versioned sources are never browser media URLs.
+  function safeCmsMediaPath(value) {
+    if (typeof value !== 'string' || !value.startsWith('/uploads/media/')) return false;
+    if (value.includes('..') || /[%?#\\]/.test(value)) return false;
+    const segments = value.slice('/uploads/media/'.length).split('/');
+    if (!segments.length) return false;
+    return segments.every((part, index) => index === segments.length - 1
+      ? /^[\w-]+\.(?:webp|png|jpe?g|gif)$/i.test(part)
+      : /^[\w-]+$/.test(part));
+  }
+
   function projectEditorialMedia(data) {
     const site = data?.settings?.site;
     if (!site || typeof site !== 'object') return;
-    const valid = url => typeof url === 'string'
-      && (/^\/uploads\/media\/[A-Za-z0-9/_-]+\.(?:webp|png|jpe?g|gif)$/i.test(url)
-        || /^https:\/\/[A-Za-z0-9.-]+(?:\/[A-Za-z0-9/_ .%-]+)*\.(?:webp|png|jpe?g|gif)$/i.test(url))
-      && !url.includes('..') && !/%2e/i.test(url);
+    const valid = safeCmsMediaPath;
     const destinations = {
       hero_face:'.home-phase-a-hero',
       crowd:'#genesis',
@@ -194,7 +201,7 @@
     Object.entries(destinations).forEach(([key, selector]) => {
       const section = document.querySelector(selector);
       const record = site['c05_media_' + key];
-      if (!section || !record || record.status !== 'published'
+      if (!section || record?.status !== 'published'
         || !Number.isSafeInteger(Number(record.id)) || Number(record.id) < 1
         || !valid(record.url)) return;
       if (section.querySelector('img[data-c5-editorial-media="' + key + '"]')) return;
