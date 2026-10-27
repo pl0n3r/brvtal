@@ -104,8 +104,18 @@ class ContrasteTests(unittest.TestCase):
                 self.assertNotIn("NO_VERIFICABLE", matrix[key][2])
                 if key not in {"S22-R001", "S22-R004"}:
                     self.assertIn("contraste-spec_seo.md", matrix[key][3])
-                if cells[1] == "CUBIERTO" and key == "S22-R043":
-                    self.assertIn("/pull/1071", matrix[key][4])
+                if cells[1] == "CUBIERTO":
+                    # Coincidencia de procedencia fila a fila, no solo de estado.
+                    source_pr = re.search(
+                        r"https://github\.com/pl0n3r/brvtal/pull/(\d+)", cells[4]
+                    )
+                    self.assertIsNotNone(source_pr, key)
+                    assert source_pr is not None
+                    self.assertIn("/pull/" + source_pr.group(1), matrix[key][4])
+                    self.assertIn("Código `", matrix[key][3])
+                    self.assertIn("prueba `tests/", matrix[key][3])
+                elif cells[1] == "DESCARTADO":
+                    self.assertIn("Decisión de auditoría", matrix[key][3])
 
 
 if __name__ == "__main__":
