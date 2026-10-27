@@ -38,6 +38,7 @@ $pdo->exec("CREATE TEMPORARY TABLE events (
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
     event_date DATETIME NULL,
     city VARCHAR(120) NULL,
+    description TEXT NULL,
     published_at DATETIME NULL,
     cancelled_at DATETIME NULL,
     finished_at DATETIME NULL
@@ -88,6 +89,22 @@ bulk_it_assert(
 );
 
 $pdo->prepare('UPDATE events SET city=? WHERE id=?')->execute(['Pereira', $incompleteEventId]);
+$descriptionRejected = false;
+try {
+    brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
+        'resource'=>'events',
+        'status'=>'published',
+        'ids'=>[$incompleteEventId],
+    ]));
+} catch (InvalidArgumentException $e) {
+    $descriptionRejected = $e->getMessage() === 'EVENT_DESCRIPTION_REQUIRED';
+}
+bulk_it_assert($descriptionRejected, 'bulk publishing without description must be rejected');
+bulk_it_assert(
+    (string)$pdo->query("SELECT status FROM events WHERE id={$incompleteEventId}")->fetchColumn() === 'draft',
+    'missing description must preserve Event draft status'
+);
+$pdo->prepare('UPDATE events SET description=? WHERE id=?')->execute(['Synthetic complete editorial event', $incompleteEventId]);
 brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
     'resource'=>'events',
     'status'=>'published',
@@ -98,9 +115,9 @@ bulk_it_assert(
     'complete Event must publish through Bulk Actions'
 );
 
-$pdo->exec("INSERT INTO events(title,status,event_date,city) VALUES
-    ('Bulk Event A','draft','2026-11-01 20:00:00','Pereira'),
-    ('Bulk Event B','draft','2026-11-02 20:00:00','Pereira')");
+$pdo->exec("INSERT INTO events(title,status,event_date,city,description) VALUES
+    ('Bulk Event A','draft','2026-11-01 20:00:00','Pereira','Synthetic bulk event A'),
+    ('Bulk Event B','draft','2026-11-02 20:00:00','Pereira','Synthetic bulk event B')");
 $eventIds = $pdo->query("SELECT id FROM events WHERE title IN ('Bulk Event A','Bulk Event B') ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
 $result = brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
     'resource' => 'events',
