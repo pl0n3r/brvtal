@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const runtime = readFileSync(join(root, 'js/public-concept05-shell.js'), 'utf8');
+const publicLoader = readFileSync(join(root, 'js/public-runtime-loader.js'), 'utf8');
 const appJs = readFileSync(join(root, 'js/app.js'), 'utf8');
 const css = [
   'css/public-concept05-tokens.css',
@@ -303,13 +304,35 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   expect(rendered.status, rendered.stderr).toBe(0);
   expect(rendered.stdout).toContain('class="c5-bottom-nav"');
   const realUrl = 'http://127.0.0.1:4173/real-c05-home.html';
-  const realHtml = rendered.stdout.replace(/<html([^>]*)>/i, '<html$1 data-concept="05">');
-  await page.route('**/*', route => route.abort());
-  await page.route(realUrl, route => route.fulfill({contentType:'text/html; charset=utf-8',body:realHtml}));
+  // index.php puts data-concept on BODY, not on the documentElement.
+  // Keep the PHP-composed markup and apply precisely its server-side marker.
+  const realHtml = rendered.stdout.replace(
+    '<body data-scene="CORE">', '<body data-scene="CORE" data-concept="05">'
+  );
+  expect(realHtml).toContain('<body data-scene="CORE" data-concept="05">');
+  let loadedShellModules = 0;
+  await page.route('**/*', route => {
+    const request = route.request();
+    if (request.url() === realUrl) {
+      return route.fulfill({contentType:'text/html; charset=utf-8',body:realHtml});
+    }
+    if (new URL(request.url()).pathname.endsWith('/js/public-concept05-shell.js')) {
+      loadedShellModules += 1;
+      return route.fulfill({contentType:'application/javascript',body:runtime});
+    }
+    // Isolate network resources without allowing unrelated public modules
+    // to mutate this PHP fixture. The runtime loader itself is exercised.
+    if (request.resourceType() === 'script') {
+      return route.fulfill({contentType:'application/javascript',body:'/* isolated test dependency */'});
+    }
+    return route.abort();
+  });
   await page.setViewportSize({width:1440,height:900});
   await page.goto(realUrl, {waitUntil:'domcontentloaded'});
   await page.addStyleTag({content:css});
-  await page.addScriptTag({content:runtime});
+  await page.addScriptTag({content:publicLoader});
+  await page.waitForFunction(() => document.documentElement.dataset.publicShell === 'concept05');
+  expect(loadedShellModules).toBe(1);
   await expect(page.locator('.c5-header-nav')).toHaveCount(1);
   await expect(page.locator('.c5-footer')).toHaveCount(1);
   await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);

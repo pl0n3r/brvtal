@@ -105,7 +105,14 @@ class Concept05ShellV2Tests(unittest.TestCase):
         self.assertIn('aria-label="Primary mobile"', self.html)
         self.assertEqual(self.html.count('class="c5-bottom-nav"'), 1)
         self.assertIn('css/public-concept05-shell.css', (ROOT / "index.php").read_text(encoding="utf-8"))
-        self.assertEqual(LOADER.read_text(encoding="utf-8").count("'js/public-concept05-shell.js'"), 1)
+        loader = LOADER.read_text(encoding="utf-8")
+        index = (ROOT / "index.php").read_text(encoding="utf-8")
+        self.assertEqual(loader.count("'js/public-concept05-shell.js'"), 1)
+        # Production index.php sets data-concept on <body>, so the loader
+        # must inspect body rather than <html>; browser E2E exercises boot().
+        self.assertIn("document.body?.dataset.concept === '05'", loader)
+        self.assertIn("'<body data-scene=\"CORE\" data-concept=\"05\">'", index)
+        self.assertNotIn("document.documentElement.dataset.concept === '05'", loader)
 
     def test_reference_capture_contract_retains_review_gate(self) -> None:
         self.assertTrue(REFERENCE.is_file(), "The owner's visual reference must remain available")
