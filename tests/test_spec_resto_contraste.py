@@ -23,6 +23,27 @@ STATES = {"CUBIERTO", "NO_VERIFICABLE", "DESCARTADO", "SIN_COBERTURA"}
 MERGED_PRS = {4, 12, 16, 19, 20, 22, 23, 605, 618, 622, 768, 850, 852}
 ROW_RE = re.compile(r"^\| (S\d\dB?-[RL]\d{1,3})(?: \|| · )")
 
+# Inventario fijo, independiente de los dos documentos: evita sustituir IDs.
+R_COUNTS = {
+    "S03": 13, "S06": 12, "S07": 11, "S12": 7, "S15": 7,
+    "S16": 7, "S20": 22, "S21": 7, "S34": 8, "S35": 8,
+    "S39": 10, "S39B": 16, "S40": 13, "S41": 6, "S44": 11,
+    "S45": 5, "S46": 4, "S49": 5,
+}
+EXTRA_IDS = {
+    "S03-L41",
+    "S07-L74", "S07-L75", "S07-L76", "S07-L77", "S07-L78",
+    "S07-L80", "S07-L82", "S07-L83", "S07-L84",
+    "S40-L623", "S40-L624", "S40-L625", "S40-L627",
+    "S40-L628", "S40-L629", "S40-L630",
+    "S44-L686", "S44-L691",
+}
+EXPECTED_IDS = (
+    {f"{section}-R{i:03d}" for section, count in R_COUNTS.items()
+     for i in range(1, count + 1)}
+    | EXTRA_IDS
+)
+
 
 def parse_doc(text: str) -> dict[str, list[str]]:
     result = {}
@@ -63,6 +84,8 @@ def validate_rows(doc: dict[str, list[str]]) -> None:
     by_section = Counter(key.split("-")[0] for key in doc)
     if dict(by_section) != SECTIONS:
         raise ValueError("incomplete_document_inventory")
+    if set(doc) != EXPECTED_IDS:
+        raise ValueError("unexpected_document_inventory_ids")
     for key, cols in doc.items():
         _, status, code, test, source, reason = cols
         if status not in STATES or len(reason) < 80:
@@ -99,6 +122,8 @@ def validate_rows(doc: dict[str, list[str]]) -> None:
 def check_matrix(doc: dict[str, list[str]], matrix: dict[str, list[str]]) -> None:
     if set(matrix) != set(doc):
         raise ValueError("matrix_document_row_mismatch")
+    if set(doc) != EXPECTED_IDS:
+        raise ValueError("unexpected_matrix_inventory_ids")
     for key, entry in doc.items():
         status = entry[1]
         cells = matrix[key]
@@ -106,8 +131,11 @@ def check_matrix(doc: dict[str, list[str]], matrix: dict[str, list[str]]) -> Non
             raise ValueError("matrix_verdict_not_updated")
         if "[contraste](contraste-spec_resto.md)" not in cells[3]:
             raise ValueError("matrix_contrast_link_missing")
-        if status == "CUBIERTO" and "tests/" not in cells[3]:
-            raise ValueError("matrix_covered_test_missing")
+        if status == "CUBIERTO":
+            # La prueba de la matriz debe ser exactamente la de este veredicto.
+            test_path = entry[3].split(chr(96))[1]
+            if f"{chr(96)}{test_path}{chr(96)}" not in cells[3]:
+                raise ValueError("matrix_covered_test_mismatch")
         if status == "SIN_COBERTURA" and not re.search(
             r"https://github\.com/pl0n3r/brvtal/issues/\d+", cells[4]
         ):
@@ -133,6 +161,10 @@ class ContrasteTests(unittest.TestCase):
         altered.pop(example)
         with self.assertRaisesRegex(ValueError, "incomplete"):
             validate_rows(altered)
+        substituted = dict(self.doc)
+        substituted["S03-R099"] = substituted.pop("S03-R003")
+        with self.assertRaisesRegex(ValueError, "unexpected_document_inventory_ids"):
+            validate_rows(substituted)
 
     def test_cubierto_enlaza_prueba_existente(self):
         validate_rows(self.doc)
@@ -165,6 +197,14 @@ class ContrasteTests(unittest.TestCase):
         modified = {k: list(v) for k, v in self.matrix.items()}
         modified[example][3] = "Sin enlace de contraste"
         with self.assertRaisesRegex(ValueError, "matrix_contrast_link_missing"):
+            check_matrix(self.doc, modified)
+        covered = next(k for k, v in self.doc.items() if v[1] == "CUBIERTO")
+        modified = {k: list(v) for k, v in self.matrix.items()}
+        modified[covered][3] = (
+            "[contraste](contraste-spec_resto.md); prueba "
+            + chr(96) + "tests/otra_prueba.py" + chr(96)
+        )
+        with self.assertRaisesRegex(ValueError, "matrix_covered_test_mismatch"):
             check_matrix(self.doc, modified)
 
 
