@@ -16,7 +16,7 @@ function c05Sources(): array
             throw new RuntimeException("MISSING_SOURCE:{$name}");
         }
         $bytes = file_get_contents($source);
-        if (!is_string($bytes) || substr($bytes, 0, 4) !== 'RIFF'
+        if (!is_string($bytes) || !str_starts_with($bytes, 'RIFF')
             || substr($bytes, 8, 4) !== 'WEBP') {
             throw new RuntimeException("INVALID_WEBP:{$name}");
         }
@@ -56,7 +56,6 @@ function c05FixtureRequest(string $origin, string $path, string $method, array $
     ]);
     $response = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
     $json = is_string($response) ? json_decode($response, true) : null;
     if (!is_array($json) || ($json['ok'] ?? false) !== true || $status < 200 || $status > 299) {
         throw new RuntimeException("FIXTURE_API_FAILED:{$status}:" . (is_array($json) ? ($json['error'] ?? '') : 'INVALID_JSON'));

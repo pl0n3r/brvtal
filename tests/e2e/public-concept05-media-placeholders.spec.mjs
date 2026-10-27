@@ -11,7 +11,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({width, height:844});
     await page.route('**/uploads/media/fixture/hero.webp', route =>
       route.fulfill({contentType:'image/webp',body:placeholder}));
-    await page.setContent('<!doctype html><html lang="es"><body>'
+    await page.setContent('<!doctype html><html lang="es"><head><base href="http://127.0.0.1:4173/"></head><body>'
       + '<section class="home-phase-a-hero">'
       + '<img hidden data-c5-editorial-media="hero_face" alt="BRVTAL synthetic hero">'
       + '<img hidden data-c5-editorial-media="crowd" alt="BRVTAL synthetic crowd">'
