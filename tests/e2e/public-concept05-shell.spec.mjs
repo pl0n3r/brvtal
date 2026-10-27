@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, join, resolve, sep } from 'node:path';
 
 const root = process.cwd();
 const runtime = readFileSync(join(root, 'js/public-concept05-shell.js'), 'utf8');
-const publicLoader = readFileSync(join(root, 'js/public-runtime-loader.js'), 'utf8');
 const appJs = readFileSync(join(root, 'js/app.js'), 'utf8');
 const css = [
   'css/public-concept05-tokens.css',
@@ -310,27 +309,37 @@ test('real PHP partial composition captures desktop and mobile against owner ref
     '<body data-scene="CORE">', '<body data-scene="CORE" data-concept="05">'
   );
   expect(realHtml).toContain('<body data-scene="CORE" data-concept="05">');
+  // This is the PHP-composed DOM with its own declared assets, not the
+  // synthetic markup() and not JS/CSS manually injected by the test.
+  expect(realHtml.match(/href="css\\/public-concept05-shell\\.css"/g) || []).toHaveLength(1);
+  expect(realHtml.match(/src="js\\/public-concept05-shell\\.js"/g) || []).toHaveLength(1);
   let loadedShellModules = 0;
   await page.route('**/*', route => {
-    const request = route.request();
-    if (request.url() === realUrl) {
+    const requested = new URL(route.request().url());
+    if (requested.href === realUrl) {
       return route.fulfill({contentType:'text/html; charset=utf-8',body:realHtml});
     }
-    if (new URL(request.url()).pathname.endsWith('/js/public-concept05-shell.js')) {
-      loadedShellModules += 1;
-      return route.fulfill({contentType:'application/javascript',body:runtime});
+    // Serve real local asset bytes at the same origin. No external traffic,
+    // uploads, production APIs or hand-written JS/CSS fixture replacements.
+    if (requested.origin !== 'http://127.0.0.1:4173') return route.abort();
+    let pathname;
+    try {
+      pathname = resolve(root, decodeURIComponent(requested.pathname).replace(/^\\/+/, ''));
+    } catch {
+      return route.abort();
     }
-    // Isolate network resources without allowing unrelated public modules
-    // to mutate this PHP fixture. The runtime loader itself is exercised.
-    if (request.resourceType() === 'script') {
-      return route.fulfill({contentType:'application/javascript',body:'/* isolated test dependency */'});
+    const ext = extname(pathname);
+    if (!pathname.startsWith(root + sep) || !['.js', '.css'].includes(ext) || !existsSync(pathname)) {
+      return route.abort();
     }
-    return route.abort();
+    if (requested.pathname.endsWith('/js/public-concept05-shell.js')) loadedShellModules += 1;
+    return route.fulfill({
+      contentType: ext === '.js' ? 'application/javascript' : 'text/css',
+      body: readFileSync(pathname)
+    });
   });
   await page.setViewportSize({width:1440,height:900});
   await page.goto(realUrl, {waitUntil:'domcontentloaded'});
-  await page.addStyleTag({content:css});
-  await page.addScriptTag({content:publicLoader});
   await page.waitForFunction(() => document.documentElement.dataset.publicShell === 'concept05');
   expect(loadedShellModules).toBe(1);
   await expect(page.locator('.c5-header-nav')).toHaveCount(1);
