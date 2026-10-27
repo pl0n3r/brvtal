@@ -8,6 +8,7 @@ require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_i18n_routing.php';
 require_once __DIR__ . '/config/public_page.php';
+require_once __DIR__ . '/config/public_translation_deepl_page_trial.php';
 require_once __DIR__ . '/config/public_artist.php';
 require_once __DIR__ . '/config/public_entity_delivery.php';
 require_once __DIR__ . '/config/public_not_found.php';
@@ -113,6 +114,12 @@ if ($entity) {
         echo brvtal_public_unavailable_page($unavailableSeo, $analytics);
         exit;
     }
+
+    // One-page translation trial is OFF by default and strictly scoped.
+    // No external call occurs without the separately authorized operator gates.
+    $page = brvtalDeepLOnePageTrialForRequest(
+        $page, $routeLocale, $type, $slug, db()
+    );
 
     header('Content-Type: text/html; charset=utf-8');
     if (!empty($page['degraded'])) {
