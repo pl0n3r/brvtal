@@ -44,14 +44,18 @@
     return document.getElementById('sv2_' + id)?.value?.trim() || '';
   }
 
+  // Settings accepts only filesystem-backed CMS paths; do not permit a
+  // scheme, parameters, Unicode separators or client-supplied traversal.
   function safeCmsMediaPath(value) {
-    if (typeof value !== 'string' || !value.startsWith('/uploads/media/')) return false;
-    if (value.includes('..') || /[%?#\\]/.test(value)) return false;
-    const segments = value.slice('/uploads/media/'.length).split('/');
-    if (!segments.length) return false;
-    return segments.every((part, index) => index === segments.length - 1
-      ? /^[\w-]+\.(?:webp|png|jpe?g|gif)$/i.test(part)
-      : /^[\w-]+$/.test(part));
+    if (typeof value !== 'string' || value.length > 320) return false;
+    const prefix = '/uploads/media/';
+    if (value.slice(0, prefix.length) !== prefix) return false;
+    const relative = value.substring(prefix.length);
+    if (!relative || relative.indexOf('..') >= 0 || /[^-\w/.]/.test(relative)) return false;
+    const filename = relative.substring(relative.lastIndexOf('/') + 1);
+    if (!/^[\w-]+\.(?:webp|png|jpe?g|gif)$/i.test(filename)) return false;
+    const folders = relative.substring(0, relative.lastIndexOf('/'));
+    return !folders || folders.split('/').every(folder => folder !== '' && /^[\w-]+$/.test(folder));
   }
 
   function validHttpUrl(value) {
