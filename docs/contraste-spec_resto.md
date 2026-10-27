@@ -9,7 +9,7 @@
 - **171 NO_VERIFICABLE:** se explica por fila la limitación de la prueba candidata, sin inferir un defecto a partir de ausencia de evidencia.
 - **0 SIN_COBERTURA:** no hay una ausencia nueva de comportamiento positivamente acreditada que autorice fabricar una hoja de backlog.
 - Las pruebas en filas NO_VERIFICABLE son candidatos de la matriz y **no se cuentan como pruebas de cumplimiento**. Solo las CUBIERTO se relacionan con PR fusionados previamente verificados en GitHub.
-- **AC-04 requiere serialización:** #1056/PR #1069 tiene V3 activa sobre `docs/matriz-cobertura.md` y `tests/test_matriz_cobertura.py`. #1063 inicialmente reclama solo este documento y su prueba. No se puede alterar ni certificar la matriz compartida hasta obtener nuevos claims por actualización del contrato y `/renovar-contrato` después de liberarse #1056.
+- **AC-04 preparado con claims vigentes:** #1056/PR #1069 fusionó `2a95b2f52ce31cea244adc6e46e18cfb67a356e3` y liberó la matriz. La reserva V3 de #1063 se renovó para reclamar `docs/matriz-cobertura.md` y su test. Este mismo PR vincula las 191 filas y actualiza cuatro encabezados; la aceptación final exige el gate `validate` terminal sobre el HEAD definitivo.
 
 ## Veredicto por fila
 
@@ -209,4 +209,4 @@
 
 ## Reversión y límites
 
-Esta hoja es solo evidencia documental con pruebas Python offline. No toca runtime, esquemas, producción, credenciales ni información personal. El squash es reversible. La matriz debe reconciliarse en otro hito antes de aceptar AC-04.
+Esta hoja es solo evidencia documental con pruebas Python offline. No toca runtime, esquemas, producción, credenciales ni información personal. El squash es reversible. La matriz se reconcilia en este mismo PR. AC-04 exige evidencia de `validate` terminal en verde sobre el HEAD definitivo.
