@@ -45,7 +45,7 @@ def parse_matrix(text: str) -> tuple[dict[str, list[str]], int]:
     selected = {}
     for line in text.splitlines():
         # El censo tiene tambien S51_1, S51_2 y filas historicas H*.
-        if not re.match(r"^\\| (?:S\\d+[A-Z_0-9]*|H\\d+|00)-", line):
+        if not re.match(r"^\| (?:S\d+[A-Z_0-9]*|H\d+|00)-", line):
             continue
         key = line.split(" ·", 1)[0].split("|", 1)[1].strip()
         if key in all_ids:
