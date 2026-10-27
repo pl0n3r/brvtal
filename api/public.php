@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/bootstrap.php';
 require_once __DIR__ . '/../config/migration_reconcile.php';
 require_once __DIR__ . '/../config/public_i18n.php';
+require_once __DIR__ . '/../config/public_home.php';
 require_once __DIR__ . '/../config/memory_relations.php';
 require_once __DIR__ . '/../config/artist_collective_membership.php';
 require_once __DIR__ . '/../config/public_page.php';
@@ -83,6 +84,15 @@ function brvtal_public_settings(PDO $pdo): array
     }
 
     $site = is_array($out['site'] ?? null) ? $out['site'] : [];
+    foreach (['hero_face', 'crowd', 'artists', 'nights', 'memories'] as $slot) {
+        $field = 'c05_media_' . $slot;
+        if (array_key_exists($field, $site) && !brvtal_c05_media_published($pdo, $site[$field])) {
+            unset($site[$field]);
+        }
+    }
+    if (isset($out['site']) && is_array($out['site'])) {
+        $out['site'] = $site;
+    }
     $out['i18n'] = brvtalPublicI18nPayload($site);
 
     return $out;

@@ -44,6 +44,20 @@
     return document.getElementById('sv2_' + id)?.value?.trim() || '';
   }
 
+  // Settings accepts only filesystem-backed CMS paths; do not permit a
+  // scheme, parameters, Unicode separators or client-supplied traversal.
+  function safeCmsMediaPath(value) {
+    if (typeof value !== 'string' || value.length > 320) return false;
+    const prefix = '/uploads/media/';
+    if (value.slice(0, prefix.length) !== prefix) return false;
+    const relative = value.substring(prefix.length);
+    if (!relative || relative.indexOf('..') >= 0 || /[^-\w/.]/.test(relative)) return false;
+    const filename = relative.substring(relative.lastIndexOf('/') + 1);
+    if (!/^[\w-]+\.(?:webp|png|jpe?g|gif)$/i.test(filename)) return false;
+    const folders = relative.substring(0, relative.lastIndexOf('/'));
+    return !folders || folders.split('/').every(folder => folder !== '' && /^[\w-]+$/.test(folder));
+  }
+
   function validHttpUrl(value) {
     if (!value) return true;
     try { return /^https?:$/.test(new URL(value, location.href).protocol); }
@@ -86,6 +100,12 @@
       <div class="sv2-grid two">${text('site_hero_manifesto_en','Hero manifesto · EN',site.hero_manifesto_en || '','Leave blank for owner v2 English copy.')}</div>
       <div class="sv2-grid two">${text('site_hero_cta_es','Hero button · ES',site.hero_cta_es || '','Leave blank for EXPLORA BRVTAL.')}${text('site_hero_cta_en','Hero button · EN',site.hero_cta_en || '','Leave blank for EXPLORE BRVTAL.')}</div>
       <div class="sv2-grid two">${text('site_hero_eyebrow_es','Hero eyebrow · ES',site.hero_eyebrow_es || '','Leave blank for the owner v2 editorial categories.')}${text('site_hero_eyebrow_en','Hero eyebrow · EN',site.hero_eyebrow_en || '','Leave blank for the owner v2 editorial categories.')}</div>
+      <header class="sv2-section-head"><div><span>CONCEPT 05 / MEDIA</span><h3>Editorial image assignments</h3></div><p>Choose published assets from Media Library; Git sources are never URLs.</p></header>
+      <div class="sv2-grid two"><label class="sv2-field"><span>HERO FACE</span><input id="sv2_c05_media_hero_face" data-testid="settings-field-c05_media_hero_face" readonly type="text" value="${esc(site.c05_media_hero_face?.url || '')}" data-media-id="${esc(site.c05_media_hero_face?.id || '')}" placeholder="Choose published media"><button type="button" data-settings-media-picker="c05_media_hero_face">SELECT MEDIA</button><button type="button" data-settings-clear-media="c05_media_hero_face">CLEAR</button></label>
+        <label class="sv2-field"><span>CROWD</span><input id="sv2_c05_media_crowd" data-testid="settings-field-c05_media_crowd" readonly type="text" value="${esc(site.c05_media_crowd?.url || '')}" data-media-id="${esc(site.c05_media_crowd?.id || '')}" placeholder="Choose published media"><button type="button" data-settings-media-picker="c05_media_crowd">SELECT MEDIA</button><button type="button" data-settings-clear-media="c05_media_crowd">CLEAR</button></label>
+        <label class="sv2-field"><span>ARTISTS</span><input id="sv2_c05_media_artists" data-testid="settings-field-c05_media_artists" readonly type="text" value="${esc(site.c05_media_artists?.url || '')}" data-media-id="${esc(site.c05_media_artists?.id || '')}" placeholder="Choose published media"><button type="button" data-settings-media-picker="c05_media_artists">SELECT MEDIA</button><button type="button" data-settings-clear-media="c05_media_artists">CLEAR</button></label>
+        <label class="sv2-field"><span>NIGHTS</span><input id="sv2_c05_media_nights" data-testid="settings-field-c05_media_nights" readonly type="text" value="${esc(site.c05_media_nights?.url || '')}" data-media-id="${esc(site.c05_media_nights?.id || '')}" placeholder="Choose published media"><button type="button" data-settings-media-picker="c05_media_nights">SELECT MEDIA</button><button type="button" data-settings-clear-media="c05_media_nights">CLEAR</button></label>
+        <label class="sv2-field"><span>MEMORIES</span><input id="sv2_c05_media_memories" data-testid="settings-field-c05_media_memories" readonly type="text" value="${esc(site.c05_media_memories?.url || '')}" data-media-id="${esc(site.c05_media_memories?.id || '')}" placeholder="Choose published media"><button type="button" data-settings-media-picker="c05_media_memories">SELECT MEDIA</button><button type="button" data-settings-clear-media="c05_media_memories">CLEAR</button></label></div>
       <div class="sv2-context-grid">
         <article><span>CANONICAL ORIGIN</span><strong>www.brvtal.com.co</strong><p>Environment-owned. Not editable here.</p></article>
         <article><span>LANGUAGE POLICY</span><strong>${esc(locale)} · ${esc(locales)}</strong><p>Spanish is canonical/default and ES/EN availability is governed by <code>settings.site</code>. The public selector remains a separate delivery step.</p></article>
@@ -304,7 +324,19 @@
       || ![heroEyebrowEs,heroEyebrowEn].every(value => safeCopy(value, 80))) {
       throw new Error('Hero CTA/eyebrow must be plain text (max 48/80 characters).');
     }
+    const assignedMedia = {};
+    for (const key of ['hero_face','crowd','artists','nights','memories']) {
+      const input = document.getElementById('sv2_c05_media_' + key);
+      const url = String(input?.value || '').trim();
+      const id = Number(input?.dataset.mediaId || 0);
+      if (url && (!Number.isSafeInteger(id) || id < 1
+        || !safeCmsMediaPath(url))) {
+        throw new Error('Select a published Media Library image.');
+      }
+      assignedMedia['c05_media_' + key] = url ? {id, url, status:'published'} : null;
+    }
     await persistJson('site',{
+      ...assignedMedia,
       name,tagline,description,
       hero_manifesto_es:heroManifestoEs,hero_manifesto_en:heroManifestoEn,
       hero_cta_es:heroCtaEs,hero_cta_en:heroCtaEn,
@@ -408,7 +440,10 @@
     let media = [];
     try { media = (await req('/media')).data || []; }
     catch (error) { feedback('error','Media Library could not be loaded.'); return; }
-    const images = media.filter(item => item.type === 'image');
+    const target = trigger?.dataset.settingsMediaPicker || 'seo_share';
+    const images = media.filter(item => item.type === 'image'
+      && (target === 'seo_share' || item.status === 'published')
+      && (target === 'seo_share' || safeCmsMediaPath(String(item.file_path || ''))));
     const overlay = document.createElement('div');
     overlay.id = 'sv2-media-picker';
     overlay.className = 'sv2-picker-overlay';
@@ -417,10 +452,28 @@
     const search = overlay.querySelector('input[type=search]');
     overlay.querySelector('[data-sv2-close]')?.addEventListener('click',closePicker);
     overlay.addEventListener('click',event => { if (event.target===overlay) closePicker(); });
-    overlay.querySelectorAll('[data-sv2-media]').forEach(button => button.addEventListener('click',()=>{updateAsset(button.dataset.sv2Media || '');closePicker();}));
+    overlay.querySelectorAll('[data-sv2-media]').forEach(button => button.addEventListener('click',()=>{
+      const path = button.dataset.sv2Media || '';
+      if (target === 'seo_share') updateAsset(path);
+      else {
+        const input = document.getElementById('sv2_' + target);
+        const item = images.find(row => String(row.file_path) === path);
+        if (input && item) {
+          input.value = path;
+          input.dataset.mediaId = String(item.id);
+          input.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+      }
+      closePicker();
+    }));
     search?.addEventListener('input',()=>{const q=search.value.toLowerCase();overlay.querySelectorAll('[data-sv2-search]').forEach(card=>{card.hidden=Boolean(q)&&!String(card.dataset.sv2Search||'').toLowerCase().includes(q);});});
     overlay.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closePicker();}});
     search?.focus();
+  }
+
+  function clearEditorialMedia(button) {
+    const input = document.getElementById('sv2_' + button.dataset.settingsClearMedia);
+    if (input) { input.value = ''; delete input.dataset.mediaId; }
   }
 
   function bind() {
@@ -441,6 +494,8 @@
       if (event.target.closest('[data-settings-security-retry]')) { loadSecurity(true).catch(error => feedback('error', error?.message || 'Security settings could not be loaded.')); return; }
       const picker = event.target.closest('[data-settings-media-picker]');
       if (picker) { openPicker(picker).catch(error => feedback('error', error?.message || 'Media picker could not be opened.')); return; }
+      const clear = event.target.closest('[data-settings-clear-media]');
+      if (clear) clearEditorialMedia(clear);
       if (event.target.closest('[data-settings-clear-asset]')) updateAsset('');
     });
   }

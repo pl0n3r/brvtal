@@ -907,3 +907,31 @@ function brvtal_public_render_next_experience(string $html, ?array $event): stri
 
     return $html;
 }
+
+/** Concept 05 relation is valid only while its canonical CMS image stays published. */
+function brvtal_c05_media_published(PDO $pdo, mixed $relation, bool $lock = false): bool
+{
+    if (!is_array($relation)
+        || !is_int($relation['id'] ?? null) || $relation['id'] < 1
+        || ($relation['status'] ?? null) !== 'published'
+        || !is_string($relation['url'] ?? null)) {
+        return false;
+    }
+    $url = $relation['url'];
+    if (strlen($url) > 320
+        || preg_match('~\\A/uploads/media/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.(?:webp|png|jpe?g|gif)\\z~i', $url) !== 1) {
+        return false;
+    }
+    try {
+        $sql = 'SELECT type,status,file_path FROM media WHERE id=? LIMIT 1';
+        $st = $pdo->prepare($sql . ($lock ? ' FOR UPDATE' : ''));
+        $st->execute([$relation['id']]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable) {
+        return false;
+    }
+    return is_array($row)
+        && $row['type'] === 'image'
+        && $row['status'] === 'published'
+        && $row['file_path'] === $url;
+}
