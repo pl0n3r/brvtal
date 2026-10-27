@@ -2,7 +2,9 @@
 """Contrato reproducible de contraste S09–S11; no consulta red ni datos reales."""
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -102,6 +104,32 @@ class ContrasteTests(unittest.TestCase):
                 self.assertIn(token, body)
         self.assertLess(src.index("brvtal_admin_require();"), start)
         self.assertIn("if($resource==='events' && $action==='lineup'", body)
+
+
+    def test_lineup_route_parser_in_php(self) -> None:
+        # S11-R009: ejecuta el parser de producción para front controller y rewrite.
+        source = r"""
+require 'api/route.php';
+echo json_encode([
+    brvtal_api_parse_route('/api/index.php/events/12/lineup', '/api/index.php', 'GET'),
+    brvtal_api_parse_route('/api/events/12/lineup', '/api/index.php', 'POST'),
+    brvtal_api_parse_route('/api/events/12/lineup/unexpected', '/api/index.php', 'GET'),
+], JSON_THROW_ON_ERROR);
+"""
+        result = subprocess.run(
+            ["php", "-r", source], cwd=ROOT, capture_output=True,
+            text=True, timeout=20, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        parsed = json.loads(result.stdout)
+        self.assertEqual(
+            [{key: row[key] for key in ("resource", "id", "action")} for row in parsed],
+            [
+                {"resource": "events", "id": 12, "action": "lineup"},
+                {"resource": "events", "id": 12, "action": "lineup"},
+                {"resource": "", "id": None, "action": ""},
+            ],
+        )
 
 
 if __name__ == "__main__":
