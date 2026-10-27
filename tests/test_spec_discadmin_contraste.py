@@ -80,6 +80,10 @@ class ContrasteTests(unittest.TestCase):
                 self.assertEqual(matrix_rows[key][2], doc_cells[1])
                 self.assertNotEqual(matrix_rows[key][2], "NO_VERIFICABLE")
                 self.assertIn("contraste-spec_discadmin.md", matrix_rows[key][3])
+                enlace = re.search(r"\[contraste\]\(([^)]+)\)", matrix_rows[key][3])
+                self.assertIsNotNone(enlace, key)
+                assert enlace is not None
+                self.assertTrue((MATRIX.parent / enlace.group(1)).is_file(), key)
                 if doc_cells[1] == "CUBIERTO":
                     self.assertIn(doc_cells[3].split("]")[0][1:], matrix_rows[key][3])
                 if doc_cells[1] == "SIN_COBERTURA":
