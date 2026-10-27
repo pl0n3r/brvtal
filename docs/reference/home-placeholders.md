@@ -31,3 +31,7 @@ Los cinco archivos son materiales **sintéticos y de autoría original**: compos
 ## Limitaciones operativas
 
 Esta documentación no acredita que las fuentes, pruebas o la carga CMS estén terminadas. No es permiso para publicar, gastar, ejecutar migraciones o tocar contenido real. Todo merge requiere V3, `validate` sobre HEAD exacto, seguridad y reglas de `PLAN-AGENTES.md`.
+
+## Selección CMS integrada
+
+Las cinco claves `settings.site.c05_media_*` conservan una relación `{id,url,status:'published'}` elegida desde Media Library. El picker solo presenta imágenes publicadas, el guardado preserva claves hermanas de `settings.site` y el home no asigna un `src` mientras no reciba una relación CMS publicable y una URL permitida. Un error HTTP de imagen la vuelve a ocultar.

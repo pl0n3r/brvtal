@@ -176,6 +176,30 @@
     return true;
   }
 
+  // The five versioned sources are never browser media URLs.
+  function projectEditorialMedia(data) {
+    const site = data?.settings?.site;
+    if (!site || typeof site !== 'object') return;
+    const valid = url => typeof url === 'string'
+      && (/^\/uploads\/media\/[A-Za-z0-9/_-]+\.(?:webp|png|jpe?g|gif)$/i.test(url)
+        || /^https:\/\/[A-Za-z0-9.-]+(?:\/[A-Za-z0-9/_ .%-]+)*\.(?:webp|png|jpe?g|gif)$/i.test(url))
+      && !url.includes('..') && !/%2e/i.test(url);
+    document.querySelectorAll('img[data-c5-editorial-media]').forEach(image => {
+      const record = site['c05_media_' + image.dataset.c5EditorialMedia];
+      const url = record && typeof record === 'object' ? record.url : '';
+      const id = record && typeof record === 'object' ? Number(record.id) : 0;
+      if (record?.status !== 'published' || !Number.isSafeInteger(id) || id < 1 || !valid(url)) {
+        image.hidden = true;
+        image.removeAttribute('src');
+        return;
+      }
+      image.hidden = true;
+      image.onload = () => { image.hidden = false; };
+      image.onerror = () => { image.hidden = true; image.removeAttribute('src'); };
+      image.src = url;
+    });
+  }
+
   function animateHero() {
     const hero = document.querySelector('.home-phase-a-hero');
     if (!hero || !window.gsap || reducedMotion()) return;
@@ -249,6 +273,7 @@
     projectManifesto(data);
     projectHeroEditorialCopy(data);
     projectDocumentary(data);
+    projectEditorialMedia(data);
     animateHero();
   }
 
@@ -280,5 +305,6 @@
     projectDescription,
     projectManifesto,
     projectHeroEditorialCopy,
+    projectEditorialMedia,
   };
 })();
