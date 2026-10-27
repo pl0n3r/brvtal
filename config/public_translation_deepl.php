@@ -14,16 +14,18 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
 
     private readonly Closure $fakeTransport;
     private bool $configured;
+    private readonly string $realVersion;
 
     /**
      * The optional configuration reader abstracts the environment. It may
      * return a fixture key, but the value is never stored or sent to transport.
      * Without a reader the provider is always disabled (fail closed).
      */
-    public function __construct(callable $fakeTransport, ?callable $readConfiguration = null)
+    public function __construct(callable $fakeTransport, ?callable $readConfiguration = null, string $version = 'deepl-fake-es-en-v1')
     {
         $this->fakeTransport = Closure::fromCallable($fakeTransport);
         $this->configured = false;
+        $this->realVersion = $version;
         if ($readConfiguration !== null) {
             try {
                 $value = $readConfiguration('DEEPL_AUTH_KEY');
@@ -36,7 +38,7 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
 
     public function version(): string
     {
-        return 'deepl-fake-es-en-v1';
+        return $this->realVersion;
     }
 
     public function translate(string $source, string $sourceLocale, string $targetLocale): string

@@ -1,3 +1,19 @@
+# DeepL Free: transporte HTTP real, sin activar
+
+El issue #1034 implementa únicamente código, bajo la decisión auténtica #1033/A. El transporte sigue **apagado y sin wiring productivo**. No se configura Hostinger, no se reciben claves reales, no se envía contenido ni se despliega desde este PR.
+
+La factoría brvtalPublicDeepLRealAdapter() comprueba simultáneamente BRVTAL_DEEPL_ENABLED=1 y DEEPL_AUTH_KEY no vacía. Cualquier ausencia o error retorna provider_not_configured, sin HTTP; la versión de caché del adaptador apagado difiere de la versión real para que un caché previo nunca habilite resultados con el interruptor apagado.
+
+La solicitud autorizada es un POST JSON a https://api-free.deepl.com/v2/translate con Authorization: DeepL-Auth-Key, Content-Type application/json, source_lang ES, target_lang EN-US y un solo texto plano UTF-8 de hasta 5.000 bytes. Curl usa TLS verificado, timeout total de 3 segundos y de conexión de 2; sin redirects, retries ni trazas de cuerpos o clave.
+
+BRVTAL_DEEPL_MONTHLY_BUDGET define 1–500.000 caracteres/mes; valor por defecto 300.000. Antes de llamar a HTTP se reserva la cuota en un contador local persistido por mes UTC con bloqueo exclusivo. No almacena contenido, IDs ni secretos. Si no puede persistir o el contador se agota, no hay llamada externa y el resolver devuelve español. En despliegues multihost o con directorio temporal no persistente debe mantenerse OFF hasta contar con un contador compartido fiable y autorización independiente.
+
+Respuestas inválidas generan provider_invalid_response; HTTP fallido, timeout o cuota agotada generan provider_unavailable; jamás se cachean fallos. La elegibilidad pública editorial brvtalPublicEditorialOverlayEligible permanece intacta. Ningún punto de entrada instancia la factoría, por lo que esta entrega no activa el proveedor.
+
+Pruebas sin red ni credenciales reales: php tests/deepl_real_transport_scenarios.php off|request|errors|contract y python3 -m unittest tests/test_deepl_real_transport.py. Reversión futura: retirar BRVTAL_DEEPL_ENABLED y volver al texto español; revertir el squash remueve el transporte.
+
+---
+
 # DeepL translation: offline build-ahead only
 
 Issue BRVTAL #967 | parent #212 | separate activation gate #920.
