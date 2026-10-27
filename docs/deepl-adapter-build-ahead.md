@@ -26,3 +26,15 @@ BRVTAL #920 retains legal/privacy and DPA consent, any allowed cost decision, cr
 ## Release metadata only
 
 BRVTAL CI classifies `config/public_translation_deepl.php` as deploy-bound, so the release-version preflight requires a sequential product-version transition even though the adapter remains unwired.
+
+## Real transport (BRVTAL #1034, authorized in #1033)
+
+`config/public_translation_deepl_transport.php` adds `BrvtalDeepLHttpTransport`, a real HTTPS transport to `https://api-free.deepl.com/v2/translate`. It is **OFF by default**: `BrvtalDeepLHttpTransport::adapterFromEnvironment()` returns `null` (the site keeps showing canonical Spanish) unless the server environment has both `BRVTAL_DEEPL_ENABLED=1` and a non-empty `DEEPL_AUTH_KEY`. No production entry point instantiates it yet, so merging this change does not call DeepL.
+
+- Request: one plain-text source (at most 5,000 bytes), `source_lang=ES`, `target_lang=EN-US`, header `Authorization: DeepL-Auth-Key <key>`, 5-second timeout, no automatic retries, HTTPS only, no redirects.
+- Budget: a monthly character counter in `storage/deepl-usage.json` (default 300,000, configurable with `BRVTAL_DEEPL_MONTHLY_CHARS`). When it would be exceeded, no call is made and the site shows Spanish.
+- Failure: any transport error, non-200 status, malformed JSON or exhausted budget becomes `provider_unavailable` or `provider_invalid_response`; nothing is written to the translation cache and the key never appears in errors, logs or results.
+- Cache identity: the adapter reports `deepl-api-free-es-en-v1`, separate from the fake `deepl-fake-es-en-v1`.
+- Tests: `tests/test_deepl_real_transport.py` and `tests/deepl_real_transport_scenarios.php` use an injected fake HTTP callable; no network and no real key.
+
+Owner steps to activate (not part of this change): store `DEEPL_AUTH_KEY` and `BRVTAL_DEEPL_ENABLED=1` in the Hostinger environment, then test one public page and review it before widening. Turning the switch off (`BRVTAL_DEEPL_ENABLED` removed or `0`) disables DeepL immediately. Legal/DPA review and protection of `main` (#1009) remain open gates before real traffic.
