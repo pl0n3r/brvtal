@@ -84,7 +84,7 @@ class MatrizCoberturaTests(unittest.TestCase):
                 self.assertRegex(evidence, r"(?:tests/|PR #\d+)")
                 self.assertRegex(evidence + " " + issue, r"PR #\d+")
             if state == "DESCARTADO":
-                self.assertIn("decisi", evidence.lower() + issue.lower() + requirement.lower())
+                self.assertRegex(evidence.lower(), r"decisi|exclusi|retirad|fuera de alcance")
         self.assertEqual(len(ids), len(set(ids)), "IDs de requisito duplicados")
 
     def test_resumen_por_estado(self):
