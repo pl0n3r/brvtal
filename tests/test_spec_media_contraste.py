@@ -18,7 +18,7 @@ VALID = {"CUBIERTO", "DESCARTADO", "NO_VERIFICABLE", "SIN_COBERTURA"}
 def read_document():
     rows = {}
     for line in DOCUMENT.read_text(encoding="utf-8").splitlines():
-        if not re.match(r"^\\| S(?:17|18)-R\\d{3} \\|", line):
+        if not re.match(r"^\| S(?:17|18)-R\d{3} \|", line):
             continue
         cells = [part.strip() for part in line.strip("|").split("|")]
         if len(cells) != 6 or cells[0] in rows:
@@ -29,7 +29,7 @@ def read_document():
 def matrix_rows():
     rows = {}
     for line in MATRIX.read_text(encoding="utf-8").splitlines():
-        found = re.match(r"^\\| (S(?:17|18)-R\\d{3}) \\u00b7 ", line)
+        found = re.match(r"^\| (S(?:17|18)-R\d{3}) \u00b7 ", line)
         if found:
             cells = [part.strip() for part in line.strip("|").split("|")]
             if len(cells) != 5 or found.group(1) in rows:
@@ -62,19 +62,19 @@ class ContrasteTests(unittest.TestCase):
                 continue
             with self.subTest(row=key):
                 for ref in (code, test):
-                    match = re.fullmatch(r"\\[([^]]+)\\]\\(\\.\\./([^)]*)\\)", ref)
+                    match = re.fullmatch(r"\[([^]]+)\]\(\.\./([^)]*)\)", ref)
                     self.assertIsNotNone(match, ref)
                     assert match
                     self.assertEqual(match.group(1), match.group(2))
                     self.assertTrue((ROOT / match.group(2)).is_file(), ref)
-                self.assertRegex(test, r"\\(\\.\\./tests/")
-                self.assertRegex(source, r"\\[PR #\\d+\\]\\(https://github\\.com/pl0n3r/brvtal/pull/\\d+\\)")
+                self.assertRegex(test, r"\(\.\./tests/")
+                self.assertRegex(source, r"\[PR #\d+\]\(https://github\.com/pl0n3r/brvtal/pull/\d+\)")
 
     def test_faltante_tiene_issue(self):
         for key, (_, verdict, _, _, source, reason) in read_document().items():
             if verdict == "SIN_COBERTURA":
                 with self.subTest(row=key):
-                    self.assertRegex(source, r"https://github\\.com/pl0n3r/brvtal/issues/\\d+")
+                    self.assertRegex(source, r"https://github\.com/pl0n3r/brvtal/issues/\d+")
                     self.assertIn("brecha", reason.lower())
         # Sin brechas nuevas acreditadas, no se deben fabricar tickets.
         self.assertEqual(0, sum(row[1] == "SIN_COBERTURA" for row in read_document().values()))
@@ -89,9 +89,9 @@ class ContrasteTests(unittest.TestCase):
                 self.assertEqual(current[key][2], row[1])
                 self.assertIn("[contraste](contraste-spec_media.md)", current[key][3])
                 if row[1] == "CUBIERTO":
-                    self.assertIn("Código \`", current[key][3])
-                    self.assertIn("prueba \`tests/", current[key][3])
-                    pr = re.search(r"PR #(\\d+)", row[4])
+                    self.assertIn("Código `", current[key][3])
+                    self.assertIn("prueba `tests/", current[key][3])
+                    pr = re.search(r"PR #(\d+)", row[4])
                     self.assertIsNotNone(pr)
                     assert pr
                     self.assertIn(f"PR #{pr.group(1)} fusionado", current[key][3])
