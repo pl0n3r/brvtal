@@ -53,7 +53,11 @@ class ContrasteTests(unittest.TestCase):
                     self.assertRegex(reason, "Decisión|Exclusión")
                 elif verdict == "CUBIERTO":
                     self.assertNotIn("—", (code, test))
-        self.assertGreaterEqual(sum(r[1] == "CUBIERTO" for r in rows.values()), 15)
+        # Basar el mínimo en cobertura realmente acreditada, no en mocks de planificación.
+        self.assertGreaterEqual(sum(r[1] == "CUBIERTO" for r in rows.values()), 10)
+        # Las siguientes afirmaciones requieren aserciones end-to-end adicionales.
+        for key in ["S17-R004","S17-R007","S18-R003","S18-R004","S18-R006","S18-R009","S18-R012","S18-R014","S18-R015","S18-R016","S18-R020","S18-R021"]:
+            self.assertEqual(rows[key][1], "NO_VERIFICABLE", key)
 
     def test_cubierto_enlaza_prueba_existente(self):
         rows = read_document()
