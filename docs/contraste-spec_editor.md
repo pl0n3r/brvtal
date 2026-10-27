@@ -1,6 +1,6 @@
 # Contraste por inciso — roadmap, coordinación y protección de cambios (§51–§51.2)
 
-**Issue:** [#1062](https://github.com/pl0n3r/brvtal/issues/1062) · 2026-10-27 · **Corte:** `main@0d0188a770ba07f5b2fde0545d5d2a5454eb5c72` tras #1057. Se contrastan por ID las 50 filas del censo original, sin publicar ni certificar producción.
+**Issue:** [#1062](https://github.com/pl0n3r/brvtal/issues/1062) · 2026-10-27 · **Corte:** `main@7b6e9961e61654978318ed5148da5f9ddd671adb` tras #1057. Se contrastan por ID las 50 filas del censo original, sin publicar ni certificar producción.
 
 ## Método
 
