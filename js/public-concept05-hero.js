@@ -214,7 +214,9 @@
       image.style.height = 'auto';
       image.style.maxHeight = '220px';
       image.style.objectFit = 'cover';
-      image.loading = 'lazy';
+      // A hidden lazy image cannot enter the viewport to fire onload.
+      // Fetch immediately, but reveal only on a successful decode/load.
+      image.loading = 'eager';
       image.decoding = 'async';
       image.hidden = true;
       section.append(image);
