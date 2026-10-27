@@ -11,8 +11,8 @@ DOC = ROOT / "docs/contraste-spec_seo.md"
 MATRIX = ROOT / "docs/matriz-cobertura.md"
 EXPECTED = {f"S22-R{i:03}" for i in range(1, 55)}
 VERDICTS = {"CUBIERTO", "SIN_COBERTURA", "DESCARTADO"}
-MERGED_PRS = {385, 469, 601, 620, 621, 1002}
-GAP_ISSUES = {1068}
+MERGED_PRS = {385, 469, 601, 620, 621, 1002, 1071}
+GAP_ISSUES = set()  # S22-R043 fue implementado por PR #1071
 
 
 def report_rows() -> dict[str, list[str]]:
@@ -83,8 +83,9 @@ class ContrasteTests(unittest.TestCase):
 
     def test_faltante_tiene_issue(self) -> None:
         rows = report_rows()
-        self.assertEqual(rows["S22-R043"][1], "SIN_COBERTURA")
-        self.assertIn("https://github.com/pl0n3r/brvtal/issues/1068", rows["S22-R043"][4])
+        self.assertEqual(rows["S22-R043"][1], "CUBIERTO")
+        self.assertIn("https://github.com/pl0n3r/brvtal/pull/1071", rows["S22-R043"][4])
+        self.assertIn("tests/test_seo_content_health_score.py", rows["S22-R043"][3])
         for key, (_, state, _, _, source, _) in rows.items():
             if state == "SIN_COBERTURA":
                 ref = re.search(r"https://github\.com/pl0n3r/brvtal/issues/(\d+)", source)
@@ -103,8 +104,8 @@ class ContrasteTests(unittest.TestCase):
                 self.assertNotIn("NO_VERIFICABLE", matrix[key][2])
                 if key not in {"S22-R001", "S22-R004"}:
                     self.assertIn("contraste-spec_seo.md", matrix[key][3])
-                if cells[1] == "SIN_COBERTURA":
-                    self.assertIn("/issues/1068", matrix[key][4])
+                if cells[1] == "CUBIERTO" and key == "S22-R043":
+                    self.assertIn("/pull/1071", matrix[key][4])
 
 
 if __name__ == "__main__":

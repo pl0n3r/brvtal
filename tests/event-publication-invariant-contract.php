@@ -32,8 +32,41 @@ event_invariant_assert(
         'status'=>'tickets_available',
         'event_date'=>'2026-10-31 21:00:00',
         'city'=>'Pereira',
+        'description'=>'Synthetic event description',
     ]) === null,
-    'complete non-draft Events must pass'
+    'complete active public Events must pass'
+);
+
+$validPublic = [
+    'title'=>'Complete Event',
+    'status'=>'published',
+    'event_date'=>'2026-10-31 21:00:00',
+    'city'=>'Pereira',
+    'description'=>'Valid editorial summary',
+];
+event_invariant_assert(
+    brvtal_event_publication_error(array_replace($validPublic, ['description'=>''])) === ['error'=>'EVENT_DESCRIPTION_REQUIRED','field'=>'description'],
+    'generic Event must reject absent description before publication'
+);
+event_invariant_assert(
+    brvtal_event_publication_error(array_replace($validPublic, ['description'=>" \t "])) === ['error'=>'EVENT_DESCRIPTION_REQUIRED','field'=>'description'],
+    'generic Event must reject whitespace descriptions'
+);
+foreach (['published','upcoming','tickets_available','last_tickets','sold_out'] as $activeStatus) {
+    event_invariant_assert(
+        brvtal_event_publication_error(array_replace($validPublic, ['status'=>$activeStatus,'description'=>''])) === ['error'=>'EVENT_DESCRIPTION_REQUIRED','field'=>'description'],
+        'active public status must reject descriptionless Event'
+    );
+}
+foreach (['cancelled','finished','archived'] as $historicalStatus) {
+    event_invariant_assert(
+        brvtal_event_publication_error(array_replace($validPublic, ['status'=>$historicalStatus,'description'=>''])) === null,
+        'historical Event with legacy description must remain editable'
+    );
+}
+event_invariant_assert(
+    brvtal_event_publication_error(['title'=>'Draft Event','status'=>'draft','description'=>'']) === null,
+    'incomplete draft must not require a description'
 );
 
 $indexSource = (string)file_get_contents(__DIR__ . '/../api/index.php');
@@ -52,7 +85,8 @@ event_invariant_assert(
 );
 event_invariant_assert(
     str_contains($bulkSource, "require_once __DIR__ . '/content-validation.php';")
-        && str_contains($bulkSource, "'events' ? ',title,event_date,city,published_at,cancelled_at,finished_at'")
+        && str_contains($bulkSource, "\$resource === 'events'")
+        && str_contains($bulkSource, "',title,event_date,city,description,published_at,cancelled_at,finished_at'")
         && str_contains($bulkSource, "brvtal_event_publication_error(array_replace(\$row, ['status'=>\$status]))"),
     'Bulk Actions must load and enforce the same Event invariant before mutation'
 );

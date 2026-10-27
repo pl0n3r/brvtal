@@ -7,8 +7,8 @@
 - `CUBIERTO`: evidencia de un archivo implementado, una prueba existente y un PR de implementación fusionado. La aserción se identifica mediante el contrato del área; no se atribuye validación de producción.
 - `SIN_COBERTURA`: brecha de código explícita contrastada, con hoja canónica creada y enlazada. No se deriva solo de que faltase una prueba.
 - `DESCARTADO`: descarte únicamente de un renglón como unidad de prueba atómica (introducción, objetivo compuesto o decisión arquitectónica), nunca abandono de la funcionalidad.
-- Los 54 IDs se reproducen desde la matriz original, incluidos S22-R001/R004 ya cubiertos. **La actualización de matriz es un gate separado:** no editarla mientras la reclamen las reservas V3 de #1059/#1062. AC-04 exige renovar contrato y comparar fila por fila.
-- La puntuación Content Health Score de S22-R043 NO está implementada. La consulta protegida entrega warnings y agregados; `tests/test_admin_seo_signals.py` incluso verifica que no hay `seo_score`. Hoja [#1068](https://github.com/pl0n3r/brvtal/issues/1068).
+- Los 54 IDs se reproducen desde la matriz original, incluidos S22-R001/R004 ya cubiertos. **La actualización de matriz es un gate separado:** actualizar solo tras liberar las reservas ajenas y ampliar V3 de #1056. AC-04 compara fila por fila; el score S22-R043 usa el PR #1071 fusionado.
+- S22-R043 ya tiene Content Health Score y alertas editoriales implementadas en [PR #1071 fusionado](https://github.com/pl0n3r/brvtal/pull/1071), verificados por `tests/test_seo_content_health_score.py`. La hoja [#1068](https://github.com/pl0n3r/brvtal/issues/1068) está cerrada; no atribuir esta implementación al PR documental #1069.
 
 ## Veredictos por fila
 
@@ -56,7 +56,7 @@
 | S22-R040 | CUBIERTO | [discadmin/seo-metadata.js](../discadmin/seo-metadata.js) | [tests/seo-contract.php](../tests/seo-contract.php) | [PR #621 fusionado](https://github.com/pl0n3r/brvtal/pull/621) | Mapa partialSaves impide segundo guardado de contenido al fallar solo SEO. |
 | S22-R041 | CUBIERTO | [discadmin/seo-metadata.js](../discadmin/seo-metadata.js) | [tests/seo-contract.php](../tests/seo-contract.php) | [PR #621 fusionado](https://github.com/pl0n3r/brvtal/pull/621) | retryPartial reintenta metadata y finaliza recuperación después del éxito. |
 | S22-R042 | CUBIERTO | [api/event-workflow-lib.php](../api/event-workflow-lib.php) | [tests/event-workflow-contract.php](../tests/event-workflow-contract.php) | [PR #385 fusionado](https://github.com/pl0n3r/brvtal/pull/385) | Content Core Events usa guardado atómico de workflow, no split-save. |
-| S22-R043 | SIN_COBERTURA | [config/seo_workspace.php](../config/seo_workspace.php) | — | [Issue #1068](https://github.com/pl0n3r/brvtal/issues/1068) | BRECHA COMPROBADA: warnings/totales sin puntuación Content Health Score; faltan también alertas de imagen e información incompleta. Issue #1068. |
+| S22-R043 | CUBIERTO | [config/seo_workspace.php](../config/seo_workspace.php) | [tests/test_seo_content_health_score.py](../tests/test_seo_content_health_score.py) | [PR #1071 fusionado](https://github.com/pl0n3r/brvtal/pull/1071) | `brvtalSeoWorkspaceContentHealth` calcula score determinista desde datos existentes, señales de imagen y completitud editorial; el test cubre casos saludables, deteriorados, truncados y negativos. No demuestra HEALTH productivo. |
 | S22-R044 | CUBIERTO | [api/seo-workspace.php](../api/seo-workspace.php) | [tests/seo-workspace-contract.php](../tests/seo-workspace-contract.php) | [PR #621 fusionado](https://github.com/pl0n3r/brvtal/pull/621) | API SEO protegida permite edición explícita, no publica automáticamente. |
 | S22-R045 | CUBIERTO | [config/public_seo.php](../config/public_seo.php) | [tests/public-rich-schema-contract.php](../tests/public-rich-schema-contract.php) | [PR #601 fusionado](https://github.com/pl0n3r/brvtal/pull/601) | JSON-LD del servidor deriva entidad/ruta visible en vez de CMS paralelo. |
 | S22-R046 | CUBIERTO | [config/public_seo.php](../config/public_seo.php) | [tests/public-entity-pages-contract.php](../tests/public-entity-pages-contract.php) | [PR #601 fusionado](https://github.com/pl0n3r/brvtal/pull/601) | Relaciones de artistas proceden de consultas filtradas por publicación. |
@@ -70,7 +70,7 @@
 | S22-R054 | DESCARTADO | — | — | [BRVTAL-SPEC §22](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L345) | Decisión de auditoría: afirmación de arquitectura de no-migración, no comportamiento atómico; se preserva la persistencia SEO existente. |
 
 ## Balance de alcance
-- 54 filas: 50 CUBIERTO, 1 SIN_COBERTURA, 3 DESCARTADO.
-- S22-R043 exige implementar #1068 en otra reserva; **este contraste no lo soluciona**.
+- 54 filas: 51 CUBIERTO, 0 SIN_COBERTURA, 3 DESCARTADO.
+- S22-R043 ya fue implementado por #1068 / PR #1071 en una sesión independiente y fusionada; este contraste solo acredita su evidencia.
 - S22-R001 y S22-R004 conservan la evidencia preexistente de #621.
 - Las decisiones de cobertura sobre pruebas por presencia de archivo tienen límites: en particular, espejo Home, historial de actividad, Theme Studio y relaciones JSON-LD deben endurecerse con aserciones semánticas adicionales si se detecta deriva. No inferir observación de producción.
