@@ -100,6 +100,7 @@ $validRequest = brvtal_event_workflow_request([
         'status'=>'published',
         'event_date'=>'2026-09-16 21:00',
         'city'=>'Pereira',
+        'description'=>'Synthetic Event integration fixture',
     ],
     'ticket_types'=>[[
         'name'=>'Preventa',
@@ -128,6 +129,7 @@ $timetableRequest = brvtal_event_workflow_request([
         'status'=>'published',
         'event_date'=>'2026-09-16 21:00',
         'city'=>'Pereira',
+        'description'=>'Synthetic Event integration fixture',
     ],
     'ticket_types'=>[[
         'id'=>$ticketId,
@@ -316,6 +318,7 @@ $updateRequest = brvtal_event_workflow_request([
         'status'=>'published',
         'event_date'=>'2026-09-16 21:00',
         'city'=>'Pereira',
+        'description'=>'Synthetic Event integration fixture',
     ],
     'ticket_types'=>[[
         'id'=>$ticketId,

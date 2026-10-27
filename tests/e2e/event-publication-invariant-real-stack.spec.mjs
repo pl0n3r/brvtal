@@ -70,9 +70,17 @@ test('generic Event API and Bulk Actions reject incomplete non-draft state witho
     expect(afterCityReject.status).toBe('draft');
     expect(afterCityReject.event_date).toBeNull();
 
-    const validPublish = await page.request.put(`${baseUrl}/api/index.php/events/${eventId}`, {
+    const missingDescription = await page.request.put(`${baseUrl}/api/index.php/events/${eventId}`, {
       headers,
       data: { event_date: '2026-10-31T21:00', city: 'Pereira', status: 'published' },
+    });
+    expect(missingDescription.status()).toBe(422);
+    expect(await missingDescription.json()).toMatchObject({ error: 'EVENT_DESCRIPTION_REQUIRED', field: 'description' });
+    expect((await getEvent(eventId)).status).toBe('draft');
+
+    const validPublish = await page.request.put(`${baseUrl}/api/index.php/events/${eventId}`, {
+      headers,
+      data: { event_date: '2026-10-31T21:00', city: 'Pereira', description: 'Synthetic published Event description', status: 'published' },
     });
     expect(validPublish.ok()).toBeTruthy();
     const published = await getEvent(eventId);
@@ -109,6 +117,20 @@ test('generic Event API and Bulk Actions reject incomplete non-draft state witho
       data: { event_date: '2026-11-01T22:00', city: 'Pereira' },
     });
     expect(completeBulkDraft.ok()).toBeTruthy();
+
+    const bulkNoDescription = await page.request.post(`${baseUrl}/api/bulk-actions.php`, {
+      headers,
+      data: { resource: 'events', action: 'set_status', status: 'published', ids: [bulkEventId] },
+    });
+    expect(bulkNoDescription.status()).toBe(422);
+    expect(await bulkNoDescription.json()).toMatchObject({ error: 'EVENT_DESCRIPTION_REQUIRED' });
+    expect((await getEvent(bulkEventId)).status).toBe('draft');
+
+    const completeBulkDescription = await page.request.put(`${baseUrl}/api/index.php/events/${bulkEventId}`, {
+      headers,
+      data: { description: 'Synthetic bulk publication description' },
+    });
+    expect(completeBulkDescription.ok()).toBeTruthy();
 
     const bulkPublish = await page.request.post(`${baseUrl}/api/bulk-actions.php`, {
       headers,

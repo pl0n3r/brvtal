@@ -36,18 +36,8 @@ function brvtal_event_workflow_url(mixed $value, string $field): ?string
 /** @return array{error:string,field:string}|null */
 function brvtal_event_state_error(array $state): ?array
 {
-    if (trim((string)($state['title'] ?? '')) === '') {
-        return ['error' => 'TITLE_REQUIRED', 'field' => 'title'];
-    }
-    $status = strtolower(trim((string)($state['status'] ?? 'draft')));
-    if ($status === 'draft') return null;
-    if (trim((string)($state['event_date'] ?? '')) === '') {
-        return ['error' => 'EVENT_DATE_REQUIRED', 'field' => 'event_date'];
-    }
-    if (trim((string)($state['city'] ?? '')) === '') {
-        return ['error' => 'EVENT_CITY_REQUIRED', 'field' => 'city'];
-    }
-    return null;
+    // One invariant for atomic workflow, generic CRUD and bulk transitions.
+    return brvtal_event_publication_error($state);
 }
 
 function brvtal_event_workflow_event(array $input): array
