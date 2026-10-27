@@ -43,6 +43,8 @@ class DeepLOnePageTrialTests(unittest.TestCase):
         self.assertTrue(all(data["rejects"].values()), data)
         self.assertEqual(data["before_transport_failure"], 0)
         self.assertTrue(data["failure_fallback"])
+        self.assertTrue(data["budget_failure_fallback"])
+        self.assertEqual(data["cache_writes"], 0)
         source = (ROOT / "config/public_translation_deepl_page_trial.php").read_text()
         self.assertIn("brvtalPublicEditorialOverlayEligible", source)
         self.assertIn("BrvtalDeepLHttpTransport::adapterFromEnvironment", source)

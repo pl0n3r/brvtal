@@ -7,11 +7,13 @@ final class BrvtalTrialFakeAdapter implements BrvtalPublicTranslationAdapter
 {
     public int $calls = 0;
     public bool $fail = false;
+    public ?string $error = null;
     public function version(): string { return 'deepl-fake-page-v1'; }
     public function translate(string $source, string $sourceLocale, string $targetLocale): string
     {
         ++$this->calls;
         if ($this->fail) throw new RuntimeException('fake-unavailable');
+        if ($this->error !== null) throw new RuntimeException($this->error);
         return 'English ' . $source;
     }
 }
@@ -110,8 +112,16 @@ function trialScenario(string $name): array
             $page, 'en', 'pages', 'test-page', trialEnv($on), $adapter,
             $cacheRead, $cacheWrite, true, true
         );
+        $adapter->fail = false;
+        $adapter->error = 'deepl_budget_exhausted';
+        $budgetFallback = brvtalDeepLOnePageTrialProject(
+            $page, 'en', 'pages', 'test-page', trialEnv($on), $adapter,
+            $cacheRead, $cacheWrite, true, true
+        );
         return ['rejects' => $result, 'before_transport_failure' => $zeroCalls,
-            'failure_fallback' => $out === $page];
+            'failure_fallback' => $out === $page,
+            'budget_failure_fallback' => $budgetFallback === $page,
+            'cache_writes' => $writes];
     }
     if ($name === 'receipt') {
         $fake = array_replace($on, ['BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT' => '0']);
