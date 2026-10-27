@@ -256,6 +256,7 @@ test('Content Core media references fail closed at public-state mutation and sta
       status:'draft',
       event_date:'2026-12-01T21:00',
       city:'Pereira',
+      description:'Synthetic editorial description for media validation',
       cover_image:missingImage,
     });
     const publishEvent = await page.request.put(`${baseUrl}/api/index.php/events/${eventId}`, {

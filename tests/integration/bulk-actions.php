@@ -126,8 +126,8 @@ $result = brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
     'ids' => $eventIds,
 ]));
 bulk_it_assert($result['matched'] === 2, 'events bulk action must match both selected rows');
-bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE id IN (" . implode(',', array_map('intval', $eventIds)) . ") AND status='published'")->fetchColumn() === 2, 'events bulk action must publish both valid rows');
-bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE id IN (" . implode(',', array_map('intval', $eventIds)) . ") AND published_at IS NOT NULL")->fetchColumn() === 2, 'bulk publishing Events must stamp published_at');
+bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE id IN (" . implode(',', array_map(intval(...), $eventIds)) . ") AND status='published'")->fetchColumn() === 2, 'events bulk action must publish both valid rows');
+bulk_it_assert((int)$pdo->query("SELECT COUNT(*) FROM events WHERE id IN (" . implode(',', array_map(intval(...), $eventIds)) . ") AND published_at IS NOT NULL")->fetchColumn() === 2, 'bulk publishing Events must stamp published_at');
 $firstPublishedAt = (string)$pdo->query('SELECT published_at FROM events WHERE id=' . (int)$eventIds[0])->fetchColumn();
 brvtal_bulk_apply($pdo, brvtal_bulk_normalize_request([
     'resource'=>'events',
