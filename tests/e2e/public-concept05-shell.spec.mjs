@@ -346,7 +346,8 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   await expect(page.locator('.c5-footer')).toHaveCount(1);
   await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);
   await expect(page.locator('.c5-header-search')).toHaveCount(1);
-  await page.screenshot({path:join(visualDir, 'c05-php-desktop-1440.png')});
+  const phpDesktopScreenshot = await page.screenshot({path:join(visualDir, 'c05-php-desktop-1440.png')});
+  await testInfo.attach('php-c05-desktop-1440', {body:phpDesktopScreenshot, contentType:'image/png'});
   await page.setViewportSize({width:390,height:844});
   await expect(page.locator('.c5-bottom-nav a')).toHaveCount(5);
   for (const anchor of await page.locator('.c5-bottom-nav a').all()) {
@@ -360,6 +361,11 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   expect(await page.locator('.c5-bottom-nav').evaluate(element => element.inert)).toBe(true);
   await page.evaluate(() => document.documentElement.classList.remove('menu-scroll-locked'));
   await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','false');
-  await page.screenshot({path:join(visualDir, 'c05-php-mobile-390.png')});
+  const phpMobileScreenshot = await page.screenshot({path:join(visualDir, 'c05-php-mobile-390.png')});
+  await testInfo.attach('php-c05-mobile-390', {body:phpMobileScreenshot, contentType:'image/png'});
+  await testInfo.attach('php-c05-source-note', {
+    body:Buffer.from('PHP_COMPOSED_LOCAL_ASSETS_SYNTHETIC_DATA_ONLY'),
+    contentType:'text/plain'
+  });
   // Screenshots are evidence candidates, not an automatic visual approval.
 });

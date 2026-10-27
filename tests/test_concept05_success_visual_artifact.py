@@ -18,6 +18,9 @@ TITLE = 'Concept 05 attaches Sound and Memories owner-v2 comparison evidence at 
 SPEC = 'public-concept05-sound-memories.spec.mjs'
 BOARD_TITLE = 'C05 owner v2 board real partial layout 390 and 1440 evidence'
 BOARD_SPEC = 'public-concept05-fidelity-matrix.spec.mjs'
+PHP_SHELL_TITLE = 'real PHP partial composition captures desktop and mobile against owner reference'
+PHP_SHELL_SPEC = 'public-concept05-shell.spec.mjs'
+PHP_SHELL_NOTE = b'PHP_COMPOSED_LOCAL_ASSETS_SYNTHETIC_DATA_ONLY'
 SOURCE = Path('tests/e2e') / SPEC
 FILES = {'owner-v2-reference': 'owner-v2-reference.png',
          'c05-owner-v2-ab-manifest': 'c05-owner-v2-ab-manifest.json'}
@@ -167,6 +170,61 @@ def extract_board_captures(report: dict, reference: bytes) -> dict[str, bytes] |
             raise ValueError('BOARD_FULLPAGE_DIMENSIONS_MISMATCH')
     return data
 
+
+def extract_php_shell_captures(report: dict) -> dict[str, bytes] | None:
+    """Read successful public PHP-composed Chromium evidence; never private files."""
+    matches = [s for s in specs(report['suites'])
+               if isinstance(s, dict) and s.get('title') == PHP_SHELL_TITLE]
+    if not matches:
+        return None
+    if (len(matches) != 1 or matches[0].get('file') not in
+            (PHP_SHELL_SPEC, str(Path('tests/e2e') / PHP_SHELL_SPEC))):
+        raise ValueError('INVALID_PHP_SHELL_SPEC_IDENTITY')
+    case = matches[0]
+    tests = case.get('tests')
+    if case.get('ok') is not True or not isinstance(tests, list) or len(tests) != 1:
+        raise ValueError('PHP_SHELL_NOT_GREEN')
+    test = tests[0]
+    if not isinstance(test, dict):
+        raise ValueError('INVALID_PHP_SHELL_TEST')
+    results = test.get('results')
+    if (test.get('projectName') != 'chromium' or test.get('expectedStatus') != 'passed'
+            or not isinstance(results, list) or not results
+            or results[-1].get('status') != 'passed'):
+        raise ValueError('PHP_SHELL_CHROMIUM_NOT_PASSED')
+    items = results[-1].get('attachments')
+    expected = {'php-c05-desktop-1440', 'php-c05-mobile-390', 'php-c05-source-note'}
+    if not isinstance(items, list) or len(items) != len(expected):
+        raise ValueError('INVALID_PHP_SHELL_ATTACHMENTS')
+    decoded = {}
+    for item in items:
+        if not isinstance(item, dict) or set(item) - {'name', 'contentType', 'body'}:
+            raise ValueError('UNTRUSTED_PHP_SHELL_ATTACHMENT_FIELDS')
+        name = item.get('name')
+        if name not in expected or name in decoded or not isinstance(item.get('body'), str):
+            raise ValueError('INVALID_PHP_SHELL_ATTACHMENT_IDENTITY')
+        mime = 'text/plain' if name == 'php-c05-source-note' else 'image/png'
+        if item.get('contentType') != mime:
+            raise ValueError('INVALID_PHP_SHELL_ATTACHMENT_MIME')
+        try:
+            payload = base64.b64decode(item['body'], validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise ValueError('INVALID_PHP_SHELL_ATTACHMENT_ENCODING') from exc
+        if not payload or len(payload) > 16 * 1024 * 1024:
+            raise ValueError('INVALID_PHP_SHELL_ATTACHMENT_SIZE')
+        decoded[name] = payload
+    if set(decoded) != expected or decoded['php-c05-source-note'] != PHP_SHELL_NOTE:
+        raise ValueError('PHP_SHELL_SOURCE_NOT_AUTHENTICATED')
+    for width, name in ((1440, 'php-c05-desktop-1440'), (390, 'php-c05-mobile-390')):
+        payload = decoded[name]
+        if png_width(payload) != width:
+            raise ValueError('PHP_SHELL_VIEWPORT_WIDTH_MISMATCH')
+        _, height = struct.unpack('>II', payload[16:24])
+        if height < (900 if width == 1440 else 600):
+            raise ValueError('PHP_SHELL_VIEWPORT_HEIGHT_MISMATCH')
+    return decoded
+
+
 def export(report: dict, source: str, destination: Path, checkout_sha: str, pr_head_sha: str) -> str:
     if not all(isinstance(x, str) and SHA.fullmatch(x) for x in (checkout_sha, pr_head_sha)):
         raise ValueError('INVALID_SHA_IDENTITY')
@@ -207,6 +265,23 @@ def export(report: dict, source: str, destination: Path, checkout_sha: str, pr_h
             'Real checked-in artwork is decoded; CMS fixtures and unfinished '
             'block 07 are not proof of production fidelity or owner approval.'
         )
+        decoded['c05-owner-v2-ab-manifest'] = (
+            json.dumps(manifest, indent=2, sort_keys=True).encode('utf-8'))
+        validate_manifest(decoded)
+    php_shell = extract_php_shell_captures(report)
+    if php_shell is not None:
+        # Reuse only the two existing public fullpage artifact paths. Other
+        # screenshots and the owner reference are never overwritten.
+        for width, name in ((1440, 'php-c05-desktop-1440'), (390, 'php-c05-mobile-390')):
+            decoded[f'c05-fullpage-{width}'] = php_shell[name]
+        for capture in manifest['captures']:
+            if capture['block'] == 'fullpage':
+                capture['sha256'] = digest(decoded[f"c05-fullpage-{capture['viewport']}"])
+        manifest['fullpage_source'] = (
+            'real PHP partial composition and checked-in JS/CSS, synthetic CMS, not production')
+        manifest['fullpage_review'] = 'PENDING_HUMAN_AB_COMPARISON'
+        manifest['fullpage_limitations'] = (
+            'Actual 1440/390 local PHP screenshots; owner visual comparison is still pending.')
         decoded['c05-owner-v2-ab-manifest'] = (
             json.dumps(manifest, indent=2, sort_keys=True).encode('utf-8'))
         validate_manifest(decoded)
@@ -327,6 +402,58 @@ class Concept05SuccessVisualArtifactTests(unittest.TestCase):
                     if mutation == 'skipped': case['tests'][0]['results'][0]['status'] = 'skipped'
                     with self.assertRaises(ValueError):
                         export(broken, str(source), Path(temp) / ('invalid-'+mutation),
+                               self.SHA40, self.SHA40)
+
+    def test_success_php_shell_captures_are_persisted_with_exact_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / SPEC
+            source.write_text(TITLE, encoding='utf-8')
+            report = self.make_report()
+            def screenshot(width):
+                return PNG + b'\x00\x00\x00\rIHDR' + struct.pack('>II', width, 1200) + b'php synthetic pixels'
+            def attachment(name, payload, mime='image/png'):
+                return {'name': name, 'contentType': mime,
+                        'body': base64.b64encode(payload).decode('ascii')}
+            php_case = {'title': PHP_SHELL_TITLE, 'file': PHP_SHELL_SPEC, 'ok': True,
+                        'tests': [{'projectName': 'chromium', 'expectedStatus': 'passed',
+                                   'results': [{'status': 'passed', 'attachments': [
+                                       attachment('php-c05-desktop-1440', screenshot(1440)),
+                                       attachment('php-c05-mobile-390', screenshot(390)),
+                                       attachment('php-c05-source-note', PHP_SHELL_NOTE, 'text/plain')
+                                   ]}]}]}
+            report['suites'].append({'specs': [php_case], 'suites': []})
+            dest = Path(temp) / 'verified'
+            self.assertEqual('EXPORTED', export(report, str(source), dest, self.SHA40, self.SHA40))
+            for width in (390, 1440):
+                self.assertEqual(screenshot(width), (dest / f'c05-fullpage-{width}.png').read_bytes())
+            manifest = json.loads((dest / 'c05-owner-v2-ab-manifest.json').read_text())
+            self.assertIn('real PHP partial composition', manifest['fullpage_source'])
+            self.assertEqual('PENDING_HUMAN_AB_COMPARISON', manifest['fullpage_review'])
+            attestation = json.loads((dest / 'c05-export-attestation.json').read_text())
+            self.assertTrue(attestation['synthetic_only'])
+            self.assertEqual(self.SHA40, attestation['pr_head_sha'])
+            for mutation in ('missing', 'duplicate', 'wrong_width', 'wrong_mime',
+                             'wrong_source', 'skipped', 'wrong_spec'):
+                with self.subTest(mutation=mutation):
+                    broken = json.loads(json.dumps(report))
+                    case = broken['suites'][1]['specs'][0]
+                    attachments = case['tests'][0]['results'][0]['attachments']
+                    if mutation == 'missing':
+                        attachments.pop()
+                    elif mutation == 'duplicate':
+                        attachments.append(attachments[0].copy())
+                    elif mutation == 'wrong_width':
+                        attachments[0]['body'] = base64.b64encode(screenshot(500)).decode()
+                    elif mutation == 'wrong_mime':
+                        attachments[0]['contentType'] = 'text/plain'
+                    elif mutation == 'wrong_source':
+                        attachments[2]['body'] = base64.b64encode(b'PRODUCTION_APPROVED').decode()
+                    elif mutation == 'skipped':
+                        case['tests'][0]['results'][0]['status'] = 'skipped'
+                    elif mutation == 'wrong_spec':
+                        case['file'] = 'admin-private.spec.mjs'
+                    with self.assertRaises(ValueError):
+                        export(broken, str(source), Path(temp) / ('invalid-' + mutation),
                                self.SHA40, self.SHA40)
 
     def test_no_auth_or_private_test_results_in_visual_artifact(self):
