@@ -176,6 +176,67 @@
     return true;
   }
 
+  // The five versioned sources are never browser media URLs.
+  function safeCmsMediaPath(value) {
+    if (typeof value !== 'string' || !value.startsWith('/uploads/media/')) return false;
+    if (value.includes('..') || /[%?#\\]/.test(value)) return false;
+    const segments = value.slice('/uploads/media/'.length).split('/');
+    if (!segments.length) return false;
+    return segments.every((part, index) => index === segments.length - 1
+      ? /^[\w-]+\.(?:webp|png|jpe?g|gif)$/i.test(part)
+      : /^[\w-]+$/.test(part));
+  }
+
+  function projectEditorialMedia(data) {
+    const site = data?.settings?.site;
+    if (!site || typeof site !== 'object') return;
+    const valid = safeCmsMediaPath;
+    const destinations = {
+      hero_face:'.home-phase-a-hero',
+      crowd:'#genesis',
+      nights:'#events',
+      artists:'#artists',
+      memories:'#media',
+    };
+    Object.entries(destinations).forEach(([key, selector]) => {
+      const section = document.querySelector(selector);
+      const record = site['c05_media_' + key];
+      if (!section || record?.status !== 'published'
+        || !Number.isSafeInteger(Number(record.id)) || Number(record.id) < 1
+        || !valid(record.url)) return;
+      if (section.querySelector('img[data-c5-editorial-media="' + key + '"]')) return;
+      const image = document.createElement('img');
+      image.dataset.c5EditorialMedia = key;
+      image.alt = 'BRVTAL editorial ' + key.replace('_', ' ');
+      image.width = 384;
+      image.height = 240;
+      image.style.maxWidth = '100%';
+      image.style.height = 'auto';
+      image.style.maxHeight = '220px';
+      image.style.objectFit = 'cover';
+      // A hidden lazy image cannot enter the viewport to fire onload.
+      // Fetch immediately, but reveal only on a successful decode/load.
+      image.loading = 'eager';
+      image.decoding = 'async';
+      image.hidden = true;
+      section.append(image);
+    });
+    document.querySelectorAll('img[data-c5-editorial-media]').forEach(image => {
+      const record = site['c05_media_' + image.dataset.c5EditorialMedia];
+      const url = record && typeof record === 'object' ? record.url : '';
+      const id = record && typeof record === 'object' ? Number(record.id) : 0;
+      if (record?.status !== 'published' || !Number.isSafeInteger(id) || id < 1 || !valid(url)) {
+        image.hidden = true;
+        image.removeAttribute('src');
+        return;
+      }
+      image.hidden = true;
+      image.onload = () => { image.hidden = false; };
+      image.onerror = () => { image.hidden = true; image.removeAttribute('src'); };
+      image.src = url;
+    });
+  }
+
   function animateHero() {
     const hero = document.querySelector('.home-phase-a-hero');
     if (!hero || !window.gsap || reducedMotion()) return;
@@ -249,6 +310,7 @@
     projectManifesto(data);
     projectHeroEditorialCopy(data);
     projectDocumentary(data);
+    projectEditorialMedia(data);
     animateHero();
   }
 
@@ -280,5 +342,6 @@
     projectDescription,
     projectManifesto,
     projectHeroEditorialCopy,
+    projectEditorialMedia,
   };
 })();

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/password_rate_limit.php';
 require_once __DIR__ . '/../config/admin_password_security.php';
 require_once __DIR__ . '/../config/indexnow.php';
 require_once __DIR__ . '/../config/hero_slider_integrity.php';
+require_once __DIR__ . '/../config/public_home.php';
 require_once __DIR__ . '/admin-read-plan.php';
 require_once __DIR__ . '/route.php';
 require_once __DIR__ . '/pages-contract.php';
@@ -653,6 +654,20 @@ try {
                     );
                 }
 
+                // Prevent stale or forged media relations inside the write transaction.
+                if ($key === 'site' && $isJson === 1) {
+                    $site = json_decode($value, true);
+                    foreach (['hero_face', 'crowd', 'artists', 'nights', 'memories'] as $slot) {
+                        $field = 'c05_media_' . $slot;
+                        if (!is_array($site) || !array_key_exists($field, $site) || $site[$field] === null) {
+                            continue;
+                        }
+                        if (!brvtal_c05_media_published($pdo, $site[$field], true)) {
+                            $pdo->rollBack();
+                            json_response(['ok' => false, 'error' => 'C05_MEDIA_NOT_PUBLISHED', 'field' => $field], 422);
+                        }
+                    }
+                }
                 $st = $pdo->prepare(
                     'INSERT INTO settings(setting_key,setting_value,is_json) VALUES(?,?,?) '
                     . 'ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),is_json=VALUES(is_json)'
