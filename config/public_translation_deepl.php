@@ -4,28 +4,32 @@ declare(strict_types=1);
 require_once __DIR__ . '/public_translation.php';
 
 /**
- * DeepL build-ahead contract: only an explicitly injected fake callable can run.
- * No HTTP, SDK, secrets, service construction or production wiring is provided.
+ * DeepL adapter contract. The callable is injected: tests pass a fake, and the
+ * real HTTP transport lives in public_translation_deepl_transport.php, which is
+ * OFF unless BRVTAL_DEEPL_ENABLED=1 and DEEPL_AUTH_KEY exist in the server
+ * environment. This class never reads, stores or forwards the key.
  */
 final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdapter
 {
     public const int MAX_SOURCE_BYTES = 5000;
     public const int MAX_RESULT_BYTES = 10000;
 
+    public const string FAKE_VERSION = 'deepl-fake-es-en-v1';
+
     private readonly Closure $fakeTransport;
+    private readonly string $version;
     private bool $configured;
-    private readonly string $realVersion;
 
     /**
      * The optional configuration reader abstracts the environment. It may
      * return a fixture key, but the value is never stored or sent to transport.
      * Without a reader the provider is always disabled (fail closed).
      */
-    public function __construct(callable $fakeTransport, ?callable $readConfiguration = null, string $version = 'deepl-fake-es-en-v1')
+    public function __construct(callable $fakeTransport, ?callable $readConfiguration = null, string $version = self::FAKE_VERSION)
     {
         $this->fakeTransport = Closure::fromCallable($fakeTransport);
+        $this->version = preg_match('/^deepl-[a-z0-9-]{3,48}$/', $version) === 1 ? $version : self::FAKE_VERSION;
         $this->configured = false;
-        $this->realVersion = $version;
         if ($readConfiguration !== null) {
             try {
                 $value = $readConfiguration('DEEPL_AUTH_KEY');
@@ -38,7 +42,7 @@ final class BrvtalDeepLTranslationAdapter implements BrvtalPublicTranslationAdap
 
     public function version(): string
     {
-        return $this->realVersion;
+        return $this->version;
     }
 
     public function translate(string $source, string $sourceLocale, string $targetLocale): string

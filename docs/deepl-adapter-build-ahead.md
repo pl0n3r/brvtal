@@ -1,19 +1,3 @@
-# DeepL Free: transporte HTTP real, sin activar
-
-El issue #1034 implementa únicamente código, bajo la decisión auténtica #1033/A. El transporte sigue **apagado y sin wiring productivo**. No se configura Hostinger, no se reciben claves reales, no se envía contenido ni se despliega desde este PR.
-
-La factoría brvtalPublicDeepLRealAdapter() comprueba simultáneamente BRVTAL_DEEPL_ENABLED=1 y DEEPL_AUTH_KEY no vacía. Cualquier ausencia o error retorna provider_not_configured, sin HTTP; la versión de caché del adaptador apagado difiere de la versión real para que un caché previo nunca habilite resultados con el interruptor apagado.
-
-La solicitud autorizada es un POST JSON a https://api-free.deepl.com/v2/translate con Authorization: DeepL-Auth-Key, Content-Type application/json, source_lang ES, target_lang EN-US y un solo texto plano UTF-8 de hasta 5.000 bytes. Curl usa TLS verificado, timeout total de 3 segundos y de conexión de 2; sin redirects, retries ni trazas de cuerpos o clave.
-
-BRVTAL_DEEPL_MONTHLY_BUDGET define 1–500.000 caracteres/mes; valor por defecto 300.000. Antes de llamar a HTTP se reserva la cuota en un contador local persistido por mes UTC con bloqueo exclusivo. No almacena contenido, IDs ni secretos. Si no puede persistir o el contador se agota, no hay llamada externa y el resolver devuelve español. En despliegues multihost o con directorio temporal no persistente debe mantenerse OFF hasta contar con un contador compartido fiable y autorización independiente.
-
-Respuestas inválidas generan provider_invalid_response; HTTP fallido, timeout o cuota agotada generan provider_unavailable; jamás se cachean fallos. La elegibilidad pública editorial brvtalPublicEditorialOverlayEligible permanece intacta. Ningún punto de entrada instancia la factoría, por lo que esta entrega no activa el proveedor.
-
-Pruebas sin red ni credenciales reales: php tests/deepl_real_transport_scenarios.php off|request|errors|contract y python3 -m unittest tests/test_deepl_real_transport.py. Reversión futura: retirar BRVTAL_DEEPL_ENABLED y volver al texto español; revertir el squash remueve el transporte.
-
----
-
 # DeepL translation: offline build-ahead only
 
 Issue BRVTAL #967 | parent #212 | separate activation gate #920.
@@ -42,3 +26,15 @@ BRVTAL #920 retains legal/privacy and DPA consent, any allowed cost decision, cr
 ## Release metadata only
 
 BRVTAL CI classifies `config/public_translation_deepl.php` as deploy-bound, so the release-version preflight requires a sequential product-version transition even though the adapter remains unwired.
+
+## Real transport (BRVTAL #1034, authorized in #1033)
+
+`config/public_translation_deepl_transport.php` adds `BrvtalDeepLHttpTransport`, a real HTTPS transport to `https://api-free.deepl.com/v2/translate`. It is **OFF by default**: `BrvtalDeepLHttpTransport::adapterFromEnvironment()` returns `null` (the site keeps showing canonical Spanish) unless the server environment has both `BRVTAL_DEEPL_ENABLED=1` and a non-empty `DEEPL_AUTH_KEY`. No production entry point instantiates it yet, so merging this change does not call DeepL.
+
+- Request: one plain-text source (at most 5,000 bytes), `source_lang=ES`, `target_lang=EN-US`, header `Authorization: DeepL-Auth-Key <key>`, 5-second timeout, no automatic retries, HTTPS only, no redirects.
+- Budget: a monthly character counter in `storage/deepl-usage.json` (default 300,000, configurable with `BRVTAL_DEEPL_MONTHLY_CHARS`). When it would be exceeded, no call is made and the site shows Spanish.
+- Failure: any transport error, non-200 status, malformed JSON or exhausted budget becomes `provider_unavailable` or `provider_invalid_response`; nothing is written to the translation cache and the key never appears in errors, logs or results.
+- Cache identity: the adapter reports `deepl-api-free-es-en-v1`, separate from the fake `deepl-fake-es-en-v1`.
+- Tests: `tests/test_deepl_real_transport.py` and `tests/deepl_real_transport_scenarios.php` use an injected fake HTTP callable; no network and no real key.
+
+Owner steps to activate (not part of this change): store `DEEPL_AUTH_KEY` and `BRVTAL_DEEPL_ENABLED=1` in the Hostinger environment, then test one public page and review it before widening. Turning the switch off (`BRVTAL_DEEPL_ENABLED` removed or `0`) disables DeepL immediately. Legal/DPA review and protection of `main` (#1009) remain open gates before real traffic.

@@ -1,101 +1,125 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../config/public_translation_deepl_transport.php';
 
-function expect_true(bool $ok, string $name): void {
-    if (!$ok) { throw new RuntimeException('TEST_' . $name); }
-}
-function thrown_reason(callable $fn): string {
-    try { $fn(); } catch (Throwable $e) { return $e->getMessage(); }
-    return 'NO_ERROR';
-}
-function report_result(array $data): never {
-    echo json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . "\n";
+require_once __DIR__ . '/../config/public_translation_deepl_transport.php';
+require_once __DIR__ . '/../config/public_translation_overlay.php';
+
+const DEEPL_REAL_FIXTURE_KEY = 'fixture-key-must-never-be-exposed';
+
+function real_report(array $result): never
+{
+    echo json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . "\n";
     exit(0);
 }
-$fakeKey = 'SYNTHETIC_ONLY_PRIVATE_FIXTURE';
-$env = static fn(string $name): mixed => match ($name) {
-    'BRVTAL_DEEPL_ENABLED' => '1', 'DEEPL_AUTH_KEY' => $fakeKey, default => null
-};
+
+function real_error(callable $operation): string
+{
+    try {
+        $operation();
+    } catch (Throwable $error) {
+        return $error->getMessage();
+    }
+    throw new RuntimeException('DEEPL REAL TEST: expected rejection');
+}
+
+function real_env(array $values): Closure
+{
+    return static fn(string $name): ?string => $values[$name] ?? null;
+}
+
+$on = ['BRVTAL_DEEPL_ENABLED' => '1', 'DEEPL_AUTH_KEY' => DEEPL_REAL_FIXTURE_KEY];
+$budget = tempnam(sys_get_temp_dir(), 'deepl-budget-');
+file_put_contents($budget, '');
 $scenario = $argv[1] ?? '';
+
 if ($scenario === 'off') {
     $calls = 0;
-    $send = static function () use (&$calls): array { $calls++; return []; };
-    $disabled = brvtalPublicDeepLRealAdapter(
-        static fn(string $n): mixed => $n === 'DEEPL_AUTH_KEY' ? 'fake' : null, $send);
-    $noKey = brvtalPublicDeepLRealAdapter(
-        static fn(string $n): mixed => $n === 'BRVTAL_DEEPL_ENABLED' ? '1' : null, $send);
-    $a = thrown_reason(static fn(): string => $disabled->translate('Hola', 'es', 'en'));
-    $b = thrown_reason(static fn(): string => $noKey->translate('Hola', 'es', 'en'));
-    $fall = brvtalPublicTranslationResolve('Hola', 'en', $disabled,
-        static fn(array $x): ?string => null,
-        static function (): void { throw new RuntimeException('CACHE_WRITE'); });
-    expect_true($calls === 0 && $a === 'provider_not_configured' && $a === $b, 'DISABLED');
-    report_result(['reasons'=>[$a,$b], 'calls'=>$calls,'fallback'=>$fall]);
+    $http = static function () use (&$calls): array { $calls++; return ['status' => 200, 'body' => '{}']; };
+    $results = [];
+    foreach ([
+        'sin_nada' => [],
+        'solo_clave' => ['DEEPL_AUTH_KEY' => DEEPL_REAL_FIXTURE_KEY],
+        'solo_interruptor' => ['BRVTAL_DEEPL_ENABLED' => '1'],
+        'interruptor_en_cero' => ['BRVTAL_DEEPL_ENABLED' => '0', 'DEEPL_AUTH_KEY' => DEEPL_REAL_FIXTURE_KEY],
+        'clave_vacia' => ['BRVTAL_DEEPL_ENABLED' => '1', 'DEEPL_AUTH_KEY' => '  '],
+    ] as $name => $env) {
+        $results[$name] = BrvtalDeepLHttpTransport::adapterFromEnvironment($http, real_env($env), $budget) === null;
+    }
+    $direct = new BrvtalDeepLHttpTransport($http, real_env([]), $budget);
+    $reason = real_error(static fn() => $direct(['text' => ['Hola'], 'source_lang' => 'ES', 'target_lang' => 'EN']));
+    real_report(['off' => $results, 'direct_reason' => $reason, 'http_calls' => $calls]);
 }
-if ($scenario === 'request') {
-    $calls = 0;
-    $budgetCalls = 0;
-    $send = static function (string $url, array $headers, string $body, int $seconds)
-        use (&$calls, $fakeKey): array {
-        $calls++;
-        $request = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
-        expect_true($url === 'https://api-free.deepl.com/v2/translate', 'URL');
-        expect_true(in_array('Authorization: DeepL-Auth-Key ' . $fakeKey, $headers, true), 'KEY_HEADER');
-        expect_true(in_array('Content-Type: application/json', $headers, true), 'TYPE');
-        expect_true($seconds === 3 && $request['source_lang'] === 'ES'
-            && $request['target_lang'] === 'EN-US' && count($request['text']) === 1
-            && strlen($request['text'][0]) <= 5000, 'PAYLOAD');
-        return ['status'=>200,'body'=>'{"translations":[{"text":"Hello"}]}'];
+
+if ($scenario === 'contract') {
+    $seen = [];
+    $http = static function (string $url, array $headers, string $body, int $timeout) use (&$seen): array {
+        $seen[] = ['url' => $url, 'headers' => $headers, 'body' => json_decode($body, true), 'timeout' => $timeout];
+        return ['status' => 200, 'body' => json_encode(['translations' => [['detected_source_language' => 'ES', 'text' => 'Hello world']]])];
     };
-    $charge = static function (int $count,string $month,int $limit) use (&$budgetCalls): bool {
-        $budgetCalls++;
-        expect_true($count > 0 && $limit === 300000
-            && preg_match('/^\d{4}-\d{2}$/', $month) === 1, 'BUDGET');
-        return true;
-    };
-    $adapter = brvtalPublicDeepLRealAdapter($env, $send, $charge);
-    $hello = $adapter->translate('Hola', 'es', 'en');
-    $invalid = thrown_reason(static fn(): string =>
-        $adapter->translate(str_repeat('x', 5001), 'es', 'en'));
-    expect_true($calls === 1 && $budgetCalls === 1, 'COUNT');
-    report_result(['result'=>$hello,'calls'=>$calls,'reserved'=>$budgetCalls,
-        'invalid'=>$invalid,'version'=>$adapter->version()]);
+    $adapter = BrvtalDeepLHttpTransport::adapterFromEnvironment($http, real_env($on), $budget);
+    $translated = $adapter->translate('Hola mundo', 'es', 'en');
+    $rejects = [
+        real_error(static fn() => $adapter->translate('Hola', 'es', 'fr')),
+        real_error(static fn() => $adapter->translate(str_repeat('a', 5001), 'es', 'en')),
+    ];
+    real_report([
+        'translated' => $translated,
+        'version' => $adapter->version(),
+        'calls' => count($seen),
+        'request' => $seen[0] ?? null,
+        'rejects' => $rejects,
+        'key_in_headers_only' => in_array('Authorization: DeepL-Auth-Key ' . DEEPL_REAL_FIXTURE_KEY, $seen[0]['headers'] ?? [], true),
+        'key_in_body' => str_contains(json_encode($seen[0]['body'] ?? []), DEEPL_REAL_FIXTURE_KEY),
+    ]);
 }
+
 if ($scenario === 'errors') {
-    $calls = 0;
-    $written = 0;
+    $variants = [
+        'transport' => static function (): array { throw new RuntimeException('boom ' . DEEPL_REAL_FIXTURE_KEY); },
+        'http_456' => static fn(): array => ['status' => 456, 'body' => '{"message":"Quota exceeded"}'],
+        'http_403' => static fn(): array => ['status' => 403, 'body' => 'forbidden'],
+        'malformed' => static fn(): array => ['status' => 200, 'body' => '{not json'],
+        'shape' => static fn(): array => ['status' => 200, 'body' => '{"translations":[]}'],
+    ];
     $reasons = [];
     $fallbacks = [];
-    foreach (['timeout','http','invalid','budget'] as $mode) {
-        $send = static function () use ($mode, &$calls, $fakeKey): array {
-            $calls++;
-            if ($mode === 'timeout') { throw new RuntimeException($fakeKey); }
-            if ($mode === 'http') { return ['status'=>429,'body'=>'rate limited']; }
-            return ['status'=>200,'body'=>'{invalid'];
-        };
-        $charge = static fn(int $chars,string $month,int $limit):bool => $mode !== 'budget';
-        $adapter = brvtalPublicDeepLRealAdapter($env, $send, $charge);
-        $reasons[$mode] = thrown_reason(static fn(): string =>
-            $adapter->translate('Hola','es','en'));
-        $fallbacks[$mode] = brvtalPublicTranslationResolve('Hola','en',$adapter,
-            static fn(array $id): ?string => null,
-            static function(array $id,string $translation) use (&$written): void { $written++; });
+    foreach ($variants as $name => $http) {
+        $adapter = BrvtalDeepLHttpTransport::adapterFromEnvironment($http, real_env($on), $budget);
+        $reasons[$name] = real_error(static fn() => $adapter->translate('Hola', 'es', 'en'));
+        $fallbacks[$name] = brvtalPublicTranslationResolve(
+            'Hola', 'en', $adapter,
+            static fn(array $identity): ?string => null,
+            static function (array $identity, string $text): void { throw new RuntimeException('cache should not be written'); }
+        );
     }
-    expect_true($calls === 6 && $written === 0, 'FAIL_CLOSED');
-    report_result(['reasons'=>$reasons,'fallbacks'=>$fallbacks,
-        'calls'=>$calls,'writes'=>$written]);
+    real_report(['reasons' => $reasons, 'fallbacks' => $fallbacks]);
 }
-if ($scenario === 'contract') {
+
+if ($scenario === 'budget') {
     $calls = 0;
-    $adapter = brvtalPublicDeepLRealAdapter($env,
-        static function() use (&$calls):array { $calls++; return []; },
-        static fn(int $n,string $m,int $l):bool => true);
-    $spanish = brvtalPublicTranslationResolve('Hola','es',$adapter,
-        static fn(array $id):?string => null,
-        static function():void {throw new RuntimeException('WRONG_CACHE');});
-    expect_true($calls === 0 && $spanish['text'] === 'Hola', 'SPANISH');
-    report_result(['calls'=>$calls,'spanish'=>$spanish,'network'=>false]);
+    $http = static function () use (&$calls): array {
+        $calls++;
+        return ['status' => 200, 'body' => json_encode(['translations' => [['text' => 'Hello']]])];
+    };
+    $now = gmmktime(12, 0, 0, 10, 15, 2026);
+    $env = real_env($on + ['BRVTAL_DEEPL_MONTHLY_CHARS' => '10']);
+    $transport = new BrvtalDeepLHttpTransport($http, $env, $budget, static fn(): int => $now);
+    $request = ['text' => ['Hola'], 'source_lang' => 'ES', 'target_lang' => 'EN'];
+    $transport($request);
+    $transport($request);
+    $exhausted = real_error(static fn() => $transport($request));
+    $callsAtLimit = $calls;
+    $nextMonth = new BrvtalDeepLHttpTransport($http, $env, $budget, static fn(): int => gmmktime(12, 0, 0, 11, 1, 2026));
+    $nextMonth($request);
+    $badLimit = new BrvtalDeepLHttpTransport($http, real_env($on + ['BRVTAL_DEEPL_MONTHLY_CHARS' => 'abc']), $budget, static fn(): int => $now);
+    $badLimit($request);
+    real_report([
+        'exhausted' => $exhausted,
+        'calls_at_limit' => $callsAtLimit,
+        'calls_after_new_month' => $calls,
+        'saved' => json_decode((string)file_get_contents($budget), true),
+    ]);
 }
-fwrite(STDERR, "Unknown offline test case\n");
+
+fwrite(STDERR, "unknown scenario\n");
 exit(2);
