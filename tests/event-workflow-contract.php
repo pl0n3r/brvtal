@@ -23,7 +23,19 @@ $missingDate = brvtal_event_state_error(['title'=>'Public Event','status'=>'publ
 event_workflow_assert(($missingDate['error'] ?? '') === 'EVENT_DATE_REQUIRED', 'non-draft Event must require event_date');
 $missingCity = brvtal_event_state_error(['title'=>'Public Event','status'=>'published','event_date'=>'2026-09-16 21:00:00']);
 event_workflow_assert(($missingCity['error'] ?? '') === 'EVENT_CITY_REQUIRED', 'non-draft Event must require city');
-event_workflow_assert(brvtal_event_state_error(['title'=>'Public Event','status'=>'published','event_date'=>'2026-09-16 21:00:00','city'=>'Pereira']) === null, 'complete public Event must pass');
+$missingDescription = brvtal_event_state_error(['title'=>'Public Event','status'=>'published','event_date'=>'2026-09-16 21:00:00','city'=>'Pereira']);
+event_workflow_assert($missingDescription === ['error'=>'EVENT_DESCRIPTION_REQUIRED','field'=>'description'], 'public workflow must require editorial description');
+$blankDescription = brvtal_event_state_error(['title'=>'Public Event','status'=>'published','event_date'=>'2026-09-16 21:00:00','city'=>'Pereira','description'=>'   ']);
+event_workflow_assert($blankDescription === ['error'=>'EVENT_DESCRIPTION_REQUIRED','field'=>'description'], 'public workflow must reject blank-only description');
+$completePublic = ['title'=>'Public Event','status'=>'published','event_date'=>'2026-09-16 21:00:00','city'=>'Pereira','description'=>'Synthetic editorial description'];
+event_workflow_assert(brvtal_event_state_error($completePublic) === null, 'complete public Event must pass');
+foreach (['upcoming','tickets_available','last_tickets','sold_out'] as $activeStatus) {
+    event_workflow_assert(brvtal_event_state_error(array_replace($completePublic, ['status'=>$activeStatus,'description'=>''])) === ['error'=>'EVENT_DESCRIPTION_REQUIRED','field'=>'description'], 'every active public workflow status must require description');
+}
+foreach (['cancelled','finished','archived'] as $historicalStatus) {
+    event_workflow_assert(brvtal_event_state_error(array_replace($completePublic, ['status'=>$historicalStatus,'description'=>''])) === null, 'historical workflow metadata must remain editable without legacy description');
+}
+event_workflow_assert(brvtal_event_state_error(['title'=>'Draft Event','status'=>'draft','description'=>'']) === null, 'incomplete draft workflow must remain valid');
 
 $accent = brvtal_event_workflow_event(['title'=>'Accent Event','status'=>'draft','accent'=>'#A1B2C3']);
 event_workflow_assert(($accent['accent'] ?? '') === '#a1b2c3', 'Event accent must normalize to canonical lowercase HEX');

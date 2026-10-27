@@ -204,6 +204,12 @@ function brvtal_event_publication_error(array $state): ?array
     if (trim((string)($state['city'] ?? '')) === '') {
         return ['error' => 'EVENT_CITY_REQUIRED', 'field' => 'city'];
     }
+    // Historical states can retain legacy descriptions; only active public
+    // states require editorial copy before becoming publicly visible.
+    if (in_array($status, brvtal_public_event_statuses()['active'], true)
+        && trim((string)($state['description'] ?? '')) === '') {
+        return ['error' => 'EVENT_DESCRIPTION_REQUIRED', 'field' => 'description'];
+    }
     return null;
 }
 

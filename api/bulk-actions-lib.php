@@ -347,7 +347,7 @@ function brvtal_bulk_apply(PDO $pdo, array $request, ?callable $audit = null): a
     $table = $specs[$resource]['table'];
     $labelColumn = $specs[$resource]['label'];
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $lifecycleColumns = $resource === 'events' ? ',title,event_date,city,published_at,cancelled_at,finished_at' : '';
+    $lifecycleColumns = $resource === 'events' ? ',title,event_date,city,description,published_at,cancelled_at,finished_at' : '';
     $publicationColumns = $resource === 'sets' ? ',external_url' : '';
     $selectColumns = $audit === null
         ? "id,status{$lifecycleColumns}{$publicationColumns}"
