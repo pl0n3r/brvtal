@@ -82,6 +82,7 @@ function brvtalDeepLOnePageTrialProject(
         || ($source['route_type'] ?? null) !== 'pages'
         || ($source['slug'] ?? null) !== $routeSlug
         || ($source['status'] ?? null) !== 'published'
+        || ($source['locale'] ?? null) !== 'es'
         || !brvtalPublicEditorialOverlayEligible($source, $isPublic, $trusted)
         || !brvtalDeepLOnePageTrialSafeSource($source)
     ) {

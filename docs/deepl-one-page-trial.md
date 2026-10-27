@@ -11,6 +11,8 @@
 
 ## Comportamiento y seguridad
 
+**Desfase de contrato en main:** `config/public_routes.php` admite páginas públicas solo con `status='published' AND locale='en'`; `brvtal_public_page_is_visible()` exige también `locale=en`. #1054 requiere un **origen canónico español**. Esta preparación exige `entity.locale === 'es'` y `status=published` y, por tanto, **no traduce ninguna página real bajo el contrato de rutas vigente**. No convertir contenidos `en` en un supuesto origen español; resolver el desacuerdo mediante hoja autorizada separada, decisión editorial/legal y pruebas antes de cualquier ensayo real. El guard devuelve el original sin solicitar proveedor ni caché.
+
 - Solo `/en/pages/<slug>` con coincidencia exacta del slug, entidad `published`, confianza y visibilidad públicas; fuera del alcance vuelve íntegro el contenido español.
 - Se traducen únicamente los campos planos de texto editorial que ya expone la proyección existente. Los cuerpos HTML permanecen españoles. Rechazar correo, enlaces, HTML, cadenas largas de dígitos y contenido malformado antes de usar caché o transporte.
 - Error de proveedor, cuota o caché: fallback español. El presupuesto usa el bloqueo exclusivo y archivo persistente del transporte existente, pero la compatibilidad/permiso del hosting aún requiere validación operativa; un fixture local no la acredita.

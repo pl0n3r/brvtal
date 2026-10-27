@@ -25,7 +25,7 @@ function trialPage(string $slug = 'test-page'): array
     return [
         'entity' => [
             'route_type' => 'pages', 'id' => 17, 'slug' => $slug,
-            'status' => 'published', 'visibility' => 'public',
+            'status' => 'published', 'locale' => 'es', 'visibility' => 'public',
             'trusted' => true, 'title' => 'Hola',
             'description' => 'Pagina de prueba',
             'seo_title' => '', 'seo_description' => '',
@@ -70,6 +70,7 @@ function trialScenario(string $name): array
             'spanish' => [$page, 'es', 'pages', 'test-page', true, true],
             'other_family' => [$page, 'en', 'artists', 'test-page', true, true],
             'other_slug' => [trialPage('other-page'), 'en', 'pages', 'other-page', true, true],
+            'wrong_source_locale' => [array_replace_recursive($page, ['entity' => ['locale' => 'en']]), 'en', 'pages', 'test-page', true, true],
             'draft' => [array_replace_recursive($page, ['entity' => ['status' => 'draft']]), 'en', 'pages', 'test-page', true, true],
             'private' => [array_replace_recursive($page, ['entity' => ['private' => true]]), 'en', 'pages', 'test-page', true, true],
             'untrusted' => [$page, 'en', 'pages', 'test-page', true, false],
