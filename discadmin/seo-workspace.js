@@ -42,7 +42,11 @@ window.BRVTALSEOWorkspace = (() => {
   }
 
   function healthLabel(item) {
-    return Array.isArray(item.warnings) && item.warnings.length ? 'NEEDS ATTENTION' : 'OK';
+    if (item.health_state !== 'available' ||
+        !Number.isInteger(item.health_score) ||
+        item.health_score < 0 || item.health_score > 100 ||
+        item.health_max !== 100) return 'EDITORIAL HEALTH UNAVAILABLE';
+    return 'EDITORIAL HEALTH ' + item.health_score + '/100';
   }
 
   function filters() {
@@ -105,7 +109,7 @@ window.BRVTALSEOWorkspace = (() => {
         <div class="seo-workspace-effective" title="${esc(item.effective_title)}">${esc(item.effective_title)}</div>
         <span class="seo-workspace-pill">${esc(item.type)}</span>
         <span class="seo-workspace-pill ${String(item.mode || '').toLowerCase()}">${esc(item.mode)}</span>
-        <span class="seo-workspace-health ${warnings.length ? 'issue' : ''}">${esc(warnings.length ? healthLabel(item) + ' · ' + warnings.length : publicState)}</span>
+        <span class="seo-workspace-health ${warnings.length || item.health_state !== 'available' ? 'issue' : ''}">${esc(healthLabel(item) + ' · ' + publicState + (warnings.length ? ' · ' + warnings.join(', ') : ''))}</span>
         <button type="button" class="seo-workspace-edit" data-seo-open="${esc(item.key)}">EDIT</button>
       </article>`;
     }).join('');
@@ -135,8 +139,19 @@ window.BRVTALSEOWorkspace = (() => {
       const cap = truncated.length
         ? ` · CAPPED: ${truncated.map(value => String(value).toUpperCase()).join(', ')}`
         : '';
-      setStatus(`${state.items.length} DESTINATIONS · SERVER-RENDERED AUTHORITY${cap}`);
+      const health = state.summary.content_health_state === 'available' &&
+        Number.isInteger(state.summary.content_health_score) &&
+        state.summary.content_health_score >= 0 &&
+        state.summary.content_health_score <= 100
+        ? ' · EDITORIAL HEALTH ' + state.summary.content_health_score + '/100'
+        : ' · EDITORIAL HEALTH ' +
+          (state.summary.content_health_state === 'partial' ? 'PARTIAL' : 'UNAVAILABLE');
+      setStatus(`${state.items.length} DESTINATIONS · SERVER-RENDERED AUTHORITY${cap}${health}`);
     } catch (error) {
+      state.items = [];
+      state.summary = {total:null,auto:null,manual:null,issues:null,
+        truncated_resources:[],content_health_state:'unavailable',content_health_score:null};
+      rerender();
       setStatus('SEO inventory could not be loaded: ' + (error?.message || error), true);
       window.BRVTALFeedback?.error?.('SEO inventory failed: ' + (error?.message || error),'seo-workspace');
     } finally {
@@ -239,7 +254,12 @@ window.BRVTALSEOWorkspace = (() => {
       `${description.length}/160 recommended · ${values.description ? 'MANUAL' : item.fallback_description_source}`
     );
     renderPreviewImage(image);
-    renderPreviewWarnings(previewWarnings(title, description));
+    const nextWarnings = previewWarnings(title, description);
+    if (!image) nextWarnings.push('MISSING IMAGE');
+    if (item.kind === 'entity' && item.health_factors?.content === false) {
+      nextWarnings.push('INCOMPLETE EDITORIAL INFORMATION');
+    }
+    renderPreviewWarnings(nextWarnings);
   }
 
   function openEditor(key, trigger = null) {

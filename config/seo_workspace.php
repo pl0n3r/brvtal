@@ -8,6 +8,73 @@ require_once __DIR__ . '/page_content.php';
 
 const BRVTAL_SEO_WORKSPACE_SETTING_KEY = 'seo';
 
+/**
+ * Explainable editorial metadata health, never a live SEO/performance verdict.
+ * Exactly four equally weighted signals: effective title, description, usable
+ * content image and source editorial completeness. Unverifiable input does not
+ * produce a number (even if some individual fields happen to be present).
+ *
+ * @return array{state:string,score:?int,max:int,factors:array<string,bool>,alerts:list<string>}
+ */
+function brvtalSeoWorkspaceContentHealth(array $item): array
+{
+    $unknown = ['state'=>'unavailable','score'=>null,'max'=>100,'factors'=>[],
+        'alerts'=>[]];
+    foreach (['kind','effective_title','effective_description','effective_image'] as $field) {
+        if (!isset($item[$field]) || !is_string($item[$field])) {
+            return $unknown;
+        }
+    }
+    if (!in_array($item['kind'], ['static','entity'], true)
+        || !isset($item['editorial_source_complete'])
+        || !is_bool($item['editorial_source_complete'])
+        || !isset($item['content_image_required'])
+        || !is_bool($item['content_image_required'])
+    ) {
+        return $unknown;
+    }
+    if ($item['content_image_required'] && !is_bool($item['content_image_present'] ?? null)) {
+        return $unknown;
+    }
+    if (!$item['content_image_required']
+        && ($item['content_image_present'] ?? null) !== null) {
+        return $unknown;
+    }
+
+    $title = trim($item['effective_title']);
+    $description = trim($item['effective_description']);
+    $image = trim($item['effective_image']);
+    $imageIsUrl = false;
+    if (preg_match('#^https?://#i', $image) === 1 && strlen($image) <= 700
+        && filter_var($image, FILTER_VALIDATE_URL) !== false) {
+        $parts = parse_url($image);
+        $imageIsUrl = is_array($parts) && !empty($parts['host'])
+            && !isset($parts['user']) && !isset($parts['pass']);
+    }
+    $factors = [
+        'title'=>$title !== '' && mb_strlen($title) <= 70,
+        'description'=>$description !== '' && mb_strlen($description) <= 180,
+        'image'=>$imageIsUrl
+            && (!$item['content_image_required'] || $item['content_image_present']),
+        'content'=>$item['editorial_source_complete'],
+    ];
+    $alerts = [];
+    if (!$factors['image']) {
+        $alerts[] = 'MISSING_IMAGE';
+    }
+    if (!$factors['content']) {
+        $alerts[] = 'INCOMPLETE_EDITORIAL_INFORMATION';
+    }
+
+    return [
+        'state'=>'available',
+        'score'=>25 * count(array_filter($factors, static fn(bool $ok): bool => $ok)),
+        'max'=>100,
+        'factors'=>$factors,
+        'alerts'=>$alerts,
+    ];
+}
+
 /** @return list<string> */
 function brvtalSeoWorkspaceWarnings(array $item): array
 {
@@ -30,6 +97,9 @@ function brvtalSeoWorkspaceWarnings(array $item): array
     if (empty($item['public']) && ($item['mode'] ?? 'AUTO') !== 'AUTO') {
         $warnings[] = 'PRIVATE_WITH_OVERRIDE';
     }
+    foreach (brvtalSeoWorkspaceContentHealth($item)['alerts'] as $alert) {
+        $warnings[] = $alert;
+    }
     return $warnings;
 }
 
@@ -48,6 +118,9 @@ function brvtalSeoWorkspaceSummary(array $items, array $truncatedResources): arr
     $issues = 0;
     $auto = 0;
     $manual = 0;
+    $healthTotal = 0;
+    $healthScored = 0;
+    $healthComplete = $items !== [];
 
     foreach ($items as $item) {
         if (!is_array($item)) {
@@ -58,6 +131,15 @@ function brvtalSeoWorkspaceSummary(array $items, array $truncatedResources): arr
             $auto++;
         } else {
             $manual++;
+        }
+
+        if (($item['health_state'] ?? null) === 'available'
+            && is_int($item['health_score'] ?? null)
+            && $item['health_score'] >= 0 && $item['health_score'] <= 100) {
+            $healthTotal += $item['health_score'];
+            $healthScored++;
+        } else {
+            $healthComplete = false;
         }
 
         $warnings = $item['warnings'] ?? [];
@@ -95,6 +177,12 @@ function brvtalSeoWorkspaceSummary(array $items, array $truncatedResources): arr
         'manual'=>$manual,
         'warning_counts'=>$warningCounts,
         'truncated_resources'=>$truncated,
+        'content_health_state'=>$truncated === [] && $healthComplete ? 'available' :
+            ($truncated !== [] ? 'partial' : 'unavailable'),
+        'content_health_score'=>$truncated === [] && $healthComplete
+            ? (int)round($healthTotal / $healthScored) : null,
+        'content_health_scored'=>$healthScored,
+        'content_health_max'=>100,
     ];
 }
 

@@ -157,7 +157,17 @@ function brvtalSeoWorkspaceEntityInventory(
                 'effective_image'=>$effective['image'],
                 'fallback_title_source'=>'AUTO FROM ' . $type . ' TITLE',
                 'fallback_description_source'=>'AUTO FROM ' . $type . ' CONTENT',
+                'editorial_source_complete'=>trim((string)($row['source_title'] ?? '')) !== ''
+                    && trim($description) !== '',
+                'content_image_required'=>$imageField !== '',
+                'content_image_present'=>$imageField !== ''
+                    ? trim((string)($row['image'] ?? '')) !== '' : null,
             ];
+            $health = brvtalSeoWorkspaceContentHealth($item);
+            $item['health_state'] = $health['state'];
+            $item['health_score'] = $health['score'];
+            $item['health_max'] = $health['max'];
+            $item['health_factors'] = $health['factors'];
             $item['warnings'] = brvtalSeoWorkspaceWarnings($item);
             $items[] = $item;
         }
@@ -196,7 +206,15 @@ function brvtalSeoWorkspaceInventory(PDO $pdo, array &$truncatedResources): arra
             'effective_image'=>$state['effective_image'],
             'fallback_title_source'=>'AUTO FROM ROUTE DEFAULT',
             'fallback_description_source'=>'AUTO FROM ROUTE DEFAULT',
+            'editorial_source_complete'=>true,
+            'content_image_required'=>false,
+            'content_image_present'=>null,
         ];
+        $health = brvtalSeoWorkspaceContentHealth($item);
+        $item['health_state'] = $health['state'];
+        $item['health_score'] = $health['score'];
+        $item['health_max'] = $health['max'];
+        $item['health_factors'] = $health['factors'];
         $item['warnings'] = brvtalSeoWorkspaceWarnings($item);
         $items[] = $item;
     }
