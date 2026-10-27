@@ -150,7 +150,7 @@ class ContrasteTests(unittest.TestCase):
         part = self.matrix_text.split("## Cobertura\n", 1)[1].split("\n## Resumen\n", 1)[0]
         all_rows = [
             x for x in part.splitlines()
-            if re.match(r"^\| (?:S\d|H\d|00)-", x)
+            if re.match(r"^\| (?:S\d+[A-Z_0-9]*|H\d+|00)-", x)
         ]
         self.assertEqual(len(all_rows), 611)
         counts = Counter(row.split("|")[3].strip() for row in all_rows)
