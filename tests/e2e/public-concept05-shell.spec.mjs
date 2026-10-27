@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, join, resolve, sep } from 'node:path';
 
 const root = process.cwd();
 const runtime = readFileSync(join(root, 'js/public-concept05-shell.js'), 'utf8');
@@ -280,4 +280,111 @@ test('reduced motion keeps the authored shell complete and static', async ({page
   await expect(page.locator('.c5-bottom-nav')).toBeVisible();
   const transition = await page.locator('.c5-bottom-nav').evaluate(node => getComputedStyle(node).transitionDuration);
   expect(transition).toBe('0s');
+});
+
+// Use the real server-side PHP partial composer. The historical markup() above
+// deliberately remains an isolated fixture and cannot prove the public DOM.
+test('real PHP partial composition captures desktop and mobile against owner reference', async ({page}, testInfo) => {
+  const { spawnSync } = await import('node:child_process');
+  const { mkdirSync } = await import('node:fs');
+  const visualDir = join(root, 'test-results', 'public-concept05-fidelity-shell');
+  mkdirSync(visualDir, {recursive:true});
+  const source = [
+    "require 'config/public_home.php';",
+    "$html = file_get_contents('index.html');",
+    "foreach (['nav','hero','experience','nights','artists','sound','memories','journal','connected','footer'] as $part) {",
+    "  $marker = '<!-- BRVTAL-HOME-PARTIAL:' . $part . ' -->';",
+    "  if (substr_count($html,$marker) !== 1) { throw new RuntimeException('bad partial'); }",
+    "  $html = str_replace($marker,file_get_contents('partials/home/' . $part . '.html'),$html);",
+    "}",
+    "echo brvtal_public_home_identity($html);",
+  ].join('\n');
+  const rendered = spawnSync('php', ['-r', source], {cwd:root, encoding:'utf8', timeout:30000});
+  expect(rendered.status, rendered.stderr).toBe(0);
+  expect(rendered.stdout).toContain('class="c5-bottom-nav"');
+  const realUrl = 'http://127.0.0.1:4173/real-c05-home.html';
+  // index.php puts data-concept on BODY, not on the documentElement.
+  // Keep the PHP-composed markup and apply precisely its server-side marker.
+  const realHtml = rendered.stdout.replace(
+    '<body data-scene="CORE">', '<body data-scene="CORE" data-concept="05">'
+  );
+  expect(realHtml).toContain('<body data-scene="CORE" data-concept="05">');
+  // This is the PHP-composed DOM with its own declared assets, not the
+  // synthetic markup() and not JS/CSS manually injected by the test.
+  expect(realHtml.match(/href="css\/public-concept05-shell\.css"/g) || []).toHaveLength(1);
+  expect(realHtml.match(/src="js\/public-concept05-shell\.js"/g) || []).toHaveLength(1);
+  let loadedShellModules = 0;
+  await page.route('**/*', route => {
+    const requested = new URL(route.request().url());
+    if (requested.href === realUrl) {
+      return route.fulfill({contentType:'text/html; charset=utf-8',body:realHtml});
+    }
+    // Serve real local asset bytes at the same origin. No external traffic,
+    // uploads, production APIs or hand-written JS/CSS fixture replacements.
+    if (requested.origin !== 'http://127.0.0.1:4173') return route.abort();
+    let pathname;
+    try {
+      pathname = resolve(root, decodeURIComponent(requested.pathname).replace(/^\/+/, ''));
+    } catch {
+      return route.abort();
+    }
+    const ext = extname(pathname).toLowerCase();
+    const contentTypes = {
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.jpeg': 'image/jpeg',
+      '.jpg': 'image/jpeg',
+      '.webp': 'image/webp',
+    };
+    if (!pathname.startsWith(root + sep) || !Object.hasOwn(contentTypes, ext) || !existsSync(pathname)) {
+      return route.abort();
+    }
+    if (requested.pathname.endsWith('/js/public-concept05-shell.js')) loadedShellModules += 1;
+    return route.fulfill({
+      contentType: contentTypes[ext],
+      body: readFileSync(pathname)
+    });
+  });
+  await page.setViewportSize({width:1440,height:900});
+  await page.goto(realUrl, {waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => document.documentElement.dataset.publicShell === 'concept05');
+  expect(loadedShellModules).toBe(1);
+  await expect(page.locator('.c5-header-nav')).toHaveCount(1);
+  await expect(page.locator('.c5-header-nav')).toBeVisible();
+  await expect(page.locator('.c5-header-nav a')).toHaveCount(6);
+  for (const link of await page.locator('.c5-header-nav a').all()) {
+    await expect(link).toBeVisible();
+  }
+  await expect(page.locator('.c5-footer')).toHaveCount(1);
+  await expect(page.locator('.c5-bottom-nav')).toHaveCount(1);
+  await expect(page.locator('.c5-header-search')).toHaveCount(1);
+  const phpDesktopScreenshot = await page.screenshot({path:join(visualDir, 'c05-php-desktop-1440.png'), fullPage:true});
+  await testInfo.attach('php-c05-desktop-1440', {body:phpDesktopScreenshot, contentType:'image/png'});
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('.c5-bottom-nav')).toBeVisible();
+  await expect(page.locator('.c5-bottom-nav a')).toHaveCount(5);
+  for (const anchor of await page.locator('.c5-bottom-nav a').all()) {
+    await expect(anchor).toBeVisible();
+    const box = await anchor.boundingBox();
+    expect(box?.height || 0).toBeGreaterThanOrEqual(44);
+  }
+  // A present/mobile footer must actually fit the screen, not only exist in DOM.
+  const horizontalOverflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth - window.innerWidth);
+  expect(horizontalOverflow).toBeLessThanOrEqual(1);
+  await page.evaluate(() => {
+    document.documentElement.classList.add('menu-scroll-locked');
+  });
+  await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','true');
+  expect(await page.locator('.c5-bottom-nav').evaluate(element => element.inert)).toBe(true);
+  await page.evaluate(() => document.documentElement.classList.remove('menu-scroll-locked'));
+  await expect(page.locator('.c5-bottom-nav')).toHaveAttribute('aria-hidden','false');
+  await expect(page.locator('.c5-bottom-nav')).toBeVisible();
+  const phpMobileScreenshot = await page.screenshot({path:join(visualDir, 'c05-php-mobile-390.png'), fullPage:true});
+  await testInfo.attach('php-c05-mobile-390', {body:phpMobileScreenshot, contentType:'image/png'});
+  await testInfo.attach('php-c05-source-note', {
+    body:Buffer.from('PHP_COMPOSED_LOCAL_ASSETS_SYNTHETIC_DATA_ONLY'),
+    contentType:'text/plain'
+  });
+  // Screenshots are evidence candidates, not an automatic visual approval.
 });

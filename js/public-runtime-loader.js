@@ -170,6 +170,16 @@
 
     failures.push(...await loadSequenceResilient(coreScripts.map(localUrl), 'core'));
     failures.push(...await loadSequenceResilient(enhancementScripts.map(localUrl), 'enhancement'));
+    // HOME C05 is not a global module. Entity/contact pages and synthetic
+    // runtime tests must retain the existing module load order.
+    if (document.body?.dataset.concept === '05'
+        && document.querySelector('.c5-bottom-nav')
+        && document.querySelector('.c5-footer')
+        // The PHP home composer already declares a deferred shell script.
+        // Never enqueue a second copy when that script is present.
+        && !document.querySelector('script[src^="js/public-concept05-shell.js"]')) {
+      failures.push(...await loadSequenceResilient([localUrl('js/public-concept05-shell.js')], 'home-shell'));
+    }
 
     if (failures.length) {
       document.documentElement.dataset.runtimeIntegrity = 'degraded';

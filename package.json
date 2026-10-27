@@ -1,6 +1,6 @@
 {
   "name": "brvtal",
-  "version": "0.1.150",
+  "version": "0.1.151",
   "private": true,
   "type": "module",
   "scripts": {
@@ -43,7 +43,7 @@
     "test:concept05-nights-artists-fidelity": "python3 -m unittest tests/test_public_concept05_nights_artists_fidelity.py",
     "test:concept05-sound-memories-fidelity": "python3 -m unittest tests/test_public_concept05_sound_memories_fidelity.py",
     "test:concept05-journal-connected-fidelity": "python3 -m unittest tests/test_public_concept05_journal_connected_fidelity.py",
-    "test:concept05-footer-nav-fidelity": "python3 -m unittest tests/test_public_concept05_footer_nav_fidelity.py",
+    "test:concept05-footer-nav-fidelity": "python3 -m unittest tests/test_public_concept05_footer_nav_fidelity.py tests/test_public_concept05_shell_v2.py",
     "test:concept05-preview-alignment": "python3 -m unittest tests/test_public_concept05_preview_alignment.py",
     "test:concept05-release-polish": "python3 -m unittest tests/test_public_concept05_release_polish.py",
     "test:public-preview-popup-fail-closed": "python3 -m unittest tests/test_public_preview_popup_fail_closed.py",

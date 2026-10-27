@@ -131,6 +131,18 @@
     }
   }
 
+  function attachArchiveSearch() {
+    const container = document.querySelector('.nav-right');
+    if (!container || container.querySelector('.c5-header-search')) return;
+    const anchor = document.createElement('a');
+    anchor.className = 'c5-header-search magnetic';
+    anchor.href = '#media';
+    anchor.setAttribute('aria-label', 'Buscar en el archivo / Search the archive');
+    anchor.dataset.cursor = 'SEARCH';
+    anchor.textContent = '⌕';
+    container.insertBefore(anchor, container.querySelector('#menuToggle'));
+  }
+
   function syncYear() {
     document.querySelectorAll('[data-footer-year]').forEach(node => {
       node.textContent = String(new Date().getFullYear());
@@ -138,6 +150,9 @@
   }
 
   function init() {
+    // Run only on the actual PHP-composed Home shell, never entity/contact pages.
+    if (!bottomNav || !document.querySelector('.c5-footer')) return false;
+    attachArchiveSearch();
     syncYear();
     watchMenuState();
     observeSections();
