@@ -311,8 +311,8 @@ test('real PHP partial composition captures desktop and mobile against owner ref
   expect(realHtml).toContain('<body data-scene="CORE" data-concept="05">');
   // This is the PHP-composed DOM with its own declared assets, not the
   // synthetic markup() and not JS/CSS manually injected by the test.
-  expect(realHtml.match(/href="css\\/public-concept05-shell\\.css"/g) || []).toHaveLength(1);
-  expect(realHtml.match(/src="js\\/public-concept05-shell\\.js"/g) || []).toHaveLength(1);
+  expect(realHtml.match(/href="css\/public-concept05-shell\.css"/g) || []).toHaveLength(1);
+  expect(realHtml.match(/src="js\/public-concept05-shell\.js"/g) || []).toHaveLength(1);
   let loadedShellModules = 0;
   await page.route('**/*', route => {
     const requested = new URL(route.request().url());
@@ -324,7 +324,7 @@ test('real PHP partial composition captures desktop and mobile against owner ref
     if (requested.origin !== 'http://127.0.0.1:4173') return route.abort();
     let pathname;
     try {
-      pathname = resolve(root, decodeURIComponent(requested.pathname).replace(/^\\/+/, ''));
+      pathname = resolve(root, decodeURIComponent(requested.pathname).replace(/^\/+/, ''));
     } catch {
       return route.abort();
     }
