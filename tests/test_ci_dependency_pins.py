@@ -14,7 +14,7 @@ NODE = "949feb2413d6458794dcd2491c4babbbce0c15c1"
 PHP = "eb7c497e18156a6bbabfef1d3a82760b9eda3962"
 EXPECTED_COUNTS = {
     "auditoria-privacidad.yml": (0, 2, 0, 0, 0),
-    "ci-throughput-telemetry.yml": (0, 0, 1, 0, 0),
+    "ci-throughput-telemetry.yml": (1, 0, 1, 0, 0),
     "privacidad.yml": (0, 2, 0, 0, 0),
     "production-authenticated-smoke.yml": (1, 0, 1, 1, 0),
     "production-page-write-smoke.yml": (2, 0, 1, 1, 0),
