@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FACTORY_SHA = "fd4674c27e4bd54cce1a2d92e6432f845396fa71"
+FACTORY_SHA = "dc7a24a7ff16aa01857009aff7f9e13b0bc0ca46"
 PRIVACY = ROOT / ".github/workflows/privacidad.yml"
 AUDIT = ROOT / ".github/workflows/auditoria-privacidad.yml"
 CONTRACT = ROOT / "tests/privacy-as-code-contract.php"

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CAPTURE = ROOT / "tests/e2e/production-concept05-visual-evidence.mjs"
 PERFORMANCE = ROOT / ".github/workflows/production-performance.yml"
 CI = ROOT / ".github/workflows/update-release-metadata.yml"
-PIN = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+PIN = "cf430e030ddbb5b0abf93d22962f4752f3646cd9"
 
 
 class Concept05ProductionVisualEvidenceTests(unittest.TestCase):
@@ -55,7 +55,7 @@ class Concept05ProductionVisualEvidenceTests(unittest.TestCase):
 
     def test_production_performance_artifact_preserves_v7_retention_and_adds_visual_evidence(self) -> None:
         self.assertEqual(1, self.performance.count("uses: actions/upload-artifact@"))
-        self.assertIn(f"actions/upload-artifact@{PIN} # v7.0.1", self.performance)
+        self.assertIn(f"actions/upload-artifact@{PIN} # v7.0.2", self.performance)
         self.assertIn("Capture Concept 05 production visual evidence", self.performance)
         self.assertIn('BRVTAL_VISUAL_SOURCE_SHA="$(git rev-parse HEAD)"', self.performance)
         for marker in (
