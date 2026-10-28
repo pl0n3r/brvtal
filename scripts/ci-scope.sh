@@ -52,7 +52,7 @@ brvtal_ci_classify_files() {
         # Bash case '*' crosses '/', so nested files must remain deploy-bound.
         BRVTAL_SCOPE_DEPLOY_BOUND=true
         ;;
-      README.md|AGENTS.md|docs/*|readme/*|revision-juridica/00-LEEME.md|revision-juridica/aviso-privacidad.md|revision-juridica/canal-derechos.md|revision-juridica/paquete-completo.md|revision-juridica/politica-tratamiento.md|revision-juridica/registro-tratamientos.md|revision-juridica/retencion.md|revision-juridica/terminos-condiciones.md|tests/*|scripts/*|ops/factory/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
+      README.md|AGENTS.md|CLAUDE.md|.claude/settings.json|docs/*|readme/*|revision-juridica/00-LEEME.md|revision-juridica/aviso-privacidad.md|revision-juridica/canal-derechos.md|revision-juridica/paquete-completo.md|revision-juridica/politica-tratamiento.md|revision-juridica/registro-tratamientos.md|revision-juridica/retencion.md|revision-juridica/terminos-condiciones.md|tests/*|scripts/*|ops/factory/*|.github/*|decisiones.yml|.coderabbit.yaml|.sonarcloud.properties|phpstan.neon|rector.php|package.json|package-lock.json|playwright.config.mjs|.gitignore|.gitattributes|.editorconfig)
         ;;
       *)
         BRVTAL_SCOPE_DEPLOY_BOUND=true
