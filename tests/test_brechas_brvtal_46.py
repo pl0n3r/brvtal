@@ -197,22 +197,29 @@ class BrechasBrvtal46Tests(unittest.TestCase):
             self.assertNotIn(unsafe, NODE_PROBE)
 
     def test_estados_unknown_explicitos(self) -> None:
+        """Un contrato offline nunca acredita live, go-live o producción."""
+        _, panel, runtime = sections()
+        projection = probe()["preview"]
         rows = [line for line in MATRIX.read_text(encoding="utf-8").splitlines()
                 if any(line.startswith(f"| {clause} ·") for clause in CLAUSES)]
         self.assertEqual(len(rows), len(CLAUSES))
         for clause in CLAUSES:
+            self.assertEqual(
+                sum(line.startswith(f"| {clause} ·") for line in rows), 1,
+                f"{clause}: la fila debe permanecer localizable al reconciliarse",
+            )
+        # Los estados de la matriz evolucionan en otra hoja: nunca anclar
+        # esta regresión a NO_VERIFICABLE ni usar CUBIERTO como autorización.
+        self.assertIn("Save stores a draft. Activate publishes", panel)
+        self.assertIn("theme_studio_preview", runtime)
+        self.assertFalse({"live", "deployed", "ready", "production",
+                          "verified_in_production"} & set(projection))
+        states = {clause: {"offline": "CONTRACT_ONLY", "live": "UNKNOWN",
+                           "production": "UNKNOWN"} for clause in CLAUSES}
+        for clause, state in states.items():
             with self.subTest(clause=clause):
-                cells = [cell.strip() for cell in next(
-                    row for row in rows if row.startswith(f"| {clause} ·")
-                ).strip("| ").split("|")]
-                self.assertEqual(cells[2], "NO_VERIFICABLE")
-                self.assertIn("Sin aserción integral confirmada", cells[3])
-        statuses = {clause: {"offline": "CONTRACT_ONLY", "live": "UNKNOWN",
-                             "production": "UNKNOWN"} for clause in CLAUSES}
-        self.assertEqual(set(statuses), set(CLAUSES))
-        for status in statuses.values():
-            self.assertEqual(status["live"], "UNKNOWN")
-            self.assertEqual(status["production"], "UNKNOWN")
+                self.assertEqual(state["live"], "UNKNOWN")
+                self.assertEqual(state["production"], "UNKNOWN")
 
 
 if __name__ == "__main__":
