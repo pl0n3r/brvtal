@@ -236,7 +236,7 @@ class BrechasBrvtal36Tests(unittest.TestCase):
         self.assertIn("Fixture record", observed["activity"])
         own = Path(__file__).read_text(encoding="utf-8")
         self.assertNotRegex(own, r"(?m)^(?:from|import)\s+(?:requests|urllib|httpx|socket)\b")
-        self.assertNotIn("BEGIN PRIVATE KEY", own)
+        self.assertNotIn("BEGIN " + "PRIVATE KEY", own)
         self.assertNotIn("curl_exec(", PROBE)
         self.assertNotIn("require('node:https')", PROBE)
 
