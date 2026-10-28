@@ -40,6 +40,14 @@ LOCAL = "LOCAL_CONTRACT"
 # Loading the PHP module only declares its functions. The probe never calls
 # storage, database or network endpoints, and invents all input values.
 PHP_PROBE = r"""
+// Bootstrap loads a non-versioned config.php. Supply a synthetic local
+// configuration through the existing test override; never access credentials.
+$fixture = tempnam(sys_get_temp_dir(), 'brvtal-preview-fixture-');
+if ($fixture === false) throw new RuntimeException('UNKNOWN: no temp fixture');
+file_put_contents($fixture, "<?php return ['app'=>['timezone'=>'UTC'], 'security'=>['session_name'=>'BRVTAL_SYNTHETIC']];");
+register_shutdown_function(static function () use ($fixture): void { @unlink($fixture); });
+define('BRVTAL_SENTRY_TESTING', true);
+$GLOBALS['brvtalBootstrapConfigPath'] = $fixture;
 require_once 'config/public_preview.php';
 $types = brvtalPublicPreviewTypes();
 $input = [
