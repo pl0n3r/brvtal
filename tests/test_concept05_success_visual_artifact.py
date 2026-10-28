@@ -497,7 +497,7 @@ class Concept05SuccessVisualArtifactTests(unittest.TestCase):
         self.assertIn('if: failure()', text)
         self.assertIn('PENDING_HUMAN_AB_COMPARISON', Path(__file__).read_text())
         self.assertEqual(3, text.count('uses: actions/upload-artifact@'))
-        self.assertIn('043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1', text)
+        self.assertIn('cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2', text)
         self.assertIn('retention-days: 14', text)
 
     def test_relative_and_full_spec_paths_and_not_applicable_bootstrap(self):
