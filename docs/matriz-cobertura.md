@@ -77,7 +77,7 @@
 | S10-R008 · [S10 L142](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L142) | publication scheduling uses the existing Event lifecycle without a seventh wizard step; | CUBIERTO | Código `discadmin/content-core.php`; prueba `tests/test_event_schedule_discadmin.py` para S10-R008; contraste en `docs/contraste-spec_eventos.md`; PR #903 fusionado (no acredita producción). | [PR #903](https://github.com/pl0n3r/brvtal/pull/903) |
 | S10-R009 · [S10 L143](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L143) | Version History is available for persisted Events; NEW EVENT does not query history. | CUBIERTO | Código `discadmin/content-core.js`; prueba `tests/test_event_version_history_discadmin.py` para S10-R009; contraste en `docs/contraste-spec_eventos.md`; PR #897 fusionado (no acredita producción). | [PR #897](https://github.com/pl0n3r/brvtal/pull/897) |
 | S10-R010 · [S10 L143](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L143) | The Admin Activity dashboard remains read-only, while the matching persisted Event editor may stage an allowlisted historical editorial snapshot for review before the normal Save. | CUBIERTO | Código `discadmin/event-version-restore.js`; prueba `tests/test_event_version_restore_discadmin.py` para S10-R010; contraste en `docs/contraste-spec_eventos.md`; PR #910 fusionado (no acredita producción). | [PR #910](https://github.com/pl0n3r/brvtal/pull/910) |
-| S10-R011 · [S10 L145](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L145) | Default required event fields are name, date, city and description, but an incomplete **draft** may be saved before all publication-required fields exist. | SIN_COBERTURA | Brecha comprobada: publicación carece de la exigencia de descripción; contraste en `docs/contraste-spec_eventos.md`. Hoja canónica #1065. | [Issue #1065](https://github.com/pl0n3r/brvtal/issues/1065) |
+| S10-R011 · [S10 L145](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L145) | Default required event fields are name, date, city and description, but an incomplete **draft** may be saved before all publication-required fields exist. | CUBIERTO | Regla de descripción obligatoria para publicación, con borradores incompletos compatibles: `api/event-workflow-lib.php`, `api/content-validation.php` y `tests/test_event_description_publication.py` (contratos PHP reales, no producción); [PR #1072](https://github.com/pl0n3r/brvtal/pull/1072) fusionado. | [PR #1072](https://github.com/pl0n3r/brvtal/pull/1072) |
 | S10-R012 · [S10 L149](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L149) | [Event publication scheduling] Event scheduling is a **request-time not-before gate**, not a cron/worker/queue. | CUBIERTO | Código `config/public_visibility.php`; prueba `tests/test_event_schedule_surfaces.py` para S10-R012; contraste en `docs/contraste-spec_eventos.md`; PR #902 fusionado (no acredita producción). | [PR #902](https://github.com/pl0n3r/brvtal/pull/902) |
 | S10-R013 · [S10 L149](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L149) | DISCADMIN accepts the virtual input publish_at; clients never control published_at directly. | CUBIERTO | Código `api/event-workflow-lib.php`; prueba `tests/test_event_publication_schedule.py` para S10-R013; contraste en `docs/contraste-spec_eventos.md`; PR #902 fusionado (no acredita producción). | [PR #902](https://github.com/pl0n3r/brvtal/pull/902) |
 | S10-R014 · [S10 L149](https://github.com/pl0n3r/brvtal/blob/acf51126c2ab3750cfc2076d9044dc45a697c883/docs/BRVTAL-SPEC.md#L149) | The backend consumes publish_at and keeps published_at server-owned as the first-public/not-before boundary. | CUBIERTO | Código `api/event-workflow-lib.php`; prueba `tests/test_event_publication_schedule.py` para S10-R014; contraste en `docs/contraste-spec_eventos.md`; PR #902 fusionado (no acredita producción). | [PR #902](https://github.com/pl0n3r/brvtal/pull/902) |
@@ -630,14 +630,14 @@
 
 | Estado | Filas |
 | --- | ---: |
-| CUBIERTO | 168 |
+| CUBIERTO | 169 |
 | EN_CURSO | 0 |
-| SIN_COBERTURA | 1 |
+| SIN_COBERTURA | 0 |
 | DESCARTADO | 34 |
 | NO_VERIFICABLE | 408 |
 
 **Total:** 611 filas.
-**Porcentaje CUBIERTO:** 27.50% (168/611).
+**Porcentaje CUBIERTO:** 27.66% (169/611).
 
 **Hojas canónicas nuevas creadas en esta auditoría:** 2 ([Issue #1065](https://github.com/pl0n3r/brvtal/issues/1065), S10-R011; [Issue #1068](https://github.com/pl0n3r/brvtal/issues/1068), S22-R043, implementado en PR #1071). La ausencia de prueba no demuestra una brecha de código sin issue previo; ninguna hoja nueva fue autorizada sobre hipótesis.
 
