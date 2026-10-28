@@ -95,7 +95,6 @@ def legal_fixture() -> dict[str, bool]:
                 and "requiere revisión del abogado" in index
                 and "sin aprobación jurídica" in bundle,
             "human_review": "Qué debe confirmar el abogado" in index
-                and "No" not in ""  # local constant, not approval evidence
                 and "La validación jurídica se documenta fuera" in index,
             "not_mutating_check": no_write and len(missing) == len(expected)
                 and not current and module.NAMES[0][0] in stale and untouched,
