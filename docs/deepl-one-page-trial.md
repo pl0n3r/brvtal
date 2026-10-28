@@ -1,26 +1,27 @@
 # Prueba DeepL de una única página pública: preparación offline
 
-**Estado:** solo build-ahead en fase `construccion`. Esta rama **NO** autoriza tráfico real a DeepL, cambio de entorno, despliegue, gastos ni datos personales. El español sigue siendo canónico.
+**Estado:** solo build-ahead en fase `construccion`. Esta corrección **NO** autoriza tráfico real a DeepL, cambio de entorno, despliegue, gastos ni datos personales. El español sigue siendo canónico.
 
 ## Autoridad y límites
 
 - BRVTAL #212, decisión #1033/A: transporte preparado, OFF.
 - BRVTAL #1055: voto OWNER `/decidir A`, journal `factory-human-decision` v2/A; autoriza preparar una hoja acotada, **no** el ensayo real ni datos, claves, proveedores, cargos o deploy.
 - BRVTAL #1079: voto OWNER `/decidir A` y journal del bot v2/A, exclusivamente preparación offline de cuatro rutas más para versionado y elegibilidad de **un solo** original español.
-- BRVTAL #1054: nueve rutas reclamadas; reserva V3 sucesora auténtica `db7a16c2-9d7f-54ce-b0cb-62671e8c5926` (no equivale a permiso de deploy). El slug de una página `pages` necesita elección específica del propietario. Nunca artistas, biografías, perfiles, correos, teléfonos ni rich HTML.
+- BRVTAL #1054 / PR #1078: preparación offline fusionada, reserva ya revocada; #1082 tiene una reserva independiente sin permiso para usar proveedor real. El slug de una página `pages` necesita elección específica del propietario. Nunca artistas, biografías, perfiles, correos, teléfonos ni rich HTML.
 - El runtime mantiene OFF los requisitos `BRVTAL_DEEPL_ENABLED`, `DEEPL_AUTH_KEY`, `BRVTAL_DEEPL_TRIAL_PAGE_SLUG` y el permiso operativo separado `BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT`. **No configurarlos en esta entrega.** Una variable de entorno, por sí sola, no es la prueba auténtica de cumplimiento.
 
 ## Comportamiento y seguridad
 
-**Conciliación editorial solo offline:** el contrato de `main` muestra `pages` públicas exclusivamente en `locale=en`. La decisión #1079/A permitió preparar una excepción parametrizada **solo para un slug** en `locale=es`, con `config/public_routes.php` y `config/public_visibility.php`. Cuando las guardas están OFF, el comportamiento de todas las páginas existentes permanece idéntico. Con autorización operativa, slug exacto y clave privada configurados, la definición seleccionaría únicamente la fuente española elegida; nunca se abren las demás páginas españolas ni se considera un registro inglés un origen español. No hay slug real aprobado ni evidencia D-043: **el PR sigue DRAFT y no puede fusionarse, activarse o probar proveedor real**. Los tests usan solo el adaptador falso.
+**Conciliación editorial solo offline:** el contrato de `main` muestra `pages` públicas exclusivamente en `locale=en`. La decisión #1079/A permitió preparar una excepción parametrizada **solo para un slug** en `locale=es`, con `config/public_routes.php` y `config/public_visibility.php`. Cuando las guardas están OFF, el comportamiento de todas las páginas existentes permanece idéntico. Con autorización operativa, slug exacto y clave privada configurados, la definición seleccionaría únicamente la fuente española elegida; nunca se abren las demás páginas españolas ni se considera un registro inglés un origen español. No hay slug real aprobado ni evidencia D-043: **la prueba con proveedor real y la activación siguen sin autorización**. Los tests usan solo el adaptador falso.
 
 - Solo `/en/pages/<slug>` con coincidencia exacta del slug, entidad `published`, confianza y visibilidad públicas; fuera del alcance vuelve íntegro el contenido español.
 - Se traducen únicamente los campos planos de texto editorial que ya expone la proyección existente. Los cuerpos HTML permanecen españoles. Rechazar correo, enlaces, HTML, cadenas largas de dígitos y contenido malformado antes de usar caché o transporte.
 - Error de proveedor, cuota o caché: fallback español. El presupuesto usa el bloqueo exclusivo y archivo persistente del transporte existente, pero la compatibilidad/permiso del hosting aún requiere validación operativa; un fixture local no la acredita.
 - La rama no añade claves ni solicitudes HTTP a los tests: `tests/deepl_one_page_trial_scenarios.php` inyecta un adaptador falso y `tests/test_deepl_one_page_trial.py` ejecuta el PHP real.
+- **Atestación de publicación en lectura:** la consulta SEO pública filtra `status='published'` pero proyecta `pages` sin campo `status`. Antes de cualquier adaptador/caché el camino de prueba consulta solo `SELECT status,locale FROM pages WHERE id=? AND slug=?` con parámetros enlazados, confirma `published` + `es` sobre el mismo ID/slug, y añade `status` al objeto en memoria. Fallo de consulta, borrador, otro idioma o inconsistencia: devolución del original, sin proveedor. La regresión `canonical_source` utiliza un callback con filas ficticias, sin conexión a base de datos ni HTTP. **No demuestra operación en Hostinger ni autoriza activar DeepL.**
 
-## Puertas pendientes antes de la prueba real y del merge
+## Puertas pendientes antes de la prueba real y de la activación
 
-**No habilitar ni fusionar** solo porque `validate` o los tests offline resulten verdes. El propietario debe identificar el slug exacto, comprobar clasificación del contenido y consentimiento/términos/privacidad, confirmar presupuesto efectivo del plan, persistencia/locking en Hostinger, backup y restauración real, rollback y autorización operativa. Se exige evidencia auténtica D-043 `VALIDATED_IN_PRODUCTION` con lista de pendientes vacía y SHA consistente, más los controles de seguridad, CI y CodeRabbit FINAL exact-HEAD. No generar recibos sintéticos de producción. En ausencia de cualquiera de esos requisitos, permanecer apagado **sin permiso de operación**.
+**No habilitar el servicio real** solo porque `validate` o los tests offline resulten verdes. El propietario debe identificar el slug exacto, comprobar clasificación del contenido y consentimiento/términos/privacidad, confirmar presupuesto efectivo del plan, persistencia/locking en Hostinger, backup y restauración real, rollback y autorización operativa. Se exige evidencia auténtica D-043 `VALIDATED_IN_PRODUCTION` con lista de pendientes vacía y SHA consistente, más los controles de seguridad, CI y CodeRabbit FINAL exact-HEAD. No generar recibos sintéticos de producción. En ausencia de cualquiera de esos requisitos, permanecer apagado **sin permiso de operación**.
 
 Reversión: dejar el permiso operativo en cero, conservar ruta original y no exponer traducción.

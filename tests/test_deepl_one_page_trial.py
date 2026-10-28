@@ -53,6 +53,18 @@ class DeepLOnePageTrialTests(unittest.TestCase):
         self.assertNotIn("curl_init(", source)
         self.assertNotIn("curl_init(", SCENARIOS.read_text())
 
+    def test_canonical_source_verification(self) -> None:
+        # The public SEO SELECT intentionally omits status; production must
+        # attest publication from the canonical DB using a scoped read.
+        result = scenario("canonical_source")
+        self.assertTrue(all(result.values()), result)
+        source = (ROOT / "config/public_translation_deepl_page_trial.php").read_text()
+        self.assertIn("SELECT status,locale FROM pages WHERE id=? AND slug=? LIMIT 1", source)
+        self.assertLess(
+            source.index("$verified = brvtalDeepLOnePageTrialVerifyCanonicalSource("),
+            source.index("$adapter = BrvtalDeepLHttpTransport::adapterFromEnvironment("),
+        )
+
     def test_real_production_receipt_required(self) -> None:
         data = scenario("receipt")
         self.assertTrue(data["claimed_receipt_not_authority"])
