@@ -33,7 +33,7 @@ jobs:
           [[ "$REF_NAME" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo "::error::Cutover only accepts the default branch"; exit 1; }
           [[ "$CONFIRM" == "CUTOVER-BRVTAL" ]] || { echo "::error::Explicit CUTOVER-BRVTAL confirmation required"; exit 1; }
 
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
         with:
           fetch-depth: 0
           persist-credentials: false
