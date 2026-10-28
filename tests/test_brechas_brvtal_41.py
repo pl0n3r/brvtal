@@ -30,6 +30,7 @@ NODE_PROBE = r"""
 'use strict';
 const fs = require('node:fs');
 const vm = require('node:vm');
+const {URL} = require('node:url');
 const original = fs.readFileSync('js/public-measurement.js', 'utf8');
 const end = original.lastIndexOf('})();');
 if (end < 0 || original.slice(end + 5).trim()) {
@@ -39,6 +40,7 @@ const expose = [
   'globalThis.__fixture = { sanitizeParams, safeDestination, push, pageContext };'
 ].join('\n') + '\n';
 const sandbox = {
+  URL,
   window: {dataLayer:[], addEventListener(){}},
   document: {readyState:'loading', addEventListener(){}},
   location: {
@@ -68,14 +70,47 @@ process.stdout.write(JSON.stringify({
 """
 
 
+# Execute the actual analytics bootstrap with synthetic DOM and no network.
+BOOTSTRAP_PROBE = r"""
+'use strict';
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('js/public-analytics.js','utf8');
+function inspect(gtmId) {
+  const tags = [];
+  const dataLayer = [];
+  const window = {dataLayer, dispatchEvent(){}};
+  const document = {
+    querySelector() { return gtmId === null ? null : {dataset:{gtmId}}; },
+    createElement() { return {dataset:{}}; },
+    head: {appendChild(tag) { tags.push({src:tag.src,async:tag.async}); }}
+  };
+  class CustomEvent { constructor(type) { this.type=type; } }
+  vm.runInNewContext(source,{window,document,CustomEvent,Date},
+    {timeout:1500,filename:'public-analytics.js'});
+  const consent = dataLayer
+    .filter(item => item && item[0] === 'consent')
+    .map(item => Array.from(item));
+  return {tags,consent};
+}
+process.stdout.write(JSON.stringify({
+  valid: inspect('GTM-AB12CD34'),
+  missing: inspect(null),
+  invalid: inspect('not-valid')
+}));
+"""
+
+
 def matrix_rows(document: str) -> dict[str, tuple[str, ...]]:
     """Exactly five canonical, complete rows; never infer missing evidence."""
     found: dict[str, tuple[str, ...]] = {}
     for line in document.splitlines():
-        first = re.match(r"^\| (S3[01]-R\d{3}) · ", line)
-        if not first or first.group(1) not in CLAUSES:
+        first = re.match(r"^\|\s*(S30-R00[3-5]|S31-R00[12])(?=\W|$)", line)
+        if not first:
             continue
         key = first.group(1)
+        if not line.startswith("| " + key + " · "):
+            raise ValueError("UNKNOWN: invalid delimiter for " + key)
         parts = tuple(item.strip() for item in line.strip().strip("|").split("|"))
         if key in found or len(parts) != 5 or not all(parts):
             raise ValueError("UNKNOWN: duplicate/malformed coverage row: " + key)
@@ -92,20 +127,20 @@ def operational_evidence(candidate: object = None) -> str:
     return UNKNOWN
 
 
-def node_probe() -> dict:
+def run_probe(script: str) -> dict:
     node = shutil.which("node")
     if not node:
         raise AssertionError("UNKNOWN: Node runtime unavailable")
     run = subprocess.run(
-        [node, "-e", NODE_PROBE], cwd=ROOT,
+        [node, "-e", script], cwd=ROOT,
         text=True, capture_output=True, check=False, timeout=20,
     )
     if run.returncode:
-        raise AssertionError("UNKNOWN: measurement probe failed: " + run.stderr[-900:])
+        raise AssertionError("UNKNOWN: synthetic Node probe failed: " + run.stderr[-900:])
     try:
         return json.loads(run.stdout)
     except json.JSONDecodeError as exc:
-        raise AssertionError("UNKNOWN: unreadable measurement probe") from exc
+        raise AssertionError("UNKNOWN: unreadable synthetic Node evidence") from exc
 
 
 def treatments_by_id(document: str) -> dict[str, dict]:
@@ -130,7 +165,8 @@ class BrechasBrvtal41Tests(unittest.TestCase):
         cls.spec = SPEC.read_text(encoding="utf-8")
         cls.data = DATA.read_text(encoding="utf-8")
         cls.treatments = treatments_by_id(cls.data)
-        cls.result = node_probe()
+        cls.result = run_probe(NODE_PROBE)
+        cls.bootstrap = run_probe(BOOTSTRAP_PROBE)
 
     def test_contrato_principal(self):
         """AC-01: separate executable evidence for all five named clauses."""
@@ -188,6 +224,21 @@ class BrechasBrvtal41Tests(unittest.TestCase):
         self.assertIn("analytics_storage: 'granted'", bootstrap)
         self.assertNotIn("localStorage.setItem", bootstrap)
         self.assertNotIn("document.cookie", bootstrap)
+        synthetic = self.bootstrap
+        self.assertEqual(len(synthetic["valid"]["tags"]), 1)
+        self.assertIn("googletagmanager.com/gtm.js?id=GTM-AB12CD34",
+                      synthetic["valid"]["tags"][0]["src"])
+        consent = synthetic["valid"]["consent"]
+        self.assertEqual(len(consent), 1)
+        self.assertEqual(consent[0][:2], ["consent", "default"])
+        self.assertEqual(consent[0][2], {
+            "analytics_storage": "granted", "ad_storage": "denied",
+            "ad_user_data": "denied", "ad_personalization": "denied",
+        })
+        for bad in ("missing", "invalid"):
+            with self.subTest(bootstrap=bad):
+                self.assertEqual(synthetic[bad]["tags"], [])
+                self.assertEqual(synthetic[bad]["consent"], [])
 
         # S31-R001: Colombia-oriented project with deliberately pending legal
         # owner/jurisdiction, not fabricated Colombian certification.
@@ -217,6 +268,7 @@ class BrechasBrvtal41Tests(unittest.TestCase):
             document.replace(row, ""),
             document + "\n" + row,
             document.replace(row, "| S30-R003 · truncated |"),
+            document + "\n| S30-R003: alternate delimiter |",
         ):
             with self.subTest(damage=damaged.count("S30-R003")):
                 with self.assertRaises(ValueError):
@@ -237,6 +289,7 @@ class BrechasBrvtal41Tests(unittest.TestCase):
         self.assertNotIn("http.request", NODE_PROBE)
         self.assertNotIn("https.request", NODE_PROBE)
         self.assertNotIn("fetch(", NODE_PROBE)
+        self.assertNotIn("fetch(", BOOTSTRAP_PROBE)
         self.assertNotIn("child_process", NODE_PROBE)
         self.assertNotIn("cookie=", json.dumps(fixture))
         self.assertNotIn("private-fixture", json.dumps(fixture))
