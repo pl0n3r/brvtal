@@ -155,10 +155,17 @@ class BrechasBrvtal47Tests(unittest.TestCase):
         self.assertEqual(data["phase"], "construccion")
         source = Path(__file__).read_text(encoding="utf-8")
         self.assertIn("TemporaryDirectory(", source)
-        for forbidden in ("https://www.brvtal.com.co", "requests.get(",
-                          "urllib.request", "mysqli_connect(", 'PDO("mysql:',
-                          "BRVTAL_DB_PASSWORD"):
-            self.assertNotIn(forbidden, source)
+        # Verificar los datos producidos, no buscar literales en el propio test.
+        fixture = php(r'''
+            require 'config/backups.php';
+            echo json_encode([
+                'scope'=>brvtal_backup_normalize_scope('database'),
+                'inventory'=>brvtal_backup_inventory('tests/__missing_brvtal_backup_fixture__'),
+            ], JSON_THROW_ON_ERROR);
+        ''')
+        serialized = json.dumps(fixture).lower()
+        for forbidden in ("password", "secret", "email", "token", "bearer"):
+            self.assertNotIn(forbidden, serialized)
 
     def test_estados_unknown_explicitos(self):
         """NO_VERIFICABLE hasta pruebas de producción y recibos auténticos."""
