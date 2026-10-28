@@ -88,10 +88,12 @@ def source_verdict(ident: object, files: object) -> str:
     except (ValueError, KeyError):
         return UNKNOWN
     section_name, clause = CLAUSES[ident]
+    # The specification formats the SQL column as inline code.
+    spec_clause = "`admins.totp_enabled`;" if ident == "S26-R004" else clause
     block = section(files[SPEC], section_name)
     if (row[1] != clause or row[2] != "NO_VERIFICABLE"
             or "Sin aserción contrastada" not in row[3]
-            or clause not in row[3] or block.count(clause) != 1):
+            or clause not in row[3] or block.count(spec_clause) != 1):
         return UNKNOWN
     shell, nav = files[SHELL], files[NAV]
     if ident == "S24-L385":
@@ -248,10 +250,12 @@ class BrechasBrvtal29Tests(unittest.TestCase):
                     mutated[MATRIX] = new_matrix
                     self.assertEqual(source_verdict(ident, mutated), UNKNOWN)
                 block = section(self.files[SPEC], CLAUSES[ident][0])
-                self.assertIn(CLAUSES[ident][1], block)
+                spec_clause = ("`admins.totp_enabled`;" if ident == "S26-R004"
+                               else CLAUSES[ident][1])
+                self.assertIn(spec_clause, block)
                 mutated = dict(self.files)
                 mutated[SPEC] = mutated[SPEC].replace(
-                    CLAUSES[ident][1], "MISSING_CONTRACT", 1)
+                    spec_clause, "MISSING_CONTRACT", 1)
                 self.assertEqual(source_verdict(ident, mutated), UNKNOWN)
                 mutated = dict(self.files)
                 trace = (TOTP_API if ident in ("S26-L427", "S26-R004")
