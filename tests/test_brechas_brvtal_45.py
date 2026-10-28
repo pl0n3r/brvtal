@@ -278,7 +278,7 @@ class BrechasBrvtal45Tests(unittest.TestCase):
             own, r"(?m)^(?:import|from)\s+(?:requests|urllib|httpx|socket)\b")
         self.assertNotIn("fetch(", NODE_PROBE)
         self.assertNotIn("http.request(", NODE_PROBE)
-        self.assertNotIn("https://api.", own)
+        self.assertNotIn("https://" + "api.", own)
 
     def test_estados_unknown_explicitos(self) -> None:
         rows = matrix_rows(MATRIX.read_text(encoding="utf-8"))
