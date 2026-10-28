@@ -66,10 +66,9 @@ class LeaseObserverAdoptionTests(unittest.TestCase):
         self.assertIn("python3 -m unittest", fast)
         self.assertIn("tests/ci-self-audit-contract.py", fast)
         self.assertIn("scripts/ci_self_audit.py", fast)
-        self.assertIn(
-            "pl0n3r/factory/.github/workflows/",
-            AUDIT.read_text(encoding="utf-8"),
-        )
+        audit = AUDIT.read_text(encoding="utf-8")
+        self.assertIn("FACTORY_V1_WORKFLOW", audit)
+        self.assertIn("pl0n3r/factory/", audit)
         self.assertIn("tests/test_factory_observer_adoption.py", fast)
 
 
