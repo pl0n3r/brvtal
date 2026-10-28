@@ -163,6 +163,54 @@ function trialScenario(string $name): array
             'missing_permit_gate' => !brvtal_public_page_is_visible($spanish, $noPermit),
         ];
     }
+    if ($name === 'canonical_source') {
+        $withoutStatus = $page;
+        unset($withoutStatus['entity']['status']); // public SEO projection shape
+        $called = [];
+        $published = static function (int $id, string $slug) use (&$called): ?array {
+            $called[] = [$id, $slug];
+            return ['status' => 'published', 'locale' => 'es'];
+        };
+        $good = brvtalDeepLOnePageTrialVerifyCanonicalSource(
+            $withoutStatus, 'test-page', $published
+        );
+        $draft = brvtalDeepLOnePageTrialVerifyCanonicalSource(
+            $withoutStatus, 'test-page',
+            static fn(int $id, string $slug): ?array => ['status' => 'draft', 'locale' => 'es']
+        );
+        $english = brvtalDeepLOnePageTrialVerifyCanonicalSource(
+            $withoutStatus, 'test-page',
+            static fn(int $id, string $slug): ?array => ['status' => 'published', 'locale' => 'en']
+        );
+        $absent = brvtalDeepLOnePageTrialVerifyCanonicalSource(
+            $withoutStatus, 'test-page',
+            static fn(int $id, string $slug): ?array => null
+        );
+        $exception = brvtalDeepLOnePageTrialVerifyCanonicalSource(
+            $withoutStatus, 'test-page',
+            static function (int $id, string $slug): ?array { throw new RuntimeException('offline'); }
+        );
+        $badSource = array_replace_recursive($withoutStatus, ['entity' => ['status' => 'draft']]);
+        $badSlug = array_replace_recursive($withoutStatus, ['entity' => ['slug' => 'other-page']]);
+        $private = array_replace_recursive($withoutStatus, ['entity' => ['private' => true]]);
+        return [
+            'published_attested' => ($good['entity']['status'] ?? null) === 'published',
+            'identity_scoped' => $called === [[17, 'test-page']],
+            'draft_row_denied' => $draft === null,
+            'english_row_denied' => $english === null,
+            'missing_row_denied' => $absent === null,
+            'failed_read_denied' => $exception === null,
+            'draft_source_denied' => brvtalDeepLOnePageTrialVerifyCanonicalSource(
+                $badSource, 'test-page', $published
+            ) === null,
+            'wrong_slug_denied' => brvtalDeepLOnePageTrialVerifyCanonicalSource(
+                $badSlug, 'test-page', $published
+            ) === null,
+            'private_source_denied' => brvtalDeepLOnePageTrialVerifyCanonicalSource(
+                $private, 'test-page', $published
+            ) === null,
+        ];
+    }
     if ($name === 'receipt') {
         $fake = array_replace($on, ['BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT' => '0']);
         $fake['D043_RECEIPT'] = 'VALIDATED_IN_PRODUCTION';

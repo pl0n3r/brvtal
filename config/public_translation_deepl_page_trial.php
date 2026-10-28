@@ -107,6 +107,50 @@ function brvtalDeepLOnePageTrialProject(
     }
 }
 
+/**
+ * Revalidate the canonical page's publication and language from persisted
+ * facts before any provider/cache access. The SEO projection intentionally
+ * omits `status`; without this read a valid page always fails closed.
+ *
+ * The lookup is injected to test production behavior with synthetic facts,
+ * without a database or network connection.
+ *
+ * @param callable(int,string):(?array) $lookup
+ */
+function brvtalDeepLOnePageTrialVerifyCanonicalSource(
+    array $page,
+    string $slug,
+    callable $lookup
+): ?array {
+    $source = $page['entity'] ?? null;
+    if (!is_array($source)
+        || ($source['route_type'] ?? null) !== 'pages'
+        || ($source['slug'] ?? null) !== $slug
+        || ($source['locale'] ?? null) !== 'es'
+        || preg_match('/^[a-z0-9-]{1,190}$/D', $slug) !== 1
+        || filter_var($source['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false
+        || !brvtalPublicEditorialOverlayEligible($source, true, true)
+    ) {
+        return null;
+    }
+
+    try {
+        $verified = $lookup((int)$source['id'], $slug);
+    } catch (Throwable) {
+        return null;
+    }
+    if (!is_array($verified)
+        || ($verified['status'] ?? null) !== 'published'
+        || ($verified['locale'] ?? null) !== 'es'
+        || (isset($source['status']) && $source['status'] !== 'published')
+    ) {
+        return null;
+    }
+
+    $page['entity']['status'] = 'published';
+    return $page;
+}
+
 /** Runtime wiring: all gates are disabled by default. */
 function brvtalDeepLOnePageTrialForRequest(
     array $page,
@@ -122,12 +166,26 @@ function brvtalDeepLOnePageTrialForRequest(
     if (!brvtalDeepLOnePageTrialGate($locale, $routeType, $routeSlug, $env)) {
         return $page;
     }
+    $verified = brvtalDeepLOnePageTrialVerifyCanonicalSource(
+        $page, $routeSlug,
+        static function (int $id, string $slug) use ($pdo): ?array {
+            $statement = $pdo->prepare(
+                "SELECT status,locale FROM pages WHERE id=? AND slug=? LIMIT 1"
+            );
+            $statement->execute([$id, $slug]);
+            $row = $statement->fetch(PDO::FETCH_ASSOC);
+            return is_array($row) ? $row : null;
+        }
+    );
+    if ($verified === null) {
+        return $page;
+    }
     $adapter = BrvtalDeepLHttpTransport::adapterFromEnvironment(null, $env);
     if ($adapter === null) {
         return $page;
     }
     return brvtalDeepLOnePageTrialProject(
-        $page, $locale, $routeType, $routeSlug, $env, $adapter,
+        $verified, $locale, $routeType, $routeSlug, $env, $adapter,
         static fn(array $identity): ?string => brvtalPublicTranslationCacheRead($pdo, $identity),
         static function (array $identity, string $text) use ($pdo): void {
             brvtalPublicTranslationCacheWrite($pdo, $identity, $text);
