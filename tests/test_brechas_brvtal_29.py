@@ -264,10 +264,11 @@ class BrechasBrvtal29Tests(unittest.TestCase):
                 mutated[trace] = ""
                 self.assertEqual(source_verdict(ident, mutated), UNKNOWN)
         self.assertEqual(source_verdict("S26-R999", self.files), UNKNOWN)
+        duplicate = next(
+            x for x in self.files[MATRIX].splitlines()
+            if x.startswith("| S24-L385 · "))
         with self.assertRaisesRegex(ValueError, "UNKNOWN"):
-            rows(self.files[MATRIX] + "\n" + next(
-                x for x in self.files[MATRIX].splitlines()
-                if x.startswith("| S24-L385 · ")))
+            rows(self.files[MATRIX] + "\n" + duplicate)
 
     def test_sin_datos_reales(self) -> None:
         """AC-03: only versioned code and in-memory UI synthetic fixtures."""
