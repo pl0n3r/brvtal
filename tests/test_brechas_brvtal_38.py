@@ -19,6 +19,12 @@ UNKNOWN = "UNKNOWN"
 LOCAL = "LOCAL_TESTED"
 
 PHP_PROBE = r"""
+// Bootstrap honors the repository's tracked synthetic fixture only in test mode.
+if (!is_file('config/config.example.php')) {
+    throw new RuntimeException('Missing tracked synthetic config');
+}
+define('BRVTAL_SENTRY_TESTING', true);
+$GLOBALS['brvtalBootstrapConfigPath'] = realpath('config/config.example.php');
 require_once 'config/admin_sonar_signals.php';
 require_once 'config/admin_coderabbit_signals.php';
 require_once 'config/admin_deploy_signals.php';
@@ -90,7 +96,7 @@ $deployment = static fn(): array => [
 ];
 $migrations = static fn(): array => [
     'registry_exists'=>true,
-    'migrations'=>[['migration'=>'fixture.sql', 'state'=>'applied',
+    'migrations'=>[['migration'=>'migration_fixture.sql', 'state'=>'applied',
         'checksum_sha256'=>str_repeat('b', 64)]],
     'orphaned_records'=>[],
 ];
@@ -102,9 +108,15 @@ $fallback = static fn(): array => [
 ];
 
 $seoItems = [
-    ['mode'=>'AUTO', 'warnings'=>[]],
-    ['mode'=>'MIXED', 'warnings'=>['MISSING_TITLE', 'DESCRIPTION_LONG']],
+    ['mode'=>'AUTO', 'effective_title'=>'Home',
+        'effective_description'=>'A short description.'],
+    ['mode'=>'MIXED', 'public'=>true, 'effective_title'=>'',
+        'effective_description'=>str_repeat('x', 181)],
 ];
+$seoItems = array_map(static function (array $item): array {
+    $item['warnings'] = brvtalSeoWorkspaceWarnings($item);
+    return $item;
+}, $seoItems);
 echo json_encode([
     'sonar'=>$sonar, 'sonar_urls'=>$sonarUrls,
     'sonar_fail'=>$sonarFail, 'sonar_malformed'=>$sonarMalformed,
@@ -153,11 +165,23 @@ def probe() -> dict:
 
 
 def evidence(rows: dict, data: dict | None) -> dict[str, dict[str, str]]:
-    """El fixture solo prueba código local; live/producción quedan UNKNOWN."""
+    """Solo resultados locales completos acreditan el contrato: nunca live."""
+    required = {
+        "S28-R020": ("sonar", "sonar_fail", "sonar_malformed"),
+        "S28-R021": ("coderabbit", "coderabbit_missing", "coderabbit_stale",
+                     "coderabbit_spoof", "coderabbit_limited", "coderabbit_offline"),
+        "S28-R022": ("deploy", "deploy_fallback"),
+        "S28-R023": ("deploy_schema_failure", "deploy_identity_failure"),
+        "S28-R024": ("seo", "seo_truncated"),
+    }
     result = {}
     for key in CLAUSES:
-        valid = (key in rows and rows[key][2] == "NO_VERIFICABLE"
-                 and isinstance(data, dict))
+        valid = (
+            key in rows and rows[key][2] == "NO_VERIFICABLE"
+            and isinstance(data, dict)
+            and all(isinstance(data.get(source), dict) and bool(data[source])
+                    for source in required[key])
+        )
         result[key] = {
             "code": LOCAL if valid else UNKNOWN,
             "live": UNKNOWN, "production": UNKNOWN, "deploy_observed": UNKNOWN,
@@ -168,6 +192,7 @@ def evidence(rows: dict, data: dict | None) -> dict[str, dict[str, str]]:
 class BrechasBrvtal38Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        """Lee las cinco filas de la matriz versionada, sin modificarla."""
         cls.rows = matrix_rows((ROOT / "docs/matriz-cobertura.md").read_text(encoding="utf-8"))
 
     def test_contrato_principal(self):
@@ -221,6 +246,7 @@ class BrechasBrvtal38Tests(unittest.TestCase):
         self.assertIn("seo:'/api/seo-workspace.php?summary=1'", js)
 
     def test_falla_cerrado(self):
+        """Fallos, ausencias, IDs falsos y entradas malformadas no pasan."""
         d = probe()
         for key in ("sonar_fail", "sonar_malformed"):
             with self.subTest(case=key):
@@ -265,8 +291,12 @@ class BrechasBrvtal38Tests(unittest.TestCase):
         self.assertNotRegex(PHP_PROBE, r"(?:BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|Authorization:\s*Bearer)")
         self.assertEqual(probe()["deploy"]["environment"], "SYNTHETIC")
         self.assertEqual(probe()["deploy"]["version"], "0.0.0-fixture")
+        self.assertIn("BRVTAL_SENTRY_TESTING", PHP_PROBE)
+        self.assertIn("config/config.example.php", PHP_PROBE)
+        self.assertNotIn("config/config.php", PHP_PROBE)
 
     def test_estados_unknown_explicitos(self):
+        """Evidencia local no convierte lo desconocido en hecho de producción."""
         states = evidence(self.rows, probe())
         self.assertEqual(set(states), set(CLAUSES))
         for key, value in states.items():
@@ -277,6 +307,8 @@ class BrechasBrvtal38Tests(unittest.TestCase):
                 self.assertEqual(self.rows[key][2], "NO_VERIFICABLE")
         self.assertEqual({x["code"] for x in evidence({}, probe()).values()}, {UNKNOWN})
         self.assertEqual({x["code"] for x in evidence(self.rows, None).values()}, {UNKNOWN})
+        self.assertEqual({x["code"] for x in evidence(self.rows, {}).values()}, {UNKNOWN})
+        self.assertEqual({x["code"] for x in evidence(self.rows, {"sonar": probe()["sonar"]}).values()}, {UNKNOWN})
         altered = dict(self.rows)
         row = list(altered["S28-R020"])
         row[2] = "CUBIERTO"
