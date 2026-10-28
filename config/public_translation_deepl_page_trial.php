@@ -167,7 +167,8 @@ function brvtalDeepLOnePageTrialForRequest(
         return $page;
     }
     $verified = brvtalDeepLOnePageTrialVerifyCanonicalSource(
-        $page, $routeSlug,
+        $page,
+        $routeSlug,
         static function (int $id, string $slug) use ($pdo): ?array {
             $statement = $pdo->prepare(
                 "SELECT status,locale FROM pages WHERE id=? AND slug=? LIMIT 1"
@@ -185,7 +186,12 @@ function brvtalDeepLOnePageTrialForRequest(
         return $page;
     }
     return brvtalDeepLOnePageTrialProject(
-        $verified, $locale, $routeType, $routeSlug, $env, $adapter,
+        $verified,
+        $locale,
+        $routeType,
+        $routeSlug,
+        $env,
+        $adapter,
         static fn(array $identity): ?string => brvtalPublicTranslationCacheRead($pdo, $identity),
         static function (array $identity, string $text) use ($pdo): void {
             brvtalPublicTranslationCacheWrite($pdo, $identity, $text);

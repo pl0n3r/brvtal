@@ -53,7 +53,7 @@ class DeepLOnePageTrialTests(unittest.TestCase):
         self.assertNotIn("curl_init(", source)
         self.assertNotIn("curl_init(", SCENARIOS.read_text())
 
-    def test_canonical_publication_revalidated_before_transport(self) -> None:
+    def test_canonical_source_verification(self) -> None:
         # The public SEO SELECT intentionally omits status; production must
         # attest publication from the canonical DB using a scoped read.
         result = scenario("canonical_source")
