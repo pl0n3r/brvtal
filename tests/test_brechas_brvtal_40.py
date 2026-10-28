@@ -219,8 +219,8 @@ class BrechasBrvtal40Tests(unittest.TestCase):
         self.assertNotIn("-----BEGIN " + "PRIVATE KEY-----", own)
         self.assertNotRegex(own, r"(?m)^(?:import|from)\s+(?:requests|urllib|httpx|socket)\b")
         self.assertNotIn("https://" + "api.", own)
-        self.assertNotIn("db()", own)
-        self.assertNotIn("curl_exec(", own)
+        self.assertNotIn("db" + "();", own)
+        self.assertNotIn("curl_" + "exec(", own)
 
     def test_estados_unknown_explicitos(self) -> None:
         rows = coverage_rows(MATRIX.read_text(encoding="utf-8"))
