@@ -41,8 +41,8 @@ $expect(str_contains($workflow, "BRVTAL_INTEGRATION_TESTS: '1'"), 'integration g
 $expect(str_contains($workflow, "BRVTAL_BACKUP_RECOVERY_REHEARSAL: '1'"), 'recovery guard must be enabled explicitly');
 $expect(str_contains($workflow, 'BRVTAL_TEST_DB_NAME: brvtal_test_backup_source'), 'rehearsal must target only its disposable source DB');
 $expect(
-    str_contains($workflow, 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'),
-    'recovery evidence must use the immutable upload-artifact v7.0.1 pin'
+    str_contains($workflow, 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2'),
+    'recovery evidence must use the immutable upload-artifact v7.0.2 pin'
 );
 $expect(
     str_contains($workflow, 'name: backup-recovery-rehearsal-${{ github.run_id }}')
