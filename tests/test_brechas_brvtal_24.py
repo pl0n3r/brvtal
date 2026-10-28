@@ -125,7 +125,7 @@ def verdict(identifier: str, table: dict[str, tuple[str, ...]],
             or row[2] != "NO_VERIFICABLE"
             or not all(isinstance(files.get(name), str) and files[name]
                        for name in PATHS)
-            or not isinstance(observed, dict)):
+            or not isinstance(observed, dict) or not observed):
         return result
 
     spec = files["spec"]
