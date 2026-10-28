@@ -247,9 +247,9 @@ class BrechasBrvtal54Tests(unittest.TestCase):
         source = Path(__file__).read_text(encoding="utf-8")
         self.assertNotRegex(source, r"(?m)^\s*(?:import|from)\s+(?:requests|httpx|socket|urllib)\b")
         self.assertIn("tempfile.TemporaryDirectory", source)
-        self.assertNotIn("mysqli_connect(", source)
-        self.assertNotIn("new PDO(", source)
-        self.assertNotIn("https://api.github.com", source)
+        self.assertNotIn("mysqli" + "_connect(", source)
+        self.assertNotIn("new " + "PDO(", source)
+        self.assertNotIn("https://" + "api.github.com", source)
 
     def test_estados_unknown_explicitos(self) -> None:
         """AC-04: offline contracts cannot certify live, even with CI success."""
