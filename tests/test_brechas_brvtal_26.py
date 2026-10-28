@@ -154,7 +154,7 @@ def verdict(identifier: str, table: dict[str, tuple[str, ...]],
                        for k in ("artists", "events", "sets", "releases"))
             or any(graph[k].get("999") is not None
                    for k in ("artists", "events", "sets", "releases"))
-            or not all(empty.get(k) == {}
+            or not all(empty.get(k) in ({}, [])
                        for k in ("artists", "events", "sets", "releases"))
             or empty.get("counts") != dict.fromkeys(
                 ("event_artist", "event_set", "artist_set", "artist_release"), 0
