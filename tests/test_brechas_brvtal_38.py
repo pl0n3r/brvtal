@@ -128,7 +128,7 @@ def matrix_rows(text: str) -> dict[str, tuple[str, ...]]:
     """Una fila por ID, cinco columnas; ausencias no constituyen cobertura."""
     rows: dict[str, tuple[str, ...]] = {}
     for line in text.splitlines():
-        match = re.match(r"^\\| (S28-R\\d{3}) · ", line)
+        match = re.match(r"^\| (S28-R\d{3}) · ", line)
         if not match or match.group(1) not in CLAUSES:
             continue
         key = match.group(1)
@@ -261,8 +261,8 @@ class BrechasBrvtal38Tests(unittest.TestCase):
                      "config/admin_coderabbit_signals.php",
                      "config/admin_deploy_signals.php", "config/seo_workspace.php"):
             self.assertTrue((ROOT / path).is_file())
-        self.assertNotRegex(PHP_PROBE, r"(?:curl_exec|file_get_contents|PDO\\(|getenv\\(|exec\\(|shell_exec\\()")
-        self.assertNotRegex(PHP_PROBE, r"(?:BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|Authorization:\\s*Bearer)")
+        self.assertNotRegex(PHP_PROBE, r"(?:curl_exec|file_get_contents|PDO\(|getenv\(|exec\(|shell_exec\()")
+        self.assertNotRegex(PHP_PROBE, r"(?:BEGIN (?:RSA |OPENSSH )?PRIVATE KEY|Authorization:\s*Bearer)")
         self.assertEqual(probe()["deploy"]["environment"], "SYNTHETIC")
         self.assertEqual(probe()["deploy"]["version"], "0.0.0-fixture")
 
