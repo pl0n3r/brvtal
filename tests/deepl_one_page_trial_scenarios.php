@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/public_translation_deepl_page_trial.php';
+require_once __DIR__ . '/../config/public_routes.php';
 
 final class BrvtalTrialFakeAdapter implements BrvtalPublicTranslationAdapter
 {
@@ -122,6 +123,45 @@ function trialScenario(string $name): array
             'failure_fallback' => $out === $page,
             'budget_failure_fallback' => $budgetFallback === $page,
             'cache_writes' => $writes];
+    }
+    if ($name === 'visibility') {
+        $off = trialEnv([]);
+        $valid = trialEnv($on);
+        $wrong = trialEnv(array_replace($on, ['BRVTAL_DEEPL_TRIAL_PAGE_SLUG' => 'other-page']));
+        $noKey = trialEnv(array_diff_key($on, ['DEEPL_AUTH_KEY' => true]));
+        $noPermit = trialEnv(array_replace($on, ['BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT' => '0']));
+        $english = ['status' => 'published', 'locale' => 'en', 'slug' => 'test-page'];
+        $spanish = ['status' => 'published', 'locale' => 'es', 'slug' => 'test-page',
+            'visibility' => 'public', 'trusted' => true];
+        $default = brvtal_public_content_definitions($off)['pages'];
+        $enabled = brvtal_public_content_definitions($valid)['pages'];
+        return [
+            'default_route_unchanged' => $default['where'] === "status='published' AND locale='en'"
+                && $default['parameters'] === [],
+            'single_bound_spanish_source' => str_contains($enabled['where'], "locale='es' AND slug=?")
+                && $enabled['parameters'] === ['test-page', 'test-page'],
+            'english_unchanged' => brvtal_public_page_is_visible($english, $off),
+            'spanish_off' => !brvtal_public_page_is_visible($spanish, $off),
+            'chosen_spanish_only' => brvtal_public_page_is_visible($spanish, $valid),
+            'different_slug' => !brvtal_public_page_is_visible(
+                array_replace($spanish, ['slug' => 'other-page']), $valid
+            ),
+            'wrong_locale' => !brvtal_public_page_is_visible(
+                array_replace($spanish, ['locale' => 'fr']), $valid
+            ),
+            'draft' => !brvtal_public_page_is_visible(
+                array_replace($spanish, ['status' => 'draft']), $valid
+            ),
+            'private' => !brvtal_public_page_is_visible(
+                array_replace($spanish, ['visibility' => 'private']), $valid
+            ),
+            'untrusted' => !brvtal_public_page_is_visible(
+                array_replace($spanish, ['trusted' => false]), $valid
+            ),
+            'wrong_slug_gate' => !brvtal_public_page_is_visible($spanish, $wrong),
+            'missing_key_gate' => !brvtal_public_page_is_visible($spanish, $noKey),
+            'missing_permit_gate' => !brvtal_public_page_is_visible($spanish, $noPermit),
+        ];
     }
     if ($name === 'receipt') {
         $fake = array_replace($on, ['BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT' => '0']);

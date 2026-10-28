@@ -34,6 +34,8 @@ class DeepLOnePageTrialTests(unittest.TestCase):
         result = data["results"]
         self.assertTrue(result["correct"]["translated"], result)
         self.assertTrue(all(row["body_unchanged"] for row in result.values()))
+        visibility = scenario("visibility")
+        self.assertTrue(all(visibility.values()), visibility)
         for key, row in result.items():
             if key != "correct":
                 self.assertFalse(row["translated"], key)

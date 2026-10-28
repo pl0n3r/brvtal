@@ -116,14 +116,56 @@ function brvtal_public_event_is_historical(array $event, ?DateTimeImmutable $now
 }
 
 /**
- * Pages are publicly deliverable only when they are published in the single
- * locale currently supported by the BRVTAL public frontend.
+ * Resolve exactly one Spanish source page only when all operator switches
+ * are explicitly on. The default remains English-only. No key is disclosed.
+ *
+ * @param null|callable(string):(?string) $environment
  */
-function brvtal_public_page_is_visible(array $page): bool
+function brvtal_public_trial_spanish_page_slug(?callable $environment = null): ?string
+{
+    $environment ??= static function (string $name): ?string {
+        $raw = getenv($name);
+        return is_string($raw) ? $raw : null;
+    };
+    if ($environment('BRVTAL_DEEPL_ENABLED') !== '1'
+        || $environment('BRVTAL_DEEPL_TRIAL_OPERATIONAL_PERMIT') !== '1'
+    ) {
+        return null;
+    }
+    $key = $environment('DEEPL_AUTH_KEY');
+    $slug = $environment('BRVTAL_DEEPL_TRIAL_PAGE_SLUG');
+    if (!is_string($key) || trim($key) === ''
+        || !is_string($slug)
+        || preg_match('/^[a-z0-9-]{1,190}$/D', $slug) !== 1
+    ) {
+        return null;
+    }
+    return $slug;
+}
+
+/**
+ * Existing English pages remain visible; only an exact selected Spanish
+ * source can be eligible when all operator switches are present.
+ *
+ * @param null|callable(string):(?string) $environment
+ */
+function brvtal_public_page_is_visible(array $page, ?callable $environment = null): bool
 {
     $status = strtolower(trim((string)($page['status'] ?? '')));
     $locale = strtolower(trim((string)($page['locale'] ?? '')));
-    return $status === 'published' && $locale === 'en';
+    if ($status !== 'published') return false;
+    if ($locale === 'en') return true;
+    if ($locale !== 'es' || !empty($page['private']) || !empty($page['is_private'])
+        || (isset($page['trusted']) && $page['trusted'] !== true)
+        || (isset($page['visibility'])
+            && strtolower(trim((string)$page['visibility'])) !== 'public')
+    ) {
+        return false;
+    }
+    $approvedSlug = brvtal_public_trial_spanish_page_slug($environment);
+    $pageSlug = $page['slug'] ?? null;
+    return $approvedSlug !== null && is_string($pageSlug)
+        && hash_equals($approvedSlug, $pageSlug);
 }
 
 /**
