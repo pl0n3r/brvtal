@@ -118,6 +118,54 @@ def evidence(value: object) -> str:
     return "TEST_EXECUTED" if value is True else UNKNOWN
 
 
+
+def canonical_spec_field(document: str, name: str) -> str | None:
+    """Named field value must exist once, never merely elsewhere in the spec."""
+    rows = re.findall(rf"(?m)^{re.escape(name)}:\s*\x60([^\x60\n]+)\x60\s*$", document)
+    return rows[0] if len(rows) == 1 else None
+
+
+def canonical_agent_field(document: str, name: str) -> str | None:
+    rows = re.findall(
+        rf"(?m)^\|\s*{re.escape(name)}\s*\|\s*\x60([^\x60\n]+)\x60\s*\|\s*$",
+        document,
+    )
+    return rows[0] if len(rows) == 1 else None
+
+
+def workflow_version_route(event: str, deploy_bound: bool, before: str = SHA_A) -> str:
+    """Run the literal workflow branch in a sandbox with inert shell functions."""
+    workflow = CI.read_text(encoding="utf-8")
+    match = re.search(
+        r'(?ms)^          if \[\[ "\$BRVTAL_DEPLOY_BOUND" == "true" \]\]; then\n.*?^          fi$',
+        workflow,
+    )
+    if match is None:
+        return UNKNOWN
+    branch = "\n".join(line[10:] for line in match.group(0).splitlines())
+    source = (
+        "set -euo pipefail\n"
+        "compare_release_refs() { printf 'transition:%s:%s\\n' \"$1\" \"$2\"; }\n"
+        "python() { printf 'current:%s\\n' \"$*\"; }\n" + branch
+    )
+    with tempfile.TemporaryDirectory(prefix="brvtal-1141-route-") as temp:
+        root = Path(temp)
+        env = safe_env(root)
+        env.update({
+            "BRVTAL_EVENT": event,
+            "BRVTAL_DEPLOY_BOUND": "true" if deploy_bound else "false",
+            "BRVTAL_PR_BASE_SHA": SHA_A, "BRVTAL_PR_HEAD_SHA": SHA_B,
+            "BRVTAL_BEFORE": before, "BRVTAL_SHA": SHA_B,
+        })
+        result = subprocess.run(
+            ["bash", "-c", source], cwd=root, env=env, capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        if result.returncode or result.stderr or not result.stdout.strip():
+            return UNKNOWN
+        return result.stdout.strip().splitlines()[-1]
+
+
 class BrechasBrvtal51Tests(unittest.TestCase):
     def test_contrato_principal(self) -> None:
         """AC-01: each of the five IDs exercises code or a fail-closed contract."""
@@ -159,17 +207,25 @@ class BrechasBrvtal51Tests(unittest.TestCase):
                 and "Do not increment semantic product version on every commit" in spec
                 and "Repository-only maintenance: product version may remain unchanged." in ci
                 and "tests/*" in SCOPE.read_text(encoding="utf-8")
+                and workflow_version_route("pull_request", False) ==
+                    "current:scripts/release-version.py --check-current"
+                and workflow_version_route("pull_request", True) ==
+                    "transition:" + SHA_A + ":" + SHA_B
+                and workflow_version_route("push", True) ==
+                    "transition:" + SHA_A + ":" + SHA_B
+                and workflow_version_route("push", True, "0" * 40) ==
+                    "current:scripts/release-version.py --check-current"
             ),
             "S35-R001": (
-                "Repository: " in spec and "pl0n3r/brvtal" in spec
-                and "| Repository | " in agents and "pl0n3r/brvtal" in agents
+                canonical_spec_field(spec, "Repository") == "pl0n3r/brvtal"
+                and canonical_agent_field(agents, "Repository") == "pl0n3r/brvtal"
                 and "https://github.com/pl0n3r/brvtal/tree/main" in README.read_text(encoding="utf-8")
                 and "BRVTAL_REPOSITORY: " in ci and "github.repository" in ci
                 and pkg["name"] == "brvtal"
             ),
             "S35-R002": (
-                "Canonical branch: " in spec and "main" in spec
-                and "| Canonical branch | " in agents and "main" in agents
+                canonical_spec_field(spec, "Canonical branch") == "main"
+                and canonical_agent_field(agents, "Canonical branch") == "main"
                 and ci.count("branches: [main]") >= 2
                 and "branches: [main]" in RELEASE.read_text(encoding="utf-8")
                 and "GitHub main → Hostinger automatic Git deployment" in spec
@@ -186,16 +242,35 @@ class BrechasBrvtal51Tests(unittest.TestCase):
         for key in ("invalid", "missing"):
             with self.subTest(case=key):
                 result = samples[key]
-                self.assertEqual(result["source"], "release_fallback")
+                self.assertEqual("release_fallback", result["source"])
                 self.assertIs(result["exact"], False)
                 self.assertIsNone(result["public"]["commit"])
                 self.assertIsNone(result["public"]["short_commit"])
-                self.assertEqual(result["cache"], "release-" + result["version"])
+                self.assertEqual("release-" + result["version"], result["cache"])
         for value in (None, False, 1, {}, "main", SHA_A, "VALIDATED_IN_PRODUCTION"):
             self.assertEqual(UNKNOWN, evidence(value))
         self.assertEqual(UNKNOWN, matrix_state("", CLAUSES[0]))
         self.assertEqual(UNKNOWN, matrix_state(
             "| S35-R002 · x | main | NO_VERIFICABLE | n | — |\n" * 2, "S35-R002"))
+
+        spec = SPEC.read_text(encoding="utf-8")
+        agents = AGENTS.read_text(encoding="utf-8")
+        tick = chr(96)
+        wrong_repo = spec.replace(
+            "Repository: " + tick + "pl0n3r/brvtal" + tick,
+            "Repository: " + tick + "wrong/repo" + tick,
+        )
+        wrong_branch = spec.replace(
+            "Canonical branch: " + tick + "main" + tick,
+            "Canonical branch: " + tick + "develop" + tick,
+        )
+        self.assertNotEqual("pl0n3r/brvtal", canonical_spec_field(wrong_repo, "Repository"))
+        self.assertNotEqual("main", canonical_spec_field(wrong_branch, "Canonical branch"))
+        self.assertIsNone(canonical_spec_field(
+            spec + "\nRepository: " + tick + "wrong/repo" + tick, "Repository"))
+        self.assertIsNone(canonical_agent_field(
+            agents + "\n| Canonical branch | " + tick + "develop" + tick + " |",
+            "Canonical branch"))
 
     def test_sin_datos_reales(self) -> None:
         """AC-03: synthetic SHA and allowlisted process env; no personal data."""
@@ -210,7 +285,7 @@ class BrechasBrvtal51Tests(unittest.TestCase):
                         "APP_KEY", "DEPLOY_SSH_KEY", "HTTP_PROXY", "HTTPS_PROXY"):
                 self.assertNotIn(key, environment)
             invalid = run_php(root, marker)
-            self.assertEqual(invalid["source"], "release_fallback")
+            self.assertEqual("release_fallback", invalid["source"])
             self.assertNotIn(marker, json.dumps(invalid))
             self.assertEqual(sorted(p.name for p in root.iterdir()), ["config"])
         for dangerous in ("curl_", "new PDO", "https://"):
@@ -222,12 +297,12 @@ class BrechasBrvtal51Tests(unittest.TestCase):
         self.assertEqual(len(CLAUSES), 5)
         for clause in CLAUSES:
             with self.subTest(clause=clause):
-                self.assertEqual(matrix_state(matrix, clause), "NO_VERIFICABLE")
-                self.assertEqual(matrix_state("", clause), UNKNOWN)
-                self.assertEqual(evidence(None), UNKNOWN)
+                self.assertEqual("NO_VERIFICABLE", matrix_state(matrix, clause))
+                self.assertEqual(UNKNOWN, matrix_state("", clause))
+                self.assertEqual(UNKNOWN, evidence(None))
         for value in ("release_fallback", "environment", "git_checkout",
                       "main", "pl0n3r/brvtal", "v0.1.0"):
-            self.assertEqual(evidence(value), UNKNOWN)
+            self.assertEqual(UNKNOWN, evidence(value))
         self.assertIs(scenarios()["missing"]["exact"], False)
 
 
