@@ -340,9 +340,9 @@ jobs:
       - name: Test CI resilience tooling
         run: |
           set -euo pipefail
-          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py scripts/phpstan_diff.py tests/test_ci_dependency_pins.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py
+          python3 -m py_compile scripts/ci_retry.py scripts/ci_self_audit.py scripts/phpstan_diff.py tests/test_ci_dependency_pins.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_lease_consumer_observer_adoption.py
           bash -n scripts/php-static-analysis.sh
-          python3 -m unittest tests/test_ci_retry.py tests/test_ci_dependency_pins.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_actions_cache_v6_adoption.py tests/test_upload_artifact_v7_adoption.py tests/test_concept05_success_visual_artifact.py tests/test_public_concept05_production_visual_evidence.py
+          python3 -m unittest tests/test_ci_retry.py tests/test_ci_dependency_pins.py tests/test_static_analysis_ci.py tests/test_phpstan_diff.py tests/test_php_static_analysis_behavior.py tests/test_factory_observer_adoption.py tests/test_lease_consumer_observer_adoption.py tests/test_actions_cache_v6_adoption.py tests/test_upload_artifact_v7_adoption.py tests/test_concept05_success_visual_artifact.py tests/test_public_concept05_production_visual_evidence.py
           python3 tests/ci-self-audit-contract.py
 
 
