@@ -38,6 +38,31 @@ function brvtal_public_route_definition(
 }
 
 /**
+ * Default route policy is unchanged. With the operator's one-slug opt-in,
+ * only the selected page may resolve to its Spanish canonical source.
+ * SQL values remain bound, never concatenated from environment input.
+ *
+ * @param null|callable(string):(?string) $environment
+ */
+function brvtal_public_trial_page_definition(?callable $environment = null): array
+{
+    $selected = brvtal_public_trial_spanish_page_slug($environment);
+    if ($selected === null) {
+        return brvtal_public_route_definition(
+            'pages', 'title', 'content_json', '', 'WebPage',
+            "status='published' AND locale='en'"
+        );
+    }
+
+    $definition = brvtal_public_route_definition(
+        'pages', 'title', 'content_json', '', 'WebPage',
+        "status='published' AND ((locale='en' AND slug<>?) OR (locale='es' AND slug=?))"
+    );
+    $definition['parameters'] = [$selected, $selected];
+    return $definition;
+}
+
+/**
  * Canonical registry for indexable public content families.
  *
  * @return array<string,array{
@@ -51,7 +76,7 @@ function brvtal_public_route_definition(
  *   event_visibility:bool
  * }>
  */
-function brvtal_public_content_definitions(): array
+function brvtal_public_content_definitions(?callable $environment = null): array
 {
     $eventStatuses = brvtal_public_visible_event_statuses();
     $eventWhere = 'status IN (' . brvtal_public_sql_placeholders($eventStatuses) . ')';
@@ -96,14 +121,7 @@ function brvtal_public_content_definitions(): array
             'cover_image',
             'BlogPosting'
         ),
-        'pages' => brvtal_public_route_definition(
-            'pages',
-            'title',
-            'content_json',
-            '',
-            'WebPage',
-            "status='published' AND locale='en'"
-        ),
+        'pages' => brvtal_public_trial_page_definition($environment),
     ];
 }
 
