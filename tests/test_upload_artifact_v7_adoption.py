@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PIN = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+PIN = "cf430e030ddbb5b0abf93d22962f4752f3646cd9"
 LEGACY_PIN = "ea165f8d65b6e75b540449e92b4886f43607fa02"
 CI = ROOT / ".github/workflows/update-release-metadata.yml"
 RECOVERY_CONTRACT = ROOT / "tests/backup-recovery-rehearsal-contract.php"
@@ -74,9 +74,9 @@ def upload_block(text: str, *, target_name: str | None = None) -> str:
 
 
 def validate_upload_block(block: str) -> None:
-    expected = f"uses: actions/upload-artifact@{PIN} # v7.0.1"
+    expected = f"uses: actions/upload-artifact@{PIN} # v7.0.2"
     if expected not in block:
-        raise AssertionError("upload-artifact must use the immutable v7.0.1 SHA")
+        raise AssertionError("upload-artifact must use the immutable v7.0.2 SHA")
     if "retention-days: 14" not in block:
         raise AssertionError("upload-artifact must preserve fourteen-day retention")
     if "archive: false" in block:
@@ -84,7 +84,7 @@ def validate_upload_block(block: str) -> None:
 
 
 class UploadArtifactV7AdoptionTests(unittest.TestCase):
-    def test_target_workflows_pin_upload_artifact_v7_0_1(self) -> None:
+    def test_target_workflows_pin_upload_artifact_v7_0_2(self) -> None:
         for path, expected in TARGETS.items():
             with self.subTest(path=path.name):
                 text = path.read_text(encoding="utf-8")
@@ -124,7 +124,7 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
     def test_target_workflows_reject_legacy_mutable_or_unretained_uploads(self) -> None:
         valid = "\n".join([
             "if: always()",
-            f"uses: actions/upload-artifact@{PIN} # v7.0.1",
+            f"uses: actions/upload-artifact@{PIN} # v7.0.2",
             "with:",
             "  name: evidence-${{ github.run_id }}",
             "  path: artifacts/evidence.json",
@@ -134,7 +134,7 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         validate_upload_block(valid)
         invalid = (
             valid.replace(PIN, LEGACY_PIN),
-            valid.replace(f"@{PIN} # v7.0.1", "@v7"),
+            valid.replace(f"@{PIN} # v7.0.2", "@v7"),
             valid.replace("  retention-days: 14", ""),
             valid.replace("retention-days: 14", "retention-days: 7"),
             valid + "\n  archive: false",
@@ -148,7 +148,7 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         own = [
             "      - name: Upload long allowlist",
             "        if: success()",
-            f"        uses: actions/upload-artifact@{PIN} # v7.0.1",
+            f"        uses: actions/upload-artifact@{PIN} # v7.0.2",
             "        with:",
             "          name: long-allowlisted-artifact",
             "          path: |",
@@ -158,7 +158,7 @@ class UploadArtifactV7AdoptionTests(unittest.TestCase):
         ]
         neighbor = [
             "      - name: Unrelated upload",
-            "        uses: actions/upload-artifact@" + PIN + " # v7.0.1",
+            "        uses: actions/upload-artifact@" + PIN + " # v7.0.2",
             "        with:",
             "          name: next-artifact",
             "          path: artifacts/unrelated.json",

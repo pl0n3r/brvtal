@@ -169,8 +169,8 @@ $assert(str_contains($performanceWorkflow, 'github.event.workflow_run.head_sha')
 $assert(!str_contains($performanceWorkflow, '?v=$short_sha') && !str_contains($performanceWorkflow, 'Wait for exact Hostinger deploy'), 'production performance must not duplicate Hostinger deploy polling');
 $assert(str_contains($performanceWorkflow, 'production-performance-mobile.json') && str_contains($performanceWorkflow, 'production-performance-desktop.json'), 'production performance workflow must retain mobile and desktop evidence');
 $assert(
-    str_contains($performanceWorkflow, 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'),
-    'production performance evidence must use the immutable upload-artifact v7.0.1 pin'
+    str_contains($performanceWorkflow, 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2'),
+    'production performance evidence must use the immutable upload-artifact v7.0.2 pin'
 );
 $assert(
     str_contains($performanceWorkflow, 'name: production-performance-${{ github.run_id }}')
