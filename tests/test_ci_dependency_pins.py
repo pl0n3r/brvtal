@@ -46,9 +46,22 @@ class DependencyPinsTests(unittest.TestCase):
                 self.assertFalse(any(sha in text for sha in OLD))
                 self.assertEqual(tuple(text.count(sha) for sha in NEW), expected)
                 for match in re.finditer(
-                    r"uses:\s+actions/(?:checkout|upload-artifact|setup-node)@(\S+)", text
+                    r"uses:\s+(?:actions/(checkout|upload-artifact|setup-node)|"
+                    r"shivammathur/(setup-php))@(\S+)", text
                 ):
-                    self.assertRegex(match.group(1), r"^[0-9a-f]{40}$")
+                    action = match.group(1) or match.group(2)
+                    pinned_sha = match.group(3)
+                    self.assertRegex(pinned_sha, r"^[0-9a-f]{40}$")
+                    self.assertEqual(
+                        pinned_sha,
+                        {
+                            "checkout": CHECKOUT,
+                            "upload-artifact": UPLOAD,
+                            "setup-node": NODE,
+                            "setup-php": PHP,
+                        }[action],
+                        f"{name}: unexpected pin for {action}",
+                    )
         self.assertIn(" # v7.0.1", source("factory-hostinger-cutover.yml"))
         self.assertIn(" # v7.1.0", source("production-performance.yml"))
 
