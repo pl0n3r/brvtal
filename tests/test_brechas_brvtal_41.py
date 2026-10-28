@@ -111,10 +111,14 @@ def node_probe() -> dict:
 def treatments_by_id(document: str) -> dict[str, dict]:
     raw = json.loads(document)
     rows = raw.get("treatments")
-    if raw.get("phase") != "construccion" or not isinstance(rows, list):
+    if raw.get("phase") != "construccion" or not isinstance(rows, list) or not rows:
         raise ValueError("UNKNOWN: treatment registry unavailable")
-    ids = [r.get("id") for r in rows if isinstance(r, dict)]
-    if len(ids) != len(rows) or len(set(ids)) != len(ids):
+    if any(not isinstance(r, dict) or
+           not isinstance(r.get("id"), str) or not r.get("id")
+           for r in rows):
+        raise ValueError("UNKNOWN: incomplete treatment registry")
+    ids = [r["id"] for r in rows]
+    if len(set(ids)) != len(ids):
         raise ValueError("UNKNOWN: ambiguous treatment registry")
     return {r["id"]: r for r in rows}
 
@@ -220,11 +224,8 @@ class BrechasBrvtal41Tests(unittest.TestCase):
         for bad in ('{"phase":"construccion","treatments":[]}',
                     '{"phase":"live","treatments":[]}',
                     '{"phase":"construccion","treatments":[{"id":"x"},{"id":"x"}]}'):
-            if bad.startswith('{"phase":"construccion","treatments":[]}'):
-                self.assertEqual(treatments_by_id(bad), {})
-            else:
-                with self.assertRaises(ValueError):
-                    treatments_by_id(bad)
+            with self.assertRaises(ValueError):
+                treatments_by_id(bad)
         self.assertEqual(operational_evidence({"ci":"success"}), UNKNOWN)
         self.assertEqual(operational_evidence({"legal":"approved"}), UNKNOWN)
         self.assertEqual(operational_evidence(None), UNKNOWN)
