@@ -65,7 +65,7 @@ class BrvtalV2HeroTests(unittest.TestCase):
                 line for line in TOKENS.splitlines()
                 if line.strip().startswith(token + ":")
             )
-            colors = re.findall(r"#[0-9a-fA-F]{6}\\b", definition)
+            colors = re.findall(r"#[0-9a-fA-F]{6}\b", definition)
             self.assertTrue(colors, f"Missing color fallback for {token}")
             return colors[-1]
 
