@@ -47,6 +47,12 @@ class BrvtalV2HeroTests(unittest.TestCase):
         self.assertIn("color:var(--c5-deep-black);", button)
         self.assertGreaterEqual(contrast("#050505", "#b8ff00"), 4.5)
 
+    def test_mobile_wordmark_uses_screenshot_verified_font_scale(self) -> None:
+        mobile_size = re.search(r"\.hero-title\{font-size:(\d+(?:\.\d+)?)vw\}", CSS)
+        self.assertIsNotNone(mobile_size)
+        self.assertLessEqual(float(mobile_size.group(1)), 21.0)
+        self.assertIn("white-space:nowrap", CSS)
+
     def test_css_is_flat_and_respects_reduced_motion(self) -> None:
         self.assertNotIn("!important", CSS)
         self.assertNotRegex(CSS, r"box-shadow:\s*\d")
