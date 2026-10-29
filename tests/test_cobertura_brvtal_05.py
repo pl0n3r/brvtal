@@ -203,6 +203,7 @@ class CoberturaBrvtal05Tests(unittest.TestCase):
         self.assertNotIn(4, self.observed["active_ids"] + self.observed["archive_ids"])
         self.assertNotIn(5, self.observed["active_ids"] + self.observed["archive_ids"])
         self.assertNotIn(6, self.observed["active_ids"] + self.observed["archive_ids"])
+
     def test_sin_datos_reales(self) -> None:
         """AC-03: only invented records and pure PHP libraries, no side effects."""
         self.assertEqual(set(OFFLINE) | set(EXTERNAL) | set(DECLARATIVE), IDS)
