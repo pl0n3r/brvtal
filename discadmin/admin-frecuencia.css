@@ -26,3 +26,20 @@ aside.side button.active.active{
   box-shadow:none;
   border-top:2px solid var(--admin-signal);
 }
+html[data-discadmin-appearance] .sv2-hero,
+html[data-discadmin-appearance] .ssv2-hero{
+  box-shadow:none;
+  border-top:2px solid var(--admin-signal);
+}
+.sv2-hero h2,
+.ssv2-hero h2{
+  text-transform:uppercase;
+  letter-spacing:-.01em;
+  font-weight:800;
+}
+.sv2-tabs button.active{
+  box-shadow:inset 3px 0 0 var(--admin-signal);
+}
+html[data-discadmin-appearance] .ssv2-bar-track i{
+  background:var(--admin-signal);
+}

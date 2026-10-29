@@ -23,6 +23,11 @@ class DiscadminFrecuenciaTests(unittest.TestCase):
         self.assertIn("var(--acid,#b8ff00)", CSS)
         self.assertEqual(set(re.findall(r"#[0-9a-fA-F]{3,6}\b", CSS)), {"#b8ff00", "#050505"})
 
+    def test_settings_and_system_headers_carry_the_signal_rule(self) -> None:
+        for selector in (".sv2-hero", ".ssv2-hero"):
+            with self.subTest(selector=selector):
+                self.assertRegex(CSS, re.escape(selector) + r"[^{]*\{[^}]*border-top:2px solid var\(--admin-signal\)")
+
     def test_css_is_flat_and_does_not_force_priority(self) -> None:
         self.assertNotIn("!important", CSS)
         self.assertNotRegex(CSS, r"box-shadow:\s*\d")
