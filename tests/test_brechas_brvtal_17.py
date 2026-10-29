@@ -56,11 +56,9 @@ $request = brvtal_event_workflow_request([
   'event'=>['title'=>'Synthetic Event', 'status'=>'draft',
            'event_date'=>'2026-11-11 20:00:00'],
   'ticket_types'=>[$early, $sold], 'lineup'=>[]]);
-$invalidWindow = null;
-try {
-  brvtal_event_workflow_ticket(array_replace($early, [
-    'available_from'=>'2026-12-01 10:00', 'available_until'=>'2026-11-01 10:00']));
-} catch (InvalidArgumentException $e) {$invalidWindow = $e->getMessage();}
+$invalidWindow = brvtal_ticket_window_error([
+  'available_from'=>'2026-12-01 10:00:00',
+  'available_until'=>'2026-11-01 10:00:00'])['error'] ?? null;
 $invalidDate = null;
 try {
   brvtal_event_workflow_ticket(array_replace($early, ['available_from'=>'not-a-date']));
