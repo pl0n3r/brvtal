@@ -62,6 +62,7 @@ $record = static function (string $id) use (&$verified): void { $verified[] = $i
 if ($mode === 'principal') {
     $preview = brvtalPublicPreviewSnapshot('events', [
         'title'=>'SYNTHETIC EVENT', 'ticket_url'=>'https://fixture.invalid/tickets',
+        'cover_image'=>'/uploads/synthetic-unavailable.jpg',
         'accent'=>'#FF2038', 'event_date'=>'2026-10-29 21:00',
         'lineup'=>[['artist_id'=>1],['artist_id'=>0]],
         'unapproved_internal_field'=>'PRIVATE_FIXTURE',
@@ -113,6 +114,7 @@ if ($mode === 'principal') {
         ['events',['ticket_url'=>'javascript:alert(1)'],'INVALID_PREVIEW_URL'],
         ['events',['ticket_url'=>'https://user:pass'.chr(64).'fixture.invalid/a'],'INVALID_PREVIEW_URL'],
         ['events',['accent'=>'red'],'INVALID_PREVIEW_ACCENT'],
+        ['events',['cover_image'=>'javascript:invalid'],'INVALID_PREVIEW_MEDIA'],
         ['events',['event_date'=>'2026-02-30 21:00'],'INVALID_PREVIEW_DATE'],
         ['invalid_type',['title'=>'X'],'PREVIEW_TYPE_NOT_ALLOWED'],
         ['pages',['content_json'=>'{broken'],'INVALID_PREVIEW_CONTENT_JSON'],
