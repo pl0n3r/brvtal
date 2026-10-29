@@ -241,7 +241,9 @@ def evidence(key: object, data: object, probe: object) -> str:
         valid = ("'security', tokens:['SECURITY','2FA']" in ia and
                  "'theme','settings','security','system'" in ia and
                  "'security','backups','activity'" in ia and
-                 "go('security')" in core and
+                 "s==='content-core'||s==='security'" in core and
+                 "/discadmin/security.js" in core and
+                 "SECURITY / 2FA" in core and
                  "'ACCOUNT 2FA':'security'" in e2e and
                  probe["securityRoute"])
         return LOCAL if valid else UNKNOWN
