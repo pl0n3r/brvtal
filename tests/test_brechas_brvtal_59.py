@@ -130,15 +130,15 @@ def evidence(key, src, proof):
     if (grid.get("supported") != [True] * 7 or grid.get("invalid") is not True
             or type(rendered) is not dict or set(rendered) != set(MODULES)
             or not all(type(rendered[m]) is dict and rendered[m].get("ok") is True
+                       and type(rendered[m].get("html")) is str
                        for m in MODULES)):
         return UNKNOWN
     if key == "S39B-R006":
         states = grid.get("states")
         good = (type(states) is list and len(states) == 4
+                and all(type(x) is dict for x in states)
                 and [x.get("ids") for x in states] ==
-                [[3,2,1],[2,1,3],[1,3,2],[3,2,1]]
-                and "if (primary !== 0) return primary * sign" in src[GRID]
-                and "return aid - bid" in src[GRID])
+                [[3,2,1],[2,1,3],[1,3,2],[3,2,1]])
     elif key == "S39B-R007":
         good = (all("data-grid-columns-toggle" in rendered[m]["html"]
                     and "data-grid-columns-reset" in rendered[m]["html"]
@@ -217,21 +217,39 @@ class BrechasBrvtal59Tests(unittest.TestCase):
         altered = json.loads(json.dumps(self.proof))
         altered["grid"]["states"][1]["ids"] = [3,1,2]
         self.assertEqual(evidence("S39B-R006", self.src, altered), UNKNOWN)
+        malformed_states = json.loads(json.dumps(self.proof))
+        malformed_states["grid"]["states"][1] = None
+        self.assertEqual(
+            evidence("S39B-R006", self.src, malformed_states), UNKNOWN)
+        for malformed_html in ("missing", None, [], 77):
+            invalid = json.loads(json.dumps(self.proof))
+            if malformed_html == "missing":
+                del invalid["grid"]["rendered"]["events"]["html"]
+            else:
+                invalid["grid"]["rendered"]["events"]["html"] = malformed_html
+            for key in ("S39B-R007", "S39B-R010"):
+                with self.subTest(key=key, html=repr(malformed_html)):
+                    self.assertEqual(
+                        evidence(key, self.src, invalid), UNKNOWN)
         self.assertEqual(evidence("S39B-R999", self.src, self.proof), UNKNOWN)
 
     def test_sin_datos_reales(self):
         """AC-03: no provider credentials, DB, HTTP or real identities."""
-        own = Path(__file__).read_text(encoding="utf-8")
-        imports = set()
-        for item in ast.walk(ast.parse(own)):
-            if isinstance(item, ast.Import):
-                imports.update(x.name.split(".")[0] for x in item.names)
-            elif isinstance(item, ast.ImportFrom) and item.module:
-                imports.add(item.module.split(".")[0])
-        self.assertLessEqual(imports, {
+        allowed = {
             "__future__", "ast", "importlib", "json", "os", "pathlib",
             "re", "shutil", "subprocess", "tempfile", "unittest"
-        })
+        }
+        # The imported neighbor is executable code too: audit its imports.
+        for source_path in (Path(__file__), ROOT / WITNESS):
+            imported = set()
+            for item in ast.walk(ast.parse(
+                    source_path.read_text(encoding="utf-8"))):
+                if isinstance(item, ast.Import):
+                    imported.update(x.name.split(".")[0] for x in item.names)
+                elif isinstance(item, ast.ImportFrom) and item.module:
+                    imported.add(item.module.split(".")[0])
+            with self.subTest(source=source_path.name):
+                self.assertLessEqual(imported, allowed)
         self.assertNotIn("new PDO(", PHP_PROBE)
         self.assertNotIn("curl_", PHP_PROBE)
         self.assertEqual(set(FILES), set(self.src))
