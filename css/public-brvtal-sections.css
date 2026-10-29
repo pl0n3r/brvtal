@@ -56,3 +56,9 @@
     gap:var(--c5-gutter-module);
   }
 }
+
+/* Textos secundarios del Archivo y de medios: AA sobre el fondo oscuro y tamaño legible (antes 8–9 px en grises fijos). */
+[data-concept="05"] :is(.archive-summary, .archive-results, .archive-event-placeholder, .archive-event-relations, .public-media-count, .media-end) {
+  color: var(--c5-paper-muted);
+  font-size: 11px;
+}

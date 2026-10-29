@@ -32,6 +32,14 @@ class BrvtalSectionsTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(0, 1fr);", block)
         self.assertEqual(block.count("repeat(auto-fill,minmax("), 2)
 
+    def test_secondary_archive_and_media_text_uses_the_muted_token_at_a_legible_size(self) -> None:
+        block = CSS[CSS.index("/* Textos secundarios del Archivo"):]
+        for cls in (".archive-summary", ".archive-results", ".archive-event-relations", ".public-media-count", ".media-end"):
+            with self.subTest(cls=cls):
+                self.assertIn(cls, block)
+        self.assertIn("color: var(--c5-paper-muted);", block)
+        self.assertRegex(block, r"font-size: 1[1-9]px;")
+
 
 if __name__ == "__main__":
     unittest.main()
