@@ -196,7 +196,8 @@ echo json_encode([
     'active'=>array_column($partition['active'],'id'),
     'archive'=>array_column($partition['archive'],'id'),
     'no_draft_leak'=>count($partition['active'])+count($partition['archive'])===2,
-    'no_historical_tickets'=>($partition['archive'][0]['ticket_url']??'fallback')===null
+    'no_historical_tickets'=>array_key_exists('ticket_url', $partition['archive'][0])
+      && $partition['archive'][0]['ticket_url']===null
       && ($partition['archive'][0]['ticket_types']??null)===[]
   ],
   'media'=>[
@@ -204,7 +205,8 @@ echo json_encode([
     'reject_traversal'=>$bad===null,
     'reject_empty'=>brvtal_public_media_delivery_sanitize([])===null
   ],
-  'seo'=>['unknown'=>$unknown['state']??null,'score'=>$unknown['score']??'not-null'],
+  'seo'=>['unknown'=>$unknown['state']??null,
+    'score'=>array_key_exists('score', $unknown)?$unknown['score']:'not-null'],
   'preview_source_only'=>true
 ], JSON_THROW_ON_ERROR);
 '''
