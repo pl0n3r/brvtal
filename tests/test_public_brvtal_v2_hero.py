@@ -28,7 +28,7 @@ class BrvtalV2HeroTests(unittest.TestCase):
         self.assertEqual(HOME.count("'css/public-brvtal-v2.css'"), 1)
 
     def test_decorative_noise_is_removed_and_the_wordmark_has_one_line(self) -> None:
-        for noise in (".hero-grid", ".hero-scan", ".hero-glitch-lines"):
+        for noise in ("&::before", "&::after", ".hero-grid", ".hero-scan", ".hero-glitch-lines"):
             with self.subTest(noise=noise):
                 self.assertIn(noise, CSS.split("{display:none}")[0])
         self.assertIn("white-space:nowrap", CSS)
@@ -36,12 +36,15 @@ class BrvtalV2HeroTests(unittest.TestCase):
 
     def test_colors_come_from_administrable_tokens_not_fixed_values(self) -> None:
         fixed = set(re.findall(r"#[0-9a-fA-F]{3,6}\b", CSS))
-        self.assertEqual(fixed, {"#050505"}, "Solo el texto del botón sobre el acento puede ser fijo")
+        self.assertEqual(fixed, set(), "El hero debe usar solo colores administrables")
         for token in ("--c5-signal-green", "--c5-deep-black", "--c5-paper-dirty", "--c5-rule-color"):
             with self.subTest(token=token):
                 self.assertIn(f"var({token})", CSS)
 
     def test_button_text_meets_wcag_aa_on_the_default_accent(self) -> None:
+        button = CSS.split(".c5-hero-explore{", 1)[1].split("}", 1)[0]
+        self.assertIn("background:var(--c5-signal-green);", button)
+        self.assertIn("color:var(--c5-deep-black);", button)
         self.assertGreaterEqual(contrast("#050505", "#b8ff00"), 4.5)
 
     def test_css_is_flat_and_respects_reduced_motion(self) -> None:

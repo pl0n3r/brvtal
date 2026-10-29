@@ -1,5 +1,5 @@
 /*
- * BRVTAL v2 · «Frecuencia» — fase 1: hero, cabecera y pie.
+ * BRVTAL v2 · «Frecuencia» — fase 1: hero.
  * Dirección: oscuridad sobria con una sola señal ácida. Se quitan el ruido decorativo (rejilla, scanlines,
  * líneas glitch) y el título partido en tres filas; el wordmark ocupa una línea y la composición es una
  * rejilla de dos columnas con filetes. Los colores salen de los tokens administrables (--bg, --fg, --acid, --red),
@@ -17,6 +17,7 @@
   background:var(--c5-deep-black);
   border-bottom:2px solid var(--c5-signal-green);
 
+  &::before,
   &::after,
   .hero-grid,
   .hero-scan,
@@ -109,7 +110,7 @@
       min-height:48px;
       padding:14px 22px;
       background:var(--c5-signal-green);
-      color:#050505;
+      color:var(--c5-deep-black);
       border:0;
       font-weight:800;
       letter-spacing:.08em;
