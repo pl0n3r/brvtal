@@ -142,7 +142,7 @@ def local_evidence(key: object, data: object, probe: object) -> str:
     except ValueError:
         return UNKNOWN
     contract = section(data["spec"])
-    line_number, phrase = REQUIREMENTS[key]
+    phrase = REQUIREMENTS[key][1]
     marker = ("The roadmap contains only execution/progress information:\n"
               if key == "S51-R002" else "- " + phrase)
     if (not contract or contract.count(marker) != 1
