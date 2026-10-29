@@ -319,6 +319,17 @@ jobs:
           command -v node
           python3 -m unittest -v tests/test_brechas_brvtal_33.py tests/test_brechas_brvtal_41.py
 
+      - name: Verify BRVTAL 17 executable coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_ci_cobertura_brvtal_17.py
+          if [[ -f tests/test_cobertura_brvtal_17.py ]]; then
+            python3 -m unittest -v tests/test_cobertura_brvtal_17.py
+          else
+            echo "NO_VERIFICABLE: BRVTAL 17 acceptance sheet not yet merged into main"
+          fi
+
       - name: Run incremental PHPStan and Rector dry-run
         if: needs.preflight.outputs.run_php == 'true'
         shell: bash
