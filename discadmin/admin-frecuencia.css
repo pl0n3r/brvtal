@@ -1,0 +1,28 @@
+/*
+ * DISCADMIN · «Frecuencia» (BRVTAL v2, fase 3). Misma dirección que el sitio público: esquinas rectas, filetes en vez de
+ * sombras y una sola señal ácida para lo activo. Se carga tras admin-design-system.css y solo redefine sus tokens y
+ * el estado activo del menú y de las tarjetas del tablero. Respeta los temas claro y de vidrio del selector de apariencia.
+ */
+:root{
+  --admin-radius-control:4px;
+  --admin-radius-card:4px;
+  --admin-radius-panel:4px;
+  --admin-elevation-card:none;
+  --admin-signal:var(--acid,#b8ff00);
+  --admin-signal-ink:#050505;
+}
+aside.side button.active.active{
+  background:var(--admin-signal);
+  color:var(--admin-signal-ink);
+  border-color:var(--admin-signal);
+}
+.dashboard-v2-hero h2{
+  text-transform:uppercase;
+  letter-spacing:-.01em;
+  font-weight:800;
+}
+.dashboard-v2-hero,
+.dashboard-v2-summary-card{
+  box-shadow:none;
+  border-top:2px solid var(--admin-signal);
+}

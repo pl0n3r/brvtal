@@ -1,0 +1,37 @@
+/*
+ * BRVTAL v2 · «Frecuencia» — fase 2: secciones numeradas, próxima experiencia y pie.
+ * Mismo criterio que la fase 1: tokens administrables, sin ruido decorativo y sin forzar la prioridad.
+ */
+[data-concept="05"] {
+  .c5-numbered.c5-numbered::before{
+    color:var(--c5-signal-green);
+    border-bottom:2px solid var(--c5-rule-color);
+    letter-spacing:.16em;
+  }
+
+  .c5-experience-authored{
+    .genesis-copy h2{
+      max-width:none;
+      font-size:clamp(44px,6vw,96px);
+      font-weight:800;
+      line-height:.92;
+      letter-spacing:0;
+      overflow-wrap:anywhere;
+      text-shadow:none;
+
+      &::before,
+      &::after{display:none}
+    }
+    .genesis-tag{
+      background:var(--c5-signal-green);
+      color:#050505;
+    }
+    .genesis-copy h2::after{content:none}
+  }
+
+  .c5-footer{
+    border-top:2px solid var(--c5-signal-green);
+
+    &::before{display:none}
+  }
+}

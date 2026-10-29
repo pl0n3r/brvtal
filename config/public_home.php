@@ -674,7 +674,7 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
-    foreach (['css/public-brvtal-impact.css'] as $v2Sheet) {
+    foreach (['css/public-brvtal-impact.css', 'css/public-brvtal-sections.css'] as $v2Sheet) {
         if (!str_contains($html, $v2Sheet)) {
             $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"{$v2Sheet}\">\n</head>", $html);
         }
