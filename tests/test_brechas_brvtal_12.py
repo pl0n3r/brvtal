@@ -59,7 +59,7 @@ $ticket = brvtal_event_workflow_ticket([
   'available_until'=>'2026-10-25 23:00'
 ]);
 $badTicket = false;
-try { brvtal_event_workflow_ticket(['name'=>'Fixture','currency'=>'not-a-currency']); }
+try { brvtal_event_workflow_ticket(['name'=>'Fixture','currency'=>'x1']); }
 catch (InvalidArgumentException $e) { $badTicket = $e->getMessage()==='INVALID_CURRENCY'; }
 $duplicateTicket = false;
 try {
