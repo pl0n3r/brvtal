@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 import json
+import os
+import subprocess
 from pathlib import Path
 import shutil
 import sys
@@ -42,6 +44,72 @@ OFFLINE = frozenset(IDS) - NON_OFFLINE.keys()
 def require_php() -> None:
     if shutil.which("php") is None:
         raise AssertionError("UNKNOWN: PHP 8.5 CLI required")
+
+
+
+def logger_real_handler_probe(home: str) -> tuple[bool, bool]:
+    """Exercise the *installed* PHP exception handler without an uncaught -r throw.
+
+    PHP CLI can exit 255 for an uncaught top-level -r exception before the
+    custom handler executes. Call the registered handler via its real callable,
+    preserving actual logger/redaction/sanitization behavior.
+    """
+    with tempfile.TemporaryDirectory(prefix="brvtal-1286-logger-", dir=home) as tmp:
+        config = Path(tmp) / "config"
+        config.mkdir()
+        for name in ("logger", "sentry", "deployment", "version"):
+            shutil.copyfile(ROOT / "config" / (name + ".php"),
+                            config / (name + ".php"))
+        logfile = Path(tmp) / "private.log"
+        script = r'''
+define('BRVTAL_SENTRY_TESTING', true);
+$GLOBALS['brvtalSentryTestLogFile'] = $argv[1];
+require $argv[2];
+brvtal_log('SYNTHETIC', 'static audit', [
+    'password' => 'SYNTHETIC_PASSWORD_MARKER',
+    'token' => 'SYNTHETIC_TOKEN_MARKER',
+    'secret_ref' => 'SYNTHETIC_SECRET_MARKER']);
+$actual = set_exception_handler(static function(Throwable $ignored): void {});
+restore_exception_handler();
+if (!is_callable($actual)) {
+    fwrite(STDERR, 'missing real handler');
+    exit(3);
+}
+$actual(new RuntimeException('SYNTHETIC_EXCEPTION_MARKER'));
+'''
+        php = shutil.which("php")
+        if not php:
+            raise AssertionError("UNKNOWN: PHP CLI required")
+        result = subprocess.run(
+            [php, "-d", "display_errors=0", "-d", "log_errors=0",
+             "-r", script, str(logfile), str(config / "logger.php")],
+            cwd=tmp,
+            env={"PATH": os.defpath, "HOME": tmp, "LANG": "C",
+                 "LC_ALL": "C", "APP_ENV": "testing"},
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+        if result.returncode != 0 or result.stderr.strip() or not logfile.is_file():
+            raise AssertionError("UNKNOWN: installed PHP logger handler failed")
+        private = logfile.read_text(encoding="utf-8")
+        redacted = (
+            all(marker not in private for marker in (
+                "SYNTHETIC_PASSWORD_MARKER",
+                "SYNTHETIC_TOKEN_MARKER",
+                "SYNTHETIC_SECRET_MARKER",
+            ))
+            and private.count("[REDACTED]") >= 3
+            and "SYNTHETIC_EXCEPTION_MARKER" in private
+        )
+        public = result.stdout
+        no_trace = (
+            "BRVTAL ERROR" in public
+            and "Se produjo un error interno." in public
+            and all(marker not in public for marker in (
+                "SYNTHETIC_EXCEPTION_MARKER", "Stack trace",
+                "logger.php:", str(tmp),
+            ))
+        )
+        return redacted, no_trace
 
 
 @lru_cache(maxsize=1)
@@ -96,7 +164,7 @@ def real_witnesses() -> dict[str, bool]:
         password = security_edges.password_probe(folder)
         upload = security_edges.upload_probe(folder)
         permission = security_edges.authorization_probe(folder)
-        redaction, no_trace = security_edges.logger_probe(folder)
+        redaction, no_trace = logger_real_handler_probe(folder)
 
     # Coupling synthetic behavior to the real product call sites: native
     # password_hash alone or MIME sniffing alone is not product protection.
