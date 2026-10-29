@@ -180,7 +180,7 @@ class CoberturaBrvtal15Tests(unittest.TestCase):
 
     def test_falla_cerrado(self):
         """AC-02: unknown authority, invalid SHA, module and columns rejected."""
-        self.assertEqual(self.grid["invalid"], True)
+        self.assertTrue(self.grid["invalid"])
         self.assertEqual(self.invalid["source"], "release_fallback")
         self.assertIsNone(self.invalid["public"]["commit"])
         self.assertIs(self.invalid["public"]["exact"], False)
@@ -192,7 +192,7 @@ class CoberturaBrvtal15Tests(unittest.TestCase):
             "defaults": "INVALID_GRID_MODULE",
             "columns": "INVALID_GRID_COLUMNS",
         })
-        self.assertEqual(self.preferences["bad"], True)
+        self.assertTrue(self.preferences["bad"])
         self.assertEqual(self.grid["states"][0]["ids"], [3, 2, 1])
         self.assertNotEqual(self.grid["states"][1]["ids"],
                             self.grid["states"][0]["ids"])
