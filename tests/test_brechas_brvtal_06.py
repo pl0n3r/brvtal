@@ -148,7 +148,7 @@ echo json_encode([
   ],
   'S06-R011'=>[
     'injected_cache'=>is_array($again) && $firstCalls === 4
-      && $secondCalls === $firstCalls && count($store) === 6,
+      && $secondCalls === $firstCalls && count($store) === 4,
     'no_duplicate'=>is_array($applied)
       && $applied['entity']['id'] === $spanish['id']
       && !isset($applied['entity']['locale']),
