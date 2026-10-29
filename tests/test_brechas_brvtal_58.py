@@ -160,7 +160,7 @@ def evidence(key: object, src: object, observed: object) -> str:
     except ValueError:
         return UNKNOWN
     spec = src[SPEC].split("## 39. Canonical DISCADMIN data grid", 1)
-    if len(spec) != 2 or CLAUSES[key] not in spec[1]:
+    if len(spec) != 2 or CLAUSES[key] not in spec[1].replace("`", ""):
         return UNKNOWN
     expected = ("events", "artists", "releases", "sets", "media", "pages", "blog")
     rendered = observed.get("rendered")
