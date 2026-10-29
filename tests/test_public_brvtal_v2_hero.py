@@ -1,11 +1,12 @@
 """Contrato de «Frecuencia» (BRVTAL v2, fase 1): hero de la home sobre los tokens administrables de Concept 05."""
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CSS = (ROOT / "css" / "public-brvtal-v2.css").read_text(encoding="utf-8")
-HOME = (ROOT / "config" / "public_home.php").read_text(encoding="utf-8")
+TOKENS = (ROOT / "css" / "public-concept05-tokens.css").read_text(encoding="utf-8")
 
 
 def luminance(hex_color: str) -> float:
@@ -22,10 +23,16 @@ def contrast(a: str, b: str) -> float:
 
 class BrvtalV2HeroTests(unittest.TestCase):
     def test_stylesheet_is_injected_after_the_home_phase_a_sheet(self) -> None:
-        phase_a = HOME.index("css/public-home-phase-a.css")
-        v2 = HOME.index("css/public-brvtal-v2.css")
+        rendered = subprocess.run(
+            ["php", "-r",
+             'require "config/public_home.php"; '
+             'echo brvtal_public_home_identity("<html><head></head><body></body></html>");'],
+            cwd=ROOT, capture_output=True, text=True, timeout=20, check=True,
+        ).stdout
+        phase_a = rendered.index('href="css/public-home-phase-a.css"')
+        v2 = rendered.index('href="css/public-brvtal-v2.css"')
         self.assertGreater(v2, phase_a)
-        self.assertEqual(HOME.count("'css/public-brvtal-v2.css'"), 1)
+        self.assertEqual(rendered.count('href="css/public-brvtal-v2.css"'), 1)
 
     def test_decorative_noise_is_removed_and_the_wordmark_has_one_line(self) -> None:
         for noise in ("&::before", "&::after", ".hero-grid", ".hero-scan", ".hero-glitch-lines"):
@@ -33,6 +40,14 @@ class BrvtalV2HeroTests(unittest.TestCase):
                 self.assertIn(noise, CSS.split("{display:none}")[0])
         self.assertIn("white-space:nowrap", CSS)
         self.assertIn("display:none", CSS)
+
+    def test_documentary_media_does_not_reintroduce_scanlines(self) -> None:
+        hidden_group = CSS.split("{display:none}", 1)[0]
+        self.assertIn(".c5-hero-documentary,", hidden_group)
+        self.assertIn(".c5-hero-documentary::after", hidden_group)
+        self.assertIn("data-c5-hero-documentary", (
+            ROOT / "js/public-concept05-hero.js"
+        ).read_text(encoding="utf-8"))
 
     def test_colors_come_from_administrable_tokens_not_fixed_values(self) -> None:
         fixed = set(re.findall(r"#[0-9a-fA-F]{3,6}\b", CSS))
@@ -45,7 +60,19 @@ class BrvtalV2HeroTests(unittest.TestCase):
         button = CSS.split(".c5-hero-explore{", 1)[1].split("}", 1)[0]
         self.assertIn("background:var(--c5-signal-green);", button)
         self.assertIn("color:var(--c5-deep-black);", button)
-        self.assertGreaterEqual(contrast("#050505", "#b8ff00"), 4.5)
+        def fallback(token: str) -> str:
+            definition = next(
+                line for line in TOKENS.splitlines()
+                if line.strip().startswith(token + ":")
+            )
+            colors = re.findall(r"#[0-9a-fA-F]{6}\\b", definition)
+            self.assertTrue(colors, f"Missing color fallback for {token}")
+            return colors[-1]
+
+        self.assertGreaterEqual(
+            contrast(fallback("--c5-deep-black"), fallback("--c5-signal-green")),
+            4.5,
+        )
 
     def test_mobile_wordmark_uses_screenshot_verified_font_scale(self) -> None:
         mobile_size = re.search(r"\.hero-title\{font-size:(\d+(?:\.\d+)?)vw\}", CSS)
