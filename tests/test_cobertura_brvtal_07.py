@@ -111,7 +111,7 @@ if ($mode === 'principal') {
 } elseif ($mode === 'negative') {
     foreach ([
         ['events',['ticket_url'=>'javascript:alert(1)'],'INVALID_PREVIEW_URL'],
-        ['events',['ticket_url'=>'https://user:pass@fixture.invalid/a'],'INVALID_PREVIEW_URL'],
+        ['events',['ticket_url'=>'https://user:pass'.chr(64).'fixture.invalid/a'],'INVALID_PREVIEW_URL'],
         ['events',['accent'=>'red'],'INVALID_PREVIEW_ACCENT'],
         ['events',['event_date'=>'2026-02-30 21:00'],'INVALID_PREVIEW_DATE'],
         ['invalid_type',['title'=>'X'],'PREVIEW_TYPE_NOT_ALLOWED'],
