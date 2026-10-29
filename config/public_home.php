@@ -671,6 +671,13 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'css/public-brvtal-v2.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-brvtal-v2.css\">\n</head>",
+            $html
+        );
+    }
 
     $html = str_replace(
         '<section class="hero scene" data-scene="CORE" data-index="01">',
