@@ -25,6 +25,13 @@ class BrvtalSectionsTests(unittest.TestCase):
         self.assertNotIn("!important", CSS)
         self.assertNotRegex(CSS, r"box-shadow:\s*\d")
 
+    def test_nights_and_artists_stack_full_width_with_responsive_grids_and_keep_the_transmissions_pair(self) -> None:
+        block = CSS[CSS.index("/* Noches y Artistas dejan de compartir"):]
+        self.assertIn("main#top>.c5-board-region--pair:has(> #events)", block)
+        self.assertNotIn("#transmissions", block, "El par Journal/Conectado conserva su composición")
+        self.assertIn("grid-template-columns: minmax(0, 1fr);", block)
+        self.assertEqual(block.count("repeat(auto-fill,minmax("), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
