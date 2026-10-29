@@ -259,8 +259,9 @@ class BrechasBrvtal15Tests(unittest.TestCase):
                     key, changed, self.spec, self.sources, self.observed)["candidate"])
         row = next(x for x in MATRIX.read_text(encoding="utf-8").splitlines()
                    if x.startswith("| S13-L180 · "))
+        duplicate_matrix = MATRIX.read_text(encoding="utf-8") + "\n" + row
         with self.assertRaisesRegex(ValueError, "duplicate"):
-            matrix_rows(MATRIX.read_text(encoding="utf-8") + "\n" + row)
+            matrix_rows(duplicate_matrix)
         with self.assertRaisesRegex(ValueError, "missing"):
             matrix_rows("")
         self.assertEqual(UNKNOWN, verdict(
