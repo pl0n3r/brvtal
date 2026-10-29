@@ -92,7 +92,8 @@ class CiCoberturaBrvtal17Tests(unittest.TestCase):
         self.assertNotIn("-----BEGIN " + "PRIVATE KEY-----", own)
         self.assertNotIn("https://" + "api.github.com/", own)
         self.assertFalse(any(name in own for name in (
-            "mysql_connect(", "requests.post(", "urllib.request.urlopen("
+            "mysql_" + "connect(", "requests." + "post(",
+            "urllib.request." + "urlopen("
         )))
 
     def test_gate_validar(self) -> None:
