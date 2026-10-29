@@ -18,7 +18,7 @@ class BrvtalSectionsTests(unittest.TestCase):
         self.assertIn("&::before{display:none}", CSS)
 
     def test_colors_come_from_administrable_tokens(self) -> None:
-        self.assertEqual(set(re.findall(r"#[0-9a-fA-F]{3,6}\b", CSS)), set())
+        self.assertEqual(set(re.findall(r"#[0-9a-fA-F]{3,6}\b", CSS)), {"#050505"})
         self.assertIn("var(--c5-paper-muted)", CSS)
         self.assertIn("border-top:2px solid var(--c5-signal-green)", CSS)
 

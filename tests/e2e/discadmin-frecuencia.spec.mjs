@@ -10,6 +10,7 @@ if(!match)throw new Error('Missing runtime from actual wrapper');
 const runtime=match[1];
 const url='http://127.0.0.1:4173/discadmin/';
 function rgb(value){return (value.match(/[\d.]+/g)||[]).slice(0,3).map(Number)}
+function hexRGB(color){const value=color.replace("#","");return [0,2,4].map(n=>parseInt(value.slice(n,n+2),16))}
 function luminance(value){const c=rgb(value).map(x=>x/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2]}
 function contrast(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
 for(const mode of ['dark','light','glass'])for(const [label,accent,ink] of [['bright','#b8ff00','rgb(0, 0, 0)'],['dark','#161616','rgb(255, 255, 255)']]){
@@ -21,7 +22,7 @@ for(const mode of ['dark','light','glass'])for(const [label,accent,ink] of [['br
     await page.route(url,route=>route.fulfill({contentType:'text/html',body:html}));
     await page.goto(url);
     const target=page.locator('[data-admin-nav="dashboard"]');
-    await expect.poll(()=>target.evaluate(x=>getComputedStyle(x).backgroundColor)).toBe('rgb('+rgb(accent).join(', ')+')');
+    await expect.poll(()=>target.evaluate(x=>getComputedStyle(x).backgroundColor)).toBe('rgb('+hexRGB(accent).join(', ')+')');
     const computed=await target.evaluate(x=>({bg:getComputedStyle(x).backgroundColor,ink:getComputedStyle(x).color}));
     expect(computed.ink).toBe(ink);
     expect(contrast(computed.bg,computed.ink)).toBeGreaterThanOrEqual(4.5);
