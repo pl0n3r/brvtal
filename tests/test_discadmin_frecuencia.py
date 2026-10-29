@@ -24,6 +24,7 @@ class DiscadminFrecuenciaTests(unittest.TestCase):
         for value in ("theme.active", "theme?.colors?.accent", '"#000000"',
                       '"#ffffff"', "BRVTALFrecuenciaAccent.sync()"):
             self.assertIn(value, INDEX)
+        self.assertIn("/settings?key=theme.active", INDEX)
         self.assertIn("var(--admin-signal-ink", CSS)
         self.assertIn("var(--admin-signal", CSS)
         self.assertNotIn("var(--acid", CSS)
