@@ -127,7 +127,9 @@ echo json_encode([
  ],
  'archived'=>[
   'editable'=>brvtal_event_state_error([
-    'title'=>'Fixture','status'=>'archived'])===null,
+    'title'=>'Fixture','status'=>'archived',
+    'event_date'=>'2026-04-01 20:00:00','city'=>'Pereira',
+    'description'=>''])===null,
   'future_hidden'=>!brvtal_public_event_is_visible($archivedFuture,$clock),
   'past_visible'=>brvtal_public_event_is_visible($archivedPast,$clock),
   'past_historical'=>brvtal_public_event_is_historical($archivedPast,$clock),
