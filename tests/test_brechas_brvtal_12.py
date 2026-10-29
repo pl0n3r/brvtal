@@ -251,12 +251,16 @@ class BrechasBrvtal12Tests(unittest.TestCase):
         original = (ROOT / MATRIX).read_text(encoding="utf-8")
         table, data, observed = rows(original), sources(), probe()
         line = next(s for s in original.splitlines() if s.startswith("| S09-L111 · "))
+        duplicate = original + "\n" + line
+        missing = "\n".join(s for s in original.splitlines()
+                            if not s.startswith("| S09-L121 · "))
+        malformed = original.replace(line, line.replace("NO_VERIFICABLE", "CUBIERTO"))
         with self.assertRaisesRegex(ValueError, "duplicate"):
-            rows(original + "\n" + line)
+            rows(duplicate)
         with self.assertRaisesRegex(ValueError, "missing"):
-            rows("\n".join(s for s in original.splitlines() if not s.startswith("| S09-L121 · ")))
+            rows(missing)
         with self.assertRaisesRegex(ValueError, "malformed"):
-            rows(original.replace(line, line.replace("NO_VERIFICABLE", "CUBIERTO")))
+            rows(malformed)
         for key in IDS:
             with self.subTest(row=key):
                 for bad in (None, {}, {"ci": "success"}):
