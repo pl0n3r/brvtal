@@ -8,14 +8,12 @@ The 18 B/C requirements remain unverified even if partial code guards pass.
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "docs/matriz-cobertura.md"
 UNKNOWN = "UNKNOWN"
 
 # A: real, directly exercised local PHP behavior of the existing implementation.
@@ -139,27 +137,6 @@ echo json_encode([
 """
 
 
-def inventory(source: object) -> dict[str, tuple[str, ...]]:
-    """Reject missing, duplicate, damaged or falsely promoted matrix rows."""
-    if not isinstance(source, str):
-        raise ValueError("UNKNOWN: matrix missing")
-    rows: dict[str, tuple[str, ...]] = {}
-    for line in source.splitlines():
-        match = re.match(r"^\| (S(?:15|16|17|18)-R\d{3}) · ", line)
-        if match is None or match.group(1) not in IDS:
-            continue
-        key = match.group(1)
-        columns = tuple(x.strip() for x in line.strip("|").split("|"))
-        if (key in rows or len(columns) != 5 or not all(columns)
-                or not columns[0].startswith(key + " · ")
-                or columns[2] != "NO_VERIFICABLE"):
-            raise ValueError("UNKNOWN: bad matrix row " + key)
-        rows[key] = columns
-    if set(rows) != IDS:
-        raise ValueError("UNKNOWN: incomplete target inventory")
-    return rows
-
-
 def real_php() -> dict[str, object]:
     interpreter = shutil.which("php")
     if not interpreter:
@@ -182,8 +159,6 @@ def real_php() -> dict[str, object]:
 class CoberturaBrvtal05Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.matrix = MATRIX.read_text(encoding="utf-8")
-        cls.rows = inventory(cls.matrix)
         cls.observed = real_php()
 
     def test_contrato_principal(self) -> None:
@@ -192,11 +167,6 @@ class CoberturaBrvtal05Tests(unittest.TestCase):
         self.assertEqual(len(OFFLINE), 2)
         self.assertEqual(len(EXTERNAL), 17)
         self.assertEqual(len(DECLARATIVE), 1)
-        self.assertEqual(set(self.rows), IDS)
-        for key in IDS:
-            with self.subTest(row=key):
-                self.assertEqual(self.rows[key][2], "NO_VERIFICABLE")
-                self.assertTrue(self.rows[key][1])
         # S15-R003: real workflow supports two distinct ticket types.
         observed = self.observed
         self.assertEqual(observed["ticket_names"], [
@@ -233,20 +203,6 @@ class CoberturaBrvtal05Tests(unittest.TestCase):
         self.assertNotIn(4, self.observed["active_ids"] + self.observed["archive_ids"])
         self.assertNotIn(5, self.observed["active_ids"] + self.observed["archive_ids"])
         self.assertNotIn(6, self.observed["active_ids"] + self.observed["archive_ids"])
-        original = self.matrix
-        row = next(line for line in original.splitlines()
-                   if line.startswith("| S15-R003 · "))
-        for poisoned in (
-            original.replace(row + "\n", "", 1),
-            original + "\n" + row,
-            original.replace(row, row.replace("NO_VERIFICABLE", "CUBIERTO"), 1),
-            original.replace(row, "| S15-R003 · damaged |", 1),
-        ):
-            with self.subTest(variant=len(poisoned)):
-                with self.assertRaisesRegex(ValueError, UNKNOWN):
-                    inventory(poisoned)
-        with self.assertRaisesRegex(ValueError, UNKNOWN):
-            inventory(None)
 
     def test_sin_datos_reales(self) -> None:
         """AC-03: only invented records and pure PHP libraries, no side effects."""

@@ -182,7 +182,7 @@ class CoberturaBrvtal21Tests(unittest.TestCase):
                 imported.update(alias.name.split(".")[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
-        self.assertTrue(imported <= {"__future__", "ast", "json", "os",
+        self.assertLessEqual(imported, {"__future__", "ast", "json", "os",
                                     "pathlib", "shutil", "subprocess", "unittest"})
         for banned in ("fetch(", "curl_exec(", "docs/matriz-cobertura",
                        "brvtal.com.co", "node:https"):

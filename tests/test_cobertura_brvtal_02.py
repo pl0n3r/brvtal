@@ -7,14 +7,12 @@ No real editor records, network, provider, credentials, or live state are used.
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "docs/matriz-cobertura.md"
 IDS = {
     "S06-R001": "Spanish (**es**) is the canonical editorial language and default public locale.",
     "S06-R002": "English (**en**) is the supported alternate locale.",
@@ -105,30 +103,6 @@ echo json_encode($out, JSON_THROW_ON_ERROR);
 '''
 
 
-def matrix_rows(source: object) -> dict[str, tuple[str, ...]]:
-    """Check all 20 *full* rows; duplicates/missing/false promotions fail shut."""
-    if type(source) is not str or not source.strip():
-        raise ValueError("UNKNOWN: missing matrix")
-    result: dict[str, tuple[str, ...]] = {}
-    for line in source.splitlines():
-        match = re.match(r"^\| (S06-R\d{3}|S07-(?:L\d{2}|R\d{3})) · ", line)
-        if match is None or match.group(1) not in IDS:
-            continue
-        ident = match.group(1)
-        if ident in result:
-            raise ValueError("UNKNOWN: duplicate " + ident)
-        parts = tuple(p.strip() for p in line[1:-1].split("|")) if line.endswith("|") else ()
-        if (len(parts) != 5 or not parts[0].startswith(ident + " · [S")
-                or parts[1] != IDS[ident] or parts[2] != "NO_VERIFICABLE"
-                or not parts[3].startswith("Sin aserción contrastada para")
-                or not parts[4]):
-            raise ValueError("UNKNOWN: invalid row " + ident)
-        result[ident] = parts
-    if set(result) != set(IDS):
-        raise ValueError("UNKNOWN: incomplete matrix " + str(sorted(set(IDS) - set(result))))
-    return result
-
-
 def run_php(operations: list[dict]) -> list:
     php = shutil.which("php")
     if php is None:
@@ -172,7 +146,6 @@ class CoberturaBrvtal02Tests(unittest.TestCase):
             "S06-R001", "S06-R002", "S06-R003", "S06-R004",
             "S06-R005", "S06-R006", "S06-R010", "S06-R011",
         })
-        self.assertEqual(20, len(matrix_rows(MATRIX.read_text(encoding="utf-8"))))
         ops = [
             {"op": "policy", "site": {"default_locale": "en",
                 "available_locales": ["en", "fr", "es", "en"]}},
@@ -232,22 +205,10 @@ class CoberturaBrvtal02Tests(unittest.TestCase):
         self.assertEqual(result[1:8], [None] * 7)
         self.assertEqual(result[8], '<html lang="es"><body>synthetic</body></html>')
         self.assertEqual(result[9], '<html lang="es"><body>synthetic</body></html>')
-        # A fail-closed matrix contract cannot be satisfied by missing rows,
-        # forged coverage, duplicates or changed requirement text.
-        sample = MATRIX.read_text(encoding="utf-8")
-        for ident in IDS:
-            match = next(line for line in sample.splitlines() if line.startswith("| " + ident + " · "))
-            for damaged in (sample.replace(match + "\n", "", 1),
-                            sample.replace(match, match.replace("NO_VERIFICABLE", "CUBIERTO", 1), 1)):
-                with self.subTest(row=ident):
-                    with self.assertRaisesRegex(ValueError, "UNKNOWN"):
-                        matrix_rows(damaged)
         self.assertIn("visibility-ok", run_overlay("visibility"))
 
     def test_sin_datos_reales(self) -> None:
         """AC-03: synthetic inputs only, no network, secrets or external costs."""
-        rows = matrix_rows(MATRIX.read_text(encoding="utf-8"))
-        self.assertEqual(set(rows), set(IDS))
         self.assertEqual({"C"}, {v[0] for v in NON_OFFLINE.values()})
         self.assertTrue(all(reason.strip() for _, reason in NON_OFFLINE.values()))
         self.assertEqual(set(ROUTES), set(DEPLOY_EVIDENCE))

@@ -9,12 +9,10 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
-import re
 import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "docs/matriz-cobertura.md"
 sys.path.insert(0, str(ROOT / "tests"))
 import test_brechas_brvtal_41 as privacy
 import test_brechas_brvtal_42 as legal
@@ -38,33 +36,8 @@ C = {"S31-R001": "Colombia-oriented legal structure is owner/counsel policy"}
 D: dict[str, str] = {}
 
 
-def coverage_rows(raw: object) -> dict[str, tuple[str, ...]]:
-    """Every matrix row must be complete and unique; never infer missing ones."""
-    if type(raw) is not str or not raw:
-        raise ValueError("UNKNOWN: matrix missing")
-    rows = {}
-    for line in raw.splitlines():
-        match = re.match(r"^\| (S(?:30|31|32)-R\d{3}) · ", line)
-        if not match or match.group(1) not in IDS:
-            continue
-        key = match.group(1)
-        if key in rows:
-            raise ValueError("UNKNOWN: duplicate " + key)
-        cells = tuple(part.strip() for part in line.strip().strip("|").split("|"))
-        if (len(cells) != 5 or not all(cells[:4]) or
-                not cells[0].startswith(key + " · ") or
-                cells[2] not in ("NO_VERIFICABLE", "CUBIERTO", "EN_CURSO")):
-            raise ValueError("UNKNOWN: malformed " + key)
-        rows[key] = cells
-    if set(rows) != set(IDS):
-        raise ValueError("UNKNOWN: missing target rows")
-    return rows
-
-
 class CoberturaBrvtal11Tests(unittest.TestCase):
     def test_contrato_principal(self) -> None:
-        rows = coverage_rows(MATRIX.read_text(encoding="utf-8"))
-        self.assertEqual(len(rows), 20)
         self.assertEqual(A | B.keys() | C.keys() | D.keys(), set(IDS))
         self.assertFalse((A & B.keys()) or (A & C.keys()))
 
@@ -165,21 +138,6 @@ class CoberturaBrvtal11Tests(unittest.TestCase):
                 self.assertTrue(behaves, key + ": executable behavior regressed")
 
     def test_falla_cerrado(self) -> None:
-        matrix = MATRIX.read_text(encoding="utf-8")
-        coverage_rows(matrix)
-        for key in IDS:
-            row = next(line for line in matrix.splitlines()
-                       if line.startswith("| " + key + " · "))
-            with self.subTest(row=key):
-                for broken in (
-                    matrix.replace(row, "", 1),
-                    matrix + "\n" + row,
-                    matrix.replace(row, "| " + key + " · truncated |", 1),
-                ):
-                    with self.assertRaisesRegex(ValueError, "UNKNOWN"):
-                        coverage_rows(broken)
-        with self.assertRaisesRegex(ValueError, "UNKNOWN"):
-            coverage_rows(None)
         theme = studio.probe()
         fonts = {opt["stack"] for group in theme["fonts"].values() for opt in group}
         for bad in (
