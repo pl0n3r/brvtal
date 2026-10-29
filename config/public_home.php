@@ -671,12 +671,10 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
-    if (!str_contains($html, 'css/public-brvtal-v2.css')) {
-        $html = str_replace(
-            '</head>',
-            "  <link rel=\"stylesheet\" href=\"css/public-brvtal-v2.css\">\n</head>",
-            $html
-        );
+    foreach (['css/public-brvtal-v2.css'] as $v2Sheet) {
+        if (!str_contains($html, $v2Sheet)) {
+            $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"{$v2Sheet}\">\n</head>", $html);
+        }
     }
 
     $html = str_replace(

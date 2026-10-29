@@ -25,7 +25,7 @@ class BrvtalV2HeroTests(unittest.TestCase):
         phase_a = HOME.index("css/public-home-phase-a.css")
         v2 = HOME.index("css/public-brvtal-v2.css")
         self.assertGreater(v2, phase_a)
-        self.assertEqual(HOME.count("href=\\\"css/public-brvtal-v2.css\\\""), 1)
+        self.assertEqual(HOME.count("'css/public-brvtal-v2.css'"), 1)
 
     def test_decorative_noise_is_removed_and_the_wordmark_has_one_line(self) -> None:
         for noise in (".hero-grid", ".hero-scan", ".hero-glitch-lines"):
