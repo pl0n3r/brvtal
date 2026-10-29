@@ -84,7 +84,7 @@ def spec_clause(raw: object, key: object) -> bool:
     if raw.count(heading) != 1:
         return False
     block = raw.split(heading, 1)[1].split("\n## ", 1)[0]
-    return block.count(phrase) == 1
+    return re.sub(r"\s+", " ", block).count(phrase) == 1
 
 
 def status_of(record: object) -> str:
