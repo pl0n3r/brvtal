@@ -264,14 +264,17 @@ class BrechasBrvtal05Tests(unittest.TestCase):
         raw = MATRIX.read_text(encoding="utf-8")
         table, files, data = coverage_rows(raw), source_texts(), observe()
         first = next(x for x in raw.splitlines() if x.startswith("| S06-R001 · "))
+        duplicate = raw + "\n" + first
+        absent = "\n".join(x for x in raw.splitlines()
+                           if not x.startswith("| S06-R005 · "))
+        malformed = raw.replace(first, first.replace(
+            "NO_VERIFICABLE", "CUBIERTO"))
         with self.assertRaisesRegex(ValueError, "duplicada"):
-            coverage_rows(raw + "\n" + first)
+            coverage_rows(duplicate)
         with self.assertRaisesRegex(ValueError, "falta"):
-            coverage_rows("\n".join(x for x in raw.splitlines()
-                                   if not x.startswith("| S06-R005 · ")))
+            coverage_rows(absent)
         with self.assertRaisesRegex(ValueError, "inválida"):
-            coverage_rows(raw.replace(first, first.replace(
-                "NO_VERIFICABLE", "CUBIERTO")))
+            coverage_rows(malformed)
         for key in IDS:
             with self.subTest(brecha=key):
                 self.assertEqual(UNKNOWN, evidence_for(key, {}, files, data)["local"])
