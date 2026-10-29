@@ -30,6 +30,14 @@ CLAUSES = {
     "S51-R016": "**PRs** — concrete implementation and validation evidence;",
     "S51-R017": "**README.md** — current deploy snapshot, not cumulative roadmap.",
 }
+def spec_clause(key: str) -> str:
+    """Spec adds inline-code emphasis absent from the audit matrix's rendering."""
+    label = ("docs/BRVTAL-SPEC.md" if key == "S51-R013"
+             else "README.md" if key == "S51-R017" else "")
+    return (CLAUSES[key].replace("**" + label + "**",
+            "**" + chr(96) + label + chr(96) + "**") if label else CLAUSES[key])
+
+
 AGENT_ANCHOR = {
     "S51-R013": "**`docs/BRVTAL-SPEC.md`** — durable product, architecture",
     "S51-R014": "**GitHub Issue #533** — cross-project execution order and progress only.",
@@ -137,7 +145,7 @@ def local_evidence(key: object, data: object) -> str:
     spec = section(data["spec"], "51. Roadmap responsibility and separation")
     agents = section(data["agents"], "0. Source ownership")
     readme = data["readme"]
-    if (not spec or not agents or spec.count(CLAUSES[key]) != 1
+    if (not spec or not agents or spec.count(spec_clause(key)) != 1
             or AGENT_ANCHOR[key] not in agents
             or "GitHub Issue **#533** is the canonical BRVTAL execution roadmap." not in spec
             or "Responsibility is separated as follows:" not in spec
@@ -197,7 +205,7 @@ class BrechasBrvtal78Tests(unittest.TestCase):
                     contrast_row, contrast_row.replace(
                         "NO_VERIFICABLE", "CUBIERTO", 1), 1)},
                 {**self.data, "spec": self.data["spec"].replace(
-                    CLAUSES[key], "missing responsibility", 1)},
+                    spec_clause(key), "missing responsibility", 1)},
                 {**self.data, "agents": self.data["agents"].replace(
                     AGENT_ANCHOR[key], "")},
                 {**self.data, "readme": self.data["readme"].replace(
