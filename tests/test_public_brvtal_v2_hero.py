@@ -43,7 +43,7 @@ class BrvtalV2HeroTests(unittest.TestCase):
 
     def test_documentary_media_does_not_reintroduce_scanlines(self) -> None:
         hidden_group = CSS.split("{display:none}", 1)[0]
-        self.assertIn(".c5-hero-documentary,", hidden_group)
+        self.assertNotIn(".c5-hero-documentary,", hidden_group)
         self.assertIn(".c5-hero-documentary::after", hidden_group)
         self.assertIn("data-c5-hero-documentary", (
             ROOT / "js/public-concept05-hero.js"
