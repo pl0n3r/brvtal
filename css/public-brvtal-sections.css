@@ -25,6 +25,7 @@
     .genesis-tag{
       background:var(--c5-signal-green);
       color:#050505;
+      color:contrast-color(var(--c5-signal-green));
     }
     .genesis-copy h2::after{content:none}
   }

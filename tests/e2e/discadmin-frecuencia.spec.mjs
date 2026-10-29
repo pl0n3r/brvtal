@@ -36,3 +36,15 @@ test('wrapper consumes saved active instead of unsaved Theme Studio draft',async
   expect(source).toContain('theme?.colors?.accent');
   expect(source).toContain('restoreSession().then(');
 });
+
+const publicCss=readFileSync(join(process.cwd(),'css/public-brvtal-sections.css'),'utf8');
+for(const accent of ['#b8ff00','#161616']){
+  test('public experience label chooses readable ink for '+accent,async({page})=>{
+    const address='http://127.0.0.1:4173/public-frecuencia-contrast.html';
+    const html='<!doctype html><html><head><style>:root{--c5-signal-green:'+accent+'}</style><style>'+publicCss+'</style></head><body data-concept="05"><section class="c5-experience-authored"><span class="genesis-tag" id="public-label">EXPERIENCE</span></section></body></html>';
+    await page.route(address,route=>route.fulfill({contentType:'text/html',body:html}));
+    await page.goto(address);
+    const {ink,bg}=await page.locator('#public-label').evaluate(el=>({ink:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundColor}));
+    expect(contrast(bg,ink)).toBeGreaterThanOrEqual(4.5);
+  });
+}
