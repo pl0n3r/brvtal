@@ -30,7 +30,7 @@ class BrvtalV2HeroTests(unittest.TestCase):
     def test_decorative_noise_is_removed_and_the_wordmark_has_one_line(self) -> None:
         for noise in (".hero-grid", ".hero-scan", ".hero-glitch-lines"):
             with self.subTest(noise=noise):
-                self.assertIn(f".hero {noise}", CSS.replace("\n", " ").replace(".hero.hero", ".hero"))
+                self.assertIn(noise, CSS.split("{display:none}")[0])
         self.assertIn("white-space:nowrap", CSS)
         self.assertIn("display:none", CSS)
 
