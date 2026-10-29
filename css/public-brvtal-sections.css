@@ -4,7 +4,7 @@
  */
 [data-concept="05"] {
   .c5-numbered.c5-numbered::before{
-    color:var(--c5-signal-green);
+    color:var(--c5-paper-muted);
     border-bottom:2px solid var(--c5-rule-color);
     letter-spacing:.16em;
   }
