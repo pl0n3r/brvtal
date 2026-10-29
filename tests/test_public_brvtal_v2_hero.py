@@ -41,10 +41,13 @@ class BrvtalV2HeroTests(unittest.TestCase):
         self.assertIn("white-space:nowrap", CSS)
         self.assertIn("display:none", CSS)
 
-    def test_documentary_media_does_not_reintroduce_scanlines(self) -> None:
+    def test_documentary_media_stays_visible_in_the_grid_without_scanlines(self) -> None:
         hidden_group = CSS.split("{display:none}", 1)[0]
-        self.assertNotIn(".c5-hero-documentary,", hidden_group)
+        self.assertNotIn(".c5-hero-documentary,", hidden_group, "La figura documental no se oculta: es el espacio de la imagen")
         self.assertIn(".c5-hero-documentary::after", hidden_group)
+        figure = CSS.split(".c5-hero-documentary{", 1)[1].split("}", 1)[0]
+        self.assertIn("aspect-ratio:16 / 9;", figure)
+        self.assertNotIn("display:", figure, "No debe anular el atributo hidden cuando no hay medio")
         self.assertIn("data-c5-hero-documentary", (
             ROOT / "js/public-concept05-hero.js"
         ).read_text(encoding="utf-8"))

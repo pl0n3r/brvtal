@@ -27,6 +27,22 @@
   .hero-title::before,
   .hero-title::after{display:none}
 
+  .c5-hero-documentary{
+    position:relative;
+    left:auto;
+    top:auto;
+    grid-column:1 / -1;
+    width:auto;
+    height:auto;
+    aspect-ratio:16 / 9;
+    max-height:min(52svh,560px);
+    margin:0 0 var(--v2-pad);
+    opacity:1;
+    border:1px solid var(--c5-rule-color);
+
+    img{filter:none}
+  }
+
   .hero-copy{
     position:static;
     grid-column:1 / -1;
