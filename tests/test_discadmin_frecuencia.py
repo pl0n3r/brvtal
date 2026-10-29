@@ -30,7 +30,9 @@ class DiscadminFrecuenciaTests(unittest.TestCase):
 
     def test_css_is_flat_and_does_not_force_priority(self) -> None:
         self.assertNotIn("!important", CSS)
-        self.assertNotRegex(CSS, r"box-shadow:\s*\d")
+        self.assertTrue(all(shadow.strip() == "none" for shadow in re.findall(r"box-shadow:\\s*([^;]+);", CSS)))
+        self.assertIn("border-left:3px solid var(--admin-signal);", CSS)
+        self.assertIn("background:var(--admin-signal);", CSS)
 
 
 if __name__ == "__main__":

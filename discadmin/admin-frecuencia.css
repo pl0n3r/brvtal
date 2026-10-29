@@ -38,7 +38,7 @@ html[data-discadmin-appearance] .ssv2-hero{
   font-weight:800;
 }
 .sv2-tabs button.active{
-  box-shadow:inset 3px 0 0 var(--admin-signal);
+  border-left:3px solid var(--admin-signal);
 }
 html[data-discadmin-appearance] .ssv2-bar-track i{
   background:var(--admin-signal);
