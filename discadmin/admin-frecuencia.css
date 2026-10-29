@@ -1,45 +1,25 @@
-/*
- * DISCADMIN · «Frecuencia» (BRVTAL v2, fase 3). Misma dirección que el sitio público: esquinas rectas, filetes en vez de
- * sombras y una sola señal ácida para lo activo. Se carga tras admin-design-system.css y solo redefine sus tokens y
- * el estado activo del menú y de las tarjetas del tablero. Respeta los temas claro y de vidrio del selector de apariencia.
- */
-:root{
+/* Frecuencia: estilos solo del Dashboard V2 y la navegación activa. */
+html[data-discadmin-appearance] .side [data-admin-nav="dashboard"].active{
+  background:var(--admin-signal,#b8ff00);
+  color:var(--admin-signal-ink,#000);
+  border-color:var(--admin-signal,#b8ff00);
+}
+html[data-discadmin-appearance] #brvtal-dashboard-v2{
   --admin-radius-control:4px;
   --admin-radius-card:4px;
   --admin-radius-panel:4px;
   --admin-elevation-card:none;
-  --admin-signal:var(--acid,#b8ff00);
-  --admin-signal-ink:#050505;
 }
-aside.side button.active.active{
-  background:var(--admin-signal);
-  color:var(--admin-signal-ink);
-  border-color:var(--admin-signal);
-}
-.dashboard-v2-hero h2{
+html[data-discadmin-appearance] #brvtal-dashboard-v2 .dashboard-v2-hero h2{
   text-transform:uppercase;
   letter-spacing:-.01em;
   font-weight:800;
 }
-.dashboard-v2-hero,
-.dashboard-v2-summary-card{
+html[data-discadmin-appearance] #brvtal-dashboard-v2 :is(.dashboard-v2-hero,.dashboard-v2-summary-card,.dashboard-v2-panel,.dashboard-v2-health-card,.dashboard-v2-draft){
   box-shadow:none;
-  border-top:2px solid var(--admin-signal);
+  border-top:2px solid var(--admin-signal,#b8ff00);
+  border-radius:var(--admin-radius-card);
 }
-html[data-discadmin-appearance] .sv2-hero,
-html[data-discadmin-appearance] .ssv2-hero{
-  box-shadow:none;
-  border-top:2px solid var(--admin-signal);
-}
-.sv2-hero h2,
-.ssv2-hero h2{
-  text-transform:uppercase;
-  letter-spacing:-.01em;
-  font-weight:800;
-}
-.sv2-tabs button.active{
-  border-left:3px solid var(--admin-signal);
-}
-html[data-discadmin-appearance] .ssv2-bar-track i{
-  background:var(--admin-signal);
+html[data-discadmin-appearance] #brvtal-dashboard-v2 .dashboard-v2-button{
+  border-radius:var(--admin-radius-control);
 }
