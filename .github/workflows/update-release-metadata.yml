@@ -317,7 +317,7 @@ jobs:
           set -euo pipefail
           command -v php
           command -v node
-          python3 -m unittest -v tests/test_brechas_brvtal_33.py
+          python3 -m unittest -v tests/test_brechas_brvtal_33.py tests/test_brechas_brvtal_41.py
 
       - name: Run incremental PHPStan and Rector dry-run
         if: needs.preflight.outputs.run_php == 'true'
