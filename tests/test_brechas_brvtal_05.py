@@ -157,7 +157,7 @@ def evidence_for(key: object, rows: object, files: object,
     row = rows[key]
     if (not isinstance(row, tuple) or len(row) != 5
             or row[1] != SUMMARY[key] or row[2] != "NO_VERIFICABLE"
-            or SUMMARY[key] not in files["spec"]):
+            or SUMMARY[key] not in files["spec"].replace("`", "")):
         return result
     base, configured = data.get("base"), data.get("configured")
     unsupported = data.get("unsupported")
@@ -255,7 +255,7 @@ class BrechasBrvtal05Tests(unittest.TestCase):
         self.assertEqual(set(IDS), set(table))
         for key in IDS:
             with self.subTest(brecha=key):
-                self.assertIn(SUMMARY[key], files["spec"])
+                self.assertIn(SUMMARY[key], files["spec"].replace("`", ""))
                 self.assertEqual(LOCAL, evidence_for(key, table, files, data)["local"])
         self.assertEqual(1, data["base"]["version"])
         self.assertEqual("EN::Noche sintética", data["event"]["record"]["description"])
