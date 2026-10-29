@@ -26,6 +26,35 @@ PAGES = {
 UNKNOWN = "UNKNOWN"
 LOCAL_PARTIAL = "LOCAL_PARTIAL"
 
+# An incomplete PHP observation may not be promoted by static evidence alone.
+# Require the exact synthetic runtime and source-contract keys for each row.
+REQUIRED_CHECKS = {
+    "S07-L74": frozenset((
+        "route", "default", "seo", "static", "specified", "home_template",
+        "home_fail_closed",
+    )),
+    "S07-L75": frozenset((
+        "route", "published", "content", "draft_denied", "locale_denied",
+        "spanish_default_denied", "published_page_family", "canonical_delivery",
+        "structure_contract",
+    )),
+    "S07-L76": frozenset((
+        "route", "published", "content", "invalid_structure_denied",
+        "draft_denied", "published_page_family", "canonical_delivery",
+        "content_contract",
+    )),
+    "S07-L77": frozenset((
+        "route", "definition", "public", "draft_denied",
+        "future_publication_denied", "malformed_publication_denied",
+        "route_lookup", "event_guard", "404_noindex",
+    )),
+    "S07-L78": frozenset((
+        "route", "definition", "malformed_slug_denied",
+        "unknown_type_denied", "not_found_noindex", "route_lookup",
+        "published_sql", "404_noindex",
+    )),
+}
+
 
 def matrix_rows(raw: object) -> dict[str, tuple[str, ...]]:
     """Read exact unverified rows; reject missing, duplicated or promoted data."""
@@ -94,6 +123,7 @@ echo json_encode([
       && brvtal_page_content_plain_text($about['content_json']) === 'Synthetic About',
     'draft_denied'=>!brvtal_public_page_is_visible(array_replace($about, ['status'=>'draft']), $environment),
     'locale_denied'=>!brvtal_public_page_is_visible(array_replace($about, ['locale'=>'fr']), $environment),
+    'spanish_default_denied'=>!brvtal_public_page_is_visible(array_replace($about, ['locale'=>'es']), $environment),
   ],
   'manifesto'=>[
     'route'=>is_array($manifestoRoute) && $manifestoRoute['canonical'] === $base.'/en/pages/synthetic-manifesto',
@@ -191,7 +221,8 @@ def verdict(key: object, table: object, evidence: object) -> dict[str, str]:
     checks = evidence.get(key)
     if (not isinstance(row, tuple) or len(row) != 5
             or row[1] != PAGES[key] or row[2] != 'NO_VERIFICABLE'
-            or not isinstance(checks, dict) or not checks
+            or not isinstance(checks, dict)
+            or set(checks) != REQUIRED_CHECKS[key]
             or not all(value is True for value in checks.values())):
         return result
     result['code'] = LOCAL_PARTIAL
@@ -233,6 +264,9 @@ class BrechasBrvtal07Tests(unittest.TestCase):
                 altered = {k: dict(v) for k, v in self.evidence.items()}
                 altered[key]['synthetic_failure'] = False
                 self.assertEqual(verdict(key, self.rows, altered)['code'], UNKNOWN)
+                removed = {k: dict(v) for k, v in self.evidence.items()}
+                removed[key].pop(next(iter(REQUIRED_CHECKS[key])))
+                self.assertEqual(verdict(key, self.rows, removed)['code'], UNKNOWN)
         matrix = (ROOT / 'docs/matriz-cobertura.md').read_text(encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'UNKNOWN'):
             matrix_rows(None)
