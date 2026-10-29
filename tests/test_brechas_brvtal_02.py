@@ -76,7 +76,7 @@ def local_guards(files: object) -> dict[str, bool]:
     spec, style, visual = files["spec"], files["style"], files["visual"]
     input_css, app, menu, scroll = (
         files["input"], files["app"], files["menu"], files["scroll"])
-    if not all(phrase in spec for phrase in PHRASES.values()):
+    if not all(phrase in spec.replace(chr(96), "") for phrase in PHRASES.values()):
         return result
 
     result["S02-R005"] = all((
