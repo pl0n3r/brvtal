@@ -194,7 +194,7 @@ def signals(files: object, observed: object) -> dict[str, bool]:
     result["S03-R013"] = all((
         "@media(max-width:900px)" in visual,
         "@media(max-width:900px)" in inp,
-        "min-height:44px" in inp,
+        ".sound,.menu{min-height:44px;" in inp,
         "(pointer:coarse)" in inp,
         "@media (max-width:900px)" in style,
         "menu.setAttribute('aria-expanded', String(open));" in menu,
@@ -293,7 +293,7 @@ class BrechasBrvtal04Tests(unittest.TestCase):
                              UNKNOWN)
         for key, name, token in (
             ("S03-R011", "motion", "if (!window.gsap || motionDisabled()) return;"),
-            ("S03-R013", "input", "min-height:44px"),
+            ("S03-R013", "input", ".sound,.menu{min-height:44px;"),
             ("S04-R001", "sound", "frame.replaceChildren(iframe);"),
         ):
             changed = dict(files)
