@@ -31,11 +31,11 @@ CLAUSES = {
     "S51-R017": "**README.md** — current deploy snapshot, not cumulative roadmap.",
 }
 AGENT_ANCHOR = {
-    "S51-R013": "**\`docs/BRVTAL-SPEC.md\`** — durable product, architecture",
+    "S51-R013": "**`docs/BRVTAL-SPEC.md`** — durable product, architecture",
     "S51-R014": "**GitHub Issue #533** — cross-project execution order and progress only.",
     "S51-R015": "**The specific GitHub Issue** — acceptance criteria for that work item.",
     "S51-R016": "**Newer merged PR decisions/tests** — newer executable intent.",
-    "S51-R017": "**\`README.md\`** — operational landing page under README Contract v2:",
+    "S51-R017": "**`README.md`** — operational landing page under README Contract v2:",
 }
 EXPECTED = {
     "S51-R013": LOCAL,  # Local spec ownership, not future architectural decisions.
