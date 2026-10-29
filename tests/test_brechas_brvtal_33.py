@@ -19,11 +19,18 @@ UNKNOWN = "UNKNOWN"
 LOCAL = "LOCAL_CONTRACT"
 IDS = tuple(f"S27-R{i:03d}" for i in range(4, 9))
 SUMMARIES = {
-    "S27-R004": "Important editorial/admin mutations record actor, action, resource, changed fields and safe before/after snapshots",
-    "S27-R005": "Editorial Version History v1 groups those snapshots by content item in a chronological timeline",
+    "S27-R004": "Important editorial/admin mutations record actor, action, resource, changed fields and safe before/after snapshots while filtering secret/security values.",
+    "S27-R005": "Editorial Version History v1 groups those snapshots by content item in a chronological timeline and renders readable field-level before/after differences inside the existing Dashboard activity panel.",
     "S27-R006": "The Admin Activity dashboard remains read-only and never exposes direct restore/revert actions.",
-    "S27-R007": "Event Version Restore V1 is review-before-save only from the canonical open editor",
-    "S27-R008": "The normal Event Save remains the sole persistence boundary",
+    "S27-R007": "Event Version Restore V1 is review-before-save only from the canonical open editor for the same persisted Event: LOAD INTO EDITOR may stage only allowlisted editorial fields, preserves lifecycle/status, server-owned timestamps, tickets, lineup and timetable, and creates no write by itself.",
+    "S27-R008": "The normal Event Save remains the sole persistence boundary and therefore produces a new Admin Activity before/after entry.",
+}
+NOTES = {
+    "S27-R004": "Sin aserción contrastada para «Important editorial/admin mutations record actor, action, resource, changed fields and safe before/after »; revisar `tests/admin-activity-contract.php`; falta enlazar prueba de ese inciso, archivo de código y PR fusionado.",
+    "S27-R005": "Sin aserción contrastada para «Editorial Version History v1 groups those snapshots by content item in a chronological timeline and rende»; revisar `tests/admin-activity-contract.php`; falta enlazar prueba de ese inciso, archivo de código y PR fusionado.",
+    "S27-R006": "Sin aserción contrastada para «The Admin Activity dashboard remains read-only and never exposes direct restore/revert actions.»; revisar `tests/admin-activity-contract.php`; falta enlazar prueba de ese inciso, archivo de código y PR fusionado.",
+    "S27-R007": "Sin aserción contrastada para «Event Version Restore V1 is review-before-save only from the canonical open editor for the same persisted»; revisar `tests/admin-activity-contract.php`; falta enlazar prueba de ese inciso, archivo de código y PR fusionado.",
+    "S27-R008": "Sin aserción contrastada para «The normal Event Save remains the sole persistence boundary and therefore produces a new Admin Activity b»; revisar `tests/admin-activity-contract.php`; falta enlazar prueba de ese inciso, archivo de código y PR fusionado.",
 }
 FILES = {
     "matrix": "docs/matriz-cobertura.md",
@@ -95,12 +102,12 @@ def matrix_rows(document: object) -> dict[str, tuple[str, ...]]:
         if len(matches) != 1:
             raise ValueError("UNKNOWN: fila ausente o duplicada " + key)
         cells = tuple(x.strip() for x in matches[0].strip("|").split("|"))
-        if (len(cells) != 5 or not cells[0].startswith(key + " · [S27 L")
-                or not cells[1].startswith(SUMMARIES[key])
+        if (len(cells) != 5 or not re.fullmatch(
+                    rf"{re.escape(key)} · \[S27 L\d+\]\(https://github\.com/pl0n3r/brvtal/blob/[0-9a-f]{{40}}/docs/BRVTAL-SPEC\.md#L\d+\)",
+                    cells[0])
+                or cells[1] != SUMMARIES[key]
                 or cells[2] != "NO_VERIFICABLE"
-                or not cells[3].startswith("Sin aserción contrastada para")
-                or "falta enlazar prueba" not in cells[3]
-                or "PR fusionado" not in cells[3]
+                or cells[3] != NOTES[key]
                 or cells[4] != "—"):
             raise ValueError("UNKNOWN: fila ambigua " + key)
         result[key] = cells
@@ -108,6 +115,15 @@ def matrix_rows(document: object) -> dict[str, tuple[str, ...]]:
 
 
 PHP_PROBE = r"""
+// Configuración sintética efímera: bootstrap no requiere config/config.php real.
+define('BRVTAL_SENTRY_TESTING', true);
+$tempConfig = tempnam(sys_get_temp_dir(), 'brvtal-s27-');
+if ($tempConfig === false) { throw new RuntimeException('No temp config'); }
+register_shutdown_function(static function () use ($tempConfig): void { @unlink($tempConfig); });
+if (file_put_contents($tempConfig, "<?php return ['app' => ['timezone' => 'UTC']];") === false) {
+    throw new RuntimeException('Cannot create synthetic config');
+}
+$GLOBALS['brvtalBootstrapConfigPath'] = $tempConfig;
 if (!function_exists('mb_substr')) {
     function mb_substr($s, $start, $len) {return substr($s, $start, $len);}
 }
@@ -187,7 +203,13 @@ def probes() -> dict[str, object]:
                                 text=True, check=False, timeout=25)
         if result.returncode or result.stderr.strip():
             raise AssertionError(f"UNKNOWN: fixture {name}: {result.stderr[-500:]}")
-        value = json.loads(result.stdout)
+        try:
+            value = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise AssertionError(
+                f"UNKNOWN: fixture {name} sin JSON válido; "
+                f"stdout={result.stdout[:100]!r}"
+            ) from exc
         if not isinstance(value, dict):
             raise AssertionError("UNKNOWN: evidencia sintética inválida " + name)
         outcome[name] = value
@@ -205,7 +227,9 @@ def local_verdict(key: object, rows: object, files: object,
         return UNKNOWN
     if rows[key][2] != "NO_VERIFICABLE":
         return UNKNOWN
-    if SUMMARIES[key] not in files["spec"]:
+    # La especificación usa backticks Markdown para etiquetas de UI; la matriz no.
+    spec_plain = re.sub(r"`([^`]+)`", r"\1", files["spec"])
+    if SUMMARIES[key] not in spec_plain:
         return UNKNOWN
     if not all(token in files[name] for name, token in CHECKS[key]):
         return UNKNOWN
@@ -269,13 +293,27 @@ class BrechasBrvtal33Tests(unittest.TestCase):
     def test_falla_cerrado(self) -> None:
         """AC-02: filas falsas, fuentes ausentes o pruebas dañadas = UNKNOWN."""
         document = self.files["matrix"]
+        for missing in (None, "", [], {}):
+            with self.assertRaisesRegex(ValueError, UNKNOWN):
+                matrix_rows(missing)
         for key in IDS:
             line = next(x for x in document.splitlines()
                         if x.startswith(f"| {key} · "))
-            for altered in (document.replace(line, "", 1),
-                            document + "\n" + line,
-                            document.replace(
-                                line, line.replace("NO_VERIFICABLE", "CUBIERTO", 1), 1)):
+            malformed = [
+                document.replace(line, "", 1),
+                document + "\n" + line,
+                document.replace(line, line.replace("NO_VERIFICABLE", "CUBIERTO", 1), 1),
+                document.replace(line, line.replace(SUMMARIES[key], SUMMARIES[key][:-1], 1), 1),
+                document.replace(line, line.replace(SUMMARIES[key], SUMMARIES[key] + " invented", 1), 1),
+                document.replace(line, line.replace(NOTES[key], NOTES[key][:-1], 1), 1),
+            ]
+            if key == "S27-R007":
+                malformed.append(document.replace(
+                    line,
+                    line.replace(SUMMARIES[key],
+                                 "Event Version Restore V1 is review-before-save only from the canonical open editor", 1),
+                    1))
+            for altered in malformed:
                 with self.subTest(key=key):
                     with self.assertRaisesRegex(ValueError, UNKNOWN):
                         matrix_rows(altered)

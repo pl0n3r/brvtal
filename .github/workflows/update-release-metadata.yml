@@ -265,7 +265,6 @@ jobs:
           persist-credentials: false
 
       - name: Set up PHP 8.5
-        if: needs.preflight.outputs.run_php == 'true'
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.5'
@@ -311,6 +310,14 @@ jobs:
       - name: Verify authentic Set duration backend acceptance
         if: needs.preflight.outputs.run_php == 'true'
         run: python3 -m unittest tests/test_set_duration_contract.py
+
+      - name: Run S27 coverage gap contracts (PHP + Node)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v php
+          command -v node
+          python3 -m unittest -v tests/test_brechas_brvtal_33.py
 
       - name: Run incremental PHPStan and Rector dry-run
         if: needs.preflight.outputs.run_php == 'true'
