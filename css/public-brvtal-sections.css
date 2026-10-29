@@ -35,3 +35,30 @@
     &::before{display:none}
   }
 }
+
+/* Noches y Artistas dejan de compartir media pantalla: cada una ocupa el ancho completo y el archivo respira. */
+[data-concept="05"] main#top>.c5-board-region--pair:has(> #events) {
+  grid-template-columns: minmax(0, 1fr);
+
+  > section{min-height:0}
+  > section + section{
+    border-left:0;
+    border-top:var(--c5-rule-thickness) solid var(--c5-rule-color);
+  }
+  .artist-list{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(clamp(150px,18vw,240px),1fr));
+    gap:var(--c5-gutter-module);
+  }
+  .events-track{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(clamp(240px,28vw,380px),1fr));
+    gap:var(--c5-gutter-module);
+  }
+}
+
+/* Textos secundarios del Archivo y de medios: AA sobre el fondo oscuro y tamaño legible (antes 8–9 px en grises fijos). */
+[data-concept="05"] :is(.archive-summary, .archive-results, .archive-event-placeholder, .archive-event-relations, .public-media-count, .media-end) {
+  color: var(--c5-paper-muted);
+  font-size: 11px;
+}
