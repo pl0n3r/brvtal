@@ -614,6 +614,9 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
+    if (!str_contains($html, 'js/public-brvtal-impact.js')) {
+        $html = str_replace('</body>', "  <script src=\"js/public-brvtal-impact.js\" defer></script>\n</body>", $html);
+    }
     if (!str_contains($html, 'js/public-concept05-hero.js')) {
         $html = str_replace(
             '</body>',
@@ -671,7 +674,7 @@ function brvtal_public_home_identity(string $html): string
             $html
         );
     }
-    foreach (['css/public-brvtal-v2.css'] as $v2Sheet) {
+    foreach (['css/public-brvtal-impact.css'] as $v2Sheet) {
         if (!str_contains($html, $v2Sheet)) {
             $html = str_replace('</head>', "  <link rel=\"stylesheet\" href=\"{$v2Sheet}\">\n</head>", $html);
         }
