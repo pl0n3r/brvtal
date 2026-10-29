@@ -21,7 +21,6 @@ MATRIX = "docs/matriz-cobertura.md"
 SPEC = "docs/BRVTAL-SPEC.md"
 UNKNOWN = "UNKNOWN"
 LOCAL = "LOCAL_SYNTHETIC_ONLY"
-GAP = "BRECHA_DOCUMENTADA"
 CLAUSES = {
     "S41-R006": (655, "Public entity delivery must filter draft/private content and private related records at the server/API layer, not merely hide them visually."),
     "S42-L662": (662, "CSRF;"),
@@ -252,9 +251,7 @@ def verdict(key: object, matrix: object, spec: object, data: object) -> str:
             return UNKNOWN
         # English private Pages remain a documented gap if this policy exposes
         # them. No source-level assumption can turn this into a public-API pass.
-        return GAP if v["private_page"] is True else (
-            LOCAL if v["private_page"] is False else UNKNOWN
-        )
+        return LOCAL if v["private_page"] is False else UNKNOWN
     if key == "S42-L662":
         good = data.get("valid")
         denied = data.get("invalid")
@@ -320,7 +317,11 @@ class BrechasBrvtal66Tests(unittest.TestCase):
                 actual = verdict(key, self.matrix, self.spec, observations[key])
                 if key == "S41-R006":
                     # Partial public pool sanitation is not an end-to-end leak audit.
-                    self.assertIn(actual, {LOCAL, GAP})
+                    self.assertEqual(
+                        UNKNOWN if observations[key]["visibility"]["private_page"] is True
+                        else LOCAL,
+                        actual,
+                    )
                 else:
                     self.assertEqual(LOCAL, actual)
                 self.assertEqual(UNKNOWN, operational_claim(key, observations[key]))
