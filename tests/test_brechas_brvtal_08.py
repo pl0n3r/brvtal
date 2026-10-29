@@ -203,7 +203,8 @@ def classify(key: object, sources: object, observed: object) -> str:
                 or value.get("locale") != locale
                 or value.get("canonical") != "https://example.test"
                    + prefix + "/" + suffix
-                or value.get("alternates", {}).get("x-default")
+                or type(value.get("alternates")) is not dict
+                or value["alternates"].get("x-default")
                    != "https://example.test/" + suffix):
             return UNKNOWN
     return LOCAL_STATIC_ONLY if family == "contact" else LOCAL_ROUTE_ONLY
@@ -268,6 +269,18 @@ class BrechasBrvtal08Tests(unittest.TestCase):
                                 "where": "status<>'draft'"}}
             self.assertEqual(UNKNOWN, classify(
                 key, self.sources, {**self.observed, "registry": registry}))
+        self.assertEqual(UNKNOWN, classify(
+            "S07-L80", self.sources,
+            {**self.observed, "routes": {
+                **self.observed["routes"],
+                "releases": {
+                    **self.observed["routes"]["releases"],
+                    "es": {
+                        **self.observed["routes"]["releases"]["es"],
+                        "alternates": None,
+                    },
+                },
+            }}))
         self.assertEqual(UNKNOWN, classify(
             "S07-L82", self.sources, {**self.observed, "static": ["/"]}))
         self.assertEqual(UNKNOWN, classify(
