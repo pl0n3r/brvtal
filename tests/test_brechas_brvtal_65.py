@@ -241,7 +241,9 @@ class BrechasBrvtal65Tests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, UNKNOWN):
                         matrix_rows(bad["matrix"])
                     self.assertEqual(evidence(ident, bad, routes)["code"], UNKNOWN)
-                spec_bad = {**sources, "spec": sources["spec"].replace(
+                normalized_spec = sources["spec"].replace("`", "")
+                self.assertIn(CLAUSES[ident][1], normalized_spec)
+                spec_bad = {**sources, "spec": normalized_spec.replace(
                     CLAUSES[ident][1], "", 1)}
                 self.assertEqual(evidence(ident, spec_bad, routes)["code"], UNKNOWN)
         for field, original, replacement in (
