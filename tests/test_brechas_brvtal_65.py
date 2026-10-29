@@ -87,7 +87,7 @@ def source_contracts(sources: object) -> dict[str, bool]:
         matrix_rows(sources["matrix"])
     except ValueError:
         return dict.fromkeys(IDS, False)
-    spec = sources["spec"]
+    spec = sources["spec"].replace("`", "")
     section = re.search(r"(?ms)^## 41\. API architecture\n(.*?)(?=^## 42\. )", spec)
     if (section is None or len(re.findall(r"(?m)^## 41\. API architecture$", spec)) != 1
             or any(spec.count(clause) != 1 for _, clause in CLAUSES.values())
