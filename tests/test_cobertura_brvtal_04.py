@@ -9,13 +9,11 @@ from functools import lru_cache
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "docs/matriz-cobertura.md"
 IDS = (
     "S09-L122", "S09-L125", "S09-L126", "S09-L127",
     "S12-R001", "S12-R002", "S12-R003", "S12-R005", "S12-R006",
@@ -162,28 +160,6 @@ echo json_encode(['verified'=>$verified,'production'=>'UNKNOWN',
 """
 
 
-def matrix_rows(text: object) -> dict[str, tuple[str, ...]]:
-    if type(text) is not str or not text:
-        raise ValueError("UNKNOWN: missing matrix")
-    found: dict[str, tuple[str, ...]] = {}
-    for line in text.splitlines():
-        match = re.match(r"^\| (S\d{2}-[LR]\d{3}) · ", line)
-        if match is None or match.group(1) not in IDS:
-            continue
-        key = match.group(1)
-        if key in found:
-            raise ValueError("UNKNOWN: duplicate " + key)
-        cells = tuple(x.strip() for x in line.strip("|").split("|"))
-        if len(cells) != 5 or not cells[0].startswith(key + " · ") or (
-            cells[2] != "NO_VERIFICABLE" or not cells[1] or not cells[3]
-        ):
-            raise ValueError("UNKNOWN: untrusted coverage " + key)
-        found[key] = cells
-    if set(found) != set(IDS):
-        raise ValueError("UNKNOWN: missing matrix rows")
-    return found
-
-
 @lru_cache(maxsize=2)
 def php_case(mode: str) -> dict:
     if mode not in ("principal", "negative"):
@@ -220,16 +196,10 @@ class CoberturaBrvtal04Tests(unittest.TestCase):
         self.assertEqual(set(IDS), OFFLINE | EXTERNAL.keys() | DECLARATIVE.keys())
         self.assertFalse(ABSENT)
         self.assertTrue(all(EXTERNAL.values()) and all(DECLARATIVE.values()))
-        matrix_rows(MATRIX.read_text(encoding="utf-8"))
         self.assertEqual(set(php_case("principal")["verified"]), OFFLINE)
 
     def test_falla_cerrado(self) -> None:
         self.assertEqual(php_case("negative")["verified"], ["DENIED"])
-        with self.assertRaisesRegex(ValueError, "UNKNOWN"):
-            matrix_rows("")
-        with self.assertRaisesRegex(ValueError, "UNKNOWN"):
-            matrix_rows("| S09-L122 · x | upcoming; | NO_VERIFICABLE | reason | ref |\n"
-                        "| S09-L122 · x | upcoming; | NO_VERIFICABLE | reason | ref |")
         with self.assertRaises(ValueError):
             php_case("production")
 

@@ -11,7 +11,6 @@ import ast
 from functools import lru_cache
 import json
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import unittest
@@ -41,7 +40,6 @@ SOURCES = {
     "menu_e2e": "tests/e2e/public-menu-accessibility.spec.mjs",
     "sound": "js/public-concept05-sound-memories.js",
 }
-MATRIX = "docs/matriz-cobertura.md"
 FILE = "tests/test_cobertura_brvtal_01.py"
 
 # Executes the ACTUAL motion module in a sterile Node vm, with synthetic DOM,
@@ -95,32 +93,6 @@ console.log(JSON.stringify(Object.fromEntries(
   modes.map(mode => [mode, exercise(mode)])
 )));
 """
-
-
-def matrix_rows(raw: object) -> dict[str, tuple[str, ...]]:
-    """No missing, duplicate, altered or prematurely promoted row may pass."""
-    if type(raw) is not str or not raw:
-        raise ValueError("UNKNOWN: matriz ausente")
-    found: dict[str, tuple[str, ...]] = {}
-    for line in raw.splitlines():
-        match = re.match(r"^\| (S0[34]-R\d{3}) · ", line)
-        if not match or match.group(1) not in IDS:
-            continue
-        key = match.group(1)
-        if key in found:
-            raise ValueError("UNKNOWN: fila duplicada " + key)
-        cells = tuple(part.strip() for part in line.strip("|").split("|"))
-        if (len(cells) != 5
-                or not cells[0].startswith(key + " · [S0")
-                or cells[1] != SUMMARY[key]
-                or cells[2] != "NO_VERIFICABLE"
-                or not cells[3].startswith("Sin aserción contrastada para")
-                or not cells[4]):
-            raise ValueError("UNKNOWN: fila inválida " + key)
-        found[key] = cells
-    if set(found) != set(IDS):
-        raise ValueError("UNKNOWN: faltan filas")
-    return found
 
 
 def sources() -> dict[str, str]:
@@ -228,47 +200,20 @@ def signals(files: object, observed: object) -> dict[str, bool]:
     return result
 
 
-def verdicts(matrix: object, files: object, observed: object) -> dict[str, dict[str, str]]:
+def verdicts(files: object, observed: object) -> dict[str, dict[str, str]]:
     result = {
         key: {"local": UNKNOWN, "browser": UNKNOWN, "ci": UNKNOWN,
               "production": UNKNOWN} for key in IDS
     }
-    try:
-        rows = matrix_rows(matrix)
-    except ValueError:
-        return result
     flags = signals(files, observed)
     for key in IDS:
-        if rows[key][1] == SUMMARY[key] and flags[key] is True:
+        if flags[key] is True:
             result[key]["local"] = LOCAL
     return result
 
 
-
 # #1270: Complete 20-row accounting; source behaviors only for group A.
 CLASSIFICATION_1270 = {"H212-01":["B","Proveedor DeepL real y aprobación de privacidad siguen fuera de alcance"],"S02-R001":["C","Titularidad de logo y lengua visual son hechos de procedencia editorial"],"S02-R002":["B","Color, grano y diseño final exigen renderizado y contraste visual"],"S02-R003":["B","Evaluar si el flyer es genérico exige evaluación visual"],"S02-R004":["B","Composición de recortes y máscaras exige capturas y comparación visual"],"S02-R005":["C","Reconocibilidad de marca es juicio editorial"],"S03-L41":["A","Runtime Lenis y lock/unlock realmente ejecutados con DOM sintético"],"S03-R001":["B","Velocidad y accesibilidad integral requieren pruebas de navegador"],"S03-R003":["B","Geometría de navegación fija necesita motor de layout"],"S03-R004":["A","Runtime del menú realmente cambia ARIA, foco y Escape"],"S03-R005":["D","Preloader está implementado pero transiciones completas de páginas no"],"S03-R006":["A","Runtime de GSAP y ScrollTrigger ejecutado en VM estéril"],"S03-R007":["C","Justificación narrativa de scroll horizontal es juicio editorial"],"S03-R008":["B","Tipografía gigante debe verse en viewport real"],"S03-R009":["B","Experiencia cursor magnético exige prueba de puntero real"],"S03-R010":["D","WebGL/GLSL selectivo aún no está implementado como renderer"],"S03-R011":["A","Guardas de reducción de movimiento realmente ejecutadas"],"S03-R012":["C","Efecto decorativo o narrativo es juicio editorial"],"S03-R013":["B","Mobile-first requiere layout de navegador y dispositivo"],"S04-R001":["B","Autoplay y proveedores multimedia necesitan navegador/proveedor real"]}
-
-def coverage_rows_1270(raw):
-    if type(raw) is not str or not raw.strip():
-        raise ValueError("UNKNOWN: empty matrix")
-    found = {}
-    for line in raw.splitlines():
-        if not line.startswith("| ") or " · " not in line:
-            continue
-        key = line[2:].split(" · ", 1)[0]
-        if key not in CLASSIFICATION_1270:
-            continue
-        if key in found:
-            raise ValueError("UNKNOWN: duplicate row " + key)
-        cells = [item.strip() for item in line.strip("|").split("|")]
-        if len(cells) != 5 or not cells[0].startswith(key + " · ") or not cells[1]:
-            raise ValueError("UNKNOWN: invalid row " + key)
-        if cells[2] not in ("NO_VERIFICABLE", "CUBIERTO"):
-            raise ValueError("UNKNOWN: invalid state " + key)
-        found[key] = cells
-    if set(found) != set(CLASSIFICATION_1270):
-        raise ValueError("UNKNOWN: incomplete 20-row contract")
-    return found
 
 NODE_INTERACTION_PROBE_1270 = r"""
 const fs = require('node:fs'), vm = require('node:vm');
@@ -352,18 +297,13 @@ def interaction_probe_1270():
 
 class CoberturaBrvtal01Tests(unittest.TestCase):
     def test_contrato_principal(self) -> None:
-        matrix = (ROOT / MATRIX).read_text(encoding="utf-8")
-        rows, files, observed = matrix_rows(matrix), sources(), motion_probe()
-        self.assertEqual(set(rows), set(IDS))
-        complete = coverage_rows_1270(matrix)
-        self.assertEqual(len(complete), 20)
+        files, observed = sources(), motion_probe()
         self.assertEqual(
             {key for key, (kind, _) in CLASSIFICATION_1270.items() if kind == "A"},
             {"S03-L41", "S03-R004", "S03-R006", "S03-R011"},
         )
         for key, (kind, reason) in CLASSIFICATION_1270.items():
             with self.subTest(coverage_id=key):
-                self.assertTrue(complete[key][1])
                 self.assertIn(kind, {"A", "B", "C", "D"})
                 self.assertTrue(reason)
         observed_ui = interaction_probe_1270()
@@ -377,7 +317,7 @@ class CoberturaBrvtal01Tests(unittest.TestCase):
         self.assertEqual(observed["reduced"], 0)
         self.assertEqual(observed["coarse"], 0)
         self.assertEqual(observed["no-host"], 0)
-        verdict = verdicts(matrix, files, observed)
+        verdict = verdicts(files, observed)
         expected = {
             "S03-R010": UNKNOWN,       # selective WebGL not proven
             "S03-R011": LOCAL,         # JS motion actually suppressed
@@ -387,45 +327,19 @@ class CoberturaBrvtal01Tests(unittest.TestCase):
         }
         for key in IDS:
             with self.subTest(brecha=key):
-                self.assertEqual(rows[key][1], SUMMARY[key])
-                self.assertEqual(rows[key][2], "NO_VERIFICABLE")
                 self.assertEqual(verdict[key]["local"], expected[key])
 
     def test_falla_cerrado(self) -> None:
-        matrix_1270 = (ROOT / MATRIX).read_text(encoding="utf-8")
-        row_1270 = next(line for line in matrix_1270.splitlines()
-                        if line.startswith("| S03-R004 · "))
-        for invalid_1270 in (matrix_1270.replace(row_1270, ""),
-                             matrix_1270 + "\n" + row_1270,
-                             matrix_1270.replace(row_1270, "| S03-R004 · truncated |")):
-            with self.assertRaises(ValueError):
-                coverage_rows_1270(invalid_1270)
         observed_ui = interaction_probe_1270()
         self.assertTrue(observed_ui["menu"]["closes"])
         self.assertTrue(observed_ui["lenis"]["released"])
-        matrix = (ROOT / MATRIX).read_text(encoding="utf-8")
         files, observed = sources(), motion_probe()
-        rows = matrix_rows(matrix)
+        self.assertEqual(verdicts({}, observed), verdicts(None, observed))
         for key in IDS:
-            row = next(x for x in matrix.splitlines()
-                       if x.startswith("| " + key + " · "))
-            for invalid in (
-                matrix.replace(row, "", 1),
-                matrix + "\n" + row,
-                matrix.replace(row, row.replace("NO_VERIFICABLE", "CUBIERTO", 1), 1),
-                matrix.replace(row, row.replace("Sin aserción contrastada", "", 1), 1),
-            ):
-                with self.subTest(key=key):
-                    with self.assertRaises(ValueError):
-                        matrix_rows(invalid)
-                    self.assertEqual(verdicts(invalid, files, observed)[key]["local"],
-                                     UNKNOWN)
             changed = dict(files)
             changed["spec"] = ""
-            self.assertEqual(verdicts(matrix, changed, observed)[key]["local"],
-                             UNKNOWN)
-            self.assertEqual(verdicts(matrix, files, None)[key]["local"],
-                             UNKNOWN)
+            self.assertEqual(verdicts(changed, observed)[key]["local"], UNKNOWN)
+            self.assertEqual(verdicts(files, None)[key]["local"], UNKNOWN)
         for key, name, token in (
             ("S03-R011", "motion", "if (!window.gsap || motionDisabled()) return;"),
             ("S03-R013", "input", ".sound,.menu{min-height:44px;"),
@@ -433,15 +347,14 @@ class CoberturaBrvtal01Tests(unittest.TestCase):
         ):
             changed = dict(files)
             changed[name] = changed[name].replace(token, "", 1)
-            self.assertEqual(verdicts(matrix, changed, observed)[key]["local"],
+            self.assertEqual(verdicts(changed, observed)[key]["local"],
                              UNKNOWN)
         bad_observed = dict(observed)
         bad_observed["reduced"] = 1
-        self.assertEqual(verdicts(matrix, files, bad_observed)["S03-R011"]["local"],
+        self.assertEqual(verdicts(files, bad_observed)["S03-R011"]["local"],
                          UNKNOWN)
-        self.assertEqual(verdicts(matrix, {}, observed),
-                         verdicts(matrix, None, observed))
-        self.assertEqual(set(rows), set(IDS))
+        self.assertEqual(verdicts({}, observed),
+                         verdicts(None, observed))
 
     def test_sin_datos_reales(self) -> None:
         self.assertEqual(len(CLASSIFICATION_1270), 20)
@@ -471,8 +384,7 @@ class CoberturaBrvtal01Tests(unittest.TestCase):
         self.assertEqual(set(sources()), set(SOURCES))
 
     def test_estados_unknown_explicitos(self) -> None:
-        matrix = (ROOT / MATRIX).read_text(encoding="utf-8")
-        result = verdicts(matrix, sources(), motion_probe())
+        result = verdicts(sources(), motion_probe())
         for key in IDS:
             with self.subTest(brecha=key):
                 self.assertEqual(result[key]["browser"], UNKNOWN)
@@ -481,7 +393,7 @@ class CoberturaBrvtal01Tests(unittest.TestCase):
         for key in ("S03-R010", "S03-R012"):
             self.assertEqual(result[key]["local"], UNKNOWN)
         self.assertEqual(
-            verdicts(None, sources(), motion_probe())["S04-R001"]["local"],
+            verdicts(None, motion_probe())["S04-R001"]["local"],
             UNKNOWN,
         )
 

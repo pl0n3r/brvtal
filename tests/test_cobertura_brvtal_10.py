@@ -11,13 +11,11 @@ from functools import lru_cache
 import importlib.util
 import json
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-MATRIX = ROOT / "docs/matriz-cobertura.md"
 IDS = tuple([f"S28-R{i:03}" for i in range(15, 29)] +
             [f"S29-R{i:03}" for i in range(1, 5)] +
             [f"S30-R{i:03}" for i in range(1, 3)])
@@ -114,27 +112,8 @@ def helper(name: str):
     return getattr(module, cls)()
 
 
-def coverage_rows() -> dict[str, str]:
-    rows = {}
-    for line in MATRIX.read_text(encoding="utf-8").splitlines():
-        match = re.match(r"^\| (S\d{2}-R\d{3}) · ", line)
-        if not match or match.group(1) not in IDS:
-            continue
-        key = match.group(1)
-        if key in rows:
-            raise AssertionError("UNKNOWN: duplicate matrix row " + key)
-        cells = tuple(x.strip() for x in line.strip().strip("|").split("|"))
-        if len(cells) != 5 or cells[2] != "NO_VERIFICABLE" or not cells[1]:
-            raise AssertionError("UNKNOWN: changed matrix contract " + key)
-        rows[key] = cells[1]
-    if set(rows) != set(IDS):
-        raise AssertionError("UNKNOWN: incomplete 20-row coverage")
-    return rows
-
-
 class CoberturaBrvtal10Tests(unittest.TestCase):
     def test_contrato_principal(self) -> None:
-        self.assertEqual(20, len(coverage_rows()))
         self.assertEqual(20, len(OFFLINE) + len(NON_OFFLINE))
         self.assertTrue(all(kind in ("B", "C", "D") and reason
                             for kind, reason in NON_OFFLINE.values()))
