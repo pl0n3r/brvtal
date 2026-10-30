@@ -319,6 +319,13 @@ jobs:
           command -v node
           python3 -m unittest -v tests/test_brechas_brvtal_33.py tests/test_brechas_brvtal_41.py
 
+      - name: Verify BRVTAL #1278 coverage and real admin denial gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v php
+          python3 -m unittest -v tests/test_cobertura_brvtal_09.py tests/test_admin_require_permissions.py
+
       - name: Verify BRVTAL 17 executable coverage
         shell: bash
         run: |
