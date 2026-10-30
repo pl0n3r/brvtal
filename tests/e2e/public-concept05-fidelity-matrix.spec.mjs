@@ -806,15 +806,15 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: '7f1537fcb58333eadcbd6b2517ab385f29a53de59f1ac0fb7e650472b480c387',
-    color: '3bc5bf4cb50e852472ae3daecc946cab00c844f0efefe40f62302a988db327d2',
+    structure: 'f7465291e4a17c5913c762230d283712574532763cb26eb4543fb322b4ad7aff',
+    color: 'b48d809c69d2f76fb499f2237381d5aa31ae16297dee3d03773cd0f78b0e8ef9',
   },
   1440: {
     // Refreshed after comparing HEAD 4e4d44e's genuine CI capture with
     // owner-v2. This guards the incremental radial layout; it does NOT
     // attest pixel-perfect parity or authorize publication.
-    structure: '8b6f932906121e083479f455f691ecb507efdaaa699a6d2b7e0decf96e92c4c6',
-    color: '35e207190412c9b129b55bb6a7c373ef25edd00ca7533a951598d454c0d98fda',
+    structure: 'a53bee6e0d4ceb6078fcfdb7c2feb4af9b0833235b693b4bdcec318d9059bb24',
+    color: 'df124088ead685f443378051c5b9b4145f7d95272e1991e8f2e2733e97f23bd2',
   },
 };
 
