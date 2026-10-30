@@ -9,6 +9,7 @@
   const AUTH = '/api/index.php/auth';
   const GITHUB_ISSUES = 'https://github.com/pl0n3r/brvtal/issues';
   const PREFERENCES = '/api/admin-dashboard-preferences.php?workspace=system_status';
+  const QUOTAS = '/discadmin/free-quotas.php';
   let mountTimer = null;
   let refreshTimer = null;
   let requestId = 0;
@@ -687,7 +688,29 @@
     </section>`;
   }
 
-  function render(root, data, health, activity, latency) {
+  function freeQuotaPanel(result) {
+    const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
+    const ids = [['deepl', 'DEEP L FREE'], ['mail', 'CORREO'], ['backups', 'COPIAS'], ['hosting', 'HOSTING']];
+    const items = ids.map(([id, label]) => {
+      const row = rows.find(item => item?.id === id);
+      const status = String(row?.status || 'UNKNOWN').toUpperCase();
+      const known = ['OK', 'WARNING', 'EXHAUSTED'].includes(status);
+      const usage = known ? `${number(row.used)} / ${number(row.limit)} ${esc(row.unit)}` : 'UNKNOWN';
+      const measured = known ? String(row.measured_at || 'UNKNOWN') : 'UNKNOWN';
+      const advisory = status === 'EXHAUSTED' ? 'CUOTA AGOTADA · SIN COBROS' :
+        status === 'WARNING' ? 'AVISO DE CUOTA · NO BLOQUEANTE' : status;
+      return `<div class="ssv2-quota-row" style="padding:10px 0;border-bottom:1px solid var(--border-color,rgba(255,255,255,.16))">
+        <strong>${esc(label)}</strong><span style="display:block">${usage}</span>
+        <small>${esc(advisory)} · ${esc(measured)} (BOGOTÁ, 12 H)</small>
+        <small style="display:block">${esc(known ? row.source : 'UNKNOWN')}</small></div>`;
+    }).join('');
+    const threshold = Number(result?.data?.warning_threshold_percent ?? 80);
+    return `<section class="ssv2-panel" data-testid="free-quotas">
+      <div class="ssv2-panel-head"><span>CUOTAS GRATUITAS</span><b>AVISOS SIN BLOQUEAR · ${Number.isFinite(threshold) ? threshold : 80}%</b></div>
+      <div class="ssv2-quota-list">${items}</div>
+      <small>DEEPL: CONTADOR LOCAL; CUOTA DEL PROVEEDOR NO VERIFICADA. SIN PLAN DE PAGO.</small></section>`;
+  }
+  function render(root, data, health, activity, latency, quotas) {
     if (!root.isConnected || !isSystemStatus()) return;
     const advancedOpen = root.querySelector('.ssv2-advanced')?.open === true;
     const deployment = data.deployment || {};
@@ -728,6 +751,8 @@
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>REPOSITORY</span><b>GITHUB + DEPLOYED SOURCE</b></div>${repositoryBlock(data)}</section>
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>EDITORIAL HEALTH</span><b>${health?.ok === false ? 'UNAVAILABLE' : 'CONTENT CORE'}</b></div>${contentHealthBlock(health)}</section>
       </div>
+
+      <div class="ssv2-grid two">${freeQuotaPanel(quotas)}</div>
 
       <div class="ssv2-grid split">
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RUNTIME / DEPLOYMENT</span><b data-testid="system-product-version">${esc(productVersion)} · ${esc(environmentLabel)}</b></div>
@@ -774,16 +799,17 @@
     const started = performance.now();
     try {
       const layoutPromise = fetchJson(PREFERENCES).catch(() => null);
-      const [data,health,activity] = await Promise.all([
+      const [data,health,activity,quotas] = await Promise.all([
         fetchJson(TECH),
         fetchJson(HEALTH).catch(error => unavailableSource(error)),
         fetchJson(ACTIVITY).catch(error => unavailableSource(error)),
+        fetchJson(QUOTAS).catch(() => ({ok:false})),
       ]);
       if (id !== requestId || !root.isConnected) return;
       const layoutPayload = await layoutPromise;
       if (id !== requestId || !root.isConnected) return;
       systemLayout = normalizeSystemLayout(layoutPayload?.data);
-      render(root,data,health,activity,performance.now()-started);
+      render(root,data,health,activity,performance.now()-started,quotas);
     } catch (error) {
       if (id !== requestId || !root.isConnected) return;
       root.innerHTML = `<div class="ssv2-fatal"><strong>SYSTEM STATUS UNAVAILABLE</strong><span>${esc(error.message)}</span><button type="button">RETRY</button></div>`;
