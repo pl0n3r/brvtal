@@ -27,9 +27,5 @@ if ($case === 'warning') {
         'BRVTAL_FREE_MAIL_MEASURED_AT' => '2026-10-30T16:58:00Z',
     ];
 }
-$snapshot = brvtalFreeQuotaSnapshot(
-    static fn(string $name): ?string => $values[$name] ?? null,
-    $path,
-    static fn(): int => $now
-);
+$snapshot = brvtalFreeQuotaSnapshot($values, $path, $now);
 echo json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . "\n";
