@@ -9,15 +9,15 @@
 .nav button:hover{background:#181b1e;color:#fff}
 .nav button.active{background:#24282b;color:#fff}
 .nav button.active:before{width:4px;height:14px;margin:0 10px -3px 0;border-radius:2px}
-.navgroup{margin:19px 12px 7px;color:#9ba2a8;font-size:10px}
+.navgroup{margin:19px 12px 7px;color:#9ba2a8;font-size:11px}
 .main{width:100%;min-width:0;padding:32px clamp(20px,3vw,48px) 60px}
 .top{align-items:center;gap:16px;padding-bottom:22px}
 .top h1{font-size:clamp(25px,2.7vw,36px);line-height:1.1;letter-spacing:-1px}
 .eyebrow,.sectionhead strong,.field label{font-size:11px}
 .helper,.meta,.notice{font-size:12px;line-height:1.5}
-.thead{font-size:10px;color:#a2a9af}
+.thead{font-size:11px;color:#a2a9af}
 .tr{font-size:13px;line-height:1.4}
-.pill{font-size:10px}
+.pill{font-size:11px}
 .btn,.iconbtn{min-height:40px;border-radius:6px}
 .iconbtn{font-size:11px}
 .search,.field input,.field textarea,.field select{min-height:44px;border-radius:6px}
