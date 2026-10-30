@@ -42,6 +42,17 @@ incompleta queda explícitamente en **UNKNOWN**; no se reemplaza por cero.
 preexistente de DeepL con transporte HTTP inyectado, donde el tercer envío al
 superar la cuota no realiza llamada de red.
 
+## Puertas de validación y relación con el contrato
+
+El criterio AC-01 es `tests/test_cuotas_gratuitas.py::CuotasGratuitasTests::test_criterio_principal`;
+cubre los cuatro recursos, medidas ausentes, alerta no bloqueante, agotamiento
+sintético y formato horario de Bogotá. AC-02 se verifica contra el check
+**`factory-ci / Validar`** sobre el SHA exacto del PR, nombre observado en
+los check-runs de BRVTAL y validado literalmente por Factory v1. No se
+sustituye por una descripción editorial ni por `CI Factory v1 / Validar`,
+que no es un check publicado aquí. Coordinación, CI `validate`, SonarCloud,
+CodeQL y revisión FINAL se evalúan adicionalmente con las puertas del plan.
+
 ## Autoridad pendiente
 
 La prueba sintética y un merge de fuente **no certifican** saldo oficial de
