@@ -57,7 +57,7 @@ function brvtalFreeQuotaRow(
         'percent' => $percent,
         'status' => $state,
         'measured_at' => $known
-            ? (new DateTimeImmutable('@' . $measured))->setTimezone($zone)->format('g:i A, d/m/Y')
+            ? new DateTimeImmutable('@' . $measured)->setTimezone($zone)->format('g:i A, d/m/Y')
             : 'UNKNOWN',
         'source' => $known ? $source : 'UNKNOWN',
     ];
@@ -128,7 +128,7 @@ function brvtalFreeQuotaSnapshot(
     }
     return [
         'warning_threshold_percent' => $threshold,
-        'generated_at' => (new DateTimeImmutable('@' . $now))->setTimezone($zone)->format('g:i A, d/m/Y'),
+        'generated_at' => new DateTimeImmutable('@' . $now)->setTimezone($zone)->format('g:i A, d/m/Y'),
         'timezone' => 'America/Bogota',
         'rows' => $rows,
         'warnings' => $warnings,
