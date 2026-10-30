@@ -489,10 +489,11 @@
   [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature{
     grid-column:auto;
     grid-row:auto;
-    grid-template-columns:28px 72px minmax(0,1fr) 52px;
-    gap:7px;
+    /* #1349: preserve 11px metadata and the 72px cover without tall wrapping. */
+    grid-template-columns:24px 72px minmax(0,1fr) 44px;
+    gap:4px;
     min-height:92px;
-    padding:8px 0;
+    padding:4px 0;
     align-items:center;
   }
 

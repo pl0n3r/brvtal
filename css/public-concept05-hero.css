@@ -133,7 +133,8 @@
   width:clamp(220px,17vw,290px);
   min-height:250px;
   margin:0;
-  padding:20px 18px;
+  /* #1349: larger accessible metadata must not push the statement past the hero. */
+  padding:10px 18px;
   border:1px solid rgba(233,229,218,.24);
   background:rgba(5,5,5,.9);
   color:var(--c5-paper-dirty);
