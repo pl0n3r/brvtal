@@ -690,15 +690,16 @@
 
   function freeQuotaPanel(result) {
     const rows = Array.isArray(result?.data?.rows) ? result.data.rows : [];
-    const ids = [['deepl', 'DEEP L FREE'], ['mail', 'CORREO'], ['backups', 'COPIAS'], ['hosting', 'HOSTING']];
+    const ids = [['deepl', 'DEEPL FREE'], ['mail', 'CORREO'], ['backups', 'COPIAS'], ['hosting', 'HOSTING']];
     const items = ids.map(([id, label]) => {
       const row = rows.find(item => item?.id === id);
       const status = String(row?.status || 'UNKNOWN').toUpperCase();
       const known = ['OK', 'WARNING', 'EXHAUSTED'].includes(status);
       const usage = known ? `${number(row.used)} / ${number(row.limit)} ${esc(row.unit)}` : 'UNKNOWN';
       const measured = known ? String(row.measured_at || 'UNKNOWN') : 'UNKNOWN';
-      const advisory = status === 'EXHAUSTED' ? 'CUOTA AGOTADA · SIN COBROS' :
-        status === 'WARNING' ? 'AVISO DE CUOTA · NO BLOQUEANTE' : status;
+      let advisory = status;
+      if (status === 'EXHAUSTED') advisory = 'CUOTA AGOTADA · SIN COBROS';
+      if (status === 'WARNING') advisory = 'AVISO DE CUOTA · NO BLOQUEANTE';
       return `<div class="ssv2-quota-row" style="padding:10px 0;border-bottom:1px solid var(--border-color,rgba(255,255,255,.16))">
         <strong>${esc(label)}</strong><span style="display:block">${usage}</span>
         <small>${esc(advisory)} · ${esc(measured)} (BOGOTÁ, 12 H)</small>
