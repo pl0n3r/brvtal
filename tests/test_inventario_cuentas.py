@@ -124,7 +124,10 @@ class InventarioCuentasTests(unittest.TestCase):
             self.assertIsNone(sensitive_match(allowed))
 
     def test_ensayo_repetible_y_sin_valores_en_documento(self):
-        self.assertEqual(rehearsal(), rehearsal())
+        first = rehearsal()
+        self.assertEqual(first, (["revocar", "generar", "actualizar", "verificar"], True, True, True))
+        second = rehearsal()
+        self.assertEqual(second, first)
         self.assertNotIn("FICTICIO_NUEVO_1353", DOC.read_text(encoding="utf-8"))
 
     def test_no_declara_cuentas_verificadas(self):
