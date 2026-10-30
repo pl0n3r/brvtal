@@ -787,3 +787,37 @@ Las 5 A tienen pruebas del código real, pero permanecen **NO_VERIFICABLE** por 
 **Resultado:** 102/102 filas revisadas del tercer bloque, sin promociones indebidas a `CUBIERTO` ni atribuciones de PR falsas. El impedimento de los 38 subcontratos A está identificado por nombre de validador, autoridad y claim; B/C conservan su motivo específico. **Totales exactos preservados:** 611 requisitos; 169 `CUBIERTO`, 34 `DESCARTADO`, 408 `NO_VERIFICABLE` (27.66 %). No se modifican las celdas de la tabla original, pruebas, runtime, producción ni go-live.
 
 **Reversión:** revertir el squash elimina exclusivamente este apéndice, sin cambiar los otros grupos ni los estados originales.
+
+
+### Re-reconciliación de cobertura · etapa 4/4 · Issue #1343
+
+**Alcance fijo y auditable:** cuarto grupo de las 408 filas `NO_VERIFICABLE` originales, posiciones **307–408** de acuerdo con su **orden de aparición en la tabla** (no por identificador lexicográfico), desde `S50-R001` hasta `S51-L754`. Incluye filas de §50/51 y subfilas normativas `H`/`S..-L` auditadas después de la matriz principal. Dependencias #1313 y #1342 completadas; PR #1346 fusionado sobre `main@8251f50e2987e862fa72f964c0be344bed7b3e13`. Claim único: `docs/matriz-cobertura.md`.
+
+| Clase | Filas | Evidencia contrastada y condición que falta |
+| --- | ---: | --- |
+| A — subcontrato local comprobado, no promoción integral | **30** | Los tests existentes ejercitan una parte del comportamiento y los PR de la tabla inferior están fusionados. Las pruebas no acreditan por sí solas el criterio completo; además `tests/test_matriz_cobertura.py::MERGED_EVIDENCE_PRS` no contiene esos PR, por lo que referenciarlos para cambiar estados a `CUBIERTO` fallaría el contrato vigente. No se edita el test fuera de este claim. |
+| B — integración/operación real pendiente | **52** | Requieren observación funcional real, QA de navegador/servicio, sincronización con Issue #533 y/o permisos o recibos exactos según la razón ya escrita en la celda original. Fixtures y pruebas aisladas no demuestran operación integral. |
+| C — pauta editorial o decisión no atómica | **20** | Requieren decisión/verificación por autoridad de producto/gobernanza y criterio de aceptación específico; no son una funcionalidad aislada demostrada por CI. |
+| D — funcionalidad ausente demostrada | **0** | No hay evidencia suficiente para declarar una nueva ausencia funcional en esta tanda. |
+
+**A — trazabilidad parcial a código/prueba y PR fusionados (30 registros; las celdas originales conservan código, dependencia y limitación específicos):**
+
+| PR fusionado | Filas | Identificadores | Pruebas ejercitadas |
+| --- | ---: | --- | --- |
+| [#1299](https://github.com/pl0n3r/brvtal/pull/1299) | 1 | `S03-L41` | `tests/test_cobertura_brvtal_01.py`, `tests/test_matriz_cobertura.py` |
+| [#1302](https://github.com/pl0n3r/brvtal/pull/1302) | 4 | `S09-L122`, `S09-L125`, `S09-L126`, `S09-L127` | `tests/test_cobertura_brvtal_04.py`, `tests/test_matriz_cobertura.py` |
+| [#1303](https://github.com/pl0n3r/brvtal/pull/1303) | 9 | `S09-L105`, `S09-L106`, `S09-L107`, `S09-L109`, `S09-L110`, `S09-L112`, `S09-L119`, `S09-L120`, `S09-L121` | `tests/test_cobertura_brvtal_03.py`, `tests/test_matriz_cobertura.py` |
+| [#1314](https://github.com/pl0n3r/brvtal/pull/1314) | 1 | `S26-L427` | `tests/test_cobertura_brvtal_08.py`, `tests/test_matriz_cobertura.py` |
+| [#1316](https://github.com/pl0n3r/brvtal/pull/1316) | 6 | `S39B-R001`, `S39B-R002`, `S39B-R003`, `S39B-R005`, `S39B-R006`, `S39B-R007` | `tests/test_cobertura_brvtal_15.py`, `tests/test_matriz_cobertura.py` |
+| [#1317](https://github.com/pl0n3r/brvtal/pull/1317) | 1 | `S38-L592` | `tests/test_cobertura_brvtal_14.py`, `tests/test_matriz_cobertura.py` |
+| [#1320](https://github.com/pl0n3r/brvtal/pull/1320) | 6 | `S39B-R011`, `S39B-R012`, `S39B-R013`, `S39B-R014`, `S39B-R015`, `S39B-R016` | `tests/test_cobertura_brvtal_16.py`, `tests/test_matriz_cobertura.py` |
+| [#1321](https://github.com/pl0n3r/brvtal/pull/1321) | 1 | `S42-L662` | `tests/test_cobertura_brvtal_17.py`, `tests/test_matriz_cobertura.py` |
+| [#1331](https://github.com/pl0n3r/brvtal/pull/1331) | 1 | `S51_2-R011` | `tests/test_cobertura_brvtal_21.py`, `tests/test_matriz_cobertura.py` |
+
+**B (52, requisito completo aún no acreditado):** `S51-R001`, `S51-R002`, `S51-R003`, `S51-R004`, `S51-R005`, `S51-R006`, `S51-R007`, `S51-R008`, `S51-R009`, `S51-R018`, `S51-R020`, `S51_1-R008`, `S51_2-R007`, `S51_2-R010`, `S51_2-R014`, `S39B-R008`, `S39B-R009`, `S39B-R010`, `H212-01`, `S07-L74`, `S07-L75`, `S07-L76`, `S07-L77`, `S07-L78`, `S07-L80`, `S07-L82`, `S07-L83`, `S07-L84`, `S09-L108`, `S09-L111`, `S24-L368`, `S24-L375`, `S24-L376`, `S24-L377`, `S24-L378`, `S24-L379`, `S24-L380`, `S24-L381`, `S24-L382`, `S24-L385`, `S38-L597`, `S38-L598`, `S38-L599`, `S40-L623`, `S40-L624`, `S40-L625`, `S40-L627`, `S40-L628`, `S40-L629`, `S40-L630`, `S44-L686`, `S44-L691`.
+
+**C (20, criterio o decisión no aislable):** `S50-R001`, `S50-R002`, `S50-R003`, `S51-R010`, `S51-R012`, `S51-R013`, `S51-R014`, `S51-R015`, `S51-R016`, `S51-R017`, `S51-R019`, `S51-R021`, `S51_1-R009`, `S51_1-R012`, `S51_1-R013`, `S51_1-R014`, `S39B-R004`, `S13-L180`, `S13-L181`, `S51-L754`.
+
+**Resultado del cuarto grupo:** **102/102** filas revisadas (30 A + 52 B + 20 C + 0 D). No se promociona a `CUBIERTO` ningún subcontrato parcial, no se declara `EN_CURSO` por roadmap y no se cambia ninguna fila de la matriz; los motivos concretos y las referencias de las 102 celdas anteriores continúan siendo autoridad. **Totales preservados:** 611 requisitos, 169 `CUBIERTO`, 34 `DESCARTADO`, 408 `NO_VERIFICABLE` = **27.66%** cubierto. Las etapas 1–3 quedan intactas. Este documento es análisis offline; no acredita `VALIDATED_IN_PRODUCTION`, release ni go-live.
+
+**QA/reversión:** se mantiene exactamente el bloque `## Cobertura` de 611 filas y las cinco columnas, además del `## Resumen`. La operación se revierte mediante squash-revert de este apéndice; sin cambios de código, tests, configuración, credenciales, proveedores o datos reales.
