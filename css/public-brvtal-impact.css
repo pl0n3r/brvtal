@@ -135,7 +135,7 @@
       min-height:auto;
       padding-top:calc(var(--c5-header-h-mobile) + 28px);
       .hero-title{font-size:27vw}
-      .eyebrow{font-size:10px;letter-spacing:.12em}
+      .eyebrow{font-size:11px;letter-spacing:.12em}
       .hero-declaration{
         grid-template-columns:1fr;
         strong,p,.c5-hero-explore{grid-column:1;grid-row:auto}

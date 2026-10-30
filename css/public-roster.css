@@ -4,7 +4,7 @@
 .artists .section-head h2:after{content:"";position:absolute;left:0;right:22%;bottom:-10px;height:2px;background:linear-gradient(90deg,var(--red),var(--acid),transparent);opacity:.75}
 .artist-list{max-width:1180px}
 .roster-group{position:relative;margin:0 0 8vh}
-.roster-group-head{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,.28);font-size:9px;letter-spacing:.13em;color:#8c8c88}
+.roster-group-head{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 0 10px;border-bottom:1px solid rgba(255,255,255,.28);font-size:11px;letter-spacing:.13em;color:#8c8c88}
 .roster-group-head b{font-weight:400;color:#d7d7d1}
 .roster-group--member .roster-group-head{color:var(--acid)}
 .roster-group--member .artist{border-left:2px solid transparent}
@@ -35,7 +35,7 @@
   .artist{grid-template-columns:44px minmax(0,1fr);grid-template-rows:auto auto;column-gap:8px;row-gap:6px;min-height:76px;padding:14px 0}
   .artist span{grid-row:1 / span 2;align-self:center}
   .artist strong{font-size:clamp(40px,14vw,68px);line-height:.82;min-width:0;overflow-wrap:anywhere}
-  .artist i{grid-column:2;text-align:left;font-size:9px;overflow-wrap:anywhere}
+  .artist i{grid-column:2;text-align:left;font-size:11px;overflow-wrap:anywhere}
   .artist:hover,.artist:focus-visible{padding-left:8px}
   .artist-preview,.artist-crosshair{display:none}
   .entity-page--artist .entity-actions a{min-height:44px;display:inline-flex;align-items:center}

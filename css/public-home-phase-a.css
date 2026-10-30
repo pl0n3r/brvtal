@@ -35,7 +35,7 @@
 .hero-declaration span{
   display:block;
   color:var(--acid);
-  font-size:8px;
+  font-size:11px;
   letter-spacing:.16em;
   margin-bottom:8px;
 }
@@ -110,7 +110,7 @@
 }
 .experience-lineup>span{
   color:#777;
-  font-size:8px;
+  font-size:11px;
 }
 .experience-lineup p{
   margin:8px 0 0;
@@ -208,7 +208,7 @@
     background:linear-gradient(90deg,rgba(5,5,5,.82),rgba(5,5,5,.28));
   }
   .hero-declaration span{
-    font-size:7px;
+    font-size:11px;
     margin-bottom:5px;
   }
   .hero-declaration strong{
