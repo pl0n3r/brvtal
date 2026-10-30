@@ -489,8 +489,8 @@
   [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature{
     grid-column:auto;
     grid-row:auto;
-    /* #1349: preserve 11px metadata and the 72px cover without tall wrapping. */
-    grid-template-columns:24px 72px minmax(0,1fr) 44px;
+    /* #1349: keep the canonical 28/72/52 mobile tracks; compact only spacing. */
+    grid-template-columns:28px 72px minmax(0,1fr) 52px;
     gap:4px;
     min-height:92px;
     padding:4px 0;
@@ -526,6 +526,13 @@
   [data-concept="05"] #sets .set-record-link h4,
   [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .set-record-link h4{
     font-size:clamp(16px,5.1vw,20px);
+  }
+
+  /* #1349: keep the long synthetic title inside the 180px mobile feature
+   * without shrinking accessible metadata or changing canonical track widths. */
+  [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .set-record-link h4{
+    font-size:16px;
+    line-height:.88;
   }
 
   [data-concept="05"] #sets .set-library-description{
