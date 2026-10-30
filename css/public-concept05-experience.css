@@ -130,7 +130,7 @@
   padding:7px 9px;
   color:var(--c5-paper-dirty);
   background:var(--c5-signal-red);
-  font-size:10px;
+  font-size:11px;
   letter-spacing:.1em;
 }
 
@@ -225,7 +225,7 @@
   top:9px;
   left:12px;
   color:var(--c5-paper-muted);
-  font-size:9px;
+  font-size:11px;
   letter-spacing:.1em;
 }
 
@@ -263,7 +263,7 @@
 
 [data-concept="05"] .c5-experience-ticket span{
   color:var(--c5-paper-muted);
-  font-size:9px;
+  font-size:11px;
   letter-spacing:.08em;
 }
 
@@ -297,7 +297,7 @@
 
 [data-concept="05"] .c5-experience-authored .experience-lineup>span{
   color:var(--c5-paper-muted);
-  font-size:9px;
+  font-size:11px;
   letter-spacing:.1em;
 }
 
@@ -329,7 +329,7 @@
   padding:0 14px;
   border:var(--c5-rule-thickness) solid var(--c5-rule-color);
   box-shadow:none;
-  font-size:10px;
+  font-size:11px;
 }
 
 [data-concept="05"] .c5-experience-authored .experience-actions .enter{
@@ -415,7 +415,7 @@
 
   [data-concept="05"] .c5-experience-authored .eyebrow{
     min-height:22px;
-    font-size:10px;
+    font-size:11px;
   }
 
   [data-concept="05"] .c5-experience-authored .genesis-copy h2{
