@@ -32,7 +32,7 @@
 .footer-main h2{font-size:clamp(82px,15vw,225px)}
 
 /* Dedicated Contact page. */
-.contact-page-brand span{font-size:10px}
+.contact-page-brand span{font-size:11px}
 .contact-page-nav-meta,.contact-page-home,.contact-page-eyebrow,.contact-page-index,
 .contact-page-kicker,.contact-page-context>p,.contact-page-topics span,
 .contact-page-socials>span,.brvtal-contact-intro>span,.brvtal-contact-intro p,
@@ -52,7 +52,7 @@
   font-size:12px;
   line-height:1.45;
 }
-.entity-brand small{font-size:10px}
+.entity-brand small{font-size:11px}
 .entity-actions a{font-size:12px}
 .entity-copy h1{font-size:clamp(64px,9vw,150px)}
 
