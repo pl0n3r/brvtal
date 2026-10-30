@@ -692,3 +692,38 @@ Se contrastaron las 48 filas exactas de las hojas **#1288** (20), **#1289** (20)
 Las 5 A tienen pruebas del código real, pero permanecen **NO_VERIFICABLE** por una restricción separada y demostrable: `tests/test_matriz_cobertura.py::MERGED_EVIDENCE_PRS` no contiene los PR #1324/#1331. El validador requiere la pertenencia para aceptar `CUBIERTO`, y este Issue reclama exclusivamente `docs/matriz-cobertura.md` y prohíbe alterar pruebas o crear Issues. Promoverlas aquí rompería el CI; citar PR antiguos para evitarlo sería atribución falsa. La actualización de ese conjunto requiere un claim V3 distinto con autoridad de QA/ingeniería y regresión. B depende de integración de navegador/GitHub/operaciones; C de gobierno/documentación; no equivalen a cobertura funcional.
 
 **Totales conservadores:** 611 filas; 169 `CUBIERTO`, 34 `DESCARTADO`, 408 `NO_VERIFICABLE`. Ningún estado de producción, HEALTH ni go-live se deriva de esta conciliación.
+
+### Re-reconciliación de cobertura · etapa 1/4 · Issue #1340
+
+**Alcance fijo:** primer bloque de 102 filas `NO_VERIFICABLE` del orden original en la tabla (desde `S02-R001` hasta `S21-R005`) entre las 408 filas pendientes en `main@abe3d4bc21fa774b10bc3c4e4199c5baacb431dc`. Dependencias #1313 y #1294 completadas. Esta etapa solo modifica la documentación, sin pruebas, fuentes ni datos reales.
+
+| Clase auditada | Filas | Diagnóstico y condición de avance |
+| --- | ---: | --- |
+| A — código y prueba local ejercidos, sin promoción | 37 | Los PR #1299, #1301, #1302, #1303, #1306, #1309 y #1310 están **fusionados**, pero el validador `tests/test_matriz_cobertura.py::MatrizCoberturaTests::test_formato_y_estados` exige que su número pertenezca a `MERGED_EVIDENCE_PRS` y **ninguno figura** en la lista de `main` (blob `2472a39761e6cfe2b68fd0ab74741e2910e0d74f`). Modificar ese archivo excede el claim de #1340. Promover a `CUBIERTO` rompería CI; mantener `NO_VERIFICABLE` y citar esta precondición real. |
+| B — verificación integral pendiente | 45 | Pruebas locales o fixtures no bastan para UX/dispositivos, carga o integración auténtica; cada fila conserva su razón y actor/entorno pendiente. No inferir producción de un contrato aislado. |
+| C — pauta editorial o de gobierno | 18 | Requiere aceptación de producto/gobierno del criterio, no una aserción sintética de contenido. La razón ya está indicada por fila. |
+| D — funcionalidad integral ausente | 2 | `S03-R005`: transición/preloader; `S03-R010`: WebGL/GLSL. No elevar cobertura por guardas locales o una mera declaración. |
+
+**Detalle verificable del subconjunto A (PR fusionado y IDs; código/prueba concretos siguen documentados en cada fila):**
+
+| PR fusionado | IDs A todavía sin autorización de promoción del validador |
+| --- | --- |
+| [#1299](https://github.com/pl0n3r/brvtal/pull/1299) | `S03-R004`, `S03-R006`, `S03-R011` |
+| [#1301](https://github.com/pl0n3r/brvtal/pull/1301) | `S06-R001`, `S06-R002`, `S06-R003`, `S06-R004`, `S06-R005`, `S06-R006`, `S06-R010`, `S06-R011` |
+| [#1302](https://github.com/pl0n3r/brvtal/pull/1302) | `S12-R005`, `S12-R007`, `S13-R002`, `S13-R003`, `S15-R002` |
+| [#1303](https://github.com/pl0n3r/brvtal/pull/1303) | `S07-R005`, `S07-R006`, `S07-R007`, `S07-R008`, `S07-R009`, `S07-R011` |
+| [#1306](https://github.com/pl0n3r/brvtal/pull/1306) | `S18-R012`, `S18-R014`, `S18-R016`, `S18-R017`, `S19-R001`, `S20-R012`, `S20-R013` |
+| [#1309](https://github.com/pl0n3r/brvtal/pull/1309) | `S20-R020`, `S20-R021`, `S21-R002`, `S21-R003`, `S21-R004`, `S21-R005` |
+| [#1310](https://github.com/pl0n3r/brvtal/pull/1310) | `S15-R003`, `S16-R004` |
+
+**Conjunto completo de las 102 filas contrastadas, por clase:**
+
+- **A (37)**: `S03-R004`, `S03-R006`, `S03-R011`, `S06-R001`, `S06-R002`, `S06-R003`, `S06-R004`, `S06-R005`, `S06-R006`, `S06-R010`, `S06-R011`, `S07-R005`, `S07-R006`, `S07-R007`, `S07-R008`, `S07-R009`, `S07-R011`, `S12-R005`, `S12-R007`, `S13-R002`, `S13-R003`, `S15-R002`, `S15-R003`, `S16-R004`, `S18-R012`, `S18-R014`, `S18-R016`, `S18-R017`, `S19-R001`, `S20-R012`, `S20-R013`, `S20-R020`, `S20-R021`, `S21-R002`, `S21-R003`, `S21-R004`, `S21-R005`.
+- **B (45)**: `S02-R002`, `S02-R003`, `S02-R004`, `S03-R001`, `S03-R003`, `S03-R008`, `S03-R009`, `S03-R013`, `S04-R001`, `S07-R002`, `S07-R003`, `S12-R001`, `S12-R002`, `S12-R003`, `S12-R006`, `S13-R004`, `S15-R001`, `S15-R005`, `S15-R007`, `S16-R001`, `S16-R002`, `S16-R003`, `S16-R006`, `S16-R007`, `S17-R001`, `S17-R002`, `S17-R003`, `S17-R004`, `S17-R005`, `S17-R007`, `S18-R003`, `S18-R004`, `S18-R006`, `S18-R009`, `S18-R015`, `S18-R020`, `S18-R021`, `S20-R003`, `S20-R005`, `S20-R006`, `S20-R008`, `S20-R011`, `S20-R017`, `S20-R018`, `S20-R019`.
+- **C (18)**: `S02-R001`, `S02-R005`, `S03-R007`, `S03-R012`, `S06-R007`, `S06-R008`, `S07-R010`, `S08-R001`, `S13-R001`, `S14-R001`, `S14-R003`, `S15-R006`, `S18-R025`, `S19-R002`, `S20-R002`, `S20-R009`, `S20-R010`, `S20-R022`.
+- **D (2)**: `S03-R005`, `S03-R010`.
+
+**Resultado conservador:** 0 promociones a `CUBIERTO`; 102/102 filas conservan estado y justificación específica tras la revisión. Es una limitación verificable de la prueba de aceptación y de los claims V3, no una afirmación de fallo de producto. No se cambia la lista `MERGED_EVIDENCE_PRS` ni se crean referencias artificiales a PR antiguos. **Totales invariables:** 611 filas; 169 `CUBIERTO`; 34 `DESCARTADO`; 408 `NO_VERIFICABLE`; 27.66 %. No se declara desplegado, live ni validado en producción.
+
+**Reversión:** revertir el squash de esta etapa restaura exactamente el apéndice; la matriz de filas y sus estados siguen iguales.
+
