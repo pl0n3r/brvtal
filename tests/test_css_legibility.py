@@ -57,10 +57,10 @@ CSS_PATHS = [
     "discadmin/theme-studio-v2.css"
 ]
 FONT_DECLARATION = re.compile(
-    r"(?:^|[;{])\\s*(font(?:-size)?)\\s*:\\s*([^;{}]*)",
+    r"(?:^|[;{])\s*(font(?:-size)?)\s*:\s*([^;{}]*)",
     re.IGNORECASE | re.MULTILINE,
 )
-PX_VALUE = re.compile(r"(\\d+(?:\\.\\d+)?)px\\b", re.IGNORECASE)
+PX_VALUE = re.compile(r"(\d+(?:\.\d+)?)px\b", re.IGNORECASE)
 
 
 class CssLegibilityTests(unittest.TestCase):
