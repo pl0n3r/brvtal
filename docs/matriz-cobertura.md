@@ -757,3 +757,33 @@ Las 5 A tienen pruebas del código real, pero permanecen **NO_VERIFICABLE** por 
 **Resultado verificable:** 102/102 filas contrastadas, sin promover ninguna a `CUBIERTO` mientras el validador de pruebas exija un conjunto de PR fusionados que no incluye los PR auténticos recientes. Las cinco filas S27 conservan las notas exactas exigidas por una prueba heredada; se documentan aquí las cinco brechas de integración y el bloqueo de edición del propio test, sin esconder el requisito ni saltar claims. **Totales sin alteración:** 611 filas; 169 `CUBIERTO`, 34 `DESCARTADO`, 408 `NO_VERIFICABLE`, 27.66 %. CI sintético no implica despliegue ni `VALIDATED_IN_PRODUCTION`.
 
 **Reversión:** revertir el squash elimina únicamente el apéndice de la etapa 2; las 611 filas de la tabla original y su evidencia literal permanecen intactas. No se modifica código, runtime ni producción.
+
+### Re-reconciliación de cobertura · etapa 3/4 · Issue #1342
+
+**Alcance fijo y reproducible:** tercer bloque de 102 filas `NO_VERIFICABLE` (posiciones 205–306 de las 408 pendientes en la tabla de 611), de `S33-R015` a `S49-R005`. Los otros tres cuartos, incluidas las etapas #1340 y #1341, permanecen intactos. Las dependencias #1313 y #1341 se completaron antes de reservar. La única ruta reclamada es `docs/matriz-cobertura.md`.
+
+| Clasificación | Filas | Alcance realmente acreditado y requisito de avance |
+| --- | ---: | --- |
+| A — comportamiento local ejercitado, no promovible todavía | 38 | Hay código/pruebas sintéticas y PR fusionados #1316, #1317, #1321, #1322, #1324 y #1329, contrastados en GitHub. Ninguno está en el conjunto fijo `MERGED_EVIDENCE_PRS` de `tests/test_matriz_cobertura.py`; el test `test_formato_y_estados` rechazaría citar esos PR como `CUBIERTO` en una fila, y modificar ese test está fuera del claim #1342. Esos subcontratos locales tampoco sustituyen la verificación funcional integral. |
+| B — integración auténtica o entorno pendiente | 34 | Quedan pendientes las verificaciones reales y/o E2E de los comportamientos completos; cada fila conserva su limitación individual y quién debe demostrarla. No se extrapola un fixture a UI, permisos, despliegue ni operación productiva. |
+| C — pauta o decisión no atómica | 30 | Son decisiones de producto, contenido, restricciones o encabezados cuya aprobación no surge de pruebas parciales; necesitan valoración de autoridad de producto/gobierno y criterio verificable cuando proceda. |
+| D — función demostrablemente ausente | 0 | No hay evidencia de ausencia funcional suficiente para reclasificar una fila de este grupo. |
+
+**Tríadas parciales A verificadas en PR fusionados (cada fila mantiene su referencia exacta a código/prueba):**
+
+| PR fusionado | Filas A | IDs |
+| --- | ---: | --- |
+| [#1316](https://github.com/pl0n3r/brvtal/pull/1316) | 6 | `S39-R003`, `S39-R005`, `S39-R006`, `S39-R007`, `S39-R008`, `S39-R010` |
+| [#1317](https://github.com/pl0n3r/brvtal/pull/1317) | 5 | `S36-R003`, `S38-R002`, `S38-R003`, `S38-R007`, `S38-R008` |
+| [#1321](https://github.com/pl0n3r/brvtal/pull/1321) | 14 | `S40-R012`, `S41-R001`, `S41-R002`, `S41-R003`, `S41-R004`, `S41-R005`, `S42-R001`, `S42-R002`, `S42-R003`, `S42-R005`, `S42-R006`, `S42-R007`, `S42-R008`, `S42-R009` |
+| [#1322](https://github.com/pl0n3r/brvtal/pull/1322) | 4 | `S42-R010`, `S43-R001`, `S43-R002`, `S43-R003` |
+| [#1324](https://github.com/pl0n3r/brvtal/pull/1324) | 4 | `S46-R003`, `S46-R004`, `S47-R001`, `S47-R002` |
+| [#1329](https://github.com/pl0n3r/brvtal/pull/1329) | 5 | `S33-R015`, `S33-R016`, `S34-R004`, `S34-R005`, `S34-R007` |
+
+**B (34):** `S35-R004`, `S35-R007`, `S35-R008`, `S36-R001`, `S37-R001`, `S38-R004`, `S38-R006`, `S39-R002`, `S39-R009`, `S40-R002`, `S40-R003`, `S40-R004`, `S40-R005`, `S40-R006`, `S40-R007`, `S40-R008`, `S40-R009`, `S40-R011`, `S40-R013`, `S41-R006`, `S43-R004`, `S44-R001`, `S44-R003`, `S44-R004`, `S44-R005`, `S44-R006`, `S44-R008`, `S44-R009`, `S45-R001`, `S45-R002`, `S45-R004`, `S45-R005`, `S46-R001`, `S46-R002`.
+
+**C (30):** `S33-R017`, `S34-R002`, `S34-R003`, `S34-R006`, `S34-R008`, `S35-R001`, `S35-R002`, `S35-R003`, `S35-R005`, `S35-R006`, `S36-R002`, `S37-R002`, `S37-R003`, `S38-R001`, `S38-R005`, `S38-R009`, `S39-R001`, `S39-R004`, `S40-R010`, `S42-R011`, `S44-R007`, `S44-R010`, `S44-R011`, `S48-R001`, `S48-R002`, `S49-R001`, `S49-R002`, `S49-R003`, `S49-R004`, `S49-R005`.
+
+**Resultado:** 102/102 filas revisadas del tercer bloque, sin promociones indebidas a `CUBIERTO` ni atribuciones de PR falsas. El impedimento de los 38 subcontratos A está identificado por nombre de validador, autoridad y claim; B/C conservan su motivo específico. **Totales exactos preservados:** 611 requisitos; 169 `CUBIERTO`, 34 `DESCARTADO`, 408 `NO_VERIFICABLE` (27.66 %). No se modifican las celdas de la tabla original, pruebas, runtime, producción ni go-live.
+
+**Reversión:** revertir el squash elimina exclusivamente este apéndice, sin cambiar los otros grupos ni los estados originales.
