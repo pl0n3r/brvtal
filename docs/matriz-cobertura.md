@@ -727,3 +727,33 @@ Las 5 A tienen pruebas del código real, pero permanecen **NO_VERIFICABLE** por 
 
 **Reversión:** revertir el squash de esta etapa restaura exactamente el apéndice; la matriz de filas y sus estados siguen iguales.
 
+### Re-reconciliación de cobertura · etapa 2/4 · Issue #1341
+
+**Alcance exacto:** segundo grupo de 102 filas `NO_VERIFICABLE` en el orden de la tabla original de 611 filas, desde `S21-R007` hasta `S33-R014`. Las dependencias #1313 y #1340 ya fueron completadas. Solo `docs/matriz-cobertura.md` pertenece al claim; no se modifican las pruebas ni la implementación. El cuadro histórico de #1292 permanece como evidencia de su fecha y no sustituye esta relectura.
+
+| Clase contrastada | Filas | Razón de estado y condición para avanzar |
+| --- | ---: | --- |
+| A — comportamiento local acreditado, promoción aún vetada | 53 | Se comprobaron como **fusionados** los PR #1307, #1308, #1309, #1314, #1315, #1319 y #1329. Sus pruebas locales y rutas se citan por fila, pero esos PR **no figuran** en `tests/test_matriz_cobertura.py::MERGED_EVIDENCE_PRS`. El validador exige su pertenencia para `CUBIERTO`: una promoción aquí, sin el claim de ese test, rompería `test_formato_y_estados`; sustituirlos por PR antiguos falsearía la evidencia. El alcance de la aserción debe seguir limitándose al comportamiento realmente ejercido. |
+| B — integración y mundo real por verificar | 37 | 32 filas ya identificaban falta de verificación integral autenticada, infraestructura, seguridad o experiencia real; cinco (`S27-R004` a `S27-R008`) conservan **literalmente** las notas exigidas por `tests/test_brechas_brvtal_33.py` (PR #1211 fusionado), cuya función `matrix_rows()` falla si cambia esa evidencia. Esas cinco requieren prueba independiente HTTP/MariaDB de asientos, timeline, panel read-only, restore y guardado; el claim de #1341 no permite modificar el test que congela las notas. Las 32 restantes conservan razones por fila. |
+| C — regla/criterio de producto sin aserción atómica | 12 | El texto describe pautas de arquitectura, privacidad, criterio editorial o encabezados, no un resultado funcional independiente. Permanece pendiente la validación de producto/gobierno correspondiente. |
+| D — ausencia funcional acreditada | 0 | Este grupo no contiene una brecha D demostrada por la evidencia auditada. No se infiere implementación de una prueba parcial. |
+
+**Detalle de las 53 filas A, con PR realmente fusionado (rutas y pruebas precisas: evidencia individual de cada fila):**
+
+| PR fusionado | Filas A | IDs contrastados |
+| --- | ---: | --- |
+| [#1307](https://github.com/pl0n3r/brvtal/pull/1307) | 13 | `S28-R018`, `S28-R019`, `S28-R020`, `S28-R021`, `S28-R022`, `S28-R023`, `S28-R024`, `S28-R026`, `S28-R027`, `S29-R001`, `S29-R002`, `S29-R003`, `S29-R004` |
+| [#1308](https://github.com/pl0n3r/brvtal/pull/1308) | 16 | `S30-R003`, `S30-R004`, `S30-R005`, `S31-R003`, `S31-R004`, `S32-R002`, `S32-R003`, `S32-R005`, `S32-R006`, `S32-R007`, `S32-R008`, `S32-R010`, `S32-R011`, `S32-R012`, `S32-R013`, `S32-R014` |
+| [#1309](https://github.com/pl0n3r/brvtal/pull/1309) | 1 | `S21-R007` |
+| [#1314](https://github.com/pl0n3r/brvtal/pull/1314) | 3 | `S26-R007`, `S26-R012`, `S26-R013` |
+| [#1315](https://github.com/pl0n3r/brvtal/pull/1315) | 15 | `S32-R015`, `S32-R016`, `S32-R017`, `S32-R019`, `S32-R020`, `S32-R021`, `S32-R022`, `S32-R023`, `S32-R024`, `S33-R002`, `S33-R006`, `S33-R007`, `S33-R008`, `S33-R009`, `S33-R011` |
+| [#1319](https://github.com/pl0n3r/brvtal/pull/1319) | 2 | `S28-R006`, `S28-R014` |
+| [#1329](https://github.com/pl0n3r/brvtal/pull/1329) | 3 | `S33-R012`, `S33-R013`, `S33-R014` |
+
+**B (37, falta validación integral):** `S26-R001`, `S26-R004`, `S26-R005`, `S26-R006`, `S26-R008`, `S26-R009`, `S26-R011`, `S26-R014`, `S26-R015`, `S26-R016`, `S26-R017`, `S27-R001`, `S27-R009`, `S28-R004`, `S28-R005`, `S28-R007`, `S28-R008`, `S28-R009`, `S28-R010`, `S28-R011`, `S28-R012`, `S28-R013`, `S28-R015`, `S28-R017`, `S28-R025`, `S28-R028`, `S31-R002`, `S32-R004`, `S32-R009`, `S33-R001`, `S33-R005`, `S33-R010`, `S27-R004`, `S27-R005`, `S27-R006`, `S27-R007`, `S27-R008`.
+
+**C (12, criterio/no comportamiento aislado):** `S26-R003`, `S26-R010`, `S27-R002`, `S27-R010`, `S28-R001`, `S28-R003`, `S28-R016`, `S30-R001`, `S30-R002`, `S31-R001`, `S32-R018`, `S33-R003`.
+
+**Resultado verificable:** 102/102 filas contrastadas, sin promover ninguna a `CUBIERTO` mientras el validador de pruebas exija un conjunto de PR fusionados que no incluye los PR auténticos recientes. Las cinco filas S27 conservan las notas exactas exigidas por una prueba heredada; se documentan aquí las cinco brechas de integración y el bloqueo de edición del propio test, sin esconder el requisito ni saltar claims. **Totales sin alteración:** 611 filas; 169 `CUBIERTO`, 34 `DESCARTADO`, 408 `NO_VERIFICABLE`, 27.66 %. CI sintético no implica despliegue ni `VALIDATED_IN_PRODUCTION`.
+
+**Reversión:** revertir el squash elimina únicamente el apéndice de la etapa 2; las 611 filas de la tabla original y su evidencia literal permanecen intactas. No se modifica código, runtime ni producción.
