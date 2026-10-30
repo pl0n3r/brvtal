@@ -8,7 +8,7 @@ $now = gmmktime(17, 0, 0, 10, 30, 2026);
 $path = tempnam(sys_get_temp_dir(), 'brvtal-quota-');
 if ($path === false) throw new RuntimeException('Fixture unavailable');
 register_shutdown_function(static function () use ($path): void { @unlink($path); });
-$charCounts = ['normal' => 35, 'warning' => 85, 'exhausted' => 100, 'unknown' => -1];
+$charCounts = ['normal' => 35, 'warning' => 85, 'exhausted' => 100, 'precision' => 1599, 'unknown' => -1];
 if (!array_key_exists($case, $charCounts)) throw new RuntimeException('Invalid case');
 if ($case !== 'unknown') {
     file_put_contents($path, json_encode(['month' => '2026-10', 'chars' => $charCounts[$case]], JSON_THROW_ON_ERROR));
@@ -17,7 +17,7 @@ if ($case !== 'unknown') {
     file_put_contents($path, '{invalid json');
 }
 $values = [
-    'BRVTAL_DEEPL_MONTHLY_CHARS' => '100',
+    'BRVTAL_DEEPL_MONTHLY_CHARS' => $case === 'precision' ? '2000' : '100',
     'BRVTAL_FREE_QUOTA_WARNING_PERCENT' => '80',
 ];
 if ($case === 'warning') {

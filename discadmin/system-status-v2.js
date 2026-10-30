@@ -753,7 +753,7 @@
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>EDITORIAL HEALTH</span><b>${health?.ok === false ? 'UNAVAILABLE' : 'CONTENT CORE'}</b></div>${contentHealthBlock(health)}</section>
       </div>
 
-      <div class="ssv2-grid two">${freeQuotaPanel(quotas)}</div>
+      <div class="ssv2-free-quotas-static">${freeQuotaPanel(quotas)}</div>
 
       <div class="ssv2-grid split">
         <section class="ssv2-panel"><div class="ssv2-panel-head"><span>RUNTIME / DEPLOYMENT</span><b data-testid="system-product-version">${esc(productVersion)} · ${esc(environmentLabel)}</b></div>

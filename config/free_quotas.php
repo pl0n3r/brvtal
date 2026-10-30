@@ -46,7 +46,7 @@ function brvtalFreeQuotaRow(
         && $measured !== null && $measured >= 0 && $measured <= $now;
     $percent = $known ? round(100 * $used / $limit, 1) : null;
     $state = !$known ? 'UNKNOWN' : ($used >= $limit ? 'EXHAUSTED' : (
-        $percent >= $threshold ? 'WARNING' : 'OK'
+        (100 * $used / $limit) >= $threshold ? 'WARNING' : 'OK'
     ));
     return [
         'id' => $id,

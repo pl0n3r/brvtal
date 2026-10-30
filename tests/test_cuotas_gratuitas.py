@@ -49,6 +49,44 @@ class CuotasGratuitasTests(unittest.TestCase):
         self.assertTrue(all(row["status"] == "UNKNOWN" for row in unknown["rows"]))
         self.assertTrue(all(row["used"] is None for row in unknown["rows"]))
 
+    def test_umbral_usa_ratio_real_sin_redondear(self) -> None:
+        precision = scenario("precision")
+        deepl = precision["rows"][0]
+        self.assertEqual(deepl["used"], 1599)
+        self.assertEqual(deepl["limit"], 2000)
+        self.assertEqual(deepl["percent"], 80.0)
+        self.assertEqual(deepl["status"], "OK")  # 79.95% < 80%.
+        self.assertEqual(precision["warnings"], [])
+
+    def test_tarjeta_permanece_despues_del_layout(self) -> None:
+        js = (ROOT / "discadmin" / "system-status-v2.js").read_text()
+        self.assertIn("root.querySelectorAll('.ssv2-grid').forEach(node => node.remove());", js)
+        panel = '
+        script = ROOT / "tests" / "deepl_real_transport_scenarios.php"
+        result = subprocess.run(["php", str(script), "budget"], cwd=ROOT,
+                                text=True, capture_output=True, timeout=20, check=False)
+        if result.returncode:
+            raise AssertionError(result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["exhausted"], "deepl_budget_exhausted")
+        self.assertEqual(payload["calls_at_limit"], 2)
+        self.assertEqual(payload["malformed_http_calls"], 0)
+
+    def test_sin_secretos_y_fuente_de_metrica(self) -> None:
+        normal = scenario("normal")
+        text = json.dumps(normal).lower()
+        self.assertNotIn("deepl_auth_key", text)
+        self.assertNotIn("fixture-key", text)
+        self.assertEqual(normal["rows"][0]["source"], "CONTADOR LOCAL")
+        self.assertEqual(normal["rows"][1]["source"], "UNKNOWN")
+
+
+if __name__ == "__main__":
+    unittest.main()
+ + '{freeQuotaPanel(quotas)}'
+        self.assertIn('<div class="ssv2-free-quotas-static">' + panel + '</div>', js)
+        self.assertNotIn('<div class="ssv2-grid two">' + panel + '</div>', js)
+
     def test_presupuesto_deepl_corta_sin_red(self) -> None:
         script = ROOT / "tests" / "deepl_real_transport_scenarios.php"
         result = subprocess.run(["php", str(script), "budget"], cwd=ROOT,
