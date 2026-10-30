@@ -14,7 +14,7 @@ function brvtalFreeQuotaSnapshot(
         $value = getenv($key);
         return $value === false ? null : $value;
     };
-    $now = (int)($clock ?? time(...))();
+    $now = $clock === null ? time() : (int) $clock();
     $zone = new DateTimeZone('America/Bogota');
     $thresholdRaw = $env('BRVTAL_FREE_QUOTA_WARNING_PERCENT');
     $threshold = is_string($thresholdRaw) && preg_match('/^[1-9][0-9]?$/D', $thresholdRaw)
