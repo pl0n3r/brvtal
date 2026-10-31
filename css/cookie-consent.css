@@ -1,0 +1,17 @@
+/* BRVTAL #1351 — nonmodal, equal-prominence cookie choices. */
+.brvtal-cookie-banner,.brvtal-cookie-preferences{font-family:var(--theme-mono-font,"Space Mono",monospace);box-sizing:border-box}
+.brvtal-cookie-banner[hidden],.brvtal-cookie-preferences[hidden]{display:none!important}
+.brvtal-cookie-banner{position:fixed;bottom:16px;left:16px;z-index:2147483000;max-width:min(460px,calc(100vw - 32px));width:100%;background:#090909;border:2px solid #b6ff00;color:#f3f3ee;box-shadow:0 8px 32px #000b;padding:18px;line-height:1.5}
+.brvtal-cookie-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brvtal-cookie-heading h2{margin:0;font-size:16px;line-height:1.25;letter-spacing:.04em}
+.brvtal-cookie-banner p{margin:12px 0 16px;font-size:13px;color:#d2d5cd;line-height:1.6}
+.brvtal-cookie-banner button,.brvtal-cookie-preferences{cursor:pointer;min-height:44px;border:1px solid #b6ff00;background:#0d0d0d;color:#c9ff63;font-size:13px;font-weight:700;padding:10px 16px}
+.brvtal-cookie-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.brvtal-cookie-actions button{width:100%;background:#b6ff00;color:#0a0a0a}
+.brvtal-cookie-actions button:hover,.brvtal-cookie-actions button:focus-visible{background:#ddffa1}
+.brvtal-cookie-close{min-width:44px;min-height:44px;font-size:22px!important;padding:4px!important;line-height:1}
+.brvtal-cookie-banner button:focus-visible,.brvtal-cookie-preferences:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.brvtal-cookie-preferences{font-size:12px;line-height:1.4;margin:8px 0}
+.brvtal-cookie-preferences--floating{position:fixed;bottom:12px;left:12px;z-index:2147482000;box-shadow:0 5px 20px #0009}
+@media(max-width:480px){.brvtal-cookie-banner{bottom:8px;left:8px;max-width:calc(100vw - 16px);padding:14px}.brvtal-cookie-actions{gap:8px}}
+@media(prefers-reduced-motion:reduce){.brvtal-cookie-banner,.brvtal-cookie-banner *,.brvtal-cookie-preferences{animation:none!important;transition:none!important}}
