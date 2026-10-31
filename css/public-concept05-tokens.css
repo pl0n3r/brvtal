@@ -42,7 +42,7 @@
   --c5-type-section:clamp(28px,4.5vw,56px);
   --c5-type-card:clamp(16px,2vw,22px);
   --c5-type-body:clamp(14px,1.1vw,17px);
-  --c5-type-mono:clamp(11px,.9vw,13px);
+  --c5-type-mono:clamp(12px,.9vw,13px);
 }
 
 /* Editorial frame primitives — opt-in, no layout side effects elsewhere. */
