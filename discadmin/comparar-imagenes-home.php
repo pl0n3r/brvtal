@@ -236,7 +236,7 @@ try {
     if (!is_array($site)) {
         $site = [];
     }
-} catch (Throwable $e) {
+} catch (Throwable) {
     http_response_code(503);
     $error = 'No se pudo cargar o guardar la selección privada. Ninguna imagen pública fue modificada.';
     $candidates = [];
@@ -301,6 +301,7 @@ button:active{transform:scale(.96)}:focus-visible{outline:3px solid #fff;outline
 <?php else: ?>Sin referencia CMS publicada verificable. El sitio mantiene su comportamiento actual.<?php endif; ?>
 <?php $selected = $saved['choices'][$slot] ?? null; if (is_array($selected)): ?>
 <p>Borrador guardado: <?=c05_picker_escape((string)($selected['candidate'] ?? ''))?> · <?=c05_picker_escape((string)($selected['saved_at_colombia_12h'] ?? ''))?> · sin publicar</p>
+<p>Derechos registrados: <?=c05_picker_escape((string)($selected['rights_evidence'] ?? ''))?></p>
 <?php endif; ?>
 </div>
 <div class="options">
