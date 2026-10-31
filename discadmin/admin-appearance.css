@@ -173,11 +173,11 @@ html[data-discadmin-appearance] :focus-visible{outline-color:var(--admin-focus)}
 
 /* Shared appearance selector — sidebar and pre-auth login. */
 .discadmin-appearance{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--admin-border-subtle)}
-.discadmin-appearance-label{font-size:11px;letter-spacing:2px;color:var(--admin-muted);margin-bottom:8px}
+.discadmin-appearance-label{font-size:12px;letter-spacing:2px;color:var(--admin-muted);margin-bottom:8px}
 .discadmin-appearance-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 .discadmin-appearance-options button{min-width:0;min-height:44px;border:1px solid var(--admin-border);background:var(--admin-surface-soft);color:var(--admin-muted);display:grid;place-items:center;gap:2px;padding:5px 2px;border-radius:8px}
 .discadmin-appearance-options button span{font-size:13px;line-height:1}
-.discadmin-appearance-options button b{font-size:11px;letter-spacing:.7px;white-space:nowrap}
+.discadmin-appearance-options button b{font-size:12px;letter-spacing:.7px;white-space:nowrap}
 .discadmin-appearance-options button.active{color:var(--admin-text);border-color:var(--admin-muted-strong);background:var(--admin-active);box-shadow:var(--admin-shadow)}
 .discadmin-appearance-options button.active:after{content:"";width:12px;height:2px;background:var(--red);display:block}
 .discadmin-appearance-options button:focus-visible{outline:2px solid var(--admin-focus);outline-offset:2px}
@@ -456,3 +456,10 @@ html[data-discadmin-appearance="glass"] .activity-modal{
 @media(prefers-reduced-motion:reduce){
   body,.side,.main,.table,.thead,.tr,.stat,.section,.modalbox{transition:none!important}
 }
+/* #1365: explicit focus, touch targets and readable admin typography. */
+html[data-discadmin-appearance] :is(button,a,input,select,textarea,[role="button"]):focus-visible{outline:2px solid #b8ff00;outline-offset:2px}
+html[data-discadmin-appearance] :is(button,[role="button"]){min-height:44px}
+html[data-discadmin-appearance] :is(button,[role="button"]):active{transform:scale(.96)}
+html[data-discadmin-appearance] :is(h1,h2,h3){text-wrap:balance}
+html[data-discadmin-appearance] p{text-wrap:pretty}
+html[data-discadmin-appearance] :is(time,[data-count],.metric,.stat){font-variant-numeric:tabular-nums}
