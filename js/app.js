@@ -56,9 +56,12 @@
   const sceneName = qs('#sceneName'), sceneCount = qs('#sceneCount');
   let legacySceneMedia = null;
   if (!reduce && motionReady) {
-    legacySceneMedia = gsap.matchMedia();
-    legacySceneMedia.add('(prefers-reduced-motion: no-preference)', () => {
-      const context = gsap.context(() => {
+    const mediaApi = typeof gsap.matchMedia === 'function'
+      ? gsap.matchMedia()
+      : { add: (_query, callback) => callback(), revert() {} };
+    if (typeof legacySceneMedia !== 'undefined') legacySceneMedia = mediaApi;
+    mediaApi.add('(prefers-reduced-motion: no-preference)', () => {
+      const install = () => {
         if (!coarsePointer) {
       gsap.from('.hero-copy .eyebrow',{y:20,...(isConcept05 ? {} : {opacity:0}),duration:1,delay:.55,ease:'power4.out'});
       gsap.from('.hero-title',{yPercent:isConcept05 ? 0 : 90,...(isConcept05 ? {} : {opacity:0}),skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
@@ -95,22 +98,33 @@
     gsap.to('.audio-bg',{rotation:-12,scale:1.15,scrollTrigger:{trigger:'.sets',start:'top bottom',end:'bottom top',scrub:1.5}});
 
     gsap.from('.media-grid .m',{y:120,...(isConcept05 ? {} : {opacity:0}),rotation:(i)=>i%2?3:-3,stagger:.12,scrollTrigger:{trigger:'.media',start:'top 78%',end:'top 25%',scrub:1}});
-        qsa('.scene').forEach(sec => {
-          ScrollTrigger.create({
-            trigger: sec, start: 'top 55%', end: 'bottom 45%',
-            onEnter: () => setScene(sec), onEnterBack: () => setScene(sec)
+        if (typeof ScrollTrigger !== 'undefined' && ScrollTrigger?.create) {
+          qsa('.scene').forEach(sec => {
+            ScrollTrigger.create({
+              trigger: sec, start: 'top 55%', end: 'bottom 45%',
+              onEnter: () => setScene(sec), onEnterBack: () => setScene(sec)
+            });
           });
-        });
-      });
-      const refresh = () => ScrollTrigger.refresh();
-      if (document.readyState === 'complete') refresh();
-      else window.addEventListener('load', refresh, { once: true });
+        }
+      };
+      const context = typeof gsap.context === 'function'
+        ? gsap.context(install)
+        : (install(), { revert() {} });
+      const refresh = () => {
+        if (typeof ScrollTrigger !== 'undefined') ScrollTrigger.refresh?.();
+      };
+      if (typeof document !== 'undefined') {
+        if (document.readyState === 'complete') refresh();
+        else window.addEventListener('load', refresh, { once: true });
+      }
       return () => {
-        window.removeEventListener('load', refresh);
+        if (typeof window !== 'undefined') window.removeEventListener('load', refresh);
         context.revert();
       };
     });
-    window.addEventListener('pagehide', () => legacySceneMedia?.revert(), { once: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', () => mediaApi.revert(), { once: true });
+    }
   }
 
   // Scene indicator
