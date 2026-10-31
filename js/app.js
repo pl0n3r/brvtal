@@ -25,6 +25,10 @@
         gsap.to(loader,{duration:1.2,yPercent:-100,ease:'power4.inOut',delay:.2,onComplete:()=>loader.remove()});
       }
     }, 70);
+    window.addEventListener('pagehide', () => {
+      clearInterval(timer);
+      gsap.killTweensOf(loader);
+    }, { once: true });
   };
   boot();
 
@@ -34,12 +38,21 @@
   if (!reduce && motionReady && window.Lenis) {
     lenis = new Lenis({duration:1.1,smoothWheel:true,syncTouch:false});
     lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add(t => lenis.raf(t * 1000));
+    const lenisTick = t => lenis.raf(t * 1000);
+    gsap.ticker.add(lenisTick);
     gsap.ticker.lagSmoothing(0);
+    window.addEventListener('pagehide', () => {
+      gsap.ticker.remove(lenisTick);
+      lenis.destroy();
+    }, { once: true });
   }
 
+  let legacySceneMedia = null;
   if (!reduce && motionReady) {
-    if (!coarsePointer) {
+    legacySceneMedia = gsap.matchMedia();
+    legacySceneMedia.add('(prefers-reduced-motion: no-preference)', () => {
+      const context = gsap.context(() => {
+        if (!coarsePointer) {
       gsap.from('.hero-copy .eyebrow',{y:20,...(isConcept05 ? {} : {opacity:0}),duration:1,delay:.55,ease:'power4.out'});
       gsap.from('.hero-title',{yPercent:isConcept05 ? 0 : 90,...(isConcept05 ? {} : {opacity:0}),skewX:8,duration:1.5,delay:.6,ease:'power4.out'});
       gsap.from('.hero-logo-wrap',{scale:1.35,...(isConcept05 ? {} : {opacity:0}),rotation:3,duration:1.8,delay:.75,ease:'power3.out'});
@@ -75,16 +88,27 @@
     gsap.to('.audio-bg',{rotation:-12,scale:1.15,scrollTrigger:{trigger:'.sets',start:'top bottom',end:'bottom top',scrub:1.5}});
 
     gsap.from('.media-grid .m',{y:120,...(isConcept05 ? {} : {opacity:0}),rotation:(i)=>i%2?3:-3,stagger:.12,scrollTrigger:{trigger:'.media',start:'top 78%',end:'top 25%',scrub:1}});
+        qsa('.scene').forEach(sec => {
+          ScrollTrigger.create({
+            trigger: sec, start: 'top 55%', end: 'bottom 45%',
+            onEnter: () => setScene(sec), onEnterBack: () => setScene(sec)
+          });
+        });
+      });
+      const refresh = () => ScrollTrigger.refresh();
+      if (document.readyState === 'complete') refresh();
+      else window.addEventListener('load', refresh, { once: true });
+      return () => {
+        window.removeEventListener('load', refresh);
+        context.revert();
+      };
+    });
+    window.addEventListener('pagehide', () => legacySceneMedia?.revert(), { once: true });
   }
 
   // Scene indicator
   const sceneName = qs('#sceneName'), sceneCount = qs('#sceneCount');
-  if (motionReady) qsa('.scene').forEach(sec => {
-    ScrollTrigger.create({
-      trigger:sec,start:'top 55%',end:'bottom 45%',
-      onEnter:()=>setScene(sec),onEnterBack:()=>setScene(sec)
-    });
-  });
+
   function setScene(sec){
     document.body.dataset.scene = sec.dataset.scene || 'CORE';
     if(sceneName) sceneName.textContent = sec.dataset.scene || 'CORE';
