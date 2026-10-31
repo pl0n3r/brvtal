@@ -31,6 +31,7 @@ RewriteRule ^indexnow-[A-Za-z0-9][A-Za-z0-9-]{0,90}\.txt$ indexnow-key.php [L,QS
 # converge there so the Spanish source never gains a duplicate indexable URL.
 RewriteRule ^es/?$ / [R=301,L,NE]
 RewriteRule ^es/contact/?$ /contact [R=301,L,NE]
+RewriteRule ^es/privacy/?$ /privacy [R=301,L,NE]
 RewriteRule ^es/(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ /$1/$2 [R=301,L,NE]
 
 # EN is the localized public alternate. Keep the home URL slashless so the
@@ -38,9 +39,11 @@ RewriteRule ^es/(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ /$1/$2
 RewriteRule ^en/$ /en [R=301,L,NE]
 RewriteRule ^en$ index.php?locale=en [L,QSA,NC]
 RewriteRule ^en/contact/?$ index.php?page=contact&locale=en [L,QSA,NC]
+RewriteRule ^en/privacy/?$ index.php?page=privacy&locale=en [L,QSA,NC]
 RewriteRule ^en/(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?locale=en&type=$1&slug=$2 [L,QSA,NC]
 
 RewriteRule ^contact/?$ index.php?page=contact [L,QSA,NC]
+RewriteRule ^privacy/?$ index.php?page=privacy [L,QSA,NC]
 RewriteRule ^preview/([a-f0-9]{48})/?$ preview.php?token=$1 [L,QSA,NC]
 RewriteRule ^(events|artists|sets|releases|blog|pages)/([a-z0-9-]+)/?$ index.php?type=$1&slug=$2 [L,QSA,NC]
 
