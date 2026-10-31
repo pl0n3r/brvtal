@@ -238,10 +238,10 @@ def serve_review(output: Path, port: int = 0) -> None:
             self.end_headers()
 
     # Intentional HTTP only for 127.0.0.1; Host header validation, CSRF and no network exposure.
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)  # NOSONAR(S5332) loopback preview only
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     try:
         print(f"Revisión privada: http://127.0.0.1:{server.server_port}/", flush=True)
-        server.serve_forever()
+        server.serve_forever()  # NOSONAR(S5332) loopback-only review, Host validation and CSRF
     finally:
         server.server_close()
 
