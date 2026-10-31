@@ -5,6 +5,7 @@
 (function () {
   'use strict';
   var media = null;
+  var fallbackTweens = [];
 
   function motionDisabled() {
     var root = document.documentElement;
@@ -21,6 +22,40 @@
     if (!hosts.length || !window.gsap || motionDisabled()) return;
     var gsap = window.gsap;
     if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
+    // Older GSAP adapters and deterministic E2E mocks lack matchMedia/context.
+    // Keep the same non-obscuring from-state and tear down retained tweens.
+    if (typeof gsap.matchMedia !== 'function' || typeof gsap.context !== 'function') {
+      hosts.forEach(function (host) {
+        host.querySelectorAll('.c5-module').forEach(function (el) {
+          fallbackTweens.push(gsap.from(el, {
+            y: 24, duration: 0.6, ease: 'power3.out',
+            clearProps: 'transform',
+            scrollTrigger: window.ScrollTrigger
+              ? { trigger: el, start: 'top 88%', once: true }
+              : undefined
+          }));
+        });
+        host.querySelectorAll('.c5-numbered').forEach(function (section) {
+          fallbackTweens.push(gsap.from(section, {
+            y: 12, duration: .5, ease: 'power4.out',
+            clearProps: 'transform',
+            scrollTrigger: window.ScrollTrigger
+              ? { trigger: section, start: 'top 85%', once: true }
+              : undefined
+          }));
+          var title = section.querySelector('h2, h3');
+          if (title && window.ScrollTrigger && typeof gsap.timeline === 'function') {
+            var sequence = gsap.timeline({
+              scrollTrigger: { trigger: section, start: 'top 80%', once: true }
+            });
+            sequence.fromTo(title, { x: 8, opacity: 0.98 },
+              { x: 0, opacity: 1, duration: .18, ease: 'power2.out' });
+            fallbackTweens.push(sequence);
+          }
+        });
+      });
+      return;
+    }
     media = gsap.matchMedia();
     media.add('(prefers-reduced-motion: no-preference)', function () {
       if (motionDisabled()) return;
@@ -70,6 +105,8 @@
   }
   window.addEventListener('pagehide', function () {
     media?.revert();
+    fallbackTweens.forEach(function (tween) { tween?.kill?.(); });
+    fallbackTweens = [];
     media = null;
   }, { once: true });
   window.BRVTAL_CONCEPT05_MOTION_INIT = init;
