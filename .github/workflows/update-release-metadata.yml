@@ -270,7 +270,7 @@ jobs:
           php-version: '8.5'
           coverage: none
           ini-file: production
-          tools: phpstan:2.2.14, rector:2.6.7
+          tools: phpstan:2.2.14, rector:2.8.3
 
       - name: Validate Sonar Python runtime contract
         shell: bash

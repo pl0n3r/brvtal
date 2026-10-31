@@ -38,6 +38,9 @@ def parse_release(text: str, label: str) -> Version:
 
 
 def validate_transition(before: Version, after: Version) -> None:
+    if after == before:
+        print(f"BRVTAL product version {before} unchanged (bumped only when publishing)")
+        return
     patch_bump = (
         after.major == before.major
         and after.minor == before.minor
@@ -52,7 +55,7 @@ def validate_transition(before: Version, after: Version) -> None:
     if not (patch_bump or minor_bump):
         raise SystemExit(
             f"Invalid BRVTAL product-version transition {before} -> {after}. "
-            "Every deploy-bound PR increments patch by exactly one; a deliberate "
+            "A PR may keep the version; publishing increments patch by exactly one, and a deliberate "
             "pre-1.0 minor milestone increments minor by one and resets patch to zero."
         )
     kind = "patch" if patch_bump else "minor milestone"

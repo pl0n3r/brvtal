@@ -47,10 +47,10 @@ function brvtalPublicLocalizedRoute(
     $page = trim($page);
 
     if ($page !== '') {
-        if ($page !== 'contact' || $type !== '' || $slug !== '') {
+        if (!in_array($page, ['contact', 'privacy'], true) || $type !== '' || $slug !== '') {
             return null;
         }
-        $spanishPath = '/contact';
+        $spanishPath = '/' . $page;
     } elseif ($type !== '' || $slug !== '') {
         $allowedTypes = ['events', 'artists', 'sets', 'releases', 'blog', 'pages'];
         if (
