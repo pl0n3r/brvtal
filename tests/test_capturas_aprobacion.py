@@ -164,7 +164,10 @@ class CapturasAprobacionTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 csrf = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
                 self.assertEqual(request("GET", "/", headers={"Host": "example.test"})[0], 403)
+                # The allowlisted manifest path still serves a real valid PNG.
+                self.assertEqual(request("GET", "/captures/home-escritorio-1440.png")[0], 200)
                 self.assertEqual(request("GET", "/captures/../manifest.json")[0], 404)
+                self.assertEqual(request("GET", "/captures/%2e%2e/manifest.json")[0], 404)
                 image = folder / "home-movil-390.png"
                 image.unlink()
                 image.symlink_to(folder / "manifest.json")

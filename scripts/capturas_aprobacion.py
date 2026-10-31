@@ -262,6 +262,9 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
     allowed = {a["file"] for a in manifest["artifacts"]}
     if any(not re.fullmatch(r"[a-z0-9-]+\.png", file) for file in allowed):
         raise ValueError("Manifest contiene rutas no permitidas")
+    # Materialize authorized paths from the local manifest once, not from HTTP input.
+    # Request filenames are used exclusively as keys in this allowlisted mapping.
+    capture_paths = {file: output / file for file in allowed}
     csrf = secrets.token_urlsafe(32)
 
     class Handler(BaseHTTPRequestHandler):
@@ -276,10 +279,9 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
                 return review_html(manifest, state.get("status", "pendiente"), csrf).encode(), "text/html; charset=utf-8"
             if self.path.startswith(CAPTURE_URL_PREFIX):
                 filename = self.path[len(CAPTURE_URL_PREFIX):]
-                if filename in allowed:
-                    image = output / filename
-                    if not image.is_symlink() and image.is_file():
-                        return image.read_bytes(), "image/png"
+                image = capture_paths.get(filename)
+                if image is not None and not image.is_symlink() and image.is_file():
+                    return image.read_bytes(), "image/png"
             return None
 
         def do_GET(self) -> None:
