@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+from unittest.mock import patch
 import tempfile
 import unittest
 
@@ -30,8 +31,8 @@ class CheckContenidoRealTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder) / "export.json"
             p.write_text(json.dumps(cases), encoding="utf-8")
-            with contextlib.redirect_stdout(io.StringIO()) as output:
-                self.assertEqual(1, main(["--snapshot", str(p)]))
+            with patch("scripts.check_contenido_real.SNAPSHOT_PATH", p), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(1, main())
             self.assertIn("BLOCKED_LIVE", output.getvalue())
             self.assertIn("DISCADMIN", output.getvalue())
 
@@ -57,8 +58,8 @@ class CheckContenidoRealTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder) / "export.json"
             p.write_text(json.dumps(good), encoding="utf-8")
-            with contextlib.redirect_stdout(io.StringIO()) as output:
-                self.assertEqual(0, main(["--snapshot", str(p)]))
+            with patch("scripts.check_contenido_real.SNAPSHOT_PATH", p), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(0, main())
             self.assertIn("no autoriza live", output.getvalue())
 
     def test_coming_soon_requires_real_date(self):
@@ -74,8 +75,8 @@ class CheckContenidoRealTests(unittest.TestCase):
                 audit(bad)
         with tempfile.TemporaryDirectory() as folder:
             p = Path(folder) / "missing.json"
-            with contextlib.redirect_stderr(io.StringIO()) as error:
-                self.assertEqual(2, main(["--snapshot", str(p)]))
+            with patch("scripts.check_contenido_real.SNAPSHOT_PATH", p), contextlib.redirect_stderr(io.StringIO()) as error:
+                self.assertEqual(2, main())
             self.assertIn("BLOCKED_LIVE", error.getvalue())
 
     def test_symlink_oversize_and_unknown_status_fail_closed(self):
@@ -88,11 +89,13 @@ class CheckContenidoRealTests(unittest.TestCase):
                 link.symlink_to(p)
             except OSError:
                 self.skipTest("Symlink unavailable")
-            with self.assertRaises(SnapshotError):
-                read_snapshot(link)
+            with patch("scripts.check_contenido_real.SNAPSHOT_PATH", link):
+                with self.assertRaises(SnapshotError):
+                    read_snapshot()
             p.write_bytes(b" " * (4 * 1024 * 1024 + 1))
-            with self.assertRaises(SnapshotError):
-                read_snapshot(p)
+            with patch("scripts.check_contenido_real.SNAPSHOT_PATH", p):
+                with self.assertRaises(SnapshotError):
+                    read_snapshot()
         with self.assertRaises(SnapshotError):
             audit(snapshot(events=[{"id": 1, "status": "mystery", "title": "Noche"}]))
 
