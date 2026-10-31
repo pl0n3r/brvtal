@@ -23,3 +23,11 @@ html[data-discadmin-appearance] #brvtal-dashboard-v2 :is(.dashboard-v2-hero,.das
 html[data-discadmin-appearance] #brvtal-dashboard-v2 .dashboard-v2-button{
   border-radius:var(--admin-radius-control);
 }
+
+/* #1365: explicit focus, touch targets and readable admin typography. */
+html[data-discadmin-appearance] :is(button,a,input,select,textarea,[role="button"]):focus-visible{outline:2px solid #b8ff00;outline-offset:2px}
+html[data-discadmin-appearance] :is(button,[role="button"]){min-height:44px}
+html[data-discadmin-appearance] :is(button,[role="button"]):active{transform:scale(.96)}
+html[data-discadmin-appearance] :is(h1,h2,h3){text-wrap:balance}
+html[data-discadmin-appearance] p{text-wrap:pretty}
+html[data-discadmin-appearance] :is(time,[data-count],.metric,.stat){font-variant-numeric:tabular-nums}
