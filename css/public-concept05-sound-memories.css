@@ -26,7 +26,7 @@
 [data-concept="05"] .sets .section-head>span:first-child{
   grid-column:auto;
   color:var(--c5-signal-green);
-  font-size:11px;
+  font-size:12px;
   letter-spacing:.09em;
   white-space:nowrap;
 }
@@ -44,7 +44,7 @@
 [data-concept="05"] .sets .section-head>span:last-child{
   justify-self:end;
   color:var(--c5-paper-muted);
-  font-size:11px;
+  font-size:12px;
   letter-spacing:.08em;
   white-space:nowrap;
 }
@@ -61,7 +61,7 @@
 [data-concept="05"] .sets-intro p{
   margin:0;
   color:var(--c5-signal-green);
-  font-size:11px;
+  font-size:12px;
   letter-spacing:.09em;
 }
 
@@ -145,7 +145,7 @@
   position:absolute;
   inset:auto 10px 10px;
   color:var(--c5-paper-muted);
-  font:700 11px/1.25 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1.25 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.06em;
 }
 
@@ -199,7 +199,7 @@
   overflow:hidden;
   -webkit-box-orient:vertical;
   -webkit-line-clamp:2;
-  font-size:11px;
+  font-size:12px;
   line-height:1.25;
 }
 
@@ -264,7 +264,7 @@
   border:1px solid var(--c5-signal-red);
   background:transparent;
   color:var(--c5-paper-dirty);
-  font:700 11px/1.4 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1.4 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.06em;
   text-align:left;
   cursor:pointer;
@@ -302,7 +302,7 @@
 [data-concept="05"] .media-title>span{
   grid-column:auto;
   color:var(--c5-signal-green);
-  font-size:11px;
+  font-size:12px;
   letter-spacing:.09em;
   white-space:nowrap;
 }
@@ -323,7 +323,7 @@
 [data-concept="05"] .media-title-note p{
   margin:7px 0 0;
   color:var(--c5-paper-muted);
-  font:700 11px/1.45 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1.45 var(--theme-mono-font,"Space Mono",monospace);
   text-transform:uppercase;
 }
 
@@ -429,7 +429,7 @@
   position:absolute;
   inset:auto 12px 12px;
   color:var(--c5-paper-muted);
-  font:700 11px/1.25 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1.25 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.07em;
 }
 
@@ -442,7 +442,7 @@
   display:block;
   margin:12px 0 0;
   color:var(--c5-paper-muted);
-  font:700 clamp(11px,1vw,14px)/1.2 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 clamp(12px,1vw,14px)/1.2 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.12em;
   text-align:right;
   text-transform:uppercase;
@@ -473,13 +473,13 @@
   [data-concept="05"] .sets .section-head>span:first-child,
   [data-concept="05"] .media-title>span{
     grid-column:auto;
-    font-size:11px;
+    font-size:12px;
   }
 
   [data-concept="05"] .sets .section-head>span:last-child{
     grid-column:1/-1;
     justify-self:start;
-    font-size:11px;
+    font-size:12px;
   }
 
   [data-concept="05"] #sets .set-list{
@@ -508,6 +508,11 @@
   [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .set-main{
     grid-column:auto;
     padding-right:0;
+  }
+
+  /* Decorative waveform does not take text space on narrow screens. */
+  [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .c5-sound-signal{
+    display:none;
   }
 
   [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .set-listen-action{
@@ -570,7 +575,7 @@
   }
 
   [data-concept="05"] .c5-memory-annotation{
-    font-size:11px;
+    font-size:12px;
     text-align:left;
   }
 }

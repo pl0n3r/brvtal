@@ -798,23 +798,24 @@ const canonicalVisualRegions = [
 /*
  * These are fingerprints of the synthetic long-copy/media-empty stress
  * fixture, NOT proof of visual parity with owner Concept 05 v2 or real CMS.
- * Manual refresh only: inspect the exact-HEAD Chromium screenshots and
- * document the reason and source hashes under docs/reference/ before editing.
+ * Refreshed manually after review of the exact-HEAD synthetic CI screenshots
+ * for issue #1362; evidence and source SHA in docs/reference/ below.
+ * Never refresh values automatically or conflate this with owner approval.
  * Keep structural and palette assertions fail-closed for future drift.
  * Never auto-update these values in CI.
  * See docs/reference/concept05-v2-qa-baseline-2026-10-10.md.
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: 'f7465291e4a17c5913c762230d283712574532763cb26eb4543fb322b4ad7aff',
-    color: 'b48d809c69d2f76fb499f2237381d5aa31ae16297dee3d03773cd0f78b0e8ef9',
+    structure: 'fe4e110b79e180508b874c6bb96aa9755580053aae37f943ad1ea1bfb182164e',
+    color: '5a1ccf2df14cf1bd56a95d7c4f25a0db7f346cb82cd8f3cd6c4754feb6c5048a',
   },
   1440: {
     // Refreshed after comparing HEAD 4e4d44e's genuine CI capture with
     // owner-v2. This guards the incremental radial layout; it does NOT
     // attest pixel-perfect parity or authorize publication.
-    structure: 'a53bee6e0d4ceb6078fcfdb7c2feb4af9b0833235b693b4bdcec318d9059bb24',
-    color: 'df124088ead685f443378051c5b9b4145f7d95272e1991e8f2e2733e97f23bd2',
+    structure: '77de2f2d2a2941fb3c4829d01ce57954f48d5a954ddec435a34bff2df8d8bda3',
+    color: 'd114f7721dc013265434860ee24373b507641ea797022ae0cea05cc191c794f6',
   },
 };
 
