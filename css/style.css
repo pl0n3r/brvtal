@@ -114,4 +114,13 @@ body[data-scene="SIGNAL"]{--red:var(--magenta)}
 @media(max-width:900px){
   .dynamic-status{left:16px;bottom:16px}
   .event-ticket{grid-column:1;justify-self:start}
-}\n/* #1360 — accessible interaction baselines without changing Concepto 05 identity. */\n:where(a,button,input,select,textarea,summary,[role=button],[tabindex]):focus-visible{outline:2px solid var(--acid,#3dff7a);outline-offset:3px}\n:where(.menu,.language-option,.menu-panel nav a,.footer-link,.event-ticket){min-height:44px}\n.menu:active,.language-option:active,.footer-link:active{transform:scale(.96)}\n:where(h1,h2,h3,h4){text-wrap:balance}\n:where(p){text-wrap:pretty}\n:where(.event-info,.event-status,.set-num,.hero-bottom){font-variant-numeric:tabular-nums}\nhtml{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}\n@media(prefers-reduced-motion:reduce){.menu:active,.language-option:active,.footer-link:active{transform:none}}\n
+}
+/* #1360 — accessible interaction baselines without changing Concepto 05 identity. */
+:where(a,button,input,select,textarea,summary,[role=button],[tabindex]):focus-visible{outline:2px solid var(--acid,#3dff7a);outline-offset:3px}
+:where(.menu,.language-option,.menu-panel nav a,.footer-link,.event-ticket){min-height:44px}
+.menu:active,.language-option:active,.footer-link:active{transform:scale(.96)}
+:where(h1,h2,h3,h4){text-wrap:balance}
+:where(p){text-wrap:pretty}
+:where(.event-info,.event-status,.set-num,.hero-bottom){font-variant-numeric:tabular-nums}
+html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@media(prefers-reduced-motion:reduce){.menu:active,.language-option:active,.footer-link:active{transform:none}}
