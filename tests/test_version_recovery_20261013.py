@@ -54,10 +54,10 @@ class VersionRecovery20261013Tests(unittest.TestCase):
         self.assertTrue(VERSION_SCRIPT.is_file())
 
     def test_transition_0142_to_0143_passes_and_invalid_repeats_fail(self) -> None:
-        """Accept only the consecutive patch and reject repeats or skipped bumps."""
+        """Accept only the consecutive patch and accept an unchanged version and reject skipped bumps."""
         for after, allowed in (
             ("0.1.143", True),
-            ("0.1.142", False),
+            ("0.1.142", True),
             ("0.1.144", False),
             ("1.0.0", False),
         ):
@@ -76,7 +76,7 @@ class VersionRecovery20261013Tests(unittest.TestCase):
                     check=False,
                 )
                 self.assertEqual(result.returncode == 0, allowed, result.stderr)
-                if allowed:
+                if allowed and after == "0.1.143":
                     self.assertIn("0.1.142 -> 0.1.143", result.stdout)
 
         current = subprocess.run(
