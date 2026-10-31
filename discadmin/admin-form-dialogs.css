@@ -5,14 +5,14 @@
 .modalbox[role="dialog"] .modalhead .iconbtn,
 #eventModal .modalbox[role="dialog"] .modal-actions .icon{min-width:44px;min-height:40px}
 .modalbox[role="dialog"] .field label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.admin-required{font:800 8px/1 monospace;letter-spacing:1.2px;color:#d7dadd;border:1px solid #454a4f;padding:4px 5px;border-radius:4px}
+.admin-required{font:800 12px/1 monospace;letter-spacing:1.2px;color:#d7dadd;border:1px solid #454a4f;padding:4px 5px;border-radius:4px}
 .modalbox[role="dialog"] input[aria-invalid="true"],
 .modalbox[role="dialog"] textarea[aria-invalid="true"],
 .modalbox[role="dialog"] select[aria-invalid="true"]{border-color:#ff5566;box-shadow:0 0 0 1px #ff556633}
 .admin-validation-summary{margin-top:14px!important;border-color:#71323b!important;background:#1b0c0f!important;color:#ffd9dd!important}
 .admin-publication-state{margin-top:9px;padding:10px 11px;border:1px solid #2e3337;background:#080a0b;border-radius:6px;display:grid;gap:4px}
-.admin-publication-state strong{font:900 9px/1.2 monospace;letter-spacing:1.4px;color:#d9dde0}
-.admin-publication-state span{font-size:11px;line-height:1.45;color:#8f979d}
+.admin-publication-state strong{font:900 12px/1.2 monospace;letter-spacing:1.4px;color:#d9dde0}
+.admin-publication-state span{font-size:12px;line-height:1.45;color:#8f979d}
 .admin-publication-state[data-state="published"],
 .admin-publication-state[data-state="upcoming"],
 .admin-publication-state[data-state="tickets_available"],
@@ -38,3 +38,9 @@
   #eventModal .modalbox[role="dialog"] .foot-right{display:flex;gap:8px;flex-wrap:wrap}
   #eventModal .modalbox[role="dialog"] .foot .btn{min-height:44px}
 }
+
+/* #1364: focus-visible form controls and usable dialog actions. */
+.modalbox[role="dialog"] :where(button,input,select,textarea,a):focus-visible{outline:2px solid #e9e5da;outline-offset:2px}
+.modalbox[role="dialog"] :where(button,a){min-height:44px}
+.modalbox[role="dialog"] button:active{transform:scale(.96)}
+.modalbox[role="dialog"] :where(h2,h3){text-wrap:balance}
