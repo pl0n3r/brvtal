@@ -3,7 +3,7 @@
 :root{
   --admin-font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,Arial,sans-serif;
   --admin-font-mono:ui-monospace,"SFMono-Regular",SFMono-Regular,Menlo,Consolas,monospace;
-  --admin-font-xs:11px;
+  --admin-font-xs:12px;
   --admin-font-sm:12px;
   --admin-font-base:14px;
   --admin-font-md:15px;
@@ -63,7 +63,7 @@ html[data-discadmin-appearance] .dashboard-next-event-meta{font-size:var(--admin
 html[data-discadmin-appearance] .dashboard-v2-chip{font-size:var(--admin-font-xs)}
 html[data-discadmin-appearance] .dashboard-v2-row-title{font-size:13px}
 html[data-discadmin-appearance] .dashboard-v2-row-meta{font-size:var(--admin-font-sm)}
-html[data-discadmin-appearance] .dashboard-v2-button{font-size:var(--admin-font-xs);min-height:36px;padding:9px 11px}
+html[data-discadmin-appearance] .dashboard-v2-button{font-size:var(--admin-font-xs);min-height:44px;padding:9px 11px}
 html[data-discadmin-appearance] .dashboard-v2-health-card span{font-size:var(--admin-font-xs)}
 html[data-discadmin-appearance] .dashboard-v2-health-card small{font-size:var(--admin-font-xs)}
 html[data-discadmin-appearance] .dashboard-v2-empty{font-size:var(--admin-font-sm)}
@@ -180,4 +180,13 @@ html[data-discadmin-appearance] :where(.field textarea,.sv2-field textarea){padd
 @media(prefers-reduced-motion:reduce){
   html[data-discadmin-appearance] *{scroll-behavior:auto!important}
   html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.sv2-tabs button){transition:none!important}
+}
+
+/* Shared keyboard, touch and motion accessibility for the canonical shell. */
+html[data-discadmin-appearance] :where(button,.btn,.iconbtn,[role="button"]){touch-action:manipulation}
+html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.dashboard-v2-summary-action):active{transform:scale(.96)}
+html[data-discadmin-appearance] :where(button,a,input,select,textarea,[role="button"]):focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){
+  html[data-discadmin-appearance] *,html[data-discadmin-appearance] *::before,html[data-discadmin-appearance] *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.dashboard-v2-summary-action):active{transform:none}
 }
