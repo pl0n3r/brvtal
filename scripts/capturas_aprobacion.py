@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 import re
 import secrets
+import threading
+import zlib
 import subprocess
 import tempfile
 from urllib.parse import parse_qs, urlparse
@@ -26,6 +28,7 @@ WIDTHS = {"escritorio": (1440, 900), "movil": (390, 844)}
 DEFAULT_PAGES = {"home": "/index.php", "contacto": "/index.php?page=contact"}
 MAX_POST = 8192
 CAPTURE_URL_PREFIX = "/captures/"
+DECISION_LOCK = threading.RLock()
 LOCAL_HOSTS = frozenset(("127.0.0.1", "localhost", "::1"))
 CHROMIUM_SCRIPT = r"""
 import { chromium } from 'playwright';
@@ -44,6 +47,12 @@ try {
     throw Error('Página no disponible/redirect externo: '+spec.url);
   }
   await page.locator('body').waitFor({timeout:10000});
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const images = [...document.images];
+    for (const image of images) image.loading = 'eager';
+    await Promise.all(images.map(image => image.decode()));
+  });
   await page.screenshot({path:spec.output,fullPage:true,animations:'disabled'});
   await context.close();
 } finally {await browser.close();}
@@ -73,6 +82,50 @@ def safe_pages(pages: dict[str, str]) -> dict[str, str]:
     return pages
 
 
+def valid_png(data: bytes, width: int, min_height: int) -> bool:
+    """Validate PNG chunk integrity, width and minimum full-page height."""
+    if not 4096 <= len(data) <= 32 * 1024 * 1024 or not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return False
+    offset = 8
+    has_idat = False
+    while offset + 12 <= len(data):
+        length = int.from_bytes(data[offset:offset + 4], "big")
+        kind = data[offset + 4:offset + 8]
+        end = offset + 12 + length
+        if length > 32 * 1024 * 1024 or end > len(data):
+            return False
+        chunk = data[offset + 8:offset + 8 + length]
+        crc = int.from_bytes(data[offset + 8 + length:end], "big")
+        if zlib.crc32(kind + chunk) != crc:
+            return False
+        if offset == 8 and (kind != b"IHDR" or length != 13
+                            or int.from_bytes(chunk[:4], "big") != width
+                            or int.from_bytes(chunk[4:8], "big") < min_height):
+            return False
+        if kind == b"IDAT":
+            has_idat = True
+        if kind == b"IEND":
+            return length == 0 and has_idat and end == len(data)
+        offset = end
+    return False
+
+
+def begin_round(output: Path) -> None:
+    """Revoke prior approval before browser launch; never reuse prior PNGs."""
+    decision = output / "decision.json"
+    manifest = output / "manifest.json"
+    files = list(output.glob("*.png")) + [decision, manifest]
+    if any(p.is_symlink() for p in files):
+        raise ValueError("Archivo de revisión simbólico no permitido")
+    if decision.is_file():
+        archived = output / ("decision-archived-" + secrets.token_hex(12) + ".json")
+        os.replace(decision, archived)
+    if manifest.is_file():
+        manifest.unlink()
+    for screenshot in output.glob("*.png"):
+        screenshot.unlink()
+
+
 def capture(base_url: str, pages: dict[str, str], output: Path, *, runner=subprocess.run) -> dict:
     base_url = safe_base(base_url)
     pages = safe_pages(pages)
@@ -82,6 +135,8 @@ def capture(base_url: str, pages: dict[str, str], output: Path, *, runner=subpro
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     origin = base_url
+    with DECISION_LOCK:
+        begin_round(output)
     artifacts = []
     for name, path in pages.items():
         for size, (width, height) in WIDTHS.items():
@@ -94,11 +149,8 @@ def capture(base_url: str, pages: dict[str, str], output: Path, *, runner=subpro
             runner(["node", "--input-type=module", "-e", CHROMIUM_SCRIPT, json.dumps(spec)],
                    check=True, timeout=90)
             data = target.read_bytes()
-            if len(data) < 4096 or not data.startswith(b"\x89PNG\r\n\x1a\n"):
-                raise ValueError(f"Captura vacía o no PNG: {filename}")
-            actual_width = int.from_bytes(data[16:20], "big")
-            if actual_width != width:
-                raise ValueError(f"Viewport incorrecto: {filename}")
+            if not valid_png(data, width, height):
+                raise ValueError(f"Captura vacía, corrupta o viewport incorrecto: {filename}")
             artifacts.append({"page": name, "path": path, "device": size,
                               "width": width, "file": filename,
                               "sha256": hashlib.sha256(data).hexdigest()})
@@ -127,11 +179,21 @@ def atomic_json(path: Path, payload: dict) -> None:
 
 
 def save_decision(output: Path, action: str, comment: str, confirmed: bool) -> dict:
+    with DECISION_LOCK:
+        return _save_decision(output, action, comment, confirmed)
+
+
+def _save_decision(output: Path, action: str, comment: str, confirmed: bool) -> dict:
+    output = Path(output)
+    if not (output / "manifest.json").is_file() or (output / "manifest.json").is_symlink():
+        raise ValueError("No hay ronda de captura pendiente")
     if action not in ("comentario", "aprobado") or len(comment) > 2000:
         raise ValueError("Decisión inválida")
     if action == "aprobado" and not confirmed:
         raise ValueError("El dueño debe confirmar explícitamente el aprobado")
     state_file = output / "decision.json"
+    if state_file.is_symlink():
+        raise ValueError("Decisión simbólica no permitida")
     previous = json.loads(state_file.read_text("utf-8")) if state_file.exists() else {"history": []}
     if not isinstance(previous.get("history"), list) or len(previous["history"]) > 100:
         raise ValueError("Historial inválido")
@@ -172,8 +234,10 @@ def review_html(manifest: dict, status: str, csrf: str) -> str:
             '<button type="submit">Guardar decisión local</button></form></main></body></html>')
 
 
-def serve_review(output: Path, port: int = 0) -> None:
-    output = output.resolve()
+def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
+    if Path(output).is_symlink():
+        raise ValueError("Directorio simbólico no permitido")
+    output = Path(output).resolve()
     manifest = json.loads((output / "manifest.json").read_text("utf-8"))
     allowed = {a["file"] for a in manifest["artifacts"]}
     if any(not re.fullmatch(r"[a-z0-9-]+\.png", file) for file in allowed):
@@ -192,8 +256,9 @@ def serve_review(output: Path, port: int = 0) -> None:
                 return review_html(manifest, state.get("status", "pendiente"), csrf).encode(), "text/html; charset=utf-8"
             if self.path.startswith(CAPTURE_URL_PREFIX):
                 filename = self.path[len(CAPTURE_URL_PREFIX):]
-                if filename in allowed and not (output / filename).is_symlink():
-                    return (output / filename).read_bytes(), "image/png"
+                image = output / filename
+                if filename in allowed and not image.is_symlink() and image.is_file():
+                    return image.read_bytes(), "image/png"
             return None
 
         def do_GET(self) -> None:
@@ -225,11 +290,13 @@ def serve_review(output: Path, port: int = 0) -> None:
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= MAX_POST:
                     raise ValueError("Tamaño inválido")
-                form = parse_qs(self.rfile.read(length).decode("utf-8"), strict_parsing=True)
-                if any(len(values) != 1 for values in form.values()) or not secrets.compare_digest(form.get("csrf", [""])[0], csrf):
+                form = parse_qs(self.rfile.read(length).decode("utf-8"), strict_parsing=True, max_num_fields=8)
+                if (set(form) - {"csrf", "decision", "comentario", "confirmado"} or
+                        any(len(values) != 1 for values in form.values()) or
+                        not secrets.compare_digest(form.get("csrf", [""])[0].encode("utf-8"), csrf.encode("utf-8"))):
                     raise ValueError("CSRF inválido")
                 save_decision(output, form.get("decision", [""])[0], form.get("comentario", [""])[0], form.get("confirmado") == ["si"])
-            except (ValueError, OSError, KeyError):
+            except (ValueError, UnicodeError, OSError, KeyError, TypeError):
                 self.send_error(400)
                 return
             self.send_response(303)
@@ -237,8 +304,12 @@ def serve_review(output: Path, port: int = 0) -> None:
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
 
-    # Intentional HTTP only for 127.0.0.1; Host header validation, CSRF and no network exposure.
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # Only bind to loopback; Host and CSRF validated independently.
+    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+
+
+def serve_review(output: Path, port: int = 0) -> None:
+    server = build_server(output, port)
     try:
         print(f"Revisión privada: http://127.0.0.1:{server.server_port}/", flush=True)
         server.serve_forever()  # NOSONAR(S5332) loopback-only review, Host validation and CSRF
