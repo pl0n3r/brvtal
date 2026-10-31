@@ -16,10 +16,15 @@
     if (!loader) return;
     if (reduce || !motionReady) { loader.remove(); return; }
     let n = 0;
+    if (bar) {
+      bar.style.width = '100%';
+      bar.style.transformOrigin = 'left center';
+      bar.style.transform = 'scaleX(0)';
+    }
     const timer = setInterval(() => {
       n = Math.min(100, n + loaderSteps[loaderStepIndex++ % loaderSteps.length]);
       if (pct) pct.textContent = String(n).padStart(2,'0') + '%';
-      if (bar) bar.style.width = n + '%';
+      if (bar) bar.style.transform = `scaleX(${n / 100})`;
       if (n >= 100) {
         clearInterval(timer);
         gsap.to(loader,{duration:1.2,yPercent:-100,ease:'power4.inOut',delay:.2,onComplete:()=>loader.remove()});
