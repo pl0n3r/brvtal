@@ -237,45 +237,36 @@
     });
   }
 
+  let heroMotionMedia = null;
   function animateHero() {
     const hero = document.querySelector('.home-phase-a-hero');
     if (!hero || !window.gsap || reducedMotion()) return;
-
-    const figure = hero.querySelector('[data-c5-hero-documentary]:not([hidden])');
-    const statement = hero.querySelector('.hero-declaration');
-    const explore = hero.querySelector('.c5-hero-explore');
-
-    if (figure) {
-      window.gsap.from(figure, {
-        opacity:0,
-        y:24,
-        rotation:-4,
-        duration:.72,
-        delay:.18,
-        ease:'power3.out',
-        clearProps:'opacity,transform',
-      });
-    }
-    if (statement) {
-      window.gsap.from(statement, {
-        opacity:0,
-        x:32,
-        duration:.62,
-        delay:.12,
-        ease:'power3.out',
-        clearProps:'opacity,transform',
-      });
-    }
-    if (explore) {
-      window.gsap.from(explore, {
-        opacity:0,
-        y:10,
-        duration:.4,
-        delay:.42,
-        ease:'power2.out',
-        clearProps:'opacity,transform',
-      });
-    }
+    heroMotionMedia?.revert();
+    const gsap = window.gsap;
+    heroMotionMedia = gsap.matchMedia();
+    heroMotionMedia.add('(prefers-reduced-motion: no-preference)', () => {
+      if (reducedMotion()) return;
+      const context = gsap.context(() => {
+        const figure = hero.querySelector('[data-c5-hero-documentary]:not([hidden])');
+        const statement = hero.querySelector('.hero-declaration');
+        const explore = hero.querySelector('.c5-hero-explore');
+        // One sequence; no animated layout properties.
+        const sequence = gsap.timeline();
+        if (figure) sequence.from(figure, {
+          opacity: 0, y: 24, rotation: -4,
+          duration: .72, ease: 'power3.out', clearProps: 'opacity,transform'
+        }, .18);
+        if (statement) sequence.from(statement, {
+          opacity: 0, x: 32,
+          duration: .62, ease: 'power3.out', clearProps: 'opacity,transform'
+        }, .12);
+        if (explore) sequence.from(explore, {
+          opacity: 0, y: 10,
+          duration: .4, ease: 'power2.out', clearProps: 'opacity,transform'
+        }, .42);
+      }, hero);
+      return () => context.revert();
+    });
   }
 
   async function waitForPublicData() {
@@ -335,6 +326,8 @@
   } else {
     window.addEventListener('load', startInit, {once:true});
   }
+
+  window.addEventListener('pagehide', () => heroMotionMedia?.revert(), { once: true });
 
   window.BRVTALConcept05Hero = {
     init,
