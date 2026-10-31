@@ -807,15 +807,15 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: '3eca424d10673182d290c47d8da3c7a9c91243f8ec703dbee24bbdc723b4c0bc',
-    color: '88c3f8853a0e01fbafee948a0625cedf5d713e813ada3131fbdad80332f872b6',
+    structure: 'a86032907e65ab538e3e613d957589f4021e111001428fca1890989e3c81148c',
+    color: '8f36114eb4b9e579d2880d5f623f3b766cb386269d2f56a35f5f18f8e77205a8',
   },
   1440: {
-    // Refreshed after technical A/B of HEAD d3b92fb's real Chromium screenshots
-    // against owner-v2 (#1360, PR #1389, artifact 13045208057). Synthetic-only:
-    // maintains fail-closed assertions, NOT aesthetic or CMS approval.
-    structure: '5153bb7d9328ff5a9235c46caf786debdf5d34fa470c78807f9bea96bf690374',
-    color: 'd114f7721dc013265434860ee24373b507641ea797022ae0cea05cc191c794f6',
+    // Refreshed after A/B of HEAD 0bbb644's actual Chromium screenshots
+    // against owner-v2 (#1361, PR #1391, artifact 13046482598). Synthetic-only:
+    // retains fail-closed checks and does NOT attest CMS visual approval.
+    structure: 'fe9b4bad05ab0a78261b626b052403e3649e227074708836af684e3584a13129',
+    color: 'dab1f2aca4ce482ac1843a7c2fc545f375ca6a3a824936e071ffa73cfc27075a',
   },
 };
 

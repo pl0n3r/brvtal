@@ -122,3 +122,27 @@ Reversión de este slice: revertir el único commit de huellas/documentación, s
 **Inspección A/B por regiones:** los ajustes de #1360 elevan tipografía pequeña explícita a 12px, mejoran foco de teclado y targets de 44px, y alteran las envolturas del fixture de contenido adversarial. A 390 px la marca BR/VT/AL, el CTA, bloques secuenciales, navegación inferior y footer siguen presentes; la tarjeta de artista con nombre artificialmente enorme se apila de forma mucho más vertical, sin evidencia de reemplazo de texto o cambio de datos. A 1440 px se conserva la grilla editorial numerada y la paleta agregada es **idéntica** a la anterior; el título extremo de Next Experience crece verticalmente por legibilidad y de ahí cambia la estructura. La fotografía de la referencia y los medios reales siguen ausentes en el fixture sintético: no declarar paridad de producto, medios CMS, éxito de negocio ni aprobación estética a partir de estas huellas.
 
 **Integridad de QA:** se actualizan únicamente tres valores de huella; `color` desktop no se modifica. La lista de nueve regiones, la captura real, `expect(...).toEqual(expected)`, las pruebas de geometría, focus, reduced motion, contenido sin overflow y medios fallidos permanecen activas. Las nuevas huellas corresponden exclusivamente a este HEAD y deben revalidarse en Chromium/CI después del commit. La excepción técnica de #965 **no modifica las puertas humanas de go-live** ni convierte en aprobada la vista final del CMS.
+
+## A/B home legible — PR #1391, HEAD `0bbb644697987d947c547cffb12539b98ea44a70` (31-oct-2026)
+<!-- BV1361-C05-AB-0BBB644-20261031 -->
+
+**Autoridad y alcance:** [BRVTAL #965 / decisión del dueño](https://github.com/pl0n3r/brvtal/issues/965#issuecomment-6094235414): durante fase `construccion`, renovar únicamente las huellas sintéticas tras inspección A/B de las imágenes exactas; no declarar aprobación del CMS ni sustituir el visto bueno previo a go-live. Se mantienen activos los nueve selectores regionales y la aserción `expect(...).toEqual(expected)`.
+
+**Procedencia verificable:** [Chromium run #41211551706](https://github.com/pl0n3r/brvtal/actions/runs/41211551706) del HEAD `0bbb644697987d947c547cffb12539b98ea44a70`, [artefacto íntegro #13046482598](https://github.com/pl0n3r/brvtal/actions/runs/41211551706/artifacts/13046482598). Se descargó el ZIP, se abrieron las capturas reales desktop y móvil, y se contrastaron con la referencia owner-v2 dentro del mismo ZIP. Chromium falló **únicamente en las dos huellas sintéticas**; las demás pruebas funcionales, geométricas y de accesibilidad pasaron.
+
+| PNG extraído | Resolución | SHA-256 bytes reales |
+| --- | --- | --- |
+| `concept05-390-fullpage.png` | 390 × 7040 | `8f3d661749fd5524d5f8fc40d58c81d7321736d1121e03c6148766c257e5e09e` |
+| `concept05-1440-fullpage.png` | 1440 × 5416 | `a031e0bc762067ab3f422fdc905ed17efc4a9c79296c13f9697d3f8b23e29050` |
+| `concept05-owner-reference-v2.png` | 1312 × 1199 | `62041aa6017ffa10b8085ce920de38b021dbc1c77b1d8170e66196f74b8efdf3` |
+
+**Huellas de regiones extraídas literalmente del `Received` de Chromium**, no generadas con valores artificiales:
+
+| Ancho | Nuevo `structure` | Nuevo `color` |
+| --- | --- | --- |
+| 390 | `a86032907e65ab538e3e613d957589f4021e111001428fca1890989e3c81148c` | `8f36114eb4b9e579d2880d5f623f3b766cb386269d2f56a35f5f18f8e77205a8` |
+| 1440 | `fe9b4bad05ab0a78261b626b052403e3649e227074708836af684e3584a13129` | `dab1f2aca4ce482ac1843a7c2fc545f375ca6a3a824936e071ffa73cfc27075a` |
+
+**Inspección A/B por zonas:** el hero mantiene la composición BR/VT/AL, CTA y declaración; #1361 eleva expresamente el tamaño mínimo tipográfico y recompone su texto corto, por lo que cambia la rejilla de señales y ambas paletas relativas. A 1440 px se mantienen bloques numerados 01–07, la grilla editorial y el CTA de Next Experience; a 390 px se mantienen el apilado, pie de página y navegación inferior. El fixture incluye un titular de evento extremadamente largo y un nombre de artista adversarial que se apila letra a letra: valida ausencia de truncamiento/overflow, pero **no acredita densidad estética comparable a la lámina**. La referencia owner-v2 exhibe fotografía documental y una composición mucho más compacta; estas diferencias de medios y CMS no se disfrazan como paridad ni se publican automáticamente.
+
+**Integridad y límites:** se actualizaron solo los cuatro SHA de regresión sintética de las nueve regiones. Las aserciones, geometría, accesibilidad, referencias de imágenes y controles reales siguen activas; el CI se debe repetir en el nuevo HEAD. Esta recalibración es QA interno, no permiso de deploy, contenido de producción ni aprobación del propietario.
