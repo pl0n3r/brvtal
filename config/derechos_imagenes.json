@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "fase": "construccion",
+  "politica": "sin derechos acreditados no publicar; los provisionales impiden live",
+  "imagenes": [
+    {
+      "archivo": "assets/brvtal-logo-640.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/brvtal-logo-886.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/brvtal-logo.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/02B92101-8059-40A8-A21A-01D668B55604_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/16F766DE-0FEE-4D73-B62D-B005EA36903E_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/2E1E3E48-E20F-49F3-8F68-2FF00EE9F22D_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/36D3198E-C2D9-41C1-9B62-529FD482E840_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/7A59264A-1665-4D9C-BBA8-64528088B29B_4_5005_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/952EC6EF-663E-493D-B59D-14E3E8120F34_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/9AAA8951-4E95-4784-844F-155E33686E74_4_5005_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/9ABAB569-6029-4D4E-8A20-E9DF3749106E_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/A91125F9-BFFC-4ECC-A2C7-8FA94026235F_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/B1194F6A-8D66-4846-8F18-0C596856082C_4_5005_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/B7539D65-C83F-4DC0-8226-6A0C45BA16A5_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/B8CBC9EC-C2DF-4D3B-B92A-A57D106E2CDF_4_5005_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/C6F670FC-5489-449C-B0A9-1658371FFCB2_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/E2FF791E-B1CC-4066-9D8D-F4B03BAE4A6D_4_5005_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/FA92C836-974E-4ADA-A9E5-6BA6CDFB4FDC_4_5005_c.jpeg",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/genesis-640.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/flyers/genesis-886.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Origen, autoría y licencia sin acreditación: no autorizar publicación."
+    },
+    {
+      "archivo": "assets/placeholders/concept05/artists.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Imagen sintética/provisional: prohibida en live."
+    },
+    {
+      "archivo": "assets/placeholders/concept05/crowd.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Imagen sintética/provisional: prohibida en live."
+    },
+    {
+      "archivo": "assets/placeholders/concept05/hero-face.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Imagen sintética/provisional: prohibida en live."
+    },
+    {
+      "archivo": "assets/placeholders/concept05/memories.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Imagen sintética/provisional: prohibida en live."
+    },
+    {
+      "archivo": "assets/placeholders/concept05/nights.webp",
+      "autor": "PENDIENTE_DE_ACREDITAR",
+      "fuente": "PENDIENTE_DE_ACREDITAR",
+      "tipo_permiso": "pendiente",
+      "estado": "provisional",
+      "evidencia": null,
+      "nota": "Imagen sintética/provisional: prohibida en live."
+    }
+  ]
+}
