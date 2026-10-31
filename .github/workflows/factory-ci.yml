@@ -19,3 +19,33 @@ jobs:
       php_version: '8.5'
       node_enabled: false
       working_directory: .
+
+  concept05-images-contract:
+    name: Concept 05 images contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5; same pin as ci-backlog-reconciliation.yml
+        with:
+          persist-credentials: false
+      - name: Detect image contract on this commit
+        id: image_contract
+        shell: bash
+        run: |
+          if [[ -f tests/test_concept05_generated_images.py ]]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo '::notice title=Concept 05 acceptance not yet present::No image acceptance test in this PR HEAD; this job does not certify AC-01 of BRVTAL #1348.'
+          fi
+      - name: Decode and validate all five generated images with Pillow
+        if: steps.image_contract.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/concept05-venv"
+          "${RUNNER_TEMP}/concept05-venv/bin/python" -m pip install --disable-pip-version-check 'Pillow==12.3.0'
+          "${RUNNER_TEMP}/concept05-venv/bin/python" -m unittest discover -s tests -p 'test_concept05_generated_images.py' -v
