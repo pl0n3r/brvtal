@@ -1,6 +1,9 @@
 (() => {
   'use strict';
 
+  // Defense in depth: even a misconfigured direct loader cannot bypass consent.
+  if (window.BRVTALCookieConsent?.isAccepted() !== true) return;
+
   const source = document.querySelector('script[data-gtm-id]');
   const id = source?.dataset.gtmId || '';
   if (!/^GTM-[A-Z0-9]{4,20}$/.test(id)) return;

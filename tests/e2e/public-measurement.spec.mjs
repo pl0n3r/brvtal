@@ -34,6 +34,7 @@ function harness() {
         if (event.target.closest('a')) event.preventDefault();
       });
     </script>
+    <script>window.BRVTALCookieConsent={isAccepted:()=>true};</script>
     <script>${measurementJs}</script>
   </body></html>`;
 }
@@ -41,6 +42,7 @@ function harness() {
 function fullHarness() {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
   <body><main><section class="hero scene" style="height:100vh">HERO</section></main>
+    <script>window.BRVTALCookieConsent={isAccepted:()=>true};</script>
     <script data-gtm-id="GTM-W23PHGJG">${analyticsJs}</script>
     <script>${measurementJs}</script>
   </body></html>`;
@@ -55,7 +57,7 @@ function measurementEvents(page) {
   return page.evaluate(() => (window.dataLayer || []).filter(item => item && String(item.event || '').startsWith('brvtal_')));
 }
 
-test('public measurement runs immediately even if a legacy rejected choice exists', async ({ page }) => {
+test('measurement honors explicit opt-in independently of obsolete localStorage', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('brvtal.analytics.choice.v1', 'rejected'));
   await open(page);
 
@@ -119,4 +121,16 @@ test('GTM and measurement both start on the first page load', async ({ page }) =
   await expect.poll(() => tagManagerRequests).toBe(1);
   await expect.poll(async () => (await measurementEvents(page)).some(item => item.event === 'brvtal_page_view')).toBe(true);
   await expect(page.locator('.analytics-choice')).toHaveCount(0);
+});
+
+
+test('direct measurement script is inert without consent', async ({ page }) => {
+  const target = 'http://127.0.0.1:4173/measurement-consent-denied.html';
+  await page.route(target, route => route.fulfill({
+    contentType: 'text/html; charset=utf-8',
+    body: harness().replace('isAccepted:()=>true', 'isAccepted:()=>false'),
+  }));
+  await page.goto(target);
+  expect(await page.evaluate(() => window.BRVTALMeasure)).toBeUndefined();
+  expect(await measurementEvents(page)).toEqual([]);
 });

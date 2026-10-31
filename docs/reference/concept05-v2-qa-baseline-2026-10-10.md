@@ -72,3 +72,53 @@ Reversión de este slice: revertir el único commit de huellas/documentación, s
 | Móvil 390 | El render full-page contiene los bloques y su secuencia, sin prueba de paridad de un recorte móvil 06/07. | La lámina del dueño **termina antes de 06/07** en móvil. Aceptación móvil debe justificar esta limitación y acreditar legibilidad, navegación y no-overflow, no afirmar coincidencia píxel a píxel. |
 
 **Resultado:** AC-01/02/04 siguen respaldados por sus contratos, pero **AC-03 permanece pendiente**. El artefacto no prueba contenido de producción, calidad de fotografías reales ni aprobación de referencia. Ningún ajuste de fingerprints, versión, QA o PR puede sustituir una nueva comparativa sobre medio editorial representativo y el HEAD final. El propio Issue permite resolver diferencias mínimas mediante evidencia técnica, sin pedir una nueva decisión del dueño; esta imagen distinta no es una diferencia mínima. El gate independiente #1009 (protección efectiva de `main`) y las puertas D-043/seguridad conservan autoridad.
+
+
+## Recalibración manual tras correcciones accesibles — PR #1392 (31-oct-2026)
+<!-- BV1362-EXACTHEAD-VISUAL-QA-9541EA2 -->
+
+**Autoridad:** decisión vigente BRVTAL #965 (arriba): durante construcción se pueden refrescar huellas del fixture sintético después de inspección A/B técnica, sin suplantar la aprobación estética del dueño de #1358. El test mantiene exactamente su comparación fail-closed; no se afloja ni se desactiva el gate.
+
+**Procedencia exacta:** BRVTAL `work/issue-1362` HEAD `9541ea2c9d1e8b4bb5de8d26a2f8d70046737016`, [Chromium workflow #41206647536](https://github.com/pl0n3r/brvtal/actions/runs/41206647536), [artefacto íntegro #13044494402](https://github.com/pl0n3r/brvtal/actions/runs/41206647536/artifacts/13044494402). Se descargaron y abrieron las capturas PNG reales; se contrastaron con el `owner-v2-reference.png` extraído del mismo ZIP. El test del nuevo HEAD dio **614 PASS, 29 SKIP, 2 FAIL**, exclusivamente las dos huellas sintéticas. La prueba de geometría móvil Sound/Memories pasó después de ocultar en móvil la onda puramente decorativa, manteniendo texto legible y controles táctiles.
+
+| Evidencia (PNG) | Dimensiones | SHA-256 de bytes reales |
+| --- | --- | --- |
+| Referencia owner-v2 | 1312 × 1199 | `62041aa6017ffa10b8085ce920de38b021dbc1c77b1d8170e66196f74b8efdf3` |
+| Fixture sintético 390 px | 390 × 7034 | `36a30af5effdbb0d8772f3f89f8923a1b25502705466815329475e44c4cb44a5` |
+| Fixture sintético 1440 px | 1440 × 5415 | `abc4613485329c50245ccc86f2c925e890c5e77c16c8ef0d06d9a1e7361e4fec` |
+
+**Huellas recibidas directamente del fallo autenticado de Chromium** (no inferidas de fotos ni inventadas):
+
+| Ancho | structure | color |
+| --- | --- | --- |
+| 390 px | `fe4e110b79e180508b874c6bb96aa9755580053aae37f943ad1ea1bfb182164e` | `5a1ccf2df14cf1bd56a95d7c4f25a0db7f346cb82cd8f3cd6c4754feb6c5048a` |
+| 1440 px | `77de2f2d2a2941fb3c4829d01ce57954f48d5a954ddec435a34bff2df8d8bda3` | `d114f7721dc013265434860ee24373b507641ea797022ae0cea05cc191c794f6` |
+
+**Revisión A/B por regiones:** Se conserva el lenguaje brutalista oscuro, alto contraste blanco/rojo/verde, composición editorial numerada y distribución 01–07. El mayor tamaño mínimo de fuentes (12 px, frente a 11 px) incrementa algunas envolturas de texto en el fixture deliberadamente adversarial; la decoración de onda Sound solo deja de ocupar espacio móvil, sin pérdida de datos ni acción. Desktop retiene la cuadrícula y CTA. Las pruebas de foco, tamaño táctil, estado vacío y no-overflow se ejecutaron. Frente a la lámina fotográfica owner-v2, las capturas sintéticas tienen espacios de medios faltantes, títulos artificialmente extensos (en particular columna Artist móvil), y densidad distinta: **no son prueba de fidelidad del CMS real ni de aprobación estética**.
+
+**Límites e integridad:** El refresco se autoriza exclusivamente como regresión técnica de los nueve módulos del fixture. Las nueve regiones, la firma structural/color, el `expect(...).toEqual(expected)`, tests de accesibilidad y pruebas de geometría permanecen intactos. No se afirma que el dueño aprobó capturas; la aprobación final del Concepto 05 se gestiona por #1358. Ni estos SHA ni un CI verde autorizan go-live, cambios de datos reales o despliegue independiente de las demás guardas.
+
+
+## A/B de legibilidad base — #1360, HEAD exacto `d3b92fbd` (31-oct-2026)
+<!-- BV1360-VISUAL-AB-D3B92FBD-20261031 -->
+
+**Autoridad confirmada:** instrucción expresa del dueño [BRVTAL #965, comentario 6094235414](https://github.com/pl0n3r/brvtal/issues/965#issuecomment-6094235414): en fase `construccion`, actualizar la huella sintética después de **inspeccionar** capturas A/B sin crear una nueva puerta de aprobación. La recalibración no modifica el contrato visual del CMS ni autoriza `live`, deploy, uso de datos reales, ni declararse aprobado estéticamente.
+
+**Procedencia exacta:** PR [#1389](https://github.com/pl0n3r/brvtal/pull/1389), HEAD `d3b92fbd6696b278cacb8b6cf336fbbfa7e18ce1`; [Chromium #41208325185](https://github.com/pl0n3r/brvtal/actions/runs/41208325185), [artefacto ZIP #13045208057](https://github.com/pl0n3r/brvtal/actions/runs/41208325185/artifacts/13045208057). Se descargaron e inspeccionaron `concept05-390-fullpage.png`, `concept05-1440-fullpage.png`, las capturas de fallo de ambos anchos y la referencia owner-v2 del mismo ZIP. El test dio **tres fallos**: huellas a 390/1440 y un fallo de captura Chromium `Page.captureScreenshot` a 390. La tercera prueba no se desactiva ni se atribuye falsamente a un cambio de CSS: se vuelve a ejecutar en el HEAD corregido.
+
+| PNG real | Dimensiones | SHA-256 de bytes |
+| --- | --- | --- |
+| Owner-v2, lámina comparativa | 1312 × 1199 | `62041aa6017ffa10b8085ce920de38b021dbc1c77b1d8170e66196f74b8efdf3` |
+| Fixture sintético a 390 px | 390 × 7040 | `5a40e70bab092a99b3d157fd48246255a4d74c092ce7ee78a0191069ebd13a66` |
+| Fixture sintético a 1440 px | 1440 × 5416 | `82c138eb905daa35d5d657aea95e7321ba7ce9314863858a129ef2074a89f0d9` |
+
+**Huellas registradas por el `Received` auténtico del test fallido** (SHA-256 de señales de nueve regiones, NO hashes de fotografías):
+
+| Ancho | Antes: `structure` / `color` | Después de cambios intencionales: `structure` / `color` |
+| --- | --- | --- |
+| 390 px | `fe4e110b79e180508b874c6bb96aa9755580053aae37f943ad1ea1bfb182164e` / `5a1ccf2df14cf1bd56a95d7c4f25a0db7f346cb82cd8f3cd6c4754feb6c5048a` | `3eca424d10673182d290c47d8da3c7a9c91243f8ec703dbee24bbdc723b4c0bc` / `88c3f8853a0e01fbafee948a0625cedf5d713e813ada3131fbdad80332f872b6` |
+| 1440 px | `77de2f2d2a2941fb3c4829d01ce57954f48d5a954ddec435a34bff2df8d8bda3` / `d114f7721dc013265434860ee24373b507641ea797022ae0cea05cc191c794f6` | `5153bb7d9328ff5a9235c46caf786debdf5d34fa470c78807f9bea96bf690374` / mismo color, `d114f7721dc013265434860ee24373b507641ea797022ae0cea05cc191c794f6` |
+
+**Inspección A/B por regiones:** los ajustes de #1360 elevan tipografía pequeña explícita a 12px, mejoran foco de teclado y targets de 44px, y alteran las envolturas del fixture de contenido adversarial. A 390 px la marca BR/VT/AL, el CTA, bloques secuenciales, navegación inferior y footer siguen presentes; la tarjeta de artista con nombre artificialmente enorme se apila de forma mucho más vertical, sin evidencia de reemplazo de texto o cambio de datos. A 1440 px se conserva la grilla editorial numerada y la paleta agregada es **idéntica** a la anterior; el título extremo de Next Experience crece verticalmente por legibilidad y de ahí cambia la estructura. La fotografía de la referencia y los medios reales siguen ausentes en el fixture sintético: no declarar paridad de producto, medios CMS, éxito de negocio ni aprobación estética a partir de estas huellas.
+
+**Integridad de QA:** se actualizan únicamente tres valores de huella; `color` desktop no se modifica. La lista de nueve regiones, la captura real, `expect(...).toEqual(expected)`, las pruebas de geometría, focus, reduced motion, contenido sin overflow y medios fallidos permanecen activas. Las nuevas huellas corresponden exclusivamente a este HEAD y deben revalidarse en Chromium/CI después del commit. La excepción técnica de #965 **no modifica las puertas humanas de go-live** ni convierte en aprobada la vista final del CMS.

@@ -191,7 +191,7 @@ html.native-events-scroll .events .event-img{height:clamp(320px,46vh,520px)}
 @media(max-width:560px){
   .events .section-head{padding-bottom:18px}
   .events .event-info{grid-template-areas:"meta status" "title title" "desc desc" "action action";gap:10px 12px}
-  .events .event-info>span.mono,.events .event-status{font-size:11px}
+  .events .event-info>span.mono,.events .event-status{font-size:12px}
   .events .event-info p{min-height:0}
   .events .event-ticket,.events .event-view{width:100%;justify-content:space-between}
 }
