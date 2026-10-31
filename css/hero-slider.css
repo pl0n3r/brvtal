@@ -3,4 +3,8 @@ main#top>.hero{position:relative}.hero-slider-active>:not(.brvtal-hero-slider){d
 @media(max-width:700px){.brvtal-hero-controls>[data-hero-pause]:not([hidden]){display:grid}}
 
 @media(min-width:901px){.brvtal-hero-content{padding-top:clamp(96px,9vw,140px)}.brvtal-hero-content h1{font-size:clamp(60px,8vw,148px);line-height:.86}.brvtal-hero-slider .brvtal-hero-layer.type-text{font-size:clamp(18px,3.5vw,64px);line-height:.92}}
-\n/* #1361: accessible hero copy and stable numeric labels. */\n.brvtal-hero-content h1{text-wrap:balance}\n.brvtal-hero-content p{text-wrap:pretty}\n.brvtal-hero-kicker{font-variant-numeric:tabular-nums}\n
+
+/* #1361: accessible hero copy and stable numeric labels. */
+.brvtal-hero-content h1{text-wrap:balance}
+.brvtal-hero-content p{text-wrap:pretty}
+.brvtal-hero-kicker{font-variant-numeric:tabular-nums}
