@@ -46,7 +46,7 @@ class StaticAnalysisCiTests(unittest.TestCase):
 
     def test_tools_are_pinned_without_permission_expansion(self) -> None:
         """Require pinned tool versions and preserve read-only workflow permissions."""
-        self.assertIn("tools: phpstan:2.2.14, rector:2.6.7", self.workflow)
+        self.assertIn("tools: phpstan:2.2.14, rector:2.8.3", self.workflow)
         self.assertIn("permissions:\n  contents: read\n\nconcurrency:", self.workflow)
         self.assertNotIn("continue-on-error: true", self.workflow)
         setup_at = self.workflow.index("Set up PHP 8.5")

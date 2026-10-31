@@ -15,6 +15,11 @@ require_once __DIR__ . '/config/public_not_found.php';
 require_once __DIR__ . '/config/public_unavailable.php';
 require_once __DIR__ . '/config/public_home.php';
 require_once __DIR__ . '/config/public_contact_page.php';
+require_once __DIR__ . '/config/public_privacy_rights.php';
+
+// Apply the same visible rights destination to every public HTML response,
+// including pages that exit early for contact, missing entities or errors.
+ob_start('brvtalPublicPrivacyRightsFooterLink');
 
 $pageRoute = trim((string)($_GET['page'] ?? ''));
 $type = trim((string)($_GET['type'] ?? ''));
@@ -36,6 +41,70 @@ if ($routeLocale === null) {
         brvtal_public_not_found_page($seo, $analytics),
         'es'
     );
+    exit;
+}
+
+if ($pageRoute === 'privacy') {
+    $route = brvtalPublicLocalizedRouteUrls($baseUrl, $routeLocale, '', '', 'privacy');
+    if ($route === null) {
+        http_response_code(404);
+        exit;
+    }
+    $privacyTitle = $routeLocale === 'en' ? 'Privacy and my rights' : 'Privacidad y mis derechos';
+    $privacyDescription = $routeLocale === 'en'
+        ? 'Information about personal data and how to request your rights.'
+        : 'Información sobre datos personales y cómo solicitar tus derechos.';
+    $privacySeo = brvtalPublicApplyLocalizedSeo([
+        'title' => $privacyTitle,
+        'description' => $privacyDescription,
+        'canonical' => $route['canonical'],
+        'image' => $baseUrl . '/assets/brvtal-logo.jpeg',
+        'schema' => [
+            '@context' => 'https://schema.org',
+            '@type' => 'WebPage',
+            'name' => $privacyTitle,
+            'url' => $route['canonical'],
+            'description' => $privacyDescription,
+        ],
+    ], $route);
+    $privacySettings = [
+        'controller_name' => '',
+        'controller_email' => '',
+        'response_time' => '',
+    ];
+    $gtmId = '';
+    try {
+        $privacyPdo = db();
+        $privacySettings['controller_name'] = brvtal_config_setting_text(
+            $privacyPdo, 'privacy.controller_name'
+        );
+        $privacySettings['controller_email'] = brvtal_config_setting_text(
+            $privacyPdo, 'privacy.controller_email'
+        );
+        $privacySettings['response_time'] = brvtal_config_setting_text(
+            $privacyPdo, 'privacy.response_time'
+        );
+        $gtmId = brvtal_public_gtm_id($privacyPdo);
+    } catch (Throwable) {
+        // Never invent a responsible party or expose configuration errors.
+        // Missing settings remain visible owner-completion placeholders.
+    }
+    $privacyHtml = brvtalPublicPrivacyRightsDocument(
+        $privacySettings,
+        brvtal_public_seo_tags($privacySeo),
+        brvtal_public_analytics_markup($gtmId, brvtalDeploymentCacheKey()),
+        $routeLocale
+    );
+    $privacyHtml = brvtalPublicApplyLocalizedDocument(
+        $privacyHtml, $routeLocale, $route['paths'], $routeLocaleExplicit
+    );
+    $privacyHtml = brvtal_public_version_assets(
+        $privacyHtml, brvtalDeploymentCacheKey()
+    );
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    header('X-Robots-Tag: noindex, follow');
+    echo $privacyHtml;
     exit;
 }
 
