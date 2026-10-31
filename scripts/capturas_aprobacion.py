@@ -256,9 +256,10 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
                 return review_html(manifest, state.get("status", "pendiente"), csrf).encode(), "text/html; charset=utf-8"
             if self.path.startswith(CAPTURE_URL_PREFIX):
                 filename = self.path[len(CAPTURE_URL_PREFIX):]
-                image = output / filename
-                if filename in allowed and not image.is_symlink() and image.is_file():
-                    return image.read_bytes(), "image/png"
+                if filename in allowed:
+                    image = output / filename
+                    if not image.is_symlink() and image.is_file():
+                        return image.read_bytes(), "image/png"
             return None
 
         def do_GET(self) -> None:

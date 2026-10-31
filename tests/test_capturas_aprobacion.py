@@ -102,7 +102,15 @@ class CapturasAprobacionTests(unittest.TestCase):
             folder = Path(temp)
             def runner(command, **kwargs):
                 info = json.loads(command[-1])
-                Path(info["output"]).write_bytes(fake_png(info["width"], info["height"]))
+                known_paths = [
+                    folder / f"{page}-{device}-{width}.png"
+                    for page in ("home", "contacto")
+                    for device, (width, _height) in capture_mod.WIDTHS.items()
+                ]
+                target = next((path for path in known_paths if str(path) == info["output"]), None)
+                if target is None:
+                    raise ValueError("Runner output fuera de fixtures enumerados")
+                target.write_bytes(fake_png(info["width"], info["height"]))
             pages = {"home": "/", "contacto": "/?page=contact"}
             capture_mod.capture("http://127.0.0.1:4173", pages, folder, runner=runner)
             capture_mod.save_decision(folder, "aprobado", "ronda inicial", True)
@@ -129,7 +137,15 @@ class CapturasAprobacionTests(unittest.TestCase):
             folder = Path(temp)
             def runner(command, **_kwargs):
                 info = json.loads(command[-1])
-                Path(info["output"]).write_bytes(fake_png(info["width"], info["height"]))
+                known_paths = [
+                    folder / f"{page}-{device}-{width}.png"
+                    for page in ("home", "contacto")
+                    for device, (width, _height) in capture_mod.WIDTHS.items()
+                ]
+                target = next((path for path in known_paths if str(path) == info["output"]), None)
+                if target is None:
+                    raise ValueError("Runner output fuera de fixtures enumerados")
+                target.write_bytes(fake_png(info["width"], info["height"]))
             capture_mod.capture("http://localhost:4173", {"home": "/", "contacto": "/contacto"}, folder, runner=runner)
             server = capture_mod.build_server(folder, 0)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
