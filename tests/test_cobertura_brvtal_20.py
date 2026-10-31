@@ -94,6 +94,9 @@ class CoberturaBrvtal20Tests(unittest.TestCase):
         minor = release_command("0.1.99", "0.2.0")
         self.assertEqual(minor.returncode, 0, minor.stderr)
         self.assertIn("minor milestone", minor.stdout)
+        same = release_command("0.1.7", "0.1.7")
+        self.assertEqual(same.returncode, 0, same.stderr)
+        self.assertIn("unchanged", same.stdout)
         current = release_command(None, None, check_current=True)
         self.assertEqual(current.returncode, 0, current.stderr)
         self.assertIn("valid pre-1.0 metadata", current.stdout)
@@ -101,7 +104,7 @@ class CoberturaBrvtal20Tests(unittest.TestCase):
     def test_falla_cerrado(self) -> None:
         """Real CLI must reject invalid, ambiguous and forbidden transitions."""
         for before, after in (
-            ("0.1.7", "0.1.7"), ("0.1.7", "0.1.9"),
+            ("0.1.7", "0.1.9"),
             ("0.1.8", "0.1.7"), ("0.1.7", "0.3.0"),
             ("0.1.7", "1.0.0"), ("invalid", "0.1.8"),
         ):
