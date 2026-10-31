@@ -14,7 +14,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "scripts" / "capturas_aprobacion.py"
 spec = importlib.util.spec_from_file_location("capturas_aprobacion", MODULE)
-assert spec and spec.loader
+assert spec is not None
+assert spec.loader is not None
 capture_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(capture_mod)
 

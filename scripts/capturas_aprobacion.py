@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 WIDTHS = {"escritorio": (1440, 900), "movil": (390, 844)}
 DEFAULT_PAGES = {"home": "/index.php", "contacto": "/index.php?page=contact"}
 MAX_POST = 8192
+CAPTURE_URL_PREFIX = "/captures/"
 LOCAL_HOSTS = frozenset(("127.0.0.1", "localhost", "::1"))
 CHROMIUM_SCRIPT = r"""
 import { chromium } from 'playwright';
@@ -150,7 +151,7 @@ def review_html(manifest: dict, status: str, csrf: str) -> str:
         file = a["file"]
         if not re.fullmatch(r"[a-z0-9-]+\.png", file):
             raise ValueError("Archivo de captura inesperado")
-        slides.append(f'<figure><img src="/captures/{escape(file)}" alt="Captura {escape(a["page"])} en {a["width"]} píxeles" loading="lazy"><figcaption>{escape(a["page"])} · {a["width"]} px</figcaption></figure>')
+        slides.append(f'<figure><img src="{CAPTURE_URL_PREFIX}{escape(file)}" alt="Captura {escape(a["page"])} en {a["width"]} píxeles" loading="lazy"><figcaption>{escape(a["page"])} · {a["width"]} px</figcaption></figure>')
     return ("<!doctype html><html lang='es'><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
             "<meta name='robots' content='noindex,nofollow'><title>BRVTAL · Visto bueno</title>"
@@ -184,26 +185,26 @@ def serve_review(output: Path, port: int = 0) -> None:
             expected = f"127.0.0.1:{self.server.server_port}"
             return self.headers.get("Host") == expected
 
+        def _get_payload(self) -> tuple[bytes, str] | None:
+            if self.path == "/":
+                state_file = output / "decision.json"
+                state = json.loads(state_file.read_text("utf-8")) if state_file.is_file() else {}
+                return review_html(manifest, state.get("status", "pendiente"), csrf).encode(), "text/html; charset=utf-8"
+            if self.path.startswith(CAPTURE_URL_PREFIX):
+                filename = self.path[len(CAPTURE_URL_PREFIX):]
+                if filename in allowed and not (output / filename).is_symlink():
+                    return (output / filename).read_bytes(), "image/png"
+            return None
+
         def do_GET(self) -> None:
             if not self._host_valid():
                 self.send_error(403)
                 return
-            if self.path == "/":
-                state_file = output / "decision.json"
-                state = json.loads(state_file.read_text("utf-8")) if state_file.is_file() else {}
-                content = review_html(manifest, state.get("status", "pendiente"), csrf).encode()
-                kind = "text/html; charset=utf-8"
-            elif self.path.startswith("/captures/") and self.path[len("/captures/"):] in allowed:
-                filename = self.path[len("/captures/"):]
-                target = output / filename
-                if target.is_symlink():
-                    self.send_error(404)
-                    return
-                content = target.read_bytes()
-                kind = "image/png"
-            else:
+            payload = self._get_payload()
+            if payload is None:
                 self.send_error(404)
                 return
+            content, kind = payload
             self.send_response(200)
             self.send_header("Content-Type", kind)
             self.send_header("Cache-Control", "no-store")
@@ -228,7 +229,7 @@ def serve_review(output: Path, port: int = 0) -> None:
                 if any(len(values) != 1 for values in form.values()) or not secrets.compare_digest(form.get("csrf", [""])[0], csrf):
                     raise ValueError("CSRF inválido")
                 save_decision(output, form.get("decision", [""])[0], form.get("comentario", [""])[0], form.get("confirmado") == ["si"])
-            except (ValueError, UnicodeError, OSError, KeyError, json.JSONDecodeError):
+            except (ValueError, OSError, KeyError):
                 self.send_error(400)
                 return
             self.send_response(303)
@@ -236,7 +237,7 @@ def serve_review(output: Path, port: int = 0) -> None:
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)  # NOSONAR: explicit loopback-only preview; Host check and CSRF; never exposed on network
     try:
         print(f"Revisión privada: http://127.0.0.1:{server.server_port}/", flush=True)
         server.serve_forever()
