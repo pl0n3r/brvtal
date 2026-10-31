@@ -83,7 +83,7 @@
   background:rgba(5,5,5,.78);
   color:var(--c5-paper-muted);
   font:700 var(--c5-type-mono)/1 var(--theme-mono-font,"Space Mono",monospace);
-  font-size:8px;
+  font-size:11px;
   letter-spacing:.1em;
 }
 
@@ -133,7 +133,8 @@
   width:clamp(220px,17vw,290px);
   min-height:250px;
   margin:0;
-  padding:20px 18px;
+  /* #1349: larger accessible metadata must not push the statement past the hero. */
+  padding:10px 18px;
   border:1px solid rgba(233,229,218,.24);
   background:rgba(5,5,5,.9);
   color:var(--c5-paper-dirty);
@@ -149,7 +150,7 @@
   margin:0;
   color:var(--c5-paper-muted);
   opacity:.82;
-  font-size:8px;
+  font-size:11px;
   letter-spacing:.12em;
 }
 
@@ -179,7 +180,7 @@
   max-width:25ch;
   color:var(--c5-paper-dirty);
   opacity:.86;
-  font:700 9px/1.45 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 11px/1.45 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.03em;
 }
 
@@ -269,7 +270,7 @@
   justify-content:space-between;
   gap:12px;
   color:var(--c5-paper-dirty);
-  font:700 9px/1.25 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 11px/1.25 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   text-transform:uppercase;
 }
@@ -293,7 +294,7 @@
   padding-top:10px;
   border-top:1px solid var(--c5-rule-color);
   color:var(--c5-paper-muted);
-  font-size:9px;
+  font-size:11px;
 }
 
 @media(hover:hover) and (pointer:fine){
@@ -347,7 +348,7 @@
     max-width:78vw;
     min-height:24px;
     padding:0 7px;
-    font-size:8px;
+    font-size:11px;
     line-height:1.25;
   }
 
@@ -372,7 +373,7 @@
     display:grid;
     gap:5px;
     background:rgba(5,5,5,.72);
-    font-size:8px;
+    font-size:11px;
   }
 
   [data-concept="05"] .home-phase-a-hero .hero-declaration{
@@ -390,7 +391,7 @@
   }
 
   [data-concept="05"] .home-phase-a-hero .hero-declaration>span{
-    font-size:7px;
+    font-size:11px;
   }
 
   [data-concept="05"] .home-phase-a-hero .hero-declaration strong{
@@ -410,7 +411,7 @@
   [data-concept="05"] .home-phase-a-hero .hero-declaration p{
     display:block;
     margin-top:10px;
-    font-size:8px;
+    font-size:11px;
     line-height:1.35;
     max-width:30ch;
   }
@@ -421,7 +422,7 @@
     min-height:44px;
     margin-top:12px;
     padding:0 10px;
-    font-size:9px;
+    font-size:11px;
   }
 
   [data-concept="05"] .c5-hero-documentary{
@@ -436,7 +437,7 @@
   }
 
   [data-concept="05"] .c5-hero-documentary figcaption{
-    font-size:7px;
+    font-size:11px;
   }
 
   [data-concept="05"] .home-phase-a-hero .hero-logo-wrap{
@@ -452,7 +453,7 @@
     left:14px;
     right:14px;
     bottom:calc(var(--c5-bottom-nav-h) + 12px);
-    font-size:8px;
+    font-size:11px;
   }
 
   [data-concept="05"] .home-phase-a-hero .hero-bottom span:last-child{

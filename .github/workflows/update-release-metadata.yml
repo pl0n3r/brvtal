@@ -348,6 +348,9 @@ jobs:
             echo "NO_VERIFICABLE: BRVTAL 21 acceptance sheet not yet merged into main"
           fi
 
+      - name: Enforce readable CSS sizes (BRVTAL #1349)
+        run: python3 -m unittest -v tests/test_css_legibility.py
+
       - name: Run incremental PHPStan and Rector dry-run
         if: needs.preflight.outputs.run_php == 'true'
         shell: bash
