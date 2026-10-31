@@ -150,7 +150,7 @@ body[data-concept="05"]{
   min-height:44px;
   color:var(--c5-paper-muted);
   text-decoration:none;
-  font:700 10px/1 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.06em;
   text-transform:uppercase;
 }

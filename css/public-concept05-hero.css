@@ -180,7 +180,7 @@
   max-width:25ch;
   color:var(--c5-paper-dirty);
   opacity:.86;
-  font:700 11px/1.45 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1.45 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.03em;
 }
 
@@ -270,7 +270,7 @@
   justify-content:space-between;
   gap:12px;
   color:var(--c5-paper-dirty);
-  font:700 11px/1.25 var(--theme-mono-font,"Space Mono",monospace);
+  font:700 12px/1.25 var(--theme-mono-font,"Space Mono",monospace);
   letter-spacing:.08em;
   text-transform:uppercase;
 }

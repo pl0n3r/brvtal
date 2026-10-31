@@ -348,6 +348,12 @@ jobs:
             echo "NO_VERIFICABLE: BRVTAL 21 acceptance sheet not yet merged into main"
           fi
 
+      - name: Enforce image rights registry (BRVTAL #1356)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_derechos_imagenes.py
+
       - name: Enforce readable CSS sizes (BRVTAL #1349)
         run: python3 -m unittest -v tests/test_css_legibility.py
 
