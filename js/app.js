@@ -52,6 +52,8 @@
     }, { once: true });
   }
 
+  // Scene state must exist before ScrollTrigger.create() can fire onEnter.
+  const sceneName = qs('#sceneName'), sceneCount = qs('#sceneCount');
   let legacySceneMedia = null;
   if (!reduce && motionReady) {
     legacySceneMedia = gsap.matchMedia();
@@ -112,8 +114,6 @@
   }
 
   // Scene indicator
-  const sceneName = qs('#sceneName'), sceneCount = qs('#sceneCount');
-
   function setScene(sec){
     document.body.dataset.scene = sec.dataset.scene || 'CORE';
     if(sceneName) sceneName.textContent = sec.dataset.scene || 'CORE';
