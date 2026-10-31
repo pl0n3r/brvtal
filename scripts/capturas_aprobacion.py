@@ -233,7 +233,9 @@ def review_html(manifest: dict, status: str, csrf: str) -> str:
         file = a["file"]
         if not re.fullmatch(r"[a-z0-9-]+\.png", file):
             raise ValueError("Archivo de captura inesperado")
-        slides.append(f'<figure><img src="{CAPTURE_URL_PREFIX}{escape(file)}" alt="Captura {escape(a["page"])} en {a["width"]} píxeles" loading="lazy"><figcaption>{escape(a["page"])} · {a["width"]} px</figcaption></figure>')
+        page_label = escape(str(a["page"]))
+        size_label = escape(str(a["width"]))
+        slides.append(f'<figure><img src="{CAPTURE_URL_PREFIX}{escape(file)}" alt="Captura {page_label} en {size_label} píxeles" loading="lazy"><figcaption>{page_label} · {size_label} px</figcaption></figure>')
     return ("<!doctype html><html lang='es'><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
             "<meta name='robots' content='noindex,nofollow'><title>BRVTAL · Visto bueno</title>"
@@ -259,12 +261,23 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
         raise ValueError("Directorio simbólico no permitido")
     output = Path(output).resolve()
     manifest = json.loads((output / "manifest.json").read_text("utf-8"))
-    allowed = {a["file"] for a in manifest["artifacts"]}
-    if any(not re.fullmatch(r"[a-z0-9-]+\.png", file) for file in allowed):
-        raise ValueError("Manifest contiene rutas no permitidas")
-    # Materialize authorized paths from the local manifest once, not from HTTP input.
-    # Request filenames are used exclusively as keys in this allowlisted mapping.
-    capture_paths = {file: output / file for file in allowed}
+    # Resolve only local manifest-owned paths, never concatenate HTTP input.
+    # Route matching below uses equality against these fully declared constants.
+    capture_routes = []
+    for artifact in manifest["artifacts"]:
+        file = artifact["file"]
+        device = artifact["device"]
+        if device not in WIDTHS:
+            raise ValueError("Dispositivo de captura inválido")
+        width, min_height = WIDTHS[device]
+        if (not re.fullmatch(r"[a-z0-9-]+\.png", file) or
+                file != f'{artifact["page"]}-{device}-{width}.png' or
+                not re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"])):
+            raise ValueError("Manifest contiene rutas o hashes no permitidos")
+        capture_routes.append((CAPTURE_URL_PREFIX + file, output / file, width,
+                               min_height, artifact["sha256"]))
+    if len({route[0] for route in capture_routes}) != len(capture_routes):
+        raise ValueError("Manifest contiene rutas duplicadas")
     csrf = secrets.token_urlsafe(32)
 
     class Handler(BaseHTTPRequestHandler):
@@ -277,11 +290,17 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
                 state_file = output / "decision.json"
                 state = json.loads(state_file.read_text("utf-8")) if state_file.is_file() else {}
                 return review_html(manifest, state.get("status", "pendiente"), csrf).encode(), "text/html; charset=utf-8"
-            if self.path.startswith(CAPTURE_URL_PREFIX):
-                filename = self.path[len(CAPTURE_URL_PREFIX):]
-                image = capture_paths.get(filename)
-                if image is not None and not image.is_symlink() and image.is_file():
-                    return image.read_bytes(), "image/png"
+            for route, image, width, min_height, expected_hash in capture_routes:
+                if self.path != route:
+                    continue
+                if image.is_symlink() or not image.is_file():
+                    return None
+                content = image.read_bytes()
+                # Refuse a swapped, malformed or corrupt artifact after server startup.
+                if (not valid_png(content, width, min_height) or
+                        hashlib.sha256(content).hexdigest() != expected_hash):
+                    return None
+                return content, "image/png"
             return None
 
         def do_GET(self) -> None:

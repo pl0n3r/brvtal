@@ -94,6 +94,11 @@ class CapturasAprobacionTests(unittest.TestCase):
         html = capture_mod.review_html({"artifacts": [{"file": "home-390.png", "page": "<script>x</script>", "width": 390}]}, "pendiente", "z")
         self.assertNotIn("<script>x</script>", html)
         self.assertIn("&lt;script&gt;", html)
+        malicious = {"artifacts": [{"file": "home-390.png", "page": "home",
+                                     "width": "<svg/onload=alert(1)>"}]}
+        escaped_html = capture_mod.review_html(malicious, "pendiente", "token")
+        self.assertNotIn("<svg/onload=alert(1)>", escaped_html)
+        self.assertIn("&lt;svg/onload=alert(1)&gt;", escaped_html)
 
 
 
@@ -166,6 +171,12 @@ class CapturasAprobacionTests(unittest.TestCase):
                 self.assertEqual(request("GET", "/", headers={"Host": "example.test"})[0], 403)
                 # The allowlisted manifest path still serves a real valid PNG.
                 self.assertEqual(request("GET", "/captures/home-escritorio-1440.png")[0], 200)
+                # A substituted file cannot be served even after the server started.
+                authorized_image = folder / "home-escritorio-1440.png"
+                original_image = authorized_image.read_bytes()
+                authorized_image.write_bytes(b"<script>alert(1)</script>")
+                self.assertEqual(request("GET", "/captures/home-escritorio-1440.png")[0], 404)
+                authorized_image.write_bytes(original_image)
                 self.assertEqual(request("GET", "/captures/../manifest.json")[0], 404)
                 self.assertEqual(request("GET", "/captures/%2e%2e/manifest.json")[0], 404)
                 image = folder / "home-movil-390.png"
