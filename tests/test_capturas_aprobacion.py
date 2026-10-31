@@ -191,6 +191,27 @@ class CapturasAprobacionTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=5)
 
+    def test_no_borra_png_ajeno_al_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            unrelated = folder / "ajeno.png"
+            unrelated.write_bytes(b"untouched")
+            def runner(command, **_kwargs):
+                spec = json.loads(command[-1])
+                allowed = [folder / f"{page}-{device}-{width}.png"
+                           for page in ("home", "contacto")
+                           for device, (width, _height) in capture_mod.WIDTHS.items()]
+                target = next((item for item in allowed if str(item) == spec["output"]), None)
+                if target is None:
+                    raise ValueError("Ruta no declarada")
+                target.write_bytes(fake_png(spec["width"], spec["height"]))
+            pages = {"home": "/", "contacto": "/contacto"}
+            capture_mod.capture("http://127.0.0.1:4173", pages, folder, runner=runner)
+            capture_mod.save_decision(folder, "aprobado", "primera", True)
+            capture_mod.capture("http://127.0.0.1:4173", pages, folder, runner=runner)
+            self.assertEqual(unrelated.read_bytes(), b"untouched")
+            self.assertFalse((folder / "decision.json").exists())
+
     def test_png_corrupto_y_symlink_fallan_cerrado(self) -> None:
         self.assertFalse(capture_mod.valid_png(b"not png", 390, 844))
         valid = fake_png(390, 844)

@@ -111,19 +111,39 @@ def valid_png(data: bytes, width: int, min_height: int) -> bool:
 
 
 def begin_round(output: Path) -> None:
-    """Revoke prior approval before browser launch; never reuse prior PNGs."""
+    """Revoke only files owned by the previous manifest; never delete unrelated PNGs."""
     decision = output / "decision.json"
     manifest = output / "manifest.json"
-    files = list(output.glob("*.png")) + [decision, manifest]
-    if any(p.is_symlink() for p in files):
+    if decision.is_symlink() or manifest.is_symlink():
         raise ValueError("Archivo de revisión simbólico no permitido")
+
+    old_names: list[str] = []
+    if manifest.exists():
+        prior = json.loads(manifest.read_text("utf-8"))
+        artifacts = prior.get("artifacts") if isinstance(prior, dict) else None
+        if prior.get("version") != 1 or not isinstance(artifacts, list) or not artifacts:
+            raise ValueError("Manifest anterior inválido")
+        for artifact in artifacts:
+            name = artifact.get("file") if isinstance(artifact, dict) else None
+            if not isinstance(name, str) or not re.fullmatch(
+                r"[a-z0-9-]+-(?:escritorio-1440|movil-390)\\.png", name
+            ):
+                raise ValueError("Captura previa sin nombre canónico")
+            old_names.append(name)
+    elif decision.exists():
+        raise ValueError("No archivar una decisión sin manifest válido")
+
+    screenshots = [output / name for name in old_names]
+    if any(p.is_symlink() for p in screenshots):
+        raise ValueError("Captura simbólica no permitida")
     if decision.is_file():
         archived = output / ("decision-archived-" + secrets.token_hex(12) + ".json")
         os.replace(decision, archived)
     if manifest.is_file():
         manifest.unlink()
-    for screenshot in output.glob("*.png"):
-        screenshot.unlink()
+    for screenshot in screenshots:
+        if screenshot.is_file():
+            screenshot.unlink()
 
 
 def capture(base_url: str, pages: dict[str, str], output: Path, *, runner=subprocess.run) -> dict:
