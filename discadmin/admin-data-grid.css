@@ -34,7 +34,7 @@
 .admin-grid-primary strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
 .admin-grid-primary small{display:block;margin-top:3px;color:var(--muted,#747c82);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
 .admin-grid-thumb{width:38px;height:38px;flex:0 0 38px;object-fit:cover;border:1px solid var(--line,#30353a);background:#0a0b0c}
-.admin-grid-thumb-ph{display:grid;place-items:center;color:#686f75;font:800 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+.admin-grid-thumb-ph{display:grid;place-items:center;color:#9aa0a5;font:800 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
 .admin-grid-status{display:inline-flex;border:1px solid var(--line,#30353a);padding:5px 7px;text-transform:uppercase;font:900 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.7px}
 .admin-grid-status.published{border-color:rgba(77,214,130,.4);color:#7ce4a4}
 .admin-grid-status.draft{color:#d0a45a}
@@ -66,3 +66,5 @@
 .admin-grid-pagination button{min-height:44px}
 .admin-grid-sort:active,.admin-grid-pagination button:active{transform:scale(.96)}
 @media(prefers-reduced-motion:reduce){.admin-data-grid-row{transition:none}}
+
+/* #1364: muted text meets WCAG AA against the dark admin surfaces. */
