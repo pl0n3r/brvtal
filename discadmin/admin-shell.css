@@ -12,7 +12,7 @@
 .navgroup{margin:19px 12px 7px;color:#9ba2a8;font-size:12px}
 .main{width:100%;min-width:0;padding:32px clamp(20px,3vw,48px) 60px}
 .top{align-items:center;gap:16px;padding-bottom:22px}
-.top h1{font-size:clamp(25px,2.7vw,36px);line-height:1.1;letter-spacing:-1px}
+.top h1{font-size:clamp(25px,2.7vw,36px);line-height:1.1;letter-spacing:-1px;text-wrap:balance}
 .eyebrow,.sectionhead strong,.field label{font-size:12px}
 .helper,.meta,.notice{font-size:12px;line-height:1.5}
 .thead{font-size:12px;color:#a2a9af}
@@ -74,7 +74,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(prefers-reduced-motion:reduce){.side{transition:none}}
 
 /* Readable headings, touch feedback and reduced-motion-friendly navigation. */
-.top h1{text-wrap:balance}
+
 .main p{text-wrap:pretty}
 .nav button:active,.btn:active,.iconbtn:active,.admin-menu-toggle:active{transform:scale(.96)}
 @media(prefers-reduced-motion:reduce){.nav button:active,.btn:active,.iconbtn:active,.admin-menu-toggle:active{transform:none}}

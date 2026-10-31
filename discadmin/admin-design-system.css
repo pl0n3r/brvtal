@@ -187,6 +187,6 @@ html[data-discadmin-appearance] :where(button,.btn,.iconbtn,[role="button"]){tou
 html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.dashboard-v2-summary-action):active{transform:scale(.96)}
 html[data-discadmin-appearance] :where(button,a,input,select,textarea,[role="button"]):focus-visible{outline:2px solid #fff;outline-offset:3px}
 @media(prefers-reduced-motion:reduce){
-  html[data-discadmin-appearance] *,html[data-discadmin-appearance] *::before,html[data-discadmin-appearance] *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  html[data-discadmin-appearance] *,html[data-discadmin-appearance] *::before,html[data-discadmin-appearance] *::after{animation:none;transition:none;scroll-behavior:auto}
   html[data-discadmin-appearance] :where(.btn,.iconbtn,.dashboard-v2-button,.dashboard-v2-summary-action):active{transform:none}
 }

@@ -41,16 +41,16 @@
 .brvtal-feedback.error{border-color:#71323b}.brvtal-feedback.error .brvtal-feedback-dot{background:#ff5566;box-shadow:0 0 9px #ff556666}
 .brvtal-feedback.progress{border-color:#555c62}.brvtal-feedback.progress .brvtal-feedback-dot{background:#fff;animation:brvtal-feedback-pulse .8s ease-in-out infinite alternate}
 .brvtal-feedback-copy{min-width:0}.brvtal-feedback-copy strong{display:block;font:900 12px/1.2 var(--admin-font-ui,Arial,sans-serif);letter-spacing:1.8px;color:#858d93;margin-bottom:5px}.brvtal-feedback-copy span{display:block;font:12px/1.45 Arial,Helvetica,sans-serif;color:#f2f4f5;word-break:break-word}
-.brvtal-feedback button{border:0;background:transparent;color:#757c82;font-size:18px;line-height:1;padding:0;cursor:pointer}.brvtal-feedback button:hover{color:#fff}
+.brvtal-feedback button{border:0;background:transparent;color:#757c82;font-size:18px;line-height:1;padding:0;cursor:pointer;min-width:44px;min-height:44px}.brvtal-feedback button:hover{color:#fff}
 @keyframes brvtal-feedback-pulse{from{opacity:.35;transform:scale(.8)}to{opacity:1;transform:scale(1.08)}}
 @media(max-width:650px){.brvtal-feedback-stack{left:16px;right:16px;top:16px;width:auto}}
 
 /* Accessible feedback close control and non-animated progress alternative. */
-.brvtal-feedback button{min-width:44px;min-height:44px}
+
 .brvtal-feedback button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .brvtal-feedback button:active{transform:scale(.96)}
 @media(prefers-reduced-motion:reduce){
   .brvtal-feedback,.brvtal-feedback.show,.brvtal-feedback.leaving{transition:none;transform:none}
-  .brvtal-feedback.progress .brvtal-feedback-dot{animation:none!important}
+  .brvtal-feedback-stack .brvtal-feedback.progress .brvtal-feedback-dot{animation:none}
   .brvtal-feedback button:active{transform:none}
 }
