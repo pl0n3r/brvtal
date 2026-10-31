@@ -1,6 +1,9 @@
 (() => {
   'use strict';
 
+  // No measurement events, listeners or dataLayer before explicit opt-in.
+  if (window.BRVTALCookieConsent?.isAccepted() !== true) return;
+
   const EVENT_RE = /^brvtal_[a-z0-9_]{1,56}$/;
   const TEXT_KEYS = new Set([
     'page_type', 'content_type', 'content_slug', 'content_title', 'section',
