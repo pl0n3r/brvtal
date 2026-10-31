@@ -274,8 +274,16 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
                 file != f'{artifact["page"]}-{device}-{width}.png' or
                 not re.fullmatch(r"[0-9a-f]{64}", artifact["sha256"])):
             raise ValueError("Manifest contiene rutas o hashes no permitidos")
-        capture_routes.append((CAPTURE_URL_PREFIX + file, output / file, width,
-                               min_height, artifact["sha256"]))
+        path = output / file
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Captura ausente o simbólica")
+        trusted_png = path.read_bytes()
+        if (not valid_png(trusted_png, width, min_height) or
+                hashlib.sha256(trusted_png).hexdigest() != artifact["sha256"]):
+            raise ValueError("Captura modificada o corrupta")
+        # Cache immutable, validated bytes outside the request handler.
+        capture_routes.append((CAPTURE_URL_PREFIX + file, path,
+                               artifact["sha256"], trusted_png))
     if len({route[0] for route in capture_routes}) != len(capture_routes):
         raise ValueError("Manifest contiene rutas duplicadas")
     csrf = secrets.token_urlsafe(32)
@@ -290,17 +298,17 @@ def build_server(output: Path, port: int = 0) -> ThreadingHTTPServer:
                 state_file = output / "decision.json"
                 state = json.loads(state_file.read_text("utf-8")) if state_file.is_file() else {}
                 return review_html(manifest, state.get("status", "pendiente"), csrf).encode(), "text/html; charset=utf-8"
-            for route, image, width, min_height, expected_hash in capture_routes:
+            for route, image, expected_hash, trusted_png in capture_routes:
                 if self.path != route:
                     continue
                 if image.is_symlink() or not image.is_file():
                     return None
-                content = image.read_bytes()
-                # Refuse a swapped, malformed or corrupt artifact after server startup.
-                if (not valid_png(content, width, min_height) or
-                        hashlib.sha256(content).hexdigest() != expected_hash):
-                    return None
-                return content, "image/png"
+                # Check the current file's digest, but only serve prevalidated
+                # bytes loaded before any untrusted HTTP request was processed.
+                with image.open("rb") as image_stream:
+                    if hashlib.file_digest(image_stream, "sha256").hexdigest() != expected_hash:
+                        return None
+                return trusted_png, "image/png"
             return None
 
         def do_GET(self) -> None:
