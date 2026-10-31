@@ -807,14 +807,14 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: 'fe4e110b79e180508b874c6bb96aa9755580053aae37f943ad1ea1bfb182164e',
-    color: '5a1ccf2df14cf1bd56a95d7c4f25a0db7f346cb82cd8f3cd6c4754feb6c5048a',
+    structure: '3eca424d10673182d290c47d8da3c7a9c91243f8ec703dbee24bbdc723b4c0bc',
+    color: '88c3f8853a0e01fbafee948a0625cedf5d713e813ada3131fbdad80332f872b6',
   },
   1440: {
-    // Refreshed after comparing HEAD 4e4d44e's genuine CI capture with
-    // owner-v2. This guards the incremental radial layout; it does NOT
-    // attest pixel-perfect parity or authorize publication.
-    structure: '77de2f2d2a2941fb3c4829d01ce57954f48d5a954ddec435a34bff2df8d8bda3',
+    // Refreshed after technical A/B of HEAD d3b92fb's real Chromium screenshots
+    // against owner-v2 (#1360, PR #1389, artifact 13045208057). Synthetic-only:
+    // maintains fail-closed assertions, NOT aesthetic or CMS approval.
+    structure: '5153bb7d9328ff5a9235c46caf786debdf5d34fa470c78807f9bea96bf690374',
     color: 'd114f7721dc013265434860ee24373b507641ea797022ae0cea05cc191c794f6',
   },
 };
