@@ -41,7 +41,7 @@ const expose = [
 ].join('\n') + '\n';
 const sandbox = {
   URL,
-  window: {dataLayer:[], addEventListener(){}},
+  window: {dataLayer:[], addEventListener(){}, BRVTALCookieConsent:{isAccepted:()=>true}},
   document: {readyState:'loading', addEventListener(){}},
   location: {
     pathname:'/events/fixture', href:'https://fixture.invalid/events/fixture',
@@ -76,10 +76,10 @@ BOOTSTRAP_PROBE = r"""
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('js/public-analytics.js','utf8');
-function inspect(gtmId) {
+function inspect(gtmId, accepted = true) {
   const tags = [];
   const dataLayer = [];
-  const window = {dataLayer, dispatchEvent(){}};
+  const window = {dataLayer, dispatchEvent(){}, BRVTALCookieConsent:{isAccepted:()=>accepted}};
   const document = {
     querySelector() { return gtmId === null ? null : {dataset:{gtmId}}; },
     createElement() { return {dataset:{}}; },
@@ -96,7 +96,8 @@ function inspect(gtmId) {
 process.stdout.write(JSON.stringify({
   valid: inspect('GTM-AB12CD34'),
   missing: inspect(null),
-  invalid: inspect('not-valid')
+  invalid: inspect('not-valid'),
+  denied: inspect('GTM-AB12CD34', false)
 }));
 """
 
@@ -222,6 +223,8 @@ class BrechasBrvtal41Tests(unittest.TestCase):
         self.assertIn("ad_user_data: 'denied'", bootstrap)
         self.assertIn("ad_personalization: 'denied'", bootstrap)
         self.assertIn("analytics_storage: 'granted'", bootstrap)
+        self.assertIn('BRVTALCookieConsent?.isAccepted()', bootstrap)
+        self.assertIn('BRVTALCookieConsent?.isAccepted()', measurement)
         self.assertNotIn("localStorage.setItem", bootstrap)
         self.assertNotIn("document.cookie", bootstrap)
         synthetic = self.bootstrap
@@ -235,7 +238,7 @@ class BrechasBrvtal41Tests(unittest.TestCase):
             "analytics_storage": "granted", "ad_storage": "denied",
             "ad_user_data": "denied", "ad_personalization": "denied",
         })
-        for bad in ("missing", "invalid"):
+        for bad in ("missing", "invalid", "denied"):
             with self.subTest(bootstrap=bad):
                 self.assertEqual(synthetic[bad]["tags"], [])
                 self.assertEqual(synthetic[bad]["consent"], [])

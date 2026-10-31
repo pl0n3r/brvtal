@@ -11,11 +11,12 @@ function measurement_expect(bool $condition, string $message): void
 }
 
 $markup = brvtal_public_analytics_markup('GTM-W23PHGJG', 'abcdef1');
-measurement_expect(str_contains($markup, '/js/public-measurement.js?v=abcdef1'), 'measurement runtime ships with GTM bootstrap');
+measurement_expect(str_contains($markup, '/js/cookie-consent.js?v=abcdef1'), 'consent bootstrap is deploy-versioned');
+measurement_expect(!str_contains($markup, '/js/public-measurement.js'), 'measurement withheld until acceptance');
 
 $runtime = file_get_contents(__DIR__ . '/../js/public-measurement.js');
 measurement_expect(is_string($runtime), 'read measurement runtime');
-measurement_expect(!str_contains($runtime, "brvtal.analytics.choice.v1"), 'measurement has no acceptance gate');
+measurement_expect(str_contains($runtime, 'BRVTALCookieConsent?.isAccepted()'), 'measurement refuses to run before consent');
 measurement_expect(str_contains($runtime, "brvtal_page_view"), 'page view event exists');
 measurement_expect(str_contains($runtime, "brvtal_section_view"), 'section visibility event exists');
 measurement_expect(str_contains($runtime, "brvtal_scroll_depth"), 'scroll milestone event exists');

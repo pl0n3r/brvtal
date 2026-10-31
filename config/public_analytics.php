@@ -47,10 +47,20 @@ function brvtal_public_gtm_id(PDO $pdo): string
     }
 }
 
+/**
+ * Shared consent bootstrap for home, entity, contact and public error routes.
+ * The server emits NO analytics/measurement script on first response, even for
+ * a previously accepted cookie: only the first-party JS can read exact stored
+ * consent and then install the optional scripts. This also avoids cache leaks
+ * across users because public documents are not varied by cookies.
+ */
 function brvtal_public_analytics_markup(string $id, string $version): string
 {
-    if ($id === '') return '';
-    $version = rawurlencode($version);
-    return '<script defer src="/js/public-analytics.js?v=' . $version . '" data-gtm-id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n"
-        . '<script defer src="/js/public-measurement.js?v=' . $version . '"></script>';
+    $id = brvtal_public_gtm_id_value($id);
+    $queryVersion = rawurlencode($version);
+    $safeId = htmlspecialchars($id, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeVersion = htmlspecialchars($version, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return '<script defer src="/js/cookie-consent.js?v=' . $queryVersion
+        . '" data-gtm-id="' . $safeId
+        . '" data-version="' . $safeVersion . '"></script>';
 }
