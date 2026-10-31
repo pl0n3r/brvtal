@@ -121,12 +121,12 @@ def begin_round(output: Path) -> None:
     if manifest.exists():
         prior = json.loads(manifest.read_text("utf-8"))
         artifacts = prior.get("artifacts") if isinstance(prior, dict) else None
-        if prior.get("version") != 1 or not isinstance(artifacts, list) or not artifacts:
+        if not isinstance(prior, dict) or prior.get("version") != 1 or not isinstance(artifacts, list) or not artifacts:
             raise ValueError("Manifest anterior inválido")
         for artifact in artifacts:
             name = artifact.get("file") if isinstance(artifact, dict) else None
             if not isinstance(name, str) or not re.fullmatch(
-                r"[a-z0-9-]+-(?:escritorio-1440|movil-390)\\.png", name
+                r"[a-z0-9-]+-(?:escritorio-1440|movil-390)\.png", name
             ):
                 raise ValueError("Captura previa sin nombre canónico")
             old_names.append(name)
