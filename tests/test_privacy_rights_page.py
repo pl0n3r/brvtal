@@ -40,6 +40,7 @@ echo json_encode(['page' => $html, 'footer' => $footer]);
         self.assertIn("acceso, corrección o borrado", page)
         self.assertIn("Plazo pendiente de revisión", page)
         self.assertIn("pendiente de aprobación profesional", page)
+        self.assertIn('<meta name="robots" content="noindex,follow">', page)
         self.assertIn('href="/privacy"', data["footer"])
         self.assertEqual(data["footer"].count("data-privacy-rights-link"), 1)
 
@@ -52,6 +53,7 @@ echo json_encode(['page' => $html, 'footer' => $footer]);
         self.assertIn("pageRoute === 'privacy'", index)
         self.assertIn("brvtalPublicPrivacyRightsDocument", index)
         self.assertIn("brvtalPublicPrivacyRightsFooterLink", index)
+        self.assertIn("X-Robots-Tag: noindex, follow", index)
         self.assertIn("'privacy'", localize)
 
     def test_missing_configuration_fails_closed(self) -> None:

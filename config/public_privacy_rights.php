@@ -66,7 +66,7 @@ function brvtalPublicPrivacyRightsDocument(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="index,follow">
+<meta name="robots" content="noindex,follow">
 <title>{{TITLE}} — BRVTAL</title>
 <meta name="description" content="{{SUBTITLE}}">
 <link rel="stylesheet" href="/css/public-legibility.css">

@@ -103,6 +103,7 @@ if ($pageRoute === 'privacy') {
     );
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: public, max-age=60, stale-while-revalidate=300');
+    header('X-Robots-Tag: noindex, follow');
     echo $privacyHtml;
     exit;
 }
