@@ -1,79 +1,113 @@
 /*
- * BRVTAL — Concept 05 motion foundation (Issue #584, parent #583).
- * Reusable GSAP reveal/registration primitives for elements opted into
- * `[data-concept="05"]`. Foundation only: no Hero/section rewrite here.
- * Respects prefers-reduced-motion, coarse pointers and the deterministic visual-test hook.
+ * BRVTAL — Concept 05 motion foundation (Issues #584, #1366).
+ * Motion opt-in; text remains readable without scripts.
  */
 (function () {
   'use strict';
+  var media = null;
+  var fallbackTweens = [];
 
   function motionDisabled() {
-    var themeMotion = document.documentElement.getAttribute('data-theme-motion');
+    var root = document.documentElement;
+    var theme = root.getAttribute('data-theme-motion');
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches
       || window.matchMedia('(pointer: coarse)').matches
-      || document.documentElement.classList.contains('c5-visual-test')
-      || themeMotion === 'reduced'
-      || themeMotion === 'minimal';
+      || root.classList.contains('c5-visual-test')
+      || theme === 'reduced' || theme === 'minimal';
   }
 
   function init() {
+    if (media) { media.revert(); media = null; }
     var hosts = document.querySelectorAll('[data-concept="05"]');
-    if (!hosts.length) return;
-    if (!window.gsap || motionDisabled()) return;
-
+    if (!hosts.length || !window.gsap || motionDisabled()) return;
     var gsap = window.gsap;
     if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
-
-    hosts.forEach(function (host) {
-      // ScrollTrigger may never fire in a full-page screenshot or JS failure.
-      // Keep every module readable at rest; animate position only.
-      host.querySelectorAll('.c5-module').forEach(function (el) {
-        gsap.from(el, {
-          y: 24,
-          duration: 0.6,
-          ease: 'power3.out',
-          clearProps: 'transform',
-          scrollTrigger: window.ScrollTrigger
-            ? { trigger: el, start: 'top 88%', once: true }
-            : undefined,
+    // Older GSAP adapters and deterministic E2E mocks lack matchMedia/context.
+    // Keep the same non-obscuring from-state and tear down retained tweens.
+    if (typeof gsap.matchMedia !== 'function' || typeof gsap.context !== 'function') {
+      hosts.forEach(function (host) {
+        host.querySelectorAll('.c5-module').forEach(function (el) {
+          fallbackTweens.push(gsap.from(el, {
+            y: 24, duration: 0.6, ease: 'power3.out',
+            clearProps: 'transform',
+            scrollTrigger: window.ScrollTrigger
+              ? { trigger: el, start: 'top 88%', once: true }
+              : undefined
+          }));
+        });
+        host.querySelectorAll('.c5-numbered').forEach(function (section) {
+          fallbackTweens.push(gsap.from(section, {
+            y: 12, duration: .5, ease: 'power4.out',
+            clearProps: 'transform',
+            scrollTrigger: window.ScrollTrigger
+              ? { trigger: section, start: 'top 85%', once: true }
+              : undefined
+          }));
+          var title = section.querySelector('h2, h3');
+          if (title && window.ScrollTrigger && typeof gsap.timeline === 'function') {
+            var sequence = gsap.timeline({
+              scrollTrigger: { trigger: section, start: 'top 80%', once: true }
+            });
+            sequence.fromTo(title, { x: 8, opacity: 0.98 },
+              { x: 0, opacity: 1, duration: .18, ease: 'power2.out' });
+            fallbackTweens.push(sequence);
+          }
         });
       });
-
-      // Real Home sections dressed by brvtal_public_home_concept05_dressing():
-      // visible registration-offset on the numbered section + registration-offset
-      // glitch on the section title, once per section on scroll-in.
-      // Never clip entire numbered sections while awaiting scroll.
-      host.querySelectorAll('.c5-numbered').forEach(function (section) {
-        gsap.from(section, {
-          y: 12,
-          clearProps: 'transform',
-          duration: 0.5,
-          ease: 'power4.inOut',
-          scrollTrigger: window.ScrollTrigger
-            ? { trigger: section, start: 'top 85%', once: true }
-            : undefined,
-        });
-
-        var title = section.querySelector('h2, h3');
-        if (title && window.ScrollTrigger) {
-          var tl = gsap.timeline({
-            scrollTrigger: { trigger: section, start: 'top 80%', once: true },
+      return;
+    }
+    media = gsap.matchMedia();
+    media.add('(prefers-reduced-motion: no-preference)', function () {
+      if (motionDisabled()) return;
+      var context = gsap.context(function () {
+        hosts.forEach(function (host) {
+          host.querySelectorAll('.c5-module').forEach(function (el) {
+            gsap.from(el, {
+              y: 24, duration: 0.6, ease: 'power3.out',
+              clearProps: 'transform',
+              scrollTrigger: window.ScrollTrigger
+                ? { trigger: el, start: 'top 88%', once: true }
+                : undefined
+            });
           });
-          tl.fromTo(
-            title,
-            { textShadow: '4px 0 var(--c5-signal-red), -3px 0 rgba(255,255,255,.3)' },
-            { textShadow: '0 0 rgba(0,0,0,0)', duration: 0.18, ease: 'steps(1)' }
-          );
-        }
+          host.querySelectorAll('.c5-numbered').forEach(function (section) {
+            var title = section.querySelector('h2, h3');
+            // One reversible timeline per numbered section.
+            var sequence = gsap.timeline({
+              scrollTrigger: window.ScrollTrigger
+                ? { trigger: section, start: 'top 85%', once: true }
+                : undefined
+            });
+            sequence.from(section, {
+              y: 12, clearProps: 'transform', duration: .5, ease: 'power4.out'
+            });
+            if (title) sequence.from(title, {
+              x: 8, opacity: .96, duration: .18,
+              clearProps: 'transform,opacity', ease: 'power2.out'
+            }, 0);
+          });
+        });
       });
+      var refresh = function () { window.ScrollTrigger?.refresh?.(); };
+      if (document.readyState === 'complete') refresh();
+      else window.addEventListener('load', refresh, { once: true });
+      return function () {
+        window.removeEventListener('load', refresh);
+        context.revert();
+      };
     });
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', init, { once: true });
   } else {
     init();
   }
-
+  window.addEventListener('pagehide', function () {
+    media?.revert();
+    fallbackTweens.forEach(function (tween) { tween?.kill?.(); });
+    fallbackTweens = [];
+    media = null;
+  }, { once: true });
   window.BRVTAL_CONCEPT05_MOTION_INIT = init;
 })();

@@ -5,7 +5,7 @@
   const events = document.querySelector('.events');
   if (!track || !events) return;
 
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   document.documentElement.classList.add('native-events-scroll');
   track.setAttribute('tabindex', '0');
   track.setAttribute('role', 'region');
@@ -56,6 +56,11 @@
   requestAnimationFrame(syncViewport);
   window.addEventListener('resize', syncViewport, { passive: true });
   window.addEventListener('orientationchange', syncViewport, { passive: true });
+  window.addEventListener('pagehide', () => {
+    cancelAnimationFrame(viewportFrame);
+    window.removeEventListener('resize', syncViewport);
+    window.removeEventListener('orientationchange', syncViewport);
+  }, { once: true });
 
   let dragging = false;
   let dragged = false;
@@ -108,7 +113,7 @@
     const direction = event.key === 'ArrowRight' ? 1 : -1;
     track.scrollBy({
       left: direction * Math.max(320, track.clientWidth * 0.62),
-      behavior: reduceMotion ? 'auto' : 'smooth'
+      behavior: reducedMotionQuery.matches ? 'auto' : 'smooth'
     });
   });
 })();
