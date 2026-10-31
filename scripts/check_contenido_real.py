@@ -154,6 +154,30 @@ def audit(snapshot: dict) -> list[Finding]:
     return result
 
 
+import unittest
+
+
+class CheckContenidoRealTests(unittest.TestCase):
+    """Caso canónico #1355 ejecutable también desde el módulo del scanner."""
+
+    def test_criterio_principal(self):
+        data = {
+            "version": 1, "source": "discadmin-readonly-export",
+            "complete": True,
+            "collections": {name: [] for name in COLLECTIONS},
+        }
+        data["collections"]["events"] = [
+            {"id": 1, "status": "published", "title": "Lorem ipsum",
+             "event_date": "YYYY-MM-DD", "ticket_url": "#"},
+            {"id": 2, "status": "draft", "title": "Lorem ipsum"},
+        ]
+        findings = audit(data)
+        codes = {finding.code for finding in findings}
+        self.assertTrue({"EXAMPLE_TEXT", "FAKE_DATE", "EMPTY_OR_SAMPLE_LINK"} <= codes)
+        self.assertTrue(all(finding.record_id == "1" for finding in findings))
+        self.assertTrue(all(finding.panel.startswith("/discadmin/") for finding in findings))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--snapshot", type=Path, required=True, help="export JSON completo y de solo lectura desde DISCADMIN")
