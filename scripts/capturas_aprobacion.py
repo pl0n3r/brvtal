@@ -237,7 +237,8 @@ def serve_review(output: Path, port: int = 0) -> None:
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)  # NOSONAR: explicit loopback-only preview; Host check and CSRF; never exposed on network
+    # Intentional HTTP only for 127.0.0.1; Host header validation, CSRF and no network exposure.
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)  # NOSONAR(S5332) loopback preview only
     try:
         print(f"Revisión privada: http://127.0.0.1:{server.server_port}/", flush=True)
         server.serve_forever()
