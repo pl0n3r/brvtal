@@ -35,7 +35,7 @@
 .hero-declaration span{
   display:block;
   color:var(--acid);
-  font-size:11px;
+  font-size:12px;
   letter-spacing:.16em;
   margin-bottom:8px;
 }
@@ -49,7 +49,7 @@
   margin:10px 0 0;
   max-width:440px;
   color:#9a9a95;
-  font:11px/1.55 "Space Mono",monospace;
+  font:12px/1.55 "Space Mono",monospace;
   letter-spacing:.06em;
 }
 .home-phase-a-experience{
@@ -110,7 +110,7 @@
 }
 .experience-lineup>span{
   color:#777;
-  font-size:11px;
+  font-size:12px;
 }
 .experience-lineup p{
   margin:8px 0 0;
@@ -140,7 +140,7 @@
   align-items:center;
   justify-content:space-between;
   gap:30px;
-  font:11px "Space Mono",monospace;
+  font:12px "Space Mono",monospace;
   letter-spacing:.08em;
   text-decoration:none;
 }
@@ -208,7 +208,7 @@
     background:linear-gradient(90deg,rgba(5,5,5,.82),rgba(5,5,5,.28));
   }
   .hero-declaration span{
-    font-size:11px;
+    font-size:12px;
     margin-bottom:5px;
   }
   .hero-declaration strong{
