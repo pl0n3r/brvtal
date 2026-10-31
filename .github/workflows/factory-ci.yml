@@ -31,6 +31,17 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5; same pin as ci-backlog-reconciliation.yml
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify checkout is the exact PR HEAD
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD" || {
+            echo "::error::Concept 05 test checkout does not match PR HEAD"
+            exit 1
+          }
       - name: Detect image contract on this commit
         id: image_contract
         shell: bash
