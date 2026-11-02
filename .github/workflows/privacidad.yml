@@ -9,6 +9,6 @@ permissions:
 
 jobs:
   privacy:
-    uses: pl0n3r/factory/.github/workflows/privacidad.yml@dc7a24a7ff16aa01857009aff7f9e13b0bc0ca46
+    uses: pl0n3r/factory/.github/workflows/privacidad.yml@5f3a13215d4f32666f92532603c6b0d8afcc1615
     with:
       kit_ref: dc7a24a7ff16aa01857009aff7f9e13b0bc0ca46
