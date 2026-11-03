@@ -118,7 +118,11 @@ try {
     deployment_remove_tree($sandbox);
 }
 
-deployment_expect(str_contains($endpoint, "'data' => brvtalDeploymentPublicData()"), 'deployment endpoint must publish the executable deployment data contract');
+deployment_expect(str_contains($endpoint, 'brvtalDeploymentPublicData()'), 'deployment must use the canonical release resolver');
+deployment_expect(str_contains($endpoint, 'array_intersect_key('), 'public deployment identity must have an explicit allowlist');
+deployment_expect(str_contains($endpoint, "['version', 'commit', 'source', 'exact']"), 'public deployment should expose only release observer fields');
+deployment_expect(str_contains($endpoint, "'data' => " . '$publicIdentity'), 'public endpoint must send only the filtered identity');
+deployment_expect(!str_contains($endpoint, "'data' => brvtalDeploymentPublicData()"), 'public endpoint must never return all metadata');
 deployment_expect(
     str_contains($health, "'source' => brvtal_deployment_source()")
         && str_contains($health, "'deployment' => \$deployment"),
