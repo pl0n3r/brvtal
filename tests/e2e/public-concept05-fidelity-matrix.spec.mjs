@@ -819,6 +819,60 @@ const canonicalScreenshotBaselines = {
   },
 };
 
+
+// #1417: Allow only the exact versioned Git blob triples below. A mixed,
+// modified or unknown CSS tree cannot borrow either approved screenshot fixture.
+const screenshotCssPaths = ["css/public-concept05-hero.css","css/public-concept05-nights-artists.css","css/public-concept05-sound-memories.css"];
+const screenshotCssBlobs = {
+  main: ["af236f13954278c66ca9f0a36624fe8b08b95180","4911cbe7042707f026b2172b2e72b16d9f7364d8","436a0155bad56c87561623828bab31bcdfb4d0ed"],
+  issue1415: ["2e7e5b8665f300fc9cfbbb5236fe35acd5c27ded","16a9c3907ae564969323375f1e1e30201bb052c0","fc91461fab7604666885eb9023d14c7301ae3988"],
+};
+// Owner-reviewed A/B on synthetic Chromium fixture, #1415 @ b7b614b,
+// run 41704712339 / artifact 13265821535; NOT production CMS approval.
+const issue1415ScreenshotBaselines = {
+  390: {
+    structure: 'f12aa60880d59adacd05bc479d823a7e2eceb2fa247aa6988e04c34ad1bdbdff',
+    color: 'c5e4be37aea62719c0d0990a1a5660b6f70b79ed894a83b868d4cac26686cfa6',
+  },
+  1440: {
+    structure: 'db60f1cf07c9deb52812ed6a4e0b1ab1b66debd3284dcfd42f376c82fe110f32',
+    color: 'f8ba49d860e1bf449531b625a8ba4ddea9a81d99495d7a43c66fa5ddb844fab6',
+  },
+};
+const currentScreenshotCssBlobs = screenshotCssPaths.map(file => {
+  const bytes = readFileSync(join(root, file));
+  // SHA of the Git blob, including the canonical header, not raw file SHA.
+  return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+});
+function baselineForCssBlobs(blobs) {
+  if (blobs.length !== screenshotCssPaths.length) {
+    throw new Error('Unknown Concept 05 CSS blobs: incomplete triple');
+  }
+  if (screenshotCssBlobs.main.every((sha, i) => sha === blobs[i])) {
+    return canonicalScreenshotBaselines;
+  }
+  if (screenshotCssBlobs.issue1415.every((sha, i) => sha === blobs[i])) {
+    return issue1415ScreenshotBaselines;
+  }
+  throw new Error(`Unknown Concept 05 CSS blobs: ${blobs.join(', ')}`);
+}
+
+test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revisions', () => {
+  expect(baselineForCssBlobs(screenshotCssBlobs.main))
+    .toBe(canonicalScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.issue1415))
+    .toBe(issue1415ScreenshotBaselines);
+  for (let index = 0; index < screenshotCssPaths.length; index += 1) {
+    const mixed = [...screenshotCssBlobs.main];
+    mixed[index] = screenshotCssBlobs.issue1415[index];
+    expect(() => baselineForCssBlobs(mixed)).toThrow(/Unknown Concept 05 CSS blobs/);
+  }
+  expect(() => baselineForCssBlobs([])).toThrow(/incomplete triple/);
+  const unknown = [...screenshotCssBlobs.main];
+  unknown[0] = '0'.repeat(40);
+  expect(() => baselineForCssBlobs(unknown)).toThrow(/Unknown Concept 05 CSS blobs/);
+});
+
 /**
  * Reduce one real PNG screenshot to low-noise structural and palette signals.
  * The structural dHash tolerates antialiasing while retaining composition;
@@ -906,7 +960,7 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
   test(`Concept 05 canonical ${viewport.width}px screenshot fingerprint stays approved`, async ({ page }) => {
     await mount(page, viewport);
     const actual = await captureCanonicalVisualFingerprint(page);
-    const expected = canonicalScreenshotBaselines[viewport.width];
+    const expected = baselineForCssBlobs(currentScreenshotCssBlobs)[viewport.width];
 
     if (expected.structure === 'PENDING_CALIBRATION') {
       console.log(`CONCEPT05_SCREENSHOT_BASELINE_${viewport.width}=${JSON.stringify(actual)}`);
