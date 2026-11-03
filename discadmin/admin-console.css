@@ -12,6 +12,11 @@ html[data-discadmin-appearance]{
   --console-radius:12px;
   --console-gap:16px;
   --console-side:232px;
+  /* Legacy module sheets read these with dark hex fallbacks; map them to the
+     appearance tokens so light and glass no longer inherit black surfaces. */
+  --panel:var(--admin-surface);
+  --panel-strong:var(--admin-surface-raised);
+  --line-soft:var(--admin-border-subtle);
 }
 
 /* Sentence case: markup arrives in capitals, so lower it and lift the first letter. */
@@ -190,6 +195,83 @@ html[data-discadmin-appearance] .thead{
 html[data-discadmin-appearance] .tr{border-top:1px solid var(--console-line)}
 html[data-discadmin-appearance] .tr:hover{background:var(--admin-hover)}
 html[data-discadmin-appearance] :where(.thead,.tr) :where(time,.num,.count){font-variant-numeric:tabular-nums}
+
+/* Controls whose sheets hard-code a dark fill. */
+html[data-discadmin-appearance] :where(.admin-menu-toggle,.brvtal-bulk-trigger){
+  background:var(--admin-surface-raised);
+  color:var(--admin-text);
+  border:1px solid var(--admin-border);
+}
+html[data-discadmin-appearance] .admin-grid-thumb{background:var(--admin-surface-soft)}
+
+
+/* Light and glass: module sheets that hard-code a near-black fill follow the
+   appearance surface instead, with text and borders from the same tokens. */
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-summary>div,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-actions>div,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-list,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-automation,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-offsite,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .hero-manager-toolbar,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .hero-manager-global,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .hero-slide-list,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .hero-slide-editor,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .hero-preview-panel,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .memories-admin-head,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .memories-admin-empty,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .legacy-draft-strip,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .blog-draft-strip,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .blog-body-editor,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .seo-workspace-inventory,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .seo-editor,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .seo-editor-head,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .media-select,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .media-dropzone,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .media-inspector,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .ssv2-loading,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .ssv2-fatal,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .ssv2-runtime-grid>div,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .ssv2-advanced,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .tsv2-contrast,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .tsv2-source-state,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .main select,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .blog-metrics>div,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .releases-metrics>div,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .seo-workspace-metrics>article,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-warning,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-grid :where(input,select),
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-automation input,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .modalbox[role="dialog"] .modalhead,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .modalbox[role="dialog"] .foot{
+  background:var(--admin-surface-raised);
+  color:var(--admin-text);
+  border-color:var(--admin-border);
+}
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) [data-admin-module="content-core"]{
+  --bg:var(--admin-bg);
+  --panel:var(--admin-surface);
+  --line:var(--admin-border);
+  --muted:var(--admin-muted);
+  --text:var(--admin-text);
+}
+
+/* Success greens are tuned for dark surfaces; darken them to stay readable on light ones. */
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) :where(.blog-status,.media-status,.releases-status,.seo-workspace-status).ok,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) :where(.seo-workspace-pill.auto,.seo-workspace-health),
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .iconbtn.active{
+  color:#0b6b3a;
+}
+
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .seo-workspace-edit{color:var(--admin-text)}
+
+/* backups.css forces its ghost and refresh buttons dark with !important, so
+   this is the one place the console layer must match that priority. */
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-actions button.ghost,
+html[data-discadmin-appearance]:not([data-discadmin-appearance="dark"]) .backup-refresh{
+  background:var(--admin-surface)!important;
+  color:var(--admin-text)!important;
+  border:1px solid var(--admin-border)!important;
+}
 
 /* Focus follows the accent so keyboard position is never lost. */
 html[data-discadmin-appearance] :where(button,a,input,select,textarea):focus-visible{

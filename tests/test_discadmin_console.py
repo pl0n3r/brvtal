@@ -39,7 +39,12 @@ class DiscadminConsoleTests(unittest.TestCase):
         self.assertNotRegex(CSS, r"background:#[0-9a-fA-F]{3,6}\b")
 
     def test_does_not_force_priority_or_redefine_frecuencia(self):
-        self.assertNotIn("!important", CSS)
+        code = re.sub(r"/\*.*?\*/", "", CSS, flags=re.S)
+        for line in code.splitlines():
+            if "!important" in line:
+                self.assertIn("var(--admin-", line)
+        # Only the backups override, which fights backups.css's own !important.
+        self.assertLessEqual(code.count("!important"), 3)
         self.assertNotIn("border-top:2px", CSS)
         self.assertIn(':not([data-admin-nav="dashboard"])', CSS)
 
