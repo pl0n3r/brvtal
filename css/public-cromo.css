@@ -1,0 +1,67 @@
+/*
+ * BRVTAL — Cromo layer (public home).
+ * Every rule is scoped to `html.cromo`, which js/public-cromo.js sets only
+ * after the WebGL shader compiled. Without it the Concept 05 look is intact.
+ * Colors come from the Theme Studio variables (--bg, --fg, --red).
+ */
+
+html.cromo #cromoGL{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:0;
+  pointer-events:none;
+  background:#050505;
+}
+
+html.cromo body{background:transparent}
+html.cromo main#top{position:relative;z-index:1;background:transparent}
+
+/* The chrome field shows through the hero; sections are dark plates over it. */
+html.cromo main#top>.home-phase-a-hero{
+  background:transparent;
+  background-image:none;
+}
+html.cromo main#top .c5-board-region{background:transparent}
+html.cromo main#top section.scene:not(.home-phase-a-hero),
+html.cromo .footer.c5-footer{
+  background-color:rgba(5,5,5,.88);
+}
+html.cromo .nav{background-color:rgba(5,5,5,.9)}
+
+/* Wordmark: white fill with a hard dark outline stays readable on chrome. */
+html.cromo .home-phase-a-hero .hero-title{
+  color:var(--fg,#f4f1e8);
+  -webkit-text-stroke:clamp(3px,.6vw,9px) #050505;
+  paint-order:stroke fill;
+  text-shadow:.04em .05em 0 var(--red,#d31822);
+  animation:cromo-rise 1s cubic-bezier(.22,1,.36,1) backwards;
+}
+@keyframes cromo-rise{
+  from{transform:translateY(14%) rotate(1.5deg)}
+  to{transform:none}
+}
+
+/* Hero text sits on dark plates so it never depends on the shader frame. */
+html.cromo body main#top .home-phase-a-hero .hero-copy .eyebrow,
+html.cromo body main#top .home-phase-a-hero .hero-copy .hero-sub,
+html.cromo body main#top .home-phase-a-hero .c5-hero-statement{
+  background:rgba(3,3,3,.9);
+  padding:.5em .9em;
+}
+html.cromo body .home-phase-a-hero .hero-copy .eyebrow{width:fit-content;max-width:100%}
+
+/* Legacy glitch decoration competes with the chrome; the outline replaces it. */
+html.cromo body .home-phase-a-hero .hero-glitch-lines,
+html.cromo body .home-phase-a-hero .hero-title::after{display:none}
+
+/* Section headings: same outline treatment so they survive the transparent gaps. */
+html.cromo main#top section.scene h2{
+  -webkit-text-stroke:2px #050505;
+  paint-order:stroke fill;
+}
+
+@media(prefers-reduced-motion:reduce){
+  html.cromo .home-phase-a-hero .hero-title{animation:none}
+}
