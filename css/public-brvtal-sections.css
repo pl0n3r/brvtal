@@ -46,8 +46,6 @@
     border-left:0;
     border-top:var(--c5-rule-thickness) solid var(--c5-rule-color);
   }
-  /* Cada grupo del roster ocupa todas las columnas: antes quedaba en una sola celda de ~240px (tarjetas de 37px). */
-  .artist-list > .roster-group{grid-column:1 / -1}
   .artist-list{
     display:grid;
     grid-template-columns:repeat(auto-fill,minmax(clamp(150px,18vw,240px),1fr));

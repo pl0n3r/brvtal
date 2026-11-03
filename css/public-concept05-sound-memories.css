@@ -595,3 +595,27 @@ html.c5-visual-test [data-concept="05"] .c5-memory-cell .public-media-open video
   transition:none!important;
   transform:none!important;
 }
+
+/* #1415 — Sound adapts to the actual module width without collapsing the
+ * canonical 1440px two-column composition or changing the 128/72px covers. */
+[data-concept="05"] #sets{
+  container-type:inline-size;
+}
+@container (max-width:960px){
+  [data-concept="05"] #sets .set-list{
+    grid-template-columns:minmax(0,1fr);
+  }
+  [data-concept="05"] #sets .set-library-item.c5-sound-record,
+  [data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature{
+    grid-column:1;
+    grid-row:auto;
+  }
+}
+[data-concept="05"] #sets .set-main,
+[data-concept="05"] #sets .set-record-link{
+  min-width:0;
+}
+[data-concept="05"] #sets .set-record-link h4{
+  overflow-wrap:break-word;
+  word-break:normal;
+}

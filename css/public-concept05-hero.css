@@ -489,7 +489,6 @@
   [data-concept="05"] .home-phase-a-hero .hero-sub,
   [data-concept="05"] .home-phase-a-hero .hero-declaration{
     position:static!important;
-    top:auto!important;
     inset:auto!important;
     transform:none!important;
     translate:none!important;

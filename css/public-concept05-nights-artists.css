@@ -716,7 +716,34 @@ align-self:center;
   }
 }
 
-/* "No hay noches publicadas" no se muestra cuando ya hay tarjetas de eventos. */
-[data-concept="05"] #events:has(.events-track > *) .c5-cms-empty{
+[data-concept="05"] .artists{container-type:inline-size}
+
+/* #1415 — the source artist-list grid may allocate 250px columns. Force one
+ * fluid group per row and fill that group's available width with usable cards. */
+[data-concept="05"] .artists .artist-list{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  min-width:0;
+}
+[data-concept="05"] .artists .artist-list > .roster-group{
+  grid-column:1 / -1;
+  min-width:0;
+}
+@container (max-width:650px){
+  [data-concept="05"] .roster-group,
+  [data-concept="05"] [data-c5-board="02-03"] .roster-group{
+    grid-template-columns:repeat(auto-fill,minmax(min(100%,90px),1fr));
+  }
+}
+@media(max-width:900px){
+  [data-concept="05"] .roster-group,
+  [data-concept="05"] [data-c5-board="02-03"] .roster-group{
+    grid-template-columns:repeat(auto-fill,minmax(min(100%,140px),1fr));
+  }
+}
+/* Published past-night cards hide the empty state even before the async
+ * CMS renderer has toggled its [hidden] attribute. */
+[data-concept="05"] #events:has([data-c5-past-nights] > .event-card:not([hidden])) [data-c5-nights-empty],
+[data-concept="05"] #events:has(.events-track > .event-card:not([hidden])) [data-c5-nights-empty]{
   display:none;
 }
