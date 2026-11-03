@@ -715,3 +715,22 @@ align-self:center;
     grid-template-columns:repeat(6,minmax(0,1fr))
   }
 }
+
+/* Roster en el home: .artist-list llegaba como grid de columnas de 250px y metía cada grupo en una sola (las tarjetas
+   quedaban de 37px y el nombre se partía letra por letra). Una columna fluida deja que el grupo use todo el ancho. */
+[data-concept="05"] .artist-list{
+  grid-template-columns:minmax(0,1fr);
+}
+
+[data-concept="05"] .roster-group{
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+}
+
+[data-concept="05"] .roster-group-head{
+  grid-column:1 / -1;
+}
+
+/* "No hay noches publicadas" no se muestra cuando ya hay tarjetas de eventos. */
+[data-concept="05"] #events:has(.events-track > *) .c5-cms-empty{
+  display:none;
+}
