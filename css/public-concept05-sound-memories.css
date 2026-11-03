@@ -595,3 +595,34 @@ html.c5-visual-test [data-concept="05"] .c5-memory-cell .public-media-open video
   transition:none!important;
   transform:none!important;
 }
+
+/* Biblioteca de sonido en la columna angosta del home: la lista de dos columnas dejaba al título solo 48px y lo partía
+   letra por letra. Una columna y un grid con min-width:0 mantienen el título legible a cualquier ancho. */
+[data-concept="05"] #sets .set-list{
+  grid-template-columns:minmax(0,1fr);
+}
+
+[data-concept="05"] #sets .set-library-item.c5-sound-record,
+[data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature{
+  grid-column:1;
+  grid-row:auto;
+  min-width:0;
+}
+
+[data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature{
+  grid-template-columns:36px 112px minmax(0,1fr) 88px;
+}
+
+[data-concept="05"] #sets .set-library-item.c5-sound-record.c5-sound-feature .set-library-cover{
+  width:112px;
+  max-width:112px;
+}
+
+[data-concept="05"] #sets .set-main{
+  min-width:0;
+}
+
+[data-concept="05"] #sets .set-record-link h4{
+  overflow-wrap:break-word;
+  word-break:normal;
+}
