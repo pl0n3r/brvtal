@@ -716,12 +716,6 @@ align-self:center;
   }
 }
 
-/* Roster en el home: .artist-list llegaba como grid de columnas de 250px y metía cada grupo en una sola (las tarjetas
-   quedaban de 37px y el nombre se partía letra por letra). Una columna fluida deja que el grupo use todo el ancho y conserve sus columnas de diseño. */
-[data-concept="05"] .artist-list{
-  grid-template-columns:minmax(0,1fr);
-}
-
 /* "No hay noches publicadas" no se muestra cuando ya hay tarjetas de eventos. */
 [data-concept="05"] #events:has(.events-track > *) .c5-cms-empty{
   display:none;
