@@ -581,6 +581,25 @@ function brvtal_public_home_concept05_connected_section(string $html): string
     );
 }
 
+/**
+ * Cromo is a progressive-enhancement layer (WebGL backdrop); the tags are added
+ * once and the script itself decides whether `html.cromo` ever applies.
+ */
+function brvtal_public_home_cromo(string $html): string
+{
+    $tags = [
+        'css/public-cromo.css' => ['</head>', '  <link rel="stylesheet" href="css/public-cromo.css">'],
+        'js/public-cromo.js' => ['</body>', '  <script src="js/public-cromo.js" defer></script>'],
+    ];
+    foreach ($tags as $asset => [$anchor, $tag]) {
+        if (!str_contains($html, $asset)) {
+            $html = str_replace($anchor, $tag . "\n" . $anchor, $html);
+        }
+    }
+
+    return $html;
+}
+
 function brvtal_public_home_identity(string $html): string
 {
     $html = brvtal_public_home_concept05_dressing($html);
@@ -667,20 +686,7 @@ function brvtal_public_home_identity(string $html): string
         );
     }
 
-    if (!str_contains($html, 'css/public-cromo.css')) {
-        $html = str_replace(
-            '</head>',
-            "  <link rel=\"stylesheet\" href=\"css/public-cromo.css\">\n</head>",
-            $html
-        );
-    }
-    if (!str_contains($html, 'js/public-cromo.js')) {
-        $html = str_replace(
-            '</body>',
-            "  <script src=\"js/public-cromo.js\" defer></script>\n</body>",
-            $html
-        );
-    }
+    $html = brvtal_public_home_cromo($html);
 
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(
