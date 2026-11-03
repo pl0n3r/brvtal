@@ -461,6 +461,50 @@
   }
 }
 
+/* Home móvil: el hero se apilaba con posiciones absolutas y alturas fijas (top:calc(100% - 310px), padding 330px) y el
+   subtítulo y la declaración se montaban sobre el título. En pantallas estrechas los bloques van en flujo normal.
+   El margen inferior del título cubre lo que el glifo (line-height .55) sobresale de su caja. */
+@media(max-width:900px){
+  [data-concept="05"] .home-phase-a-hero{
+    min-height:0;
+  }
+
+  [data-concept="05"] .home-phase-a-hero .hero-copy{
+    display:flex!important;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:16px;
+    padding:0 0 32px;
+  }
+
+  [data-concept="05"] .home-phase-a-hero .hero-copy .eyebrow{
+    position:static;
+    max-width:100%;
+  }
+
+  [data-concept="05"] .home-phase-a-hero .hero-title{
+    margin:12px 0 .3em!important;
+  }
+
+  [data-concept="05"] .home-phase-a-hero .hero-sub,
+  [data-concept="05"] .home-phase-a-hero .hero-declaration{
+    position:static!important;
+    top:auto!important;
+    inset:auto!important;
+    transform:none!important;
+    translate:none!important;
+    width:100%;
+    max-width:none;
+    margin:0;
+  }
+
+  [data-concept="05"] .home-phase-a-hero .hero-sub{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+  }
+}
+
 @media(max-width:430px) and (max-height:760px){
   [data-concept="05"] .home-phase-a-hero{
     min-height:650px;
