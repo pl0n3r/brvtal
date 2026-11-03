@@ -33,7 +33,7 @@ class CromoLayerTests(unittest.TestCase):
     def test_every_rule_is_gated_by_the_cromo_class(self) -> None:
         for selector in selectors(CSS):
             self.assertTrue(
-                selector.startswith("html.cromo") or selector == "#cromoGL",
+                selector.startswith("html.cromo"),
                 f"ungated selector would change the non-WebGL look: {selector}",
             )
 
@@ -66,6 +66,10 @@ class CromoLayerTests(unittest.TestCase):
     def test_canvas_is_decorative_and_non_interactive(self) -> None:
         self.assertIn("aria-hidden", JS)
         self.assertRegex(CSS, r"#cromoGL\{[^}]*pointer-events:none")
+
+    def test_dark_hero_plates_do_not_use_important(self) -> None:
+        self.assertNotIn("!important", CSS)
+        self.assertIn("html.cromo body main#top .home-phase-a-hero .hero-copy .hero-sub", CSS)
 
     def test_title_entrance_never_hides_text(self) -> None:
         self.assertNotIn("opacity:0", CSS)
