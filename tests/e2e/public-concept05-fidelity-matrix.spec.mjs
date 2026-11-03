@@ -807,15 +807,19 @@ const canonicalVisualRegions = [
  */
 const canonicalScreenshotBaselines = {
   390: {
-    structure: 'a86032907e65ab538e3e613d957589f4021e111001428fca1890989e3c81148c',
-    color: '8f36114eb4b9e579d2880d5f623f3b766cb386269d2f56a35f5f18f8e77205a8',
+    // Refreshed for #1415 after the owner reviewed the A/B captures (hero stacked
+    // in normal flow on mobile; roster groups span the artist list). Synthetic-only:
+    // does NOT attest CMS visual approval.
+    structure: '5bb83396f6dc08a147922a9e32527ee7901343e4d6b3b4e079a622ac38df5c66',
+    color: '353f6d7f73df49561f72522b7a215756128711d261c17a02ee70b6573fe8b9c2',
   },
   1440: {
     // Refreshed after A/B of HEAD 0bbb644's actual Chromium screenshots
     // against owner-v2 (#1361, PR #1391, artifact 13046482598). Synthetic-only:
     // retains fail-closed checks and does NOT attest CMS visual approval.
-    structure: 'fe9b4bad05ab0a78261b626b052403e3649e227074708836af684e3584a13129',
-    color: 'dab1f2aca4ce482ac1843a7c2fc545f375ca6a3a824936e071ffa73cfc27075a',
+    // Refreshed again for #1415 after the owner reviewed the A/B captures.
+    structure: 'da684983d0788c585435fa0261aafe4d7547e4e7d1a2d2e879d31a362d20fe76',
+    color: '8cec8a73fa3dc6f0260d0898a272c5480a772f29cfe548ccc72b0ae93336b612',
   },
 };
 
