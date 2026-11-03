@@ -1,10 +1,13 @@
 const defaultSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function normalizeDeployment(raw) {
+  // Never retain legacy server internals in observations or release results.
+  const commit = String(raw?.commit || '').trim().toLowerCase();
+  const source = String(raw?.source || '').trim();
   return {
     version: String(raw?.version || '').trim() || null,
-    commit: String(raw?.commit || '').trim().toLowerCase() || null,
-    source: raw?.source || null,
+    commit: /^[0-9a-f]{40}$/.test(commit) ? commit : null,
+    source: ['environment', 'git_checkout', 'release_fallback'].includes(source) ? source : null,
     exact: raw?.exact === true
   };
 }
@@ -54,7 +57,7 @@ async function probeJson({ request, url, requestTimeoutMs, extract }) {
     status: responseStatus(response),
     error: null,
     parseError,
-    usable: responseOk && Boolean(deployment.version)
+    usable: responseOk && Boolean(deployment.version) && (!deployment.exact || Boolean(deployment.commit))
   };
 }
 
@@ -62,6 +65,7 @@ function fallbackReason(probe, label) {
   if (probe.error) return `${label} request failed: ${probe.error}`;
   if (probe.parseError) return `${label} returned invalid JSON: ${probe.parseError}`;
   if (!probe.responseOk) return `${label} returned HTTP ${probe.status ?? 'unknown'}`;
+  if (probe.deployment.exact && !probe.deployment.commit) return `${label} returned an invalid exact commit`;
   return `${label} returned no deployment version`;
 }
 

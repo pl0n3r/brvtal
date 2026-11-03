@@ -78,7 +78,6 @@ foreach ([
     "'status' => \$readiness['status']",
     "'version' => BRVTAL_APP_VERSION",
     "'release_sha' => \$readiness['release_sha']",
-    "'schema_up_to_date' => \$readiness['schema_up_to_date']",
     'brvtal_migration_status($pdo',
 ] as $needle) {
     factory_health_expect(str_contains($endpoint, $needle), "health endpoint must contain {$needle}");
@@ -90,5 +89,14 @@ factory_health_expect(
 factory_health_expect(!str_contains($endpoint, 'BRVTAL_MIGRATIONS_ALLOW_WRITE'), 'health must never opt into migration writes');
 factory_health_expect(!str_contains($endpoint, 'brvtal_migration_apply_file'), 'health must never apply migrations');
 factory_health_expect(!str_contains($endpoint, 'brvtal_migration_baseline_file'), 'health must never baseline migrations');
+
+// Fail closed: the public payload must not reveal DB status or schema data.
+foreach (["'database' =>", "'schema' =>", "'schema_up_to_date' =>", "'environment' =>", "'cache_key' =>", "'time' =>", "'latency_ms' =>"] as $sensitive) {
+    factory_health_expect(!str_contains($endpoint, $sensitive), "public health must omit {$sensitive}");
+}
+factory_health_expect(substr_count($endpoint, "'deployment' => " . '$deployment') === 2,
+    'both health paths must expose only the bounded observer identity');
+factory_health_expect(str_contains($endpoint, "'source' => brvtal_deployment_source()"),
+    'health fallback must retain exact release provenance');
 
 echo "BRVTAL Factory health contract passed.\n";

@@ -10,7 +10,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
 }
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+// Preserve exact release verification; never publish environment/cache internals.
+$identity = brvtalDeploymentPublicData();
+$publicIdentity = array_intersect_key(
+    $identity,
+    array_fill_keys(['version', 'commit', 'source', 'exact'], true)
+);
 json_response([
     'ok' => true,
-    'data' => brvtalDeploymentPublicData(),
+    'data' => $publicIdentity,
 ]);
