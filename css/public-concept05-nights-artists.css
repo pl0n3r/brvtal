@@ -765,7 +765,7 @@ align-self:center;
  * in the desktop 02/03 editorial half-column. With 3+ cards the existing
  * six-column owner-v2 grid is unchanged. */
 @media(min-width:901px){
-  [data-concept="05"] [data-c5-board="02-03"] .roster-group:not(:has(> .artist:nth-of-type(3))){
+  [data-concept="05"] .artists .roster-group:not(:has(> .artist:nth-of-type(3))){
     grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));
   }
 }
