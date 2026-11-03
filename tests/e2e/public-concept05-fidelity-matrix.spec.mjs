@@ -819,6 +819,83 @@ const canonicalScreenshotBaselines = {
   },
 };
 
+
+// #1417: Allow only the exact versioned Git blob triples below. A mixed,
+// modified or unknown CSS tree cannot borrow either approved screenshot fixture.
+const screenshotCssPaths = ["css/public-concept05-hero.css","css/public-concept05-nights-artists.css","css/public-concept05-sound-memories.css"];
+const screenshotCssBlobs = {
+  main: ["af236f13954278c66ca9f0a36624fe8b08b95180","4911cbe7042707f026b2172b2e72b16d9f7364d8","436a0155bad56c87561623828bab31bcdfb4d0ed"],
+  issue1415: ["2e7e5b8665f300fc9cfbbb5236fe35acd5c27ded","b5fb1d60eaa7501733b31f9cd4c7e94cc6bcb402","fc91461fab7604666885eb9023d14c7301ae3988"],
+};
+// Agent-inspected A/B under owner's #965 authorization, synthetic Chromium fixture,
+// #1415 @ d20f9f8, run 41709818566 / artifact 13267882889.
+// Neither screenshot nor SHA represents owner approval of production CMS visuals.
+const issue1415ScreenshotBaselines = {
+  390: {
+    structure: '5bb83396f6dc08a147922a9e32527ee7901343e4d6b3b4e079a622ac38df5c66',
+    color: '353f6d7f73df49561f72522b7a215756128711d261c17a02ee70b6573fe8b9c2',
+  },
+  1440: {
+    structure: 'da684983d0788c585435fa0261aafe4d7547e4e7d1a2d2e879d31a362d20fe76',
+    color: '8cec8a73fa3dc6f0260d0898a272c5480a772f29cfe548ccc72b0ae93336b612',
+  },
+};
+const currentScreenshotCssBlobs = screenshotCssPaths.map(file => {
+  const bytes = readFileSync(join(root, file));
+  // SHA of the Git blob, including the canonical header, not raw file SHA.
+  return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+});
+function baselineForCssBlobs(blobs) {
+  if (blobs.length !== screenshotCssPaths.length) {
+    throw new Error('Unknown Concept 05 CSS blobs: incomplete triple');
+  }
+  if (screenshotCssBlobs.main.every((sha, i) => sha === blobs[i])) {
+    return canonicalScreenshotBaselines;
+  }
+  if (screenshotCssBlobs.issue1415.every((sha, i) => sha === blobs[i])) {
+    return issue1415ScreenshotBaselines;
+  }
+  throw new Error(`Unknown Concept 05 CSS blobs: ${blobs.join(', ')}`);
+}
+
+test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revisions', () => {
+  expect(baselineForCssBlobs(screenshotCssBlobs.main))
+    .toBe(canonicalScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.issue1415))
+    .toBe(issue1415ScreenshotBaselines);
+  for (let index = 0; index < screenshotCssPaths.length; index += 1) {
+    const mixed = [...screenshotCssBlobs.main];
+    mixed[index] = screenshotCssBlobs.issue1415[index];
+    expect(() => baselineForCssBlobs(mixed)).toThrow(/Unknown Concept 05 CSS blobs/);
+  }
+  expect(() => baselineForCssBlobs([])).toThrow(/incomplete triple/);
+  const unknown = [...screenshotCssBlobs.main];
+  unknown[0] = '0'.repeat(40);
+  expect(() => baselineForCssBlobs(unknown)).toThrow(/Unknown Concept 05 CSS blobs/);
+});
+
+
+test('Concept 05 #1415 keeps long CMS artist names readable at 375, 390 and 1440', async ({page}) => {
+  // Only the exact patched CSS may claim this acceptance; the original main
+  // variant retains its own visual baselines and existing regressions.
+  test.skip(
+    !screenshotCssBlobs.issue1415.every((sha, index) => sha === currentScreenshotCssBlobs[index]),
+    'Only applies to the #1415 CSS blob triple',
+  );
+  for (const viewport of [
+    {width:375,height:812}, {width:390,height:844}, {width:1440,height:900},
+  ]) {
+    await mount(page, viewport);
+    const names = await page.locator('.artists .roster-group .artist strong')
+      .evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().width));
+    expect(names).toHaveLength(2);
+    expect(names.every(width => width >= 85)).toBe(true);
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    )).toBe(true);
+  }
+});
+
 /**
  * Reduce one real PNG screenshot to low-noise structural and palette signals.
  * The structural dHash tolerates antialiasing while retaining composition;
@@ -906,7 +983,7 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
   test(`Concept 05 canonical ${viewport.width}px screenshot fingerprint stays approved`, async ({ page }) => {
     await mount(page, viewport);
     const actual = await captureCanonicalVisualFingerprint(page);
-    const expected = canonicalScreenshotBaselines[viewport.width];
+    const expected = baselineForCssBlobs(currentScreenshotCssBlobs)[viewport.width];
 
     if (expected.structure === 'PENDING_CALIBRATION') {
       console.log(`CONCEPT05_SCREENSHOT_BASELINE_${viewport.width}=${JSON.stringify(actual)}`);
