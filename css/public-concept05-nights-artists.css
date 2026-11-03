@@ -747,3 +747,25 @@ align-self:center;
 [data-concept="05"] #events:has(.events-track > .event-card:not([hidden])) [data-c5-nights-empty]{
   display:none;
 }
+
+
+/* #1415 — reset public-roster.css's legacy mobile placement. That sheet
+ * assigns .artist i to grid column 2, but Concept 05 cards have a single
+ * explicit track. The implicit second track squeezes the artist's name
+ * into a letter-wide column when the copy or CMS name is long. */
+[data-concept="05"] .artist.c5-artist-card > strong,
+[data-concept="05"] .artist.c5-artist-card > i{
+  grid-column:1;
+  min-width:0;
+  word-break:normal;
+  overflow-wrap:break-word;
+}
+
+/* A CMS roster with one or two published artists must not waste six tracks
+ * in the desktop 02/03 editorial half-column. With 3+ cards the existing
+ * six-column owner-v2 grid is unchanged. */
+@media(min-width:901px){
+  [data-concept="05"] [data-c5-board="02-03"] .roster-group:not(:has(> .artist:nth-of-type(3))){
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));
+  }
+}
