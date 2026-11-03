@@ -282,6 +282,8 @@ html[data-discadmin-appearance] :where(button,a,input,select,textarea):focus-vis
 @media(max-width:850px){
   html[data-discadmin-appearance] .main{padding:16px 16px 44px}
   html[data-discadmin-appearance] .dashboard-v2-hero{padding:18px}
+  html[data-discadmin-appearance] .dashboard-v2-customize{flex-direction:column;align-items:flex-start}
+  html[data-discadmin-appearance] .dashboard-v2-customize-actions{justify-content:flex-start}
   html[data-discadmin-appearance] .dashboard-v2-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 }
 @media(prefers-reduced-motion:reduce){
