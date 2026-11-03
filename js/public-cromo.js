@@ -57,7 +57,7 @@ void main(){
   float sky=smoothstep(.42,.58,hor);
   vec3 chrome=mix(vec3(.03,.035,.05),vec3(.96,.98,1.),sky);
   chrome=mix(chrome,vec3(.35,.4,.55),smoothstep(.2,.45,hor)*(1.-sky)*.8);
-  chrome+=uAccent*smoothstep(.2,.0,abs(r.x-.35+.1*sin(uT)))*.9*(1.+uBeat*2.);
+  chrome+=uAccent*(1.-smoothstep(.0,.2,abs(r.x-.35+.1*sin(uT))))*.9*(1.+uBeat*2.);
   chrome+=vec3(.9)*pow(clamp(dot(n,normalize(vec3(-.4,.6,.7))),0.,1.),60.);
   col=chrome;
  }else{
@@ -99,21 +99,29 @@ void main(){
   const uScroll = uniform('uScroll');
   const uAccent = uniform('uAccent');
 
-  // Theme Studio red -> shader accent. Falls back to the Concept 05 default.
+  // Theme Studio red -> shader accent. A 2D canvas converts any CSS color
+  // (hex, rgb, color(display-p3 ...)) to 8-bit sRGB; falls back to the default red.
   const readAccent = () => {
-    const probe = document.createElement('span');
-    probe.style.color = getComputedStyle(root).getPropertyValue('--red').trim() || '#d31822';
-    probe.style.display = 'none';
-    document.body.appendChild(probe);
-    const match = getComputedStyle(probe).color.match(/\d+(\.\d+)?/g) || [211, 24, 34];
-    probe.remove();
-    const [r, g, b] = match.map(Number);
+    let rgb = [211, 24, 34];
+    try {
+      const raw = getComputedStyle(root).getPropertyValue('--red').trim() || '#d31822';
+      const swatch = document.createElement('canvas');
+      swatch.width = 1;
+      swatch.height = 1;
+      const ctx2d = swatch.getContext('2d', { willReadFrequently: true });
+      ctx2d.fillStyle = '#d31822';
+      ctx2d.fillStyle = raw;
+      ctx2d.fillRect(0, 0, 1, 1);
+      rgb = Array.from(ctx2d.getImageData(0, 0, 1, 1).data).slice(0, 3);
+    } catch (error) { /* keep the default red */ }
     // Lift the brand red so the streak stays hot on the dark base.
-    return [Math.min(1, r / 255 + .12), Math.min(1, g / 255 + .1), Math.min(1, b / 255 + .05)];
+    return [Math.min(1, rgb[0] / 255 + .12), Math.min(1, rgb[1] / 255 + .1), Math.min(1, rgb[2] / 255 + .05)];
   };
 
-  let scale = window.innerWidth < 820 ? .42 : .6;
+  let reduction = 0;
+  const currentScale = () => Math.max(.3, (window.innerWidth < 820 ? .42 : .6) - reduction);
   const resize = () => {
+    const scale = currentScale();
     canvas.width = Math.max(2, Math.floor(window.innerWidth * scale));
     canvas.height = Math.max(2, Math.floor(window.innerHeight * scale));
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -127,6 +135,8 @@ void main(){
   let last = 0;
   let slow = 0;
   let running = false;
+  let mounted = false;
+  let frameId = 0;
   let accent = [.83, .14, .17];
 
   const draw = (now) => {
@@ -151,23 +161,32 @@ void main(){
     // Adaptive resolution: step down when frames keep landing late.
     if (delta > 0 && delta < 500) {
       slow = delta > 30 ? slow + 1 : Math.max(0, slow - 1);
-      if (slow > 40 && scale > .3) {
-        scale = Math.max(.3, scale - .08);
+      if (slow > 40 && currentScale() > .3) {
+        reduction += .08;
         resize();
         slow = 0;
       }
     }
     draw(now);
-    window.requestAnimationFrame(loop);
+    frameId = window.requestAnimationFrame(loop);
   };
 
   const start = () => {
-    if (running || reduceMotion.matches || document.hidden) return;
+    if (!mounted || running || reduceMotion.matches || document.hidden) return;
     running = true;
     last = performance.now();
-    window.requestAnimationFrame(loop);
+    frameId = window.requestAnimationFrame(loop);
   };
-  const stop = () => { running = false; };
+  const stop = () => {
+    running = false;
+    window.cancelAnimationFrame(frameId);
+  };
+  const unmount = () => {
+    stop();
+    mounted = false;
+    root.classList.remove('cromo');
+    canvas.remove();
+  };
 
   const mount = () => {
     accent = readAccent();
@@ -175,10 +194,16 @@ void main(){
     resize();
     draw(0);
     root.classList.add('cromo');
+    mounted = true;
+    // If the stylesheet failed to load the canvas would sit in normal flow.
+    if (getComputedStyle(canvas).position !== 'fixed') {
+      unmount();
+      return;
+    }
     start();
   };
 
-  window.addEventListener('resize', () => { resize(); draw(performance.now()); });
+  window.addEventListener('resize', () => { if (mounted) { resize(); draw(performance.now()); } });
   window.addEventListener('pointermove', (event) => {
     pointerX = event.clientX / window.innerWidth;
     pointerY = 1 - event.clientY / window.innerHeight;
@@ -186,11 +211,14 @@ void main(){
   document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
   canvas.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
-    stop();
-    root.classList.remove('cromo');
+    unmount();
   });
-  const onMotionChange = () => (reduceMotion.matches ? (stop(), draw(0)) : start());
+  const onMotionChange = () => {
+    if (!mounted) return;
+    if (reduceMotion.matches) { stop(); draw(0); } else start();
+  };
   if (reduceMotion.addEventListener) reduceMotion.addEventListener('change', onMotionChange);
+  else if (reduceMotion.addListener) reduceMotion.addListener(onMotionChange);
 
   if (document.body) mount();
   else document.addEventListener('DOMContentLoaded', mount, { once: true });
