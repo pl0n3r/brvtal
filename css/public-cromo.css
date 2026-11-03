@@ -5,7 +5,7 @@
  * Colors come from the Theme Studio variables (--bg, --fg, --red).
  */
 
-#cromoGL{
+html.cromo #cromoGL{
   position:fixed;
   inset:0;
   width:100%;
@@ -44,10 +44,10 @@ html.cromo .home-phase-a-hero .hero-title{
 }
 
 /* Hero text sits on dark plates so it never depends on the shader frame. */
-html.cromo body .home-phase-a-hero .hero-copy .eyebrow,
-html.cromo body .home-phase-a-hero .hero-copy .hero-sub,
-html.cromo body .home-phase-a-hero .c5-hero-statement{
-  background:rgba(3,3,3,.9)!important;
+html.cromo body main#top .home-phase-a-hero .hero-copy .eyebrow,
+html.cromo body main#top .home-phase-a-hero .hero-copy .hero-sub,
+html.cromo body main#top .home-phase-a-hero .c5-hero-statement{
+  background:rgba(3,3,3,.9);
   padding:.5em .9em;
 }
 html.cromo body .home-phase-a-hero .hero-copy .eyebrow{width:fit-content;max-width:100%}
