@@ -667,6 +667,21 @@ function brvtal_public_home_identity(string $html): string
         );
     }
 
+    if (!str_contains($html, 'css/public-cromo.css')) {
+        $html = str_replace(
+            '</head>',
+            "  <link rel=\"stylesheet\" href=\"css/public-cromo.css\">\n</head>",
+            $html
+        );
+    }
+    if (!str_contains($html, 'js/public-cromo.js')) {
+        $html = str_replace(
+            '</body>',
+            "  <script src=\"js/public-cromo.js\" defer></script>\n</body>",
+            $html
+        );
+    }
+
     if (!str_contains($html, 'css/public-home-phase-a.css')) {
         $html = str_replace(
             '</head>',
