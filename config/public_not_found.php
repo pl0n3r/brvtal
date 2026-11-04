@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/public_cromo_chrome.php';
+
 function brvtal_public_not_found_page(array $seo, string $analytics = ''): string
 {
     $escape = static fn(mixed $value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -8,6 +10,7 @@ function brvtal_public_not_found_page(array $seo, string $analytics = ''): strin
     $description = $escape($seo['description'] ?? 'The requested BRVTAL public resource could not be found.');
     $image = $escape($seo['image'] ?? '/assets/brvtal-logo.jpeg');
     $tags = brvtal_public_seo_tags($seo);
+    $topbar = brvtalPublicCromoTopbar('/', '← VOLVER AL INICIO');
 
     return <<<HTML
 <!doctype html>
@@ -30,7 +33,7 @@ function brvtal_public_not_found_page(array $seo, string $analytics = ''): strin
 </head>
 <body class="cromo-page">
   <a class="skip-link" href="#main-content">IR AL CONTENIDO</a>
-  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/">← VOLVER AL INICIO</a></header>
+  {$topbar}
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
       <div class="entity-image"><img src="{$image}" alt="BRVTAL" loading="eager" fetchpriority="high" decoding="async"><span>404 / BRVTAL</span></div>
@@ -46,6 +49,8 @@ function brvtal_public_not_found_page(array $seo, string $analytics = ''): strin
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$analytics}
   <script src="/js/public-cromo.js" defer></script>
+  <script src="/js/public-cromo-sound.js" defer></script>
+  <script src="/js/public-cromo-pages.js" defer></script>
 </body>
 </html>
 HTML;
