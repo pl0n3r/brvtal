@@ -40,12 +40,12 @@ const fixture = `<!doctype html>
 <body data-concept="05">
   <header class="nav" data-fidelity-block>
     <a class="brand" href="#top"><span>BRVTAL</span><small>RAVE TILL GRAVE</small></a>
-    <nav class="c5-header-nav" aria-label="Primary">
-      <a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a>
-      <a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a>
+    <nav class="c5-header-nav" aria-label="Navegación principal">
+      <a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a><a href="#sets">SONIDO</a>
+      <a href="/releases">DISCOS</a><a href="#transmissions">JOURNAL</a><a href="#connected">CONECTADO</a>
     </nav>
     <span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>
-    <a class="c5-header-ticket" href="#genesis">TICKETS <span>↗</span></a>
+    <a class="c5-header-ticket" href="#genesis">ENTRADAS <span>↗</span></a>
     <div class="nav-right">
       <button class="menu magnetic" type="button">MENU +</button>
     </div>
@@ -55,28 +55,28 @@ const fixture = `<!doctype html>
     <section class="hero scene home-phase-a-hero" data-fidelity-block>
       <div class="hero-grid"></div><div class="hero-scan"></div><div class="hero-glitch-lines"></div>
       <div class="hero-copy">
-        <div class="eyebrow mono">UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA</div>
+        <div class="eyebrow mono">CULTURA ELECTRÓNICA UNDERGROUND / PEREIRA / COLOMBIA</div>
         <h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1>
-        <div class="hero-sub"><span>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
+        <div class="hero-sub"><span>RAVE TILL GRAVE</span><span>DESDE 2026</span></div>
         <div class="hero-declaration">
-          <span class="mono">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
+          <span class="mono">EVENTOS / SONIDO / ARTISTAS / ARCHIVO</span>
           <strong>UNA CULTURA EN MOVIMIENTO.</strong>
           <p>Independent electronic culture from Pereira, Colombia.</p>
           <a class="c5-hero-explore" href="#genesis">EXPLORA BRVTAL <span>↘</span></a>
         </div>
       </div>
-      <figure class="c5-hero-documentary" hidden><figcaption><span>DOCUMENT</span><span>BRVTAL ARCHIVE</span></figcaption></figure>
+      <figure class="c5-hero-documentary" hidden><figcaption><span>DOCUMENT</span><span>ARCHIVO BRVTAL</span></figcaption></figure>
       <div class="hero-logo-wrap"></div>
-      <div class="hero-bottom mono"><span>SCROLL TO ENTER</span><span>NOISE / SIGNAL / MUSIC</span></div>
+      <div class="hero-bottom mono"><span>DESLIZA PARA ENTRAR</span><span>RUIDO / SEÑAL / MÚSICA</span></div>
     </section>
 
     <section class="genesis scene c5-experience-authored c5-numbered" id="genesis" data-fidelity-block>
-      <div class="genesis-bg c5-experience-artwork is-media-missing"><span class="c5-experience-artwork-label mono">BRVTAL / NEXT EXPERIENCE</span></div>
+      <div class="genesis-bg c5-experience-artwork is-media-missing"><span class="c5-experience-artwork-label mono">BRVTAL / PRÓXIMA EXPERIENCIA</span></div>
       <div class="genesis-noise"></div><div class="genesis-scanline"></div>
       <div class="genesis-copy">
-        <div class="eyebrow mono">NEXT EXPERIENCE / BRVTAL</div>
+        <div class="eyebrow mono">PRÓXIMA EXPERIENCIA / BRVTAL</div>
         <h2 data-fidelity-title>PSYCHOTIC INDUSTRIAL CEREMONY WITH A VERY LONG NAME</h2>
-        <p class="genesis-tag">LAST TICKETS.</p>
+        <p class="genesis-tag">ÚLTIMAS ENTRADAS.</p>
         <div class="genesis-data mono">
           <span data-label="DATE">14.08.2026</span><span data-label="TIME">21:00</span>
           <span data-label="LOCATION">PEREIRA / LA PERLA / INDUSTRIAL FLOOR</span>
@@ -87,27 +87,27 @@ const fixture = `<!doctype html>
         </div>
         <p class="c5-experience-note">One night. Nine sounds. No decorative data pretending to be editorial truth.</p>
         <div class="experience-lineup"><span class="mono">LINEUP</span><p>HAKKI / CRIXXES'T / THEMIIME / DNL5 / SANTY KORE / PL0N3R</p></div>
-        <div class="experience-actions"><a class="enter" href="/events/genesis">ENTER EXPERIENCE <span>↗</span></a><a class="ticket-cta" href="#tickets">TICKETS ↗</a></div>
+        <div class="experience-actions"><a class="enter" href="/events/genesis">ENTRAR <span>↗</span></a><a class="ticket-cta" href="#tickets">ENTRADAS ↗</a></div>
       </div>
       <div class="genesis-eyes"></div><div class="genesis-orbit"></div>
     </section>
 
     <section class="events scene c5-numbered" id="events" data-fidelity-block>
-      <div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span><h2>NIGHTS</h2><span class="mono">DRAG / SWIPE →</span></div>
+      <div class="section-head"><span class="mono">NOCHES BRVTAL / 02</span><h2>NOCHES</h2><span class="mono">ARRASTRA / DESLIZA →</span></div>
       <div class="events-track">
         <article class="event-card c5-night-card" data-c5-lifecycle="active">
           <div class="event-img is-media-missing"></div>
-          <div class="event-info"><span class="mono">14.08.2026 / PEREIRA</span><h3 data-fidelity-title>VERY LONG NIGHT TITLE THAT MUST WRAP WITHOUT ESCAPING THE CARD</h3><p>WAREHOUSE / PEREIRA</p><span class="event-status">ACTIVE</span><div class="c5-night-actions"><a class="event-record mono" href="/events/night">VIEW RECORD ↗</a></div></div>
+          <div class="event-info"><span class="mono">14.08.2026 / PEREIRA</span><h3 data-fidelity-title>VERY LONG NIGHT TITLE THAT MUST WRAP WITHOUT ESCAPING THE CARD</h3><p>WAREHOUSE / PEREIRA</p><span class="event-status">ACTIVE</span><div class="c5-night-actions"><a class="event-record mono" href="/events/night">VER REGISTRO ↗</a></div></div>
         </article>
-        <article class="event-card c5-night-card"><div class="event-img is-media-missing"></div><div class="event-info"><span class="mono">07.08.2026 / PEREIRA</span><h3>SESSION 05</h3><p>BRVTAL</p><span class="event-status">ARCHIVE</span></div></article>
-        <article class="event-card c5-night-card"><div class="event-img is-media-missing"></div><div class="event-info"><span class="mono">01.08.2026 / PEREIRA</span><h3>AFTERIMAGE</h3><p>BRVTAL</p><span class="event-status">ARCHIVE</span></div></article>
-        <article class="event-card c5-night-card"><div class="event-img is-media-missing"></div><div class="event-info"><span class="mono">01.07.2026 / PEREIRA</span><h3>NO SIGNAL</h3><p>BRVTAL</p><span class="event-status">ARCHIVE</span></div></article>
+        <article class="event-card c5-night-card"><div class="event-img is-media-missing"></div><div class="event-info"><span class="mono">07.08.2026 / PEREIRA</span><h3>SESSION 05</h3><p>BRVTAL</p><span class="event-status">ARCHIVO</span></div></article>
+        <article class="event-card c5-night-card"><div class="event-img is-media-missing"></div><div class="event-info"><span class="mono">01.08.2026 / PEREIRA</span><h3>AFTERIMAGE</h3><p>BRVTAL</p><span class="event-status">ARCHIVO</span></div></article>
+        <article class="event-card c5-night-card"><div class="event-img is-media-missing"></div><div class="event-info"><span class="mono">01.07.2026 / PEREIRA</span><h3>NO SIGNAL</h3><p>BRVTAL</p><span class="event-status">ARCHIVO</span></div></article>
       </div>
       <a class="c5-section-route" href="/events">VER TODAS LAS NOCHES →</a>
     </section>
 
     <section class="artists scene c5-numbered" id="artists" data-fidelity-block>
-      <div class="section-head"><span class="mono">BRVTAL ARTISTS / 03</span><h2>ARTISTS</h2><span class="mono">CORE / ALUMNI / COLLABORATORS</span></div>
+      <div class="section-head"><span class="mono">ARTISTAS BRVTAL / 03</span><h2>ARTISTAS</h2><span class="mono">NÚCLEO / VETERANOS / COLABORADORES</span></div>
       <div class="artist-list">
         <section class="roster-group roster-group--active"><div class="roster-group-head mono"><span>CORE / ACTIVE</span><b>02</b></div>
           <a class="artist c5-artist-card" href="/artists/pl0n3r"><span class="c5-artist-index">01</span><strong>PL0N3R</strong><i>BRVTAL / ACTIVE</i></a>
@@ -118,8 +118,8 @@ const fixture = `<!doctype html>
     </section>
 
     <section class="sets scene c5-numbered" id="sets" data-fidelity-block>
-      <div class="section-head"><span class="mono">BRVTAL SOUND / 04</span><h2>SOUND</h2><span class="mono">SETS / LISTEN / ARCHIVE</span></div>
-      <div class="sets-intro"><p class="mono">SOUND IS NOT BACKGROUND.</p><h3>IT IS THE<br><em>EXPERIENCE.</em></h3></div>
+      <div class="section-head"><span class="mono">SONIDO BRVTAL / 04</span><h2>SONIDO</h2><span class="mono">SETS / LISTEN / ARCHIVE</span></div>
+      <div class="sets-intro"><p class="mono">EL SONIDO NO ES FONDO.</p><h3>ES LA<br><em>EXPERIENCIA.</em></h3></div>
       <div class="set-list">
         <article class="set-library-item c5-sound-record c5-sound-feature">
           <span class="set-num mono">01</span><div class="set-library-cover is-media-missing"></div>
@@ -130,8 +130,8 @@ const fixture = `<!doctype html>
     </section>
 
     <section class="media scene c5-numbered" id="media" data-fidelity-block>
-      <div class="media-title"><span class="mono">BRVTAL MEMORIES / 05</span><h2>MEMORIES</h2><div class="media-title-note"><strong>THE NIGHT REMAINS.</strong><p>A curated record.</p></div></div>
-      <div class="public-media-tools"><label><span class="mono">SEARCH MEDIA</span><input type="search" value=""></label><div class="public-media-types"><button type="button">ALL</button><button type="button">IMAGES</button><button type="button">VIDEO</button></div></div>
+      <div class="media-title"><span class="mono">MEMORIAS BRVTAL / 05</span><h2>MEMORIAS</h2><div class="media-title-note"><strong>LA NOCHE PERMANECE.</strong><p>Un registro seleccionado.</p></div></div>
+      <div class="public-media-tools"><label><span class="mono">BUSCAR</span><input type="search" value=""></label><div class="public-media-types"><button type="button">TODO</button><button type="button">IMÁGENES</button><button type="button">VÍDEO</button></div></div>
       <div class="media-grid public-media-grid">
         <button class="m c5-memory-cell public-media-open" type="button"><span class="c5-memory-annotation">01 / WAREHOUSE PRESSURE</span></button>
         <button class="m c5-memory-cell public-media-open" type="button"><span class="c5-memory-annotation">02 / RED AFTERIMAGE</span></button>
@@ -140,8 +140,8 @@ const fixture = `<!doctype html>
     </section>
 
     <section class="scene transmissions c5-numbered" id="transmissions" data-fidelity-block>
-      <div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span><h2>JOURNAL</h2><span class="mono">SIGNAL ARCHIVE</span></div>
-      <div class="transmissions-intro"><h3>FIELD<br>NOTES.</h3><p>Dispatches from BRVTAL culture and the rooms that keep the signal alive.</p></div>
+      <div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span><h2>JOURNAL</h2><span class="mono">ARCHIVO DE SEÑALES</span></div>
+      <div class="transmissions-intro"><h3>NOTAS DE<br>CAMPO.</h3><p>Dispatches from BRVTAL culture and the rooms that keep the signal alive.</p></div>
       <div class="transmissions-list">
         <article class="transmission-card transmission-feature"><div class="transmission-cover is-media-missing"></div><div class="transmission-copy"><a class="transmission-link" href="/blog/night"><h3 data-fidelity-title>THE NIGHT DOES NOT END WHEN THE LIGHTS TURN ON</h3></a><p>Editorial field note.</p></div><a class="transmission-open" href="/blog/night">READ ↗</a></article>
         <article class="transmission-card transmission-indexed"><span class="mono">02</span><div class="transmission-copy"><a class="transmission-link" href="/blog/signal"><h3>FIELD SIGNAL</h3></a></div><span class="transmission-meta mono">2026</span></article>
@@ -151,13 +151,13 @@ const fixture = `<!doctype html>
 
     <section class="connected scene c5-numbered" id="connected" data-fidelity-block>
       <div class="c5-connected-graph">
-        <div class="c5-connected-kicker mono">PUBLIC RELATIONAL SYSTEM / VERIFIED EDGES ONLY</div>
+        <div class="c5-connected-kicker mono">SISTEMA RELACIONAL PÚBLICO / SOLO VÍNCULOS VERIFICADOS</div>
         <ul class="c5-connected-nodes">
-          <li><a href="#events"><span class="mono">EVENTS</span><strong>08</strong></a></li>
-          <li><a href="#artists"><span class="mono">ARTISTS</span><strong>06</strong></a></li>
-          <li><a href="#sets"><span class="mono">SOUND</span><strong>05</strong></a></li>
-          <li><a href="/releases"><span class="mono">RECORDS</span><strong>03</strong></a></li>
-          <li><a href="#media"><span class="mono">MEMORIES</span><strong>21</strong></a></li>
+          <li><a href="#events"><span class="mono">EVENTOS</span><strong>08</strong></a></li>
+          <li><a href="#artists"><span class="mono">ARTISTAS</span><strong>06</strong></a></li>
+          <li><a href="#sets"><span class="mono">SONIDO</span><strong>05</strong></a></li>
+          <li><a href="/releases"><span class="mono">DISCOS</span><strong>03</strong></a></li>
+          <li><a href="#media"><span class="mono">MEMORIAS</span><strong>21</strong></a></li>
         </ul>
         <div class="c5-connected-ledger"></div><p class="c5-connected-edges mono">EVENTS ↔ ARTISTS ↔ SOUND ↔ MEMORIES</p><p class="c5-connected-tagline">TODO CONECTADO.</p>
       </div>
@@ -166,19 +166,19 @@ const fixture = `<!doctype html>
 
   <footer class="c5-footer" data-fidelity-block>
     <div class="c5-footer-grid">
-      <div class="c5-footer-brand"><span class="mono">PEREIRA / COLOMBIA</span><h2 data-fidelity-title>BRVTAL</h2><p>UNDERGROUND ELECTRONIC CULTURE / RAVE TILL GRAVE</p></div>
-      <nav class="c5-footer-nav"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a><a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a><a href="#connected">CONNECTED</a></nav>
+      <div class="c5-footer-brand"><span class="mono">PEREIRA / COLOMBIA</span><h2 data-fidelity-title>BRVTAL</h2><p>CULTURA ELECTRÓNICA UNDERGROUND / RAVE TILL GRAVE</p></div>
+      <nav class="c5-footer-nav"><a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a><a href="#sets">SONIDO</a><a href="/releases">DISCOS</a><a href="#transmissions">JOURNAL</a><a href="#connected">CONECTADO</a></nav>
       <div class="c5-footer-contact"><span class="mono">CONTACT</span><a href="mailto:contact@example.test">CONTACT ↗</a></div>
       <div class="c5-footer-socials"><a href="https://example.test">INSTAGRAM ↗</a><a href="https://example.test">SOUNDCLOUD ↗</a></div>
       <div class="c5-footer-legal"><span>© 2026 BRVTAL</span><a href="/privacy-policy">PRIVACY</a><span>CO / 05</span></div>
     </div>
   </footer>
 
-  <nav class="c5-bottom-nav" aria-label="Primary mobile">
-    <a href="#events"><span class="c5-bottom-icon" data-icon="nights"></span>NIGHTS</a>
-    <a href="#artists"><span class="c5-bottom-icon" data-icon="artists"></span>ARTISTS</a>
-    <a href="#sets"><span class="c5-bottom-icon" data-icon="sound"></span>SOUND</a>
-    <a href="/releases"><span class="c5-bottom-icon" data-icon="records"></span>RECORDS</a>
+  <nav class="c5-bottom-nav" aria-label="Navegación móvil principal">
+    <a href="#events"><span class="c5-bottom-icon" data-icon="nights"></span>NOCHES</a>
+    <a href="#artists"><span class="c5-bottom-icon" data-icon="artists"></span>ARTISTAS</a>
+    <a href="#sets"><span class="c5-bottom-icon" data-icon="sound"></span>SONIDO</a>
+    <a href="/releases"><span class="c5-bottom-icon" data-icon="records"></span>DISCOS</a>
     <a href="#transmissions"><span class="c5-bottom-icon" data-icon="journal"></span>JOURNAL</a>
   </nav>
 </body>
@@ -1204,7 +1204,7 @@ test('C05 owner v2 board real partial layout 390 and 1440 evidence', async ({ pa
       .evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
     await expect(page.locator('#transmissions .transmission-cover.is-media-missing')).toHaveCount(0);
     await expect(page.locator('#connected [data-connected-lines] line')).toHaveCount(2);
-    await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VERIFIED RELATIONAL LINKS IN THE PUBLIC ARCHIVE.');
+    await expect(page.locator('#connected [data-connected-edges]')).toContainText('3 VÍNCULOS VERIFICADOS EN EL ARCHIVO PÚBLICO.');
 
     const observed=await page.evaluate(()=>{
       const nodes=[...document.querySelectorAll('main#top>.c5-board-region')];

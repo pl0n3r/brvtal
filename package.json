@@ -1,6 +1,6 @@
 {
   "name": "brvtal",
-  "version": "0.1.207",
+  "version": "0.1.208",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,7 @@
     "test:factory-labels-permissions": "python3 -m unittest tests/test_factory_labels_permissions.py",
     "test:reliability": "python3 -m unittest tests/test_main_promise_reliability.py",
     "test:content-health-deflake": "python3 -m unittest tests/test_content_health_navigation_deflake.py",
-    "test:spanish-only": "python3 -m unittest tests/test_public_spanish_only.py",
+    "test:spanish-only": "python3 -m unittest tests/test_public_spanish_only.py tests/test_public_spanish_copy.py",
     "test:i18n": "python3 -m unittest tests/test_public_i18n_contract.py",
     "test:translation-cache": "python3 -m unittest tests/test_translation_cache.py",
     "test:deepl-adapter": "python3 -m unittest tests/test_deepl_adapter.py",

@@ -22,9 +22,9 @@ async function mountHarness(page, delivery = {}) {
     contentType:'text/html; charset=utf-8',
     body:`<!doctype html><html lang="en"><head><style>html,body{margin:0;background:#080808;color:#fff}${mediaCss}${memoriesCss}</style></head><body>
       <section class="media" aria-labelledby="memories-title">
-        <div class="media-title"><span class="mono">VISUAL ARCHIVE / 06</span><h2 id="memories-title">MEMORIES</h2><div class="media-title-note"><strong>THE NIGHT REMAINS.</strong><p>A curated record of light, noise, bodies and afterimages.</p></div></div>
-        <div class="public-media-tools"><label><span>SEARCH MEDIA</span><input type="search" data-public-media-search></label><div class="public-media-types"><button data-public-media-type="all">ALL</button><button data-public-media-type="image">IMAGES</button><button data-public-media-type="video">VIDEO</button><button data-public-media-type="audio">AUDIO</button></div></div>
-        <div data-public-media-count></div><div data-public-media-empty hidden><p>NO MEMORIES MATCH THESE FILTERS.</p><button type="button" data-public-media-reset>CLEAR FILTERS</button></div><div class="media-grid"></div>
+        <div class="media-title"><span class="mono">ARCHIVO VISUAL / 06</span><h2 id="memories-title">MEMORIAS</h2><div class="media-title-note"><strong>LA NOCHE PERMANECE.</strong><p>Un registro seleccionado de luces, ruido, cuerpos y ecos visuales.</p></div></div>
+        <div class="public-media-tools"><label><span>BUSCAR</span><input type="search" data-public-media-search></label><div class="public-media-types"><button data-public-media-type="all">ALL</button><button data-public-media-type="image">IMAGES</button><button data-public-media-type="video">VIDEO</button><button data-public-media-type="audio">AUDIO</button></div></div>
+        <div data-public-media-count></div><div data-public-media-empty hidden><p>NINGUNA MEMORIA COINCIDE CON LOS FILTROS.</p><button type="button" data-public-media-reset>BORRAR FILTROS</button></div><div class="media-grid"></div>
       </section><script>${mediaJs}</script></body></html>`,
   }));
   await page.goto(harnessUrl);
@@ -65,7 +65,7 @@ test('Home Memories consumes only the curated collection from the canonical publ
 test('Memories keeps a two-column mobile editorial rhythm with deliberate full-span records and no overflow', async ({ page }) => {
   await page.setViewportSize({width:390,height:844}); await mountHarness(page); const cards=page.locator('[data-public-media-item]'); await expect(cards).toHaveCount(4); const boxes=await Promise.all([0,1,2,3].map(index=>cards.nth(index).boundingBox())); for(const box of boxes)expect(box).not.toBeNull();
   expect(boxes[0].width).toBeGreaterThan(340);expect(boxes[1].width).toBeGreaterThan(160);expect(boxes[1].width).toBeLessThan(180);expect(Math.abs(boxes[1].y-boxes[2].y)).toBeLessThan(4);expect(boxes[2].x).toBeGreaterThan(boxes[1].x+boxes[1].width-2);expect(boxes[3].y).toBeGreaterThan(boxes[1].y+100);
-  for(const button of await page.locator('[data-public-media-type]').all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);} const relationBox=await page.getByRole('link',{name:'EVENT / GENESIS'}).boundingBox();expect(relationBox.height).toBeGreaterThanOrEqual(44);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true); await expect(page.getByRole('heading',{name:'MEMORIES'})).toBeVisible(); await expect(page.getByText('THE NIGHT REMAINS.')).toBeVisible();
+  for(const button of await page.locator('[data-public-media-type]').all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);} const relationBox=await page.getByRole('link',{name:'EVENT / GENESIS'}).boundingBox();expect(relationBox.height).toBeGreaterThanOrEqual(44);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true); await expect(page.getByRole('heading',{name:'MEMORIES'})).toBeVisible(); await expect(page.getByText('LA NOCHE PERMANECE.')).toBeVisible();
 });
 
 const replayPixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/J0kAAAAASUVORK5CYII=', 'base64');

@@ -445,13 +445,13 @@ window.BRVTALPublicLocale = PublicLocale;
     };
 
     const eventStatusLabel = (event, status, index) => {
-      if (event.__brvtalArchive) return 'ARCHIVE';
-      if (status !== 'PUBLISHED') return status;
-      return index === 0 ? 'NEXT EXPERIENCE' : 'ACTIVE';
+      if (event.__brvtalArchive) return 'ARCHIVO';
+      if (status !== 'PUBLISHED') return ({SOLD_OUT:'AGOTADO',LAST_TICKETS:'ÚLTIMAS ENTRADAS',TICKETS_AVAILABLE:'ENTRADAS DISPONIBLES',UPCOMING:'PRÓXIMAMENTE',CANCELLED:'CANCELADO'})[status] || status;
+      return index === 0 ? 'PRÓXIMA EXPERIENCIA' : 'ACTIVO';
     };
 
     const eventCardMarkup = (event, index) => {
-      const title = pick(event,['title','name'],'UNTITLED EVENT');
+      const title = pick(event,['title','name'],'EVENTO SIN TÍTULO');
       const image = imgUrl(pick(event,['cover_image','coverImage','image','photo','flyer'],''));
       const date = formatDate(pick(event,['event_date','eventDate','date'],''));
       const city = pick(event,['city'],'');
@@ -474,12 +474,12 @@ window.BRVTALPublicLocale = PublicLocale;
 
       let recordAction = '';
       if (record) {
-        recordAction = `<a class="event-record mono" href="${esc(record)}">VIEW RECORD ↗</a>`;
+        recordAction = `<a class="event-record mono" href="${esc(record)}">VER REGISTRO ↗</a>`;
       }
 
       let ticketAction = '';
       if (ticket) {
-        ticketAction = `<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">TICKETS ↗</a>`;
+        ticketAction = `<a class="event-ticket mono" href="${esc(ticket)}" target="_blank" rel="noopener">ENTRADAS ↗</a>`;
       }
 
       return `<article class="${className}" data-c5-night-card data-c5-lifecycle="${lifecycle}">
@@ -516,12 +516,12 @@ window.BRVTALPublicLocale = PublicLocale;
       const preview = qs('.artist-preview img');
       list.innerHTML = items.map((a,i) => {
         const name = pick(a,['name','title'],'UNKNOWN');
-        const bio = pick(a,['bio','genre','style'],'BRVTAL ARTIST');
+        const bio = pick(a,['bio','genre','style'],'ARTISTA BRVTAL');
         const photo = imgUrl(pick(a,['photo','image','cover_image'],''));
         const slug = String(pick(a,['slug'],'')).trim();
         const href = slug ? `/artists/${encodeURIComponent(slug)}` : '#artists';
         return `<a class="artist" href="${esc(href)}"
-          ${photo ? `data-image="${esc(photo)}"` : ''} data-cursor="PROFILE">
+          ${photo ? `data-image="${esc(photo)}"` : ''} data-cursor="PERFIL">
           <span>${String(i+1).padStart(2,'0')}</span><strong>${esc(name)}</strong><i>${esc(bio)}</i>
         </a>`;
       }).join('');
@@ -543,10 +543,10 @@ window.BRVTALPublicLocale = PublicLocale;
       list.innerHTML = items.map((s,i) => {
         const title = pick(s,['title','name'],'BRVTAL SET');
         const artist = pick(s,['artist_name','artistName','artist'],'BRVTAL');
-        const desc = pick(s,['description','genre','style'],'ELECTRONIC MUSIC');
+        const desc = pick(s,['description','genre','style'],'MÚSICA ELECTRÓNICA');
         const url = cleanUrl(pick(s,['external_url','externalUrl','url','soundcloud_url'],''));
         const platform = String(pick(s,['platform'],'soundcloud')).toUpperCase();
-        return `<article class="set-item" data-cursor="PLAY">
+        return `<article class="set-item" data-cursor="REPRODUCIR">
           <div class="set-num mono">${String(i+1).padStart(3,'0')}</div>
           <div class="set-main"><span class="mono">${esc(platform)}</span><h4>${esc(title)}</h4><p>${esc([artist,desc].filter(Boolean).join(' / '))}</p></div>
           ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="${esc(platform)}">↗</a>` : ''}
@@ -635,7 +635,7 @@ window.BRVTALPublicLocale = PublicLocale;
 
     const updateStatus = (ok, detail='') => {
       if (statusEl) {
-        statusEl.textContent = ok ? 'LIVE / CMS CONNECTED' : 'STATIC / API OFFLINE';
+        statusEl.textContent = ok ? 'EN VIVO / CMS CONECTADO' : 'ESTÁTICO / API SIN CONEXIÓN';
         statusEl.dataset.state = ok ? 'live' : 'offline';
       }
       if (fallbackEl) fallbackEl.hidden = ok;

@@ -76,16 +76,16 @@ function markup() {
 <style>:root{--line:rgba(255,255,255,.2);--accent:#62ff21}*{box-sizing:border-box}html,body{margin:0;width:100%;overflow-x:hidden;background:#050505;color:#e8e6df}${css}</style>
 </head><body data-concept="05">
 <section class="sets scene c5-numbered" id="sets">
-  <div class="section-head"><span class="mono">BRVTAL SOUND / 04</span><h2>SOUND</h2><span class="mono">SETS / LISTEN / ARCHIVE</span></div>
-  <div class="sets-intro"><p class="mono">SOUND IS NOT BACKGROUND.</p><h3>IT IS THE<br><em>EXPERIENCE.</em></h3></div>
+  <div class="section-head"><span class="mono">SONIDO BRVTAL / 04</span><h2>SONIDO</h2><span class="mono">SETS / LISTEN / ARCHIVE</span></div>
+  <div class="sets-intro"><p class="mono">EL SONIDO NO ES FONDO.</p><h3>ES LA<br><em>EXPERIENCIA.</em></h3></div>
   <div class="set-list"><article id="fallback-set">STATIC FALLBACK</article></div>
 </section>
 <section id="eventArchive"></section>
 <section class="media scene c5-numbered" id="media" aria-labelledby="memories-title">
-  <div class="media-title"><span class="mono">BRVTAL MEMORIES / 05</span><h2 id="memories-title">MEMORIES</h2><div class="media-title-note"><strong>THE NIGHT REMAINS.</strong><p>A curated record.</p></div></div>
-  <div class="public-media-tools"><label><span>SEARCH MEDIA</span><input type="search" data-public-media-search></label><div class="public-media-types"><button type="button" data-public-media-type="all">ALL</button><button type="button" data-public-media-type="image">IMAGES</button><button type="button" data-public-media-type="video">VIDEO</button><button type="button" data-public-media-type="audio">AUDIO</button></div></div>
+  <div class="media-title"><span class="mono">MEMORIAS BRVTAL / 05</span><h2 id="memories-title">MEMORIAS</h2><div class="media-title-note"><strong>LA NOCHE PERMANECE.</strong><p>Un registro seleccionado.</p></div></div>
+  <div class="public-media-tools"><label><span>BUSCAR</span><input type="search" data-public-media-search></label><div class="public-media-types"><button type="button" data-public-media-type="all">TODO</button><button type="button" data-public-media-type="image">IMÁGENES</button><button type="button" data-public-media-type="video">VÍDEO</button><button type="button" data-public-media-type="audio">AUDIO</button></div></div>
   <div data-public-media-count></div>
-  <div data-public-media-empty hidden><p>NO MEMORIES MATCH THESE FILTERS.</p><button type="button" data-public-media-reset>CLEAR FILTERS</button></div>
+  <div data-public-media-empty hidden><p>NINGUNA MEMORIA COINCIDE CON LOS FILTROS.</p><button type="button" data-public-media-reset>BORRAR FILTROS</button></div>
   <div class="media-grid"></div>
 </section>
 </body></html>`;
@@ -366,8 +366,8 @@ test('Concept 05 Sound and Memories actions follow ES/EN locale without duplicat
     document.documentElement.dataset.locale = 'en';
     window.dispatchEvent(new CustomEvent('brvtal:localechange'));
   });
-  await expect(page.locator('.c5-section-route--sound')).toHaveText('EXPLORE SOUND ↗');
-  await expect(page.locator('.c5-section-route--memories')).toHaveText('EXPLORE ARCHIVE ↓');
+  await expect(page.locator('.c5-section-route--sound')).toHaveText('EXPLORAR SONIDO ↗');
+  await expect(page.locator('.c5-section-route--memories')).toHaveText('EXPLORAR ARCHIVO ↓');
 
   await page.evaluate(() => window.BRVTAL_CONCEPT05_SOUND_MEMORIES_INIT());
   await expect(page.locator('.c5-section-route--sound')).toHaveCount(1);
@@ -527,10 +527,10 @@ test('Concept 05 loads only allowlisted official embed after user activation', a
     document.documentElement.dataset.locale = 'en';
     window.dispatchEvent(new Event('brvtal:localechange'));
   });
-  await expect(play).toHaveText('CLOSE PLAYER ×');
+  await expect(play).toHaveText('CERRAR REPRODUCTOR ×');
   await play.click();
   await expect(page.locator('.c5-sound-player-frame iframe')).toHaveCount(0);
-  await expect(play).toHaveText('PLAY FEATURED SET ↗');
+  await expect(play).toHaveText('REPRODUCIR SET DESTACADO ↗');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 

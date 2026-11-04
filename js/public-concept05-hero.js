@@ -43,8 +43,8 @@
       if (!path) continue;
       return {
         src:path,
-        alt:String(item.alt_text || item.title || item.name || 'BRVTAL archive').trim(),
-        label:String(item.title || item.name || item.context || 'BRVTAL ARCHIVE').trim(),
+        alt:String(item.alt_text || item.title || item.name || 'Archivo BRVTAL').trim(),
+        label:String(item.title || item.name || item.context || 'ARCHIVO BRVTAL').trim(),
       };
     }
     return null;
@@ -226,9 +226,9 @@
     const documentary = documentaryFrom(data);
     if (!documentary) return false;
 
-    image.alt = documentary.alt || 'BRVTAL archive';
+    image.alt = documentary.alt || 'Archivo BRVTAL';
     const label = figure.querySelector('[data-c5-hero-documentary-label]');
-    if (label) label.textContent = documentary.label || 'BRVTAL ARCHIVE';
+    if (label) label.textContent = documentary.label || 'ARCHIVO BRVTAL';
     image.loading = 'eager';
     image.decoding = 'async';
     image.fetchPriority = 'high';
@@ -274,7 +274,7 @@
       if (section.querySelector('img[data-c5-editorial-media="' + key + '"]')) return;
       const image = document.createElement('img');
       image.dataset.c5EditorialMedia = key;
-      image.alt = 'BRVTAL editorial ' + key.replace('_', ' ');
+      image.alt = 'Editorial BRVTAL ' + key.replace('_', ' ');
       image.width = 384;
       image.height = 240;
       image.style.maxWidth = '100%';

@@ -24,7 +24,7 @@ const fixture = `<!doctype html>
 <body data-concept="05">
   <header class="nav">
     <a class="brand" href="#top"><span>BRVTAL</span><small>RAVE TILL GRAVE</small></a>
-    <nav class="c5-header-nav" aria-label="Primary"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a></nav>
+    <nav class="c5-header-nav" aria-label="Navegación principal"><a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a><a href="#sets">SONIDO</a></nav>
     <div class="nav-right"><button class="menu">MENU</button></div>
   </header>
   <main id="top">
@@ -33,29 +33,29 @@ const fixture = `<!doctype html>
       <div class="hero-scan"></div>
       <div class="hero-glitch-lines"></div>
       <div class="hero-copy">
-        <div class="eyebrow mono">UNDERGROUND ELECTRONIC CULTURE / PEREIRA / COLOMBIA</div>
+        <div class="eyebrow mono">CULTURA ELECTRÓNICA UNDERGROUND / PEREIRA / COLOMBIA</div>
         <h1 class="hero-title" data-text="BRVTAL">BRVTAL</h1>
-        <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>EST. 2026</span></div>
+        <div class="hero-sub"><span data-site-tagline>RAVE TILL GRAVE</span><span>DESDE 2026</span></div>
         <div class="hero-declaration c5-hero-statement">
-          <span class="mono" data-c5-hero-eyebrow data-c5-default-es="EVENTS / SOUND / ARTISTS / ARCHIVE" data-c5-default-en="EVENTS / SOUND / ARTISTS / ARCHIVE">EVENTS / SOUND / ARTISTS / ARCHIVE</span>
-          <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MORE THAN PARTIES.&#10;A CULTURE IN MOTION." data-c5-display-locale="es" data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
-          <p data-c5-hero-description data-c5-default-description="PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE">PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE</p>
+          <span class="mono" data-c5-hero-eyebrow data-c5-default-es="EVENTOS / SONIDO / ARTISTAS / ARCHIVO" data-c5-default-en="EVENTOS / SONIDO / ARTISTAS / ARCHIVO">EVENTOS / SONIDO / ARTISTAS / ARCHIVO</span>
+          <strong data-c5-default-es="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-default-en="MÁS QUE FIESTAS.&#10;UNA CULTURA EN MOVIMIENTO." data-c5-display-locale="es" data-c5-hero-manifesto>MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.</strong>
+          <p data-c5-hero-description data-c5-default-description="PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND">PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND</p>
           <a class="c5-hero-explore magnetic" href="#genesis" data-cursor="EXPLORE" data-c5-hero-cta data-c5-default-es="EXPLORA BRVTAL" data-c5-default-en="EXPLORE BRVTAL">EXPLORA BRVTAL <span>↘</span></a>
         </div>
       </div>
       <figure class="c5-hero-documentary" data-c5-hero-documentary hidden>
         <img data-c5-hero-documentary-image src="" alt="" decoding="async" fetchpriority="low">
-        <figcaption><span>DOCUMENT / MEDIA LIBRARY</span><span data-c5-hero-documentary-label>BRVTAL ARCHIVE</span></figcaption>
+        <figcaption><span>DOCUMENTO / ARCHIVO VISUAL</span><span data-c5-hero-documentary-label>ARCHIVO BRVTAL</span></figcaption>
       </figure>
       <div class="hero-logo-wrap"></div>
-      <div class="hero-bottom mono"><span>SCROLL TO ENTER</span><span>NOISE / SIGNAL / MUSIC</span></div>
+      <div class="hero-bottom mono"><span>DESLIZA PARA ENTRAR</span><span>RUIDO / SEÑAL / MÚSICA</span></div>
     </section>
     <section id="genesis"></section>
     <section id="events"></section>
     <section id="artists"></section>
     <section id="sets"></section>
   </main>
-  <nav class="c5-bottom-nav" aria-label="Primary mobile"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a><a href="#sets">SOUND</a><a href="/releases">RECORDS</a><a href="#transmissions">JOURNAL</a></nav>
+  <nav class="c5-bottom-nav" aria-label="Navegación móvil principal"><a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a><a href="#sets">SONIDO</a><a href="/releases">DISCOS</a><a href="#transmissions">JOURNAL</a></nav>
 </body>
 </html>`;
 
@@ -344,7 +344,7 @@ test('Concept 05 CMS manifesto changes per locale and viewport without overflow'
       });
     });
     await expect(page.locator('[data-c5-hero-manifesto]')).toHaveText(
-      /MORE THAN PARTIES\.\s*A CULTURE IN MOTION\./
+      /MÁS QUE FIESTAS\.\s*UNA CULTURA EN MOVIMIENTO\./
     );
     await page.evaluate(() => {
       document.documentElement.lang = 'es';
@@ -478,7 +478,7 @@ test('Concept 05 editable CTA and eyebrow hydrate safely and restore per locale'
     });
   });
   await expect(cta).toContainText('EXPLORE BRVTAL');
-  await expect(eyebrow).toHaveText('EVENTS / SOUND / ARTISTS / ARCHIVE');
+  await expect(eyebrow).toHaveText('EVENTOS / SONIDO / ARTISTAS / ARCHIVO');
   await expect(cta.locator('span')).toHaveText('↘');
   expect(await page.evaluate(() => document.querySelectorAll('script').length)).toBeGreaterThan(0);
   expect(await page.evaluate(() =>
@@ -569,9 +569,9 @@ test('Concept 05 hydrates editable CMS hero fields on boot and locale change at 
       window.dispatchEvent(new Event('brvtal:localechange'));
     });
     await expect(cta).toContainText('EXPLORE BRVTAL');
-    await expect(eyebrow).toHaveText('EVENTS / SOUND / ARTISTS / ARCHIVE');
+    await expect(eyebrow).toHaveText('EVENTOS / SONIDO / ARTISTAS / ARCHIVO');
     await expect(page.locator('[data-c5-hero-manifesto]'))
-      .toHaveText(/MORE THAN PARTIES\.\s*A CULTURE IN MOTION\./);
+      .toHaveText(/MÁS QUE FIESTAS\.\s*UNA CULTURA EN MOVIMIENTO\./);
     await expect(cta.locator('span')).toHaveText('↘');
     expect(await page.evaluate(() =>
       document.documentElement.scrollWidth <= document.documentElement.clientWidth
@@ -601,8 +601,8 @@ test('Concept 05 PHP-rendered hero screenshot evidence at 390 and 1440', async (
   Object.assign(cms.payload.data.settings.site,{
     hero_manifesto_es:'MÁS QUE FIESTAS. UNA CULTURA EN MOVIMIENTO.',
     hero_cta_es:'EXPLORA BRVTAL',
-    hero_eyebrow_es:'EVENTS / SOUND / ARTISTS / ARCHIVE',
-    description:'PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE',
+    hero_eyebrow_es:'EVENTOS / SONIDO / ARTISTAS / ARCHIVO',
+    description:'PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND',
   });
   cms.payload.data.media = [{
     type:'image',title:'Synthetic CMS evidence',
@@ -722,7 +722,7 @@ test('Concept 05 blank CMS hero description keeps owner copy after edits at 390/
   for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
     await mount(page,viewport);
     const description=page.locator('[data-c5-hero-description]');
-    const fallback='PEREIRA / COLOMBIA · UNDERGROUND ELECTRONIC CULTURE';
+    const fallback='PEREIRA / COLOMBIA · CULTURA ELECTRÓNICA UNDERGROUND';
     await page.evaluate(() => {
       window.BRVTALConcept05Hero.projectDescription({
         settings:{site:{description:'',tagline:'RAVE TILL GRAVE'}}

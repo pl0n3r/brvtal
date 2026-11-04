@@ -58,7 +58,7 @@
       return `<div class="brvtal-hero-layer type-${esc(layer.type)} anim-${esc(layer.animation)}" style="${style}"><img ${sourceAttr} alt="" decoding="async"></div>`;
     }
     if (layer.type === 'cta') {
-      const text = esc(layer.text || 'ENTER EXPERIENCE');
+      const text = esc(layer.text || 'ENTRAR');
       return layer.url ? `<a class="brvtal-hero-layer type-cta anim-${esc(layer.animation)} magnetic" style="${style}" href="${esc(layer.url)}">${text} <span>↗</span></a>` : `<div class="brvtal-hero-layer type-cta anim-${esc(layer.animation)}" style="${style}">${text}</div>`;
     }
     return `<div class="brvtal-hero-layer type-text anim-${esc(layer.animation)}" style="${style}">${esc(layer.text || '')}</div>`;
@@ -78,8 +78,8 @@
 
   function controlsMarkup(total) {
     if (total <= 1) return '';
-    const dots = Array.from({length: total}, (_, i) => `<button type="button" data-hero-dot="${i}" class="${i === 0 ? 'active' : ''}" aria-label="Show slide ${i + 1}"></button>`).join('');
-    return `<div class="brvtal-hero-controls"><button type="button" data-hero-prev aria-label="Previous slide">←</button><div class="brvtal-hero-dots">${dots}</div><button type="button" data-hero-next aria-label="Next slide">→</button><button type="button" data-hero-pause aria-label="Pause automatic slides" aria-pressed="false">Ⅱ</button></div>`;
+    const dots = Array.from({length: total}, (_, i) => `<button type="button" data-hero-dot="${i}" class="${i === 0 ? 'active' : ''}" aria-label="Mostrar diapositiva ${i + 1}"></button>`).join('');
+    return `<div class="brvtal-hero-controls"><button type="button" data-hero-prev aria-label="Diapositiva anterior">←</button><div class="brvtal-hero-dots">${dots}</div><button type="button" data-hero-next aria-label="Diapositiva siguiente">→</button><button type="button" data-hero-pause aria-label="Pausar diapositivas automáticas" aria-pressed="false">Ⅱ</button></div>`;
   }
 
   // Concept 05 owns the art-directed first viewport. Published CMS banner
@@ -96,7 +96,7 @@
     const root = document.createElement('div');
     root.className = 'brvtal-hero-slider';
     root.setAttribute('aria-roledescription','carousel');
-    root.setAttribute('aria-label','BRVTAL featured content');
+    root.setAttribute('aria-label','Contenido destacado BRVTAL');
     root.innerHTML = `<div class="brvtal-hero-track">${data.slides.map(slideMarkup).join('')}</div>${controlsMarkup(data.slides.length)}<div class="brvtal-hero-counter mono"><span data-hero-current>01</span> / ${String(data.slides.length).padStart(2,'0')}</div>`;
     hero.prepend(root);
     hero.classList.add('hero-slider-active');

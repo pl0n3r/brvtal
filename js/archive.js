@@ -53,13 +53,13 @@
 
   function activeStatusLabel(status, index) {
     const labels = {
-      upcoming:'UPCOMING',
-      tickets_available:'TICKETS AVAILABLE',
-      last_tickets:'LAST TICKETS',
-      sold_out:'SOLD OUT',
-      published:index === 0 ? 'NEXT EXPERIENCE' : 'UPCOMING',
+      upcoming:'PRÓXIMAMENTE',
+      tickets_available:'ENTRADAS DISPONIBLES',
+      last_tickets:'ÚLTIMAS ENTRADAS',
+      sold_out:'AGOTADO',
+      published:index === 0 ? 'PRÓXIMA EXPERIENCIA' : 'PRÓXIMAMENTE',
     };
-    return labels[String(status || '').toLowerCase()] || 'UPCOMING';
+    return labels[String(status || '').toLowerCase()] || 'PRÓXIMAMENTE';
   }
 
   function activeSignature(items) {
@@ -71,7 +71,7 @@
   }
 
   function activeCard(event, index) {
-    const title = String(event.title || 'UNTITLED EVENT');
+    const title = String(event.title || 'EVENTO SIN TÍTULO');
     const image = imgUrl(event.cover_image);
     const date = formatDate(event.event_date);
     const city = String(event.city || '');
@@ -98,7 +98,7 @@
     info.appendChild(create('p', '', [venue,description].filter(Boolean).join(' / ')));
     info.appendChild(create('span', 'event-status', activeStatusLabel(status,index)));
     if (ticket) {
-      const link = create('a', 'event-ticket mono', 'TICKETS ↗');
+      const link = create('a', 'event-ticket mono', 'ENTRADAS ↗');
       link.href = ticket;
       link.target = '_blank';
       link.rel = 'noopener';
@@ -117,7 +117,7 @@
     if (currentActiveSignature(track) === expected) return;
 
     if (!events.length) {
-      track.replaceChildren(create('div', 'events-empty mono', 'NO UPCOMING EVENTS / THE ARCHIVE REMAINS ACTIVE'));
+      track.replaceChildren(create('div', 'events-empty mono', 'SIN PRÓXIMOS EVENTOS / EL ARCHIVO SIGUE ACTIVO'));
       return;
     }
 
@@ -152,16 +152,16 @@
 
   function archiveRelationSummary(lineup, sets, memoryCount) {
     return [
-      relationCountLabel(lineup.length, 'ARTIST'),
+      relationCountLabel(lineup.length, 'ARTISTA'),
       relationCountLabel(sets.length, 'SET'),
-      relationCountLabel(memoryCount, 'MEMORY'),
+      relationCountLabel(memoryCount, 'MEMORIA'),
     ].filter(Boolean);
   }
 
   function archiveImageHost(image, title) {
     const host = create('div', 'archive-event-image');
     if (!image) {
-      host.appendChild(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVE'));
+      host.appendChild(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVO'));
       return host;
     }
 
@@ -170,7 +170,7 @@
     img.alt = title;
     img.loading = 'lazy';
     img.addEventListener('error', () => {
-      host.replaceChildren(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVE'));
+      host.replaceChildren(create('div', 'archive-event-placeholder mono', 'BRVTAL / ARCHIVO'));
     });
     host.appendChild(img);
     return host;
@@ -186,7 +186,7 @@
   }
 
   function archiveCard(event, memoryCount = 0) {
-    const title = String(event.title || 'UNTITLED EVENT');
+    const title = String(event.title || 'EVENTO SIN TÍTULO');
     const date = formatDate(event.event_date);
     const city = String(event.city || '');
     const venue = String(event.venue || '');
@@ -211,23 +211,23 @@
     const meta = create('div', 'archive-event-meta mono');
     meta.append(
       create('span', '', [date,city].filter(Boolean).join(' / ')),
-      create('span', '', String(event.status || 'archive').toUpperCase().replaceAll('_',' '))
+      create('span', '', ({archive:'ARCHIVO',published:'PUBLICADO',completed:'TERMINADO',cancelled:'CANCELADO',sold_out:'AGOTADO'}[String(event.status || 'archive').toLowerCase()] || String(event.status || 'archive').toUpperCase().replaceAll('_',' ')))
     );
     copy.append(
       meta,
       create('h3', '', title),
       create('p', '', [venue,names.slice(0,4).join(' / ')].filter(Boolean).join(' — ')),
-      create('div', 'archive-event-relations mono', relationParts.join(' / ') || 'HISTORICAL RECORD')
+      create('div', 'archive-event-relations mono', relationParts.join(' / ') || 'REGISTRO HISTÓRICO')
     );
 
     [
       archiveAction(
         connectionsHref,
-        'EXPLORE CONNECTIONS ↗',
-        `Explore connections for ${title}`,
+        'EXPLORAR CONEXIONES ↗',
+        `Explorar conexiones de ${title}`,
         'archiveConnections'
       ),
-      archiveAction(href, 'OPEN RECORD ↗', `View ${title}`),
+      archiveAction(href, 'ABRIR REGISTRO ↗', `Ver ${title}`),
     ].filter(Boolean).forEach(link => copy.appendChild(link));
 
     article.append(archiveImageHost(imgUrl(event.cover_image), title), copy);
@@ -251,7 +251,7 @@
       if (!card.hidden) visible++;
     });
     const results = qs('[data-archive-results]', root);
-    if (results) results.textContent = `${visible} RECORD${visible===1?'':'S'} FOUND`;
+    if (results) results.textContent = `${visible} REGISTRO${visible===1?'':'S'} ENCONTRADO${visible===1?'':'S'}`;
     const empty = qs('[data-archive-empty]', root);
     if (empty) empty.hidden = visible !== 0;
   }
@@ -289,7 +289,7 @@
     root.hidden = false;
 
     if (yearHost) {
-      const allYears = create('button', 'active', 'ALL YEARS');
+      const allYears = create('button', 'active', 'TODOS LOS AÑOS');
       allYears.type = 'button';
       allYears.dataset.archiveFilter = 'all';
       const yearButtons = years.map(year => {
@@ -322,7 +322,7 @@
       reset.addEventListener('click', resetArchiveFilters);
     }
     if (summary) {
-      summary.textContent = `${Number(counts.events ?? events.length)} NIGHTS / ${Number(counts.sets ?? 0)} RELATED SETS / ${Number(counts.media ?? 0)} VISUAL RECORDS`;
+      summary.textContent = `${Number(counts.events ?? events.length)} NOCHES / ${Number(counts.sets ?? 0)} SETS RELACIONADOS / ${Number(counts.media ?? 0)} REGISTROS VISUALES`;
     }
     applyArchiveFilters();
   }

@@ -269,45 +269,45 @@ $html = brvtal_public_keep_home_lcp_visible($html);
 $html = str_replace(
     '<body data-scene="CORE">',
     '<body data-scene="CORE" data-concept="05">'
-        . "\n  <a class=\"skip-link mono\" href=\"#top\">SKIP TO CONTENT</a>",
+        . "\n  <a class=\"skip-link mono\" href=\"#top\">IR AL CONTENIDO</a>",
     $html
 );
 $html = str_replace('<main id="top">', '<main id="top" tabindex="-1">', $html);
 $html = str_replace('class="artist" href="#"', 'class="artist" aria-disabled="true"', $html);
-$artistHeadSource = '<div class="section-head"><span class="mono">ROSTER / 04</span>'
-    . '<h2>ARTISTS</h2><span class="mono">MOVE CURSOR</span></div>';
-$artistHeadTarget = '<div class="section-head"><span class="mono">BRVTAL ARTISTS / 02</span>'
-    . '<h2>ARTISTS</h2><span class="mono">MEMBERS / COLLABORATORS</span></div>';
+$artistHeadSource = '<div class="section-head"><span class="mono">ELENCO / 04</span>'
+    . '<h2>ARTISTAS</h2><span class="mono">MUEVE EL CURSOR</span></div>';
+$artistHeadTarget = '<div class="section-head"><span class="mono">ARTISTAS BRVTAL / 02</span>'
+    . '<h2>ARTISTAS</h2><span class="mono">MIEMBROS / COLABORADORES</span></div>';
 $html = str_replace($artistHeadSource, $artistHeadTarget, $html);
 
-$nightHeadSource = '<div class="section-head"><span class="mono">EVENTS / 03</span>'
-    . '<h2>EVENTS</h2><span class="mono">DRAG / SCROLL →</span></div>';
-$nightHeadTarget = '<div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span>'
-    . '<h2>NIGHTS</h2><span class="mono">DRAG / SWIPE →</span></div>';
+$nightHeadSource = '<div class="section-head"><span class="mono">EVENTOS / 03</span>'
+    . '<h2>EVENTOS</h2><span class="mono">ARRASTRA / DESLIZA →</span></div>';
+$nightHeadTarget = '<div class="section-head"><span class="mono">NOCHES BRVTAL / 02</span>'
+    . '<h2>NOCHES</h2><span class="mono">ARRASTRA / DESLIZA →</span></div>';
 $html = str_replace($nightHeadSource, $nightHeadTarget, $html);
 $html = str_replace(
     ['RAW / HARD TECHNO','HARDCORE / INDUSTRIAL','HARD TECHNO / RAW','TECHNO / HARD DANCE','PSY / HARDCORE'],
-    'ARTIST / PROFILE',
+    'ARTISTA / PERFIL',
     $html
 );
-$soundHeadSource = '<div class="section-head"><span class="mono">AUDIO ARCHIVE / 05</span>'
+$soundHeadSource = '<div class="section-head"><span class="mono">ARCHIVO DE AUDIO / 05</span>'
     . '<h2>SETS</h2><span class="mono">SOUNDCLOUD / BRVTAL</span></div>';
-$soundHeadTarget = '<div class="section-head"><span class="mono">BRVTAL SOUND / 04</span>'
-    . '<h2>SOUND</h2><span class="mono">SETS / LISTEN / ARCHIVE</span></div>';
+$soundHeadTarget = '<div class="section-head"><span class="mono">SONIDO BRVTAL / 04</span>'
+    . '<h2>SONIDO</h2><span class="mono">SETS / ESCUCHAR / ARCHIVO</span></div>';
 $html = str_replace($soundHeadSource, $soundHeadTarget, $html);
 $html = str_replace(
-    '<span class="mono">VISUAL ARCHIVE / 06</span>',
-    '<span class="mono">BRVTAL MEMORIES / 05</span>',
+    '<span class="mono">ARCHIVO VISUAL / 06</span>',
+    '<span class="mono">MEMORIAS BRVTAL / 05</span>',
     $html
 );
-$journalHeadSource = '<div class="section-head"><span class="mono">EDITORIAL SIGNAL / 06</span>'
-    . '<h2>TRANSMISSIONS</h2>'
-    . '<span class="mono" data-transmissions-count>SIGNAL ARCHIVE</span></div>';
+$journalHeadSource = '<div class="section-head"><span class="mono">SEÑAL EDITORIAL / 06</span>'
+    . '<h2>TRANSMISIONES</h2>'
+    . '<span class="mono" data-transmissions-count>ARCHIVO DE SEÑALES</span></div>';
 $journalHeadTarget = '<div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span>'
     . '<h2>JOURNAL</h2>'
-    . '<span class="mono" data-transmissions-count>SIGNAL ARCHIVE</span></div>';
+    . '<span class="mono" data-transmissions-count>ARCHIVO DE SEÑALES</span></div>';
 $html = str_replace($journalHeadSource, $journalHeadTarget, $html);
-$html = preg_replace('/(<div class="set-main">.*?<p>).*?(<\/p><\/div>)/sU', '$1SET / ARCHIVE$2', $html) ?? $html;
+$html = preg_replace('/(<div class="set-main">.*?<p>).*?(<\/p><\/div>)/sU', '$1SET / ARCHIVO$2', $html) ?? $html;
 $html = str_replace(
     'href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic"',
     'class="set-action magnetic" aria-disabled="true" aria-hidden="true" tabindex="-1"',

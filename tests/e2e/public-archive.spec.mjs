@@ -31,13 +31,13 @@ test('public archive separates active lifecycle from historical nights and filte
   await page.route(harnessUrl, route => route.fulfill({
     contentType: 'text/html; charset=utf-8',
     body: `<!doctype html><html lang="en"><head><meta charset="utf-8"></head><body>
-      <div class="events-track"><article class="event-card"><div class="event-info"><span class="event-status">ARCHIVE</span></div></article></div>
+      <div class="events-track"><article class="event-card"><div class="event-info"><span class="event-status">ARCHIVO</span></div></article></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>BUSCAR HISTORIA</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">TODOS LOS REGISTROS</button><button type="button" data-archive-relation="artists">CON ARTISTAS</button><button type="button" data-archive-relation="sets">CON SETS</button><button type="button" data-archive-relation="memories">CON MEMORIAS</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
-        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
+        <div data-archive-empty hidden><p>NINGÚN REGISTRO COINCIDE CON LOS FILTROS.</p><button type="button" data-archive-reset>BORRAR FILTROS</button></div>
         <div class="archive-grid"></div>
       </div>
       <script>window.ScrollTrigger={refresh(){window.__archiveRefreshed=true;}};</script>
@@ -48,34 +48,34 @@ test('public archive separates active lifecycle from historical nights and filte
   await page.goto(harnessUrl);
 
   await expect(page.locator('[data-public-event-id="10"]')).toBeVisible();
-  await expect(page.locator('[data-public-event-id="10"] .event-status')).toHaveText('NEXT EXPERIENCE');
-  await expect(page.locator('[data-public-event-id="11"] .event-status')).toHaveText('TICKETS AVAILABLE');
+  await expect(page.locator('[data-public-event-id="10"] .event-status')).toHaveText('PRÓXIMA EXPERIENCIA');
+  await expect(page.locator('[data-public-event-id="11"] .event-status')).toHaveText('ENTRADAS DISPONIBLES');
   await expect(page.locator('.events-track a[href="https://tickets.example/live"]')).toBeVisible();
 
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="20"]')).toContainText('Session Five');
   await expect(page.locator('[data-archive-id="20"]')).toContainText('5 ARTISTS / 1 SET');
-  await expect(page.locator('[data-archive-id="20"] a[href="/events/session-five"]')).toHaveText('OPEN RECORD ↗');
+  await expect(page.locator('[data-archive-id="20"] a[href="/events/session-five"]')).toHaveText('ABRIR REGISTRO ↗');
   const connections = page.locator('[data-archive-id="20"] [data-archive-connections]');
-  await expect(connections).toHaveText('EXPLORE CONNECTIONS ↗');
+  await expect(connections).toHaveText('EXPLORAR CONEXIONES ↗');
   const connectionsHref = new URL(await connections.getAttribute('href'), page.url());
   expect(connectionsHref.searchParams.get('network_type')).toBe('events');
   expect(connectionsHref.searchParams.get('network_id')).toBe('20');
   expect(connectionsHref.hash).toBe('#network');
   await expect(page.locator('[data-archive-id="21"] [data-archive-connections]')).toHaveCount(0);
-  await expect(page.locator('[data-archive-id="21"] .archive-event-relations')).toHaveText('HISTORICAL RECORD');
-  await expect(page.locator('.archive-summary')).toHaveText('2 NIGHTS / 1 RELATED SETS / 9 VISUAL RECORDS');
-  await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
+  await expect(page.locator('[data-archive-id="21"] .archive-event-relations')).toHaveText('REGISTRO HISTÓRICO');
+  await expect(page.locator('.archive-summary')).toHaveText('2 NOCHES / 1 SETS RELACIONADOS / 9 REGISTROS VISUALES');
+  await expect(page.locator('[data-archive-results]')).toHaveText('2 REGISTROS ENCONTRADOS');
   await page.locator('[data-archive-search]').fill('final signal');
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeHidden();
   await expect(page.locator('[data-archive-id="20"] .archive-event-copy p')).not.toContainText('FINAL SIGNAL');
   await page.locator('[data-archive-search]').fill('');
 
-  await page.getByRole('button', { name: 'WITH SETS' }).click();
+  await page.getByRole('button', { name: 'CON SETS' }).click();
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeHidden();
-  await page.getByRole('button', { name: 'ALL RECORDS' }).click();
+  await page.getByRole('button', { name: 'TODOS LOS REGISTROS' }).click();
 
   await page.locator('[data-archive-search]').fill('bogota');
   await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
@@ -85,11 +85,11 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeHidden();
   await page.locator('[data-archive-search]').fill('nothing matches');
-  await expect(page.locator('[data-archive-results]')).toHaveText('0 RECORDS FOUND');
+  await expect(page.locator('[data-archive-results]')).toHaveText('0 REGISTROS ENCONTRADOS');
   await expect(page.locator('[data-archive-empty]')).toBeVisible();
-  await page.getByRole('button', { name: 'CLEAR FILTERS' }).click();
+  await page.getByRole('button', { name: 'BORRAR FILTROS' }).click();
   await expect(page.locator('[data-archive-empty]')).toBeHidden();
-  await expect(page.locator('[data-archive-results]')).toHaveText('2 RECORDS FOUND');
+  await expect(page.locator('[data-archive-results]')).toHaveText('2 REGISTROS ENCONTRADOS');
   await expect(page.locator('[data-archive-search]')).toHaveValue('');
   await expect(page.locator('[data-archive-search]')).toBeFocused();
   await page.locator('[data-archive-search]').fill('');
@@ -98,7 +98,7 @@ test('public archive separates active lifecycle from historical nights and filte
   await expect(page.locator('[data-archive-id="20"]')).toBeHidden();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
 
-  await page.getByRole('button', { name: 'ALL YEARS' }).click();
+  await page.getByRole('button', { name: 'TODOS LOS AÑOS' }).click();
   await expect(page.locator('[data-archive-id="20"]')).toBeVisible();
   await expect(page.locator('[data-archive-id="21"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__archiveRefreshed === true)).toBe(true);
@@ -172,10 +172,10 @@ test('public archive treats explicit Event Memories as first-class archive conne
       <div class="events-track"></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>BUSCAR HISTORIA</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">TODOS LOS REGISTROS</button><button type="button" data-archive-relation="artists">CON ARTISTAS</button><button type="button" data-archive-relation="sets">CON SETS</button><button type="button" data-archive-relation="memories">CON MEMORIAS</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
-        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
+        <div data-archive-empty hidden><p>NINGÚN REGISTRO COINCIDE CON LOS FILTROS.</p><button type="button" data-archive-reset>BORRAR FILTROS</button></div>
         <div class="archive-grid"></div>
       </div>
       <script>${archiveJs}</script>
@@ -188,7 +188,7 @@ test('public archive treats explicit Event Memories as first-class archive conne
   const unrelated = page.locator('[data-archive-id="78"]');
   await expect(memoryOnly.locator('.archive-event-relations')).toHaveText('1 MEMORY');
   await expect(memoryOnly).toHaveAttribute('data-archive-memories','1');
-  await expect(unrelated.locator('.archive-event-relations')).toHaveText('HISTORICAL RECORD');
+  await expect(unrelated.locator('.archive-event-relations')).toHaveText('REGISTRO HISTÓRICO');
   await expect(unrelated).toHaveAttribute('data-archive-memories','0');
 
   const connections = memoryOnly.locator('[data-archive-connections]');
@@ -198,7 +198,7 @@ test('public archive treats explicit Event Memories as first-class archive conne
   expect(connectionsHref.searchParams.get('network_id')).toBe('77');
   expect(connectionsHref.hash).toBe('#network');
 
-  const memoriesFilter = page.getByRole('button',{name:'WITH MEMORIES'});
+  const memoriesFilter = page.getByRole('button',{name:'CON MEMORIAS'});
   await memoriesFilter.click();
   await expect(memoryOnly).toBeVisible();
   await expect(unrelated).toBeHidden();
@@ -244,10 +244,10 @@ test('public archive replaces a failed allowed cover image with the archive plac
       <div class="events-track"></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>BUSCAR HISTORIA</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">TODOS LOS REGISTROS</button><button type="button" data-archive-relation="artists">CON ARTISTAS</button><button type="button" data-archive-relation="sets">CON SETS</button><button type="button" data-archive-relation="memories">CON MEMORIAS</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
-        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
+        <div data-archive-empty hidden><p>NINGÚN REGISTRO COINCIDE CON LOS FILTROS.</p><button type="button" data-archive-reset>BORRAR FILTROS</button></div>
         <div class="archive-grid"></div>
       </div>
       <script>${archiveJs}</script>
@@ -259,7 +259,7 @@ test('public archive replaces a failed allowed cover image with the archive plac
   const record = page.locator('[data-archive-id="44"]');
   await expect(record).toBeVisible();
   await expect(record.locator('.archive-event-image img')).toHaveCount(0);
-  await expect(record.locator('.archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVE');
+  await expect(record.locator('.archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVO');
 });
 
 test('public archive renders hostile API strings as text and rejects unsafe URL schemes', async ({ page }) => {
@@ -315,10 +315,10 @@ test('public archive renders hostile API strings as text and rejects unsafe URL 
       <div class="events-track"></div>
       <div class="event-archive" id="eventArchive">
         <div class="archive-summary"></div>
-        <div class="archive-discovery"><label class="archive-search"><span>SEARCH HISTORY</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">ALL RECORDS</button><button type="button" data-archive-relation="artists">WITH ARTISTS</button><button type="button" data-archive-relation="sets">WITH SETS</button><button type="button" data-archive-relation="memories">WITH MEMORIES</button></div></div>
+        <div class="archive-discovery"><label class="archive-search"><span>BUSCAR HISTORIA</span><input type="search" data-archive-search></label><div class="archive-relations"><button type="button" class="active" data-archive-relation="all">TODOS LOS REGISTROS</button><button type="button" data-archive-relation="artists">CON ARTISTAS</button><button type="button" data-archive-relation="sets">CON SETS</button><button type="button" data-archive-relation="memories">CON MEMORIAS</button></div></div>
         <div class="archive-years"></div>
         <div data-archive-results></div>
-        <div data-archive-empty hidden><p>NO RECORDS MATCH THESE FILTERS.</p><button type="button" data-archive-reset>CLEAR FILTERS</button></div>
+        <div data-archive-empty hidden><p>NINGÚN REGISTRO COINCIDE CON LOS FILTROS.</p><button type="button" data-archive-reset>BORRAR FILTROS</button></div>
         <div class="archive-grid"></div>
       </div>
       <script>${archiveJs}</script>
@@ -335,7 +335,7 @@ test('public archive renders hostile API strings as text and rejects unsafe URL 
   await expect(page.locator('[data-archive-id="199"] h3')).toHaveText(archivedTitle);
   await expect(page.locator('[data-archive-id="199"] .archive-event-copy p')).toContainText('<iframe src="javascript:window.__archiveXss=4"></iframe>');
   await expect(page.locator('[data-archive-id="199"] img')).toHaveCount(0);
-  await expect(page.locator('[data-archive-id="199"] .archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVE');
+  await expect(page.locator('[data-archive-id="199"] .archive-event-placeholder')).toHaveText('BRVTAL / ARCHIVO');
 
   await expect(page.locator('#archive-active-xss')).toHaveCount(0);
   await expect(page.locator('#archive-history-xss')).toHaveCount(0);

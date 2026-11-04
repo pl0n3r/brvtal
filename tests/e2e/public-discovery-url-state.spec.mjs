@@ -11,15 +11,15 @@ function body() {
       <button data-archive-filter="all" class="active">ALL YEARS</button>
       <button data-archive-filter="2025">2025</button>
       <button data-archive-filter="2026">2026</button>
-      <button data-archive-relation="all" class="active">ALL RECORDS</button>
-      <button data-archive-relation="artists">WITH ARTISTS</button>
+      <button data-archive-relation="all" class="active">TODOS LOS REGISTROS</button>
+      <button data-archive-relation="artists">CON ARTISTAS</button>
       <button data-archive-relation="sets">WITH SETS</button>
       <input data-archive-search>
-      <button data-archive-reset>CLEAR ARCHIVE</button>
+      <button data-archive-reset>BORRAR ARCHIVO</button>
     </section>
     <section id="network">
-      <button data-related-mode="artists" class="active" aria-selected="true">ARTISTS</button>
-      <button data-related-mode="events" aria-selected="false">EVENTS</button>
+      <button data-related-mode="artists" class="active" aria-selected="true">ARTISTAS</button>
+      <button data-related-mode="events" aria-selected="false">EVENTOS</button>
       <button data-related-mode="sets" aria-selected="false">SETS</button>
       <button data-related-mode="releases" aria-selected="false">RELEASES</button>
       <button data-related-select data-related-type="artists" data-related-id="11" class="active">ARTIST 11</button>

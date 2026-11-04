@@ -16,12 +16,12 @@ const runtimeFixture = `<!doctype html><html><head><meta name="viewport" content
 <aside id="menuPanel" aria-hidden="true"><nav></nav></aside>
 <button id="soundToggle"><b>OFF</b></button>
 <section class="events c5-numbered" id="events">
-  <div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span><h2>NIGHTS</h2><span class="mono">DRAG / SWIPE →</span></div>
+  <div class="section-head"><span class="mono">NOCHES BRVTAL / 02</span><h2>NOCHES</h2><span class="mono">ARRASTRA / DESLIZA →</span></div>
   <div class="events-track"></div>
   <div id="eventArchive"></div>
 </section>
 <section class="artists c5-numbered" id="artists">
-  <div class="section-head"><span class="mono">BRVTAL ARTISTS / 03</span><h2>ARTISTS</h2><span class="mono">CORE / ALUMNI / COLLABORATORS</span></div>
+  <div class="section-head"><span class="mono">ARTISTAS BRVTAL / 03</span><h2>ARTISTAS</h2><span class="mono">NÚCLEO / VETERANOS / COLABORADORES</span></div>
   <div class="artist-list"></div>
   <div class="artist-preview"><img alt=""></div>
 </section>
@@ -86,17 +86,17 @@ const visualFixture = `<!doctype html><html class="native-events-scroll"><head>
 ${css}
 </style></head><body data-concept="05">
 <section class="events c5-numbered" id="events">
-  <div class="section-head"><span class="mono">BRVTAL NIGHTS / 02</span><h2>NIGHTS</h2><span class="mono">DRAG / SWIPE →</span></div>
+  <div class="section-head"><span class="mono">NOCHES BRVTAL / 02</span><h2>NOCHES</h2><span class="mono">ARRASTRA / DESLIZA →</span></div>
   <div class="events-track">
-    <article class="event-card"><div class="event-img"><img src="https://example.test/night.svg" alt="Night"></div><div class="event-info"><span class="mono">14.08.2026 / PEREIRA</span><h3>VERY LONG NIGHT TITLE THAT MUST WRAP SAFELY</h3><p>WAREHOUSE / PEREIRA</p><span class="event-status">ARCHIVE</span><div class="c5-night-actions"><a class="event-record mono" href="/events/night">VIEW RECORD ↗</a></div></div></article>
-    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">07.08.2026 / PEREIRA</span><h3>SESSION 05</h3><p>BRVTAL</p><span class="event-status">ARCHIVE</span></div></article>
-    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">01.08.2026 / PEREIRA</span><h3>NO SIGNAL</h3><p>BRVTAL</p><span class="event-status">ARCHIVE</span></div></article>
-    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">01.07.2026 / PEREIRA</span><h3>AFTERIMAGE</h3><p>BRVTAL</p><span class="event-status">ARCHIVE</span></div></article>
+    <article class="event-card"><div class="event-img"><img src="https://example.test/night.svg" alt="Night"></div><div class="event-info"><span class="mono">14.08.2026 / PEREIRA</span><h3>VERY LONG NIGHT TITLE THAT MUST WRAP SAFELY</h3><p>WAREHOUSE / PEREIRA</p><span class="event-status">ARCHIVO</span><div class="c5-night-actions"><a class="event-record mono" href="/events/night">VER REGISTRO ↗</a></div></div></article>
+    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">07.08.2026 / PEREIRA</span><h3>SESSION 05</h3><p>BRVTAL</p><span class="event-status">ARCHIVO</span></div></article>
+    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">01.08.2026 / PEREIRA</span><h3>NO SIGNAL</h3><p>BRVTAL</p><span class="event-status">ARCHIVO</span></div></article>
+    <article class="event-card"><div class="event-img"></div><div class="event-info"><span class="mono">01.07.2026 / PEREIRA</span><h3>AFTERIMAGE</h3><p>BRVTAL</p><span class="event-status">ARCHIVO</span></div></article>
   </div>
   <div id="eventArchive"></div>
 </section>
 <section class="artists c5-numbered" id="artists">
-  <div class="section-head"><span class="mono">BRVTAL ARTISTS / 03</span><h2>ARTISTS</h2><span class="mono">CORE / ALUMNI / COLLABORATORS</span></div>
+  <div class="section-head"><span class="mono">ARTISTAS BRVTAL / 03</span><h2>ARTISTAS</h2><span class="mono">NÚCLEO / VETERANOS / COLABORADORES</span></div>
   <div class="artist-list">
     <section class="roster-group"><div class="roster-group-head mono"><span>CORE / ACTIVE</span><b>02</b></div>
       <a class="artist" href="/artists/pl0n3r" data-image="https://example.test/artist.svg"><span>01</span><strong>PL0N3R</strong><i>BRVTAL / ACTIVE</i></a>
@@ -104,7 +104,7 @@ ${css}
     </section>
   </div>
 </section>
-<nav class="c5-bottom-nav"><a href="#events">NIGHTS</a><a href="#artists">ARTISTS</a></nav>
+<nav class="c5-bottom-nav"><a href="#events">NOCHES</a><a href="#artists">ARTISTAS</a></nav>
 </body></html>`;
 
 async function mountVisual(page, viewport) {
