@@ -33,10 +33,10 @@ Las rutas `/Users/...` **no son URLs de GitHub**: la evidencia visual aún debe 
 | Menú interior a 390px | `/contact` solo presenta «INICIO ↙» y branding; `header nav a` = 0 | **DEFECTO** | #1515; no se visualiza menú Cromo de dos filas |
 | Páginas interiores | `/events`, `/artists`, `/releases`, `/sets`, `/media`, `/journal` | **DEFECTO de navegación publicada** | HTTP 404 en cada URL probada; `/releases` es destino real del enlace «RECORDS» de home, registrado en #1512. Otros paths se probaron como candidatos, no se afirma que todos fueran rutas canónicas |
 | Movimiento reducido | En viewport emulado se aplicó `prefers-reduced-motion: reduce`; `matchMedia` devolvió `true` | **PARCIAL** | No se midieron transiciones, animación WebGL ni consumo en hardware real |
-| Foco por teclado | Secuencia Tab y contraste de `:focus-visible` en controles Cromo | **NO VERIFICADO** | Requiere recorrido y capturas de estados de foco |
-| Conectado | Selección de nodo muestra `aria-pressed=true`; pulsar el nodo activo deselecciona. Se envió Escape tras quedar deseleccionado | **PARCIAL** | El ensayo de Escape no prueba que Escape **cierre una selección activa**; repetir con nodo seleccionado |
+| Foco por teclado | Se recorrieron 12 controles mediante Tab en viewport emulado 390px; todos reportaron `:focus-visible=true`, `outline-style:solid` y `outline-width` de 3–4px | **CORRECTO (muestra de 12 controles)** | No equivale a auditoría completa de orden de tabulación ni contraste visual en dispositivo físico |
+| Conectado | Seleccionar «TENSION MEDIANOCHE» produce `aria-pressed=true`; con esa selección activa, Escape deja **cero** botones activos; click sobre nodo activo también lo deselecciona | **CORRECTO (Escape y selección)** | Ensayo Chromium 154 en emulación 390px, sin hardware físico |
 | Pausa de banners | Botón con `aria-label='Pausar los banners'` → clic → `aria-label='Reanudar los banners'`, `aria-pressed=true` | **CORRECTO (estado UI)** | No se observó duración completa para probar detención del autoplay |
-| Cookies en home e interiores | Home y `/contact` presentan controles «Rechazar», «Aceptar» y preferencias | **CORRECTO (presencia)** | No se ensayó persistencia de elección ni bloqueo/overlay, y rutas interiores 404 no admiten comprobación |
+| Cookies en home e interiores | Home y `/contact` presentan controles «Rechazar», «Aceptar» y preferencias. En contexto aislado se pulsó «Rechazar»: el banner dejó de mostrarse y siguió oculto tras recargar | **CORRECTO (presencia y persistencia local)** | Se comprobó home y `/contact`; las rutas interiores 404 no admiten comprobación |
 | «Últimas noches» | La sección legacy `#events` existe pero queda oculta (alto 0); la visible está en `#noches`. `#archive` no existe; visitar ambos hashes no lleva al bloque visible esperado | **DEFECTO** | #1513. La lista legacy indica «NO PUBLISHED NIGHTS YET»; no hubo noche pasada publicada comprobable para validar ese escenario |
 
 ## Defectos confirmados y tickets
@@ -50,7 +50,7 @@ No se han registrado como defectos las observaciones inconclusas, la falta de di
 
 ## Cierre de aceptación / autoridad pendiente
 
-- **AC-01:** parcial. Existen resultados de UI y defectos reales; faltan audio audible, envío anti-bot, mensaje de error/éxito, móvil físico de gama baja, Escape con selección activa, foco, pausa temporal y noche pasada publicada. Las capturas aún están fuera del repositorio.
+- **AC-01:** parcial. Existen resultados de UI y defectos reales; faltan audio audible, envío anti-bot, mensaje de error/éxito, móvil físico de gama baja, pausa temporal de banners y noche pasada publicada. Las capturas aún están fuera del repositorio.
 - **AC-02:** este archivo corresponde a la ruta reclamada.
 - **AC-03:** cuatro defectos reproducidos tienen Issue enlazado.
 - **AC-04:** cumplido en esta ejecución; solo GET públicos, interacción UI, sin credenciales ni envío de formulario.
