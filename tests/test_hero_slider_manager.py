@@ -53,9 +53,12 @@ const stage = visit(frame,'hero-preview-stage');
 const tint = visit(stage,'hero-preview-tint');
 const layer = visit(stage,'hero-preview-layer');
 const counter = visit(stage,'hero-preview-counter');
+const progress = visit(stage,'hero-preview-progress');
 const desktop = {classes:stage.className, order:stage.children.map(x => x.className || x.tag),
   tint:tint && tint.attributes['aria-hidden'], x:layer.style.left, y:layer.style.top,
-  width:layer.style.width, counter:counter.children.map(x => x.textContent)};
+  width:layer.style.width, counter:counter.children.map(x => x.textContent),
+  progress:progress.children.map(x => x.dataset.active),
+  focus:stage.tabIndex, role:stage.attributes['role']};
 context.previewMode = 'mobile';
 const mobileFrame = new Element('div');
 context.draw(mobileFrame, slide);
@@ -80,6 +83,9 @@ class HeroSliderCromoPreview(unittest.TestCase):
         dom = json.loads(result.stdout)
         self.assertEqual(dom["desktop"]["tint"], "true")
         self.assertEqual(dom["desktop"]["counter"], ["02", "/ 02"])
+        self.assertEqual(dom["desktop"]["progress"], ["false", "true"])
+        self.assertEqual(dom["desktop"]["focus"], 0)
+        self.assertEqual(dom["desktop"]["role"], "region")
         self.assertEqual(dom["desktop"]["x"], "25%")
         self.assertEqual(dom["desktop"]["width"], "60%")
         self.assertLess(dom["desktop"]["order"].index("hero-preview-tint"),
@@ -96,7 +102,8 @@ class HeroSliderCromoPreview(unittest.TestCase):
                       'background:#ff2a1a', 'background:rgba(3,3,3,.92)',
                       '"Broken Glass"', 'hero-preview-counter', 'focus-within',
                       'prefers-reduced-motion:reduce', 'transition:none',
-                      'box-decoration-break:clone'):
+                      'box-decoration-break:clone', 'hero-preview-progress-bar',
+                      'src:url("../assets/fonts/BrokenGlass.ttf")'):
             with self.subTest(token=token):
                 self.assertIn(token, css)
 

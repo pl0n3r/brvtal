@@ -28,3 +28,14 @@
 #hero-slider-root .hero-preview-frame.mobile .hero-preview-layer.type-text span{font-size:clamp(18px,7vw,34px)}
 #hero-slider-root .hero-preview-frame.mobile .hero-preview-counter{right:12px;top:12px}
 @media(prefers-reduced-motion:reduce){#hero-slider-root .hero-preview-stage>img,#hero-slider-root .hero-preview-stage>video,#hero-slider-root .hero-preview-tint{transition:none}}
+
+
+/* The admin shell does not load the public Cromo stylesheet: provide the
+   same licensed local display face for banner titles and the counter. */
+@font-face{font-family:"Broken Glass";src:url("../assets/fonts/BrokenGlass.ttf") format("truetype");font-display:swap}
+#hero-slider-root .hero-preview-stage:focus-visible{outline:3px solid #ff2a1a;outline-offset:-5px}
+#hero-slider-root .hero-preview-progress{position:absolute;left:clamp(12px,4vw,44px);right:clamp(12px,4vw,44px);bottom:clamp(12px,3vw,32px);z-index:8;display:flex;gap:8px;pointer-events:none}
+#hero-slider-root .hero-preview-progress-bar{display:block;position:relative;flex:1;max-width:200px;height:6px;background:rgba(242,239,232,.35)}
+#hero-slider-root .hero-preview-progress-bar::after{content:"";position:absolute;top:0;left:0;bottom:0;width:0;background:#ff2a1a}
+#hero-slider-root .hero-preview-progress-bar[data-active="true"]::after{width:100%}
+#hero-slider-root .hero-preview-frame.mobile .hero-preview-progress{gap:5px;left:12px;right:12px;bottom:12px}

@@ -758,6 +758,9 @@
 
     const stage = document.createElement('div');
     stage.className = `hero-preview-stage align-${slide.contentAlign}`;
+    stage.tabIndex = 0;
+    stage.setAttribute('role', 'region');
+    stage.setAttribute('aria-label', `Vista previa Cromo de ${slide.name}`);
     stage.style.setProperty('--hero-overlay', String(slide.overlay / 100));
     appendPreviewMedia(stage, slide);
 
@@ -790,6 +793,21 @@
     appendPreviewText(counter, 'b', String(position + 1).padStart(2, '0'));
     appendPreviewText(counter, 'span', '/ ' + String(config.slides.length).padStart(2, '0'));
     stage.appendChild(counter);
+
+    // Echo the public carousel's progress controls visually. This is purely
+    // decorative: no additional timer, event handler or model fields.
+    if (config.slides.length > 1) {
+      const progress = document.createElement('div');
+      progress.className = 'hero-preview-progress';
+      progress.setAttribute('aria-hidden', 'true');
+      config.slides.forEach((candidate, index) => {
+        const bar = document.createElement('span');
+        bar.className = 'hero-preview-progress-bar';
+        bar.dataset.active = index === position ? 'true' : 'false';
+        progress.appendChild(bar);
+      });
+      stage.appendChild(progress);
+    }
     frame.appendChild(stage);
   }
 
