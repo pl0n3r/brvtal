@@ -1,98 +1,167 @@
 /*
  * BRVTAL — Cromo theme for the interior public pages: entity pages (events, artists, sets,
- * releases, blog, pages), privacy, 404 and "unavailable". Same palette and type as the home
- * (docs/design/CROMO.md): black, bone white and ONE red; Broken Glass for titles, Barlow
- * Condensed for text; the titles keep a red glitch layer (as the Genesis title did). Everything is scoped to `body.cromo-page`, so nothing else changes.
- * The WebGL chrome (js/public-cromo.js) is progressive: without it the page keeps a flat
- * black background and stays fully readable.
+ * releases, blog, pages), privacy, 404 and "unavailable". Same world as the home (docs/design/CROMO.md):
+ * black, bone white and ONE red; Broken Glass for display type, Barlow Condensed for text; the same fixed
+ * top bar with the section menu, a full-bleed duotone poster as the hero, display headings with the red
+ * glitch, chrome-edged cards and the same footer. Everything is scoped to `body.cromo-page`.
+ * The WebGL chrome (js/public-cromo.js) is progressive: without it the page keeps a flat black background.
  */
 body.cromo-page{
   --cromo-red:#e12e34;
   --cromo-bone:#f4f1e8;
-  --cromo-plate:rgba(3,3,3,.9);
+  --cromo-plate:rgba(3,3,3,.92);
   --red:var(--cromo-red);
   --white:var(--cromo-bone);
   --event-signal:var(--cromo-red) !important;
   --display:"Broken Glass","Barlow Condensed",sans-serif;
+  --steel:#9fb2c2;
   background:#050505;
   color:var(--cromo-bone);
   font-family:"Barlow Condensed",Arial,sans-serif;
+  font-size:20px;
 }
 html.cromo body.cromo-page{background:transparent}
-/* Content sits above the fixed chrome canvas (#cromoGL). */
-body.cromo-page > header,
-body.cromo-page > main,
-body.cromo-page > footer{position:relative;z-index:2}
 body.cromo-page a{color:inherit}
 body.cromo-page :focus-visible{outline:3px solid var(--cromo-bone);outline-offset:3px}
-/* ---------- Motion tokens (transitions.dev scale): every transition below reads from these ---------- */
+/* Motion tokens (transitions.dev scale) */
 body.cromo-page{
   --duration-stagger:40ms;--duration-micro:80ms;--duration-quick:150ms;--duration-fast:250ms;
   --duration-medium:350ms;--duration-slow:400ms;--duration-very-slow:500ms;
   --ease-smooth-out:cubic-bezier(.22,1,.36,1);--ease-in-out:ease-in-out;--ease-out:ease-out;
   --distance-medium:12px;--blur-small:2px;--blur-medium:3px;
 }
+/* Content sits above the fixed chrome canvas (#cromo GL). */
+body.cromo-page > main,
+body.cromo-page > footer{position:relative;z-index:2}
 
-/* Motion: hover lift and color changes use the shared scale; the page enters once, with a soft blur. */
-body.cromo-page .entity-actions a,
-body.cromo-page .entity-brand,
-body.cromo-page .entity-card,
-body.cromo-page .entity-image{
-  transition:
-    transform var(--duration-fast) var(--ease-smooth-out),
-    box-shadow var(--duration-fast) var(--ease-smooth-out),
-    background-color var(--duration-quick) var(--ease-in-out),
-    color var(--duration-quick) var(--ease-in-out);
+/* ---------- Top bar: the home's own (brand, section menu, sound switch) ---------- */
+body.cromo-page .entity-nav{
+  position:fixed;left:0;right:0;top:0;z-index:50;height:auto;border:0;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:16px clamp(14px,2vw,28px);background:none;color:#fff;
 }
-body.cromo-page .entity-card:hover{transform:translate(-3px,-3px);box-shadow:6px 6px 0 var(--cromo-red)}
+body.cromo-page .entity-nav > a.entity-brand,
+body.cromo-page .cp-nav,
+body.cromo-page .cp-snd,
+body.cromo-page .cp-back{background:rgba(3,3,3,.9)}
+body.cromo-page .entity-brand{display:inline-flex;align-items:baseline;gap:10px;padding:10px 16px;font:400 30px/1 var(--display);letter-spacing:.01em;text-transform:uppercase}
+body.cromo-page .entity-brand small{font:700 12px/1 "Space Mono",monospace;letter-spacing:.1em;color:var(--cromo-red)}
+body.cromo-page .cp-nav{display:flex;gap:4px;padding:0 6px}
+body.cromo-page .cp-nav a,
+body.cromo-page .cp-back{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;font:700 18px/1 "Barlow Condensed",sans-serif;letter-spacing:.02em;text-transform:uppercase;
+  transition:background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out)}
+body.cromo-page .cp-nav a:hover,body.cromo-page .cp-back:hover{background:var(--cromo-bone);color:#030303}
+body.cromo-page .cp-tools{display:flex;align-items:center;gap:10px}
+body.cromo-page .cp-snd{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 18px;color:#fff;border:2px solid #fff;border-radius:999px;cursor:pointer;font:700 18px/1 "Barlow Condensed",sans-serif;text-transform:uppercase}
+body.cromo-page .cp-snd i{width:10px;height:10px;border-radius:50%;background:#fff;display:block}
+body.cromo-page .cp-snd.on i,body.cromo-page .cp-snd.cr-on i{background:var(--cromo-red)}
+body.cromo-page .cp-snd[aria-pressed="true"]{background:var(--cromo-red);border-color:var(--cromo-red)}
+body.cromo-page .cp-back{border:2px solid var(--cromo-bone)}
+
+/* ---------- Hero: a full-bleed duotone poster with a giant display title ---------- */
+body.cromo-page main{display:block;max-width:none;margin:0;padding:0}
+body.cromo-page .entity-hero{
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin:0;width:auto;align-items:end;min-height:min(94vh,860px);overflow:hidden;
+  background:#030303;border:0;border-top:3px solid var(--cromo-bone);border-bottom:10px solid var(--cromo-red);color:#fff;
+}
+body.cromo-page .entity-hero::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(3,3,3,.95) 0%,rgba(3,3,3,.88) 42%,rgba(3,3,3,.25) 100%),linear-gradient(0deg,rgba(3,3,3,.85),transparent 45%)}
+body.cromo-page .entity-image{position:absolute;inset:0;border:0;box-shadow:none;background:#07080b}
+body.cromo-page .entity-image img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;mix-blend-mode:normal;
+  filter:grayscale(1) contrast(1.3) brightness(1.05);transition:filter var(--duration-slow) var(--ease-smooth-out)}
+body.cromo-page .entity-image::after{content:"";position:absolute;inset:0;background:var(--cromo-red);mix-blend-mode:multiply;opacity:.5;pointer-events:none;transition:opacity var(--duration-slow) var(--ease-smooth-out)}
+body.cromo-page .entity-image span{display:none}
+body.cromo-page .entity-hero:hover .entity-image img,body.cromo-page .entity-hero:focus-within .entity-image img{filter:none}
+body.cromo-page .entity-hero:hover .entity-image::after,body.cromo-page .entity-hero:focus-within .entity-image::after{opacity:0}
+body.cromo-page .entity-copy{
+  position:relative;z-index:2;display:grid;gap:clamp(16px,3vh,28px);justify-items:start;
+  max-width:min(100%,1180px);padding:clamp(120px,18vh,170px) clamp(20px,4vw,64px) clamp(28px,6vh,64px);
+}
+body.cromo-page .entity-kicker{margin:0;padding:8px 14px;background:var(--cromo-red);color:#fff;font:700 18px/1 "Barlow Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;width:fit-content}
+body.cromo-page .entity-hero h1,
+body.cromo-page main h1{
+  margin:0;font:400 min(16vw,260px)/.88 var(--display);text-transform:uppercase;color:#fff;
+  -webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 #030303;
+  overflow-wrap:anywhere;text-wrap:balance;
+}
+body.cromo-page .entity-facts{display:flex;flex-wrap:wrap;gap:12px;margin:0}
+body.cromo-page .entity-facts > *{
+  display:grid;gap:6px;min-width:150px;padding:12px 18px;background:var(--cromo-plate);border:2px solid rgba(244,241,232,.5);color:#fff;
+}
+body.cromo-page .entity-facts span{font:700 16px/1 "Barlow Condensed",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--steel)}
+body.cromo-page .entity-facts b{font:700 clamp(26px,2.8vw,40px)/1.05 "Barlow Condensed",sans-serif;text-transform:uppercase}
+body.cromo-page .entity-actions{display:flex;flex-wrap:wrap;gap:14px}
+body.cromo-page .entity-actions a{
+  display:inline-flex;align-items:center;justify-content:center;min-height:56px;padding:0 30px;
+  background:var(--cromo-red);color:#fff;border:3px solid var(--cromo-red);
+  font:700 22px/1 "Barlow Condensed",sans-serif;letter-spacing:.02em;text-transform:uppercase;
+  transition:transform var(--duration-fast) var(--ease-smooth-out),box-shadow var(--duration-fast) var(--ease-smooth-out),background-color var(--duration-quick) var(--ease-in-out),color var(--duration-quick) var(--ease-in-out);
+}
+body.cromo-page .entity-actions a + a,
+body.cromo-page .entity-actions a:nth-child(n+2){background:rgba(3,3,3,.9);color:var(--cromo-bone);border-color:var(--cromo-bone)}
+body.cromo-page .entity-actions a:hover{transform:translate(-4px,-4px);box-shadow:6px 6px 0 var(--cromo-bone)}
+body.cromo-page .entity-actions a + a:hover{background:var(--cromo-bone);color:#030303;box-shadow:6px 6px 0 var(--cromo-red)}
+
+/* ---------- Event band: the home's bone strip ---------- */
+body.cromo-page .event-record-band{
+  display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;
+  padding:14px clamp(20px,4vw,64px);background:var(--cromo-bone);color:#030303;border:0;border-block:4px solid #030303;
+}
+body.cromo-page .event-record-band span{font:700 18px/1 "Barlow Condensed",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#030303;background:none}
+body.cromo-page .event-record-band strong{font:400 clamp(34px,4.4vw,70px)/1 var(--display);text-transform:uppercase;color:#030303}
+body.cromo-page .event-record-band p{margin:0;font:700 18px/1 "Barlow Condensed",sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#030303}
+
+/* ---------- Sections: display headings with the red glitch, plates for the text ---------- */
+body.cromo-page .entity-statement,
+body.cromo-page .entity-related{
+  position:relative;padding:clamp(48px,9vh,110px) clamp(20px,4vw,64px);background:var(--cromo-plate);border:0;border-bottom:3px solid rgba(244,241,232,.22);color:var(--cromo-bone);
+}
+body.cromo-page .entity-section-label{
+  position:relative;margin:0 0 clamp(18px,3vh,32px);width:fit-content;padding:0;background:none;border:0;
+  font:400 clamp(44px,7vw,120px)/.9 var(--display);letter-spacing:.01em;text-transform:uppercase;color:#fff;
+  -webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--cromo-red);
+}
+body.cromo-page .entity-statement p,
+body.cromo-page .entity-rich-body{max-width:36em;margin:0;font:500 clamp(24px,2.1vw,32px)/1.4 "Barlow Condensed",sans-serif;color:#f2efe8}
+body.cromo-page .entity-rich-body a{color:#fff;text-decoration:underline;text-decoration-color:var(--cromo-red);text-underline-offset:.2em}
+body.cromo-page .entity-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:24px}
+body.cromo-page .entity-card{
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr;gap:0;overflow:hidden;background:#030303;color:#fff;
+  border:3px solid transparent;border-image:linear-gradient(135deg,#fff 0%,#5b6677 30%,#fff 50%,#ff3b1f 78%,#fff 100%) 1;
+  transition:transform var(--duration-fast) var(--ease-smooth-out),box-shadow var(--duration-fast) var(--ease-smooth-out);
+}
+body.cromo-page .entity-card:hover{transform:translate(-4px,-4px);box-shadow:8px 8px 0 var(--cromo-red)}
+body.cromo-page .entity-card img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;filter:grayscale(1) contrast(1.25);transition:filter var(--duration-slow) var(--ease-smooth-out)}
+body.cromo-page .entity-card:hover img{filter:none}
+body.cromo-page .entity-card-mark{display:grid;place-items:center;aspect-ratio:4/3;font:400 44px/1 var(--display);color:#fff;
+  background:radial-gradient(circle at 32% 28%,#fff 0 5%,#cfd8e6 12%,#3a4252 46%,#07080b 72%)}
+body.cromo-page .entity-card > span:last-child{display:grid;gap:6px;align-content:start;padding:16px 18px 20px}
+body.cromo-page .entity-card small{font:700 17px/1.1 "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--steel)}
+body.cromo-page .entity-card strong{font:400 clamp(30px,2.6vw,40px)/.95 var(--display);text-transform:uppercase;color:#fff;-webkit-text-stroke:.04em #030303;paint-order:stroke fill}
+
+/* ---------- Footer: the home's ---------- */
+body.cromo-page > footer{
+  padding:30px clamp(14px,2vw,28px) 40px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  background:#030303;border:0;color:#fff;font:700 19px/1.4 "Barlow Condensed",sans-serif;
+}
+body.cromo-page > footer a{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:.2em}
+
+/* ---------- Privacy (plain document) ---------- */
+body.cromo-page.brvtal-privacy-rights main{
+  max-width:56rem !important;margin:clamp(120px,18vh,160px) auto 4rem !important;padding:clamp(22px,3vw,44px) !important;
+  background:var(--cromo-plate);border:1px solid rgba(244,241,232,.22);border-top:3px solid var(--cromo-red);color:var(--cromo-bone);font-size:clamp(20px,2vw,24px);
+}
+body.cromo-page.brvtal-privacy-rights main h2,
+body.cromo-page.brvtal-privacy-rights main h3{font:400 clamp(30px,3.2vw,48px)/.95 var(--display);color:#fff;text-transform:uppercase;-webkit-text-stroke:.04em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--cromo-red)}
+body.cromo-page.brvtal-privacy-rights main a{color:#fff;text-decoration-color:var(--cromo-red);text-underline-offset:.2em}
+body.cromo-page.brvtal-privacy-rights main h1{font-size:clamp(48px,8vw,120px);-webkit-text-stroke:.05em #030303}
+
+/* ---------- Motion: the page enters once, with a soft blur; titles carry the red glitch ---------- */
 @keyframes cromo-page-in{from{opacity:0;filter:blur(var(--blur-medium));transform:translateY(var(--distance-medium))}to{opacity:1;filter:blur(0);transform:none}}
 body.cromo-page .entity-hero .entity-copy > *{animation:cromo-page-in var(--duration-very-slow) var(--ease-in-out) backwards}
 body.cromo-page .entity-hero .entity-copy > :nth-child(2){animation-delay:var(--duration-stagger)}
 body.cromo-page .entity-hero .entity-copy > :nth-child(3){animation-delay:calc(var(--duration-stagger)*2)}
 body.cromo-page .entity-hero .entity-copy > :nth-child(4){animation-delay:calc(var(--duration-stagger)*3)}
-
-
-/* ---------- Navigation and footer ---------- */
-body.cromo-page .entity-nav,
-body.cromo-page > header:not(.entity-nav){
-  background:var(--cromo-plate);
-  border-bottom:3px solid var(--cromo-red);
-  color:var(--cromo-bone);
-}
-body.cromo-page .entity-brand{font-family:var(--display);font-weight:400;letter-spacing:.02em}
-body.cromo-page .entity-brand small{color:var(--cromo-red);font-family:"Space Mono",monospace}
-body.cromo-page .entity-nav a:not(.entity-brand){
-  display:inline-flex;align-items:center;min-height:44px;padding:0 4px;
-}
-body.cromo-page footer{
-  background:var(--cromo-plate);
-  border-top:3px solid var(--cromo-red);
-  color:var(--cromo-bone);
-}
-
-/* ---------- Entity pages ---------- */
-body.cromo-page .entity-hero,
-body.cromo-page .entity-statement,
-body.cromo-page .entity-related,
-body.cromo-page .event-record-band{
-  background:var(--cromo-plate);
-  border:1px solid rgba(244,241,232,.22);
-  border-top:3px solid var(--cromo-red);
-  color:var(--cromo-bone);
-}
-body.cromo-page .entity-hero h1,
-body.cromo-page main h1{
-  font-family:var(--display);
-  font-weight:400;
-  line-height:.9;
-  color:var(--cromo-bone);
-  -webkit-text-stroke:2px #050505;
-  paint-order:stroke fill;
-  text-shadow:.04em .05em 0 var(--cromo-red);
-  overflow-wrap:anywhere;
-  text-wrap:balance;
-}
-/* Red glitch layers (same idea as the home titles): wide cuts, big shifts and a shaking title. */
 @keyframes cromo-glitch-a{
   0%,89%,100%{transform:translate(-3px,0);clip-path:inset(47% 0 45% 0)}
   90%{transform:translate(-11px,-1px);clip-path:inset(16% 0 74% 0)}
@@ -112,80 +181,42 @@ body.cromo-page main h1[data-text]::after{
   content:attr(data-text);display:block;position:absolute;inset:0;pointer-events:none;
   -webkit-text-stroke:0;text-shadow:none;
 }
+
 body.cromo-page main h1[data-text]::before{color:var(--cromo-red);transform:translate(-3px,0);clip-path:inset(47% 0 45% 0);animation:cromo-glitch-a 5.4s steps(1) infinite}
 body.cromo-page main h1[data-text]::after{color:var(--cromo-bone);opacity:.55;transform:translate(3px,0);clip-path:inset(22% 0 72% 0);animation:cromo-glitch-b 5.4s steps(1) infinite}
-body.cromo-page .entity-copy{padding:clamp(16px,3vw,40px)}
-body.cromo-page .entity-kicker,
-body.cromo-page .entity-section-label{
-  color:var(--cromo-bone);
-  background:#050505;
-  border-left:4px solid var(--cromo-red);
-  padding:.35em .7em;
-  width:fit-content;
-  font-family:"Space Mono",monospace;
+body.cromo-page .entity-section-label[data-text]{position:relative}
+body.cromo-page .entity-section-label[data-text]::before,
+body.cromo-page .entity-section-label[data-text]::after{
+  content:attr(data-text);display:block;position:absolute;inset:0;pointer-events:none;-webkit-text-stroke:0;text-shadow:none;white-space:inherit;
 }
-body.cromo-page .entity-image{border:2px solid var(--cromo-bone);box-shadow:6px 6px 0 var(--cromo-red)}
-body.cromo-page .entity-image span{background:#050505;color:var(--cromo-bone)}
-body.cromo-page .entity-image img{filter:none;mix-blend-mode:normal}
-body.cromo-page .entity-facts > *{
-  background:#050505;
-  border:1px solid rgba(244,241,232,.22);
-  border-top:3px solid var(--cromo-red);
-  color:var(--cromo-bone);
-}
-body.cromo-page .entity-facts *{color:inherit}
-body.cromo-page .entity-actions a{
-  display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
-  background:var(--cromo-red);color:#fff;border:2px solid var(--cromo-red);
-  font:700 13px/1 "Space Mono",monospace;letter-spacing:.06em;text-transform:uppercase;
-}
-body.cromo-page .entity-actions a + a,
-body.cromo-page .entity-actions a:nth-child(n+2){
-  background:transparent;color:var(--cromo-bone);border-color:var(--cromo-bone);
-}
-body.cromo-page .entity-actions a:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--cromo-bone)}
-body.cromo-page .entity-rich-body{color:var(--cromo-bone)}
-body.cromo-page .entity-rich-body a{color:#fff;text-decoration:underline;text-decoration-color:var(--cromo-red);text-underline-offset:.2em}
-body.cromo-page .entity-card{
-  background:#050505;
-  border:1px solid rgba(244,241,232,.22);
-  border-top:3px solid var(--cromo-red);
-  color:var(--cromo-bone);
-}
-body.cromo-page .entity-card-mark{color:var(--cromo-red)}
-body.cromo-page .event-record-band strong{color:var(--cromo-red)}
+body.cromo-page .entity-section-label[data-text]::before{color:var(--cromo-red);transform:translate(-3px,0);clip-path:inset(47% 0 45% 0);animation:cromo-glitch-a 5.4s steps(1) infinite}
+body.cromo-page .entity-section-label[data-text]::after{color:var(--cromo-bone);opacity:.55;transform:translate(3px,0);clip-path:inset(22% 0 72% 0);animation:cromo-glitch-b 5.4s steps(1) infinite}
 
-/* ---------- Privacy, 404, unavailable (plain documents) ---------- */
-body.cromo-page.brvtal-privacy-rights > header{padding:0 clamp(16px,4vw,48px)}
-body.cromo-page.brvtal-privacy-rights > header nav{display:flex;align-items:center;min-height:64px}
-body.cromo-page.brvtal-privacy-rights > header a{
-  display:inline-flex;align-items:center;min-height:44px;
-  font:700 13px/1 "Space Mono",monospace;letter-spacing:.06em;text-transform:uppercase;
+/* ---------- Mobile ---------- */
+@media(max-width:900px){
+  body.cromo-page .entity-nav{padding:10px 12px}
+  body.cromo-page .cp-nav{order:3;flex:1 1 100%;overflow-x:auto;scrollbar-width:none;padding:0 4px}
+  body.cromo-page .cp-nav a{flex:none}
+  body.cromo-page .cp-snd span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+  body.cromo-page .cp-snd{padding:0;justify-content:center;width:44px}
+  body.cromo-page .entity-copy{padding-top:clamp(150px,22vh,200px)}
+  body.cromo-page .entity-hero{min-height:min(96vh,780px)}
 }
-body.cromo-page.brvtal-privacy-rights main{
-  background:var(--cromo-plate);
-  border:1px solid rgba(244,241,232,.22);
-  border-top:3px solid var(--cromo-red);
-  color:var(--cromo-bone);
-  font-size:clamp(19px,2vw,23px);
-}
-body.cromo-page.brvtal-privacy-rights main h2,
-body.cromo-page.brvtal-privacy-rights main h3{
-  font-family:var(--display);font-weight:400;color:var(--cromo-bone);
-  -webkit-text-stroke:1px #050505;paint-order:stroke fill;
-}
-body.cromo-page.brvtal-privacy-rights main a{color:#fff;text-decoration-color:var(--cromo-red);text-underline-offset:.2em}
-body.cromo-page.brvtal-privacy-rights > footer{padding:16px clamp(16px,4vw,48px)}
-
 @media(max-width:700px){
-  body.cromo-page .entity-hero h1,
-  body.cromo-page main h1{-webkit-text-stroke:1.5px #050505}
-  body.cromo-page .entity-image{box-shadow:4px 4px 0 var(--cromo-red)}
+  body.cromo-page .entity-brand{padding:8px 12px;font-size:24px}
+  body.cromo-page .cp-back{padding:0 10px;font-size:16px}
+  body.cromo-page .cp-tools{gap:6px}
+  body.cromo-page.brvtal-privacy-rights main{margin-top:160px !important}
+  body.cromo-page .entity-hero h1,body.cromo-page main h1{font-size:min(17vw,110px)}
+  body.cromo-page .entity-brand small{display:none}
+  body.cromo-page .entity-actions a{flex:1 1 100%}
 }
 @media(prefers-reduced-motion:reduce){
   body.cromo-page .entity-actions a:hover,
   body.cromo-page .entity-card:hover{transform:none;box-shadow:none}
   body.cromo-page .entity-hero .entity-copy > *{animation:none}
-  body.cromo-page main h1[data-text]::before,body.cromo-page main h1[data-text]::after{animation:none}
-  body.cromo-page .entity-actions a,body.cromo-page .entity-brand,body.cromo-page .entity-card,body.cromo-page .entity-image{transition:none}
+  body.cromo-page main h1[data-text]::before,body.cromo-page main h1[data-text]::after,
+  body.cromo-page .entity-section-label[data-text]::before,body.cromo-page .entity-section-label[data-text]::after{animation:none}
+  body.cromo-page .entity-image img,body.cromo-page .entity-image::after,body.cromo-page .entity-card,body.cromo-page .entity-card img,
+  body.cromo-page .entity-actions a,body.cromo-page .cp-nav a,body.cromo-page .cp-back{transition:none}
 }

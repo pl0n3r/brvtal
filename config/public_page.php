@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+
+require_once __DIR__ . '/public_cromo_chrome.php';
 require_once __DIR__ . '/media.php';
 require_once __DIR__ . '/memory_relations.php';
 require_once __DIR__ . '/public_visibility.php';
@@ -501,7 +503,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
             $cards .= $href ? '<a class="entity-card" href="' . $href . '">' . $content . '</a>' : '<div class="entity-card">' . $content . '</div>';
         }
         $displayHeading = $isEvent && $recordState === 'historical' ? ($historicalHeadings[$heading] ?? $heading) : $heading;
-        $related .= '<section class="entity-related"><div class="entity-section-label">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
+        $related .= '<section class="entity-related"><div class="entity-section-label" data-text="' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . '">' . $escape(brvtalPublicEntityEs((string)$displayHeading)) . ' / ' . str_pad((string)count($items), 2, '0', STR_PAD_LEFT) . '</div><div class="entity-grid">' . $cards . '</div></section>';
     }
     $body = nl2br($escape(trim((string)($entity['description'] ?? ''))));
     if ($body === '') $body = 'BRVTAL / RAVE TILL GRAVE';
@@ -548,6 +550,8 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
         $recordBand = '<section class="event-record-band" aria-label="Ciclo de vida del evento"><div><span>' . $escape($bandLabel) . '</span><strong>' . $escape($bandValue) . '</strong></div><p>FICHA OFICIAL DEL EVENTO / BRVTAL</p></section>';
     }
 
+    $topbar = brvtalPublicCromoTopbar($backHref, $backLabel);
+
     return <<<HTML
 <!doctype html>
 <html lang="es">
@@ -570,7 +574,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
 </head>
 <body {$bodyAttributes}>
   <a class="skip-link" href="#main-content">IR AL CONTENIDO</a>
-  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="{$backHref}">{$backLabel}</a></header>
+  {$topbar}
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
       <div class="entity-image"><img src="{$image}" alt="{$entityTitle}" loading="eager" fetchpriority="high" decoding="async"><span>{$kindLabel} / BRVTAL</span></div>
@@ -578,7 +582,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     </article>
     {$recordBand}
     <section class="entity-statement">
-      <div class="entity-section-label">{$statementLabel}</div>
+      <div class="entity-section-label" data-text="{$statementLabel}">{$statementLabel}</div>
       {$statementBody}
     </section>
     {$degradedNotice}
@@ -586,6 +590,8 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   <script src="/js/public-cromo.js" defer></script>
+  <script src="/js/public-cromo-sound.js" defer></script>
+  <script src="/js/public-cromo-pages.js" defer></script>
   {$analytics}
 </body>
 </html>
