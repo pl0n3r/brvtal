@@ -5,6 +5,15 @@
  * Colors come from the Theme Studio variables (--bg, --fg, --red).
  */
 
+@font-face{
+  font-family:"Broken Glass";
+  src:url("../assets/fonts/BrokenGlass.ttf") format("truetype");
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+}
+
+/* Font activation is controlled exclusively by html.cromo display selectors. */
 html.cromo #cromoGL{
   position:fixed;
   inset:0;
@@ -32,6 +41,9 @@ html.cromo .nav{background-color:rgba(5,5,5,.9)}
 
 /* Wordmark: white fill with a hard dark outline stays readable on chrome. */
 html.cromo .home-phase-a-hero .hero-title{
+  font-family:"Broken Glass",var(--theme-display-font,"Barlow Condensed"),sans-serif;
+  font-weight:400;
+  line-height:.9;
   color:var(--fg,#f4f1e8);
   -webkit-text-stroke:clamp(3px,.6vw,9px) #050505;
   paint-order:stroke fill;
@@ -58,10 +70,34 @@ html.cromo body .home-phase-a-hero .hero-title::after{display:none}
 
 /* Section headings: same outline treatment so they survive the transparent gaps. */
 html.cromo main#top section.scene h2{
+  font-family:"Broken Glass",var(--theme-display-font,"Barlow Condensed"),sans-serif;
+  font-weight:400;
+  line-height:.96;
+  overflow-wrap:anywhere;
   -webkit-text-stroke:2px #050505;
   paint-order:stroke fill;
 }
 
 @media(prefers-reduced-motion:reduce){
   html.cromo .home-phase-a-hero .hero-title{animation:none}
+}
+
+/* Compact display glyphs fill the mobile hero without horizontal overflow. */
+@media(max-width:600px){
+  html.cromo [data-concept="05"] .home-phase-a-hero .hero-title{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    font-size:clamp(104px,41vw,190px);
+    line-height:.85;
+    letter-spacing:-.012em;
+    overflow-wrap:normal;
+    word-break:normal;
+    white-space:nowrap;
+  }
+  html.cromo main#top section.scene h2{
+    max-width:100%;
+    font-size:clamp(48px,13vw,82px);
+    -webkit-text-stroke:1px #050505;
+  }
 }
