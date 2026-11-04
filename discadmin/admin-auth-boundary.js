@@ -121,7 +121,7 @@
 
   const originalFetch = window.fetch.bind(window);
 
-  const ADMIN_GET_CONCURRENCY = 2;
+  const ADMIN_GET_CONCURRENCY = 1;
   let adminGetActive = 0;
   const adminGetWaiters = [];
 
