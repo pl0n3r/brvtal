@@ -183,6 +183,7 @@ $copies = [
     'config/admin_session_revalidation.php',
     'config/artist_collective_lifecycle.php',
     'config/bootstrap.php',
+    'config/db_connect_recovery.php',
     'config/content_ordering.php',
     'config/public_health.php',
 ];

@@ -72,6 +72,10 @@ class DatabaseConnectionRecoveryTests(unittest.TestCase):
         self.assertIn('return BRVTAL_ADMIN_AUTH_UNAVAILABLE;', auth)
         self.assertIn('$unavailable ? 503 : 401', auth)
 
+    def test_isolated_content_ordering_fixture_copies_helper(self):
+        sandbox = (ROOT / 'tests/content-ordering-contract.php').read_text()
+        self.assertIn("'config/db_connect_recovery.php',", sandbox)
+
     def test_recovery_has_no_secret_logging_or_implicit_non_pdo_retry(self):
         result = run_php(
             BOOT + "$tries=0;$wait=0;"
