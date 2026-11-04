@@ -221,7 +221,7 @@
       el('span', { class: 'go', text: 'Avísame' })));
 
     // --- Últimas noches: the archive, as posters (the old #events / #archive links land here).
-    const past = (Array.isArray(archive) ? archive : []).filter((event) => event && event.slug && parseDate(event.event_date))
+    const past = (Array.isArray(archive) ? archive : []).filter((event) => event?.slug && parseDate(event.event_date))
       .sort((a, b) => parseDate(b.event_date) - parseDate(a.event_date));
     if (past.length) {
       const LIMIT_PAST = 8;
@@ -289,7 +289,7 @@
     // --- Experiencia: the next night as a feature, from the same data as Noches.
     if (!next) return null;
     const when = parseDate(next.event_date);
-    const ids = (((relations.events || {})[next.id] || {}).artists || []).map(Number);
+    const ids = (relations.events?.[next.id]?.artists || []).map(Number);
     const names = ids.map((id) => artists.find((a) => Number(a.id) === id)).filter(Boolean).map((a) => text(a.name));
     const cover = safeUrl(next.cover_image);
     const tickets = safeUrl(next.ticket_url);
@@ -313,7 +313,7 @@
   };
 
   // Motion timing is read from the shared tokens (css/public-cromo-home.css), never hardcoded here.
-  const ms = (name) => parseFloat(getComputedStyle(document.getElementById('cromo-home') || root).getPropertyValue(name)) || 0;
+  const ms = (name) => Number.parseFloat(getComputedStyle(document.getElementById('cromo-home') || root).getPropertyValue(name)) || 0;
   const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // transitions.dev "text swap soft": old and new text cross-blur in place and the width eases.
@@ -335,7 +335,7 @@
     node.replaceChildren(out, inn);
     const w1 = inn.getBoundingClientRect().width;
     node.style.width = w0 + 'px';
-    void node.offsetWidth; // force reflow so every transition runs
+    node.getBoundingClientRect(); // force reflow so every transition runs
     node.classList.add('is-swapping');
     node.style.width = w1 + 'px';
     node._softTimer = setTimeout(() => {
@@ -380,16 +380,19 @@
       adjacency.get(a).add(b);
       adjacency.get(b).add(a);
     };
-    const ids = (value) => (Array.isArray(value) ? value : (value === null || value === undefined ? [] : [value]));
+    const ids = (value) => {
+      if (Array.isArray(value)) return value;
+      return value === null || value === undefined ? [] : [value];
+    };
     const entries = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : []);
-    entries(rel.events).forEach(([id, r]) => { ids(r && r.artists).forEach((x) => join('e' + id, 'a' + x)); ids(r && r.sets).forEach((x) => join('e' + id, 's' + x)); });
+    entries(rel.events).forEach(([id, r]) => { ids(r?.artists).forEach((x) => join('e' + id, 'a' + x)); ids(r?.sets).forEach((x) => join('e' + id, 's' + x)); });
     entries(rel.artists).forEach(([id, r]) => {
-      ids(r && r.events).forEach((x) => join('a' + id, 'e' + x));
-      ids(r && r.sets).forEach((x) => join('a' + id, 's' + x));
-      ids(r && r.releases).forEach((x) => join('a' + id, 'r' + x));
+      ids(r?.events).forEach((x) => join('a' + id, 'e' + x));
+      ids(r?.sets).forEach((x) => join('a' + id, 's' + x));
+      ids(r?.releases).forEach((x) => join('a' + id, 'r' + x));
     });
-    entries(rel.sets).forEach(([id, r]) => { ids(r && r.artist).forEach((x) => join('s' + id, 'a' + x)); ids(r && r.event).forEach((x) => join('s' + id, 'e' + x)); });
-    entries(rel.releases).forEach(([id, r]) => { ids(r && (r.artist || r.artists)).forEach((x) => join('r' + id, 'a' + x)); ids(r && r.event).forEach((x) => join('r' + id, 'e' + x)); });
+    entries(rel.sets).forEach(([id, r]) => { ids(r?.artist).forEach((x) => join('s' + id, 'a' + x)); ids(r?.event).forEach((x) => join('s' + id, 'e' + x)); });
+    entries(rel.releases).forEach(([id, r]) => { ids(r?.artist || r?.artists).forEach((x) => join('r' + id, 'a' + x)); ids(r?.event).forEach((x) => join('r' + id, 'e' + x)); });
 
     const related = (key) => [...(adjacency.get(key) || [])].map((k) => entities.get(k)).filter(Boolean);
     const labels = (items) => joinNames(items.map((x) => x.label));
@@ -517,8 +520,8 @@
       }
       softSwap(headingText, entity ? entity.label : 'Elige un punto de partida');
       softSwap(sentenceText, entity ? sentenceOf(entity) : 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.');
-      open.hidden = !entity || !entity.href;
-      if (entity && entity.href) { open.setAttribute('href', entity.href); open.textContent = actionOf(entity); }
+      open.hidden = !entity?.href;
+      if (entity?.href) { open.setAttribute('href', entity.href); open.textContent = actionOf(entity); }
       clear.hidden = !entity;
       paint();
     }
@@ -660,7 +663,7 @@
       nodes[index].classList.add('cr-is-active');
       nodes[index].removeAttribute('aria-hidden');
       const incoming = nodes[index].querySelector('video');
-      if (incoming) { const played = incoming.play(); if (played && played.catch) played.catch(() => {}); }
+      incoming?.play()?.catch(() => {});
       dots[index].setAttribute('aria-current', 'true');
       countNow.textContent = pad(index + 1);
       schedule();
@@ -763,7 +766,7 @@
     // Section titles carry a green glitch layer (same idea as the old Genesis title): the layer
     // copies the text through data-text, so the heading itself stays plain text for assistive tech.
     parts.home.querySelectorAll('h2.cr-u, .cr-end > a.cr-u').forEach((title) => {
-      title.setAttribute('data-text', text(title.textContent));
+      title.dataset.text = text(title.textContent);
       title.classList.add('cr-glitch');
     });
     document.body.appendChild(parts.home);
@@ -814,9 +817,9 @@
     const json = (url) => fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))));
     // The banners are optional: if their endpoint fails the home still mounts without them.
-    const banners = json('/api/hero-slider.php').then((payload) => (payload && payload.ok === true ? payload.data : null)).catch(() => null);
+    const banners = json('/api/hero-slider.php').then((payload) => (payload?.ok === true ? payload.data : null)).catch(() => null);
     Promise.all([json('/api/public.php'), banners])
-      .then(([payload, slider]) => { if (payload && payload.data && !document.getElementById('cromo-home')) mount(payload.data, slider); })
+      .then(([payload, slider]) => { if (payload?.data && !document.getElementById('cromo-home')) mount(payload.data, slider); })
       .catch(() => { /* keep the Concept 05 home */ });
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });

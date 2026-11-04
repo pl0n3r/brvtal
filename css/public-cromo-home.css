@@ -247,7 +247,7 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-bn-ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(3,3,3,calc(var(--ov,.35) + .45)) 0%,rgba(3,3,3,calc(var(--ov,.35) + .1)) 55%,rgba(3,3,3,.15) 100%),linear-gradient(0deg,rgba(3,3,3,.85),transparent 45%)}
 
 /* Layers: positioned from the center point the editor defines (percent of the stage), mobile overrides included. */
-#cromo-home .cr-bn-layer{position:absolute;left:var(--x,12%);top:var(--y,50%);width:var(--w,50%);transform:translate(-50%,-50%);color:#fff;z-index:2;word-break:break-word}
+#cromo-home .cr-bn-layer{position:absolute;left:var(--x,12%);top:var(--y,50%);width:var(--w,50%);transform:translate(-50%,-50%);color:#fff;z-index:2;overflow-wrap:anywhere}
 #cromo-home .cr-bn-al-left{text-align:left}
 #cromo-home .cr-bn-al-center{text-align:center}
 #cromo-home .cr-bn-al-right{text-align:right}
@@ -313,12 +313,8 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 
 /* ---------- Conectado como grafo: círculos (tamaño = elementos) y líneas (grosor = vínculos) ---------- */
 @keyframes cromo-cn-pop{from{opacity:0;filter:blur(var(--blur-medium));transform:translate(-50%,-50%) scale(.82)}to{opacity:1;filter:blur(0);transform:translate(-50%,-50%) scale(1)}}
-@media(prefers-reduced-motion:reduce){
-}
 
 /* Elementos reales de la categoría elegida (los artistas, las noches, los sets...). */
-@media(prefers-reduced-motion:reduce){
-}
 
 
 /* ---------- Conectado: explorador de conexiones reales (noches, artistas, sonido) ---------- */

@@ -412,7 +412,7 @@ class CromoMotionTests(unittest.TestCase):
         for needle in ("cr-cn2-item", "cr-cn2-path", "t-text-soft"):
             self.assertIn(needle, block)
     def test_titles_get_the_red_glitch_only_through_data_text_layers(self) -> None:
-        self.assertIn("setAttribute('data-text'", self.JS)
+        self.assertIn("dataset.text = text(title.textContent)", self.JS)
         self.assertIn("cr-glitch", self.JS)
         self.assertIn("content:attr(data-text)", self.HOME.replace(" ", ""))
         # The glitch is the site's red (never the old lime): a short burst on a long cycle that never hides the text.
