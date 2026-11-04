@@ -157,7 +157,7 @@ const BRVTALRelatedContent = (() => {
         </aside>
         <div class="related-network-detail" data-related-detail aria-live="polite"></div>
       </div>`;
-    if (before) host.insertBefore(section, before);
+    if (before?.parentNode) before.parentNode.insertBefore(section, before);
     else host.appendChild(section);
 
     section.addEventListener('click', event => {
