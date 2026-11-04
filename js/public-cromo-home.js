@@ -214,20 +214,35 @@
     return { end, loadChallenge };
   };
 
+  const buildNextCard = (next, artists) => {
+    const when = parseDate(next.event_date);
+    const days = Math.ceil((new Date(when.getFullYear(), when.getMonth(), when.getDate()) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
+    const k = days <= 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días';
+    const lineup = lineupText(artists);
+    const place = [text(next.city), text(next.venue)].filter(Boolean).join(', ');
+    const slug = typeof next.slug === 'string' ? next.slug.trim() : '';
+    const href = slug ? '/events/' + encodeURIComponent(slug) : '';
+    const details = [lineup, place].filter(Boolean).join(' · ');
+    const attrs = {
+      class: href ? 'next next-link' : 'next',
+      'aria-label': href ? 'Ver evento ' + text(next.title, 90) + '. ' + k : 'Próxima noche',
+      ...(href ? { href } : {}),
+    };
+    return el(href ? 'a' : 'aside', attrs,
+      el('span', { class: 'next-tag', text: 'PRÓXIMA NOCHE' }),
+      el('b', { class: 'next-count', text: k }),
+      el('span', { class: 'next-date', text: when.getDate() + ' ' + MONTHS[when.getMonth()] }),
+      el('strong', { class: 'next-event', text: text(next.title, 90) }),
+      details ? el('small', { class: 'next-details', text: details }) : null,
+      href ? el('span', { class: 'next-action' },
+        el('span', { text: 'VER EVENTO' }), el('span', { class: 'next-arrow', 'aria-hidden': 'true', text: '↗' })) : null
+    );
+  };
+
   const buildHero = (next, artists) => {
     // --- Hero
     const word = el('h1', { class: 'u', id: 'word', 'aria-label': 'BRVTAL' }, Array.from('BRVTAL').map((c) => el('span', { 'aria-hidden': 'true', text: c })));
-    let nextCard = null;
-    if (next) {
-      const when = parseDate(next.event_date);
-      const days = Math.ceil((new Date(when.getFullYear(), when.getMonth(), when.getDate()) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
-      const k = days <= 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días';
-      const lineup = lineupText(artists);
-      const place = [text(next.city), text(next.venue)].filter(Boolean).join(', ');
-      nextCard = el('aside', { class: 'next', 'aria-label': 'Próxima noche' },
-        el('b', { text: k }), el('span', { text: when.getDate() + ' ' + MONTHS[when.getMonth()] }),
-        el('small', { text: text(next.title) + (lineup ? ': ' + lineup : '') + (place ? '. ' + place + '.' : '.') }));
-    }
+    const nextCard = next ? buildNextCard(next, artists) : null;
     const hero = el('section', { class: 'hero' },
       el('div', { class: 'core' }, word, el('p', { text: 'Más que fiestas. Una cultura en movimiento.' })),
       nextCard,
@@ -842,6 +857,42 @@
     return { home, snd, snd2, nav, loadChallenge, word };
   };
 
+  // Progressive GSAP enhancement: the CMS event link works before/without motion scripts.
+  const enhanceNextCard = (home) => {
+    const card = home.querySelector('.cr-next-link');
+    if (!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    Promise.resolve(window.BRVTALRuntimeReady).then(() => {
+      const gsap = window.gsap;
+      if (!card.isConnected || !gsap || typeof gsap.matchMedia !== 'function'
+        || typeof gsap.context !== 'function' || typeof gsap.timeline !== 'function') return;
+      const media = gsap.matchMedia();
+      media.add('(prefers-reduced-motion: no-preference)', () => {
+        const arrow = card.querySelector('.cr-next-arrow');
+        const context = gsap.context(() => {
+          const intro = gsap.timeline();
+          intro.from(card, { opacity: 0, x: 22, y: 12, rotation: -5,
+            duration: .7, ease: 'power3.out', clearProps: 'opacity,transform' });
+          intro.from(card.querySelector('.cr-next-action'), { opacity: 0, y: 8,
+            duration: .25, ease: 'power2.out', clearProps: 'opacity,transform' }, '-=.24');
+        }, card);
+        const enter = () => { if (arrow) gsap.to(arrow, { x: 7, duration: .2, ease: 'power2.out', overwrite: 'auto' }); };
+        const leave = () => { if (arrow) gsap.to(arrow, { x: 0, duration: .2, ease: 'power2.out', overwrite: 'auto' }); };
+        card.addEventListener('pointerenter', enter);
+        card.addEventListener('pointerleave', leave);
+        card.addEventListener('focusin', enter);
+        card.addEventListener('focusout', leave);
+        return () => {
+          card.removeEventListener('pointerenter', enter);
+          card.removeEventListener('pointerleave', leave);
+          card.removeEventListener('focusin', enter);
+          card.removeEventListener('focusout', leave);
+          context.revert();
+        };
+      });
+      window.addEventListener('pagehide', () => media.revert(), { once: true });
+    }).catch(() => { /* GSAP is optional; the link and CSS remain usable. */ });
+  };
+
   const mount = (data, slider) => {
     const parts = build(data, slider);
     window.BRVTAL_CROMO_ACCENT = [1, .17, .05];
@@ -853,6 +904,7 @@
     });
     document.body.appendChild(parts.home);
     root.classList.add('cromo-home');
+    enhanceNextCard(parts.home);
     const sound = window.BRVTALCromoSound;
     if (sound && sound.bind) { sound.bind(parts.snd); sound.bind(parts.snd2); }
     // Captcha fetch handles its own errors; initialization is intentionally non-blocking.

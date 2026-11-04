@@ -354,3 +354,64 @@ test('Cromo keeps all section links accessible in the 821–900px header', async
     await noOverflow(page);
   }
 });
+
+
+test('Próxima noche usa una tarjeta completa clicable y CTA real sin desbordes', async ({ page }) => {
+  for (const width of [390, 1440]) {
+    await mount(page, { width });
+    const next = page.locator('#cromo-home .cr-hero .cr-next-link');
+    await expect(next).toHaveCount(1);
+    await expect(next).toHaveAttribute('href', '/events/genesis');
+    await expect(next).toHaveAttribute('aria-label', /Ver evento GENESIS/);
+    await expect(next.locator('.cr-next-count')).toContainText(/días/i);
+    await expect(next.locator('.cr-next-event')).toHaveText('GENESIS');
+    await expect(next.locator('.cr-next-details')).toContainText('Pereira');
+    await expect(next.locator('.cr-next-action')).toContainText('VER EVENTO');
+    const metrics = await next.evaluate(node => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: rect.width, height: rect.height };
+    });
+    expect(metrics.left).toBeGreaterThanOrEqual(-1);
+    expect(metrics.right).toBeLessThanOrEqual(width + 1);
+    expect(metrics.width).toBeGreaterThanOrEqual(44);
+    expect(metrics.height).toBeGreaterThanOrEqual(44);
+    await next.focus();
+    await expect(next).toBeFocused();
+    expect(await next.evaluate(node => getComputedStyle(node).outlineStyle)).toBe('solid');
+    await noOverflow(page);
+  }
+});
+
+test('Próxima noche sin slug no inventa enlace; sin evento no crea tarjeta', async ({ page }) => {
+  await mount(page, { payload: { ...data, events: [{ ...event, slug: '' }] } });
+  await expect(page.locator('#cromo-home .cr-next')).toHaveCount(1);
+  await expect(page.locator('#cromo-home .cr-next-link')).toHaveCount(0);
+  await expect(page.locator('#cromo-home .cr-next-action')).toHaveCount(0);
+  await mount(page, { payload: { ...data, events: [] } });
+  await expect(page.locator('#cromo-home .cr-next')).toHaveCount(0);
+});
+
+test('GSAP anima la entrada y la flecha; movimiento reducido lo omite', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__cromoGsapCalls = [];
+    window.BRVTALRuntimeReady = Promise.resolve();
+    window.gsap = {
+      matchMedia: () => ({
+        add(_query, callback) { window.__cromoGsapCalls.push('media'); callback(); },
+        revert() {},
+      }),
+      context: callback => { callback(); return { revert() {} }; },
+      timeline: () => ({
+        from() { window.__cromoGsapCalls.push('from'); return this; },
+      }),
+      to: (_target, vars) => { window.__cromoGsapCalls.push('to:' + vars.x); },
+    };
+  });
+  await mount(page);
+  await expect.poll(() => page.evaluate(() => window.__cromoGsapCalls.includes('from'))).toBe(true);
+  await page.locator('#cromo-home .cr-next-link').hover();
+  await expect.poll(() => page.evaluate(() => window.__cromoGsapCalls.includes('to:7'))).toBe(true);
+  await mount(page, { reduced: true });
+  expect(await page.evaluate(() => window.__cromoGsapCalls.length)).toBe(0);
+  await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
+});
