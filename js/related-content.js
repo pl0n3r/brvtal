@@ -157,8 +157,11 @@ const BRVTALRelatedContent = (() => {
         </aside>
         <div class="related-network-detail" data-related-detail aria-live="polite"></div>
       </div>`;
-    if (before) host.insertBefore(section, before);
+    // A paired Sound/Memories board must retain exactly its two grid cells.
+    const anchor = before?.closest?.('.c5-board-region--pair') || before;
+    if (anchor?.parentNode) anchor.parentNode.insertBefore(section, anchor);
     else host.appendChild(section);
+    section.style.gridColumn = '1 / -1';
 
     section.addEventListener('click', event => {
       const modeButton = event.target.closest('[data-related-mode]');
