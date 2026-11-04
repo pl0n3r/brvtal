@@ -196,6 +196,58 @@ function brvtal_public_local_image_dimensions(string $src): ?array
     ];
 }
 
+/**
+ * Build a safe, aspect-ratio-preserving WebP srcset for server-rendered
+ * CMS upload images. Original URLs remain the fallback and are never deleted.
+ * A missing/broken Media Engine sidecar leaves the original untouched.
+ */
+function brvtal_public_home_webp_srcset(string $src): ?array
+{
+    $path = parse_url(html_entity_decode($src, ENT_QUOTES | ENT_HTML5, 'UTF-8'), PHP_URL_PATH);
+    if (!is_string($path) || !str_starts_with(ltrim($path, '/'), 'uploads/')) {
+        return null;
+    }
+
+    require_once __DIR__ . '/../api/public-media-delivery.php';
+    $delivery = brvtal_public_media_delivery_for_path('/' . ltrim($path, '/'));
+    if ($delivery === null) return null;
+
+    $originalWidth = (int)($delivery['width'] ?? 0);
+    $originalHeight = (int)($delivery['height'] ?? 0);
+    if ($originalWidth < 1 || $originalHeight < 1) return null;
+
+    $entries = [];
+    foreach (['display', 'w1280', 'w1920'] as $name) {
+        $variant = $delivery['variants'][$name] ?? null;
+        if (!is_array($variant)) continue;
+        $width = (int)($variant['width'] ?? 0);
+        $height = (int)($variant['height'] ?? 0);
+        $url = (string)($variant['src'] ?? '');
+        if ($width < 1 || $height < 1 || !str_starts_with($url, '/uploads/')) continue;
+
+        // Do not mix cropped squares/cards with the original aspect ratio.
+        $originalRatio = $originalWidth / $originalHeight;
+        if (abs($width / $height - $originalRatio) > $originalRatio * 0.03) continue;
+
+        $absolute = realpath(dirname(__DIR__) . '/' . ltrim($url, '/'));
+        $root = realpath(dirname(__DIR__) . '/uploads');
+        if ($absolute === false || $root === false || !str_starts_with($absolute, $root . DIRECTORY_SEPARATOR)) {
+            continue;
+        }
+        $details = @getimagesize($absolute);
+        if (!is_array($details) || ($details['mime'] ?? '') !== 'image/webp') continue;
+        $entries[$width] = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ' ' . $width . 'w';
+    }
+
+    if ($entries === []) return null;
+    ksort($entries, SORT_NUMERIC);
+    return [
+        'srcset' => implode(', ', $entries),
+        'width' => $originalWidth,
+        'height' => $originalHeight,
+    ];
+}
+
 function brvtal_public_optimize_home_images(string $html): string
 {
     return preg_replace_callback(
@@ -222,6 +274,21 @@ function brvtal_public_optimize_home_images(string $html): string
                 if (is_array($dimensions)) {
                     if (!$hasWidth) $attributes[] = 'width="' . $dimensions['width'] . '"';
                     if (!$hasHeight) $attributes[] = 'height="' . $dimensions['height'] . '"';
+                }
+            }
+
+            // Choose an existing WebP derivative before the browser requests
+            // a multi-megabyte upload. The original src stays as the fallback.
+            if (preg_match('~\\bsrcset\\s*=~i', $tag) !== 1
+                && preg_match('~\\bsrc\\s*=\\s*(["\\\'])(.*?)\\1~i', $tag, $sourceMatch) === 1) {
+                $responsive = brvtal_public_home_webp_srcset((string)$sourceMatch[2]);
+                if ($responsive !== null) {
+                    $attributes[] = 'srcset="' . $responsive['srcset'] . '"';
+                    if (preg_match('~\\bsizes\\s*=~i', $tag) !== 1) {
+                        $attributes[] = 'sizes="(max-width: 900px) 100vw, 50vw"';
+                    }
+                    if (!$hasWidth) $attributes[] = 'width="' . $responsive['width'] . '"';
+                    if (!$hasHeight) $attributes[] = 'height="' . $responsive['height'] . '"';
                 }
             }
 
