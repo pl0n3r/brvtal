@@ -25,15 +25,63 @@ Metal líquido sobre un fondo casi negro. Un fondo WebGL de metaballs con reflej
 ## Sonido
 Web Audio sintetizado a unos 130 BPM: bombo (seno con barrido de 170 a 42 Hz), hi-hat de ruido filtrado (abierto y cerrado) y bajo de sierra con filtro. Solo arranca tras un clic, está apagado por defecto, tiene interruptor accesible con `aria-pressed` y etiquetas en español ("Activar sonido", "Apagar el pulso"), y se detiene al ocultar la pestaña. El pulso del bombo alimenta el brillo del fondo (`uBeat`).
 
-## Secciones del boceto
-1. **Hero**: wordmark que entra letra por letra, lema sobre placa, tarjeta de la próxima noche (fecha, lugar, lineup, entradas) y botones.
-2. **Noches**: tarjetas oscuras con fecha, lugar, lineup, estado de entradas y TICKETS.
-3. **Artistas**: nombres grandes contorneados con ficha corta.
-4. **Sonido**: invitación a encender el pulso con el interruptor.
-5. **Sets**: filas con título, artista y enlace.
-6. **Memorias**: filtros (Todo, Imágenes, Video, Audio) y cuadrícula de mosaicos con uno grande y títulos en la esquina.
-7. **Journal**: tarjetas oscuras (Crónica, Archivo) con título en Broken Glass y botón; **Conectado** resume los vínculos verificados.
-8. **Contacto** ("Hablemos"): placa oscura con formulario (nombre, correo, mensaje, comprobación y envío) y pie de página.
+
+## Home Cromo completa (decisión del dueño: 2026-11-04, #1496)
+
+Fuente de verdad ejecutable: `js/public-cromo-home.js` y `css/public-cromo-home.css`. El prototipo `docs/design/cromo-prototype.html` es solo una referencia estética, no contenido editorial real. Cromo se monta después de recibir `/api/public.php`; ante fallo de API o montaje se conserva la home Concept 05. Sin WebGL sigue habiendo fondos negros y texto legible.
+
+Orden real del DOM (no sustituir por un page builder):
+
+1. **Barra superior + Hero**: navegación a Noches, Artistas, Sonido, Memorias, Journal y Contacto; marca, tickets y pulso opt-in. Wordmark en Broken Glass, lema y tarjeta de la próxima noche si existe, con fecha y lugar; sin próxima noche se omite solo la tarjeta. Franja editorial después del hero.
+2. **Destacados** (opcional): banners/pósters de DISCADMIN entre franja y Noches, en duotono rojo y negro, descritos abajo.
+3. **Noches**: hasta seis noches próximas con fecha, ciudad, local, hora, estado de tickets y ruta `/events/{slug}`. Siempre incluye «Aún sin fecha» hacia Contacto. **Últimas noches** es un subapartado aquí, nunca una sección principal independiente.
+4. **Artistas**: hasta cinco artistas públicos, primero miembros actuales del colectivo, con nombres grandes, breve descripción y ficha, más invitación a contactar.
+5. **Experiencia**: próxima noche destacada con póster opcional, fecha/hora/lugar, descripción y cartel extraído de relaciones publicadas; CTA de tickets únicamente con URL segura y vínculo a la ficha. Sin noche se omite Experiencia; sin imagen se utiliza composición de texto a una columna.
+6. **Sonido**: control accesible para activar voluntariamente el pulso; no autoplay.
+7. **Sets**: último set publicado como protagonista y hasta cuatro adicionales con enlaces oficiales o ficha interna; sin sets, mensaje de que aparecerán cuando estén publicados.
+8. **Memorias**: hasta nueve medios publicados en mosaicos (primero destacado), filtros Todo/Imágenes/Video/Audio. Sin medios, mensaje explícito y ninguna imagen inventada.
+9. **Journal**: última crónica si hay post público y tarjeta editorial «Archivo» que enlaza a Memorias; sin post, solo la tarjeta editorial.
+10. **Conectado**: explorador real de vínculos entre noches, artistas, sets y discos (abajo).
+11. **Contacto / Hablemos**: formulario con nombre, correo, mensaje, reto anti-bot y estados de error/éxito desde `/api/contact.php`; pie con privacidad y preferencias de cookies cuando estén disponibles.
+
+### Últimas noches y enlaces de archivo
+
+Se alimenta de `data.archive.events`: únicamente eventos históricos con slug y fecha válidos, ordenados del más nuevo al más antiguo. Los pósters muestran portada si existe, título, fecha y ciudad; enlazan a `/events/{slug}`. Se ven ocho inicialmente, con «Ver todas» para desplegar el resto. Sin historial válido se omite este subapartado. El enlace histórico `#events` conduce a `#noches`, mientras `#archive` conduce a `#archivo`, ancla interna de Últimas noches cuando existe. El archivo **vive dentro de Noches** por decisión del dueño.
+
+### Destacados: Slider Manager de DISCADMIN
+
+Origen: `GET /api/hero-slider.php`. Si el endpoint falla, el slider está desactivado o no hay slides con `desktopSrc` válido, se omite Destacados **sin bloquear Cromo**. Cada slide representa un póster a todo el ancho: imagen o vídeo silenciado, variante móvil, filtro gris/negro con tinte rojo, overlay oscuro y retorno a los colores del medio en hover/foco.
+
+Respeta los parámetros editoriales reales: capas de texto, imagen, logo o CTA; posiciones `x/y/width`, overrides y ocultación móvil, alineación, `fade`/`slide-up`/`slide-left`/`zoom`; sin capas se usa la composición heredada de entradilla, título, texto y CTA. Las transiciones entre slides son `fade`/`slide`/`zoom`. Con varias slides hay contador, barras de progreso, anterior/siguiente y pausa; con una sola no se muestran controles innecesarios. Autoplay e intervalo vienen del CMS, pero la rotación se detiene en pausa, hover/foco, pestaña oculta o movimiento reducido. URLs validadas y texto CMS insertado como texto, no HTML arbitrario.
+
+### Conectado: un grafo de relaciones verificadas
+
+`/api/public.php` entrega `events`, `artists`, `sets`, `releases` y `relations` públicos. Tres columnas «Noches / Artistas / Sonido» agrupan las fichas reales; Sonido mezcla sets y discos. Las aristas nacen solo si los dos extremos aparecen publicados en esas listas:
+
+- `relations.events[id].artists/sets`: noche–artista / noche–set.
+- `relations.artists[id].events/sets/releases`: artista–noche / set / disco.
+- `relations.sets[id].artist/event` y `relations.releases[id].artist(s)/event`: vínculos de música con artistas o noches.
+
+Al escoger un elemento con clic/foco, se resaltan sus vecinos y se atenúan los demás; el dibujo SVG enlaza columnas en escritorio, con líneas reveladas al entrar a la vista. El resumen muestra una frase derivada de los vínculos y un CTA a la página canónica cuando existe. Se inicia con el primer elemento real, muestra seis por columna antes de «Ver todos» y permite limpiar con Escape o botón. En móvil las columnas se apilan y se ocultan las líneas, **no** la información. Sin entidades queda el texto de orientación; si una entidad no tiene aristas se declara «sin conexiones publicadas». No crear relaciones sintéticas.
+
+## Páginas interiores Cromo
+
+`config/public_cromo_chrome.php` comparte barra superior, menú de anclas de la home, botón de pulso con `aria-pressed` y enlace «Volver». Las páginas de entidades (eventos, artistas, sets, discos, blog y CMS), privacidad, 404 y 503 usan `css/public-cromo-pages.css`: póster hero duotono, título gigante Broken Glass con glitch rojo, tarjetas cromadas y Barlow Condensed para los detalles.
+
+Las fichas muestran únicamente entidad pública, datos/acciones disponibles y relaciones publicadas. Una tarjeta sin imagen usa la marca BRVTAL; sin descripción se usa un texto de marca; los bloques relacionados vacíos no aparecen. Los eventos diferencian activo/histórico con banda de ciclo de vida. Privacidad conserva datos legales configurados o marcadores explícitos de pendiente. Las páginas 404/503 mantienen la identidad, pero comunican falta/indisponibilidad de datos, no registros inventados. Fondo WebGL opcional: sin él permanece base negra legible.
+
+## Tokens de movimiento y glitch
+
+La escala **transitions.dev** está definida tanto en home como en interiores: `--duration-stagger:40ms`, `--duration-micro:80ms`, `--duration-quick:150ms`, `--duration-fast:250ms`, `--duration-medium:350ms`, `--duration-slow:400ms`, `--duration-very-slow:500ms`; suavizado `--ease-smooth-out:cubic-bezier(.22,1,.36,1)`, `--ease-in-out`/`--ease-out`, distancia `--distance-medium:12px` y blur de `2px`/`3px`. El texto «soft swap» de Conectado cruza blur/opacidad en `200ms` y reajusta anchura en `240ms`.
+
+El **glitch rojo** duplica el título en dos pseudocapas con `data-text`, recortes y desplazamientos cortos; ejecuta una ráfaga breve cada **5,4 s**. **Nunca sacudir, ocultar ni desplazar el texto base**: solo se animan las capas. Con `prefers-reduced-motion: reduce` se suprimen glitch, entradas, rotación automática de banners, dibujo de líneas, movimiento del wordmark y transiciones no esenciales; los controles y el texto siguen visibles y operables. Mantener foco visible, mínimo táctil de 44 px y contraste de 4,5:1 para texto.
+
+## Decisiones del dueño (2026-11-04)
+
+- **Broken Glass** para títulos y **Barlow Condensed** para texto; **rojo/blanco/negro**, sin variante verde. La configuración de tema no debe sacrificar contraste.
+- Sitio público **solo en español**, sin selector de idioma ni traducciones editoriales automáticas.
+- Cromo completo en home e interiores, sonido solo opt-in y archivo de eventos **dentro de Noches** como «Últimas noches».
+- Los banners salen de DISCADMIN y las relaciones de datos publicados; datos ausentes se presentan como ausencia, nunca como contenido simulado.
 
 ## Lo que no cambia
 Contenido y datos del CMS, rutas, formularios, comprobaciones anti-robots, estados vacíos, enlaces canónicos y funciones existentes. El boceto es una referencia visual: sus textos y tarjetas de ejemplo no son contenido real.
