@@ -254,6 +254,7 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
           columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length,
           card: rect(node), panel: rect(panel), flyer: rect(flyer),
           panelPadding: parseFloat(getComputedStyle(panel).paddingLeft),
+          panelContentWidth: panel.clientWidth - parseFloat(getComputedStyle(panel).paddingLeft) - parseFloat(getComputedStyle(panel).paddingRight),
           factsColumns: getComputedStyle(facts).gridTemplateColumns.trim().split(/\s+/).length,
           title: rect(title), brand: rect(brand), sound: rect(sound), tickets: rect(tickets),
           ctas: [...node.querySelectorAll('.cr-xp-cta a')].map(rect),
@@ -292,7 +293,7 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
         expect(metrics.sound.right).toBeLessThanOrEqual(metrics.tickets.left + 1);
         expect(metrics.sound.width).toBeGreaterThanOrEqual(44);
         expect(metrics.tickets.height).toBeGreaterThanOrEqual(44);
-        for (const cta of metrics.ctas) expect(cta.width).toBeGreaterThanOrEqual(metrics.panel.width - metrics.panelPadding * 2 - 2);
+        for (const cta of metrics.ctas) expect(cta.width).toBeGreaterThanOrEqual(metrics.panelContentWidth - 1);
       }
       if (width === 390 && cover) {
         const ticketControl = page.locator('#cromo-home .cr-top .cr-tickets');
