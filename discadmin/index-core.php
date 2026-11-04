@@ -1001,10 +1001,10 @@ function render(){
     class="${appearanceActive?'active':''}">APPEARANCE</button>`,
   `<button id="brvtal-nav-banners" class="${state.section==='hero-slider'?'active':''}"
     data-ia-subnav="1" data-admin-nav="hero-slider"
-    onclick="go('hero-slider')" ${appearanceActive?'':'hidden'}>BANNERS</button>`,
+    onclick="go('hero-slider')" >BANNERS</button>`,
   `<button id="brvtal-nav-theme" class="${state.section==='theme'?'active':''}"
     data-ia-subnav="1" data-admin-nav="theme"
-    onclick="go('theme')" ${appearanceActive?'':'hidden'}>THEME STUDIO</button>`,
+    onclick="go('theme')" >THEME STUDIO</button>`,
   `<button class="${visibleSection==='seo'?'active':''}" data-admin-nav="seo" onclick="go('seo')">SEO</button>`,
   `<button class="${settingsActive}" data-admin-nav="settings" onclick="go('settings')">SETTINGS</button>`,
   `<button class="${systemActive}" data-admin-nav="system" onclick="tech('system')">SYSTEM STATUS</button>`

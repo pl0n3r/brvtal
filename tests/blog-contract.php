@@ -58,7 +58,12 @@ blog_assert(str_contains($adminModules, 'sectionDependencies.has(section)'), 'ca
 blog_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'dynamic navigation must support blog');
 
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
-blog_assert(str_contains($adminCss, 'data-admin-nav="blog"'), 'blog must stay in the content navigation group');
+$adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+blog_assert(
+    str_contains($adminIa, "'pages','blog','media','events'")
+        && preg_match('/\\.nav\\s*>\\s*button[^{}]*\\{\\s*order\\s*:/', $adminCss) !== 1,
+    'Blog must follow Pages in canonical sidebar order, without a conflicting CSS flex order'
+);
 
 $media = (string)file_get_contents(__DIR__ . '/../config/media.php');
 blog_assert(str_contains($media, "'table' => 'blog_posts'"), 'Media Library must detect Blog cover usage');

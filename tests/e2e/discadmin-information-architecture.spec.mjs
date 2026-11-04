@@ -4,11 +4,13 @@ import { join } from 'node:path';
 
 const iaJs = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.js'), 'utf8');
 const iaCss = readFileSync(join(process.cwd(), 'discadmin/admin-information-architecture.css'), 'utf8');
+const moduleCss = readFileSync(join(process.cwd(), 'discadmin/admin-modules.css'), 'utf8');
 const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8');
 const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
 function harness(authed = true) {
-  return `<!doctype html><html><head><style>${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{min-height:44px}.legacy-test-modal{display:none}.legacy-test-modal.open{display:block}</style></head><body><div id="app"></div><div id="modal" class="legacy-test-modal"><button id="saveBtn" type="button">SAVE</button></div><script>
+  return `<!doctype html><html><head><style>.shell{display:grid;grid-template-columns:245px minmax(0,1fr)}${moduleCss}
+${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{min-height:44px}.legacy-test-modal{display:none}.legacy-test-modal.open{display:block}</style></head><body><div id="app"></div><div id="modal" class="legacy-test-modal"><button id="saveBtn" type="button">SAVE</button></div><script>
     window.state={authed:${authed ? 'true' : 'false'},section:'dashboard',rows:[],editing:null};
     window.__legacyOpen=[];
     window.__legacySaveCalls=0;
@@ -147,6 +149,18 @@ async function serveHarness(page, {authed = true} = {}) {
   await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
+// Test visual flex ordering, not only textContent/DOM order (which missed #1480).
+async function visualNavLabels(page) {
+  return page.locator('.side .nav').evaluate(nav => [...nav.children]
+    .filter(button => button.tagName === 'BUTTON'
+      && !button.dataset.iaToggle
+      && button.getClientRects().length > 0
+      && getComputedStyle(button).display !== 'none')
+    .map(button => ({label:button.textContent.trim(),top:button.getBoundingClientRect().top}))
+    .sort((a,b) => a.top - b.top)
+    .map(button => button.label));
+}
+
 test('sidebar exposes the approved WordPress-like hierarchy without technical headings', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
@@ -157,11 +171,17 @@ test('sidebar exposes the approved WordPress-like hierarchy without technical he
   await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toBeHidden();
   await expect(page.getByRole('button',{name:'THEME STUDIO'})).toBeHidden();
 
-  const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"]):not([data-ia-toggle])').allTextContents();
-  expect(visibleLabels).toEqual([
+  const presentLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"]):not([data-ia-toggle])').allTextContents();
+  expect(presentLabels).toEqual([
     'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES','SETS',
     'APPEARANCE','BANNERS','THEME STUDIO','SEO','SETTINGS','SYSTEM STATUS'
   ]);
+  const topLevel = ['DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS',
+    'RELEASES','SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'];
+  for (const label of topLevel) {
+    await expect(page.getByRole('button',{name:label,exact:true})).toBeVisible();
+  }
+  await expect.poll(() => visualNavLabels(page)).toEqual(topLevel);
 });
 
 test('Appearance is a keyboard-accessible expandable group with working native destinations', async ({ page }) => {
@@ -179,6 +199,10 @@ test('Appearance is a keyboard-accessible expandable group with working native d
   await expect(appearance).toHaveAttribute('aria-expanded','true');
   await expect(banners).toBeVisible();
   await expect(theme).toBeVisible();
+  await expect.poll(() => visualNavLabels(page)).toEqual([
+    'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES','SETS',
+    'APPEARANCE','BANNERS','THEME STUDIO','SEO','SETTINGS','SYSTEM STATUS'
+  ]);
 
   await theme.click();
   await expect.poll(() => page.evaluate(() => window.state.section)).toBe('theme');
@@ -264,9 +288,22 @@ test('Media keeps its route while Memories expands, collapses and owns its activ
   await expect(toggle).toHaveAttribute('aria-expanded','true');
   await expect(memories).toBeVisible();
   expect(await media.evaluate(node => node.nextElementSibling?.dataset.iaToggle)).toBe('media');
-  expect(await toggle.evaluate(node => node.nextElementSibling?.dataset.memoriesNav)).toBe('1');
+  await expect(toggle).toHaveAttribute('aria-controls','brvtal-nav-memories');
+  await expect(memories).toHaveAttribute('id','brvtal-nav-memories');
   await expect(memories).toHaveClass(/active/);
   await expect(media).not.toHaveClass(/active/);
+  await expect.poll(() => visualNavLabels(page)).toEqual([
+    'DASHBOARD','PAGES','BLOG','MEDIA','MEMORIES','EVENTS','ARTISTS','RELEASES',
+    'SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'
+  ]);
+
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await expect(toggle).toBeFocused();
 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded','false');
@@ -281,6 +318,43 @@ test('Media keeps its route while Memories expands, collapses and owns its activ
   });
   await expect(media).toHaveClass(/active/);
   await expect(memories).not.toHaveClass(/active/);
+});
+
+test('visual sidebar order survives shell re-render and delayed Memories insertion on mobile', async ({ page }) => {
+  await serveHarness(page);
+  await page.setViewportSize({width:390,height:820});
+  await page.goto(harnessUrl);
+  const topLevel = [
+    'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES',
+    'SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'
+  ];
+  await expect.poll(() => visualNavLabels(page)).toEqual(topLevel);
+
+  await page.evaluate(() => {
+    const nav = document.querySelector('.side .nav');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'MEMORIES';
+    button.dataset.adminNav = 'media';
+    button.dataset.memoriesNav = '1';
+    nav.appendChild(button); // Arrives after shell/initial sidebar hydration.
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+  const toggle = page.locator('[data-ia-toggle="media"]');
+  await expect(toggle).toHaveCount(1);
+  await toggle.click();
+  await expect.poll(() => visualNavLabels(page)).toEqual([
+    'DASHBOARD','PAGES','BLOG','MEDIA','MEMORIES','EVENTS','ARTISTS',
+    'RELEASES','SETS','APPEARANCE','SEO','SETTINGS','SYSTEM STATUS'
+  ]);
+
+  await page.evaluate(() => {
+    window.__renderShell('media');
+    window.BRVTALAdminIA.rebuildNavigation();
+  });
+  await expect.poll(() => visualNavLabels(page)).toEqual(topLevel);
+  await expect(page.locator('[data-ia-toggle="media"]')).toHaveCount(0);
+  await expect(page.locator('[data-memories-nav]')).toHaveCount(0);
 });
 
 test('successful Dashboard navigation resolves only after canonical active nav is synchronized', async ({ page }) => {
