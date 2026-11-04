@@ -19,7 +19,8 @@ def selectors(css: str) -> list[str]:
         head = block.group(1).strip()
         if head.startswith("@"):
             continue
-        out.extend(s.strip() for s in head.split(",") if s.strip())
+        out.extend(s.strip() for s in head.split(",")
+                   if s.strip() and not re.fullmatch(r"from|to|\d+%", s.strip()))  # keyframe steps
     return out
 
 
