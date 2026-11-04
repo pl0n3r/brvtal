@@ -332,8 +332,8 @@
       keyed.set('media',mediaButtons.filter(button => button.dataset.memoriesNav !== '1'));
 
       let visibleGroups = 0;
-      groups.forEach(keys => {
-        if (!keys.some(key => (keyed.get(key) || []).length)) return;
+      for (const keys of groups) {
+        if (!keys.some(key => (keyed.get(key) || []).length)) continue;
         if (visibleGroups++) {
           const divider = document.createElement('div');
           divider.className = 'ia-navdivider';
@@ -341,8 +341,8 @@
           divider.setAttribute('aria-orientation','horizontal');
           nav.appendChild(divider);
         }
-        keys.forEach(key => {
-          (keyed.get(key) || []).forEach(button => {
+        for (const key of keys) {
+          for (const button of (keyed.get(key) || [])) {
             if (key === 'appearance') {
               button.type = 'button';
               button.setAttribute('aria-controls','brvtal-nav-banners brvtal-nav-theme');
@@ -382,10 +382,10 @@
                 nav.appendChild(child);
               });
             }
-          });
+          }
           keyed.delete(key);
-        });
-      });
+        }
+      }
 
       keyed.forEach(list => list.forEach(button => unknown.push(button)));
       unknown.forEach(button => nav.appendChild(button));

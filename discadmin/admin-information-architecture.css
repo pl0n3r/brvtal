@@ -1,8 +1,8 @@
 /* WordPress-like navigation: visual separators without technical headings. */
 .nav .ia-navdivider{height:1px;background:var(--admin-border-subtle,#292d31);margin:12px 10px 10px}
-.nav button[hidden],.nav button[data-ia-hidden="1"]{display:none!important}
-.nav button[data-ia-subnav="1"]{min-height:44px;padding-left:30px!important;font-size:12px!important;color:var(--admin-muted-strong,#adb5bb)!important}
-.nav button[data-ia-subnav="1"].active{color:var(--admin-text,#fff)!important}
+.nav button[hidden],.nav button[data-ia-hidden="1"]{display:none}
+.nav button[data-ia-subnav="1"]{min-height:44px;padding-left:30px;font-size:12px;color:var(--admin-muted-strong,#adb5bb)}
+.nav button[data-ia-subnav="1"].active{color:var(--admin-text,#fff)}
 .nav button[data-ia-key="media"][data-ia-has-children="1"]{padding-right:50px}
 .nav button[data-ia-toggle="media"]{align-self:flex-end;position:relative;z-index:1;min-height:44px;width:44px;margin-top:-46px;margin-bottom:0;padding:0;display:flex;align-items:center;justify-content:center;background:transparent;border-radius:6px;color:var(--admin-muted-strong,#adb5bb)}
 .nav button[data-ia-toggle="media"]::after,.nav button[data-ia-key="appearance"]::after{content:"";display:block;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .15s}
@@ -10,10 +10,7 @@
 .nav button[data-ia-key="appearance"]{display:flex;align-items:center;justify-content:space-between}
 .nav button[data-ia-key="appearance"].active{color:var(--admin-text,#fff)}
 @media(prefers-reduced-motion:reduce){.nav button[data-ia-toggle="media"]::after,.nav button[data-ia-key="appearance"]::after{transition:none}}
-.ia-contextbar{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #292d31;background:#090a0b;padding:14px 16px;margin:22px 0 14px}.ia-contextbar-copy{min-width:0}.ia-contextbar-copy strong{display:block;font-size:13px;letter-spacing:.08em}.ia-contextbar-copy span{display:block;margin-top:5px;color:#adb5bb;font-size:12px;line-height:1.5}.ia-contextbar-actions{display:flex;gap:8px;flex-wrap:wrap}.ia-contextbar .btn{min-height:44px}.ia-events-workspace [data-tab="roster"],.ia-events-workspace .tabs{display:none!important}.ia-events-workspace #rosterTab{display:none!important}.ia-events-workspace #eventsTab{display:block!important}.ia-roster-workspace .tabs{display:none!important}.ia-roster-workspace #eventsTab{display:none!important}.ia-roster-workspace #rosterTab{display:block!important}.ia-roster-workspace #eventModal{display:none!important}@media(max-width:650px){.ia-contextbar{align-items:flex-start;flex-direction:column}.ia-contextbar-actions,.ia-contextbar-actions .btn{width:100%}.ia-contextbar-actions .btn{display:block}}
+.ia-contextbar{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #292d31;background:#090a0b;padding:14px 16px;margin:22px 0 14px}.ia-contextbar-copy{min-width:0}.ia-contextbar-copy strong{display:block;font-size:13px;letter-spacing:.08em;text-wrap:balance}.ia-contextbar-copy span{display:block;margin-top:5px;color:#adb5bb;font-size:12px;line-height:1.5;text-wrap:pretty}.ia-contextbar-actions{display:flex;gap:8px;flex-wrap:wrap}.ia-contextbar .btn{min-height:44px}.ia-events-workspace [data-tab="roster"],.ia-events-workspace .tabs{display:none!important}.ia-events-workspace #rosterTab{display:none!important}.ia-events-workspace #eventsTab{display:block!important}.ia-roster-workspace .tabs{display:none!important}.ia-roster-workspace #eventsTab{display:none!important}.ia-roster-workspace #rosterTab{display:block!important}.ia-roster-workspace #eventModal{display:none!important}@media(max-width:650px){.ia-contextbar{align-items:flex-start;flex-direction:column}.ia-contextbar-actions,.ia-contextbar-actions .btn{width:100%}.ia-contextbar-actions .btn{display:block}}
 /* Context navigation: readable labels, 44px hit areas and quiet motion. */
-.ia-contextbar-copy strong{text-wrap:balance}
-.ia-contextbar-copy span{text-wrap:pretty}
-.nav button[data-ia-subnav="1"]{min-height:44px}
 .ia-contextbar-actions .btn:active{transform:scale(.96)}
 @media(prefers-reduced-motion:reduce){.ia-contextbar-actions .btn:active{transform:none}}
