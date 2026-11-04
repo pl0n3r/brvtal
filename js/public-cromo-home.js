@@ -320,6 +320,17 @@
   const mount = (data) => {
     const parts = build(data);
     window.BRVTAL_CROMO_ACCENT = [1, .17, .05];
+    // Sections that exist only in the Concept 05 home (the Genesis experience and the connected
+    // graph) are moved, not cloned, into the Cromo layout: their runtime bindings keep working
+    // and they are restyled by css/public-cromo-home.css instead of being dropped.
+    const mainEl = parts.home.querySelector('main');
+    const keep = (id, beforeId) => {
+      const node = document.getElementById(id);
+      const ref = mainEl && mainEl.querySelector('#' + beforeId);
+      if (node && ref) { node.classList.add('cr-keep'); mainEl.insertBefore(node, ref); }
+    };
+    keep('genesis', 'sonido');
+    keep('connected', 'contacto');
     document.body.appendChild(parts.home);
     root.classList.add('cromo-home');
     const sound = window.BRVTALCromoSound;
