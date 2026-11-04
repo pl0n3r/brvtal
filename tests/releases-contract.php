@@ -50,12 +50,18 @@ releases_assert(str_contains($adminModules, 'sectionDependencies.has(section)'),
 releases_assert(str_contains($adminModules, 'dataset.adminNav = section'), 'shared dynamic navigation must inject Releases into the canonical sidebar');
 
 $adminCss = (string)file_get_contents(__DIR__ . '/../discadmin/admin-modules.css');
-releases_assert(str_contains($adminCss, '.nav>button[data-admin-nav="releases"]{order:40}'), 'Releases must stay with Events and Artists in content navigation');
-releases_assert(str_contains($adminCss, '.nav>.navgroup{order:100}'), 'Technical divider must separate content and technical tools');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'theme\')"]{order:110}'), 'Theme Studio must live below Technical');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'settings\')"]{order:120}'), 'Settings must live below Technical');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="go(\'security\')"]{order:130}'), 'Security / 2FA must live below Technical');
-releases_assert(str_contains($adminCss, '.nav>button[onclick="tech(\'system\')"]{order:140}'), 'System Status must live below Technical');
+$adminIa = (string)file_get_contents(__DIR__ . '/../discadmin/admin-information-architecture.js');
+releases_assert(
+    str_contains($adminIa, "['pages','blog','media','events','artists','releases','sets']")
+        && str_contains($adminIa, "['appearance','hero-slider','theme','seo']")
+        && str_contains($adminIa, "['settings','system']"),
+    'Releases and related content destinations must use approved canonical sidebar grouping'
+);
+releases_assert(
+    preg_match('/\.nav\s*>\s*button[^{}]*\{\s*order\s*:/', $adminCss) !== 1
+        && !str_contains($adminCss, '.nav>.navgroup{order:'),
+    'Legacy Flexbox order must not override canonical sidebar DOM placement'
+);
 
 $publicApi = (string)file_get_contents(__DIR__ . '/../api/public.php');
 releases_assert(str_contains($publicApi, 'brvtal_public_releases'), 'public API must expose published releases');

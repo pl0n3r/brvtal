@@ -418,6 +418,7 @@
     applyingNav = true;
     navObserver?.disconnect();
     try {
+      const restoreMediaToggleFocus = document.activeElement?.dataset?.iaToggle === 'media';
       nav.querySelectorAll('.navgroup,.ia-navgroup,.ia-navdivider,[data-ia-toggle="media"]')
         .forEach(node => node.remove());
       const keyed = collectNavigationButtons(nav);
@@ -428,6 +429,7 @@
       keyed.set('media',mediaButtons.filter(button => button.dataset.memoriesNav !== '1'));
       appendNavigationGroups(nav,keyed,memoriesButtons);
       synchronizeNavigationSelection(nav,context);
+      if (restoreMediaToggleFocus) nav.querySelector('[data-ia-toggle="media"]')?.focus();
     } finally {
       applyingNav = false;
       observeNavigation();
