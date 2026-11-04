@@ -202,7 +202,7 @@
     return { word, hero, band };
   };
 
-  const buildNights = (upcoming, next, artists) => {
+  const buildNights = (upcoming, next, artists, archive) => {
     // --- Noches
     const nights = el('section', { class: 'sec', id: 'noches' }, el('h2', { class: 'u', text: 'Noches' }));
     upcoming.slice(0, 6).forEach((event) => {
@@ -219,6 +219,35 @@
       el('span', { class: 'u n', text: 'Sigue' }),
       el('span', {}, el('span', { class: 't', text: 'Aún sin fecha' }), el('span', { class: 'm', text: 'Escríbenos y te avisamos cuando se anuncie la siguiente.' })),
       el('span', { class: 'go', text: 'Avísame' })));
+
+    // --- Últimas noches: the archive, as posters (the old #events / #archive links land here).
+    const past = (Array.isArray(archive) ? archive : []).filter((event) => event?.slug && parseDate(event.event_date))
+      .sort((a, b) => parseDate(b.event_date) - parseDate(a.event_date));
+    if (past.length) {
+      const LIMIT_PAST = 8;
+      const cards = past.map((event, i) => {
+        const when = parseDate(event.event_date);
+        const cover = safeUrl(event.cover_image);
+        const meta = [two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear(), text(event.city)].filter(Boolean).join(' · ');
+        const card = el('a', { class: 'pst chrome-b', href: '/events/' + encodeURIComponent(event.slug) },
+          cover ? el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' }) : el('i', { class: 'orb', 'aria-hidden': 'true' }),
+          el('span', { class: 'pst-t u', text: text(event.title, 40) }), el('span', { class: 'pst-m', text: meta }));
+        if (i >= LIMIT_PAST) card.classList.add('cr-is-extra');
+        return card;
+      });
+      const title = el('h3', { class: 'u glitch', 'data-text': 'Últimas noches', text: 'Últimas noches' });
+      const wrap = el('div', { class: 'arch', id: 'archivo' }, title, el('div', { class: 'pst-grid' }, cards));
+      if (past.length > LIMIT_PAST) {
+        const more = el('button', { class: 'pst-more', type: 'button', 'aria-expanded': 'false', text: 'Ver todas (' + past.length + ')' });
+        more.addEventListener('click', () => {
+          const open = wrap.classList.toggle('cr-is-open');
+          more.setAttribute('aria-expanded', String(open));
+          more.textContent = open ? 'Ver menos' : 'Ver todas (' + past.length + ')';
+        });
+        wrap.append(more);
+      }
+      nights.append(wrap);
+    }
 
     return nights;
   };
@@ -256,7 +285,418 @@
     return journalSec;
   };
 
-  const build = (data) => {
+  const buildExperience = (next, artists, relations) => {
+    // --- Experiencia: the next night as a feature, from the same data as Noches.
+    if (!next) return null;
+    const when = parseDate(next.event_date);
+    const ids = (relations.events?.[next.id]?.artists || []).map(Number);
+    const names = ids.map((id) => artists.find((a) => Number(a.id) === id)).filter(Boolean).map((a) => text(a.name));
+    const cover = safeUrl(next.cover_image);
+    const tickets = safeUrl(next.ticket_url);
+    const fact = (k, v) => el('div', {}, el('dt', { text: k }), el('dd', { text: v }));
+    const body = el('div', { class: 'xp-body plate chrome-b' },
+      el('p', { class: 'k', text: 'Próxima experiencia' }),
+      el('h3', { class: 'u', text: text(next.title) }),
+      el('dl', { class: 'xp-facts' },
+        fact('Fecha', two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear()),
+        fact('Hora', two(when.getHours()) + ':' + two(when.getMinutes())),
+        fact('Lugar', [text(next.venue), text(next.city)].filter(Boolean).join(', '))),
+      next.description ? el('p', { class: 'xp-desc', text: text(next.description, 240) }) : null,
+      names.length ? el('p', { class: 'xp-line' }, el('span', { text: 'Cartel' }), ' ' + joinNames(names)) : null,
+      el('div', { class: 'xp-cta' },
+        tickets ? el('a', { class: 'btn r', href: tickets, rel: 'noopener noreferrer', text: 'Comprar tickets' }) : null,
+        el('a', { class: 'btn', href: '/events/' + encodeURIComponent(next.slug), text: 'Ver la noche' })));
+    const fly = cover ? el('a', { class: 'xp-fly chrome-b', href: '/events/' + encodeURIComponent(next.slug), 'aria-label': text(next.title) },
+      el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' })) : null;
+    return el('section', { class: 'sec', id: 'experiencia' }, el('h2', { class: 'u', text: 'Experiencia' }),
+      el('div', { class: fly ? 'xp' : 'xp xp-solo' }, fly, body));
+  };
+
+  // Motion timing is read from the shared tokens (css/public-cromo-home.css), never hardcoded here.
+  const ms = (name) => Number.parseFloat(getComputedStyle(document.getElementById('cromo-home') || root).getPropertyValue(name)) || 0;
+  const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // transitions.dev "text swap soft": old and new text cross-blur in place and the width eases.
+  const softSwap = (node, next) => {
+    const prev = node.dataset.text ?? node.textContent;
+    if (prev === next) return;
+    node.dataset.text = next;
+    clearTimeout(node._softTimer);
+    if (reduced()) { node.textContent = next; return; }
+    const out = document.createElement('span');
+    out.className = 't-text-soft-old';
+    out.setAttribute('aria-hidden', 'true');
+    out.textContent = prev;
+    const inn = document.createElement('span');
+    inn.className = 't-text-soft-new';
+    inn.textContent = next;
+    const w0 = node.getBoundingClientRect().width;
+    node.classList.remove('is-swapping');
+    node.replaceChildren(out, inn);
+    const w1 = inn.getBoundingClientRect().width;
+    node.style.width = w0 + 'px';
+    node.getBoundingClientRect(); // force reflow so every transition runs
+    node.classList.add('is-swapping');
+    node.style.width = w1 + 'px';
+    node._softTimer = setTimeout(() => {
+      node.classList.remove('is-swapping');
+      node.style.removeProperty('width');
+      node.textContent = next;
+    }, Math.max(ms('--text-soft-dur'), ms('--text-soft-resize-dur')) + 40);
+  };
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const buildConnected = (data) => {
+    // --- Conectado: an explorer of real connections. Three columns (noches, artistas, sonido) list the
+    // actual items; choosing one highlights what it is linked to, draws the links and says it in a sentence.
+    // Only relations the CMS publishes are used; nothing is invented.
+    const list = (key) => (Array.isArray(data[key]) ? data[key] : []);
+    const rel = data.relations || {};
+    const entities = new Map();
+    const columns = { noches: [], artistas: [], sonido: [] };
+    const route = (path, slug) => (slug ? '/' + path + '/' + encodeURIComponent(slug) : '');
+    const add = (column, key, kind, label, sub, href) => {
+      if (!label) return;
+      const entity = { key, column, kind, label, sub, href };
+      entities.set(key, entity);
+      columns[column].push(entity);
+    };
+    list('events').slice().sort((a, b) => String(a.event_date).localeCompare(String(b.event_date))).forEach((e) => {
+      const when = parseDate(e.event_date);
+      add('noches', 'e' + e.id, 'noche', text(e.title, 60),
+        [when ? two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear() : '', text(e.city)].filter(Boolean).join(' · '), route('events', e.slug));
+    });
+    list('artists').slice().sort((a, b) => (b.is_collective_member ? 1 : 0) - (a.is_collective_member ? 1 : 0)).forEach((a) =>
+      add('artistas', 'a' + a.id, 'artista', text(a.name, 60), a.is_collective_member ? 'Colectivo' : 'Colaborador', route('artists', a.slug)));
+    list('sets').forEach((x) => add('sonido', 's' + x.id, 'set', text(x.title, 60), 'Set' + (x.artist_name ? ' · ' + text(x.artist_name, 30) : ''), route('sets', x.slug)));
+    list('releases').forEach((r) => add('sonido', 'r' + r.id, 'disco', text(r.title, 60), 'Disco' + (r.release_type ? ' · ' + text(r.release_type, 20) : ''), route('releases', r.slug)));
+
+    const adjacency = new Map();
+    const join = (a, b) => {
+      if (!entities.has(a) || !entities.has(b) || a === b) return;
+      if (!adjacency.has(a)) adjacency.set(a, new Set());
+      if (!adjacency.has(b)) adjacency.set(b, new Set());
+      adjacency.get(a).add(b);
+      adjacency.get(b).add(a);
+    };
+    const ids = (value) => {
+      if (Array.isArray(value)) return value;
+      return value === null || value === undefined ? [] : [value];
+    };
+    const entries = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : []);
+    entries(rel.events).forEach(([id, r]) => { ids(r?.artists).forEach((x) => join('e' + id, 'a' + x)); ids(r?.sets).forEach((x) => join('e' + id, 's' + x)); });
+    entries(rel.artists).forEach(([id, r]) => {
+      ids(r?.events).forEach((x) => join('a' + id, 'e' + x));
+      ids(r?.sets).forEach((x) => join('a' + id, 's' + x));
+      ids(r?.releases).forEach((x) => join('a' + id, 'r' + x));
+    });
+    entries(rel.sets).forEach(([id, r]) => { ids(r?.artist).forEach((x) => join('s' + id, 'a' + x)); ids(r?.event).forEach((x) => join('s' + id, 'e' + x)); });
+    entries(rel.releases).forEach(([id, r]) => { ids(r?.artist || r?.artists).forEach((x) => join('r' + id, 'a' + x)); ids(r?.event).forEach((x) => join('r' + id, 'e' + x)); });
+
+    const related = (key) => [...(adjacency.get(key) || [])].map((k) => entities.get(k)).filter(Boolean);
+    const labels = (items) => joinNames(items.map((x) => x.label));
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const sentenceOf = (entity) => {
+      const around = related(entity.key);
+      const nights = around.filter((x) => x.kind === 'noche');
+      const artists = around.filter((x) => x.kind === 'artista');
+      const sounds = around.filter((x) => x.column === 'sonido');
+      if (!around.length) return entity.label + ' todavía no tiene conexiones publicadas.';
+      if (entity.kind === 'noche') {
+        return [artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
+          sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
+      }
+      if (entity.kind === 'artista') {
+        return [nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
+          sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
+      }
+      return [artists.length ? 'Lo hace ' + labels(artists) + '.' : '', nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''].filter(Boolean).join(' ') || entity.label + '.';
+    };
+    const actionOf = (entity) => ({ noche: 'Ver la noche', artista: 'Ver el artista', set: 'Escuchar el set', disco: 'Ver el disco' }[entity.kind]);
+
+    let selected = null;
+    let hovered = null;
+    const items = new Map();
+    const narrow = window.matchMedia('(max-width: 700px)');
+    const TITLES = { noches: 'Noches', artistas: 'Artistas', sonido: 'Sonido' };
+    const LIMIT = 6;
+    const board = el('div', { class: 'cn2-board' });
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'cr-cn2-lines');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    const columnNodes = Object.keys(columns).filter((name) => columns[name].length).map((name) => {
+      const ul = el('ul', { class: 'cn2-list' });
+      const more = columns[name].length > LIMIT ? el('button', { class: 'cn2-more', type: 'button', 'aria-expanded': 'false', text: 'Ver todos (' + columns[name].length + ')' }) : null;
+      columns[name].forEach((entity, i) => {
+        const button = el('button', { class: 'cn2-item', type: 'button', 'aria-pressed': 'false', 'data-key': entity.key },
+          el('strong', { text: entity.label }), entity.sub ? el('small', { text: entity.sub }) : null);
+        if (i >= LIMIT) button.classList.add('cr-is-extra');
+        items.set(entity.key, button);
+        button.addEventListener('pointerenter', () => { hovered = entity.key; paint(); });
+        button.addEventListener('pointerleave', () => { hovered = null; paint(); });
+        button.addEventListener('focus', () => { hovered = entity.key; paint(); });
+        button.addEventListener('blur', () => { hovered = null; paint(); });
+        button.addEventListener('click', () => choose(entity.key));
+        ul.append(el('li', {}, button));
+      });
+      const column = el('div', { class: 'cn2-col', 'data-col': name }, el('h3', { class: 'u', text: TITLES[name] }), ul, more);
+      if (more) more.addEventListener('click', () => {
+        const open = column.classList.toggle('cr-is-open');
+        more.setAttribute('aria-expanded', String(open));
+        more.textContent = open ? 'Ver menos' : 'Ver todos (' + columns[name].length + ')';
+        window.requestAnimationFrame(drawLines);
+      });
+      return column;
+    });
+    board.append(svg, ...columnNodes);
+
+    const heading = el('p', { class: 'cn2-sel u' });
+    const headingText = document.createElement('span');
+    headingText.className = 't-text-soft';
+    heading.append(headingText);
+    const sentence = el('p', { class: 'cn2-sentence' });
+    const sentenceText = document.createElement('span');
+    sentenceText.className = 't-text-soft';
+    sentence.append(sentenceText);
+    const open = el('a', { class: 'btn r', href: '#', hidden: true });
+    const clear = el('button', { class: 'btn', type: 'button', text: 'Quitar selección', hidden: true });
+    const intro = el('p', { class: 'cn2-intro', text: 'Toca una noche, un artista o un set y mira con qué se conecta.' });
+
+    const focusKey = () => hovered || selected;
+    const visibleEl = (button) => button && button.offsetParent !== null;
+    function drawLines() {
+      svg.replaceChildren();
+      const key = focusKey();
+      if (!key || narrow.matches) return;
+      const from = items.get(key);
+      if (!visibleEl(from)) return;
+      const area = board.getBoundingClientRect();
+      const a = from.getBoundingClientRect();
+      const order = Object.keys(columns).filter((name) => columns[name].length);
+      const fromIndex = order.indexOf(entities.get(key).column);
+      related(key).forEach((other, i) => {
+        const target = items.get(other.key);
+        const toIndex = order.indexOf(other.column);
+        if (!visibleEl(target) || toIndex === fromIndex) return;
+        const b = target.getBoundingClientRect();
+        const forward = toIndex > fromIndex;
+        const x1 = (forward ? a.right : a.left) - area.left;
+        const x2 = (forward ? b.left : b.right) - area.left;
+        const y1 = a.top + a.height / 2 - area.top;
+        const y2 = b.top + b.height / 2 - area.top;
+        const bend = (x2 - x1) / 2;
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + (x1 + bend) + ' ' + y1 + ' ' + (x2 - bend) + ' ' + y2 + ' ' + x2 + ' ' + y2);
+        path.setAttribute('pathLength', '1');
+        path.setAttribute('class', 'cr-cn2-path');
+        path.style.setProperty('--i', String(i));
+        svg.append(path);
+      });
+      svg.setAttribute('width', area.width);
+      svg.setAttribute('height', area.height);
+    }
+    function paint() {
+      const key = focusKey();
+      const around = key ? new Set((adjacency.get(key) || [])) : new Set();
+      items.forEach((button, k) => {
+        button.setAttribute('aria-pressed', String(k === selected));
+        button.classList.toggle('cr-is-focus', k === key);
+        button.classList.toggle('cr-is-linked', around.has(k));
+        button.classList.toggle('cr-is-dim', Boolean(key) && k !== key && !around.has(k));
+      });
+      window.requestAnimationFrame(drawLines);
+    }
+
+    function choose(key) {
+      selected = selected === key ? null : key;
+      const entity = selected ? entities.get(selected) : null;
+      if (entity) {
+        // A hidden (collapsed) item becomes visible when chosen from a link or the keyboard.
+        const column = board.querySelector('[data-col="' + entity.column + '"]');
+        if (column && items.get(key).classList.contains('cr-is-extra')) { column.classList.add('cr-is-open'); const more = column.querySelector('.cr-cn2-more'); if (more) { more.setAttribute('aria-expanded', 'true'); more.textContent = 'Ver menos'; } }
+      }
+      softSwap(headingText, entity ? entity.label : 'Elige un punto de partida');
+      softSwap(sentenceText, entity ? sentenceOf(entity) : 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.');
+      open.hidden = !entity?.href;
+      if (entity?.href) { open.setAttribute('href', entity.href); open.textContent = actionOf(entity); }
+      clear.hidden = !entity;
+      paint();
+    }
+    clear.addEventListener('click', () => choose(selected));
+
+    headingText.textContent = 'Elige un punto de partida';
+    headingText.dataset.text = headingText.textContent;
+    sentenceText.textContent = 'Cada noche enlaza a sus artistas y cada artista a su música. Elige uno y míralo.';
+    sentenceText.dataset.text = sentenceText.textContent;
+    window.addEventListener('resize', () => window.requestAnimationFrame(drawLines), { passive: true });
+    narrow.addEventListener('change', drawLines);
+
+    // Start with a real example so the section says something before any click: the next night.
+    const first = columns.noches[0] || columns.artistas[0] || columns.sonido[0];
+    const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }), intro, board,
+      el('div', { class: 'cn2-sum plate chrome-b' }, heading, sentence, el('div', { class: 'cn2-actions' }, open, clear)));
+    if (first) choose(first.key);
+
+    // One authored moment: the lines draw in the first time the explorer scrolls into view.
+    const reveal = () => { board.classList.add('cr-is-in'); window.requestAnimationFrame(drawLines); };
+    if (reduced() || !('IntersectionObserver' in window)) reveal();
+    else {
+      const io = new IntersectionObserver((entriesSeen) => { if (entriesSeen.some((x) => x.isIntersecting)) { reveal(); io.disconnect(); } }, { threshold: .2 });
+      io.observe(board);
+    }
+    section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
+    return section;
+  };
+
+  const buildBanners = (cfg) => {
+    // --- Destacados: the slides managed in DISCADMIN (Banners). Same data and options as before
+    // (autoplay, interval, fade/slide/zoom, positioned layers with mobile overrides, video), shown in the
+    // Cromo frame. Every string is inserted as text; URLs go through safeUrl.
+    const list = (Array.isArray(cfg.slides) ? cfg.slides : []).filter((slide) => safeUrl(slide.desktopSrc));
+    if (!cfg.enabled || !list.length) return null;
+    const mobile = window.matchMedia('(max-width: 700px)');
+    const pct = (value) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? '' : Number(value) + '%');
+    const align = (value) => (['left', 'center', 'right'].includes(value) ? value : 'left');
+
+    const mediaNode = (slide, first) => {
+      const desktop = safeUrl(slide.desktopSrc);
+      const small = safeUrl(slide.mobileSrc);
+      if (slide.mediaType === 'video') {
+        const video = el('video', { class: 'bn-media', loop: true, playsinline: true, preload: 'metadata', poster: safeUrl(slide.poster) || false, 'aria-hidden': 'true' });
+        video.muted = true;
+        video.append(el('source', { src: mobile.matches && small ? small : desktop }));
+        return video;
+      }
+      const picture = document.createElement('picture');
+      if (small) {
+        const source = document.createElement('source');
+        source.media = '(max-width: 700px)';
+        source.srcset = small;
+        picture.append(source);
+      }
+      picture.append(el('img', { class: 'bn-media', src: desktop, alt: '', decoding: 'async', loading: first ? 'eager' : 'lazy' }));
+      return picture;
+    };
+
+    const layerNode = (layer) => {
+      const vars = ['--x:' + pct(layer.x), '--y:' + pct(layer.y), '--w:' + pct(layer.width),
+        pct(layer.mobileX) ? '--mx:' + pct(layer.mobileX) : '', pct(layer.mobileY) ? '--my:' + pct(layer.mobileY) : '',
+        pct(layer.mobileWidth) ? '--mw:' + pct(layer.mobileWidth) : '',
+        '--d:' + (Number(layer.delay) || 0) + 'ms', '--t:' + (Number(layer.duration) || 650) + 'ms'].filter((v) => v.length > 4).join(';');
+      const animation = ['none', 'fade', 'slide-up', 'slide-left', 'zoom'].includes(layer.animation) ? layer.animation : 'fade';
+      const cls = 'bn-layer bn-' + (['text', 'image', 'logo', 'cta'].includes(layer.type) ? layer.type : 'text') + ' bn-a-' + animation + ' bn-al-' + align(layer.align) + (layer.hiddenMobile ? ' bn-hm' : '');
+      if (layer.type === 'image' || layer.type === 'logo') {
+        const desktop = safeUrl(layer.src);
+        if (!desktop) return null;
+        const picture = document.createElement('picture');
+        const small = safeUrl(layer.mobileSrc);
+        if (small) { const source = document.createElement('source'); source.media = '(max-width: 700px)'; source.srcset = small; picture.append(source); }
+        picture.append(el('img', { src: desktop, alt: '', decoding: 'async', loading: 'lazy' }));
+        return el('div', { class: cls, style: vars }, picture);
+      }
+      if (layer.type === 'cta') {
+        const href = safeUrl(layer.url);
+        return el(href ? 'a' : 'span', { class: cls + ' btn r', href: href || false, style: vars, text: text(layer.text, 80) });
+      }
+      // The text sits on a plate (like a subtitle) so it reads over any artwork, including flyers that carry their own text.
+      return el('div', { class: cls, style: vars }, el('span', { class: 'bn-t', text: text(layer.text, 220) }));
+    };
+
+    const legacyCopy = (slide) => {
+      const href = safeUrl(slide.ctaUrl);
+      const title = text(slide.title, 140);
+      if (!slide.kicker && !title && !slide.body && !(href && slide.ctaLabel)) return [];
+      return [el('div', { class: 'bn-copy bn-al-' + align(slide.contentAlign) },
+        slide.kicker ? el('p', { class: 'k', text: text(slide.kicker, 120) }) : null,
+        title ? el('h3', { class: 'u glitch', 'data-text': title, text: title }) : null,
+        slide.body ? el('p', { class: 'bn-body', text: text(slide.body, 320) }) : null,
+        href && slide.ctaLabel ? el('a', { class: 'btn r', href, text: text(slide.ctaLabel, 80) }) : null)];
+    };
+
+    const nodes = list.map((slide, i) => {
+      const transition = ['fade', 'slide', 'zoom'].includes(slide.transition) ? slide.transition : 'fade';
+      const layers = (Array.isArray(slide.layers) ? slide.layers : []).map(layerNode).filter(Boolean);
+      const overlay = Math.max(0, Math.min(85, Number(slide.overlay) || 0)) / 100;
+      return el('div', { class: 'bn-slide bn-t-' + transition + (i === 0 ? ' is-active' : ''), role: 'group', 'aria-roledescription': 'slide',
+        'aria-label': (i + 1) + ' de ' + list.length, 'aria-hidden': i === 0 ? false : 'true', style: '--ov:' + overlay },
+        mediaNode(slide, i === 0), el('div', { class: 'bn-tint' }), el('div', { class: 'bn-ov' }), layers.length ? layers : legacyCopy(slide));
+    });
+    // The class helper prefixes everything with cr-, including state classes.
+    nodes.forEach((node, i) => { node.classList.remove('is-active'); if (i === 0) node.classList.add('cr-is-active'); });
+
+    const stage = el('div', { class: 'bn-stage', style: '--bn-ms:' + Math.max(2500, Number(cfg.interval) || 7000) + 'ms' }, nodes);
+    const section = el('section', { class: 'sec bn', id: 'destacados', 'aria-roledescription': 'carousel', 'aria-label': 'Destacados' },
+      el('h2', { class: 'sr', text: 'Destacados' }), stage);
+    if (list.length < 2) return section;
+
+    let index = 0;
+    let paused = false;
+    let timer = null;
+    const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const dots = list.map((slide, i) => el('button', { class: 'bn-dot', type: 'button', 'aria-label': 'Ir al banner ' + (i + 1), 'aria-current': i === 0 ? 'true' : false }));
+    const playPause = el('button', { class: 'bn-pp', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Pausar los banners', text: 'Pausa' });
+    const prev = el('button', { class: 'bn-nav', type: 'button', 'aria-label': 'Banner anterior', text: '←' });
+    const next = el('button', { class: 'bn-nav', type: 'button', 'aria-label': 'Banner siguiente', text: '→' });
+    const pad = (n) => String(n).padStart(2, '0');
+    const countNow = el('b', { text: pad(1) });
+    const counter = el('p', { class: 'bn-count u', 'aria-hidden': 'true' }, countNow, el('span', { text: '/ ' + pad(list.length) }));
+    const controls = el('div', { class: 'bn-ctl' }, el('div', { class: 'bn-dots' }, dots), prev, next, playPause);
+    stage.append(counter, controls);
+
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!cfg.autoplay || paused || reduced() || document.hidden) return;
+      timer = setTimeout(() => show(index + 1), Math.max(2500, Number(cfg.interval) || 7000));
+    };
+    const show = (to) => {
+      const target = (to + nodes.length) % nodes.length;
+      if (target === index) { schedule(); return; }
+      nodes[index].classList.remove('cr-is-active');
+      nodes[index].setAttribute('aria-hidden', 'true');
+      const outgoing = nodes[index].querySelector('video');
+      if (outgoing) outgoing.pause();
+      dots[index].removeAttribute('aria-current');
+      index = target;
+      nodes[index].classList.add('cr-is-active');
+      nodes[index].removeAttribute('aria-hidden');
+      const incoming = nodes[index].querySelector('video');
+      incoming?.play()?.catch(() => {});
+      dots[index].setAttribute('aria-current', 'true');
+      countNow.textContent = pad(index + 1);
+      schedule();
+    };
+    prev.addEventListener('click', () => show(index - 1));
+    next.addEventListener('click', () => show(index + 1));
+    dots.forEach((dot, i) => dot.addEventListener('click', () => show(i)));
+    playPause.addEventListener('click', () => {
+      paused = !paused;
+      playPause.setAttribute('aria-pressed', String(paused));
+      playPause.setAttribute('aria-label', paused ? 'Reanudar los banners' : 'Pausar los banners');
+      playPause.textContent = paused ? 'Seguir' : 'Pausa';
+      stage.classList.toggle('cr-is-paused', paused);
+      schedule();
+    });
+    const hold = () => { clearTimeout(timer); stage.classList.add('cr-is-held'); };
+    const release = () => { stage.classList.remove('cr-is-held'); schedule(); };
+    stage.addEventListener('mouseenter', hold);
+    stage.addEventListener('mouseleave', release);
+    stage.addEventListener('focusin', hold);
+    stage.addEventListener('focusout', (event) => { if (!stage.contains(event.relatedTarget)) release(); });
+    document.addEventListener('visibilitychange', schedule);
+    // The site's own pulse: the frame flashes on each kick of the sound loop.
+    window.addEventListener('cromo:beat', () => {
+      if (reduced()) return;
+      stage.classList.add('cr-beat');
+      setTimeout(() => stage.classList.remove('cr-beat'), ms('--duration-quick') || 150);
+    });
+    schedule();
+    return section;
+  };
+
+  const build = (data, slider) => {
     const events = Array.isArray(data.events) ? data.events : [];
     const artists = Array.isArray(data.artists) ? data.artists : [];
     const sets = Array.isArray(data.sets) ? data.sets : [];
@@ -278,10 +718,13 @@
       el('div', { style: 'display:flex;gap:10px;align-items:center' }, snd, ticketsLink));
 
     // --- Hero
-    const { word, hero, band } = buildHero(next, artists);
+    const { word, hero: heroSec, band } = buildHero(next, artists);
 
     // --- Noches
-    const nights = buildNights(upcoming, next, artists);
+    const nights = buildNights(upcoming, next, artists, data.archive && data.archive.events);
+    const experience = buildExperience(next, artists, data.relations || {});
+    const connected = buildConnected(data);
+    const banners = slider ? buildBanners(slider) : null;
 
     // --- Artistas
     const artistsSec = buildArtists(artists);
@@ -313,13 +756,19 @@
     if (cookieBtn) cookieBtn.addEventListener('click', () => cookiePrefs.click());
 
     home.append(el('a', { class: 'skip', href: '#noches', text: 'Saltar al contenido' }), header,
-      el('main', { id: 'cromo-top' }, hero, band, nights, artistsSec, sound, setsSec, memoriesSec, journalSec, end), footer);
+      el('main', { id: 'cromo-top' }, heroSec, band, banners, nights, artistsSec, experience, sound, setsSec, memoriesSec, journalSec, connected, end), footer);
     return { home, snd, snd2, nav, loadChallenge, word };
   };
 
-  const mount = (data) => {
-    const parts = build(data);
+  const mount = (data, slider) => {
+    const parts = build(data, slider);
     window.BRVTAL_CROMO_ACCENT = [1, .17, .05];
+    // Section titles carry a green glitch layer (same idea as the old Genesis title): the layer
+    // copies the text through data-text, so the heading itself stays plain text for assistive tech.
+    parts.home.querySelectorAll('h2.cr-u, .cr-end > a.cr-u').forEach((title) => {
+      title.dataset.text = text(title.textContent);
+      title.classList.add('cr-glitch');
+    });
     document.body.appendChild(parts.home);
     root.classList.add('cromo-home');
     const sound = window.BRVTALCromoSound;
@@ -339,6 +788,17 @@
       }, { rootMargin: '-45% 0px -50% 0px' });
       parts.home.querySelectorAll('section[id]').forEach((s) => io.observe(s));
     }
+    // Old deep links (#events, #archive) land on the matching part of the new home.
+    const legacyTarget = { '#events': 'noches', '#archive': 'archivo' }[window.location.hash];
+    if (legacyTarget) {
+      const node = document.getElementById(legacyTarget);
+      if (node) {
+        window.history.replaceState(null, '', '#' + legacyTarget);
+        const go = () => node.scrollIntoView();
+        window.requestAnimationFrame(go);
+        window.setTimeout(go, 400); // once fonts and images have settled the layout
+      }
+    }
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (!reduce.matches) {
       let px = .5, py = .5, beat = 0;
@@ -354,11 +814,12 @@
   };
 
   const start = () => {
-    // Preserve legacy archive deep links without showing the archive on the new home.
-    if (['#events', '#archive'].includes(window.location.hash)) return;
-    fetch('/api/public.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))))
-      .then((payload) => { if (payload && payload.data && !document.getElementById('cromo-home')) mount(payload.data); })
+    const json = (url) => fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))));
+    // The banners are optional: if their endpoint fails the home still mounts without them.
+    const banners = json('/api/hero-slider.php').then((payload) => (payload?.ok === true ? payload.data : null)).catch(() => null);
+    Promise.all([json('/api/public.php'), banners])
+      .then(([payload, slider]) => { if (payload?.data && !document.getElementById('cromo-home')) mount(payload.data, slider); })
       .catch(() => { /* keep the Concept 05 home */ });
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });

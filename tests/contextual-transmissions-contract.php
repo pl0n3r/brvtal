@@ -65,7 +65,7 @@ $page = [
 
 $html = brvtal_public_entity_page($page, $seo);
 contextualTransmissionsExpect(
-    str_contains($html, 'TRANSMISSIONS / 01'),
+    str_contains($html, 'TRANSMISIONES / 01'),
     'Canonical entity renderer must surface the Transmissions section'
 );
 contextualTransmissionsExpect(

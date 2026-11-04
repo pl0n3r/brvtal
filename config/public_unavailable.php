@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/public_cromo_chrome.php';
+
 function brvtal_public_unavailable_seo(array $seo): array
 {
     $canonical = (string)($seo['canonical'] ?? 'https://www.brvtal.com.co/');
@@ -25,10 +27,11 @@ function brvtal_public_unavailable_page(array $seo, string $analytics = ''): str
     $description = $escape($seo['description'] ?? 'Some BRVTAL public data is temporarily unavailable.');
     $image = $escape($seo['image'] ?? '/assets/brvtal-logo.jpeg');
     $tags = brvtal_public_seo_tags($seo);
+    $topbar = brvtalPublicCromoTopbar('/', '← VOLVER AL INICIO');
 
     return <<<HTML
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -42,24 +45,29 @@ function brvtal_public_unavailable_page(array $seo, string $analytics = ''): str
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
+  <link rel="stylesheet" href="/css/public-cromo.css">
+  <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
-<body>
-  <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
-  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/">← BACK HOME</a></header>
+<body class="cromo-page">
+  <a class="skip-link" href="#main-content">IR AL CONTENIDO</a>
+  {$topbar}
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
       <div class="entity-image"><img src="{$image}" alt="BRVTAL" loading="eager" fetchpriority="high" decoding="async"><span>503 / BRVTAL</span></div>
       <div class="entity-copy">
-        <div class="entity-kicker">BRVTAL / TEMPORARY ERROR / 503</div>
-        <h1>DATA TEMPORARILY UNAVAILABLE</h1>
-        <div class="entity-facts"><div><span>STATUS</span><b>503 / RETRY LATER</b></div></div>
-        <div class="entity-actions"><a href="/">BACK HOME ↗</a></div>
+        <div class="entity-kicker">BRVTAL / ERROR TEMPORAL / 503</div>
+        <h1 data-text="DATOS NO DISPONIBLES POR AHORA">DATOS NO DISPONIBLES POR AHORA</h1>
+        <div class="entity-facts"><div><span>ESTADO</span><b>503 / REINTENTA MÁS TARDE</b></div></div>
+        <div class="entity-actions"><a href="/">VOLVER AL INICIO ↗</a></div>
       </div>
     </article>
-    <section class="entity-statement"><div class="entity-section-label">SERVICE / RECOVERY</div><p>The requested BRVTAL resource exists, but essential public data could not be loaded safely. Please try again shortly.</p></section>
+    <section class="entity-statement"><div class="entity-section-label">SERVICIO / RECUPERACIÓN</div><p>El recurso de BRVTAL existe, pero no se pudieron cargar de forma segura los datos públicos esenciales. Inténtalo de nuevo en unos minutos.</p></section>
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$analytics}
+  <script src="/js/public-cromo.js" defer></script>
+  <script src="/js/public-cromo-sound.js" defer></script>
+  <script src="/js/public-cromo-pages.js" defer></script>
 </body>
 </html>
 HTML;

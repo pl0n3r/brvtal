@@ -241,7 +241,7 @@ foreach ($cases as $case) {
     $html = brvtal_public_entity_page($page, $seo);
 
     contextualTransmissionsItExpect(
-        str_contains($html, 'TRANSMISSIONS / 01'),
+        str_contains($html, 'TRANSMISIONES / 01'),
         "{$routeType} canonical page must render its Transmission section"
     );
     contextualTransmissionsItExpect(

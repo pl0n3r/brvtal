@@ -82,14 +82,14 @@ $historicalPage = [
 ];
 $historicalHtml = brvtal_public_entity_page($historicalPage, $seo);
 event_record_expect(str_contains($historicalHtml, 'data-event-record-state="historical"'), 'historical Event must identify its record state in markup');
-event_record_expect(str_contains($historicalHtml, 'EVENT RECORD / BRVTAL'), 'historical Event hero must frame the page as Event Record');
-event_record_expect(str_contains($historicalHtml, 'EVENT RECORD / FINISHED'), 'historical record band must retain lifecycle status');
-event_record_expect(str_contains($historicalHtml, 'LINEUP / RECORD / 01'), 'historical lineup must be framed as archived record');
-event_record_expect(str_contains($historicalHtml, 'RECORDED SETS / 01'), 'historical Sets must be framed as recorded material');
-event_record_expect(str_contains($historicalHtml, 'TRANSMISSIONS / 01'), 'explicit editorial relation must surface in Event Record');
-event_record_expect(str_contains($historicalHtml, 'MEMORIES / 01'), 'explicit Memory relation must surface in Event Record');
+event_record_expect(str_contains($historicalHtml, 'REGISTRO DE EVENTO / BRVTAL'), 'historical Event hero must frame the page as Event Record');
+event_record_expect(str_contains($historicalHtml, 'REGISTRO DE EVENTO / FINALIZADO'), 'historical record band must retain lifecycle status');
+event_record_expect(str_contains($historicalHtml, 'CARTEL / REGISTRO / 01'), 'historical lineup must be framed as archived record');
+event_record_expect(str_contains($historicalHtml, 'SETS GRABADOS / 01'), 'historical Sets must be framed as recorded material');
+event_record_expect(str_contains($historicalHtml, 'TRANSMISIONES / 01'), 'explicit editorial relation must surface in Event Record');
+event_record_expect(str_contains($historicalHtml, 'MEMORIAS / 01'), 'explicit Memory relation must surface in Event Record');
 event_record_expect(str_contains($historicalHtml, 'href="/#media"'), 'Event Record Memory must link back to the public Memories archive');
-event_record_expect(!str_contains($historicalHtml, '>TICKETS ↗<'), 'historical Event must not regain stale commercial CTA');
+event_record_expect(!str_contains($historicalHtml, '>ENTRADAS ↗<'), 'historical Event must not regain stale commercial CTA');
 
 $activePage = $historicalPage;
 $activePage['entity']['status'] = 'tickets_available';
@@ -100,9 +100,9 @@ $activePage['links'] = ['TICKETS'=>'https://tickets.example.com/genesis'];
 $activePage['related'] = ['LINEUP'=>$historicalPage['related']['LINEUP']];
 $activeHtml = brvtal_public_entity_page($activePage, $seo);
 event_record_expect(str_contains($activeHtml, 'data-event-record-state="active"'), 'active Event must identify active presentation state');
-event_record_expect(str_contains($activeHtml, 'EVENT SIGNAL / TICKETS AVAILABLE'), 'active Event band must expose real lifecycle status');
-event_record_expect(str_contains($activeHtml, '>TICKETS ↗<'), 'active Event keeps valid commercial CTA supplied by lifecycle policy');
-event_record_expect(str_contains($activeHtml, '← BACK TO EVENTS'), 'active Event returns to Events while historical Event returns to Archive framing');
+event_record_expect(str_contains($activeHtml, 'SEÑAL DEL EVENTO / ENTRADAS DISPONIBLES'), 'active Event band must expose real lifecycle status');
+event_record_expect(str_contains($activeHtml, '>ENTRADAS ↗<'), 'active Event keeps valid commercial CTA supplied by lifecycle policy');
+event_record_expect(str_contains($activeHtml, '← VOLVER A EVENTOS'), 'active Event returns to Events while historical Event returns to Archive framing');
 
 if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     $dbName = (string)(getenv('BRVTAL_TEST_DB_NAME') ?: '');
@@ -334,9 +334,9 @@ if (getenv('BRVTAL_INTEGRATION_TESTS') === '1') {
     $integrationHtml = brvtal_public_entity_page($historicalData, $integrationSeo);
     event_record_expect(str_contains($integrationHtml, 'data-event-record-state="historical"'), 'MariaDB hydrated Event must render historical state');
     event_record_expect(str_contains($integrationHtml, 'PUBLIC TRANSMISSION 102'), 'MariaDB hydrated Event must render published Transmission');
-    event_record_expect(str_contains($integrationHtml, 'TIMETABLE / RECORD / 01'), 'MariaDB hydrated Event must render approved timetable inside Event Record');
+    event_record_expect(str_contains($integrationHtml, 'HORARIOS / REGISTRO / 01'), 'MariaDB hydrated Event must render approved timetable inside Event Record');
     event_record_expect(!str_contains($integrationHtml, 'PRIVATE TRANSMISSION 102'), 'MariaDB hydrated Event must not render unpublished Transmission');
-    event_record_expect(!str_contains($integrationHtml, '>TICKETS ↗<'), 'MariaDB hydrated historical Event must not render ticket CTA');
+    event_record_expect(!str_contains($integrationHtml, '>ENTRADAS ↗<'), 'MariaDB hydrated historical Event must not render ticket CTA');
 }
 
 echo "BRVTAL Event Record contract tests passed.\n";
