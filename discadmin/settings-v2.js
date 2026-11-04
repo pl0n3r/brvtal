@@ -181,6 +181,10 @@
     const legacyGtm = analytics.google_tag_manager || analytics.tag_manager || analytics.gtm || '';
     const gtmId = String(hasCanonicalGtm ? analytics.gtm_id : legacyGtm).trim().toUpperCase();
     const connected = /^GTM-[A-Z0-9]{4,20}$/.test(gtmId);
+    const privacyName = String(row('privacy.controller_name')?.setting_value || '').trim();
+    const privacyEmail = String(row('privacy.controller_email')?.setting_value || '').trim();
+    const privacyResponse = String(row('privacy.response_time')?.setting_value || '').trim();
+    const privacyConfigured = [privacyName,privacyEmail,privacyResponse].filter(Boolean).length;
     return `<section class="sv2-pane ${V2.tab==='analytics'?'active':''}" data-settings-pane="analytics">
       <header class="sv2-section-head"><div><span>04 / ANALYTICS & PRIVACY</span><h3>Tag delivery</h3></div><p>Google Tag Manager is the single public tag-delivery layer and loads automatically on every public page.</p></header>
       <div class="sv2-grid two">${text('gtm_id','Google Tag Manager Container ID',gtmId,'Format: GTM-XXXXXXX. GA4, pixels and other optional tracking tags are managed inside GTM.')}
@@ -188,6 +192,14 @@
       </div>
       <div class="sv2-context-grid"><article><span>LOAD POLICY</span><strong>IMMEDIATE / ALL PUBLIC PAGES</strong><p>BRVTAL requests GTM automatically. Analytics storage starts granted; advertising storage, user data and personalization remain denied by the BRVTAL bootstrap.</p></article><article><span>DIRECT GA4</span><strong>RETIRED</strong><p>BRVTAL no longer loads GA4 directly. Configure GA4 and other optional tags inside Google Tag Manager.</p></article><article><span>PUBLIC API</span><strong>PRIVATE CONFIG</strong><p>The GTM container setting is read server-side and is not included in <code>api/public.php</code>.</p></article></div>
       <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="analytics">SAVE TAG MANAGER</button></div>
+      <header class="sv2-section-head"><div><span>PRIVACY RIGHTS</span><h3>Public controller information</h3></div><p>These fields appear on the public /privacy page. Enter the legally verified details; blank fields remain marked as pending. This does not replace professional legal review.</p></header>
+      <div class="sv2-grid two">
+        ${text('privacy_controller_name','Data controller / responsible entity',privacyName,'Legal name of the person or organization (up to 160 characters).')}
+        ${text('privacy_controller_email','Privacy contact email',privacyEmail,'A valid email address for privacy requests (up to 254 characters).','email')}
+        ${text('privacy_response_time','Response deadline',privacyResponse,'Legally reviewed response period in plain text (up to 160 characters).')}
+        <div class="sv2-readonly" data-privacy-config-status data-testid="privacy-config-status"><span>PUBLIC PRIVACY STATUS</span><strong>${privacyConfigured === 3 ? '3/3 CONFIGURED' : `${privacyConfigured}/3 PENDING`}</strong><p>${privacyConfigured === 3 ? 'Configuration values are present. Legal review is still required.' : 'The public privacy page displays placeholders for each missing field.'}</p></div>
+      </div>
+      <div class="sv2-actions"><button type="button" class="btn red" data-settings-save="privacy" data-testid="privacy-save">SAVE PRIVACY DETAILS</button></div>
     </section>`;
   }
 
@@ -389,11 +401,44 @@
     await persistJson('analytics',{gtm_id:gtm},['ga4_id','google','measurement_id','google_tag_manager','tag_manager','gtm']);
   }
 
+  function validPrivacyText(value,limit) {
+    return value.length <= limit && !/[<>\u0000-\u001F\u007F]/.test(value);
+  }
+
+  async function savePrivacy() {
+    const fields = [
+      ['privacy.controller_name',read('privacy_controller_name'),160],
+      ['privacy.controller_email',read('privacy_controller_email'),254],
+      ['privacy.response_time',read('privacy_response_time'),160]
+    ];
+    for (const [key,value,limit] of fields) {
+      if (!validPrivacyText(value,limit)) {
+        throw new Error('Privacy fields must contain plain text within the allowed length.');
+      }
+      if (key === 'privacy.controller_email' && value
+        && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new Error('A valid privacy contact email is required.');
+      }
+    }
+    for (const [key,value] of fields) {
+      if (String(row(key)?.setting_value ?? '').trim() === value) continue;
+      await req('/settings', {
+        method:'POST',
+        body:JSON.stringify({setting_key:key,setting_value:value,is_json:0})
+      });
+    }
+    const response = await req('/settings');
+    state.rows = response.data || [];
+    render();
+    requestAnimationFrame(() => activate(V2.tab));
+  }
+
   const saveHandlers = {
     general:saveGeneral,
     social:saveSocial,
     indexnow:saveIndexNow,
-    analytics:saveAnalytics
+    analytics:saveAnalytics,
+    privacy:savePrivacy
   };
 
   async function save(section) {

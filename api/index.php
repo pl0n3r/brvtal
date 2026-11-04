@@ -551,6 +551,19 @@ try {
                 json_response(['ok' => false, 'error' => 'VALUE_TOO_LARGE'], 422);
             }
             $isJson = (int)($d['is_json'] ?? 0);
+            if (in_array($key, ['privacy.controller_name','privacy.controller_email','privacy.response_time'], true)) {
+                $privacyLimit = $key === 'privacy.controller_email' ? 254 : 400;
+                $plain = trim($value);
+                if ($isJson !== 0 || strlen($plain) > $privacyLimit
+                    || preg_match('/[<>\x00-\x1F\x7F]/', $plain) === 1) {
+                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_VALUE', 'field' => 'setting_value'], 422);
+                }
+                if ($key === 'privacy.controller_email' && $plain !== ''
+                    && filter_var($plain, FILTER_VALIDATE_EMAIL) === false) {
+                    json_response(['ok' => false, 'error' => 'INVALID_PRIVACY_EMAIL', 'field' => 'setting_value'], 422);
+                }
+                $value = $plain;
+            }
             $invalidJson = $isJson === 1
                 && json_decode($value, true) === null
                 && strtolower(trim($value)) !== 'null';
