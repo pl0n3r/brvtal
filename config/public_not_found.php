@@ -11,7 +11,7 @@ function brvtal_public_not_found_page(array $seo, string $analytics = ''): strin
 
     return <<<HTML
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -29,19 +29,19 @@ function brvtal_public_not_found_page(array $seo, string $analytics = ''): strin
   <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
 <body class="cromo-page">
-  <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
-  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/">← BACK HOME</a></header>
+  <a class="skip-link" href="#main-content">IR AL CONTENIDO</a>
+  <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/">← VOLVER AL INICIO</a></header>
   <main id="main-content" tabindex="-1">
     <article class="entity-hero">
       <div class="entity-image"><img src="{$image}" alt="BRVTAL" loading="eager" fetchpriority="high" decoding="async"><span>404 / BRVTAL</span></div>
       <div class="entity-copy">
-        <div class="entity-kicker">BRVTAL / NOT FOUND / 404</div>
-        <h1>RESOURCE NOT FOUND</h1>
-        <div class="entity-facts"><div><span>STATUS</span><b>404 / NOT FOUND</b></div></div>
-        <div class="entity-actions"><a href="/">BACK HOME ↗</a></div>
+        <div class="entity-kicker">BRVTAL / NO ENCONTRADO / 404</div>
+        <h1>PÁGINA NO ENCONTRADA</h1>
+        <div class="entity-facts"><div><span>ESTADO</span><b>404 / NO ENCONTRADO</b></div></div>
+        <div class="entity-actions"><a href="/">VOLVER AL INICIO ↗</a></div>
       </div>
     </article>
-    <section class="entity-statement"><div class="entity-section-label">RECOVERY / NAVIGATION</div><p>The requested public resource does not exist, is no longer public, or the link is invalid.</p></section>
+    <section class="entity-statement"><div class="entity-section-label">RECUPERAR / NAVEGAR</div><p>El recurso que buscas no existe, ya no es público o el enlace no es válido.</p></section>
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$analytics}
