@@ -324,7 +324,8 @@
     root.classList.add('cromo-home');
     const sound = window.BRVTALCromoSound;
     if (sound && sound.bind) { sound.bind(parts.snd); sound.bind(parts.snd2); }
-    parts.loadChallenge();
+    // Captcha fetch handles its own errors; initialization is intentionally non-blocking.
+    void parts.loadChallenge();
 
     const links = Array.from(parts.nav.querySelectorAll('a'));
     if ('IntersectionObserver' in window) {
