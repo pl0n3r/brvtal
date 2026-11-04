@@ -105,6 +105,24 @@ $assert(
     'production release observer behavior contract must pass: ' . implode(' | ', $observerOutput)
 );
 
+// #1522: all primary/contextual DISCADMIN workspaces and their read-only
+// features must be checked in the SAME authenticated smoke artifact.
+$assert(str_contains($probe, 'adminCoverage: { sections: [], features: [] }'), 'full admin coverage evidence must be initialized');
+$assert(str_contains($probe, 'await auditRemainingDiscAdmin(page, context);'), 'full admin coverage must run before final guards');
+$assert(str_contains($probe, 'if (evidence.authentication.http401.length)'), 'HTTP 401 must fail the full admin audit');
+$assert(str_contains($probe, 'if (!item.pass) throw new Error('), 'a missing workspace must fail the smoke');
+foreach (['pages', 'artists', 'releases', 'blog', 'media', 'memories', 'seo', 'themeStudio', 'settings', 'systemStatus'] as $module) {
+    $assert(str_contains($probe, "'{$module}'"), "admin coverage must include {$module}");
+}
+foreach (['bulkActions', 'analyticsPrivacy', 'twoFactorUI', 'backups', 'globalSearch', 'contentHealth', 'adminActivity'] as $feature) {
+    $assert(str_contains($probe, "'{$feature}'"), "admin coverage must include {$feature}");
+}
+$assert(str_contains($probe, 'await page.route(totpRoute,async route=>'), '2FA status POST must be stubbed locally for UI-only inspection');
+$assert(str_contains($probe, 'await page.unroute(totpRoute);'), '2FA local status stub must be removed after inspection');
+$assert(str_contains($probe, 'backendVerified:false,enrollmentInvoked:false'), '2FA UI check must explicitly disclaim backend verification');
+$assert(str_contains($probe, 'valuesCaptured:false,saveInvoked:false'), 'privacy check must not capture values or save settings');
+$assert(str_contains($probe, 'createInvoked:false,restoreInvoked:false'), 'backup check must not perform backup actions');
+
 // #122 needs a real production write to validate the original failure mode, but
 // that capability must remain isolated, explicitly confirmed, narrowly scoped,
 // uniquely named, and self-cleaning.

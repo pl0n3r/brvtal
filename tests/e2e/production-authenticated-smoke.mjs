@@ -55,7 +55,8 @@ const evidence = {
     setsBrowserNavigation: null,
     setRelations: null,
     heroSlider: [],
-    heroDashboardTransitions: []
+    heroDashboardTransitions: [],
+    adminCoverage: { sections: [], features: [] }
   },
   serverErrors: [],
   localStubs: [],
@@ -329,6 +330,180 @@ async function navigate(page, section) {
     },
     operationTimeoutMs
   );
+}
+
+
+// The full production audit exercises real authenticated UI and only safe reads.
+// It never infers availability from the existence of a source file.
+function coverageRecord(kind, key, result) {
+  const item = {key, ...result};
+  evidence.checks.adminCoverage[kind].push(item);
+  writeEvidence();
+  if (!item.pass) throw new Error('DISCADMIN coverage failure: ' + key + ' / ' + item.status);
+}
+
+async function coverageWorkspace(page, key, section, selector) {
+  markStage('coverage:' + key);
+  await navigate(page, section);
+  // Empty native table bodies and empty dynamic grids may have zero dimensions.
+  // Require attachment plus a visible owning workspace, not nonempty content.
+  await runOperation(key + ':workspace', () =>
+    page.locator(selector).waitFor({state:'attached',timeout:14_000}), 17_000);
+  const result = await runOperation(key + ':observe', () => page.evaluate(selector => {
+    const root = document.querySelector(selector);
+    const owner = root?.closest('[data-admin-module]') || root?.closest('.main') || root;
+    return {
+      visible: !!owner && !!owner.getClientRects().length,
+      rows: root?.children.length ?? null,
+      error: !!document.querySelector('#admin-module-host > p.error')
+    };
+  }, selector));
+  coverageRecord('sections',key,{
+    status:result.error?'load_error':result.rows===0?'empty':'loaded',
+    pass:result.visible && !result.error,
+    rowCount:result.rows
+  });
+}
+
+async function auditRemainingDiscAdmin(page, context) {
+  await coverageWorkspace(page,'pages','pages','#rows');
+  markStage('coverage:bulk');
+  await runOperation('bulk:open', async () => {
+    const trigger = page.locator('.brvtal-bulk-trigger');
+    await trigger.waitFor({state:'visible',timeout:8_000});
+    await trigger.click();
+    await page.locator('#brvtal-bulk-actions.open .brvtal-bulk-dialog')
+      .waitFor({state:'visible',timeout:8_000});
+  });
+  coverageRecord('features','bulkActions',{
+    status:'read_only_controls_visible',pass:true,mutationInvoked:false
+  });
+  await runOperation('bulk:close', () =>
+    page.locator('#brvtal-bulk-actions .brvtal-bulk-close').click());
+
+  await coverageWorkspace(page,'artists','artists','#rows');
+  await coverageWorkspace(page,'releases','releases',
+    '#admin-module-host [data-admin-module="releases"] #release-grid');
+  await coverageWorkspace(page,'blog','blog',
+    '#admin-module-host [data-admin-module="blog"] #blog-grid');
+  await coverageWorkspace(page,'media','media',
+    '#admin-module-host [data-admin-module="media"] #media-grid');
+
+  // Memories is intentionally a subview of Media, not an independent module.
+  markStage('coverage:memories');
+  await runOperation('memories:open', async () => {
+    const toggle = page.locator('[data-ia-toggle="media"]');
+    if (await toggle.count() && await toggle.getAttribute('aria-expanded') !== 'true') {
+      await toggle.click();
+    }
+    const link = page.locator('[data-memories-nav]');
+    await link.waitFor({state:'visible',timeout:8_000});
+    await link.click();
+    await page.locator('#admin-module-host [data-admin-module="memories"] [data-memories-grid]')
+      .waitFor({state:'visible',timeout:14_000});
+  }, 18_000);
+  const memory = await runOperation('memories:observe', () => page.evaluate(() => ({
+    contextual:new URLSearchParams(location.search).get('view')==='memories',
+    error:document.querySelector('[data-memories-status]')?.dataset.kind==='error',
+    empty:!!document.querySelector('[data-memories-empty]')?.getClientRects().length
+  })));
+  coverageRecord('sections','memories',{
+    status:memory.error?'load_error':memory.empty?'empty':'loaded',
+    pass:memory.contextual&&!memory.error
+  });
+
+  await coverageWorkspace(page,'seo','seo',
+    '#admin-module-host [data-admin-module="seo"] #seo-workspace-search');
+  markStage('coverage:theme');
+  const appearance=page.locator('[data-admin-nav="appearance"]');
+  if (await appearance.getAttribute('aria-expanded')!=='true') {
+    await runOperation('appearance:expand',()=>appearance.click());
+  }
+  await coverageWorkspace(page,'themeStudio','theme','[data-theme-studio-v2]');
+
+  await coverageWorkspace(page,'settings','settings','[data-settings-v2]');
+  markStage('coverage:privacy');
+  await runOperation('privacy:open',async()=>{
+    await page.locator('[data-settings-tab="analytics"]').click();
+    await page.locator('[data-settings-pane="analytics"].active [data-privacy-config-status]')
+      .waitFor({state:'visible',timeout:8_000});
+  });
+  coverageRecord('features','analyticsPrivacy',{
+    status:'controls_visible',pass:true,valuesCaptured:false,saveInvoked:false
+  });
+
+  // 2FA status is a POST even for reads. Stub ONLY that request locally:
+  // exercise the contextual UI without sending POST to production.
+  const totpRoute='**/discadmin/totp-api.php?action=status';
+  await page.route(totpRoute,async route=>{
+    evidence.localStubs.push('2fa-status-ui-only');
+    writeEvidence();
+    await route.fulfill({
+      status:200,contentType:'application/json; charset=utf-8',
+      body:JSON.stringify({ok:true,enabled:false,confirmed:false,email:''})
+    });
+  });
+  markStage('coverage:2fa');
+  await runOperation('2fa:contextual-render',async()=>{
+    await page.locator('[data-settings-tab="advanced"]').click();
+    await page.locator('[data-settings-security-host][data-security-loaded="1"]')
+      .waitFor({state:'attached',timeout:10_000});
+  },13_000);
+  coverageRecord('features','twoFactorUI',{
+    status:'ui_only_local_status_stub',pass:true,backendVerified:false,enrollmentInvoked:false
+  });
+  await page.unroute(totpRoute);
+
+  markStage('coverage:system');
+  await runOperation('system:open',async()=>{
+    await page.locator('[data-admin-nav="system"]').click();
+    await page.locator('#system-status-v2').waitFor({state:'visible',timeout:14_000});
+  },17_000);
+  coverageRecord('sections','systemStatus',{status:'loaded',pass:true});
+  markStage('coverage:backups');
+  await runOperation('backups:panel',()=>
+    page.locator('#ssv2-backups').waitFor({state:'visible',timeout:14_000}),17_000);
+  await runOperation('backups:loaded',()=>
+    page.locator('#ssv2-backups .backup-summary').waitFor({state:'visible',timeout:14_000}),17_000);
+  coverageRecord('features','backups',{
+    status:'loaded',pass:true,createInvoked:false,restoreInvoked:false
+  });
+
+  markStage('coverage:dashboard');
+  await navigate(page,'dashboard');
+  await runOperation('dashboard:return',()=>
+    page.locator('#brvtal-dashboard-v2 .dashboard-v2-hero')
+      .waitFor({state:'visible',timeout:14_000}),17_000);
+  await runOperation('search:open',async()=>{
+    await page.locator('[data-global-search-location="top"]').click();
+    await page.locator('#brvtal-global-search.open .brvtal-global-search-dialog')
+      .waitFor({state:'visible',timeout:8_000});
+  });
+  coverageRecord('features','globalSearch',{
+    status:'overlay_opened',pass:true,querySent:false
+  });
+  await runOperation('search:close',()=>
+    page.locator('#brvtal-global-search .brvtal-global-search-close').click());
+
+  // Dashboard v2 replaces the old standalone activity/content-health panels.
+  // The cards can be hidden by layout preferences: verify the real read API.
+  for (const check of [
+    {key:'contentHealth',path:'/api/content-health.php',module:'attention'},
+    {key:'adminActivity',path:'/api/admin-activity.php?limit=5',module:'activity'}
+  ]) {
+    markStage('coverage:'+check.key);
+    const response=await runOperation(check.key+':get',()=>
+      context.request.get(baseUrl+check.path,{timeout:12_000}),14_000);
+    const payload=await runOperation(check.key+':json',()=>
+      jsonOrThrow(response,check.key));
+    const card=await runOperation(check.key+':card',()=>
+      page.locator('[data-dashboard-module="'+check.module+'"]').isVisible());
+    coverageRecord('features',check.key,{
+      status:response.ok()&&payload.ok!==false?(card?'loaded':'api_loaded_card_hidden'):'load_error',
+      pass:response.ok()&&payload.ok!==false,
+      httpStatus:response.status(),cardVisible:card
+    });
+  }
 }
 
 let browser = null;
@@ -789,6 +964,8 @@ try {
     }
   }
 
+  await auditRemainingDiscAdmin(page, context);
+
   markStage('final-guards');
   await Promise.all(serverErrorDiagnostics);
   if (evidence.serverErrors.length) {
@@ -799,13 +976,16 @@ try {
         .join(', ')
     );
   }
+  if (evidence.authentication.http401.length) {
+    throw new Error('Authenticated DISCADMIN emitted HTTP 401 during the authorized audit.');
+  }
   if (evidence.blockedMutations.length) {
     throw new Error(`Read-only guard blocked unexpected production mutations: ${evidence.blockedMutations.join(', ')}`);
   }
 
   evidence.status = 'passed';
   writeEvidence();
-  console.log('Authenticated production smoke passed for admin version and issues #123, #124 and #125.');
+  console.log('Authenticated production smoke passed for all DISCADMIN sections and issues #123, #124 and #125.');
 } catch (error) {
   await Promise.allSettled(serverErrorDiagnostics);
   evidence.status = 'failed';
