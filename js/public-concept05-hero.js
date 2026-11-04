@@ -152,6 +152,72 @@
     });
   }
 
+  /**
+   * Choose real Media Engine WebP derivatives before setting src; otherwise
+   * Chromium can already be downloading the original multi-MB PNG.
+   */
+  function responsiveCandidates(original, manifest, card = false) {
+    if (!safeCmsMediaPath(original) || !manifest || typeof manifest !== 'object') return [];
+    const item = manifest[original];
+    if (!item || item.src !== original || !item.variants) return [];
+    const originalWidth = Number(item.width);
+    const originalHeight = Number(item.height);
+    if (!(originalWidth > 0 && originalHeight > 0)) return [];
+    const originalRatio = originalWidth / originalHeight;
+    const preferred = card ? ['card', 'display', 'w1280', 'w1920'] : ['display', 'w1280', 'w1920'];
+    const found = new Map();
+    preferred.forEach(name => {
+      const variant = item.variants[name];
+      const width = Number(variant?.width), height = Number(variant?.height);
+      if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+        || width < 1 || height < 1 || variant?.type !== 'image/webp'
+        || !safeCmsMediaPath(variant.src)
+        || Math.abs((width / height) - originalRatio) > originalRatio * 0.03) return;
+      if (!found.has(width)) found.set(width, {src:variant.src,width,height});
+    });
+    return [...found.values()].sort((a,b) => a.width - b.width);
+  }
+
+  function bindCmsImageFallback(image, original, onLoad, onFail) {
+    image.onload = onLoad;
+    image.onerror = () => {
+      if (image.dataset.c5WebpActive === '1') {
+        image.dataset.c5WebpActive = '0';
+        image.removeAttribute('srcset');
+        image.removeAttribute('sizes');
+        image.src = original;
+        return;
+      }
+      onFail();
+    };
+  }
+
+  function assignResponsiveCmsImage(image, original, {card = false, sizes = '100vw', dimensions = false} = {}) {
+    image.dataset.c5PendingSource = original;
+    const apply = manifest => {
+      if (image.dataset.c5PendingSource !== original) return;
+      const candidates = responsiveCandidates(original, manifest, card);
+      image.removeAttribute('srcset');
+      image.removeAttribute('sizes');
+      image.dataset.c5WebpActive = candidates.length ? '1' : '0';
+      if (candidates.length) {
+        image.srcset = candidates.map(candidate => candidate.src + ' ' + candidate.width + 'w').join(', ');
+        image.sizes = sizes;
+        if (dimensions) {
+          image.width = Number(manifest[original].width);
+          image.height = Number(manifest[original].height);
+        }
+      }
+      image.src = candidates.length ? candidates[0].src : original;
+    };
+    const load = window.BRVTALPublicMedia?.loadImageDelivery;
+    if (!safeCmsMediaPath(original) || typeof load !== 'function') {
+      apply(null);
+      return;
+    }
+    Promise.resolve().then(() => load()).then(apply, () => apply(null));
+  }
+
   function projectDocumentary(data) {
     const figure = document.querySelector('[data-c5-hero-documentary]');
     const image = figure?.querySelector('[data-c5-hero-documentary-image]');
@@ -163,16 +229,18 @@
     image.alt = documentary.alt || 'BRVTAL archive';
     const label = figure.querySelector('[data-c5-hero-documentary-label]');
     if (label) label.textContent = documentary.label || 'BRVTAL ARCHIVE';
-
+    image.loading = 'eager';
+    image.decoding = 'async';
+    image.fetchPriority = 'high';
     figure.hidden = true;
-    image.onload = () => {
-      figure.hidden = false;
-    };
-    image.onerror = () => {
-      figure.hidden = true;
-      image.removeAttribute('src');
-    };
-    image.src = documentary.src;
+    bindCmsImageFallback(
+      image, documentary.src,
+      () => { figure.hidden = false; },
+      () => { figure.hidden = true; image.removeAttribute('src'); }
+    );
+    assignResponsiveCmsImage(image, documentary.src, {
+      sizes:'(max-width: 900px) 78vw, 460px', dimensions:true
+    });
     return true;
   }
 
@@ -190,7 +258,6 @@
   function projectEditorialMedia(data) {
     const site = data?.settings?.site;
     if (!site || typeof site !== 'object') return;
-    const valid = safeCmsMediaPath;
     const destinations = {
       hero_face:'.home-phase-a-hero',
       crowd:'#genesis',
@@ -203,7 +270,7 @@
       const record = site['c05_media_' + key];
       if (!section || record?.status !== 'published'
         || !Number.isSafeInteger(Number(record.id)) || Number(record.id) < 1
-        || !valid(record.url)) return;
+        || !safeCmsMediaPath(record.url)) return;
       if (section.querySelector('img[data-c5-editorial-media="' + key + '"]')) return;
       const image = document.createElement('img');
       image.dataset.c5EditorialMedia = key;
@@ -214,26 +281,52 @@
       image.style.height = 'auto';
       image.style.maxHeight = '220px';
       image.style.objectFit = 'cover';
-      // A hidden lazy image cannot enter the viewport to fire onload.
-      // Fetch immediately, but reveal only on a successful decode/load.
-      image.loading = 'eager';
+      image.loading = key === 'hero_face' ? 'eager' : 'lazy';
       image.decoding = 'async';
       image.hidden = true;
       section.append(image);
     });
     document.querySelectorAll('img[data-c5-editorial-media]').forEach(image => {
-      const record = site['c05_media_' + image.dataset.c5EditorialMedia];
+      const key = image.dataset.c5EditorialMedia;
+      const section = document.querySelector(destinations[key]);
+      const record = site['c05_media_' + key];
       const url = record && typeof record === 'object' ? record.url : '';
       const id = record && typeof record === 'object' ? Number(record.id) : 0;
-      if (record?.status !== 'published' || !Number.isSafeInteger(id) || id < 1 || !valid(url)) {
+      if (record?.status !== 'published' || !Number.isSafeInteger(id) || id < 1 || !safeCmsMediaPath(url)) {
+        image.dataset.c5PendingSource = '';
         image.hidden = true;
+        image.removeAttribute('srcset');
         image.removeAttribute('src');
         return;
       }
+      if (image.dataset.c5PendingSource === url) return;
+      image.dataset.c5PendingSource = url;
       image.hidden = true;
-      image.onload = () => { image.hidden = false; };
-      image.onerror = () => { image.hidden = true; image.removeAttribute('src'); };
-      image.src = url;
+      bindCmsImageFallback(
+        image, url,
+        () => { image.hidden = false; },
+        () => { image.hidden = true; image.removeAttribute('src'); }
+      );
+      const start = () => {
+        if (image.dataset.c5PendingSource !== url) return;
+        // The image is hidden while loading: native lazy loading would stall.
+        // Defer assignment to src instead, then use eager only on intersection.
+        image.loading = 'eager';
+        if (key === 'hero_face') image.fetchPriority = 'high';
+        assignResponsiveCmsImage(image, url, {
+          card:true, sizes:'(max-width: 900px) 72vw, 384px'
+        });
+      };
+      if (key === 'hero_face' || !section || typeof IntersectionObserver !== 'function') {
+        start();
+      } else {
+        const observer = new IntersectionObserver(entries => {
+          if (!entries.some(entry => entry.isIntersecting && entry.target === section)) return;
+          observer.disconnect();
+          start();
+        }, {rootMargin:'250px 0px'});
+        observer.observe(section);
+      }
     });
   }
 
