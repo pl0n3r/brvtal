@@ -481,9 +481,9 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     }
     $related = '';
     $historicalHeadings = [
-        'LINEUP' => 'CARTEL / REGISTRO',
-        'TIMETABLE' => 'HORARIOS / REGISTRO',
-        'SETS' => 'SETS GRABADOS',
+        'LINEUP' => 'LINEUP / RECORD',
+        'TIMETABLE' => 'TIMETABLE / RECORD',
+        'SETS' => 'RECORDED SETS',
     ];
     foreach ($page['related'] as $heading => $items) {
         if (!$items) continue;
