@@ -72,12 +72,13 @@ const document = {
   querySelector: selector => selector === 'main' ? host : null,
 };
 const factory = new Function(
-  'state', 'ensureStyles', 'qs', 'document',
+  'state', 'ensureStyles', 'qs', 'document', 'handleTabKeydown',
   script.slice(begin, end) + '\nreturn mount;',
 );
 const state = { root: null };
 const mount = factory(
-  state, () => {}, (selector, node = document) => node.querySelector(selector), document,
+  state, () => {}, (selector, node = document) => node.querySelector(selector),
+  document, () => {},
 );
 const section = mount();
 assert.equal(section.name, 'section');
