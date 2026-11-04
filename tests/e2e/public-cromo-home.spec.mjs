@@ -523,3 +523,51 @@ test('GSAP limpia flecha al cambiar a movimiento reducido y conserva bfcache', a
     await noOverflow(page);
   }
 });
+
+
+test('Hero Description de Discadmin usa texto CMS seguro sin cambiar cinta ni navegación', async ({ page }) => {
+  const description = 'Cultura nocturna sin barreras <img src=x onerror=alert(1)> y sin HTML';
+  const payload = { ...data, settings: { site: { description, tagline: 'RAVE TILL GRAVE - CMS' } } };
+  for (const width of [390, 1440]) {
+    await mount(page, { width, payload });
+    const heroText = page.locator('#cromo-home .cr-hero .cr-core p');
+    await expect(heroText).toHaveText(description);
+    expect(await heroText.evaluate(node => node.childElementCount)).toBe(0);
+    await expect(page.locator('#cromo-home .cr-band span').first()).toHaveText('Rave till grave');
+    await expect(page.locator('#cromo-home .cr-cta a[href="#noches"]')).toHaveText('Ver la próxima noche');
+    await expect(page.locator('#cromo-home .cr-cta a[href="#sonido"]')).toHaveText('Escuchar');
+    await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
+    await noOverflow(page);
+  }
+});
+
+test('Hero Description conserva texto original si site.description falta o está vacío', async ({ page }) => {
+  const fallback = 'Más que fiestas. Una cultura en movimiento.';
+  for (const width of [390, 1440]) {
+    for (const payload of [
+      { ...data, settings: { site: { description: '   ', tagline: 'TAGLINE NO ES DESCRIPTION' } } },
+      { ...data, settings: { site: {} } },
+      { ...data },
+    ]) {
+      await mount(page, { width, payload });
+      await expect(page.locator('#cromo-home .cr-hero .cr-core p')).toHaveText(fallback);
+      await expect(page.locator('#cromo-home .cr-band span').first()).toHaveText('Rave till grave');
+      await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
+      await noOverflow(page);
+    }
+  }
+});
+
+test('Hero Description limita entrada CMS a 240 caracteres en móvil y escritorio', async ({ page }) => {
+  const description = 'la cultura nocturna es nuestra '.repeat(14);
+  const normalized = description.replace(/\\s+/g, ' ').trim();
+  const expected = normalized.slice(0, 239).trimEnd() + '…';
+  expect(expected.length).toBeLessThanOrEqual(240);
+  for (const width of [390, 1440]) {
+    await mount(page, { width, payload: { ...data, settings: { site: { description } } } });
+    const heroText = page.locator('#cromo-home .cr-hero .cr-core p');
+    await expect(heroText).toHaveText(expected);
+    expect((await heroText.textContent()).length).toBeLessThanOrEqual(240);
+    await noOverflow(page);
+  }
+});

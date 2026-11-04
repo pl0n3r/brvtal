@@ -242,12 +242,12 @@
     );
   };
 
-  const buildHero = (next, artists) => {
+  const buildHero = (next, artists, site) => {
     // --- Hero
     const word = el('h1', { class: 'u', id: 'word', 'aria-label': 'BRVTAL' }, Array.from('BRVTAL').map((c) => el('span', { 'aria-hidden': 'true', text: c })));
     const nextCard = next ? buildNextCard(next, artists) : null;
     const hero = el('section', { class: 'hero' },
-      el('div', { class: 'core' }, word, el('p', { text: 'Más que fiestas. Una cultura en movimiento.' })),
+      el('div', { class: 'core' }, word, el('p', { text: text(site?.description, 240) || 'Más que fiestas. Una cultura en movimiento.' })),
       nextCard,
       el('div', { class: 'cta' }, el('a', { class: 'btn r', href: '#noches', text: 'Ver la próxima noche' }), el('a', { class: 'btn', href: '#sonido', text: 'Escuchar' })));
     const bandItems = ['Rave till grave', 'Pereira, Colombia', 'Más que fiestas'];
@@ -818,7 +818,7 @@
       el('div', { style: 'display:flex;gap:10px;align-items:center' }, snd, ticketsLink));
 
     // --- Hero
-    const { word, hero: heroSec, band } = buildHero(next, artists);
+    const { word, hero: heroSec, band } = buildHero(next, artists, data.settings?.site);
 
     // --- Noches
     const nights = buildNights(upcoming, next, artists, data.archive && data.archive.events);
