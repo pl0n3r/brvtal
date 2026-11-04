@@ -591,7 +591,9 @@ function brvtal_public_home_cromo(string $html): string
         'css/public-cromo.css' => ['</head>', '  <link rel="stylesheet" href="css/public-cromo.css">'],
         'css/public-cromo-redesign.css' => ['</head>', '  <link rel="stylesheet" href="css/public-cromo-redesign.css">'],
         'js/public-cromo.js' => ['</body>', '  <script src="js/public-cromo.js" defer></script>'],
+        'css/public-cromo-home.css' => ['</head>', '  <link rel="stylesheet" href="css/public-cromo-home.css">'],
         'js/public-cromo-sound.js' => ['</body>', '  <script src="js/public-cromo-sound.js" defer></script>'],
+        'js/public-cromo-home.js' => ['</body>', '  <script src="js/public-cromo-home.js" defer></script>'],
     ];
     foreach ($tags as $asset => [$anchor, $tag]) {
         if (!str_contains($html, $asset)) {
