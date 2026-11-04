@@ -46,6 +46,8 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="' . $fontHref . '" rel="stylesheet">
   <link rel="stylesheet" href="/css/contact-social.css">
+  <link rel="stylesheet" href="/css/public-cromo.css">
+  <link rel="stylesheet" href="/css/public-cromo-redesign.css">
   <link rel="stylesheet" href="/css/public-controls.css">
   <link rel="stylesheet" href="/css/public-legibility.css">
   <link rel="stylesheet" href="/css/public-visual-identity.css">
@@ -174,6 +176,7 @@ function brvtal_public_contact_page(array $seo, string $analytics = ''): string
     <span>RAVE TILL GRAVE</span>
   </footer>
   <script src="/js/public-contact.js"></script>
+  <script src="/js/public-cromo.js" defer></script>
   ' . $analytics . '
 </body>
 </html>';
