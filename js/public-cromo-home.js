@@ -330,6 +330,29 @@
     }, Math.max(ms('--text-soft-dur'), ms('--text-soft-resize-dur')) + 40);
   };
 
+  // The real items behind each category, so choosing "Artistas" shows the artists themselves.
+  const itemsOf = (name, data) => {
+    const list = (key) => (Array.isArray(data[key]) ? data[key] : []);
+    const link = (route, slug) => (slug ? '/' + route + '/' + encodeURIComponent(slug) : '');
+    switch (name) {
+      case 'Eventos':
+        return list('events').map((e) => {
+          const when = parseDate(e.event_date);
+          return { label: text(e.title, 60), sub: [when ? two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear() : '', text(e.city)].filter(Boolean).join(' · '), href: link('events', e.slug) };
+        });
+      case 'Artistas':
+        return list('artists').map((a) => ({ label: text(a.name, 60), sub: a.is_collective_member ? 'Colectivo' : 'Colaborador', href: link('artists', a.slug) }));
+      case 'Sonido':
+        return list('sets').map((x) => ({ label: text(x.title, 60), sub: text(x.artist_name || x.platform, 40), href: link('sets', x.slug) }));
+      case 'Discos':
+        return list('releases').map((r) => ({ label: text(r.title, 60), sub: text(r.release_type, 30), href: link('releases', r.slug) }));
+      case 'Memorias':
+        return list('memories').map((m) => ({ label: text(m.title, 60), sub: text(m.context, 50), href: '#memorias' }));
+      default:
+        return [];
+    }
+  };
+
   // Fixed layouts (viewBox units): the five categories on an ellipse, one for wide and one for narrow screens.
   const GRAPH = {
     wide: { w: 1000, h: 560, cx: 500, cy: 292, rx: 290, ry: 165, scale: 1, outward: true },
@@ -458,6 +481,8 @@
     const leadText = document.createElement('span');
     leadText.className = 't-text-soft';
     lead.append(leadText);
+    const items = el('ul', { class: 'cn-items' });
+    const relHead = el('p', { class: 'cn-h u', text: 'Se conecta con', hidden: true });
     const list = el('ul', { class: 'cn-edges', 'aria-live': 'polite' });
     const totalNode = el('p', { class: 'cn-total' });
     const totalText = document.createElement('span');
@@ -468,9 +493,9 @@
 
     const visible = () => (selected ? edges.filter((e) => e[0] === selected || e[1] === selected) : edges);
     const leadLabel = () => {
-      if (!selected) return 'Cada línea une dos categorías y su grosor es el número de vínculos. Elige un círculo para ver con qué se conecta.';
+      if (!selected) return 'Cada línea une dos categorías y su grosor es el número de vínculos. Elige un círculo para ver sus elementos y con qué se conecta.';
       const n = (nodes.find((x) => x[0] === selected) || [0, 0])[1];
-      return n + (n === 1 ? ' elemento' : ' elementos') + ' en el archivo público. Esto es lo que lo conecta con otras categorías:';
+      return n ? n + (n === 1 ? ' elemento publicado.' : ' elementos publicados.') : 'Todavía no hay elementos publicados.';
     };
     const totalLabel = () => {
       const shown = visible();
@@ -489,10 +514,26 @@
           el('i', { 'aria-hidden': 'true', text: 'Ver' })));
       });
     };
+    const itemNodes = () => {
+      if (!selected) return [];
+      const all = itemsOf(selected, data).filter((item) => item.label);
+      const shown = all.slice(0, 12).map((item, i) => el('li', { style: '--i:' + i },
+        el(item.href ? 'a' : 'span', { class: 'cn-item', href: item.href || false },
+          el('strong', { text: item.label }), item.sub ? el('small', { text: item.sub }) : null)));
+      if (all.length > 12) shown.push(el('li', {}, el('a', { class: 'cn-item cn-more', href: SECTION[selected], text: 'y ' + (all.length - 12) + ' más' })));
+      return shown;
+    };
     const paintList = (animate) => {
-      const swap = () => { list.replaceChildren(...rows()); list.classList.remove('cr-is-leaving'); };
+      const swap = () => {
+        items.replaceChildren(...itemNodes());
+        list.replaceChildren(...rows());
+        relHead.hidden = !selected || !visible().length;
+        list.classList.remove('cr-is-leaving');
+        items.classList.remove('cr-is-leaving');
+      };
       if (!animate || reduced()) { swap(); return; }
       list.classList.add('cr-is-leaving');
+      items.classList.add('cr-is-leaving');
       setTimeout(swap, ms('--duration-quick'));
     };
 
@@ -530,7 +571,7 @@
 
     const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
       el('div', { class: 'cn' }, stage,
-        el('div', { class: 'cn-side plate chrome-b' }, heading, lead, list, totalNode, el('div', { class: 'cn-actions' }, go, reset))));
+        el('div', { class: 'cn-side plate chrome-b' }, heading, lead, items, relHead, list, totalNode, el('div', { class: 'cn-actions' }, go, reset))));
     section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
     return section;
   };
