@@ -105,3 +105,42 @@ test('Últimas noches and legacy hashes land on the archive; empty data stays sa
     await noOverflow(page);
   }
 });
+
+test('Memorias muestra completa la imagen vertical del CMS en móvil y escritorio', async ({ page }) => {
+  const portrait = {
+    id: 9, media_id: 9, type: 'image',
+    title: 'sample-artist-two', file_path: '/uploads/portrait-memory.svg',
+  };
+  await page.route('**/uploads/portrait-memory.svg', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="600" height="900" fill="#202734"/><rect width="600" height="60" fill="#f22"/><rect y="840" width="600" height="60" fill="#29f"/></svg>',
+  }));
+  for (const width of [390, 1440]) {
+    await mount(page, { width, payload: { ...data, memories: [portrait] } });
+    const card = page.locator('#memorias .cr-mem .cr-t.cr-has-img');
+    await expect(card).toHaveCount(1);
+    await expect(card).toBeVisible();
+    const frame = await card.evaluate(node => {
+      const backdrop = getComputedStyle(node, '::before');
+      const rect = node.getBoundingClientRect();
+      return {
+        size: backdrop.backgroundSize.split(',')[0].trim(),
+        color: backdrop.backgroundColor,
+        image: backdrop.backgroundImage,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    expect(frame.size).toBe('contain');
+    expect(frame.color).toBe('rgb(7, 8, 11)');
+    expect(frame.image).toContain('/uploads/portrait-memory.svg');
+    expect(frame.width).toBeGreaterThan(0);
+    if (width === 390) expect(frame.height).toBeGreaterThanOrEqual(380);
+    await noOverflow(page);
+
+    await page.locator('#memorias .cr-chip').filter({ hasText: 'Video' }).click();
+    await expect(card).toBeHidden();
+    await page.locator('#memorias .cr-chip').filter({ hasText: 'Imágenes' }).click();
+    await expect(card).toBeVisible();
+  }
+});

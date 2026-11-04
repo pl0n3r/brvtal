@@ -109,7 +109,7 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 #cromo-home .cr-mem .cr-t{position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:14px;font:700 20px/1.2 var(--body);color:#fff;transition:transform var(--duration-fast) var(--ease-smooth-out)}
 #cromo-home .cr-mem .cr-t:hover{transform:scale(1.04);z-index:3}
 #cromo-home .cr-mem .cr-t::before{content:"";position:absolute;inset:0;background:conic-gradient(from var(--a,0deg) at 50% 50%,#07080b,#cfd8e6,#07080b,#ff3b1f,#07080b);filter:saturate(.9)}
-#cromo-home .cr-mem .cr-t.cr-has-img::before{background:var(--img) center/cover no-repeat,#07080b;filter:none}
+#cromo-home .cr-mem .cr-t.cr-has-img::before{background:var(--img) center/contain no-repeat,#07080b;filter:none}
 #cromo-home .cr-mem .cr-t::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(3,3,3,.85),transparent 55%)}
 #cromo-home .cr-mem .cr-t span{position:relative;z-index:2}
 #cromo-home .cr-mem .cr-t[hidden]{display:none}
@@ -383,4 +383,12 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @media(prefers-reduced-motion:reduce){
   #cromo-home .cr-pst,#cromo-home .cr-pst img,#cromo-home .cr-pst::before,#cromo-home .cr-pst-more{transition:none !important}
   #cromo-home .cr-pst:hover,#cromo-home .cr-pst-more:hover{transform:none;box-shadow:none}
+}
+
+/* A single Memory is given a portrait-friendly frame on small screens.
+ * Keep the entire CMS image visible; never use cover on curated photos. */
+@media(max-width:820px){
+  #cromo-home .cr-mem .cr-t.cr-has-img:only-child{
+    min-height:clamp(380px,125vw,640px);
+  }
 }
