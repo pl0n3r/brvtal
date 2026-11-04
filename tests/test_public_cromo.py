@@ -173,6 +173,47 @@ class CromoLayerTests(unittest.TestCase):
         })
         self.assertNotRegex(CSS, r"html\.cromo\s+body\s*\{[^}]*font-family")
 
+    def test_mobile_broken_glass_headers_stack_labels_in_cromo_only(self) -> None:
+        """At 390px the Cromo headings and labels must occupy separate flex rows."""
+        self.assertEqual(CSS.count("@media(max-width:700px){"), 1)
+        mobile = CSS.split("/* Narrow Cromo section headers:", 1)[1]
+        self.assertIn("@media(max-width:700px){", mobile)
+        for selector in (
+            "html.cromo body main#top .section-head",
+            "html.cromo body main#top .media-title",
+            "html.cromo body main#top .section-head h2",
+            "html.cromo body main#top .media-title h2",
+            "html.cromo body main#top .section-head > span:last-child",
+            "html.cromo body main#top .media-title > span:last-child",
+        ):
+            self.assertIn(selector, mobile)
+        for rule in (
+            "display:flex", "flex-direction:column", "align-items:flex-start",
+            "gap:8px", "order:2", "font-size:clamp(38px,10vw,60px)",
+            "line-height:1", "overflow-wrap:anywhere", "display:inline-flex",
+            "order:3", "white-space:normal",
+        ):
+            self.assertIn(rule, mobile)
+        # Legacy style.css hides the final header label below 900px.
+        label_rule = mobile.split(
+            "html.cromo body main#top .section-head > span:last-child", 1
+        )[1].split("}", 1)[0]
+        self.assertIn("display:inline-flex", label_rule)
+        self.assertNotIn("!important", mobile)
+
+    def test_mobile_night_badges_outrank_corner_decoration(self) -> None:
+        mobile = CSS.split("/* Narrow Cromo section headers:", 1)[1]
+        stamp = mobile.split(".event-card.c5-night-card::after{", 1)[1].split("}", 1)[0]
+        info = mobile.split(".c5-night-card .event-info{", 1)[1].split("}", 1)[0]
+        labels = mobile.split(".c5-night-card .event-status{", 1)[1].split("}", 1)[0]
+        artwork = mobile.split(".c5-experience-artwork-label{", 1)[1].split("}", 1)[0]
+        self.assertIn("z-index:1", stamp)
+        self.assertIn("z-index:5", info)
+        self.assertIn("z-index:6", labels)
+        self.assertIn("z-index:6", artwork)
+        self.assertIn("pointer-events:none", stamp)
+        self.assertIn("white-space:normal", labels)
+
     def test_mobile_wordmark_has_responsive_cromo_only_width(self) -> None:
         self.assertIn("@media(max-width:600px)", CSS)
         mobile = CSS.split("/* Compact display glyphs fill the mobile hero")[1]
