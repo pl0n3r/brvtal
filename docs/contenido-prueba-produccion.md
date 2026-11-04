@@ -13,7 +13,27 @@
 | sample-set-one | https://www.brvtal.com.co/sets/sample-set-one | La ruta directa devolvió 404; el issue indica este slug en producción: buscar en DISCADMIN sin asumir que existe o está publicado | **Sin comprobar en DISCADMIN** |
 | UMBRAL 03 NUCLEO | https://www.brvtal.com.co/sets/umbral-03-nucleo | Es contenido ficticio de demostración en home/sitemap, pero tiene potencial vínculo con evento/artista: **no tocar si hay cualquier relación** | **Sin comprobar en DISCADMIN** |
 
-El sitemap público observado fue https://www.brvtal.com.co/sitemap.xml; contenía `/sets/dummy-set-01` y `/sets/dummy-set-02` en español e inglés. La ruta índice `/sets` devolvió 404 en la lectura pública; esto no prueba ausencia de los registros ni permite concluir que el estado vacío funciona. La API pública y los IDs/estados originales no se han verificado. Los resultados pueden cambiar antes de ejecutar.
+El sitemap público observado fue https://www.brvtal.com.co/sitemap.xml; contenía `/sets/dummy-set-01` y `/sets/dummy-set-02` en español e inglés. La ruta índice `/sets` devolvió 404 en la lectura pública; esto no prueba ausencia de los registros ni permite concluir que el estado vacío funciona. La API pública canónica y los identificadores públicos sí se verificaron después de esta primera versión: ver inventario actualizado a continuación. **Los estados originales completos, las relaciones internas y las posibles filas no publicadas siguen sin validarse en DISCADMIN.** Los resultados pueden cambiar antes de ejecutar.
+
+## Identificadores y contrato real de despublicación (verificación solo lectura, 2026-11-03)
+
+El endpoint público **[GET /api/public.php](https://www.brvtal.com.co/api/public.php)** respondió `ok=true` y devolvió `data.sets` con los registros siguientes. En `api/public.php`, esos sets se seleccionan mediante `WHERE s.status='published'`; por tanto, **published es el estado público confirmado**, no una lectura autenticada del registro completo.
+
+| ID público | Título | Slug | artist_id | event_id | Tratamiento |
+| --- | --- | --- | --- | --- | --- |
+| **1** | DUMMY SET 01 // BRVTAL CORE | `dummy-set-01` | `null` | `null` | Candidato: verificar relaciones internas y estado antes de despublicar |
+| **2** | DUMMY SET 02 // GENESIS | `dummy-set-02` | `null` | `null` | Candidato: verificar relaciones internas y estado antes de despublicar |
+| **3** | UMBRAL 03 NUCLEO | `umbral-03-nucleo` | **3** | **6** | **EXCLUIR: vinculado a artista y evento** |
+
+La API pública contenía tres sets y `data.archive.sets` estaba vacío. La ausencia de `sample-set-one` en `data.sets` **no demuestra que el registro no exista en el panel administrativo**; buscarlo allí también. Los campos `artist_id`/`event_id` nulos para IDs 1 y 2 no descartan relaciones privadas, de modo que no habilitan una modificación sin inspección autenticada.
+
+### Estado reversible implementado
+
+El panel de edición de sets en `discadmin/index-core.php` ofrece únicamente **Draft (`draft`)** y **Published (`published`)**. La API administrativa `api/index.php` valida esos dos estados para `sets` y rechaza `archived` para esta entidad (aunque `archived` existe para *eventos*). Por eso, la orden del dueño de «archivar/despublicar sin borrar» se aplica para sets como **EDIT → Status: Draft → Save**; **nunca usar DEL**, ni enviar `archived`, ni ejecutar SQL destructivo. Debe hacerse exclusivamente en DISCADMIN con sesión legítima y comprobación previa de IDs, relaciones y estado original.
+
+La API administrativa usa `PUT /api/index.php/sets/<id>` con autenticación y token CSRF; esta ruta se incluye solo para explicar el contrato, **no se ha llamado**. Para revertir los candidatos que efectivamente cambien, restaurar su estado original documentado (`published`) en DISCADMIN tras comprobar que no hubo cambios de terceros.
+
+**Estado de ejecución:** no existe evidencia de sesión autenticada ni de cambios en producción. Las fichas `/sets/dummy-set-01`, `/sets/dummy-set-02` y el sitemap siguen exponiendo los candidatos. **AC-01 y AC-02 permanecen abiertos.** La solicitud única de CodeRabbit ya se realizó sobre un HEAD anterior y recibió `Review rate limited`; no repetir una petición de revisión durante commits intermedios.
 
 ## Procedimiento de ejecución protegido
 

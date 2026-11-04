@@ -53,6 +53,32 @@ assert.equal(exact.deployment.commit, expectedSha);
 assert.equal(exact.deployment.exact, true);
 assert.equal(exact.fallbackUsed, false);
 
+// Older deployments can still include internals, but the observer must never
+// retain or forward database/schema/environment details.
+const sanitized = await observeRelease({
+  request: requestSequence([response({
+    version: expectedVersion, commit: expectedSha, source: 'git_checkout', exact: true,
+    database: 'connected', environment: 'PRODUCTION',
+    schema: { registry_exists: true, applied: 100 }
+  })]),
+  baseUrl, expectedVersion, expectedSha, attempts: 1, sleep: noSleep, now: fixedNow
+});
+assert.deepEqual(Object.keys(sanitized.deployment).sort(), ['commit', 'exact', 'source', 'version']);
+
+// Invalid claimed-exact SHA must fall back to the independent health probe.
+const invalidObservations = [];
+const invalidExact = await observeRelease({
+  request: requestSequence([
+    response({ version: expectedVersion, commit: 'not-a-sha', source: 'environment', exact: true }),
+    response({ version: expectedVersion, commit: expectedSha, source: 'git_checkout', exact: true }, true, 'health')
+  ]),
+  baseUrl, expectedVersion, expectedSha, attempts: 1, sleep: noSleep, now: fixedNow,
+  onObservation: observation => invalidObservations.push(observation)
+});
+assert.equal(invalidExact.probe, 'health');
+assert.equal(invalidExact.deployment.commit, expectedSha);
+assert.match(invalidObservations[0].fallbackReason, /invalid exact commit/);
+
 const fallbackUrls = [];
 const fallbackObservations = [];
 const healthFallback = await observeRelease({
