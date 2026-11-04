@@ -82,8 +82,9 @@ class SpanishOnlyPublicTests(unittest.TestCase):
 
     def test_version_and_test_entry_are_synced(self):
         package = json.loads(read("package.json"))
-        self.assertEqual(package["version"], "0.1.185")
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.185'", read("config/version.php"))
+        constant = re.search(r"BRVTAL_APP_VERSION = '([^']+)'", read("config/version.php"))
+        self.assertIsNotNone(constant)
+        self.assertEqual(package["version"], constant.group(1))
         self.assertEqual(package["scripts"]["test:spanish-only"],
                          "python3 -m unittest tests/test_public_spanish_only.py")
         self.assertIn("npm run test:spanish-only", package["scripts"]["test:integration"])

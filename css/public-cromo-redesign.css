@@ -1,0 +1,287 @@
+/*
+ * BRVTAL — Cromo redesign (public home sections, palette and hero card).
+ * Reference: docs/design/CROMO.md. Everything is scoped to `html.cromo`
+ * (set by js/public-cromo.js only after the WebGL shader compiled), so
+ * without WebGL / with Save-Data the Concept 05 look is untouched.
+ * Palette: black, bone white and ONE red. The accent still comes from the
+ * Theme Studio variables; these are only the Cromo defaults.
+ */
+
+/* ---------- Palette: lime accent -> red (>= 4.5:1 as text on #050505 and white on red) ---------- */
+html.cromo{
+  --cromo-red:#e12e34;
+  --cromo-bone:#f4f1e8;
+  --cromo-plate:rgba(3,3,3,.9);
+  --acid:var(--cromo-red);
+  --signal:var(--cromo-red);
+  --c5-signal-green:var(--cromo-red);
+}
+html.cromo [data-concept="05"]{--c5-signal-green:var(--cromo-red)}
+
+/* Small labels that were gray on the accent or on the chrome. */
+html.cromo .mono{color:inherit}
+html.cromo main#top .section-head .mono{
+  background:var(--cromo-plate);
+  color:var(--cromo-bone);
+  padding:.3em .6em;
+  width:fit-content;
+}
+
+/* ---------- Section heads: label, title, label never overlap ---------- */
+html.cromo main#top .section-head,
+html.cromo main#top .media-title{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  gap:10px 18px;
+}
+html.cromo main#top .section-head h2,
+html.cromo main#top .media-title h2{
+  flex:1 1 100%;
+  order:2;
+  margin:0;
+  font-size:clamp(52px,9vw,140px);
+}
+html.cromo main#top .section-head .mono:first-child,
+html.cromo main#top .media-title .mono:first-child{order:1}
+html.cromo main#top .section-head .mono:last-child{order:3}
+
+/* ---------- Plates: every text block sits on a dark plate ---------- */
+html.cromo main#top section.scene:not(.home-phase-a-hero){
+  background-color:rgba(5,5,5,.78);
+}
+html.cromo .c5-night-card,
+html.cromo .artist,
+html.cromo .set-item,
+html.cromo .transmission-card,
+html.cromo .public-media-tools,
+html.cromo .c5-connected-graph,
+html.cromo .sets-intro,
+html.cromo .transmissions-intro{
+  background:var(--cromo-plate);
+  border:1px solid rgba(244,241,232,.22);
+  border-top:3px solid var(--cromo-red);
+  color:var(--cromo-bone);
+}
+
+/* ---------- Hero ---------- */
+@keyframes cromo-letter{
+  from{transform:translateY(55%) rotate(5deg)}
+  to{transform:none}
+}
+html.cromo .hero-title .cromo-l{
+  display:inline-block;
+  animation:cromo-letter .95s cubic-bezier(.22,1,.36,1) backwards;
+  animation-delay:calc(var(--i,0)*70ms);
+}
+html.cromo .cromo-next{
+  position:relative;
+  z-index:2;
+  max-width:min(440px,100%);
+  margin-top:22px;
+  padding:16px 18px;
+  background:var(--cromo-plate);
+  border:2px solid var(--cromo-bone);
+  box-shadow:6px 6px 0 var(--cromo-red);
+  color:var(--cromo-bone);
+  transform:rotate(-1.5deg);
+}
+html.cromo .cromo-next .cromo-next-k{
+  font:700 12px/1.2 "Space Mono",monospace;
+  letter-spacing:.08em;
+  color:var(--cromo-red);
+  text-transform:uppercase;
+}
+html.cromo .cromo-next strong{
+  display:block;
+  margin:6px 0 2px;
+  font:400 clamp(28px,3.6vw,44px)/.95 "Broken Glass","Barlow Condensed",sans-serif;
+  text-transform:uppercase;
+  -webkit-text-stroke:1px #050505;
+  paint-order:stroke fill;
+}
+html.cromo .cromo-next p{margin:0 0 10px;font:500 17px/1.3 "Barlow Condensed",sans-serif;color:var(--cromo-bone)}
+html.cromo .cromo-next a{
+  display:inline-flex;
+  align-items:center;
+  min-height:44px;
+  padding:0 16px;
+  background:var(--cromo-red);
+  color:#fff;
+  font:700 13px/1 "Space Mono",monospace;
+  letter-spacing:.06em;
+  text-decoration:none;
+  text-transform:uppercase;
+}
+html.cromo .cromo-next a:focus-visible,
+html.cromo .cromo-sound:focus-visible{outline:3px solid var(--cromo-bone);outline-offset:3px}
+
+/* Desktop: a smaller wordmark leaves room for the next-night card on the right. */
+@media(min-width:901px){
+  html.cromo .home-phase-a-hero{position:relative}
+  html.cromo [data-concept="05"] .home-phase-a-hero .hero-title{font-size:clamp(120px,16.5vw,250px)}
+  html.cromo .home-phase-a-hero .cromo-next{
+    position:absolute;
+    right:clamp(20px,4vw,64px);
+    top:clamp(90px,14vh,150px);
+    width:min(360px,27vw);
+    margin:0;
+  }
+}
+
+/* ---------- Noches ---------- */
+html.cromo .c5-night-card .event-info{background:transparent}
+html.cromo .c5-night-card h3{
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  font-weight:400;
+  -webkit-text-stroke:1px #050505;
+  paint-order:stroke fill;
+  text-shadow:.04em .05em 0 var(--cromo-red);
+}
+html.cromo .event-ticket{color:#fff;background:var(--cromo-red)}
+html.cromo .event-ticket span{color:inherit}
+html.cromo .event-status,
+html.cromo .c5-experience-artwork-label{
+  position:relative;
+  z-index:2;
+  color:var(--cromo-bone);
+  background:var(--cromo-plate);
+  padding:.25em .55em;
+}
+
+/* ---------- Artistas ---------- */
+html.cromo .artist{padding:16px 18px;transition:transform .16s ease,box-shadow .16s ease}
+html.cromo .artist:hover,
+html.cromo .artist:focus-visible{transform:translate(-3px,-3px);box-shadow:6px 6px 0 var(--cromo-red)}
+html.cromo .artist :where(h3,strong,.artist-name){
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  font-weight:400;
+  -webkit-text-stroke:1px #050505;
+  paint-order:stroke fill;
+}
+html.cromo .roster-group-head{background:var(--cromo-plate);color:var(--cromo-bone);padding:.3em .6em;width:fit-content}
+
+/* ---------- Sonido y sets ---------- */
+html.cromo .set-item{margin-bottom:10px}
+html.cromo .set-action,
+html.cromo .transmission-open,
+html.cromo .c5-section-route,
+html.cromo .transmissions-route{
+  background:var(--cromo-red);
+  color:#fff;
+  padding:.7em 1.1em;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  text-decoration:none;
+}
+html.cromo .set-listen-action,
+html.cromo .set-action span{color:#fff}
+html.cromo .sets-intro h3 em{color:var(--cromo-red);-webkit-text-stroke:1px #050505;paint-order:stroke fill}
+
+/* ---------- Memorias ---------- */
+html.cromo .public-media-types button{
+  min-height:44px;
+  background:#050505;
+  color:var(--cromo-bone);
+  border:2px solid var(--cromo-bone);
+  font-weight:700;
+}
+html.cromo .public-media-types button.active,
+html.cromo .public-media-types button[aria-pressed="true"]{background:var(--cromo-bone);color:#050505}
+html.cromo .media-grid .media-item,
+html.cromo .media-grid > *{border:2px solid var(--cromo-bone);box-shadow:5px 5px 0 var(--cromo-red)}
+html.cromo .media-end,
+html.cromo .public-media-count,
+html.cromo .media-title-note{background:var(--cromo-plate);color:var(--cromo-bone);padding:.4em .7em;width:fit-content}
+
+/* ---------- Journal y Conectado ---------- */
+html.cromo .transmission-card h3,
+html.cromo .transmission-card h4{
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  font-weight:400;
+  -webkit-text-stroke:1px #050505;
+  paint-order:stroke fill;
+  text-shadow:.04em .05em 0 var(--cromo-red);
+}
+html.cromo .c5-connected-tagline{
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  -webkit-text-stroke:1px #050505;
+  paint-order:stroke fill;
+}
+
+/* ---------- Pie y navegación inferior ---------- */
+html.cromo .footer.c5-footer{background-color:rgba(3,3,3,.94);border-top:3px solid var(--cromo-red)}
+html.cromo .c5-bottom-nav{background:rgba(3,3,3,.96)}
+
+/* ---------- Interruptor de sonido (lo crea js/public-cromo-sound.js) ---------- */
+html.cromo .cromo-sound{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-width:44px;
+  min-height:44px;
+  padding:0 12px;
+  background:var(--cromo-plate);
+  color:var(--cromo-bone);
+  border:2px solid var(--cromo-bone);
+  font:700 12px/1 "Space Mono",monospace;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+html.cromo .cromo-sound .cromo-sound-dot{width:10px;height:10px;border-radius:50%;background:var(--cromo-bone)}
+html.cromo .cromo-sound[aria-pressed="true"]{background:var(--cromo-red);color:#fff;border-color:var(--cromo-red)}
+html.cromo .cromo-sound[aria-pressed="true"] .cromo-sound-dot{background:#fff}
+
+/* ---------- Contacto (documento aparte: body.brvtal-contact-page) ---------- */
+html.cromo body.brvtal-contact-page{background:transparent;color:var(--cromo-bone)}
+html.cromo body.brvtal-contact-page .contact-page-main{position:relative;z-index:1}
+html.cromo body.brvtal-contact-page :where(.contact-page-hero,.contact-page-workspace){background:transparent}
+html.cromo body.brvtal-contact-page :where(.contact-page-grid,.contact-page-scan,.contact-page-orbit){display:none}
+html.cromo body.brvtal-contact-page .contact-page-nav,
+html.cromo body.brvtal-contact-page .contact-page-footer{background:var(--cromo-plate);position:relative;z-index:2}
+html.cromo body.brvtal-contact-page .contact-page-hero h1{
+  font-family:"Broken Glass","Barlow Condensed",sans-serif;
+  font-weight:400;
+  color:var(--cromo-bone);
+  -webkit-text-stroke:3px #050505;
+  paint-order:stroke fill;
+  text-shadow:.04em .05em 0 var(--cromo-red);
+  line-height:.9;
+}
+html.cromo body.brvtal-contact-page .contact-page-hero h1::before,
+html.cromo body.brvtal-contact-page .contact-page-hero h1::after{display:none}
+html.cromo body.brvtal-contact-page :where(.contact-page-eyebrow,.contact-page-index,.contact-page-hero p){
+  background:var(--cromo-plate);
+  color:var(--cromo-bone);
+  padding:.4em .7em;
+  width:fit-content;
+}
+html.cromo body.brvtal-contact-page :where(.contact-page-context,.brvtal-contact-shell){
+  background:var(--cromo-plate);
+  border:1px solid rgba(244,241,232,.22);
+  border-top:3px solid var(--cromo-red);
+  color:var(--cromo-bone);
+}
+html.cromo body.brvtal-contact-page :where(button[type="submit"],.brvtal-contact-submit){
+  background:var(--cromo-red);
+  color:#fff;
+  min-height:44px;
+}
+
+/* ---------- Mobile ---------- */
+@media(max-width:700px){
+  html.cromo main#top .section-head h2,
+  html.cromo main#top .media-title h2{font-size:clamp(46px,14vw,80px)}
+  html.cromo .cromo-next{transform:none;box-shadow:4px 4px 0 var(--cromo-red)}
+  /* In the header the switch is icon-only; the label stays for screen readers. */
+  html.cromo header.nav .cromo-sound{padding:0;justify-content:center;width:44px}
+  html.cromo header.nav .cromo-sound .cromo-sound-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+}
+
+@media(prefers-reduced-motion:reduce){
+  html.cromo .hero-title .cromo-l{animation:none}
+  html.cromo .artist{transition:none}
+  html.cromo .artist:hover{transform:none}
+}

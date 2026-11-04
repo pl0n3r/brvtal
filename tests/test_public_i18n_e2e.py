@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -35,8 +36,9 @@ class PublicI18nE2ETests(unittest.TestCase):
 
     def test_version_bump_and_ci_commands(self):
         package=json.loads(read("package.json"))
-        self.assertEqual(package["version"],"0.1.185")
-        self.assertIn("BRVTAL_APP_VERSION = '0.1.185'",read("config/version.php"))
+        constant=re.search(r"BRVTAL_APP_VERSION = '([^']+)'",read("config/version.php"))
+        self.assertIsNotNone(constant)
+        self.assertEqual(package["version"],constant.group(1))
         self.assertIn("npm run test:i18n-e2e",package["scripts"]["test:integration"])
 
 if __name__=="__main__":
