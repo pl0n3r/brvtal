@@ -217,6 +217,7 @@ test('Social & Contact filters malformed and unsafe values, supports legacy keys
 // #1520 — exercise the real Cromo CMS mount at the viewport edges, without
 // replacing content hooks, desktop layout, or Concept 05 fallback.
 test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escritorio y funciona sin portada', async ({ page }) => {
+  test.setTimeout(120_000); // Ten real CMS mounts across five viewports.
   await page.route('**/fixtures/cromo-experience-cover.svg', route => route.fulfill({
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#23131b"/></svg>',
@@ -270,6 +271,8 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
         expect(cta.right).toBeLessThanOrEqual(metrics.panel.right + 1);
       }
       if (width <= 900) {
+        expect(metrics.brand.right).toBeLessThanOrEqual(metrics.sound.left + 1);
+        expect(metrics.sound.right).toBeLessThanOrEqual(metrics.tickets.left + 1);
         expect(metrics.columns).toBe(1);
         expect(metrics.panelPadding).toBeGreaterThanOrEqual(24);
         expect(metrics.factsColumns).toBe(2);
@@ -292,6 +295,9 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
         for (const cta of metrics.ctas) expect(cta.width).toBeGreaterThanOrEqual(metrics.panel.width - metrics.panelPadding * 2 - 2);
       }
       if (width === 390 && cover) {
+        const ticketControl = page.locator('#cromo-home .cr-top .cr-tickets');
+        await ticketControl.focus();
+        expect(await ticketControl.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid');
         const img = card.locator('.cr-xp-fly img');
         await expect(img).toBeVisible();
         expect(await img.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s');
