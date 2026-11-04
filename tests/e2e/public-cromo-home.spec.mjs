@@ -415,3 +415,111 @@ test('GSAP anima la entrada y la flecha; movimiento reducido lo omite', async ({
   expect(await page.evaluate(() => window.__cromoGsapCalls.length)).toBe(0);
   await expect(page.locator('#cromo-home .cr-next-link')).toHaveAttribute('href', '/events/genesis');
 });
+
+ 
+test('La próxima noche sigue visible y navegable sin GSAP a 390/1440', async ({ page }) => {
+  for (const width of [390, 1440]) {
+    await mount(page, { width });
+    const card = page.locator('#cromo-home .cr-next-link');
+    await expect(card).toHaveAttribute('href', '/events/genesis');
+    await expect(card).toHaveCSS('opacity', '1');
+    await noOverflow(page);
+  }
+});
+
+test.describe('Contador de próxima noche en un cambio DST reproducible', () => {
+  test.use({ timezoneId: 'America/New_York' });
+  test('cuenta dos días calendario cuando termina el horario de verano', async ({ page }) => {
+    // Local 2027-11-06, before the extra hour on November 7.
+    await page.clock.install({ time: new Date('2027-11-06T16:00:00Z') });
+    await mount(page, {
+      width: 390,
+      payload: { ...data, events: [{ ...event, event_date: '2027-11-08 21:00:00' }] },
+    });
+    const card = page.locator('#cromo-home .cr-next-link');
+    await expect(card.locator('.cr-next-count')).toHaveText('Faltan 2 días');
+    await expect(card).toHaveAttribute('href', '/events/genesis');
+    await noOverflow(page);
+  });
+});
+
+test('GSAP limpia flecha al cambiar a movimiento reducido y conserva bfcache', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__cromoMotionLog = [];
+    window.BRVTALRuntimeReady = Promise.resolve();
+    const log = window.__cromoMotionLog;
+    const realMatchMedia = window.matchMedia.bind(window);
+    window.gsap = {
+      matchMedia: () => {
+        let release = () => {};
+        return {
+          add(_query, callback) {
+            const query = realMatchMedia('(prefers-reduced-motion: no-preference)');
+            let cleanup = null;
+            const sync = () => {
+              if (query.matches && !cleanup) cleanup = callback() || (() => {});
+              if (!query.matches && cleanup) { cleanup(); cleanup = null; }
+            };
+            query.addEventListener('change', sync);
+            release = () => {
+              query.removeEventListener('change', sync);
+              if (cleanup) { cleanup(); cleanup = null; }
+            };
+            sync();
+          },
+          revert() { log.push('media-revert'); release(); },
+        };
+      },
+      context(callback) {
+        callback();
+        return { revert() { log.push('context-revert'); } };
+      },
+      timeline: () => ({
+        from() { log.push('intro'); return this; },
+      }),
+      to(arrow, vars) {
+        log.push('to:' + vars.x);
+        arrow.style.transform = 'translateX(' + vars.x + 'px)';
+      },
+      killTweensOf() { log.push('kill-tweens'); },
+      set(arrow, vars) {
+        log.push('set:' + vars.x);
+        arrow.style.transform = 'translateX(' + vars.x + 'px)';
+      },
+    };
+  });
+
+  for (const width of [390, 1440]) {
+    await mount(page, { width });
+    const card = page.locator('#cromo-home .cr-next-link');
+    const arrow = card.locator('.cr-next-arrow');
+    await expect(card).toHaveAttribute('href', '/events/genesis');
+    await expect.poll(() => page.evaluate(() =>
+      window.__cromoMotionLog.filter(call => call === 'intro').length)).toBe(2);
+    await card.hover();
+    await expect.poll(() => page.evaluate(() => window.__cromoMotionLog.includes('to:7'))).toBe(true);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect.poll(() => page.evaluate(() => window.__cromoMotionLog.includes('context-revert'))).toBe(true);
+    expect(await page.evaluate(() => window.__cromoMotionLog)).toEqual(expect.arrayContaining(['kill-tweens', 'set:0']));
+    await expect(arrow).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(card).toHaveAttribute('href', '/events/genesis');
+
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect.poll(() => page.evaluate(() =>
+      window.__cromoMotionLog.filter(call => call === 'intro').length)).toBe(4);
+    await page.evaluate(() => {
+      const keep = new Event('pagehide');
+      Object.defineProperty(keep, 'persisted', { value: true });
+      window.dispatchEvent(keep);
+    });
+    expect(await page.evaluate(() => window.__cromoMotionLog.includes('media-revert'))).toBe(false);
+    await page.evaluate(() => {
+      const exit = new Event('pagehide');
+      Object.defineProperty(exit, 'persisted', { value: false });
+      window.dispatchEvent(exit);
+    });
+    await expect.poll(() => page.evaluate(() => window.__cromoMotionLog.includes('media-revert'))).toBe(true);
+    await expect(card).toHaveAttribute('href', '/events/genesis');
+    await noOverflow(page);
+  }
+});

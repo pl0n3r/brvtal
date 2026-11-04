@@ -216,7 +216,10 @@
 
   const buildNextCard = (next, artists) => {
     const when = parseDate(next.event_date);
-    const days = Math.ceil((new Date(when.getFullYear(), when.getMonth(), when.getDate()) - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
+    const today = new Date();
+    // Compare calendar dates, not elapsed local-midnight hours (DST may add one).
+    const dayUTC = (date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    const days = Math.round((dayUTC(when) - dayUTC(today)) / 86400000);
     const k = days <= 0 ? 'Es hoy' : days === 1 ? 'Falta 1 día' : 'Faltan ' + days + ' días';
     const lineup = lineupText(artists);
     const place = [text(next.city), text(next.venue)].filter(Boolean).join(', ');
@@ -882,6 +885,13 @@
         card.addEventListener('focusin', enter);
         card.addEventListener('focusout', leave);
         return () => {
+          // A reduced-motion switch can happen mid-tween: stop the hover
+          // animation and reset its position before dropping the context.
+          if (arrow) {
+            if (typeof gsap.killTweensOf === 'function') gsap.killTweensOf(arrow);
+            if (typeof gsap.set === 'function') gsap.set(arrow, { x: 0 });
+            else arrow.style.removeProperty('transform');
+          }
           card.removeEventListener('pointerenter', enter);
           card.removeEventListener('pointerleave', leave);
           card.removeEventListener('focusin', enter);
@@ -889,7 +899,13 @@
           context.revert();
         };
       });
-      window.addEventListener('pagehide', () => media.revert(), { once: true });
+      const onPageHide = (event) => {
+        // In bfcache the document resumes with the same context and listeners.
+        if (event.persisted) return;
+        window.removeEventListener('pagehide', onPageHide);
+        media.revert();
+      };
+      window.addEventListener('pagehide', onPageHide);
     }).catch(() => { /* GSAP is optional; the link and CSS remain usable. */ });
   };
 
