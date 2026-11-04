@@ -77,3 +77,13 @@
     font-size:12px;
   }
 }
+
+
+/* Functional text minimum on handheld layouts. Retain decorative artwork sizes
+   while ensuring labels, descriptions and status text are never microprint. */
+@media (max-width:700px){
+  :is(.c5-section-route,.c5-artist-index,.c5-night-card .event-info,.c5-artist-card .artist-meta,
+      .media-title-note,.media-end,.public-media-count,.cr-snd span){
+    font-size:max(12px,1em);
+  }
+}

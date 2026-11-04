@@ -89,3 +89,26 @@
     transition:none!important;
   }
 }
+
+/* Accessible hit areas for Concept 05's Cromo entrance and privacy footer.
+   Preserve the visual design; only the interactive box grows on narrow screens. */
+@media (max-width:700px){
+  #cromo-home .cr-snd{
+    min-width:44px;
+    min-height:44px;
+    box-sizing:border-box;
+  }
+  #cromo-home footer :is(a[href="/privacy"],button){
+    display:inline-flex;
+    align-items:center;
+    min-height:44px;
+    box-sizing:border-box;
+  }
+}
+
+/* Custom cursor overlays are never a replacement for the native cursor on
+   coarse pointers / touch. */
+@media (pointer:coarse){
+  /* Cromo loads its crosshair rule later; touch users still need native behavior. */
+  html.cromo-home:root body,html.cromo-home:root body.cursor-enhanced,html:root body.cursor-enhanced{cursor:auto}
+}
