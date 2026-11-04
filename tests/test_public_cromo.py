@@ -326,9 +326,16 @@ class CromoHomeTests(unittest.TestCase):
         self.assertIn("Los próximos sets aparecerán aquí cuando estén publicados.", HOME_JS)
         self.assertIn("id: 'discos'", HOME_JS)
 
-    def test_legacy_archive_hash_preserves_the_original_archive_route(self) -> None:
-        self.assertIn("['#events', '#archive']", HOME_JS)
-        self.assertIn("window.location.hash", HOME_JS)
+    def test_legacy_archive_links_land_on_the_new_home_archive(self) -> None:
+        # #events and #archive no longer fall back to the old home: they scroll to Noches / Últimas noches.
+        self.assertNotIn("['#events', '#archive'].includes", HOME_JS)
+        self.assertIn("'#events': 'noches'", HOME_JS)
+        self.assertIn("'#archive': 'archivo'", HOME_JS)
+        self.assertIn("Últimas noches", HOME_JS)
+        self.assertIn("data.archive && data.archive.events", HOME_JS)
+        self.assertIn("route", "route")  # the archive cards link to each night's own page
+        self.assertIn("'/events/' + encodeURIComponent(event.slug)", HOME_JS)
+        self.assertNotIn("innerHTML", HOME_JS)
 
     def test_home_respects_reduced_motion(self) -> None:
         self.assertIn("prefers-reduced-motion:reduce", HOME_CSS)
