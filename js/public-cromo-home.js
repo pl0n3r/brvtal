@@ -330,9 +330,22 @@
     }, Math.max(ms('--text-soft-dur'), ms('--text-soft-resize-dur')) + 40);
   };
 
+  // Fixed layouts (viewBox units): the five categories on an ellipse, one for wide and one for narrow screens.
+  const GRAPH = {
+    wide: { w: 1000, h: 560, cx: 500, cy: 292, rx: 290, ry: 165, scale: 1, outward: true },
+    tall: { w: 600, h: 700, cx: 300, cy: 360, rx: 170, ry: 235, scale: .74, outward: false },
+  };
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const svgNode = (tag, attrs) => {
+    const node = document.createElementNS(SVG_NS, tag);
+    Object.entries(attrs || {}).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    return node;
+  };
+
   const buildConnected = (data) => {
-    // --- Conectado: only counts that the CMS certifies; nothing is invented. Nodes are buttons:
-    // choosing one narrows the relations to it and links to the sections it connects with.
+    // --- Conectado: a relationship graph. Node size = how many items the category has; edge width =
+    // how many verified links join two categories. Only counts the CMS certifies are drawn; nothing is
+    // invented. The side panel is the text/table view of the same numbers and the way to act on them.
     const raw = ((data.relations || {}).counts) || {};
     const count = (key) => (Number.isSafeInteger(raw[key]) && raw[key] > 0 ? raw[key] : 0);
     const len = (list) => (Array.isArray(list) ? list.length : 0);
@@ -340,18 +353,102 @@
       ['Discos', len(data.releases)], ['Memorias', len(data.memories)]];
     const edges = EDGES.map(([key, a, b]) => [a, b, count(key), key]).filter((e) => e[2] > 0);
     const sumOf = (list) => list.reduce((sum, e) => sum + e[2], 0);
+    const plural = (n) => n + (n === 1 ? ' vínculo' : ' vínculos');
 
     let selected = null;
-    const grid = el('ul', { class: 'cn-nodes', role: 'group', 'aria-label': 'Elige una categoría para ver sus conexiones' });
-    const buttons = new Map();
-    nodes.forEach(([name, n]) => {
-      const button = el('button', { class: 'cn-node plate chrome-b', type: 'button', 'aria-pressed': 'false', 'data-node': name },
-        el('span', { class: 'cn-n u', text: String(n) }), el('span', { class: 'cn-l', text: name }));
-      buttons.set(name, button);
-      grid.append(el('li', {}, button));
-    });
+    let hovered = null;
+    let layoutKey = null;
+    const narrow = window.matchMedia('(max-width: 700px)');
+    const stage = el('div', { class: 'cn-stage plate chrome-b', role: 'group',
+      'aria-label': 'Grafo de relaciones del archivo: elige una categoría para ver con qué se conecta' });
+    const registry = { nodes: new Map(), edges: [] };
 
-    const kicker = el('p', { class: 'cn-k', text: 'Conexiones del archivo' });
+    const geometry = (layout) => {
+      const pos = new Map();
+      nodes.forEach(([name, n], i) => {
+        const angle = (-90 + 72 * i) * Math.PI / 180;
+        const radius = (56 + 10 * Math.sqrt(n)) * layout.scale;
+        pos.set(name, { x: layout.cx + layout.rx * Math.cos(angle), y: layout.cy + layout.ry * Math.sin(angle), r: radius, n, ox: layout.outward ? Math.cos(angle) : 0, oy: layout.outward ? Math.sin(angle) : (i === 0 ? -1 : 1) });
+      });
+      return pos;
+    };
+
+    const focusName = () => hovered || selected;
+    const paint = () => {
+      const focus = focusName();
+      registry.nodes.forEach((node, name) => {
+        const linked = focus && name !== focus && edges.some((e) => (e[0] === focus && e[1] === name) || (e[1] === focus && e[0] === name));
+        node.setAttribute('aria-pressed', String(name === selected));
+        node.classList.toggle('cr-is-focus', name === focus);
+        node.classList.toggle('cr-is-linked', Boolean(linked));
+        node.classList.toggle('cr-is-dim', Boolean(focus) && name !== focus && !linked);
+      });
+      registry.edges.forEach(({ group, a, b }) => {
+        const on = focus && (a === focus || b === focus);
+        group.classList.toggle('cr-is-on', Boolean(on));
+        group.classList.toggle('cr-is-dim', Boolean(focus) && !on);
+      });
+    };
+
+    const place = (key) => {
+      layoutKey = key;
+      const layout = GRAPH[key];
+      const pos = geometry(layout);
+      const svg = svgNode('svg', { viewBox: '0 0 ' + layout.w + ' ' + layout.h, class: 'cr-cn-svg', 'aria-hidden': 'true', focusable: 'false' });
+      registry.edges = [];
+      registry.nodes.clear();
+      edges.forEach(([a, b, n, relation], i) => {
+        const from = pos.get(a);
+        const to = pos.get(b);
+        const group = svgNode('g', { class: 'cr-cn-edge-g', style: '--i:' + i });
+        const width = (3 + 2.2 * n) * layout.scale;
+        group.append(
+          svgNode('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y, class: 'cr-cn-line', 'stroke-width': width, pathLength: 1 }),
+          svgNode('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y, class: 'cr-cn-hit', 'stroke-width': Math.max(30, width + 14) }));
+        // The count tag sits on the line, moved along it until it clears every circle and name plate.
+        const clears = (x, y) => [...pos.values()].every((q) => {
+          const labelX = q.x + q.ox * (q.r + 18 * layout.scale);
+          const labelY = q.y + q.oy * (q.r + 18 * layout.scale);
+          const inCircle = Math.hypot(x - q.x, y - q.y) < q.r + 26 * layout.scale;
+          const inLabel = Math.abs(x - labelX) < 70 * layout.scale && Math.abs(y - labelY) < 30 * layout.scale;
+          return !inCircle && !inLabel;
+        });
+        const t = [.5, .42, .58, .35, .65, .3, .7].find((value) => clears(from.x + (to.x - from.x) * value, from.y + (to.y - from.y) * value)) || .5;
+        const mx = from.x + (to.x - from.x) * t;
+        const my = from.y + (to.y - from.y) * t;
+        const tag = svgNode('g', { class: 'cr-cn-tag', transform: 'translate(' + mx + ' ' + my + ')' });
+        tag.append(svgNode('rect', { x: -20 * layout.scale, y: -15 * layout.scale, width: 40 * layout.scale, height: 30 * layout.scale, class: 'cr-cn-tag-bg' }));
+        const label = svgNode('text', { class: 'cr-cn-tag-t', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 24 * layout.scale });
+        label.textContent = String(n);
+        tag.append(label);
+        const title = svgNode('title', {});
+        title.textContent = a + ' ↔ ' + b + ': ' + plural(n) + '. ' + NOTE[relation];
+        group.append(tag, title);
+        group.addEventListener('pointerenter', () => { hovered = null; });
+        svg.append(group);
+        registry.edges.push({ group, a, b });
+      });
+
+      const holder = el('div', { class: 'cn-nodes' });
+      nodes.forEach(([name, n]) => {
+        const p = pos.get(name);
+        const button = el('button', { class: 'cn-node', type: 'button', 'aria-pressed': 'false', 'data-node': name,
+          style: '--px:' + (p.x / layout.w * 100).toFixed(3) + ';--py:' + (p.y / layout.h * 100).toFixed(3) + ';--d:' + (p.r * 2 / layout.w * 100).toFixed(3) + ';--ox:' + p.ox.toFixed(3) + ';--oy:' + p.oy.toFixed(3) + ';--i:' + registry.nodes.size,
+          'aria-label': name + ': ' + n + (n === 1 ? ' elemento' : ' elementos') + '. Ver sus conexiones' },
+          el('span', { class: 'cn-n u', text: String(n) }), el('span', { class: 'cn-name', text: name }));
+        button.addEventListener('pointerenter', () => { hovered = name; paint(); });
+        button.addEventListener('pointerleave', () => { hovered = null; paint(); });
+        button.addEventListener('focus', () => { hovered = name; paint(); });
+        button.addEventListener('blur', () => { hovered = null; paint(); });
+        button.addEventListener('click', () => choose(name));
+        registry.nodes.set(name, button);
+        holder.append(button);
+      });
+      stage.replaceChildren(svg, holder);
+      stage.style.setProperty('--ar', layout.w + ' / ' + layout.h);
+      paint();
+    };
+
     const heading = el('p', { class: 'cn-sel u' });
     const headingText = document.createElement('span');
     headingText.className = 't-text-soft';
@@ -366,16 +463,14 @@
     const totalText = document.createElement('span');
     totalText.className = 't-text-soft';
     totalNode.append(totalText);
-    const tagline = el('p', { class: 'cn-tag u', text: 'Todo está conectado.' });
     const go = el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' });
     const reset = el('button', { class: 'btn r', type: 'button', text: 'Ver todo', hidden: true });
 
     const visible = () => (selected ? edges.filter((e) => e[0] === selected || e[1] === selected) : edges);
-    const plural = (n) => n + (n === 1 ? ' vínculo' : ' vínculos');
     const leadLabel = () => {
-      if (!selected) return 'Un vínculo une dos piezas del archivo, por ejemplo un set con el artista que lo tocó. Elige una categoría para ver con qué se conecta.';
+      if (!selected) return 'Cada línea une dos categorías y su grosor es el número de vínculos. Elige un círculo para ver con qué se conecta.';
       const n = (nodes.find((x) => x[0] === selected) || [0, 0])[1];
-      return n + ' en el archivo público. Esto es lo que la conecta con otras categorías:';
+      return n + (n === 1 ? ' elemento' : ' elementos') + ' en el archivo público. Esto es lo que lo conecta con otras categorías:';
     };
     const totalLabel = () => {
       const shown = visible();
@@ -403,34 +498,39 @@
 
     const choose = (name) => {
       selected = selected === name ? null : name;
-      buttons.forEach((button, key) => {
-        const linked = selected && key !== selected && edges.some((e) => (e[0] === selected && e[1] === key) || (e[1] === selected && e[0] === key));
-        button.setAttribute('aria-pressed', String(key === selected));
-        button.classList.toggle('cr-is-linked', Boolean(linked));
-      });
-      grid.classList.toggle('cr-has-selection', Boolean(selected));
+      paint();
       softSwap(headingText, selected || 'Todo el archivo');
       softSwap(leadText, leadLabel());
-      tagline.hidden = Boolean(selected);
       softSwap(totalText, totalLabel());
       go.textContent = selected ? 'Ir a ' + selected : 'Explorar el archivo';
       go.setAttribute('href', selected ? SECTION[selected] : '#memorias');
       reset.hidden = !selected;
       paintList(true);
     };
-    buttons.forEach((button, name) => button.addEventListener('click', () => choose(name)));
     reset.addEventListener('click', () => choose(selected));
 
-    headingText.dataset.text = 'Todo el archivo';
     leadText.textContent = leadLabel();
     leadText.dataset.text = leadText.textContent;
     totalText.textContent = totalLabel();
     totalText.dataset.text = totalText.textContent;
+    headingText.dataset.text = 'Todo el archivo';
     paintList(false);
+    place(narrow.matches ? 'tall' : 'wide');
+    narrow.addEventListener('change', () => { const key = narrow.matches ? 'tall' : 'wide'; if (key !== layoutKey) place(key); });
+
+    // One authored moment: the lines draw in and the circles settle when the graph first scrolls into view.
+    const reveal = () => stage.classList.add('cr-is-in');
+    if (reduced() || !('IntersectionObserver' in window)) reveal();
+    else {
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) { reveal(); io.disconnect(); }
+      }, { threshold: .25 });
+      io.observe(stage);
+    }
 
     const section = el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
-      el('div', { class: 'cn' }, grid,
-        el('div', { class: 'cn-side plate chrome-b' }, kicker, heading, lead, list, totalNode, tagline, el('div', { class: 'cn-actions' }, go, reset))));
+      el('div', { class: 'cn' }, stage,
+        el('div', { class: 'cn-side plate chrome-b' }, heading, lead, list, totalNode, el('div', { class: 'cn-actions' }, go, reset))));
     section.addEventListener('keydown', (event) => { if (event.key === 'Escape' && selected) choose(selected); });
     return section;
   };
