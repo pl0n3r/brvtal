@@ -273,6 +273,144 @@
     navObserver?.observe(document.documentElement,{childList:true,subtree:true});
   }
 
+  function collectNavigationButtons(nav) {
+    const keyed = new Map();
+    for (const button of nav.querySelectorAll(':scope > button')) {
+      const key = buttonKey(button);
+      button.dataset.iaKey = key;
+      if (hiddenNavigationKeys.has(key)) {
+        button.dataset.iaHidden = '1';
+        button.setAttribute('aria-hidden','true');
+        button.tabIndex = -1;
+        button.hidden = true;
+        continue;
+      }
+      delete button.dataset.iaHidden;
+      button.removeAttribute('aria-hidden');
+      button.removeAttribute('tabindex');
+      button.hidden = false;
+      if (button.dataset.memoriesNav === '1' || key === 'hero-slider' || key === 'theme') {
+        button.dataset.iaSubnav = '1';
+      } else {
+        delete button.dataset.iaSubnav;
+      }
+      if (!keyed.has(key)) keyed.set(key, []);
+      keyed.get(key).push(button);
+    }
+    return keyed;
+  }
+
+  function ensureAppearanceNav(keyed) {
+    // Production renders Appearance immediately; the legacy test shell can omit it.
+    if (keyed.has('appearance')) return;
+    const appearance = document.createElement('button');
+    appearance.type = 'button';
+    appearance.textContent = 'APPEARANCE';
+    appearance.dataset.adminNav = 'appearance';
+    appearance.dataset.iaKey = 'appearance';
+    keyed.set('appearance',[appearance]);
+  }
+
+  function currentNavigationContext() {
+    const visibleSection = String(window.state?.section || '') === 'security'
+      ? 'settings' : String(window.state?.section || '');
+    const memoriesActive = visibleSection === 'media'
+      && new URL(location.href).searchParams.get('view') === 'memories';
+    const appearanceActive = visibleSection === 'hero-slider' || visibleSection === 'theme';
+    const menuRoute = visibleSection + (memoriesActive ? ':memories' : '');
+    if (lastMenuRoute !== menuRoute) {
+      if (memoriesActive) expandedMenus.media = true;
+      if (appearanceActive) expandedMenus.appearance = true;
+      lastMenuRoute = menuRoute;
+    }
+    return {visibleSection,memoriesActive,appearanceActive};
+  }
+
+  function addNavDivider(nav) {
+    const divider = document.createElement('div');
+    divider.className = 'ia-navdivider';
+    divider.setAttribute('role','separator');
+    divider.setAttribute('aria-orientation','horizontal');
+    nav.appendChild(divider);
+  }
+
+  function bindAppearanceDisclosure(button) {
+    button.type = 'button';
+    button.setAttribute('aria-controls','brvtal-nav-banners brvtal-nav-theme');
+    button.setAttribute('aria-expanded',String(expandedMenus.appearance));
+    if (button.dataset.iaToggleBound === '1') return;
+    button.addEventListener('click',() => {
+      expandedMenus.appearance = !expandedMenus.appearance;
+      rebuildNavigation();
+    });
+    button.dataset.iaToggleBound = '1';
+  }
+
+  function appendMemoriesSubmenu(nav, memoriesButtons) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'ia-nav-chevron';
+    toggle.dataset.iaToggle = 'media';
+    toggle.setAttribute('aria-controls','brvtal-nav-memories');
+    toggle.setAttribute('aria-expanded',String(expandedMenus.media));
+    toggle.setAttribute('aria-label',expandedMenus.media ? 'Collapse Media submenu' : 'Expand Media submenu');
+    toggle.addEventListener('click',() => {
+      expandedMenus.media = !expandedMenus.media;
+      rebuildNavigation();
+    });
+    nav.appendChild(toggle);
+    for (const child of memoriesButtons) {
+      child.id = 'brvtal-nav-memories';
+      child.hidden = !expandedMenus.media;
+      nav.appendChild(child);
+    }
+  }
+
+  function appendNavigationButton(nav, key, button, memoriesButtons) {
+    if (key === 'appearance') bindAppearanceDisclosure(button);
+    if (key === 'hero-slider' || key === 'theme') {
+      button.id = key === 'hero-slider' ? 'brvtal-nav-banners' : 'brvtal-nav-theme';
+      button.hidden = !expandedMenus.appearance;
+    }
+    if (key === 'media' && memoriesButtons.length) button.dataset.iaHasChildren = '1';
+    else delete button.dataset.iaHasChildren;
+    nav.appendChild(button);
+    if (key === 'media' && memoriesButtons.length) appendMemoriesSubmenu(nav,memoriesButtons);
+  }
+
+  function appendNavigationGroups(nav, keyed, memoriesButtons) {
+    let visibleGroups = 0;
+    for (const keys of groups) {
+      if (!keys.some(key => (keyed.get(key) || []).length)) continue;
+      if (visibleGroups++) addNavDivider(nav);
+      for (const key of keys) {
+        for (const button of (keyed.get(key) || [])) {
+          appendNavigationButton(nav,key,button,memoriesButtons);
+        }
+        keyed.delete(key);
+      }
+    }
+    for (const list of keyed.values()) {
+      for (const button of list) nav.appendChild(button);
+    }
+  }
+
+  function synchronizeNavigationSelection(nav, context) {
+    const {visibleSection,memoriesActive,appearanceActive} = context;
+    for (const button of nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"]):not([data-ia-toggle])')) {
+      const key = buttonKey(button);
+      if (key === 'media') {
+        const isMemories = button.dataset.memoriesNav === '1';
+        button.classList.toggle('active',visibleSection === 'media'
+          && (isMemories === memoriesActive || (!expandedMenus.media && !isMemories)));
+      } else if (key === 'appearance') {
+        button.classList.toggle('active',appearanceActive);
+      } else {
+        button.classList.toggle('active',key === visibleSection);
+      }
+    }
+  }
+
   function rebuildNavigation() {
     if (applyingNav) return;
     const nav = document.querySelector('.side .nav');
@@ -280,127 +418,16 @@
     applyingNav = true;
     navObserver?.disconnect();
     try {
-      nav.querySelectorAll('.navgroup,.ia-navgroup,.ia-navdivider,[data-ia-toggle="media"]').forEach(node => node.remove());
-      const buttons = [...nav.querySelectorAll(':scope > button')];
-      const keyed = new Map();
-      const unknown = [];
-
-      buttons.forEach(button => {
-        const key = buttonKey(button);
-        button.dataset.iaKey = key;
-        if (hiddenNavigationKeys.has(key)) {
-          button.dataset.iaHidden = '1';
-          button.setAttribute('aria-hidden','true');
-          button.tabIndex = -1;
-          button.hidden = true;
-          return;
-        }
-        delete button.dataset.iaHidden;
-        button.removeAttribute('aria-hidden');
-        button.removeAttribute('tabindex');
-        button.hidden = false;
-        if (button.dataset.memoriesNav === '1' || key === 'hero-slider' || key === 'theme') button.dataset.iaSubnav = '1';
-        else delete button.dataset.iaSubnav;
-        if (!keyed.has(key)) keyed.set(key, []);
-        keyed.get(key).push(button);
-      });
-
-      // Legacy test shells can omit Appearance; production renders it immediately.
-      if (!keyed.has('appearance')) {
-        const appearance = document.createElement('button');
-        appearance.type = 'button';
-        appearance.textContent = 'APPEARANCE';
-        appearance.dataset.adminNav = 'appearance';
-        appearance.dataset.iaKey = 'appearance';
-        keyed.set('appearance',[appearance]);
-      }
-
-      const visibleSection = String(window.state?.section || '') === 'security'
-        ? 'settings' : String(window.state?.section || '');
-      const memoriesActive = visibleSection === 'media'
-        && new URL(location.href).searchParams.get('view') === 'memories';
-      const appearanceActive = visibleSection === 'hero-slider' || visibleSection === 'theme';
-      const menuRoute = visibleSection + (memoriesActive ? ':memories' : '');
-      if (lastMenuRoute !== menuRoute) {
-        if (memoriesActive) expandedMenus.media = true;
-        if (appearanceActive) expandedMenus.appearance = true;
-        lastMenuRoute = menuRoute;
-      }
-
+      nav.querySelectorAll('.navgroup,.ia-navgroup,.ia-navdivider,[data-ia-toggle="media"]')
+        .forEach(node => node.remove());
+      const keyed = collectNavigationButtons(nav);
+      ensureAppearanceNav(keyed);
+      const context = currentNavigationContext();
       const mediaButtons = keyed.get('media') || [];
       const memoriesButtons = mediaButtons.filter(button => button.dataset.memoriesNav === '1');
       keyed.set('media',mediaButtons.filter(button => button.dataset.memoriesNav !== '1'));
-
-      let visibleGroups = 0;
-      for (const keys of groups) {
-        if (!keys.some(key => (keyed.get(key) || []).length)) continue;
-        if (visibleGroups++) {
-          const divider = document.createElement('div');
-          divider.className = 'ia-navdivider';
-          divider.setAttribute('role','separator');
-          divider.setAttribute('aria-orientation','horizontal');
-          nav.appendChild(divider);
-        }
-        for (const key of keys) {
-          for (const button of (keyed.get(key) || [])) {
-            if (key === 'appearance') {
-              button.type = 'button';
-              button.setAttribute('aria-controls','brvtal-nav-banners brvtal-nav-theme');
-              button.setAttribute('aria-expanded',String(expandedMenus.appearance));
-              if (button.dataset.iaToggleBound !== '1') {
-                button.addEventListener('click',() => {
-                  expandedMenus.appearance = !expandedMenus.appearance;
-                  rebuildNavigation();
-                });
-                button.dataset.iaToggleBound = '1';
-              }
-            }
-            if (key === 'hero-slider' || key === 'theme') {
-              button.id = key === 'hero-slider' ? 'brvtal-nav-banners' : 'brvtal-nav-theme';
-              button.hidden = !expandedMenus.appearance;
-            }
-            if (key === 'media' && memoriesButtons.length) button.dataset.iaHasChildren = '1';
-            else delete button.dataset.iaHasChildren;
-            nav.appendChild(button);
-
-            if (key === 'media' && memoriesButtons.length) {
-              const toggle = document.createElement('button');
-              toggle.type = 'button';
-              toggle.className = 'ia-nav-chevron';
-              toggle.dataset.iaToggle = 'media';
-              toggle.setAttribute('aria-controls','brvtal-nav-memories');
-              toggle.setAttribute('aria-expanded',String(expandedMenus.media));
-              toggle.setAttribute('aria-label',expandedMenus.media ? 'Collapse Media submenu' : 'Expand Media submenu');
-              toggle.addEventListener('click',() => {
-                expandedMenus.media = !expandedMenus.media;
-                rebuildNavigation();
-              });
-              nav.appendChild(toggle);
-              memoriesButtons.forEach(child => {
-                child.id = 'brvtal-nav-memories';
-                child.hidden = !expandedMenus.media;
-                nav.appendChild(child);
-              });
-            }
-          }
-          keyed.delete(key);
-        }
-      }
-
-      keyed.forEach(list => list.forEach(button => unknown.push(button)));
-      unknown.forEach(button => nav.appendChild(button));
-      nav.querySelectorAll(':scope > button:not([data-ia-hidden="1"]):not([data-ia-toggle])').forEach(button => {
-        const key = buttonKey(button);
-        if (key === 'media') {
-          const isMemories = button.dataset.memoriesNav === '1';
-          button.classList.toggle('active',visibleSection === 'media'
-            && (isMemories === memoriesActive || (!expandedMenus.media && !isMemories)));
-        } else if (key === 'appearance') {
-          button.classList.toggle('active',appearanceActive);
-        } else {
-          button.classList.toggle('active',key === visibleSection);
-        }
-      });
+      appendNavigationGroups(nav,keyed,memoriesButtons);
+      synchronizeNavigationSelection(nav,context);
     } finally {
       applyingNav = false;
       observeNavigation();
