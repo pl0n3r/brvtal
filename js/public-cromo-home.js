@@ -590,12 +590,12 @@
       const overlay = Math.max(0, Math.min(85, Number(slide.overlay) || 0)) / 100;
       return el('div', { class: 'bn-slide bn-t-' + transition + (i === 0 ? ' is-active' : ''), role: 'group', 'aria-roledescription': 'slide',
         'aria-label': (i + 1) + ' de ' + list.length, 'aria-hidden': i === 0 ? false : 'true', style: '--ov:' + overlay },
-        mediaNode(slide, i === 0), el('div', { class: 'bn-ov' }), layers.length ? layers : legacyCopy(slide));
+        mediaNode(slide, i === 0), el('div', { class: 'bn-tint' }), el('div', { class: 'bn-ov' }), layers.length ? layers : legacyCopy(slide));
     });
     // The class helper prefixes everything with cr-, including state classes.
     nodes.forEach((node, i) => { node.classList.remove('is-active'); if (i === 0) node.classList.add('cr-is-active'); });
 
-    const stage = el('div', { class: 'bn-stage chrome-b' }, nodes);
+    const stage = el('div', { class: 'bn-stage', style: '--bn-ms:' + Math.max(2500, Number(cfg.interval) || 7000) + 'ms' }, nodes);
     const section = el('section', { class: 'sec bn', id: 'destacados', 'aria-roledescription': 'carousel', 'aria-label': 'Destacados' },
       el('h2', { class: 'sr', text: 'Destacados' }), stage);
     if (list.length < 2) return section;
@@ -608,8 +608,11 @@
     const playPause = el('button', { class: 'bn-pp', type: 'button', 'aria-pressed': 'false', 'aria-label': 'Pausar los banners', text: 'Pausa' });
     const prev = el('button', { class: 'bn-nav', type: 'button', 'aria-label': 'Banner anterior', text: '←' });
     const next = el('button', { class: 'bn-nav', type: 'button', 'aria-label': 'Banner siguiente', text: '→' });
-    const controls = el('div', { class: 'bn-ctl' }, prev, el('div', { class: 'bn-dots' }, dots), next, playPause);
-    stage.append(controls);
+    const pad = (n) => String(n).padStart(2, '0');
+    const countNow = el('b', { text: pad(1) });
+    const counter = el('p', { class: 'bn-count u', 'aria-hidden': 'true' }, countNow, el('span', { text: '/ ' + pad(list.length) }));
+    const controls = el('div', { class: 'bn-ctl' }, el('div', { class: 'bn-dots' }, dots), prev, next, playPause);
+    stage.append(counter, controls);
 
     const schedule = () => {
       clearTimeout(timer);
@@ -630,6 +633,7 @@
       const incoming = nodes[index].querySelector('video');
       if (incoming) { const played = incoming.play(); if (played && played.catch) played.catch(() => {}); }
       dots[index].setAttribute('aria-current', 'true');
+      countNow.textContent = pad(index + 1);
       schedule();
     };
     prev.addEventListener('click', () => show(index - 1));
@@ -640,12 +644,15 @@
       playPause.setAttribute('aria-pressed', String(paused));
       playPause.setAttribute('aria-label', paused ? 'Reanudar los banners' : 'Pausar los banners');
       playPause.textContent = paused ? 'Seguir' : 'Pausa';
+      stage.classList.toggle('cr-is-paused', paused);
       schedule();
     });
-    stage.addEventListener('mouseenter', () => clearTimeout(timer));
-    stage.addEventListener('mouseleave', schedule);
-    stage.addEventListener('focusin', () => clearTimeout(timer));
-    stage.addEventListener('focusout', (event) => { if (!stage.contains(event.relatedTarget)) schedule(); });
+    const hold = () => { clearTimeout(timer); stage.classList.add('cr-is-held'); };
+    const release = () => { stage.classList.remove('cr-is-held'); schedule(); };
+    stage.addEventListener('mouseenter', hold);
+    stage.addEventListener('mouseleave', release);
+    stage.addEventListener('focusin', hold);
+    stage.addEventListener('focusout', (event) => { if (!stage.contains(event.relatedTarget)) release(); });
     document.addEventListener('visibilitychange', schedule);
     // The site's own pulse: the frame flashes on each kick of the sound loop.
     window.addEventListener('cromo:beat', () => {

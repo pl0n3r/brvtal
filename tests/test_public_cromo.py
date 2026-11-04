@@ -450,7 +450,7 @@ class CromoBannersTests(unittest.TestCase):
                        "Pausar los banners", "Reanudar los banners", "Banner anterior", "Banner siguiente",
                        "matchMedia('(prefers-reduced-motion: reduce)')", "document.hidden"):
             self.assertIn(needle, self.JS)
-        self.assertIn("min-width:44px;min-height:44px", self.CSS)
+        self.assertIn("min-width:52px;min-height:52px", self.CSS)
 
     def test_banners_keep_the_site_motion_and_a_reduced_motion_fallback(self) -> None:
         self.assertIn("cromo:beat", self.JS)            # the frame pulses with the sound loop
