@@ -248,8 +248,116 @@ function brvtal_public_home_webp_srcset(string $src): ?array
     ];
 }
 
+
+/**
+ * Remove duplicate local Home assets after all Concept05 and legacy injections.
+ * Keep the LAST stylesheet to preserve the final cascade, and the FIRST script
+ * to preserve execution order. A noscript fallback is not a second network
+ * request in JS-enabled browsing and must never be removed with its live link.
+ */
+function brvtalPublicHomeDedupeAssets(string $html): string
+{
+    if (preg_match_all(
+        '~<link\b[^>]*>|<style\b[^>]*>.*?</style\s*>|<script\b[^>]*>.*?</script\s*>~is',
+        $html,
+        $tags,
+        PREG_OFFSET_CAPTURE
+    ) === false) {
+        return $html;
+    }
+    preg_match_all('~<noscript\b[^>]*>.*?</noscript\s*>~is', $html, $noscripts, PREG_OFFSET_CAPTURE);
+
+    $lastCss = [];
+    $firstScript = [];
+    $removed = [];
+    foreach ($tags[0] as [$tag, $offset]) {
+        $fallback = false;
+        foreach ($noscripts[0] ?? [] as [$block, $start]) {
+            if ($offset >= $start && $offset < $start + strlen($block)) {
+                $fallback = true;
+                break;
+            }
+        }
+        $scope = $fallback ? 'noscript:' : 'active:';
+        $key = '';
+        $isStylesheet = false;
+
+        if (preg_match('~^<link\b~i', $tag) === 1) {
+            if (preg_match('~\brel\s*=\s*(["\'])stylesheet\1~i', $tag) !== 1
+                || preg_match('~\bhref\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) !== 1) {
+                continue;
+            }
+            $url = parse_url(html_entity_decode($attribute[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (!is_array($url) || isset($url['scheme']) || isset($url['host'])) {
+                continue;
+            }
+            $path = ltrim((string)($url['path'] ?? ''), '/');
+            if (!str_starts_with($path, 'css/')) {
+                continue;
+            }
+            $media = 'all';
+            if (preg_match('~\bmedia\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) === 1) {
+                $media = strtolower(trim($attribute[2]));
+            }
+            $key = $scope . 'css-link:' . $media . ':' . $path;
+            $isStylesheet = true;
+        } elseif (preg_match('~^<style\b~i', $tag) === 1) {
+            if (preg_match('~\bdata-brvtal-inline\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) !== 1) {
+                continue;
+            }
+            $key = $scope . 'css-inline:' . $attribute[2];
+            $isStylesheet = true;
+        } elseif (preg_match('~^<script\b~i', $tag) === 1) {
+            if (preg_match('~\bsrc\s*=\s*(["\'])(.*?)\1~i', $tag, $attribute) !== 1) {
+                continue;
+            }
+            $url = parse_url(html_entity_decode($attribute[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if (!is_array($url) || isset($url['scheme']) || isset($url['host'])) {
+                continue;
+            }
+            $path = ltrim((string)($url['path'] ?? ''), '/');
+            if (!str_starts_with($path, 'js/')) {
+                continue;
+            }
+            $opening = substr($tag, 0, (strpos($tag, '>') ?: strlen($tag)) + 1);
+            $type = '';
+            if (preg_match('~\btype\s*=\s*(["\'])(.*?)\1~i', $opening, $typeMatch) === 1) {
+                $type = strtolower(trim($typeMatch[2]));
+            }
+            $mode = (preg_match('~\bdefer(?:\s|=|>)~i', $opening) === 1 ? 'd' : '-')
+                . (preg_match('~\basync(?:\s|=|>)~i', $opening) === 1 ? 'a' : '-')
+                . (preg_match('~\bnomodule(?:\s|=|>)~i', $opening) === 1 ? 'n' : '-');
+            $key = $scope . 'script:' . $type . ':' . $mode . ':' . $path;
+        }
+
+        if ($key === '') {
+            continue;
+        }
+        $range = [$offset, strlen($tag)];
+        if ($isStylesheet) {
+            if (isset($lastCss[$key])) {
+                $removed[] = $lastCss[$key];
+            }
+            $lastCss[$key] = $range;
+        } elseif (isset($firstScript[$key])) {
+            $removed[] = $range;
+        } else {
+            $firstScript[$key] = true;
+        }
+    }
+
+    // Offsets refer to the original HTML; edit from right to left.
+    usort($removed, static fn(array $a, array $b): int => $b[0] <=> $a[0]);
+    foreach ($removed as [$offset, $length]) {
+        $html = substr_replace($html, '', $offset, $length);
+    }
+
+    return $html;
+}
+
 function brvtal_public_optimize_home_images(string $html): string
 {
+    $html = brvtalPublicHomeDedupeAssets($html);
     return preg_replace_callback(
         '~<img\b[^>]*>~i',
         static function (array $match): string {
