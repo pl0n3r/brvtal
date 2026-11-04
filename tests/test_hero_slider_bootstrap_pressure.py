@@ -27,9 +27,12 @@ class HeroSliderBootstrapPressureTests(unittest.TestCase):
     def test_revisions_and_errors_stay_fail_closed(self):
         picker = "mediaPromise = request(MEDIA_PICKER_PATH,{cache:'no-store'})"
         self.assertLess(self.load.index("if (revision !== loadRevision)"), self.load.index(picker))
-        self.assertIn("window.state?.section !== 'hero-slider'", self.load)
-        self.assertLess(self.load.index("if (revision !== loadRevision || window.state?.section"), self.load.index(picker))
-        self.assertIn("if (mediaPromise) void mediaPromise.then(() => {});", self.load)
+        self.assertIn("function currentHeroLoad(revision)", self.runtime)
+        self.assertIn("window.state?.section === 'hero-slider'", self.runtime)
+        self.assertLess(self.load.index("if (!currentHeroLoad(revision))"), self.load.index(picker))
+        self.assertIn("ignoreMediaPromise(mediaPromise);", self.load)
+        self.assertIn("if (mediaPromise === null) return;", self.runtime)
+        self.assertIn("void mediaPromise.then(() => {});", self.runtime)
         self.assertIn("never requests Media when the Settings bootstrap fails", self.browser)
         self.assertIn("drops stale Settings completion without starting Media", self.browser)
         self.assertIn("syncMediaControls(root());", self.load)

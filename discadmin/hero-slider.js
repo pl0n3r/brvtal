@@ -526,6 +526,15 @@
     syncMediaControls(root());
   }
 
+  function currentHeroLoad(revision) {
+    return revision === loadRevision && window.state?.section === 'hero-slider' && Boolean(root());
+  }
+
+  function ignoreMediaPromise(mediaPromise) {
+    if (mediaPromise === null) return;
+    void mediaPromise.then(() => {});
+  }
+
   async function load() {
     const host = root();
     if (!host) {
@@ -568,7 +577,7 @@
       normalizeSelection();
       await loadHeroDraftRecovery(serverRevisionSource);
       // Draft recovery is async; do not render or fetch Media after navigation changes.
-      if (revision !== loadRevision || window.state?.section !== 'hero-slider' || !root()) {
+      if (!currentHeroLoad(revision)) {
         diagnostics.status = 'aborted';
         diagnostics.reason = 'stale-revision';
         return false;
@@ -605,7 +614,7 @@
         errorNode.textContent = `Unable to load Banners: ${diagnostics.error}`;
         errorHost.appendChild(errorNode);
       }
-      if (mediaPromise) void mediaPromise.then(() => {});
+      ignoreMediaPromise(mediaPromise);
       return false;
     }
   }
