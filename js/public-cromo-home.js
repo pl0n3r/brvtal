@@ -202,7 +202,7 @@
     return { word, hero, band };
   };
 
-  const buildNights = (upcoming, next, artists) => {
+  const buildNights = (upcoming, next, artists, archive) => {
     // --- Noches
     const nights = el('section', { class: 'sec', id: 'noches' }, el('h2', { class: 'u', text: 'Noches' }));
     upcoming.slice(0, 6).forEach((event) => {
@@ -219,6 +219,35 @@
       el('span', { class: 'u n', text: 'Sigue' }),
       el('span', {}, el('span', { class: 't', text: 'Aún sin fecha' }), el('span', { class: 'm', text: 'Escríbenos y te avisamos cuando se anuncie la siguiente.' })),
       el('span', { class: 'go', text: 'Avísame' })));
+
+    // --- Últimas noches: the archive, as posters (the old #events / #archive links land here).
+    const past = (Array.isArray(archive) ? archive : []).filter((event) => event && event.slug && parseDate(event.event_date))
+      .sort((a, b) => parseDate(b.event_date) - parseDate(a.event_date));
+    if (past.length) {
+      const LIMIT_PAST = 8;
+      const cards = past.map((event, i) => {
+        const when = parseDate(event.event_date);
+        const cover = safeUrl(event.cover_image);
+        const meta = [two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear(), text(event.city)].filter(Boolean).join(' · ');
+        const card = el('a', { class: 'pst chrome-b', href: '/events/' + encodeURIComponent(event.slug) },
+          cover ? el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' }) : el('i', { class: 'orb', 'aria-hidden': 'true' }),
+          el('span', { class: 'pst-t u', text: text(event.title, 40) }), el('span', { class: 'pst-m', text: meta }));
+        if (i >= LIMIT_PAST) card.classList.add('cr-is-extra');
+        return card;
+      });
+      const title = el('h3', { class: 'u glitch', 'data-text': 'Últimas noches', text: 'Últimas noches' });
+      const wrap = el('div', { class: 'arch', id: 'archivo' }, title, el('div', { class: 'pst-grid' }, cards));
+      if (past.length > LIMIT_PAST) {
+        const more = el('button', { class: 'pst-more', type: 'button', 'aria-expanded': 'false', text: 'Ver todas (' + past.length + ')' });
+        more.addEventListener('click', () => {
+          const open = wrap.classList.toggle('cr-is-open');
+          more.setAttribute('aria-expanded', String(open));
+          more.textContent = open ? 'Ver menos' : 'Ver todas (' + past.length + ')';
+        });
+        wrap.append(more);
+      }
+      nights.append(wrap);
+    }
 
     return nights;
   };
@@ -689,7 +718,7 @@
     const { word, hero: heroSec, band } = buildHero(next, artists);
 
     // --- Noches
-    const nights = buildNights(upcoming, next, artists);
+    const nights = buildNights(upcoming, next, artists, data.archive && data.archive.events);
     const experience = buildExperience(next, artists, data.relations || {});
     const connected = buildConnected(data);
     const banners = slider ? buildBanners(slider) : null;
@@ -756,6 +785,17 @@
       }, { rootMargin: '-45% 0px -50% 0px' });
       parts.home.querySelectorAll('section[id]').forEach((s) => io.observe(s));
     }
+    // Old deep links (#events, #archive) land on the matching part of the new home.
+    const legacyTarget = { '#events': 'noches', '#archive': 'archivo' }[window.location.hash];
+    if (legacyTarget) {
+      const node = document.getElementById(legacyTarget);
+      if (node) {
+        window.history.replaceState(null, '', '#' + legacyTarget);
+        const go = () => node.scrollIntoView();
+        window.requestAnimationFrame(go);
+        window.setTimeout(go, 400); // once fonts and images have settled the layout
+      }
+    }
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (!reduce.matches) {
       let px = .5, py = .5, beat = 0;
@@ -771,8 +811,6 @@
   };
 
   const start = () => {
-    // Preserve legacy archive deep links without showing the archive on the new home.
-    if (['#events', '#archive'].includes(window.location.hash)) return;
     const json = (url) => fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('http'))));
     // The banners are optional: if their endpoint fails the home still mounts without them.
