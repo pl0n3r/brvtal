@@ -175,7 +175,13 @@ test('Social & Contact shows five CMS links after contact form at 390 and 1440',
     }
     await links.first().focus();
     await expect(links.first()).toBeFocused();
-    expect(await links.first().evaluate(n => getComputedStyle(n).outlineStyle)).toBe('solid');
+    const socialRing = await links.first().evaluate(n => {
+      const style = getComputedStyle(n);
+      return { kind: style.outlineStyle, width: parseFloat(style.outlineWidth), color: style.outlineColor };
+    });
+    expect(socialRing.kind).toBe('solid');
+    expect(socialRing.width).toBeGreaterThanOrEqual(3);
+    expect(socialRing.color).not.toBe('rgba(0, 0, 0, 0)');
     await noOverflow(page);
   }
 });
@@ -285,6 +291,9 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
       } else if (cover) {
         expect(metrics.columns).toBe(2);
         expect(metrics.flyer.top).toBeLessThanOrEqual(metrics.panel.top + 2);
+        const [flyerTrack, panelTrack] = await card.evaluate(node =>
+          getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).map(parseFloat));
+        expect(flyerTrack / panelTrack).toBeCloseTo(5 / 7, 1);
       } else {
         expect(metrics.columns).toBe(1);
       }
@@ -298,12 +307,50 @@ test('Experiencia Cromo apila poster y ficha en 375/390/430/900, conserva escrit
       if (width === 390 && cover) {
         const ticketControl = page.locator('#cromo-home .cr-top .cr-tickets');
         await ticketControl.focus();
-        expect(await ticketControl.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid');
+        const ticketRing = await ticketControl.evaluate(el => {
+          const style = getComputedStyle(el);
+          return { kind: style.outlineStyle, width: parseFloat(style.outlineWidth), color: style.outlineColor };
+        });
+        expect(ticketRing.kind).toBe('solid');
+        expect(ticketRing.width).toBeGreaterThanOrEqual(4);
+        expect(ticketRing.color).toBe('rgb(255, 59, 31)');
         const img = card.locator('.cr-xp-fly img');
         await expect(img).toBeVisible();
         expect(await img.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s');
       }
       await noOverflow(page);
     }
+  }
+});
+
+test('Cromo keeps all section links accessible in the 821–900px header', async ({ page }) => {
+  for (const width of [821, 850, 900]) {
+    await mount(page, { width });
+    const nav = page.locator('#cromo-home .cr-top nav');
+    await expect(nav).toBeVisible();
+    const positions = await nav.evaluate(node => {
+      const rect = el => el.getBoundingClientRect().toJSON();
+      const header = node.parentElement;
+      return {
+        brand: rect(header.querySelector('a.cr-u')),
+        nav: rect(node),
+        actions: rect(header.querySelector('div')),
+        links: [...node.querySelectorAll('a')].map(rect),
+      };
+    });
+    expect(positions.brand.right).toBeLessThanOrEqual(positions.nav.left + 1);
+    expect(positions.nav.right).toBeLessThanOrEqual(positions.actions.left + 1);
+    expect(positions.actions.right).toBeLessThanOrEqual(width + 1);
+    for (const link of positions.links) {
+      expect(link.left).toBeGreaterThanOrEqual(positions.nav.left - 1);
+      expect(link.right).toBeLessThanOrEqual(positions.nav.right + 1);
+      expect(link.height).toBeGreaterThanOrEqual(44);
+      expect(link.width).toBeGreaterThanOrEqual(44);
+    }
+    await nav.locator('a[href="#artistas"]').click();
+    await expect(page).toHaveURL(/#artistas$/);
+    await nav.locator('a[href="#journal"]').click();
+    await expect(page).toHaveURL(/#journal$/);
+    await noOverflow(page);
   }
 });

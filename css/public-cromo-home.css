@@ -200,7 +200,9 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
 @media(max-width:900px){
   /* The full desktop navigation does not fit a 900px top bar alongside sound and tickets. */
   #cromo-home .cr-top{padding:12px 14px}
-  #cromo-home .cr-top nav{display:none}
+  /* Preserve all section links between mobile and desktop, using compact labels. */
+  #cromo-home .cr-top nav{min-width:0;flex:0 1 auto;padding:0 2px;gap:0}
+  #cromo-home .cr-top nav a{font-size:13px;padding:10px 5px;min-height:44px;white-space:nowrap}
   #cromo-home #experiencia .cr-xp{grid-template-columns:minmax(0,1fr);gap:0;min-width:0}
   #cromo-home #experiencia .cr-xp-fly{width:100%;min-width:0;min-height:0;aspect-ratio:4/3;box-shadow:none}
   #cromo-home #experiencia .cr-xp-body{min-width:0;padding:clamp(24px,5vw,40px);gap:clamp(16px,3vw,24px);overflow-wrap:anywhere}
