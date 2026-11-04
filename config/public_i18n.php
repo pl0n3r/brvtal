@@ -28,35 +28,16 @@ function brvtalPublicI18nNormalizeLocale(mixed $value): ?string
         : null;
 }
 
+/**
+ * Legacy translation helpers stay intact; the public policy is now ES-only.
+ * Stored EN settings and cache rows are ignored, never deleted.
+ */
 function brvtalPublicI18nPolicy(array $site): array
 {
-    $supported = brvtalPublicI18nSupportedLocales();
-    $defaultLocale = 'es';
-
-    $requested = $site['available_locales'] ?? $supported;
-    $available = [];
-
-    if (is_array($requested)) {
-        foreach ($requested as $candidate) {
-            $locale = brvtalPublicI18nNormalizeLocale($candidate);
-            if ($locale !== null && !in_array($locale, $available, true)) {
-                $available[] = $locale;
-            }
-        }
-    }
-
-    if ($available === []) {
-        $available = $supported;
-    }
-
-    if (!in_array($defaultLocale, $available, true)) {
-        array_unshift($available, $defaultLocale);
-    }
-
     return [
         'canonical_locale' => 'es',
-        'default_locale' => $defaultLocale,
-        'available_locales' => $available,
+        'default_locale' => 'es',
+        'available_locales' => ['es'],
     ];
 }
 

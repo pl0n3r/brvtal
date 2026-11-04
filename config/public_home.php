@@ -604,12 +604,8 @@ function brvtal_public_home_identity(string $html): string
 {
     $html = brvtal_public_home_concept05_dressing($html);
 
-    // The canonical route validates the locale before this renderer runs.
-    // Preserve ES for direct callers, invalid query shapes and legacy URLs.
-    $localeInput = $_GET['locale'] ?? null;
-    $heroLocale = is_string($localeInput) && strtolower(trim($localeInput)) === 'en'
-        ? 'en'
-        : 'es';
+    // Ignore obsolete locale query preferences; public delivery is ES-only.
+    $heroLocale = 'es';
     // The exact same owner-v2 source supplies both server markup and
     // reversible locale fallbacks; editors cannot inject HTML into the defaults.
     $heroManifestos = [

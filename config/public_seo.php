@@ -196,8 +196,8 @@ function brvtal_public_schema_enrich(array $schema, array $entity, string $base)
         $modified = brvtal_public_schema_date($entity['updated_at'] ?? null);
         if ($modified !== null && $modified >= $date) $schema['dateModified'] = $modified;
         $schema['publisher'] = ['@type' => 'Organization', 'name' => 'BRVTAL'];
-    } elseif ($type === 'pages' && ($entity['locale'] ?? '') === 'en') {
-        $schema['inLanguage'] = 'en';
+    } elseif ($type === 'pages') {
+        $schema['inLanguage'] = 'es';
     }
     return $schema;
 }
@@ -323,14 +323,7 @@ function brvtal_public_seo_tags(array $seo): string
     $tags = [
         '<link rel="canonical" href="' . $escape($seo['canonical']) . '">',
     ];
-    $alternates = is_array($seo['alternates'] ?? null) ? $seo['alternates'] : [];
-    foreach (['es', 'en', 'x-default'] as $hreflang) {
-        $href = trim((string)($alternates[$hreflang] ?? ''));
-        if ($href === '' || !preg_match('#^https://#i', $href)) {
-            continue;
-        }
-        $tags[] = '<link rel="alternate" hreflang="' . $hreflang . '" href="' . $escape($href) . '">';
-    }
+    // Public SEO emits no alternate-language hreflang tags.
 
     array_push(
         $tags,

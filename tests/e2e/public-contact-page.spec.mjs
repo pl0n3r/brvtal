@@ -128,11 +128,10 @@ test('dedicated Contact runtime hydrates CAPTCHA and configured social links', a
   await expect(page.locator('[data-brvtal-social="spotify"]')).toBeHidden();
 });
 
-test('Contact follows persisted locale without navigation across desktop and mobile', async ({ page }) => {
+test('Spanish-only Contact ignores obsolete EN preference and events on desktop/mobile', async ({ page }) => {
   await installContactRoutes(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await openContactFixture(page);
-
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACTO');
   await expect(page.locator('[data-contact-i18n-key="contact.submit"]')).toHaveText('ENVIAR SEÑAL ↗');
@@ -144,33 +143,25 @@ test('Contact follows persisted locale without navigation across desktop and mob
 
   await page.evaluate(() => {
     localStorage.setItem('brvtal.public.locale', 'en');
-    window.dispatchEvent(new CustomEvent('brvtal:localechange', { detail:{ locale:'en' } }));
-  });
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACT');
-  await expect(page.locator('[data-contact-i18n-key="contact.submit"]')).toHaveText('SEND SIGNAL ↗');
-  expect(navigations).toBe(0);
-
-  await page.reload({ waitUntil:'domcontentloaded' });
-  await page.addScriptTag({ content: runtime });
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACT');
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator('#brvtalContactForm')).toBeVisible();
-  const submitBox = await page.locator('.brvtal-contact-submit').boundingBox();
-  expect(submitBox?.height || 0).toBeGreaterThanOrEqual(44);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-
-  await page.evaluate(() => {
-    localStorage.setItem('brvtal.public.locale', 'es');
+    window.dispatchEvent(new CustomEvent('brvtal:localechange', { detail: {locale:'en'} }));
     window.dispatchEvent(new StorageEvent('storage', {
-      key:'brvtal.public.locale',
-      newValue:'es'
+      key:'brvtal.public.locale', newValue:'en'
     }));
   });
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACTO');
+  await expect(page.locator('[data-contact-i18n-key="contact.submit"]')).toHaveText('ENVIAR SEÑAL ↗');
+  expect(navigations).toBe(0);
+
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.addScriptTag({content: runtime});
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.locator('[data-contact-i18n-key="contact.title"]')).toHaveText('CONTACTO');
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('#brvtalContactForm')).toBeVisible();
+  const submit = await page.locator('.brvtal-contact-submit').boundingBox();
+  expect(submit?.height || 0).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('Contact runtime does not inject a form into Home-like pages', async ({ page }) => {

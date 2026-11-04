@@ -70,6 +70,21 @@ def compose_without_owner_leaf_markup(html: str) -> str:
     return html
 
 
+def normalize_retired_language_selector(html: str) -> str:
+    """Ignore only the explicitly retired selector in the historical #984 fixture.
+
+    Compare all other markup byte-exactly; unknown remaining selector markup is
+    an error, not permission to normalize unrelated DOM changes.
+    """
+    clean = re.sub(
+        r'\n      <fieldset class="language-selector" id="languageSelector">.*?</fieldset>',
+        '', html, count=1, flags=re.DOTALL,
+    )
+    if 'language-selector' in clean or 'languageSelector' in clean:
+        raise AssertionError('Unaccounted-for selector markup')
+    return clean
+
+
 class HomePartials984Tests(unittest.TestCase):
     def test_existing_php_public_home_contracts(self) -> None:
         php = (ROOT / "index.php").read_text(encoding="utf-8")
@@ -96,7 +111,7 @@ class HomePartials984Tests(unittest.TestCase):
              "PublicConcept05OwnerReferenceV2Tests",
              "test_hero_static_copy_respects_route_locale_and_keeps_cms_hook"),
             ("test_public_i18n_contract.py", "PublicI18nContractTests",
-             "test_selector_owns_document_locale_after_phase_one_selector"),
+             "test_home_is_spanish_with_no_selector"),
         )
         for filename, klass, method in targets:
             with self.subTest(contract=filename, method=method):
@@ -121,8 +136,8 @@ class HomePartials984Tests(unittest.TestCase):
         # and #973 (06/07) regions may differ from this historical baseline.
         composed = render_static_composition()
         self.assertEqual(
-            compose_without_owner_leaf_markup(composed),
-            compose_without_owner_leaf_markup(baseline),
+            normalize_retired_language_selector(compose_without_owner_leaf_markup(composed)),
+            normalize_retired_language_selector(compose_without_owner_leaf_markup(baseline)),
         )
         # Execute the loader extracted from the actual PHP entrypoint, not a
         # duplicate Python implementation. This runs with synthetic files only.
@@ -265,7 +280,8 @@ class HomePartials984Tests(unittest.TestCase):
         self.assertLess(htaccess.index(redirect), htaccess.index("RewriteRule ^api/public/?$"))
         # Keep the canonical localized URL and entity/preview routes intact.
         for existing in (
-            "RewriteRule ^en$ index.php?locale=en [L,QSA,NC]",
+            "RewriteRule ^en/*$ / [R=301,L,NE,QSD,NC]",
+            "RewriteRule ^en/+([^/].*)$ /$1 [R=301,L,NE,QSD,NC]",
             "RewriteRule ^preview/([a-f0-9]{48})/?$ preview.php?token=$1 [L,QSA,NC]",
         ):
             self.assertIn(existing, htaccess)

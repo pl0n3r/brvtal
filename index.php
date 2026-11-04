@@ -8,7 +8,6 @@ require_once __DIR__ . '/config/public_analytics.php';
 require_once __DIR__ . '/config/public_seo.php';
 require_once __DIR__ . '/config/public_i18n_routing.php';
 require_once __DIR__ . '/config/public_page.php';
-require_once __DIR__ . '/config/public_translation_deepl_page_trial.php';
 require_once __DIR__ . '/config/public_artist.php';
 require_once __DIR__ . '/config/public_entity_delivery.php';
 require_once __DIR__ . '/config/public_not_found.php';
@@ -50,10 +49,8 @@ if ($pageRoute === 'privacy') {
         http_response_code(404);
         exit;
     }
-    $privacyTitle = $routeLocale === 'en' ? 'Privacy and my rights' : 'Privacidad y mis derechos';
-    $privacyDescription = $routeLocale === 'en'
-        ? 'Information about personal data and how to request your rights.'
-        : 'Información sobre datos personales y cómo solicitar tus derechos.';
+    $privacyTitle = 'Privacidad y mis derechos';
+    $privacyDescription = 'Información sobre datos personales y cómo solicitar tus derechos.';
     $privacySeo = brvtalPublicApplyLocalizedSeo([
         'title' => $privacyTitle,
         'description' => $privacyDescription,
@@ -184,11 +181,7 @@ if ($entity) {
         exit;
     }
 
-    // One-page translation trial is OFF by default and strictly scoped.
-    // No external call occurs without the separately authorized operator gates.
-    $page = brvtalDeepLOnePageTrialForRequest(
-        $page, $routeLocale, $type, $slug, db()
-    );
+    // Public pages never invoke the retained DeepL trial.
 
     header('Content-Type: text/html; charset=utf-8');
     if (!empty($page['degraded'])) {

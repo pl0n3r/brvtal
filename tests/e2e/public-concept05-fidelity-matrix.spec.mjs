@@ -47,12 +47,6 @@ const fixture = `<!doctype html>
     <span class="c5-header-origin mono">PEREIRA / COLOMBIA</span>
     <a class="c5-header-ticket" href="#genesis">TICKETS <span>↗</span></a>
     <div class="nav-right">
-      <fieldset class="language-selector">
-        <legend>Idioma / Language</legend>
-        <button type="button" class="language-option magnetic" data-locale="es" aria-pressed="true" data-cursor="ES">ES</button>
-        <span class="language-separator" aria-hidden="true">/</span>
-        <button type="button" class="language-option magnetic" data-locale="en" aria-pressed="false" data-cursor="EN" disabled>EN</button>
-      </fieldset>
       <button class="menu magnetic" type="button">MENU +</button>
     </div>
   </header>
@@ -432,8 +426,10 @@ test('Concept 05 canonical 390 and 1440 preserve distinct authored compositions'
   expect(desktop.heroBackground).toContain('linear-gradient');
 });
 
-test('Concept 05 critical actions remain touch-safe and keyboard focus remains visible', async ({ page }) => {
+test('Concept 05 Spanish-only actions remain touch-safe and keyboard focus remains visible', async ({ page }) => {
   await mount(page, { width:430, height:900 });
+  await expect(page.locator('.language-selector')).toHaveCount(0);
+  await expect(page.locator('.nav-right button')).toHaveCount(1);
 
   const heights = await page.locator(
     '.nav-right button,.experience-actions a,.c5-section-route,.transmissions-route,.c5-bottom-nav a'
@@ -805,6 +801,11 @@ const canonicalVisualRegions = [
  * Never auto-update these values in CI.
  * See docs/reference/concept05-v2-qa-baseline-2026-10-10.md.
  */
+// #1441: Reviewed real Chromium 390/1440 captures (artifact 13289666320)
+// against the preceding fixture (artifact 13288393668). Pixel changes are
+// confined to the sticky nav: 0.171% at 390px and 0.166% at 1440px.
+// Existing media, content and layout remain visually unchanged.
+// Refresh only this Spanish-only synthetic baseline, not #1415 historical hashes.
 const canonicalScreenshotBaselines = {
   390: {
     // Refreshed for #1415 after the owner reviewed the A/B captures (hero stacked
@@ -844,22 +845,42 @@ const issue1415ScreenshotBaselines = {
     color: '8cec8a73fa3dc6f0260d0898a272c5480a772f29cfe548ccc72b0ae93336b612',
   },
 };
+// #1441: Spanish-only public nav (no ES/EN selector) is a distinct visual
+// fixture even though the Concept 05 CSS triple is unchanged. Real Chromium
+// screenshots inspected at 390/1440 in artifact 13289666320 (commit 8ef3f05).
+// Differences vs artifact 13288393668: sticky header only, 0.171%/0.166%
+// of full-frame pixels; no content or palette changes elsewhere. Existing
+// historical baselines remain available for older nav variants.
+const spanishOnlyScreenshotBaselines = {
+  390: {
+    structure: '95abfc6d067ff057fe24b7c62aea50243a912964a7336bca4f96af09cfd30cca',
+    color: '353f6d7f73df49561f72522b7a215756128711d261c17a02ee70b6573fe8b9c2',
+  },
+  1440: {
+    structure: '97da71dd0b95d8803b932d42def427df40f7f441e0695b6f82ac231a42a456c2',
+    color: 'edf6dfdcbdf3f23d857654fa2552db727364ce05469fdfe18832dbbe5138340f',
+  },
+};
+const spanishOnlyPublicNav = !readFileSync(
+  join(root, 'partials/home/nav.html'), 'utf8'
+).includes('id="languageSelector"');
+
 const currentScreenshotCssBlobs = screenshotCssPaths.map(file => {
   const bytes = readFileSync(join(root, file));
   // SHA of the Git blob, including the canonical header, not raw file SHA.
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 });
-function baselineForCssBlobs(blobs) {
+function baselineForCssBlobs(blobs, spanishOnly = false) {
   if (blobs.length !== screenshotCssPaths.length) {
     throw new Error('Unknown Concept 05 CSS blobs: incomplete triple');
   }
-  if (screenshotCssBlobs.main.every((sha, i) => sha === blobs[i])) {
-    return canonicalScreenshotBaselines;
+  const matchesMain = screenshotCssBlobs.main.every((sha, i) => sha === blobs[i]);
+  const matchesIssue1415 = screenshotCssBlobs.issue1415.every((sha, i) => sha === blobs[i]);
+  if (!matchesMain && !matchesIssue1415) {
+    throw new Error(`Unknown Concept 05 CSS blobs: ${blobs.join(', ')}`);
   }
-  if (screenshotCssBlobs.issue1415.every((sha, i) => sha === blobs[i])) {
-    return issue1415ScreenshotBaselines;
-  }
-  throw new Error(`Unknown Concept 05 CSS blobs: ${blobs.join(', ')}`);
+  if (spanishOnly) return spanishOnlyScreenshotBaselines;
+  return matchesMain ? canonicalScreenshotBaselines : issue1415ScreenshotBaselines;
 }
 
 test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revisions', () => {
@@ -867,6 +888,10 @@ test('Concept 05 screenshot baseline CSS blobs reject mixed and unknown revision
     .toBe(canonicalScreenshotBaselines);
   expect(baselineForCssBlobs(screenshotCssBlobs.issue1415))
     .toBe(issue1415ScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.issue1415, true))
+    .toBe(spanishOnlyScreenshotBaselines);
+  expect(baselineForCssBlobs(screenshotCssBlobs.main, true))
+    .toBe(spanishOnlyScreenshotBaselines);
   for (let index = 0; index < screenshotCssPaths.length; index += 1) {
     const mixed = [...screenshotCssBlobs.main];
     mixed[index] = screenshotCssBlobs.issue1415[index];
@@ -987,7 +1012,7 @@ for (const viewport of [{ width:390, height:844 }, { width:1440, height:900 }]) 
   test(`Concept 05 canonical ${viewport.width}px screenshot fingerprint stays approved`, async ({ page }) => {
     await mount(page, viewport);
     const actual = await captureCanonicalVisualFingerprint(page);
-    const expected = baselineForCssBlobs(currentScreenshotCssBlobs)[viewport.width];
+    const expected = baselineForCssBlobs(currentScreenshotCssBlobs, spanishOnlyPublicNav)[viewport.width];
 
     if (expected.structure === 'PENDING_CALIBRATION') {
       console.log(`CONCEPT05_SCREENSHOT_BASELINE_${viewport.width}=${JSON.stringify(actual)}`);

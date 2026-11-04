@@ -114,9 +114,9 @@ $artist = brvtal_public_seo_document([
 ], $base);
 rich_schema_expect($artist['schema']['sameAs'] === ['https://instagram.com/artist'], 'artist identity links must be valid and deduplicated');
 $page = brvtal_public_seo_document([
-    'route_type'=>'pages','slug'=>'contact','schema_type'=>'WebPage','title'=>'Contact','locale'=>'en',
+    'route_type'=>'pages','slug'=>'contact','schema_type'=>'WebPage','title'=>'Contact','locale'=>'es',
 ], $base);
-rich_schema_expect($page['schema']['inLanguage'] === 'en', 'published English Page must declare its real locale');
+rich_schema_expect($page['schema']['inLanguage'] === 'es', 'Spanish public Page must declare its canonical locale');
 
 $json = brvtal_public_seo_tags(brvtal_public_seo_document(array_replace($event, [
     'title'=>'</script><script>alert(1)</script>',
