@@ -8,7 +8,7 @@ const wrapper = readFileSync(join(process.cwd(), 'discadmin/index.php'), 'utf8')
 const harnessUrl = 'http://127.0.0.1:4173/discadmin-ia-e2e.html';
 
 function harness(authed = true) {
-  return `<!doctype html><html><head><style>${iaCss}.legacy-test-modal{display:none}.legacy-test-modal.open{display:block}</style></head><body><div id="app"></div><div id="modal" class="legacy-test-modal"><button id="saveBtn" type="button">SAVE</button></div><script>
+  return `<!doctype html><html><head><style>${iaCss}.side .nav{display:flex;flex-direction:column;gap:2px}.side .nav button{min-height:44px}.legacy-test-modal{display:none}.legacy-test-modal.open{display:block}</style></head><body><div id="app"></div><div id="modal" class="legacy-test-modal"><button id="saveBtn" type="button">SAVE</button></div><script>
     window.state={authed:${authed ? 'true' : 'false'},section:'dashboard',rows:[],editing:null};
     window.__legacyOpen=[];
     window.__legacySaveCalls=0;
@@ -147,30 +147,50 @@ async function serveHarness(page, {authed = true} = {}) {
   await page.route('**/discadmin-ia-e2e.html*', route => route.fulfill({contentType:'text/html; charset=utf-8',body:harness(authed)}));
 }
 
-test('sidebar exposes the canonical editorial and configuration hierarchy', async ({ page }) => {
+test('sidebar exposes the approved WordPress-like hierarchy without technical headings', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
 
-  await expect(page.locator('.ia-navgroup')).toHaveText(['SITE / EDITORIAL','CONFIGURATION / TECHNICAL']);
+  await expect(page.locator('.ia-navgroup,.navgroup')).toHaveCount(0);
+  await expect(page.locator('.ia-navdivider')).toHaveCount(3);
   await expect(page.getByRole('button',{name:'CONTENT CORE'})).toBeHidden();
-  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toBeHidden();
   await expect(page.getByRole('button',{name:'SECURITY / 2FA'})).toBeHidden();
+  await expect(page.getByRole('button',{name:'THEME STUDIO'})).toBeHidden();
 
-  const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"])').allTextContents();
+  const visibleLabels = await page.locator('.side .nav > button:not([data-ia-hidden="1"]):not([data-ia-toggle])').allTextContents();
   expect(visibleLabels).toEqual([
-    'DASHBOARD',
-    'BANNERS',
-    'EVENTS',
-    'ARTISTS',
-    'RELEASES',
-    'SETS',
-    'MEDIA',
-    'PAGES',
-    'BLOG',
-    'SEO',
-    'SETTINGS',
-    'SYSTEM STATUS'
+    'DASHBOARD','PAGES','BLOG','MEDIA','EVENTS','ARTISTS','RELEASES','SETS',
+    'APPEARANCE','BANNERS','THEME STUDIO','SEO','SETTINGS','SYSTEM STATUS'
   ]);
+});
+
+test('Appearance is a keyboard-accessible expandable group with working native destinations', async ({ page }) => {
+  await serveHarness(page);
+  await page.setViewportSize({width:390,height:820});
+  await page.goto(harnessUrl);
+
+  const appearance = page.getByRole('button',{name:'APPEARANCE'});
+  const banners = page.getByRole('button',{name:'BANNERS'});
+  const theme = page.getByRole('button',{name:'THEME STUDIO'});
+  await expect(appearance).toHaveAttribute('aria-expanded','false');
+  await expect(banners).toBeHidden();
+  await appearance.focus();
+  await page.keyboard.press('Enter');
+  await expect(appearance).toHaveAttribute('aria-expanded','true');
+  await expect(banners).toBeVisible();
+  await expect(theme).toBeVisible();
+
+  await theme.click();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('theme');
+  await expect(appearance).toHaveAttribute('aria-expanded','true');
+  await expect(theme).toHaveClass(/active/);
+  await appearance.click();
+  await expect(theme).toBeHidden();
+  await expect(appearance).toHaveAttribute('aria-expanded','false');
+  await appearance.click();
+  await banners.click();
+  await expect.poll(() => page.evaluate(() => window.state.section)).toBe('hero-slider');
+  await expect(banners).toHaveClass(/active/);
 });
 
 test('navigation label fallbacks preserve canonical and fuzzy destination keys', async ({ page }) => {
@@ -218,7 +238,7 @@ test('navigation label fallbacks preserve canonical and fuzzy destination keys',
   await expect(page.getByRole('button',{name:'LEGACY CONTENT CORE'})).toBeHidden();
 });
 
-test('Memories stays directly after Media and owns the active state only in its view', async ({ page }) => {
+test('Media keeps its route while Memories expands, collapses and owns its active state', async ({ page }) => {
   await serveHarness(page);
   await page.goto(harnessUrl);
 
@@ -239,10 +259,21 @@ test('Memories stays directly after Media and owns the active state only in its 
 
   const media = page.getByRole('button',{name:'MEDIA',exact:true});
   const memories = page.locator('[data-memories-nav="1"]');
+  const toggle = page.locator('[data-ia-toggle="media"]');
   await expect(memories).toHaveCount(1);
-  expect(await media.evaluate((node) => node.nextElementSibling?.dataset.memoriesNav)).toBe('1');
+  await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await expect(memories).toBeVisible();
+  expect(await media.evaluate(node => node.nextElementSibling?.dataset.iaToggle)).toBe('media');
+  expect(await toggle.evaluate(node => node.nextElementSibling?.dataset.memoriesNav)).toBe('1');
   await expect(memories).toHaveClass(/active/);
   await expect(media).not.toHaveClass(/active/);
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await expect(memories).toBeHidden();
+  await expect(media).toHaveClass(/active/);
+  await toggle.click();
+  await expect(memories).toBeVisible();
 
   await page.evaluate(() => {
     history.replaceState({}, '', '?module=media');
@@ -251,7 +282,6 @@ test('Memories stays directly after Media and owns the active state only in its 
   await expect(media).toHaveClass(/active/);
   await expect(memories).not.toHaveClass(/active/);
 });
-
 
 test('successful Dashboard navigation resolves only after canonical active nav is synchronized', async ({ page }) => {
   await serveHarness(page);

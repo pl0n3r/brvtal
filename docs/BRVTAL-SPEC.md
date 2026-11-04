@@ -370,21 +370,28 @@ Requirements:
 - one navigation system;
 - one central workspace.
 
-Canonical navigation currently includes:
+DISCADMIN's canonical navigation uses a WordPress-like hierarchy with quiet separators,
+not the obsolete SITE / EDITORIAL or CONFIGURATION / TECHNICAL group headings:
 
-- Dashboard;
-- Events;
-- Artists;
-- Releases;
-- Sets;
-- Media;
-- Pages;
-- Blog;
-- Content Core;
-- Theme Studio;
-- Settings;
-- Security / 2FA;
-- System Status.
+1. Dashboard
+2. Pages
+3. Blog
+4. Media → Memories (indented, expandable child of Media)
+5. Events
+6. Artists
+7. Releases
+8. Sets
+9. Appearance → Banners and Theme Studio (expandable child destinations)
+10. SEO
+11. Settings
+12. System Status
+
+Media remains a real destination and Memories keeps its existing media view URL.
+Appearance is a disclosure control, not another workspace or route. Hidden modules
+(Content Core, Security / 2FA, Backups and Activity) remain reachable through
+their existing contextual settings/actions but do not proliferate top-level items.
+The Dark / Light / Glass switch continues to control the private admin UI and
+is not the public Theme Studio.
 
 Avoid unnecessary top-level menu proliferation. Cross-cutting capabilities such as Search, Bulk Actions, Content Health, SEO assistance and Activity should enhance the existing shell rather than create parallel admin applications.
 
