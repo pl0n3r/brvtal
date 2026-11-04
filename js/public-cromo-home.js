@@ -256,6 +256,60 @@
     return journalSec;
   };
 
+  const buildExperience = (next, artists, relations) => {
+    // --- Experiencia: the next night as a feature, from the same data as Noches.
+    if (!next) return null;
+    const when = parseDate(next.event_date);
+    const ids = (((relations.events || {})[next.id] || {}).artists || []).map(Number);
+    const names = ids.map((id) => artists.find((a) => Number(a.id) === id)).filter(Boolean).map((a) => text(a.name));
+    const cover = safeUrl(next.cover_image);
+    const tickets = safeUrl(next.ticket_url);
+    const fact = (k, v) => el('div', {}, el('dt', { text: k }), el('dd', { text: v }));
+    const body = el('div', { class: 'xp-body plate chrome-b' },
+      el('p', { class: 'k', text: 'Próxima experiencia' }),
+      el('h3', { class: 'u', text: text(next.title) }),
+      el('dl', { class: 'xp-facts' },
+        fact('Fecha', two(when.getDate()) + ' ' + MONTHS[when.getMonth()] + ' ' + when.getFullYear()),
+        fact('Hora', two(when.getHours()) + ':' + two(when.getMinutes())),
+        fact('Lugar', [text(next.venue), text(next.city)].filter(Boolean).join(', '))),
+      next.description ? el('p', { class: 'xp-desc', text: text(next.description, 240) }) : null,
+      names.length ? el('p', { class: 'xp-line' }, el('span', { text: 'Cartel' }), ' ' + joinNames(names)) : null,
+      el('div', { class: 'xp-cta' },
+        tickets ? el('a', { class: 'btn r', href: tickets, rel: 'noopener noreferrer', text: 'Comprar tickets' }) : null,
+        el('a', { class: 'btn', href: '/events/' + encodeURIComponent(next.slug), text: 'Ver la noche' })));
+    const fly = cover ? el('a', { class: 'xp-fly chrome-b', href: '/events/' + encodeURIComponent(next.slug), 'aria-label': text(next.title) },
+      el('img', { src: cover, alt: '', loading: 'lazy', decoding: 'async' })) : null;
+    return el('section', { class: 'sec', id: 'experiencia' }, el('h2', { class: 'u', text: 'Experiencia' }),
+      el('div', { class: fly ? 'xp' : 'xp xp-solo' }, fly, body));
+  };
+
+  const EDGES = [
+    ['event_artist', 'Eventos', 'Artistas'], ['event_set', 'Eventos', 'Sonido'], ['artist_set', 'Artistas', 'Sonido'],
+    ['artist_release', 'Artistas', 'Discos'], ['event_memory', 'Eventos', 'Memorias'], ['artist_memory', 'Artistas', 'Memorias'],
+    ['set_memory', 'Sonido', 'Memorias'], ['release_memory', 'Discos', 'Memorias'],
+  ];
+  const buildConnected = (data) => {
+    // --- Conectado: only counts that the CMS certifies; nothing is invented.
+    const raw = ((data.relations || {}).counts) || {};
+    const count = (key) => (Number.isSafeInteger(raw[key]) && raw[key] > 0 ? raw[key] : 0);
+    const len = (list) => (Array.isArray(list) ? list.length : 0);
+    const nodes = [['Eventos', len(data.events)], ['Artistas', len(data.artists)], ['Sonido', len(data.sets)],
+      ['Discos', len(data.releases)], ['Memorias', len(data.memories)]];
+    const edges = EDGES.map(([key, a, b]) => [a, b, count(key)]).filter((e) => e[2] > 0);
+    const total = edges.reduce((sum, e) => sum + e[2], 0);
+    const grid = el('ul', { class: 'cn-nodes' }, nodes.map(([name, n]) => el('li', { class: 'plate chrome-b' },
+      el('span', { class: 'cn-n u', text: String(n) }), el('span', { class: 'cn-l', text: name }))));
+    const list = edges.length
+      ? el('ul', { class: 'cn-edges' }, edges.map(([a, b, n]) => el('li', {}, el('span', { text: a + ' ↔ ' + b }), el('b', { text: String(n) }))))
+      : el('p', { class: 'cn-empty', text: 'Todavía no hay relaciones publicadas.' });
+    return el('section', { class: 'sec', id: 'conectado' }, el('h2', { class: 'u', text: 'Conectado' }),
+      el('div', { class: 'cn' }, grid,
+        el('div', { class: 'cn-side plate chrome-b' }, list,
+          el('p', { class: 'cn-total', text: total ? total + ' vínculos verificados en el archivo público.' : 'Sin vínculos publicados aún.' }),
+          el('p', { class: 'cn-tag u', text: 'Todo está conectado.' }),
+          el('a', { class: 'btn', href: '#memorias', text: 'Explorar el archivo' }))));
+  };
+
   const build = (data) => {
     const events = Array.isArray(data.events) ? data.events : [];
     const artists = Array.isArray(data.artists) ? data.artists : [];
@@ -282,6 +336,8 @@
 
     // --- Noches
     const nights = buildNights(upcoming, next, artists);
+    const experience = buildExperience(next, artists, data.relations || {});
+    const connected = buildConnected(data);
 
     // --- Artistas
     const artistsSec = buildArtists(artists);
@@ -313,24 +369,13 @@
     if (cookieBtn) cookieBtn.addEventListener('click', () => cookiePrefs.click());
 
     home.append(el('a', { class: 'skip', href: '#noches', text: 'Saltar al contenido' }), header,
-      el('main', { id: 'cromo-top' }, hero, band, nights, artistsSec, sound, setsSec, memoriesSec, journalSec, end), footer);
+      el('main', { id: 'cromo-top' }, hero, band, nights, artistsSec, experience, sound, setsSec, memoriesSec, journalSec, connected, end), footer);
     return { home, snd, snd2, nav, loadChallenge, word };
   };
 
   const mount = (data) => {
     const parts = build(data);
     window.BRVTAL_CROMO_ACCENT = [1, .17, .05];
-    // Sections that exist only in the Concept 05 home (the Genesis experience and the connected
-    // graph) are moved, not cloned, into the Cromo layout: their runtime bindings keep working
-    // and they are restyled by css/public-cromo-home.css instead of being dropped.
-    const mainEl = parts.home.querySelector('main');
-    const keep = (id, beforeId) => {
-      const node = document.getElementById(id);
-      const ref = mainEl && mainEl.querySelector('#' + beforeId);
-      if (node && ref) { node.classList.add('cr-keep'); mainEl.insertBefore(node, ref); }
-    };
-    keep('genesis', 'sonido');
-    keep('connected', 'contacto');
     document.body.appendChild(parts.home);
     root.classList.add('cromo-home');
     const sound = window.BRVTALCromoSound;

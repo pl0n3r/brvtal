@@ -335,5 +335,37 @@ class CromoHomeTests(unittest.TestCase):
         self.assertIn("reduce.matches", HOME_JS)
 
 
+class CromoHomeKeepsEverySectionTests(unittest.TestCase):
+    """Identical to the artifact never means dropping a section: Experiencia and Conectado stay."""
+
+    JS = (ROOT / "js/public-cromo-home.js").read_text(encoding="utf-8")
+    CSS = (ROOT / "css/public-cromo-home.css").read_text(encoding="utf-8")
+
+    def test_experiencia_and_conectado_are_built_from_real_data_in_the_main_flow(self) -> None:
+        self.assertIn("buildExperience(next, artists, data.relations || {})", self.JS)
+        self.assertIn("buildConnected(data)", self.JS)
+        order = re.search(r"el\('main', \{ id: 'cromo-top' \}, ([^)]*)\)", self.JS)
+        self.assertIsNotNone(order)
+        parts = [p.strip() for p in order.group(1).split(",")]
+        for before, after in (("artistsSec", "experience"), ("experience", "sound"),
+                              ("journalSec", "connected"), ("connected", "end")):
+            self.assertLess(parts.index(before), parts.index(after), parts)
+
+    def test_both_sections_are_spanish_and_only_use_certified_relation_counts(self) -> None:
+        for phrase in ("Próxima experiencia", "Comprar tickets", "Ver la noche", "Todo está conectado.",
+                       "vínculos verificados en el archivo público", "Eventos", "Artistas", "Memorias"):
+            self.assertIn(phrase, self.JS)
+        self.assertNotRegex(self.JS, r"NEXT EXPERIENCE|VERIFIED RELATIONAL|ENTER EXPERIENCE")
+        self.assertIn("Number.isSafeInteger(raw[key])", self.JS)
+        self.assertNotIn("innerHTML", self.JS)
+
+    def test_section_styles_are_scoped_and_have_a_mobile_layout(self) -> None:
+        for sel in selectors(self.CSS):
+            if "-xp" in sel or "-cn" in sel:
+                self.assertTrue(sel.strip().startswith("#cromo-home"), sel)
+        self.assertRegex(self.CSS, r"@media\(max-width:900px\)\{[^@]*cr-xp[^@]*cr-cn")
+        self.assertIn("prefers-reduced-motion", self.CSS)
+
+
 if __name__ == "__main__":
     unittest.main()

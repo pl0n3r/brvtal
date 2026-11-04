@@ -152,43 +152,45 @@ html.cromo-home body>*:not(#cromo-home):not(#cromoGL):not(script):not(style):not
   #cromo-home .cr-ac,#cromo-home .cr-night,#cromo-home .cr-mem .cr-t{transition:none}
 }
 
-/* ---------- Secciones del Concept 05 que se conservan (Genesis y Conectado), adaptadas al look ---------- */
-#cromo-home .cr-keep{
-  position:relative;
-  z-index:2;
-  margin:clamp(24px,5vw,64px) clamp(14px,4vw,64px);
-  padding:clamp(18px,3vw,40px);
-  background:rgba(3,3,3,.9);
-  border:1px solid rgba(244,241,232,.22);
-  border-top:3px solid #e12e34;
-  color:#f4f1e8;
-  overflow:hidden;
+/* ---------- Experiencia (la próxima noche destacada) y Conectado (relaciones verificadas) ---------- */
+#cromo-home .cr-xp{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:28px;align-items:stretch}
+#cromo-home .cr-xp.cr-xp-solo{grid-template-columns:1fr}
+#cromo-home .cr-xp-fly{position:relative;display:block;min-height:420px;overflow:hidden;background:#07080b;box-shadow:12px 12px 0 var(--red)}
+#cromo-home .cr-xp-fly img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .5s cubic-bezier(.22,1,.36,1)}
+#cromo-home .cr-xp-fly:hover img{transform:scale(1.04)}
+#cromo-home .cr-xp-body{padding:clamp(22px,3vw,44px);display:flex;flex-direction:column;gap:18px}
+#cromo-home .cr-xp-body .cr-k{font:700 18px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin:0}
+#cromo-home .cr-xp-body h3{margin:0;font-size:min(10vw,150px);color:#fff;-webkit-text-stroke:.06em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red);overflow-wrap:anywhere}
+#cromo-home .cr-xp-facts{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;gap:12px 40px;margin:0}
+#cromo-home .cr-xp-facts dt{font:700 16px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--steel)}
+#cromo-home .cr-xp-facts dd{margin:6px 0 0;font:700 clamp(26px,2.6vw,38px)/1 var(--body);text-transform:uppercase}
+#cromo-home .cr-xp-desc{margin:0;max-width:34em;font:500 clamp(21px,1.7vw,25px)/1.4 var(--body);color:#d7dbe4}
+#cromo-home .cr-xp-line{margin:0;font:600 22px/1.3 var(--body)}
+#cromo-home .cr-xp-line span{font:700 16px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--steel);margin-right:10px}
+#cromo-home .cr-xp-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:auto;padding-top:6px}
+
+#cromo-home .cr-cn{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:28px;align-items:start}
+#cromo-home .cr-cn-nodes{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+#cromo-home .cr-cn-nodes li{padding:22px;min-height:170px;display:flex;flex-direction:column;justify-content:space-between}
+#cromo-home .cr-cn-n{font-size:clamp(64px,7vw,120px);color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-cn-l{font:700 22px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--steel)}
+#cromo-home .cr-cn-side{padding:clamp(20px,2.4vw,34px);display:flex;flex-direction:column;gap:18px}
+#cromo-home .cr-cn-edges{list-style:none;margin:0;padding:0;display:grid;gap:0}
+#cromo-home .cr-cn-edges li{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-top:2px solid rgba(242,239,232,.22);font:700 22px/1.1 var(--body);text-transform:uppercase}
+#cromo-home .cr-cn-edges li:last-child{border-bottom:2px solid rgba(242,239,232,.22)}
+#cromo-home .cr-cn-edges b{color:var(--red);font-size:26px}
+#cromo-home .cr-cn-total,#cromo-home .cr-cn-empty{margin:0;font:600 21px/1.3 var(--body);color:#d7dbe4}
+#cromo-home .cr-cn-tag{margin:0;font-size:clamp(40px,4vw,64px);color:#fff;-webkit-text-stroke:.05em #030303;paint-order:stroke fill;text-shadow:0 .05em 0 var(--red)}
+#cromo-home .cr-cn-side .cr-btn{align-self:flex-start}
+
+@media(max-width:900px){
+  #cromo-home .cr-xp,#cromo-home .cr-cn{grid-template-columns:1fr}
+  #cromo-home .cr-xp-fly{min-height:320px;box-shadow:8px 8px 0 var(--red)}
+  #cromo-home .cr-xp-facts{grid-template-columns:1fr 1fr}
+  #cromo-home .cr-cn-nodes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #cromo-home .cr-xp-body h3{font-size:min(18vw,110px)}
 }
-#cromo-home .cr-keep h2{
-  font-family:"Broken Glass","Barlow Condensed",sans-serif;
-  font-weight:400;
-  color:#f4f1e8;
-  -webkit-text-stroke:2px #050505;
-  paint-order:stroke fill;
-  text-shadow:.04em .05em 0 #e12e34;
-  line-height:.9;
+@media(prefers-reduced-motion:reduce){
+  #cromo-home .cr-xp-fly img{transition:none}
+  #cromo-home .cr-xp-fly:hover img{transform:none}
 }
-#cromo-home .cr-keep .mono,
-#cromo-home .cr-keep .eyebrow,
-#cromo-home .cr-keep [class*="kicker"],
-#cromo-home .cr-keep [class*="tagline"]{
-  font-family:"Space Mono",monospace;
-  color:#f4f1e8;
-}
-#cromo-home .cr-keep a.enter,
-#cromo-home .cr-keep a[class*="route"]{
-  display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
-  background:#e12e34;color:#fff;text-decoration:none;
-  font:700 13px/1 "Space Mono",monospace;letter-spacing:.06em;text-transform:uppercase;
-}
-#cromo-home .cr-keep :focus-visible{outline:3px solid #f4f1e8;outline-offset:3px}
-#cromo-home .cr-keep .genesis-bg,
-#cromo-home .cr-keep .genesis-noise,
-#cromo-home .cr-keep .genesis-scanline{display:none}
-#cromo-home .cr-keep [class*="connected"] svg [stroke]{stroke:#e12e34}
-#cromo-home .cr-keep [class*="connected-node"]{background:#050505;border:2px solid #f4f1e8;color:#f4f1e8}
