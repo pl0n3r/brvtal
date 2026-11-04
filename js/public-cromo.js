@@ -135,6 +135,7 @@ void main(){
   let last = 0;
   let slow = 0;
   let running = false;
+  let kickAt = 0;
   let mounted = false;
   let frameId = 0;
   let accent = [.83, .14, .17];
@@ -143,7 +144,9 @@ void main(){
     const t = reduceMotion.matches ? 0 : now / 1000;
     mouseX += (pointerX - mouseX) * .06;
     mouseY += (pointerY - mouseY) * .06;
-    const pulse = reduceMotion.matches ? 0 : .2 * Math.max(0, Math.sin(t * 3.1));
+    const soundOn = root.classList.contains('cromo-sound-on');
+    const idle = .2 * Math.max(0, Math.sin(t * 3.1));
+    const pulse = reduceMotion.matches ? 0 : (soundOn ? Math.exp(-(performance.now() / 1000 - kickAt) * 7) : idle);
     beat += (pulse - beat) * .5;
     gl.uniform2f(uRes, canvas.width, canvas.height);
     gl.uniform1f(uT, t);
@@ -195,6 +198,9 @@ void main(){
     draw(0);
     root.classList.add('cromo');
     mounted = true;
+    decorateHero();
+    window.setTimeout(buildNext, 1500);
+    window.setTimeout(buildNext, 4000);
     // If the stylesheet failed to load the canvas would sit in normal flow.
     if (getComputedStyle(canvas).position !== 'fixed') {
       unmount();
@@ -219,6 +225,56 @@ void main(){
   };
   if (reduceMotion.addEventListener) reduceMotion.addEventListener('change', onMotionChange);
   else if (reduceMotion.addListener) reduceMotion.addListener(onMotionChange);
+
+  window.addEventListener('cromo:beat', () => { kickAt = performance.now() / 1000; });
+
+  // Hero: the wordmark enters letter by letter (transform only, text never hidden)
+  // and the next night is repeated on a card next to the buttons.
+  const splitWordmark = () => {
+    const title = document.querySelector('.home-phase-a-hero .hero-title');
+    if (!title || title.dataset.cromoSplit || reduceMotion.matches) return;
+    const text = title.textContent.trim();
+    if (!text) return;
+    title.dataset.cromoSplit = '1';
+    title.setAttribute('aria-label', text);
+    title.textContent = '';
+    Array.from(text).forEach((char, index) => {
+      const span = document.createElement('span');
+      span.className = 'cromo-l';
+      span.setAttribute('aria-hidden', 'true');
+      span.style.setProperty('--i', String(index));
+      span.textContent = char;
+      title.appendChild(span);
+    });
+  };
+  const buildNext = () => {
+    const hero = document.querySelector('.home-phase-a-hero .hero-copy');
+    const copy = document.querySelector('#genesis .genesis-copy');
+    if (!hero || !copy || hero.querySelector('.cromo-next')) return;
+    const name = copy.querySelector('h2');
+    const data = Array.from(copy.querySelectorAll('.genesis-data span')).map((s) => s.textContent.trim()).filter(Boolean);
+    const ticket = copy.querySelector('.ticket-cta');
+    const more = copy.querySelector('.enter');
+    const link = ticket || more;
+    if (!name || !name.textContent.trim() || !data.length || !link) return;
+    const card = document.createElement('aside');
+    card.className = 'cromo-next';
+    card.setAttribute('aria-label', 'Próxima noche');
+    const kicker = document.createElement('span');
+    kicker.className = 'cromo-next-k';
+    kicker.textContent = 'Próxima noche';
+    const title = document.createElement('strong');
+    title.textContent = name.textContent.trim();
+    const info = document.createElement('p');
+    info.textContent = data.join(' · ');
+    const action = document.createElement('a');
+    action.href = link.getAttribute('href') || '#';
+    action.textContent = ticket ? 'Entradas' : 'Ver noche';
+    if (ticket) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
+    card.append(kicker, title, info, action);
+    hero.appendChild(card);
+  };
+  const decorateHero = () => { splitWordmark(); buildNext(); };
 
   if (document.body) mount();
   else document.addEventListener('DOMContentLoaded', mount, { once: true });
