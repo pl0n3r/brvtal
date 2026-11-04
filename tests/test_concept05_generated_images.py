@@ -129,7 +129,7 @@ class Concept05GeneratedImagesTests(unittest.TestCase):
         """AC-01: the CMS media projection still supplies meaningful image alt."""
         source = (ROOT / "js/public-concept05-hero.js").read_text(encoding="utf-8")
         self.assertIn("image.dataset.c5EditorialMedia = key", source)
-        self.assertRegex(source, r"image\.alt\s*=\s*['\"]BRVTAL editorial ['\"]\s*\+")
+        self.assertRegex(source, r"image\.alt\s*=\s*['\"]Editorial BRVTAL: ['\"]\s*\+")
         for name in ("hero_face", "crowd", "artists", "memories", "nights"):
             with self.subTest(key=name):
                 self.assertRegex(source, r"\b" + re.escape(name) + r":\s*['\"]")

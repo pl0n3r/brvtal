@@ -160,7 +160,7 @@ contact_assert(str_contains($styles, 'font:16px "Space Mono"'), 'form controls a
 contact_assert(!str_contains($indexHtml, 'id="brvtalContactForm"'), 'Home source does not contain the complete Contact form');
 $homeMenu = brvtalPublicHomeConcept05Menu('<aside class="menu-panel" id="menuPanel" aria-hidden="true"></aside>');
 contact_assert(
-    str_contains($homeMenu, '<a href="/contact"><span>08</span><strong>CONTACT</strong></a>'),
+    str_contains($homeMenu, '<a href="/contact"><span>08</span><strong>CONTACTO</strong></a>'),
     'Home navigation is server-rendered to the dedicated Contact route'
 );
 $homeFooter = brvtalPublicHomeConcept05Footer('<footer class="footer scene"></footer>');

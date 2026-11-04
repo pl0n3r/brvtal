@@ -34,15 +34,9 @@
 
   <header class="nav">
     <a class="brand magnetic" href="#top" data-cursor="INICIO"><span data-site-name>BRVTAL</span><small data-site-tagline>RAVE TILL GRAVE</small></a>
-    <div class="nav-center mono"><span id="sceneName">CORE</span><b>///</b><span id="sceneCount">01</span></div>
+    <div class="nav-center mono"><span id="sceneName">NÚCLEO</span><b>///</b><span id="sceneCount">01</span></div>
     <div class="nav-right">
-      <fieldset class="language-selector" id="languageSelector">
-        <legend>Idioma / Language</legend>
-        <button type="button" class="language-option magnetic" data-locale="es" aria-pressed="true" data-cursor="ES">ES</button>
-        <span class="language-separator" aria-hidden="true">/</span>
-        <button type="button" class="language-option magnetic" data-locale="en" aria-pressed="false" data-cursor="EN" disabled>EN</button>
-      </fieldset>
-      <button class="menu magnetic" id="menuToggle" data-cursor="MENÚ">MENU <strong>+</strong></button>
+      <button class="menu magnetic" id="menuToggle" data-cursor="MENÚ">MENÚ <strong>+</strong></button>
     </div>
   </header>
 
@@ -56,7 +50,7 @@
         <a href="#events"><span>03</span><span class="menu-copy" data-i18n-key="nav.events">EVENTOS</span></a>
         <a href="#artists"><span>04</span><span class="menu-copy" data-i18n-key="nav.artists">ARTISTAS</span></a>
         <a href="#sets"><span>05</span><span class="menu-copy" data-i18n-key="nav.sets">SETS / SONIDO</span></a>
-        <a href="#media"><span>06</span><span class="menu-copy" data-i18n-key="nav.media">MEDIA</span></a>
+        <a href="#media"><span>06</span><span class="menu-copy" data-i18n-key="nav.media">ARCHIVO VISUAL</span></a>
         <a href="#contact"><span>07</span><span class="menu-copy" data-i18n-key="nav.contact">CONTACTO</span></a>
       </nav>
       <div class="menu-footer mono">PEREIRA — COLOMBIA / RAVE TILL GRAVE</div>
@@ -76,7 +70,7 @@
       <div class="hero-logo-wrap">
         <picture style="display:block;width:100%">
         <source media="(min-width: 901px)" type="image/webp" srcset="assets/brvtal-logo-640.webp 640w, assets/brvtal-logo-886.webp 886w" sizes="(min-width: 1239px) 520px, 42vw">
-        <img src="assets/brvtal-logo.jpeg" alt="BRVTAL official logo" class="hero-logo">
+        <img src="assets/brvtal-logo.jpeg" alt="Logotipo oficial de BRVTAL" class="hero-logo">
       </picture>
         <div class="hero-logo-glitch"></div>
       </div>
@@ -92,7 +86,7 @@
       <div class="genesis-copy">
         <div class="eyebrow mono">PRÓXIMA EXPERIENCIA / BRVTAL × RANDOM KORE</div>
         <h2 data-text="GENESIS">GENESIS</h2>
-        <p class="genesis-tag">ONE NIGHT ONLY.</p>
+        <p class="genesis-tag">UNA SOLA NOCHE.</p>
         <div class="genesis-data mono"><span>14.08.2026</span><span>21:00</span><span>PEREIRA / COLOMBIA</span></div>
         <a class="enter magnetic" href="#events" data-cursor="ENTRAR">ENTRAR <span>↗</span></a>
       </div>
@@ -105,53 +99,37 @@
     </div>
     <!-- 02/03: Nights and Artists -->
     <div class="c5-board-region c5-board-region--pair" data-c5-board="02-03" aria-label="02 Nights, 03 Artists">
-    <section class="events scene" data-dynamic="events" id="events" data-scene="ARCHIVE" data-index="04">
-      <div class="section-head"><span class="mono">EVENTS / 03</span><h2 data-i18n-key="nav.events">EVENTOS</h2><span class="mono">ARRASTRA / DESLIZA →</span></div>
-      <div class="events-track">
-        <article class="event-card event-active" data-public-event-id="1">
-<div class="event-img"><picture style="display:block;width:100%;height:100%"><source media="(min-width: 901px)" type="image/webp" srcset="assets/flyers/genesis-640.webp 640w, assets/flyers/genesis-886.webp 886w" sizes="(min-width: 1334px) 880px, 66vw"><img src="assets/flyers/F60DFB48-3DB5-4E3E-B627-BF1B8129EB1D_1_105_c.jpeg" alt="Genesis"></picture></div>
-          <div class="event-info"><span class="mono">14.08.2026 / PEREIRA</span><h3>GENESIS</h3><p>BRVTAL × RANDOM KORE</p><span class="event-status">PRÓXIMA EXPERIENCIA</span></div>
-        </article>
-      </div>
-
-      <div class="event-archive" id="eventArchive" data-dynamic="archive">
-        <div class="event-archive-head">
-          <div><div class="event-archive-kicker mono">NOCHES PASADAS / REGISTRO PERMANENTE</div><h3>ARCHIVO</h3></div>
-          <div class="archive-summary mono">2 NIGHTS / VISUAL &amp; AUDIO MEMORY</div>
-        </div>
+    <section class="events scene c5-numbered" data-dynamic="events" id="events" data-scene="ARCHIVE" data-index="02" aria-labelledby="c5-nights-title">
+      <link rel="stylesheet" href="css/public-concept05-nights-artists.css">
+      <div class="section-head"><span class="mono">NOCHES BRVTAL / 02</span><h2 id="c5-nights-title">ÚLTIMAS NOCHES</h2><span class="mono">ARCHIVO / PASADO</span></div>
+      <div class="c5-past-nights" data-c5-past-nights aria-label="Noches pasadas publicadas" aria-live="polite"></div>
+      <div class="events-track" data-c5-legacy-track hidden aria-hidden="true"></div>
+      <p class="c5-cms-empty mono" data-c5-nights-empty role="status">AÚN NO HAY NOCHES PUBLICADAS.</p>
+      <a class="c5-section-route c5-section-route--nights" href="#eventArchive" hidden>VER TODAS LAS NOCHES ↗</a>
+      <div class="event-archive" id="eventArchive" data-dynamic="archive" hidden>
+                <div class="event-archive-head"><div><div class="event-archive-kicker mono">NOCHES PASADAS / REGISTRO PERMANENTE</div><h3>ARCHIVO</h3></div><div class="archive-summary mono" aria-live="polite"></div></div>
         <div class="archive-discovery" aria-label="Buscar y filtrar el archivo">
-          <label class="archive-search"><span class="mono" data-i18n-key="search.history">BUSCAR HISTORIA</span><input type="search" data-archive-search placeholder="EVENT, CITY, VENUE OR ARTIST" autocomplete="off"></label>
-          <div class="archive-relations" aria-label="Filtrar por contenido relacionado"><button type="button" class="active" data-archive-relation="all">TODOS LOS REGISTROS</button><button type="button" data-archive-relation="artists">CON ARTISTAS</button><button type="button" data-archive-relation="sets">CON SETS</button><button type="button" data-archive-relation="memories">CON MEMORIAS</button></div>
+          <label class="archive-search"><span class="mono">BUSCAR HISTORIA</span><input type="search" data-archive-search placeholder="EVENTO, CIUDAD, LUGAR O ARTISTA" autocomplete="off"></label>
+          <div class="archive-relations" aria-label="Filtrar por contenido relacionado">
+            <button type="button" class="active" data-archive-relation="all">TODOS LOS REGISTROS</button>
+            <button type="button" data-archive-relation="artists">CON ARTISTAS</button>
+            <button type="button" data-archive-relation="sets">CON SETS</button>
+            <button type="button" data-archive-relation="memories">CON MEMORIAS</button>
+          </div>
         </div>
-        <div class="archive-years" aria-label="Filtrar el archivo por año"><button type="button" class="active" data-archive-filter="all">TODOS LOS AÑOS</button><button type="button" data-archive-filter="2026">2026</button></div>
+        <div class="archive-years" aria-label="Filtrar el archivo por año"></div>
         <div class="archive-results mono" data-archive-results aria-live="polite"></div>
         <div class="archive-no-results" data-archive-empty hidden><p>NINGÚN REGISTRO COINCIDE CON LOS FILTROS.</p><button type="button" class="mono" data-archive-reset>BORRAR FILTROS</button></div>
-        <div class="archive-grid">
-          <article class="archive-event" data-archive-event data-archive-year="2026" data-archive-id="2">
-            <div class="archive-event-image"><img src="assets/flyers/FA92C836-974E-4ADA-A9E5-6BA6CDFB4FDC_4_5005_c.jpeg" alt="BRVTAL Session #5"></div>
-            <div class="archive-event-copy"><div class="archive-event-meta mono"><span>07.08.2026 / PEREIRA</span><span>ARCHIVO</span></div><h3>SESSION #5</h3><p>PERKS / DNL5 / JUJOCA / PSY ANGER</p><div class="archive-event-relations mono">REGISTRO HISTÓRICO</div></div>
-          </article>
-          <article class="archive-event" data-archive-event data-archive-year="2026" data-archive-id="3">
-            <div class="archive-event-image"><img src="assets/flyers/9ABAB569-6029-4D4E-8A20-E9DF3749106E_1_105_c.jpeg" alt="BRVTAL"></div>
-            <div class="archive-event-copy"><div class="archive-event-meta mono"><span>2026 / PEREIRA</span><span>ARCHIVO</span></div><h3>BRVTAL</h3><p>RAVE TILL GRAVE</p><div class="archive-event-relations mono">REGISTRO HISTÓRICO</div></div>
-          </article>
-        </div>
+        <div class="archive-grid" aria-label="Historial publicado"></div>
       </div>
-
-      <div class="archive-mark mono">THE NIGHT<br>REMAINS.</div>
     </section>
 
-    <section class="artists scene" data-dynamic="artists" id="artists" data-scene="CORE" data-index="05">
-      <div class="section-head"><span class="mono">ROSTER / 04</span><h2 data-i18n-key="nav.artists">ARTISTAS</h2><span class="mono">MOVE CURSOR</span></div>
-      <div class="artist-list">
-        <a class="artist" href="#" data-image="assets/flyers/02B92101-8059-40A8-A21A-01D668B55604_1_105_c.jpeg" data-cursor="PROFILE"><span>01</span><strong>HAKKI</strong><i>RAW / HARD TECHNO</i></a>
-        <a class="artist" href="#" data-image="assets/flyers/952EC6EF-663E-493D-B59D-14E3E8120F34_1_105_c.jpeg" data-cursor="PROFILE"><span>02</span><strong>DNL5</strong><i>HARDCORE / INDUSTRIAL</i></a>
-        <a class="artist" href="#" data-image="assets/flyers/C6F670FC-5489-449C-B0A9-1658371FFCB2_1_105_c.jpeg" data-cursor="PROFILE"><span>03</span><strong>CRIXXES'T</strong><i>HARD TECHNO / RAW</i></a>
-        <a class="artist" href="#" data-image="assets/flyers/9AAA8951-4E95-4784-844F-155E33686E74_4_5005_c.jpeg" data-cursor="PROFILE"><span>04</span><strong>PLON3R</strong><i>TECHNO / HARD DANCE</i></a>
-        <a class="artist" href="#" data-image="assets/flyers/B1194F6A-8D66-4846-8F18-0C596856082C_4_5005_c.jpeg" data-cursor="PROFILE"><span>05</span><strong>JUJOCA</strong><i>PSY / HARDCORE</i></a>
-      </div>
-      <div class="artist-preview"><img src="assets/flyers/02B92101-8059-40A8-A21A-01D668B55604_1_105_c.jpeg" alt="Artist preview"></div>
-      <div class="artist-crosshair mono">X: <span>000</span><br>Y: <span>000</span></div>
+    <section class="artists scene c5-numbered" data-dynamic="artists" id="artists" data-scene="CORE" data-index="03" aria-labelledby="c5-artists-title">
+      <div class="section-head"><span class="mono">ARTISTAS BRVTAL / 03</span><h2 id="c5-artists-title">ARTISTAS</h2><span class="mono">ELENCO / PUBLICADO</span></div>
+      <div class="artist-list" aria-label="Artistas publicados" aria-live="polite"></div>
+      <p class="c5-cms-empty mono" data-c5-artists-empty role="status">AÚN NO HAY ARTISTAS PUBLICADOS.</p>
+      <a class="c5-section-route c5-section-route--artists" href="#artists">VER ARTISTAS ↗</a>
+      <script defer src="js/public-concept05-nights-artists.js"></script>
     </section>
 
     </div>
@@ -167,17 +145,17 @@
       <div class="set-list">
         <article class="set-item" data-cursor="PLAY">
           <div class="set-num mono">001</div>
-          <div class="set-main"><span class="mono">BRVTAL SESSION #5</span><h4>PERKS — LIVE SET</h4><p>HARDCORE / INDUSTRIAL / RAW</p></div>
+          <div class="set-main"><span class="mono">SESIÓN BRVTAL #5</span><h4>PERKS — SET EN VIVO</h4><p>HARDCORE / INDUSTRIAL / RAW</p></div>
           <a href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="SOUNDCLOUD">↗</a>
         </article>
         <article class="set-item" data-cursor="PLAY">
           <div class="set-num mono">002</div>
-          <div class="set-main"><span class="mono">GENESIS / ARCHIVE</span><h4>BRVTAL × RANDOM KORE</h4><p>HARD TECHNO / SPEEDCORE / TERRORCORE</p></div>
+          <div class="set-main"><span class="mono">GENESIS / ARCHIVO</span><h4>BRVTAL × RANDOM KORE</h4><p>HARD TECHNO / SPEEDCORE / TERRORCORE</p></div>
           <a href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="SOUNDCLOUD">↗</a>
         </article>
         <article class="set-item" data-cursor="PLAY">
           <div class="set-num mono">003</div>
-          <div class="set-main"><span class="mono">BRVTAL RADIO</span><h4>SELECTED FREQUENCIES</h4><p>TECHNO / HARD DANCE / HARDCORE</p></div>
+          <div class="set-main"><span class="mono">BRVTAL RADIO</span><h4>FRECUENCIAS SELECCIONADAS</h4><p>TECHNO / HARD DANCE / HARDCORE</p></div>
           <a href="https://soundcloud.com/" target="_blank" rel="noopener" class="set-action magnetic" data-cursor="SOUNDCLOUD">↗</a>
         </article>
       </div>
@@ -189,20 +167,20 @@
         <h2 id="memories-title">MEMORIAS</h2>
         <div class="media-title-note">
           <strong>LA NOCHE PERMANECE.</strong>
-          <p>A curated record of light, noise, bodies and afterimages.</p>
+          <p>Un registro seleccionado de luces, ruido, cuerpos y ecos visuales.</p>
         </div>
       </div>
       <div class="public-media-tools" aria-label="Buscar y filtrar contenido audiovisual">
         <label><span class="mono">BUSCAR</span><input type="search" data-public-media-search placeholder="TÍTULO O DESCRIPCIÓN" autocomplete="off"></label>
-        <div class="public-media-types" aria-label="Filter media by type"><button type="button" class="active" data-public-media-type="all">TODO</button><button type="button" data-public-media-type="image">IMÁGENES</button><button type="button" data-public-media-type="video">VÍDEO</button><button type="button" data-public-media-type="audio">AUDIO</button></div>
+        <div class="public-media-types" aria-label="Filtrar contenido por tipo"><button type="button" class="active" data-public-media-type="all">TODO</button><button type="button" data-public-media-type="image">IMÁGENES</button><button type="button" data-public-media-type="video">VÍDEO</button><button type="button" data-public-media-type="audio">AUDIO</button></div>
       </div>
       <div class="public-media-count mono" data-public-media-count aria-live="polite"></div>
       <div class="public-media-empty" data-public-media-empty hidden><p>NINGUNA MEMORIA COINCIDE CON LOS FILTROS.</p><button type="button" class="mono" data-public-media-reset>BORRAR FILTROS</button></div>
       <div class="media-grid">
-        <figure class="m m1"><img src="assets/flyers/16F766DE-0FEE-4D73-B62D-B005EA36903E_1_105_c.jpeg" alt="BRVTAL media"></figure>
-        <figure class="m m2"><img src="assets/flyers/A91125F9-BFFC-4ECC-A2C7-8FA94026235F_1_105_c.jpeg" alt="BRVTAL media"></figure>
-        <figure class="m m3"><img src="assets/flyers/E2FF791E-B1CC-4066-9D8D-F4B03BAE4A6D_4_5005_c.jpeg" alt="BRVTAL media"></figure>
-        <figure class="m m4"><img src="assets/flyers/7A59264A-1665-4D9C-BBA8-64528088B29B_4_5005_c.jpeg" alt="BRVTAL media"></figure>
+        <figure class="m m1"><img src="assets/flyers/16F766DE-0FEE-4D73-B62D-B005EA36903E_1_105_c.jpeg" alt="Archivo visual BRVTAL"></figure>
+        <figure class="m m2"><img src="assets/flyers/A91125F9-BFFC-4ECC-A2C7-8FA94026235F_1_105_c.jpeg" alt="Archivo visual BRVTAL"></figure>
+        <figure class="m m3"><img src="assets/flyers/E2FF791E-B1CC-4066-9D8D-F4B03BAE4A6D_4_5005_c.jpeg" alt="Archivo visual BRVTAL"></figure>
+        <figure class="m m4"><img src="assets/flyers/7A59264A-1665-4D9C-BBA8-64528088B29B_4_5005_c.jpeg" alt="Archivo visual BRVTAL"></figure>
       </div>
       <div class="media-end mono">EL ARCHIVO CONTINÚA / SE AÑADIRÁN MÁS MEMORIAS.</div>
     </section>
@@ -210,24 +188,41 @@
     </div>
     <!-- 06/07: Journal and future connected CMS region; no synthetic data -->
     <div class="c5-board-region c5-board-region--pair" data-c5-board="06-07" aria-label="06 Journal, 07 Connected">
-    <section class="scene transmissions" id="transmissions" data-dynamic="transmissions" data-scene="ARCHIVE" data-index="07">
-      <div class="section-head"><span class="mono">SEÑAL EDITORIAL / 06</span><h2>TRANSMISSIONS</h2><span class="mono" data-transmissions-count>ARCHIVO DE SEÑALES</span></div>
+    <section class="scene transmissions c5-numbered" id="transmissions" data-dynamic="transmissions" data-scene="ARCHIVE" data-index="06">
+      <div class="section-head"><span class="mono">BRVTAL JOURNAL / 06</span><h2>JOURNAL</h2><span class="mono" data-transmissions-count>ARCHIVO DE SEÑALES</span></div>
       <div class="transmissions-intro">
         <h3>NOTAS DE<br>CAMPO.</h3>
-        <p>Dispatches from BRVTAL culture: records, context and connections published from the archive.</p>
+        <p>Crónicas de la cultura BRVTAL: registros, contexto y conexiones publicados en el archivo.</p>
       </div>
       <div class="transmissions-list" data-transmissions-list>
-        <article class="transmission-card"><div class="transmission-index mono">00</div><div class="transmission-copy"><div class="transmission-meta mono">ARCHIVO DE SEÑALES</div><h3>CARGANDO TRANSMISIONES.</h3><p>Editorial records appear here when the public archive is available.</p></div></article>
+        <article class="transmission-card"><div class="transmission-index mono">00</div><div class="transmission-copy"><div class="transmission-meta mono">ARCHIVO DE SEÑALES</div><h3>CARGANDO TRANSMISIONES.</h3><p>Los registros editoriales aparecerán aquí cuando el archivo público esté disponible.</p></div></article>
       </div>
     </section>
 
+<section class="connected scene c5-numbered" data-scene="ARCHIVE" data-index="07" id="connected" aria-labelledby="connected-title">
+  <div class="c5-connected-graph" data-connected-graph aria-live="polite">
+    <h2 id="connected-title" class="sr-only">Conectado</h2>
+    <div class="c5-connected-kicker mono">SISTEMA RELACIONAL PÚBLICO / SOLO VÍNCULOS VERIFICADOS</div>
+    <svg class="c5-connected-lines" data-connected-lines aria-hidden="true"></svg>
+    <ul class="c5-connected-nodes">
+      <li data-connected-node="events"><a href="#events"><span class="mono">EVENTOS</span><strong data-connected-count>&mdash;</strong></a></li>
+      <li data-connected-node="artists"><a href="#artists"><span class="mono">ARTISTAS</span><strong data-connected-count>&mdash;</strong></a></li>
+      <li data-connected-node="sets"><a href="#sets"><span class="mono">SONIDO</span><strong data-connected-count>&mdash;</strong></a></li>
+      <li data-connected-node="releases"><a href="/releases"><span class="mono">DISCOS</span><strong data-connected-count>&mdash;</strong></a></li>
+      <li data-connected-node="memories"><a href="#media"><span class="mono">MEMORIAS</span><strong data-connected-count>&mdash;</strong></a></li>
+    </ul>
+    <div class="c5-connected-ledger" data-connected-ledger aria-label="Relaciones publicadas"></div>
+    <p class="c5-connected-edges mono" data-connected-edges>&nbsp;</p>
+    <p class="c5-connected-tagline">TODO CONECTADO.</p>
+  </div>
+</section>
 
     </div>
     <footer class="footer scene" id="contact" data-scene="CORE">
       <div class="footer-main">
         <span class="mono">BRVTAL / PEREIRA / COLOMBIA</span>
         <h2>RAVE<br><em>TILL GRAVE</em></h2>
-        <div class="footer-cta"><a class="footer-link magnetic" href="mailto:contact@brvtal.com.co" data-cursor="CONTACT"><span data-i18n-key="nav.contact">CONTACTO</span> ↗</a><a class="footer-link magnetic" href="https://soundcloud.com/" target="_blank" rel="noopener" data-social="soundcloud" data-cursor="SOUNDCLOUD">SOUNDCLOUD ↗</a></div>
+        <div class="footer-cta"><a class="footer-link magnetic" href="mailto:contact@brvtal.com.co" data-cursor="CONTACTO"><span data-i18n-key="nav.contact">CONTACTO</span> ↗</a><a class="footer-link magnetic" href="https://soundcloud.com/" target="_blank" rel="noopener" data-social="soundcloud" data-cursor="SOUNDCLOUD">SOUNDCLOUD ↗</a></div>
       </div>
       <div class="footer-bottom mono"><span>© 2026 BRVTAL</span><span>INSTAGRAM / SOUNDCLOUD / YOUTUBE</span><span data-current-locale>ES</span></div>
     </footer>

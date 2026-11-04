@@ -136,7 +136,7 @@ test('dynamic CMS nodes keep cursor, magnetic and artist-preview behavior after 
   await expect(artist).toHaveAttribute('data-dynamic-bound', '1');
   await expect(artist).toHaveAttribute('data-dynamic-artist-bound', '1');
   await artist.hover();
-  await expect(page.locator('.cursor-label')).toHaveText('PROFILE');
+  await expect(page.locator('.cursor-label')).toHaveText('PERFIL');
   await expect(page.locator('.artist-preview img')).toHaveAttribute('src', '/uploads/pl0n3r.jpg');
 
   const magnetic = page.locator('.set-action');

@@ -156,8 +156,13 @@ class PublicConcept05OwnerReferenceV2Tests(unittest.TestCase):
 
     def test_shell_navigation_mobile_bar_and_images_are_safe(self) -> None:
         shell = SHELL.read_text(encoding="utf-8")
+        # V2 reference stores the historic EN vocabulary; the public Home
+        # now renders Spanish-only fixed navigation, with JOURNAL unchanged.
+        home_labels = {"NIGHTS": "NOCHES", "ARTISTS": "ARTISTAS",
+                       "SOUND": "SONIDO", "RECORDS": "DISCOS",
+                       "CONNECTED": "CONECTADO", "TICKETS": "ENTRADAS"}
         for label in self.contract["shell_navigation"]:
-            self.assertIn(label, self.home)
+            self.assertIn(home_labels.get(label, label), self.home)
         self.assertIn("c5-bottom-nav", self.home)
         self.assertIn("safeMedia", NIGHTS_RUNTIME.read_text(encoding="utf-8"))
         self.assertIn("fail", SOUND_RUNTIME.read_text(encoding="utf-8").lower())
