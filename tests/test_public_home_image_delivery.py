@@ -144,9 +144,8 @@ class PublicHomeImageDeliveryTests(unittest.TestCase):
     def test_unavailable_sidecar_keeps_original_and_accessible_alt(self):
         # This executes the PHP renderer without a CMS, network or fake WebP proof.
         snippet = (
-            "require 'config/public_assets.php';"
-            "echo brvtal_public_optimize_home_images("
-            "'<img src=\\\"/uploads/media/unavailable.png\\\" alt=\\\"Archive poster\\\">');"
+            """require 'config/public_assets.php';"""
+            """echo brvtal_public_optimize_home_images('<img src="/uploads/media/unavailable.png" alt="Archive poster">');"""
         )
         result = subprocess.run(
             ["php", "-r", snippet], cwd=ROOT, capture_output=True,
