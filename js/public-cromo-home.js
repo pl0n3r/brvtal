@@ -415,32 +415,46 @@
     const related = (key) => [...(adjacency.get(key) || [])].map((k) => entities.get(k)).filter(Boolean);
     const labels = (items) => joinNames(items.map((x) => x.label));
     const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    const memoryCaption = (entity, memories) => {
+      if (!memories.length) return '';
+      const verb = entity.kind === 'noche' ? 'Quedó registrada' : 'Aparece';
+      return verb + ' en ' + plural(memories.length, 'memoria', 'memorias') + ': ' + labels(memories) + '.';
+    };
+    const detailForNight = ({ artists, sounds }) => [
+      artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
+      sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''
+    ].filter(Boolean).join(' ');
+    const detailForArtist = (entity, { nights, sounds }) => [
+      nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
+      sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''
+    ].filter(Boolean).join(' ');
+    const detailForMemory = ({ nights, artists, sounds }) => [
+      nights.length ? 'Recuerda ' + labels(nights) + '.' : '',
+      artists.length ? 'Conecta con ' + labels(artists) + '.' : '',
+      sounds.length ? 'Incluye ' + labels(sounds) + '.' : ''
+    ].filter(Boolean).join(' ');
+    const detailForSound = (entity, { nights, artists }) => [
+      artists.length ? 'Lo hace ' + labels(artists) + '.' : '',
+      nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''
+    ].filter(Boolean).join(' ') || entity.label + '.';
+
     const sentenceOf = (entity) => {
       const around = related(entity.key);
-      const nights = around.filter((x) => x.kind === 'noche');
-      const artists = around.filter((x) => x.kind === 'artista');
-      const sounds = around.filter((x) => x.column === 'sonido');
-      const memories = around.filter((x) => x.kind === 'memoria');
       if (!around.length) return entity.label + ' todavía no tiene conexiones publicadas.';
-      const memoryText = memories.length
-        ? (entity.kind === 'noche' ? 'Quedó registrada' : 'Aparece') + ' en '
-          + plural(memories.length, 'memoria', 'memorias') + ': ' + labels(memories) + '.'
-        : '';
+      const groups = {
+        nights: around.filter((x) => x.kind === 'noche'),
+        artists: around.filter((x) => x.kind === 'artista'),
+        sounds: around.filter((x) => x.column === 'sonido'),
+        memories: around.filter((x) => x.kind === 'memoria')
+      };
+      let message;
+      if (entity.kind === 'noche') message = detailForNight(groups);
+      else if (entity.kind === 'artista') message = detailForArtist(entity, groups);
+      else if (entity.kind === 'memoria') message = detailForMemory(groups);
+      else message = detailForSound(entity, groups);
+      const memoryText = memoryCaption(entity, groups.memories);
       const withMemories = (message) => memoryText ? message + ' ' + memoryText : message;
-      if (entity.kind === 'noche') {
-        return withMemories([artists.length ? 'Tocan ' + labels(artists) + '.' : 'Aún no tiene artistas enlazados.',
-          sounds.length ? 'Quedó registrada en ' + plural(sounds.length, 'pieza de sonido', 'piezas de sonido') + ': ' + labels(sounds) + '.' : ''].filter(Boolean).join(' '));
-      }
-      if (entity.kind === 'artista') {
-        return withMemories([nights.length ? entity.label + ' toca en ' + labels(nights) + '.' : entity.label + ' aún no tiene noches publicadas.',
-          sounds.length ? 'Puedes escuchar ' + labels(sounds) + '.' : ''].filter(Boolean).join(' '));
-      }
-      if (entity.kind === 'memoria') {
-        return [nights.length ? 'Recuerda ' + labels(nights) + '.' : '',
-          artists.length ? 'Conecta con ' + labels(artists) + '.' : '',
-          sounds.length ? 'Incluye ' + labels(sounds) + '.' : ''].filter(Boolean).join(' ');
-      }
-      return withMemories([artists.length ? 'Lo hace ' + labels(artists) + '.' : '', nights.length ? 'Se grabó en ' + labels(nights) + '.' : ''].filter(Boolean).join(' ') || entity.label + '.');
+      return withMemories(message);
     };
     const actionOf = (entity) => ({ noche: 'Ver la noche', artista: 'Ver el artista', set: 'Escuchar el set', disco: 'Ver el disco', memoria: 'Ver la memoria' }[entity.kind]);
 
