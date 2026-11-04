@@ -53,7 +53,7 @@ function brvtal_public_unavailable_page(array $seo, string $analytics = ''): str
       <div class="entity-image"><img src="{$image}" alt="BRVTAL" loading="eager" fetchpriority="high" decoding="async"><span>503 / BRVTAL</span></div>
       <div class="entity-copy">
         <div class="entity-kicker">BRVTAL / ERROR TEMPORAL / 503</div>
-        <h1>DATOS NO DISPONIBLES POR AHORA</h1>
+        <h1 data-text="DATOS NO DISPONIBLES POR AHORA">DATOS NO DISPONIBLES POR AHORA</h1>
         <div class="entity-facts"><div><span>ESTADO</span><b>503 / REINTENTA MÁS TARDE</b></div></div>
         <div class="entity-actions"><a href="/">VOLVER AL INICIO ↗</a></div>
       </div>

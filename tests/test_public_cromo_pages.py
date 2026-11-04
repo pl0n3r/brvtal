@@ -39,7 +39,10 @@ class CromoPagesTests(unittest.TestCase):
 
     def test_palette_is_red_bone_black_with_installed_fonts_only(self) -> None:
         self.assertIn("#e12e34", CSS)
-        self.assertNotRegex(CSS, r"(?i)#b6ff00|#c8ff|lime")
+        # The only green is the glitch layer of the titles (same idea as the old Genesis title).
+        for rule in re.findall(r"([^{}]+)\{[^{}]*#b6ff00[^{}]*\}", CSS):
+            self.assertIn("[data-text]::", rule)
+        self.assertNotRegex(CSS, r"(?i)#c8ff|lime")
         for family in re.findall(r'font-family:([^;}]+)', CSS):
             for name in re.findall(r'"([^"]+)"', family):
                 self.assertIn(name, {"Broken Glass", "Barlow Condensed", "Space Mono"}, family)

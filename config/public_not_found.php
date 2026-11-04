@@ -36,7 +36,7 @@ function brvtal_public_not_found_page(array $seo, string $analytics = ''): strin
       <div class="entity-image"><img src="{$image}" alt="BRVTAL" loading="eager" fetchpriority="high" decoding="async"><span>404 / BRVTAL</span></div>
       <div class="entity-copy">
         <div class="entity-kicker">BRVTAL / NO ENCONTRADO / 404</div>
-        <h1>PÁGINA NO ENCONTRADA</h1>
+        <h1 data-text="PÁGINA NO ENCONTRADA">PÁGINA NO ENCONTRADA</h1>
         <div class="entity-facts"><div><span>ESTADO</span><b>404 / NO ENCONTRADO</b></div></div>
         <div class="entity-actions"><a href="/">VOLVER AL INICIO ↗</a></div>
       </div>
