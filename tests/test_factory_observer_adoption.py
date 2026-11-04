@@ -31,7 +31,7 @@ class FactoryObserverAdoptionTests(unittest.TestCase):
             "version_source: config/version.php",
             "version_format: php-const",
             "version_key: BRVTAL_APP_VERSION",
-            "require_schema: true",
+            "require_schema: false",
             "label_language: en",
         ):
             self.assertIn(required, self.text)
@@ -46,7 +46,7 @@ class FactoryObserverAdoptionTests(unittest.TestCase):
         self.assertIn("expected_sha: ${{ github.sha }}", self.text)
         self.assertIn("version_key: BRVTAL_APP_VERSION", self.text)
         self.assertIn("health_path: /api/health.php", self.text)
-        self.assertIn("require_schema: true", self.text)
+        self.assertIn("require_schema: false", self.text)
         self.assertIn("label_language: en", self.text)
         self.assertNotIn("/api/deployment.php", self.text)
 

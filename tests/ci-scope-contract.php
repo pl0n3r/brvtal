@@ -238,7 +238,7 @@ ci_scope_expect(str_contains($deployObserver, 'health_path: /api/health.php'), '
 ci_scope_expect(str_contains($deployObserver, 'version_source: config/version.php'), 'deploy observer must read the canonical BRVTAL version source');
 ci_scope_expect(str_contains($deployObserver, 'version_format: php-const'), 'deploy observer must parse the version without executing PHP');
 ci_scope_expect(str_contains($deployObserver, 'version_key: BRVTAL_APP_VERSION'), 'deploy observer must use the canonical BRVTAL version constant');
-ci_scope_expect(str_contains($deployObserver, 'require_schema: true'), 'deploy observer must preserve schema readiness');
+ci_scope_expect(str_contains($deployObserver, 'require_schema: false'), 'public health hides schema details: readiness is enforced by its HTTP 200/status=ok contract');
 ci_scope_expect(str_contains($deployObserver, 'label_language: en'), 'deploy observer must preserve the English incident lifecycle');
 ci_scope_expect(str_contains($deployObserver, 'contents: read') && str_contains($deployObserver, 'issues: write'), 'deploy observer must declare only the reusable permission envelope');
 ci_scope_expect(!str_contains($deployObserver, 'pull_request:') && !str_contains($deployObserver, 'pull_request_target:'), 'deploy observer must never execute from untrusted PR code');

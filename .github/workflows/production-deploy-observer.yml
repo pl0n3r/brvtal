@@ -21,7 +21,9 @@ jobs:
       version_format: php-const
       version_key: BRVTAL_APP_VERSION
       expected_sha: ${{ github.sha }}
-      require_schema: true
+      # Public health already fails closed on DB/migration drift; schema detail is private.
+      # Factory still checks HTTP 200, status, exact SHA and version.
+      require_schema: false
       convergence_attempts: 5
       convergence_delay_seconds: 30
       label_language: en
