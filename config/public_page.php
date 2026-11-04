@@ -498,7 +498,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     $eventStylesheet = $isEvent ? '<link rel="stylesheet" href="/css/public-event-record.css">' : '';
     $eventSignalRaw = trim((string)($entity['accent'] ?? ''));
     $eventSignal = $isEvent && preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $eventSignalRaw) ? $eventSignalRaw : '#b6ff00';
-    $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState : 'entity-page';
+    $bodyClass = $isEvent ? 'entity-page entity-page--event entity-page--event-' . $recordState . ' cromo-page' : 'entity-page cromo-page';
     $bodyAttributes = 'class="' . $escape($bodyClass) . '"';
     if ($isEvent) {
         $bodyAttributes .= ' data-event-record-state="' . $escape($recordState) . '" style="--event-signal:' . $escape($eventSignal) . '"';
@@ -530,6 +530,8 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
   {$eventStylesheet}
+  <link rel="stylesheet" href="/css/public-cromo.css">
+  <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
 <body {$bodyAttributes}>
   <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
@@ -548,6 +550,7 @@ function brvtal_public_entity_page(array $page, array $seo, string $analytics = 
     {$related}
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
+  <script src="/js/public-cromo.js" defer></script>
   {$analytics}
 </body>
 </html>
