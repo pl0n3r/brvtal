@@ -141,13 +141,13 @@ test('Banners renders from the scoped setting before Media Library hydration fin
     mediaResolved:window.__heroMediaResolved,
   }));
   expect(stateAtFirstRender.requests).toEqual([
-    '/media?view=hero-picker',
     '/settings?key=home.hero.slider',
+    '/media?view=hero-picker',
   ]);
   expect(stateAtFirstRender.mediaResolved).toBe(false);
   expect(await page.evaluate(() => window.__heroRequestOptions)).toEqual([
-    {path:'/media?view=hero-picker',cache:'no-store'},
     {path:'/settings?key=home.hero.slider',cache:'no-store'},
+    {path:'/media?view=hero-picker',cache:'no-store'},
   ]);
 
   await expect(picker).toBeEnabled({timeout:1500});
