@@ -42,8 +42,10 @@ function brvtal_public_unavailable_page(array $seo, string $analytics = ''): str
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/public-entity.css">
+  <link rel="stylesheet" href="/css/public-cromo.css">
+  <link rel="stylesheet" href="/css/public-cromo-pages.css">
 </head>
-<body>
+<body class="cromo-page">
   <a class="skip-link" href="#main-content">SKIP TO CONTENT</a>
   <header class="entity-nav"><a href="/" class="entity-brand">BRVTAL<small>RAVE TILL GRAVE</small></a><a href="/">← BACK HOME</a></header>
   <main id="main-content" tabindex="-1">
@@ -60,6 +62,7 @@ function brvtal_public_unavailable_page(array $seo, string $analytics = ''): str
   </main>
   <footer><strong>BRVTAL</strong><span>PEREIRA / COLOMBIA</span><span>RAVE TILL GRAVE</span></footer>
   {$analytics}
+  <script src="/js/public-cromo.js" defer></script>
 </body>
 </html>
 HTML;

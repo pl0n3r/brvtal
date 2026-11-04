@@ -71,9 +71,11 @@ function brvtalPublicPrivacyRightsDocument(
 <meta name="description" content="{{SUBTITLE}}">
 <link rel="stylesheet" href="/css/public-legibility.css">
 <link rel="stylesheet" href="/css/public-visual-identity.css">
+<link rel="stylesheet" href="/css/public-cromo.css">
+<link rel="stylesheet" href="/css/public-cromo-pages.css">
 {{SEO}}
 </head>
-<body class="brvtal-privacy-rights" data-privacy-rights-page>
+<body class="brvtal-privacy-rights cromo-page" data-privacy-rights-page>
 <a href="#privacy-content" class="skip-link">{{TITLE}}</a>
 <header><nav aria-label="BRVTAL"><a href="/">{{HOME}}</a></nav></header>
 <main id="privacy-content" tabindex="-1" style="max-width:54rem;margin:3rem auto;padding:1.5rem;line-height:1.7">
@@ -95,6 +97,7 @@ function brvtalPublicPrivacyRightsDocument(
 </main>
 <footer aria-label="BRVTAL"><span>© BRVTAL</span></footer>
 {{ANALYTICS}}
+<script src="/js/public-cromo.js" defer></script>
 </body>
 </html>
 HTML;
