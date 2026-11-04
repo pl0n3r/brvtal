@@ -101,7 +101,7 @@ function brvtal_public_sitemap_static_urls(string $base, array $paths): array
 function brvtalPublicSitemapLocalizedStaticUrls(
     string $base,
     array $paths,
-    array $locales = ['es', 'en']
+    array $locales = ['es']
 ): array {
     if (!brvtal_public_sitemap_origin_is_canonical($base)) {
         return [];
@@ -145,7 +145,7 @@ function brvtalPublicSitemapLocalizedEntityUrls(
     string $base,
     array $source,
     mixed $modified = null,
-    array $locales = ['es', 'en']
+    array $locales = ['es']
 ): array {
     if (!brvtal_public_sitemap_origin_is_canonical($base)) {
         return [];
@@ -240,13 +240,12 @@ function brvtal_public_sitemap_xml(array $urls, string $base): string
 {
     $lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="' . BRVTAL_SITEMAP_NAMESPACE . '" xmlns:xhtml="' . BRVTAL_SITEMAP_XHTML_NAMESPACE . '">',
+        '<urlset xmlns="' . BRVTAL_SITEMAP_NAMESPACE . '">',
     ];
 
     foreach ($urls as $row) {
         $location = $row[0] ?? '';
         $modified = $row[1] ?? null;
-        $alternates = is_array($row[2] ?? null) ? $row[2] : [];
         $canonicalLocation = brvtal_public_sitemap_location((string) $location, $base);
         if ($canonicalLocation === null) {
             continue;
@@ -263,20 +262,6 @@ function brvtal_public_sitemap_xml(array $urls, string $base): string
             $entry .= '<lastmod>' . $lastmod . '</lastmod>';
         }
 
-        foreach (['es', 'en', 'x-default'] as $hreflang) {
-            $alternate = brvtal_public_sitemap_location(
-                (string)($alternates[$hreflang] ?? ''),
-                $base
-            );
-            if ($alternate === null) {
-                continue;
-            }
-            $entry .= '<xhtml:link rel="alternate" hreflang="'
-                . $hreflang
-                . '" href="'
-                . htmlspecialchars($alternate, ENT_XML1 | ENT_QUOTES, 'UTF-8')
-                . '"/>';
-        }
         $lines[] = $entry . '</url>';
     }
 

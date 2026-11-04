@@ -14,7 +14,7 @@
 
   const localUrl = path => version ? `${path}?v=${encodeURIComponent(version)}` : path;
   const LOCALE_EVENT = 'brvtal:localechange';
-  const SAFE_LOCALES = new Set(['es', 'en']);
+  const SAFE_LOCALES = new Set(['es']);
 
   const safePublicText = value => {
     if (typeof value !== 'string') return '';
