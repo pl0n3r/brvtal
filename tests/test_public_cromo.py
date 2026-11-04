@@ -352,7 +352,7 @@ class CromoHomeKeepsEverySectionTests(unittest.TestCase):
             self.assertLess(parts.index(before), parts.index(after), parts)
 
     def test_both_sections_are_spanish_and_only_use_certified_relation_counts(self) -> None:
-        for phrase in ("Próxima experiencia", "Comprar tickets", "Ver la noche", "Todo está conectado.",
+        for phrase in ("Próxima experiencia", "Comprar tickets", "Ver la noche", "Cada línea une dos categorías",
                        "vínculos verificados en el archivo público", "Eventos", "Artistas", "Memorias"):
             self.assertIn(phrase, self.JS)
         self.assertNotRegex(self.JS, r"NEXT EXPERIENCE|VERIFIED RELATIONAL|ENTER EXPERIENCE")
@@ -392,7 +392,10 @@ class CromoMotionTests(unittest.TestCase):
 
     def test_connected_graph_is_interactive_and_accessible(self) -> None:
         self.assertIn("'aria-pressed'", self.JS)
-        self.assertIn("class: 'cn-node plate chrome-b', type: 'button'", self.JS)
+        self.assertIn("class: 'cn-node', type: 'button'", self.JS)
+        self.assertIn("createElementNS(SVG_NS", self.JS)       # a real node-link graph, not cards
+        self.assertIn("'stroke-width': width", self.JS)        # edge width encodes the number of links
+        self.assertIn("Math.sqrt(n)", self.JS)                 # node size encodes the number of items
         self.assertIn("softSwap(headingText", self.JS)
         self.assertIn("softSwap(totalText", self.JS)
         self.assertIn("event.key === 'Escape'", self.JS)
@@ -404,7 +407,7 @@ class CromoMotionTests(unittest.TestCase):
 
     def test_graph_and_swap_have_reduced_motion_fallbacks(self) -> None:
         block = "".join(self.HOME[m.start():] for m in re.finditer("prefers-reduced-motion", self.HOME))
-        for needle in ("cr-cn-node", "t-text-soft", "cr-cn-edges li{animation:none}"):
+        for needle in ("cr-cn-node", "cr-cn-line", "t-text-soft", "cr-cn-edges li{animation:none}"):
             self.assertIn(needle, block)
 
 
@@ -453,8 +456,19 @@ class CromoBannersTests(unittest.TestCase):
         self.assertIn("u glitch", self.JS)              # legacy-copy titles get the green glitch
         for anim in ("fade", "slide-up", "slide-left", "zoom"):
             self.assertIn("cr-bn-a-" + anim, self.CSS)
-        block = self.CSS[self.CSS.rindex("prefers-reduced-motion"):]
-        self.assertIn("cr-bn-layer{animation:none", block.replace(" ", ""))
+        blocks = "".join(self.CSS[m.start():] for m in re.finditer("prefers-reduced-motion", self.CSS))
+        self.assertIn("cr-bn-layer{animation:none", blocks.replace(" ", ""))
+
+
+    def test_graph_has_no_card_template_and_keeps_an_accessible_text_view(self) -> None:
+        # No eyebrow above the heading and no big-number/small-label cards: the circle holds the count.
+        self.assertNotIn("Conexiones del archivo", self.JS)
+        self.assertNotRegex(HOME_CSS, r"cr-cn-nodes\s*\{[^}]*grid-template-columns")
+        self.assertIn("aria-label': 'Grafo de relaciones del archivo", self.JS)
+        self.assertIn("title.textContent = a + ' ↔ '", self.JS)   # each line is described for assistive tech
+        self.assertIn("list.replaceChildren(...rows())", self.JS)  # the side list is the table view of the same data
+        self.assertIn("IntersectionObserver", self.JS)             # the draw-in plays once, when first seen
+        self.assertRegex(HOME_CSS, r"cr-cn-stage\.cr-is-in \.cr-cn-line\{stroke-dashoffset:0")
 
 
 if __name__ == "__main__":
